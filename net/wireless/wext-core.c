@@ -687,43 +687,13 @@ static int ioctl_standard_iw_point(struct iw_point *iwp, unsigned int cmd,
 				   iw_handler handler, struct net_device *dev,
 				   struct iw_request_info *info)
 {
-	int err, extra_size, user_length = 0, essid_compat = 0;
+	int err, extra_size, user_length = 0;
 	char *extra;
 
 	/* Calculate space needed by arguments. Always allocate
 	 * for max space.
 	 */
 	extra_size = descr->max_tokens * descr->token_size;
-
-	/* Check need for ESSID compatibility for WE < 21 */
-	switch (cmd) {
-	case SIOCSIWESSID:
-	case SIOCGIWESSID:
-	case SIOCSIWNICKN:
-	case SIOCGIWNICKN:
-		if (iwp->length == descr->max_tokens + 1)
-			essid_compat = 1;
-		else if (IW_IS_SET(cmd) && (iwp->length != 0)) {
-			char essid[IW_ESSID_MAX_SIZE + 1];
-			unsigned int len;
-			len = iwp->length * descr->token_size;
-
-			if (len > IW_ESSID_MAX_SIZE)
-				return -EFAULT;
-
-			err = copy_from_user(essid, iwp->pointer, len);
-			if (err)
-				return -EFAULT;
-
-			if (essid[iwp->length - 1] == '\0')
-				essid_compat = 1;
-		}
-		break;
-	default:
-		break;
-	}
-
-	iwp->length -= essid_compat;
 
 	/* Check what user space is giving us */
 	if (IW_IS_SET(cmd)) {
@@ -764,7 +734,6 @@ static int ioctl_standard_iw_point(struct iw_point *iwp, unsigned int cmd,
 		}
 	}
 
-	/* kzalloc() ensures NULL-termination for essid_compat. */
 	extra = kzalloc(extra_size, GFP_KERNEL);
 	if (!extra)
 		return -ENOMEM;
@@ -805,8 +774,6 @@ static int ioctl_standard_iw_point(struct iw_point *iwp, unsigned int cmd,
 	}
 
 	err = handler(dev, info, (union iwreq_data *) iwp, extra);
-
-	iwp->length += essid_compat;
 
 	/* If we have something to return to the user */
 	if (!err && IW_IS_GET(cmd)) {
