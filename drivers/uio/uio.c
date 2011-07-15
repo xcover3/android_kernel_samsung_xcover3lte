@@ -427,11 +427,6 @@ static irqreturn_t uio_interrupt(int irq, void *dev_id)
 	return ret;
 }
 
-struct uio_listener {
-	struct uio_device *dev;
-	s32 event_count;
-};
-
 static int uio_open(struct inode *inode, struct file *filep)
 {
 	struct uio_device *idev;
@@ -462,7 +457,7 @@ static int uio_open(struct inode *inode, struct file *filep)
 	filep->private_data = listener;
 
 	if (idev->info->open) {
-		ret = idev->info->open(idev->info, inode);
+		ret = idev->info->open(idev->info, inode, filep->private_data);
 		if (ret)
 			goto err_infoopen;
 	}
@@ -493,7 +488,8 @@ static int uio_release(struct inode *inode, struct file *filep)
 	struct uio_device *idev = listener->dev;
 
 	if (idev->info->release)
-		ret = idev->info->release(idev->info, inode);
+		ret = idev->info->release(idev->info, inode,
+					filep->private_data);
 
 	module_put(idev->owner);
 	kfree(listener);
@@ -504,13 +500,16 @@ static unsigned int uio_poll(struct file *filep, poll_table *wait)
 {
 	struct uio_listener *listener = filep->private_data;
 	struct uio_device *idev = listener->dev;
+	s32 event_count;
 
 	if (!idev->info->irq)
 		return -EIO;
 
-	poll_wait(filep, &idev->wait, wait);
-	if (listener->event_count != atomic_read(&idev->event))
+	event_count = atomic_read(&idev->event);
+	if (listener->event_count != event_count) {
+		listener->event_count = event_count;
 		return POLLIN | POLLRDNORM;
+	}
 	return 0;
 }
 
@@ -716,6 +715,31 @@ static int uio_mmap(struct file *filep, struct vm_area_struct *vma)
 	}
 }
 
+static long uio_unlocked_ioctl(struct file *filep,
+				unsigned int cmd, unsigned long arg)
+{
+	struct uio_listener *listener = filep->private_data;
+	struct uio_device *idev = listener->dev;
+	int ret = 0;
+
+	if (!idev)
+		return -ENODEV;
+
+	if (idev->info) {
+		if (idev->info->ioctl) {
+			if (!try_module_get(idev->owner))
+				return -ENODEV;
+			ret = idev->info->ioctl(idev->info, cmd,
+					arg, filep->private_data);
+			module_put(idev->owner);
+
+			return ret;
+		}
+	}
+
+	return -EINVAL;
+}
+
 static const struct file_operations uio_fops = {
 	.owner		= THIS_MODULE,
 	.open		= uio_open,
@@ -723,6 +747,7 @@ static const struct file_operations uio_fops = {
 	.read		= uio_read,
 	.write		= uio_write,
 	.mmap		= uio_mmap,
+	.unlocked_ioctl	= uio_unlocked_ioctl,
 	.poll		= uio_poll,
 	.fasync		= uio_fasync,
 	.llseek		= noop_llseek,
