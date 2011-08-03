@@ -46,12 +46,15 @@ struct pxa_reg_layout {
 	u32 icr;
 	u32 isr;
 	u32 isar;
+	u32 ilcr;
+	u32 iwcr;
 };
 
 enum pxa_i2c_types {
 	REGS_PXA2XX,
 	REGS_PXA3XX,
 	REGS_CE4100,
+	REGS_PXA910,
 };
 
 /*
@@ -79,12 +82,23 @@ static struct pxa_reg_layout pxa_reg_layout[] = {
 		.isr =	0x04,
 		/* no isar register */
 	},
+	[REGS_PXA910] = {
+		.ibmr = 0x00,
+		.idbr = 0x08,
+		.icr =	0x10,
+		.isr =	0x18,
+		.isar = 0x20,
+		/* ilcr and iwcr are used to adjust clock rate */
+		.ilcr = 0x28,
+		.iwcr = 0x30,
+	},
 };
 
 static const struct platform_device_id i2c_pxa_id_table[] = {
 	{ "pxa2xx-i2c",		REGS_PXA2XX },
 	{ "pxa3xx-pwri2c",	REGS_PXA3XX },
 	{ "ce4100-i2c",		REGS_CE4100 },
+	{ "pxa910-i2c",		REGS_PXA910 },
 	{ },
 };
 MODULE_DEVICE_TABLE(platform, i2c_pxa_id_table);
@@ -150,6 +164,8 @@ struct pxa_i2c {
 	void __iomem		*reg_icr;
 	void __iomem		*reg_isr;
 	void __iomem		*reg_isar;
+	void __iomem		*reg_ilcr;
+	void __iomem		*reg_iwcr;
 
 	unsigned long		iobase;
 	unsigned long		iosize;
@@ -161,6 +177,8 @@ struct pxa_i2c {
 	unsigned char		master_code;
 	unsigned long		rate;
 	bool			highmode_enter;
+	unsigned int		ilcr;
+	unsigned int		iwcr;
 };
 
 #define _IBMR(i2c)	((i2c)->reg_ibmr)
@@ -168,6 +186,8 @@ struct pxa_i2c {
 #define _ICR(i2c)	((i2c)->reg_icr)
 #define _ISR(i2c)	((i2c)->reg_isr)
 #define _ISAR(i2c)	((i2c)->reg_isar)
+#define _ILCR(i2c)	((i2c)->reg_ilcr)
+#define _IWCR(i2c)	((i2c)->reg_iwcr)
 
 /*
  * I2C Slave mode address
@@ -478,6 +498,12 @@ static void i2c_pxa_reset(struct pxa_i2c *i2c)
 	/* set control register values */
 	writel(I2C_ICR_INIT | (i2c->fast_mode ? ICR_FM : 0), _ICR(i2c));
 	writel(readl(_ICR(i2c)) | (i2c->high_mode ? ICR_HS : 0), _ICR(i2c));
+
+	if (i2c->ilcr)
+		writel(i2c->ilcr, _ILCR(i2c));
+	if (i2c->iwcr)
+		writel(i2c->iwcr, _IWCR(i2c));
+	udelay(2);
 
 #ifdef CONFIG_I2C_PXA_SLAVE
 	dev_info(&i2c->adap.dev, "Enabling slave mode\n");
@@ -1107,7 +1133,7 @@ static const struct i2c_algorithm i2c_pxa_pio_algorithm = {
 static struct of_device_id i2c_pxa_dt_ids[] = {
 	{ .compatible = "mrvl,pxa-i2c", .data = (void *)REGS_PXA2XX },
 	{ .compatible = "mrvl,pwri2c", .data = (void *)REGS_PXA3XX },
-	{ .compatible = "mrvl,mmp-twsi", .data = (void *)REGS_PXA2XX },
+	{ .compatible = "mrvl,mmp-twsi", .data = (void *)REGS_PXA910 },
 	{}
 };
 MODULE_DEVICE_TABLE(of, i2c_pxa_dt_ids);
@@ -1115,6 +1141,7 @@ MODULE_DEVICE_TABLE(of, i2c_pxa_dt_ids);
 static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 			    enum pxa_i2c_types *i2c_types)
 {
+	int ret;
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *of_id =
 			of_match_device(i2c_pxa_dt_ids, &pdev->dev);
@@ -1130,6 +1157,14 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 	if (of_get_property(np, "mrvl,i2c-fast-mode", NULL))
 		i2c->fast_mode = 1;
 	*i2c_types = (u32)(of_id->data);
+
+	ret = of_property_read_u32(np, "marvell,i2c-ilcr", &i2c->ilcr);
+	if (ret)
+		return ret;
+	ret = of_property_read_u32(np, "marvell,i2c-iwcr", &i2c->iwcr);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 
@@ -1215,6 +1250,9 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	if (i2c_type != REGS_CE4100)
 		i2c->reg_isar = i2c->reg_base + pxa_reg_layout[i2c_type].isar;
 
+	i2c->reg_ilcr = i2c->reg_base + pxa_reg_layout[i2c_type].ilcr;
+	i2c->reg_iwcr = i2c->reg_base + pxa_reg_layout[i2c_type].iwcr;
+
 	i2c->iobase = res->start;
 	i2c->iosize = resource_size(res);
 
@@ -1228,6 +1266,8 @@ static int i2c_pxa_probe(struct platform_device *dev)
 		i2c->slave_addr = plat->slave_addr;
 		i2c->slave = plat->slave;
 #endif
+		i2c->ilcr = plat->ilcr;
+		i2c->iwcr = plat->iwcr;
 		i2c->adap.class = plat->class;
 		i2c->adap.hardware_lock = plat->hardware_lock;
 		i2c->adap.hardware_unlock = plat->hardware_unlock;
