@@ -57,7 +57,6 @@
 #define MMC_BKOPS_MAX_TIMEOUT	(4 * 60 * 1000) /* max time to wait in ms */
 
 static struct workqueue_struct *workqueue;
-static struct wake_lock mmc_delayed_work_wake_lock;
 static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
 
 /*
@@ -91,7 +90,6 @@ MODULE_PARM_DESC(
 static int mmc_schedule_delayed_work(struct delayed_work *work,
 				     unsigned long delay)
 {
-	wake_lock(&mmc_delayed_work_wake_lock);
 	return queue_delayed_work(workqueue, work, delay);
 }
 
@@ -1765,6 +1763,8 @@ static void _mmc_detect_change(struct mmc_host *host, unsigned long delay,
 		pm_wakeup_event(mmc_dev(host), 5000);
 
 	host->detect_change = 1;
+
+	wake_lock(&host->detect_wake_lock);
 	mmc_schedule_delayed_work(&host->detect, delay);
 }
 
@@ -2585,13 +2585,15 @@ void mmc_rescan(struct work_struct *work)
 
  out:
 	if (extend_wakelock)
-		wake_lock_timeout(&mmc_delayed_work_wake_lock, HZ / 2);
+		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 	else
-		wake_unlock(&mmc_delayed_work_wake_lock);
+		wake_unlock(&host->detect_wake_lock);
 	if (host->detect_complete)
 		complete(host->detect_complete);
-	if (host->caps & MMC_CAP_NEEDS_POLL)
+	if (host->caps & MMC_CAP_NEEDS_POLL) {
+		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
+	}
 }
 
 void mmc_start_host(struct mmc_host *host)
@@ -2621,7 +2623,8 @@ void mmc_stop_host(struct mmc_host *host)
 	if (mmc_bus_needs_resume(host))
 		return;
 
-	cancel_delayed_work_sync(&host->detect);
+	if (cancel_delayed_work_sync(&host->detect))
+		wake_unlock(&host->detect_wake_lock);
 	mmc_flush_scheduled_work();
 
 	/* clear pm flags now and let card drivers set them as needed */
@@ -2788,7 +2791,8 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		}
 		host->rescan_disable = 1;
 		spin_unlock_irqrestore(&host->lock, flags);
-		cancel_delayed_work_sync(&host->detect);
+		if (cancel_delayed_work_sync(&host->detect))
+			wake_unlock(&host->detect_wake_lock);
 
 		if (!host->bus_ops)
 			break;
@@ -2868,9 +2872,6 @@ static int __init mmc_init(void)
 	if (!workqueue)
 		return -ENOMEM;
 
-	wake_lock_init(&mmc_delayed_work_wake_lock, WAKE_LOCK_SUSPEND,
-		       "mmc_delayed_work");
-
 	ret = mmc_register_bus();
 	if (ret)
 		goto destroy_workqueue;
@@ -2891,7 +2892,6 @@ unregister_bus:
 	mmc_unregister_bus();
 destroy_workqueue:
 	destroy_workqueue(workqueue);
-	wake_lock_destroy(&mmc_delayed_work_wake_lock);
 
 	return ret;
 }
@@ -2902,7 +2902,6 @@ static void __exit mmc_exit(void)
 	mmc_unregister_host_class();
 	mmc_unregister_bus();
 	destroy_workqueue(workqueue);
-	wake_lock_destroy(&mmc_delayed_work_wake_lock);
 }
 
 subsys_initcall(mmc_init);
