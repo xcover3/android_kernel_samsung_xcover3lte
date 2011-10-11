@@ -344,6 +344,13 @@ static int pxa_ssp_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 		}
 		pxa_ssp_write_reg(ssp, SSACD, val);
 		break;
+	case PXA_SSP_AUDIO_DIV_ACPS:
+		val = pxa_ssp_read_reg(ssp, SSACD);
+		val &= ~0x70;
+		pxa_ssp_write_reg(ssp, SSACD, val);
+		val |= SSACD_ACPS(div);
+		pxa_ssp_write_reg(ssp, SSACD, val);
+		break;
 	case PXA_SSP_DIV_SCR:
 		pxa_ssp_set_scr(ssp, div);
 		break;
