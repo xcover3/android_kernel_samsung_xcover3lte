@@ -505,6 +505,8 @@ static unsigned int uio_poll(struct file *filep, poll_table *wait)
 	if (!idev->info->irq)
 		return -EIO;
 
+	poll_wait(filep, &idev->wait, wait);
+
 	event_count = atomic_read(&idev->event);
 	if (listener->event_count != event_count) {
 		listener->event_count = event_count;
