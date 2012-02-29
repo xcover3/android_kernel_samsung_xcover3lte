@@ -21,6 +21,8 @@
 
 struct keyreset_platform_data {
 	int (*reset_fn)(void);
+	int (*dump_fn)(int pressed);
+	int panic_before_reset;
 	int *keys_up;
 	int keys_down[]; /* 0 terminated */
 };
