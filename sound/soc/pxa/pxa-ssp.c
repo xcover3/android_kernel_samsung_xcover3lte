@@ -657,8 +657,12 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 			 * after LRCLK changes polarity.
 			 */
 			sspsp |= SSPSP_SFRMWDTH(width + 1);
-			sspsp |= SSPSP_SFRMDLY((width + 1) * 2);
-			sspsp |= SSPSP_DMYSTRT(1);
+			if (ssp->type == PXA910_SSP)
+				sspsp |= SSPSP_FSRT;
+			else {
+				sspsp |= SSPSP_SFRMDLY((width + 1) * 2);
+				sspsp |= SSPSP_DMYSTRT(1);
+			}
 		}
 
 		pxa_ssp_write_reg(ssp, SSPSP, sspsp);
