@@ -113,7 +113,7 @@ static void ep0_reset(struct mv_udc *udc)
 		/* configure ep0 endpoint capabilities in dQH */
 		ep->dqh->max_packet_length =
 			(EP0_MAX_PKT_SIZE << EP_QUEUE_HEAD_MAX_PKT_LEN_POS)
-			| EP_QUEUE_HEAD_IOS;
+			| EP_QUEUE_HEAD_IOS | EP_QUEUE_HEAD_ZLT_SEL;
 
 		ep->dqh->next_dtd_ptr = EP_QUEUE_HEAD_NEXT_TERMINATE;
 
