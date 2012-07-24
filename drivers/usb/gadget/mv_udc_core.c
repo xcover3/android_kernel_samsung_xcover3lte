@@ -2701,6 +2701,8 @@ static void mv_udc_shutdown(struct platform_device *pdev)
 	u32 mode;
 
 	udc = platform_get_drvdata(pdev);
+	if (!udc)
+		return;
 	/* reset controller mode to IDLE */
 	mv_udc_enable(udc);
 	mode = readl(&udc->op_regs->usbmode);
