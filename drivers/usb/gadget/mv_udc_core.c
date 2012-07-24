@@ -57,14 +57,22 @@
 #define LOOPS_USEC_SHIFT	1
 #define LOOPS_USEC		(1 << LOOPS_USEC_SHIFT)
 #define LOOPS(timeout)		((timeout) >> LOOPS_USEC_SHIFT)
+#define	ENUMERATION_DELAY	(2 * HZ)
 
 static DECLARE_COMPLETION(release_done);
 
 static const char driver_name[] = "mv_udc";
 static const char driver_desc[] = DRIVER_DESC;
 
+/* controller device global variable */
+static struct mv_udc   *the_controller;
+
+static int mv_udc_enable(struct mv_udc *udc);
+static void mv_udc_disable(struct mv_udc *udc);
+
 static void nuke(struct mv_ep *ep, int status);
 static void stop_activity(struct mv_udc *udc, struct usb_gadget_driver *driver);
+static void call_charger_notifier(struct mv_udc *udc);
 
 /* for endpoint 0 operations */
 static const struct usb_endpoint_descriptor mv_ep0_desc = {
@@ -74,6 +82,18 @@ static const struct usb_endpoint_descriptor mv_ep0_desc = {
 	.bmAttributes =		USB_ENDPOINT_XFER_CONTROL,
 	.wMaxPacketSize =	EP0_MAX_PKT_SIZE,
 };
+
+static const char *charger_type(unsigned int type)
+{
+	switch (type) {
+	case NULL_CHARGER: return "NULL_CHARGER";
+	case DEFAULT_CHARGER: return "DEFAULT_CHARGER";
+	case DCP_CHARGER: return "DCP_CHARGER";
+	case CDP_CHARGER: return "CDP_CHARGER";
+	case SDP_CHARGER: return "SDP_CHARGER";
+	default: return "NONE_STANDARD_CHARGER";
+	}
+}
 
 static void ep0_reset(struct mv_udc *udc)
 {
@@ -1252,14 +1272,48 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	dev_dbg(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
 		__func__, udc->softconnect, udc->vbus_active);
 
-	if (udc->driver && udc->softconnect && udc->vbus_active) {
+	schedule_work(&udc->event_work);
+
+	if (udc->vbus_active) {
 		retval = mv_udc_enable(udc);
-		if (retval == 0) {
+		if (retval)
+			goto out;
+		pm_stay_awake(&udc->dev->dev);
+		pm_qos_update_request(&udc->qos_idle, udc->lpm_qos);
+
+		spin_lock_irqsave(&udc->lock, flags);
+		udc_stop(udc);
+		spin_unlock_irqrestore(&udc->lock, flags);
+
+		/* make sure do charger detect after udc_stop */
+		udc->charger_type = usb_phy_charger_detect(udc->phy);
+	} else {
+		udc->power = 0;
+		udc->charger_type = NULL_CHARGER;
+	}
+
+	if (work_pending(&udc->delayed_charger_work.work))
+		cancel_delayed_work(&udc->delayed_charger_work);
+
+	/* SDP and NONE_STANDARD chargers need some delay to confirm */
+	if (udc->charger_type == DEFAULT_CHARGER) {
+		int enum_delay  = ENUMERATION_DELAY;
+
+		dev_info(&udc->dev->dev, "1st stage charger type: %s\n",
+					charger_type(udc->charger_type));
+		call_charger_notifier(udc);
+		schedule_delayed_work(&udc->delayed_charger_work,
+					enum_delay);
+	/* NULL, DCP, CDP chargers already confirmed at this time */
+	} else
+		schedule_delayed_work(&udc->delayed_charger_work, 0);
+
+	spin_lock_irqsave(&udc->lock, flags);
+	if (udc->driver && udc->softconnect && udc->vbus_active) {
 			/* Clock is disabled, need re-init registers */
-			udc_reset(udc);
-			ep0_reset(udc);
-			udc_start(udc);
-		}
+		udc_reset(udc);
+		ep0_reset(udc);
+		udc_start(udc);
 	} else if (udc->driver && udc->softconnect) {
 		if (!udc->active)
 			goto out;
@@ -1267,12 +1321,25 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		/* stop all the transfer in queue*/
 		stop_activity(udc, udc->driver);
 		udc_stop(udc);
-		mv_udc_disable(udc);
 	}
+
+	if (!udc->vbus_active)
+		mv_udc_disable(udc);
 
 out:
 	spin_unlock_irqrestore(&udc->lock, flags);
 	return retval;
+}
+
+/* constrain controller's VBUS power usage */
+static int mv_udc_vbus_draw(struct usb_gadget *gadget, unsigned mA)
+{
+	struct mv_udc *udc;
+
+	udc = container_of(gadget, struct mv_udc, gadget);
+	udc->power = mA;
+
+	return 0;
 }
 
 static int mv_udc_pullup(struct usb_gadget *gadget, int is_on)
@@ -1321,6 +1388,9 @@ static const struct usb_gadget_ops mv_ops = {
 
 	/* notify controller that VBUS is powered or not */
 	.vbus_session	= mv_udc_vbus_session,
+
+	/* constrain controller's VBUS power usage */
+	.vbus_draw	= mv_udc_vbus_draw,
 
 	/* D+ pullup, software-controlled connect/disconnect to USB host */
 	.pullup		= mv_udc_pullup,
@@ -1447,8 +1517,10 @@ static int mv_udc_start(struct usb_gadget *gadget,
 		}
 	}
 
+#ifndef CONFIG_USB_G_ANDROID
 	/* pullup is always on */
 	mv_udc_pullup(&udc->gadget, 1);
+#endif
 
 	/* When boot with cable attached, there will be no vbus irq occurred */
 	if (udc->qwork)
@@ -1676,6 +1748,38 @@ out:
 	return;
 }
 
+static const char *reqname(unsigned bRequest)
+{
+	switch (bRequest) {
+	case USB_REQ_GET_STATUS: return "GET_STATUS";
+	case USB_REQ_CLEAR_FEATURE: return "CLEAR_FEATURE";
+	case USB_REQ_SET_FEATURE: return "SET_FEATURE";
+	case USB_REQ_SET_ADDRESS: return "SET_ADDRESS";
+	case USB_REQ_GET_DESCRIPTOR: return "GET_DESCRIPTOR";
+	case USB_REQ_SET_DESCRIPTOR: return "SET_DESCRIPTOR";
+	case USB_REQ_GET_CONFIGURATION: return "GET_CONFIGURATION";
+	case USB_REQ_SET_CONFIGURATION: return "SET_CONFIGURATION";
+	case USB_REQ_GET_INTERFACE: return "GET_INTERFACE";
+	case USB_REQ_SET_INTERFACE: return "SET_INTERFACE";
+	default: return "*UNKNOWN*";
+	}
+}
+
+static const char *desc_type(unsigned type)
+{
+	switch (type) {
+	case USB_DT_DEVICE: return "USB_DT_DEVICE";
+	case USB_DT_CONFIG: return "USB_DT_CONFIG";
+	case USB_DT_STRING: return "USB_DT_STRING";
+	case USB_DT_INTERFACE: return "USB_DT_INTERFACE";
+	case USB_DT_ENDPOINT: return "USB_DT_ENDPOINT";
+	case USB_DT_DEVICE_QUALIFIER: return "USB_DT_DEVICE_QUALIFIER";
+	case USB_DT_OTHER_SPEED_CONFIG: return "USB_DT_OTHER_SPEED_CONFIG";
+	case USB_DT_INTERFACE_POWER: return "USB_DT_INTERFACE_POWER";
+	default: return "*UNKNOWN*";
+	}
+}
+
 static void ch9setfeature(struct mv_udc *udc, struct usb_ctrlrequest *setup)
 {
 	u8 ep_num;
@@ -1737,9 +1841,11 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 
 	nuke(&udc->eps[ep_num * 2 + EP_DIR_OUT], -ESHUTDOWN);
 
-	dev_dbg(&udc->dev->dev, "SETUP %02x.%02x v%04x i%04x l%04x\n",
-			setup->bRequestType, setup->bRequest,
-			setup->wValue, setup->wIndex, setup->wLength);
+	dev_dbg(&udc->dev->dev, "%s, \t%s, \t%d\n", reqname(setup->bRequest),
+		(setup->bRequest == USB_REQ_GET_DESCRIPTOR)
+		 ? desc_type(setup->wValue >> 8) : NULL,
+		 setup->wIndex);
+
 	/* We process some stardard setup requests here */
 	if ((setup->bRequestType & USB_TYPE_MASK) == USB_TYPE_STANDARD) {
 		switch (setup->bRequest) {
@@ -1749,6 +1855,10 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 
 		case USB_REQ_SET_ADDRESS:
 			ch9setaddress(udc, setup);
+			if (work_pending(&udc->delayed_charger_work.work))
+				cancel_delayed_work(&udc->delayed_charger_work);
+			udc->charger_type = SDP_CHARGER;
+			schedule_delayed_work(&udc->delayed_charger_work, 0);
 			break;
 
 		case USB_REQ_CLEAR_FEATURE:
@@ -2113,6 +2223,82 @@ static irqreturn_t mv_udc_irq(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static BLOCKING_NOTIFIER_HEAD(mv_udc_notifier_list);
+
+/* For any user that care about USB udc events, for example the charger*/
+int mv_udc_register_client(struct notifier_block *nb)
+{
+	struct mv_udc *udc = the_controller;
+	int ret = 0;
+
+	if (!udc)
+		return -ENODEV;
+
+	ret = blocking_notifier_chain_register(&mv_udc_notifier_list, nb);
+	if (ret)
+		return ret;
+
+	if (udc->charger_type)
+		call_charger_notifier(udc);
+
+	return 0;
+}
+EXPORT_SYMBOL(mv_udc_register_client);
+
+int mv_udc_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&mv_udc_notifier_list, nb);
+}
+EXPORT_SYMBOL(mv_udc_unregister_client);
+
+static void call_charger_notifier(struct mv_udc *udc)
+{
+	blocking_notifier_call_chain(&mv_udc_notifier_list,
+				udc->charger_type, &udc->power);
+}
+
+static void do_delayed_charger_work(struct work_struct *work)
+{
+	struct mv_udc *udc = NULL;
+	unsigned long flags;
+	udc = container_of(work, struct mv_udc, delayed_charger_work.work);
+
+	/* if still see DEFAULT_CHARGER, check again */
+	if (udc->charger_type == DEFAULT_CHARGER) {
+		spin_lock_irqsave(&udc->lock, flags);
+		udc_stop(udc);
+		spin_unlock_irqrestore(&udc->lock, flags);
+
+		udc->charger_type = usb_phy_charger_detect(udc->phy);
+
+		spin_lock_irqsave(&udc->lock, flags);
+		udc_start(udc);
+		spin_unlock_irqrestore(&udc->lock, flags);
+
+		/* now confirm it is a none standard charger */
+		if (udc->charger_type == DEFAULT_CHARGER)
+			udc->charger_type = NONE_STANDARD_CHARGER;
+	}
+
+	dev_info(&udc->dev->dev, "final charger type: %s\n",
+				charger_type(udc->charger_type));
+
+	call_charger_notifier(udc);
+
+	/* SDP or CDP need transfer data, hold wake lock */
+	if ((udc->charger_type == SDP_CHARGER) ||
+	    (udc->charger_type == CDP_CHARGER)) {
+		pm_stay_awake(&udc->dev->dev);
+		pm_qos_update_request(&udc->qos_idle, udc->lpm_qos);
+	/* NULL, DEFAULT, DCP, UNKNOW chargers don't need wake lock */
+	} else {
+		pm_qos_update_request(&udc->qos_idle,
+				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+		/* leave some delay for charger driver to do something */
+		pm_wakeup_event(&udc->dev->dev, 1000);
+	}
+}
+
 static int mv_udc_vbus_notifier_call(struct notifier_block *nb,
 					unsigned long val, void *v)
 {
@@ -2138,12 +2324,9 @@ static void mv_udc_vbus_work(struct work_struct *work)
 	ret = pxa_usb_extern_call(udc->pdata->id, vbus, get_vbus, &vbus);
 	if (ret)
 		return;
-	dev_info(&udc->dev->dev, "vbus is %d\n", vbus);
 
-	if (vbus == VBUS_HIGH)
-		mv_udc_vbus_session(&udc->gadget, 1);
-	else if (vbus == VBUS_LOW)
-		mv_udc_vbus_session(&udc->gadget, 0);
+	dev_info(&udc->dev->dev, "vbus is %d\n", vbus);
+	mv_udc_vbus_session(&udc->gadget, vbus);
 }
 
 /* release device structure */
@@ -2160,6 +2343,7 @@ static int mv_udc_remove(struct platform_device *pdev)
 {
 	struct mv_udc *udc;
 
+	device_init_wakeup(&pdev->dev, 0);
 	udc = platform_get_drvdata(pdev);
 
 	usb_del_gadget_udc(&udc->gadget);
@@ -2186,6 +2370,8 @@ static int mv_udc_remove(struct platform_device *pdev)
 	/* free dev, wait for the release() finished */
 	wait_for_completion(udc->done);
 
+	the_controller = NULL;
+
 	return 0;
 }
 
@@ -2207,6 +2393,8 @@ static int mv_udc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to allocate memory for udc\n");
 		return -ENOMEM;
 	}
+
+	the_controller = udc;
 
 	udc->done = &release_done;
 	udc->pdata = dev_get_platdata(&pdev->dev);
@@ -2339,6 +2527,12 @@ static int mv_udc_probe(struct platform_device *pdev)
 
 	eps_init(udc);
 
+	/* used to tell user space when usb cable plug in and out */
+	INIT_WORK(&udc->event_work, uevent_worker);
+
+	INIT_DELAYED_WORK(&udc->delayed_charger_work, do_delayed_charger_work);
+	udc->charger_type = NULL_CHARGER;
+
 	/* VBUS detect: we can disable/enable clock on demand.*/
 	if ((pdata->extern_attr & MV_USB_HAS_VBUS_DETECTION)
 		 || udc->transceiver)
@@ -2374,13 +2568,17 @@ static int mv_udc_probe(struct platform_device *pdev)
 		goto err_create_workqueue;
 
 	platform_set_drvdata(pdev, udc);
+	device_init_wakeup(&pdev->dev, 1);
 	dev_info(&pdev->dev, "successful probe UDC device %s clock gating.\n",
 		udc->clock_gating ? "with" : "without");
 
 	return 0;
 
 err_create_workqueue:
-	destroy_workqueue(udc->qwork);
+	if (udc->qwork) {
+		flush_workqueue(udc->qwork);
+		destroy_workqueue(udc->qwork);
+	}
 	pxa_usb_unregister_notifier(udc->pdata->id, &udc->notifier);
 err_destroy_dma:
 	dma_pool_destroy(udc->dtd_pool);
@@ -2389,7 +2587,7 @@ err_free_dma:
 			udc->ep_dqh, udc->ep_dqh_dma);
 err_disable_clock:
 	mv_udc_disable_internal(udc);
-
+	the_controller = NULL;
 	return retval;
 }
 
@@ -2404,19 +2602,6 @@ static int mv_udc_suspend(struct device *dev)
 	if (udc->transceiver)
 		return 0;
 
-	if (udc->pdata->extern_attr & MV_USB_HAS_VBUS_DETECTION) {
-		unsigned int vbus;
-		pxa_usb_extern_call(udc->pdata->id, vbus, get_vbus, &vbus);
-		if (vbus == VBUS_HIGH) {
-			dev_info(&udc->dev->dev, "USB cable is connected!\n");
-			return -EAGAIN;
-		}
-	}
-
-	/*
-	 * only cable is unplugged, udc can suspend.
-	 * So do not care about clock_gating == 1.
-	 */
 	if (!udc->clock_gating) {
 		udc_stop(udc);
 

@@ -106,10 +106,6 @@ extern int pxa_usb_register_notifier(unsigned int id,
 extern int pxa_usb_unregister_notifier(unsigned int id,
 					struct notifier_block *nb);
 extern int pxa_usb_notify(unsigned int id, unsigned long val, void *v);
-/* end of usb middle layer support */
-
-extern int mv_udc_register_client(struct notifier_block *nb);
-extern int mv_udc_unregister_client(struct notifier_block *nb);
 #else
 static inline int mv_udc_register_client(struct notifier_block *nb) {return 0;}
 static inline int mv_udc_unregister_client(struct notifier_block *nb) {return 0;}
