@@ -216,6 +216,15 @@ struct mv_udc {
 	struct work_struct	vbus_work;
 	struct workqueue_struct *qwork;
 
+	struct pm_qos_request   qos_idle;
+	s32                     lpm_qos;
+
+	unsigned int            power;
+	unsigned int            charger_type;
+	struct delayed_work     delayed_charger_work;
+
+	struct work_struct event_work;
+
 	struct usb_phy		*phy;
 	struct usb_phy		*transceiver;
 

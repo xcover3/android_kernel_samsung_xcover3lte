@@ -35,6 +35,7 @@
 #include <linux/clk.h>
 #include <linux/platform_data/mv_usb.h>
 #include <linux/usb/mv_usb2_phy.h>
+#include <linux/pm_qos.h>
 #include <asm/unaligned.h>
 
 #include "mv_udc.h"
@@ -1222,6 +1223,19 @@ static int mv_udc_wakeup(struct usb_gadget *gadget)
 	portsc |= PORTSCX_PORT_FORCE_RESUME;
 	writel(portsc, &udc->op_regs->portsc[0]);
 	return 0;
+}
+
+static void uevent_worker(struct work_struct *work)
+{
+	struct mv_udc *udc = container_of(work, struct mv_udc, event_work);
+	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
+	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
+
+	if (!udc)
+		return;
+
+	kobject_uevent_env(&udc->dev->dev.kobj, KOBJ_CHANGE,
+			udc->vbus_active ? connected : disconnected);
 }
 
 static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
