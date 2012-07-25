@@ -209,6 +209,7 @@ struct mv_udc {
 	unsigned		softconnect:1,
 				vbus_active:1,
 				remote_wakeup:1,
+				selfpowered:1,
 				softconnected:1,
 				force_fs:1,
 				clock_gating:1,
