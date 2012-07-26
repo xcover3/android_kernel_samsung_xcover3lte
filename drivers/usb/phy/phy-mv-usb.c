@@ -44,6 +44,8 @@ MODULE_LICENSE("GPL");
 
 static const char driver_name[] = "mv-otg";
 
+static int otg_force_host_mode;
+
 static char *state_string[] = {
 	"undefined",
 	"b_idle",
@@ -406,6 +408,11 @@ static void mv_otg_update_inputs(struct mv_otg *mvotg)
 	if (mvotg->pdata->otg_force_a_bus_req && !otg_ctrl->id)
 		otg_ctrl->a_bus_req = 1;
 
+	if (otg_force_host_mode) {
+		otg_ctrl->id = 0;
+		otg_ctrl->a_bus_req = 1;
+	}
+
 	otg_ctrl->a_sess_vld = !!(otgsc & OTGSC_STS_A_SESSION_VALID);
 	otg_ctrl->a_vbus_vld = !!(otgsc & OTGSC_STS_A_VBUS_VALID);
 
@@ -737,10 +744,47 @@ set_a_bus_drop(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(a_bus_drop, S_IRUGO | S_IWUSR,
 		   get_a_bus_drop, set_a_bus_drop);
 
+static ssize_t
+get_otg_mode(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	char *state = otg_force_host_mode ? "host" : "client";
+	return sprintf(buf, "OTG mode: %s\n", state);
+}
+
+static ssize_t
+set_otg_mode(struct device *dev, struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct mv_otg *mvotg = dev_get_drvdata(dev);
+	char *usage = "Usage: $echo host/client to switch otg mode";
+	char buff[16], *b;
+
+	strncpy(buff, buf, sizeof(buff));
+	b = strim(buff);
+	pr_info("OTG state is %s\n", state_string[mvotg->phy.state]);
+	if (!strcmp(b, "host")) {
+		if (mvotg->phy.state == OTG_STATE_B_PERIPHERAL) {
+			pr_err("Failed to swich mode, pls don't connect to PC!\n");
+			return count;
+		}
+		otg_force_host_mode = 1;
+	} else if (!strcmp(b, "client")) {
+		otg_force_host_mode = 0;
+	} else {
+		pr_err("%s\n", usage);
+		return count;
+	}
+	mv_otg_run_state_machine(mvotg, 0);
+
+	return count;
+}
+static DEVICE_ATTR(otg_mode, S_IRUGO | S_IWUSR, get_otg_mode, set_otg_mode);
+
 static struct attribute *inputs_attrs[] = {
 	&dev_attr_a_bus_req.attr,
 	&dev_attr_a_clr_err.attr,
 	&dev_attr_a_bus_drop.attr,
+	&dev_attr_otg_mode.attr,
 	NULL,
 };
 
