@@ -1270,6 +1270,7 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 	 * The mode pages, in numerical order.  The only page we support
 	 * is the Caching page.
 	 */
+#ifdef MASS_STORAGE_CACHING_PAGE
 	if (page_code == 0x08 || all_pages) {
 		valid_page = 1;
 		buf[0] = 0x08;		/* Page code */
@@ -1290,6 +1291,9 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 		}
 		buf += 12;
 	}
+#else
+	valid_page = 1;
+#endif
 
 	/*
 	 * Check that a valid page was requested and the mode data length
