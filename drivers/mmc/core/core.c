@@ -1741,6 +1741,43 @@ void mmc_detect_change(struct mmc_host *host, unsigned long delay)
 }
 EXPORT_SYMBOL(mmc_detect_change);
 
+/*
+ * mmc_detect_change_sync - sync process change of state on a MMC socket
+ * @host: host which changed state.
+ * @delay: optional delay to wait before detection (jiffies)
+ * @timeout: wait timeout value in jiffies
+ *
+ * MMC drivers should call this when they detect a card has been
+ * inserted or removed. The MMC layer will confirm that any
+ * present card is still functional, and initialize any newly
+ * inserted before return.
+ */
+unsigned long mmc_detect_change_sync(struct mmc_host *host,
+		unsigned long delay, unsigned long timeout)
+{
+	DECLARE_COMPLETION_ONSTACK(complete);
+	unsigned long ret = 0;
+
+#ifdef CONFIG_MMC_DEBUG
+	unsigned long flags;
+	spin_lock_irqsave(&host->lock, flags);
+	WARN_ON(host->removed);
+	spin_unlock_irqrestore(&host->lock, flags);
+#endif
+
+	host->detect_complete = &complete;
+
+	mmc_schedule_delayed_work(&host->detect, delay);
+
+	ret = wait_for_completion_timeout(&complete, timeout);
+	if (ret == 0)
+		cancel_delayed_work(&host->detect);
+
+	host->detect_complete = NULL;
+	return ret;
+}
+EXPORT_SYMBOL(mmc_detect_change_sync);
+
 void mmc_init_erase(struct mmc_card *card)
 {
 	unsigned int sz;
@@ -2508,6 +2545,8 @@ void mmc_rescan(struct work_struct *work)
 		wake_lock_timeout(&mmc_delayed_work_wake_lock, HZ / 2);
 	else
 		wake_unlock(&mmc_delayed_work_wake_lock);
+	if (host->detect_complete)
+		complete(host->detect_complete);
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		mmc_schedule_delayed_work(&host->detect, HZ);
 }
