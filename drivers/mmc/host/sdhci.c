@@ -1800,6 +1800,9 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 	 */
 	if (host->version < SDHCI_SPEC_300)
 		return 0;
+	/* May need to apply soc/platfrom settings for the voltage switch*/
+	if (host->ops->signal_vol_change)
+		host->ops->signal_vol_change(host, ios->signal_voltage);
 
 	ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 
