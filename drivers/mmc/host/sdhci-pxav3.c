@@ -343,9 +343,6 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	pxa->clk = clk;
 	clk_prepare_enable(clk);
 
-	/* enable 1/8V DDR capable */
-	host->mmc->caps |= MMC_CAP_1_8V_DDR;
-
 	match = of_match_device(of_match_ptr(sdhci_pxav3_of_match), &pdev->dev);
 	if (match) {
 		ret = mmc_of_parse(host->mmc);
