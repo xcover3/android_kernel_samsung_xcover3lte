@@ -360,6 +360,10 @@ int mmc_add_card(struct mmc_card *card)
 			(mmc_card_hs200(card) ? "HS200 " : ""),
 			mmc_card_ddr_mode(card) ? "DDR " : "",
 			uhs_bus_speed_mode, type, card->rca);
+		pr_info("%s: ios: %d hz, %d bit width\n",
+			mmc_hostname(card->host),
+			card->host->ios.clock,
+			1 << card->host->ios.bus_width);
 	}
 
 #ifdef CONFIG_DEBUG_FS
