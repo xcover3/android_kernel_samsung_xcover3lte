@@ -237,16 +237,20 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
 
 static void sdhci_init(struct sdhci_host *host, int soft)
 {
+	u32 irq_set = 0;
+
 	if (soft)
 		sdhci_reset(host, SDHCI_RESET_CMD|SDHCI_RESET_DATA);
 	else
 		sdhci_reset(host, SDHCI_RESET_ALL);
 
-	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK,
-		SDHCI_INT_BUS_POWER | SDHCI_INT_DATA_END_BIT |
+	irq_set = SDHCI_INT_BUS_POWER | SDHCI_INT_DATA_END_BIT |
 		SDHCI_INT_DATA_CRC | SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_INDEX |
 		SDHCI_INT_END_BIT | SDHCI_INT_CRC | SDHCI_INT_TIMEOUT |
-		SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE);
+		SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE;
+	if (host->quirks2 & SDHCI_QUIRK2_NO_CURRENT_LIMIT)
+		irq_set &= ~SDHCI_INT_BUS_POWER;
+	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, irq_set);
 
 	if (soft) {
 		/* force clock reconfiguration */
