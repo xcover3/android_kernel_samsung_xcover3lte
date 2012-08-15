@@ -221,11 +221,27 @@ static int pxav3_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
 	return 0;
 }
 
+/*
+ * remove the caps that supported by the controller but not available
+ * for certain platforms.
+ */
+static void pxav3_host_caps_disable(struct sdhci_host *host)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (pdata->host_caps_disable)
+		host->mmc->caps &= ~(pdata->host_caps_disable);
+	if (pdata->host_caps2_disable)
+		host->mmc->caps2 &= ~(pdata->host_caps2_disable);
+}
+
 static const struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_reset_exit = pxav3_set_private_registers,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
+	.host_caps_disable = pxav3_host_caps_disable,
 };
 
 static struct sdhci_pltfm_data sdhci_pxav3_pdata = {
