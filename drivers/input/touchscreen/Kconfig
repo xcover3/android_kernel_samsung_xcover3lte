@@ -42,6 +42,13 @@ config TOUCHSCREEN_ADS7846
 	  To compile this driver as a module, choose M here: the
 	  module will be called ads7846.
 
+config TOUCHSCREEN_VNC
+       tristate "VNC based touchscreen"
+       help
+        Say Y here to enable support for VNC virtual touch screen driver
+        If unsure, say N.
+        If sure, say Y.
+
 config TOUCHSCREEN_AD7877
 	tristate "AD7877 based touchscreens"
 	depends on SPI_MASTER
