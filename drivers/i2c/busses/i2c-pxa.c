@@ -174,6 +174,7 @@ struct pxa_i2c {
 	unsigned int		use_pio :1;
 	unsigned int		fast_mode :1;
 	unsigned int		high_mode:1;
+	unsigned int		always_on:1;
 	unsigned char		master_code;
 	unsigned long		rate;
 	bool			highmode_enter;
@@ -1170,6 +1171,9 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 	if (ret)
 		return ret;
 
+	if (of_get_property(np, "marvell,i2c-always-on", NULL))
+		i2c->always_on = 1;
+
 	return 0;
 }
 
@@ -1189,6 +1193,7 @@ static int i2c_pxa_probe_pdata(struct platform_device *pdev,
 		if (!i2c->master_code)
 			i2c->master_code = 0xe;
 		i2c->rate = plat->rate;
+		i2c->always_on = plat->always_on;
 	}
 	return 0;
 }
@@ -1369,6 +1374,10 @@ static int i2c_pxa_suspend_noirq(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct pxa_i2c *i2c = platform_get_drvdata(pdev);
 
+	/* i2c bus which needs clk on in suspend, for example, for pmic */
+	if (i2c->always_on)
+		return 0;
+
 	clk_disable(i2c->clk);
 
 	return 0;
@@ -1378,6 +1387,10 @@ static int i2c_pxa_resume_noirq(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct pxa_i2c *i2c = platform_get_drvdata(pdev);
+
+	/* PMIC i2c bus */
+	if (i2c->always_on)
+		return 0;
 
 	clk_enable(i2c->clk);
 	i2c_pxa_reset(i2c);
