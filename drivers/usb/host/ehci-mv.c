@@ -291,8 +291,7 @@ static int mv_ehci_remove(struct platform_device *pdev)
 		otg_set_host(ehci_mv->otg->otg, NULL);
 
 	if (ehci_mv->mode == MV_USB_MODE_HOST) {
-		if (ehci_mv->pdata->set_vbus)
-			ehci_mv->pdata->set_vbus(0);
+		pxa_usb_extern_call(ehci_mv->pdata->id, vbus, set_vbus, 0);
 
 		mv_ehci_disable(ehci_mv);
 	}
