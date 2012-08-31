@@ -117,6 +117,11 @@ static inline int pxa_usb_notify(unsigned int id, unsigned long val, void *v) {r
 /* end of usb middle layer support */
 #endif
 
+struct mv_usb_addon_irq {
+	unsigned int    irq;
+	int (*poll)(void);
+};
+
 struct mv_usb_platform_data {
 	/*
 	 * select from PXA_USB_DEV_OTG to PXA_USB_DEV_MAX.
@@ -124,6 +129,7 @@ struct mv_usb_platform_data {
 	 */
 	unsigned int		id;
 	unsigned int		extern_attr;
+	struct mv_usb_addon_irq *vbus;
 
 	/* only valid for HCD. OTG or Host only*/
 	unsigned int		mode;
