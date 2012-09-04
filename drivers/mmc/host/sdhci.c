@@ -320,6 +320,38 @@ out:
 }
 #endif
 
+/*
+ * sdhci_access_constrain - set the constrain before accessing the host to
+ * make sure that the clock/system power are ready for the next operations
+ * and release the constrain after the operation finish to save power.
+ * @ac: access constrain config, 0/1 to set/release the constrain.
+ */
+inline void sdhci_access_constrain(struct sdhci_host *host, unsigned int ac)
+{
+	unsigned long flags;
+	int call_constrain = 0;
+
+	if (host->ops->access_constrain) {
+		spin_lock_irqsave(&host->lock, flags);
+		if (ac) {
+			host->constrain_ref++;
+			if (host->constrain_ref == 1)
+				call_constrain = 1;
+		} else {
+			host->constrain_ref--;
+			if (host->constrain_ref == 0)
+				call_constrain = 1;
+			else if (host->constrain_ref < 0) {
+				pr_warn("%s constrain release unbalance!\n",
+					mmc_hostname(host->mmc));
+			}
+		}
+		spin_unlock_irqrestore(&host->lock, flags);
+		if (call_constrain)
+			host->ops->access_constrain(host, ac);
+	}
+}
+
 /*****************************************************************************\
  *                                                                           *
  * Core functions                                                            *
@@ -1373,6 +1405,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	host = mmc_priv(mmc);
 
+	sdhci_access_constrain(host, 1);
 	sdhci_runtime_pm_get(host);
 
 	spin_lock_irqsave(&host->lock, flags);
@@ -1647,9 +1680,11 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
 
+	sdhci_access_constrain(host, 1);
 	sdhci_runtime_pm_get(host);
 	sdhci_do_set_ios(host, ios);
 	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
 }
 
 static int sdhci_do_get_cd(struct sdhci_host *host)
@@ -1740,9 +1775,11 @@ static int sdhci_get_ro(struct mmc_host *mmc)
 	struct sdhci_host *host = mmc_priv(mmc);
 	int ret;
 
+	sdhci_access_constrain(host, 1);
 	sdhci_runtime_pm_get(host);
 	ret = sdhci_do_get_ro(host);
 	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
 	return ret;
 }
 
@@ -1893,9 +1930,11 @@ static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 
 	if (host->version < SDHCI_SPEC_300)
 		return 0;
+	sdhci_access_constrain(host, 1);
 	sdhci_runtime_pm_get(host);
 	err = sdhci_do_start_signal_voltage_switch(host, ios);
 	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
 	return err;
 }
 
@@ -1925,6 +1964,7 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 	host = mmc_priv(mmc);
 
+	sdhci_access_constrain(host, 1);
 	sdhci_runtime_pm_get(host);
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1948,6 +1988,7 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	else {
 		spin_unlock_irqrestore(&host->lock, flags);
 		sdhci_runtime_pm_put(host);
+		sdhci_access_constrain(host, 0);
 		return 0;
 	}
 
@@ -2107,6 +2148,7 @@ out:
 	sdhci_clear_set_irqs(host, SDHCI_INT_DATA_AVAIL, ier);
 	spin_unlock_irqrestore(&host->lock, flags);
 	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
 
 	return err;
 }
@@ -2281,6 +2323,7 @@ static void sdhci_tasklet_finish(unsigned long param)
 
 	mmc_request_done(host->mmc, mrq);
 	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
 }
 
 static void sdhci_timeout_timer(unsigned long data)

@@ -192,6 +192,7 @@ struct sdhci_host {
 	unsigned int		tuning_mode;	/* Re-tuning mode supported by host */
 #define SDHCI_TUNING_MODE_1	0
 	struct timer_list	tuning_timer;	/* Timer for tuning */
+	int	constrain_ref;
 
 	unsigned long private[0] ____cacheline_aligned;
 };

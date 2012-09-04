@@ -296,6 +296,7 @@ struct sdhci_ops {
 	void	(*platform_resume)(struct sdhci_host *host);
 	void    (*adma_workaround)(struct sdhci_host *host, u32 intmask);
 	void	(*platform_init)(struct sdhci_host *host);
+	void	(*access_constrain)(struct sdhci_host *host, unsigned int ac);
 	void    (*card_event)(struct sdhci_host *host);
 	unsigned long (*clk_prepare)(struct sdhci_host *host, unsigned long rate);
 	void	(*signal_vol_change)(struct sdhci_host *host, u8 vol);
