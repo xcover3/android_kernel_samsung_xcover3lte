@@ -126,6 +126,8 @@ struct mv_usb_addon_irq {
 };
 
 struct mv_usb_platform_data {
+	unsigned int		clknum;
+	char			**clkname;
 	/*
 	 * select from PXA_USB_DEV_OTG to PXA_USB_DEV_MAX.
 	 * It indicates the index of usb device.
@@ -141,11 +143,6 @@ struct mv_usb_platform_data {
 	unsigned int    disable_otg_clock_gating:1;
 	/* Force a_bus_req to be asserted */
 	 unsigned int    otg_force_a_bus_req:1;
-
-	int	(*phy_init)(void __iomem *regbase);
-	void	(*phy_deinit)(void __iomem *regbase);
-	int	(*set_vbus)(unsigned int vbus);
-	int     (*private_init)(void __iomem *opregs, void __iomem *phyregs);
 };
 
 enum charger_type {

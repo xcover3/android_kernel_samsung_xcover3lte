@@ -221,6 +221,8 @@ struct mv_udc {
 
 	struct mv_usb_platform_data     *pdata;
 
+	struct notifier_block notifier;
+
 	/* some SOC has mutiple clock sources for USB*/
 	struct clk      *clk;
 };
