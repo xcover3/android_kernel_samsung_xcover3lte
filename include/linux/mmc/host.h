@@ -297,6 +297,7 @@ struct mmc_host {
  * some cases, eg, for Marvell 8787 SDIO card in phone system
  */
 #define MMC_CAP2_DISABLE_PROBE_CDSCAN		(1 << 21)
+#define MMC_CAP2_BUS_AUTO_CLK_GATE		(1 << 22)   /* host can auto gate bus clk */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 

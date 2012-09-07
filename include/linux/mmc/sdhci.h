@@ -104,6 +104,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_NO_CURRENT_LIMIT                   (1<<10)
 /* Controller data timeout counter is 4 times long as spec defined */
 #define SDHCI_QUIRK2_TIMEOUT_DIVIDE_4			(1<<11)
+/* Controller enable HW bus clock gating by default */
+#define SDHCI_QUIRK2_BUS_CLK_GATE_ENABLED		(1<<12)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */

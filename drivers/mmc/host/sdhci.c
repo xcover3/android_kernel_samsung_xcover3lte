@@ -252,6 +252,19 @@ static void sdhci_init(struct sdhci_host *host, int soft)
 		irq_set &= ~SDHCI_INT_BUS_POWER;
 	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, irq_set);
 
+	if (host->ops->clk_gate_auto) {
+		if (host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE)
+			host->ops->clk_gate_auto(host, 1);
+		else
+			/*
+			 * PXA1088 platform enabled the mmc bus clock gating
+			 * function on default. If MMC_CAP2_BUS_AUTO_CLK_GATE
+			 * not set, bus clock gating should be disabled by
+			 * software configuration.
+			 */
+			host->ops->clk_gate_auto(host, 0);
+	}
+
 	if (soft) {
 		/* force clock reconfiguration */
 		host->clock = 0;
