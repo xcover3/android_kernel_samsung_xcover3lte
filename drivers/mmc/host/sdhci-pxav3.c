@@ -112,6 +112,48 @@ static struct sdhci_regdata pxav3_regdata_v3 = {
 	.APBC_ASFAR = 0xD4015068,
 };
 
+static void pxav3_clk_gate_auto(struct sdhci_host *host, unsigned int ctrl)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	u16 tmp;
+	/*
+	 * FIXME: according to MMC Spec, bit SDHCI_CTRL_ASYNC_INT
+	 * should be used to deliver async interrupt requested by
+	 * sdio device rather than auto clock gate. But in some
+	 * platforms, such as PXA920/PXA988/PXA986/MMP2/MMP3, the
+	 * mmc host controller use this bit to enable/disable auto
+	 * clock gate, except PXA1088 platform. So in PXA1088 platform
+	 * use the FORCE_CLK_ON bit to always enable the bus clock.
+	 * In order to diff the PXA1088 and other platforms, use
+	 * SDHCI_QUIRK2_BUS_CLK_GATE_ENABLED for PXA1088.
+	 */
+	if (pdata) {
+		if (pdata->quirks2 & SDHCI_QUIRK2_BUS_CLK_GATE_ENABLED) {
+			tmp = sdhci_readw(host, SD_FIFO_PARAM);
+			if (ctrl)
+				tmp &= ~PAD_CLK_GATE_MASK;
+			else
+				tmp |= PAD_CLK_GATE_MASK;
+
+			sdhci_writew(host, tmp, SD_FIFO_PARAM);
+		} else {
+			tmp = sdhci_readw(host, SD_FIFO_PARAM);
+			tmp &= ~PAD_CLK_GATE_MASK;
+			sdhci_writew(host, tmp, SD_FIFO_PARAM);
+
+			tmp = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+
+			if (ctrl)
+				tmp |= SDHCI_CTRL_ASYNC_INT;
+			else
+				tmp &= ~SDHCI_CTRL_ASYNC_INT;
+
+			sdhci_writew(host, tmp, SDHCI_HOST_CONTROL2);
+		}
+	}
+}
+
 static void pxav3_set_private_registers(struct sdhci_host *host, u8 mask)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
@@ -235,6 +277,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
+	.clk_gate_auto  = pxav3_clk_gate_auto,
 	.host_caps_disable = pxav3_host_caps_disable,
 };
 
@@ -257,6 +300,9 @@ static int pxav3_init_host_with_pdata(struct sdhci_host *host,
 
 	if (pdata->flags & PXA_FLAG_DISABLE_PROBE_CDSCAN)
 		host->mmc->caps2 |= MMC_CAP2_DISABLE_PROBE_CDSCAN;
+
+	if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)
+		host->mmc->caps2 |= MMC_CAP2_BUS_AUTO_CLK_GATE;
 
 	if (pdata->quirks)
 		host->quirks |= pdata->quirks;
