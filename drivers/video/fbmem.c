@@ -423,6 +423,7 @@ static void fb_rotate_logo(struct fb_info *info, u8 *dst,
 static void fb_do_show_logo(struct fb_info *info, struct fb_image *image,
 			    int rotate, unsigned int num)
 {
+#ifndef CONFIG_ANDROID
 	unsigned int x;
 
 	if (rotate == FB_ROTATE_UR) {
@@ -450,6 +451,28 @@ static void fb_do_show_logo(struct fb_info *info, struct fb_image *image,
 			image->dy -= image->height + 8;
 		}
 	}
+#else
+	/* show the android logo at screen center */
+	image->dx = (info->var.xres - image->width) >> 1;
+	image->dy = (info->var.yres - image->height) >> 1;
+
+	if (image->dx < 0)
+		image->dx = 0;
+	if (image->dy < 0)
+		image->dy = 0;
+	if (rotate == FB_ROTATE_UR || rotate == FB_ROTATE_UD) {
+		if (image->dx > info->var.xres)
+			image->dx = info->var.xres;
+		if (image->dy > info->var.yres)
+			image->dy = info->var.yres;
+	} else {
+		if (image->dx > info->var.yres)
+			image->dx = info->var.yres;
+		if (image->dy > info->var.xres)
+			image->dy = info->var.xres;
+	}
+	info->fbops->fb_imageblit(info, image);
+#endif
 }
 
 static int fb_show_logo_line(struct fb_info *info, int rotate,
@@ -509,7 +532,6 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 		if (logo_rotate)
 			fb_rotate_logo(info, logo_rotate, &image, rotate);
 	}
-
 	fb_do_show_logo(info, &image, rotate, n);
 
 	kfree(palette);
