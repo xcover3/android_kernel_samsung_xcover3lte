@@ -459,6 +459,12 @@ static int mmp_tdma_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
 	switch (cmd) {
 	case DMA_TERMINATE_ALL:
 		mmp_tdma_disable_chan(tdmac);
+		/*
+		 * need to free descriptor as audio HAL doesn't close the
+		 * stream when audio stream ends
+		 */
+		if (tdmac->desc_arr)
+			mmp_tdma_free_descriptor(tdmac);
 		break;
 	case DMA_PAUSE:
 		mmp_tdma_pause_chan(tdmac);
