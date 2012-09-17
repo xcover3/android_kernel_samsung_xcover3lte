@@ -139,9 +139,14 @@ static int sa1100_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	unsigned long time;
 	int ret;
 
+	if ((tm->tm_year < 70) || (tm->tm_year > 138))
+		return -EINVAL;
+
 	ret = rtc_tm_to_time(tm, &time);
 	if (ret == 0)
 		RCNR = time;
+	/* stabilize the register value */
+	udelay(200);
 	return ret;
 }
 
