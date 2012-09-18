@@ -1766,6 +1766,9 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 
 		if (host->vqmmc) {
 			ret = regulator_set_voltage(host->vqmmc, 2700000, 3600000);
+			if (!ret && !host->mmc->regulator_vqmmc_enabled)
+				if (!regulator_enable(host->vqmmc))
+					host->mmc->regulator_vqmmc_enabled = true;
 			if (ret) {
 				pr_warning("%s: Switching to 3.3V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
@@ -1788,6 +1791,10 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		if (host->vqmmc) {
 			ret = regulator_set_voltage(host->vqmmc,
 					1700000, 1950000);
+			if (!ret && !host->mmc->regulator_vqmmc_enabled)
+				if (!regulator_enable(host->vqmmc))
+					host->mmc->regulator_vqmmc_enabled =
+						true;
 			if (ret) {
 				pr_warning("%s: Switching to 1.8V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
@@ -1817,12 +1824,22 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 	case MMC_SIGNAL_VOLTAGE_120:
 		if (host->vqmmc) {
 			ret = regulator_set_voltage(host->vqmmc, 1100000, 1300000);
+			if (!ret && !host->mmc->regulator_vqmmc_enabled)
+				if (!regulator_enable(host->vqmmc))
+					host->mmc->regulator_vqmmc_enabled =
+						true;
 			if (ret) {
 				pr_warning("%s: Switching to 1.2V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
 				return -EIO;
 			}
 		}
+		return 0;
+	case MMC_SIGNAL_VOLTAGE_OFF:
+		if (host->vqmmc && (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) &&
+			host->mmc->regulator_vqmmc_enabled)
+			if (!regulator_disable(host->vqmmc))
+				host->mmc->regulator_vqmmc_enabled = false;
 		return 0;
 	default:
 		/* No signal voltage switch required */
@@ -2991,17 +3008,11 @@ int sdhci_add_host(struct sdhci_host *host)
 			host->vqmmc = NULL;
 		}
 	} else {
-		ret = regulator_enable(host->vqmmc);
 		if (!regulator_is_supported_voltage(host->vqmmc, 1700000,
 			1950000))
 			caps[1] &= ~(SDHCI_SUPPORT_SDR104 |
 					SDHCI_SUPPORT_SDR50 |
 					SDHCI_SUPPORT_DDR50);
-		if (ret) {
-			pr_warn("%s: Failed to enable vqmmc regulator: %d\n",
-				mmc_hostname(mmc), ret);
-			host->vqmmc = NULL;
-		}
 	}
 
 	if (host->quirks2 & SDHCI_QUIRK2_NO_1_8_V)
@@ -3332,12 +3343,16 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 	tasklet_kill(&host->finish_tasklet);
 
 	if (host->vmmc) {
-		regulator_disable(host->vmmc);
+		if (host->mmc->regulator_vmmc_enabled)
+			if (!regulator_disable(host->vmmc))
+				host->mmc->regulator_vmmc_enabled = false;
 		regulator_put(host->vmmc);
 	}
 
 	if (host->vqmmc) {
-		regulator_disable(host->vqmmc);
+		if (host->mmc->regulator_vqmmc_enabled)
+			if (!regulator_disable(host->vqmmc))
+				host->mmc->regulator_vqmmc_enabled = false;
 		regulator_put(host->vqmmc);
 	}
 

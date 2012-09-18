@@ -1317,15 +1317,15 @@ int mmc_regulator_set_ocr(struct mmc_host *mmc,
 		else
 			result = 0;
 
-		if (result == 0 && !mmc->regulator_enabled) {
+		if (result == 0 && !mmc->regulator_vmmc_enabled) {
 			result = regulator_enable(supply);
 			if (!result)
-				mmc->regulator_enabled = true;
+				mmc->regulator_vmmc_enabled = true;
 		}
-	} else if (mmc->regulator_enabled) {
+	} else if (mmc->regulator_vmmc_enabled) {
 		result = regulator_disable(supply);
 		if (result == 0)
-			mmc->regulator_enabled = false;
+			mmc->regulator_vmmc_enabled = false;
 	}
 
 	if (result)
@@ -1599,6 +1599,9 @@ void mmc_power_off(struct mmc_host *host)
 	host->ios.bus_width = MMC_BUS_WIDTH_1;
 	host->ios.timing = MMC_TIMING_LEGACY;
 	mmc_set_ios(host);
+
+	/* Set signal voltage to 0V */
+	__mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_OFF);
 
 	/*
 	 * Some configurations, such as the 802.11 SDIO card in the OLPC

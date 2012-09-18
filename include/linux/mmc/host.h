@@ -74,6 +74,7 @@ struct mmc_ios {
 #define MMC_SIGNAL_VOLTAGE_330	0
 #define MMC_SIGNAL_VOLTAGE_180	1
 #define MMC_SIGNAL_VOLTAGE_120	2
+#define MMC_SIGNAL_VOLTAGE_OFF	3
 
 	unsigned char	drv_type;		/* driver type (A, B, C, D) */
 
@@ -360,7 +361,8 @@ struct mmc_host {
 	struct led_trigger	*led;		/* activity led */
 
 #ifdef CONFIG_REGULATOR
-	bool			regulator_enabled; /* regulator state */
+	bool			regulator_vmmc_enabled; /* regulator state */
+	bool			regulator_vqmmc_enabled; /* regulator state */
 #endif
 	struct mmc_supply	supply;
 
