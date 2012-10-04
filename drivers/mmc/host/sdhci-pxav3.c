@@ -1048,6 +1048,7 @@ static struct sdhci_pltfm_data sdhci_pxav3_pdata = {
 static int pxav3_init_host_with_pdata(struct sdhci_host *host,
 		struct sdhci_pxa_platdata *pdata)
 {
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
 	int ret = 0;
 
 	/* If slot design supports 8 bit data, indicate this to MMC. */
@@ -1070,6 +1071,12 @@ static int pxav3_init_host_with_pdata(struct sdhci_host *host,
 		host->mmc->caps2 |= pdata->host_caps2;
 	if (pdata->pm_caps)
 		host->mmc->pm_caps |= pdata->pm_caps;
+
+	if (pdata->flags & PXA_FLAG_WAKEUP_HOST) {
+		device_init_wakeup(&pdev->dev, 1);
+		host->mmc->pm_flags |= MMC_PM_WAKE_SDIO_IRQ;
+	} else
+		device_init_wakeup(&pdev->dev, 0);
 
 	return ret;
 }
