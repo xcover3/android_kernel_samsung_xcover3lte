@@ -992,6 +992,17 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 	if (!err && !mmc_card_keep_power(host))
 		mmc_power_off(host);
 
+	/*
+	 * if SDIO card interrupt is used as wake up source, it should not
+	 * disable in suspend, so INT may happen after host has suspended
+	 *
+	 * Here suspend function claim the bus, and it will be released in
+	 * resume funciton untill host and card are both ready for R/W
+	 * so INT thread will not run untill it is safe
+	 */
+	if (!err && device_may_wakeup(mmc_dev(host)))
+		mmc_claim_host(host);
+
 	return err;
 }
 
@@ -1002,8 +1013,15 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	BUG_ON(!host);
 	BUG_ON(!host->card);
 
-	/* Basic card reinitialization. */
-	mmc_claim_host(host);
+	/*
+	 * Basic card reinitialization.
+	 *
+	 * if SDIO card interrupt used as wake up source, and the bus is not
+	 * released in mmc_sdio_suspend
+	 * so it it not need to claim the bus again here
+	 */
+	if (!device_may_wakeup(mmc_dev(host)))
+		mmc_claim_host(host);
 
 	/* Restore power if needed */
 	if (!mmc_card_keep_power(host)) {
