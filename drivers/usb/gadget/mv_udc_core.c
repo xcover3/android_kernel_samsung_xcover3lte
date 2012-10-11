@@ -794,6 +794,8 @@ static void mv_ep_fifo_flush(struct usb_ep *_ep)
 		}
 		loops--;
 	} while (readl(&udc->op_regs->epstatus) & bit_pos);
+
+	writel(bit_pos, &udc->op_regs->epcomplete);
 }
 
 /* queues (submits) an I/O request to an endpoint */
