@@ -359,6 +359,8 @@ struct mmc_host {
 	struct task_struct	*sdio_irq_thread;
 	bool			sdio_irq_pending;
 	atomic_t		sdio_irq_thread_abort;
+	unsigned int            irq_wakeup;
+	unsigned int            break_suspend;
 
 	mmc_pm_flag_t		pm_flags;	/* requested pm features */
 
@@ -427,11 +429,14 @@ void mmc_detect_change(struct mmc_host *, unsigned long delay);
 void mmc_request_done(struct mmc_host *, struct mmc_request *);
 
 int mmc_cache_ctrl(struct mmc_host *, u8);
+extern void mmc_sdio_irq_wakeup(struct mmc_host *host);
 
 static inline void mmc_signal_sdio_irq(struct mmc_host *host)
 {
 	host->ops->enable_sdio_irq(host, 0);
 	host->sdio_irq_pending = true;
+	if (host->irq_wakeup)
+		mmc_sdio_irq_wakeup(host);
 	wake_up_process(host->sdio_irq_thread);
 }
 

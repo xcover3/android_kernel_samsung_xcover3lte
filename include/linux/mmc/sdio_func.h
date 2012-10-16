@@ -40,6 +40,14 @@ struct sdio_func_tuple {
 	unsigned char data[0];
 };
 
+enum sdio_func_status {
+	func_default_status = 0,        /* default value */
+	func_suspending,
+	func_suspended,
+	func_resuming,
+	func_resumed,
+};
+
 /*
  * SDIO function devices
  */
@@ -67,6 +75,7 @@ struct sdio_func {
 	const char		**info;		/* info strings */
 
 	struct sdio_func_tuple *tuples;
+	enum sdio_func_status   func_status;    /* SDIO function driver state */
 };
 
 #define sdio_func_present(f)	((f)->state & SDIO_STATE_PRESENT)

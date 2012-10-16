@@ -43,6 +43,8 @@ static int process_sdio_pending_irqs(struct mmc_host *host)
 	func = card->sdio_single_irq;
 	if (func && host->sdio_irq_pending) {
 		func->irq_handler(func);
+		if (func->func_status == func_suspended)
+			host->break_suspend = 1;
 		return 1;
 	}
 
@@ -74,6 +76,8 @@ static int process_sdio_pending_irqs(struct mmc_host *host)
 					mmc_card_id(card));
 				ret = -EINVAL;
 			} else if (func->irq_handler) {
+				if (func->func_status == func_suspended)
+					host->break_suspend = 1;
 				func->irq_handler(func);
 				count++;
 			} else {
@@ -130,7 +134,6 @@ static int sdio_irq_thread(void *_host)
 		if (ret)
 			break;
 		ret = process_sdio_pending_irqs(host);
-		host->sdio_irq_pending = false;
 		mmc_release_host(host);
 
 		/*
@@ -162,6 +165,7 @@ static int sdio_irq_thread(void *_host)
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (host->caps & MMC_CAP_SDIO_IRQ) {
 			mmc_host_clk_hold(host);
+			host->sdio_irq_pending = false;
 			host->ops->enable_sdio_irq(host, 1);
 			mmc_host_clk_release(host);
 		}

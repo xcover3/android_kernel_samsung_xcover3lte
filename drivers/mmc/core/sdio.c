@@ -935,6 +935,16 @@ out:
 	}
 }
 
+void mmc_sdio_irq_wakeup(struct mmc_host *host)
+{
+	int sec = 1;
+
+	/* FixMe: modify it if have better solution */
+	pr_warn("%s: hold 1 S to prevent suspend\n",
+			mmc_hostname(host));
+	pm_wakeup_event(mmc_dev(host), 1000 * sec);
+}
+
 /*
  * SDIO pre_suspend.  We need to suspend all functions separately.
  * Therefore all registered functions must have drivers with suspend
@@ -944,8 +954,15 @@ static int mmc_sdio_pre_suspend(struct mmc_host *host)
 {
 	int i, err = 0;
 
+	host->break_suspend = 0;
 	for (i = 0; i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
+		/* cancel suspend if any sdio_func has IRQ after suspended */
+		if (host->break_suspend) {
+			host->break_suspend = 0;
+			err = -EBUSY;
+			break;
+		}
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
 			if (!pmops || !pmops->suspend || !pmops->resume) {
@@ -973,13 +990,17 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 			err = pmops->suspend(&func->dev);
 			if (err)
 				break;
+			else
+				func->func_status = func_suspended;
 		}
 	}
 	while (err && --i >= 0) {
 		struct sdio_func *func = host->card->sdio_func[i];
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
+			func->func_status = func_resuming;
 			pmops->resume(&func->dev);
+			func->func_status = func_resumed;
 		}
 	}
 
@@ -1000,8 +1021,23 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 	 * resume funciton untill host and card are both ready for R/W
 	 * so INT thread will not run untill it is safe
 	 */
-	if (!err && device_may_wakeup(mmc_dev(host)))
+	if (!err && device_may_wakeup(mmc_dev(host))) {
+		/*
+		 * use "irq_wakeup" to notify that if irq happens again
+		 * use mmc_sdio_irq_wakeup to prevent suspend
+		 */
+		host->irq_wakeup = 1;
+
 		mmc_claim_host(host);
+		/*
+		 * Use "break_suspend" to double check whether sdio IRQ happens
+		 * if so, use mmc_sdio_irq_wakeup to prevent suspend
+		 */
+		if (host->break_suspend || host->sdio_irq_pending) {
+			host->break_suspend = 0;
+			mmc_sdio_irq_wakeup(host);
+		}
+	}
 
 	return err;
 }
@@ -1056,6 +1092,8 @@ static int mmc_sdio_resume(struct mmc_host *host)
 
 	if (!err && host->sdio_irqs)
 		wake_up_process(host->sdio_irq_thread);
+
+	host->irq_wakeup = 0;
 	mmc_release_host(host);
 
 	/*
@@ -1072,7 +1110,9 @@ static int mmc_sdio_resume(struct mmc_host *host)
 		struct sdio_func *func = host->card->sdio_func[i];
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
+			func->func_status = func_resuming;
 			err = pmops->resume(&func->dev);
+			func->func_status = func_resumed;
 		}
 	}
 
