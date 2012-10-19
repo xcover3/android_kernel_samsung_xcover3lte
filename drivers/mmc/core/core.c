@@ -2555,11 +2555,13 @@ void mmc_start_host(struct mmc_host *host)
 {
 	host->f_init = max(freqs[0], host->f_min);
 	host->rescan_disable = 0;
-	if (host->caps2 & MMC_CAP2_NO_PRESCAN_POWERUP)
-		mmc_power_off(host);
-	else
-		mmc_power_up(host, host->ocr_avail);
-	_mmc_detect_change(host, 0, false);
+	if (!(host->caps2 & MMC_CAP2_DISABLE_PROBE_CDSCAN)) {
+		if (host->caps2 & MMC_CAP2_NO_PRESCAN_POWERUP)
+			mmc_power_off(host);
+		else
+			mmc_power_up(host, host->ocr_avail);
+		_mmc_detect_change(host, 0, false);
+	}
 }
 
 void mmc_stop_host(struct mmc_host *host)

@@ -291,6 +291,11 @@ struct mmc_host {
  * when previous transfer has been totally finished
 */
 #define MMC_CAP2_DISABLE_BLK_ASYNC             (1 << 20)
+/*
+ * controller could disable card scanning in probe procedure for
+ * some cases, eg, for Marvell 8787 SDIO card in phone system
+ */
+#define MMC_CAP2_DISABLE_PROBE_CDSCAN		(1 << 21)
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
