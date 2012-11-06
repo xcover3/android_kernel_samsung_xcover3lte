@@ -37,11 +37,6 @@
 #define DBG(f, x...) \
 	pr_debug(DRIVER_NAME " [%s()]: " f, __func__,## x)
 
-#if defined(CONFIG_LEDS_CLASS) || (defined(CONFIG_LEDS_CLASS_MODULE) && \
-	defined(CONFIG_MMC_SDHCI_MODULE))
-#define SDHCI_USE_LEDS_CLASS
-#endif
-
 #define MAX_TUNING_LOOP 40
 
 static unsigned int debug_quirks = 0;
@@ -299,7 +294,7 @@ static void sdhci_deactivate_led(struct sdhci_host *host)
 	sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 }
 
-#ifdef SDHCI_USE_LEDS_CLASS
+#ifdef CONFIG_SDHCI_USE_LEDS_CLASS
 static void sdhci_led_control(struct led_classdev *led,
 	enum led_brightness brightness)
 {
@@ -1417,7 +1412,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE))
 		host->ops->clk_gate_auto(host, 1);
 
-#ifndef SDHCI_USE_LEDS_CLASS
+#ifndef CONFIG_SDHCI_USE_LEDS_CLASS
 	sdhci_activate_led(host);
 #endif
 
@@ -2310,7 +2305,7 @@ static void sdhci_tasklet_finish(unsigned long param)
 	host->cmd = NULL;
 	host->data = NULL;
 
-#ifndef SDHCI_USE_LEDS_CLASS
+#ifndef CONFIG_SDHCI_USE_LEDS_CLASS
 	sdhci_deactivate_led(host);
 #endif
 	if ((host->quirks2 & SDHCI_QUIRK2_SDIO_SW_CLK_GATE) &&
@@ -3384,7 +3379,7 @@ int sdhci_add_host(struct sdhci_host *host)
 	sdhci_dumpregs(host);
 #endif
 
-#ifdef SDHCI_USE_LEDS_CLASS
+#ifdef CONFIG_SDHCI_USE_LEDS_CLASS
 	snprintf(host->led_name, sizeof(host->led_name),
 		"%s::", mmc_hostname(mmc));
 	host->led.name = host->led_name;
@@ -3413,7 +3408,7 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	return 0;
 
-#ifdef SDHCI_USE_LEDS_CLASS
+#ifdef CONFIG_SDHCI_USE_LEDS_CLASS
 reset:
 	sdhci_reset(host, SDHCI_RESET_ALL);
 	sdhci_mask_irqs(host, SDHCI_INT_ALL_MASK);
@@ -3453,7 +3448,7 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 
 	mmc_remove_host(host->mmc);
 
-#ifdef SDHCI_USE_LEDS_CLASS
+#ifdef CONFIG_SDHCI_USE_LEDS_CLASS
 	led_classdev_unregister(&host->led);
 #endif
 
