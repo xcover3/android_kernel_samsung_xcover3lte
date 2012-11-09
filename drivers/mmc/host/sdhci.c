@@ -1696,8 +1696,10 @@ static void sdhci_hw_reset(struct mmc_host *mmc)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
 
+	sdhci_runtime_pm_get(host);
 	if (host->ops && host->ops->hw_reset)
 		host->ops->hw_reset(host);
+	sdhci_runtime_pm_put(host);
 }
 
 static int sdhci_get_ro(struct mmc_host *mmc)
@@ -2104,6 +2106,8 @@ static void sdhci_card_event(struct mmc_host *mmc)
 	struct sdhci_host *host = mmc_priv(mmc);
 	unsigned long flags;
 
+	sdhci_runtime_pm_get(host);
+
 	/* First check if client has provided their own card event */
 	if (host->ops->card_event)
 		host->ops->card_event(host);
@@ -2125,6 +2129,7 @@ static void sdhci_card_event(struct mmc_host *mmc)
 	}
 
 	spin_unlock_irqrestore(&host->lock, flags);
+	sdhci_runtime_pm_put(host);
 }
 
 static const struct mmc_host_ops sdhci_ops = {
@@ -2602,6 +2607,7 @@ EXPORT_SYMBOL_GPL(sdhci_disable_irq_wakeups);
 
 int sdhci_suspend_host(struct sdhci_host *host)
 {
+	sdhci_runtime_pm_get(host);
 	if (host->ops->platform_suspend)
 		host->ops->platform_suspend(host);
 
@@ -2620,6 +2626,7 @@ int sdhci_suspend_host(struct sdhci_host *host)
 		sdhci_enable_irq_wakeups(host);
 		enable_irq_wake(host->irq);
 	}
+	sdhci_runtime_pm_put(host);
 	return 0;
 }
 
@@ -2629,6 +2636,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 {
 	int ret = 0;
 
+	sdhci_runtime_pm_get(host);
 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
 		if (host->ops->enable_dma)
 			host->ops->enable_dma(host);
@@ -2637,8 +2645,10 @@ int sdhci_resume_host(struct sdhci_host *host)
 	if (!device_may_wakeup(mmc_dev(host->mmc))) {
 		ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
 				  mmc_hostname(host->mmc), host);
-		if (ret)
+		if (ret) {
+			sdhci_runtime_pm_put(host);
 			return ret;
+		}
 	} else {
 		sdhci_disable_irq_wakeups(host);
 		disable_irq_wake(host->irq);
@@ -2664,6 +2674,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 	/* Set the re-tuning expiration flag */
 	if (host->flags & SDHCI_USING_RETUNING_TIMER)
 		host->flags |= SDHCI_NEEDS_RETUNING;
+	sdhci_runtime_pm_put(host);
 
 	return ret;
 }
@@ -3313,6 +3324,7 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 {
 	unsigned long flags;
 
+	sdhci_runtime_pm_get(host);
 	if (dead) {
 		spin_lock_irqsave(&host->lock, flags);
 
@@ -3348,6 +3360,7 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 	tasklet_kill(&host->card_tasklet);
 	tasklet_kill(&host->finish_tasklet);
 
+	sdhci_runtime_pm_put(host);
 	if (host->vmmc) {
 		if (host->mmc->regulator_vmmc_enabled)
 			if (!regulator_disable(host->vmmc))
