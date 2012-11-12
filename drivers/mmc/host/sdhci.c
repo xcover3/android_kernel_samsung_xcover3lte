@@ -2455,9 +2455,15 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 
 	if (host->runtime_suspended) {
 		spin_unlock(&host->lock);
-		pr_warning("%s: got irq while runtime suspended\n",
-		       mmc_hostname(host->mmc));
-		return IRQ_HANDLED;
+
+		/* For some SOC, like pxa920,pxa988, SD Hosts share a same
+		 * IRQ line and this irq_handle
+		 *
+		 * So this function may be called often if anthor host is still
+		 * busying
+		 * It is better to return and not do other jobs here
+		 */
+		return IRQ_NONE;
 	}
 
 	intmask = sdhci_readl(host, SDHCI_INT_STATUS);
