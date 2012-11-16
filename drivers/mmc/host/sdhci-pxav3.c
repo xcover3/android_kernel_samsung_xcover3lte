@@ -261,6 +261,9 @@ static int pxav3_init_host_with_pdata(struct sdhci_host *host,
 	if (pdata->flags & PXA_FLAG_SD_8_BIT_CAPABLE_SLOT)
 		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 
+	if (pdata->flags & PXA_FLAG_DISABLE_PROBE_CDSCAN)
+		host->mmc->caps2 |= MMC_CAP2_DISABLE_PROBE_CDSCAN;
+
 	if (pdata->quirks)
 		host->quirks |= pdata->quirks;
 	if (pdata->quirks2)
