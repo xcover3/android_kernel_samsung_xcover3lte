@@ -112,6 +112,41 @@ static struct sdhci_regdata pxav3_regdata_v3 = {
 	.APBC_ASFAR = 0xD4015068,
 };
 
+static unsigned long pxav3_clk_prepare(struct sdhci_host *host,
+		unsigned long rate)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	struct sdhci_pxa_dtr_data *dtr_data;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	unsigned char timing = host->mmc->ios.timing;
+
+	unsigned long preset_rate = 0, src_rate = 0;
+
+	if (pdata && pdata->dtr_data) {
+		if (timing >= MMC_TIMING_MAX) {
+			pr_err("%s: invalid timing %d\n", mmc_hostname(host->mmc), timing);
+			return rate;
+		}
+
+		dtr_data = &pdata->dtr_data[timing];
+
+		if (timing != dtr_data->timing)
+			return rate;
+
+		if ((MMC_TIMING_LEGACY == timing) &&
+				(rate != PXA_SDH_DTR_25M))
+			preset_rate = rate;
+		else
+			preset_rate = dtr_data->preset_rate;
+		src_rate = dtr_data->src_rate;
+		clk_set_rate(pltfm_host->clk, src_rate);
+
+		return preset_rate;
+	} else
+		return rate;
+}
+
 static void pxav3_clk_gate_auto(struct sdhci_host *host, unsigned int ctrl)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
@@ -277,6 +312,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
+	.clk_prepare = pxav3_clk_prepare,
 	.clk_gate_auto  = pxav3_clk_gate_auto,
 	.host_caps_disable = pxav3_host_caps_disable,
 };

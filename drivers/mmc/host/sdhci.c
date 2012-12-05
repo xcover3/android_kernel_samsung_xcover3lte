@@ -1195,6 +1195,12 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	if (clock == 0)
 		goto out;
 
+	if (host->ops->clk_prepare) {
+		clock = host->ops->clk_prepare(host, clock);
+		if (host->ops->get_max_clock)
+			host->max_clk = host->ops->get_max_clock(host);
+	}
+
 	if (host->version >= SDHCI_SPEC_300) {
 		if (sdhci_readw(host, SDHCI_HOST_CONTROL2) &
 			SDHCI_CTRL_PRESET_VAL_ENABLE) {
