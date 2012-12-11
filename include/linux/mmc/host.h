@@ -19,6 +19,19 @@
 #include <linux/mmc/core.h>
 #include <linux/mmc/pm.h>
 
+enum timing_type {
+	MMC_TIMING_LEGACY = 0, /* 0~25MHz */
+	MMC_TIMING_UHS_SDR12, /* 0~25MHz */
+	MMC_TIMING_MMC_HS, /* 52MHz */
+	MMC_TIMING_SD_HS, /* 50MHz */
+	MMC_TIMING_UHS_SDR25, /* 50MHz */
+	MMC_TIMING_UHS_SDR50,   /* 100MHz */
+	MMC_TIMING_UHS_SDR104, /* 208MHz */
+	MMC_TIMING_UHS_DDR50, /* 50MHz */
+	MMC_TIMING_MMC_HS200, /* 200MHz */
+	MMC_TIMING_MAX,
+};
+
 struct mmc_ios {
 	unsigned int	clock;			/* clock rate */
 	unsigned short	vdd;
@@ -49,16 +62,6 @@ struct mmc_ios {
 #define MMC_BUS_WIDTH_8		3
 
 	unsigned char	timing;			/* timing specification used */
-
-#define MMC_TIMING_LEGACY	0
-#define MMC_TIMING_MMC_HS	1
-#define MMC_TIMING_SD_HS	2
-#define MMC_TIMING_UHS_SDR12	3
-#define MMC_TIMING_UHS_SDR25	4
-#define MMC_TIMING_UHS_SDR50	5
-#define MMC_TIMING_UHS_SDR104	6
-#define MMC_TIMING_UHS_DDR50	7
-#define MMC_TIMING_MMC_HS200	8
 
 #define MMC_SDR_MODE		0
 #define MMC_1_2V_DDR_MODE	1
