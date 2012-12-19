@@ -320,6 +320,11 @@ static int i2c_pxa_wait_bus_not_busy(struct pxa_i2c *i2c)
 {
 	int timeout = DEF_TIMEOUT;
 
+	if (readl(_ISR(i2c)) & (ISR_IBB | ISR_UB)) {
+		i2c_pxa_reset(i2c);
+		timeout /= 2;
+	}
+
 	while (timeout-- && readl(_ISR(i2c)) & (ISR_IBB | ISR_UB)) {
 		if ((readl(_ISR(i2c)) & ISR_SAD) != 0)
 			timeout += 4;
