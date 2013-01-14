@@ -746,8 +746,12 @@ static int get_card_status(struct mmc_card *card, u32 *status, int retries)
 		cmd.arg = card->rca << 16;
 	cmd.flags = MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC;
 	err = mmc_wait_for_cmd(card->host, &cmd, retries);
-	if (err == 0)
+	if (err == 0) {
 		*status = cmd.resp[0];
+		if (cmd.resp[0] & R1_ERROR_BITS)
+			pr_err("%s:has card status error:0x%x\n",
+				mmc_hostname(card->host), cmd.resp[0]);
+	}
 	return err;
 }
 

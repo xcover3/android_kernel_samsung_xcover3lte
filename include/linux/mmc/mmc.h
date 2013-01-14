@@ -142,6 +142,9 @@ static inline bool mmc_op_multi(u32 opcode)
 #define R1_EXCEPTION_EVENT	(1 << 6)	/* sr, a */
 #define R1_APP_CMD		(1 << 5)	/* sr, c */
 
+#define R1_ERROR_BITS  0xFDFF8008      /* all error bits */
+#define R1_CMD13_ERROR_BITS    0xCDF98000      /* all error bits for CMD13 */
+
 #define R1_STATE_IDLE	0
 #define R1_STATE_READY	1
 #define R1_STATE_IDENT	2
