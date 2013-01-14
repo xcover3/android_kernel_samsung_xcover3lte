@@ -16,6 +16,7 @@
 #include <linux/types.h>
 #include <linux/io.h>
 #include <linux/mmc/host.h>
+#include <linux/slab.h>
 
 struct sdhci_host {
 	/* Data set by hardware interface driver */
@@ -166,11 +167,11 @@ struct sdhci_host {
 
 	int sg_count;		/* Mapped sg entries */
 
-	u8 *adma_desc;		/* ADMA descriptor table */
-	u8 *align_buffer;	/* Bounce buffer */
-
-	dma_addr_t adma_addr;	/* Mapped ADMA descr. table */
-	dma_addr_t align_addr;	/* Mapped bounce buffer */
+#define	MAX_ADMA_DESC	3
+	u8 *adma_desc[MAX_ADMA_DESC];		/* ADMA descriptor table */
+	u8 *align_buffer[MAX_ADMA_DESC];	/* Bounce buffer */
+	int	adma_desc_index;	/* the last desc used */
+	int	adma_desc_ref;	/* check whether alloc/free desc balance */
 
 	struct tasklet_struct card_tasklet;	/* Tasklet structures */
 	struct tasklet_struct finish_tasklet;

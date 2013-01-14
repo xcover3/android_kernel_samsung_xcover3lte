@@ -119,9 +119,16 @@ struct mmc_data {
 
 	struct mmc_command	*stop;		/* stop command */
 	struct mmc_request	*mrq;		/* associated request */
+	dma_addr_t              adma_addr;      /* Mapped ADMA descr. table */
+	dma_addr_t              align_addr;     /* Mapped bounce buffer */
+	unsigned int            prepared;       /* data prepared */
+	unsigned int            finished;       /* data finished */
+	u8			*adma_desc;	/* ADMA descriptor table */
+	u8			*align_buffer;	/* Bounce buffer */
 
 	unsigned int		sg_len;		/* size of scatter list */
 	struct scatterlist	*sg;		/* I/O scatter list */
+	int			sg_count;
 	s32			host_cookie;	/* host private data */
 };
 
