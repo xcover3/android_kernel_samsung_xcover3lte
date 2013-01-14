@@ -102,6 +102,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_BROKEN_HS200			(1<<6)
 /* Some SDHCI v3 controller doesn't suppport current limit error */
 #define SDHCI_QUIRK2_NO_CURRENT_LIMIT                   (1<<10)
+/* Controller data timeout counter is 4 times long as spec defined */
+#define SDHCI_QUIRK2_TIMEOUT_DIVIDE_4			(1<<11)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */

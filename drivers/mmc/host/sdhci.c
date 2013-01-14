@@ -702,7 +702,10 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_command *cmd)
 	 *     (1) / (2) > 2^6
 	 */
 	count = 0;
-	current_timeout = (1 << 13) * 1000 / host->timeout_clk;
+	if (host->quirks2 & SDHCI_QUIRK2_TIMEOUT_DIVIDE_4)
+		current_timeout = (1 << 13) * 1000 * 4 / host->timeout_clk;
+	else
+		current_timeout = (1 << 13) * 1000 / host->timeout_clk;
 	while (current_timeout < target_timeout) {
 		count++;
 		current_timeout <<= 1;
@@ -1142,7 +1145,12 @@ static u16 sdhci_get_preset_value(struct sdhci_host *host)
 
 static inline void sdhci_set_max_discard_to(struct sdhci_host *host)
 {
-	host->mmc->max_discard_to = (1 << 27) / host->timeout_clk;
+	if (host->quirks2 & SDHCI_QUIRK2_TIMEOUT_DIVIDE_4)
+		host->mmc->max_discard_to =
+			(1 << 27) * 4 / host->timeout_clk;
+	else
+		host->mmc->max_discard_to =
+			(1 << 27) / host->timeout_clk;
 }
 
 static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
