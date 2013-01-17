@@ -168,6 +168,33 @@ static void sdhci_disable_card_detection(struct sdhci_host *host)
 	sdhci_set_card_detection(host, false);
 }
 
+void sdhci_enable_irq_wakeups(struct sdhci_host *host)
+{
+	u8 val;
+	u8 mask = SDHCI_WAKE_ON_INSERT | SDHCI_WAKE_ON_REMOVE
+		| SDHCI_WAKE_ON_INT;
+
+	val = sdhci_readb(host, SDHCI_WAKE_UP_CONTROL);
+	val |= mask;
+	/* Avoid fake wake up */
+	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+		val &= ~(SDHCI_WAKE_ON_INSERT | SDHCI_WAKE_ON_REMOVE);
+	sdhci_writeb(host, val, SDHCI_WAKE_UP_CONTROL);
+}
+EXPORT_SYMBOL_GPL(sdhci_enable_irq_wakeups);
+
+void sdhci_disable_irq_wakeups(struct sdhci_host *host)
+{
+	u8 val;
+	u8 mask = SDHCI_WAKE_ON_INSERT | SDHCI_WAKE_ON_REMOVE
+		| SDHCI_WAKE_ON_INT;
+
+	val = sdhci_readb(host, SDHCI_WAKE_UP_CONTROL);
+	val &= ~mask;
+	sdhci_writeb(host, val, SDHCI_WAKE_UP_CONTROL);
+}
+EXPORT_SYMBOL_GPL(sdhci_disable_irq_wakeups);
+
 void sdhci_reset(struct sdhci_host *host, u8 mask)
 {
 	unsigned long timeout;
@@ -1901,10 +1928,13 @@ static void sdhci_enable_sdio_irq_nolock(struct sdhci_host *host, int enable)
 	if (host->runtime_suspended)
 		goto out;
 
-	if (enable)
+	if (enable) {
 		sdhci_unmask_irqs(host, SDHCI_INT_CARD_INT);
-	else
+		sdhci_enable_irq_wakeups(host);
+	} else {
+		sdhci_disable_irq_wakeups(host);
 		sdhci_mask_irqs(host, SDHCI_INT_CARD_INT);
+	}
 out:
 	mmiowb();
 }
@@ -2851,33 +2881,6 @@ out:
 \*****************************************************************************/
 
 #ifdef CONFIG_PM
-void sdhci_enable_irq_wakeups(struct sdhci_host *host)
-{
-	u8 val;
-	u8 mask = SDHCI_WAKE_ON_INSERT | SDHCI_WAKE_ON_REMOVE
-			| SDHCI_WAKE_ON_INT;
-
-	val = sdhci_readb(host, SDHCI_WAKE_UP_CONTROL);
-	val |= mask ;
-	/* Avoid fake wake up */
-	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
-		val &= ~(SDHCI_WAKE_ON_INSERT | SDHCI_WAKE_ON_REMOVE);
-	sdhci_writeb(host, val, SDHCI_WAKE_UP_CONTROL);
-}
-EXPORT_SYMBOL_GPL(sdhci_enable_irq_wakeups);
-
-void sdhci_disable_irq_wakeups(struct sdhci_host *host)
-{
-	u8 val;
-	u8 mask = SDHCI_WAKE_ON_INSERT | SDHCI_WAKE_ON_REMOVE
-			| SDHCI_WAKE_ON_INT;
-
-	val = sdhci_readb(host, SDHCI_WAKE_UP_CONTROL);
-	val &= ~mask;
-	sdhci_writeb(host, val, SDHCI_WAKE_UP_CONTROL);
-}
-EXPORT_SYMBOL_GPL(sdhci_disable_irq_wakeups);
-
 int sdhci_suspend_host(struct sdhci_host *host)
 {
 	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
@@ -2904,10 +2907,11 @@ int sdhci_suspend_host(struct sdhci_host *host)
 
 	if (!device_may_wakeup(mmc_dev(host->mmc))) {
 		sdhci_mask_irqs(host, SDHCI_INT_ALL_MASK);
+		sdhci_disable_irq_wakeups(host);
 		free_irq(host->irq, host);
 	} else {
-		sdhci_enable_irq_wakeups(host);
 		enable_irq_wake(host->irq);
+		sdhci_enable_irq_wakeups(host);
 	}
 	sdhci_runtime_pm_put(host);
 	return 0;
