@@ -192,6 +192,8 @@ void sdhci_disable_irq_wakeups(struct sdhci_host *host)
 	val = sdhci_readb(host, SDHCI_WAKE_UP_CONTROL);
 	val &= ~mask;
 	sdhci_writeb(host, val, SDHCI_WAKE_UP_CONTROL);
+	if (host->ops->clr_wakeup_event)
+		host->ops->clr_wakeup_event(host);
 }
 EXPORT_SYMBOL_GPL(sdhci_disable_irq_wakeups);
 

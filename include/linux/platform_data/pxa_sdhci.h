@@ -85,6 +85,7 @@ struct sdhci_pxa_platdata {
 	struct sdhci_pxa_dtr_data *dtr_data;
 	struct  pm_qos_request  qos_idle;
 	u32	lpm_qos;
+	void	(*clear_wakeup_event)(void);
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pin_slow;
 	struct pinctrl_state *pin_fast;

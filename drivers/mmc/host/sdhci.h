@@ -299,6 +299,7 @@ struct sdhci_ops {
 	void	(*access_constrain)(struct sdhci_host *host, unsigned int ac);
 	void    (*card_event)(struct sdhci_host *host);
 	unsigned long (*clk_prepare)(struct sdhci_host *host, unsigned long rate);
+	void	(*clr_wakeup_event)(struct sdhci_host *host);
 	void	(*signal_vol_change)(struct sdhci_host *host, u8 vol);
 	void	(*clk_gate_auto)(struct sdhci_host *host, unsigned int ctrl);
 	void	(*host_caps_disable)(struct sdhci_host *host);

@@ -647,6 +647,18 @@ static void set_mmc1_aib(struct sdhci_host *host, int vol)
 	iounmap(aib_mmc1_io);
 }
 
+static void pxav3_clr_wakeup_event(struct sdhci_host *host)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (!pdata)
+		return;
+
+	if (pdata->clear_wakeup_event)
+		pdata->clear_wakeup_event();
+}
+
 static void pxav3_signal_vol_change(struct sdhci_host *host, u8 vol)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
@@ -1028,6 +1040,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.clk_prepare = pxav3_clk_prepare,
+	.clr_wakeup_event = pxav3_clr_wakeup_event,
 	.signal_vol_change = pxav3_signal_vol_change,
 	.clk_gate_auto  = pxav3_clk_gate_auto,
 	.set_clock = pxav3_set_clock,
