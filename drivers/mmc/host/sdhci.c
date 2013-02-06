@@ -1383,6 +1383,11 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	WARN_ON(host->mrq != NULL);
 
+	if ((host->quirks2 & SDHCI_QUIRK2_SDIO_SW_CLK_GATE) &&
+			(host->ops->clk_gate_auto) &&
+			(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE))
+		host->ops->clk_gate_auto(host, 1);
+
 #ifndef SDHCI_USE_LEDS_CLASS
 	sdhci_activate_led(host);
 #endif
@@ -2243,6 +2248,10 @@ static void sdhci_tasklet_finish(unsigned long param)
 #ifndef SDHCI_USE_LEDS_CLASS
 	sdhci_deactivate_led(host);
 #endif
+	if ((host->quirks2 & SDHCI_QUIRK2_SDIO_SW_CLK_GATE) &&
+			(host->ops->clk_gate_auto) &&
+			(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE))
+		host->ops->clk_gate_auto(host, 0);
 
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);

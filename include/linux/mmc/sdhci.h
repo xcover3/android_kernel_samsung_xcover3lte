@@ -106,6 +106,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_TIMEOUT_DIVIDE_4			(1<<11)
 /* Controller enable HW bus clock gating by default */
 #define SDHCI_QUIRK2_BUS_CLK_GATE_ENABLED		(1<<12)
+/* Controller must enable clock gate by software during CMDs */
+#define SDHCI_QUIRK2_SDIO_SW_CLK_GATE			(1<<13)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */

@@ -68,6 +68,8 @@
 #define SDHCI_QUIRK_INVERTED_WRITE_PROTECT              (1<<16)
 
 /* for SDIO card */
+/* Controller must enable clock gate by software during CMDs */
+#define SDHCI_QUIRK2_SDIO_SW_CLK_GATE			(1<<13)
 
 #define MMC_PM_KEEP_POWER       (1 << 0)
 
