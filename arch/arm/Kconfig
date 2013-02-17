@@ -1350,6 +1350,19 @@ config ARM_ERRATA_764369
 	  relevant cache maintenance functions and sets a specific bit
 	  in the diagnostic control register of the SCU.
 
+config ARM_ERRATA_794322
+	bool "ARM errata: An instruction fetch can be allocated into the L2 cache after the cache is disabled"
+	depends on CPU_V7
+	help
+	  This option enables the workaround for erratum 794322
+	  affecting Cortex-A7 MPCore r0p2, r0p3 with an L2 cache. The
+	  SCTLR.C bit controls when data can be allocated to data and
+	  unified caches. On a Cortex-A7 processor, instruction fetches
+	  can cause lines to be allocated to the L2 cache when the C bit
+	  is set to 1. Because of this erratum, an instruction fetch
+	  might cause an allocation to the L2 cache when the C bit is
+	  set to 0.
+
 config PL310_ERRATA_769419
 	bool "PL310 errata: no automatic Store Buffer drain"
 	depends on CACHE_L2X0

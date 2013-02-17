@@ -46,6 +46,11 @@ static inline void disable_l1_dcache(void)
 	"       mrc     p15, 0, %0, c1, c0, 0\n"
 	"       bic     %0, %0, %1\n"
 	"       mcr     p15, 0, %0, c1, c0, 0\n"
+#ifdef CONFIG_ARM_ERRATA_794322
+	"	ldr	%0, =_stext\n"
+	"	mcr     p15, 0, %0, c8, c7, 1\n"
+	"	dsb\n"
+#endif
 	: "=&r" (v) : "Ir" (CR_C) : "cc");
 	isb();
 }
