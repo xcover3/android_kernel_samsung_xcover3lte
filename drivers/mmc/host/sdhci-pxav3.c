@@ -133,13 +133,13 @@ static void pxav3_set_private_registers(struct sdhci_host *host, u8 mask)
 	}
 }
 
-#define MAX_WAIT_COUNT 5
+#define MAX_WAIT_COUNT 74
 static void pxav3_gen_init_74_clocks(struct sdhci_host *host, u8 power_mode)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 	u16 tmp;
-	int count;
+	int count = 0;
 
 	if (pxa->power_mode == MMC_POWER_UP
 			&& power_mode == MMC_POWER_ON) {
@@ -151,34 +151,27 @@ static void pxav3_gen_init_74_clocks(struct sdhci_host *host, u8 power_mode)
 				pxa->power_mode,
 				power_mode);
 
-		/* set we want notice of when 74 clocks are sent */
-		tmp = readw(host->ioaddr + SD_CE_ATA_2);
-		tmp |= SDCE_MISC_INT_EN;
-		writew(tmp, host->ioaddr + SD_CE_ATA_2);
+		/* clear the interrupt bit if posted and
+		 * set we want notice of when 74 clocks are sent
+		 */
+		tmp = sdhci_readw(host, SD_CE_ATA_2);
+		tmp |= SDCE_MISC_INT | SDCE_MISC_INT_EN;
+		sdhci_writew(host, tmp, SD_CE_ATA_2);
 
 		/* start sending the 74 clocks */
-		tmp = readw(host->ioaddr + SD_CFG_FIFO_PARAM);
+		tmp = sdhci_readw(host, SD_CFG_FIFO_PARAM);
 		tmp |= SDCFG_GEN_PAD_CLK_ON;
-		writew(tmp, host->ioaddr + SD_CFG_FIFO_PARAM);
+		sdhci_writew(host, tmp, SD_CFG_FIFO_PARAM);
 
 		/* slowest speed is about 100KHz or 10usec per clock */
-		udelay(740);
-		count = 0;
-
 		while (count++ < MAX_WAIT_COUNT) {
-			if ((readw(host->ioaddr + SD_CE_ATA_2)
-						& SDCE_MISC_INT) == 0)
+			if (sdhci_readw(host, SD_CE_ATA_2) & SDCE_MISC_INT)
 				break;
-			udelay(10);
+			udelay(20);
 		}
 
-		if (count == MAX_WAIT_COUNT)
+		if (count >= MAX_WAIT_COUNT)
 			dev_warn(mmc_dev(host->mmc), "74 clock interrupt not cleared\n");
-
-		/* clear the interrupt bit if posted */
-		tmp = readw(host->ioaddr + SD_CE_ATA_2);
-		tmp |= SDCE_MISC_INT;
-		writew(tmp, host->ioaddr + SD_CE_ATA_2);
 	}
 	pxa->power_mode = power_mode;
 }
