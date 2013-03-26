@@ -10,6 +10,8 @@
 #ifndef __MV_PLATFORM_USB_H
 #define __MV_PLATFORM_USB_H
 
+#include <linux/notifier.h>
+
 enum pxa_ehci_type {
 	EHCI_UNDEFINED = 0,
 	PXA_U2OEHCI,	/* pxa 168, 9xx */
