@@ -137,10 +137,10 @@ struct mv_otg_regs {
 
 struct mv_otg {
 	struct usb_phy phy;
+	struct usb_phy *outer_phy;
 	struct mv_otg_ctrl otg_ctrl;
 
 	/* base address */
-	void __iomem *phy_regs;
 	void __iomem *cap_regs;
 	struct mv_otg_regs __iomem *op_regs;
 
