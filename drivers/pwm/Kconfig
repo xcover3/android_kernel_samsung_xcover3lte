@@ -150,7 +150,7 @@ config PWM_PUV3
 
 config PWM_PXA
 	tristate "PXA PWM support"
-	depends on ARCH_PXA
+	depends on ARCH_PXA || ARCH_MMP
 	help
 	  Generic PWM framework driver for PXA.
 
