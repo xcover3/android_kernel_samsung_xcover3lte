@@ -447,7 +447,7 @@ void __init mmp2_init_icu(void)
 #ifdef CONFIG_OF
 static int __init mmp_init_bases(struct device_node *node)
 {
-	int ret, nr_irqs, irq, i = 0;
+	int ret, nr_irqs, irq, irq_base;
 
 	ret = of_property_read_u32(node, "mrvl,intc-nr-irqs", &nr_irqs);
 	if (ret) {
@@ -461,29 +461,27 @@ static int __init mmp_init_bases(struct device_node *node)
 		return -ENOMEM;
 	}
 
-	icu_data[0].virq_base = 0;
-	icu_data[0].domain = irq_domain_add_linear(node, nr_irqs,
-						   &mmp_irq_domain_ops,
-						   &icu_data[0]);
-	for (irq = 0; irq < nr_irqs; irq++) {
-		ret = irq_create_mapping(icu_data[0].domain, irq);
-		if (!ret) {
-			pr_err("Failed to mapping hwirq\n");
-			goto err;
-		}
-		if (!irq)
-			icu_data[0].virq_base = ret;
+	irq_base = irq_alloc_descs(-1, 0, nr_irqs - NR_IRQS_LEGACY, 0);
+	if (irq_base < 0) {
+		pr_err("Failed to allocate IRQ numbers\n");
+		ret = irq_base;
+		goto err;
+	} else if (irq_base != NR_IRQS_LEGACY) {
+		pr_err("ICU's irqbase should be started from 0\n");
+		ret = -EINVAL;
+		goto err;
 	}
 	icu_data[0].nr_irqs = nr_irqs;
+	icu_data[0].virq_base = 0;
+	icu_data[0].domain = irq_domain_add_legacy(node, nr_irqs, 0, 0,
+						   &mmp_irq_domain_ops,
+						   &icu_data[0]);
+	for (irq = 0; irq < nr_irqs; irq++)
+		icu_mask_irq(irq_get_irq_data(irq));
 	return 0;
 err:
-	if (icu_data[0].virq_base) {
-		for (i = 0; i < irq; i++)
-			irq_dispose_mapping(icu_data[0].virq_base + i);
-	}
-	irq_domain_remove(icu_data[0].domain);
 	iounmap(mmp_icu_base);
-	return -EINVAL;
+	return ret;
 }
 
 static int __init mmp_of_init(struct device_node *node,
@@ -503,7 +501,6 @@ static int __init mmp_of_init(struct device_node *node,
 	max_icu_nr = 1;
 	return 0;
 }
-IRQCHIP_DECLARE(mmp_intc, "mrvl,mmp-intc", mmp_of_init);
 
 static int __init mmp2_of_init(struct device_node *node,
 			       struct device_node *parent)
@@ -522,13 +519,12 @@ static int __init mmp2_of_init(struct device_node *node,
 	max_icu_nr = 1;
 	return 0;
 }
-IRQCHIP_DECLARE(mmp2_intc, "mrvl,mmp2-intc", mmp2_of_init);
 
 static int __init mmp2_mux_of_init(struct device_node *node,
 				   struct device_node *parent)
 {
 	struct resource res;
-	int i, ret, irq, j = 0;
+	int i, irq_base, ret, irq;
 	u32 nr_irqs, mfp_irq;
 
 	if (!parent)
@@ -557,37 +553,31 @@ static int __init mmp2_mux_of_init(struct device_node *node,
 	if (!icu_data[i].cascade_irq)
 		return -EINVAL;
 
-	icu_data[i].virq_base = 0;
-	icu_data[i].domain = irq_domain_add_linear(node, nr_irqs,
-						   &mmp_irq_domain_ops,
-						   &icu_data[i]);
-	for (irq = 0; irq < nr_irqs; irq++) {
-		ret = irq_create_mapping(icu_data[i].domain, irq);
-		if (!ret) {
-			pr_err("Failed to mapping hwirq\n");
-			goto err;
-		}
-		if (!irq)
-			icu_data[i].virq_base = ret;
+	irq_base = irq_alloc_descs(-1, 0, nr_irqs, 0);
+	if (irq_base < 0) {
+		pr_err("Failed to allocate IRQ numbers for mux intc\n");
+		return irq_base;
 	}
-	icu_data[i].nr_irqs = nr_irqs;
 	if (!of_property_read_u32(node, "mrvl,clr-mfp-irq",
 				  &mfp_irq)) {
-		icu_data[i].clr_mfp_irq_base = icu_data[i].virq_base;
+		icu_data[i].clr_mfp_irq_base = irq_base;
 		icu_data[i].clr_mfp_hwirq = mfp_irq;
 	}
 	irq_set_chained_handler(icu_data[i].cascade_irq,
 				icu_mux_irq_demux);
+	icu_data[i].nr_irqs = nr_irqs;
+	icu_data[i].virq_base = irq_base;
+	icu_data[i].domain = irq_domain_add_legacy(node, nr_irqs,
+						   irq_base, 0,
+						   &mmp_irq_domain_ops,
+						   &icu_data[i]);
+	for (irq = irq_base; irq < irq_base + nr_irqs; irq++)
+		icu_mask_irq(irq_get_irq_data(irq));
 	max_icu_nr++;
 	return 0;
-err:
-	if (icu_data[i].virq_base) {
-		for (j = 0; j < irq; j++)
-			irq_dispose_mapping(icu_data[i].virq_base + j);
-	}
-	irq_domain_remove(icu_data[i].domain);
-	return -EINVAL;
 }
+IRQCHIP_DECLARE(mmp_intc, "mrvl,mmp-intc", mmp_of_init);
+IRQCHIP_DECLARE(mmp2_intc, "mrvl,mmp2-intc", mmp2_of_init);
 IRQCHIP_DECLARE(mmp2_mux_intc, "mrvl,mmp2-mux-intc", mmp2_mux_of_init);
 
 void __init mmp_of_wakeup_init(void)
