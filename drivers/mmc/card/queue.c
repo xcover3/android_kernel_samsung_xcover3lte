@@ -46,6 +46,11 @@ static int mmc_prep_request(struct request_queue *q, struct request *req)
 	return BLKPREP_OK;
 }
 
+static int is_disable_mmc_async(struct mmc_queue *mq)
+{
+	return !!(mq->card->host->caps2 & MMC_CAP2_DISABLE_BLK_ASYNC);
+}
+
 static int mmc_queue_thread(void *d)
 {
 	struct mmc_queue *mq = d;
@@ -61,7 +66,10 @@ static int mmc_queue_thread(void *d)
 
 		spin_lock_irq(q->queue_lock);
 		set_current_state(TASK_INTERRUPTIBLE);
-		req = blk_fetch_request(q);
+		if (mq->mqrq_prev->req && is_disable_mmc_async(mq))
+			req = NULL;
+		else
+			req = blk_fetch_request(q);
 		mq->mqrq_cur->req = req;
 		spin_unlock_irq(q->queue_lock);
 

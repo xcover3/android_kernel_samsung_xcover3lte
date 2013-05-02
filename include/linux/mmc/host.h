@@ -285,6 +285,12 @@ struct mmc_host {
 				 MMC_CAP2_PACKED_WR)
 #define MMC_CAP2_NO_PRESCAN_POWERUP (1 << 14)	/* Don't power up before scan */
 #define MMC_CAP2_SANITIZE	(1 << 15)		/* Support Sanitize */
+/*
+ * disable the block devices' pre/post feature
+ * So that the next data transfer will only be perpared/triggered
+ * when previous transfer has been totally finished
+*/
+#define MMC_CAP2_DISABLE_BLK_ASYNC             (1 << 20)
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 

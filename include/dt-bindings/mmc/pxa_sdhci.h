@@ -51,6 +51,7 @@
 #define MMC_CAP_1_8V_DDR        (1 << 11)
 #define MMC_CAP2_HS200_1_8V_SDR				(1 << 5) /* can support */
 #define MMC_CAP2_HS200_1_2V_SDR				(1 << 6) /* can support */
+#define MMC_CAP2_DISABLE_BLK_ASYNC			(1 << 20)
 
 /* for SD card */
 #define MMC_CAP_UHS_SDR12	(1 << 15)	/* Host supports UHS SDR12 mode */
