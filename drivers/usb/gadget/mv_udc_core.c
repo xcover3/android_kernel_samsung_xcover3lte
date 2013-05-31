@@ -2716,18 +2716,11 @@ static const struct dev_pm_ops mv_udc_pm_ops = {
 
 static void mv_udc_shutdown(struct platform_device *pdev)
 {
-	struct mv_udc *udc;
-	u32 mode;
+	struct mv_udc *udc = the_controller;
 
-	udc = platform_get_drvdata(pdev);
 	if (!udc)
 		return;
-	/* reset controller mode to IDLE */
-	mv_udc_enable(udc);
-	mode = readl(&udc->op_regs->usbmode);
-	mode &= ~3;
-	writel(mode, &udc->op_regs->usbmode);
-	mv_udc_disable(udc);
+	mv_udc_pullup(&udc->gadget, 0);
 }
 
 static const struct of_device_id mv_udc_dt_match[] = {
