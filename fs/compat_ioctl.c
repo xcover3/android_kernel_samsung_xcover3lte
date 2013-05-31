@@ -1599,8 +1599,11 @@ asmlinkage long compat_sys_ioctl(unsigned int fd, unsigned int cmd,
 		goto found_handler;
 
 	error = do_ioctl_trans(fd, cmd, arg, f.file);
-	if (error == -ENOIOCTLCMD)
+	if (error == -ENOIOCTLCMD) {
+		pr_info("WARNING: no compat_ioctl for %s\n",
+				f.file->f_path.dentry->d_name.name);
 		error = -ENOTTY;
+	};
 
 	goto out_fput;
 
