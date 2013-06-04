@@ -45,6 +45,9 @@
 
 #define RTC_DEF_DIVIDER		(32768 - 1)
 #define RTC_DEF_TRIM		0
+
+#define RTC_DIVIDER		RTC_DEF_DIVIDER
+#define RTC_TRIM		RTC_DEF_TRIM
 #define RTC_FREQ		1024
 
 struct sa1100_rtc {
@@ -226,20 +229,6 @@ static int sa1100_rtc_probe(struct platform_device *pdev)
 	ret = clk_prepare_enable(info->clk);
 	if (ret)
 		return ret;
-	/*
-	 * According to the manual we should be able to let RTTR be zero
-	 * and then a default diviser for a 32.768KHz clock is used.
-	 * Apparently this doesn't work, at least for my SA1110 rev 5.
-	 * If the clock divider is uninitialized then reset it to the
-	 * default value to get the 1Hz clock.
-	 */
-	if (RTTR == 0) {
-		RTTR = RTC_DEF_DIVIDER + (RTC_DEF_TRIM << 16);
-		dev_warn(&pdev->dev, "warning: "
-			"initializing default clock divider/trim value\n");
-		/* The current RTC value probably doesn't make sense either */
-		RCNR = 0;
-	}
 
 	device_init_wakeup(&pdev->dev, 1);
 
@@ -290,6 +279,16 @@ static int sa1100_rtc_probe(struct platform_device *pdev)
 	}
 	rtc->max_user_freq = RTC_FREQ;
 	rtc_irq_set_freq(rtc, NULL, RTC_FREQ);
+
+	/* RTTR is set as default value 0x7fff when the clock is enabled */
+	if ((RTC_TRIM != RTC_DEF_TRIM)
+	    || (RTC_DIVIDER != RTC_DEF_DIVIDER)) {
+		RTTR = RTC_DIVIDER + (RTC_TRIM << 16);
+		dev_warn(&pdev->dev, "warning: "
+			"initializing default clock divider/trim value\n");
+		/* The current RTC value probably doesn't make sense either */
+		RCNR = 0;
+	}
 
 	return 0;
 err_dev:
