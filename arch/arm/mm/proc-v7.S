@@ -55,6 +55,9 @@ ENTRY(cpu_v7_reset)
 	mrc	p15, 0, r1, c1, c0, 0		@ ctrl register
 	bic	r1, r1, #0x1			@ ...............m
  THUMB(	bic	r1, r1, #1 << 30 )		@ SCTLR.TE (Thumb exceptions)
+#ifdef CONFIG_ARM_ERRATA_784420
+	bic     r1, r1, #0x800                  @ clear [Z] to disable branch
+#endif
 	mcr	p15, 0, r1, c1, c0, 0		@ disable MMU
 	isb
 	bx	r0

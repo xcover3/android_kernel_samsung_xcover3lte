@@ -1431,6 +1431,19 @@ config ARM_ERRATA_814220
 	  which is not flushed to L3.
 	  This fix is to add dsb between different cache levels. It will make sure
 	  the flush of previous level finish before next level start.
+
+config ARM_ERRATA_784420
+	bool "ARM errata: CA15's speculative instruction fetches with MMU disabled"
+	depends on CPU_V7
+	help
+	  This option enables handling for "CA15's speculative instruction
+	  fetches with MMU disabled might not comply with architectural requirements".
+	  In case at least one stage of MMU and branch prediction were enabled,
+	  and then MMU has been disabled, branch prediction may cause illegal
+	  speculations, which is a violation of architecture requirements.
+	  Conclusion: when disabling MMU software disable branch prediction
+	  by setting SCTLR[Z]=0 until MMU is re-enabled.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
