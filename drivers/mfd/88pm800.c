@@ -27,6 +27,7 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/slab.h>
+#include <linux/of_device.h>
 
 /* Interrupt Registers */
 #define PM800_INT_STATUS1		(0x05)
@@ -121,6 +122,12 @@ static const struct i2c_device_id pm80x_id_table[] = {
 };
 MODULE_DEVICE_TABLE(i2c, pm80x_id_table);
 
+static const struct of_device_id pm80x_dt_ids[] = {
+	{ .compatible = "marvell,88pm800", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, pm80x_dt_ids);
+
 static struct resource rtc_resources[] = {
 	{
 	 .name = "88pm80x-rtc",
@@ -133,6 +140,7 @@ static struct resource rtc_resources[] = {
 static struct mfd_cell rtc_devs[] = {
 	{
 	 .name = "88pm80x-rtc",
+	 .of_compatible = "marvell,88pm80x-rtc",
 	 .num_resources = ARRAY_SIZE(rtc_resources),
 	 .resources = &rtc_resources[0],
 	 .id = -1,
@@ -151,6 +159,7 @@ static struct resource onkey_resources[] = {
 static const struct mfd_cell onkey_devs[] = {
 	{
 	 .name = "88pm80x-onkey",
+	 .of_compatible = "marvell,88pm80x-onkey",
 	 .num_resources = 1,
 	 .resources = &onkey_resources[0],
 	 .id = -1,
@@ -160,6 +169,7 @@ static const struct mfd_cell onkey_devs[] = {
 static const struct mfd_cell regulator_devs[] = {
 	{
 	 .name = "88pm80x-regulator",
+	 .of_compatible = "marvell,88pm80x-regulator",
 	 .id = -1,
 	},
 };
@@ -538,13 +548,52 @@ out:
 	return ret;
 }
 
+static int pm800_dt_init(struct device_node *np,
+			 struct device *dev,
+			 struct pm80x_platform_data *pdata)
+{
+	/* parent platform data only */
+	pdata->irq_mode =
+		!of_property_read_bool(np, "marvell,88pm800-irq-write-clear");
+
+	return 0;
+}
+
 static int pm800_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
 	int ret = 0;
 	struct pm80x_chip *chip;
 	struct pm80x_platform_data *pdata = dev_get_platdata(&client->dev);
+	struct device_node *node = client->dev.of_node;
 	struct pm80x_subchip *subchip;
+
+	if (IS_ENABLED(CONFIG_OF)) {
+		if (!pdata) {
+			pdata = devm_kzalloc(&client->dev,
+					     sizeof(*pdata), GFP_KERNEL);
+			if (!pdata)
+				return -ENOMEM;
+		}
+		ret = pm800_dt_init(node, &client->dev, pdata);
+		if (ret)
+			return ret;
+	} else if (!pdata) {
+		return -EINVAL;
+	}
+
+	/*
+	 * RTC in pmic is alive even the core is powered off, expired-alarm is
+	 * a power-up event to the system; every time the system boots up,
+	 * whether it's powered up by PMIC-rtc needs to be recorded and pass
+	 * this information to RTC driver
+	 */
+	if (!pdata->rtc) {
+		pdata->rtc = devm_kzalloc(&client->dev,
+					  sizeof(*(pdata->rtc)), GFP_KERNEL);
+		if (!pdata->rtc)
+			return -ENOMEM;
+	}
 
 	ret = pm80x_init(client);
 	if (ret) {
@@ -612,6 +661,7 @@ static struct i2c_driver pm800_driver = {
 		.name = "88PM800",
 		.owner = THIS_MODULE,
 		.pm = &pm80x_pm_ops,
+		.of_match_table	= of_match_ptr(pm80x_dt_ids),
 		},
 	.probe = pm800_probe,
 	.remove = pm800_remove,
