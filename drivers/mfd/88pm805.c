@@ -28,12 +28,19 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/of_device.h>
 
 static const struct i2c_device_id pm80x_id_table[] = {
 	{"88PM805", 0},
 	{} /* NULL terminated */
 };
 MODULE_DEVICE_TABLE(i2c, pm80x_id_table);
+
+static const struct of_device_id pm80x_dt_ids[] = {
+	{ .compatible = "marvell,88pm805", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, pm80x_dt_ids);
 
 /* Interrupt Number in 88PM805 */
 enum {
@@ -269,6 +276,7 @@ static struct i2c_driver pm805_driver = {
 		.name = "88PM805",
 		.owner = THIS_MODULE,
 		.pm = &pm80x_pm_ops,
+		.of_match_table	= of_match_ptr(pm80x_dt_ids),
 		},
 	.probe = pm805_probe,
 	.remove = pm805_remove,
