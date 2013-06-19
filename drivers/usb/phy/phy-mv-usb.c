@@ -16,6 +16,7 @@
 #include <linux/device.h>
 #include <linux/proc_fs.h>
 #include <linux/clk.h>
+#include <linux/of.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
@@ -981,11 +982,18 @@ static int mv_otg_resume(struct platform_device *pdev)
 }
 #endif
 
+static const struct of_device_id mv_otg_dt_match[] = {
+	{ .compatible = "marvell,mv-otg" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, mv_udc_dt_match);
+
 static struct platform_driver mv_otg_driver = {
 	.probe = mv_otg_probe,
 	.remove = mv_otg_remove,
 	.driver = {
 		   .owner = THIS_MODULE,
+		   .of_match_table = of_match_ptr(mv_otg_dt_match),
 		   .name = driver_name,
 		   },
 #ifdef CONFIG_PM
