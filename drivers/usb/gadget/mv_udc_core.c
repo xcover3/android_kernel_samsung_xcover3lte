@@ -1384,6 +1384,9 @@ static int mv_udc_pullup(struct usb_gadget *gadget, int is_on)
 	udc = container_of(gadget, struct mv_udc, gadget);
 	spin_lock_irqsave(&udc->lock, flags);
 
+	if (udc->softconnect == is_on)
+		goto out;
+
 	udc->softconnect = (is_on != 0);
 
 	dev_dbg(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
@@ -1403,7 +1406,7 @@ static int mv_udc_pullup(struct usb_gadget *gadget, int is_on)
 		udc_stop(udc);
 		mv_udc_disable(udc);
 	}
-
+out:
 	spin_unlock_irqrestore(&udc->lock, flags);
 	return retval;
 }
