@@ -3199,6 +3199,8 @@ static struct task_struct *find_process_by_pid(pid_t pid)
  * absolute deadline will be properly calculated when the task is enqueued
  * for the first time with its new policy.
  */
+extern struct cpumask hmp_slow_cpu_mask;
+
 static void
 __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
 {
@@ -3242,8 +3244,13 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 
 	if (dl_prio(p->prio))
 		p->sched_class = &dl_sched_class;
-	else if (rt_prio(p->prio))
+	else if (rt_prio(p->prio)) {
 		p->sched_class = &rt_sched_class;
+#ifdef CONFIG_SCHED_HMP
+		if (cpumask_equal(&p->cpus_allowed, cpu_all_mask))
+			do_set_cpus_allowed(p, &hmp_slow_cpu_mask);
+#endif
+	}
 	else
 		p->sched_class = &fair_sched_class;
 
