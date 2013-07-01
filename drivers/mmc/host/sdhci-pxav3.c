@@ -225,6 +225,9 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 	u32 val, timing;
 	struct sdhci_pxa_dtr_data *dtr_data;
 
+	if (of_property_read_bool(np, "marvell,sdh-pm-runtime-en"))
+		pdata->flags |= PXA_FLAG_EN_PM_RUNTIME;
+
 	if (!of_property_read_u32(np, "marvell,sdh-flags", &tmp))
 		pdata->flags |= tmp;
 
@@ -367,13 +370,16 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 					"failed to init host with pdata\n");
 			goto err_init_host;
 		}
+		if (pdata->flags & PXA_FLAG_EN_PM_RUNTIME) {
+			pm_runtime_get_noresume(&pdev->dev);
+			pm_runtime_set_active(&pdev->dev);
+			pm_runtime_set_autosuspend_delay(&pdev->dev,
+				PXAV3_RPM_DELAY_MS);
+			pm_runtime_use_autosuspend(&pdev->dev);
+			pm_suspend_ignore_children(&pdev->dev, 1);
+			pm_runtime_enable(&pdev->dev);
+		}
 	}
-
-	pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_sync(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev, PXAV3_RPM_DELAY_MS);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_suspend_ignore_children(&pdev->dev, 1);
 
 	ret = sdhci_add_host(host);
 	if (ret) {
@@ -389,14 +395,16 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	} else {
 		device_init_wakeup(&pdev->dev, 0);
 	}
-
-	pm_runtime_put_autosuspend(&pdev->dev);
+	if (pdata && pdata->flags & PXA_FLAG_EN_PM_RUNTIME)
+		pm_runtime_put_autosuspend(&pdev->dev);
 
 	return 0;
 
 err_add_host:
-	pm_runtime_put_sync(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
+	if (pdata && pdata->flags & PXA_FLAG_EN_PM_RUNTIME) {
+		pm_runtime_put_noidle(&pdev->dev);
+		pm_runtime_disable(&pdev->dev);
+	}
 err_init_host:
 err_of_parse:
 	clk_disable_unprepare(pxa->clk);
