@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/of.h>
 #include <linux/err.h>
 #include <linux/usb/otg.h>
 #include <linux/usb/mv_usb2_phy.h>
@@ -311,6 +312,15 @@ static const struct platform_device_id ehci_id_table[] = {
 	{},
 };
 
+static const struct of_device_id mv_ehci_dt_match[] = {
+	{.compatible = "marvell,pxa-u2oehci"},
+	{.compatible = "marvell,pxa-sph"},
+	{.compatible = "marvell,mmp3-hsic"},
+	{.compatible = "marvell,mmp3-fsic"},
+	{},
+};
+MODULE_DEVICE_TABLE(of, mv_ehci_dt_match);
+
 static void mv_ehci_shutdown(struct platform_device *pdev)
 {
 	struct ehci_hcd_mv *ehci_mv = platform_get_drvdata(pdev);
@@ -329,6 +339,7 @@ static struct platform_driver ehci_mv_driver = {
 	.shutdown = mv_ehci_shutdown,
 	.driver = {
 		   .name = "mv-ehci",
+		   .of_match_table = of_match_ptr(mv_ehci_dt_match),
 		   .bus = &platform_bus_type,
 		   },
 	.id_table = ehci_id_table,
