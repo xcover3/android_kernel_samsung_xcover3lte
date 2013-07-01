@@ -14,6 +14,7 @@
 #include <linux/of_platform.h>
 #include <linux/clocksource.h>
 #include <linux/clk-provider.h>
+#include <linux/delay.h>
 
 #include <asm/mach/arch.h>
 
@@ -127,6 +128,25 @@ static __init void enable_soc_timer(void)
 	iounmap(apbc_base);
 }
 
+#define APMU_SDH0      0x54
+static void __init pxa988_sdhc_reset_all(void)
+{
+	unsigned int reg_tmp;
+	void __iomem *apmu_base;
+
+	apmu_base = regs_addr_get_va(REGS_ADDR_APMU);
+	if (!apmu_base) {
+		pr_err("failed to get apmu_base va\n");
+		return;
+	}
+
+	/* use bit0 to reset all 3 sdh controls */
+	reg_tmp = __raw_readl(apmu_base + APMU_SDH0);
+	__raw_writel(reg_tmp & (~1), apmu_base + APMU_SDH0);
+	udelay(10);
+	__raw_writel(reg_tmp | (1), apmu_base + APMU_SDH0);
+}
+
 static __init void pxa1U88_timer_init(void)
 {
 	regs_addr_iomap();
@@ -142,6 +162,8 @@ static __init void pxa1U88_timer_init(void)
 	of_clk_init(NULL);
 
 	clocksource_of_init();
+
+	pxa988_sdhc_reset_all();
 }
 
 static const char *pxa1U88_dt_board_compat[] __initdata = {
