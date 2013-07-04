@@ -244,7 +244,8 @@ static int pxa_ssp_remove(struct platform_device *pdev)
 	devm_iounmap(dev, ssp->mmio_base);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	devm_release_mem_region(dev, res->start, resource_size(res));
+	if (res)
+		devm_release_mem_region(res->start, resource_size(res));
 
 	clk_put(ssp->clk);
 
