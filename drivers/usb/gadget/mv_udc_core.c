@@ -2604,6 +2604,13 @@ static int mv_udc_probe(struct platform_device *pdev)
 	udc->charger_type = NULL_CHARGER;
 
 	/* VBUS detect: we can disable/enable clock on demand.*/
+	if (!pxa_usb_has_extern_call(udc->pdata->id, vbus, get_vbus))
+		pdata->extern_attr &=
+				   (unsigned int)(~MV_USB_HAS_VBUS_DETECTION);
+	if (!pxa_usb_has_extern_call(udc->pdata->id, idpin, get_idpin))
+		pdata->extern_attr &=
+				   (unsigned int)(~MV_USB_HAS_IDPIN_DETECTION);
+
 	if ((pdata->extern_attr & MV_USB_HAS_VBUS_DETECTION)
 		 || udc->transceiver)
 		udc->clock_gating = 1;
