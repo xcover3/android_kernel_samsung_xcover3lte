@@ -159,6 +159,9 @@ struct mv_otg {
 	struct mv_usb_platform_data *pdata;
 	struct notifier_block notifier;
 
+	struct pm_qos_request   qos_idle;
+	s32                     lpm_qos;
+
 	unsigned int active;
 	unsigned int clock_gating;
 	struct clk *clk;

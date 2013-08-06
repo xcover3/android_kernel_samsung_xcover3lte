@@ -29,6 +29,7 @@
 #include <linux/platform_data/mv_usb.h>
 #include <linux/of_address.h>
 #include <dt-bindings/usb/mv_usb.h>
+#include <linux/pm_qos.h>
 
 #include "phy-mv-usb.h"
 
@@ -96,7 +97,24 @@ void mv_otg_usbid_wakeup_clear(void __iomem *apmu_base)
 static int mv_otg_set_vbus(struct usb_otg *otg, bool on)
 {
 	struct mv_otg *mvotg = container_of(otg->phy, struct mv_otg, phy);
-	return pxa_usb_extern_call(mvotg->pdata->id, vbus, set_vbus, on);
+	int ret;
+
+	/* set constraint before turn on vbus */
+	if (on) {
+		pm_stay_awake(&mvotg->pdev->dev);
+		pm_qos_update_request(&mvotg->qos_idle, mvotg->lpm_qos);
+	}
+
+	ret = pxa_usb_extern_call(mvotg->pdata->id, vbus, set_vbus, on);
+
+	/* release constraint after turn off vbus */
+	if (!on) {
+		pm_qos_update_request(&mvotg->qos_idle,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+		pm_relax(&mvotg->pdev->dev);
+	}
+
+	return ret;
 }
 
 static int mv_otg_set_host(struct usb_otg *otg,
@@ -796,6 +814,8 @@ static int mv_otg_remove(struct platform_device *pdev)
 
 	clk_unprepare(mvotg->clk);
 
+	pm_qos_remove_request(&mvotg->qos_idle);
+
 	usb_remove_phy(&mvotg->phy);
 
 	return 0;
@@ -847,6 +867,9 @@ static int mv_otg_probe(struct platform_device *pdev)
 	struct resource *r;
 	int retval = 0, i;
 	struct device_node *node;
+	struct device_node *np = pdev->dev.of_node;
+	const __be32 *prop;
+	unsigned int proplen;
 
 	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (pdata == NULL) {
@@ -985,6 +1008,17 @@ static int mv_otg_probe(struct platform_device *pdev)
 		goto err_disable_clk;
 	}
 
+	prop = of_get_property(np, "lpm-qos", &proplen);
+	if (!prop) {
+		pr_err("lpm-qos config in DT for mv_otg is not defined\n");
+		goto err_disable_clk;
+	} else
+		mvotg->lpm_qos = be32_to_cpup(prop);
+
+	mvotg->qos_idle.name = mvotg->pdev->name;
+	pm_qos_add_request(&mvotg->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
 	retval = sysfs_create_group(&pdev->dev.kobj, &inputs_attr_group);
 	if (retval < 0) {
 		dev_dbg(&pdev->dev,
@@ -1012,6 +1046,7 @@ static int mv_otg_probe(struct platform_device *pdev)
 
 err_remove_otg_phy:
 	usb_remove_phy(&mvotg->phy);
+	pm_qos_remove_request(&mvotg->qos_idle);
 err_disable_clk:
 	mv_otg_disable_internal(mvotg);
 	if (pdata->extern_attr
