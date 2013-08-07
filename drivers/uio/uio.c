@@ -412,6 +412,18 @@ void uio_event_notify(struct uio_info *info)
 EXPORT_SYMBOL_GPL(uio_event_notify);
 
 /**
+ * uio_event_sync - sync listener's event count with UIO device
+ * @listener: uio_listener structure
+ */
+void uio_event_sync(struct uio_listener *listener)
+{
+	struct uio_device *idev = listener->dev;
+
+	listener->event_count = atomic_read(&idev->event);
+}
+EXPORT_SYMBOL_GPL(uio_event_sync);
+
+/**
  * uio_interrupt - hardware interrupt handler
  * @irq: IRQ number, can be UIO_IRQ_CYCLIC for cyclic timer
  * @dev_id: Pointer to the devices uio_device structure

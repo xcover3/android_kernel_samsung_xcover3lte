@@ -117,6 +117,7 @@ extern int __must_check
 
 extern void uio_unregister_device(struct uio_info *info);
 extern void uio_event_notify(struct uio_info *info);
+extern void uio_event_sync(struct uio_listener *listener);
 
 /* defines for uio_info->irq */
 #define UIO_IRQ_CUSTOM	-1
