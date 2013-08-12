@@ -392,7 +392,7 @@ static int device_irq_init_800(struct pm80x_chip *chip)
 	    PM800_WAKEUP2_INV_INT | PM800_WAKEUP2_INT_CLEAR |
 	    PM800_WAKEUP2_INT_MASK;
 
-	data = PM800_WAKEUP2_INT_CLEAR;
+	data = (chip->irq_mode) ? PM800_WAKEUP2_INT_WC : PM800_WAKEUP2_INT_RC;
 	ret = regmap_update_bits(map, PM800_WAKEUP2, mask, data);
 
 	if (ret < 0)
@@ -515,6 +515,8 @@ static int device_800_init(struct pm80x_chip *chip,
 	}
 
 	chip->regmap_irq_chip = &pm800_irq_chip;
+	if (pdata)
+		chip->irq_mode = pdata->irq_mode;
 
 	ret = device_irq_init_800(chip);
 	if (ret < 0) {

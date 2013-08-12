@@ -77,6 +77,8 @@ enum {
 #define PM800_WAKEUP2		(0x0E)
 #define PM800_WAKEUP2_INV_INT		(1 << 0)
 #define PM800_WAKEUP2_INT_CLEAR		(1 << 1)
+#define PM800_WAKEUP2_INT_RC		(0 << 1)
+#define PM800_WAKEUP2_INT_WC		(1 << 1)
 #define PM800_WAKEUP2_INT_MASK		(1 << 2)
 
 #define PM800_POWER_UP_LOG	(0x10)
@@ -217,6 +219,8 @@ enum {
 #define PM805_INT_STATUS0		(0x02)	/* for ena/dis all interrupts */
 
 #define PM805_STATUS0_INT_CLEAR		(1 << 0)
+#define PM805_STATUS0_INT_RC		(0 << 0)
+#define PM805_STATUS0_INT_WC		(1 << 0)
 #define PM805_STATUS0_INV_INT		(1 << 1)
 #define PM800_STATUS0_INT_MASK		(1 << 2)
 
