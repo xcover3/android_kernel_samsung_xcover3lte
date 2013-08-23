@@ -16,6 +16,7 @@
 #include <linux/interrupt.h>
 #include <linux/regmap.h>
 #include <linux/atomic.h>
+#include <linux/switch.h>
 
 enum {
 	CHIP_INVALID = 0,
@@ -311,6 +312,7 @@ struct pm80x_chip {
 
 struct pm80x_platform_data {
 	struct pm80x_rtc_pdata *rtc;
+	struct gpio_switch_platform_data *headset;
 	/*
 	 * For the regulator not defined, set regulators[not_defined] to be
 	 * NULL. num_regulators are the number of regulators supposed to be

@@ -24,6 +24,7 @@
 #include <linux/module.h>
 #include <linux/err.h>
 #include <linux/i2c.h>
+#include <linux/switch.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/slab.h>
@@ -172,6 +173,31 @@ static const struct mfd_cell regulator_devs[] = {
 	 .of_compatible = "marvell,88pm80x-regulator",
 	 .id = -1,
 	},
+};
+
+static struct resource headset_resources_800[] = {
+	{
+		.name = "gpio-03",
+		.start = PM800_IRQ_GPIO3,
+		.end = PM800_IRQ_GPIO3,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.name = "gpadc4",
+		.start = PM800_IRQ_GPADC4,
+		.end = PM800_IRQ_GPADC4,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct mfd_cell headset_devs_800[] = {
+	{
+	 .name = "88pm800-headset",
+	 .of_compatible = "marvell,88pm80x-headset",
+	 .num_resources = ARRAY_SIZE(headset_resources_800),
+	 .resources = &headset_resources_800[0],
+	 .id = -1,
+	 },
 };
 
 static const struct regmap_irq pm800_irqs[] = {
@@ -373,6 +399,23 @@ static int device_regulator_init(struct pm80x_chip *chip,
 	return 0;
 }
 
+static int device_headset_init(struct pm80x_chip *chip,
+					   struct pm80x_platform_data *pdata)
+{
+	int ret;
+
+	headset_devs_800[0].platform_data = pdata->headset;
+	ret = mfd_add_devices(chip->dev, 0, &headset_devs_800[0],
+			      ARRAY_SIZE(headset_devs_800), NULL, 0, NULL);
+
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to add headset subdev\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static int device_irq_init_800(struct pm80x_chip *chip)
 {
 	struct regmap *map = chip->regmap;
@@ -539,6 +582,12 @@ static int device_800_init(struct pm80x_chip *chip,
 	ret = device_regulator_init(chip, pdata);
 	if (ret) {
 		dev_err(chip->dev, "Failed to add regulators subdev\n");
+		goto out;
+	}
+
+	ret = device_headset_init(chip, pdata);
+	if (ret) {
+		dev_err(chip->dev, "Failed to add headset subdev\n");
 		goto out;
 	}
 
