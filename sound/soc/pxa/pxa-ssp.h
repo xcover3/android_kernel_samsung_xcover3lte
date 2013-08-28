@@ -42,4 +42,9 @@
 
 #define PXA_SSP_PLL_OUT  0
 
+int mmp_pcm_platform_register(struct device *dev);
+void mmp_pcm_platform_unregister(struct device *dev);
+int pxa_pcm_platform_register(struct device *dev);
+void pxa_pcm_platform_unregister(struct device *dev);
+
 #endif

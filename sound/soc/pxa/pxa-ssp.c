@@ -820,13 +820,51 @@ static const struct of_device_id pxa_ssp_of_ids[] = {
 
 static int asoc_ssp_probe(struct platform_device *pdev)
 {
-	return snd_soc_register_component(&pdev->dev, &pxa_ssp_component,
+	struct device_node *np = pdev->dev.of_node;
+	char const *platform_driver_name;
+	int ret;
+
+	if (of_property_read_string(np,
+				"platform_driver_name",
+				&platform_driver_name)) {
+		dev_err(&pdev->dev,
+			"Missing platform_driver_name property in the DT\n");
+		return -EINVAL;
+	}
+
+	ret = snd_soc_register_component(&pdev->dev, &pxa_ssp_component,
 					  &pxa_ssp_dai, 1);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "Failed to register DAI\n");
+		return ret;
+	}
+
+	if (strcmp(platform_driver_name, "tdma_platform") == 0)
+		ret = mmp_pcm_platform_register(&pdev->dev);
+	else if (strcmp(platform_driver_name, "pdma_platform") == 0)
+		ret = pxa_pcm_platform_register(&pdev->dev);
+
+	return ret;
 }
 
 static int asoc_ssp_remove(struct platform_device *pdev)
 {
-	snd_soc_unregister_component(&pdev->dev);
+	struct device_node *np = pdev->dev.of_node;
+	char const *platform_driver_name;
+
+	if (of_property_read_string(np,
+				"platform_driver_name",
+				&platform_driver_name)) {
+		dev_err(&pdev->dev,
+			"Missing platform_driver_name property in the DT\n");
+		return -EINVAL;
+	}
+
+	if (strcmp(platform_driver_name, "tdma_platform") == 0)
+		mmp_pcm_platform_unregister(&pdev->dev);
+	else if (strcmp(platform_driver_name, "pdma_platform") == 0)
+		snd_soc_unregister_component(&pdev->dev);
+
 	return 0;
 }
 
