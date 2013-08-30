@@ -1209,6 +1209,9 @@ static int i2c_pxa_probe(struct platform_device *dev)
 		i2c->slave = plat->slave;
 #endif
 		i2c->adap.class = plat->class;
+		i2c->adap.hardware_lock = plat->hardware_lock;
+		i2c->adap.hardware_unlock = plat->hardware_unlock;
+		i2c->adap.hardware_trylock = plat->hardware_trylock;
 	}
 
 	if (i2c->high_mode) {
