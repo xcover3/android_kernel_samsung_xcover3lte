@@ -42,6 +42,24 @@
 
 #define PXA_SSP_PLL_OUT  0
 
+/*
+ * FixMe: for port 5 (gssp), it is shared by ap
+ * and cp. When AP want to handle it, AP need to
+ * configure APB to connect gssp. Also reset gspp
+ * clk to clear the potential impact from cp
+ */
+#define APBCONTROL_BASE		0xD403B000
+#define APBCONTROL_SIZE		0x3C
+#define APBC_GBS		0xC
+#define APBC_GCER		0x34
+
+#define GSSP_BUS_APB_SEL	0x1
+#define GSSP_CLK_SEL_MASK	0x3
+#define GSSP_CLK_SEL_OFF	0x8
+#define GSSP_CLK_EN	(1 << 0)  /* APB Bus Clock Enable */
+#define GSSP_FNCLK_EN	(1 << 1)  /* Functional Clock Enable */
+#define GSSP_RST	(1 << 2)  /* Reset Generation */
+
 int mmp_pcm_platform_register(struct device *dev);
 void mmp_pcm_platform_unregister(struct device *dev);
 int pxa_pcm_platform_register(struct device *dev);

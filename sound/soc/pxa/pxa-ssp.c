@@ -23,6 +23,7 @@
 #include <linux/pxa2xx_ssp.h>
 #include <linux/of.h>
 #include <linux/dmaengine.h>
+#include <linux/delay.h>
 
 #include <asm/irq.h>
 
@@ -52,6 +53,13 @@ struct ssp_priv {
 	uint32_t	to;
 	uint32_t	psp;
 #endif
+	/*
+	 * FixMe: for port 5 (gssp), it is shared by ap
+	 * and cp. When AP want to handle it, AP need to
+	 * configure APB to connect gssp. Also reset gssp
+	 * clk to clear the potential impact from cp
+	 */
+	void __iomem	*apbcp_base;
 };
 
 static void dump_registers(struct ssp_device *ssp)
@@ -96,9 +104,30 @@ static int pxa_ssp_startup(struct snd_pcm_substream *substream,
 	struct ssp_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
 	struct ssp_device *ssp = priv->ssp;
 	struct snd_dmaengine_dai_dma_data *dma;
+	unsigned int gcer;
 	int ret = 0;
 
 	if (!cpu_dai->active) {
+		/*
+		 * FIXME: for port 5 (gssp), it is shared by ap
+		 * and cp. When AP want to handle it, AP need to
+		 * configure APB to connect gssp. Also reset gssp
+		 * clk to clear the potential impact from cp
+		 */
+		if (ssp->port_id == 5) {
+			/* GPB bus select: choose APB */
+			__raw_writel(GSSP_BUS_APB_SEL, (priv->apbcp_base + APBC_GBS));
+			/* GSSP clock control register: GCER */
+			gcer = __raw_readl(priv->apbcp_base + APBC_GCER);
+			gcer &= ~(GSSP_CLK_SEL_MASK << GSSP_CLK_SEL_OFF);
+			gcer |= GSSP_RST;
+			__raw_writel(gcer, (priv->apbcp_base + APBC_GCER));
+			usleep_range(1, 2);
+			gcer &= ~GSSP_RST;
+			__raw_writel(gcer, (priv->apbcp_base + APBC_GCER));
+			usleep_range(1, 2);
+		}
+
 		clk_prepare_enable(ssp->clk);
 		pxa_ssp_disable(ssp);
 	}
@@ -124,6 +153,17 @@ static void pxa_ssp_shutdown(struct snd_pcm_substream *substream,
 	if (!cpu_dai->active) {
 		pxa_ssp_disable(ssp);
 		clk_disable_unprepare(ssp->clk);
+
+		/*
+		 * FIXME: for port 5 (gssp), it is shared by ap
+		 * and cp. When AP want to handle it, AP need to
+		 * configure APB to connect gssp. Also reset gssp
+		 * clk to clear the potential impact from cp
+		 */
+		if (ssp->port_id == 5) {
+			/* GPB bus select: choose GPB */
+			__raw_writel(0, (priv->apbcp_base + APBC_GBS));
+		}
 	}
 
 	kfree(snd_soc_dai_get_dma_data(cpu_dai, substream));
@@ -552,6 +592,8 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 	int width = snd_pcm_format_physical_width(params_format(params));
 	int ttsa = pxa_ssp_read_reg(ssp, SSTSA) & 0xf;
 	struct snd_dmaengine_dai_dma_data *dma_data;
+	u32 rate;
+	int ret;
 
 	dma_data = snd_soc_dai_get_dma_data(cpu_dai, substream);
 
@@ -623,6 +665,23 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 		break;
 	default:
 		break;
+	}
+
+	if (ssp->port_id == 5) {
+		/*
+		 * FIXME: set clk rate to 0 incase CP modify gssp
+		 * clk cause can't set clk rate to right value.
+		 */
+		ret = clk_set_rate(ssp->clk, 0);
+		rate = params_rate(params);
+		/* Final "* 32" required by SSP hardware */
+		rate *= 32;
+		ret = clk_set_rate(ssp->clk, rate);
+		if (ret) {
+			dev_err(&ssp->pdev->dev,
+					"Can't set I2S clock rate: %d\n", ret);
+			return ret;
+		}
 	}
 
 	/* When we use a network mode, we always require TDM slots
@@ -738,6 +797,20 @@ static int pxa_ssp_probe(struct snd_soc_dai *dai)
 		if (priv->ssp == NULL) {
 			ret = -ENODEV;
 			goto err_priv;
+		}
+	}
+	/*
+	 * FixMe: for port 5 (gssp), it is shared by ap
+	 * and cp. When AP want to handle it, AP need to
+	 * configure APB to connect gssp. Also reset gssp
+	 * clk to clear the potential impact from cp
+	 */
+	if (priv->ssp->port_id == 5) {
+		priv->apbcp_base = devm_ioremap(dev, APBCONTROL_BASE,
+						APBCONTROL_SIZE);
+		if (priv->apbcp_base == NULL) {
+			dev_err(dev, "failed to ioremap() registers\n");
+			return -ENODEV;
 		}
 	}
 
