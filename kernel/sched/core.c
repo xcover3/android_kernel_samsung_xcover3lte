@@ -2297,6 +2297,17 @@ unsigned long nr_running(void)
 	return sum;
 }
 
+/*
+ * get task number of cpu
+ */
+unsigned long get_cpu_nr_running(unsigned int cpu)
+{
+	if (cpu < num_possible_cpus())
+		return cpu_rq(cpu)->nr_running;
+	else
+		return 0;
+}
+
 unsigned long long nr_context_switches(void)
 {
 	int i;
