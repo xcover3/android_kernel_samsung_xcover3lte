@@ -1402,7 +1402,7 @@ int gpiochip_add_pin_range(struct gpio_chip *chip, const char *pinctl_name,
 	struct gpio_pin_range *pin_range;
 	int ret;
 
-	pin_range = kzalloc(sizeof(*pin_range), GFP_KERNEL);
+	pin_range = kzalloc(sizeof(*pin_range), GFP_ATOMIC);
 	if (!pin_range) {
 		chip_err(chip, "failed to allocate pin ranges\n");
 		return -ENOMEM;
