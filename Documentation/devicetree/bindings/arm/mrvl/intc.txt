@@ -2,7 +2,7 @@
 
 Required properties:
 - compatible : Should be "mrvl,mmp-intc", "mrvl,mmp2-intc" or
-  "mrvl,mmp2-mux-intc"
+  "mrvl,mmp2-mux-intc", "mrvl,mmp-intc-wakeupgen"
 - reg : Address and length of the register set of the interrupt controller.
   If the interrupt controller is intc, address and length means the range
   of the whold interrupt controller. If the interrupt controller is mux-intc,
@@ -15,6 +15,9 @@ Required properties:
 - interrupt-controller : Identifies the node as an interrupt controller.
 - #interrupt-cells : Specifies the number of cells needed to encode an
   interrupt source.
+- mrvl,intc-gbl-mask : Specifies the address and value for global mask in the
+  interrupt controller.
+- mrvl,intc-for-cp : Specifies the irqs that will be routed to cp
 - mrvl,intc-nr-irqs : Specifies the number of interrupts in the interrupt
   controller.
 - mrvl,mmp-edge-wakeup : Specifies for the edge wakeup feature.

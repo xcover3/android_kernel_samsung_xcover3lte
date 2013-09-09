@@ -585,8 +585,8 @@ void __init mmp_of_wakeup_init(void)
 	struct device_node *node;
 	const __be32 *wake_clr_devs;
 	int ret, nr_irqs;
-	int i = 0, j = 0;
-	int irq, size;
+	int size, i = 0, j = 0;
+	int irq;
 
 	node = of_find_compatible_node(NULL, NULL, "mrvl,mmp-intc-wakeupgen");
 	if (!node) {
@@ -628,6 +628,7 @@ void __init mmp_of_wakeup_init(void)
 
 		writel_relaxed(val, mmp_icu_base + offset);
 	}
+
 	/* Get the irq lines for cp */
 	i = 0;
 	while (!of_property_read_u32_index(node, "mrvl,intc-for-cp",
@@ -637,15 +638,17 @@ void __init mmp_of_wakeup_init(void)
 		i++;
 	}
 	irq_for_cp_nr = i;
+
 	/* Get the irq lines for sp */
 	i = 0;
 	while (!of_property_read_u32_index(node, "mrvl,intc-for-sp",
 					i, &irq_for_sp[i])) {
-		writel_relaxed(ICU_INT_CONF_SP,
+		writel_relaxed(ICU_INT_CONF_SEAGULL,
 				mmp_icu_base + (irq_for_sp[i] << 2));
 		i++;
 	}
 	irq_for_sp_nr = i;
+
 	/*
 	 * Get wake clr devices info.
 	 */
@@ -673,7 +676,7 @@ void __init mmp_of_wakeup_init(void)
 	}
 
 	/*
-	 * Othe initilization.
+	 * Other initilization.
 	 */
 	icu_data[0].conf_enable = mmp_conf.conf_enable;
 	icu_data[0].conf_disable = mmp_conf.conf_disable;
