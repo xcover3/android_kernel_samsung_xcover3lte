@@ -44,6 +44,7 @@
 #define PM800_LDO17_VOUT	(0x1A)
 #define PM800_LDO18_VOUT	(0x1B)
 #define PM800_LDO19_VOUT	(0x1C)
+#define PM800_VOUTSW_VOUT	(0xFF) /* fake register */
 
 /* BUCK1 with DVC[0..3] */
 #define PM800_BUCK1		(0x3C)
