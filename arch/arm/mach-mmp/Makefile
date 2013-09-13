@@ -35,6 +35,6 @@ obj-$(CONFIG_MACH_FLINT)	+= flint.o
 obj-$(CONFIG_MACH_MARVELL_JASPER) += jasper.o
 obj-$(CONFIG_MACH_MMP_DT)	+= mmp-dt.o
 obj-$(CONFIG_MACH_MMP2_DT)	+= mmp2-dt.o
-obj-$(CONFIG_MACH_MMPX_DT)	+= mmpx-dt.o regs-addr.o v7_pm_setup.o mmp_cpuidle.o reset.o platsmp.o
+obj-$(CONFIG_MACH_MMPX_DT)	+= mmpx-dt.o regs-addr.o v7_pm_setup.o mmp_cpuidle.o reset.o platsmp.o pxa988_lowpower.o
 obj-$(CONFIG_MACH_TETON_BGA)	+= teton_bga.o
 obj-$(CONFIG_MACH_GPLUGD)	+= gplugd.o
