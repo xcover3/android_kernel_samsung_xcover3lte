@@ -140,6 +140,11 @@ static int icu_set_affinity(struct irq_data *d,
 	return 0;
 }
 
+void __iomem *icu_get_base_addr(void)
+{
+	return mmp_icu_base;
+}
+
 static void icu_mask_ack_irq(struct irq_data *d)
 {
 	struct irq_domain *domain = d->domain;
