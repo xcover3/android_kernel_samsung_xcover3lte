@@ -22,6 +22,7 @@ enum {
 	CHIP_INVALID = 0,
 	CHIP_PM800,
 	CHIP_PM805,
+	CHIP_PM822,
 	CHIP_MAX,
 };
 

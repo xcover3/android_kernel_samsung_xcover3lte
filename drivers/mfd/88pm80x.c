@@ -29,6 +29,8 @@ struct pm80x_chip_mapping {
 };
 
 static struct pm80x_chip_mapping chip_mapping[] = {
+	/* 88PM822 chip id number */
+	{0x4,	CHIP_PM822},
 	/* 88PM800 chip id number */
 	{0x3,	CHIP_PM800},
 	/* 88PM805 chip id number */

@@ -105,7 +105,9 @@ enum {
 	PM800_IRQ_GPADC1,	/*EN3b1 */
 	PM800_IRQ_GPADC2,	/*EN3b2 */
 	PM800_IRQ_GPADC3,	/*EN3b3 */
-	PM800_IRQ_GPADC4,	/*EN3b4 */
+	PM800_IRQ_GPADC4 = 13,	/*EN3b4 */
+	PM822_IRQ_MIC_DET = 13,	/*EN3b4 */
+	PM822_IRQ_HS_DET = 14,	/*EN3b4 */
 	PM800_IRQ_GPIO0,	/*EN4b0 *//*15 */
 	PM800_IRQ_GPIO1,	/*EN4b1 */
 	PM800_IRQ_GPIO2,	/*EN4b2 */
@@ -117,8 +119,15 @@ enum {
 /* PM800: generation identification number */
 #define PM800_CHIP_GEN_ID_NUM	0x3
 
+enum pm8xx_parent {
+	PM822 = 0x822,
+	PM800 = 0x800,
+};
+
 static const struct i2c_device_id pm80x_id_table[] = {
-	{"88PM800", 0},
+	/* TODO: add meaningful data */
+	{"88PM800", PM800},
+	{"88pm822", PM822},
 	{} /* NULL terminated */
 };
 MODULE_DEVICE_TABLE(i2c, pm80x_id_table);
