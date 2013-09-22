@@ -56,6 +56,8 @@ ENTRY(mcpm_entry_point)
 	mrc	p15, 0, r0, c0, c0, 5		@ MPIDR
 	ubfx	r9, r0, #0, #8			@ r9 = cpu
 	ubfx	r10, r0, #8, #8			@ r10 = cluster
+	cmp	r10, #0xf
+	moveq	r10, #0
 	mov	r3, #MAX_CPUS_PER_CLUSTER
 	mla	r4, r3, r10, r9			@ r4 = canonical CPU index
 	cmp	r4, #(MAX_CPUS_PER_CLUSTER * MAX_NR_CLUSTERS)
