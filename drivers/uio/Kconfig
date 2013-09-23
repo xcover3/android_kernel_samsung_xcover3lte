@@ -135,4 +135,14 @@ config UIO_MF624
 
 	  If you compile this as a module, it will be called uio_mf624.
 
+config UIO_HANTRO
+	tristate "Hantro UIO device driver"
+	depends on UIO && CPU_EDEN
+	default n
+	help
+	  Userspace IO interface to the Hantro multi-format video
+	  decoder engine.
+
+	  If you compile this as a module, it will be called uio_hantro.
+
 endif
