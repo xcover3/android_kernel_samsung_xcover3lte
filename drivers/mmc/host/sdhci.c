@@ -30,6 +30,8 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/slot-gpio.h>
 
+#include <trace/events/pxa.h>
+
 #include "sdhci.h"
 
 #define DRIVER_NAME "sdhci"
@@ -1606,6 +1608,8 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			}
 		}
 
+		trace_pxa_sdhc_dma(PXA_SDHC_DMA_START, host->mmc->index);
+
 		/* if need, disable sdio irq before starting cmd */
 		if ((host->quirks2 & SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS)
 			&& host->sdio_irq_enabled)
@@ -2491,6 +2495,9 @@ static void sdhci_tasklet_finish(unsigned long param)
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	mmc_request_done(host->mmc, mrq);
+
+	trace_pxa_sdhc_dma(PXA_SDHC_DMA_END, host->mmc->index);
+
 	sdhci_runtime_pm_put(host);
 	sdhci_access_constrain(host, 0);
 
