@@ -20,8 +20,8 @@
 #include <asm/mcpm.h>
 #include <mach/help_v7.h>
 #include <mach/mmp_cpuidle.h>
-
 #include <trace/events/pxa.h>
+
 #include "reset.h"
 #include "regs-addr.h"
 
@@ -122,6 +122,8 @@ static void mmp_pm_down(unsigned long addr)
 	} else
 		BUG();
 
+	trace_pxa_cpu_idle(LPM_ENTRY(*idx), cpu, cluster);
+
 	if (last_man && __mcpm_outbound_enter_critical(cpu, cluster)) {
 		arch_spin_unlock(&mmp_lpm_lock);
 		__mcpm_outbound_leave_critical(cluster, CLUSTER_DOWN);
@@ -201,6 +203,8 @@ static void mmp_pm_powered_up(void)
 	cluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 	pr_debug("%s: cpu %u cluster %u\n", __func__, cpu, cluster);
 	BUG_ON(cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER);
+
+	trace_pxa_cpu_idle(LPM_EXIT(0), cpu, cluster);
 
 	local_irq_save(flags);
 	arch_spin_lock(&mmp_lpm_lock);
