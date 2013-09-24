@@ -188,6 +188,25 @@ static const struct mfd_cell regulator_devs[] = {
 	},
 };
 
+static struct resource usb_resources[] = {
+	{
+	.name = "88pm80x-usb",
+	.start = PM800_IRQ_CHG,
+	.end = PM800_IRQ_CHG,
+	.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct mfd_cell usb_devs[] = {
+	{
+	.name = "88pm80x-usb",
+	 .of_compatible = "marvell,88pm80x-usb",
+	.num_resources = 1,
+	.resources = &usb_resources[0],
+	.id = -1,
+	},
+};
+
 static struct resource headset_resources_800[] = {
 	{
 		.name = "gpio-03",
@@ -420,6 +439,23 @@ static int device_regulator_init(struct pm80x_chip *chip,
 	return 0;
 }
 
+static int device_vbus_init(struct pm80x_chip *chip,
+			                   struct pm80x_platform_data *pdata)
+{
+	int ret;
+
+	usb_devs[0].platform_data = pdata->usb;
+	usb_devs[0].pdata_size = sizeof(struct pm80x_vbus_pdata);
+	ret = mfd_add_devices(chip->dev, 0, &usb_devs[0],
+			      ARRAY_SIZE(usb_devs), NULL, 0, NULL);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to add usb subdev\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static int device_headset_init(struct pm80x_chip *chip,
 					   struct pm80x_platform_data *pdata)
 {
@@ -603,6 +639,12 @@ static int device_800_init(struct pm80x_chip *chip,
 	ret = device_regulator_init(chip, pdata);
 	if (ret) {
 		dev_err(chip->dev, "Failed to add regulators subdev\n");
+		goto out;
+	}
+
+	ret = device_vbus_init(chip, pdata);
+	if (ret) {
+		dev_err(chip->dev, "Failed to add vbus detection subdev\n");
 		goto out;
 	}
 

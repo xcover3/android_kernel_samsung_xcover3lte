@@ -402,6 +402,11 @@ struct pm80x_rtc_pdata {
 	int		rtc_wakeup;
 };
 
+struct pm80x_vbus_pdata {
+	int	vbus_gpio;
+	int	id_gpadc;
+};
+
 struct pm80x_subchip {
 	struct i2c_client *power_page;	/* chip client for power page */
 	struct i2c_client *gpadc_page;	/* chip client for gpadc page */
@@ -428,6 +433,7 @@ struct pm80x_chip {
 
 struct pm80x_platform_data {
 	struct pm80x_rtc_pdata *rtc;
+	struct pm80x_vbus_pdata *usb;
 	struct gpio_switch_platform_data *headset;
 	/*
 	 * For the regulator not defined, set regulators[not_defined] to be
