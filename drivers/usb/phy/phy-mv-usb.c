@@ -772,6 +772,20 @@ static int mv_otg_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void mv_otg_phy_bind_device(struct mv_otg *mvotg)
+{
+	const char *device_name;
+	struct device_node *np = (mvotg->phy.dev)->of_node;
+
+	if (!of_property_read_string(np, "marvell,udc-name", &device_name))
+		usb_bind_phy(device_name, MV_USB2_OTG_PHY_INDEX,
+						dev_name(mvotg->phy.dev));
+
+	if (!of_property_read_string(np, "marvell,ehci-name", &device_name))
+		usb_bind_phy(device_name, MV_USB2_OTG_PHY_INDEX,
+						dev_name(mvotg->phy.dev));
+}
+
 static int mv_otg_probe(struct platform_device *pdev)
 {
 	struct mv_usb_platform_data *pdata = dev_get_platdata(&pdev->dev);
@@ -824,6 +838,8 @@ static int mv_otg_probe(struct platform_device *pdev)
 	otg->set_host = mv_otg_set_host;
 	otg->set_peripheral = mv_otg_set_peripheral;
 	otg->set_vbus = mv_otg_set_vbus;
+
+	mv_otg_phy_bind_device(mvotg);
 
 	for (i = 0; i < OTG_TIMER_NUM; i++)
 		init_timer(&mvotg->otg_ctrl.timer[i]);
