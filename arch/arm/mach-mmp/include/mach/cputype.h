@@ -74,10 +74,28 @@ static inline int cpu_is_pxa1U88(void)
 		(((mmp_chip_id & 0xffff) == 0x1098));
 }
 
+#ifdef CONFIG_CPU_PXA988
 static inline int cpu_is_pxa1L88(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
 		(((mmp_chip_id & 0xffff) == 0x1188));
 }
+
+static inline int cpu_is_pxa1L88_a0(void)
+{
+	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
+		(((mmp_chip_id & 0xffffff) == 0xa01188));
+}
+
+static inline int cpu_is_pxa1L88_a0c(void)
+{
+	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
+		(((mmp_chip_id & 0xffffff) == 0xb01188));
+}
+#else
+#define cpu_is_pxa1L88()	(0)
+#define cpu_is_pxa1L88_a0()	(0)
+#define cpu_is_pxa1L88_a0c()	(0)
+#endif
 
 #endif /* __ASM_MACH_CPUTYPE_H */
