@@ -1297,8 +1297,6 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	int retval = 0;
 
 	udc = container_of(gadget, struct mv_udc, gadget);
-	spin_lock_irqsave(&udc->lock, flags);
-
 	udc->vbus_active = (is_active != 0);
 
 	dev_dbg(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
@@ -1347,19 +1345,22 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		ep0_reset(udc);
 		udc_start(udc);
 	} else if (udc->driver && udc->softconnect) {
-		if (!udc->active)
+		if (!udc->active) {
+			spin_unlock_irqrestore(&udc->lock, flags);
 			goto out;
+		}
 
 		/* stop all the transfer in queue*/
 		stop_activity(udc, udc->driver);
 		udc_stop(udc);
 	}
 
+	spin_unlock_irqrestore(&udc->lock, flags);
+
 	if (!udc->vbus_active)
 		mv_udc_disable(udc);
 
 out:
-	spin_unlock_irqrestore(&udc->lock, flags);
 	return retval;
 }
 
