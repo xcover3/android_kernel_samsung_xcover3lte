@@ -1576,7 +1576,8 @@ asmlinkage int vprintk_emit(int facility, int level,
 	}
 
 #ifdef CONFIG_EARLY_PRINTK_DIRECT
-	printascii(text);
+	if (console_drivers == NULL)
+		printascii(text);
 #endif
 
 	if (level == -1)
