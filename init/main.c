@@ -459,6 +459,11 @@ void __init __weak thread_info_cache_init(void)
 }
 #endif
 
+int __attribute__((weak)) __init device_mapping_init(void)
+{
+	return 0;
+}
+
 /*
  * Set up kernel memory allocators
  */
@@ -474,6 +479,7 @@ static void __init mm_init(void)
 	percpu_init_late();
 	pgtable_init();
 	vmalloc_init();
+	device_mapping_init();
 }
 
 asmlinkage void __init start_kernel(void)
