@@ -967,15 +967,11 @@ static void sdhci_set_transfer_mode(struct sdhci_host *host,
 	sdhci_writew(host, mode, SDHCI_TRANSFER_MODE);
 }
 
-static void sdhci_finish_data(struct sdhci_host *host)
+static void __sdhci_finish_data(struct sdhci_host *host)
 {
 	struct mmc_data *data;
 
-	BUG_ON(!host->data);
-
 	data = host->data;
-	host->data = NULL;
-
 	if (!data->prepared)
 		__sdhci_post_req(host, data);
 
@@ -990,6 +986,19 @@ static void sdhci_finish_data(struct sdhci_host *host)
 		data->bytes_xfered = 0;
 	else
 		data->bytes_xfered = data->blksz * data->blocks;
+
+	host->data = NULL;
+}
+
+static void sdhci_finish_data(struct sdhci_host *host)
+{
+	struct mmc_data *data;
+
+	BUG_ON(!host->data);
+
+	data = host->data;
+
+	__sdhci_finish_data(host);
 
 	/*
 	 * Need to send CMD12 if -
@@ -2379,11 +2388,25 @@ static void sdhci_tasklet_finish(unsigned long param)
 		   controllers do not like that. */
 		sdhci_reset(host, SDHCI_RESET_CMD);
 		sdhci_reset(host, SDHCI_RESET_DATA);
+
+		/*
+		 * There may still be pending interupts for CMD or DATA after
+		 * resetting. Clear and discard them.
+		 */
+		sdhci_writel(host, SDHCI_INT_CMD_MASK | SDHCI_INT_DATA_MASK,
+				SDHCI_INT_STATUS);
 	}
 
 	host->mrq = NULL;
 	host->cmd = NULL;
-	host->data = NULL;
+	if (host->data) {
+		/*
+		 * If sdhci_finish_data has set host->data to NULL,
+		 * no need to do __sdhci_finish_data once more.
+		 * Within __sdhci_finish_data, host->data is set to NULL.
+		 */
+		__sdhci_finish_data(host);
+	}
 
 #ifndef CONFIG_SDHCI_USE_LEDS_CLASS
 	sdhci_deactivate_led(host);
@@ -2471,6 +2494,21 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 		host->cmd->error = -EILSEQ;
 
 	if (host->cmd->error) {
+		if (host->data) {
+			/*
+			 * For some commands with data transfer, like CMD17,
+			 * CMD53...,  occasionally SDH may only report
+			 * "CMD error" but without "DATA error".
+			 *
+			 * If "DATA error" is not reported by SDH,
+			 * sdhci_data_irq is not called in sdhci_irq.
+			 *
+			 * Set data->error here to let finish_tasklet have chance
+			 * to handle it.
+			 */
+			host->data->error = -EILSEQ;
+		}
+
 		tasklet_schedule(&host->finish_tasklet);
 		return;
 	}
