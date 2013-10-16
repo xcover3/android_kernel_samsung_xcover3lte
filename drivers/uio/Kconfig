@@ -135,9 +135,20 @@ config UIO_MF624
 
 	  If you compile this as a module, it will be called uio_mf624.
 
+config UIO_CODA7542
+       tristate "CODA7542 UIO device driver"
+       depends on UIO
+       default n
+       help
+         Enable this config, allow userspace to use the IO interface of
+	 the Chip&Media multi-format video decoder engine coda7542, which
+	 include encoder/decoder.
+
+         If you compile this as a module, it will be called uio_coda7542.
+
 config UIO_HANTRO
 	tristate "Hantro UIO device driver"
-	depends on UIO && CPU_EDEN
+	depends on UIO && ARCH_MMP
 	default n
 	help
 	  Userspace IO interface to the Hantro multi-format video
