@@ -849,7 +849,8 @@ endef
 
 # Store (new) KERNELRELEASE string in include/config/kernel.release
 include/config/kernel.release: include/config/auto.conf FORCE
-	$(call filechk,kernel.release)
+	$(Q)rm -f $@
+	$(Q)echo "$(KERNELVERSION)" > $@
 
 
 # Things we need to do before we recursively start building the kernel
