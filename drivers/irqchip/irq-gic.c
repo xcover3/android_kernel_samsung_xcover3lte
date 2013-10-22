@@ -99,6 +99,8 @@ struct irq_chip gic_arch_extn = {
 
 static struct gic_chip_data gic_data[MAX_GIC_NR] __read_mostly;
 
+bool is_gic_available = true;
+
 #ifdef CONFIG_GIC_NON_BANKED
 static void __iomem *gic_get_percpu_base(union gic_base *base)
 {
@@ -991,6 +993,11 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 
 	if (WARN_ON(!node))
 		return -ENODEV;
+
+	if (!of_device_is_available(node)) {
+		is_gic_available = false;
+		return -ENODEV;
+	}
 
 	dist_base = of_iomap(node, 0);
 	WARN(!dist_base, "unable to map gic dist registers\n");

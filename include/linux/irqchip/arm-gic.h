@@ -76,6 +76,7 @@
 struct device_node;
 
 extern struct irq_chip gic_arch_extn;
+extern bool is_gic_available;
 
 void __iomem *gic_get_dist_base(void);
 
