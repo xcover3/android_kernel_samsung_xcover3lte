@@ -332,7 +332,7 @@ static void mmp_tdma_free_descriptor(struct mmp_tdma_chan *tdmac)
 	int size = tdmac->desc_num * sizeof(struct mmp_tdma_desc);
 
 	gpool = tdmac->pool;
-	if (tdmac->desc_arr)
+	if (gpool && tdmac->desc_arr)
 		gen_pool_free(gpool, (unsigned long)tdmac->desc_arr,
 				size);
 	tdmac->desc_arr = NULL;
