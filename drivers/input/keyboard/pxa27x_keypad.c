@@ -854,7 +854,8 @@ static int pxa27x_keypad_remove(struct platform_device *pdev)
 	iounmap(keypad->mmio_base);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	release_mem_region(res->start, resource_size(res));
+	if (res)
+		release_mem_region(res->start, resource_size(res));
 
 	kfree(keypad);
 
