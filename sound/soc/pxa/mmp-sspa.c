@@ -413,13 +413,6 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	res = devm_request_mem_region(&pdev->dev, res->start,
-				resource_size(res), pdev->name);
-	if (res == NULL) {
-		dev_err(&pdev->dev, "failed to request memory resource\n");
-		return -EBUSY;
-	}
-
 	priv->sspa->mmio_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(priv->sspa->mmio_base))
 		return PTR_ERR(priv->sspa->mmio_base);
