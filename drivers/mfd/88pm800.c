@@ -71,6 +71,8 @@
 #define PM800_VSYS_INT_ENA2		(1 << 1)
 #define PM800_VCHG_INT_ENA2		(1 << 2)
 #define PM800_TINT_INT_ENA2		(1 << 3)
+#define PM822_IRQ_LDO_PGOOD_EN		(1 << 4)
+#define PM822_IRQ_BUCK_PGOOD_EN		(1 << 5)
 
 #define PM800_INT_ENA_3		(0x0B)
 #define PM800_GPADC0_INT_ENA3		(1 << 0)
@@ -101,18 +103,20 @@ enum {
 	PM800_IRQ_VSYS,		/*EN2b1 */
 	PM800_IRQ_VCHG,		/*EN2b2 */
 	PM800_IRQ_TINT,		/*EN2b3 */
-	PM800_IRQ_GPADC0,	/*EN3b0 *//*10 */
+	PM822_IRQ_LDO_PGOOD,	/*EN2b4 *//*10 */
+	PM822_IRQ_BUCK_PGOOD,	/*EN2b5 */
+	PM800_IRQ_GPADC0,	/*EN3b0 */
 	PM800_IRQ_GPADC1,	/*EN3b1 */
 	PM800_IRQ_GPADC2,	/*EN3b2 */
-	PM800_IRQ_GPADC3,	/*EN3b3 */
-	PM800_IRQ_GPADC4 = 13,	/*EN3b4 */
-	PM822_IRQ_MIC_DET = 13,	/*EN3b4 */
-	PM822_IRQ_HS_DET = 14,	/*EN3b4 */
-	PM800_IRQ_GPIO0,	/*EN4b0 *//*15 */
+	PM800_IRQ_GPADC3,	/*EN3b3 *//*15 */
+	PM800_IRQ_GPADC4 = 16,	/*EN3b4 */
+	PM822_IRQ_MIC_DET = 16,	/*EN3b4 */
+	PM822_IRQ_HS_DET = 17,	/*EN3b4 */
+	PM800_IRQ_GPIO0,	/*EN4b0 */
 	PM800_IRQ_GPIO1,	/*EN4b1 */
-	PM800_IRQ_GPIO2,	/*EN4b2 */
+	PM800_IRQ_GPIO2,	/*EN4b2 *//*20 */
 	PM800_IRQ_GPIO3,	/*EN4b3 */
-	PM800_IRQ_GPIO4,	/*EN4b4 *//*19 */
+	PM800_IRQ_GPIO4,	/*EN4b4 */
 	PM800_MAX_IRQ,
 };
 
@@ -245,6 +249,14 @@ static const struct regmap_irq pm800_irqs[] = {
 	[PM800_IRQ_TINT] = {
 		.reg_offset = 1,
 		.mask = PM800_TINT_INT_ENA2,
+	},
+	[PM822_IRQ_LDO_PGOOD] = {
+		.reg_offset = 1,
+		.mask = PM822_IRQ_LDO_PGOOD_EN,
+	},
+	[PM822_IRQ_BUCK_PGOOD] = {
+		.reg_offset = 1,
+		.mask = PM822_IRQ_BUCK_PGOOD_EN,
 	},
 	/* INT2 */
 	[PM800_IRQ_GPADC0] = {
