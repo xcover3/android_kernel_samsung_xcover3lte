@@ -34,6 +34,7 @@
 #include <linux/of_gpio.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
+#include <linux/dma-mapping.h>
 #include <dt-bindings/mmc/pxa_sdhci.h>
 
 #include "sdhci.h"
@@ -455,6 +456,10 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 			pm_runtime_enable(&pdev->dev);
 		}
 	}
+
+	/* dma only 32 bit now */
+	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
+	pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 
 	ret = sdhci_add_host(host);
 	if (ret) {
