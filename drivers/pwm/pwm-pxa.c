@@ -95,8 +95,11 @@ static int pxa_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	rc = clk_prepare_enable(pc->clk);
 	if (rc < 0)
 		return rc;
-
-	writel(prescale, pc->mmio_base + offset + PWMCR);
+	/*
+	 * FIXME: Graceful shutdown mode would cause the function clock
+	 * could not be enabled normally, so chose abrupt shutdown mode.
+	 */
+	writel(prescale | PWMCR_SD, pc->mmio_base + offset + PWMCR);
 	writel(dc, pc->mmio_base + offset + PWMDCR);
 	writel(pv, pc->mmio_base + offset + PWMPCR);
 
