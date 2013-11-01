@@ -2442,6 +2442,8 @@ static int mv_udc_remove(struct platform_device *pdev)
 	/* free dev, wait for the release() finished */
 	wait_for_completion(udc->done);
 
+	pm_qos_remove_request(&udc->qos_idle);
+
 	the_controller = NULL;
 
 	return 0;
@@ -2454,6 +2456,9 @@ static int mv_udc_probe(struct platform_device *pdev)
 	int retval = 0;
 	struct resource *r;
 	size_t size;
+	struct device_node *np = pdev->dev.of_node;
+	const __be32 *prop;
+	unsigned int proplen;
 
 	if (pdata == NULL) {
 		dev_err(&pdev->dev, "missing platform_data\n");
@@ -2649,6 +2654,18 @@ static int mv_udc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, udc);
 	device_init_wakeup(&pdev->dev, 1);
+
+	prop = of_get_property(np, "lpm-qos", &proplen);
+	if (!prop) {
+		pr_err("lpm-qos config in DT for mv_udc is not defined\n");
+		goto err_create_workqueue;
+	} else
+		udc->lpm_qos = be32_to_cpup(prop);
+
+	udc->qos_idle.name = udc->dev->name;
+	pm_qos_add_request(&udc->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
 	dev_info(&pdev->dev, "successful probe UDC device %s clock gating.\n",
 		udc->clock_gating ? "with" : "without");
 
