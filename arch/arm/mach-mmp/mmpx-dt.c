@@ -241,6 +241,7 @@ DT_MACHINE_START(PXA1U88_DT, "PXA1U88")
 	.init_machine	= pxa1U88_init_machine,
 	.dt_compat      = pxa1U88_dt_board_compat,
 	.reserve	= pxa1x88_reserve,
+	.restart	= mmp_arch_restart,
 MACHINE_END
 
 static const char *pxa1L88_dt_board_compat[] __initdata = {
@@ -254,4 +255,5 @@ DT_MACHINE_START(PXA1L88_DT, "PXA1L88")
 	.init_machine	= pxa1U88_init_machine,
 	.dt_compat      = pxa1L88_dt_board_compat,
 	.reserve	= pxa1x88_reserve,
+	.restart	= mmp_arch_restart,
 MACHINE_END
