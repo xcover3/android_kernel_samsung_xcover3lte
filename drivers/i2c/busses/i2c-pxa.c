@@ -757,7 +757,7 @@ static int i2c_pxa_send_mastercode(struct pxa_i2c *i2c)
 static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 			       struct i2c_msg *msg, int num)
 {
-	unsigned long timeout = 500000; /* 5 seconds */
+	unsigned long timeout = 100000; /* 1 seconds */
 	int ret = 0;
 
 	ret = i2c_pxa_pio_set_master(i2c);
@@ -785,8 +785,13 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 	ret = i2c->msg_idx;
 
 out:
-	if (timeout == 0)
+	if (timeout == 0) {
 		i2c_pxa_scream_blue_murder(i2c, "timeout");
+		ret = I2C_RETRY;
+	}
+
+	if (ret < 0)
+		i2c_pxa_reset(i2c);
 
 	return ret;
 }
@@ -840,7 +845,7 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	/*
 	 * The rest of the processing occurs in the interrupt handler.
 	 */
-	timeout = wait_event_timeout(i2c->wait, i2c->msg_num == 0, HZ * 5);
+	timeout = wait_event_timeout(i2c->wait, i2c->msg_num == 0, HZ * 1);
 	i2c_pxa_stop_message(i2c);
 
 	/*
