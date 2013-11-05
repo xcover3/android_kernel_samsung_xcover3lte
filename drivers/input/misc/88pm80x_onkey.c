@@ -26,10 +26,11 @@
 #include <linux/regmap.h>
 #include <linux/slab.h>
 
-#define PM800_LONG_ONKEY_EN		(1 << 0)
+#define PM800_LONG_ONKEY_EN2		(1 << 1)
 #define PM800_LONG_KEY_DELAY		(8)	/* 1 .. 16 seconds */
 #define PM800_LONKEY_PRESS_TIME		((PM800_LONG_KEY_DELAY-1) << 4)
 #define PM800_LONKEY_PRESS_TIME_MASK	(0xF0)
+#define PM800_LONKEY_RESET		(1 << 3)
 #define PM800_SW_PDOWN			(1 << 5)
 
 struct pm80x_onkey_info {
@@ -46,6 +47,9 @@ static irqreturn_t pm80x_onkey_handler(int irq, void *data)
 	int ret = 0;
 	unsigned int val;
 
+	/* reset the LONGKEY reset time */
+	regmap_update_bits(info->map, PM800_WAKEUP1,
+			   PM800_LONKEY_RESET, PM800_LONKEY_RESET);
 	ret = regmap_read(info->map, PM800_STATUS_1, &val);
 	if (ret < 0) {
 		dev_err(info->idev->dev.parent, "failed to read status: %d\n", ret);
@@ -120,8 +124,8 @@ static int pm80x_onkey_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, info);
 
 	/* Enable long onkey detection */
-	regmap_update_bits(info->map, PM800_RTC_MISC4, PM800_LONG_ONKEY_EN,
-			   PM800_LONG_ONKEY_EN);
+	regmap_update_bits(info->map, PM800_RTC_MISC4, PM800_LONG_ONKEY_EN2,
+			   PM800_LONG_ONKEY_EN2);
 	/* Set 8-second interval */
 	regmap_update_bits(info->map, PM800_RTC_MISC3,
 			   PM800_LONKEY_PRESS_TIME_MASK,
