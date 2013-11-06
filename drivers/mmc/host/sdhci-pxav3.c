@@ -34,6 +34,7 @@
 #include <linux/of_gpio.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
+#include <linux/pm_qos.h>
 #include <linux/dma-mapping.h>
 #include <dt-bindings/mmc/pxa_sdhci.h>
 
@@ -362,6 +363,19 @@ static void pxav3_signal_vol_change(struct sdhci_host *host, u8 vol)
 	set_mmc1_aib(host, set);
 }
 
+static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (!pdata)
+		return;
+	if (ac)
+		pm_qos_update_request(&pdata->qos_idle, pdata->lpm_qos);
+	else
+		pm_qos_update_request(&pdata->qos_idle, PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+}
+
 /*
  * remove the caps that supported by the controller but not available
  * for certain platforms.
@@ -385,6 +399,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.clk_prepare = pxav3_clk_prepare,
 	.signal_vol_change = pxav3_signal_vol_change,
 	.clk_gate_auto  = pxav3_clk_gate_auto,
+	.access_constrain = pxav3_access_constrain,
 	.host_caps_disable = pxav3_host_caps_disable,
 };
 
@@ -473,6 +488,10 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 		pdata->quirks2 |= tmp;
 	if (!of_property_read_u32(np, "marvell,sdh-pm-caps", &tmp))
 		pdata->pm_caps |= tmp;
+	if (!of_property_read_u32(np, "lpm-qos", &tmp))
+		pdata->lpm_qos = tmp;
+	else
+		pdata->lpm_qos = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
 
 	/*
 	 * property "marvell,sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay>, [<..>]
@@ -599,6 +618,8 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 					"failed to init host with pdata\n");
 			goto err_init_host;
 		}
+		pm_qos_add_request(&pdata->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 		if (pdata->flags & PXA_FLAG_EN_PM_RUNTIME) {
 			pm_runtime_get_noresume(&pdev->dev);
 			pm_runtime_set_active(&pdev->dev);
@@ -641,6 +662,8 @@ err_add_host:
 err_init_host:
 err_of_parse:
 	clk_disable_unprepare(pxa->clk);
+	if (pdata)
+		pm_qos_remove_request(&pdata->qos_idle);
 err_clk_get:
 	clk_disable_unprepare(pxa->axi_clk);
 	sdhci_pltfm_free(pdev);
@@ -653,10 +676,14 @@ static int sdhci_pxav3_remove(struct platform_device *pdev)
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_pxa *pxa = pltfm_host->priv;
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
 
 	pm_runtime_get_sync(&pdev->dev);
 	sdhci_remove_host(host, 1);
 	pm_runtime_disable(&pdev->dev);
+
+	if (pdata)
+		pm_qos_remove_request(&pdata->qos_idle);
 
 	clk_disable_unprepare(pxa->clk);
 	clk_disable_unprepare(pxa->axi_clk);

@@ -42,6 +42,8 @@ struct sdhci_regdata {
 	u32 APBC_ASFAR;
 };
 
+#include <linux/pm_qos.h>
+
 /*
  * struct pxa_sdhci_platdata() - Platform device data for PXA SDHCI
  * @flags: flags for platform requirement
@@ -75,6 +77,8 @@ struct sdhci_pxa_platdata {
 	unsigned int	quirks2;
 	unsigned int	pm_caps;
 	struct sdhci_pxa_dtr_data *dtr_data;
+	struct  pm_qos_request  qos_idle;
+	u32	lpm_qos;
 	const struct sdhci_regdata *regdata;
 };
 
