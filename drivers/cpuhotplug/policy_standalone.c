@@ -360,7 +360,11 @@ static void __ref hotplug_timer(struct work_struct *work)
 		/* get real avg_load(xx%) */
 		tmp_info->avg_load = ((100 * tmp_info->avg_load)
 				      / total_wall_time)
-		    / (max_performance >> 10);
+				      / (max_performance >> 10);
+
+		trace_pxa_hp_single(i, get_cpu_nr_running(i), tmp_info->load,
+				    (tmp_info->avg_load *
+				     max_performance >> 10) / 100));
 
 		/* get avg_load of two cores */
 		avg_load += tmp_info->avg_load;
@@ -374,6 +378,10 @@ static void __ref hotplug_timer(struct work_struct *work)
 			cpu_rq_min = i;
 		}
 	}
+
+	trace_pxa_hp_total((cur_freq / 1000),
+			   (avg_load * (max_performance >> 10) / 100),
+			   num_online_cpus());
 
 	for (i = NUM_CPUS - 1; i > 0; --i) {
 		if (cpu_online(i) == 0) {
