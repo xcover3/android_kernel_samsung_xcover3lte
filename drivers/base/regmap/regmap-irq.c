@@ -20,6 +20,9 @@
 #include <linux/slab.h>
 
 #include "internal.h"
+#ifdef CONFIG_MFD_88PM805
+#include <linux/delay.h>
+#endif
 
 struct regmap_irq_chip_data {
 	struct mutex lock;
@@ -135,6 +138,12 @@ static void regmap_irq_sync_unlock(struct irq_data *data)
 			irq_set_irq_wake(d->irq, 1);
 
 	d->wake_count = 0;
+
+	/* wait 1ms for  between 32K register of 88PM805 */
+#ifdef CONFIG_MFD_88PM805
+	if (!strcmp("88pm805", d->chip->name))
+		usleep_range(1000, 1200);
+#endif
 
 	mutex_unlock(&d->lock);
 }
@@ -460,6 +469,12 @@ int regmap_add_irq_chip(struct regmap *map, int irq, int irq_flags,
 			}
 		}
 	}
+
+	/* wait 1ms for  between 32K register of 88PM805 */
+#ifdef CONFIG_MFD_88PM805
+	if (!strcmp("88pm805", chip->name))
+		usleep_range(1000, 1200);
+#endif
 
 	/* Wake is disabled by default */
 	if (d->wake_buf) {
