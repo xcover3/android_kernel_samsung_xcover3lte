@@ -1281,6 +1281,18 @@ config SYSCTL_ARCH_UNALIGN_ALLOW
 	  the unaligned access emulation.
 	  see arch/parisc/kernel/unaligned.c for reference
 
+config CGITINFO
+	 bool "Create git info for current branch"
+	 default y
+	 help
+	   Say Y here to let the kernel save git information.
+	   This increases the size of the kernel somewhat, as all infos
+	   have to be loaded into the kernel image. Then can check the
+	   git info from kernel.
+
+config HOTPLUG
+	def_bool y
+
 config HAVE_PCSPKR_PLATFORM
 	bool
 

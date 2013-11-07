@@ -45,6 +45,7 @@ obj-$(CONFIG_SYSTEM_TRUSTED_KEYRING) += system_keyring.o system_certificates.o
 obj-$(CONFIG_MODULES) += module.o
 obj-$(CONFIG_MODULE_SIG) += module_signing.o
 obj-$(CONFIG_KALLSYMS) += kallsyms.o
+obj-$(CONFIG_CGITINFO) += gitinfo.o
 obj-$(CONFIG_BSD_PROCESS_ACCT) += acct.o
 obj-$(CONFIG_KEXEC) += kexec.o
 obj-$(CONFIG_BACKTRACE_SELF_TEST) += backtracetest.o
@@ -128,6 +129,12 @@ $(obj)/timeconst.h: $(obj)/hz.bc $(src)/timeconst.bc FORCE
 # Roll all the X.509 certificates that we can find together and pull them into
 # the kernel so that they get loaded into the system trusted keyring during
 # boot.
+targets += gitinfo.S
+quiet_cmd_cgitinfo = CGIT    $@
+      cmd_cgitinfo = $(CGITINFO) $(srctree) > $@
+$(obj)/gitinfo.S: FORCE
+	$(call cmd,cgitinfo)
+
 #
 # We look in the source root and the build root for all files whose name ends
 # in ".x509".  Unfortunately, this will generate duplicate filenames, so we

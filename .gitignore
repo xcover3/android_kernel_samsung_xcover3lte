@@ -95,3 +95,6 @@ x509.genkey
 
 # Kconfig presets
 all.config
+# cgitinfo tool about
+kernel/gitinfo.S
+scripts/cgitinfo
