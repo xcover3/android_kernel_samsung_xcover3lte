@@ -824,7 +824,7 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, keypad);
-	device_init_wakeup(&pdev->dev, 1);
+	device_set_wakeup_capable(&pdev->dev, 1);
 
 	return 0;
 
