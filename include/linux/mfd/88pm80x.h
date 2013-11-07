@@ -118,6 +118,20 @@ enum {
 #define PM800_PWM3		(0x42)
 #define PM800_PWM4		(0x43)
 
+/* Oscillator control */
+#define PM800_OSC_CNTRL1		(0x50)
+#define PM800_OSC_CNTRL2		(0x51)
+#define PM800_OSC_CNTRL3		(0x52)
+#define PM800_OSC_CNTRL4		(0x53)
+#define PM800_OSC_CNTRL5		(0x54)
+#define PM800_OSC_CNTRL6		(0x55)
+#define PM800_OSC_CNTRL7		(0x56)
+#define PM800_OSC_CNTRL8		(0x57)
+#define PM800_OSC_CNTRL9		(0x58)
+#define PM800_OSC_CNTRL11		(0x5a)
+#define PM800_OSC_CNTRL12		(0x5b)
+#define PM800_OSC_CNTRL13		(0x5c)
+
 /* RTC Registers */
 #define PM800_RTC_CONTROL		(0xD0)
 #define PM800_RTC_MISC1			(0xE1)
@@ -134,7 +148,76 @@ enum {
 /* Regulator Control Registers: BUCK1,BUCK5,LDO1 have DVC */
 
 /* buck registers */
-#define PM800_SLEEP_BUCK1	(0x30)
+#define PM800_BUCK1_SLEEP	(0x30)
+
+#define PM800_AUDIO_MODE_CONFIG1	(0x38)
+#define PM800_BUCK3		(0x41)
+#define PM800_BUCK4		(0x42)
+#define PM800_BUCK4_1		(0x43)
+#define PM800_BUCK4_2		(0x44)
+#define PM800_BUCK4_3		(0x45)
+#define PM800_BUCK5		(0x46)
+#define PM800_BUCK_EN		(0x50)
+#define PM800_LDO1_8_EN1		(0x51)
+#define PM800_LDO9_16_EN1		(0x52)
+#define PM800_LDO17_19_EN1		(0x53)
+
+/* BUCK Sleep Mode Register 1: BUCK[1..4] */
+#define PM800_BUCK_SLP1		(0x5A)
+#define PM800_BUCK1_SLP1_SHIFT	0
+#define PM800_BUCK1_SLP1_MASK	(0x3 << PM800_BUCK1_SLP1_SHIFT)
+#define PM800_BUCK2_SLP1_SHIFT	2
+#define PM800_BUCK2_SLP1_MASK	(0x3 << PM800_BUCK2_SLP1_SHIFT)
+#define PM800_BUCK_SLP2		(0x5B)
+
+#define PM800_BUCK_SLP_PWR_OFF	0x0	/* power off */
+#define PM800_BUCK_SLP_PWR_ACT1	0x1	/* auto & VBUCK_SET_SLP */
+#define PM800_BUCK_SLP_PWR_LOW	0x2	/* VBUCK_SET_SLP */
+#define PM800_BUCK_SLP_PWR_ACT2	0x3	/* auto & VBUCK_SET */
+
+/* BUCK Sleep Mode Register 2: BUCK5 */
+#define PM800_BUCK_SLP2		(0x5B)
+#define PM800_BUCK5_SLP2_SHIFT	0
+#define PM800_BUCK5_SLP2_MASK	(0x3 << PM800_BUCK5_SLP2_SHIFT)
+
+#define PM800_LDO1_1		(0x08)
+#define PM800_LDO1_2		(0x09)
+#define PM800_LDO1_3		(0x0a)
+#define PM800_LDO2		(0x0b)
+#define PM800_LDO3		(0x0c)
+#define PM800_LDO4		(0x0d)
+#define PM800_LDO5		(0x0e)
+#define PM800_LDO6		(0x0f)
+#define PM800_LDO7		(0x10)
+#define PM800_LDO8		(0x11)
+#define PM800_LDO9		(0x12)
+#define PM800_LDO10		(0x13)
+#define PM800_LDO11		(0x14)
+#define PM800_LDO12		(0x15)
+#define PM800_LDO13		(0x16)
+#define PM800_LDO14		(0x17)
+#define PM800_LDO15		(0x18)
+#define PM800_LDO16		(0x19)
+#define PM800_LDO17		(0x1a)
+#define PM800_LDO18		(0x1b)
+#define PM800_LDO19		(0x1c)
+
+#define PM800_AUDIO_MODE	(0x38)
+
+/*88pm822 registers*/
+#define PM822_BUCK1		(0x3C)
+#define PM822_BUCK2		(0x40)
+#define PM822_BUCK3		(0x41)
+#define PM822_BUCK3_1		(0x42)
+#define PM822_BUCK3_2		(0x43)
+#define PM822_BUCK3_3		(0x44)
+#define PM822_BUCK4		(0x45)
+#define PM822_BUCK5		(0x46)
+
+#define PM822_NOUSE		(0xFF)
+#define PM822_LDO2_AUDIO	(0x0A)
+#define PM822_VOUTSW		(0xFF)	/* fake register */
+
 
 /* BUCK Sleep Mode Register 1: BUCK[1..4] */
 #define PM800_BUCK_SLP1		(0x5A)
@@ -159,6 +242,13 @@ enum {
 
 #define PM800_GPADC_MISC_CONFIG3		(0x09)
 #define PM800_GPADC_MISC_CONFIG4		(0x0A)
+#define PM800_GPADC_BIAS1			(0x0B)
+#define PM800_GPADC_BIAS2			(0x0C)
+#define PM800_GPADC_BIAS3			(0x0D)
+#define PM800_GPADC_BIAS4			(0x0E)
+
+#define GP_BIAS_SET(x)				(x << 0)
+#define GP_PREBIAS(x)				(x << 4)
 
 #define PM800_GPADC_PREBIAS1			(0x0F)
 #define PM800_GPADC0_GP_PREBIAS_TIME(x)	(x << 0)
