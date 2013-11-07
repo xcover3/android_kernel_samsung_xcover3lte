@@ -425,7 +425,9 @@ static void pxa27x_keypad_scan_matrix(struct pxa27x_keypad *keypad)
 
 	if (num_keys_pressed == 0)
 		goto scan;
-
+	/* do not scan more than three keys to avoid fake key */
+	if (num_keys_pressed > 3)
+		return;
 	if (num_keys_pressed == 1) {
 		col = KPAS_CP(kpas);
 		row = KPAS_RP(kpas);
