@@ -21,6 +21,7 @@
 #include <linux/sizes.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/pxa2xx_spi.h>
+#include <linux/pm_qos.h>
 
 struct driver_data {
 	/* Driver model hookup */
@@ -87,7 +88,8 @@ struct driver_data {
 	int (*read)(struct driver_data *drv_data);
 	irqreturn_t (*transfer_handler)(struct driver_data *drv_data);
 	void (*cs_control)(u32 command);
-
+	struct pm_qos_request qos_idle;
+	int qos_idle_value;
 	void __iomem *lpss_base;
 	bool spi_inc_mode;
 };

@@ -168,6 +168,31 @@ static void lpss_ssp_cs_control(struct driver_data *drv_data, bool enable)
 	__lpss_ssp_write_priv(drv_data, SPI_CS_CONTROL, value);
 }
 
+static void set_dvfm_constraint(struct driver_data *drv_data)
+{
+	if (drv_data->qos_idle_value != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE)
+		pm_qos_update_request(&drv_data->qos_idle,
+				drv_data->qos_idle_value);
+}
+
+static void unset_dvfm_constraint(struct driver_data *drv_data)
+{
+	if (drv_data->qos_idle_value != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE)
+		pm_qos_update_request(&drv_data->qos_idle,
+				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+}
+
+static void init_dvfm_constraint(struct driver_data *drv_data)
+{
+	pm_qos_add_request(&drv_data->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+}
+
+static void deinit_dvfm_constraint(struct driver_data *drv_data)
+{
+	pm_qos_remove_request(&drv_data->qos_idle);
+}
+
 static void cs_assert(struct driver_data *drv_data)
 {
 	struct chip_data *chip = drv_data->cur_chip;
@@ -402,6 +427,7 @@ static void giveback(struct driver_data *drv_data)
 
 	spi_finalize_current_message(drv_data->master);
 	drv_data->cur_chip = NULL;
+	unset_dvfm_constraint(drv_data);
 }
 
 static void reset_sccr1(struct driver_data *drv_data)
@@ -788,6 +814,7 @@ static void pump_transfers(unsigned long data)
 			write_SSTO(chip->timeout, reg);
 	}
 
+	set_dvfm_constraint(drv_data);	/*disable system to idle while DMA */
 	cs_assert(drv_data);
 
 	/* after chip select, release the data by enabling service
@@ -1099,7 +1126,8 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	struct driver_data *drv_data;
 	struct ssp_device *ssp;
 	int status;
-
+	const __be32 *prop;
+	unsigned int proplen;
 	platform_info = dev_get_platdata(dev);
 	if (!platform_info) {
 		platform_info = pxa2xx_spi_acpi_get_pdata(pdev);
@@ -1153,6 +1181,15 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 
 	master->dev.parent = &pdev->dev;
 	master->dev.of_node = pdev->dev.of_node;
+
+	prop = of_get_property(dev->of_node, "lpm-qos", &proplen);
+	if (!prop) {
+		dev_err(&pdev->dev, "lpm-qos for spi is not defined!\n");
+		return -EINVAL;
+	} else
+		drv_data->qos_idle_value = be32_to_cpup(prop);
+	init_dvfm_constraint(drv_data);
+
 	/* the spi->mode bits understood by this driver: */
 	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH | SPI_LOOP;
 
@@ -1241,6 +1278,7 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	return status;
 
 out_error_clock_enabled:
+	deinit_dvfm_constraint(drv_data);
 	clk_disable_unprepare(ssp->clk);
 	pxa2xx_spi_dma_release(drv_data);
 	free_irq(ssp->irq, drv_data);
@@ -1280,6 +1318,7 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 
 	/* Release SSP */
 	pxa_ssp_free(ssp);
+	deinit_dvfm_constraint(drv_data);
 	kfree(drv_data->alloc_dma_buf);
 	return 0;
 }
