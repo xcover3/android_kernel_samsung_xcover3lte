@@ -73,4 +73,11 @@ static inline int cpu_is_pxa1U88(void)
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
 		(((mmp_chip_id & 0xffff) == 0x1098));
 }
+
+static inline int cpu_is_pxa1L88(void)
+{
+	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
+		(((mmp_chip_id & 0xffff) == 0x1188));
+}
+
 #endif /* __ASM_MACH_CPUTYPE_H */
