@@ -92,7 +92,8 @@ static int pm80x_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
 	struct pm80x_rtc_info *info = dev_get_drvdata(dev);
 	unsigned char buf[4];
-	unsigned long ticks, base, data;
+	unsigned long ticks, data;
+	long base;
 	regmap_raw_read(info->map, PM800_RTC_EXPIRE2_1, buf, 4);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
 	dev_dbg(info->dev, "%x-%x-%x-%x\n", buf[0], buf[1], buf[2], buf[3]);
@@ -111,7 +112,8 @@ static int pm80x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
 	struct pm80x_rtc_info *info = dev_get_drvdata(dev);
 	unsigned char buf[4];
-	unsigned long ticks, base, data;
+	unsigned long ticks, data;
+	long base;
 	if ((tm->tm_year < 70) || (tm->tm_year > 138)) {
 		dev_dbg(info->dev,
 			"Set time %d out of range. Please set time between 1970 to 2038.\n",
