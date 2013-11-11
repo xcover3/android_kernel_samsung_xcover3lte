@@ -37,6 +37,7 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/i2c/pxa-i2c.h>
+#include <linux/platform_data/mmp-hwlock.h>
 
 #include <asm/irq.h>
 
@@ -180,6 +181,7 @@ struct pxa_i2c {
 	bool			highmode_enter;
 	unsigned int		ilcr;
 	unsigned int		iwcr;
+	void __iomem		*hwlock_addr;
 };
 
 #define _IBMR(i2c)	((i2c)->reg_ibmr)
@@ -304,6 +306,67 @@ static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *why)
 
 static void i2c_pxa_master_complete(struct pxa_i2c *i2c, int ret);
 static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id);
+
+static int ripc_status;
+
+void mmp_hwlock_lock(struct i2c_adapter *adap)
+{
+	int cnt = 0;
+	unsigned long flags;
+
+	struct pxa_i2c *i2c = adap->algo_data;
+
+	spin_lock_irqsave(&lock_for_ripc, flags);
+	while(__raw_readl(i2c->hwlock_addr)) {
+		ripc_status = false;
+		spin_unlock_irqrestore(&lock_for_ripc, flags);
+		cpu_relax();
+		udelay(50);
+		cnt++;
+		if (cnt >= 10000) {
+			pr_warn("AP: fail to lock ripc!\n");
+			cnt = 0;
+		}
+		spin_lock_irqsave(&lock_for_ripc, flags);
+	}
+	/* sure to hold ripc */
+	ripc_status = true;
+
+	spin_unlock_irqrestore(&lock_for_ripc, flags);
+}
+
+void mmp_hwlock_unlock(struct i2c_adapter *adap)
+{
+	unsigned long flags;
+
+	struct pxa_i2c *i2c = adap->algo_data;
+
+	spin_lock_irqsave(&lock_for_ripc, flags);
+	__raw_writel(1, i2c->hwlock_addr);
+	ripc_status = false;
+
+	spin_unlock_irqrestore(&lock_for_ripc, flags);
+}
+
+int mmp_hwlock_trylock(struct i2c_adapter *adap)
+{
+	unsigned long flags;
+
+	struct pxa_i2c *i2c = adap->algo_data;
+
+	spin_lock_irqsave(&lock_for_ripc, flags);
+	ripc_status = !__raw_readl(i2c->hwlock_addr);
+	spin_unlock_irqrestore(&lock_for_ripc, flags);
+
+	return ripc_status;
+}
+
+/* for telephony: must held by spinlock */
+bool mmp_hwlock_get_status(void)
+{
+	return ripc_status;
+}
+EXPORT_SYMBOL(mmp_hwlock_get_status);
 
 static inline int i2c_pxa_is_slavemode(struct pxa_i2c *i2c)
 {
@@ -1266,6 +1329,14 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	i2c->iobase = res->start;
 	i2c->iosize = resource_size(res);
 
+	res = platform_get_resource(dev, IORESOURCE_MEM, 1);
+	if (res) {
+		i2c->hwlock_addr = ioremap(res->start, resource_size(res));
+		dev_info(&dev->dev, "hardware lock address: 0x%p\n",
+			 i2c->hwlock_addr);
+	} else
+		dev_dbg(&dev->dev, "no hardware lock used\n");
+
 	i2c->irq = irq;
 
 	i2c->slave_addr = I2C_PXA_SLAVE_ADDR;
@@ -1282,6 +1353,14 @@ static int i2c_pxa_probe(struct platform_device *dev)
 		i2c->adap.hardware_lock = plat->hardware_lock;
 		i2c->adap.hardware_unlock = plat->hardware_unlock;
 		i2c->adap.hardware_trylock = plat->hardware_trylock;
+	} else {
+		if (i2c->hwlock_addr) {
+			spin_lock_init(&lock_for_ripc);
+
+			i2c->adap.hardware_lock = mmp_hwlock_lock;
+			i2c->adap.hardware_unlock = mmp_hwlock_unlock;
+			i2c->adap.hardware_trylock = mmp_hwlock_trylock;
+		}
 	}
 
 	if (i2c->high_mode) {

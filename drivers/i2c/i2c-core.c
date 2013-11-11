@@ -590,7 +590,7 @@ void i2c_lock_adapter(struct i2c_adapter *adapter)
 	else {
 		rt_mutex_lock(&adapter->bus_lock);
 		if (adapter->hardware_lock)
-			adapter->hardware_lock();
+			adapter->hardware_lock(adapter);
 	}
 }
 EXPORT_SYMBOL_GPL(i2c_lock_adapter);
@@ -609,7 +609,7 @@ static int i2c_trylock_adapter(struct i2c_adapter *adapter)
 	else {
 		ret = rt_mutex_trylock(&adapter->bus_lock);
 		if (ret && adapter->hardware_trylock) {
-			ret = adapter->hardware_trylock();
+			ret = adapter->hardware_trylock(adapter);
 			if (!ret)
 				i2c_unlock_adapter(adapter);
 		}
@@ -629,7 +629,7 @@ void i2c_unlock_adapter(struct i2c_adapter *adapter)
 		i2c_unlock_adapter(parent);
 	else {
 		if (adapter->hardware_unlock)
-			adapter->hardware_unlock();
+			adapter->hardware_unlock(adapter);
 		rt_mutex_unlock(&adapter->bus_lock);
 	}
 }
