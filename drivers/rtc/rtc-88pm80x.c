@@ -261,18 +261,10 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 	info->dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, info);
 
-	ret = pm80x_request_irq(chip, info->irq, rtc_update_handler,
-				IRQF_ONESHOT, "rtc", info);
-	if (ret < 0) {
-		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
-			info->irq, ret);
-		goto out;
-	}
-
 	ret = pm80x_rtc_read_time(&pdev->dev, &tm);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to read initial time.\n");
-		goto out_rtc;
+		goto out;
 	}
 	if ((tm.tm_year < 70) || (tm.tm_year > 138)) {
 		tm.tm_year = 70;
@@ -284,7 +276,7 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 		ret = pm80x_rtc_set_time(&pdev->dev, &tm);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "Failed to set initial time.\n");
-			goto out_rtc;
+			goto out;
 		}
 	}
 	rtc_tm_to_time(&tm, &ticks);
@@ -299,7 +291,7 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 	if (IS_ERR(info->rtc_dev)) {
 		ret = PTR_ERR(info->rtc_dev);
 		dev_err(&pdev->dev, "Failed to register RTC device: %d\n", ret);
-		goto out_rtc;
+		goto out;
 	}
 	/*
 	 * enable internal XO instead of internal 3.25MHz clock since it can
@@ -311,11 +303,17 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 	/* remeber whether this power up is caused by PMIC RTC or not. */
 	info->rtc_dev->dev.platform_data = &pdata->rtc_wakeup;
 
+	ret = pm80x_request_irq(chip, info->irq, rtc_update_handler,
+				IRQF_ONESHOT, "rtc", info);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
+			info->irq, ret);
+		goto out;
+	}
+
 	device_init_wakeup(&pdev->dev, 1);
 
 	return 0;
-out_rtc:
-	pm80x_free_irq(chip, info->irq, info);
 out:
 	return ret;
 }
