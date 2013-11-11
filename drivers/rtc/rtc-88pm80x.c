@@ -125,7 +125,7 @@ static int pm80x_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	unsigned char buf[4];
 	unsigned long ticks, data;
 	long base;
-	regmap_raw_read(info->map, PM800_RTC_EXPIRE2_1, buf, 4);
+	regmap_raw_read(info->map, PM800_USER_DATA1, buf, 4);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
 	dev_dbg(info->dev, "%x-%x-%x-%x\n", buf[0], buf[1], buf[2], buf[3]);
 
@@ -163,7 +163,7 @@ static int pm80x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	buf[1] = (base >> 8) & 0xFF;
 	buf[2] = (base >> 16) & 0xFF;
 	buf[3] = (base >> 24) & 0xFF;
-	regmap_raw_write(info->map, PM800_RTC_EXPIRE2_1, buf, 4);
+	regmap_raw_write(info->map, PM800_USER_DATA1, buf, 4);
 
 	if (info->sync)
 		info->sync(ticks);
@@ -178,7 +178,7 @@ static int pm80x_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	unsigned long ticks, base, data;
 	int ret;
 
-	regmap_raw_read(info->map, PM800_RTC_EXPIRE2_1, buf, 4);
+	regmap_raw_read(info->map, PM800_USER_DATA1, buf, 4);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
 	dev_dbg(info->dev, "%x-%x-%x-%x\n", buf[0], buf[1], buf[2], buf[3]);
 
@@ -204,7 +204,7 @@ static int pm80x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	regmap_update_bits(info->map, PM800_RTC_CONTROL, PM800_ALARM1_EN, 0);
 
-	regmap_raw_read(info->map, PM800_RTC_EXPIRE2_1, buf, 4);
+	regmap_raw_read(info->map, PM800_USER_DATA1, buf, 4);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
 	dev_dbg(info->dev, "%x-%x-%x-%x\n", buf[0], buf[1], buf[2], buf[3]);
 
