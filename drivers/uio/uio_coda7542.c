@@ -20,6 +20,8 @@
 #include <linux/slab.h>
 #include <linux/uio_driver.h>
 #include <linux/uio_coda7542.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/pm_runtime.h>
 
 #ifdef CONFIG_ARM_SMMU
@@ -418,6 +420,7 @@ static int coda7542_probe(struct platform_device *pdev)
 	struct resource *res, *sram_res;
 	struct uio_coda7542_dev *cdev;
 	int i, irq_func, ret = 0;
+	int sram_internal, nv21_support, seconddaxi_none = SECONDAXI_SUPPORT;
 	dma_addr_t mem_dma_addr;
 	void *mem_vir_addr;
 
@@ -525,9 +528,36 @@ static int coda7542_probe(struct platform_device *pdev)
 	cdev->uio_info.ioctl = coda7542_ioctl;
 	cdev->uio_info.mmap = NULL;
 
-	if (pdev->dev.platform_data)
+	if (IS_ENABLED(CONFIG_OF)) {
+		struct device_node *np = pdev->dev.of_node;
+		if (!np) {
+			ret = -EINVAL;
+			goto err_uio_mem;
+		}
+		if (of_property_read_u32(np, "marvell,sram-internal",
+					&sram_internal)) {
+			ret = -EINVAL;
+			goto err_uio_mem;
+		}
+		if (of_property_read_u32(np, "marvell,nv21_support",
+					&nv21_support)) {
+			ret = -EINVAL;
+			goto err_uio_mem;
+		}
+
+		if (of_property_read_u32(np, "marvell,seconddaxi_none",
+					&seconddaxi_none)) {
+			seconddaxi_none = SECONDAXI_SUPPORT;
+		}
 		cdev->coda_features =
-			*((unsigned int *)(pdev->dev.platform_data));
+			VPU_FEATURE_BITMASK_SRAM(sram_internal) |
+			VPU_FEATURE_BITMASK_NV21(nv21_support) |
+			VPU_FEATURE_BITMASK_NO2NDAXI(seconddaxi_none);
+	} else {
+		if (pdev->dev.platform_data)
+			cdev->coda_features =
+				*((unsigned int *)(pdev->dev.platform_data));
+	}
 
 	mutex_init(&(cdev->mutex));
 	cdev->filehandle_ins_num = 0;

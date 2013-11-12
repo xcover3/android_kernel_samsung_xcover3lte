@@ -28,6 +28,10 @@
 #define NV21_NONE		0
 #define NV21_SUPPORT	1
 
+#define VPU_FEATURE_BITMASK_NO2NDAXI(n)	((n & 0x7) << 6)
+#define SECONDAXI_NONE	1
+#define SECONDAXI_SUPPORT	0
+
 /* definition should be same as user space lib*/
 #define VPU_CODEC_TYPEID_ENC_H264	0x1
 #define VPU_CODEC_TYPEID_ENC_MPEG4	0x2
