@@ -56,7 +56,12 @@ struct pm80x_rtc_info {
 
 	int irq;
 	int vrtc;
+	int (*sync) (unsigned int ticks);
 };
+
+#ifdef CONFIG_RTC_DRV_SA1100
+extern int sync_time_to_soc(unsigned int ticks);
+#endif
 
 static irqreturn_t rtc_update_handler(int irq, void *data)
 {
@@ -126,6 +131,9 @@ static int pm80x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	buf[2] = (base >> 16) & 0xFF;
 	buf[3] = (base >> 24) & 0xFF;
 	regmap_raw_write(info->map, PM800_RTC_EXPIRE2_1, buf, 4);
+
+	if (info->sync)
+		info->sync(ticks);
 
 	return 0;
 }
@@ -281,6 +289,11 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 	}
 	rtc_tm_to_time(&tm, &ticks);
 
+	info->sync = NULL; /*initialize*/
+#ifdef CONFIG_RTC_DRV_SA1100
+	sync_time_to_soc(ticks);
+	info->sync = sync_time_to_soc;
+#endif
 	info->rtc_dev = devm_rtc_device_register(&pdev->dev, "88pm80x-rtc",
 					    &pm80x_rtc_ops, THIS_MODULE);
 	if (IS_ERR(info->rtc_dev)) {

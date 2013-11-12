@@ -34,6 +34,7 @@
 #include <linux/pm.h>
 #include <linux/bitops.h>
 #include <linux/io.h>
+#include <linux/delay.h>
 
 #include <mach/hardware.h>
 #include <mach/irqs.h>
@@ -53,6 +54,18 @@ struct sa1100_rtc {
 	struct rtc_device	*rtc;
 	struct clk		*clk;
 };
+
+int sync_time_to_soc(unsigned int ticks)
+{
+	RCNR = ticks;
+	/*
+	 * for soc rtc time setting, it needs some delay to ensure setting
+	 * to take effective
+	 */
+	udelay(200);
+	return 0;
+}
+EXPORT_SYMBOL(sync_time_to_soc);
 
 static irqreturn_t sa1100_rtc_interrupt(int irq, void *dev_id)
 {
