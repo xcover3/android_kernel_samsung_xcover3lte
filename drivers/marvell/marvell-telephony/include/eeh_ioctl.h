@@ -28,6 +28,7 @@ typedef unsigned int EEH_STATUS;
 #define SEH_IOCTL_SET_ERROR_INFO		_IOW(SEH_IOC_MAGIC, 14, int)
 #define SEH_IOCTL_CP_SILENT_RESET    _IOW(SEH_IOC_MAGIC, 15, int)
 #define SEH_IOCTL_APP_CRASH    _IOW(SEH_IOC_MAGIC, 16, int)
+#define SEH_IOCTL_SET_EECONFIG_B_CP_RESET    _IOW(SEH_IOC_MAGIC, 17, int)
 
 typedef enum _EehApiId {
 	_EehInit = 0,

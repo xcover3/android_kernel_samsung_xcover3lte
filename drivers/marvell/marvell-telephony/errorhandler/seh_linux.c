@@ -78,6 +78,8 @@ static void __iomem *ripc_hwlock;
 unsigned short seh_open_count;
 DEFINE_SPINLOCK(seh_init_lock);
 
+static int ee_config_b_cp_reset = -1;
+
 struct workqueue_struct *seh_int_wq;
 struct work_struct seh_int_request;
 struct seh_dev *seh_dev;
@@ -842,6 +844,13 @@ static long seh_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 			break;
 		}
+	case SEH_IOCTL_SET_EECONFIG_B_CP_RESET:
+		{
+			ee_config_b_cp_reset = (int)arg;
+			DPRINT("Recv SEH_IOCTL_SET_EECONFIG_B_CP_RESET: %d\n",
+					ee_config_b_cp_reset);
+			break;
+		}
 	default:
 		ret = -ENOTTY;
 		break;
@@ -925,6 +934,13 @@ static long compat_seh_ioctl(struct file *filp, unsigned int cmd,
 	return ret;
 }
 #endif
+
+int read_ee_config_b_cp_reset(void)
+{
+	return ee_config_b_cp_reset;
+}
+EXPORT_SYMBOL(read_ee_config_b_cp_reset);
+
 static unsigned int seh_poll(struct file *filp, poll_table *wait)
 {
 	struct seh_dev *dev = filp->private_data;

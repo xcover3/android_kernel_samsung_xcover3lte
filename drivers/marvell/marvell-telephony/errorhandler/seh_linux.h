@@ -50,4 +50,6 @@ struct EehErrorInfo32 {
 	compat_uptr_t regs;
 };
 #endif
+
+int read_ee_config_b_cp_reset(void);
 #endif
