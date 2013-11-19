@@ -176,6 +176,9 @@ struct pxa_i2c {
 	unsigned int		fast_mode :1;
 	unsigned int		high_mode:1;
 	unsigned int		always_on:1;
+	/* pins configration may be different between AP and CP */
+	unsigned int		apdcp:1;
+
 	unsigned char		master_code;
 	unsigned long		rate;
 	bool			highmode_enter;
@@ -183,6 +186,11 @@ struct pxa_i2c {
 	unsigned int		iwcr;
 	void __iomem		*hwlock_addr;
 	u32			icr_save;
+
+	struct pinctrl		*pinctrl;
+	struct pinctrl_state	*pin_i2c;
+	struct pinctrl_state	*pin_gpio;
+	struct pinctrl_state	*pin_i2c_cp;
 };
 
 #define _IBMR(i2c)	((i2c)->reg_ibmr)
@@ -310,6 +318,37 @@ static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id);
 
 static int ripc_status;
 
+int i2c_pxa_set_pinstate(struct i2c_adapter *adap, char *name)
+{
+	struct pinctrl_state *s;
+	struct pxa_i2c *i2c;
+	int ret;
+
+	if (!adap) {
+		dev_err(&adap->dev, "adapter is NULL!\n");
+		return -1;
+	} else
+		i2c = adap->algo_data;
+
+	if (!i2c || !i2c->pinctrl) {
+		dev_err(&adap->dev, "i2c pinctrl is NULL\n");
+		return -1;
+
+		s = pinctrl_lookup_state(i2c->pinctrl, name);
+		if (IS_ERR(s)) {
+			dev_err(&adap->dev, "cannot get %s pinstate\n", name);
+			ret = IS_ERR(s);
+			return ret;
+		}
+		ret =  pinctrl_select_state(i2c->pinctrl, s);
+		if (ret < 0) {
+			dev_err(&adap->dev, "cannot set %s pinstate\n", name);
+			return ret;
+		}
+	}
+	return 0;
+}
+
 void mmp_hwlock_lock(struct i2c_adapter *adap)
 {
 	int cnt = 0;
@@ -334,6 +373,13 @@ void mmp_hwlock_lock(struct i2c_adapter *adap)
 	ripc_status = true;
 
 	spin_unlock_irqrestore(&lock_for_ripc, flags);
+
+	/*
+	 * devm_pinctrl_get() cannot be used with irq disabled,
+	 * for it may sleep when allocing memory
+	 */
+	if (i2c->apdcp && pinctrl_select_state(i2c->pinctrl, i2c->pin_i2c) < 0)
+		dev_err(&i2c->adap.dev, "cannot set i2c ap pins\n");
 }
 
 void mmp_hwlock_unlock(struct i2c_adapter *adap)
@@ -342,7 +388,11 @@ void mmp_hwlock_unlock(struct i2c_adapter *adap)
 
 	struct pxa_i2c *i2c = adap->algo_data;
 
+	if (i2c->apdcp && pinctrl_select_state(i2c->pinctrl, i2c->pin_i2c_cp) < 0)
+		dev_err(&i2c->adap.dev, "cannot set i2c cp pins\n");
+
 	spin_lock_irqsave(&lock_for_ripc, flags);
+
 	__raw_writel(1, i2c->hwlock_addr);
 	ripc_status = false;
 
@@ -358,6 +408,10 @@ int mmp_hwlock_trylock(struct i2c_adapter *adap)
 	spin_lock_irqsave(&lock_for_ripc, flags);
 	ripc_status = !__raw_readl(i2c->hwlock_addr);
 	spin_unlock_irqrestore(&lock_for_ripc, flags);
+
+	if (ripc_status && i2c->apdcp &&
+	    (pinctrl_select_state(i2c->pinctrl, i2c->pin_i2c) < 0))
+		dev_err(&i2c->adap.dev, "could not set i2c ap pins\n");
 
 	return ripc_status;
 }
@@ -1236,6 +1290,9 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 		i2c->use_pio = 1;
 	if (of_get_property(np, "mrvl,i2c-fast-mode", NULL))
 		i2c->fast_mode = 1;
+	if (of_get_property(np, "mrvl,i2c-apdcp", NULL))
+		i2c->apdcp = 1;
+
 	*i2c_types = (long)(of_id->data);
 
 	ret = of_property_read_u32(np, "marvell,i2c-ilcr", &i2c->ilcr);
@@ -1247,6 +1304,42 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 
 	if (of_get_property(np, "marvell,i2c-always-on", NULL))
 		i2c->always_on = 1;
+
+	i2c->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(i2c->pinctrl)) {
+		i2c->pinctrl = NULL;
+		dev_warn(&pdev->dev, "could not get pinctrl\n");
+	} else {
+		i2c->pin_i2c = pinctrl_lookup_state(i2c->pinctrl, "default");
+		if (IS_ERR(i2c->pin_i2c)) {
+			dev_err(&pdev->dev, "could not get default(i2c) pinstate\n");
+			ret = IS_ERR(i2c->pin_i2c);
+		}
+
+		i2c->pin_gpio = pinctrl_lookup_state(i2c->pinctrl, "gpio");
+		if (IS_ERR(i2c->pin_gpio)) {
+			dev_err(&pdev->dev, "could not get gpio pinstate\n");
+			ret = IS_ERR(i2c->pin_gpio);
+		}
+
+		if (i2c->apdcp) {
+			i2c->pin_i2c_cp = pinctrl_lookup_state(i2c->pinctrl,
+									"i2c_cp");
+			if (IS_ERR(i2c->pin_i2c_cp)) {
+				dev_err(&pdev->dev, "could not get i2c_cp pinstate\n");
+				ret = IS_ERR(i2c->pin_i2c_cp);
+			}
+		}
+
+		if (ret) {
+			if (i2c->apdcp)
+				i2c->pin_i2c_cp = NULL;
+			i2c->pin_i2c = NULL;
+			i2c->pin_gpio = NULL;
+			i2c->pinctrl = NULL;
+			ret = 0;
+		}
+	}
 
 	return 0;
 }
@@ -1263,6 +1356,7 @@ static int i2c_pxa_probe_pdata(struct platform_device *pdev,
 		i2c->use_pio = plat->use_pio;
 		i2c->fast_mode = plat->fast_mode;
 		i2c->high_mode = plat->high_mode;
+		i2c->apdcp = plat->apdcp;
 		i2c->master_code = plat->master_code;
 		if (!i2c->master_code)
 			i2c->master_code = 0xe;
