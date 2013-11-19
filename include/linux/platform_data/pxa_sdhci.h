@@ -94,5 +94,9 @@ struct sdhci_pxa {
 	u8	power_mode;
 	struct clk	*clk;
 	struct clk	*axi_clk;
+	struct device_attribute tx_delay;
+	unsigned int tx_dly_val;
+	struct device_attribute rx_delay;
+	unsigned int rx_dly_val;
 };
 #endif /* _PXA_SDHCI_H_ */

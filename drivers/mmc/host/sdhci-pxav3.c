@@ -209,6 +209,63 @@ exit:
 	sdhci_writel(host, tmp_reg, SD_RX_CFG_REG);
 }
 
+static ssize_t rx_delay_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *mmc_host =
+		container_of(dev, struct mmc_host, class_dev);
+	struct sdhci_host *host = mmc_priv(mmc_host);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	int ret = 0;
+	u32 tmp_reg = 0;
+
+	sdhci_access_constrain(host, 1);
+	sdhci_runtime_pm_get(host);
+
+	tmp_reg = sdhci_readl(host, SD_RX_CFG_REG);
+	pxa->rx_dly_val = (tmp_reg >> RX_SDCLK_DELAY_SHIFT) & regdata->RX_SDCLK_DELAY_MASK;
+	ret = sprintf(buf, "rx delay: 0x%x\t| RX config: 0x%08x\n", pxa->rx_dly_val, tmp_reg);
+
+	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
+
+	return ret;
+}
+static ssize_t rx_delay_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct mmc_host *mmc_host =
+		container_of(dev, struct mmc_host, class_dev);
+	struct sdhci_host *host = mmc_priv(mmc_host);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	u32 tmp_reg = 0;
+
+	if (sscanf(buf, "%d", &pxa->rx_dly_val) != 1)
+		return -EINVAL;
+
+	sdhci_access_constrain(host, 1);
+	sdhci_runtime_pm_get(host);
+	tmp_reg = sdhci_readl(host, SD_RX_CFG_REG);
+	/* clock by SDCLK_SEL0, so it is default setting */
+	tmp_reg &= ~(RX_SDCLK_SEL1_MASK << RX_SDCLK_SEL1_SHIFT);
+	tmp_reg |= 0x1 << RX_SDCLK_SEL1_SHIFT;
+	tmp_reg &= ~(regdata->RX_SDCLK_DELAY_MASK << RX_SDCLK_DELAY_SHIFT);
+	tmp_reg |= (pxa->rx_dly_val & regdata->RX_SDCLK_DELAY_MASK) << RX_SDCLK_DELAY_SHIFT;
+	sdhci_writel(host, tmp_reg, SD_RX_CFG_REG);
+	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
+
+	return count;
+}
+
 static void pxav3_set_tx_cfg(struct sdhci_host *host,
 		struct sdhci_pxa_platdata *pdata)
 {
@@ -255,6 +312,79 @@ static void pxav3_set_tx_cfg(struct sdhci_host *host,
 	}
 exit:
 	sdhci_writel(host, tmp_reg, SD_TX_CFG_REG);
+}
+
+static ssize_t tx_delay_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *mmc_host =
+		container_of(dev, struct mmc_host, class_dev);
+	struct sdhci_host *host = mmc_priv(mmc_host);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
+	struct mmc_ios *ios = &host->mmc->ios;
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	int ret = 0;
+	u32 tmp_reg = 0;
+
+	sdhci_access_constrain(host, 1);
+	sdhci_runtime_pm_get(host);
+	tmp_reg = sdhci_readl(host, SD_TX_CFG_REG);
+	if ((MMC_TIMING_UHS_SDR104 == ios->timing) || (MMC_TIMING_MMC_HS200 == ios->timing))
+		pxa->tx_dly_val = (tmp_reg >> TX_DELAY1_SHIFT) & regdata->TX_DELAY_MASK;
+	else
+		pxa->tx_dly_val = tmp_reg & regdata->TX_DELAY_MASK;
+
+	ret = sprintf(buf, "tx delay: 0x%x\t| TX config: 0x%08x\n", pxa->tx_dly_val, tmp_reg);
+
+	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
+	return ret;
+}
+
+static ssize_t tx_delay_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct mmc_host *mmc_host =
+		container_of(dev, struct mmc_host, class_dev);
+	struct sdhci_host *host = mmc_priv(mmc_host);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
+	struct mmc_ios *ios = &host->mmc->ios;
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	u32 tmp_reg = 0;
+
+	if (ios->timing <= MMC_TIMING_UHS_SDR25) {
+		/*
+		 * For HS ans DS mode,
+		 * PXAV3 can handle the mmc bus timing issue by HW.
+		 * So we don't need to set tx delay for these modes.
+		 */
+		pr_info("Can't set tx delay in HS or DS mode!\n");
+		return count;
+	}
+
+	if (sscanf(buf, "%d", &pxa->tx_dly_val) != 1)
+		return -EINVAL;
+
+	sdhci_access_constrain(host, 1);
+	sdhci_runtime_pm_get(host);
+
+	tmp_reg |= TX_MUX_SEL;
+	if ((MMC_TIMING_UHS_SDR104 == ios->timing) || (MMC_TIMING_MMC_HS200 == ios->timing))
+		tmp_reg |= (pxa->tx_dly_val & regdata->TX_DELAY_MASK) << TX_DELAY1_SHIFT;
+	else
+		tmp_reg |= (pxa->tx_dly_val & regdata->TX_DELAY_MASK);
+
+	sdhci_writel(host, tmp_reg, SD_TX_CFG_REG);
+	sdhci_runtime_pm_put(host);
+	sdhci_access_constrain(host, 0);
+
+	return count;
 }
 
 static void pxav3_set_clock(struct sdhci_host *host, unsigned int clock)
@@ -1190,6 +1320,21 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	}
 	if (pdata && pdata->flags & PXA_FLAG_EN_PM_RUNTIME)
 		pm_runtime_put_autosuspend(&pdev->dev);
+
+	pxa->tx_delay.store = tx_delay_store;
+	pxa->tx_delay.show = tx_delay_show;
+	sysfs_attr_init(&pxa->tx_delay.attr);
+	pxa->tx_delay.attr.name = "tx_delay";
+	pxa->tx_delay.attr.mode = S_IRUGO | S_IWUSR;
+	ret = device_create_file(&host->mmc->class_dev, &pxa->tx_delay);
+
+	pxa->rx_delay.store = rx_delay_store;
+	pxa->rx_delay.show = rx_delay_show;
+	sysfs_attr_init(&pxa->rx_delay.attr);
+	pxa->rx_delay.attr.name = "rx_delay";
+	pxa->rx_delay.attr.mode = S_IRUGO | S_IWUSR;
+	ret = device_create_file(&host->mmc->class_dev, &pxa->rx_delay);
+
 
 	return 0;
 
