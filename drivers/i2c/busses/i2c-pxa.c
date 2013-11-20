@@ -182,6 +182,7 @@ struct pxa_i2c {
 	unsigned int		ilcr;
 	unsigned int		iwcr;
 	void __iomem		*hwlock_addr;
+	u32			icr_save;
 };
 
 #define _IBMR(i2c)	((i2c)->reg_ibmr)
@@ -579,6 +580,7 @@ static void i2c_pxa_reset(struct pxa_i2c *i2c)
 	/* enable unit */
 	writel(readl(_ICR(i2c)) | ICR_IUE, _ICR(i2c));
 	udelay(100);
+	i2c->icr_save = readl(_ICR(i2c));
 }
 
 
@@ -1166,6 +1168,15 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
 	struct pxa_i2c *i2c = adap->algo_data;
 	int ret, i;
 
+	if (readl(_ICR(i2c)) != i2c->icr_save) {
+		pr_warn("i2c: <%s> ICR is modified!\n", i2c->adap.name);
+		pr_warn("i2c: IBMR: %08x IDBR: %08x ICR: %08x ISR: %08x\n",
+			readl(_IBMR(i2c)), readl(_IDBR(i2c)),
+			readl(_ICR(i2c)), readl(_ISR(i2c)));
+		pr_warn("i2c: reset controller!\n");
+		i2c_pxa_reset(i2c);
+	}
+
 	enable_irq(i2c->irq);
 	for (i = adap->retries; i >= 0; i--) {
 		ret = i2c_pxa_do_xfer(i2c, msgs, num);
@@ -1181,6 +1192,7 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
  out:
 	i2c_pxa_set_slave(i2c, ret);
 	disable_irq(i2c->irq);
+	i2c->icr_save = readl(_ICR(i2c));
 	return ret;
 }
 
