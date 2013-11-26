@@ -168,8 +168,8 @@ struct pxa_i2c {
 	void __iomem		*reg_ilcr;
 	void __iomem		*reg_iwcr;
 
-	unsigned long		iobase;
-	unsigned long		iosize;
+	resource_size_t		iobase;
+	resource_size_t		iosize;
 
 	int			irq;
 	unsigned int		use_pio :1;
@@ -383,7 +383,7 @@ static void i2c_pxa_abort(struct pxa_i2c *i2c)
 	}
 
 	while ((i > 0) && (readl(_IBMR(i2c)) & 0x1) == 0) {
-		unsigned long icr = readl(_ICR(i2c));
+		unsigned int icr = readl(_ICR(i2c));
 
 		icr &= ~ICR_START;
 		icr |= ICR_ACKNAK | ICR_STOP | ICR_TB;
