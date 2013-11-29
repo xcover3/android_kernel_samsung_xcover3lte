@@ -1810,11 +1810,12 @@ unsigned long mmc_detect_change_sync(struct mmc_host *host,
 
 	host->detect_complete = &complete;
 
+	wake_lock(&host->detect_wake_lock);
 	mmc_schedule_delayed_work(&host->detect, delay);
 
 	ret = wait_for_completion_timeout(&complete, timeout);
-	if (ret == 0)
-		cancel_delayed_work(&host->detect);
+	if ((ret == 0) && cancel_delayed_work(&host->detect))
+		wake_unlock(&host->detect_wake_lock);
 
 	host->detect_complete = NULL;
 	return ret;
