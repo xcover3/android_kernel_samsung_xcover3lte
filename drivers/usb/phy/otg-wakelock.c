@@ -148,6 +148,7 @@ static int __init otg_wakelock_init(void)
 		return PTR_ERR(phy);
 	}
 	otgwl_xceiv = phy;
+	spin_lock_init(&otgwl_xceiv->notifier.lock);
 
 	snprintf(vbus_lock.name, sizeof(vbus_lock.name), "vbus-%s",
 		 dev_name(otgwl_xceiv->dev));
