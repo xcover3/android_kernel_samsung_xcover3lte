@@ -16,11 +16,13 @@
 #include <linux/input.h>
 #include <linux/keyreset.h>
 #include <linux/module.h>
+#include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
+#include <linux/of.h>
 
 
 struct keyreset_state {
@@ -186,16 +188,23 @@ static int keyreset_probe(struct platform_device *pdev)
 	int key, *keyp;
 	struct keyreset_state *state;
 	struct keyreset_platform_data *pdata = pdev->dev.platform_data;
+	struct device_node *np = pdev->dev.of_node;
+	const struct property *prop;
+	const __be32 *val;
+	int count, i;
 
-	if (!pdata)
+	if (!pdata && !np)
 		return -EINVAL;
+
+	if (pdata)
+		keyp = pdata->keys_down;
 
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)
 		return -ENOMEM;
 
 	spin_lock_init(&state->lock);
-	keyp = pdata->keys_down;
+#ifndef CONFIG_OF
 	while ((key = *keyp++)) {
 		if (key >= KEY_MAX)
 			continue;
@@ -220,7 +229,27 @@ static int keyreset_probe(struct platform_device *pdev)
 		state->need_panic = 0;
 	if (pdata->dump_fn)
 		state->dump_fn = pdata->dump_fn;
-
+#else
+	prop = of_find_property(np, "keys-down", NULL);
+	if (!prop || !prop->value) {
+		pr_err("Invalid keys-down");
+		return -ENOMEM;
+	}
+	count = prop->length / sizeof(u32);
+	val = prop->value;
+	if (count > BITS_TO_LONGS(KEY_CNT))
+		count = BITS_TO_LONGS(KEY_CNT);
+	for (i = 0; i < count; i++) {
+		key = (unsigned short)be32_to_cpup(val++);
+		pr_info("key = %x\n", key);
+		if (key == KEY_RESERVED || key > KEY_MAX)
+			continue;
+		state->key_down_target++;
+		__set_bit(key, state->keybit);
+	}
+	state->need_panic = of_property_read_bool(np,
+					"keyreset-need-panic");
+#endif
 	state->input_handler.event = keyreset_event;
 	state->input_handler.connect = keyreset_connect;
 	state->input_handler.disconnect = keyreset_disconnect;
@@ -244,10 +273,23 @@ int keyreset_remove(struct platform_device *pdev)
 }
 
 
+#ifdef CONFIG_OF
+static const struct of_device_id keyreset_dt_match[] = {
+	{ .compatible = "marvell,keyreset" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, keyreset_dt_match);
+#endif
+
 struct platform_driver keyreset_driver = {
-	.driver.name = KEYRESET_NAME,
 	.probe = keyreset_probe,
 	.remove = keyreset_remove,
+	.driver		= {
+		.name	= KEYRESET_NAME,
+		.of_match_table = of_match_ptr(keyreset_dt_match),
+		.owner	= THIS_MODULE,
+	},
+
 };
 
 static int __init keyreset_init(void)
