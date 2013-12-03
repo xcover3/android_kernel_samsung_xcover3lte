@@ -113,6 +113,7 @@ struct pxa27x_keypad {
 
 	/* state row bits of each column scan */
 	uint32_t matrix_key_state[MAX_MATRIX_KEY_COLS];
+	uint32_t row_shift;
 	uint32_t direct_key_state;
 
 	unsigned int direct_key_mask;
@@ -139,6 +140,7 @@ static int pxa27x_keypad_matrix_key_parse_dt(struct pxa27x_keypad *keypad,
 	pdata->matrix_key_rows = rows;
 	pdata->matrix_key_cols = cols;
 
+	keypad->row_shift = get_count_order(pdata->matrix_key_cols);
 	error = matrix_keypad_build_keymap(NULL, NULL,
 					   pdata->matrix_key_rows,
 					   pdata->matrix_key_cols,
@@ -359,6 +361,7 @@ static int pxa27x_keypad_build_keycode(struct pxa27x_keypad *keypad)
 	if (error)
 		return error;
 
+	keypad->row_shift = get_count_order(pdata->matrix_key_cols);
 	/*
 	 * The keycodes may not only include matrix keys but also the direct
 	 * or rotary keys.
@@ -469,7 +472,8 @@ scan:
 			if ((bits_changed & (1 << row)) == 0)
 				continue;
 
-			code = MATRIX_SCAN_CODE(row, col, MATRIX_ROW_SHIFT);
+			code = MATRIX_SCAN_CODE(row, col, keypad->row_shift);
+
 			input_event(input_dev, EV_MSC, MSC_SCAN, code);
 			input_report_key(input_dev, keypad->keycodes[code],
 					 new_state[col] & (1 << row));
