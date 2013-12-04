@@ -1754,8 +1754,10 @@ static int v4l_dbg_g_register(const struct v4l2_ioctl_ops *ops,
 	struct v4l2_subdev *sd;
 	int idx = 0;
 
+#ifndef CONFIG_ARCH_MMP
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
+#endif
 	if (p->match.type == V4L2_CHIP_MATCH_SUBDEV) {
 		if (vfd->v4l2_dev == NULL)
 			return -EINVAL;
@@ -1782,8 +1784,10 @@ static int v4l_dbg_s_register(const struct v4l2_ioctl_ops *ops,
 	struct v4l2_subdev *sd;
 	int idx = 0;
 
+#ifndef CONFIG_ARCH_MMP
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
+#endif
 	if (p->match.type == V4L2_CHIP_MATCH_SUBDEV) {
 		if (vfd->v4l2_dev == NULL)
 			return -EINVAL;
