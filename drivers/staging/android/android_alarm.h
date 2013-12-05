@@ -21,6 +21,9 @@
 
 #include "uapi/android_alarm.h"
 
+int alarm_set_rtc_ring(struct timespec alarm_time);
+int alarm_read_rtc_ring(int *flag, unsigned long *alarm_time);
+
 #ifdef CONFIG_COMPAT
 #define ANDROID_ALARM_SET_COMPAT(type)		ALARM_IOW(2, type, \
 							struct compat_timespec)
