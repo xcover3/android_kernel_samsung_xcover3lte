@@ -11,11 +11,15 @@
 
 #include <linux/cpuidle.h>
 #include <asm/proc-fns.h>
+#include <linux/clk/mmpdcstat.h>
 
 int arm_cpuidle_simple_enter(struct cpuidle_device *dev,
 		struct cpuidle_driver *drv, int index)
 {
+	cpu_dcstat_event(cpu_dcstat_clk, dev->cpu, CPU_IDLE_ENTER, index);
 	cpu_do_idle();
+	cpu_dcstat_event(cpu_dcstat_clk, dev->cpu, CPU_IDLE_EXIT,
+			MAX_LPM_INDEX);
 
 	return index;
 }
