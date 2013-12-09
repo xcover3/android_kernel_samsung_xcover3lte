@@ -19,7 +19,6 @@
 #include <linux/dmaengine.h>
 #include <linux/platform_device.h>
 #include <linux/device.h>
-#include <mach/regs-icu.h>
 #include <linux/platform_data/dma-mmp_tdma.h>
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
@@ -419,7 +418,7 @@ static struct dma_async_tx_descriptor *mmp_tdma_prep_dma_cyclic(
 
 	if (period_len > TDMA_MAX_XFER_BYTES) {
 		dev_err(tdmac->dev,
-				"maximum period size exceeded: %d > %d\n",
+				"maximum period size exceeded: %zu > %d\n",
 				period_len, TDMA_MAX_XFER_BYTES);
 		goto err_out;
 	}
@@ -511,6 +510,13 @@ static enum dma_status mmp_tdma_tx_status(struct dma_chan *chan,
 	struct mmp_tdma_chan *tdmac = to_mmp_tdma_chan(chan);
 
 	tdmac->pos = mmp_tdma_get_pos(tdmac);
+	/*
+	 * Fixme: it needs 8bytes alignment on arm64
+	 * Or copy_from/to_user will panic
+	 */
+#ifdef CONFIG_ARM64
+	tdmac->pos &= ~0x7;
+#endif
 	dma_set_tx_state(txstate, chan->completed_cookie, chan->cookie,
 			 tdmac->buf_len - tdmac->pos);
 
