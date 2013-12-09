@@ -201,6 +201,28 @@ static int is_hardlockup(void)
 #endif
 
 #ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
+
+unsigned int __read_mostly hardlockup_enable = 1;
+
+/* proc handler for /proc/sys/kernel/hardlockup_enable */
+int proc_hardlockup(struct ctl_table *table, int write,
+		    void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+	int cpu;
+
+	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+	if (ret || !write)
+		goto out;
+
+	if (hardlockup_enable) {
+		for_each_online_cpu(cpu)
+			per_cpu(watchdog_nmi_touch, cpu) = true;
+	}
+out:
+	return ret;
+}
+
 static unsigned int watchdog_next_cpu(unsigned int cpu)
 {
 	cpumask_t cpus = watchdog_cpus;
@@ -230,6 +252,9 @@ static int is_hardlockup_other_cpu(unsigned int cpu)
 static void watchdog_check_hardlockup_other_cpu(void)
 {
 	unsigned int next_cpu;
+
+	if (!hardlockup_enable)
+		return;
 
 	/*
 	 * Test for hardlockups every 3 samples.  The sample period is

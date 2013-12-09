@@ -868,6 +868,17 @@ static struct ctl_table kern_table[] = {
 		.extra1		= &zero,
 		.extra2		= &one,
 	},
+#ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
+	{
+		.procname	= "hardlockup_enable",
+		.data		= &hardlockup_enable,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_hardlockup,
+		.extra1		= &zero,
+		.extra2		= &one,
+	},
+#endif
 #endif
 #if defined(CONFIG_X86_LOCAL_APIC) && defined(CONFIG_X86)
 	{
