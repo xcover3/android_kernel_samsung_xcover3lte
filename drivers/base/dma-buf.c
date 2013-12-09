@@ -50,6 +50,7 @@ static int dma_buf_release(struct inode *inode, struct file *file)
 
 	BUG_ON(dmabuf->vmapping_counter);
 
+	dma_buf_meta_release(dmabuf);
 	dmabuf->ops->release(dmabuf);
 
 	mutex_lock(&db_list.lock);
@@ -170,6 +171,7 @@ struct dma_buf *dma_buf_export_named(void *priv, const struct dma_buf_ops *ops,
 
 	mutex_init(&dmabuf->lock);
 	INIT_LIST_HEAD(&dmabuf->attachments);
+	INIT_LIST_HEAD(&dmabuf->metas);
 
 	mutex_lock(&db_list.lock);
 	list_add(&dmabuf->list_node, &db_list.head);
@@ -601,6 +603,104 @@ void dma_buf_vunmap(struct dma_buf *dmabuf, void *vaddr)
 	mutex_unlock(&dmabuf->lock);
 }
 EXPORT_SYMBOL_GPL(dma_buf_vunmap);
+
+/**
+ * dma_buf_meta_attach - Attach additional meta data to the dmabuf
+ * @dmabuf:	[in]	the dmabuf to attach to
+ * @id:		[in]	the id of the meta data
+ * @pdata:	[in]	the raw data to be attached
+ * @release:	[in]	the callback to release the meta data
+ */
+int dma_buf_meta_attach(struct dma_buf *dmabuf, int id, void *pdata,
+	int (*release)(void *))
+{
+	struct dma_buf_meta *pmeta;
+
+	pmeta = kmalloc(sizeof(struct dma_buf_meta), GFP_KERNEL);
+	if (pmeta == NULL)
+		return -ENOMEM;
+
+	pmeta->id = id;
+	pmeta->pdata = pdata;
+	pmeta->release = release;
+
+	mutex_lock(&dmabuf->lock);
+	list_add(&pmeta->node, &dmabuf->metas);
+	mutex_unlock(&dmabuf->lock);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dma_buf_meta_attach);
+
+/**
+ * dma_buf_meta_dettach - Dettach the meta data from dmabuf by id
+ * @dmabuf:	[in]	the dmabuf including the meta data
+ * @id:		[in]	the id of the meta data
+ */
+int dma_buf_meta_dettach(struct dma_buf *dmabuf, int id)
+{
+	struct dma_buf_meta *pmeta, *tmp;
+	int ret = -ENOENT;
+
+	mutex_lock(&dmabuf->lock);
+	list_for_each_entry_safe(pmeta, tmp, &dmabuf->metas, node) {
+		if (pmeta->id == id) {
+			if (pmeta->release)
+				pmeta->release(pmeta->pdata);
+			list_del(&pmeta->node);
+			kfree(pmeta);
+			ret = 0;
+			break;
+		}
+	}
+	mutex_unlock(&dmabuf->lock);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(dma_buf_meta_dettach);
+
+/**
+ * dma_buf_meta_fetch - Get the meta data from dmabuf by id
+ * @dmabuf:	[in]	the dmabuf including the meta data
+ * @id:		[in]	the id of the meta data
+ */
+void *dma_buf_meta_fetch(struct dma_buf *dmabuf, int id)
+{
+	struct dma_buf_meta *pmeta;
+	void *pdata = NULL;
+
+	mutex_lock(&dmabuf->lock);
+	list_for_each_entry(pmeta, &dmabuf->metas, node) {
+		if (pmeta->id == id) {
+			pdata = pmeta->pdata;
+			break;
+		}
+	}
+	mutex_unlock(&dmabuf->lock);
+
+	return pdata;
+}
+EXPORT_SYMBOL_GPL(dma_buf_meta_fetch);
+
+/**
+ * dma_buf_meta_release - Release all the meta data attached to the dmabuf
+ * @dmabuf:	[in]	the dmabuf including the meta data
+ */
+void dma_buf_meta_release(struct dma_buf *dmabuf)
+{
+	struct dma_buf_meta *pmeta, *tmp;
+
+	mutex_lock(&dmabuf->lock);
+	list_for_each_entry_safe(pmeta, tmp, &dmabuf->metas, node) {
+		if (pmeta->release)
+			pmeta->release(pmeta->pdata);
+		list_del(&pmeta->node);
+		kfree(pmeta);
+	}
+	mutex_unlock(&dmabuf->lock);
+
+	return;
+}
 
 #ifdef CONFIG_DEBUG_FS
 static int dma_buf_describe(struct seq_file *s)

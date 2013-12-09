@@ -120,6 +120,7 @@ struct dma_buf {
 	size_t size;
 	struct file *file;
 	struct list_head attachments;
+	struct list_head metas;
 	const struct dma_buf_ops *ops;
 	/* mutex to serialize list manipulation, attach/detach and vmap/unmap */
 	struct mutex lock;
@@ -146,6 +147,20 @@ struct dma_buf_attachment {
 	struct device *dev;
 	struct list_head node;
 	void *priv;
+};
+
+/**
+ * struct dma_buf_meta - holds varied meta data attached to the buffer
+ * @id: the identification of the meta data
+ * @dmabuf: buffer for this attachment.
+ * @node: list of dma_buf_meta.
+ * @pdata: specific meta data.
+ */
+struct dma_buf_meta {
+	int id;
+	struct list_head node;
+	int (*release)(void *pdata);
+	void *pdata;
 };
 
 /**
@@ -194,6 +209,13 @@ int dma_buf_mmap(struct dma_buf *, struct vm_area_struct *,
 		 unsigned long);
 void *dma_buf_vmap(struct dma_buf *);
 void dma_buf_vunmap(struct dma_buf *, void *vaddr);
+
+int dma_buf_meta_attach(struct dma_buf *dmabuf, int id, void *pdata,
+	int (*release)(void *));
+int dma_buf_meta_dettach(struct dma_buf *dmabuf, int id);
+void *dma_buf_meta_fetch(struct dma_buf *dmabuf, int id);
+void dma_buf_meta_release(struct dma_buf *dmabuf);
+
 int dma_buf_debugfs_create_file(const char *name,
 				int (*write)(struct seq_file *));
 #endif /* __DMA_BUF_H__ */
