@@ -387,7 +387,7 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	struct sdhci_pxa *pxa = NULL;
 	const struct of_device_id *match;
 
-	int ret;
+	int ret = 0;
 	struct clk *clk;
 
 	pxa = kzalloc(sizeof(struct sdhci_pxa), GFP_KERNEL);
