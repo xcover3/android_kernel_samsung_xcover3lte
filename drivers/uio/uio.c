@@ -742,6 +742,15 @@ static long uio_unlocked_ioctl(struct file *filep,
 	return -EINVAL;
 }
 
+static long uio_compat_ioctl(struct file *filp, unsigned int cmd,
+					unsigned long arg)
+{
+	if (!filp->f_op || !filp->f_op->unlocked_ioctl)
+		return -ENOTTY;
+
+	return filp->f_op->unlocked_ioctl(filp, cmd, arg);
+}
+
 static const struct file_operations uio_fops = {
 	.owner		= THIS_MODULE,
 	.open		= uio_open,
@@ -750,6 +759,7 @@ static const struct file_operations uio_fops = {
 	.write		= uio_write,
 	.mmap		= uio_mmap,
 	.unlocked_ioctl	= uio_unlocked_ioctl,
+	.compat_ioctl	= uio_compat_ioctl,
 	.poll		= uio_poll,
 	.fasync		= uio_fasync,
 	.llseek		= noop_llseek,
