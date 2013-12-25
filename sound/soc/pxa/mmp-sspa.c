@@ -53,6 +53,7 @@ struct sspa_priv {
 	int rxctl;
 	int txfifo;
 	int rxfifo;
+	unsigned int burst_size;
 };
 
 static void mmp_sspa_write_reg(struct ssp_device *sspa, u32 reg, u32 val)
@@ -284,6 +285,8 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 	dma_params->addr = substream->stream == SNDRV_PCM_STREAM_PLAYBACK ?
 				(sspa->phys_base + SSPA_TXD) :
 				(sspa->phys_base + SSPA_RXD);
+
+	dma_params->maxburst = sspa_priv->burst_size;
 	snd_soc_dai_set_dma_data(cpu_dai, substream, dma_params);
 	return 0;
 }
@@ -471,6 +474,14 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 			"Missing platform_driver_name property in the DT\n");
 		return -EINVAL;
 	}
+
+	if (of_property_read_u32(np, "burst_size",
+				     &priv->burst_size)) {
+		dev_err(&pdev->dev,
+			"Missing DMA burst size\n");
+		return -EINVAL;
+	}
+
 
 	priv->sspa->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(priv->sspa->clk))
