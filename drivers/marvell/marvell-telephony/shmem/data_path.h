@@ -187,6 +187,10 @@ struct data_path {
 
 extern void data_path_broadcast_msg(int proc);
 
+extern void data_path_ready(void);
+extern void data_path_delete(void);
+extern void dp_ready_cb_regist(void (*ready_cb)(void), void (*delete_cb)(void));
+
 static inline void data_path_link_down(void)
 {
 	data_path_broadcast_msg(MsocketLinkdownProcId);

@@ -35,6 +35,7 @@
 #include "shm_share.h"
 #include "data_channel_kernel.h"
 #include "psd_data_channel.h"
+#include "data_path.h"
 
 static const char *const ccidatastub_name = "ccidatastub";
 int dataSvgHandle;
@@ -149,9 +150,6 @@ static long ccidatastub_ioctl(struct file *filp,
 	DBGMSG("ccidatastub_ioctl,cmd=0x%x\n", cmd);
 	switch (cmd) {
 	case CCIDATASTUB_START:
-		InitPsdChannel();
-		InitCsdChannel();
-		InitImsChannel();
 		break;
 
 	case CCIDATASTUB_DATAHANDLE:
@@ -327,6 +325,22 @@ static struct miscdevice ccidatastub_miscdev = {
 	&ccidatastub_fops,
 };
 
+static void ccidatastub_ready_cb(void)
+{
+	DPRINT("%s executed\n", __func__);
+	InitPsdChannel();
+	InitCsdChannel();
+	InitImsChannel();
+}
+
+static void ccidatastub_delete_cb(void)
+{
+	DPRINT("%s executed\n", __func__);
+	DeInitPsdChannel();
+	DeInitCsdChannel();
+	DeInitImsChannel();
+}
+
 static int ccidatastub_probe(struct platform_device *dev)
 {
 	int ret;
@@ -336,6 +350,9 @@ static int ccidatastub_probe(struct platform_device *dev)
 	ret = misc_register(&ccidatastub_miscdev);
 	if (ret)
 		pr_err("register misc device error\n");
+
+	dp_ready_cb_regist(ccidatastub_ready_cb,
+			ccidatastub_delete_cb);
 
 	LEAVE();
 
@@ -348,7 +365,6 @@ static int ccidatastub_remove(struct platform_device *dev)
 	DeInitPsdChannel();
 	DeInitCsdChannel();
 	DeInitImsChannel();
-
 	misc_deregister(&ccidatastub_miscdev);
 	LEAVE();
 	return 0;

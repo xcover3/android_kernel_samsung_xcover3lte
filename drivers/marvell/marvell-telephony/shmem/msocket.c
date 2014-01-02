@@ -1311,6 +1311,8 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 
 	pr_info("%s: shm channel init success\n", __func__);
 
+	data_path_ready();
+
 	return 0;
 
 acipc_err:
@@ -1331,6 +1333,8 @@ void cp_shm_ch_deinit(void)
 	if (!cp_shm_ch_inited)
 		return;
 	cp_shm_ch_inited = 0;
+
+	data_path_delete();
 
 	/* reverse order of initialization */
 	msocket_disconnect(portq_grp_cp_main);

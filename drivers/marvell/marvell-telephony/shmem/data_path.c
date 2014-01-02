@@ -40,6 +40,9 @@ static struct data_path data_path[dp_type_total_cnt] = {
 };
 
 
+static void (*dp_ready_cb)(void);
+static void (*dp_delete_cb)(void);
+
 static enum shm_rb_type dp_rb[dp_type_total_cnt] = {
 	shm_rb_psd
 };
@@ -869,6 +872,15 @@ static int dp_debugfs_exit(struct data_path *dp)
 	return 0;
 }
 
+void dp_ready_cb_regist(void (*ready_cb)(void), void (*delete_cb)(void))
+{
+	DP_ENTER();
+	dp_ready_cb = ready_cb;
+	dp_delete_cb = delete_cb;
+	DP_LEAVE();
+}
+EXPORT_SYMBOL(dp_ready_cb_regist);
+
 struct data_path *data_path_open(enum data_path_type dp_type,
 				 struct data_path_callback *cbs)
 {
@@ -1048,6 +1060,18 @@ struct shm_callback dp_shm_cb = {
 	.rb_stop_cb      = dp_rb_stop_cb,
 	.rb_resume_cb    = dp_rb_resume_cb,
 };
+
+void data_path_ready(void)
+{
+	if (dp_ready_cb)
+		dp_ready_cb();
+}
+
+void data_path_delete(void)
+{
+	if (dp_delete_cb)
+		dp_delete_cb();
+}
 
 int data_path_init(void)
 {
