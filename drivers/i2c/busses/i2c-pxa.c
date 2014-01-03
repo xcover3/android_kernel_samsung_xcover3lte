@@ -812,8 +812,7 @@ static int i2c_pxa_send_mastercode(struct pxa_i2c *i2c)
 	writel(icr, _ICR(i2c));
 
 	spin_unlock_irq(&i2c->lock);
-	timeout = wait_event_timeout(i2c->wait,
-			i2c->highmode_enter == false, HZ * 1);
+	timeout = wait_event_timeout(i2c->wait, !i2c->highmode_enter, HZ * 1);
 
 	i2c->highmode_enter = false;
 
