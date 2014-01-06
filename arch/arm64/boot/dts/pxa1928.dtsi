@@ -458,6 +458,13 @@
 
 				status = "disabled";
 			};
+
+			watchdog: wdt@d4080000 {
+				compatible = "marvell,mmp-wdt";
+				reg = <0xd4080000 0xc8>,
+				      <0xd4050000 0x1024>;
+				marvell,mmp-wdt-disabled;
+			};
 		};
 
 		soc_clocks: clocks{
