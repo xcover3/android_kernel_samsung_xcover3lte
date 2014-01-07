@@ -74,6 +74,10 @@ int __init pxa_register_device(struct pxa_device_desc *desc,
 
 #if defined(CONFIG_USB) || defined(CONFIG_USB_GADGET)
 
+#if defined(CONFIG_USB_MV_UDC) || defined(CONFIG_USB_EHCI_MV)
+
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA168)
+
 /*****************************************************************************
  * The registers read/write routines
  *****************************************************************************/
@@ -111,10 +115,6 @@ static void u2o_write(void __iomem *base, unsigned int offset,
 	writel_relaxed(value, base + offset);
 	readl_relaxed(base + offset);
 }
-
-#if defined(CONFIG_USB_MV_UDC) || defined(CONFIG_USB_EHCI_MV)
-
-#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA168)
 
 static DEFINE_MUTEX(phy_lock);
 static int phy_init_cnt;
