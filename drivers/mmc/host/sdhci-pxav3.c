@@ -37,6 +37,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/pm_qos.h>
 #include <linux/dma-mapping.h>
+#include <linux/pinctrl/consumer.h>
 #include <dt-bindings/mmc/pxa_sdhci.h>
 
 #include "sdhci.h"
@@ -266,6 +267,20 @@ static void pxav3_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	pxav3_set_tx_cfg(host, pdata);
 	pxav3_set_rx_cfg(host, pdata);
+
+	/*
+	 * Configure pin state like drive strength according to bus clock.
+	 * Use slow setting when new bus clock < FAST_CLOCK while current >= FAST_CLOCK.
+	 * Use fast setting when new bus clock >= FAST_CLOCK while current < FAST_CLOCK.
+	 */
+#define FAST_CLOCK 100000000
+	if (clock < FAST_CLOCK) {
+		if ((host->clock >= FAST_CLOCK) && (!IS_ERR(pdata->pin_slow)))
+			pinctrl_select_state(pdata->pinctrl, pdata->pin_slow);
+	} else {
+		if ((host->clock < FAST_CLOCK) && (!IS_ERR(pdata->pin_fast)))
+			pinctrl_select_state(pdata->pinctrl, pdata->pin_fast);
+	}
 }
 
 static unsigned long pxav3_clk_prepare(struct sdhci_host *host,
@@ -1126,6 +1141,16 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 		pdata->regdata = match->data;
 	}
 	if (pdata) {
+		pdata->pinctrl = devm_pinctrl_get(dev);
+		if (IS_ERR(pdata->pinctrl))
+			dev_err(dev, "could not get pinctrl handle\n");
+		pdata->pin_slow = pinctrl_lookup_state(pdata->pinctrl, "default");
+		if (IS_ERR(pdata->pin_slow))
+			dev_err(dev, "could not get default pinstate\n");
+		pdata->pin_fast = pinctrl_lookup_state(pdata->pinctrl, "fast");
+		if (IS_ERR(pdata->pin_fast))
+			dev_info(dev, "could not get fast pinstate\n");
+
 		ret = pxav3_init_host_with_pdata(host, pdata);
 		if (ret) {
 			dev_err(mmc_dev(host->mmc),
