@@ -42,6 +42,12 @@ config THERMAL_OF
 	  Say 'Y' here if you need to build thermal infrastructure
 	  based on device tree.
 
+config PXA28NM_THERMAL
+       bool "PXA28nm Thermal interface support"
+       depends on CPU_THERMAL
+       help
+         Add thermal management for 28nm IP.
+
 choice
 	prompt "Default Thermal governor"
 	default THERMAL_DEFAULT_GOV_STEP_WISE
