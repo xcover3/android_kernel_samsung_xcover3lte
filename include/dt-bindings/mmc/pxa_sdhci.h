@@ -81,4 +81,7 @@
 /* common flag */
 #define SDHCI_QUIRK_BROKEN_CARD_DETECTION               (1<<15)
 
+/* HS200/SDR104 SW tuning can't use ADMA */
+#define SDHCI_QUIRK2_TUNING_ADMA_BROKEN			(1<<16)
+
 #endif

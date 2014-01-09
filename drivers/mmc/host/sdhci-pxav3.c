@@ -22,6 +22,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
+#include <linux/mmc/mmc.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/slot-gpio.h>
@@ -118,6 +119,27 @@ static struct sdhci_regdata pxav3_regdata_v3 = {
 	.MMC1_PAD_2V5 = 0,
 	.PAD_POWERDOWNn = 0,
 	.APBC_ASFAR = 0xD4015068,
+};
+
+#define SD_RX_TUNE_MIN			0
+#define SD_RX_TUNE_STEP			1
+
+static const u32 tuning_patten4[16] = {
+	0x00ff0fff, 0xccc3ccff, 0xffcc3cc3, 0xeffefffe,
+	0xddffdfff, 0xfbfffbff, 0xff7fffbf, 0xefbdf777,
+	0xf0fff0ff, 0x3cccfc0f, 0xcfcc33cc, 0xeeffefff,
+	0xfdfffdff, 0xffbfffdf, 0xfff7ffbb, 0xde7b7ff7,
+};
+
+static const u32 tuning_patten8[32] = {
+	0xff00ffff, 0x0000ffff, 0xccccffff, 0xcccc33cc,
+	0xcc3333cc, 0xffffcccc, 0xffffeeff, 0xffeeeeff,
+	0xffddffff, 0xddddffff, 0xbbffffff, 0xbbffffff,
+	0xffffffbb, 0xffffff77, 0x77ff7777, 0xffeeddbb,
+	0x00ffffff, 0x00ffffff, 0xccffff00, 0xcc33cccc,
+	0x3333cccc, 0xffcccccc, 0xffeeffff, 0xeeeeffff,
+	0xddffffff, 0xddffffff, 0xffffffdd, 0xffffffbb,
+	0xffffbbbb, 0xffff77ff, 0xff7777ff, 0xeeddbb77,
 };
 
 static unsigned long pxav3_clk_prepare(struct sdhci_host *host,
@@ -376,6 +398,291 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 		pm_qos_update_request(&pdata->qos_idle, PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 }
 
+static void pxav3_prepare_tuning(struct sdhci_host *host, u32 val)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	u32 reg;
+
+	/* delay 1ms for card to be ready for next tuning */
+	mdelay(1);
+
+	reg = sdhci_readl(host, SD_RX_CFG_REG);
+	reg &= ~(regdata->RX_SDCLK_DELAY_MASK << RX_SDCLK_DELAY_SHIFT);
+	reg |= (val & regdata->RX_SDCLK_DELAY_MASK) << RX_SDCLK_DELAY_SHIFT;
+	reg &= ~(RX_SDCLK_SEL1_MASK << RX_SDCLK_SEL1_SHIFT);
+	reg |= (1 << RX_SDCLK_SEL1_SHIFT);
+	sdhci_writel(host, reg, SD_RX_CFG_REG);
+
+	dev_dbg(mmc_dev(host->mmc), "tunning with delay 0x%x\n", val);
+}
+
+static void pxav3_request_done(struct mmc_request *mrq)
+{
+	complete(&mrq->completion);
+}
+
+#define PXAV3_TUNING_DEBUG 1
+static int pxav3_send_tuning_cmd_adma(struct sdhci_host *host,
+		u32 opcode, int point, unsigned long flags)
+{
+	struct mmc_command cmd = {0};
+	struct mmc_request mrq = {0};
+	struct mmc_data data = {0};
+	struct scatterlist sg;
+	char *tuning_pattern = host->tuning_pattern;
+	int i;
+
+	cmd.opcode = opcode;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+
+	data.blocks = 1;
+	data.flags = MMC_DATA_READ;
+
+	/*
+	 * We should call mmc_set_data_timeout to get timeout value.
+	 * but we can't send mmc_card to that function in private tuning.
+	 * so we set the timeout value as 300ms which proved long enough
+	 * for most UHS cards.
+	 */
+	data.timeout_ns = 300000000;
+	data.timeout_clks = 0;
+	data.sg = &sg;
+	data.sg_len = 1;
+
+	/*
+	 * UHS-I modes only support 4bit width.
+	 * HS200 support 4bit or 8bit width.
+	 * 8bit used 128byte test pattern while 4bit used 64byte.
+	 */
+	if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_8)
+		data.blksz = 128;
+	else
+		data.blksz = 64;
+
+#if (PXAV3_TUNING_DEBUG > 0)
+	/*
+	 * Although it is not need to clear the buffer, here
+	 * still use memset to clear it before Tuning CMD start.
+	 *
+	 * So that we can use "data comparing" later
+	 */
+	memset(tuning_pattern, 0, TUNING_PATTERN_SIZE);
+#endif
+	sg_init_one(&sg, tuning_pattern, data.blksz);
+
+	mrq.cmd = &cmd;
+	mrq.cmd->mrq = &mrq;
+	mrq.data = &data;
+	mrq.data->mrq = &mrq;
+	mrq.cmd->data = mrq.data;
+
+	mrq.done = pxav3_request_done;
+	init_completion(&(mrq.completion));
+
+	sdhci_access_constrain(host, 1);
+	sdhci_runtime_pm_get(host);
+	spin_lock_irqsave(&host->lock, flags);
+	host->mrq = &mrq;
+	sdhci_send_command(host, mrq.cmd);
+	spin_unlock_irqrestore(&host->lock, flags);
+
+	wait_for_completion(&mrq.completion);
+
+#if (PXAV3_TUNING_DEBUG > 0)
+	/*
+	 * whether patten data is saved within memory range expected
+	 * TODO: add more debug code if need
+	 */
+	for (i = data.blksz; i < TUNING_PATTERN_SIZE; i++) {
+		if (tuning_pattern[i])
+			BUG_ON(1);
+	}
+#endif
+
+	dev_dbg(mmc_dev(host->mmc), "point: %d, cmd.error: %d, data.error: %d\n",
+		point, cmd.error, data.error);
+	if (cmd.error)
+		return cmd.error;
+	if (data.error)
+		return data.error;
+
+	return 0;
+}
+
+/*
+ * return 0: sucess, >=1: the num of pattern check errors
+ */
+static int pxav3_tuning_pio_check(struct sdhci_host *host, int point)
+{
+	u32 rd_patten;
+	unsigned int i;
+	u32 *tuning_patten;
+	int patten_len;
+	int err = 0;
+
+	if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_8) {
+		tuning_patten = (u32 *)tuning_patten8;
+		patten_len = ARRAY_SIZE(tuning_patten8);
+	} else {
+		tuning_patten = (u32 *)tuning_patten4;
+		patten_len = ARRAY_SIZE(tuning_patten4);
+	}
+
+	/* read all the data from FIFO, avoid error if IC design is not good */
+	for (i = 0; i < patten_len; i++) {
+		rd_patten = sdhci_readl(host, SDHCI_BUFFER);
+		if (rd_patten != tuning_patten[i])
+			err++;
+	}
+	dev_dbg(mmc_dev(host->mmc), "point: %d, error: %d\n", point, err);
+	return err;
+}
+
+static int pxav3_send_tuning_cmd_pio(struct sdhci_host *host, u32 opcode,
+		int point, unsigned long flags)
+{
+	struct mmc_command cmd = {0};
+	struct mmc_request mrq = {NULL};
+	int err = 0;
+
+	cmd.opcode = opcode;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+	cmd.retries = 0;
+	cmd.data = NULL;
+	cmd.error = 0;
+
+	mrq.cmd = &cmd;
+	host->mrq = &mrq;
+
+	if (cmd.opcode == MMC_SEND_TUNING_BLOCK_HS200) {
+		if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_8)
+			sdhci_writew(host, SDHCI_MAKE_BLKSZ(7, 128),
+					SDHCI_BLOCK_SIZE);
+		else if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_4)
+			sdhci_writew(host, SDHCI_MAKE_BLKSZ(7, 64),
+					SDHCI_BLOCK_SIZE);
+	} else {
+		sdhci_writew(host, SDHCI_MAKE_BLKSZ(7, 64),
+				SDHCI_BLOCK_SIZE);
+	}
+
+	/*
+	 * The tuning block is sent by the card to the host controller.
+	 * So we set the TRNS_READ bit in the Transfer Mode register.
+	 * This also takes care of setting DMA Enable and Multi Block
+	 * Select in the same register to 0.
+	 */
+	sdhci_writew(host, SDHCI_TRNS_READ, SDHCI_TRANSFER_MODE);
+
+	sdhci_send_command(host, &cmd);
+
+	host->cmd = NULL;
+	host->mrq = NULL;
+
+	spin_unlock_irqrestore(&host->lock, flags);
+	/* Wait for Buffer Read Ready interrupt */
+	wait_event_interruptible_timeout(host->buf_ready_int,
+			(host->tuning_done == 1),
+			msecs_to_jiffies(50));
+	spin_lock_irqsave(&host->lock, flags);
+
+	if (!host->tuning_done) {
+		pr_debug("%s: Timeout waiting for Buffer Read Ready interrupt during tuning procedure, resetting CMD and DATA\n",
+		       mmc_hostname(host->mmc));
+		sdhci_reset(host, SDHCI_RESET_CMD|SDHCI_RESET_DATA);
+		err = -EIO;
+	} else
+		err = pxav3_tuning_pio_check(host, point);
+
+	host->tuning_done = 0;
+
+	return err;
+}
+
+static int pxav3_send_tuning_cmd(struct sdhci_host *host, u32 opcode,
+		int point, unsigned long flags)
+{
+	if (host->quirks2 & SDHCI_QUIRK2_TUNING_ADMA_BROKEN)
+		return pxav3_send_tuning_cmd_pio(host, opcode, point, flags);
+	else
+		return pxav3_send_tuning_cmd_adma(host, opcode, point, flags);
+}
+
+static int pxav3_executing_tuning(struct sdhci_host *host, u32 opcode)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	int min, max, ret;
+	int len = 0, avg = 0;
+	u32 ier = 0;
+	unsigned long flags = 0;
+
+	if (host->quirks2 & SDHCI_QUIRK2_TUNING_ADMA_BROKEN) {
+		spin_lock_irqsave(&host->lock, flags);
+		ier = sdhci_readl(host, SDHCI_INT_ENABLE);
+		sdhci_clear_set_irqs(host, ier, SDHCI_INT_DATA_AVAIL);
+	}
+
+	/* find the mininum delay first which can pass tuning */
+	min = SD_RX_TUNE_MIN;
+	do {
+		while (min < regdata->SD_RX_TUNE_MAX) {
+			pxav3_prepare_tuning(host, min);
+			if (!pxav3_send_tuning_cmd(host, opcode, min, flags))
+				break;
+			min += SD_RX_TUNE_STEP;
+		}
+
+		/* find the maxinum delay which can not pass tuning */
+		max = min + SD_RX_TUNE_STEP;
+		while (max < regdata->SD_RX_TUNE_MAX) {
+			pxav3_prepare_tuning(host, max);
+			if (pxav3_send_tuning_cmd(host, opcode, max, flags))
+				break;
+			max += SD_RX_TUNE_STEP;
+		}
+
+		if ((max - min) > len) {
+			len = max - min;
+			avg = (min + max - 1) / 2;
+		}
+		pr_info("%s: tuning pass window [%d : %d], len = %d\n",
+				mmc_hostname(host->mmc), min, max - 1, max - min);
+		min = max + SD_RX_TUNE_STEP;
+	} while (min < regdata->SD_RX_TUNE_MAX);
+
+	pxav3_prepare_tuning(host, avg);
+	ret = pxav3_send_tuning_cmd(host, opcode, avg, flags);
+
+	if (host->quirks2 & SDHCI_QUIRK2_TUNING_ADMA_BROKEN) {
+		sdhci_clear_set_irqs(host, SDHCI_INT_DATA_AVAIL, ier);
+		spin_unlock_irqrestore(&host->lock, flags);
+	}
+
+	pr_info("%s: tunning %s at %d, pass window length is %d\n",
+			mmc_hostname(host->mmc), ret ? "failed" : "passed", avg, len);
+
+	if (!(host->flags & SDHCI_NEEDS_RETUNING) && host->tuning_count &&
+			(host->tuning_mode == SDHCI_TUNING_MODE_1)) {
+		host->flags |= SDHCI_USING_RETUNING_TIMER;
+		mod_timer(&host->tuning_timer, jiffies +
+				host->tuning_count * HZ);
+	} else {
+		host->flags &= ~SDHCI_NEEDS_RETUNING;
+		/* Reload the new initial value for timer */
+		if (host->tuning_mode == SDHCI_TUNING_MODE_1)
+			mod_timer(&host->tuning_timer, jiffies +
+					host->tuning_count * HZ);
+	}
+
+	return ret;
+}
+
 /*
  * remove the caps that supported by the controller but not available
  * for certain platforms.
@@ -400,6 +707,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.signal_vol_change = pxav3_signal_vol_change,
 	.clk_gate_auto  = pxav3_clk_gate_auto,
 	.access_constrain = pxav3_access_constrain,
+	.platform_execute_tuning = pxav3_executing_tuning,
 	.host_caps_disable = pxav3_host_caps_disable,
 };
 
@@ -568,6 +876,11 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 		kfree(pxa);
 		return PTR_ERR(host);
 	}
+
+	host->tuning_pattern = kmalloc(TUNING_PATTERN_SIZE, GFP_KERNEL);
+	if (!host->tuning_pattern)
+		goto err_pattern;
+
 	pltfm_host = sdhci_priv(host);
 	pltfm_host->priv = pxa;
 
@@ -666,6 +979,8 @@ err_of_parse:
 		pm_qos_remove_request(&pdata->qos_idle);
 err_clk_get:
 	clk_disable_unprepare(pxa->axi_clk);
+	kfree(host->tuning_pattern);
+err_pattern:
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
 	return ret;
@@ -687,6 +1002,8 @@ static int sdhci_pxav3_remove(struct platform_device *pdev)
 
 	clk_disable_unprepare(pxa->clk);
 	clk_disable_unprepare(pxa->axi_clk);
+
+	kfree(host->tuning_pattern);
 
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);

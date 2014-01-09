@@ -114,6 +114,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_SET_AIB_MMC			(1<<14)
 /* After SD host request, prevent system to suspend state for a while */
 #define SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST		(1<<15)
+/* HS200/SDR104 SW tuning can't use ADMA */
+#define SDHCI_QUIRK2_TUNING_ADMA_BROKEN			(1<<16)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
@@ -175,6 +177,9 @@ struct sdhci_host {
 	u8 *align_buffer[MAX_ADMA_DESC];	/* Bounce buffer */
 	int	adma_desc_index;	/* the last desc used */
 	int	adma_desc_ref;	/* check whether alloc/free desc balance */
+
+#define TUNING_PATTERN_SIZE 256
+	char *tuning_pattern; /* buffer to SW tuning pattern */
 
 	struct tasklet_struct card_tasklet;	/* Tasklet structures */
 	struct tasklet_struct finish_tasklet;
