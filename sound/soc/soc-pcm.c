@@ -1455,7 +1455,6 @@ int dpcm_be_dai_hw_params(struct snd_soc_pcm_runtime *fe, int stream)
 			continue;
 
 		if ((be->dpcm[stream].state != SND_SOC_DPCM_STATE_OPEN) &&
-		    (be->dpcm[stream].state != SND_SOC_DPCM_STATE_HW_PARAMS) &&
 		    (be->dpcm[stream].state != SND_SOC_DPCM_STATE_HW_FREE))
 			continue;
 
@@ -1504,7 +1503,6 @@ unwind:
 			continue;
 
 		if ((be->dpcm[stream].state != SND_SOC_DPCM_STATE_OPEN) &&
-		   (be->dpcm[stream].state != SND_SOC_DPCM_STATE_HW_PARAMS) &&
 		   (be->dpcm[stream].state != SND_SOC_DPCM_STATE_HW_FREE) &&
 		   (be->dpcm[stream].state != SND_SOC_DPCM_STATE_STOP))
 			continue;
