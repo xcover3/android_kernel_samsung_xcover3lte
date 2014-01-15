@@ -48,6 +48,12 @@ config PXA28NM_THERMAL
        help
          Add thermal management for 28nm IP.
 
+config GPADC_THERMAL
+	bool "GPADC Thermal interface support"
+	depends on THERMAL
+	help
+	  Add gpadc thermal management.
+
 choice
 	prompt "Default Thermal governor"
 	default THERMAL_DEFAULT_GOV_STEP_WISE
