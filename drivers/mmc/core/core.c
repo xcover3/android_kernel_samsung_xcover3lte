@@ -1485,6 +1485,10 @@ int mmc_set_signal_voltage(struct mmc_host *host, int signal_voltage, u32 ocr)
 
 	/* Keep clock gated for at least 5 ms */
 	mmc_delay(5);
+
+	if (host->ops->pre_busy_check)
+		host->ops->pre_busy_check(host, signal_voltage);
+
 	host->ios.clock = clock;
 	mmc_set_ios(host);
 
@@ -1497,6 +1501,9 @@ int mmc_set_signal_voltage(struct mmc_host *host, int signal_voltage, u32 ocr)
 	 */
 	if (host->ops->card_busy && host->ops->card_busy(host))
 		err = -EAGAIN;
+
+	if (host->ops->post_busy_check)
+		host->ops->post_busy_check(host, signal_voltage);
 
 power_cycle:
 	if (err) {
