@@ -1811,6 +1811,8 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 	return 0;
 }
 
+static u64 smmu_dma_mask = ~(u64)0;
+
 static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -1827,6 +1829,8 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	smmu->dev = dev;
+
+	dev->dma_mask = &smmu_dma_mask;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	smmu->base = devm_ioremap_resource(dev, res);
