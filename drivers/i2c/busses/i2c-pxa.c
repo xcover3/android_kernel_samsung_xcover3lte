@@ -485,6 +485,17 @@ bool mmp_hwlock_get_status(void)
 }
 EXPORT_SYMBOL(mmp_hwlock_get_status);
 
+/* enable/disable i2c unit */
+static inline void i2c_pxa_enable(struct pxa_i2c *i2c, bool enable)
+{
+	if (enable)
+		writel(readl(_ICR(i2c)) | ICR_IUE, _ICR(i2c));
+	else
+		writel(readl(_ICR(i2c)) & ~ICR_IUE, _ICR(i2c));
+	udelay(100);
+	i2c->icr_save = readl(_ICR(i2c));
+}
+
 static inline int i2c_pxa_is_slavemode(struct pxa_i2c *i2c)
 {
 	return !(readl(_ICR(i2c)) & ICR_SCLE);
@@ -694,9 +705,7 @@ static void i2c_pxa_reset(struct pxa_i2c *i2c)
 	i2c_pxa_set_slave(i2c, 0);
 
 	/* enable unit */
-	writel(readl(_ICR(i2c)) | ICR_IUE, _ICR(i2c));
-	udelay(100);
-	i2c->icr_save = readl(_ICR(i2c));
+	i2c_pxa_enable(i2c, true);
 }
 
 
@@ -1052,6 +1061,9 @@ static int i2c_pxa_pio_xfer(struct i2c_adapter *adap,
 	struct pxa_i2c *i2c = adap->algo_data;
 	int ret, i;
 
+	/* enable i2c unit before transmission */
+	i2c_pxa_enable(i2c, true);
+
 	/* If the I2C controller is disabled we need to reset it
 	  (probably due to a suspend/resume destroying state). We do
 	  this here as we can then avoid worrying about resuming the
@@ -1072,6 +1084,10 @@ static int i2c_pxa_pio_xfer(struct i2c_adapter *adap,
 	ret = -EREMOTEIO;
  out:
 	i2c_pxa_set_slave(i2c, ret);
+
+	/* disable i2c unit after transmission */
+	i2c_pxa_enable(i2c, false);
+
 	return ret;
 }
 
@@ -1282,8 +1298,10 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
 {
 	struct pxa_i2c *i2c = adap->algo_data;
 	int ret, i;
+	unsigned int icr;
 
-	if (readl(_ICR(i2c)) != i2c->icr_save) {
+	icr = readl(_ICR(i2c));
+	if (icr != i2c->icr_save) {
 		pr_warn("i2c: <%s> ICR is modified!\n", i2c->adap.name);
 		pr_warn("i2c: IBMR: %08x IDBR: %08x ICR: %08x ISR: %08x\n",
 			readl(_IBMR(i2c)), readl(_IDBR(i2c)),
@@ -1291,6 +1309,10 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
 		pr_warn("i2c: reset controller!\n");
 		i2c_pxa_reset(i2c);
 	}
+
+	/* enable i2c unit before transmission */
+	if (!(icr & ICR_IUE))
+		i2c_pxa_enable(i2c, true);
 
 	enable_irq(i2c->irq);
 	for (i = adap->retries; i >= 0; i--) {
@@ -1307,7 +1329,10 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
  out:
 	i2c_pxa_set_slave(i2c, ret);
 	disable_irq(i2c->irq);
-	i2c->icr_save = readl(_ICR(i2c));
+
+	/* disable i2c unit after transmission */
+	i2c_pxa_enable(i2c, false);
+
 	return ret;
 }
 
