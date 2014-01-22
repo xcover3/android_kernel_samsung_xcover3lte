@@ -290,6 +290,7 @@ void __init mem_init(void)
 #endif
 		  "    modules : 0x%16lx - 0x%16lx   (%6ld MB)\n"
 		  "    memory  : 0x%16lx - 0x%16lx   (%6ld MB)\n"
+		  "    dmamap  : 0x%16lx - 0x%16lx   (%6ld MB)\n"
 		  "      .init : 0x%p" " - 0x%p" "   (%6ld kB)\n"
 		  "      .text : 0x%p" " - 0x%p" "   (%6ld kB)\n"
 		  "      .data : 0x%p" " - 0x%p" "   (%6ld kB)\n",
@@ -300,6 +301,8 @@ void __init mem_init(void)
 #endif
 		  MLM(MODULES_VADDR, MODULES_END),
 		  MLM(PAGE_OFFSET, (unsigned long)high_memory),
+		  MLM(PAGE_OFFSET_COHERENT,
+			(unsigned long)__virt_to_coherent_virt(high_memory)),
 
 		  MLK_ROUNDUP(__init_begin, __init_end),
 		  MLK_ROUNDUP(_text, _etext),

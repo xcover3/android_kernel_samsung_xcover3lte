@@ -168,7 +168,7 @@ static void __init *early_alloc(unsigned long sz)
 }
 
 static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
-				  unsigned long end, unsigned long pfn)
+			unsigned long end, unsigned long pfn, int coherent)
 {
 	pte_t *pte;
 
@@ -180,16 +180,20 @@ static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 
 	pte = pte_offset_kernel(pmd, addr);
 	do {
-		set_pte(pte, pfn_pte(pfn, PAGE_KERNEL_EXEC));
+		if (coherent)
+			set_pte(pte, pfn_pte(pfn, PROT_NORMAL_NC));
+		else
+			set_pte(pte, pfn_pte(pfn, PAGE_KERNEL_EXEC));
 		pfn++;
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 }
 
 static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
-				  unsigned long end, phys_addr_t phys)
+			unsigned long end, phys_addr_t phys, int coherent)
 {
 	pmd_t *pmd;
 	unsigned long next;
+	pmdval_t prot_sect;
 
 	/*
 	 * Check for initial section mappings in the pgd/pud and remove them.
@@ -199,13 +203,18 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 		pud_populate(&init_mm, pud, pmd);
 	}
 
+	if (coherent)
+		prot_sect = PROT_SECT_NORMAL_NC;
+	else
+		prot_sect = prot_sect_kernel;
+
 	pmd = pmd_offset(pud, addr);
 	do {
 		next = pmd_addr_end(addr, end);
 		/* try section mapping first */
 		if (((addr | next | phys) & ~SECTION_MASK) == 0) {
 			pmd_t old_pmd =*pmd;
-			set_pmd(pmd, __pmd(phys | prot_sect_kernel));
+			set_pmd(pmd, __pmd(phys | prot_sect));
 			/*
 			 * Check for previous table entries created during
 			 * boot (__create_page_tables) and flush them.
@@ -213,21 +222,22 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 			if (!pmd_none(old_pmd))
 				flush_tlb_all();
 		} else {
-			alloc_init_pte(pmd, addr, next, __phys_to_pfn(phys));
+			alloc_init_pte(pmd, addr, next, __phys_to_pfn(phys),
+					coherent);
 		}
 		phys += next - addr;
 	} while (pmd++, addr = next, addr != end);
 }
 
 static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
-				  unsigned long end, unsigned long phys)
+			 unsigned long end, unsigned long phys, int coherent)
 {
 	pud_t *pud = pud_offset(pgd, addr);
 	unsigned long next;
 
 	do {
 		next = pud_addr_end(addr, end);
-		alloc_init_pmd(pud, addr, next, phys);
+		alloc_init_pmd(pud, addr, next, phys, coherent);
 		phys += next - addr;
 	} while (pud++, addr = next, addr != end);
 }
@@ -237,7 +247,7 @@ static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
  * mapping specified by 'md'.
  */
 static void __init create_mapping(phys_addr_t phys, unsigned long virt,
-				  phys_addr_t size)
+				  phys_addr_t size, int coherent)
 {
 	unsigned long addr, length, end, next;
 	pgd_t *pgd;
@@ -255,7 +265,7 @@ static void __init create_mapping(phys_addr_t phys, unsigned long virt,
 	end = addr + length;
 	do {
 		next = pgd_addr_end(addr, end);
-		alloc_init_pud(pgd, addr, next, phys);
+		alloc_init_pud(pgd, addr, next, phys, coherent);
 		phys += next - addr;
 	} while (pgd++, addr = next, addr != end);
 }
@@ -342,7 +352,12 @@ static void __init map_mem(void)
 		}
 #endif
 
-		create_mapping(start, __phys_to_virt(start), end - start);
+		create_mapping(start, __phys_to_virt(start), end - start, 0);
+		/*
+		 * Create the mapping for dma coherent memory.
+		 */
+		create_mapping(start, __phys_to_coherent_virt(start),
+				end - start, 1);
 	}
 
 	/* Limit no longer required. */
