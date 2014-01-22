@@ -2178,6 +2178,28 @@ static void sdhci_card_event(struct mmc_host *mmc)
 	sdhci_runtime_pm_put(host);
 }
 
+static int sdhci_pre_busy_check(struct mmc_host *mmc, int signal_votage)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if ((host->ops->clk_gate_auto) &&
+		(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE)) {
+			host->ops->clk_gate_auto(host, 0);
+	}
+	return 0;
+}
+
+static int sdhci_post_busy_check(struct mmc_host *mmc, int signal_votage)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if ((host->ops->clk_gate_auto) &&
+		(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE)) {
+			host->ops->clk_gate_auto(host, 1);
+	}
+	return 0;
+}
+
 static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
 	.set_ios	= sdhci_set_ios,
@@ -2189,6 +2211,8 @@ static const struct mmc_host_ops sdhci_ops = {
 	.execute_tuning			= sdhci_execute_tuning,
 	.card_event			= sdhci_card_event,
 	.card_busy	= sdhci_card_busy,
+	.pre_busy_check	= sdhci_pre_busy_check,
+	.post_busy_check	= sdhci_post_busy_check,
 };
 
 /*****************************************************************************\

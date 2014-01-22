@@ -143,6 +143,8 @@ struct mmc_host_ops {
 	int	(*select_drive_strength)(unsigned int max_dtr, int host_drv, int card_drv);
 	void	(*hw_reset)(struct mmc_host *host);
 	void	(*card_event)(struct mmc_host *host);
+	int	(*pre_busy_check)(struct mmc_host *mmc, int signal_votage);
+	int	(*post_busy_check)(struct mmc_host *mmc, int signal_votage);
 };
 
 struct mmc_card;
