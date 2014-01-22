@@ -1425,6 +1425,9 @@ int mmc_set_signal_voltage(struct mmc_host *host, int signal_voltage, u32 ocr)
 
 	BUG_ON(!host);
 
+	if (host->caps2 & MMC_CAP2_NO_VOLTAGE_SWITCH)
+		return 0;
+
 	/*
 	 * Send CMD11 only if the request is to switch the card to
 	 * 1.8V signalling.
