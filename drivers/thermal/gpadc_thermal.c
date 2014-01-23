@@ -30,6 +30,64 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu_cooling.h>
 #include <linux/of.h>
+#include <linux/mfd/88pm80x.h>
+
+/*
+ * -40 ~ 125: step -> 1C
+ * resistor value multiplied by 1000
+ */
+static int temp_table[] = {
+	/* [-40, -36]*/
+	1747919, 1631671, 1523950, 1424075, 1331424,
+	1245427, 1165564, 1091357, 1022369, 958201,
+	/* [-30, -26]*/
+	898485, 842883, 791087, 742813, 697798,
+	655802, 616604, 580001, 545804, 513842,
+	/* [-20, -16]*/
+	483953, 455992, 429821, 405317, 382362,
+	360849, 340680, 321762, 304010, 287346,
+	/* [-10, -6]*/
+	271697, 256994, 243176, 230183, 217962,
+	206463, 195624, 185419, 175807, 166751,
+	/* [0, 4]*/
+	158214, 150165, 142572, 135408, 128645,
+	122259, 116227, 110527, 105139, 100045,
+	/* [10, 14]*/
+	95226, 90667, 86351, 82266, 78396,
+	74730, 71255, 67962, 64838, 61875,
+	/* [20, 24]*/
+	59064, 56396, 53862, 51456, 49171,
+	47000, 44936, 42973, 41107, 39332,
+	/* [30, 34]*/
+	37643, 36035, 34504, 33046, 31657,
+	30333, 29073, 27871, 26726, 25633,
+	/* [40, 44]*/
+	24590, 23596, 22646, 21740, 20874,
+	20047, 19258, 18503, 17781, 17092,
+	/* [50, 54]*/
+	16432, 15801, 15198, 14620, 14067,
+	13538, 13031, 12546, 12081, 11636,
+	/* [60, 64]*/
+	11209, 10800, 10409, 10033, 9673,
+	9327, 8996, 8678, 8372, 8079,
+	/* [70, 74]*/
+	7797, 7526, 7266, 7016, 6775,
+	6544, 6322, 6109, 5904, 5707,
+	/* [80, 84]*/
+	5517, 5335, 5160, 4992, 4829,
+	4673, 4522, 4377, 4236, 4101,
+	/* [90, 94]*/
+	3971, 3846, 3725, 3608, 3496,
+	3387, 3283, 3183, 3086, 2992,
+	/* [100, 104]*/
+	2901, 2814, 2730, 2648, 2570,
+	2494, 2420, 2349, 2280, 2213,
+	/* [110, 114]*/
+	2149, 2087, 2027, 1969, 1913,
+	1859, 1807, 1757, 1708, 1661,
+	/* [120, 124]*/
+	1615, 1570, 1527, 1485, 1445,
+};
 
 enum trip_points {
 	TRIP_0,
@@ -87,6 +145,53 @@ static void gpadc_set_interval(int ms)
 	(adc_dev.therm_adc)->polling_delay = ms;
 }
 
+/* step: the temperature step */
+static int get_thermal_temp(int gp_id, unsigned int step, int lowest)
+{
+	int temp, tbat, volt, i;
+	unsigned int bias_current[5] = {31, 61, 16, 11, 6};
+
+	/*
+	 *1) set bias as 31uA firstly for room temperature,
+	 *2) check the voltage whether it's in [0.3V, 1.25V];
+	 *   if yes, tbat = tbat/31; break;
+	 *   else
+	 *   set bias as 61uA/16uA/11uA/6uA...
+	 *   for lower or higher temperature;
+	 */
+	for (i = 0; i < ARRAY_SIZE(bias_current); i++) {
+		volt = extern_get_gpadc_bias_volt(gp_id, bias_current[i]);
+		if ((volt > 300) && (volt < 1250)) {
+			volt *= 1000;
+			tbat = volt / bias_current[i];
+			break;
+		}
+	}
+
+	/* report the fake value 25C */
+	if (i == ARRAY_SIZE(bias_current)) {
+		pr_debug("thermal fake raw temp is 25C\n");
+		temp = 25;
+		return temp;
+	}
+	pr_debug("%s: tbat = %dKohm, i = %d\n", __func__, tbat, i);
+
+	for (i = 0; i < ARRAY_SIZE(temp_table); i++) {
+		if (tbat >= temp_table[i]) {
+			temp = lowest + i * step;
+			break;
+		}
+	}
+
+	/* max temperature */
+	if (i == ARRAY_SIZE(temp_table))
+		temp = temp_table[i - 1];
+
+	pr_debug("raw temperature is %dC\n", temp);
+
+	return temp;
+}
+
 static int gpadc_sys_get_temp(struct thermal_zone_device *thermal,
 		unsigned long *temp)
 {
@@ -95,8 +200,7 @@ static int gpadc_sys_get_temp(struct thermal_zone_device *thermal,
 	char *temp_info[3]    = { "TYPE=thsens_adc", "TEMP=10000", NULL };
 	int mon_interval;
 
-	/* TODO get temperature */
-	/* t_dev->temp_adc = */
+	t_dev->temp_adc = get_thermal_temp(3, 1, -40);
 	*temp = t_dev->temp_adc * 1000;
 
 	if (t_dev->therm_adc) {
@@ -241,7 +345,12 @@ static int gpadc_register_thermal(void)
 
 static int gpadc_thermal_probe(struct platform_device *pdev)
 {
-	/* init thermal framework */
+	/*
+	 * init thermal framework
+	 * all of initialization has been done in mfd driver;
+	 * so currently, we need to make sure this driver is later
+	 * than PMIC driver;
+	 */
 	return gpadc_register_thermal();
 }
 
