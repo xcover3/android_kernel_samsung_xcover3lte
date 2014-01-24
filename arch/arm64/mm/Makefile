@@ -1,4 +1,4 @@
-obj-y				:= dma-mapping.o dma-iommu-mapping.o \
+obj-y				:= dma-mapping-nc.o dma-iommu-mapping.o \
 				   extable.o fault.o init.o \
 				   cache.o copypage.o flush.o \
 				   ioremap.o mmap.o pgd.o mmu.o \
