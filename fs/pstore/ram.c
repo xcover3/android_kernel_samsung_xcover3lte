@@ -34,9 +34,11 @@
 #include <linux/slab.h>
 #include <linux/compiler.h>
 #include <linux/pstore_ram.h>
+#include <linux/of.h>
 
 #define RAMOOPS_KERNMSG_HDR "===="
 #define MIN_MEM_SIZE 4096UL
+
 
 static ulong record_size = MIN_MEM_SIZE;
 module_param(record_size, ulong, 0400);
@@ -399,6 +401,42 @@ static int ramoops_init_prz(struct device *dev, struct ramoops_context *cxt,
 	return 0;
 }
 
+static int ramoops_dt_probe(struct platform_device *pdev,
+			    struct ramoops_platform_data *pdata)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	if (of_property_read_u32(np, "mem-size", (u32 *) &pdata->mem_size)) {
+		dev_err(&pdev->dev, "mem_size missing\n");
+		return -EINVAL;
+	}
+
+	if (of_property_read_u32
+	    (np, "mem-address", (u32 *) &pdata->mem_address)) {
+		dev_err(&pdev->dev, "mem_address missing\n");
+		return -EINVAL;
+	}
+
+	if (of_property_read_u32
+	    (np, "record-size", (u32 *) &pdata->record_size)) {
+		dev_err(&pdev->dev, "record_size missing\n");
+		return -EINVAL;
+	}
+
+	if (of_property_read_u32
+	    (np, "console-size", (u32 *) &pdata->console_size)) {
+		dev_err(&pdev->dev, "console_size missing\n");
+		return -EINVAL;
+	}
+
+	if (of_property_read_u32(np, "dump-oops", &pdata->dump_oops)) {
+		dev_err(&pdev->dev, "dump_oops missing\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int ramoops_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -413,6 +451,15 @@ static int ramoops_probe(struct platform_device *pdev)
 	 */
 	if (cxt->max_dump_cnt)
 		goto fail_out;
+
+	if (!pdata) {
+		pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
+		if (!pdata)
+			return -ENOMEM;
+		err = ramoops_dt_probe(pdev, pdata);
+		if (err)
+			return err;
+	}
 
 	if (!pdata->mem_size || (!pdata->record_size && !pdata->console_size &&
 			!pdata->ftrace_size)) {
@@ -537,15 +584,25 @@ static int __exit ramoops_remove(struct platform_device *pdev)
 	return -EBUSY;
 }
 
+static struct of_device_id ram_dt_ids[] = {
+	{ .compatible = "pstore,ramoops", },
+	{}
+};
+MODULE_DEVICE_TABLE(of, ram_dt_ids);
+
 static struct platform_driver ramoops_driver = {
 	.probe		= ramoops_probe,
 	.remove		= __exit_p(ramoops_remove),
 	.driver		= {
 		.name	= "ramoops",
 		.owner	= THIS_MODULE,
+		.of_match_table	= ram_dt_ids,
 	},
 };
 
+module_platform_driver(ramoops_driver);
+
+/* no need to register dummy and ramoops driver with DT solution. */
 static void ramoops_register_dummy(void)
 {
 	if (!mem_size)
