@@ -308,6 +308,11 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 	sync_time_to_soc(ticks);
 	info->sync = sync_time_to_soc;
 #endif
+
+	dev_info(&pdev->dev, "pmic rtc initial time: %d-%d-%d-->%d:%d:%d\n",
+	 tm.tm_year, tm.tm_mon, tm.tm_mday,
+	 tm.tm_hour, tm.tm_min, tm.tm_sec);
+
 	info->rtc_dev = devm_rtc_device_register(&pdev->dev, "88pm80x-rtc",
 					    &pm80x_rtc_ops, THIS_MODULE);
 	if (IS_ERR(info->rtc_dev)) {
