@@ -392,7 +392,11 @@ static void *persistent_ram_vmap(phys_addr_t start, size_t size)
 	page_start = start - offset_in_page(start);
 	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
 
+#ifdef CONFIG_ARM64
+	prot = pgprot_writecombine(PAGE_KERNEL);
+#else
 	prot = pgprot_noncached(PAGE_KERNEL);
+#endif
 
 	pages = kmalloc(sizeof(struct page *) * page_count, GFP_KERNEL);
 	if (!pages) {
