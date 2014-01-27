@@ -38,6 +38,7 @@
 #include <linux/io.h>
 #include <linux/i2c/pxa-i2c.h>
 #include <linux/platform_data/mmp-hwlock.h>
+#include <linux/of_gpio.h>
 
 #include <asm/irq.h>
 
@@ -286,6 +287,62 @@ static void i2c_pxa_show_state(struct pxa_i2c *i2c, int lno, const char *fname)
 
 #define show_state(i2c) i2c_pxa_show_state(i2c, __LINE__, __func__)
 
+static void i2c_bus_reset(struct pxa_i2c *i2c)
+{
+	int ret, ccnt, pins_scl, pins_sda;
+	struct device *dev = i2c->adap.dev.parent;
+	struct device_node *np = dev->of_node;
+
+	if (!i2c->pinctrl) {
+		dev_info(dev, "no need to do i2c bus reset\n");
+		return;
+	}
+
+	ret = pinctrl_select_state(i2c->pinctrl, i2c->pin_gpio);
+	if (ret) {
+		dev_err(dev, "cannot set gpio pins\n");
+		return;
+	}
+
+	pins_scl = of_get_named_gpio(np, "i2c-gpio", 0);
+	if (!gpio_is_valid(pins_scl)) {
+		dev_err(dev, "get scl gpio fail\n");
+		goto err_out;
+	}
+	pins_sda = of_get_named_gpio(np, "i2c-gpio", 1);
+	if (!gpio_is_valid(pins_sda) < 0) {
+		dev_err(dev, "get sda gpio fail\n");
+		goto err_out;
+	}
+
+	gpio_request(pins_scl, NULL);
+	gpio_request(pins_sda, NULL);
+
+	gpio_direction_input(pins_sda);
+	for (ccnt = 20; ccnt; ccnt--) {
+		gpio_direction_output(pins_scl, ccnt & 0x01);
+		udelay(5);
+	}
+	gpio_direction_output(pins_scl, 0);
+	udelay(5);
+	gpio_direction_output(pins_sda, 0);
+	udelay(5);
+	/* stop signal */
+	gpio_direction_output(pins_scl, 1);
+	udelay(5);
+	gpio_direction_output(pins_sda, 1);
+	udelay(5);
+
+	gpio_free(pins_scl);
+	gpio_free(pins_sda);
+
+err_out:
+	ret = pinctrl_select_state(i2c->pinctrl, i2c->pin_i2c);
+	if (ret)
+		dev_err(dev, "cannot set default(i2c) pins\n");
+	return;
+}
+
 static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *why)
 {
 	unsigned int i;
@@ -300,6 +357,11 @@ static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *why)
 	for (i = 0; i < i2c->irqlogidx; i++)
 		printk("[%08x:%08x] ", i2c->isrlog[i], i2c->icrlog[i]);
 	printk("\n");
+	if (strcmp(why, "exhausted retries")) {
+		i2c_bus_reset(i2c);
+		/* reset i2c contorler */
+		i2c_pxa_reset(i2c);
+	}
 }
 
 #else /* ifdef DEBUG */
