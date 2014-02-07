@@ -1028,6 +1028,8 @@ static void armv7pmu_disable_event(struct perf_event *event)
 	raw_spin_unlock_irqrestore(&events->pmu_lock, flags);
 }
 
+void __attribute__((weak)) mmp_pmu_ack(void) { }
+
 static irqreturn_t armv7pmu_handle_irq(int irq_num, void *dev)
 {
 	u32 pmnc;
@@ -1041,6 +1043,8 @@ static irqreturn_t armv7pmu_handle_irq(int irq_num, void *dev)
 	 * Get and reset the IRQ flags
 	 */
 	pmnc = armv7_pmnc_getreset_flags();
+
+	mmp_pmu_ack();
 
 	/*
 	 * Did an overflow occur?
