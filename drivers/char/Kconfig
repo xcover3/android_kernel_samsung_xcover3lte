@@ -617,5 +617,12 @@ config TILE_SROM
 	  device appear much like a simple EEPROM, and knows
 	  how to partition a single ROM for multiple purposes.
 
+config PXA9XX_AMIPC
+       tristate "PXA9xx AM-IPC Driver"
+       depends on CPU_PXA988
+       help
+         Please say Y here if want to support Application to
+         CM3 coprocessor communication on PXA1U88
+
 endmenu
 
