@@ -1388,6 +1388,23 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 		i2c->use_pio = 1;
 	if (of_get_property(np, "mrvl,i2c-fast-mode", NULL))
 		i2c->fast_mode = 1;
+	if (of_get_property(np, "mrvl,i2c-high-mode", NULL)) {
+		i2c->high_mode = 1;
+		ret = of_property_read_u8(np, "marvell,master-code",
+					  &i2c->master_code);
+		if (ret) {
+			i2c->master_code = 0xe;
+			ret = 0;
+			dev_warn(&pdev->dev,
+				 "set master code to default value 0xe\n");
+		}
+		ret = of_property_read_u32(np, "marvell,clk-rate",
+					   (u32 *)&i2c->rate);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to get clk rate\n");
+			return ret;
+		}
+	}
 	if (of_get_property(np, "mrvl,i2c-apdcp", NULL))
 		i2c->apdcp = 1;
 
