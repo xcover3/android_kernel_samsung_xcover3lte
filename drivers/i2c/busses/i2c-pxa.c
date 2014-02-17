@@ -1326,6 +1326,42 @@ static const struct i2c_algorithm i2c_pxa_pio_algorithm = {
 	.functionality	= i2c_pxa_functionality,
 };
 
+void i2c_set_pio_mode(struct i2c_adapter *adap, unsigned int use_pio)
+{
+	static int bus_idle;
+	static int i = 25;
+	struct pxa_i2c *i2c;
+	if (!adap) {
+		pr_err("%s: adapter is NULL!\n", __func__);
+		return;
+	}
+
+	i2c = adap->algo_data;
+
+	i2c_pxa_reset(i2c);
+	bus_idle = (!(readl(_ISR(i2c)) & (ISR_UB | ISR_IBB)) &&
+		    readl(_IBMR(i2c)) == 0x3);
+	while ((i > 0) && (!bus_idle)) {
+		dev_info(&adap->dev, "wait until i2c bus is idle.\n");
+		i2c_pxa_reset(i2c);
+		cpu_relax();
+		bus_idle = (!(readl(_ISR(i2c)) & (ISR_UB | ISR_IBB)) &&
+			    readl(_IBMR(i2c)) == 0x3);
+		i--;
+
+	}
+	if ((i == 0) && (!bus_idle))
+		dev_err(&adap->dev, "wait i2c bus idle fails!!\n");
+
+	if (use_pio) {
+		adap->algo = &i2c_pxa_pio_algorithm;
+		dev_info(&adap->dev, "use pio mode\n");
+	} else {
+		adap->algo = &i2c_pxa_algorithm;
+		dev_info(&adap->dev, "do not use pio mode\n");
+	}
+}
+
 static struct of_device_id i2c_pxa_dt_ids[] = {
 	{ .compatible = "mrvl,pxa-i2c", .data = (void *)REGS_PXA2XX },
 	{ .compatible = "mrvl,pwri2c", .data = (void *)REGS_PXA3XX },
