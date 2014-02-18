@@ -2240,6 +2240,20 @@ int regmap_get_val_bytes(struct regmap *map)
 }
 EXPORT_SYMBOL_GPL(regmap_get_val_bytes);
 
+int regmap_parse_val(struct regmap *map, const void *buf,
+				unsigned int *val)
+{
+	int ret = 0;
+
+	if (!map->format.parse_val)
+		return -EINVAL;
+
+	*val = map->format.parse_val(buf);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(regmap_parse_val);
+
 static int __init regmap_initcall(void)
 {
 	regmap_debugfs_initcall();
