@@ -147,13 +147,25 @@ static void mmp_pm_down(unsigned long addr)
 		cpu_do_idle();
 }
 
+static int up_mode;
+static int __init __init_up(char *arg)
+{
+	up_mode = 1;
+	return 1;
+}
+__setup("up_mode", __init_up);
+
 static int mmp_pm_power_up(unsigned int cpu, unsigned int cluster)
 {
 	pr_debug("%s: cpu %u cluster %u\n", __func__, cpu, cluster);
 	if (cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER)
 		return -EINVAL;
 
+	if (up_mode)
+		return -EINVAL;
+
 	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
+
 	/*
 	 * Since this is called with IRQs enabled, and no arch_spin_lock_irq
 	 * variant exists, we need to disable IRQs manually here.
