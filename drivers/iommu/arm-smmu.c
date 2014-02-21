@@ -1049,7 +1049,7 @@ static int arm_smmu_master_configure_smrs(struct arm_smmu_device *smmu,
 
 		smrs[i] = (struct arm_smmu_smr) {
 			.idx	= idx,
-			.mask	= 0, /* We don't currently share SMRs */
+			.mask	= SMR_MASK_MASK, /* mask stream id */
 			.id	= master->streamids[i],
 		};
 	}
