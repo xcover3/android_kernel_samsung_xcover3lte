@@ -26,9 +26,11 @@
 #include <linux/io.h>
 #include <linux/mutex.h>
 #include <linux/thermal.h>
+#include <linux/of.h>
+#ifdef CONFIG_CPU_FREQ
 #include <linux/cpufreq.h>
 #include <linux/cpu_cooling.h>
-#include <linux/of.h>
+#endif
 
 #define TSEN_PCTRL (0x0)
 #define TSEN_LCTRL (0x4)
@@ -69,7 +71,7 @@
 #define reg_read(off) readl(pxa28nm_thermal_dev.base + (off))
 #define reg_write(val, off) writel((val), pxa28nm_thermal_dev.base + (off))
 #define reg_clr_set(off, clr, set) \
-	reg_write(((reg_read(off) | (set)) & ~(clr)), off)
+	reg_write(((reg_read(off) & ~(clr)) | (set)), off)
 
 enum trip_points {
 	APP_WARNING,
@@ -221,21 +223,26 @@ static SIMPLE_DEV_PM_OPS(thermal_pm_ops,
 
 static void pxa28nm_register_thermal(void)
 {
+#ifdef CONFIG_CPU_FREQ
 	struct cpumask mask_val;
+#endif
 	int i, trip_w_mask = 0;
-
+#ifdef CONFIG_CPU_FREQ
 	/* register cooling and thermal device */
 	cpumask_set_cpu(0, &mask_val);
 	pxa28nm_thermal_dev.cool_cpufreq = cpufreq_cooling_register(&mask_val);
+#endif
 	for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++)
 		trip_w_mask |= (1 << i);
 	pxa28nm_thermal_dev.therm_cpu = thermal_zone_device_register(
 			"thsens_cpu", TRIP_POINTS_NUM, trip_w_mask, NULL,
 			&cpu_thermal_ops, NULL, 0, 0);
+#ifdef CONFIG_CPU_FREQ
 	/* bind cpufreq cooling */
 	thermal_zone_bind_cooling_device(pxa28nm_thermal_dev.therm_cpu,
 			KERNEL_WARNING, pxa28nm_thermal_dev.cool_cpufreq,
 			THERMAL_NO_LIMIT, THERMAL_NO_LIMIT);
+#endif
 
 	i = sysfs_create_group(&((pxa28nm_thermal_dev.therm_cpu->device).kobj),
 			&thermal_attr_grp);
@@ -247,7 +254,7 @@ static void pxa28nm_set_interval(int ms)
 {
 	/* 500k clock, high 16bit */
 	int interval_val = ms * 500 / 256;
-	reg_clr_set(TSEN_LCTRL, 0,
+	reg_clr_set(TSEN_LCTRL, TSEN_AUTO_INTERVAL_MASK,
 	(interval_val << TSEN_AUTO_INTERVAL_OFF) & TSEN_AUTO_INTERVAL_MASK);
 }
 
@@ -318,14 +325,11 @@ static irqreturn_t pxa28nm_irq(int irq, void *devid)
 {
 	u32 tmp;
 	tmp = reg_read(TSEN_LSTATUS);
+	reg_clr_set(TSEN_LSTATUS, 0, tmp);
 	if (tmp & TSEN_RDY_INT) {
 		pxa28nm_thermal_dev.temp_cpu =
 			millicelsius_decode((tmp & TSEN_DATA_LATCHED_MASK) >>
 					TSEN_DATA_LATCHED_OFF);
-		reg_clr_set(TSEN_LSTATUS, 0, TSEN_RDY_INT);
-	} else {
-		pr_err("Unexpected interrupt status:0x%X\n", tmp);
-		reg_clr_set(TSEN_LSTATUS, 0, TSEN_INT0 | TSEN_INT1 | TSEN_INT2);
 	}
 	return IRQ_WAKE_THREAD;
 }
@@ -375,7 +379,7 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 	/* set 117C as watchdog reset */
 	tmp = (millicelsius_encode(117000) << TSEN_WDT_THD_OFF) &
 					TSEN_WDT_THD_MASK;
-	reg_clr_set(TSEN_THD23, 0, tmp);
+	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_WDT_DIRECTION | TSEN_WDT_ENABLE);
 	/* set auto interval 2000ms */
 	pxa28nm_set_interval(2000);
@@ -392,7 +396,9 @@ static int pxa28nm_thermal_remove(struct platform_device *pdev)
 	reg_clr_set(TSEN_PCTRL, 0, TSEN_RESET);
 	clk_disable_unprepare(pxa28nm_thermal_dev.therm_clk);
 	thermal_zone_device_unregister(pxa28nm_thermal_dev.therm_cpu);
+#ifdef CONFIG_CPU_FREQ
 	cpufreq_cooling_unregister(pxa28nm_thermal_dev.cool_cpufreq);
+#endif
 	pr_info("Kernel Thermal management unregistered\n");
 	return 0;
 }

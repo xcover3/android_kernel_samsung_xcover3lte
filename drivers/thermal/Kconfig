@@ -202,6 +202,16 @@ config PXA_THERMAL
 	  active trip points, uevent will be sent, and when hit
 	  critical temperature, system will reboot automatically.
 
+config HELAN2_THERMAL
+       bool "Helan2 Thermal interface support"
+       depends on THERMAL
+       help
+         Add thermal management for Helan2 SoC.
+         Helan2 thermal supports h/w auto test mode, and
+         it supports 3 thresholds which can be configured as up or down.
+         There is also a watchdog reset, it will trigger SoC reset when temperature
+         higher than a defined watchdog threshold.
+
 config DOVE_THERMAL
 	tristate "Temperature sensor on Marvell Dove SoCs"
 	depends on ARCH_DOVE
