@@ -73,6 +73,8 @@
 /* for SDIO card */
 /* Controller must enable clock gate by software during CMDs */
 #define SDHCI_QUIRK2_SDIO_SW_CLK_GATE			(1<<13)
+/* After SD host request, prevent system to suspend state for a while */
+#define SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST		(1<<15)
 
 #define MMC_PM_KEEP_POWER       (1 << 0)
 

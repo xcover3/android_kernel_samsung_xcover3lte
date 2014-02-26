@@ -2422,6 +2422,12 @@ static void sdhci_tasklet_finish(unsigned long param)
 	mmc_request_done(host->mmc, mrq);
 	sdhci_runtime_pm_put(host);
 	sdhci_access_constrain(host, 0);
+
+	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
+		if (host->busbusy_wakelock_en)
+			wake_lock_timeout(&host->busbusy_wakelock,
+				host->busbusy_timeout);
+	}
 }
 
 static void sdhci_timeout_timer(unsigned long data)
@@ -2827,6 +2833,16 @@ EXPORT_SYMBOL_GPL(sdhci_disable_irq_wakeups);
 
 int sdhci_suspend_host(struct sdhci_host *host)
 {
+	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
+		/*
+		 * If system has entered suspend, do not hold wakelock,
+		 * or the system may have no chance to enter suspend for ever.
+		 */
+		host->busbusy_wakelock_en = 0;
+		if (wake_lock_active(&host->busbusy_wakelock))
+			wake_unlock(&host->busbusy_wakelock);
+	}
+
 	sdhci_runtime_pm_get(host);
 	if (host->ops->platform_suspend)
 		host->ops->platform_suspend(host);
@@ -2855,6 +2871,11 @@ EXPORT_SYMBOL_GPL(sdhci_suspend_host);
 int sdhci_resume_host(struct sdhci_host *host)
 {
 	int ret = 0;
+
+	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
+		/* if system starts to resume, enable busbusy wakelock again */
+		host->busbusy_wakelock_en = 1;
+	}
 
 	sdhci_runtime_pm_get(host);
 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
@@ -3486,6 +3507,13 @@ int sdhci_add_host(struct sdhci_host *host)
 		pr_err("%s: Failed to request IRQ %d: %d\n",
 		       mmc_hostname(mmc), host->irq, ret);
 		goto untasklet;
+	}
+
+	wake_lock_init(&host->busbusy_wakelock, WAKE_LOCK_SUSPEND,
+			(const char *)mmc_hostname(host->mmc));
+	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
+		host->busbusy_wakelock_en = 1;
+		host->busbusy_timeout = 0.5*HZ; /* 0.5S by default */
 	}
 
 #ifdef CONFIG_MMC_DEBUG

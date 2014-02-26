@@ -17,6 +17,7 @@
 #include <linux/io.h>
 #include <linux/mmc/host.h>
 #include <linux/slab.h>
+#include <linux/wakelock.h>
 
 struct sdhci_host {
 	/* Data set by hardware interface driver */
@@ -111,6 +112,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_SDIO_SW_CLK_GATE			(1<<13)
 /* some SD host need to set IO capability by SOC part register */
 #define SDHCI_QUIRK2_SET_AIB_MMC			(1<<14)
+/* After SD host request, prevent system to suspend state for a while */
+#define SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST		(1<<15)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
@@ -194,6 +197,14 @@ struct sdhci_host {
 #define SDHCI_TUNING_MODE_1	0
 	struct timer_list	tuning_timer;	/* Timer for tuning */
 	int	constrain_ref;
+
+	/*
+	* New feature: prevent suspend if bus is keepping busy
+	* enabled by "SDHCI_QUIRK_HOLDSUSPEND_AFTER_REQUEST" in the quirks2
+	*/
+	struct wake_lock busbusy_wakelock;
+	int	busbusy_wakelock_en;
+	int	busbusy_timeout;
 
 	unsigned long private[0] ____cacheline_aligned;
 };
