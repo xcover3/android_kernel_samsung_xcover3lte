@@ -33,6 +33,8 @@
 
 #define	DRIVER_DESC	"Marvell USB OTG transceiver driver"
 #define	DRIVER_VERSION	"Jan 20, 2010"
+#define MAX_RETRY_TIMES 60
+#define RETRY_SLEEP_MS  1000
 
 #define APMU_SD_ROT_WAKE_CLR 0x7C
 #define USB_OTG_ID_WAKEUP_EN (1<<8)
@@ -306,8 +308,20 @@ static void mv_otg_start_periphrals(struct mv_otg *mvotg, int on)
 {
 	struct usb_otg *otg = mvotg->phy.otg;
 
-	if (!otg->gadget)
-		return;
+	if (!otg->gadget) {
+		int retry = 0;
+		while (retry < MAX_RETRY_TIMES) {
+			retry++;
+			msleep(RETRY_SLEEP_MS);
+			if (otg->gadget)
+				break;
+		}
+
+		if (!otg->gadget) {
+			dev_err(mvotg->phy.dev, "otg->gadget is not set!\n");
+			return;
+		}
+	}
 
 	dev_info(mvotg->phy.dev, "gadget %s\n", on ? "on" : "off");
 
