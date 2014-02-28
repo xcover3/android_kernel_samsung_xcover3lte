@@ -31,6 +31,8 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu_cooling.h>
 #endif
+#include <mach/addr-map.h>
+#include <linux/delay.h>
 
 #define TSEN_PCTRL (0x0)
 #define TSEN_LCTRL (0x4)
@@ -51,6 +53,12 @@
 #define TSEN_RDY_INT_ENABLE (1 << 11)
 #define TSEN_WDT_DIRECTION (1 << 9)
 #define TSEN_WDT_ENABLE (1 << 8)
+#define TSEN_INT2_DIRECTION (1 << 7)
+#define TSEN_INT2_ENABLE (1 << 6)
+#define TSEN_INT1_DIRECTION (1 << 5)
+#define TSEN_INT1_ENABLE (1 << 4)
+#define TSEN_INT0_DIRECTION (1 << 3)
+#define TSEN_INT0_ENABLE (1 << 2)
 #define TSEN_AUTO_MODE_OFF (0)
 #define TSEN_AUTO_MODE_MASK (0x3)
 /* TSEN_LSTATUS */
@@ -64,20 +72,29 @@
 #define TSEN_WDT_FLAG (1 << 12)
 #define TSEN_DATA_WDT_OFF (0)
 #define TSEN_DATA_WDT_MASK (0xfff)
+/* TSEN_THD01 */
+#define TSEN_THD0_OFF (0)
+#define TSEN_THD0_MASK (0xfff)
+#define TSEN_THD1_OFF (12)
+#define TSEN_THD1_MASK (0xfff000)
 /* TSEN_THD23 */
+#define TSEN_THD2_OFF (0)
+#define TSEN_THD2_MASK (0xfff)
 #define TSEN_WDT_THD_OFF (12)
 #define TSEN_WDT_THD_MASK (0xfff000)
 
-#define reg_read(off) readl(pxa28nm_thermal_dev.base + (off))
-#define reg_write(val, off) writel((val), pxa28nm_thermal_dev.base + (off))
+#define reg_read(off) readl(thermal_dev.base + (off))
+#define reg_write(val, off) writel((val), thermal_dev.base + (off))
 #define reg_clr_set(off, clr, set) \
 	reg_write(((reg_read(off) & ~(clr)) | (set)), off)
 
 enum trip_points {
-	APP_WARNING,
-	KERNEL_WARNING,
-	APP_REBOOT,
-	KERNEL_REBOOT,
+	TRIP_POINT_0,
+	TRIP_POINT_1,
+	TRIP_POINT_2,
+	TRIP_POINT_3,
+	TRIP_POINT_4,
+	TRIP_POINT_5,
 	TRIP_POINTS_NUM,
 	TRIP_POINTS_ACTIVE_NUM = TRIP_POINTS_NUM - 1,
 };
@@ -89,26 +106,37 @@ struct uevent_msg_priv {
 
 struct pxa28nm_thermal_device {
 	struct thermal_zone_device *therm_cpu;
-	int temp_cpu;
+	int trip_range;
 	struct resource *mem;
 	void __iomem *base;
 	struct clk *therm_clk;
 	struct thermal_cooling_device *cool_cpufreq;
-	struct uevent_msg_priv msg_s[TRIP_POINTS_ACTIVE_NUM];
 	int hit_trip_cnt[TRIP_POINTS_NUM];
 	int irq;
 };
 
-static struct pxa28nm_thermal_device pxa28nm_thermal_dev;
-static int cpu_thermal_trips_temp[TRIP_POINTS_NUM] = {
-	90000, /* APP_WARNING */
-	100000, /* KERNEL_WARNING */
-	107000, /* APP_REBOOT */
-	112000, /* KERNEL_REBOOT */
+static struct pxa28nm_thermal_device thermal_dev;
+static int trips_temp[TRIP_POINTS_NUM] = {
+	80000, /* TRIP_POINT_0 */
+	90000, /* TRIP_POINT_1 */
+	100000, /* TRIP_POINT_2 */
+	105000, /* TRIP_POINT_3 */
+	110000, /* TRIP_POINT_4 */
+	115000, /* TRIP_POINT_5 */
+};
+
+static int trips_temp_p[TRIP_POINTS_ACTIVE_NUM] = {
+	75000, /* TRIP_POINT_0_P */
+	85000, /* TRIP_POINT_1_P */
+	95000, /* TRIP_POINT_2_P */
+	100000, /* TRIP_POINT_3_P */
+	105000, /* TRIP_POINT_4_P */
 };
 
 #define THSEN_GAIN      3874
 #define THSEN_OFFSET    2821
+
+static int pxa28nm_set_threshold(int range);
 
 static int millicelsius_decode(u32 tcode)
 {
@@ -130,10 +158,33 @@ static int hit_trip_status_get(struct device *dev,
 {
 	int i;
 	int ret = 0;
+	u32 tmp;
+	ret += sprintf(buf + ret, "Register dump:\n");
+	ret += sprintf(buf + ret, "TSEN_PCTRL=0x%x\n", reg_read(TSEN_PCTRL));
+	tmp = reg_read(TSEN_LCTRL);
+	ret += sprintf(buf + ret, "TSEN_LCTRL=0x%x(int0_en:%d, int1_en:%d)\n",
+		tmp, !!(tmp & TSEN_INT0_ENABLE), !!(tmp & TSEN_INT1_ENABLE));
+	ret += sprintf(buf + ret, "TSEN_PSTATUS=0x%x\n",
+			reg_read(TSEN_PSTATUS));
+	tmp = reg_read(TSEN_LSTATUS);
+	ret += sprintf(buf + ret, "TSEN_LSTATUS=0x%x(temp:%dmC)\n", tmp,
+		millicelsius_decode((tmp & TSEN_DATA_LATCHED_MASK) >>
+			TSEN_DATA_LATCHED_OFF));
+	ret += sprintf(buf + ret, "TSEN_RSTATUS=0x%x\n",
+			reg_read(TSEN_RSTATUS));
+	tmp = reg_read(TSEN_THD01);
+	ret += sprintf(buf + ret, "TSEN_THD01=0x%x(th0_u:%dmC, th1_d:%dmC)\n",
+	tmp, millicelsius_decode((tmp & TSEN_THD0_MASK) >> TSEN_THD0_OFF),
+		millicelsius_decode((tmp & TSEN_THD1_MASK) >> TSEN_THD1_OFF));
+	tmp = reg_read(TSEN_THD23);
+	ret += sprintf(buf + ret, "TSEN_THD23=0x%x(hw_r:%dmC, sw_r:%dmC)\n",
+			tmp, millicelsius_decode((tmp & TSEN_WDT_THD_MASK) >>
+			TSEN_WDT_THD_OFF), millicelsius_decode((tmp &
+			TSEN_THD2_MASK) >> TSEN_THD2_OFF));
 	for (i = 0; i < TRIP_POINTS_NUM; i++) {
 		ret += sprintf(buf + ret, "trip %d: %d hits\n",
-				cpu_thermal_trips_temp[i],
-				pxa28nm_thermal_dev.hit_trip_cnt[i]);
+				trips_temp[i],
+				thermal_dev.hit_trip_cnt[i]);
 	}
 	return ret;
 }
@@ -150,10 +201,18 @@ static struct attribute_group thermal_attr_grp = {
 static int cpu_sys_get_temp(struct thermal_zone_device *thermal,
 		unsigned long *temp)
 {
-	int ret = 0;
+	u32 tmp;
+	if (!(reg_read(TSEN_PCTRL) & TSEN_RESET)) {
+		tmp = reg_read(TSEN_LSTATUS);
+		*temp = millicelsius_decode((tmp & TSEN_DATA_LATCHED_MASK) >>
+				TSEN_DATA_LATCHED_OFF);
+		/* unreasonable temperature */
+		if (*temp > 120000)
+			*temp = 0;
+	} else
+		*temp = 0;
 
-	*temp = pxa28nm_thermal_dev.temp_cpu;
-	return ret;
+	return 0;
 }
 
 static int cpu_sys_get_trip_type(struct thermal_zone_device *thermal, int trip,
@@ -172,7 +231,7 @@ static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 		unsigned long *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		*temp = cpu_thermal_trips_temp[trip];
+		*temp = trips_temp[trip];
 	else
 		*temp = -1;
 	return 0;
@@ -181,15 +240,22 @@ static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
 		unsigned long temp)
 {
+	u32 tmp;
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		cpu_thermal_trips_temp[trip] = temp;
+		trips_temp[trip] = temp;
+	if ((TRIP_POINTS_NUM - 1) == trip) {
+		tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
+					TSEN_THD2_OFF) & TSEN_THD2_MASK;
+		reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
+	} else
+		pxa28nm_set_threshold(thermal_dev.trip_range);
 	return 0;
 }
 
 static int cpu_sys_get_crit_temp(struct thermal_zone_device *thermal,
 		unsigned long *temp)
 {
-	return cpu_thermal_trips_temp[TRIP_POINTS_NUM - 1];
+	return trips_temp[TRIP_POINTS_NUM - 1];
 }
 
 static struct thermal_zone_device_ops cpu_thermal_ops = {
@@ -230,24 +296,65 @@ static void pxa28nm_register_thermal(void)
 #ifdef CONFIG_CPU_FREQ
 	/* register cooling and thermal device */
 	cpumask_set_cpu(0, &mask_val);
-	pxa28nm_thermal_dev.cool_cpufreq = cpufreq_cooling_register(&mask_val);
+	thermal_dev.cool_cpufreq = cpufreq_cooling_register(&mask_val);
 #endif
-	for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++)
+	for (i = 0; i < TRIP_POINTS_NUM; i++)
 		trip_w_mask |= (1 << i);
-	pxa28nm_thermal_dev.therm_cpu = thermal_zone_device_register(
+	thermal_dev.therm_cpu = thermal_zone_device_register(
 			"thsens_cpu", TRIP_POINTS_NUM, trip_w_mask, NULL,
 			&cpu_thermal_ops, NULL, 0, 0);
 #ifdef CONFIG_CPU_FREQ
 	/* bind cpufreq cooling */
-	thermal_zone_bind_cooling_device(pxa28nm_thermal_dev.therm_cpu,
-			KERNEL_WARNING, pxa28nm_thermal_dev.cool_cpufreq,
+	thermal_zone_bind_cooling_device(thermal_dev.therm_cpu,
+			TRIP_POINT_0, thermal_dev.cool_cpufreq,
 			THERMAL_NO_LIMIT, THERMAL_NO_LIMIT);
 #endif
 
-	i = sysfs_create_group(&((pxa28nm_thermal_dev.therm_cpu->device).kobj),
+	i = sysfs_create_group(&((thermal_dev.therm_cpu->device).kobj),
 			&thermal_attr_grp);
 	if (i < 0)
 		pr_err("Failed to register private thermal interface\n");
+}
+
+static int pxa28nm_set_threshold(int range)
+{
+	u32 tmp;
+
+	if (range < 0 || range > TRIP_POINTS_ACTIVE_NUM) {
+		pr_err("soc thermal: invalid threshold %d\n", range);
+		return -1;
+	}
+
+	if (0 == range) {
+		tmp = (millicelsius_encode(trips_temp[0]) << TSEN_THD0_OFF) &
+							TSEN_THD0_MASK;
+		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
+		tmp = (millicelsius_encode(trips_temp_p[0]) << TSEN_THD1_OFF) &
+							TSEN_THD1_MASK;
+		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
+		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
+		reg_clr_set(TSEN_LCTRL, TSEN_INT1_ENABLE, 0);
+
+	} else if (TRIP_POINTS_ACTIVE_NUM == range) {
+		tmp = (millicelsius_encode(trips_temp[range - 1]) <<
+						TSEN_THD0_OFF) & TSEN_THD0_MASK;
+		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
+		tmp = (millicelsius_encode(trips_temp_p[range - 1]) <<
+						TSEN_THD1_OFF) & TSEN_THD1_MASK;
+		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
+		reg_clr_set(TSEN_LCTRL, TSEN_INT0_ENABLE, 0);
+		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT1_ENABLE);
+	} else {
+		tmp = (millicelsius_encode(trips_temp[range]) <<
+						TSEN_THD0_OFF) & TSEN_THD0_MASK;
+		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
+		tmp = (millicelsius_encode(trips_temp_p[range - 1]) <<
+						TSEN_THD1_OFF) & TSEN_THD1_MASK;
+		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
+		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
+		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT1_ENABLE);
+	}
+	return 0;
 }
 
 static void pxa28nm_set_interval(int ms)
@@ -260,76 +367,53 @@ static void pxa28nm_set_interval(int ms)
 
 static irqreturn_t pxa28nm_thread_irq(int irq, void *devid)
 {
-	struct pxa28nm_thermal_device *t_dev = &pxa28nm_thermal_dev;
 	char *temp_info[3]    = { "TYPE=thsens_cpu", "TEMP=100000", NULL };
-	int mon_interval;
+	unsigned long temp;
 
-	if (t_dev->therm_cpu) {
-		if (t_dev->temp_cpu >= cpu_thermal_trips_temp[APP_REBOOT]) {
-			t_dev->hit_trip_cnt[APP_REBOOT]++;
-			t_dev->msg_s[APP_REBOOT].cur_s = 1;
-			t_dev->msg_s[KERNEL_WARNING].cur_s = 1;
-			t_dev->msg_s[APP_WARNING].cur_s = 1;
-			mon_interval = 200;
-		} else if ((t_dev->temp_cpu >=
-				cpu_thermal_trips_temp[KERNEL_WARNING]) &&
-				(t_dev->temp_cpu <
-				 cpu_thermal_trips_temp[APP_REBOOT])) {
-			t_dev->hit_trip_cnt[KERNEL_WARNING]++;
-			t_dev->msg_s[APP_REBOOT].cur_s = 0;
-			t_dev->msg_s[KERNEL_WARNING].cur_s = 1;
-			t_dev->msg_s[APP_WARNING].cur_s = 1;
-			mon_interval = 500;
-		} else if ((t_dev->temp_cpu >=
-				cpu_thermal_trips_temp[APP_WARNING]) &&
-				(t_dev->temp_cpu <
-				 cpu_thermal_trips_temp[KERNEL_WARNING])) {
-			t_dev->hit_trip_cnt[APP_WARNING]++;
-			t_dev->msg_s[APP_REBOOT].cur_s = 0;
-			t_dev->msg_s[KERNEL_WARNING].cur_s = 0;
-			t_dev->msg_s[APP_WARNING].cur_s = 1;
-			mon_interval = 1000;
-		} else {
-			t_dev->msg_s[APP_REBOOT].cur_s = 0;
-			t_dev->msg_s[KERNEL_WARNING].cur_s = 0;
-			t_dev->msg_s[APP_WARNING].cur_s = 0;
-			mon_interval = 2000;
-		}
+	if (thermal_dev.therm_cpu) {
+		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
+		pr_info("SoC thermal %ldC\n", temp / 1000);
+		/* notify user for trip point cross */
+		sprintf(temp_info[1], "TEMP=%d", (int)temp);
+		kobject_uevent_env(&((thermal_dev.therm_cpu)->
+			device.kobj), KOBJ_CHANGE, temp_info);
 
-		if ((t_dev->msg_s[APP_REBOOT].cur_s !=
-			t_dev->msg_s[APP_REBOOT].last_s) ||
-			(t_dev->msg_s[KERNEL_WARNING].cur_s !=
-			 t_dev->msg_s[KERNEL_WARNING].last_s) ||
-			(t_dev->msg_s[APP_WARNING].cur_s !=
-			 t_dev->msg_s[APP_WARNING].last_s)) {
-			pxa28nm_set_interval(mon_interval);
-			t_dev->msg_s[APP_REBOOT].last_s =
-				t_dev->msg_s[APP_REBOOT].cur_s;
-			t_dev->msg_s[KERNEL_WARNING].last_s =
-				t_dev->msg_s[KERNEL_WARNING].cur_s;
-			t_dev->msg_s[APP_WARNING].last_s =
-				t_dev->msg_s[APP_WARNING].cur_s;
-			pr_info("SoC thermal %dC\n", t_dev->temp_cpu);
-			/* notify user for trip point cross */
-			sprintf(temp_info[1], "TEMP=%d", t_dev->temp_cpu);
-			kobject_uevent_env(&((t_dev->therm_cpu)->
-					device.kobj), KOBJ_CHANGE, temp_info);
-		}
 		/* trigger framework cooling, like cpufreq */
-		thermal_zone_device_update(t_dev->therm_cpu);
+		thermal_zone_device_update(thermal_dev.therm_cpu);
 	}
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t pxa28nm_irq(int irq, void *devid)
 {
-	u32 tmp;
+	u32 tmp, tmp_lc;
+	unsigned long temp;
 	tmp = reg_read(TSEN_LSTATUS);
 	reg_clr_set(TSEN_LSTATUS, 0, tmp);
-	if (tmp & TSEN_RDY_INT) {
-		pxa28nm_thermal_dev.temp_cpu =
-			millicelsius_decode((tmp & TSEN_DATA_LATCHED_MASK) >>
-					TSEN_DATA_LATCHED_OFF);
+
+	tmp_lc = reg_read(TSEN_LCTRL);
+	if ((tmp_lc & TSEN_RDY_INT_ENABLE) && (tmp & TSEN_RDY_INT)) {
+		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
+		pr_info("in irq temp = %ld\n", temp);
+	}
+	if ((tmp_lc & TSEN_INT0_ENABLE) && (tmp & TSEN_INT0)) {
+		thermal_dev.hit_trip_cnt[thermal_dev.trip_range]++;
+		thermal_dev.trip_range++;
+		if (thermal_dev.trip_range > TRIP_POINTS_ACTIVE_NUM)
+			thermal_dev.trip_range = TRIP_POINTS_ACTIVE_NUM;
+		pxa28nm_set_threshold(thermal_dev.trip_range);
+
+	}
+	if ((tmp_lc & TSEN_INT1_ENABLE) && (tmp & TSEN_INT1)) {
+		thermal_dev.trip_range--;
+		if (thermal_dev.trip_range < 0)
+			thermal_dev.trip_range = 0;
+		pxa28nm_set_threshold(thermal_dev.trip_range);
+	}
+	if ((tmp_lc & TSEN_INT2_ENABLE) && (tmp & TSEN_INT2)) {
+		/* wait framework shutdown */
+		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
+		pr_info("critical temp = %ld\n", temp);
 	}
 	return IRQ_WAKE_THREAD;
 }
@@ -339,34 +423,36 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 	int ret = 0;
 	u32 tmp;
 
-	pxa28nm_thermal_dev.irq = platform_get_irq(pdev, 0);
-	if (pxa28nm_thermal_dev.irq < 0) {
+	thermal_dev.irq = platform_get_irq(pdev, 0);
+	if (thermal_dev.irq < 0) {
 		dev_err(&pdev->dev, "Failed to get platform irq\n");
 		return -EINVAL;
 	}
 
-	pxa28nm_thermal_dev.mem =
+	thermal_dev.mem =
 		platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	pxa28nm_thermal_dev.base =
-		devm_ioremap_resource(&pdev->dev, pxa28nm_thermal_dev.mem);
-	if (IS_ERR(pxa28nm_thermal_dev.base))
-		return PTR_ERR(pxa28nm_thermal_dev.base);
+	thermal_dev.base =
+		devm_ioremap_resource(&pdev->dev, thermal_dev.mem);
+	if (IS_ERR(thermal_dev.base))
+		return PTR_ERR(thermal_dev.base);
 
-	ret = devm_request_threaded_irq(&pdev->dev, pxa28nm_thermal_dev.irq,
+	ret = devm_request_threaded_irq(&pdev->dev, thermal_dev.irq,
 			pxa28nm_irq, pxa28nm_thread_irq, IRQF_ONESHOT,
 			pdev->name, NULL);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to request irq: %d\n",
-				pxa28nm_thermal_dev.irq);
+				thermal_dev.irq);
 		return ret;
 	}
 
-	pxa28nm_thermal_dev.therm_clk = clk_get(NULL, "ts_clk");
-	if (IS_ERR(pxa28nm_thermal_dev.therm_clk)) {
+	thermal_dev.therm_clk = clk_get(NULL, "ts_clk");
+	if (IS_ERR(thermal_dev.therm_clk)) {
 		dev_err(&pdev->dev, "Could not get thermal clock\n");
-		return PTR_ERR(pxa28nm_thermal_dev.therm_clk);
+		return PTR_ERR(thermal_dev.therm_clk);
 	}
-	clk_prepare_enable(pxa28nm_thermal_dev.therm_clk);
+	clk_prepare_enable(thermal_dev.therm_clk);
+	/* make sure clock stable */
+	usleep_range(20, 30);
 
 	if (reg_read(TSEN_RSTATUS) & TSEN_WDT_FLAG) {
 		pr_warn("System reset by thermal watch dog (%d C)\n",
@@ -374,30 +460,57 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 				TSEN_DATA_WDT_MASK) >> TSEN_DATA_WDT_OFF)/1000);
 		reg_clr_set(TSEN_RSTATUS, 0, TSEN_WDT_FLAG);
 	}
+
+	tmp = reg_read(TSEN_LSTATUS);
+	if (tmp) {
+		pr_warn("reinit thermal LSTATUS = 0x%x\n", tmp);
+		/* delay 10us for each step to ganrantee reset suc */
+		writel(0x2, (APB_VIRT_BASE + 0x1506C));
+		udelay(10);
+		writel(0x0, (APB_VIRT_BASE + 0x1506C));
+		udelay(10);
+		writel(0x1, (APB_VIRT_BASE + 0x1506C));
+		udelay(10);
+		tmp = reg_read(TSEN_LSTATUS);
+		reg_clr_set(TSEN_LSTATUS, 0, tmp);
+		tmp = reg_read(TSEN_LSTATUS);
+		if (tmp)
+			WARN_ON("reinit thermal failed\n");
+	} else
+		pr_info("thermal status fine\n");
+
 	/* init thermal framework */
 	pxa28nm_register_thermal();
-	/* set 117C as watchdog reset */
-	tmp = (millicelsius_encode(117000) << TSEN_WDT_THD_OFF) &
+	/* init threshold */
+	tmp = (millicelsius_encode(118000) << TSEN_WDT_THD_OFF) &
 					TSEN_WDT_THD_MASK;
 	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_WDT_DIRECTION | TSEN_WDT_ENABLE);
-	/* set auto interval 2000ms */
-	pxa28nm_set_interval(2000);
-	/* start auto test mode 2 */
+	tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
+			TSEN_THD2_OFF) & TSEN_THD2_MASK;
+	reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
+	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT2_ENABLE | TSEN_INT2_DIRECTION);
+
+	reg_clr_set(TSEN_LCTRL, TSEN_INT0_ENABLE, TSEN_INT0_DIRECTION);
+	reg_clr_set(TSEN_LCTRL, TSEN_INT1_ENABLE | TSEN_INT1_DIRECTION, 0);
+	thermal_dev.trip_range = 0;
+	pxa28nm_set_threshold(thermal_dev.trip_range);
+	/* set auto interval 200ms and start auto mode 2*/
+	pxa28nm_set_interval(200);
 	reg_clr_set(TSEN_PCTRL, TSEN_ISO_EN | TSEN_RESET, 0);
-	tmp = TSEN_RDY_INT_ENABLE | ((2 << TSEN_AUTO_MODE_OFF) &
-					TSEN_AUTO_MODE_MASK);
+	tmp = ((2 << TSEN_AUTO_MODE_OFF) & TSEN_AUTO_MODE_MASK);
 	reg_clr_set(TSEN_LCTRL, 0, tmp);
+	pr_info("helan2 thermal probed\n");
 	return 0;
 }
 
 static int pxa28nm_thermal_remove(struct platform_device *pdev)
 {
 	reg_clr_set(TSEN_PCTRL, 0, TSEN_RESET);
-	clk_disable_unprepare(pxa28nm_thermal_dev.therm_clk);
-	thermal_zone_device_unregister(pxa28nm_thermal_dev.therm_cpu);
+	clk_disable_unprepare(thermal_dev.therm_clk);
+	thermal_zone_device_unregister(thermal_dev.therm_cpu);
 #ifdef CONFIG_CPU_FREQ
-	cpufreq_cooling_unregister(pxa28nm_thermal_dev.cool_cpufreq);
+	cpufreq_cooling_unregister(thermal_dev.cool_cpufreq);
 #endif
 	pr_info("Kernel Thermal management unregistered\n");
 	return 0;
