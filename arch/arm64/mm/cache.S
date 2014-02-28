@@ -176,13 +176,28 @@ ENDPROC(__flush_dcache_area)
 ENTRY(__dma_inv_range)
 	dcache_line_size x2, x3
 	sub	x3, x2, #1
+
+	tst	x0, x3		// check the alignment of the start address
 	bic	x0, x0, x3
+	b.eq	2f
+	dc	civac, x0	// clean & invalidate D line / unified line
+	add	x0, x0, x2
+	cmp	x0, x1
+	b.ge	9f
+
+2:	tst	x1, x3		// check the alignment of the end address
 	bic	x1, x1, x3
-1:	dc	ivac, x0			// invalidate D / U line
+	b.eq	1f
+	dc	civac, x1	// clean & invalidate D line / unified line
+	cmp	x0, x1
+	b.ge	9f
+
+1:	dc	ivac, x0	// invalidate D / U line
 	add	x0, x0, x2
 	cmp	x0, x1
 	b.lo	1b
-	dsb	sy
+
+9:	dsb	sy
 	ret
 ENDPROC(__dma_inv_range)
 
