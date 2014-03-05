@@ -362,4 +362,10 @@
 		reg-names = "mpmu", "apmu", "apbc", "apbcp", "apbs", "ciu";
 		#clock-cells = <1>;
         };
+
+	amipc {
+		compatible = "marvell,mmp-amipc";
+		interrupts = <0 95 0x4>;
+		status = "okay";
+	};
 };
