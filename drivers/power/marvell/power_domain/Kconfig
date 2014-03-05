@@ -1,0 +1,18 @@
+menuconfig MMP_PM_DOMAIN
+	bool "power domain support for mmp"
+	depends on PM_GENERIC_DOMAINS
+	help
+	  Say Y to enable support for the power domain managment for
+	  Marvell mmp SOCes.
+	  It will includes the APIs and help functions for specific
+	  power domains. The power domain will provide power for
+	  VPU/GC/ISP and etc.
+
+if MMP_PM_DOMAIN
+
+config MMP_PM_DOMAIN_COMMON
+        bool "power domain for vpu/gc/isp"
+        help
+          Say Y here to enable related power domain for pxa1088/pxa1L88
+
+endif

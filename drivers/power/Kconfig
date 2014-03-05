@@ -390,6 +390,7 @@ config BATTERY_GOLDFISH
 	  Goldfish emulator.
 
 source "drivers/power/reset/Kconfig"
+source "drivers/power/marvell/power_domain/Kconfig"
 
 endif # POWER_SUPPLY
 
