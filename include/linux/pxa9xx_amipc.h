@@ -30,9 +30,7 @@
 #define TEST_CRL_GEN_IRQ	(4)
 /* ACQ related */
 #define AMIPC_ACQ_GET_MEM	(0xF0000000)
-#define AMIPC_ACQ_START		(0xF0000001)
-#define AMIPC_ACQ_ONE_SEG	(0xF0000002)
-#define AMIPC_ACQ_FINISH	(0xF0000003)
+#define AMIPC_ACQ_REL_MEM	(0xF0000001)
 
 typedef u32(*amipc_rec_event_callback) (u32 events_status);
 

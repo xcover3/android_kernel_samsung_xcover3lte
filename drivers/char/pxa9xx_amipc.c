@@ -29,6 +29,7 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/regs-addr.h>
+#include <linux/pm_wakeup.h>
 
 #include <linux/pxa9xx_amipc.h>
 
@@ -69,6 +70,8 @@ struct ipc_event_type {
 struct amipc_database_cell {
 	enum amipc_events event;
 	amipc_rec_event_callback cb;
+	int tx_cnt;
+	int rx_cnt;
 };
 
 struct amipc_msg_item {
@@ -84,10 +87,8 @@ struct amipc_msg_buffer {
 };
 
 struct amipc_acq_infor {
-	int acq_segments;
-	int first_seg_rd;
-	int rdwr_offset;
-	int ov_cnt;
+	int wr_num;
+	int rd_num;
 };
 
 struct amipc_dbg_info {
@@ -96,6 +97,7 @@ struct amipc_dbg_info {
 };
 
 struct pxa9xx_amipc {
+	int irq;
 	void __iomem *pmu_base;
 	void __iomem *ciu_base;
 	struct ipc_event_type *ipc_tx, *ipc_rx;
@@ -106,6 +108,7 @@ struct pxa9xx_amipc {
 	struct dentry *dbg_dir;
 	struct dentry *dbg_shm;
 	struct dentry *dbg_pkg;
+	struct dentry *dbg_ctrl;
 	struct amipc_msg_buffer msg_buffer;
 	struct amipc_acq_infor acq_info;
 	struct amipc_dbg_info dbg_info;
@@ -114,6 +117,22 @@ static struct pxa9xx_amipc *amipc;
 static DEFINE_SPINLOCK(amipc_lock);
 static void amipc_ping_worker(struct work_struct *work);
 static DECLARE_WORK(ping_work, amipc_ping_worker);
+
+static void init_statistic_info(void)
+{
+	int i;
+
+	for (i = 0; i < AMIPC_EVENT_LAST; i++) {
+		amipc->amipc_db[i].tx_cnt = 0;
+		amipc->amipc_db[i].rx_cnt = 0;
+	}
+	memset((void *)&amipc->msg_buffer, 0,
+			sizeof(struct amipc_msg_buffer));
+	memset((void *)&amipc->acq_info, 0,
+			sizeof(struct amipc_acq_infor));
+	memset((void *)&amipc->dbg_info, 0,
+			sizeof(struct amipc_dbg_info));
+}
 
 static void amipc_ping_worker(struct work_struct *work)
 {
@@ -185,16 +204,9 @@ static u32 amipc_acq_callback(u32 event)
 					amipc->msg_buffer.sdk_rptr))
 			amipc->msg_buffer.ov_cnt++;
 
-		if (AMIPC_ACQ_COMMAND == event) {
-			if (AMIPC_ACQ_ONE_SEG == data1) {
-				spin_lock_irqsave(&amipc_lock, flags);
-				amipc->acq_info.rdwr_offset++;
-				if (amipc->acq_info.rdwr_offset ==
-						amipc->acq_info.acq_segments)
-					amipc->acq_info.ov_cnt++;
-				spin_unlock_irqrestore(&amipc_lock, flags);
-			}
-		}
+		if (AMIPC_ACQ_COMMAND == event)
+			amipc->acq_info.wr_num++;
+
 		spin_lock_irqsave(&amipc_lock, flags);
 		amipc->poll_status = 1;
 		spin_unlock_irqrestore(&amipc_lock, flags);
@@ -245,6 +257,7 @@ static enum amipc_return_code amipc_event_set(enum amipc_events user_event,
 		amipc->ipc_tx[E_TO_OFF(user_event)].data1 = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data2 = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].ack = 1;
+		amipc->amipc_db[E_TO_OFF(user_event)].tx_cnt++;
 		amipc_notify_peer();
 	} else {
 		IPC_LEAVE();
@@ -285,6 +298,7 @@ static enum amipc_return_code amipc_data_send(enum amipc_events user_event,
 		amipc->ipc_tx[E_TO_OFF(user_event)].data1 = data1;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data2 = data2;
 		amipc->ipc_tx[E_TO_OFF(user_event)].ack = 1;
+		amipc->amipc_db[E_TO_OFF(user_event)].tx_cnt++;
 		amipc_notify_peer();
 	} else {
 		IPC_LEAVE();
@@ -356,6 +370,7 @@ static u32 amipc_handle_events(void)
 			/* clients fetch possible data in cb */
 			amipc->amipc_db[i].cb(OFF_TO_E(i));
 			amipc->ipc_rx[i].ack = 0;
+			amipc->amipc_db[i].rx_cnt++;
 		}
 	}
 
@@ -433,7 +448,6 @@ static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct amipc_ioctl_arg amipc_arg;
 	int ret = 0;
-	unsigned long flags;
 
 	IPC_ENTER();
 	if (copy_from_user(&amipc_arg,
@@ -466,18 +480,13 @@ static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AMIPC_IPC_CRL:
 		if (AMIPC_ACQ_COMMAND == amipc_arg.event) {
 			/* 16M continues memory */
-			if (AMIPC_ACQ_GET_MEM == amipc_arg.data1)
-				amipc_arg.data2 = 0xa000000;
-			else if (AMIPC_ACQ_START == amipc_arg.data1) {
-				/* init debug variable */
-				amipc->acq_info.rdwr_offset = 0;
-				amipc->acq_info.first_seg_rd = true;
-				/* ACQ start */
-				amipc->acq_info.acq_segments = amipc_arg.data2;
-				amipc_data_send(AMIPC_ACQ_COMMAND,
-				amipc_arg.data1, amipc_arg.data2,
-					DEFAULT_TIMEOUT);
-			}
+			if (AMIPC_ACQ_GET_MEM == amipc_arg.data1) {
+				amipc_arg.data2 = 0x0b000000;
+				pr_info("Return phy ACQ mem 0x%x\n",
+						amipc_arg.data2);
+			} else if (AMIPC_ACQ_REL_MEM == amipc_arg.data1)
+				pr_info("Free ACQ mem\n");
+
 		}
 		break;
 	case AMIPC_IPC_MSG_GET:
@@ -495,20 +504,8 @@ static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		(amipc->msg_buffer.sdk_rptr + 1) % MSG_BUFFER_LEN;
 			amipc_arg.more_msgs = (amipc->msg_buffer.ipc_wptr +
 		MSG_BUFFER_LEN - amipc->msg_buffer.sdk_rptr) % MSG_BUFFER_LEN;
-			if (AMIPC_ACQ_COMMAND == amipc_arg.event) {
-				if (AMIPC_ACQ_ONE_SEG == amipc_arg.data1) {
-					if (amipc->acq_info.first_seg_rd)
-						amipc->acq_info.first_seg_rd =
-									false;
-					else {
-						spin_lock_irqsave(
-							&amipc_lock, flags);
-						amipc->acq_info.rdwr_offset--;
-						spin_unlock_irqrestore(
-							&amipc_lock, flags);
-					}
-				}
-			}
+			if (AMIPC_ACQ_COMMAND == amipc_arg.event)
+				amipc->acq_info.rd_num++;
 		}
 		break;
 	case AMIPC_TEST_CRL:
@@ -639,25 +636,27 @@ static int shm_block_show(struct seq_file *m, void *unused)
 		seq_puts(m, "tx shm invalid\n");
 	else {
 		seq_puts(m, "tx shm status:\n");
-		seq_puts(m, "event\tdata1\tdata2\tack\n");
+		seq_puts(m, "event\tdata1\tdata2\tack\tcount\n");
 		for (i = 0; i < AMIPC_EVENT_LAST; i++)
-			seq_printf(m, "%x\t%x\t%x\t%x\n",
+			seq_printf(m, "%x\t%x\t%x\t%x\t%d\n",
 					amipc->ipc_tx[i].event,
 					amipc->ipc_tx[i].data1,
 					amipc->ipc_tx[i].data2,
-					amipc->ipc_tx[i].ack);
+					amipc->ipc_tx[i].ack,
+					amipc->amipc_db[i].tx_cnt);
 	}
 	if (amipc_rxaddr_inval())
 		seq_puts(m, "rx shm invalid\n");
 	else {
 		seq_puts(m, "rx shm status:\n");
-		seq_puts(m, "event\tdata1\tdata2\tack\n");
+		seq_puts(m, "event\tdata1\tdata2\tack\tcount\n");
 		for (i = 0; i < AMIPC_EVENT_LAST; i++)
-			seq_printf(m, "%x\t%x\t%x\t%x\n",
+			seq_printf(m, "%x\t%x\t%x\t%x\t%d\n",
 					amipc->ipc_rx[i].event,
 					amipc->ipc_rx[i].data1,
 					amipc->ipc_rx[i].data2,
-					amipc->ipc_rx[i].ack);
+					amipc->ipc_rx[i].ack,
+					amipc->amipc_db[i].rx_cnt);
 	}
 
 	rcu_read_unlock();
@@ -682,9 +681,13 @@ static int pkgstat_block_show(struct seq_file *m, void *unused)
 	seq_printf(m, "msg buffer sdk rptr: %d ipc wprt: %d over flow: %d\n",
 			amipc->msg_buffer.sdk_rptr, amipc->msg_buffer.ipc_wptr,
 			amipc->msg_buffer.ov_cnt);
-	seq_printf(m, "acq segments: %d rdwr off %d ov %d\n",
-			amipc->acq_info.acq_segments,
-			amipc->acq_info.rdwr_offset, amipc->acq_info.ov_cnt);
+	seq_printf(m, "acq wr_num: %d rd_num %d\n", amipc->acq_info.wr_num,
+						amipc->acq_info.rd_num);
+	seq_printf(m, "reg handshake 0x%x, wakeup 0x%x\n",
+			ciu_readl(GNSS_HANDSHAKE), pmu_readl(GNSS_WAKEUP_CTRL));
+	seq_printf(m, "hw irq %d, thread irq %d, total = %d\n",
+		amipc->dbg_info.irq_num, amipc->dbg_info.irq_thread_num,
+		amipc->dbg_info.irq_num + amipc->dbg_info.irq_thread_num);
 	rcu_read_unlock();
 	return 0;
 }
@@ -701,6 +704,41 @@ const struct file_operations amipc_pkgstat_fops = {
 	.llseek = seq_lseek,
 };
 
+static u32 dbg_cmd_index;
+static int command_block_show(struct seq_file *m, void *unused)
+{
+	rcu_read_lock();
+	if (0 == dbg_cmd_index) {
+		seq_puts(m, "echo x > cmd_index firstly, then cat again\n");
+		seq_puts(m, "x:0 --> disable debug feature\n");
+		seq_puts(m, "x:1 --> init shared memory and debug info\n");
+		seq_puts(m, "x:2 --> send ping command\n");
+	} else if (1 == dbg_cmd_index) {
+		if (amipc->ipc_tx)
+			memset((void *)amipc->ipc_tx, 0,
+			sizeof(struct ipc_event_type) * AMIPC_EVENT_LAST * 2);
+		init_statistic_info();
+	} else if (2 == dbg_cmd_index) {
+		pr_info("send ping request\n");
+		amipc_data_send(AMIPC_LL_PING,
+			1, 0, DEFAULT_TIMEOUT);
+	}
+	rcu_read_unlock();
+	return 0;
+}
+
+static int command_block_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, command_block_show, NULL);
+}
+
+const struct file_operations amipc_command_fops = {
+	.owner = THIS_MODULE,
+	.open = command_block_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+};
+
 static const struct file_operations amipc_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = amipc_ioctl,
@@ -713,6 +751,25 @@ static struct miscdevice amipc_miscdev = {
 	.name = "amipc",
 	.fops = &amipc_fops,
 };
+
+#ifdef CONFIG_PM_SLEEP
+static int pxa9xx_amipc_suspend(struct device *dev)
+{
+	if (device_may_wakeup(dev))
+		enable_irq_wake(amipc->irq);
+	return 0;
+}
+
+static int pxa9xx_amipc_resume(struct device *dev)
+{
+	if (device_may_wakeup(dev))
+		disable_irq_wake(amipc->irq);
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(pxa9xx_amipc_pm_ops,
+		pxa9xx_amipc_suspend, pxa9xx_amipc_resume);
+#endif
 
 static int pxa9xx_amipc_probe(struct platform_device *pdev)
 {
@@ -746,6 +803,7 @@ static int pxa9xx_amipc_probe(struct platform_device *pdev)
 	}
 	if (irq < 0 || ret < 0)
 		return -ENXIO;
+	amipc->irq = irq;
 
 	ret = misc_register(&amipc_miscdev);
 	if (ret < 0)
@@ -762,8 +820,14 @@ static int pxa9xx_amipc_probe(struct platform_device *pdev)
 				amipc->dbg_dir, NULL, &amipc_shm_fops);
 		amipc->dbg_pkg = debugfs_create_file("packetstat", S_IRUGO,
 				amipc->dbg_dir, NULL, &amipc_pkgstat_fops);
+		amipc->dbg_ctrl = debugfs_create_file("command", S_IRUGO,
+				amipc->dbg_dir, NULL, &amipc_command_fops);
+		debugfs_create_u32("cmd_index", 0644, amipc->dbg_dir,
+					&dbg_cmd_index);
 	} else
 		pr_warn("pxa9xx amipc create debugfs fail\n");
+
+	device_init_wakeup(&pdev->dev, 1);
 
 	pr_info("pxa9xx AM-IPC initialized!\n");
 
@@ -789,6 +853,9 @@ static struct platform_driver pxa9xx_amipc_driver = {
 	.driver = {
 		   .name = "pxa9xx-amipc",
 		   .of_match_table = pxa9xx_amipc_dt_ids,
+#ifdef CONFIG_PM_SLEEP
+		   .pm = &pxa9xx_amipc_pm_ops,
+#endif
 		   },
 	.probe = pxa9xx_amipc_probe,
 	.remove = pxa9xx_amipc_remove
@@ -806,16 +873,25 @@ static void __exit pxa9xx_amipc_exit(void)
 
 enum amipc_return_code amipc_setbase(void *base_addr, int len)
 {
+	bool ddr_mem;
 	if (len < sizeof(struct ipc_event_type) * AMIPC_EVENT_LAST * 2) {
 		pr_err("share memory too small\n");
 		return AMIPC_RC_FAILURE;
 	}
 	pr_info("amipc: set base address phys:0x%x, len:%d\n",
 			(unsigned int)base_addr, len);
+	/* init debug info */
+	init_statistic_info();
+	if ((uint32_t)base_addr < PAGE_OFFSET)
+		ddr_mem = true;
+	else
+		ddr_mem = false;
 	base_addr = ioremap_nocache((uint32_t)base_addr, len);
 	if (base_addr) {
 		amipc->ipc_tx = (struct ipc_event_type *)base_addr;
 		amipc->ipc_rx = amipc->ipc_tx + AMIPC_EVENT_LAST;
+		if (ddr_mem)
+			memset((void *)amipc->ipc_tx, 0, len);
 		return AMIPC_RC_OK;
 	} else {
 		pr_err("share memory remap fail\n");
