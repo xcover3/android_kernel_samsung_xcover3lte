@@ -80,6 +80,7 @@ void of_device_make_bus_id(struct device *dev)
 	u64 addr;
 	const __be32 *addrp;
 	int magic;
+	u32 bus_number;
 
 #ifdef CONFIG_PPC_DCR
 	/*
@@ -120,6 +121,14 @@ void of_device_make_bus_id(struct device *dev)
 				     (unsigned long long)addr, node->name);
 			return;
 		}
+	}
+
+	/*
+	 * Check if an bus_number explicitly specified in dts.
+	 */
+	if (!of_property_read_u32(node, "bus_number", &bus_number)) {
+		dev_set_name(dev, "%s.%u", node->name, bus_number);
+		return;
 	}
 
 	/*
