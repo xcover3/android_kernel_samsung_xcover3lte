@@ -42,6 +42,7 @@
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
 #include <asm/tls.h>
+#include <linux/debug_locks.h>
 
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
@@ -92,6 +93,7 @@ void arm_machine_flush_console(void)
 		pr_emerg("arm_restart: Console was locked! Busting\n");
 	else
 		pr_emerg("arm_restart: Console was locked!\n");
+	debug_locks_off();
 	console_unlock();
 }
 #else
