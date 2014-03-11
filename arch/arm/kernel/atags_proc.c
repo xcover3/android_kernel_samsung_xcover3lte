@@ -26,7 +26,7 @@ static char __initdata atags_copy[BOOT_PARAMS_SIZE];
 
 void __init save_atags(const struct tag *tags)
 {
-	memcpy(atags_copy, tags, sizeof(atags_copy));
+	memcpy(atags_copy, tags, min(sizeof(tags), sizeof(atags_copy)));
 }
 
 static int __init init_atags_procfs(void)

@@ -205,7 +205,7 @@ setup_machine_tags(phys_addr_t __atags_pointer, unsigned int machine_nr)
 
 	if (__atags_pointer)
 		tags = phys_to_virt(__atags_pointer);
-	else if (mdesc->atag_offset)
+	else if (mdesc && (mdesc->atag_offset))
 		tags = (void *)(PAGE_OFFSET + mdesc->atag_offset);
 
 #if defined(CONFIG_DEPRECATED_PARAM_STRUCT)
@@ -221,7 +221,7 @@ setup_machine_tags(phys_addr_t __atags_pointer, unsigned int machine_nr)
 		tags = (struct tag *)&default_tags;
 	}
 
-	if (mdesc->fixup)
+	if (mdesc && (mdesc->fixup))
 		mdesc->fixup(tags, &from, &meminfo);
 
 	if (tags->hdr.tag == ATAG_CORE) {
