@@ -347,6 +347,45 @@ static void __init request_standard_resources(void)
 	}
 }
 
+#ifdef CONFIG_KEXEC
+static inline unsigned long long get_total_mem(void)
+{
+	unsigned long total;
+
+	total = max_low_pfn - min_low_pfn;
+	return total << PAGE_SHIFT;
+}
+
+/**
+ * reserve_crashkernel() - reserves memory are for crash kernel
+ *
+ * This function reserves memory area given in "crashkernel=" kernel command
+ * line parameter. The memory reserved is used by a dump capture kernel when
+ * primary kernel is crashing.
+ */
+static void __init reserve_crashkernel(void)
+{
+	unsigned long long crash_size, crash_base;
+	unsigned long long total_mem;
+	int ret;
+
+	total_mem = get_total_mem();
+	ret = parse_crashkernel(boot_command_line, total_mem,
+				&crash_size, &crash_base);
+	if (ret)
+		return;
+	pr_info("Reserving %ldMB of memory at %ldMB or crashkernel\n",
+	       (unsigned long)(crash_size >> 20),
+	       (unsigned long)(crash_base >> 20));
+
+	crashk_res.start = crash_base;
+	crashk_res.end = crash_base + crash_size - 1;
+	insert_resource(&iomem_resource, &crashk_res);
+}
+#else
+static inline void reserve_crashkernel(void) {}
+#endif /* CONFIG_KEXEC */
+
 u64 __cpu_logical_map[NR_CPUS] = { [0 ... NR_CPUS-1] = INVALID_HWID };
 
 void __init setup_arch(char **cmdline_p)
@@ -385,6 +424,7 @@ void __init setup_arch(char **cmdline_p)
 	smp_build_mpidr_hash();
 #endif
 
+	reserve_crashkernel();
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)
 	conswitchp = &vga_con;
