@@ -37,6 +37,10 @@ struct mmp_gps_info {
 	int reset_n_gpio;
 	int on_off_gpio;
 	int eclk_ctrl;
+	int mfp_lpm:1;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pin_lpm_drv_low;
+	struct pinctrl_state *pin_lpm_drv_high;
 };
 
 static int mmp_gps_dt_init(struct device_node *np,
@@ -73,6 +77,32 @@ static int mmp_gps_dt_init(struct device_node *np,
 		dev_err(dev, "%s: of_get_named_gpio failed: %d\n", __func__,
 		       info->on_off_gpio);
 		goto out;
+	}
+
+	if (of_get_property(np, "marvell,mfp-lpm", NULL))
+		info->mfp_lpm = 1;
+
+	if (info->mfp_lpm) {
+		/* Get gps lpm_drv_high pins status */
+		info->pinctrl = devm_pinctrl_get(dev);
+		if (IS_ERR(info->pinctrl)) {
+			info->pinctrl = NULL;
+			dev_warn(dev, "could not get gps pinctrl\n");
+		} else {
+			info->pin_lpm_drv_low =
+					pinctrl_lookup_state(info->pinctrl, "lpm_drv_low");
+			if (IS_ERR(info->pin_lpm_drv_low)) {
+				dev_err(dev, "could not get gps lpm_drv_low pinstate\n");
+				info->pin_lpm_drv_low = NULL;
+			}
+
+			info->pin_lpm_drv_high =
+					pinctrl_lookup_state(info->pinctrl, "lpm_drv_high");
+			if (IS_ERR(info->pin_lpm_drv_high)) {
+				dev_err(dev, "could not get gps lpm_drv_high pinstate\n");
+				info->pin_lpm_drv_high = NULL;
+			}
+		}
 	}
 
 	return 0;
@@ -156,8 +186,16 @@ static void gps_power_on(struct mmp_gps_info *info)
 
 	if (info->ldo_en_gpio)
 		gpio_direction_output(info->ldo_en_gpio, 0);
+
 	gpio_direction_output(info->reset_n_gpio, 0);
 	usleep_range(1000, 1500);
+
+	/* Confiure MFP LPM_DRIVE_LOW if reset pin output low when system active */
+	if (info->mfp_lpm && info->pinctrl && info->pin_lpm_drv_low) {
+		if (pinctrl_select_state(info->pinctrl, info->pin_lpm_drv_low))
+			dev_err(info->dev, "could not set gps pins to lpm_drv_low states\n");
+	}
+
 	if (info->ldo_en_gpio)
 		gpio_direction_output(info->ldo_en_gpio, 1);
 
@@ -172,7 +210,14 @@ static void gps_power_off(struct mmp_gps_info *info)
 
 	if (info->ldo_en_gpio)
 		gpio_direction_output(info->ldo_en_gpio, 0);
+
 	gpio_direction_output(info->reset_n_gpio, 0);
+
+	if (info->mfp_lpm && info->pinctrl && info->pin_lpm_drv_low) {
+		if (pinctrl_select_state(info->pinctrl, info->pin_lpm_drv_low))
+			dev_err(info->dev, "could not set gps pins to lpm_drv_low states\n");
+	}
+
 	if (info->ldo_en_gpio)
 		gpio_direction_output(info->ldo_en_gpio, 0);
 	gps_ldo_control(info, 0);
@@ -185,6 +230,17 @@ static void gps_power_off(struct mmp_gps_info *info)
 static void gps_reset(struct mmp_gps_info *info, int flag)
 {
 	gpio_direction_output(info->reset_n_gpio, flag);
+
+	if (info->mfp_lpm) {
+		/* Confiure MFP LPM_DRIVE_HIGH if reset pin output high when system active */
+		if (flag && info->pinctrl && info->pin_lpm_drv_high) {
+			if (pinctrl_select_state(info->pinctrl, info->pin_lpm_drv_high))
+				dev_err(info->dev, "could not set gps pins to lpm_drv_high state\n");
+		} else if (info->pinctrl && info->pin_lpm_drv_low) {
+			if (pinctrl_select_state(info->pinctrl, info->pin_lpm_drv_low))
+				dev_err(info->dev, "could not set gps pins to lpm_drv_low states\n");
+		}
+	}
 }
 
 static void gps_on_off(struct mmp_gps_info *info, int flag)
@@ -208,23 +264,23 @@ static ssize_t gps_ctrl(struct device *dev,
 	if (1 != sscanf(buf, "%s", info->chip_status))
 		dev_warn(info->dev, "wrong cmd");
 	if (!strncmp(buf, "off", 3)) {
-		strncpy(info->chip_status, "off", 3);
+		strncpy(info->chip_status, "off", 4);
 		gps_power_off(info);
 	} else if (!strncmp(buf, "on", 2)) {
-		strncpy(info->chip_status, "on", 2);
+		strncpy(info->chip_status, "on", 3);
 		gps_power_on(info);
 	} else if (!strncmp(buf, "reset", 5)) {
-		strncpy(info->chip_status, "reset", 5);
+		strncpy(info->chip_status, "reset", 6);
 		ret = sscanf(buf, "%s %d", msg, &flag);
 		if (ret == 2)
 			gps_reset(info, flag);
 	} else if (!strncmp(buf, "wakeup", 6)) {
-		strncpy(info->chip_status, "wakeup", 6);
+		strncpy(info->chip_status, "wakeup", 7);
 		ret = sscanf(buf, "%s %d", msg, &flag);
 		if (ret == 2)
 			gps_on_off(info, flag);
 	} else if (!strncmp(buf, "eclk", 4)) {
-		strncpy(info->chip_status, "eclk", 4);
+		strncpy(info->chip_status, "eclk", 5);
 		ret = sscanf(buf, "%s %d", msg, &flag);
 		if (ret == 2)
 			gps_eclk_ctrl(info, flag);
@@ -276,14 +332,8 @@ static int mmp_gps_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "GPS Not support DT, exit!\n");
 	}
 
-	strncpy(info->chip_status, "off", 3);
+	strncpy(info->chip_status, "off", 4);
 	info->dev = &pdev->dev;
-
-	ret = sysfs_create_group(&pdev->dev.kobj, &gps_attr_group);
-	if (ret) {
-		dev_err(&pdev->dev, "GPS create sysfs fail!\n");
-		return ret;
-	}
 
 	if (info->ldo_en_gpio) {
 		ret = devm_gpio_request(info->dev,
@@ -312,6 +362,12 @@ static int mmp_gps_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, info);
+
+	ret = sysfs_create_group(&pdev->dev.kobj, &gps_attr_group);
+	if (ret) {
+		dev_err(&pdev->dev, "GPS create sysfs fail!\n");
+		return ret;
+	}
 
 	return 0;
 }
