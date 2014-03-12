@@ -992,13 +992,17 @@ int dpcm_path_get(struct snd_soc_pcm_runtime *fe,
 	dai = fe->cpu_dai;
 	if (!dai->playback_widget && (stream == SNDRV_PCM_STREAM_PLAYBACK)) {
 		dai = fe->codec_dai;
-		if (!dai->playback_widget)
+		if (!dai->playback_widget) {
 			dev_err(fe->dev, "ASoC: can't find playback_widget\n");
+			return -EINVAL;
+		}
 	}
 	if (!dai->capture_widget && (stream == SNDRV_PCM_STREAM_CAPTURE)) {
 		dai = fe->codec_dai;
-		if (!dai->capture_widget)
+		if (!dai->capture_widget) {
 			dev_err(fe->dev, "ASoC: can't find capture_widget\n");
+			return -EINVAL;
+		}
 	}
 
 	list = kzalloc(sizeof(struct snd_soc_dapm_widget_list) +
