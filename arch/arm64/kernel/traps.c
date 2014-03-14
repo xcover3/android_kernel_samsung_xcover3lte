@@ -257,6 +257,34 @@ void arm64_notify_die(const char *str, struct pt_regs *regs,
 		die(str, regs, err);
 }
 
+/*
+ * CP15BEN of SCTLR_EL1 may not be implemented, so emulate
+ * these three instructions when they trap in
+ */
+static int aarch32_cp15_barriers(struct pt_regs *regs)
+{
+	unsigned int instr;
+	void __user *pc = (void __user *)instruction_pointer(regs);
+
+	if (!compat_user_mode(regs))
+		return -EFAULT;
+
+	get_user(instr, (u32 __user *)pc);
+	instr &= ~0xf000f000;
+
+	if (instr == 0x0e070fba)	/* CP15DMB */
+		smp_mb();
+	else if (instr == 0x0e070f9a)	/* CP15DSB */
+		dsb();
+	else if (instr == 0x0e070f95)	/* CP15ISB */
+		isb();
+	else
+		return -EFAULT;
+
+	regs->pc += 4;
+	return 0;
+}
+
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
 	siginfo_t info;
@@ -264,6 +292,10 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 
 	/* check for AArch32 breakpoint instructions */
 	if (!aarch32_break_handler(regs))
+		return;
+
+	/* check for AArch32 CP15DMB/CP15DSB/CP15ISB */
+	if (!aarch32_cp15_barriers(regs))
 		return;
 
 	if (show_unhandled_signals && unhandled_signal(current, SIGILL) &&
