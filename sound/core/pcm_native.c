@@ -876,6 +876,10 @@ static void snd_pcm_undo_start(struct snd_pcm_substream *substream, int state)
 static void snd_pcm_post_start(struct snd_pcm_substream *substream, int state)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
+	/* for hw_no_buffer substream, trigger dai directly */
+	if (substream->hw_no_buffer)
+		return;
+
 	snd_pcm_trigger_tstamp(substream);
 	runtime->hw_ptr_jiffies = jiffies;
 	runtime->hw_ptr_buffer_jiffies = (runtime->buffer_size * HZ) / 
@@ -1374,7 +1378,11 @@ static int snd_pcm_prepare(struct snd_pcm_substream *substream,
 	if ((res = snd_power_wait(card, SNDRV_CTL_POWER_D0)) >= 0)
 		res = snd_pcm_action_nonatomic(&snd_pcm_action_prepare,
 					       substream, f_flags);
+	/* for hw_no_buffer substream, trigger dai directly */
+	if (substream->hw_no_buffer)
+		snd_pcm_start(substream);
 	snd_power_unlock(card);
+
 	return res;
 }
 
