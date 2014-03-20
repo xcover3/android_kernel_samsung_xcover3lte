@@ -284,18 +284,31 @@ static void pxav3_gen_init_74_clocks(struct sdhci_host *host, u8 power_mode)
 	pxa->power_mode = power_mode;
 }
 
+static int pxav3_select_hs200(struct sdhci_host *host)
+{
+	u16 reg = 0;
+
+	reg = sdhci_readw(host, SD_CE_ATA_2);
+	reg |= SD_CE_ATA2_HS200_EN | SD_CE_ATA2_MMC_MODE;
+	sdhci_writew(host, reg, SD_CE_ATA_2);
+
+	return 0;
+}
+
 static int pxav3_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
 {
 	u16 ctrl_2;
+	u16 fparm;
 
 	/*
 	 * Set V18_EN -- UHS modes do not work without this.
 	 * does not change signaling voltage
 	 */
 	ctrl_2 = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+	ctrl_2 &= ~SDHCI_CTRL_UHS_MASK;
+	fparm = sdhci_readw(host, SD_CFG_FIFO_PARAM);
 
 	/* Select Bus Speed Mode for host */
-	ctrl_2 &= ~SDHCI_CTRL_UHS_MASK;
 	switch (uhs) {
 	case MMC_TIMING_UHS_SDR12:
 		ctrl_2 |= SDHCI_CTRL_UHS_SDR12;
@@ -308,12 +321,20 @@ static int pxav3_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
 		break;
 	case MMC_TIMING_UHS_SDR104:
 		ctrl_2 |= SDHCI_CTRL_UHS_SDR104 | SDHCI_CTRL_VDD_180;
+		/* PIO mode need this */
+		fparm |= SDCFG_PIO_RDFC;
 		break;
 	case MMC_TIMING_UHS_DDR50:
 		ctrl_2 |= SDHCI_CTRL_UHS_DDR50 | SDHCI_CTRL_VDD_180;
 		break;
+	case MMC_TIMING_MMC_HS200:
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR104 | SDHCI_CTRL_VDD_180;
+		fparm |= SDCFG_PIO_RDFC;
+		pxav3_select_hs200(host);
+		break;
 	}
 
+	sdhci_writew(host, fparm, SD_CFG_FIFO_PARAM);
 	sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
 	dev_dbg(mmc_dev(host->mmc),
 		"%s uhs = %d, ctrl_2 = %04X\n",
