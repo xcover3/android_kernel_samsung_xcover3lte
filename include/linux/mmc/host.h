@@ -426,6 +426,9 @@ int mmc_power_save_host(struct mmc_host *host);
 int mmc_power_restore_host(struct mmc_host *host);
 
 void mmc_detect_change(struct mmc_host *, unsigned long delay);
+unsigned long mmc_detect_change_sync(struct mmc_host *host,
+			unsigned long delay, unsigned long timeout);
+void mmc_disable_sdio(struct mmc_host *host);
 void mmc_request_done(struct mmc_host *, struct mmc_request *);
 
 int mmc_cache_ctrl(struct mmc_host *, u8);

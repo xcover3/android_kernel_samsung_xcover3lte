@@ -874,6 +874,17 @@ static void mmc_sdio_remove(struct mmc_host *host)
 	host->card = NULL;
 }
 
+void mmc_disable_sdio(struct mmc_host *host)
+{
+	mmc_sdio_remove(host);
+
+	mmc_claim_host(host);
+	mmc_detach_bus(host);
+	mmc_power_off(host);
+	mmc_release_host(host);
+}
+EXPORT_SYMBOL(mmc_disable_sdio);
+
 /*
  * Card detection - card is alive.
  */
@@ -925,14 +936,8 @@ static void mmc_sdio_detect(struct mmc_host *host)
 		pm_runtime_put_sync(&host->card->dev);
 
 out:
-	if (err) {
-		mmc_sdio_remove(host);
-
-		mmc_claim_host(host);
-		mmc_detach_bus(host);
-		mmc_power_off(host);
-		mmc_release_host(host);
-	}
+	if (err)
+		mmc_disable_sdio(host);
 }
 
 void mmc_sdio_irq_wakeup(struct mmc_host *host)
