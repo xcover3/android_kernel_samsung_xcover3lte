@@ -15,6 +15,7 @@
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/mv_usb.h>
+#include <linux/mmp_timer.h>
 
 #include <asm/mach/time.h>
 #include <asm/system_misc.h>
@@ -22,6 +23,7 @@
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
+#include <mach/regs-timers.h>
 #include <mach/irqs.h>
 #include <mach/dma.h>
 #include <mach/devices.h>
@@ -78,7 +80,26 @@ void __init pxa168_timer_init(void)
 	/* 3.25MHz, bus/functional clock enabled, release reset */
 	__raw_writel(TIMER_CLK_RST, APBC_TIMERS);
 
-	timer_init(IRQ_PXA168_TIMER1);
+	/*
+	 * Make use of timer 1 which id is 0.
+	 * It has no shadow and crsr regsiters.
+	 * The fast lock is 3.25M.
+	 * apb bus is 26M.
+	 */
+	mmp_timer_init(0, TIMERS1_VIRT_BASE, 0, 3250000, 26000000);
+
+	/*
+	 * Enable counter 1 to be clock source.
+	 * The frequency is 32K.
+	 */
+	mmp_counter_clocksource_init(0, 1, 32768);
+
+	/*
+	 * Enable counter 0 to be clock event device.
+	 * The frequency is 32K.
+	 * Only one cpu and there is no broadcast timer.
+	 */
+	mmp_counter_clockevent_init(0, 0, IRQ_PXA168_TIMER1, 32768, 0, 0);
 }
 
 void pxa168_clear_keypad_wakeup(void)
