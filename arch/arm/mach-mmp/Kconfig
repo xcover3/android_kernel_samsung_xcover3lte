@@ -89,6 +89,7 @@ config MACH_MMP_DT
 	select CPU_PXA168
 	select CPU_PXA910
 	select USE_OF
+	select CLKSRC_OF
 	select PINCTRL
 	select PINCTRL_SINGLE
 	help
@@ -101,6 +102,7 @@ config MACH_MMP2_DT
 	depends on !CPU_MOHAWK
 	select CPU_MMP2
 	select USE_OF
+	select CLKSRC_OF
 	select PINCTRL
 	select PINCTRL_SINGLE
 	help

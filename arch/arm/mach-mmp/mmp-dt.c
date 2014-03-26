@@ -11,12 +11,11 @@
 
 #include <linux/irqchip.h>
 #include <linux/of_platform.h>
+#include <linux/clocksource.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
 
 #include "common.h"
-
-extern void __init mmp_dt_init_timer(void);
 
 static const struct of_dev_auxdata pxa168_auxdata_lookup[] __initconst = {
 	OF_DEV_AUXDATA("mrvl,mmp-uart", 0xd4017000, "pxa2xx-uart.0", NULL),
@@ -50,6 +49,14 @@ static void __init pxa910_dt_init(void)
 {
 	of_platform_populate(NULL, of_default_bus_match_table,
 			     pxa910_auxdata_lookup, NULL);
+}
+
+static void __init mmp_dt_init_timer(void)
+{
+	/* TODO: clock framework initialization. */
+
+	/* Initialize timers. */
+	clocksource_of_init();
 }
 
 static const char *mmp_dt_board_compat[] __initdata = {

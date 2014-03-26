@@ -55,16 +55,25 @@
 			ranges;
 
 			timer0: timer@d4014000 {
-				compatible = "mrvl,mmp-timer";
-				reg = <0xd4014000 0x100>;
-				interrupts = <13>;
-			};
+				compatible = "marvell,mmp-timer";
+				reg = <0xd4014000 0xc8>;
+				marvell,timer-fastclk-frequency = <3250000>;
+				marvell,timer-apb-frequency = <26000000>;
+                                status = "okay";
 
-			timer1: timer@d4016000 {
-				compatible = "mrvl,mmp-timer";
-				reg = <0xd4016000 0x100>;
-				interrupts = <29>;
-				status = "disabled";
+				counter0 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <13>;
+					marvell,timer-counter-id = <0>;
+					marvell,timer-counter-cpu = <0>;
+					marvell,timer-counter-frequency = <32768>;
+                                };
+
+                                counter1 {
+					compatible = "marvell,timer-counter-clksrc";
+					marvell,timer-counter-id = <1>;
+					marvell,timer-counter-frequency = <32768>;
+                                };
 			};
 
 			uart1: uart@d4017000 {

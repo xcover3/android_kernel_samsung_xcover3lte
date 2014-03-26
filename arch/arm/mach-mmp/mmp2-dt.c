@@ -12,6 +12,7 @@
 #include <linux/io.h>
 #include <linux/irqchip.h>
 #include <linux/of_platform.h>
+#include <linux/clocksource.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
 
@@ -37,6 +38,14 @@ static void __init mmp2_dt_init(void)
 			     mmp2_auxdata_lookup, NULL);
 }
 
+static void __init mmp2_dt_init_timer(void)
+{
+	/* TODO: clock framework initialization. */
+
+	/* Initialize timers. */
+	clocksource_of_init();
+}
+
 static const char *mmp2_dt_board_compat[] __initdata = {
 	"mrvl,mmp2-brownstone",
 	NULL,
@@ -44,7 +53,7 @@ static const char *mmp2_dt_board_compat[] __initdata = {
 
 DT_MACHINE_START(MMP2_DT, "Marvell MMP2 (Device Tree Support)")
 	.map_io		= mmp_map_io,
-	.init_time	= mmp_dt_init_timer,
+	.init_time	= mmp2_dt_init_timer,
 	.init_machine	= mmp2_dt_init,
 	.dt_compat	= mmp2_dt_board_compat,
 MACHINE_END
