@@ -40,7 +40,7 @@ struct mtp_file_range {
 
 struct mtp_event {
 	/* size of the event */
-	size_t		length;
+	uint32_t	length;
 	/* event data to send */
 	void		*data;
 };

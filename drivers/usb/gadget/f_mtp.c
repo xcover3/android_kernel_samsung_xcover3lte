@@ -626,7 +626,7 @@ static ssize_t mtp_write(struct file *fp, const char __user *buf,
 		dev->state = STATE_READY;
 	spin_unlock_irq(&dev->lock);
 
-	DBG(cdev, "mtp_write returning %d\n", r);
+	DBG(cdev, "mtp_write returning %zu\n", r);
 	return r;
 }
 
@@ -883,7 +883,12 @@ static long mtp_ioctl(struct file *fp, unsigned code, unsigned long value)
 		dev->state = STATE_BUSY;
 		spin_unlock_irq(&dev->lock);
 
+#ifdef CONFIG_COMPAT
+		if (copy_from_user(&mfr, (void __user *)compat_ptr(value),
+								sizeof(mfr))) {
+#else
 		if (copy_from_user(&mfr, (void __user *)value, sizeof(mfr))) {
+#endif
 			ret = -EFAULT;
 			goto fail;
 		}
@@ -932,7 +937,12 @@ static long mtp_ioctl(struct file *fp, unsigned code, unsigned long value)
 		/* return here so we don't change dev->state below,
 		 * which would interfere with bulk transfer state.
 		 */
+#ifdef CONFIG_COMPAT
+		if (copy_from_user(&event, (void __user *)compat_ptr(value),
+								sizeof(event)))
+#else
 		if (copy_from_user(&event, (void __user *)value, sizeof(event)))
+#endif
 			ret = -EFAULT;
 		else
 			ret = mtp_send_event(dev, &event);
@@ -1002,6 +1012,9 @@ static const struct file_operations mtp_fops = {
 	.read = mtp_read,
 	.write = mtp_write,
 	.unlocked_ioctl = mtp_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = mtp_ioctl,
+#endif
 	.open = mtp_open,
 	.release = mtp_release,
 };
