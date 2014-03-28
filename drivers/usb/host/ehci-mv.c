@@ -40,12 +40,12 @@ struct ehci_hcd_mv {
 
 static void ehci_clock_enable(struct ehci_hcd_mv *ehci_mv)
 {
-	clk_prepare_enable(ehci_mv->clk);
+	clk_enable(ehci_mv->clk);
 }
 
 static void ehci_clock_disable(struct ehci_hcd_mv *ehci_mv)
 {
-	clk_disable_unprepare(ehci_mv->clk);
+	clk_disable(ehci_mv->clk);
 }
 
 static int mv_ehci_enable(struct ehci_hcd_mv *ehci_mv)
@@ -295,6 +295,8 @@ static int mv_ehci_remove(struct platform_device *pdev)
 		pxa_usb_extern_call(ehci_mv->pdata->id, vbus, set_vbus, 0);
 
 		mv_ehci_disable(ehci_mv);
+
+		clk_unprepare(ehci_mv->clk);
 	}
 
 	usb_put_hcd(hcd);

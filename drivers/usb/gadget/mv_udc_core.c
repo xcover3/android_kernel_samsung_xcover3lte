@@ -1096,12 +1096,12 @@ static struct usb_ep_ops mv_ep_ops = {
 
 static void udc_clock_enable(struct mv_udc *udc)
 {
-	clk_prepare_enable(udc->clk);
+	clk_enable(udc->clk);
 }
 
 static void udc_clock_disable(struct mv_udc *udc)
 {
-	clk_disable_unprepare(udc->clk);
+	clk_disable(udc->clk);
 }
 
 static void udc_stop(struct mv_udc *udc)
@@ -2437,6 +2437,8 @@ static int mv_udc_remove(struct platform_device *pdev)
 
 	mv_udc_disable(udc);
 
+	clk_unprepare(udc->clk);
+
 	/* free dev, wait for the release() finished */
 	wait_for_completion(udc->done);
 
@@ -2483,6 +2485,7 @@ static int mv_udc_probe(struct platform_device *pdev)
 	udc->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(udc->clk))
 		return PTR_ERR(udc->clk);
+	clk_prepare(udc->clk);
 
 	r = platform_get_resource(udc->dev, IORESOURCE_MEM, 0);
 	if (r == NULL) {

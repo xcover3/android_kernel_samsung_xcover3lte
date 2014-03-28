@@ -319,12 +319,12 @@ static void mv_otg_start_periphrals(struct mv_otg *mvotg, int on)
 
 static void otg_clock_enable(struct mv_otg *mvotg)
 {
-	clk_prepare_enable(mvotg->clk);
+	clk_enable(mvotg->clk);
 }
 
 static void otg_clock_disable(struct mv_otg *mvotg)
 {
-	clk_disable_unprepare(mvotg->clk);
+	clk_disable(mvotg->clk);
 }
 
 static int mv_otg_enable_internal(struct mv_otg *mvotg)
@@ -811,6 +811,8 @@ static int mv_otg_remove(struct platform_device *pdev)
 
 	mv_otg_disable(mvotg);
 
+	clk_unprepare(mvotg->clk);
+
 	usb_remove_phy(&mvotg->phy);
 
 	return 0;
@@ -861,6 +863,7 @@ static int mv_otg_probe(struct platform_device *pdev)
 	mvotg->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(mvotg->clk))
 		return PTR_ERR(mvotg->clk);
+	clk_prepare(mvotg->clk);
 
 	mvotg->qwork = create_singlethread_workqueue("mv_otg_queue");
 	if (!mvotg->qwork) {
