@@ -508,7 +508,7 @@ static int c_show(struct seq_file *m, void *v)
 	for (i = 0; hwcap_str[i]; i++)
 		if (elf_hwcap & (1 << i))
 			seq_printf(m, "%s ", hwcap_str[i]);
-	seq_puts(m, " half thumb fastmult edsp tls vfp vfpv3 vfpv4 neon idiv ");
+	seq_puts(m, " half thumb fastmult edsp tls vfp vfpv3 vfpv4 neon idiva idivt ");
 
 	seq_printf(m, "\nCPU implementer\t: 0x%02x\n", read_cpuid_id() >> 24);
 
