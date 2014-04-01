@@ -9,6 +9,54 @@
 #include <linux/binfmts.h>
 
 /*
+ * Tracepoint for enqueue one task:
+ */
+TRACE_EVENT(sched_task_enqueue,
+
+	TP_PROTO(struct task_struct *t, int type),
+
+	TP_ARGS(t, type),
+
+	TP_STRUCT__entry(
+		__array(	char,	comm,	TASK_COMM_LEN	)
+		__field(	pid_t,	pid			)
+		__field(	int,	type			)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, t->comm, TASK_COMM_LEN);
+		__entry->pid	= t->pid;
+		__entry->type	= type;
+	),
+
+	TP_printk("comm=%s pid=%d type=%d", __entry->comm, __entry->pid, __entry->type)
+);
+
+/*
+ * Tracepoint for dequeue one task:
+ */
+TRACE_EVENT(sched_task_dequeue,
+
+	TP_PROTO(struct task_struct *t, int type),
+
+	TP_ARGS(t, type),
+
+	TP_STRUCT__entry(
+		__array(	char,	comm,	TASK_COMM_LEN	)
+		__field(	pid_t,	pid			)
+		__field(	int,	type			)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, t->comm, TASK_COMM_LEN);
+		__entry->pid	= t->pid;
+		__entry->type	= type;
+	),
+
+	TP_printk("comm=%s pid=%d type=%d", __entry->comm, __entry->pid, __entry->type)
+);
+
+/*
  * Tracepoint for calling kthread_stop, performed to end a kthread:
  */
 TRACE_EVENT(sched_kthread_stop,
