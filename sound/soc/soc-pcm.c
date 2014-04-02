@@ -1780,12 +1780,15 @@ static int dpcm_fe_dai_prepare(struct snd_pcm_substream *substream)
 
 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
 
+	/*
+	 * Fixme: Remove this constraint per audio team's request.
+	 * They want there is no dependency between alsa device operation
+	 * and dapm route selection.
+	 */
 	/* there is no point preparing this FE if there are no BEs */
 	if (list_empty(&fe->dpcm[stream].be_clients)) {
-		dev_err(fe->dev, "ASoC: no backend DAIs enabled for %s\n",
+		dev_dbg(fe->dev, "ASoC: no backend DAIs enabled for %s\n",
 				fe->dai_link->name);
-		ret = -EINVAL;
-		goto out;
 	}
 
 	ret = dpcm_be_dai_prepare(fe, substream->stream);
