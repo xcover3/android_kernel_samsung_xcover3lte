@@ -38,11 +38,14 @@
 #include <linux/tcp.h>
 #include <linux/percpu.h>
 #include <linux/cdev.h>
-#include "common_datastub.h"
 #include <linux/platform_device.h>
+#include <linux/kthread.h>
+#include <linux/debugfs.h>
+
+#include "common_datastub.h"
 #include "data_channel_kernel.h"
 #include "psd_data_channel.h"
-#include <linux/kthread.h>
+#include "debugfs.h"
 
 #define MAX_CID_NUM    8
 
@@ -76,6 +79,8 @@ static int main_cid[MAX_CID_NUM];
 #define LEAVE()                 do {} while (0)
 #define FUNC_EXIT()                     do {} while (0)
 #endif
+
+static u32 checksum_enable = true;
 
 /**********************************************************/
 /* Network Operations */
@@ -212,7 +217,8 @@ static int ccinet_rx(struct net_device *netdev, char *packet, int pktlen)
 
 	skb->dev = netdev;
 	skb->protocol = protocol;
-	skb->ip_summed = CHECKSUM_UNNECESSARY;	/* don't check it */
+	if (!checksum_enable)
+		skb->ip_summed = CHECKSUM_UNNECESSARY;	/* don't check it */
 	if (netif_rx(skb) == NET_RX_SUCCESS) {
 		priv->net_stats.rx_packets++;
 		priv->net_stats.rx_bytes += pktlen;
@@ -351,6 +357,43 @@ static void ccinet_setup(struct net_device *netdev)
 	LEAVE();
 }
 
+static struct dentry *tel_debugfs_root_dir;
+static struct dentry *ccinet_debugfs_root_dir;
+
+static int ccinet_debugfs_init(void)
+{
+	tel_debugfs_root_dir = tel_debugfs_get();
+	if (!tel_debugfs_root_dir)
+		return -ENOMEM;
+
+	ccinet_debugfs_root_dir = debugfs_create_dir("ccinet", tel_debugfs_root_dir);
+	if (IS_ERR_OR_NULL(ccinet_debugfs_root_dir))
+		goto putrootfs;
+
+	if (IS_ERR_OR_NULL(debugfs_create_bool("checksum_enable", S_IRUGO | S_IWUSR,
+			ccinet_debugfs_root_dir, &checksum_enable)))
+		goto error;
+
+	return 0;
+
+error:
+	debugfs_remove_recursive(ccinet_debugfs_root_dir);
+	ccinet_debugfs_root_dir = NULL;
+putrootfs:
+	tel_debugfs_put(tel_debugfs_root_dir);
+	tel_debugfs_root_dir = NULL;
+	return -1;
+}
+
+static int ccinet_debugfs_exit(void)
+{
+	debugfs_remove_recursive(ccinet_debugfs_root_dir);
+	ccinet_debugfs_root_dir = NULL;
+	tel_debugfs_put(tel_debugfs_root_dir);
+	tel_debugfs_root_dir = NULL;
+	return 0;
+}
+
 static int __init ccinet_init(void)
 {
 	int i;
@@ -388,6 +431,7 @@ static int __init ccinet_init(void)
 
 	registerRxCallBack(PDP_DIRECTIP, data_rx);
 	registerPSDFCCallBack(PDP_DIRECTIP, ccinet_fc_cb);
+	ccinet_debugfs_init();
 
 	return 0;
 };
@@ -395,6 +439,7 @@ static int __init ccinet_init(void)
 static void __exit ccinet_exit(void)
 {
 	int i;
+	ccinet_debugfs_exit();
 	unregisterRxCallBack(PDP_DIRECTIP);
 	for (i = 0; i < MAX_CID_NUM; i++) {
 		unregister_netdev(net_devices[i]);
