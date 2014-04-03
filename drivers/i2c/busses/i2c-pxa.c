@@ -1656,6 +1656,9 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	printk(KERN_INFO "I2C: %s: PXA I2C adapter\n",
 	       dev_name(&i2c->adap.dev));
 #endif
+	/* i2c unit is enabled before transmission */
+	i2c_pxa_enable(i2c, false);
+
 	return 0;
 
 eadapt:
