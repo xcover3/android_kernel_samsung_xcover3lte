@@ -29,8 +29,34 @@ static inline void crash_setup_regs(struct pt_regs *newregs,
 {
 	if (oldregs)
 		memcpy(newregs, oldregs, sizeof(*newregs));
-	else
-		pr_warn("%s:%d: Not implemented yet.\n", __func__, __LINE__);
+	else {
+		asm volatile(
+			"stp x0, x1, [%0, #8 * 0]\n\t"
+			"stp x2, x3, [%0, #8 * 2]\n\t"
+			"stp x4, x5, [%0, #8 * 4]\n\t"
+			"stp x6, x7, [%0, #8 * 6]\n\t"
+			"stp x8, x9, [%0, #8 * 8]\n\t"
+			"stp x10, x11, [%0, #8 * 10]\n\t"
+			"stp x12, x13, [%0, #8 * 12]\n\t"
+			"stp x14, x15, [%0, #8 * 14]\n\t"
+			"stp x16, x17, [%0, #8 * 16]\n\t"
+			"stp x18, x19, [%0, #8 * 18]\n\t"
+			"stp x20, x21, [%0, #8 * 20]\n\t"
+			"stp x22, x23, [%0, #8 * 22]\n\t"
+			"stp x24, x25, [%0, #8 * 24]\n\t"
+			"stp x26, x27, [%0, #8 * 26]\n\t"
+			"stp x28, x29, [%0, #8 * 28]\n\t"
+			"mov x21, sp\n\t"
+			"stp x30, x21, [%0, #8 * 30]\n\t"
+			"adr x22, 1f\n\t"
+			"mrs x23, spsr_el1\n\t"
+			"stp x22, x23, [%0, #8 * 32]\n\t"
+		"1:"
+			:
+			: "r" (&newregs->regs[0])
+			: "memory"
+		);
+	}
 }
 
 /* Function pointer to optional machine-specific reinitialization */
