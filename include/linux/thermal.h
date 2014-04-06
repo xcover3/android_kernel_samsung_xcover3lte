@@ -122,6 +122,10 @@ struct thermal_zone_device_ops {
 			      unsigned long *);
 	int (*set_trip_temp) (struct thermal_zone_device *, int,
 			      unsigned long);
+	int (*get_trip_temp_d)(struct thermal_zone_device *, int,
+			      unsigned long *);
+	int (*set_trip_temp_d)(struct thermal_zone_device *, int,
+			      unsigned long);
 	int (*get_trip_hyst) (struct thermal_zone_device *, int,
 			      unsigned long *);
 	int (*set_trip_hyst) (struct thermal_zone_device *, int,
@@ -163,6 +167,7 @@ struct thermal_zone_device {
 	char type[THERMAL_NAME_LENGTH];
 	struct device device;
 	struct thermal_attr *trip_temp_attrs;
+	struct thermal_attr *trip_temp_d_attrs;
 	struct thermal_attr *trip_type_attrs;
 	struct thermal_attr *trip_hyst_attrs;
 	void *devdata;
@@ -188,6 +193,9 @@ struct thermal_zone_device {
 struct thermal_governor {
 	char name[THERMAL_NAME_LENGTH];
 	int (*throttle)(struct thermal_zone_device *tz, int trip);
+	int (*switch_gov)(struct thermal_zone_device *tz,
+			struct thermal_governor *from,
+			struct thermal_governor *to);
 	struct list_head	governor_list;
 };
 

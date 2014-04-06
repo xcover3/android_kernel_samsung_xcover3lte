@@ -613,6 +613,28 @@ trip_point_temp_store(struct device *dev, struct device_attribute *attr,
 }
 
 static ssize_t
+trip_point_temp_d_store(struct device *dev, struct device_attribute *attr,
+		     const char *buf, size_t count)
+{
+	struct thermal_zone_device *tz = to_thermal_zone(dev);
+	int trip, ret;
+	unsigned long temperature;
+
+	if (!tz->ops->set_trip_temp_d)
+		return -EPERM;
+
+	if (1 != sscanf(attr->attr.name, "trip_point_%d_temp_d", &trip))
+		return -EINVAL;
+
+	if (kstrtoul(buf, 10, &temperature))
+		return -EINVAL;
+
+	ret = tz->ops->set_trip_temp_d(tz, trip, temperature);
+
+	return ret ? ret : count;
+}
+
+static ssize_t
 trip_point_temp_show(struct device *dev, struct device_attribute *attr,
 		     char *buf)
 {
@@ -627,6 +649,28 @@ trip_point_temp_show(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 
 	ret = tz->ops->get_trip_temp(tz, trip, &temperature);
+
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%ld\n", temperature);
+}
+
+static ssize_t
+trip_point_temp_d_show(struct device *dev, struct device_attribute *attr,
+		     char *buf)
+{
+	struct thermal_zone_device *tz = to_thermal_zone(dev);
+	int trip, ret;
+	long temperature;
+
+	if (!tz->ops->get_trip_temp_d)
+		return -EPERM;
+
+	if (1 != sscanf(attr->attr.name, "trip_point_%d_temp_d", &trip))
+		return -EINVAL;
+
+	ret = tz->ops->get_trip_temp_d(tz, trip, &temperature);
 
 	if (ret)
 		return ret;
@@ -745,7 +789,7 @@ policy_store(struct device *dev, struct device_attribute *attr,
 {
 	int ret = -EINVAL;
 	struct thermal_zone_device *tz = to_thermal_zone(dev);
-	struct thermal_governor *gov;
+	struct thermal_governor *gov, *gov_from, *gov_to;
 	char name[THERMAL_NAME_LENGTH];
 
 	snprintf(name, sizeof(name), "%s", buf);
@@ -756,7 +800,16 @@ policy_store(struct device *dev, struct device_attribute *attr,
 	if (!gov)
 		goto exit;
 
+	gov_from = tz->governor;
+	gov_to = gov;
+
 	tz->governor = gov;
+
+	if (gov_from->switch_gov)
+		gov_from->switch_gov(tz, gov_from, gov_to);
+	if (gov_to->switch_gov)
+		gov_to->switch_gov(tz, gov_from, gov_to);
+
 	ret = count;
 
 exit:
@@ -1334,11 +1387,19 @@ static int create_trip_attrs(struct thermal_zone_device *tz, int mask)
 		return -ENOMEM;
 	}
 
+	tz->trip_temp_d_attrs = kzalloc(size, GFP_KERNEL);
+	if (!tz->trip_temp_d_attrs) {
+		kfree(tz->trip_type_attrs);
+		kfree(tz->trip_temp_attrs);
+		return -ENOMEM;
+	}
+
 	if (tz->ops->get_trip_hyst) {
 		tz->trip_hyst_attrs = kzalloc(size, GFP_KERNEL);
 		if (!tz->trip_hyst_attrs) {
 			kfree(tz->trip_type_attrs);
 			kfree(tz->trip_temp_attrs);
+			kfree(tz->trip_temp_d_attrs);
 			return -ENOMEM;
 		}
 	}
@@ -1376,6 +1437,24 @@ static int create_trip_attrs(struct thermal_zone_device *tz, int mask)
 		device_create_file(&tz->device,
 				   &tz->trip_temp_attrs[indx].attr);
 
+		/* create trip down temp attribute */
+		snprintf(tz->trip_temp_d_attrs[indx].name, THERMAL_NAME_LENGTH,
+				"trip_point_%d_temp_d", indx);
+
+		sysfs_attr_init(&tz->trip_temp_d_attrs[indx].attr.attr);
+		tz->trip_temp_d_attrs[indx].attr.attr.name =
+			tz->trip_temp_d_attrs[indx].name;
+		tz->trip_temp_d_attrs[indx].attr.attr.mode = S_IRUGO;
+		tz->trip_temp_d_attrs[indx].attr.show = trip_point_temp_d_show;
+		if (mask & (1 << indx)) {
+			tz->trip_temp_d_attrs[indx].attr.attr.mode |= S_IWUSR;
+			tz->trip_temp_d_attrs[indx].attr.store =
+				trip_point_temp_d_store;
+		}
+
+		device_create_file(&tz->device,
+				&tz->trip_temp_d_attrs[indx].attr);
+
 		/* create Optional trip hyst attribute */
 		if (!tz->ops->get_trip_hyst)
 			continue;
@@ -1408,12 +1487,15 @@ static void remove_trip_attrs(struct thermal_zone_device *tz)
 				   &tz->trip_type_attrs[indx].attr);
 		device_remove_file(&tz->device,
 				   &tz->trip_temp_attrs[indx].attr);
+		device_remove_file(&tz->device,
+				   &tz->trip_temp_d_attrs[indx].attr);
 		if (tz->ops->get_trip_hyst)
 			device_remove_file(&tz->device,
 				  &tz->trip_hyst_attrs[indx].attr);
 	}
 	kfree(tz->trip_type_attrs);
 	kfree(tz->trip_temp_attrs);
+	kfree(tz->trip_temp_d_attrs);
 	kfree(tz->trip_hyst_attrs);
 }
 
