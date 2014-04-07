@@ -71,6 +71,15 @@ config THERMAL_DEFAULT_GOV_USER_SPACE
 	  Select this if you want to let the user space manage the
 	  platform thermals.
 
+config THERMAL_DEFAULT_GOV_BI_DIRECTION
+        bool "bi_direction"
+        select THERMAL_GOV_BI_DIRECTION
+        help
+          Select this if you want to let bi-direction cooling governor manage
+	  the cooling. When temperature heats up, this throuttles the devices with
+	  "up" trip points. When temperature goes down, the governor de-throuttles
+	  the devices with "down" trip points.
+
 endchoice
 
 config THERMAL_GOV_FAIR_SHARE
@@ -88,6 +97,14 @@ config THERMAL_GOV_USER_SPACE
 	bool "User_space thermal governor"
 	help
 	  Enable this to let the user space manage the platform thermals.
+
+config THERMAL_GOV_BI_DIRECTION
+	bool "Bi_direction thermal governor"
+	help
+	  Enable this to manage platform thermals using bi-direction cooling governor.
+	  When temperature heats up, this throuttles the devices with
+	  "up" trip points. When temperature goes down, the governor de-throuttles
+	  the devices with "down" trip points.
 
 config CPU_THERMAL
 	bool "generic cpu cooling support"

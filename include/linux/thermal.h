@@ -57,6 +57,8 @@
 #define DEFAULT_THERMAL_GOVERNOR       "fair_share"
 #elif defined(CONFIG_THERMAL_DEFAULT_GOV_USER_SPACE)
 #define DEFAULT_THERMAL_GOVERNOR       "user_space"
+#elif defined(CONFIG_THERMAL_DEFAULT_GOV_BI_DIRECTION)
+#define DEFAULT_THERMAL_GOVERNOR       "bi_direction"
 #endif
 
 struct thermal_zone_device;
@@ -162,6 +164,10 @@ struct thermal_attr {
 	char name[THERMAL_NAME_LENGTH];
 };
 
+struct tz_bidirection_ctrl {
+	bool state_ctrl;
+};
+
 struct thermal_zone_device {
 	int id;
 	char type[THERMAL_NAME_LENGTH];
@@ -181,6 +187,7 @@ struct thermal_zone_device {
 	unsigned int forced_passive;
 	struct thermal_zone_device_ops *ops;
 	const struct thermal_zone_params *tzp;
+	struct tz_bidirection_ctrl tzdctrl;
 	struct thermal_governor *governor;
 	struct list_head thermal_instances;
 	struct idr idr;

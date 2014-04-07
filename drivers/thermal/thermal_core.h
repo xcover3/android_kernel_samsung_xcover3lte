@@ -77,6 +77,14 @@ static inline int thermal_gov_user_space_register(void) { return 0; }
 static inline void thermal_gov_user_space_unregister(void) {}
 #endif /* CONFIG_THERMAL_GOV_USER_SPACE */
 
+#ifdef CONFIG_THERMAL_GOV_BI_DIRECTION
+int thermal_gov_bi_direction_register(void);
+void thermal_gov_bi_direction_unregister(void);
+#else
+static inline int thermal_gov_bi_direction_register(void) { return 0; }
+static inline void thermal_gov_bi_direction_unregister(void) {}
+#endif /* CONFIG_THERMAL_GOV_BI_DIRECTION */
+
 /* device tree support */
 #ifdef CONFIG_THERMAL_OF
 int of_parse_thermal_zones(void);
@@ -85,5 +93,4 @@ void of_thermal_destroy_zones(void);
 static inline int of_parse_thermal_zones(void) { return 0; }
 static inline void of_thermal_destroy_zones(void) { }
 #endif
-
 #endif /* __THERMAL_CORE_H__ */
