@@ -43,6 +43,7 @@
 #include <linux/hw_breakpoint.h>
 #include <linux/personality.h>
 #include <linux/notifier.h>
+#include <linux/debug_locks.h>
 
 #include <asm/compat.h>
 #include <asm/cacheflush.h>
@@ -75,6 +76,32 @@ void soft_restart(unsigned long addr)
 	setup_restart();
 	cpu_reset(addr);
 }
+
+#ifdef CONFIG_ARM64_FLUSH_CONSOLE_ON_RESTART
+void arm_machine_flush_console(void)
+{
+	pr_info("\n");
+	pr_emerg("Restarting %s\n", linux_banner);
+	if (console_trylock()) {
+		console_unlock();
+		return;
+	}
+
+	mdelay(50);
+
+	local_irq_disable();
+	if (!console_trylock())
+		pr_emerg("arm_restart: Console was locked! Busting\n");
+	else
+		pr_emerg("arm_restart: Console was locked!\n");
+	debug_locks_off();
+	console_unlock();
+}
+#else
+void arm_machine_flush_console(void)
+{
+}
+#endif
 
 /*
  * Function pointers to optional machine specific functions
