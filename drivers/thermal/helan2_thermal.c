@@ -31,8 +31,11 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu_cooling.h>
 #endif
+#include <linux/cooling_dev_mrvl.h>
 #include <mach/addr-map.h>
 #include <linux/delay.h>
+#include <linux/cpu.h>
+#include <linux/pm_qos.h>
 
 #define TSEN_PCTRL (0x0)
 #define TSEN_LCTRL (0x4)
@@ -104,13 +107,20 @@ struct uevent_msg_priv {
 	int last_s;
 };
 
+struct cooling_device {
+	struct thermal_cooling_device *combile_cool;
+	int max_state, cur_state;
+	struct thermal_cooling_device *cool_cpufreq;
+	struct thermal_cooling_device *cool_cpuhotplug;
+};
+
 struct pxa28nm_thermal_device {
 	struct thermal_zone_device *therm_cpu;
 	int trip_range;
 	struct resource *mem;
 	void __iomem *base;
 	struct clk *therm_clk;
-	struct thermal_cooling_device *cool_cpufreq;
+	struct cooling_device cdev;
 	int hit_trip_cnt[TRIP_POINTS_NUM];
 	int irq;
 };
@@ -125,12 +135,13 @@ static int trips_temp[TRIP_POINTS_NUM] = {
 	115000, /* TRIP_POINT_5 */
 };
 
-static int trips_temp_p[TRIP_POINTS_ACTIVE_NUM] = {
-	75000, /* TRIP_POINT_0_P */
-	85000, /* TRIP_POINT_1_P */
-	95000, /* TRIP_POINT_2_P */
-	100000, /* TRIP_POINT_3_P */
-	105000, /* TRIP_POINT_4_P */
+static int trips_temp_d[TRIP_POINTS_NUM] = {
+	75000, /* TRIP_POINT_0_D */
+	85000, /* TRIP_POINT_1_D */
+	95000, /* TRIP_POINT_2_D */
+	100000, /* TRIP_POINT_3_D */
+	105000, /* TRIP_POINT_4_D */
+	115000, /* TRIP_POINT_5_D */
 };
 
 #define THSEN_GAIN      3874
@@ -237,10 +248,21 @@ static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
+static int cpu_sys_get_trip_temp_d(struct thermal_zone_device *thermal,
+		int trip, unsigned long *temp)
+{
+	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
+		*temp = trips_temp_d[trip];
+	else
+		*temp = -1;
+	return 0;
+}
+
 static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
 		unsigned long temp)
 {
 	u32 tmp;
+	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
 		trips_temp[trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip) {
@@ -248,7 +270,20 @@ static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
 					TSEN_THD2_OFF) & TSEN_THD2_MASK;
 		reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
 	} else
-		pxa28nm_set_threshold(thermal_dev.trip_range);
+		pxa28nm_set_threshold(cpu_thermal->trip_range);
+	return 0;
+}
+
+static int cpu_sys_set_trip_temp_d(struct thermal_zone_device *thermal,
+		int trip, unsigned long temp)
+{
+	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
+	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
+		trips_temp_d[trip] = temp;
+	if ((TRIP_POINTS_NUM - 1) == trip)
+		pr_warn("critical down doesn't used\n");
+	else
+		pxa28nm_set_threshold(cpu_thermal->trip_range);
 	return 0;
 }
 
@@ -262,7 +297,9 @@ static struct thermal_zone_device_ops cpu_thermal_ops = {
 	.get_temp = cpu_sys_get_temp,
 	.get_trip_type = cpu_sys_get_trip_type,
 	.get_trip_temp = cpu_sys_get_trip_temp,
+	.get_trip_temp_d = cpu_sys_get_trip_temp_d,
 	.set_trip_temp = cpu_sys_set_trip_temp,
+	.set_trip_temp_d = cpu_sys_set_trip_temp_d,
 	.get_crit_temp = cpu_sys_get_crit_temp,
 };
 
@@ -287,28 +324,97 @@ static SIMPLE_DEV_PM_OPS(thermal_pm_ops,
 #define PXA_TMU_PM      NULL
 #endif
 
+static int combile_get_max_state(struct thermal_cooling_device *cdev,
+		unsigned long *state)
+{
+	struct pxa28nm_thermal_device *cpu_thermal = cdev->devdata;
+	*state = cpu_thermal->cdev.max_state;
+	return 0;
+}
+
+static int combile_get_cur_state(struct thermal_cooling_device *cdev,
+		unsigned long *state)
+{
+	struct pxa28nm_thermal_device *cpu_thermal = cdev->devdata;
+	*state = cpu_thermal->cdev.cur_state;
+	return 0;
+}
+
+static int combile_set_cur_state(struct thermal_cooling_device *cdev,
+		unsigned long state)
+{
+	struct pxa28nm_thermal_device *cpu_thermal = cdev->devdata;
+	struct thermal_cooling_device *c_freq = cpu_thermal->cdev.cool_cpufreq;
+	struct thermal_cooling_device *c_plug =
+		cpu_thermal->cdev.cool_cpuhotplug;
+	unsigned long freq_state = 0, plug_state = 0;
+
+	if (state > cpu_thermal->cdev.max_state)
+		return -EINVAL;
+	cpu_thermal->cdev.cur_state = state;
+	/*
+	 * TODO: this is a rough cooling for function verification,
+	 * actual cooling will be defined later
+	 */
+	if (0 == state) {
+		freq_state = 0;
+		plug_state = 0;
+	} else if (1 == state) {
+		freq_state = 1;
+		plug_state = 0;
+	} else if (2 == state) {
+		freq_state = 2;
+		plug_state = 1;
+	} else if (3 == state) {
+		freq_state = 3;
+		plug_state = 2;
+	} else if (4 == state) {
+		freq_state = 4;
+		plug_state = 3;
+	} else if (5 == state) {
+		freq_state = 5;
+		plug_state = 3;
+	}
+	if (c_freq)
+		c_freq->ops->set_cur_state(c_freq, freq_state);
+	if (c_plug)
+		c_plug->ops->set_cur_state(c_plug, plug_state);
+	return 0;
+}
+
+static struct thermal_cooling_device_ops const combile_cooling_ops = {
+	.get_max_state = combile_get_max_state,
+	.get_cur_state = combile_get_cur_state,
+	.set_cur_state = combile_set_cur_state,
+};
+
+
 static void pxa28nm_register_thermal(void)
 {
-#ifdef CONFIG_CPU_FREQ
-	struct cpumask mask_val;
-#endif
 	int i, trip_w_mask = 0;
-#ifdef CONFIG_CPU_FREQ
-	/* register cooling and thermal device */
-	cpumask_set_cpu(0, &mask_val);
-	thermal_dev.cool_cpufreq = cpufreq_cooling_register(&mask_val);
-#endif
+
+	thermal_dev.cdev.cool_cpufreq = cpufreq_cool_register();
+	thermal_dev.cdev.cool_cpuhotplug = cpuhotplug_cool_register();
+
+	thermal_dev.cdev.combile_cool = thermal_cooling_device_register(
+			"cpu-combile-cool", &thermal_dev, &combile_cooling_ops);
+	thermal_dev.cdev.max_state = TRIP_POINTS_ACTIVE_NUM;
+	thermal_dev.cdev.cur_state = 0;
+
 	for (i = 0; i < TRIP_POINTS_NUM; i++)
 		trip_w_mask |= (1 << i);
 	thermal_dev.therm_cpu = thermal_zone_device_register(
-			"thsens_cpu", TRIP_POINTS_NUM, trip_w_mask, NULL,
-			&cpu_thermal_ops, NULL, 0, 0);
-#ifdef CONFIG_CPU_FREQ
-	/* bind cpufreq cooling */
+			"thsens_cpu", TRIP_POINTS_NUM, trip_w_mask,
+			&thermal_dev, &cpu_thermal_ops, NULL, 0, 0);
+	/*
+	 * enable bi_direction state machine, then it didn't care
+	 * whether up/down trip points are crossed or not
+	 */
+	thermal_dev.therm_cpu->tzdctrl.state_ctrl = true;
+	/* bind combile cooling */
 	thermal_zone_bind_cooling_device(thermal_dev.therm_cpu,
-			TRIP_POINT_0, thermal_dev.cool_cpufreq,
+			TRIP_POINT_0,  thermal_dev.cdev.combile_cool,
 			THERMAL_NO_LIMIT, THERMAL_NO_LIMIT);
-#endif
 
 	i = sysfs_create_group(&((thermal_dev.therm_cpu->device).kobj),
 			&thermal_attr_grp);
@@ -329,7 +435,7 @@ static int pxa28nm_set_threshold(int range)
 		tmp = (millicelsius_encode(trips_temp[0]) << TSEN_THD0_OFF) &
 							TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_temp_p[0]) << TSEN_THD1_OFF) &
+		tmp = (millicelsius_encode(trips_temp_d[0]) << TSEN_THD1_OFF) &
 							TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
@@ -339,7 +445,7 @@ static int pxa28nm_set_threshold(int range)
 		tmp = (millicelsius_encode(trips_temp[range - 1]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_temp_p[range - 1]) <<
+		tmp = (millicelsius_encode(trips_temp_d[range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, TSEN_INT0_ENABLE, 0);
@@ -348,7 +454,7 @@ static int pxa28nm_set_threshold(int range)
 		tmp = (millicelsius_encode(trips_temp[range]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_temp_p[range - 1]) <<
+		tmp = (millicelsius_encode(trips_temp_d[range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
@@ -367,18 +473,17 @@ static void pxa28nm_set_interval(int ms)
 
 static irqreturn_t pxa28nm_thread_irq(int irq, void *devid)
 {
-	char *temp_info[3]    = { "TYPE=thsens_cpu", "TEMP=100000", NULL };
 	unsigned long temp;
 
 	if (thermal_dev.therm_cpu) {
 		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
 		pr_info("SoC thermal %ldC\n", temp / 1000);
-		/* notify user for trip point cross */
-		sprintf(temp_info[1], "TEMP=%d", (int)temp);
-		kobject_uevent_env(&((thermal_dev.therm_cpu)->
-			device.kobj), KOBJ_CHANGE, temp_info);
-
-		/* trigger framework cooling, like cpufreq */
+		/*
+		 * trigger framework cooling, the real cooling behavior
+		 * rely on governor, if it's user_space, then only uevent
+		 * will be sent by framework, other wise, related governor
+		 * will do real cooling
+		 */
 		thermal_zone_device_update(thermal_dev.therm_cpu);
 	}
 	return IRQ_HANDLED;
@@ -508,10 +613,10 @@ static int pxa28nm_thermal_remove(struct platform_device *pdev)
 {
 	reg_clr_set(TSEN_PCTRL, 0, TSEN_RESET);
 	clk_disable_unprepare(thermal_dev.therm_clk);
+	cpufreq_cool_unregister(thermal_dev.cdev.cool_cpufreq);
+	cpuhotplug_cool_unregister(thermal_dev.cdev.cool_cpuhotplug);
+	thermal_cooling_device_unregister(thermal_dev.cdev.combile_cool);
 	thermal_zone_device_unregister(thermal_dev.therm_cpu);
-#ifdef CONFIG_CPU_FREQ
-	cpufreq_cooling_unregister(thermal_dev.cool_cpufreq);
-#endif
 	pr_info("Kernel Thermal management unregistered\n");
 	return 0;
 }
