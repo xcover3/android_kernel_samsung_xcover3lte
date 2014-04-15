@@ -75,6 +75,8 @@
 #define SDHCI_QUIRK2_SDIO_SW_CLK_GATE			(1<<13)
 /* After SD host request, prevent system to suspend state for a while */
 #define SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST		(1<<15)
+/* Some PXA SDH, fake interrupt would happen during CMD53 in UHS mode */
+#define SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS		(1<<19)
 
 #define MMC_PM_KEEP_POWER       (1 << 0)
 

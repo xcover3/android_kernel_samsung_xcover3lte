@@ -120,6 +120,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_TUNING_SW_BROKEN			(1<<17)
 /* Controller supported max data timeout is too short (~10s for 52Mhz bus clock) */
 #define SDHCI_QUIRK2_TIMEOUT_SHORT			(1<<18)
+/* Some PXA SDH, fake interrupt would happen during CMD53 in UHS mode */
+#define SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS		(1<<19)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
@@ -219,6 +221,7 @@ struct sdhci_host {
 	struct wake_lock busbusy_wakelock;
 	int	busbusy_wakelock_en;
 	int	busbusy_timeout;
+	bool sdio_irq_enabled;
 
 	unsigned long private[0] ____cacheline_aligned;
 };

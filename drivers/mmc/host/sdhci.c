@@ -50,6 +50,7 @@ static void sdhci_tuning_timer(unsigned long data);
 static void sdhci_enable_preset_value(struct sdhci_host *host, bool enable);
 static void __sdhci_pre_req(struct sdhci_host *host, struct mmc_data *data);
 static void __sdhci_post_req(struct sdhci_host *host, struct mmc_data *data);
+static void sdhci_enable_sdio_irq_nolock(struct sdhci_host *host, int enable);
 
 #ifdef CONFIG_PM_RUNTIME
 static void sdhci_runtime_pm_bus_on(struct sdhci_host *host);
@@ -1578,6 +1579,11 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			}
 		}
 
+		/* if need, disable sdio irq before starting cmd */
+		if ((host->quirks2 & SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS)
+			&& host->sdio_irq_enabled)
+			sdhci_enable_sdio_irq_nolock(host, 0);
+
 		if (mrq->sbc && !(host->flags & SDHCI_AUTO_CMD23))
 			sdhci_send_command(host, mrq->sbc);
 		else
@@ -1903,6 +1909,7 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 
 	spin_lock_irqsave(&host->lock, flags);
 	sdhci_enable_sdio_irq_nolock(host, enable);
+	host->sdio_irq_enabled = !!(enable);
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
@@ -2420,6 +2427,11 @@ static void sdhci_tasklet_finish(unsigned long param)
 		 */
 		__sdhci_finish_data(host);
 	}
+
+	/* re-enable sdio irq after cmd finished */
+	if ((host->quirks2 & SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS)
+		&& host->sdio_irq_enabled)
+		sdhci_enable_sdio_irq_nolock(host, 1);
 
 #ifndef CONFIG_SDHCI_USE_LEDS_CLASS
 	sdhci_deactivate_led(host);
