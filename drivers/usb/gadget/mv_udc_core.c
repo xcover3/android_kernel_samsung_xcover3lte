@@ -51,6 +51,7 @@
 #define EPSTATUS_TIMEOUT	10000
 #define PRIME_TIMEOUT		10000
 #define READSAFE_TIMEOUT	1000
+#define MAX_EPPRIME_TIMES	100000
 
 #define LOOPS_USEC_SHIFT	1
 #define LOOPS_USEC		(1 << LOOPS_USEC_SHIFT)
@@ -125,6 +126,24 @@ static void ep0_stall(struct mv_udc *udc)
 	udc->ep0_dir = EP_DIR_OUT;
 }
 
+static int hw_ep_prime(struct mv_udc *udc, u32 bit_pos)
+{
+	u32 prime_times = 0;
+
+	writel(bit_pos, &udc->op_regs->epprime);
+
+	while (readl(&udc->op_regs->epprime) & bit_pos) {
+		cpu_relax();
+		prime_times++;
+		if (prime_times > MAX_EPPRIME_TIMES) {
+			dev_err(&udc->dev->dev, "epprime out of time\n");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 static int process_ep_req(struct mv_udc *udc, int index,
 	struct mv_req *curr_req)
 {
@@ -197,6 +216,24 @@ static int process_ep_req(struct mv_udc *udc, int index,
 			while (readl(&udc->op_regs->epstatus) & bit_pos)
 				udelay(1);
 			break;
+		} else {
+			if (!(readl(&udc->op_regs->epstatus) & bit_pos)) {
+				/* The DMA engine thinks there is no more dTD */
+				curr_dqh->next_dtd_ptr = curr_dtd->dtd_next
+					& EP_QUEUE_HEAD_NEXT_POINTER_MASK;
+
+				/* clear active and halt bit */
+				curr_dqh->size_ioc_int_sts &=
+						~(DTD_STATUS_ACTIVE
+						| DTD_STATUS_HALTED);
+
+				/* Do prime again */
+				wmb();
+
+				hw_ep_prime(udc, bit_pos);
+
+				break;
+			}
 		}
 		udelay(1);
 	}
@@ -211,7 +248,7 @@ static int process_ep_req(struct mv_udc *udc, int index,
  * @status : request status to be set, only works when
  * request is still in progress.
  */
-static void done(struct mv_ep *ep, struct mv_req *req, int status)
+static int done(struct mv_ep *ep, struct mv_req *req, int status)
 	__releases(&ep->udc->lock)
 	__acquires(&ep->udc->lock)
 {
@@ -221,6 +258,13 @@ static void done(struct mv_ep *ep, struct mv_req *req, int status)
 	int j;
 
 	udc = (struct mv_udc *)ep->udc;
+
+	if (req->req.dma == DMA_ADDR_INVALID && req->mapped == 0) {
+		dev_info(&udc->dev->dev, "%s request %p already unmapped",
+					ep->name, req);
+		return -ESHUTDOWN;
+	}
+
 	/* Removed the req from fsl_ep->queue */
 	list_del_init(&req->queue);
 
@@ -240,6 +284,8 @@ static void done(struct mv_ep *ep, struct mv_req *req, int status)
 	}
 
 	usb_gadget_unmap_request(&udc->gadget, &req->req, ep_dir(ep));
+	req->req.dma = DMA_ADDR_INVALID;
+	req->mapped = 0;
 
 	if (status && (status != -ESHUTDOWN))
 		dev_info(&udc->dev->dev, "complete %s req %p stat %d len %u/%u",
@@ -258,12 +304,19 @@ static void done(struct mv_ep *ep, struct mv_req *req, int status)
 
 	spin_lock(&ep->udc->lock);
 	ep->stopped = stopped;
+
+	if (udc->active)
+		return 0;
+	else
+		return -ESHUTDOWN;
 }
 
 static int queue_dtd(struct mv_ep *ep, struct mv_req *req)
 {
 	struct mv_udc *udc;
 	struct mv_dqh *dqh;
+	struct mv_req *curr_req, *temp_req;
+	u32 find_missing_dtd = 0;
 	u32 bit_pos, direction;
 	u32 usbcmd, epstatus;
 	unsigned int loops;
@@ -324,11 +377,23 @@ static int queue_dtd(struct mv_ep *ep, struct mv_req *req)
 
 		if (epstatus)
 			goto done;
+
+		/* Check if there are missing dTD in the queue not primed */
+		list_for_each_entry_safe(curr_req, temp_req, &ep->queue, queue)
+			if (curr_req->head->size_ioc_sts & DTD_STATUS_ACTIVE) {
+				pr_info("There are missing dTD need to be primed!\n");
+				find_missing_dtd = 1;
+				break;
+			}
 	}
 
 	/* Write dQH next pointer and terminate bit to 0 */
-	dqh->next_dtd_ptr = req->head->td_dma
-				& EP_QUEUE_HEAD_NEXT_POINTER_MASK;
+	if (unlikely(find_missing_dtd))
+		dqh->next_dtd_ptr = curr_req->head->td_dma
+					& EP_QUEUE_HEAD_NEXT_POINTER_MASK;
+	else
+		dqh->next_dtd_ptr = req->head->td_dma
+					& EP_QUEUE_HEAD_NEXT_POINTER_MASK;
 
 	/* clear active and halt bit, in case set from a previous error */
 	dqh->size_ioc_int_sts &= ~(DTD_STATUS_ACTIVE | DTD_STATUS_HALTED);
@@ -337,8 +402,7 @@ static int queue_dtd(struct mv_ep *ep, struct mv_req *req)
 	wmb();
 
 	/* Prime the Endpoint */
-	writel(bit_pos, &udc->op_regs->epprime);
-
+	hw_ep_prime(udc, bit_pos);
 done:
 	return retval;
 }
@@ -726,6 +790,8 @@ mv_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 	retval = usb_gadget_map_request(&udc->gadget, _req, ep_dir(ep));
 	if (retval)
 		return retval;
+	req->req.dma = _req->dma;
+	req->mapped = 1;
 
 	req->req.status = -EINPROGRESS;
 	req->req.actual = 0;
@@ -760,6 +826,8 @@ mv_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 
 err_unmap_dma:
 	usb_gadget_unmap_request(&udc->gadget, _req, ep_dir(ep));
+	req->req.dma = DMA_ADDR_INVALID;
+	req->mapped = 0;
 
 	return retval;
 }
@@ -782,7 +850,7 @@ static void mv_prime_ep(struct mv_ep *ep, struct mv_req *req)
 	bit_pos = 1 << (((ep_dir(ep) == EP_DIR_OUT) ? 0 : 16) + ep->ep_num);
 
 	/* Prime the Endpoint */
-	writel(bit_pos, &ep->udc->op_regs->epprime);
+	hw_ep_prime(ep->udc, bit_pos);
 }
 
 /* dequeues (cancels, unlinks) an I/O request from an endpoint */
@@ -1486,6 +1554,8 @@ udc_prime_status(struct mv_udc *udc, u8 direction, u16 status, bool empty)
 	return 0;
 out:
 	usb_gadget_unmap_request(&udc->gadget, &req->req, ep_dir(ep));
+	req->req.dma = DMA_ADDR_INVALID;
+	req->mapped = 0;
 
 	return retval;
 }
