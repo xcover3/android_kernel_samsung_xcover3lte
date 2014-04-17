@@ -374,3 +374,11 @@ unsigned long randomize_et_dyn(unsigned long base)
 {
 	return randomize_base(base);
 }
+
+#ifdef CONFIG_COMPAT
+unsigned long KSTK_ESP(struct task_struct *task)
+{
+	return (is_compat_thread(task_thread_info(task))) ?
+		(task_pt_regs(task)->compat_sp) : (task_pt_regs(task)->sp);
+}
+#endif
