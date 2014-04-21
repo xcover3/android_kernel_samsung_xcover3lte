@@ -309,6 +309,7 @@ static void
 armpmu_release_hardware(struct arm_pmu *armpmu)
 {
 	armpmu->free_irq(armpmu);
+	armpmu->unregister_pm_notifier(armpmu);
 	pm_runtime_put_sync(&armpmu->plat_device->dev);
 }
 
@@ -322,6 +323,7 @@ armpmu_reserve_hardware(struct arm_pmu *armpmu)
 		return -ENODEV;
 
 	pm_runtime_get_sync(&pmu_device->dev);
+	armpmu->register_pm_notifier(armpmu);
 	err = armpmu->request_irq(armpmu, armpmu_dispatch_irq);
 	if (err) {
 		armpmu_release_hardware(armpmu);

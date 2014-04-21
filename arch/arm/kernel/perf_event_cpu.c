@@ -19,6 +19,7 @@
 #define pr_fmt(fmt) "CPU PMU: " fmt
 
 #include <linux/bitmap.h>
+#include <linux/cpu_pm.h>
 #include <linux/export.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
@@ -133,6 +134,31 @@ static int cpu_pmu_request_irq(struct arm_pmu *cpu_pmu, irq_handler_t handler)
 	return 0;
 }
 
+static int cpu_pmu_pm_notify(struct notifier_block *b,
+					unsigned long action, void *v)
+{
+	if (action == CPU_PM_ENTER && cpu_pmu->save_regs)
+		cpu_pmu->save_regs(cpu_pmu);
+	else if (action == CPU_PM_EXIT && cpu_pmu->restore_regs)
+		cpu_pmu->restore_regs(cpu_pmu);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpu_pmu_pm_notifier = {
+	.notifier_call = cpu_pmu_pm_notify,
+};
+
+static int cpu_pmu_register_pm_notifier(struct arm_pmu *cpu_pmu)
+{
+	return cpu_pm_register_notifier(&cpu_pmu_pm_notifier);
+}
+
+static void cpu_pmu_unregister_pm_notifier(struct arm_pmu *cpu_pmu)
+{
+	cpu_pm_unregister_notifier(&cpu_pmu_pm_notifier);
+}
+
 static void cpu_pmu_init(struct arm_pmu *cpu_pmu)
 {
 	int cpu;
@@ -146,6 +172,8 @@ static void cpu_pmu_init(struct arm_pmu *cpu_pmu)
 	cpu_pmu->get_hw_events	= cpu_pmu_get_cpu_events;
 	cpu_pmu->request_irq	= cpu_pmu_request_irq;
 	cpu_pmu->free_irq	= cpu_pmu_free_irq;
+	cpu_pmu->register_pm_notifier	= cpu_pmu_register_pm_notifier;
+	cpu_pmu->unregister_pm_notifier	= cpu_pmu_unregister_pm_notifier;
 
 	/* Ensure the PMU has sane values out of reset. */
 	if (cpu_pmu->reset)

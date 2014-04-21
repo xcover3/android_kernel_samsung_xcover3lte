@@ -950,6 +950,78 @@ static void armv7_pmnc_dump_regs(struct arm_pmu *cpu_pmu)
 }
 #endif
 
+struct armv7_pmuregs {
+	u32 pmc;
+	u32 pmcntenset;
+	u32 pmintenset;
+	u32 pmxevttype[8];
+	u32 pmxevtcnt[8];
+};
+
+static DEFINE_PER_CPU(struct armv7_pmuregs, pmu_regs);
+
+static void armv7pmu_reset(void *info);
+
+static void armv7pmu_save_regs(struct arm_pmu *cpu_pmu)
+{
+	struct pmu_hw_events *events = cpu_pmu->get_hw_events();
+	struct armv7_pmuregs *regs;
+	int bit;
+
+	/* Check whether there are events used */
+	bit = find_first_bit(events->used_mask, cpu_pmu->num_events);
+	if (bit >= cpu_pmu->num_events)
+		return;
+
+	regs = this_cpu_ptr(&pmu_regs);
+	for_each_set_bit(bit, events->used_mask, cpu_pmu->num_events) {
+		if (bit) {
+			armv7_pmnc_select_counter(bit);
+			asm volatile("mrc p15, 0, %0, c9, c13, 1"
+					: "=r"(regs->pmxevttype[bit]));
+			asm volatile("mrc p15, 0, %0, c9, c13, 2"
+					: "=r"(regs->pmxevtcnt[bit]));
+		} else
+			asm volatile("mrc p15, 0, %0, c9, c13, 0"
+					: "=r" (regs->pmxevtcnt[0]));
+	}
+
+	asm volatile("mrc p15, 0, %0, c9, c12, 1" : "=r" (regs->pmcntenset));
+	asm volatile("mrc p15, 0, %0, c9, c14, 1" : "=r" (regs->pmintenset));
+	asm volatile("mrc p15, 0, %0, c9, c12, 0" : "=r" (regs->pmc));
+}
+
+static void armv7pmu_restore_regs(struct arm_pmu *cpu_pmu)
+{
+	struct pmu_hw_events *events = cpu_pmu->get_hw_events();
+	struct armv7_pmuregs *regs;
+	int bit;
+
+	/* Check whether there are events used */
+	bit = find_first_bit(events->used_mask, cpu_pmu->num_events);
+	if (bit >= cpu_pmu->num_events)
+		return;
+
+	armv7pmu_reset(cpu_pmu);
+
+	regs = this_cpu_ptr(&pmu_regs);
+	for_each_set_bit(bit, events->used_mask, cpu_pmu->num_events) {
+		if (bit) {
+			armv7_pmnc_select_counter(bit);
+			asm volatile("mcr p15, 0, %0, c9, c13, 1"
+					: : "r"(regs->pmxevttype[bit]));
+			asm volatile("mcr p15, 0, %0, c9, c13, 2"
+					: : "r"(regs->pmxevtcnt[bit]));
+		} else
+			asm volatile("mcr p15, 0, %0, c9, c13, 0"
+					: : "r" (regs->pmxevtcnt[0]));
+	}
+
+	asm volatile("mcr p15, 0, %0, c9, c12, 1" : : "r" (regs->pmcntenset));
+	asm volatile("mcr p15, 0, %0, c9, c14, 1" : : "r" (regs->pmintenset));
+	asm volatile("mcr p15, 0, %0, c9, c12, 0" : : "r" (regs->pmc));
+}
+
 static void armv7pmu_enable_event(struct perf_event *event)
 {
 	unsigned long flags;
@@ -1227,6 +1299,8 @@ static void armv7pmu_init(struct arm_pmu *cpu_pmu)
 	cpu_pmu->start		= armv7pmu_start;
 	cpu_pmu->stop		= armv7pmu_stop;
 	cpu_pmu->reset		= armv7pmu_reset;
+	cpu_pmu->save_regs	= armv7pmu_save_regs;
+	cpu_pmu->restore_regs	= armv7pmu_restore_regs;
 	cpu_pmu->max_period	= (1LLU << 32) - 1;
 };
 
