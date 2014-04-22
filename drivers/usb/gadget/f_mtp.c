@@ -1103,6 +1103,51 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 	return value;
 }
 
+static int ptp_ctrlrequest(struct usb_composite_dev *cdev,
+				const struct usb_ctrlrequest *ctrl)
+{
+	struct mtp_dev *dev = _mtp_dev;
+	int	value = -EOPNOTSUPP;
+	u16	w_index = le16_to_cpu(ctrl->wIndex);
+	u16	w_value = le16_to_cpu(ctrl->wValue);
+	u16	w_length = le16_to_cpu(ctrl->wLength);
+	unsigned long	flags;
+
+	if ((ctrl->bRequestType & USB_TYPE_MASK) == USB_TYPE_CLASS) {
+		if (ctrl->bRequest == MTP_REQ_GET_DEVICE_STATUS
+				&& w_index == 0 && w_value == 0) {
+			struct mtp_device_status *status = cdev->req->buf;
+			status->wLength =
+				__constant_cpu_to_le16(sizeof(*status));
+
+			spin_lock_irqsave(&dev->lock, flags);
+			/* device status is "busy" until we report
+			 * the cancelation to userspace
+			 */
+			if (dev->state == STATE_CANCELED)
+				status->wCode =
+					__cpu_to_le16(MTP_RESPONSE_DEVICE_BUSY);
+			else
+				status->wCode =
+					__cpu_to_le16(MTP_RESPONSE_OK);
+			spin_unlock_irqrestore(&dev->lock, flags);
+			value = sizeof(*status);
+		}
+	}
+
+	/* respond with data transfer or status phase? */
+	if (value >= 0) {
+		int rc;
+		cdev->req->zero = value < w_length;
+		cdev->req->length = value;
+		rc = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);
+		if (rc < 0)
+			ERROR(cdev, "%s: response queue error\n", __func__);
+	}
+	return value;
+}
+
+
 static int
 mtp_function_bind(struct usb_configuration *c, struct usb_function *f)
 {
