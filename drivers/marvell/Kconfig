@@ -11,4 +11,10 @@ config MRVL_DEBUG
 	---help---
 	  This will enable Marvell debug features.
 
+config MRVL_SW_JTAG
+	tristate "Marvell software jtag driver"
+	default n
+	help
+	  Marvell software jtag driver to simulate jtag access
+
 endif
