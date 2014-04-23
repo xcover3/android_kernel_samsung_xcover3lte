@@ -519,7 +519,7 @@ static int mv_ep_enable(struct usb_ep *_ep,
 	u16 max = 0;
 	u32 bit_pos, epctrlx, direction;
 	unsigned char zlt = 0, ios = 0, mult = 0;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	ep = container_of(_ep, struct mv_ep, ep);
 	udc = ep->udc;
@@ -628,6 +628,7 @@ static int mv_ep_enable(struct usb_ep *_ep,
 
 	return 0;
 en_done:
+	spin_unlock_irqrestore(&udc->lock, flags);
 	return -EINVAL;
 }
 
@@ -1510,7 +1511,7 @@ udc_prime_status(struct mv_udc *udc, u8 direction, u16 status, bool empty)
 	req = udc->status_req;
 
 	/* fill in the reqest structure */
-	if (empty == false) {
+	if (!empty) {
 		*((u16 *) req->req.buf) = cpu_to_le16(status);
 		req->req.length = 2;
 	} else
@@ -1751,7 +1752,7 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 		delegate = true;
 
 	/* delegate USB standard requests to the gadget driver */
-	if (delegate == true) {
+	if (delegate) {
 		/* USB requests handled by gadget */
 		if (setup->wLength) {
 			/* DATA phase from gadget, STATUS phase from udc */
