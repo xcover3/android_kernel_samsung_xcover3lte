@@ -1100,6 +1100,9 @@ hierarchical:
 		beq	finished		@ if loc is 0, then no need to clean
 		mov	r10, #0			@ start clean at cache level 0
 loop1:
+#ifdef CONFIG_ARM_ERRATA_814220
+		mcr	p15, 0, r10, c7, c10, 4	@ DSB
+#endif
 		add	r2, r10, r10, lsr #1	@ work out 3x current cache level
 		mov	r1, r0, lsr r2		@ extract cache type bits from clidr
 		and	r1, r1, #7		@ mask of the bits for current cache only

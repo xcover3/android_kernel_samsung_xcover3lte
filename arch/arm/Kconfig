@@ -1391,6 +1391,17 @@ config ARM_ERRATA_773022
 	  loop buffer may deliver incorrect instructions. This
 	  workaround disables the loop buffer to avoid the erratum.
 
+config ARM_ERRATA_814220
+	bool "ARM errata: Cache maintenance by set/way operations can execute out of order"
+	depends on CPU_V7
+	help
+	  This option enables the fix for erratum 814220 which affecting
+	  Cortex-A7 MPCore r0p2, r0p3, r0p4 and r0p5. The cache maintenance by set/way operation
+	  between different levels can execute out of order. So there will be issues
+	  when L2 flush to L3 complete before L1 flush to L2. Then L2 will contain dirty data
+	  which is not flushed to L3.
+	  This fix is to add dsb between different cache levels. It will make sure
+	  the flush of previous level finish before next level start.
 endmenu
 
 source "arch/arm/common/Kconfig"
