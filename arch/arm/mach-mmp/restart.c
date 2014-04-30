@@ -42,9 +42,9 @@ void __iomem *mpmu_vaddr);
 static void do_wdt_restart(const char *cmd)
 {
 	u32 reg, backup;
+	s8 magic[5];
 	void __iomem *mpmu_vaddr, *rtc_vaddr;
 	void __iomem *watchdog_virt_base;
-	int i;
 
 	mpmu_vaddr = ioremap(MPMU_BASE, MPMU_SIZE);
 	BUG_ON(!mpmu_vaddr);
@@ -70,15 +70,24 @@ static void do_wdt_restart(const char *cmd)
 
 	/* If reboot by recovery, store info for uboot */
 	if (cpu_is_pxa1L88()) {
-		if (cmd && !strcmp(cmd, "recovery")) {
-			for (i = 0, backup = 0; i < 4; i++) {
-				backup <<= 8;
-				backup |= *(cmd + i);
-			}
-			do {
-				writel(backup, rtc_vaddr + REG_RTC_BR0);
-			} while (readl(rtc_vaddr + REG_RTC_BR0) != backup);
+		memset(magic, 0x0, sizeof(magic));
+		if (cmd) {
+			if (!strcmp(cmd, "recovery"))
+				strncpy(magic, cmd, 4);
+			else if (!strcmp(cmd, "fastboot"))
+				strncpy(magic, "brfb", 4);
+			else
+				strncpy(magic, "rebt", 4);
+		} else {
+			strncpy(magic, "rebt", 4);
 		}
+
+		backup = magic[0] << 24 | magic[1] << 16 |
+			magic[2] << 8 | magic[3];
+		do {
+			writel(backup, rtc_vaddr + REG_RTC_BR0);
+		} while (readl(rtc_vaddr + REG_RTC_BR0) != backup);
+
 	}
 
 	/* Using Watchdog to reset.
