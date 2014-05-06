@@ -403,6 +403,8 @@ extern void sdhci_remove_host(struct sdhci_host *host, int dead);
 extern void sdhci_send_command(struct sdhci_host *host,
 				struct mmc_command *cmd);
 extern void sdhci_access_constrain(struct sdhci_host *host, unsigned int ac);
+extern void sdhci_clear_set_irqs(struct sdhci_host *host, u32 clear, u32 set);
+extern void sdhci_reset(struct sdhci_host *host, u8 mask);
 
 #ifdef CONFIG_PM
 extern int sdhci_suspend_host(struct sdhci_host *host);
