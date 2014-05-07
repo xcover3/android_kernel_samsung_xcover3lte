@@ -302,6 +302,7 @@ struct sdhci_ops {
 	void	(*signal_vol_change)(struct sdhci_host *host, u8 vol);
 	void	(*clk_gate_auto)(struct sdhci_host *host, unsigned int ctrl);
 	void	(*host_caps_disable)(struct sdhci_host *host);
+	void	(*platform_hw_tuning_prepare)(struct sdhci_host *host);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

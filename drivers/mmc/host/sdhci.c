@@ -2040,7 +2040,6 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	u16 ctrl;
 	u32 ier;
 	int tuning_loop_counter = MAX_TUNING_LOOP;
-	unsigned long timeout;
 	int err = 0;
 	bool requires_tuning_nonuhs = false;
 	unsigned long flags;
@@ -2075,14 +2074,18 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		return 0;
 	}
 
-	if (host->ops->platform_execute_tuning) {
+	if ((host->ops->platform_execute_tuning) &&
+		!(host->quirks2 & SDHCI_QUIRK2_TUNING_SW_BROKEN)) {
 		spin_unlock_irqrestore(&host->lock, flags);
 		err = host->ops->platform_execute_tuning(host, opcode);
 		sdhci_runtime_pm_put(host);
 		sdhci_access_constrain(host, 0);
 		return err;
+	} else if (host->ops->platform_hw_tuning_prepare) {
+		host->ops->platform_hw_tuning_prepare(host);
+		if (host->tuning_tt_cnt)
+			tuning_loop_counter = host->tuning_tt_cnt;
 	}
-
 	sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
 
 	/*
@@ -2102,12 +2105,11 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	 * Issue CMD19 repeatedly till Execute Tuning is set to 0 or the number
 	 * of loops reaches 40 times or a timeout of 150ms occurs.
 	 */
-	timeout = 150;
 	do {
 		struct mmc_command cmd = {0};
 		struct mmc_request mrq = {NULL};
 
-		if (!tuning_loop_counter && !timeout)
+		if (!tuning_loop_counter)
 			break;
 
 		cmd.opcode = opcode;
@@ -2175,7 +2177,6 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 		tuning_loop_counter--;
-		timeout--;
 		mdelay(1);
 	} while (ctrl & SDHCI_CTRL_EXEC_TUNING);
 
@@ -2183,7 +2184,7 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	 * The Host Driver has exhausted the maximum number of loops allowed,
 	 * so use fixed sampling frequency.
 	 */
-	if (!tuning_loop_counter || !timeout) {
+	if (!tuning_loop_counter) {
 		ctrl &= ~SDHCI_CTRL_TUNED_CLK;
 		sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
 		err = -EIO;
@@ -2193,7 +2194,9 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 				" failed, falling back to fixed sampling"
 				" clock\n");
 			err = -EIO;
-		}
+		} else
+			pr_info(DRIVER_NAME ": Tuning passed, tuning_loop_counter = %d\n",
+				tuning_loop_counter);
 	}
 
 out:

@@ -419,6 +419,42 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 		pm_qos_update_request(&pdata->qos_idle, PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 }
 
+static void pxav3_hw_tuning_prepare(struct sdhci_host *host)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	u32 reg;
+	u16 ctrl_2;
+
+	if (!host->tuning_wd_cnt ||
+			(host->tuning_wd_cnt > RX_TUNING_WD_CNT_MASK))
+		host->tuning_wd_cnt = RX_TUNING_WD_CNT_MASK;
+	if (!host->tuning_tt_cnt ||
+			(host->tuning_tt_cnt > (RX_TUNING_TT_CNT_MASK + 1)))
+		host->tuning_tt_cnt = RX_TUNING_TT_CNT_MASK + 1;
+
+	/* reset tuning circuit */
+	ctrl_2 = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+	ctrl_2 &= ~(SDHCI_CTRL_EXEC_TUNING | SDHCI_CTRL_TUNED_CLK);
+	sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
+
+	/* set tuning step */
+	reg = sdhci_readl(host, SD_RX_CFG_REG);
+	reg &= ~(regdata->RX_TUNING_DLY_INC_MASK << regdata->RX_TUNING_DLY_INC_SHIFT);
+	reg |= (((regdata->RX_SDCLK_DELAY_MASK + 1)/host->tuning_tt_cnt) <<
+			regdata->RX_TUNING_DLY_INC_SHIFT);
+	sdhci_writel(host, reg, SD_RX_CFG_REG);
+
+	/* set total count and pass window count */
+	reg = sdhci_readw(host, RX_TUNING_CFG_REG);
+	reg &= ~((RX_TUNING_WD_CNT_MASK << RX_TUNING_WD_CNT_SHIFT) |
+			(RX_TUNING_TT_CNT_MASK << RX_TUNING_TT_CNT_SHIFT));
+	reg |= (host->tuning_wd_cnt << RX_TUNING_WD_CNT_SHIFT) |
+			((host->tuning_tt_cnt - 1) << RX_TUNING_TT_CNT_SHIFT);
+	sdhci_writew(host, reg, RX_TUNING_CFG_REG);
+}
+
 static void pxav3_prepare_tuning(struct sdhci_host *host, u32 val)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
@@ -729,6 +765,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.clk_gate_auto  = pxav3_clk_gate_auto,
 	.access_constrain = pxav3_access_constrain,
 	.platform_execute_tuning = pxav3_executing_tuning,
+	.platform_hw_tuning_prepare = pxav3_hw_tuning_prepare,
 	.host_caps_disable = pxav3_host_caps_disable,
 };
 
@@ -821,6 +858,12 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 		pdata->lpm_qos = tmp;
 	else
 		pdata->lpm_qos = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
+
+	/* property "marvell,sdh-tuning-cnt": <tuning_wd_cnt tuning_tt_cnt> */
+	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-cnt", 1, &tmp))
+		host->tuning_wd_cnt = tmp;
+	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-cnt", 2, &tmp))
+		host->tuning_tt_cnt = tmp;
 
 	/*
 	 * property "marvell,sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay>, [<..>]

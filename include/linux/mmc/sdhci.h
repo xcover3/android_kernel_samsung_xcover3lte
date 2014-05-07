@@ -116,6 +116,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST		(1<<15)
 /* HS200/SDR104 SW tuning can't use ADMA */
 #define SDHCI_QUIRK2_TUNING_ADMA_BROKEN			(1<<16)
+/* HS200/SDR104 SW tuning not supported */
+#define SDHCI_QUIRK2_TUNING_SW_BROKEN			(1<<17)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
@@ -199,6 +201,8 @@ struct sdhci_host {
 
 	unsigned int		tuning_count;	/* Timer count for re-tuning */
 	unsigned int		tuning_mode;	/* Re-tuning mode supported by host */
+	unsigned int		tuning_tt_cnt;	/* HW tuning total count */
+	unsigned int		tuning_wd_cnt;	/* HW tuning pass window count */
 #define SDHCI_TUNING_MODE_1	0
 	struct timer_list	tuning_timer;	/* Timer for tuning */
 	int	constrain_ref;
