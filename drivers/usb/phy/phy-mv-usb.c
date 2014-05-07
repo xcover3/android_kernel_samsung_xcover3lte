@@ -26,11 +26,16 @@
 #include <linux/usb/hcd.h>
 #include <linux/usb/mv_usb2_phy.h>
 #include <linux/platform_data/mv_usb.h>
+#include <linux/of_address.h>
 
 #include "phy-mv-usb.h"
 
 #define	DRIVER_DESC	"Marvell USB OTG transceiver driver"
 #define	DRIVER_VERSION	"Jan 20, 2010"
+
+#define APMU_SD_ROT_WAKE_CLR 0x7C
+#define USB_OTG_ID_WAKEUP_EN (1<<8)
+#define USB_OTG_ID_WAKEUP_CLR (1<<18)
 
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_VERSION(DRIVER_VERSION);
@@ -54,6 +59,81 @@ static char *state_string[] = {
 	"a_wait_vfall",
 	"a_vbus_err"
 };
+
+static void __iomem *iomap_register(const char *reg_name)
+{
+	void __iomem *reg_virt_addr;
+	struct device_node *node;
+
+	BUG_ON(!reg_name);
+	node = of_find_compatible_node(NULL, NULL, reg_name);
+	BUG_ON(!node);
+	reg_virt_addr = of_iomap(node, 0);
+	BUG_ON(!reg_virt_addr);
+
+	return reg_virt_addr;
+}
+
+static phys_addr_t get_register_pa(const char *reg_name)
+{
+	phys_addr_t reg_phys_addr;
+	struct device_node *node;
+	u32 reg;
+
+	BUG_ON(!reg_name);
+	node = of_find_compatible_node(NULL, NULL, reg_name);
+	BUG_ON(!node);
+	of_property_read_u32(node, "reg", &reg);
+	reg_phys_addr = reg;
+	BUG_ON(!reg_phys_addr);
+
+	return reg_phys_addr;
+}
+
+phys_addr_t get_apmu_base_pa(void)
+{
+	static phys_addr_t apmu_phys_addr;
+	if (unlikely(!apmu_phys_addr))
+		apmu_phys_addr = get_register_pa("mrvl,mmp-pmu-apmu");
+	return apmu_phys_addr;
+}
+
+void __iomem *get_apmu_base_va(void)
+{
+	static void __iomem *apmu_virt_addr;
+	if (unlikely(!apmu_virt_addr))
+		apmu_virt_addr = iomap_register("mrvl,mmp-pmu-apmu");
+	return apmu_virt_addr;
+}
+
+/* need to write APMU register to enable USBID wakeup/irq */
+void mv_otg_usbid_wakeup_en(int en)
+{
+	u32 tmp32;
+	void __iomem *apmu_base = get_apmu_base_va();
+	tmp32 = __raw_readl(apmu_base + APMU_SD_ROT_WAKE_CLR);
+	if (en)
+		tmp32 |= USB_OTG_ID_WAKEUP_EN;
+	else
+		tmp32 &= ~USB_OTG_ID_WAKEUP_EN;
+	__raw_writel(tmp32, apmu_base + APMU_SD_ROT_WAKE_CLR);
+
+}
+
+/* need to write APMU register to clear USBID wakeup/irq */
+void mv_otg_usbid_wakeup_clear(void)
+{
+	u32 tmp32;
+	void __iomem *apmu_base = get_apmu_base_va();
+	tmp32 = __raw_readl(apmu_base + APMU_SD_ROT_WAKE_CLR);
+
+	/* to clear APMU USBID wakeup/irq, first wirte 1, then write 0 */
+	tmp32 |= USB_OTG_ID_WAKEUP_CLR;
+	__raw_writel(tmp32, apmu_base + APMU_SD_ROT_WAKE_CLR);
+	tmp32 &= ~USB_OTG_ID_WAKEUP_CLR;
+	__raw_writel(tmp32, apmu_base + APMU_SD_ROT_WAKE_CLR);
+
+}
 
 static int mv_otg_set_vbus(struct usb_otg *otg, bool on)
 {
@@ -493,8 +573,20 @@ static irqreturn_t mv_otg_irq(int irq, void *dev)
 	struct mv_otg *mvotg = dev;
 	u32 otgsc;
 
+	/* if otg clock is not enabled, otgsc read out will be 0 */
+	if (!mvotg->active)
+		mv_otg_enable(mvotg);
+
 	otgsc = readl(&mvotg->op_regs->otgsc);
-	writel(otgsc, &mvotg->op_regs->otgsc);
+	writel(otgsc | mvotg->irq_en, &mvotg->op_regs->otgsc);
+
+	if (!(mvotg->pdata->extern_attr & MV_USB_HAS_IDPIN_DETECTION)) {
+		mv_otg_usbid_wakeup_clear();
+		if (mvotg->otg_ctrl.id != (!!(otgsc & OTGSC_STS_USB_ID))) {
+			mv_otg_run_state_machine(mvotg, 0);
+			return IRQ_HANDLED;
+		}
+	}
 
 	/*
 	 * if we have vbus, then the vbus detection for B-device
@@ -660,6 +752,7 @@ static int mv_otg_remove(struct platform_device *pdev)
 {
 	struct mv_otg *mvotg = platform_get_drvdata(pdev);
 
+	device_init_wakeup(&pdev->dev, 0);
 	sysfs_remove_group(&mvotg->pdev->dev.kobj, &inputs_attr_group);
 
 	if (mvotg->qwork) {
@@ -826,6 +919,12 @@ static int mv_otg_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev,
 		 "successful probe OTG device %s clock gating.\n",
 		 mvotg->clock_gating ? "with" : "without");
+
+	device_init_wakeup(&pdev->dev, 1);
+	if (!(pdata->extern_attr & MV_USB_HAS_IDPIN_DETECTION)) {
+		enable_irq_wake(mvotg->irq);
+		mv_otg_usbid_wakeup_en(1);
+	}
 
 	return 0;
 
