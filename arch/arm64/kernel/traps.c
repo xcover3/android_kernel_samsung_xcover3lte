@@ -285,6 +285,259 @@ static int aarch32_cp15_barriers(struct pt_regs *regs)
 	return 0;
 }
 
+/*
+ * Error-checking SWP macros implemented using ldrex{b}/strex{b}
+ */
+#define __user_swpX_asm(data, addr, res, temp, B)		\
+	asm volatile(						\
+	"	mov		%w2, %w1\n"			\
+	"0:	ldaxr"B"	%w1, [%3]\n"			\
+	"1:	stlxr"B"	%w0, %w2, [%3]\n"		\
+	"	cbz		%w0, 2f\n"			\
+	"	mov		%w0, %w4\n"			\
+	"2:\n"							\
+	"	.section	 .fixup,\"ax\"\n"		\
+	"	.align		2\n"				\
+	"3:	mov		%w0, %w5\n"			\
+	"	b		2b\n"				\
+	"	.previous\n"					\
+	"	.section	 __ex_table,\"a\"\n"		\
+	"	.align		3\n"				\
+	"	.quad		0b, 3b\n"			\
+	"	.quad		1b, 3b\n"			\
+	"	.previous"					\
+	: "=&r" (res), "+r" (data), "=&r" (temp)		\
+	: "r" (addr), "i" (-EAGAIN), "i" (-EFAULT)		\
+	: "cc", "memory")
+
+#define __user_swp_asm(data, addr, res, temp) \
+	__user_swpX_asm(data, addr, res, temp, "")
+#define __user_swpb_asm(data, addr, res, temp) \
+	__user_swpX_asm(data, addr, res, temp, "b")
+
+/*
+ * Macros/defines for extracting register numbers from instruction.
+ */
+#define EXTRACT_REG_NUM(instruction, offset) \
+	(((instruction) & (0xf << (offset))) >> (offset))
+#define RN_OFFSET  16
+#define RT_OFFSET  12
+#define RT2_OFFSET  0
+
+/* opcode functions, stolen from arch/arm */
+#define AARCH32_OPCODE_CONDTEST_FAIL   0
+#define AARCH32_OPCODE_CONDTEST_PASS   1
+#define AARCH32_OPCODE_CONDTEST_UNCOND 2
+#define AARCH32_OPCODE_CONDITION_UNCOND 0xf
+
+/*
+ * condition code lookup table
+ * index into the table is test code: EQ, NE, ... LT, GT, AL, NV
+ *
+ * bit position in short is condition code: NZCV
+ */
+static const unsigned short cc_map[16] = {
+	0xF0F0,			/* EQ == Z set            */
+	0x0F0F,			/* NE                     */
+	0xCCCC,			/* CS == C set            */
+	0x3333,			/* CC                     */
+	0xFF00,			/* MI == N set            */
+	0x00FF,			/* PL                     */
+	0xAAAA,			/* VS == V set            */
+	0x5555,			/* VC                     */
+	0x0C0C,			/* HI == C set && Z clear */
+	0xF3F3,			/* LS == C clear || Z set */
+	0xAA55,			/* GE == (N==V)           */
+	0x55AA,			/* LT == (N!=V)           */
+	0x0A05,			/* GT == (!Z && (N==V))   */
+	0xF5FA,			/* LE == (Z || (N!=V))    */
+	0xFFFF,			/* AL always              */
+	0			/* NV                     */
+};
+
+/*
+ * Returns:
+ * AARCH32_OPCODE_CONDTEST_FAIL   - if condition fails
+ * AARCH32_OPCODE_CONDTEST_PASS   - if condition passes (including AL)
+ * AARCH32_OPCODE_CONDTEST_UNCOND - if NV condition, or separate unconditional
+ *                              opcode space from v5 onwards
+ *
+ * Code that tests whether a conditional instruction would pass its condition
+ * check should check that return value == AARCH32_OPCODE_CONDTEST_PASS.
+ *
+ * Code that tests if a condition means that the instruction would be executed
+ * (regardless of conditional or unconditional) should instead check that the
+ * return value != AARCH32_OPCODE_CONDTEST_FAIL.
+ */
+asmlinkage unsigned int aarch32_check_condition(u32 opcode, u32 psr)
+{
+	u32 cc_bits  = opcode >> 28;
+	u32 psr_cond = psr >> 28;
+	unsigned int ret;
+
+	if (cc_bits != AARCH32_OPCODE_CONDITION_UNCOND) {
+		if ((cc_map[cc_bits] >> (psr_cond)) & 1)
+			ret = AARCH32_OPCODE_CONDTEST_PASS;
+		else
+			ret = AARCH32_OPCODE_CONDTEST_FAIL;
+	} else {
+		ret = AARCH32_OPCODE_CONDTEST_UNCOND;
+	}
+
+	return ret;
+}
+
+/*
+ * Bit 22 of the instruction encoding distinguishes between
+ * the SWP and SWPB variants (bit set means SWPB).
+ */
+#define TYPE_SWPB (1 << 22)
+
+/*
+ * Set up process info to signal segmentation fault - called on access error.
+ */
+static void set_segfault(struct pt_regs *regs, unsigned long addr)
+{
+	siginfo_t info;
+
+	down_read(&current->mm->mmap_sem);
+	if (find_vma(current->mm, addr) == NULL)
+		info.si_code = SEGV_MAPERR;
+	else
+		info.si_code = SEGV_ACCERR;
+	up_read(&current->mm->mmap_sem);
+
+	info.si_signo = SIGSEGV;
+	info.si_errno = 0;
+	info.si_addr  = (void *) instruction_pointer(regs);
+
+	pr_debug("SWP{B} emulation: access caused memory abort!\n");
+	arm64_notify_die("Illegal memory access", regs, &info, 0);
+}
+
+static int emulate_swpX(u64 address, unsigned int *data,
+			unsigned int type)
+{
+	unsigned int res = 0;
+
+	if ((type != TYPE_SWPB) && (address & 0x3)) {
+		/* SWP to unaligned address not permitted */
+		pr_debug("SWP instruction on unaligned pointer!\n");
+		return -EFAULT;
+	}
+
+	while (1) {
+		unsigned int temp;
+
+		/*
+		 * Barrier required between accessing protected resource and
+		 * releasing a lock for it. Legacy code might not have done
+		 * this, and we cannot determine that this is not the case
+		 * being emulated, so insert always.
+		 */
+		smp_mb();
+
+		if (type == TYPE_SWPB)
+			__user_swpb_asm(*data, address, res, temp);
+		else
+			__user_swp_asm(*data, address, res, temp);
+
+		if (likely(res != -EAGAIN) || signal_pending(current))
+			break;
+
+		cond_resched();
+	}
+
+	if (res == 0)
+		/*
+		 * Barrier also required between acquiring a lock for a
+		 * protected resource and accessing the resource. Inserted for
+		 * same reason as above.
+		 */
+		smp_mb();
+
+	return res;
+}
+
+/*
+ * swp_handler logs the id of calling process, dissects the instruction, sanity
+ * checks the memory location, calls emulate_swpX for the actual operation and
+ * deals with fixup/error handling before returning
+ */
+static int aarch32_swp_handler(struct pt_regs *regs)
+{
+	unsigned int destreg, data, type;
+	unsigned int res = 0;
+	unsigned int instr;
+	unsigned long address;
+	void __user *pc = (void __user *)instruction_pointer(regs);
+
+	if (!compat_user_mode(regs))
+		return -EFAULT;
+
+	get_user(instr, (u32 __user *)pc);
+
+	if ((instr & 0x0fb00ff0) != 0x01000090)
+		return -EFAULT;
+
+	perf_sw_event(PERF_COUNT_SW_EMULATION_FAULTS, 1, regs, regs->pc);
+
+	res = aarch32_check_condition(instr, regs->pstate);
+	switch (res) {
+	case AARCH32_OPCODE_CONDTEST_PASS:
+		break;
+	case AARCH32_OPCODE_CONDTEST_FAIL:
+		/* Condition failed - return to next instruction */
+		regs->pc += 4;
+		return 0;
+	case AARCH32_OPCODE_CONDTEST_UNCOND:
+		/* If unconditional encoding - not a SWP, undef */
+		return -EFAULT;
+	default:
+		return -EINVAL;
+	}
+
+	pr_debug("\"%s\" (%ld) uses deprecated SWP{B} instruction\n",
+		 current->comm, (unsigned long)current->pid);
+
+	address = regs->regs[EXTRACT_REG_NUM(instr, RN_OFFSET)];
+	data	= regs->regs[EXTRACT_REG_NUM(instr, RT2_OFFSET)];
+	destreg = EXTRACT_REG_NUM(instr, RT_OFFSET);
+
+	type = instr & TYPE_SWPB;
+
+	pr_debug("addr in r%d->0x%08x, dest is r%d, source in r%d->0x%08x)\n",
+		 EXTRACT_REG_NUM(instr, RN_OFFSET), (unsigned int)address,
+		 destreg, EXTRACT_REG_NUM(instr, RT2_OFFSET), data);
+
+	/* Check access in reasonable access range for both SWP and SWPB */
+	if (!access_ok(VERIFY_WRITE, (address & ~3), 4)) {
+		pr_debug("SWP{B} emulation: access to %p not allowed!\n",
+			 (void *)address);
+		res = -EFAULT;
+	} else {
+		res = emulate_swpX(address, &data, type);
+	}
+
+	if (res == 0) {
+		/*
+		 * On successful emulation, revert the adjustment to the PC
+		 * made in kernel/traps.c in order to resume execution at the
+		 * instruction following the SWP{B}.
+		 */
+		regs->pc += 4;
+		regs->regs[destreg] = data;
+	} else if (res == -EFAULT) {
+		/*
+		 * Memory errors do not mean emulation failed.
+		 * Set up signal info to return SEGV, then return OK
+		 */
+		set_segfault(regs, address);
+	}
+
+	return 0;
+}
+
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
 	siginfo_t info;
@@ -296,6 +549,9 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 
 	/* check for AArch32 CP15DMB/CP15DSB/CP15ISB */
 	if (!aarch32_cp15_barriers(regs))
+		return;
+
+	if (!aarch32_swp_handler(regs))
 		return;
 
 	if (show_unhandled_signals && unhandled_signal(current, SIGILL) &&
