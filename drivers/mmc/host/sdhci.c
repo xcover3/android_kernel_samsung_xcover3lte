@@ -2350,9 +2350,9 @@ static const struct mmc_host_ops sdhci_ops = {
  *                                                                           *
 \*****************************************************************************/
 
-static void sdhci_tasklet_card(unsigned long param)
+static void sdhci_card_work(struct work_struct *work)
 {
-	struct sdhci_host *host = (struct sdhci_host*)param;
+	struct sdhci_host *host = container_of(work, struct sdhci_host, card_work);
 
 	sdhci_card_event(host->mmc);
 
@@ -2758,7 +2758,7 @@ again:
 		sdhci_writel(host, intmask & (SDHCI_INT_CARD_INSERT |
 			     SDHCI_INT_CARD_REMOVE), SDHCI_INT_STATUS);
 		intmask &= ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE);
-		tasklet_schedule(&host->card_tasklet);
+		queue_work(host->card_workqueue, &host->card_work);
 	}
 
 	if (intmask & SDHCI_INT_CMD_MASK) {
@@ -3509,10 +3509,13 @@ int sdhci_add_host(struct sdhci_host *host)
 	mmc->max_blk_count = (host->quirks & SDHCI_QUIRK_NO_MULTIBLOCK) ? 1 : 65535;
 
 	/*
-	 * Init tasklets.
+	 * Init workqueue and tasklet.
 	 */
-	tasklet_init(&host->card_tasklet,
-		sdhci_tasklet_card, (unsigned long)host);
+	host->card_workqueue = create_workqueue("sdhci-card");
+	if (!host->card_workqueue)
+		return -ENOMEM;
+	INIT_WORK(&host->card_work, sdhci_card_work);
+
 	tasklet_init(&host->finish_tasklet,
 		sdhci_tasklet_finish, (unsigned long)host);
 
@@ -3584,9 +3587,8 @@ reset:
 	free_irq(host->irq, host);
 #endif
 untasklet:
-	tasklet_kill(&host->card_tasklet);
 	tasklet_kill(&host->finish_tasklet);
-
+	destroy_workqueue(host->card_workqueue);
 	return ret;
 }
 
@@ -3629,7 +3631,8 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 
 	del_timer_sync(&host->timer);
 
-	tasklet_kill(&host->card_tasklet);
+	flush_workqueue(host->card_workqueue);
+	destroy_workqueue(host->card_workqueue);
 	tasklet_kill(&host->finish_tasklet);
 
 	sdhci_runtime_pm_put(host);

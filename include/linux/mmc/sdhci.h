@@ -188,6 +188,9 @@ struct sdhci_host {
 	struct tasklet_struct card_tasklet;	/* Tasklet structures */
 	struct tasklet_struct finish_tasklet;
 
+	struct workqueue_struct *card_workqueue;	/* Workqueue structures */
+	struct work_struct card_work;
+
 	struct timer_list timer;	/* Timer for timeouts */
 
 	u32 caps;		/* Alternative CAPABILITY_0 */
