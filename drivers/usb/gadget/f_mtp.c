@@ -1210,6 +1210,9 @@ static int mtp_function_set_alt(struct usb_function *f,
 
 	DBG(cdev, "mtp_function_set_alt intf: %d alt: %d\n", intf, alt);
 
+	if (dev->state != STATE_OFFLINE)
+		return 0;
+
 	ret = config_ep_by_speed(cdev->gadget, f, dev->ep_in);
 	if (ret)
 		return ret;
