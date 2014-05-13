@@ -188,8 +188,81 @@ void machine_restart(char *cmd)
 	/*
 	 * Whoops - the architecture was unable to reboot.
 	 */
-	printk("Reboot failed -- System halted\n");
+	pr_info("Reboot failed -- System halted\n");
 	while (1);
+}
+
+static void show_data(u64 addr, int nbytes, const char *name)
+{
+	unsigned long bottom, top, first;
+	int i;
+
+	/*
+	 * don't attempt to dump non-kernel addresses or
+	 * values that are probably just small negative numbers
+	 */
+	if (addr < PAGE_OFFSET || addr > -256UL)
+		return;
+	/*
+	 * round address down to a 64 bit boundary
+	 * and always dump a multiple of 64 bytes
+	 */
+	bottom = addr & ~(sizeof(u64) - 1);
+	top = bottom + nbytes;
+	pr_info("%s(0x%016lx to 0x%016lx)\n", name, bottom, top);
+
+	for (first = bottom & ~31; first < top; first += 32) {
+		unsigned long p;
+		char str[sizeof(" 12345678") * 8 + 1];
+
+		memset(str, ' ', sizeof(str));
+		str[sizeof(str) - 1] = '\0';
+
+		for (p = first, i = 0; i < 8 && p < top; i++, p += 4) {
+			if (p >= bottom && p < top) {
+				unsigned int val;
+				if (__get_user(val, (unsigned int *)p) == 0)
+					sprintf(str + i * 9, " %08x", val);
+				else
+					sprintf(str + i * 9, " ********");
+			}
+		}
+		pr_info("%04lx:%s\n", first & 0xffff, str);
+	}
+
+	pr_info("\n");
+}
+
+static void show_extra_register_data(struct pt_regs *regs, int nbytes)
+{
+	int i, top_reg;
+	u64 lr, sp;
+	char s[4];
+	mm_segment_t fs;
+
+	if (compat_user_mode(regs)) {
+		lr = regs->compat_lr;
+		sp = regs->compat_sp;
+		top_reg = 12;
+	} else {
+		lr = regs->regs[30];
+		sp = regs->sp;
+		top_reg = 29;
+	}
+
+	fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	show_data(regs->pc - nbytes, nbytes * 2, "PC: ");
+	show_data(lr - nbytes, nbytes * 2, "LR: ");
+	show_data(regs->pstate - nbytes, nbytes * 2, "PSTATE: ");
+	show_data(sp - nbytes, nbytes * 2, "SP: ");
+	for (i = top_reg; i >= 0; i--) {
+		sprintf(s, "%s%d: ", "R", i);
+		show_data(regs->regs[i] - nbytes, nbytes * 2, s);
+	}
+	pr_info("\n");
+	set_fs(fs);
 }
 
 void __show_regs(struct pt_regs *regs)
@@ -210,20 +283,21 @@ void __show_regs(struct pt_regs *regs)
 	show_regs_print_info(KERN_DEFAULT);
 	print_symbol("PC is at %s\n", instruction_pointer(regs));
 	print_symbol("LR is at %s\n", lr);
-	printk("pc : [<%016llx>] lr : [<%016llx>] pstate: %08llx\n",
+	pr_info("pc : [<%016llx>] lr : [<%016llx>] pstate: %08llx\n",
 	       regs->pc, lr, regs->pstate);
-	printk("sp : %016llx\n", sp);
+	pr_info("sp : %016llx\n", sp);
 	for (i = top_reg; i >= 0; i--) {
-		printk("x%-2d: %016llx ", i, regs->regs[i]);
+		pr_info("R%-2d: %016llx ", i, regs->regs[i]);
 		if (i % 2 == 0)
-			printk("\n");
+			pr_info("\n");
 	}
-	printk("\n");
+	pr_info("\n");
+	show_extra_register_data(regs, 128);
 }
 
 void show_regs(struct pt_regs * regs)
 {
-	printk("\n");
+	pr_info("\n");
 	__show_regs(regs);
 }
 
