@@ -872,6 +872,14 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_command *cmd)
 	if (data || (cmd->flags & MMC_RSP_BUSY)) {
 		count = sdhci_calc_timeout(host, cmd);
 		sdhci_writeb(host, count, SDHCI_TIMEOUT_CONTROL);
+		/*
+		 * 0xE stands for ~10s timeout for 52Mhz TMCLK, which maybe
+		 * too short for some commands like CMD6/CMD38. It will depend
+		 * on sw timeout timer to handle this and the timeout is set
+		 * to 240s.
+		 */
+		if ((count == 0xE) && (host->quirks2 & SDHCI_QUIRK2_TIMEOUT_SHORT))
+			mod_timer(&host->timer, jiffies + 4 * 60 * HZ);
 	}
 
 	if (!data)
@@ -2605,6 +2613,21 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 			if (intmask & SDHCI_INT_DATA_END) {
 				sdhci_finish_command(host);
 				return;
+			}
+			if (intmask & SDHCI_INT_DATA_TIMEOUT) {
+				if (((sdhci_readb(host, SDHCI_TIMEOUT_CONTROL) & 0xF) == 0xE)
+					&& (host->quirks2 & SDHCI_QUIRK2_TIMEOUT_SHORT)) {
+					pr_debug("%s: hardware timeout but change to use the software timeout timer.\n",
+						mmc_hostname(host->mmc));
+					return;
+				} else {
+					if (host->cmd)
+						host->cmd->error = -ETIMEDOUT;
+					else
+						host->mrq->cmd->error = -ETIMEDOUT;
+					tasklet_schedule(&host->finish_tasklet);
+					return;
+				}
 			}
 		}
 
