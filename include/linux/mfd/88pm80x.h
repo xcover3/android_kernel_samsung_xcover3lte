@@ -216,6 +216,8 @@ enum {
 #define PM800_BUCK1_SLEEP	(0x30)
 
 #define PM800_AUDIO_MODE_CONFIG1	(0x38)
+/* determine ldo2 status in Audio mode when SLEEPn is low */
+#define LDO2_SET_AUDIO		(1 << 7)
 #define PM800_BUCK3		(0x41)
 #define PM800_BUCK4		(0x42)
 #define PM800_BUCK4_1		(0x43)
@@ -591,4 +593,5 @@ extern int pm80x_deinit(void);
 extern int pm8xx_dvc_setvolt(unsigned int buckid, unsigned int lvl, int uv);
 extern int pm8xx_dvc_getvolt(unsigned int buckid, unsigned int lvl, int *uv);
 extern void buck1_audio_mode_ctrl(int on);
+extern void set_buck1_audio_mode_vol(int vol);
 #endif /* __LINUX_MFD_88PM80X_H */

@@ -324,3 +324,24 @@ void buck1_audio_mode_ctrl(int on)
 	mutex_unlock(&audio_mode_mutex);
 }
 EXPORT_SYMBOL(buck1_audio_mode_ctrl);
+
+/* set buck1 audio mode voltage */
+void set_buck1_audio_mode_vol(int uv)
+{
+	unsigned int data, val, mask = 0x7f;
+	/* the proper range is 0~0x54, corresponding voltage is 0.6v~1.8v */
+	if ((uv > 1800) || (uv < 600)) {
+		pr_err("expected voltage range: [600mv, 1800mv]\n");
+		return;
+	}
+	if (uv <= 1600)
+		data = ((uv - 600) << 1) / 25;
+	else
+		data = (uv - 1600) / 50 + 0x50;
+
+	regmap_read(chip_g->subchip->regmap_power, PM800_AUDIO_MODE_CONFIG1, &val);
+	val &= ~mask;
+	val |= (data | LDO2_SET_AUDIO);
+	regmap_write(chip_g->subchip->regmap_power, PM800_AUDIO_MODE_CONFIG1, val);
+}
+EXPORT_SYMBOL(set_buck1_audio_mode_vol);
