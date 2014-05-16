@@ -53,6 +53,10 @@ struct mtp_event {
 #define MTP_RECEIVE_FILE           _IOW('M', 1, struct mtp_file_range)
 /* Sends an event to the host via the interrupt endpoint */
 #define MTP_SEND_EVENT             _IOW('M', 3, struct mtp_event)
+
+#ifdef CONFIG_COMPAT
+#define MTP_COMPAT_SEND_EVENT      _IOW('M', 3, long)
+#endif
 /* Sends the specified file range to the host,
  * with a 12 byte MTP data packet header at the beginning.
  */

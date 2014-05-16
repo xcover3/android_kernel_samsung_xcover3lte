@@ -938,6 +938,27 @@ static long mtp_ioctl(struct file *fp, unsigned code, unsigned long value)
 			ret = mtp_send_event(dev, &event);
 		goto out;
 	}
+#ifdef CONFIG_COMPAT
+	case MTP_COMPAT_SEND_EVENT:
+	{
+		struct mtp_event	event;
+		uint32_t buf[2];
+
+		/* sizeof(event) will return 8 with 32bit android but
+		 * 16 with 64bit kernel.
+		 */
+		if (copy_from_user(buf, (void __user *)compat_ptr(value),
+								sizeof(buf)))
+			ret = -EFAULT;
+		else {
+			event.length = buf[0];
+			event.data = (void *)(u64)buf[1];
+
+			ret = mtp_send_event(dev, &event);
+		}
+		goto out;
+	}
+#endif
 	}
 
 fail:
