@@ -33,6 +33,10 @@
 #include <linux/of.h>
 #include <mach/addr-map.h>
 #include <asm/cputype.h>
+#include <linux/clk/dvfs-dvc.h>
+#include <linux/cooling_dev_mrvl.h>
+#include <linux/cpu.h>
+#include <linux/pm_qos.h>
 
 /* debug: Use for sysfs set temp */
 /* #define DEBUG_TEMPERATURE */
@@ -110,6 +114,20 @@ static int cpu_thermal_trips_temp[TRIP_POINTS_NUM] = {
 	112,			/* bind to critical type */
 };
 
+static int trips_temp[TRIP_POINTS_NUM] = {
+	56000, /* TRIP_POINT_0 */
+	85000, /* TRIP_POINT_1 */
+	96000, /* TRIP_POINT_2 */
+	100000, /* TRIP_POINT_3 */
+};
+
+static int trips_temp_d[TRIP_POINTS_NUM] = {
+	46000, /* TRIP_POINT_0_D */
+	56000, /* TRIP_POINT_1_D */
+	80000, /* TRIP_POINT_2_D */
+	85000, /* TRIP_POINT_3_D */
+};
+
 struct pxa_tmu_data {
 	struct pxa_tmu_platform_data *pdata;
 	struct resource *mem;
@@ -123,6 +141,10 @@ struct pxa_tmu_data {
 	int mode;
 	int state;
 	int old_state;
+	int high;
+	int temp_cpu;
+	int start;
+	int level;
 };
 
 struct	thermal_trip_point_conf {
@@ -155,10 +177,21 @@ struct pxa_thermal_zone {
 	bool bind;
 };
 
+struct cooling_device {
+	struct thermal_cooling_device *combile_cool;
+	int max_state, cur_state;
+	struct thermal_cooling_device *cool_cpufreq;
+	struct thermal_cooling_device *cool_cpuhotplug;
+};
+
+#define hole_up 80000
+#define hole_down 64000
+
 static struct pxa_thermal_zone *th_zone;
 static void pxa_unregister_thermal(void);
 static int pxa_register_thermal(struct thermal_sensor_conf *sensor_conf);
 struct pxa_tmu_data *print_data;
+static int gray_decode(unsigned int gray);
 
 /* Get mode callback functions for thermal zone */
 static int pxa_get_mode(struct thermal_zone_device *thermal,
@@ -217,6 +250,17 @@ static int pxa_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 
 	return 0;
 }
+
+static int cpu_sys_get_trip_temp_d(struct thermal_zone_device *thermal,
+		int trip, unsigned long *temp)
+{
+	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
+		*temp = trips_temp_d[trip];
+	else
+		*temp = -1;
+	return 0;
+}
+
 
 /* Get critical temperature callback functions for thermal zone */
 static int pxa_get_crit_temp(struct thermal_zone_device *thermal,
@@ -307,23 +351,210 @@ static int pxa_unbind(struct thermal_zone_device *thermal,
 	return ret;
 }
 
+void set_high_temperature(void)
+{
+	unsigned long ts_ctrl, ts_thd, temp;
+	/* we only care greater than 80 */
+	ts_ctrl = readl(print_data->base + THERMAL_TS_CTRL);
+	ts_ctrl &= ~TS_CTRL_TSEN_LOW_RANGE;
+	ts_ctrl |= TS_OVER_RANGE_RST_ENABLE;
+	/*
+	 * init, only set warning interrupt, if temp hit warning, then
+	 * enable data ready interrupt, then if temp drops to 80 degree,
+	 * disable data ready interrupt
+	 */
+	ts_ctrl |= TS_WARNING_MASK;
+
+	/* set high threshold 110 degree */
+	ts_thd = 0x0c;
+	temp = readl(print_data->base + THERMAL_TS_THD);
+	temp &= ~TS_HIGH_THD;
+	temp |= (0x0c << 4);
+	writel(temp, print_data->base + THERMAL_TS_THD);
+
+	ts_ctrl |= (TS_CTRL_RST_N_TSEN | TS_CTRL_TSEN_TEMP_ON);
+	writel(ts_ctrl, print_data->base + THERMAL_TS_CTRL);
+	print_data->high = 1;
+	print_data->temp_cpu = 80 * 1000;
+
+}
+
+void set_low_temperature(void)
+{
+	unsigned long ts_ctrl;
+	ts_ctrl = readl(print_data->base + THERMAL_TS_CTRL);
+
+	ts_ctrl |= TS_CTRL_TSEN_LOW_RANGE;
+	ts_ctrl |= (TS_CTRL_RST_N_TSEN | TS_CTRL_TSEN_TEMP_ON);
+
+	writel(ts_ctrl, print_data->base + THERMAL_TS_CTRL);
+
+	print_data->high = 0;
+	print_data->temp_cpu = 64 * 1000;
+
+}
+
+void thermal_stop(void)
+{
+	unsigned long ts_ctrl;
+	ts_ctrl = readl(print_data->base + THERMAL_TS_CTRL);
+
+	ts_ctrl &= ~TS_CTRL_RST_N_TSEN;
+	ts_ctrl &= ~TS_CTRL_TSEN_TEMP_ON;
+	writel(ts_ctrl, print_data->base + THERMAL_TS_CTRL);
+
+}
+
+int thermal_level(int level)
+{
+	int temp = print_data->temp_cpu;
+	switch (level) {
+	case 0:
+		if (temp >= trips_temp[level])
+			level++;
+		break;
+	case 1:
+		if (temp >= trips_temp[level])
+			level++;
+		else if (temp <= trips_temp_d[level-1])
+			level--;
+		break;
+	case 2:
+		if (temp >= trips_temp[level])
+			level++;
+		else if (temp <= trips_temp_d[level-1])
+			level--;
+		break;
+	case 3:
+		if (temp >= trips_temp[level])
+			level++;
+		else if (temp <= trips_temp_d[level-1])
+			level--;
+		break;
+	case 4:
+		if (temp <= trips_temp_d[level-1])
+			level--;
+		break;
+	}
+
+	if (th_zone->therm_dev != NULL) {
+		if (level == 0)
+			th_zone->therm_dev->polling_delay = 2000;
+		else if (level == 1)
+			th_zone->therm_dev->polling_delay = 1000;
+		else if (level > 1)
+			th_zone->therm_dev->polling_delay = 500;
+	}
+
+	return level;
+}
+
+void thermal_cooling_handle(int level)
+{
+	char *temp_info[3] = { "TYPE=thsens_cpu", "LEVEL=100000", NULL };
+	if (level != print_data->level) {
+		if (th_zone->therm_dev != NULL) {
+				sprintf(temp_info[1], "LEVEL=%d", level);
+				kobject_uevent_env
+					(&th_zone->therm_dev->device.kobj,
+					KOBJ_CHANGE, temp_info);
+		}
+	}
+	print_data->level = level;
+}
+
+#define RETRY_TIMES (2)
+int count;
 /* Get temperature callback functions for thermal zone */
 static int pxa_get_temp(struct thermal_zone_device *thermal,
 			unsigned long *temp)
 {
-	void *data;
+	if (!is_1p5G_chip) {
+		void *data;
 
-	if (!th_zone->sensor_conf) {
-		pr_info("Temperature sensor not initialised\n");
-		return -EINVAL;
+		if (!th_zone->sensor_conf) {
+			pr_info("Temperature sensor not initialised\n");
+			return -EINVAL;
+		}
+		data = th_zone->sensor_conf->private_data;
+		*temp = th_zone->sensor_conf->read_temperature(data);
+		/* convert the temperature into millicelsius */
+		*temp = *temp * MCELSIUS;
+	} else if (is_1p5G_chip) {
+		unsigned long ts_read;
+		int gray_code = 0, interval_temp = 0;
+		int threshold = 80;
+		int level;
+
+		ts_read = readl(print_data->base + THERMAL_TS_READ);
+		gray_code = ts_read & TS_READ_OUT_DATA;
+		if (print_data->high == 1) {
+			threshold = 80;
+			print_data->temp_cpu =
+			(gray_decode(gray_code) * 5 / 2 + threshold) * 1000;
+		} else {
+			threshold = 29;
+			print_data->temp_cpu =
+			(gray_decode(gray_code) * 5 / 2 + threshold) * 1000;
+		}
+
+		interval_temp = print_data->temp_cpu;
+		if (print_data->high && (interval_temp <= hole_up))
+			count++;
+		else if ((!print_data->high) && (interval_temp >= hole_down))
+			count++;
+		else
+			count = 0;
+
+		if (count > RETRY_TIMES) {
+			if (print_data->high) {
+				thermal_stop();
+				set_low_temperature();
+			} else {
+				thermal_stop();
+				set_high_temperature();
+			}
+			count = 0;
+		}
+
+		if (print_data->start)
+			level = thermal_level(print_data->level);
+
+		*temp = print_data->temp_cpu;
 	}
-	data = th_zone->sensor_conf->private_data;
-	*temp = th_zone->sensor_conf->read_temperature(data);
-	/* convert the temperature into millicelsius */
-	*temp = *temp * MCELSIUS;
 
 	return 0;
 }
+
+void thermal_control_1p5G(void)
+{
+	long temp, i;
+
+	print_data->start = 0;
+
+	for (i = 0; i < TRIP_POINTS_NUM; i++)
+		pxa_get_temp(th_zone->therm_dev, &temp);
+
+	temp = print_data->temp_cpu;
+
+	for (i = 0; i < TRIP_POINTS_NUM;)
+		if (temp >= trips_temp[i])
+			i++;
+		else
+			break;
+	if (trips_temp[i] >= hole_up) {
+		thermal_stop();
+		set_high_temperature();
+	} else if (trips_temp[i] <= hole_down) {
+		thermal_stop();
+		set_low_temperature();
+	}
+
+	print_data->level = i;
+	print_data->start = 1;
+
+}
+
 
 /* Operation callback functions for thermal zone */
 static struct thermal_zone_device_ops const pxa_dev_ops = {
@@ -332,6 +563,7 @@ static struct thermal_zone_device_ops const pxa_dev_ops = {
 	.get_temp = pxa_get_temp,
 	.get_mode = pxa_get_mode,
 	.set_mode = pxa_set_mode,
+	.get_trip_temp_d = cpu_sys_get_trip_temp_d,
 	.get_trip_type = pxa_get_trip_type,
 	.get_trip_temp = pxa_get_trip_temp,
 	.get_crit_temp = pxa_get_crit_temp,
@@ -456,17 +688,22 @@ static int pxa_register_thermal(struct thermal_sensor_conf *sensor_conf)
 		return -ENOMEM;
 
 	th_zone->sensor_conf = sensor_conf;
-	cpumask_set_cpu(0, &mask_val);
-	th_zone->cool_dev[0] = cpufreq_cooling_register(&mask_val);
-	if (IS_ERR(th_zone->cool_dev[0])) {
-		pr_err("Failed to register cpufreq cooling device\n");
-		ret = -EINVAL;
-		goto err_unregister;
-	}
-	th_zone->cool_dev_size++;
+	if (!is_1p5G_chip) {
+		cpumask_set_cpu(0, &mask_val);
+		th_zone->cool_dev[0] = cpufreq_cooling_register(&mask_val);
+		if (IS_ERR(th_zone->cool_dev[0])) {
+			pr_err("Failed to register cpufreq cooling device\n");
+			ret = -EINVAL;
+			goto err_unregister;
+		}
+		th_zone->cool_dev_size++;
 
-	th_zone->therm_dev = thermal_zone_device_register("thsens_cpu",
-			PXA_ZONE_COUNT, 0, NULL, &pxa_dev_ops, NULL, 0, 0);
+		th_zone->therm_dev = thermal_zone_device_register("thsens_cpu",
+		PXA_ZONE_COUNT, 0, NULL, &pxa_dev_ops, NULL, 0, 0);
+	} else {
+		th_zone->therm_dev = thermal_zone_device_register("thsens_cpu",
+			PXA_ZONE_COUNT, 0, NULL, &pxa_dev_ops, NULL, 0, 2000);
+	}
 
 	if (IS_ERR(th_zone->therm_dev)) {
 		pr_err("Failed to register thermal zone device\n");
@@ -820,15 +1057,18 @@ static int pxa_tmu_probe(struct platform_device *pdev)
 	 */
 	if (data->soc == SOC_ARCH_PXA1L88)
 		data->mode = AUTO_MODE_2;
-
+	print_data = data;
 	clk_prepare_enable(data->clk);
-	ret = pxa_tmu_initialize(pdev);
-	if (ret) {
-		dev_err(&pdev->dev, "Failed to initialize TMU\n");
-		goto err_clk;
-	}
 
-	pxa_tmu_control(pdev, true);
+	if (!is_1p5G_chip) {
+		ret = pxa_tmu_initialize(pdev);
+		if (ret) {
+			dev_err(&pdev->dev, "Failed to initialize TMU\n");
+			goto err_clk;
+		}
+
+		pxa_tmu_control(pdev, true);
+	}
 
 	/* Register the sensor with thermal management interface */
 	(&pxa_sensor_conf)->private_data = data;
@@ -844,6 +1084,12 @@ static int pxa_tmu_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register thermal interface\n");
 		goto err_clk;
+	}
+
+	if (is_1p5G_chip) {
+		thermal_stop();
+		set_low_temperature();
+		thermal_control_1p5G();
 	}
 
 #ifdef DEBUG_TEMPERATURE
