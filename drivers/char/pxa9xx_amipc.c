@@ -30,6 +30,7 @@
 #include <linux/io.h>
 #include <linux/regs-addr.h>
 #include <linux/pm_wakeup.h>
+#include <linux/vmalloc.h>
 
 #include <linux/pxa9xx_amipc.h>
 
@@ -618,10 +619,19 @@ int amipc_mmap(struct file *file, struct vm_area_struct *vma)
 	 *  vma->vm_page_prot|=L_PTE_WRITE;
 	 */
 
-	if (io_remap_pfn_range(vma, vma->vm_start, pa,/* physical page index */
-				size, vma->vm_page_prot)) {
-		pr_err("remap page range failed\n");
-		return -ENXIO;
+	/* check if addr is normal memory */
+	if (pfn_valid(pa)) {
+		if (remap_pfn_range(vma, vma->vm_start, pa,/* physical page index */
+					size, vma->vm_page_prot)) {
+			pr_err("remap page range failed\n");
+			return -ENXIO;
+		}
+	} else {
+		if (io_remap_pfn_range(vma, vma->vm_start, pa,/* physical page index */
+					size, vma->vm_page_prot)) {
+			pr_err("remap page range failed\n");
+			return -ENXIO;
+		}
 	}
 	vma->vm_ops = &vm_ops;
 	amipc_vma_open(vma);
@@ -742,6 +752,9 @@ const struct file_operations amipc_command_fops = {
 static const struct file_operations amipc_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = amipc_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = amipc_ioctl,
+#endif
 	.poll = amipc_poll,
 	.mmap = amipc_mmap,
 };
@@ -871,6 +884,49 @@ static void __exit pxa9xx_amipc_exit(void)
 	platform_driver_unregister(&pxa9xx_amipc_driver);
 }
 
+static void *shm_vmap(phys_addr_t start, size_t size)
+{
+	struct page **pages;
+	phys_addr_t page_start;
+	unsigned int i, page_count;
+	pgprot_t prot;
+	void *vaddr;
+
+	page_start = start - offset_in_page(start);
+	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
+
+#ifdef CONFIG_ARM64
+	prot = pgprot_writecombine(PAGE_KERNEL);
+#else
+	prot = pgprot_noncached(PAGE_KERNEL);
+#endif
+
+	pages = kmalloc(sizeof(struct page *) * page_count, GFP_KERNEL);
+	if (!pages) {
+		pr_err("%s: Failed to allocate array for %u pages\n", __func__,
+				page_count);
+		return NULL;
+	}
+
+	for (i = 0; i < page_count; i++) {
+		phys_addr_t addr = page_start + i * PAGE_SIZE;
+		pages[i] = phys_to_page(addr);
+	}
+	vaddr = vmap(pages, page_count, VM_MAP, prot);
+	kfree(pages);
+
+	return vaddr + offset_in_page(start);
+}
+
+static void *shm_map(phys_addr_t start, size_t size)
+{
+	/* check if addr is normal memory */
+	if (pfn_valid(__phys_to_pfn(start)))
+		return shm_vmap(start, size);
+	else
+		return ioremap_nocache(start, size);
+}
+
 enum amipc_return_code amipc_setbase(void *base_addr, int len)
 {
 	bool ddr_mem;
@@ -878,25 +934,31 @@ enum amipc_return_code amipc_setbase(void *base_addr, int len)
 		pr_err("share memory too small\n");
 		return AMIPC_RC_FAILURE;
 	}
-	pr_info("amipc: set base address phys:0x%x, len:%d\n",
-			(unsigned int)base_addr, len);
+	pr_info("amipc: set base address phys:0x%p, len:%d\n",
+			base_addr, len);
 	/* init debug info */
 	init_statistic_info();
-	if ((uint32_t)base_addr < PAGE_OFFSET)
+	/* check if addr is normal memory */
+	if (pfn_valid(__phys_to_pfn((phys_addr_t)base_addr)))
 		ddr_mem = true;
 	else
 		ddr_mem = false;
-	base_addr = ioremap_nocache((uint32_t)base_addr, len);
-	if (base_addr) {
-		amipc->ipc_tx = (struct ipc_event_type *)base_addr;
-		amipc->ipc_rx = amipc->ipc_tx + AMIPC_EVENT_LAST;
-		if (ddr_mem)
-			memset((void *)amipc->ipc_tx, 0, len);
-		return AMIPC_RC_OK;
-	} else {
-		pr_err("share memory remap fail\n");
-		return AMIPC_RC_FAILURE;
-	}
+
+	if (!amipc->ipc_tx) {
+		base_addr = shm_map((phys_addr_t)base_addr, len);
+		if (base_addr) {
+			amipc->ipc_tx = (struct ipc_event_type *)base_addr;
+			amipc->ipc_rx = amipc->ipc_tx + AMIPC_EVENT_LAST;
+			pr_info("share memory remap suc\n");
+		} else {
+			pr_err("share memory remap fail\n");
+			return AMIPC_RC_FAILURE;
+		}
+	} else
+		pr_info("share memory already map\n");
+	if (ddr_mem)
+		memset((void *)amipc->ipc_tx, 0, len);
+	return AMIPC_RC_OK;
 }
 EXPORT_SYMBOL(amipc_setbase);
 

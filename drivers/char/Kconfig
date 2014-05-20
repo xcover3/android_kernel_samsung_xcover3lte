@@ -619,7 +619,7 @@ config TILE_SROM
 
 config PXA9XX_AMIPC
        tristate "PXA9xx AM-IPC Driver"
-       depends on CPU_PXA988
+       depends on ARCH_MMP
        help
          Please say Y here if want to support Application to
          CM3 coprocessor communication on PXA1U88
