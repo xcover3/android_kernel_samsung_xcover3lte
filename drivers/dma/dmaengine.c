@@ -1017,6 +1017,7 @@ static void dmaengine_unmap(struct kref *kref)
 		dma_unmap_page(dev, unmap->addr[i], unmap->len,
 			       DMA_BIDIRECTIONAL);
 	}
+	cnt = unmap->map_cnt;
 	mempool_free(unmap, __get_unmap_pool(cnt)->pool);
 }
 
@@ -1082,6 +1083,7 @@ dmaengine_get_unmap_data(struct device *dev, int nr, gfp_t flags)
 	memset(unmap, 0, sizeof(*unmap));
 	kref_init(&unmap->kref);
 	unmap->dev = dev;
+	unmap->map_cnt = nr;
 
 	return unmap;
 }
