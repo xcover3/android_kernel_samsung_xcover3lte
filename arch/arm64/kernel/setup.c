@@ -443,8 +443,13 @@ static int c_show(struct seq_file *m, void *v)
 {
 	int i;
 
-	seq_printf(m, "Processor\t: %s rev %d (%s)\n",
-		   cpu_name, read_cpuid_id() & 15, ELF_PLATFORM);
+	if (is_compat_task())
+		seq_printf(m, "Processor\t: %s rev %d (%s)\n",
+			"ARMv8 Processor", read_cpuid_id() & 15,
+			COMPAT_ELF_PLATFORM);
+	else
+		seq_printf(m, "Processor\t: %s rev %d (%s)\n",
+			cpu_name, read_cpuid_id() & 15, ELF_PLATFORM);
 
 	for_each_online_cpu(i) {
 		/*
@@ -466,7 +471,11 @@ static int c_show(struct seq_file *m, void *v)
 	seq_puts(m, " half thumb fastmult edsp tls vfp vfpv3 vfpv4 neon idiv ");
 
 	seq_printf(m, "\nCPU implementer\t: 0x%02x\n", read_cpuid_id() >> 24);
-	seq_printf(m, "CPU architecture: AArch64\n");
+
+	if (is_compat_task())
+		seq_puts(m, "CPU architecture: 7\n");
+	else
+		seq_puts(m, "CPU architecture: 8\n");
 	seq_printf(m, "CPU variant\t: 0x%x\n", (read_cpuid_id() >> 20) & 15);
 	seq_printf(m, "CPU part\t: 0x%03x\n", (read_cpuid_id() >> 4) & 0xfff);
 	seq_printf(m, "CPU revision\t: %d\n", read_cpuid_id() & 15);
