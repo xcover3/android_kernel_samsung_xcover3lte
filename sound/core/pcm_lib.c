@@ -1840,14 +1840,17 @@ void snd_pcm_period_elapsed(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime;
 	unsigned long flags;
 
-	if (PCM_RUNTIME_CHECK(substream))
+	snd_pcm_stream_lock_irqsave(substream, flags);
+	if (!substream || !substream->runtime ||
+			!substream->dmaengine_running) {
+		snd_pcm_stream_unlock_irqrestore(substream, flags);
 		return;
+	}
 	runtime = substream->runtime;
 
 	if (runtime->transfer_ack_begin)
 		runtime->transfer_ack_begin(substream);
 
-	snd_pcm_stream_lock_irqsave(substream, flags);
 	if (!snd_pcm_running(substream) ||
 	    snd_pcm_update_hw_ptr0(substream, 1) < 0)
 		goto _end;
@@ -1855,10 +1858,12 @@ void snd_pcm_period_elapsed(struct snd_pcm_substream *substream)
 	if (substream->timer_running)
 		snd_timer_interrupt(substream->timer, 1);
  _end:
-	snd_pcm_stream_unlock_irqrestore(substream, flags);
 	if (runtime->transfer_ack_end)
 		runtime->transfer_ack_end(substream);
-	kill_fasync(&runtime->fasync, SIGIO, POLL_IN);
+	snd_pcm_stream_unlock_irqrestore(substream, flags);
+	if (substream && substream->runtime &&
+			substream->dmaengine_running)
+		kill_fasync(&runtime->fasync, SIGIO, POLL_IN);
 }
 
 EXPORT_SYMBOL(snd_pcm_period_elapsed);
