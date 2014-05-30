@@ -124,6 +124,26 @@ extern struct clk *mmp_clk_register_gate(struct device *dev, const char *name,
 			spinlock_t *lock);
 
 
+/* Clock type "composite" for mix clock */
+struct mmp_clk_composite {
+	struct clk_hw hw;
+	struct clk_ops ops;
+
+	struct clk_hw *mix_hw;
+	struct clk_hw *gate_hw;
+
+	const struct clk_ops *mix_ops;
+	const struct clk_ops *gate_ops;
+};
+
+extern struct clk *mmp_clk_register_composite(struct device *dev,
+			const char *name,
+			const char **parent_names, int num_parents,
+			struct clk_hw *mix_hw, const struct clk_ops *mix_ops,
+			struct clk_hw *gate_hw, const struct clk_ops *gate_ops,
+			unsigned long flags);
+
+
 extern struct clk *mmp_clk_register_pll2(const char *name,
 		const char *parent_name, unsigned long flags);
 extern struct clk *mmp_clk_register_apbc(const char *name,
