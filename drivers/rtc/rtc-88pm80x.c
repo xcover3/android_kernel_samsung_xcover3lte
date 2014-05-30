@@ -76,6 +76,17 @@ static irqreturn_t rtc_update_handler(int irq, void *data)
 	struct pm80x_rtc_info *info = (struct pm80x_rtc_info *)data;
 	int mask;
 
+	/*
+	 * write 1 to clear PM800_ALARM (bit 5 of 0xd0),
+	 * which indicates the alarm event has happened;
+	 *
+	 * write 1 to PM800_ALARM_WAKEUP (bit 4 of 0xd0),
+	 * which is must for "expired-alarm powers up system",
+	 * it triggers falling edge of RTC_ALARM_WU signal,
+	 * while the "power down" triggers the rising edge of RTC_ALARM_WU signal;
+	 *
+	 * write 0 to PM800_ALARM1_EN (bit 0 0f 0xd0) to disable alarm;
+	 */
 	mask = PM800_ALARM | PM800_ALARM_WAKEUP;
 	regmap_update_bits(info->map, PM800_RTC_CONTROL, mask | PM800_ALARM1_EN,
 			   mask);
