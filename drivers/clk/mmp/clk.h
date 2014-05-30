@@ -151,6 +151,11 @@ extern void __iomem *of_mmp_clk_get_reg(struct device_node *np,
 struct device_node *of_mmp_clk_master_init(struct device_node *from);
 
 
+/* spin lock sharing support. */
+extern spinlock_t *of_mmp_clk_get_spinlock(struct device_node *np,
+					   unsigned int reg_base);
+
+
 extern struct clk *mmp_clk_register_pll2(const char *name,
 		const char *parent_name, unsigned long flags);
 extern struct clk *mmp_clk_register_apbc(const char *name,
