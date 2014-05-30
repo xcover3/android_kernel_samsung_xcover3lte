@@ -6,7 +6,7 @@ obj-y += clk-apbc.o clk-apmu.o clk-frac.o clk-mix.o clk-gate.o	\
 	 clk-mix-composite.o
 
 ifneq ($(CONFIG_OF),)
-obj-y += clk-master-node.o lock.o
+obj-y += clk-master-node.o lock.o clk-of-composite.o
 endif
 
 obj-$(CONFIG_CPU_PXA168) += clk-pxa168.o

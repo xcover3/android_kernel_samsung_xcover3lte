@@ -156,6 +156,20 @@ extern spinlock_t *of_mmp_clk_get_spinlock(struct device_node *np,
 					   unsigned int reg_base);
 
 
+/* DT support for composiste type clock. */
+enum {
+	MMP_CLK_COMPOSITE_TYPE_MUXMIX,
+	MMP_CLK_COMPOSITE_TYPE_DIV,
+	MMP_CLK_COMPOSITE_TYPE_GATE,
+	MMP_CLK_COMPOSITE_TYPE_MAX,
+};
+
+extern int of_mmp_clk_composite_add_member(struct device_node *np,
+				struct clk_hw *hw,
+				const struct clk_ops *ops, int type);
+extern int of_mmp_clk_is_composite(struct device_node *np);
+
+
 extern struct clk *mmp_clk_register_pll2(const char *name,
 		const char *parent_name, unsigned long flags);
 extern struct clk *mmp_clk_register_apbc(const char *name,
