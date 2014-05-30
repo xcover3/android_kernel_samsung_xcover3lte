@@ -144,6 +144,13 @@ extern struct clk *mmp_clk_register_composite(struct device *dev,
 			unsigned long flags);
 
 
+/* Master clock exported APIs and data. */
+extern void __iomem *of_mmp_clk_get_reg(struct device_node *np,
+					unsigned int reg_index,
+					unsigned int *reg_phys);
+struct device_node *of_mmp_clk_master_init(struct device_node *from);
+
+
 extern struct clk *mmp_clk_register_pll2(const char *name,
 		const char *parent_name, unsigned long flags);
 extern struct clk *mmp_clk_register_apbc(const char *name,
