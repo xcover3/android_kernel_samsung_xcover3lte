@@ -296,3 +296,31 @@ int pm800_init_config(struct pm80x_chip *chip, struct device_node *np)
 	return 0;
 }
 
+static DEFINE_MUTEX(audio_mode_mutex);
+void buck1_audio_mode_ctrl(int on)
+{
+	int data;
+	static int refcount;
+
+	mutex_lock(&audio_mode_mutex);
+	if (on) {
+		if (refcount == 0) {
+			regmap_read(chip_g->regmap, PM800_LOW_POWER_CONFIG5,
+				    &data);
+			data |= PM800_AUDIO_MODE_ENA;
+			regmap_write(chip_g->regmap, PM800_LOW_POWER_CONFIG5,
+				     data);
+		}
+		refcount++;
+	} else {
+		if (refcount == 1) {
+			regmap_read(chip_g->regmap, PM800_LOW_POWER_CONFIG5,
+				    &data);
+			data &= ~PM800_AUDIO_MODE_ENA;
+			regmap_write(chip_g->regmap, PM800_LOW_POWER_CONFIG5, data);
+		}
+		refcount--;
+	}
+	mutex_unlock(&audio_mode_mutex);
+}
+EXPORT_SYMBOL(buck1_audio_mode_ctrl);

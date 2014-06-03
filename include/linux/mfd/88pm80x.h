@@ -129,6 +129,8 @@ enum {
 #define PM800_LOW_POWER2		(0x21)
 #define PM800_LOW_POWER_CONFIG3	(0x22)
 #define PM800_LOW_POWER_CONFIG4	(0x23)
+#define PM800_LOW_POWER_CONFIG5	(0x24)
+#define PM800_AUDIO_MODE_ENA	(1 << 0)
 
 /* GPIO register */
 #define PM800_GPIO_0_1_CNTRL		(0x30)
@@ -588,4 +590,5 @@ extern int pm80x_deinit(void);
 
 extern int pm8xx_dvc_setvolt(unsigned int buckid, unsigned int lvl, int uv);
 extern int pm8xx_dvc_getvolt(unsigned int buckid, unsigned int lvl, int *uv);
+extern void buck1_audio_mode_ctrl(int on);
 #endif /* __LINUX_MFD_88PM80X_H */
