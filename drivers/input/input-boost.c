@@ -199,7 +199,16 @@ static int __init boost_init(void)
 	pm_qos_add_request(&touchboost_ddr_qos_min,
 		   PM_QOS_DDR_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
 #endif
+#ifdef GC_QOS_READY
+	pm_qos_add_request(&touchboost_gpu3d_qos_min,
+		PM_QOS_GPUFREQ_3D_MIN, PM_QOS_DEFAULT_VALUE);
 
+	pm_qos_add_request(&touchboost_gpu2d_qos_min,
+		PM_QOS_GPUFREQ_2D_MIN, PM_QOS_DEFAULT_VALUE);
+
+	pm_qos_add_request(&touchboost_gpush_qos_min,
+		PM_QOS_GPUFREQ_SH_MIN, PM_QOS_DEFAULT_VALUE);
+#endif
 	INIT_WORK(&inputboost_wk, inputboost_work);
 #ifdef CONFIG_DEBUG_FS
 	debugfs_create_u32("inputbst_enable", 0644, NULL,
