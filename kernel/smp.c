@@ -38,13 +38,15 @@ hotplug_cfd(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
-		if (!zalloc_cpumask_var_node(&cfd->cpumask, GFP_KERNEL,
-				cpu_to_node(cpu)))
-			return notifier_from_errno(-ENOMEM);
-		cfd->csd = alloc_percpu(struct call_single_data);
 		if (!cfd->csd) {
-			free_cpumask_var(cfd->cpumask);
-			return notifier_from_errno(-ENOMEM);
+			if (!zalloc_cpumask_var_node(&cfd->cpumask, GFP_KERNEL,
+						cpu_to_node(cpu)))
+				return notifier_from_errno(-ENOMEM);
+			cfd->csd = alloc_percpu(struct call_single_data);
+			if (!cfd->csd) {
+				free_cpumask_var(cfd->cpumask);
+				return notifier_from_errno(-ENOMEM);
+			}
 		}
 		break;
 
@@ -54,8 +56,7 @@ hotplug_cfd(struct notifier_block *nfb, unsigned long action, void *hcpu)
 
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
-		free_cpumask_var(cfd->cpumask);
-		free_percpu(cfd->csd);
+		cpumask_clear(cfd->cpumask);
 		break;
 #endif
 	};
