@@ -130,6 +130,7 @@ static int topology_add_dev(unsigned int cpu)
 	return sysfs_create_group(&dev->kobj, &topology_attr_group);
 }
 
+#ifdef CONFIG_DYNAMIC_TOPOLOGY_SYSFS
 static void topology_remove_dev(unsigned int cpu)
 {
 	struct device *dev = get_cpu_device(cpu);
@@ -157,18 +158,26 @@ static int topology_cpu_callback(struct notifier_block *nfb,
 	}
 	return notifier_from_errno(rc);
 }
+#endif
 
 static int topology_sysfs_init(void)
 {
 	int cpu;
 	int rc;
 
+#ifdef CONFIG_DYNAMIC_TOPOLOGY_SYSFS
 	for_each_online_cpu(cpu) {
+#else
+	for_each_present_cpu(cpu) {
+#endif
 		rc = topology_add_dev(cpu);
 		if (rc)
 			return rc;
 	}
+
+#ifdef CONFIG_DYNAMIC_TOPOLOGY_SYSFS
 	hotcpu_notifier(topology_cpu_callback, 0);
+#endif
 
 	return 0;
 }

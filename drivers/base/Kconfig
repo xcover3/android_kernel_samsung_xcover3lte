@@ -278,4 +278,17 @@ config CMA_AREAS
 
 endif
 
+config DYNAMIC_TOPOLOGY_SYSFS
+	bool "Dynamic cpu topology sysfs"
+	default y
+	help
+	  This options will enables dynamic topology sysfs.
+
+	  If yes, cpu topology sysfs node will be created when cpu online
+	  and destroyed when cpu offline.
+
+	  If no, these file node will exist anyway to save the cpu up/down latency.
+
+	  If unsure, leave the default value "y"
+
 endmenu
