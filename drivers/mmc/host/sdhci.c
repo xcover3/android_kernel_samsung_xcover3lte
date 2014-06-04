@@ -1362,7 +1362,11 @@ static int sdhci_set_power(struct sdhci_host *host, unsigned short power)
 		sdhci_writeb(host, 0, SDHCI_POWER_CONTROL);
 		if (host->quirks2 & SDHCI_QUIRK2_CARD_ON_NEEDS_BUS_ON)
 			sdhci_runtime_pm_bus_off(host);
-		return 0;
+		if (host->mmc->card && mmc_card_sd(host->mmc->card) &&
+				!(host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION))
+			return -1;
+		else
+			return 0;
 	}
 
 	/*
