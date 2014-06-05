@@ -71,6 +71,8 @@ struct portq {
 	unsigned long stat_fc_ap_unthrottle_cp;
 	unsigned long stat_fc_cp_throttle_ap;
 	unsigned long stat_fc_cp_unthrottle_ap;
+	void (*recv_cb)(struct sk_buff *, void *);
+	void *recv_arg;
 };
 
 enum portq_grp_type {
@@ -127,6 +129,8 @@ extern int portq_grp_init(struct portq_group *pgrp);
 extern void portq_grp_exit(struct portq_group *pgrp);
 
 extern struct portq *portq_open(int port);
+extern struct portq *portq_open_with_cb(int port,
+		void (*clbk)(struct sk_buff *, void *), void *arg);
 extern void portq_close(struct portq *portq);
 
 extern struct portq *portq_get(int port);

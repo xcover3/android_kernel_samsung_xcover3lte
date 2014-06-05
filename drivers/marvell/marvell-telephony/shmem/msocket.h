@@ -69,6 +69,8 @@ extern int m3_shm_ch_init(const struct rm_m3_addr *addr);
 extern void m3_shm_ch_deinit(void);
 
 extern int msocket(int port);
+extern int msocket_with_cb(int port,
+		void (*clbk)(struct sk_buff *, void *), void *arg);
 extern int mclose(int sock);
 extern int msend(int sock, const void *buf, int len, int flags);
 extern int mrecv(int sock, void *buf, int len, int flags);

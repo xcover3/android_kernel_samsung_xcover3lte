@@ -368,6 +368,13 @@ struct portq *portq_get(int port)
 /* portq_open */
 struct portq *portq_open(int port)
 {
+	return portq_open_with_cb(port, NULL, NULL);
+}
+
+/* portq_open with receive callback*/
+struct portq *portq_open_with_cb(int port,
+		void (*clbk)(struct sk_buff *, void *), void *arg)
+{
 	struct portq *portq;
 	struct portq_group *pgrp;
 	struct shm_rbctl *rbctl;
@@ -442,6 +449,8 @@ struct portq *portq_open(int port)
 	portq->stat_fc_ap_unthrottle_cp = 0L;
 	portq->stat_fc_cp_throttle_ap = 0L;
 	portq->stat_fc_cp_unthrottle_ap = 0L;
+	portq->recv_cb = clbk;
+	portq->recv_arg = arg;
 
 	/* add new portq to port array */
 	pgrp->port_list[port - pgrp->port_offset] = portq;
@@ -468,6 +477,9 @@ void portq_close(struct portq *portq)
 	spin_lock(&portq->lock);
 	if (portq->status & PORTQ_STATUS_XMIT_QUEUED)
 		list_del(&portq->tx_list);
+
+	portq->recv_cb = NULL;
+	portq->recv_arg = NULL;
 
 	/* clean pending packets */
 	skb_queue_purge(&portq->tx_q);
@@ -737,6 +749,15 @@ void portq_broadcast_msg(enum portq_grp_type grp_type, int proc)
 		hdr->length = size;
 
 		spin_lock(&portq->lock);
+
+		if (portq->recv_cb) {
+			skb_pull(skb, sizeof(struct shm_skhdr));
+			portq->recv_cb(skb, portq->recv_arg);
+			portq->stat_rx_indicate++;
+			portq->stat_rx_got++;
+			spin_unlock(&portq->lock);
+			continue;
+		}
 
 		/* add to port rx queue */
 		skb_queue_tail(&portq->rx_q, skb);
@@ -1112,6 +1133,16 @@ static void portq_rx_worker(struct work_struct *work)
 		data_dump(skb->data, skb->len, portq->port, DATA_RX);
 
 		spin_lock(&portq->lock);
+
+		if (portq->recv_cb) {
+			skb_pull(skb, sizeof(struct shm_skhdr));
+			portq->recv_cb(skb, portq->recv_arg);
+			portq->stat_rx_indicate++;
+			portq->stat_rx_got++;
+			spin_unlock(&portq->lock);
+			spin_unlock_irq(&pgrp->list_lock);
+			continue;
+		}
 
 		skb_queue_tail(&portq->rx_q, skb);
 		portq->stat_rx_indicate++;

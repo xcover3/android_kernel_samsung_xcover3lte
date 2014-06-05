@@ -123,10 +123,17 @@ void data_dump(const unsigned char *data, unsigned int len, int port,
 /* open a msocket in kernel */
 int msocket(int port)
 {
+	return msocket_with_cb(port, NULL, NULL);
+}
+EXPORT_SYMBOL(msocket);
+
+/* open a msocket with receive callback in kernel */
+int msocket_with_cb(int port,
+		void (*clbk)(struct sk_buff *, void *), void *arg)
+{
 	struct portq *portq;
 
-	portq = portq_open(port);
-
+	portq = portq_open_with_cb(port, clbk, arg);
 	if (IS_ERR(portq)) {
 		pr_err("MSOCK: can't open queue port %d\n", port);
 		return -1;
@@ -134,7 +141,7 @@ int msocket(int port)
 
 	return port;
 }
-EXPORT_SYMBOL(msocket);
+EXPORT_SYMBOL(msocket_with_cb);
 
 /* close a msocket */
 int mclose(int sock)
