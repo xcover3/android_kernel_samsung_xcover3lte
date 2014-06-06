@@ -48,11 +48,14 @@
 #include "debugfs.h"
 
 #define MAX_CID_NUM    8
+#define NETWORK_EMBMS_CID    0xFF
 
 #define SIOCUSECCINET    SIOCDEVPRIVATE
 #define SIOCRELEASECCINET (SIOCDEVPRIVATE+1)
 
 #define CCINET_IOCTL_SET_V6_CID (SIOCDEVPRIVATE+4)
+
+#define CCINET_IOCTL_SET_EMBMS_CID (SIOCDEVPRIVATE+5)
 
 struct ccinet_priv {
 	unsigned char is_used;
@@ -65,6 +68,8 @@ struct ccinet_priv {
 static struct net_device *net_devices[MAX_CID_NUM];
 
 static int main_cid[MAX_CID_NUM];
+
+static int embms_cid = 7;
 
 #if  1
 #define DPRINT(fmt, args ...)     printk(fmt, ## args)
@@ -306,6 +311,11 @@ static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		main_cid[v6_cid] = priv->cid;
 		break;
 	}
+	case CCINET_IOCTL_SET_EMBMS_CID:
+	{
+		embms_cid = rq->ifr_ifru.ifru_ivalue;
+		break;
+	}
 	default:
 		err = -EOPNOTSUPP;
 		break;
@@ -317,6 +327,10 @@ static int data_rx(char *packet, int len, unsigned char cid)
 {
 	struct net_device *dev;
 	int i;
+
+	/*map embms cid to local value*/
+	if (cid == NETWORK_EMBMS_CID)
+		cid = embms_cid;
 	if (cid >= MAX_CID_NUM)
 		return -1;
 	i = main_cid[cid] >= 0 ? main_cid[cid] : cid;
