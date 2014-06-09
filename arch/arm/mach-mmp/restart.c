@@ -72,9 +72,11 @@ static void do_wdt_restart(const char *cmd)
 	if (cpu_is_pxa1L88()) {
 		memset(magic, 0x0, sizeof(magic));
 		if (cmd) {
-			if (!strcmp(cmd, "recovery"))
+			if (!strcmp(cmd, "recovery")
+				|| !strcmp(cmd, "bootloader") || !strcmp(cmd, "boot")
+				|| !strcmp(cmd, "product") || !strcmp(cmd, "prod"))
 				strncpy(magic, cmd, 4);
-			else if (!strcmp(cmd, "fastboot"))
+			else if (!strcmp(cmd, "fastboot") || !strcmp(cmd, "fast"))
 				strncpy(magic, "brfb", 4);
 			else
 				strncpy(magic, "rebt", 4);
