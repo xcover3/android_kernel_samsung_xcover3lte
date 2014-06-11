@@ -31,6 +31,7 @@
 /* ACQ related */
 #define AMIPC_ACQ_GET_MEM	(0xF0000000)
 #define AMIPC_ACQ_REL_MEM	(0xF0000001)
+#define AMIPC_ACQ_CACHE_FLUSH	(0xF0000002)
 
 typedef u32(*amipc_rec_event_callback) (u32 events_status);
 
@@ -70,7 +71,7 @@ struct amipc_ioctl_arg {
 };
 
 /* declared the export APIs for TD telephony */
-extern enum amipc_return_code amipc_setbase(void *base_addr, int len);
+extern enum amipc_return_code amipc_setbase(phys_addr_t base_addr, int len);
 extern enum amipc_return_code amipc_eventbind(u32 user_event,
 					     amipc_rec_event_callback cb);
 extern enum amipc_return_code amipc_eventunbind(u32 user_event);
@@ -80,5 +81,6 @@ extern enum amipc_return_code amipc_datasend(enum amipc_events user_event,
 				u32 data1, u32 data2, int timeout_ms);
 extern enum amipc_return_code amipc_dataread(enum amipc_events user_event,
 					u32 *data1, u32 *data2);
+extern enum amipc_return_code amipc_dump_debug_info(void);
 
 #endif	/* _PXA9XX_AMIPC_H_ */

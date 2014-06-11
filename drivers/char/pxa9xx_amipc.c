@@ -94,7 +94,6 @@ struct amipc_acq_infor {
 
 struct amipc_dbg_info {
 	int irq_num;
-	int irq_thread_num;
 };
 
 struct pxa9xx_amipc {
@@ -113,6 +112,7 @@ struct pxa9xx_amipc {
 	struct amipc_msg_buffer msg_buffer;
 	struct amipc_acq_infor acq_info;
 	struct amipc_dbg_info dbg_info;
+	struct device *this_dev;
 };
 static struct pxa9xx_amipc *amipc;
 static DEFINE_SPINLOCK(amipc_lock);
@@ -361,6 +361,7 @@ static enum amipc_return_code amipc_event_unbind(u32 user_event)
 static u32 amipc_handle_events(void)
 {
 	int i;
+	u32 events = 0;
 
 	IPC_ENTER();
 	if (amipc_rxaddr_inval())
@@ -372,38 +373,23 @@ static u32 amipc_handle_events(void)
 			amipc->amipc_db[i].cb(OFF_TO_E(i));
 			amipc->ipc_rx[i].ack = 0;
 			amipc->amipc_db[i].rx_cnt++;
+			events++;
 		}
 	}
 
 skip_cb:
 	IPC_LEAVE();
-	return 0;
-}
-
-static irqreturn_t amipc_int_thread_handler(int irq, void *dev_id)
-{
-	unsigned long end_time;
-
-	IPC_ENTER();
-	end_time = jiffies + msecs_to_jiffies(1000);
-	while (ciu_readl(GNSS_HANDSHAKE) & GNSS_IRQ_OUT_ST) {
-		if (time_after(jiffies, end_time)) {
-			pr_err("wait GNSS clr int timeout, GNSS irq disabled\n");
-			disable_irq_nosync(irq);
-			break;
-		}
-		msleep(20);
-	}
-	amipc_handle_events();
-	IPC_LEAVE();
-	return IRQ_HANDLED;
+	return events;
 }
 
 static irqreturn_t amipc_interrupt_handler(int irq, void *dev_id)
 {
-	u32 ciu_reg, pmu_reg;
+	u32 ciu_reg, pmu_reg, events;
+	static int noevt_cnt;
 
 	IPC_ENTER();
+
+	amipc->dbg_info.irq_num++;
 	/* clr interrupt */
 	ciu_reg = ciu_readl(GNSS_HANDSHAKE);
 	ciu_reg |= GNSS_IRQ_CLR;
@@ -414,16 +400,23 @@ static irqreturn_t amipc_interrupt_handler(int irq, void *dev_id)
 		pmu_reg |= GNSS_WAKEUP_CLR;
 		pmu_writel(GNSS_WAKEUP_CTRL, pmu_reg);
 	}
+	events = amipc_handle_events();
+	if (!events) {
+		noevt_cnt++;
+		/*
+		 * CM3 irq will be cleared within 22ns by HW
+		 * so 1us delay is enough
+		 */
+		udelay(1);
+		if (10 == noevt_cnt) {
+			pr_err("wait GNSS clr int timeout, GNSS irq disabled\n");
+			disable_irq_nosync(irq);
+		}
+	} else
+		noevt_cnt = 0;
 
 	IPC_LEAVE();
-	if (ciu_readl(GNSS_HANDSHAKE) & GNSS_IRQ_OUT_ST) {
-		amipc->dbg_info.irq_thread_num++;
-		return IRQ_WAKE_THREAD;
-	} else {
-		amipc_handle_events();
-		amipc->dbg_info.irq_num++;
-		return IRQ_HANDLED;
-	}
+	return IRQ_HANDLED;
 }
 
 static u32 user_callback(u32 event)
@@ -445,6 +438,7 @@ static u32 user_callback(u32 event)
 	return 0;
 }
 
+#define RESERVED_PHY_ADD (0x0b000000)
 static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct amipc_ioctl_arg amipc_arg;
@@ -482,11 +476,15 @@ static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (AMIPC_ACQ_COMMAND == amipc_arg.event) {
 			/* 16M continues memory */
 			if (AMIPC_ACQ_GET_MEM == amipc_arg.data1) {
-				amipc_arg.data2 = 0x0b000000;
+				amipc_arg.data2 = RESERVED_PHY_ADD;
 				pr_info("Return phy ACQ mem 0x%x\n",
 						amipc_arg.data2);
 			} else if (AMIPC_ACQ_REL_MEM == amipc_arg.data1)
 				pr_info("Free ACQ mem\n");
+			else if (AMIPC_ACQ_CACHE_FLUSH == amipc_arg.data1) {
+				dma_sync_single_range_for_cpu(amipc->this_dev, RESERVED_PHY_ADD,
+					amipc_arg.data2, amipc_arg.more_msgs, DMA_FROM_DEVICE);
+			}
 
 		}
 		break;
@@ -603,21 +601,6 @@ int amipc_mmap(struct file *file, struct vm_area_struct *vma)
 
 	/* we do not want to have this area swapped out, lock it */
 	vma->vm_flags |= (VM_IO | VM_DONTEXPAND | VM_DONTDUMP);
-	/* see linux/drivers/char/mem.c */
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-	/*
-	 * TBD: without this vm_page_prot=0x53 and write seem to not
-	 * reach the destination:
-	 * - no fault on write
-	 * - read immediately (same user process) return the new value
-	 * - read after a second by another user process instance return
-	 *   original value
-	 *  Why PROT_WRITE specified by mmap caller does not take effect?
-	 *  MAP_PRIVATE used by app results in copy-on-write behaviour,
-	 *  which is irrelevant for this application
-	 *  vma->vm_page_prot|=L_PTE_WRITE;
-	 */
 
 	/* check if addr is normal memory */
 	if (pfn_valid(pa)) {
@@ -635,6 +618,7 @@ int amipc_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 	vma->vm_ops = &vm_ops;
 	amipc_vma_open(vma);
+
 	return 0;
 }
 
@@ -695,9 +679,7 @@ static int pkgstat_block_show(struct seq_file *m, void *unused)
 						amipc->acq_info.rd_num);
 	seq_printf(m, "reg handshake 0x%x, wakeup 0x%x\n",
 			ciu_readl(GNSS_HANDSHAKE), pmu_readl(GNSS_WAKEUP_CTRL));
-	seq_printf(m, "hw irq %d, thread irq %d, total = %d\n",
-		amipc->dbg_info.irq_num, amipc->dbg_info.irq_thread_num,
-		amipc->dbg_info.irq_num + amipc->dbg_info.irq_thread_num);
+	seq_printf(m, "hw irq %d\n", amipc->dbg_info.irq_num);
 	rcu_read_unlock();
 	return 0;
 }
@@ -805,14 +787,12 @@ static int pxa9xx_amipc_probe(struct platform_device *pdev)
 	init_waitqueue_head(&amipc->amipc_wait_q);
 
 	platform_set_drvdata(pdev, amipc);
+	amipc->this_dev = &pdev->dev;
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq >= 0) {
-		ret = devm_request_threaded_irq(&pdev->dev, irq,
-				amipc_interrupt_handler,
-				amipc_int_thread_handler,
-				IRQF_NO_SUSPEND | IRQF_ONESHOT,
-				"PXA9XX-amipc", amipc);
+		ret = devm_request_irq(&pdev->dev, irq, amipc_interrupt_handler,
+				IRQF_NO_SUSPEND, "PXA9XX-amipc", amipc);
 	}
 	if (irq < 0 || ret < 0)
 		return -ENXIO;
@@ -884,7 +864,7 @@ static void __exit pxa9xx_amipc_exit(void)
 	platform_driver_unregister(&pxa9xx_amipc_driver);
 }
 
-static void *shm_vmap(phys_addr_t start, size_t size)
+static void __iomem *shm_vmap(phys_addr_t start, size_t size)
 {
 	struct page **pages;
 	phys_addr_t page_start;
@@ -895,11 +875,7 @@ static void *shm_vmap(phys_addr_t start, size_t size)
 	page_start = start - offset_in_page(start);
 	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
 
-#ifdef CONFIG_ARM64
-	prot = pgprot_writecombine(PAGE_KERNEL);
-#else
 	prot = pgprot_noncached(PAGE_KERNEL);
-#endif
 
 	pages = kmalloc(sizeof(struct page *) * page_count, GFP_KERNEL);
 	if (!pages) {
@@ -915,7 +891,7 @@ static void *shm_vmap(phys_addr_t start, size_t size)
 	vaddr = vmap(pages, page_count, VM_MAP, prot);
 	kfree(pages);
 
-	return vaddr + offset_in_page(start);
+	return (void *__iomem)(vaddr + offset_in_page(start));
 }
 
 static void *shm_map(phys_addr_t start, size_t size)
@@ -927,27 +903,28 @@ static void *shm_map(phys_addr_t start, size_t size)
 		return ioremap_nocache(start, size);
 }
 
-enum amipc_return_code amipc_setbase(void *base_addr, int len)
+enum amipc_return_code amipc_setbase(phys_addr_t base_addr, int len)
 {
 	bool ddr_mem;
+	void __iomem *ipc_base;
 	if (len < sizeof(struct ipc_event_type) * AMIPC_EVENT_LAST * 2) {
 		pr_err("share memory too small\n");
 		return AMIPC_RC_FAILURE;
 	}
-	pr_info("amipc: set base address phys:0x%p, len:%d\n",
-			base_addr, len);
+	pr_info("amipc: set base address phys: %pa, len:%d\n",
+			&base_addr, len);
 	/* init debug info */
 	init_statistic_info();
 	/* check if addr is normal memory */
-	if (pfn_valid(__phys_to_pfn((phys_addr_t)base_addr)))
+	if (pfn_valid(__phys_to_pfn(base_addr)))
 		ddr_mem = true;
 	else
 		ddr_mem = false;
 
 	if (!amipc->ipc_tx) {
-		base_addr = shm_map((phys_addr_t)base_addr, len);
-		if (base_addr) {
-			amipc->ipc_tx = (struct ipc_event_type *)base_addr;
+		ipc_base = shm_map(base_addr, len);
+		if (ipc_base) {
+			amipc->ipc_tx = (struct ipc_event_type *)ipc_base;
 			amipc->ipc_rx = amipc->ipc_tx + AMIPC_EVENT_LAST;
 			pr_info("share memory remap suc\n");
 		} else {
@@ -995,6 +972,47 @@ enum amipc_return_code amipc_dataread(enum amipc_events user_event,
 	return amipc_data_read(user_event, data1, data2);
 }
 EXPORT_SYMBOL(amipc_dataread);
+
+enum amipc_return_code amipc_dump_debug_info(void)
+{
+	int i;
+	if (amipc_txaddr_inval())
+		pr_info("tx shm invalid\n");
+	else {
+		pr_info("tx shm status:\n");
+		pr_info("event\tdata1\tdata2\tack\tcount\n");
+		for (i = 0; i < AMIPC_EVENT_LAST; i++)
+			pr_info("%x\t%x\t%x\t%x\t%d\n",
+					amipc->ipc_tx[i].event,
+					amipc->ipc_tx[i].data1,
+					amipc->ipc_tx[i].data2,
+					amipc->ipc_tx[i].ack,
+					amipc->amipc_db[i].tx_cnt);
+	}
+	if (amipc_rxaddr_inval())
+		pr_info("rx shm invalid\n");
+	else {
+		pr_info("rx shm status:\n");
+		pr_info("event\tdata1\tdata2\tack\tcount\n");
+		for (i = 0; i < AMIPC_EVENT_LAST; i++)
+			pr_info("%x\t%x\t%x\t%x\t%d\n",
+					amipc->ipc_rx[i].event,
+					amipc->ipc_rx[i].data1,
+					amipc->ipc_rx[i].data2,
+					amipc->ipc_rx[i].ack,
+					amipc->amipc_db[i].rx_cnt);
+	}
+	pr_info("msg buffer sdk rptr: %d ipc wprt: %d over flow: %d\n",
+			amipc->msg_buffer.sdk_rptr, amipc->msg_buffer.ipc_wptr,
+			amipc->msg_buffer.ov_cnt);
+	pr_info("acq wr_num: %d rd_num %d\n", amipc->acq_info.wr_num,
+			amipc->acq_info.rd_num);
+	pr_info("reg handshake 0x%x, wakeup 0x%x\n",
+			ciu_readl(GNSS_HANDSHAKE), pmu_readl(GNSS_WAKEUP_CTRL));
+	pr_info("hw irq %d\n", amipc->dbg_info.irq_num);
+	return AMIPC_RC_OK;
+}
+EXPORT_SYMBOL(amipc_dump_debug_info);
 
 module_init(pxa9xx_amipc_init);
 module_exit(pxa9xx_amipc_exit);
