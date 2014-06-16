@@ -74,6 +74,8 @@ struct netns_ipv4 {
 
 	int sysctl_fwmark_reflect;
 
+	int sysctl_tcp_fwmark_accept;
+
 	kgid_t sysctl_ping_group_range[2];
 
 	atomic_t dev_addr_genid;
