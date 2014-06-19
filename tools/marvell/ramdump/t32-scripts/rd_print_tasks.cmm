@@ -97,7 +97,7 @@ IF FOUND()
 	&k32=1
 )
 
-&p0=v.value("(unsigned)&init_task")
+&p0=v.value("(unsigned long long)&init_task")
 gosub walk_list &p0 0
 PRINT "Done"
 PRINT "Use task_struct address (0xNNNNNNNN) to switch (MM and context) to the desired task/thread:"
@@ -168,7 +168,7 @@ IF ("&tcount">"&one")
 		)
 	)
 )
-&p= v.value("(unsigned)(((struct task_struct*)&p)->tasks.next) - &offset_tasks")
+&p= v.value("(unsigned long long)(((struct task_struct*)&p)->tasks.next) - &offset_tasks")
 ;WHILE "&p"!="&p0"
 IF ("&p"=="&p0")
 (
@@ -206,7 +206,7 @@ IF ("&pid"!="&null")
    )
    gosub print_task &pid "&comm" &tofile
 
-   &_p= v.value("(unsigned)(((struct task_struct*)&_p)->thread_group.next) - &offset_thread_group")
+   &_p= v.value("(unsigned long long)(((struct task_struct*)&_p)->thread_group.next) - &offset_thread_group")
 
 	IF ("&_p"=="&_p0")
 	(

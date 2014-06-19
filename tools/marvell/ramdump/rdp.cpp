@@ -90,9 +90,10 @@ All Rights Reserved
 								uses this to detect a force dump. pgd (set on ramdump init) is more likely to be present,
 								and if not, it can be set manually in the dump file, while RDP still will detect forced dump.
 	4.5 (antone@marvell.com): Fix PHY_OFFSET to allow more than 16MB CP DDR: clear [31:28] only.
+	5.0 (antone@marvell.com): ARM64 support. From now on arm32 and arm64 are supported. Detection based on ELF header.
 */
 
-#define VERSION_STRING "4.5"
+#define VERSION_STRING "5.0"
 
 #include <stdio.h>
 #include "rdp.h"
@@ -109,6 +110,7 @@ const char *comExtraDdrFileName = "com_EXTRA_DDR.bin";
 
 FILE* rdplog;
 const char *rdpPath;
+enum aarch_type_e aarch_type;
 
 char* changeExt(const char* inName,const char* ext)
 {
@@ -242,12 +244,39 @@ static int checkRdc(FILE* in, unsigned bank0size)
 	return 0;
 }
 
+static int checkRdc_alt(FILE* in, unsigned addr)
+{
+	unsigned rdcAddr = FILE_OFFSET(addr);
+	unsigned ddr0_base;
+
+	if(fseek(in, rdcAddr, SEEK_SET)) return -1;
+	if(fread((void*)&rdc, sizeof(rdc), 1, in) != 1) return -1;
+	if ((rdc.header.signature != RDC_SIGNATURE) &&
+		(rdc.header.signature != RDC1_SIGNATURE))
+		return -1;
+
+	ddr0_base = 0; /* Default for new arch's */
+
+	if (!DUMP_IS_ELF) {
+		/* Not ELF */
+		fprintf(rdplog, "ERROR: input file should be ELF\n");
+		return -1;
+	}
+
+	cpmem_addr = 0;
+	rdc_addr = addr;
+
+	return 0;
+}
+
 static int findRdc(FILE* in)
 {
 	static const unsigned bankSizeOptions[] = {0x08000000, 0x10000000, 0x20000000, CP_AREA_SIZE /*Nevo - bottom of the bank*/};
 	int i;
 	for(i=0;i<(sizeof(bankSizeOptions)/sizeof(bankSizeOptions[0]));i++)
 		if(!checkRdc(in, bankSizeOptions[i])) return 0;
+	if (!checkRdc_alt(in, 0x08140400))
+		return 0;
 	return -1;
 }
 
@@ -274,7 +303,8 @@ static struct mmu_state {
 	unsigned pagetable[PT_SIZE];
 }mmu;
 
-unsigned v2p(unsigned va, FILE *fin) {
+unsigned v2p32(unsigned va, FILE *fin)
+{
 	unsigned off;
 	if ((va ^ mmu.va) & PMD_VA_MASK) {
 		unsigned pos = ftell(fin);
@@ -310,8 +340,98 @@ unsigned v2p(unsigned va, FILE *fin) {
 	return BADPA;
 }
 
+#define U64(x) ((u64)(x))
+#define MMU64_VABITS 39
+#define MMU64_GRANULE 12 /* 4KB: n */
+#define MMU64_STAGEBITS (MMU64_GRANULE-3)
+#define MMU_STAGE0_BITS (MMU64_VABITS-MMU64_GRANULE-MMU64_STAGEBITS*3)
+#define ONES64 U64(0xffffffffffffffff)
+#define MMU64_VAMASK (~(ONES64<<MMU64_VABITS))
+#define MMU64_REGIONMASK (~MMU64_VAMASK)
+#define MMU64_PT_SIZE (U64(1)<<MMU64_STAGEBITS) /* 2**(n-3) descs of 8 bytes each */
+#define MMU64_STAGEMASK ((U64(1)<<MMU64_STAGEBITS)-1)
+#define MMU64_DESC_SIZE 8
+#define MMU64_DESCT_MASK 3
+#define MMU64_DESCT_BLOCK 1
+#define MMU64_DESCT_TABLE 3
+#define MMU64_PA_MASK ((U64(1)<<48)-1)
+#define MMU64_LEVELS 4
+
+static struct mmu_state64 {
+	u64 va;
+	u64 desc[MMU64_LEVELS];
+	int table_lvl;
+	u64 pagetable[MMU64_PT_SIZE];
+}mmu64;
+
+/* See DDI0487A, section D4.2 */
+unsigned v2p64(u64 va, FILE *fin) {
+	unsigned off;
+	unsigned pa;
+	unsigned base = rdc.header.pgd;
+	u64 offsetmask;
+	int lvl; /* level */
+	int i;
+	if ((va & MMU64_REGIONMASK) != MMU64_REGIONMASK) {
+		fprintf(rdplog, "v2p(0x%.8x%.8x) failed: not in kernel range\n", hi32(va), lo32(va));
+		return BADPA;
+	}
+
+	va &= MMU64_VAMASK; /* clear the upper bits not relevant for this table walk */
+
+	/* Does translation start at level 0 or 1 */
+	lvl = MMU_STAGE0_BITS?0:1;
+	for (; lvl < MMU64_LEVELS; lvl++) {
+		int lower = MMU64_GRANULE+(3-lvl)*MMU64_STAGEBITS;
+		u64 mask = MMU64_STAGEMASK<<lower;
+		offsetmask = (U64(1)<<lower)-1;
+		unsigned index = (unsigned)((va >> lower)&(MMU64_PT_SIZE-1));
+		if (!mmu64.desc[lvl] || ((va^mmu64.va) & mask)) {
+			/* We need this level table to get the descriptor */
+			for (i=lvl;i<MMU64_LEVELS;i++) mmu64.desc[i]=0;
+			if ((mmu64.table_lvl-1) != lvl) {
+				unsigned pos = ftell(fin);
+				/* previous state is not relevant any more */
+				mmu64.va = va;
+				mmu64.table_lvl = 0;
+
+				off = FILE_OFFSET(base);
+				if (fseek(fin, off, SEEK_SET) || (fread(&mmu64.pagetable[0], sizeof(mmu64.pagetable[0]), MMU64_PT_SIZE, fin)
+						!= MMU64_PT_SIZE)) {
+					fprintf(rdplog, "v2p(0x%.8x%.8x) failed: cannot read level#%d table at offset 0x%.8x\n",
+						hi32(va), lo32(va), lvl, off);
+					return BADPA;
+				}
+				fseek(fin, pos, SEEK_SET);
+				mmu64.table_lvl = lvl + 1;
+			}
+		}
+		if (!mmu64.desc[lvl])
+			mmu64.desc[lvl]=mmu64.pagetable[index];
+		if ((mmu64.desc[lvl]&MMU64_DESCT_MASK) == MMU64_DESCT_BLOCK) {
+			if ((lvl==0) || (lvl==3)) {
+				fprintf(rdplog, "v2p(0x%.8x%.8x) failed: block desc at level#%d\n", hi32(va), lo32(va), lvl);
+				return BADPA;
+			}
+			lvl++; /* we go one back after the loop exits this way or another */
+			break;
+		} else if ((mmu64.desc[lvl]&MMU64_DESCT_MASK) == MMU64_DESCT_TABLE) {
+				base = (unsigned)(mmu64.desc[lvl]&MMU64_PA_MASK&~((1<<MMU64_GRANULE)-1));
+		}
+	} /* for lvl */
+
+	pa = (unsigned)(mmu64.desc[lvl-1]&MMU64_PA_MASK&~offsetmask);
+	pa += (unsigned)(va & offsetmask);
+	return pa;
+}
+
+unsigned v2p(u64 va, FILE *fin) {
+	if (aarch_type == aarch64)	return v2p64(va, fin);
+	else						return v2p32((unsigned)va, fin);
+}
+
 int extractFile(const char* inName, const char* outShortName, FILE* fin,
-	unsigned offset, unsigned size, int flexSize, unsigned vaddr, int append)
+	unsigned offset, unsigned size, int flexSize, u64 vaddr, int append)
 {
 	int ret = -1, earlyEnd = 0;
 	unsigned sizeLeft, sz;
@@ -324,7 +444,7 @@ int extractFile(const char* inName, const char* outShortName, FILE* fin,
 		if (!vaddr)
 			fprintf(rdplog, "Saving %d bytes at offset 0x%.8x into %s\n", size, offset, outName);
 		else
-			fprintf(rdplog, "Saving %d bytes at offset 0x%.8x vaddr=0x%.8x into %s\n", size, offset, vaddr, outName);
+			fprintf(rdplog, "Saving %d bytes at offset 0x%.8x vaddr=0x%.8x%.8x into %s\n", size, offset, hi32(vaddr), lo32(vaddr), outName);
 		fout = fopen(outName, append ? "ab" : "wb");
 
 		if(!fout || (append && fseek(fout, 0, SEEK_END))) {
@@ -369,7 +489,7 @@ int extractFile(const char* inName, const char* outShortName, FILE* fin,
 				po_last = 0xffffffff; /* should not match the condition for fseek below */
 			sz = 0;
   			for(sizeLeft=size;sizeLeft;sizeLeft-=sz) {
-				unsigned leftOnPage = PAGE_SIZE - (vaddr & (PAGE_SIZE-1));
+				unsigned leftOnPage = PAGE_SIZE - (unsigned)(vaddr & (PAGE_SIZE-1));
 				unsigned pa;
 				if ((pa = v2p(vaddr, fin)) == BADPA) goto bail;
 				po = FILE_OFFSET(pa);
@@ -459,6 +579,7 @@ static int extractRamfiles(const char* inName, FILE* fin)
 {
 	unsigned rfAddr = rdc.header.ramfile_addr;
 	unsigned rfOffset;
+	u64 vaddr;
 	struct ramfile_desc rf;
 	char ramfilename[20];
 	int ramfilenum;
@@ -475,8 +596,14 @@ static int extractRamfiles(const char* inName, FILE* fin)
 			return -1;
 		}
 		sprintf(ramfilename, "ramfile.%d.tgz", ramfilenum);
-		if(extractFile(inName, ramfilename, fin, rfOffset+sizeof(rf), rf.payload_size-0x20, 0,
-			rf.flags & RAMFILE_PHYCONT ? 0 : rf.vaddr+sizeof(rf))) return -1;
+		if (rf.flags & RAMFILE_PHYCONT) {
+			vaddr = 0;
+		} else {
+			vaddr = aarch_type == aarch64 ? mk64(rf.vaddr_hi, rf.vaddr) : rf.vaddr;
+			vaddr+=sizeof(rf);
+		}
+		if(extractFile(inName, ramfilename, fin, rfOffset+sizeof(rf), rf.payload_size-0x20, 0, vaddr, 0))
+			return -1;
 		if(rf.flags & RAMFILE_PHYCONT)
 			/* Specific to old versions that did not support discontinuous physical anyway.
 			Assumes continuous, because data is read from input file.*/
@@ -605,13 +732,22 @@ static int extractPostmortemfiles(const char* inName, FILE* fin, int commOnly)
 static int resolveRefs(FILE *fin, struct rdc_dataitem *rdi, int nw)
 {
 	int i;
-	for (i = 0; i < nw; i++) {
+	u64 va;
+	int size = 1;
+	unsigned *p = &rdi->body.w[0];
+	unsigned pa;
+
+	if (aarch_type == aarch64)
+		size = 2;
+
+	for (i = 0; i < nw; i++, p+=size) {
 		if (rdi->attrbits & RDI_ATTR_ADDR(i)) {
-			unsigned pa = v2p(rdi->body.w[i], fin);
+			va = aarch_type == aarch64 ? mk64(p[1], p[0]): p[0];
+			pa = v2p(va, fin);
 			if (pa == BADPA)
 				return -1;
 			pa=FILE_OFFSET(pa);
-			if(fseek(fin, pa, SEEK_SET) || (fread(&rdi->body.w[i], sizeof(rdi->body.w[i]), 1, fin)!=1)) {
+			if(fseek(fin, pa, SEEK_SET) || (fread(p, size*sizeof(rdi->body.w[0]), 1, fin)!=1)) {
 				fprintf(rdplog, "Failed to read data at offset 0x%.8x\n", pa);
 				return -1;
 			}
@@ -622,29 +758,47 @@ static int resolveRefs(FILE *fin, struct rdc_dataitem *rdi, int nw)
 
 static int extractCyclicBuffer(const char* inName, FILE *fin, const char *name, struct rdc_dataitem *rdi, int nw)
 {
-	unsigned addr, size, cur, unit=1;
+	u64 addr, size, cur;
+	unsigned unit=1;
+	int i = 0;
 	if (nw < 2)
 		return -1;
 
-	addr = rdi->body.w[0];
+	if (aarch_type == aarch64)
+		nw*=2;
 
+	addr = rdi->body.w[i++];
+	if (aarch_type == aarch64) addr=mk64(rdi->body.w[i++], lo32(addr));
 	/* Size might be actually the endPtr instead */
-	size = rdi->body.w[1];
+	size = rdi->body.w[i++];
+	if (aarch_type == aarch64) size=mk64(rdi->body.w[i++], lo32(size));
 
-	cur = nw > 2 ? rdi->body.w[2] : 0;
+	cur = 0;
+	if (i < nw) {
+		cur = rdi->body.w[i++];
+		if (aarch_type == aarch64) cur=mk64(rdi->body.w[i++], lo32(cur));
+	}
+
 
 	/* Since any address (virtual) is either in kernel or vmalloc spaces, it's above 0xc0000000 */
-	if (size > MAX_POSTMORTEM_FILE)
-		size -= addr;
+	if (size > MAX_POSTMORTEM_FILE) {
+		if ((size - addr) <= MAX_POSTMORTEM_FILE) size -= addr;
+		else if (aarch_type == aarch64)
+			size=lo32(size); /* if the value is 32-bit only, discard the upper 32 */
+	}
 	if (size > MAX_POSTMORTEM_FILE)
 		return -1;
-	if (cur > MAX_POSTMORTEM_FILE)
-		cur -= addr;
-	if (cur > MAX_POSTMORTEM_FILE)
+
+	if (cur > size) {
+		if ((cur - addr) <= size) cur -= addr;
+		else if (aarch_type == aarch64)
+			size=lo32(cur); /* if the value is 32-bit only, discard the upper 32 */
+	}
+	if (cur > size)
 		return -1;
 
 	/* unit is object size in bytes, where size and cur are numbers of such objects */
-	unit = nw > 3 ? rdi->body.w[3] : 1;
+	unit = nw > i ? rdi->body.w[i++] : 1;
 	if (!unit || (unit > 0x100))
 		unit = 1;
 
@@ -659,9 +813,9 @@ static int extractCyclicBuffer(const char* inName, FILE *fin, const char *name, 
 		addr: virtual address of the buffer;
 		size: size of the buffer (in bytes)
 		cur: index of current point inside the buffer (in bytes); cur < size */
-	fprintf(rdplog, "RDI_CBUF: 0x%.8x, 0x%.8x, 0x%.8x (0x%.8x)\n", addr, size, cur, cur ? rdi->body.w[2] : 0);
-	if (extractFile(inName, name, fin, 0, size-cur, 0, addr+cur)
-		|| (cur && extractFile(inName, name, fin, 0, cur, 0, addr, 1)))
+	fprintf(rdplog, "RDI_CBUF: 0x%.8x%.8x, 0x%.8x, 0x%.8x\n", hi32(addr), lo32(addr), lo32(size), lo32(cur));
+	if (extractFile(inName, name, fin, 0, (unsigned)(size-cur), 0, addr+cur)
+		|| (cur && extractFile(inName, name, fin, 0, (unsigned)cur, 0, addr, 1)))
 		return -1;
 	return 0;
 }
@@ -669,17 +823,20 @@ static int extractCyclicBuffer(const char* inName, FILE *fin, const char *name, 
 static int extractPhysicalBuffer(const char* inName, FILE *fin, const char *name, struct rdc_dataitem *rdi, int nw)
 {
 	unsigned addr, size;
+	int i = 0;
 	if (nw < 2)
 		return -1;
 
-	addr = rdi->body.w[0];
-	size = rdi->body.w[1];
+	addr = rdi->body.w[i++];
+	if (aarch_type == aarch64) i++; /* no support for physical address >32 bit for now */
+	size = rdi->body.w[i++];
+	if (aarch_type == aarch64) i++; /* no support for physical address >32 bit for now */
 
 	fprintf(rdplog, "RDI_PBUF: 0x%.8x, 0x%.8x\n", addr, size);
 	return extractFile(inName, name, fin, addr, size, 0, 0);
 }
 
-int readObjectAtVa(FILE *fin, void *buf, unsigned addr, int size)
+int readObjectAtVa(FILE *fin, void *buf, u64 addr, int size)
 {
 	unsigned pa;
 	pa = v2p(addr, fin);
@@ -727,6 +884,18 @@ void find_parser(const char *name, parser_f **parser_1, parser_f **parser_2)
 	return;
 }
 
+static int getRdiNw(struct rdc_dataitem *rdi)
+{
+	int size = rdi->size - RDI_HEAD_SIZE;
+	int item_size = sizeof(unsigned);
+	if (aarch_type == aarch64) {
+		size -= sizeof(unsigned);
+		item_size = sizeof(u64);
+	}
+	if (size < 0) return -1;
+	return size/item_size;
+}
+
 static struct rdc_dataitem *extractRdi(const char* inName, FILE *fin, int index, struct rdc_dataitem *rdi)
 {
 	int size, nw, i;
@@ -741,15 +910,12 @@ static struct rdc_dataitem *extractRdi(const char* inName, FILE *fin, int index,
 		fprintf(rdplog, "RDI#%d is too long (%d): truncated to %d\n", index, rdi->size, size);
 	else
 		size = rdi->size;
-
-	if (size < (sizeof(struct rdc_dataitem)-1)) {
-		if (size)
-			fprintf(rdplog, "RDI#%d of illegal size %d: stopping RDI parsing\n", index, size);
+	if (!size) return 0; /* end */
+	nw = getRdiNw(rdi);
+	if (nw < 0) {
+		fprintf(rdplog, "RDI#%d of illegal size %d: stopping RDI parsing\n", index, size);
 		return 0;
 	}
-
-	/* Number of payload 32-bit data words */
-	nw = (size - sizeof(struct rdc_dataitem))/sizeof(unsigned) + 1;
 
 	/* Extract object name */
 	name[MAX_RDI_NAME] = 0;
@@ -906,17 +1072,23 @@ static int extractCpuState(const char* inName, const char* outShortName, FILE* f
 	// ARM1176JZ was not good - noes not support thumb-2 (T2). 88AP955 is the best fot. If not supported use CORTEXA9.
 	fprintf(fout, "; CPU type: best is to use 88AP955, if not supported in your T32, use CORTEXA9 instead\n");
 	fprintf(fout, "sys.cpu %s\n;sys.cpu CORTEXA9\nsys.up\nmmu.off\n", isPJ4?"88AP955":"XSCALE");
-	fprintf(fout, "PRINT \"Adding the Linux Awareness Support...\"\n");
-	fprintf(fout, "TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux\\linux     ; loads Linux awareness (linux.t32)\n");
-	fprintf(fout, "MENU.ReProgram c:\\t32\\demo\\arm\\kernel\\linux\\linux  ; loads Linux menu (linux.men)\n");
-	fprintf(fout, "HELP.FILTER.Add rtoslinux                          ; add linux awareness manual to help filter\n");
-
 
 	// Add LOAD commands
 	fprintf(fout, "PRINT \"Loading kernel ELF\"\n");
 	fprintf(fout, "data.load.elf \"&vmlinux_path\\%s\"\n", "vmlinux");
 	fprintf(fout, "&vmlinux_kver=data.string(linux_banner)\n");
 	fprintf(fout, "PRINT \"vmlinux kernel version string: &vmlinux_kver\"\n");
+
+	fprintf(fout, "  PRINT \"Adding the Linux Awareness Support...\"\n");
+	fprintf(fout, "data.find v.range(\"linux_banner\") \"version 3.\"\n");
+	fprintf(fout, "IF FOUND()\n(\n");
+	fprintf(fout, "  TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux-3.x\\linux3     ; loads Linux awareness (linux.t32)\n");
+	fprintf(fout, "  MENU.ReProgram c:\\t32\\demo\\arm\\kernel\\linux-3.x\\linux  ; loads Linux menu (linux.men)\n");
+	fprintf(fout, ")\nELSE\n(\n");
+	fprintf(fout, "  TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux\\linux     ; loads Linux awareness (linux.t32)\n");
+	fprintf(fout, "  MENU.ReProgram c:\\t32\\demo\\arm\\kernel\\linux\\linux  ; loads Linux menu (linux.men)\n");
+	fprintf(fout, ")\n");
+	fprintf(fout, "HELP.FILTER.Add rtoslinux                          ; add linux awareness manual to help filter\n");
 
 	// Dump original kernel code to file for later comparison with actual kernel code from dump
 	fprintf(fout, "&ktext_start=v.value(\"&__init_end\")\n");
@@ -1063,6 +1235,236 @@ bail:
 	return ret;
 }
 
+/* Set default cp15 and cpu registers that should mimic kernel mode state to enable virtual memory */
+void checkRdd_64(struct ramdump_state_64 *prdd)
+{
+	if (!prdd->spr.midr && !prdd->spr.sctlr && !prdd->spr.ttbr1) {
+		fprintf(rdplog, "SNAP! The ramdump_data is invalid or its address in RDC is zero: probably dump after force reset:\nGenerating ramdump.cmm assuming defaults\n");
+		prdd->spr.midr = CP15_ID_DEFAULT; /* default: ARMV7*/
+		prdd->spr.sctlr = 0x34d5d91d; /* all MMU and caches enabled, remap enabled */
+		prdd->spr.mair = 0x000000ff440c0400;
+		prdd->spr.current_el = 4; /* EL1 */
+		prdd->regs.pstate=0x80000145;
+		/* Do not set prdd->spr.ttbr1: extractCpuState_64 will set it based on kernel symbol table. */
+	}
+}
+
+
+static int extractCpuState_64(const char* inName, const char* outShortName, FILE* fin, unsigned addr)
+{
+	unsigned offset;
+	struct ramdump_state_64 rdd;
+	FILE *fout;
+	char *outName=0;
+	char *outPath=0;
+	const char *inShortName;
+	int i;
+	int seg0 = -1;
+	u64 *p;
+	u64 va;
+	int ret=-1;
+
+	if (addr) {
+		offset=FILE_OFFSET(addr);
+
+		if(fseek(fin, offset, SEEK_SET) || (fread(&rdd, sizeof(rdd), 1, fin)!=1)) {
+			fprintf(rdplog, "Failed to read struct ramdump_state at 0x%.8x\n", offset);
+			return -1;
+		}
+	} else
+		memset(&rdd, 0, sizeof(rdd));
+
+	checkRdd_64(&rdd);
+
+	outName = changeNameExt(inName, outShortName);
+	if(!outName || (fout=fopen(outName, "wt"))==NULL) goto bail;
+
+	if(outName) free(outName), outName=0;
+	outPath = changeNameExt(inName, "");
+
+	// Get input file name without the path
+	inShortName = inName + strlen(outPath);
+
+	// Trim the trailing "\": this makes things easier in the cmm script: the slash added serves as a separator
+	// between variable reference (path) and the following literal string (file name).
+	if (outPath[i=strlen(outPath)-1] == '\\') outPath[i]=0;
+
+	fprintf(rdplog, "Error type 0x%.8x, description: %s\n", rdd.err, rdd.text);
+
+	fprintf(fout, "; This script has been generated by Marvell rdp version %s\n; Source: %s\n", VERSION_STRING, inName);
+	fprintf(fout, "AREA.CREATE CONTEXT\nAREA.VIEW CONTEXT\nAREA.SELECT CONTEXT\n");
+	fprintf(fout, "printer.ClipBoard\n");
+	fprintf(fout, "PRINT \"------------------------------------------------------------------\"\n");
+	fprintf(fout, "&log_path=\"%s\"\n", outPath);
+	fprintf(fout, "&vmlinux_path=\"&log_path\"\n");
+	fprintf(fout, "//------------------------------------------------------------------\n");
+	fprintf(fout, "PRINT \"LOG location: &log_path (if moved, please, modify the logpath var in ramdump.cmm)\"\n");
+	stripTextCR(rdd.text); //The fout-cmm script is wrong with \n, \r inside
+	fprintf(fout, "PRINT \"Error type 0x%.8x, description: %s\"\n", rdd.err, rdd.text);
+
+	if (rdd.spr.midr == CP15_ID_DEFAULT)
+		fprintf(fout, "PRINT \"SNAP! The ramdump_data is invalid or its address in RDC is zero: probably dump after force reset\"\n");
+
+	fprintf(fout, "PRINT \"CPU is %s (ID=0x%.8x)\"\n", "ARMV8", rdd.spr.midr);
+	// CPU type
+	fprintf(fout, "sys.cpu CORTEXA53\nsys.up\nmmu.off\n");
+
+	// Add LOAD commands
+	fprintf(fout, "PRINT \"Loading kernel ELF\"\n");
+	fprintf(fout, "data.load.elf \"&vmlinux_path\\%s\"\n", "vmlinux");
+	fprintf(fout, "&vmlinux_kver=data.string(linux_banner)\n");
+	fprintf(fout, "PRINT \"vmlinux kernel version string: &vmlinux_kver\"\n");
+
+	fprintf(fout, "  PRINT \"Adding the Linux Awareness Support...\"\n");
+	fprintf(fout, "data.find v.range(\"linux_banner\") \"version 3.\"\n");
+	fprintf(fout, "IF FOUND()\n(\n");
+	fprintf(fout, "  TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux-3.x\\linux3     ; loads Linux awareness (linux.t32)\n");
+	fprintf(fout, "  MENU.ReProgram c:\\t32\\demo\\arm\\kernel\\linux-3.x\\linux  ; loads Linux menu (linux.men)\n");
+	fprintf(fout, ")\nELSE\n(\n");
+	fprintf(fout, "  TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux\\linux     ; loads Linux awareness (linux.t32)\n");
+	fprintf(fout, "  MENU.ReProgram c:\\t32\\demo\\arm\\kernel\\linux\\linux  ; loads Linux menu (linux.men)\n");
+	fprintf(fout, ")\n");
+	fprintf(fout, "HELP.FILTER.Add rtoslinux                          ; add linux awareness manual to help filter\n");
+
+	// Dump original kernel code to file for later comparison with actual kernel code from dump
+	fprintf(fout, "&ktext_start=v.value(\"&__init_end\")\n");
+	fprintf(fout, "&ktext_end=v.value(\"&_data\")\n"); /* All RO sections */
+	fprintf(fout, "&ktext_size=&ktext_end-&ktext_start\n");
+	fprintf(fout, "IF (&ktext_size>0x0)&&(&ktext_size<0x800000)\n(\n");
+	fprintf(fout, "			data.save.binary \"&log_path\\%s\" &ktext_start--&ktext_end\n", "kernel_text.vmlinux.bin");
+	fprintf(fout, "			PRINT \"Saved actual kernel .text contents into: &log_path\\%s, &ktext_size bytes\"\n", "kernel_text.vmlinux.bin");
+	fprintf(fout, ")\n");
+
+	fprintf(fout, "PRINT \"Loading RAMDUMP files: %dMB: please, be patient...\"\n", dump_total_size/0x100000);
+	for (i = 0; i < MAX_SEGMENTS; i++) {
+		if (segments[i].size) {
+			fprintf(fout, "data.load.binary \"&log_path\\%s\" 0x%.8x++0x%.8x /skip 0x%.8x /nosymbol\n",
+					inShortName, segments[i].pa, segments[i].size-1, segments[i].foffs);
+			if (seg0 < 0) seg0 = i;
+		}
+	}
+
+#if (0)
+	// Load AP SRAM contents
+	fprintf(fout, "IF OS.FILE(\"&log_path\\%s\")\n", apSramFileName);
+	fprintf(fout, "\tdata.load.binary \"&log_path\\%s\" 0x%.8x /nosymbol\n", apSramFileName, AP_SRAM_ADDRESS);
+
+	// Load CP extra DDR segment:
+	// This segment is overwritten before dump is taken per memory map definition (by OBM/U-boot).
+	// However, since some CP designs hold valueable data there, the contents is saved in a ramfile.
+	// User is responsible to extract the ramfile to make the file available to T32.
+	fprintf(fout, "IF OS.FILE(\"&log_path\\%s\")\n(\n", comExtraDdrFileName);
+	fprintf(fout, "\tdata.load.binary \"&log_path\\%s\" 0x%.8x /nosymbol\n", comExtraDdrFileName, cpmem_addr);
+	fprintf(fout, "\tPRINT \"%s has been loaded at 0x%.8x\"\n)\n", comExtraDdrFileName, cpmem_addr);
+	fprintf(fout, "ELSE\n\tPRINT \"WARNING: %s NOT FOUND\"\n", comExtraDdrFileName);
+
+	/* On pxa998 with only 32MB DDR there's no room to reserve permanently for OBM/U-boot, therefore
+	   these use kernel RO segment and overwrite its contents. Reload from vmlinux. Ability to check the actual
+	   kernel code contents against the vmlinux reference is therefore lost */
+	if (dump_total_size<=0x04000000) {
+		fprintf(fout, "PRINT \"Restoring the contents of kernel RO sections from vmlinux: [&ktext_start-&ktext_end]\"\n");
+		fprintf(fout, "data.load.binary \"&log_path\\kernel_text.vmlinux.bin\" v.value(&ktext_start&~0x40000000) /nosymbol\n");
+	}
+#endif
+
+	// CPU registers
+	fprintf(fout, "per.set SPR:0x30422 0x%.8x ; currentEL\n", rdd.spr.current_el);
+	fprintf(fout, "r.set cpsr 0x%.8x\n", rdd.regs.pstate);
+	for(i=0,p=(u64*)&rdd.regs.regs[0];i<31;i++,p++)
+	{
+		fprintf(fout,"r.set x%d 0x%.8x%.8x\n",i,hi32(*p),lo32(*p));
+	}
+
+	fprintf(fout, "r.set pc 0x%.8x%.8x\n", hi32(rdd.regs.pc),lo32(rdd.regs.pc));
+	fprintf(fout, "r.set sp 0x%.8x%.8x\n", hi32(rdd.regs.sp),lo32(rdd.regs.sp));
+
+	// SPR registers
+	fprintf(fout, "per.set SPR:0x30000 0x%.8x ; MIDR\n", rdd.spr.midr);
+	fprintf(fout, "per.set SPR:0x30006 0x%.8x ; REVIDR\n", rdd.spr.revidr);
+	fprintf(fout, "per.set SPR:0x30100 0x%.8x ; SCTLR\n", rdd.spr.sctlr);
+	fprintf(fout, "per.set SPR:0x30101 0x%.8x ; ACTLR\n", rdd.spr.actlr);
+	fprintf(fout, "per.set SPR:0x30102 0x%.8x ; CPACR\n", rdd.spr.cpacr);
+
+	if (rdd.spr.ttbr1)
+		fprintf(fout, "per.set SPR:0x30201 0x%.8x%.8x ; TTBR1\n", hi32(rdd.spr.ttbr1),lo32(rdd.spr.ttbr1));
+	else
+		/* Set TTBR1 to contain the PHYSICAL address of the init_mm primary MMU table (swapper_pg_dir) */
+		fprintf(fout, "per.set SPR:0x30201 v.value(((void *)&swapper_pg_dir) - 0x%.8x%.8x + 0x%.8x%.8x) ; TTBR1 - not available, set to default init_mm \n",
+			hi32(segments[seg0].va), lo32(segments[seg0].va), hi32(segments[seg0].pa), lo32(segments[seg0].pa));
+	fprintf(fout, "per.set SPR:0x30200 0x%.8x%.8x ; TTBR0\n", hi32(rdd.spr.ttbr0), lo32(rdd.spr.ttbr0));
+	fprintf(fout, "per.set SPR:0x30202 0x%.8x%.8x ; TCR\n", hi32(rdd.spr.tcr), lo32(rdd.spr.tcr));
+	fprintf(fout, "per.set SPR:0x30A20 0x%.8x%.8x ; MAIR\n", hi32(rdd.spr.mair), lo32(rdd.spr.mair));
+
+	fprintf(fout, "per.set SPR:0x30C10 0x%.8x ; ISR\n", rdd.spr.isr);
+	fprintf(fout, "per.set SPR:0x30D04 0x%.8x%.8x ; TPIDR\n", hi32(rdd.spr.tpidr), lo32(rdd.spr.tpidr));
+	fprintf(fout, "per.set SPR:0x30C00 0x%.8x%.8x ; VBAR\n", hi32(rdd.spr.vbar), lo32(rdd.spr.vbar));
+	fprintf(fout, "per.set SPR:0x30520 0x%.8x ; ESR\n", rdd.spr.esr);
+	fprintf(fout, "per.set SPR:0x30600 0x%.8x%.8x ; FAR\n", hi32(rdd.spr.far_), lo32(rdd.spr.far_));
+
+	// Moved loading of ELF and bin files from here up, as ELF loading operation resets some registers, e.g. the PC.
+
+	fprintf(fout, "mmu.format std\nmmu.scan\nmmu.on\nsim.cache.on\n");
+
+	// Check the actual version string in the DDR data loaded (using virtual addresses)
+	va = 0;
+	if (rdc.header.kernel_build_id_hi) {
+		// Newer versions of kernel ramdump.c set a pointer to the linux_banner[] string in kernel_build_id
+		// This gives a symbol table independent location of the actual version string,
+		// and also provides a RW copy of this string e.g. on PXA1801, where kernel RO is not present in the dump.
+		char verstring[150];
+		va = mk64(rdc.header.kernel_build_id_hi, rdc.header.kernel_build_id);
+		if (readObjectAtVa(fin, verstring, va, sizeof(verstring)) <= 0) {
+			fprintf(rdplog, "Failed to read kernel version at 0x%.8%.8x\n", hi32(va), lo32(va));
+			va = 0;
+		} else {
+			fprintf(rdplog, "Actual kernel version at 0x%.8x%.8x:\n\t%s\n", hi32(va), lo32(va), verstring);
+		}
+	}
+
+	if (va)
+		fprintf(fout, "&act_kver=data.string(C:0x%.8x%.8x)\n", hi32(va), lo32(va));
+	else
+		fprintf(fout, "&act_kver=data.string(linux_banner)\n");
+
+	fprintf(fout, "PRINT \"Actual kernel version string: &act_kver\"\n");
+	fprintf(fout, "&version_mismatch=0\n");
+	fprintf(fout, "IF (\"&act_kver\"!=\"&vmlinux_kver\")\n(\n");
+	fprintf(fout, "     PRINT \"ATTENTION: MISMATCHED KERNEL VERSION - this implies vmlinux file is wrong\"\n     &version_mismatch=1\n)\n");
+
+	fprintf(fout, "PRINT \"READY\"\n");
+
+	/* Extract additional objects for user convenience */
+	// printk buffer: see kernel/printk.c
+	fprintf(fout, "&printk_buf=v.value(\"(void**)log_buf\")\n");
+	fprintf(fout, "&printk_size=v.value(\"(unsigned)log_buf_len\")\n");
+	fprintf(fout, "IF (&version_mismatch==0) \n(\n");
+	fprintf(fout, "     data.save.binary \"&log_path\\%s\" &printk_buf++&printk_size\n", PRINTK_FILE_NAME);
+	fprintf(fout, "     PRINT \"Saved printk buffer contents into &log_path\\%s\"\n", PRINTK_FILE_NAME);
+	/* Save actual kernel text (code) */
+	fprintf(fout, "     IF (&ktext_size>0x0)&&(&ktext_size<0x800000)\n     (\n");
+	fprintf(fout, "			data.save.binary \"&log_path\\%s\" &ktext_start--&ktext_end\n", "kernel_text.dump.bin");
+	fprintf(fout, "          PRINT \"Saved actual kernel .text contents into: &log_path\\%s, &ktext_size bytes\"\n", "kernel_text.dump.bin");
+	/* Now check if the kernel text is intact */
+	fprintf(fout, "          COMPARE \"&log_path\\%s\" \"&log_path\\%s\"\n", "kernel_text.dump.bin", "kernel_text.vmlinux.bin");
+	fprintf(fout, "          IF FOUND()\n          (\n");
+	fprintf(fout, "			     PRINT \"ATTENTION: Kernel code mismatch, suspected corruption, check manually\"\n          )\n");
+	fprintf(fout, "          ELSE\n          (\n");
+	fprintf(fout, "			     PRINT \"Kernel code verified: ok\"\n          )\n");
+	fprintf(fout, "     )\n");
+	fprintf(fout, ")\n");
+	// ramdump_data struct
+	fprintf(fout, "var.view %%HEX ramdump_data\n");
+	ret=0;
+
+bail:
+	if(fout) fclose(fout);
+	if(outName) free(outName);
+	if(outPath) free(outPath);
+
+	return ret;
+}
+
+
 int writeElfHeader(const char* inName, const char* outShortName)
 {
 	FILE *fout = 0;
@@ -1135,6 +1537,10 @@ int main(int argc, char* argv[])
 	switch (check_elf(fin)) {
 	case 1:
 		fprintf(rdplog, "Input file is in ELF format\n");
+		break;
+	case 2:
+		fprintf(rdplog, "Input file is in ELF64 format\n");
+		aarch_type = aarch64;
 		break;
 	case -1:
 		fprintf(rdplog, "Error: Input file is in ELF format but is not valid\n");
@@ -1209,7 +1615,10 @@ int main(int argc, char* argv[])
 	}
 
 	/* Generate the ramdump.cmm file even if rdc.header.ramdump_data_addr is 0 (function takes care of this case) */
-	extractCpuState(inName, "ramdump.cmm", fin, rdc.header.ramdump_data_addr);
+	if (aarch_type == aarch32)
+		extractCpuState(inName, "ramdump.cmm", fin, rdc.header.ramdump_data_addr);
+	else
+		extractCpuState_64(inName, "ramdump.cmm", fin, rdc.header.ramdump_data_addr);
 
 	/* Extract the RDI objects based on the descriptors in the RDC body */
 	extractRdiObjects(inName, fin);

@@ -34,6 +34,11 @@
 
 #define VIRT_START	0xc0000000
 
+
+#define ELFCLASS64      2               /* 64-bit objects */
+#define EM_ARM64   	  183              /* ARM */
+
+
 #if (0)
 DECLARE_GLOBAL_DATA_PTR;
 #endif
@@ -72,6 +77,40 @@ typedef struct elf32_phdr {
 	Elf32_Word	p_flags;
 	Elf32_Word	p_align;
 } Elf32_Phdr;
+
+
+/* 64-bit ELF base types. */
+typedef u64 Elf64_Addr;
+typedef u64 Elf64_Off;
+
+typedef struct elf64_hdr {
+	unsigned char	e_ident[EI_NIDENT];
+	Elf32_Half	e_type;
+	Elf32_Half	e_machine;
+	Elf32_Word	e_version;
+	Elf64_Addr	e_entry;  /* Entry point */
+	Elf64_Off	e_phoff;
+	Elf64_Off	e_shoff;
+	Elf32_Word	e_flags;
+	Elf32_Half	e_ehsize;
+	Elf32_Half	e_phentsize;
+	Elf32_Half	e_phnum;
+	Elf32_Half	e_shentsize;
+	Elf32_Half	e_shnum;
+	Elf32_Half	e_shstrndx;
+} Elf64_Ehdr;
+
+typedef struct elf64_phdr {
+	Elf32_Word	p_type;
+	Elf32_Word	p_flags;
+	Elf64_Off	p_offset;
+	Elf64_Addr	p_vaddr;
+	Elf64_Addr	p_paddr;
+	Elf64_Off	p_filesz;
+	Elf64_Off	p_memsz;
+	Elf64_Off	p_align;
+} Elf64_Phdr;
+
 
 #if (0)
 ulong ion_base;
@@ -143,28 +182,59 @@ void *init_elf(int *elf_size)
  */
 int check_elf(FILE *fin)
 {
-	elf32_hdr s_ehdr;
-	Elf32_Phdr s_phdr;
-	elf32_hdr *ehdr = &s_ehdr;
-	Elf32_Phdr *phdr = &s_phdr;
+	union Elf_Ehdr {
+		Elf32_Ehdr s_ehdr32;
+		Elf64_Ehdr s_ehdr64;
+	}s_ehdr;
+	union Elf_Phdr {
+		Elf32_Phdr s_phdr32;
+		Elf64_Phdr s_phdr64;
+	}s_phdr;
+
+	Elf32_Ehdr *ehdr = &s_ehdr.s_ehdr32;
+	Elf32_Phdr *phdr = &s_phdr.s_phdr32;
+	Elf64_Ehdr *ehdr64 = &s_ehdr.s_ehdr64;
+	Elf64_Phdr *phdr64 = &s_phdr.s_phdr64;
 	int n_pheaders;
 	int i, is;
 	if(fseek(fin, 0, SEEK_SET)) return 0;
-	if(fread((void*)ehdr, sizeof(*ehdr), 1, fin) != 1) return 0;
-	if(memcmp(ehdr->e_ident, ELFMAG, SELFMAG)) return 0;
-	n_pheaders = ehdr->e_phnum;
-	if((ehdr->e_ident[EI_CLASS] != ELFCLASS32) || (ehdr->e_type != ET_CORE) || (ehdr->e_machine != EM_ARM)
-		|| (n_pheaders < 2)) return 0;
+	if(fread((void*)&s_ehdr, sizeof(s_ehdr), 1, fin) != 1) return 0;
 
-	for (i = 0, is = 0; i < n_pheaders; i++) {
-		if(fread((void*)phdr, sizeof(*phdr), 1, fin) != 1) return -1;
-		if(phdr->p_type == PT_LOAD) {
-			if (is >= MAX_SEGMENTS) return -1;
-			segments[is].foffs = phdr->p_offset;
-			segments[is].pa = phdr->p_paddr;
-			segments[is].size = phdr->p_filesz;
-			is++;
+	if(memcmp(ehdr->e_ident, ELFMAG, SELFMAG))
+		return 0; // not ELF
+
+	// Check ELF32
+	if ((ehdr->e_ident[EI_CLASS] == ELFCLASS32) && (ehdr->e_type == ET_CORE) && (ehdr->e_machine == EM_ARM)
+	  && (ehdr->e_phnum >= 2)) {
+		n_pheaders = ehdr->e_phnum;
+		for (i = 0, is = 0; i < n_pheaders; i++) {
+			if(fread((void*)phdr, sizeof(*phdr), 1, fin) != 1) return -1;
+			if(phdr->p_type == PT_LOAD) {
+				if (is >= MAX_SEGMENTS) return -1;
+				segments[is].foffs = phdr->p_offset;
+				segments[is].pa = phdr->p_paddr;
+				segments[is].size = phdr->p_filesz;
+				segments[is].va = phdr->p_vaddr;
+				is++;
+			}
 		}
+		return is < 1 ? -1 : 1;
+
+	} else 	if ((ehdr64->e_ident[EI_CLASS] == ELFCLASS64) && (ehdr64->e_type == ET_CORE) && (ehdr64->e_machine == EM_ARM64)
+				&& (ehdr64->e_phnum >= 2)) {
+		n_pheaders = ehdr64->e_phnum;
+		for (i = 0, is = 0; i < n_pheaders; i++) {
+			if(fread((void*)phdr64, sizeof(*phdr64), 1, fin) != 1) return -1;
+			if(phdr64->p_type == PT_LOAD) {
+				if (is >= MAX_SEGMENTS) return -1;
+				segments[is].foffs = (unsigned)phdr64->p_offset;
+				segments[is].pa = (unsigned)phdr64->p_paddr;
+				segments[is].size = (unsigned)phdr64->p_filesz;
+				segments[is].va = phdr64->p_vaddr;
+				is++;
+			}
+		}
+		return is < 1 ? -1 : 2;
 	}
-	return is < 1 ? -1 : 1;
+	return -1;
 }

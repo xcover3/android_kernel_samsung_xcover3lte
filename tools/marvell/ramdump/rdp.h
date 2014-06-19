@@ -8,6 +8,18 @@ typedef unsigned char UINT8;
 typedef unsigned short UINT16;
 typedef unsigned long UINT32;
 
+#ifndef WIN32
+typedef unsigned long long u64;
+#else
+typedef __int64 u64;
+#endif
+typedef u64 __u64;
+typedef unsigned u32;
+typedef unsigned long T_PTR;
+static inline unsigned hi32(u64 x) { return (unsigned)(x>>32); }
+static inline unsigned lo32(u64 x) { return (unsigned)(x); }
+static inline u64 mk64(unsigned hi, unsigned lo) { return (((u64)hi)<<32) | lo; }
+
 #include <stdio.h>
 #include <stdlib.h>
 #ifndef WIN32
@@ -32,6 +44,7 @@ struct segment {
 	unsigned pa; /* physical address */
 	unsigned foffs; /* file offset */
 	unsigned size; /* size */
+	u64		 va;
 };
 #define MAX_SEGMENTS 4
 extern struct segment segments[MAX_SEGMENTS];
@@ -62,14 +75,18 @@ static inline unsigned FILE_OFFSET(unsigned pa)
 
 extern FILE* rdplog;
 
+extern enum aarch_type_e {
+	aarch32,
+	aarch64
+} aarch_type;
 // Functions
 
 // Read an object contents at specified kernel virtual address and of specified size
-int readObjectAtVa(FILE *fin, void *buf, unsigned addr, int size);
+int readObjectAtVa(FILE *fin, void *buf, u64 addr, int size);
 
 // Translate a kernel virtual address into physical one (use FILE_OFFSET(v2p(va, fin)) for file offset)
 #define BADPA 0xffffffff
-unsigned v2p(unsigned va, FILE *fin);
+unsigned v2p(u64 va, FILE *fin);
 
 // Extract RAMDUMP area into an output file
 // offset: if vaddr=0, area located at this file offset
@@ -78,7 +95,8 @@ unsigned v2p(unsigned va, FILE *fin);
 // flexSize: 0= the inFile should have the exact "size", 1= iFile could be smaller than "size"
 // append: if 1, the contents will be appended to the output file; otherwise output file is written at offset 0.
 int extractFile(const char* inName, const char* outShortName, FILE* fin,
-	unsigned offset, unsigned size, int flexSize, unsigned vaddr, int append=0);
+	unsigned offset, unsigned size, int flexSize, u64 vaddr,
+	int append = 0);
 
 
 // File name operations

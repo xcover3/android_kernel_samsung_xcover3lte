@@ -7,6 +7,11 @@
 #ifndef _RAMDUMP_DATA_H_
 #define _RAMDUMP_DATA_H_
 
+/*
+ * -----------------------------------------------------------------------
+ *			aarch32 definitions
+ * ------------------------------------------------------------------------
+ */
 struct pt_regs {
         long uregs[18];
 };
@@ -160,7 +165,7 @@ struct acc_regs {
 
 /* Main RAMDUMP data structure */
 struct ramdump_state {
-	unsigned rdc_va;	/* RDC header virtual addres */
+	unsigned reserved; /* was rdc_va; RDC header virtual addres */
 	unsigned rdc_pa;	/* RDC header physical addres */
 	char text[100];
 	unsigned err;
@@ -190,4 +195,69 @@ struct ramdump_state {
 };
 
 
-#endif // _RAMDUMP_DATA_H_
+/*
+ * -----------------------------------------------------------------------
+ *			aarch64 definitions
+ * -----------------------------------------------------------------------
+ */
+
+/* See arch/arm64/include/uapi/asm/ptrace.h */
+struct user_pt_regs_64 {
+	__u64		regs[31];
+	__u64		sp;
+	__u64		pc;
+	__u64		pstate;
+};
+
+/* See arch/arm64/include/asm/ptrace.h */
+struct pt_regs_64 {
+	union {
+		struct user_pt_regs_64 user_regs;
+		struct {
+			u64 regs[31];
+			u64 sp;
+			u64 pc;
+			u64 pstate;
+		};
+	};
+	u64 orig_x0;
+	u64 syscallno;
+};
+
+/* EL1 bank SPRSs */
+struct spr_regs_64 {
+	u32	midr;
+	u32	revidr;
+	u32 current_el;
+	u32	sctlr;
+	u32	actlr;
+	u32	cpacr;
+	u32	isr;
+	u64	tcr;
+	u64	ttbr0;
+	u64	ttbr1;
+	u64	mair;
+	u64	tpidr;
+	u64	vbar;
+	u32	esr;
+	u32	reserved1;
+	u64	far_;
+};
+struct soc_regs_64 {
+	unsigned	reserved1;
+};
+
+struct ramdump_state_64 {
+	unsigned reserved; /* was rdc_va; RDC header virtual addres */
+	unsigned rdc_pa;	/* RDC header physical addres */
+	char text[100];
+	unsigned err;
+	struct pt_regs_64 regs;	/* saved context */
+	u64 /*struct thread_info * */ thread;
+
+	unsigned				spr_size;
+	struct spr_regs_64		spr;
+	unsigned				soc_size;
+	struct soc_regs_64 soc;
+};
+#endif /* _RAMDUMP_DATA_H_ */

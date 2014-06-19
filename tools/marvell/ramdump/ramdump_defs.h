@@ -105,7 +105,8 @@ struct ramfile_desc {
 	unsigned payload_size; /* bytes, excluding this header */
 	unsigned flags;
 	unsigned vaddr; /* virtual start address for discontinous case */
-	unsigned reserved[4];
+	unsigned vaddr_hi; /* upper 32 bit of the above (misaligned) */
+	unsigned reserved[3];
 };
 
 enum rdi_type {
@@ -121,6 +122,7 @@ enum rdi_type {
 
 /* Data Item objects in RDC */
 #define MAX_RDI_NAME	8
+#define RDI_HEAD_SIZE	12
 struct rdc_dataitem {
 	unsigned char	size;	/* total bytes to the next item */
 	unsigned char	type;	/* one of enum rdc_di_type */
@@ -148,7 +150,10 @@ struct rdc_area {
 		unsigned mipsram_size; /* size of mipsram buffer */
 		unsigned ddr_bank0_size; /* for future use in RDP */
 		unsigned pgd; /* init_mm.pgd  pa: translate vmalloc addresses */
-		unsigned reserved1[15]; /* Up to offset 0x80 */
+		unsigned kallsyms; /* VA of struct kallsyms_record */
+		unsigned kallsyms_hi; /* upper 32 bit of the above */
+		unsigned kernel_build_id_hi; /* upper 32 bit of the above */
+		unsigned reserved1[12]; /* Up to offset 0x80 */
 	} header;
 	union { /*upto 1KB*/
 		unsigned char space[0x400-sizeof(struct rdc_header)];

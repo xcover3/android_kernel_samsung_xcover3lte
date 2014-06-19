@@ -5,24 +5,51 @@
 ;------------------------------------------------------------
 ; rev.0.1: antone@marvell.com: initial version
 ; rev.0.2: antone@marvell.com: support for saving file contents for tmpfs
+; rev.0.3: antone@marvell.com: fixes for arm64, support kernel 3.x, option for CONFIG_BASE_SMALL (/s)
 ;
 ; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
 ; Lists the contents of a filesystem directory structure for a given mount point:
 ;
-; USAGE: <mandatory: mountpoint address> <optional: output directory>
+; USAGE: <mandatory: mountpoint address> <optional: output directory> </s>
 ; The mount points are listed by T32 command Linux/Display File System/Display Mount points or a command task.fs.mount.
 ; The hex value in Magic column is the mount point address
 ;
 ; If output directory is specified, the whole tree of directories and files is extracted with contents and put into this directory.
 ; This works with tmpfs only
+; /s option (needed only to extract content) is to be specified when kernel is configured with CONFIG_BASE_SMALL
 
-ENTRY &mount &outpath
+ENTRY &mount &outpath &opt
 
 AREA.CREATE OUT 80 1000
 AREA.VIEW OUT
 AREA.SELECT OUT
 &slash="\"
-&pa_base=0x80000000 //v.value(mmu.physical(c:0xc0000000))
+
+// Check kernel version
+data.find v.range("linux_banner") "version 3."
+&k3x=0
+IF FOUND()
+(
+	&k3x=1
+)
+
+// Find the memory physical base
+&pa_base=address.offset(mmu.physical(c:v.value(&swapper_pg_dir)))
+&pa_base=v.value(&pa_base&~0xfffffff)
+
+// By default assume CONFIG_FLATMEM
+&memmap=v.value(*(void **)&mem_map)
+// Reasonably ugly way to find out if CONFIG_SPARSEMEM_VMEMMAP is set
+IF sYmbol.EXIST(vmemmap_populate)
+(
+	// CONFIG_SPARSEMEM_VMEMMAP is set
+	// arch/arm64/include/asm/pgtable.h:#define vmemmap                        ((struct page *)(VMALLOC_END + SZ_64K))
+	&memmap=0xffffffbc00000000
+)
+
+&mshift=6 // RADIX_TREE_MAP_SHIFT: (CONFIG_BASE_SMALL ? 4 : 6)
+IF "&opt"=="/s"
+	&mshift=4
 
 IF "&outpath"!=""
 (
@@ -43,9 +70,19 @@ IF "&mount"==""
 	ENDDO
 )
 
-&list=v.value(&((struct vfsmount *)&mount)->mnt_root.d_subdirs)
-&name=v.string(((struct vfsmount *)&mount)->mnt_devname)
-&path="&slash"+v.string(((struct vfsmount *)&mount)->mnt_mountpoint.d_iname)
+LOCAL &list &name &path
+IF (&k3x==0)
+(
+	&list=v.value(&((struct vfsmount *)&mount)->mnt_root.d_subdirs)
+	&name=v.string(((struct vfsmount *)&mount)->mnt_devname)
+	&path="&slash"+v.string(((struct vfsmount *)&mount)->mnt_mountpoint.d_iname)
+)
+ELSE
+(
+	&list=v.value(&((struct mount *)&mount)->mnt_mountpoint.d_u)
+	&name=v.string(((struct mount *)&mount)->mnt_devname)
+	&path="&slash"+v.string(((struct mount *)&mount)->mnt_mountpoint.d_iname)
+)
 
 print "Mount &mount, name &name"
 print "----------------------------------------------------------------"
@@ -183,10 +220,9 @@ LOCAL &idx
 LOCAL &h
 LOCAL &node
 LOCAL &shift
-LOCAL &mshift
 LOCAL &mask
 LOCAL &psize
-&mshift=4 // RADIX_TREE_MAP_SHIFT: (CONFIG_BASE_SMALL ? 4 : 6)
+
 &mask=v.value("(1<<&mshift)-1")
 
 &idx=0
@@ -200,7 +236,7 @@ WHILE &size!=0
 	(
 	//PRINT "RT: node=&node, h=&h"
 		&slot=v.value(&(((struct radix_tree_node *)&node)->slots[((&idx>>&shift)&&mask)]))
-		&node=v.value(*(unsigned long *)&slot)
+		&node=v.value(*(void**)&slot)
 		&shift=&shift-&mshift
 		&h=&h-1
 		IF &h<=0
@@ -237,7 +273,8 @@ IF (v.value((((struct page *)&page)->flags)&0x8)==0)
 	PRINT "Skipped: !PageUptodate: dentry at &element, node=&rnode, page=&page"
 	RETURN 1
 )
-&pa=v.value(&pa_base+((struct page*)&page-mem_map)*0x1000)
+
+&pa=v.value(&pa_base+((struct page*)&page-(struct page*)&memmap)*0x1000)
 &size=&size-1
 
 // TEMP: APPEND IS TBD
