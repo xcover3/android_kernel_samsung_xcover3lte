@@ -38,6 +38,10 @@
 #include <asm/exception.h>
 #include <asm/system_misc.h>
 
+#ifdef CONFIG_PXA_RAMDUMP
+#include "linux/ramdump.h"
+#endif
+
 static const char *handler[]= {
 	"Synchronous Abort",
 	"IRQ",
@@ -212,6 +216,9 @@ static int __die(const char *str, int err, struct thread_info *thread,
 		dump_instr(KERN_EMERG, regs);
 	}
 
+#ifdef CONFIG_PXA_RAMDUMP
+	ramdump_save_dynamic_context(str, err, current_thread_info(), regs);
+#endif
 	return ret;
 }
 
