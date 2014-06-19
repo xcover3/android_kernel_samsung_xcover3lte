@@ -447,6 +447,18 @@ static const char *fault_name(unsigned int esr)
 	return inf->name;
 }
 
+void __init hook_fault_code(int nr,
+		int (*fn)(unsigned long, unsigned int, struct pt_regs *),
+		int sig, int code, const char *name)
+{
+	BUG_ON(nr < 0 || nr >= ARRAY_SIZE(fault_info));
+
+	fault_info[nr].fn   = fn;
+	fault_info[nr].sig  = sig;
+	fault_info[nr].code = code;
+	fault_info[nr].name = name;
+}
+
 /*
  * Dispatch a data abort to the relevant handler.
  */
