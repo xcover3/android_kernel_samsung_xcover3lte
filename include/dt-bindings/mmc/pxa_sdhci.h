@@ -54,6 +54,7 @@
 #define MMC_CAP2_HS200_1_8V_SDR				(1 << 5) /* can support */
 #define MMC_CAP2_HS200_1_2V_SDR				(1 << 6) /* can support */
 #define MMC_CAP2_DISABLE_BLK_ASYNC			(1 << 20)
+#define MMC_CAP2_BKOPS_EN				(1 << 24)
 
 /* Controller does not support HS200 */
 #define SDHCI_QUIRK2_BROKEN_HS200			(1<<6)

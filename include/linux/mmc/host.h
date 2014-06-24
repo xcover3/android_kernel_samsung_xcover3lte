@@ -302,6 +302,7 @@ struct mmc_host {
 #define MMC_CAP2_DISABLE_PROBE_CDSCAN		(1 << 21)
 #define MMC_CAP2_BUS_AUTO_CLK_GATE		(1 << 22)   /* host can auto gate bus clk */
 #define MMC_CAP2_NO_VOLTAGE_SWITCH		(1 << 23)   /* Don't need voltage switch */
+#define MMC_CAP2_BKOPS_EN			(1 << 24)   /* Enable bkops from host side */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 

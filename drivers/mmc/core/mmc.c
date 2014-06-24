@@ -490,11 +490,23 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		/* check whether the eMMC card supports BKOPS */
 		if (ext_csd[EXT_CSD_BKOPS_SUPPORT] & 0x1) {
 			card->ext_csd.bkops = 1;
+			if ((card->host->caps2 & MMC_CAP2_BKOPS_EN) &&
+					!(ext_csd[EXT_CSD_BKOPS_EN] & 0x1)) {
+				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+						EXT_CSD_BKOPS_EN, 0x1, 0x0);
+				if (!err)
+					ext_csd[EXT_CSD_BKOPS_EN] |= 0x1;
+				else
+					err = 0;
+			}
 			card->ext_csd.bkops_en = ext_csd[EXT_CSD_BKOPS_EN];
 			card->ext_csd.raw_bkops_status =
 				ext_csd[EXT_CSD_BKOPS_STATUS];
-			if (!card->ext_csd.bkops_en)
+			if (!(card->ext_csd.bkops_en & 0x1))
 				pr_info("%s: BKOPS_EN bit is not set\n",
+					mmc_hostname(card->host));
+			else
+				pr_info("%s: BKOPS_EN bit is set\n",
 					mmc_hostname(card->host));
 		}
 
