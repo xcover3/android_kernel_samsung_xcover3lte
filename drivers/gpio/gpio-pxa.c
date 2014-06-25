@@ -130,16 +130,6 @@ static struct pxa_gpio_id pxa93x_id = {
 	.gpio_nums	= 192,
 };
 
-static struct pxa_gpio_id mmp_id = {
-	.type		= MMP_GPIO,
-	.gpio_nums	= 128,
-};
-
-static struct pxa_gpio_id mmp2_id = {
-	.type		= MMP2_GPIO,
-	.gpio_nums	= 192,
-};
-
 #define for_each_gpio_chip(i, c)			\
 	for (i = 0, c = &pxa_gpio_chips[0]; i <= pxa_last_gpio; i += 32, c++)
 
@@ -504,8 +494,6 @@ static struct of_device_id pxa_gpio_dt_ids[] = {
 	{ .compatible = "intel,pxa27x-gpio",	.data = &pxa27x_id, },
 	{ .compatible = "intel,pxa3xx-gpio",	.data = &pxa3xx_id, },
 	{ .compatible = "marvell,pxa93x-gpio",	.data = &pxa93x_id, },
-	{ .compatible = "marvell,mmp-gpio",	.data = &mmp_id, },
-	{ .compatible = "marvell,mmp2-gpio",	.data = &mmp2_id, },
 	{}
 };
 
@@ -661,8 +649,6 @@ static const struct platform_device_id gpio_id_table[] = {
 	{ "pxa27x-gpio",	(unsigned long)&pxa27x_id },
 	{ "pxa3xx-gpio",	(unsigned long)&pxa3xx_id },
 	{ "pxa93x-gpio",	(unsigned long)&pxa93x_id },
-	{ "mmp-gpio",		(unsigned long)&mmp_id },
-	{ "mmp2-gpio",		(unsigned long)&mmp2_id },
 	{ },
 };
 
