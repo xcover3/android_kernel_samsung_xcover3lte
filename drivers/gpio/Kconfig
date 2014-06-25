@@ -238,6 +238,17 @@ config GPIO_PXA
 	help
 	  Say yes here to support the PXA GPIO device
 
+config GPIO_MMP
+	bool "MMP GPIO support"
+	depends on ARCH_MMP
+	help
+	  Say yes here to support the Marvell MMP GPIO device.
+	  The MMP GPIO device may have serveral banks, and each
+	  bank control at most 32 GPIO pins. The number of banks
+	  is passed by device tree or platform data.
+	  MMP GPIO device keep some old registers as pxa gpio device,
+	  but it is recommeded to use the new registers.
+
 config GPIO_RCAR
 	tristate "Renesas R-Car GPIO"
 	depends on ARM
