@@ -17,6 +17,12 @@ config MMP_PANEL_R63311
 	help
 		MIPI Sharp 1080p panel support
 
+config MMP_PANEL_COMMON
+	bool "MIPI common panel support"
+	default n
+	help
+		MIPI common panel support
+
 config MMP_PANEL_LG4591
 	bool "MIPI panel LG4591 support"
 	default n

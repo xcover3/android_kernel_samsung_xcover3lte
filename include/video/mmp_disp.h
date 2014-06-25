@@ -488,12 +488,25 @@ enum {
 	PATH_OUT_HDMI,
 };
 
+struct mmp_dsi_cmd_hdr {
+	u8 dtype;	/* data type */
+	u8 mode;	/* dsi mode */
+	u16 wait;	/* ms */
+	u16 dlen;	/* data length */
+} __packed;
+
 struct mmp_dsi_cmd_desc {
 	u8 data_type;
 	u8 lp;      /*command tx through low power mode or high-speed mode */
 	unsigned int delay;  /* time to delay */
 	unsigned int length; /* cmds length */
 	u8 *data;
+};
+
+struct mmp_dsi_cmds {
+	struct mmp_dsi_cmd_desc *cmds;
+	unsigned int nr_cmds;
+	unsigned int mode;
 };
 
 struct mmp_dsi_buf {
