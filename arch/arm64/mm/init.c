@@ -37,6 +37,8 @@
 #include <asm/sizes.h>
 #include <asm/tlb.h>
 
+#include <asm/mach/arch.h>
+
 #include "mm.h"
 
 phys_addr_t memstart_addr __read_mostly = 0;
@@ -161,6 +163,10 @@ void __init arm64_memblock_init(void)
 	}
 
 	dma_contiguous_reserve(0);
+
+	/* reserve any platform specific memblock areas */
+	if (machine_desc && machine_desc->reserve)
+		machine_desc->reserve();
 
 	memblock_allow_resize();
 	memblock_dump_all();

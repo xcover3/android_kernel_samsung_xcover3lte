@@ -39,6 +39,8 @@
 #include <asm/thread_info.h>
 #include <asm/stacktrace.h>
 
+#include <asm/mach/arch.h>
+
 #ifdef CONFIG_SMP
 unsigned long profile_pc(struct pt_regs *regs)
 {
@@ -65,7 +67,10 @@ void __init time_init(void)
 {
 	u32 arch_timer_rate;
 
-	clocksource_of_init();
+	if (machine_desc && machine_desc->init_time)
+		machine_desc->init_time();
+	else
+		clocksource_of_init();
 
 	arch_timer_rate = arch_timer_get_rate();
 	if (!arch_timer_rate)

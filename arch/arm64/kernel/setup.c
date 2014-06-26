@@ -55,6 +55,8 @@
 #include <asm/memblock.h>
 #include <asm/psci.h>
 
+#include <asm/mach/arch.h>
+
 unsigned int processor_id;
 EXPORT_SYMBOL(processor_id);
 
@@ -73,6 +75,7 @@ unsigned int compat_elf_hwcap __read_mostly = COMPAT_ELF_HWCAP_DEFAULT;
 
 static const char *cpu_name;
 static const char *machine_name;
+const struct machine_desc *machine_desc __initdata;
 phys_addr_t __fdt_pointer __initdata;
 
 /*
@@ -244,8 +247,23 @@ static void __init setup_processor(void)
 		elf_hwcap |= HWCAP_CRC32;
 }
 
+static const void * __init arch_get_next_mach(const char *const **match)
+{
+	static const struct machine_desc *mdesc = __arch_info_begin;
+	const struct machine_desc *m = mdesc;
+
+	if (m >= __arch_info_end)
+		return NULL;
+
+	mdesc++;
+	*match = m->dt_compat;
+	return m;
+}
+
 static void __init setup_machine_fdt(phys_addr_t dt_phys)
 {
+	const struct machine_desc *mdesc;
+
 	if (!dt_phys || !early_init_dt_scan(phys_to_virt(dt_phys))) {
 		early_print("\n"
 			"Error: invalid device tree blob at physical address 0x%p (virtual address 0x%p)\n"
@@ -257,7 +275,29 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
 			cpu_relax();
 	}
 
-	machine_name = of_flat_dt_get_machine_name();
+	mdesc = of_flat_dt_match_machine(NULL, arch_get_next_mach);
+	if (!mdesc) {
+		const char *prop;
+		long size;
+		unsigned long dt_root;
+
+		early_print("\nError: unrecognized/unsupported "
+			    "device tree compatible list:\n[ ");
+
+		dt_root = of_get_flat_dt_root();
+		prop = of_get_flat_dt_prop(dt_root, "compatible", &size);
+		while (size > 0) {
+			early_print("'%s' ", prop);
+			size -= strlen(prop) + 1;
+			prop += strlen(prop) + 1;
+		}
+		early_print("]\n\n");
+
+		machine_halt();
+	}
+
+	machine_desc = mdesc;
+	machine_name = mdesc->name;
 }
 
 /*
@@ -356,8 +396,17 @@ void __init setup_arch(char **cmdline_p)
 
 static int __init arm64_device_init(void)
 {
-	of_clk_init(NULL);
-	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+	if (machine_desc && machine_desc->init_clk)
+		machine_desc->init_clk();
+	else
+		of_clk_init(NULL);
+
+	if (machine_desc && machine_desc->init_machine)
+		machine_desc->init_machine();
+	else
+		of_platform_populate(NULL, of_default_bus_match_table,
+					NULL, NULL);
+
 	return 0;
 }
 arch_initcall(arm64_device_init);

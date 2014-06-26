@@ -81,6 +81,12 @@ SECTIONS
 		ARM_EXIT_KEEP(EXIT_TEXT)
 	}
 	. = ALIGN(16);
+	.init.arch.info : {
+		__arch_info_begin = .;
+		*(.arch.info.init)
+		__arch_info_end = .;
+	}
+	. = ALIGN(16);
 	.init.data : {
 		INIT_DATA
 		INIT_SETUP(16)
