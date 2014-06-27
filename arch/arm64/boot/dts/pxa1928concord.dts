@@ -1,0 +1,58 @@
+/*
+ *  Copyright (C) 2012 Marvell Technology Group Ltd.
+ *  Author: Jing Xiang <jing.xiang@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "pxa1928.dtsi"
+
+/ {
+	model = "PXA1928";
+	compatible = "marvell,pxa1928-concord", "marvell,pxa1928";
+
+	aliases {
+		serial0 = &uart2;
+		serial1 = &uart1;
+		serial2 = &uart0;
+		serial3 = &uart3;
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_keys_pins>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		volume-up {
+			label = "Volume Up";
+			linux,code = <115>; /* KEY_VOLUMEUP */
+			gpios = <&gpio GPIO(15) 1>;
+		};
+		volume-down {
+			label = "Volume Down";
+			linux,code = <114>;/* KEY_VOLUMEDOWN */
+			gpios = <&gpio GPIO(17) 1>;
+		};
+	};
+
+	soc {
+		apb@d4000000 {
+			pmx: pinmux@d401e000 {
+				status = "okay";
+				/* pin base, nr pins & gpio function */
+				pinctrl-single,gpio-range = <PXA1928_GPIO_PINMUX>;
+
+				gpio_keys_pins: pinmux_gpio_keys_pins {
+					pinctrl-single,pins = <P15_GPIO  P17_GPIO>;
+					MFP_LPM_PULL_HIGH;
+				};
+			};
+		};
+	};
+
+};

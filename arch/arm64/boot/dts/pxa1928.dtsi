@@ -1,0 +1,228 @@
+/*
+ *  Copyright (C) 2013 Marvell Technology Group Ltd.
+ *  Author: Chao Xie <chao.xie@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+/memreserve/ 0x01210000 0x8;
+#include "pxa1928-pinfunc.h"
+
+/ {
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 0>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 1>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 2>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 3>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+	};
+
+	gic: interrupt-controller@d1e02000 {
+		compatible = "arm,cortex-a7-gic";
+		interrupt-controller;
+		#interrupt-cells = <3>;
+		reg = <0 0xd1e01000 0x1000>,
+		      <0 0xd1e02000 0x1000>;
+	};
+
+        generic-timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xf04>,
+		             <1 14 0xf04>;
+		clock-frequency = <3250000>;
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+
+		version {
+			ver = "ax";
+		};
+
+		isram: sram@d1018000 {
+			compatible = "mmio-sram";
+			reg = <0xd1018000 0x8000>;	/* 32KB */
+		};
+
+		asram: sram@d1020000 {
+			compatible = "mmio-sram";
+			reg = <0xd1020000 0x10000>;	/* 64KB */
+		};
+
+		apb@d4000000 {	/* APB */
+			compatible = "arm,apb-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0xd4000000 0x00200000>;
+			ranges;
+
+			uart0: uart@d4030000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4030000 0x1000>;
+				interrupts = <0 27 0x4>;
+				clocks = <&uart0_clock>;
+			};
+
+			uart1: uart@d4017000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4017000 0x1000>;
+				interrupts = <0 28 0x4>;
+				clocks = <&uart1_clock>;
+			};
+
+			uart2: uart@d4018000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4018000 0x1000>;
+				interrupts = <0 24 0x4>;
+				clocks = <&uart2_clock>;
+			};
+
+			uart3: uart@d4016000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4016000 0x1000>;
+				interrupts = <0 46 0x4>;
+				clocks = <&uart3_clock>;
+			};
+
+			gpio: gpio@d4019000 {
+				compatible = "marvell,mmp-gpio";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0xd4019000 0x1000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupts = <0 49 0x4>;
+				clocks = <&vctcxo>;
+				interrupt-names = "gpio_mux";
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				ranges;
+
+				gcb0: gpio@d4019000 {
+					reg-offset = <0x0>;
+					gpio-ranges = <PXA1928_GPIO_0_31>;
+				};
+
+				gcb1: gpio@d4019004 {
+					reg-offset = <0x4>;
+					gpio-ranges = <PXA1928_GPIO_32_63>;
+				};
+
+				gcb2: gpio@d4019008 {
+					reg-offset = <0x8>;
+					gpio-ranges = <PXA1928_GPIO_64_95>;
+				};
+
+				gcb3: gpio@d4019100 {
+					reg-offset = <0x100>;
+					gpio-ranges = <PXA1928_GPIO_96_127>;
+				};
+
+				gcb4: gpio@d4019104 {
+					reg-offset = <0x104>;
+					gpio-ranges = <PXA1928_GPIO_128_159>;
+				};
+
+				gcb5: gpio@d4019108 {
+					reg-offset = <0x108>;
+					gpio-ranges = <PXA1928_GPIO_160_191>;
+				};
+
+				gcb6: gpio@d4019200 {
+					reg-offset = <0x200>;
+					gpio-ranges = <PXA1928_GPIO_192_197>;
+				};
+			};
+
+			rtc: rtc@d4010000 {
+				compatible = "mrvl,mmp-rtc";
+				reg = <0xd4010000 0x24>;
+				interrupts = <0 80 0x4>,<0 79 0x4>;
+				interrupt-names = "rtc 1Hz", "rtc alarm";
+				clocks = <&rtc_clock>;
+			};
+
+			pmx: pinmux@d401e000 {
+				compatible = "pinconf-single";
+				reg = <0xd401e000 0x31c>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				#gpio-range-cells = <3>;
+				ranges;
+
+				pinctrl-single,register-width = <32>;
+				pinctrl-single,function-mask = <7>;
+
+				range: gpio-range {
+					#pinctrl-single,gpio-range-cells = <3>;
+				};
+			};
+
+			timer: timer@d4088000 {
+				compatible = "marvell,mmp-timer";
+				reg = <0xd4088000 0xc8>;
+				marvell,timer-fastclk-frequency = <13000000>;
+				marvell,timer-apb-frequency = <26000000>;
+
+				counter0 {
+					compatible = "marvell,timer-counter-clksrc";
+					marvell,timer-counter-id = <0>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+
+				counter1 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <0 38 0x104>;
+					marvell,timer-counter-id = <1>;
+					marvell,timer-counter-broadcast;
+					marvell,timer-counter-frequency = <32768>;
+					marvell,timer-counter-nodynirq;
+				};
+
+				counter2 {
+					compatible = "marvell,timer-counter-delay";
+					marvell,timer-counter-id = <2>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+			};
+		};
+	};
+	soc_clocks: clocks{
+        };
+};
+
+/include/ "pxa1928-clock.dtsi"
