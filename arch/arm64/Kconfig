@@ -127,6 +127,13 @@ config ARCH_XGENE
 	help
 	  This enables support for AppliedMicro X-Gene SOC Family
 
+config ARCH_MMP
+	bool "Marvell MMP"
+	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_SINGLE
+	help
+	  This enables support for the Marvell MMP platforms.
 endmenu
 
 menu "Bus support"
