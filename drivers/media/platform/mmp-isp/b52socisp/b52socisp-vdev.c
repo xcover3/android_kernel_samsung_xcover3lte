@@ -684,7 +684,7 @@ static int isp_vnode_streamon(struct file *file, void *fh,
 	}
 	vnode->state = ISP_VNODE_ST_WORK;
 	mutex_unlock(&vnode->st_lock);
-	d_inf(2, "%s: stream on", vnode->vdev.name);
+	d_inf(3, "%s: stream on", vnode->vdev.name);
 	return ret;
 
 err_notifier:
@@ -740,7 +740,7 @@ static int isp_vnode_streamoff(struct file *file, void *fh,
 
 	vnode->state = ISP_VNODE_ST_LINK;
 	mutex_unlock(&vnode->st_lock);
-	d_inf(2, "%s: stream off", vnode->vdev.name);
+	d_inf(3, "%s: stream off", vnode->vdev.name);
 	return ret;
 }
 
