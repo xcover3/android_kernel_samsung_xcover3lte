@@ -241,8 +241,20 @@ static void mv_otg_start_host(struct mv_otg *mvotg, int on)
 	struct usb_otg *otg = mvotg->phy.otg;
 	struct usb_hcd *hcd;
 
-	if (!otg->host)
-		return;
+	if (!otg->host) {
+		int retry = 0;
+		while (retry < MAX_RETRY_TIMES) {
+			retry++;
+			msleep(RETRY_SLEEP_MS);
+			if (otg->host)
+				break;
+		}
+
+		if (!otg->host) {
+			dev_err(mvotg->phy.dev, "otg->host is not set!\n");
+			return;
+		}
+	}
 
 	dev_info(&mvotg->pdev->dev, "%s host\n", on ? "start" : "stop");
 
