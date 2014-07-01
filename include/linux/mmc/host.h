@@ -479,6 +479,7 @@ int mmc_regulator_set_ocr(struct mmc_host *mmc,
 			struct regulator *supply,
 			unsigned short vdd_bit);
 int mmc_regulator_get_supply(struct mmc_host *mmc);
+#define MMC_UA_LOAD_REQUIREMENT		800000 /* mmc load requirement in uA */
 #else
 static inline int mmc_regulator_get_ocrmask(struct regulator *supply)
 {

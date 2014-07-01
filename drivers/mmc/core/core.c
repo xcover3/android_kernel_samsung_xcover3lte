@@ -1317,8 +1317,10 @@ int mmc_regulator_set_ocr(struct mmc_host *mmc,
 
 		if (result == 0 && !mmc->regulator_vmmc_enabled) {
 			result = regulator_enable(supply);
-			if (!result)
+			if (!result) {
+				regulator_set_optimum_mode(supply, MMC_UA_LOAD_REQUIREMENT);
 				mmc->regulator_vmmc_enabled = true;
+			}
 		}
 	} else if (mmc->regulator_vmmc_enabled) {
 		result = regulator_disable(supply);
