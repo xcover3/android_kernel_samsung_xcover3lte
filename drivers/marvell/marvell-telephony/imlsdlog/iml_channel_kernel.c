@@ -58,6 +58,9 @@
 #define DMA_NAME "mmp-pdma"
 #define DCMD_LENGTH 0x01fff
 
+#define IML_FLAG_RIPC (1 << 0x4)
+#define IML_FLAG_DDR (1 << 0x8)
+
 #ifndef NO_IRQ
 #define NO_IRQ ((unsigned int)(-1))
 #endif
@@ -166,10 +169,9 @@ static bool iml_sd_log_pause(void)
 {
 	debug_print("%s\n", __func__);
 
-	pr_info("iml sd log pause\n");
 	/* MSA Log through AP Switch for initialization,
 	   1 -> switch on; 0 -> switch off */
-	p_share_mem->ripc_flag &= ~(1 << 0x4);
+	p_share_mem->ripc_flag &= ~(IML_FLAG_RIPC | IML_FLAG_DDR);
 	/* clear RIPC interrupt request. */
 	writel(0x00, ripc_base + RIPC_AP_INT_REQ);
 	return true;
@@ -182,7 +184,6 @@ static void first_ripc_handshake(void)
 	if (user_open_flag != 1 || handshake_flag)
 		return;
 	handshake_flag = true;
-	pr_info("iml on\n");
 	init_ring_state();
 	ap_wakeup_dsp();
 }
@@ -259,10 +260,6 @@ static inline unsigned long block_to_phy(int block)
 static void ap_wakeup_dsp(void)
 {
 	debug_print("%s\n", __func__);
-
-	/* MSA Log through AP Switch for initialization,
-	1 -> switch on; 0 -> switch off */
-	p_share_mem->ripc_flag |= (1 << 0x4);
 
 	/* read this status will change the status to "busy"(1)*/
 	readl(ripc_base + RIPC_STATUS_REG);
@@ -387,7 +384,15 @@ static int iml_moudle_open(struct inode *inode, struct file *file)
 	if (user_open_flag == 0 || user_open_flag == 2) {
 		handshake_flag = false;
 		user_open_flag = 1;
+		if ((file->f_flags & O_ACCMODE) == O_WRONLY) {
+			p_share_mem->ripc_flag |= IML_FLAG_DDR;
+			pr_info("iml DDR on\n");
+		} else {
+			p_share_mem->ripc_flag |= IML_FLAG_RIPC;
+			pr_info("iml RIPC on\n");
+		}
 		first_ripc_handshake();
+
 	}
 	return 0;
 }
