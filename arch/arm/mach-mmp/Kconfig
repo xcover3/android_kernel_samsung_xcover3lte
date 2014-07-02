@@ -109,6 +109,17 @@ config MACH_MMP2_DT
 	  Include support for Marvell MMP2 based platforms using
 	  the device tree.
 
+config MACH_MMPX_DT
+	bool "Support no-PJ/PJ4(ARMv7) platforms from device tree"
+	depends on !CPU_MOHAWK && !CPU_PJ4
+	select CPU_PXA988
+	select USE_OF
+	select PINCTRL
+	select PINCTRL_SINGLE
+	help
+	  Include support for Marvell MMP2 based platforms using
+	  the device tree. It targets at pxa988/pxa1088/pxa1U88
+	  and etc.
 endmenu
 
 config CPU_PXA168
@@ -131,6 +142,27 @@ config CPU_MMP2
 	select CPU_PJ4
 	help
 	  Select code specific to MMP2. MMP2 is ARMv7 compatible.
+
+config CPU_PXA988
+	bool
+	select CPU_V7
+	select ARM_GIC
+	select HAVE_SMP
+	select HAVE_ARM_SCU
+	select LOCAL_TIMERS
+	select HAVE_ARM_TWD
+	select COMMON_CLK
+	select CLKSRC_OF
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARM_HAS_SG_CHAIN
+	select CORESIGHT_SUPPORT
+	select CORESIGHT_TRACE_SUPPORT
+	select ARCH_HAS_OPP
+	help
+	  Say 'Y' here if you want to support the Marvell pxa988-base
+	  platforms.
+	  PXA988 is an SoC with dual-core Cotex-A9 and comunication
+	  processor, code name "Emei".
 
 config USB_EHCI_MV_U2O
         bool "EHCI support for PXA USB OTG controller"

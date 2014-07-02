@@ -1,0 +1,73 @@
+/*
+ *  Copyright (C) 2012 Marvell Technology Group Ltd.
+ *  Author: Haojian Zhuang <haojian.zhuang@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "pxa1U88.dtsi"
+#include "pxa988-pinfunc.h"
+
+/ {
+	model = "Marvell PXA1U88 DKB Development Board";
+	compatible = "marvell,pxa1U88-dkb", "marvell,pxa1U88";
+
+	chosen {
+		bootargs = "console=ttyS0,115200 root=/dev/nfs nfsroot=192.168.1.100:/nfsroot/ ip=192.168.1.101:192.168.1.100::255.255.255.0::eth0:on";
+	};
+
+	memory {
+		reg = <0x00000000 0x10000000>;
+	};
+
+	soc {
+		apb@d4000000 {
+			timer0: timer@d4014000 {
+				status = "disabled";
+			};
+
+			timer1: timer@d4016000 {
+				status = "disabled";
+			};
+
+			keypad: keypad@d4012000 {
+				marvell,direct-keys;
+				marvell,direct-key-low-active;
+				marvell,keypad-lpm-mod;
+				marvell,direct-key-count = <2>;
+				marvell,direct-key-mask = <0xff>;
+				marvell,direct-key-map = < 0x73
+							   0x72>;
+				marvell,debounce-interval = <30>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&keypad_in_func>;
+			};
+
+			pmx: pinmux@d401e000 {
+				/* pin base, nr pins & gpio function */
+				pinctrl-single,gpio-range = <
+					/*
+					 * GPIO number is hardcoded for range at here.
+					 * In gpio chip, GPIO number is not hardcoded for range.
+					 * Since one gpio pin may be routed to multiple pins,
+					 * define these gpio range in pxa910-dkb.dts not pxa910.dtsi.
+					 */
+					&range 55 55 0	/* GPIO0 ~ GPIO54 */
+					&range 110 32 0 /* GPIO67 ~ GPIO98 */
+					&range 52 1 0	/* GPIO124 */
+				>;
+
+				keypad_in_func: keypad_in_func {
+					pinctrl-single,pins = <
+						GPIO16 AF1	/* GPIO016_KP_DKIN1 */
+						GPIO17 AF1	/* GPIO017_KP_DKIN2 */
+					>;
+					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_DRIVE_HIGH;
+				};
+			};
+		};
+	};
+};
