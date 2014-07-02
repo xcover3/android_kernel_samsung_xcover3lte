@@ -79,6 +79,7 @@ struct mmpfb_info {
 
 static unsigned long virtual_x;
 static unsigned long virtual_y;
+static unsigned int	is_virtual_display;
 
 static inline void mmpfb_check_virtural_mode(struct mmp_mode *mode)
 {
@@ -91,6 +92,7 @@ static inline void mmpfb_check_virtural_mode(struct mmp_mode *mode)
 #endif
 
 	if (virtual_x && virtual_y) {
+		is_virtual_display = 1;
 		mode->xres = virtual_x;
 		mode->yres = virtual_y;
 		mode->pixclock_freq =  (virtual_x + mode->left_margin +
@@ -98,6 +100,7 @@ static inline void mmpfb_check_virtural_mode(struct mmp_mode *mode)
 			mode->vsync_len + mode->upper_margin
 			+ mode->lower_margin) * mode->refresh;
 	} else {
+		is_virtual_display = 0;
 		mode->xres = mode->real_xres;
 		mode->yres = mode->real_yres;
 	}

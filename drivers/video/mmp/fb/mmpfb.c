@@ -71,7 +71,6 @@ static int __init early_resolution(char *str)
 		return ret;
 	}
 
-	skip_power_on = 0;
 	return 1;
 }
 early_param("resolution.lcd", early_resolution);
@@ -584,7 +583,8 @@ static void mmpfb_power(struct mmpfb_info *fbi, int power)
 	/* for power on, always set address/window again */
 	if (status_is_on(power)) {
 		/* set window related info */
-		mmpfb_set_win(fbi->fb_info);
+		if (power != MMP_ON_REDUCED)
+			mmpfb_set_win(fbi->fb_info);
 
 		/* set address always */
 		mmpfb_set_adress(var, fbi);
@@ -868,6 +868,8 @@ static int mmpfb_probe(struct platform_device *pdev)
 		/* Allocate framebuffer memory: size = modes xy *4 */
 		fbi->fb_size = info->var.xres_virtual * info->var.yres_virtual
 				* info->var.bits_per_pixel / 8;
+		if (is_virtual_display)
+			fbi->fb_size = MMPFB_DEFAULT_SIZE;
 	} else {
 		fbi->fb_size = MMPFB_DEFAULT_SIZE;
 	}
@@ -883,9 +885,14 @@ static int mmpfb_probe(struct platform_device *pdev)
 	/* memset framebuffer, or there may be dirty data in fb */
 	memset(fbi->fb_start, 0, fbi->fb_size);
 	if (skip_power_on) {
-		memcpy(fbi->fb_start + fbi->fb_size / fbi->buffer_num,
-			__va(disp_start_addr), fbi->fb_size / fbi->buffer_num);
-		info->var.yoffset = info->var.yres;
+		if (is_virtual_display) {
+			memcpy(fbi->fb_start, __va(disp_start_addr),
+				fbi->fb_size / fbi->buffer_num);
+		} else {
+			memcpy(fbi->fb_start + fbi->fb_size / fbi->buffer_num,
+				__va(disp_start_addr), fbi->fb_size / fbi->buffer_num);
+			info->var.yoffset = info->var.yres;
+		}
 	}
 	dev_info(fbi->dev, "fb phys_addr 0x%lx, virt_addr 0x%p, size %dk\n",
 		(unsigned long)fbi->fb_start_dma,
