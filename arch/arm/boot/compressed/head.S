@@ -174,7 +174,8 @@ not_angel:
 		@ determine final kernel image address
 		mov	r4, pc
 		and	r4, r4, #0xf8000000
-		add	r4, r4, #TEXT_OFFSET
+		ldr	r3, =TEXT_OFFSET
+		add	r4, r4, r3
 #else
 		ldr	r4, =zreladdr
 #endif

@@ -52,7 +52,8 @@
 	.equ	swapper_pg_dir, KERNEL_RAM_VADDR - PG_DIR_SIZE
 
 	.macro	pgtbl, rd, phys
-	add	\rd, \phys, #TEXT_OFFSET
+	ldr	\rd, =TEXT_OFFSET
+	add	\rd, \phys, \rd
 	sub	\rd, \rd, #PG_DIR_SIZE
 	.endm
 

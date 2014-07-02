@@ -1600,6 +1600,19 @@ config PAGE_OFFSET
 	default 0x80000000 if VMSPLIT_2G
 	default 0xC0000000
 
+config TEXT_OFFSET_OVERRIDE
+	bool "Enable CONFIG_TEXT_OFFSET"
+	default n
+	help
+	  It defines the start of .text of kernel.
+	  Some SOCes may not start from 0x8000, and it want
+	  to reserve a memory region. So select this config.
+
+config TEXT_OFFSET
+	hex "Specific kernel TEXT offset from PAGE_OFFSET"
+	depends on TEXT_OFFSET_OVERRIDE
+	default 0x00008000
+
 config NR_CPUS
 	int "Maximum number of CPUs (2-32)"
 	range 2 32
