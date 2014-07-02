@@ -384,12 +384,17 @@ static u64 arch_counter_get_cntvct_mem(void)
 }
 
 /*
- * Default to cp15 based access because arm64 uses this function for
- * sched_clock() before DT is probed and the cp15 method is guaranteed
- * to exist on arm64. arm doesn't use this before DT is probed so even
- * if we don't have the cp15 accessors we won't have a problem.
+ * Some external users of arch_timer_read_counter (e.g. sched_clock) may try to
+ * call it before it has been initialised. Rather than incur a performance
+ * penalty checking for initialisation, provide a default implementation that
+ * won't lead to time appearing to jump backwards.
  */
-u64 (*arch_timer_read_counter)(void) = arch_counter_get_cntvct;
+static u64 arch_timer_read_zero(void)
+{
+	return 0;
+}
+
+u64 (*arch_timer_read_counter)(void) = arch_timer_read_zero;
 
 static cycle_t arch_counter_read(struct clocksource *cs)
 {
@@ -426,9 +431,7 @@ static void __init arch_counter_register(unsigned type)
 	u64 start_count;
 
 	/* Register the CP15 based counter if we have one */
-	if (type & ARCH_CP15_TIMER)
-		arch_timer_read_counter = arch_counter_get_cntvct;
-	else
+	if (!(type & ARCH_CP15_TIMER))
 		arch_timer_read_counter = arch_counter_get_cntvct_mem;
 
 	start_count = arch_timer_read_counter();
@@ -663,6 +666,11 @@ static void __init arch_timer_init(struct device_node *np)
 			return;
 		}
 	}
+
+	if (arch_timer_use_virtual)
+		arch_timer_read_counter = arch_counter_get_cntvct;
+	else
+		arch_timer_read_counter = arch_counter_get_cntpct;
 
 	arch_timer_register();
 	arch_timer_common_init();
