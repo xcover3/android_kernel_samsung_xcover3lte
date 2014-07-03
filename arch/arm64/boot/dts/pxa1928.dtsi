@@ -221,6 +221,28 @@
 			};
 		};
 	};
+
+	regs_addr {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		mpmu: pmu@d4050000 {
+			compatible = "marvell,mmp-pmu-mpmu";
+			reg = <0xd4050000 0x1210>;
+		};
+
+		apmu: pmu@d4282800 {
+			compatible = "marvell,mmp-pmu-apmu";
+			reg = <0xd4282800 0x3f0>;
+		};
+
+		ciu: ciu@d4282c00 {
+			compatible = "marvell,mmp-ciu";
+			reg = <0xd4282c00 0xf0>;
+		};
+	};
+
 	soc_clocks: clocks{
         };
 };

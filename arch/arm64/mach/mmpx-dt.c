@@ -17,6 +17,7 @@
 #include <asm/mach/arch.h>
 
 #include "mmpx-dt.h"
+#include "regs-addr.h"
 
 #define MPMU_PHYS_BASE		0xd4050000
 #define GEN_TMR2_PHYS_BASE	0xd4080000
@@ -82,7 +83,9 @@ static __init void pxa1928_timer_init(void)
 {
 	void __iomem *mpmu_base;
 
-	mpmu_base = ioremap(MPMU_PHYS_BASE, SZ_4K);
+	regs_addr_iomap();
+
+	mpmu_base = regs_addr_get_va(REGS_ADDR_MPMU);
 	if (!mpmu_base) {
 		pr_err("ioremap mpmu_base failed");
 		return;
@@ -96,8 +99,6 @@ static __init void pxa1928_timer_init(void)
 	 * bit 6.enable wdt reset from timer2
 	 */
 	__raw_writel(0xD3, mpmu_base + MPMU_WDTPCR);
-
-	iounmap(mpmu_base);
 
 	clocksource_of_init();
 }
