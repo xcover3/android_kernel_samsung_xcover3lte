@@ -20,17 +20,27 @@
 	};
 
 	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
 		cpu@0 {
+			device_type = "cpu";
 			compatible = "arm,cortex-a7";
+			reg = <0xf00>;
 		};
 		cpu@1 {
+			device_type = "cpu";
 			compatible = "arm,cortex-a7";
+			reg = <0xf01>;
 		};
 		cpu@2 {
+			device_type = "cpu";
 			compatible = "arm,cortex-a7";
+			reg = <0xf02>;
 		};
 		cpu@3 {
+			device_type = "cpu";
 			compatible = "arm,cortex-a7";
+			reg = <0xf03>;
 		};
 	};
 

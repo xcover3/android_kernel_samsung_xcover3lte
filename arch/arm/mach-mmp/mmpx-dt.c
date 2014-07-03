@@ -149,6 +149,7 @@ static const char *pxa1U88_dt_board_compat[] __initdata = {
 };
 
 DT_MACHINE_START(PXA1U88_DT, "PXA1U88")
+	.smp_init	= smp_init_ops(mmp_smp_init_ops),
 	.init_time      = pxa1U88_timer_init,
 	.dt_compat      = pxa1U88_dt_board_compat,
 MACHINE_END
