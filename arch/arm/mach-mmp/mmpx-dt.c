@@ -16,6 +16,7 @@
 
 #include <asm/mach/arch.h>
 
+#include "regs-addr.h"
 #include "mmpx-dt.h"
 
 #define MPMU_PHYS_BASE		0xd4050000
@@ -127,6 +128,7 @@ static __init void enable_soc_timer(void)
 
 static __init void pxa1U88_timer_init(void)
 {
+	regs_addr_iomap();
 
 	enable_pxawdt_clock();
 
