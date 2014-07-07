@@ -139,8 +139,6 @@ static __init void pxa1U88_timer_init(void)
 	enable_soc_timer();
 
 	clocksource_of_init();
-
-	mmp_clk_of_init();
 }
 
 static const char *pxa1U88_dt_board_compat[] __initdata = {
