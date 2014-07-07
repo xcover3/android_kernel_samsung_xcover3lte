@@ -386,8 +386,8 @@ static void of_mmp_clk_mix_setup(struct device_node *np)
 		for (i = 0; i < num_parents; i++)
 			parent_names[i] = of_clk_get_parent_name(np, i);
 
-		clk = mmp_clk_register_mix(NULL, np->name, num_parents,
-					parent_names, 0, &config, lock);
+		clk = mmp_clk_register_mix(NULL, np->name, parent_names,
+					num_parents, 0, &config, lock);
 
 		if (IS_ERR(clk)) {
 			kfree(parent_names);
