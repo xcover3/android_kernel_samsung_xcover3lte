@@ -9,6 +9,7 @@
 
 /include/ "skeleton.dtsi"
 #include "pxa988-pinfunc.h"
+#include <dt-bindings/clock/marvell-pxa1U88.h>
 
 / {
 	interrupt-parent = <&gic>;
@@ -168,21 +169,21 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4017000 0x1000>;
 				interrupts = <0 27 0x4>;
-				clocks = <&uart0_clock>;
+				clocks = <&soc_clocks PXA1U88_CLK_UART0>;
 			};
 
 			uart1: uart@d4018000 {
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4018000 0x1000>;
 				interrupts = <0 28 0x4>;
-				clocks = <&uart1_clock>;
+				clocks = <&soc_clocks PXA1U88_CLK_UART1>;
 			};
 
 			uart2: uart@d4036000 {
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4036000 0x1000>;
 				interrupts = <0 59 0x4>;
-				clocks = <&uart2_clock>;
+				clocks = <&soc_clocks PXA1U88_CLK_UART2>;
 			};
 
 			gpio: gpio@d4019000 {
@@ -193,7 +194,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupts = <0 49 0x4>;
-				clocks = <&vctcxo>;
+				clocks = <&soc_clocks PXA1U88_CLK_GPIO>;
 				interrupt-names = "gpio_mux";
 				interrupt-controller;
 				#interrupt-cells = <2>;
@@ -225,14 +226,14 @@
 				reg = <0xd4010000 0x100>;
 				interrupts = <0 5 0x4>,<0 6 0x4>;
 				interrupt-names = "rtc 1Hz", "rtc alarm";
-				clocks = <&rtc_clock>;
+				clocks = <&soc_clocks PXA1U88_CLK_RTC>;
 			};
 
 			keypad: keypad@d4012000 {
 				compatible = "marvell,pxa27x-keypad";
 				reg = <0xd4012000 0x4c>;
 				interrupts = <0 9 0x4>;
-				clocks = <&kpc_clock>;
+				clocks = <&soc_clocks PXA1U88_CLK_KPC>;
 			};
 
 			pmx: pinmux@d401e000 {
@@ -275,7 +276,14 @@
 	};
 
 	soc_clocks: clocks{
+		compatible = "marvell,pxa1U88-clock";
+		reg = <0xd4050000 0x1000>,
+		      <0xd4282800 0x400>,
+		      <0xd4015000 0x1000>,
+		      <0xd403b000 0x1000>,
+		      <0xd4090000 0x1000>,
+		      <0xd4282c00 0x400>;
+		reg-names = "mpmu", "apmu", "apbc", "apbcp", "apbs", "ciu";
+		#clock-cells = <1>;
         };
 };
-
-/include/ "pxa1U88-clock.dtsi"

@@ -13,6 +13,7 @@
 #include <linux/io.h>
 #include <linux/of_platform.h>
 #include <linux/clocksource.h>
+#include <linux/clk-provider.h>
 
 #include <asm/mach/arch.h>
 
@@ -137,6 +138,8 @@ static __init void pxa1U88_timer_init(void)
 #endif
 
 	enable_soc_timer();
+
+	of_clk_init(NULL);
 
 	clocksource_of_init();
 }
