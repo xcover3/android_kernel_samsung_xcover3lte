@@ -103,11 +103,6 @@ static __init void pxa1928_timer_init(void)
 	clocksource_of_init();
 }
 
-static __init void pxa1928_clk_init(void)
-{
-	mmp_clk_of_init();
-}
-
 static const char *pxa1928_dt_board_compat[] __initdata = {
 	"marvell,pxa1928",
 	NULL,
@@ -115,6 +110,5 @@ static const char *pxa1928_dt_board_compat[] __initdata = {
 
 DT_MACHINE_START(PXA1928_DT, "PXA1928")
 	.init_time      = pxa1928_timer_init,
-	.init_clk	= pxa1928_clk_init,
 	.dt_compat      = pxa1928_dt_board_compat,
 MACHINE_END
