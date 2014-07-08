@@ -12,7 +12,7 @@
 #include <media/b52socisp/b52socisp-mdev.h>
 #include <media/b52socisp/b52socisp-vdev.h>
 
-static int trace = 2;
+static int trace = 1;
 module_param(trace, int, 0644);
 MODULE_PARM_DESC(trace,
 		"how many trace do you want to see? (0-4):"
@@ -411,7 +411,7 @@ static int isp_vb_prepare(struct vb2_buffer *vb)
 			if (ret < 0)
 				goto err_meta;
 			isp_vb->va[i] = dma_buf_kmap(vb->planes[i].dbuf, 0) +
-				vb->v4l2_planes[i].data_offset;
+					vb->v4l2_planes[i].data_offset;
 		}
 	}
 
@@ -438,7 +438,7 @@ static void isp_vb_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&vnode->vb_lock, flags);
 
 	blocking_notifier_call_chain(&vnode->notifier.head,
-				     ISP_NOTIFY_QBUF, vnode);
+				     VDEV_NOTIFY_QBUF, vnode);
 
 	d_inf(4, "%s: buffer<%d> pushed into driver", vnode->vdev.name,
 		vb->v4l2_buf.index);
@@ -539,7 +539,7 @@ static int isp_vnode_set_format(struct file *file, void *fh,
 	if (ret)
 		goto out;
 
-	d_inf(4, "%s: set mbus fmt:%X(%d, %d)", vnode->vdev.name,
+	d_inf(2, "%s: set mbus fmt:%X(%d, %d)", vnode->vdev.name,
 		sd_fmt.format.code, sd_fmt.format.width, sd_fmt.format.height);
 	sd_fmt.pad = media_entity_remote_pad(&vnode->pad)->index;
 	sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
@@ -614,7 +614,6 @@ static int isp_vnode_dqbuf(struct file *file, void *fh,	struct v4l2_buffer *vb)
 	return vb2_dqbuf(&vnode->vq, vb, file->f_flags & O_NONBLOCK);
 }
 
-
 static int isp_vnode_streamon(struct file *file, void *fh,
 				enum v4l2_buf_type type)
 {
@@ -646,18 +645,18 @@ static int isp_vnode_streamon(struct file *file, void *fh,
 		goto err_stream;
 
 	ret = blocking_notifier_call_chain(&vnode->notifier.head,
-			ISP_NOTIFY_STM_ON, vnode);
+		VDEV_NOTIFY_STM_ON, vnode);
 	if (ret < 0)
 		goto err_notifier;
 
 	vnode->state = ISP_VNODE_ST_WORK;
 	mutex_unlock(&vnode->st_lock);
-	d_inf(3, "%s: stream on", vnode->vdev.name);
+	d_inf(2, "%s: stream on", vnode->vdev.name);
 	return ret;
 
 err_notifier:
 	blocking_notifier_call_chain(&vnode->notifier.head,
-			ISP_NOTIFY_STM_OFF, vnode);
+			VDEV_NOTIFY_STM_OFF, vnode);
 	v4l2_subdev_call(sd, video, s_stream, 0);
 err_stream:
 	vb2_streamoff(&vnode->vq, vnode->buf_type);
@@ -693,7 +692,7 @@ static int isp_vnode_streamoff(struct file *file, void *fh,
 	sd = media_entity_to_v4l2_subdev(pad->entity);
 
 	ret = blocking_notifier_call_chain(&vnode->notifier.head,
-			ISP_NOTIFY_STM_OFF, vnode);
+			VDEV_NOTIFY_STM_OFF, vnode);
 	ret |= v4l2_subdev_call(sd, video, s_stream, 0);
 
 	spin_lock_irqsave(&vnode->vb_lock, flags);
@@ -706,7 +705,7 @@ static int isp_vnode_streamoff(struct file *file, void *fh,
 
 	vnode->state = ISP_VNODE_ST_LINK;
 	mutex_unlock(&vnode->st_lock);
-	d_inf(3, "%s: stream off", vnode->vdev.name);
+	d_inf(2, "%s: stream off", vnode->vdev.name);
 	return ret;
 }
 
@@ -757,6 +756,8 @@ static int isp_vnode_close(struct file *file)
 		v4l2_subdev_call(sd, core, init, 0);
 	}
 	vb2_queue_release(&vnode->vq);
+	blocking_notifier_call_chain(&vnode->notifier.head,
+			VDEV_NOTIFY_CLOSE, vnode);
 	vnode->state = ISP_VNODE_ST_IDLE;
 exit:
 	vnode->file = NULL;
@@ -801,6 +802,10 @@ static int isp_vnode_open(struct file *file)
 	}
 
 vnode_init:
+	ret = blocking_notifier_call_chain(&vnode->notifier.head,
+			VDEV_NOTIFY_OPEN, vnode);
+	if (ret < 0)
+		goto err_notify;
 	ret = isp_vnode_vb2_init(&vnode->vq, vnode);
 	if (ret < 0)
 		goto err_vb;
@@ -811,6 +816,7 @@ vnode_init:
 	mutex_unlock(&vnode->st_lock);
 	return 0;
 
+err_notify:
 err_vb:
 err_sd:
 	if (sd)

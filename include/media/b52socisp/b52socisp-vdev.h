@@ -9,9 +9,13 @@
 #include <media/b52socisp/b52socisp-mdev.h>
 #include <media/mv_sc2.h>
 
-#define ISP_NOTIFY_QBUF	1
-#define ISP_NOTIFY_STM_ON	2
-#define ISP_NOTIFY_STM_OFF	3
+enum isp_vnode_notify_id {
+	VDEV_NOTIFY_QBUF = 1,
+	VDEV_NOTIFY_STM_ON,
+	VDEV_NOTIFY_STM_OFF,
+	VDEV_NOTIFY_OPEN,
+	VDEV_NOTIFY_CLOSE,
+};
 
 enum isp_vnode_state {
 	ISP_VNODE_ST_IDLE = 0,

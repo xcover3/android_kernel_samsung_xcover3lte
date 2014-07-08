@@ -2702,6 +2702,18 @@ unlock:
 	return ret;
 }
 
+static int b52isp_vdev_close_handler(struct isp_subdev *isd,
+					struct isp_vnode *vnode)
+{
+	return 0;
+}
+
+static int b52isp_vdev_open_handler(struct isp_subdev *isd,
+					struct isp_vnode *vnode)
+{
+	return 0;
+}
+
 static int b52isp_video_event(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
@@ -2710,11 +2722,17 @@ static int b52isp_video_event(struct notifier_block *nb,
 	int ret;
 
 	switch (event) {
-	case ISP_NOTIFY_STM_ON:
+	case VDEV_NOTIFY_STM_ON:
 		ret = b52isp_stream_handler(isd, vnode, 1);
 		break;
-	case ISP_NOTIFY_STM_OFF:
+	case VDEV_NOTIFY_STM_OFF:
 		ret = b52isp_stream_handler(isd, vnode, 0);
+		break;
+	case VDEV_NOTIFY_OPEN:
+		ret = b52isp_vdev_open_handler(isd, vnode);
+		break;
+	case VDEV_NOTIFY_CLOSE:
+		ret = b52isp_vdev_close_handler(isd, vnode);
 		break;
 	default:
 		ret = -EINVAL;
