@@ -23,30 +23,37 @@
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0>;
-			enable-method = "spin-table";
+			enable-method = "mcpm";
 			cpu-release-addr = <0x0 0x01210000>;
 		};
 		cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 1>;
-			enable-method = "spin-table";
+			enable-method = "mcpm";
 			cpu-release-addr = <0x0 0x01210000>;
 		};
 		cpu@2 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 2>;
-			enable-method = "spin-table";
+			enable-method = "mcpm";
 			cpu-release-addr = <0x0 0x01210000>;
 		};
 		cpu@3 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 3>;
-			enable-method = "spin-table";
+			enable-method = "mcpm";
 			cpu-release-addr = <0x0 0x01210000>;
 		};
+	};
+
+    mcpm {
+		compatible      = "arm,mcpm";
+		method          = "smc";
+		cpu_off		= <0x85000001>;
+		cpu_on		= <0x85000002>;
 	};
 
 	gic: interrupt-controller@d1e02000 {
@@ -57,7 +64,7 @@
 		      <0 0xd1e02000 0x1000>;
 	};
 
-        generic-timer {
+	generic-timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <1 13 0xf04>,
 		             <1 14 0xf04>;
