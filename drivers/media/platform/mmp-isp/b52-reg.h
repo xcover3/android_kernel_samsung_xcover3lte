@@ -784,9 +784,14 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 #define REG_FW_METADATA_LEN         (0x5e8)
 #define REG_FW_METADATA_PORT        (0x5eb)
 
-#define REG_FW_AUTO_FRAME_RATE       (0x5ed)
-	#define AUTO_FRAME_RATE_ENABLE    (0x1)
-	#define AUTO_FRAME_RATE_DISABLE   (0x0)
+#define REG_FW_AUTO_FRAME_RATE      (0x5ed)
+	#define AFR_ENABLE      (0x1)
+	#define AFR_DISABLE     (0x0)
+
+#define REG_FW_AFR_MIN_FPS1         (0x5f4)
+#define REG_FW_AFR_MIN_FPS2         (0x5f5)
+#define REG_FW_AFR_MIN_FPS3         (0x5f6)
+	#define AFR_DEF_VAL_FOR_30FPS   (30 * 0x20)
 
 #define REG_FW_CPU_CMD_ID	(0x33591)
 
@@ -833,6 +838,10 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 
 #define REG_FW_FOCUS_MAN_TRIGGER    (0x141)
 	#define FOCUS_MAN_TRIGGER (0x1)
+
+#define REG_FW_AF_5X5_WIN_MODE      (0x1e0)
+	#define AF_5X5_WIN_ENABLE    (0x1)
+	#define AF_5X5_WIN_DISABLE   (0x0)
 
 #define REG_FW_FOCUS_POS            (0x1ea)
 

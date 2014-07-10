@@ -4,6 +4,7 @@
 #include <linux/videodev2.h>
 
 #define NR_METERING_WIN_WEIGHT 13
+#define B52_NR_PIPELINE_MAX 2
 
 struct b52_regval {
 	__u32	reg;
@@ -105,6 +106,31 @@ enum v4l2_priv_colorfx {
 #define CID_AF_SNAPSHOT	1
 #define CID_AF_CONTINUOUS	2
 
+/*
+ * the auto frame rate control.
+ * if set it to enable, the frame rate will drop to increase exposure.
+ */
+#define CID_AUTO_FRAME_RATE_DISABLE   0
+#define CID_AUTO_FRAME_RATE_ENABLE    1
+
+/*
+ * the range for auto frame rate
+ */
+#define CID_AFR_MIN_FPS_MIN   5
+#define CID_AFR_MIN_FPS_MAX   30
+
+/*
+ * save and restore min fps for auto frame rate
+ */
+#define CID_AFR_SAVE_MIN_FPS      0
+#define CID_AFR_RESTORE_MIN_FPS   1
+
+/*
+ * If enable AF 5x5 windown, the focus is based on central part.
+ */
+#define CID_AF_5X5_WIN_DISABLE    0
+#define CID_AF_5X5_WIN_ENABLE     1
+
 #define B52_IDI_NAME		"b52isd-IDI"
 #define B52_PATH_YUV_1_NAME	"b52isd-Pipeline#1"
 #define B52_PATH_YUV_2_NAME	"b52isd-Pipeline#2"
@@ -128,6 +154,15 @@ enum v4l2_priv_colorfx {
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x1000)
 #define V4L2_CID_PRIVATE_COLORFX \
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x1001)
+#define V4L2_CID_PRIVATE_AUTO_FRAME_RATE \
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1002)
+#define V4L2_CID_PRIVATE_AFR_MIN_FPS \
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1003)
+#define V4L2_CID_PRIVATE_AFR_SR_MIN_FPS \
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1004)
+#define V4L2_CID_PRIVATE_AF_5X5_WIN \
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1005)
+
 
 #define V4L2_PLANE_SIGNATURE_PIPELINE_META	\
 	v4l2_fourcc('M', 'E', 'T', 'A')

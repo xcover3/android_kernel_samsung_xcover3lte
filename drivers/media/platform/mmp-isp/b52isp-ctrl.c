@@ -53,6 +53,50 @@ static struct v4l2_ctrl_config b52isp_ctrl_colorfx_cfg = {
 	.def = V4L2_PRIV_COLORFX_NONE,
 };
 
+static struct v4l2_ctrl_config b52isp_ctrl_auto_frame_rate_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_AUTO_FRAME_RATE,
+	.name = "auto frame rate",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = CID_AUTO_FRAME_RATE_DISABLE,
+	.max = CID_AUTO_FRAME_RATE_ENABLE,
+	.step = 1,
+	.def = CID_AUTO_FRAME_RATE_ENABLE,
+};
+
+static struct v4l2_ctrl_config b52isp_ctrl_afr_min_fps_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_AFR_MIN_FPS,
+	.name = "MIN FPS for AFR",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = CID_AFR_MIN_FPS_MIN,
+	.max = CID_AFR_MIN_FPS_MAX,
+	.step = 1,
+	.def = CID_AFR_MIN_FPS_MAX,
+};
+
+static struct v4l2_ctrl_config b52isp_ctrl_afr_sr_min_fps_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_AFR_SR_MIN_FPS,
+	.name = "save and restore MIN FPS for AFR",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = CID_AFR_SAVE_MIN_FPS,
+	.max = CID_AFR_RESTORE_MIN_FPS,
+	.step = 1,
+	.def = CID_AFR_SAVE_MIN_FPS,
+};
+
+static struct v4l2_ctrl_config b52isp_ctrl_af_5x5_win_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_AF_5X5_WIN,
+	.name = "AF 5x5 windown",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = CID_AF_5X5_WIN_DISABLE,
+	.max = CID_AF_5X5_WIN_ENABLE,
+	.step = 1,
+	.def = CID_AF_5X5_WIN_ENABLE,
+};
+
 struct b52isp_ctrl_colorfx_reg {
 	u32 reg;
 	u32 val;
@@ -602,8 +646,8 @@ static const s64 ev_bias_qmenu[] = {
 
 static int b52isp_ctrl_set_expo_bias(int idx, int id)
 {
-	static u8 low_def[2];
-	static u8 high_def[2];
+	static u8 low_def[B52_NR_PIPELINE_MAX];
+	static u8 high_def[B52_NR_PIPELINE_MAX];
 	u16 low_target;
 	u16 high_target;
 	s64 bias;
@@ -673,7 +717,6 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 			b52_writel(base + REG_FW_MIN_CAM_EXP, min_expo);
 
 			b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
-			b52_writeb(base + REG_FW_AUTO_FRAME_RATE, AUTO_FRAME_RATE_ENABLE);
 		}
 
 		if (ctrls->expo_bias->is_new)
@@ -683,8 +726,6 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 	case V4L2_EXPOSURE_MANUAL:
 		if (ctrls->auto_expo->is_new)
 			b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
-
-		b52_writeb(base + REG_FW_AUTO_FRAME_RATE, AUTO_FRAME_RATE_DISABLE);
 
 		if (ctrls->exposure->is_new) {
 			if (!sensor)
@@ -932,10 +973,8 @@ static int b52isp_ctrl_set_gain(struct b52isp_ctrls *ctrls, int id)
 		b52_writew(base + REG_FW_MIN_CAM_GAIN, min_gain);
 
 		b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
-		b52_writeb(base + REG_FW_AUTO_FRAME_RATE, AUTO_FRAME_RATE_ENABLE);
 		break;
 	case 0:
-		b52_writeb(base + REG_FW_AUTO_FRAME_RATE, AUTO_FRAME_RATE_DISABLE);
 		if (ctrls->auto_gain->is_new)
 			b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
 
@@ -1121,6 +1160,21 @@ static int b52isp_force_start(int start, int af_mode, int id)
 	return 0;
 }
 
+static int b52isp_af_5x5_win_ctrl(int enable, int id)
+{
+	u32 base = FW_P1_REG_AF_BASE + id * FW_P1_P2_AF_OFFSET;
+	u8 val = enable ? AF_5X5_WIN_ENABLE : AF_5X5_WIN_DISABLE;
+
+	if (id == 1) {
+		pr_err("pipeline2 does not have 5x5 win ctrl register\n");
+		return -EINVAL;
+	}
+
+	b52_writeb(base + REG_FW_AF_5X5_WIN_MODE, val);
+
+	return 0;
+}
+
 static int b52isp_ctrl_set_focus(struct b52isp_ctrls *ctrls, int id)
 {
 	bool af_lock  = ctrls->aaa_lock->cur.val & V4L2_LOCK_FOCUS;
@@ -1158,6 +1212,9 @@ static int b52isp_ctrl_set_focus(struct b52isp_ctrls *ctrls, int id)
 	if (!ctrls->auto_focus->val)
 		if (ctrls->f_distance->is_new)
 			b52isp_set_focus_distance(ctrls->f_distance->val, id);
+
+	if (ctrls->af_5x5_win->is_new)
+		b52isp_af_5x5_win_ctrl(ctrls->af_5x5_win->val, id);
 
 	return 0;
 }
@@ -1203,6 +1260,69 @@ static int b52isp_ctrl_set_zoom(int zoom, int id)
 	ret = b52_hdl_cmd(cmd);
 
 	kfree(cmd);
+
+	return ret;
+}
+
+static int b52isp_ctrl_afr_sr_min_fps(int sr, int id)
+{
+	static u8 min_fps[B52_NR_PIPELINE_MAX][3];
+	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
+
+	if (sr == CID_AFR_SAVE_MIN_FPS) {
+		min_fps[id][0] = b52_readb(base + REG_FW_AFR_MIN_FPS1);
+		min_fps[id][1] = b52_readb(base + REG_FW_AFR_MIN_FPS2);
+		min_fps[id][2] = b52_readb(base + REG_FW_AFR_MIN_FPS3);
+	} else if (sr == CID_AFR_RESTORE_MIN_FPS) {
+		if (!min_fps[id][0]) {
+			pr_err("%s: min fps val is 0\n", __func__);
+			return -EINVAL;
+		}
+
+		b52_writeb(base + REG_FW_AFR_MIN_FPS1, min_fps[id][0]);
+		b52_writeb(base + REG_FW_AFR_MIN_FPS2, min_fps[id][1]);
+		b52_writeb(base + REG_FW_AFR_MIN_FPS3, min_fps[id][2]);
+	}
+
+	return 0;
+}
+
+static int b52isp_ctrl_set_afr(struct b52isp_ctrls *ctrls, int id)
+{
+	int ret = 0;
+	u8 min_fps_val;
+	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
+
+	switch (ctrls->auto_frame_rate->val) {
+	case CID_AUTO_FRAME_RATE_ENABLE:
+		if (ctrls->auto_frame_rate->is_new)
+			b52_writeb(base + REG_FW_AUTO_FRAME_RATE, AFR_ENABLE);
+
+		if (!ctrls->afr_min_fps->is_new)
+			break;
+
+		min_fps_val = AFR_DEF_VAL_FOR_30FPS / ctrls->afr_min_fps->val;
+		b52_writeb(base + REG_FW_AFR_MIN_FPS1, min_fps_val);
+		b52_writeb(base + REG_FW_AFR_MIN_FPS2, min_fps_val);
+		b52_writeb(base + REG_FW_AFR_MIN_FPS3, min_fps_val);
+		break;
+
+	case CID_AUTO_FRAME_RATE_DISABLE:
+		if (ctrls->auto_frame_rate->is_new)
+			b52_writeb(base + REG_FW_AUTO_FRAME_RATE, AFR_DISABLE);
+
+		if (ctrls->afr_min_fps->is_new) {
+			ret = -EPERM;
+			pr_err("%s: unable to set min fps for afr\n", __func__);
+		}
+		break;
+
+	default:
+		return -EINVAL;
+	};
+
+	if (ctrls->afr_sr_min_fps->is_new)
+		ret = b52isp_ctrl_afr_sr_min_fps(ctrls->afr_sr_min_fps->val, id);
 
 	return ret;
 }
@@ -1343,8 +1463,13 @@ static int b52isp_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_ZOOM_ABSOLUTE:
 		ret = b52isp_ctrl_set_zoom(ctrl->val, id);
 		break;
+
 	case V4L2_CID_PRIVATE_COLORFX:
 		ret = b52isp_ctrl_set_image_effect(ctrl->val, id);
+		break;
+
+	case V4L2_CID_PRIVATE_AUTO_FRAME_RATE:
+		ret = b52isp_ctrl_set_afr(ctrls, id);
 		break;
 
 	default:
@@ -1435,6 +1560,8 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 			V4L2_AUTO_FOCUS_RANGE_NORMAL);
 	ctrls->af_mode = v4l2_ctrl_new_custom(handler,
 			&b52isp_ctrl_af_mode_cfg, NULL);
+	ctrls->af_5x5_win = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_af_5x5_win_cfg, NULL);
 
 	/* ISO sensitivity */
 	ctrls->auto_iso = v4l2_ctrl_new_std_menu(handler, ops,
@@ -1449,6 +1576,14 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 			V4L2_CID_AUTOGAIN, 0, 1, 1, 1);
 	ctrls->gain = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_GAIN, 0, 0xFFFFFFF, 1, 0x100);
+
+	/* auto frame rate */
+	ctrls->auto_frame_rate = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_auto_frame_rate_cfg, NULL);
+	ctrls->afr_min_fps = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_afr_min_fps_cfg, NULL);
+	ctrls->afr_sr_min_fps = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_afr_sr_min_fps_cfg, NULL);
 
 	ctrls->aaa_lock = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_3A_LOCK, 0, 0x7, 0, 0);
@@ -1465,13 +1600,11 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	}
 
 	v4l2_ctrl_cluster(4, &ctrls->auto_expo);
-
 	v4l2_ctrl_auto_cluster(2, &ctrls->auto_iso,
 			V4L2_ISO_SENSITIVITY_MANUAL, true);
-
 	v4l2_ctrl_auto_cluster(2, &ctrls->auto_gain, 0, true);
-
-	v4l2_ctrl_cluster(7, &ctrls->auto_focus);
+	v4l2_ctrl_cluster(8, &ctrls->auto_focus);
+	v4l2_ctrl_cluster(3, &ctrls->auto_frame_rate);
 
 	ctrls->af_win = b52isp_ctrl_af_win;
 	ctrls->metering_roi = b52isp_ctrl_metering_roi;

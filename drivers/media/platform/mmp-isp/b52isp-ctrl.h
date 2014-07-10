@@ -59,6 +59,7 @@ struct b52isp_ctrls {
 		struct v4l2_ctrl *af_status;
 		struct v4l2_ctrl *af_range;
 		struct v4l2_ctrl *af_mode;
+		struct v4l2_ctrl *af_5x5_win;
 	};
 	struct {
 		/* Auto ISO control cluster */
@@ -70,6 +71,13 @@ struct b52isp_ctrls {
 		/* Auto gain control cluster */
 		struct v4l2_ctrl *auto_gain;
 		struct v4l2_ctrl *gain;
+	};
+
+	struct {
+		/* Auto frame rate cluster */
+		struct v4l2_ctrl *auto_frame_rate;
+		struct v4l2_ctrl *afr_min_fps;
+		struct v4l2_ctrl *afr_sr_min_fps;
 	};
 
 	/* AE/AWB/AF lock/unlock */
