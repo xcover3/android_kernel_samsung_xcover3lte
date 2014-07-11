@@ -59,6 +59,11 @@ struct isp_vnode {
 	__u8			busy_buf_cnt;
 	__u8			min_buf_cnt;
 	__u8			mode;
+	/* Minimum number of buffer, which is just enough to keep H/W running */
+	__s8			hw_min_buf;
+	/* Minimum number of buffer, which is hold by driver */
+	__s8			sw_min_buf;
+	struct work_struct	stream_work;
 	struct vb2_alloc_ctx	*alloc_ctx;
 	struct vb2_queue	vq;
 	enum v4l2_buf_type	buf_type;
@@ -86,6 +91,9 @@ struct isp_vnode {
 
 #define me_to_vnode(_e) ((media_entity_type(_e) == MEDIA_ENT_T_DEVNODE) ? \
 	container_of((_e), struct isp_vnode, vdev.entity) : NULL)
+
+#define vnode_buf_can_export(v)	\
+	((v)->idle_buf_cnt + (v)->busy_buf_cnt > (v)->sw_min_buf)
 
 struct isp_videobuf {
 	struct vb2_buffer	vb;

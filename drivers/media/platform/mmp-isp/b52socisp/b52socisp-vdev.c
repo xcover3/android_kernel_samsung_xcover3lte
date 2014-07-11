@@ -221,13 +221,30 @@ struct isp_videobuf *isp_vnode_get_busy_buffer(struct isp_vnode *vnode)
 	unsigned long flags;
 
 	spin_lock_irqsave(&vnode->vb_lock, flags);
+
+	if (!vnode_buf_can_export(vnode))
+		goto unlock;
+
 	if (vnode->busy_buf_cnt) {
 		buf = list_first_entry(&vnode->busy_buf,
 			struct isp_videobuf, hook);
 		list_del_init(&buf->hook);
 		vnode->busy_buf_cnt--;
 	}
+
+	if (vnode->idle_buf_cnt + vnode->busy_buf_cnt < vnode->hw_min_buf) {
+		int ret;
+		ret = blocking_notifier_call_chain(&vnode->notifier.head,
+					VDEV_NOTIFY_STM_OFF, vnode);
+		d_inf(3, "%s: hardware stream off", vnode->vdev.name);
+		if (ret < 0)
+			d_inf(1, "%s: failed to stream off in kernel thread: %d",
+				vnode->vdev.name, ret);
+	}
+
+unlock:
 	spin_unlock_irqrestore(&vnode->vb_lock, flags);
+
 	return buf;
 }
 EXPORT_SYMBOL(isp_vnode_get_busy_buffer);
@@ -431,8 +448,12 @@ static void isp_vb_queue(struct vb2_buffer *vb)
 					struct isp_vnode, vq);
 	struct isp_videobuf *isp_vb = container_of(vb, struct isp_videobuf, vb);
 	unsigned long flags;
+	int strm_on = 0;
 
 	spin_lock_irqsave(&vnode->vb_lock, flags);
+	if ((vnode->idle_buf_cnt + vnode->busy_buf_cnt + 1 == vnode->hw_min_buf)
+		&& (vnode->state >= ISP_VNODE_ST_WORK))
+		strm_on = 1;
 	list_add_tail(&isp_vb->hook, &vnode->idle_buf);
 	vnode->idle_buf_cnt++;
 	spin_unlock_irqrestore(&vnode->vb_lock, flags);
@@ -442,6 +463,12 @@ static void isp_vb_queue(struct vb2_buffer *vb)
 
 	d_inf(4, "%s: buffer<%d> pushed into driver", vnode->vdev.name,
 		vb->v4l2_buf.index);
+
+	if (strm_on) {
+		d_inf(3, "%s: hardware stream on", vnode->vdev.name);
+		blocking_notifier_call_chain(&vnode->notifier.head,
+				     VDEV_NOTIFY_STM_ON, vnode);
+	}
 	return;
 }
 
@@ -645,15 +672,16 @@ static int isp_vnode_streamon(struct file *file, void *fh,
 	if (ret < 0)
 		goto err_exit;
 
-	ret = v4l2_subdev_call(sd, video, s_stream, 1);
-	if (ret < 0)
-		goto err_stream;
+	if (vnode->idle_buf_cnt >= vnode->hw_min_buf) {
+		ret = v4l2_subdev_call(sd, video, s_stream, 1);
+		if (ret < 0)
+			goto err_stream;
 
-	ret = blocking_notifier_call_chain(&vnode->notifier.head,
-		VDEV_NOTIFY_STM_ON, vnode);
-	if (ret < 0)
-		goto err_notifier;
-
+		ret = blocking_notifier_call_chain(&vnode->notifier.head,
+			VDEV_NOTIFY_STM_ON, vnode);
+		if (ret < 0)
+			goto err_notifier;
+	}
 	vnode->state = ISP_VNODE_ST_WORK;
 	mutex_unlock(&vnode->st_lock);
 	d_inf(2, "%s: stream on", vnode->vdev.name);
