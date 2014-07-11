@@ -169,7 +169,6 @@ struct b52_cmd_i2c_data {
 struct b52_sensor_data {
 	char * const name;
 	enum b52_sensor_type type;
-	u32 chip_ident;
 
 	struct b52_sensor_spec_ops *ops;
 

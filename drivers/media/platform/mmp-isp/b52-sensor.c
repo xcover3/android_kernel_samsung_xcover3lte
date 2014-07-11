@@ -1629,19 +1629,6 @@ static int b52_sensor_g_skip_frames(struct v4l2_subdev *sd, u32 *frames)
 	return 0;
 }
 
-static int b52_sensor_g_chip_ident(struct v4l2_subdev *sd,
-		struct v4l2_dbg_chip_ident *chip)
-{
-	u32 ident;
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
-	ident = sensor->drvdata->chip_ident;
-
-	return v4l2_chip_ident_i2c_client(client, chip,
-			ident, 0);
-}
-
 static int b52_sensor_sd_open(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh)
 {
@@ -1687,7 +1674,6 @@ struct v4l2_subdev_sensor_ops b52_sensor_sensor_ops = {
 };
 
 static struct v4l2_subdev_core_ops b52_sensor_core_ops = {
-	.g_chip_ident = b52_sensor_g_chip_ident,
 	.s_power = b52_sensor_s_power,
 };
 

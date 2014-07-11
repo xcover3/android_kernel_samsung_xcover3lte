@@ -821,6 +821,7 @@ static struct ccic_ctrl_ops ccic_ctrl_ops = {
 static int ccic_init_clk(struct ccic_ctrl_dev *ctrl_dev)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
+	return 0;
 
 	ctrl_dev->dphy_clk = devm_clk_get(&ccic_dev->pdev->dev, "CCICDPHYCLK");
 	if (IS_ERR(ctrl_dev->dphy_clk))
@@ -1027,8 +1028,10 @@ static int msc2_ccic_probe(struct platform_device *pdev)
 		ccic_dev->ahb_enable = ahb_enable;
 
 	ret = ccic_init_clk(ctrl_dev);
-	if (ret)
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to init clk\n");
 		return ret;
+	}
 
 	tmp = of_get_property(np, "dma-burst", &len);
 	if (!tmp)

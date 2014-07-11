@@ -486,7 +486,7 @@ static int isp_vnode_querycap(struct file *file, void *fh,
 {
 	struct isp_vnode *vnode = video_drvdata(file);
 	struct isp_subdev *ispsd = me_to_ispsd(
-			media_entity_remote_source(&vnode->pad)->entity);
+			media_entity_remote_pad(&vnode->pad)->entity);
 	int ret = 0;
 
 	if (ispsd == NULL)
@@ -521,7 +521,7 @@ static int isp_vnode_set_format(struct file *file, void *fh,
 {
 	struct isp_vnode *vnode = video_drvdata(file);
 	struct isp_subdev *ispsd = me_to_ispsd(
-			media_entity_remote_source(&vnode->pad)->entity);
+			media_entity_remote_pad(&vnode->pad)->entity);
 	struct v4l2_subdev_format sd_fmt;
 	int ret = 0;
 
@@ -534,7 +534,7 @@ static int isp_vnode_set_format(struct file *file, void *fh,
 
 	d_inf(4, "%s: set mbus fmt:%X(%d, %d)", vnode->vdev.name,
 		sd_fmt.format.code, sd_fmt.format.width, sd_fmt.format.height);
-	sd_fmt.pad = media_entity_remote_source(&vnode->pad)->index;
+	sd_fmt.pad = media_entity_remote_pad(&vnode->pad)->index;
 	sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	ret = isp_entity_try_set_fmt(&ispsd->subdev.entity, &sd_fmt);
 	if (ret)
@@ -554,7 +554,7 @@ static int isp_vnode_try_format(struct file *file, void *fh,
 {
 	struct isp_vnode *vnode = video_drvdata(file);
 	struct isp_subdev *ispsd = me_to_ispsd(
-			media_entity_remote_source(&vnode->pad)->entity);
+			media_entity_remote_pad(&vnode->pad)->entity);
 	struct v4l2_subdev_format sd_fmt;
 	int ret = 0;
 
@@ -565,7 +565,7 @@ static int isp_vnode_try_format(struct file *file, void *fh,
 	if (ret)
 		goto out;
 
-	sd_fmt.pad = media_entity_remote_source(&vnode->pad)->index;
+	sd_fmt.pad = media_entity_remote_pad(&vnode->pad)->index;
 	sd_fmt.which = V4L2_SUBDEV_FORMAT_TRY;
 	ret = isp_entity_try_set_fmt(&ispsd->subdev.entity, &sd_fmt);
 	if (ret)
@@ -612,7 +612,7 @@ static int isp_vnode_streamon(struct file *file, void *fh,
 				enum v4l2_buf_type type)
 {
 	struct isp_vnode *vnode = video_drvdata(file);
-	struct media_pad *pad = media_entity_remote_source(&vnode->pad);
+	struct media_pad *pad = media_entity_remote_pad(&vnode->pad);
 	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(pad->entity);
 	int ret = 0;
 
@@ -678,7 +678,7 @@ static int isp_vnode_streamoff(struct file *file, void *fh,
 		return 0;
 	}
 
-	pad = media_entity_remote_source(&vnode->pad);
+	pad = media_entity_remote_pad(&vnode->pad);
 	if (unlikely(WARN_ON(pad == NULL))) {
 		mutex_unlock(&vnode->st_lock);
 		return -EPIPE;
@@ -735,7 +735,7 @@ static const struct v4l2_ioctl_ops isp_vnode_ioctl_ops = {
 static int isp_vnode_close(struct file *file)
 {
 	struct isp_vnode *vnode = video_drvdata(file);
-	struct media_pad *pad = media_entity_remote_source(&vnode->pad);
+	struct media_pad *pad = media_entity_remote_pad(&vnode->pad);
 	struct v4l2_subdev *sd;
 
 	/* Just in case streamoff is not called yet */
@@ -760,7 +760,7 @@ exit:
 static int isp_vnode_open(struct file *file)
 {
 	struct isp_vnode *vnode = video_drvdata(file);
-	struct media_pad *pad = media_entity_remote_source(&vnode->pad);
+	struct media_pad *pad = media_entity_remote_pad(&vnode->pad);
 	struct v4l2_subdev *sd = NULL;
 	int ret = 0;
 

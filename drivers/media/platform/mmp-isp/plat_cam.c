@@ -268,7 +268,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		/* output vdev */
 
 		/* get post-scalar subdev */
-		pad = media_entity_remote_source(&vnode->pad);
+		pad = media_entity_remote_pad(&vnode->pad);
 		if (WARN_ON(pad == NULL)) {
 			ret = -EPIPE;
 			goto unlock;
@@ -281,7 +281,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		}
 
 		/* get path subdev */
-		pad = media_entity_remote_source(isd->pads + B52PAD_AXI_IN);
+		pad = media_entity_remote_pad(isd->pads + B52PAD_AXI_IN);
 		if (WARN_ON(pad == NULL)) {
 			ret = -EPIPE;
 			goto unlock;
@@ -295,7 +295,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		ppl->path = isd;
 
 		/* get pre-scalar subdev */
-		pad = media_entity_remote_source(isd->pads + B52PAD_PIPE_IN);
+		pad = media_entity_remote_pad(isd->pads + B52PAD_PIPE_IN);
 		if (WARN_ON(pad == NULL)) {
 			ret = -EPIPE;
 			goto unlock;
@@ -315,7 +315,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		case SDCODE_B52ISP_A3R1:
 			ppl->crop_a = isd->crop_pad + B52PAD_AXI_OUT;
 			ppl->src_type = PLAT_SRC_T_VDEV;
-			pad = media_entity_remote_source(
+			pad = media_entity_remote_pad(
 				isd->pads + B52PAD_AXI_IN);
 			if (WARN_ON(pad == NULL)) {
 				ret = -EPIPE;
@@ -334,7 +334,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 			ppl->crop_a = isd->crop_pad + B52PAD_IDI_PIPE1;
 
 			/* get CCIC-CTRL */
-			pad = media_entity_remote_source(
+			pad = media_entity_remote_pad(
 				isd->pads + B52PAD_IDI_IN1);
 			if (WARN_ON(pad == NULL)) {
 				ret = -EPIPE;
@@ -346,7 +346,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 				(SDCODE_CCICV2_CSI1 != isd->sd_code));
 
 			/* get sensor */
-			pad = media_entity_remote_source(
+			pad = media_entity_remote_pad(
 				isd->pads + CCIC_CSI_PAD_IN);
 			if (WARN_ON(pad == NULL)) {
 				ret = -EPIPE;
@@ -375,7 +375,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		ppl->src.vnode = vnode;
 
 		/* get input AXI subdev */
-		pad = media_entity_remote_source(&vnode->pad);
+		pad = media_entity_remote_pad(&vnode->pad);
 		if (WARN_ON(pad == NULL)) {
 			ret = -EPIPE;
 			goto unlock;
@@ -390,7 +390,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		ppl->crop_a = isd->crop_pad + B52PAD_AXI_OUT;
 
 		/* get path subdev */
-		pad = media_entity_remote_source(isd->pads + B52PAD_AXI_OUT);
+		pad = media_entity_remote_pad(isd->pads + B52PAD_AXI_OUT);
 		if (WARN_ON(pad == NULL)) {
 			ret = -EPIPE;
 			goto unlock;
@@ -433,7 +433,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		ppl->scalar_b[id] = isd;
 
 		/* Find output vnode */
-		pad = media_entity_remote_source(isd->pads + B52PAD_AXI_OUT);
+		pad = media_entity_remote_pad(isd->pads + B52PAD_AXI_OUT);
 		if (WARN_ON(pad == NULL)) {
 			ret = -EPIPE;
 			goto unlock;

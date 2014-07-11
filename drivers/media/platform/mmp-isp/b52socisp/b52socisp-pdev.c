@@ -36,7 +36,7 @@ struct isp_resrc *isp_resrc_register(struct device *dev,
 	item->size	= resource_size(res);
 	item->handle	= handle;
 	item->priv	= priv;
-	switch (res->flags) {
+	switch (res->flags & ~IORESOURCE_BITS) {
 	case IORESOURCE_MEM:
 		item->type = ISP_RESRC_MEM;
 		break;

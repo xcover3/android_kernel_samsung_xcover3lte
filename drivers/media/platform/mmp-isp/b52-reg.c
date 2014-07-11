@@ -952,7 +952,7 @@ static int b52_basic_init(struct b52isp_cmd *cmd)
 	b52_sensor_call(sensor, s_focus, af_init_val);
 #endif
 	/*FIXME: stream on ccic csi*/
-	pad = media_entity_remote_source(&cmd->sensor->entity.pads[0]);
+	pad = media_entity_remote_pad(&cmd->sensor->entity.pads[0]);
 	sd = container_of(pad->entity, struct v4l2_subdev, entity);
 	v4l2_subdev_call(sd, video, s_stream, 1);
 

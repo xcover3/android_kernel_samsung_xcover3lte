@@ -47,9 +47,10 @@
 #define MS_PER_JIFFIES  10
 
 #define PATH_PER_PIPE 3
-
+#if 0
 static struct pm_qos_request b52isp_qos_idle;
 static int b52isp_req_qos;
+#endif
 static void b52isp_tasklet(unsigned long data);
 
 static int trace = 2;
@@ -150,6 +151,7 @@ static struct isp_res_req b52axi_req[] = {
 
 static void b52isp_lpm_update(int level)
 {
+#if 0
 	static atomic_t ref_cnt = ATOMIC_INIT(0);
 	if (level) {
 		if (atomic_inc_return(&ref_cnt) == 1) {
@@ -163,6 +165,7 @@ static void b52isp_lpm_update(int level)
 				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 		}
 	}
+#endif
 }
 
 static void __maybe_unused dump_mac_reg(void __iomem *mac_base)
@@ -620,7 +623,7 @@ struct isp_block_ops b52isp_path_hw_ops = {
 /****************************** ISP Path Subdev ******************************/
 static int b52isp_path_set_profile(struct isp_subdev *isd)
 {
-	struct media_pad *r_pad = media_entity_remote_source(
+	struct media_pad *r_pad = media_entity_remote_pad(
 					isd->pads + B52PAD_PIPE_IN);
 	struct b52isp_lpipe *pipe = isd->drv_priv;
 	struct b52isp_cmd *cur_cmd;
@@ -680,13 +683,13 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 		}
 		cur_cmd->pre_crop = src->crop_pad[i];
 		/* get CCIC-CTRL */
-		r_pad = media_entity_remote_source(src->pads + j);
+		r_pad = media_entity_remote_pad(src->pads + j);
 		if (unlikely(WARN_ON(r_pad == NULL))) {
 			ret = -EPIPE;
 			goto exit;
 		}
 		/* get sensor */
-		r_pad = media_entity_remote_source(&r_pad->entity->pads[0]);
+		r_pad = media_entity_remote_pad(&r_pad->entity->pads[0]);
 		if (unlikely(WARN_ON(r_pad == NULL))) {
 			ret = -EPIPE;
 			goto exit;
@@ -706,7 +709,7 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 		cur_cmd->src_type = CMD_SRC_AXI;
 		cur_cmd->pre_crop = src->crop_pad[B52PAD_AXI_OUT];
 		/* get vdev */
-		r_pad = media_entity_remote_source(src->pads + B52PAD_AXI_IN);
+		r_pad = media_entity_remote_pad(src->pads + B52PAD_AXI_IN);
 		if (unlikely(WARN_ON(r_pad == NULL))) {
 			ret = -EPIPE;
 			goto exit;
@@ -1889,7 +1892,7 @@ static inline int b52isp_update_metadata(struct isp_subdev *isd,
 	 */
 	int meta_pid = vnode->format.fmt.pix_mp.num_planes;
 	struct media_pad *pad_pipe =
-		media_entity_remote_source(isd->pads + B52PAD_AXI_IN);
+		media_entity_remote_pad(isd->pads + B52PAD_AXI_IN);
 	struct isp_subdev *lpipe_isd = v4l2_get_subdev_hostdata(
 		media_entity_to_v4l2_subdev(pad_pipe->entity));
 	struct b52isp_lpipe *lpipe = container_of(lpipe_isd,
@@ -3275,14 +3278,14 @@ static int b52isp_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+#if 0
 	ret = of_property_read_u32(np, "lpm-qos", &b52isp_req_qos);
 	if (ret)
 		return ret;
-
 	b52isp_qos_idle.name = B52ISP_DRV_NAME;
 	pm_qos_add_request(&b52isp_qos_idle, PM_QOS_CPUIDLE_BLOCK,
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
-
+#endif
 	ret = b52isp_setup(b52isp);
 	if (unlikely(ret < 0)) {
 		dev_err(&pdev->dev, "failed to break down %s into isp-subdev\n",
@@ -3293,7 +3296,9 @@ static int b52isp_probe(struct platform_device *pdev)
 	return 0;
 
 out:
+#if 0
 	pm_qos_remove_request(&b52isp_qos_idle);
+#endif
 	return ret;
 }
 
@@ -3301,7 +3306,9 @@ static int b52isp_remove(struct platform_device *pdev)
 {
 	struct b52isp *b52isp = platform_get_drvdata(pdev);
 
+#if 0
 	pm_qos_remove_request(&b52isp_qos_idle);
+#endif
 	devm_kfree(b52isp->dev, b52isp);
 	return 0;
 }

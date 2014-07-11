@@ -165,24 +165,33 @@ int isp_link_try_set_fmt(struct media_link *link,
 	return ret;
 }
 
-int isp_link_notify(struct media_pad *src, struct media_pad *dst, u32 flags)
+static int isp_link_notify(struct media_link *link, unsigned int flags,
+				unsigned int notification)
 {
+	struct media_entity *dst = link->sink->entity;
+	struct media_entity *src = link->source->entity;
 	struct isp_subdev *src_ispsd = NULL, *dst_ispsd = NULL;
 	struct v4l2_subdev *src_sd = NULL, *dst_sd = NULL;
 	void *guest;
 	int ret = 0;
 
+	if (((notification == MEDIA_DEV_NOTIFY_POST_LINK_CH) &&
+		 (flags & MEDIA_LNK_FL_ENABLED)) ||
+		((notification == MEDIA_DEV_NOTIFY_PRE_LINK_CH) &&
+		 !(flags & MEDIA_LNK_FL_ENABLED)))
+		return 0;
+
 	if (unlikely(src == NULL || dst == NULL))
 		return -EINVAL;
 	/* Source and sink of the link may not be an ispsd, carefully convert
 	 * to isp_subdev if possible */
-	if (media_entity_type(src->entity) == MEDIA_ENT_T_V4L2_SUBDEV) {
-		src_sd = media_entity_to_v4l2_subdev(src->entity);
+	if (media_entity_type(src) == MEDIA_ENT_T_V4L2_SUBDEV) {
+		src_sd = media_entity_to_v4l2_subdev(src);
 		if (src_sd->grp_id == GID_ISP_SUBDEV)
 			src_ispsd = v4l2_get_subdev_hostdata(src_sd);
 	}
-	if (media_entity_type(dst->entity) == MEDIA_ENT_T_V4L2_SUBDEV) {
-		dst_sd = media_entity_to_v4l2_subdev(dst->entity);
+	if (media_entity_type(dst) == MEDIA_ENT_T_V4L2_SUBDEV) {
+		dst_sd = media_entity_to_v4l2_subdev(dst);
 		if (dst_sd->grp_id == GID_ISP_SUBDEV)
 			dst_ispsd = v4l2_get_subdev_hostdata(dst_sd);
 	}
