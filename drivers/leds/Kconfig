@@ -497,6 +497,15 @@ config LEDS_BLINKM
 	  This option enables support for the BlinkM RGB LED connected
 	  through I2C. Say Y to enable support for the BlinkM LED.
 
+config LEDS_88PM828X
+	tristate "LCD Backlight driver for 88PM828X"
+	depends on LEDS_CLASS
+	depends on I2C
+	help
+	  This option enables support for the LCD backlight using
+	  88PM828X chip. It provides both I2C control interface and
+	  PWM dimming control.
+
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"
 
