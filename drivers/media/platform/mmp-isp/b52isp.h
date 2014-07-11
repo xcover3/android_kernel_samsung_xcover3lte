@@ -51,6 +51,7 @@ enum b52isp_isd_id {
 	B52ISP_ISD_A3W2,
 	B52ISP_ISD_A3R1,
 	B52ISP_ISD_CNT,
+	B52ISP_SPATH_CNT = B52ISP_ISD_HS - B52ISP_ISD_PIPE1,
 };
 
 struct b52isp {
@@ -103,10 +104,12 @@ enum b52_pad_id {
 struct b52isp_lpipe {
 	struct b52isp		*parent;
 	struct isp_subdev	isd;
-	atomic_t		ref_cnt;
+	atomic_t		link_ref;
+	atomic_t		cmd_ref;
 
 	struct mutex		state_lock;
 	struct b52isp_cmd	*cur_cmd;
+
 	struct b52isp_ctrls	ctrls;
 
 	u8		*meta_cpu;	/* FIXME: change to triple buffer */

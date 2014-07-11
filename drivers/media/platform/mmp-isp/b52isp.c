@@ -132,6 +132,77 @@ static char b52isp_ispsd_name[][32] = {
 	[B52ISP_ISD_A3R1]	= B52_INPUT_C_NAME,
 };
 
+struct b52isp_cmd_mapping_item {
+	enum mcu_cmd_name	cmd_name;
+	__s8			input_min_buf;
+	__s8			output_min_buf;
+};
+
+#define b52_scmd_item(p, n, i, o)	\
+	[(p)-B52ISP_ISD_PIPE1] = {(n), (i), (o)}
+/* B52ISP single pipeline command mapping table */
+static struct b52isp_cmd_mapping_item b52_scmd_table[PLAT_SRC_T_CNT]
+					[TYPE_3A_CNT][B52ISP_SPATH_CNT] = {
+	/* online use cases */
+	[PLAT_SRC_T_SNSR] = {
+		[TYPE_3A_UNLOCK] = {
+			b52_scmd_item(B52ISP_ISD_PIPE1,	CMD_SET_FORMAT, -1, 0),
+			b52_scmd_item(B52ISP_ISD_DUMP1,	CMD_RAW_DUMP, -1, 0),
+			b52_scmd_item(B52ISP_ISD_MS1,	CMD_END, -1, -1),
+			b52_scmd_item(B52ISP_ISD_PIPE2,	CMD_SET_FORMAT, -1, 0),
+			b52_scmd_item(B52ISP_ISD_DUMP2,	CMD_RAW_DUMP, -1, 0),
+			b52_scmd_item(B52ISP_ISD_MS2,	CMD_END, -1, -1),
+		},
+		[TYPE_3A_LOCKED] = {
+			b52_scmd_item(B52ISP_ISD_PIPE1,	CMD_IMG_CAPTURE, -1, 0),
+			b52_scmd_item(B52ISP_ISD_DUMP1,	CMD_IMG_CAPTURE, -1, 0),
+			b52_scmd_item(B52ISP_ISD_MS1,	CMD_END, -1, -1),
+			b52_scmd_item(B52ISP_ISD_PIPE2,	CMD_IMG_CAPTURE, -1, 0),
+			b52_scmd_item(B52ISP_ISD_DUMP2,	CMD_IMG_CAPTURE, -1, 0),
+			b52_scmd_item(B52ISP_ISD_MS2,	CMD_END, -1, -1),
+		},
+	},
+	/* offline use cases */
+	[PLAT_SRC_T_VDEV] = {
+		[TYPE_3A_UNLOCK] = {
+			b52_scmd_item(B52ISP_ISD_PIPE1,	CMD_SET_FORMAT, 1, 0),
+			b52_scmd_item(B52ISP_ISD_DUMP1,	CMD_END, -1, -1),
+			b52_scmd_item(B52ISP_ISD_MS1,	CMD_SET_FORMAT, 1, 0),
+			/* FIXME: W/R for now, should be CMD_SET_FORMAT, 1, 0 */
+			b52_scmd_item(B52ISP_ISD_PIPE2,	CMD_RAW_PROCESS, 1, 1),
+			b52_scmd_item(B52ISP_ISD_DUMP2,	CMD_END, -1, -1),
+			b52_scmd_item(B52ISP_ISD_MS2,	CMD_SET_FORMAT, 1, 0),
+		},
+		[TYPE_3A_LOCKED] = {
+			b52_scmd_item(B52ISP_ISD_PIPE1,	CMD_RAW_PROCESS, 1, 1),
+			b52_scmd_item(B52ISP_ISD_DUMP1,	CMD_END, -1, -1),
+			b52_scmd_item(B52ISP_ISD_MS1,	CMD_END, -1, -1),
+			b52_scmd_item(B52ISP_ISD_PIPE2,	CMD_RAW_PROCESS, 1, 1),
+			b52_scmd_item(B52ISP_ISD_DUMP2,	CMD_END, -1, -1),
+			b52_scmd_item(B52ISP_ISD_MS2,	CMD_END, -1, -1),
+		},
+	},
+};
+
+#define b52_dcmd_item(c, n, i, o)	\
+	[(c)-TYPE_3D_COMBO] = {(n), (i), (o)}
+/* B52ISP double pipeline command mapping table */
+static struct b52isp_cmd_mapping_item b52_dcmd_table[PLAT_SRC_T_CNT]
+					[TYPE_COMBO_CNT] = {
+	/* online use cases */
+	[PLAT_SRC_T_SNSR] = {
+		b52_dcmd_item(TYPE_3D_COMBO,	CMD_SET_FORMAT,	-1, 0),
+		b52_dcmd_item(TYPE_HS_COMBO,	CMD_SET_FORMAT,	-1, 0),
+		b52_dcmd_item(TYPE_HDR_COMBO,	CMD_SET_FORMAT,	-1, 0),
+	},
+	/* offline use cases */
+	[PLAT_SRC_T_SNSR] = {
+		b52_dcmd_item(TYPE_3D_COMBO,	CMD_END,	2, 0),
+		b52_dcmd_item(TYPE_HS_COMBO,	CMD_SET_FORMAT,	2, 0),
+		b52_dcmd_item(TYPE_HDR_COMBO,	CMD_HDR_STILL,	2, 0),
+	},
+};
+
 enum {
 	ISP_CLK_AXI = 0,
 	ISP_CLK_CORE,
@@ -141,8 +212,8 @@ enum {
 };
 
 static const char *clock_name[ISP_CLK_END];
-
 /* FIXME this W/R for DE limitation, since AXI clk need enable before release reset*/
+
 static struct isp_res_req b52idi_req[] = {
 	{ISP_RESRC_MEM, 0,      0},
 	{ISP_RESRC_IRQ},
@@ -801,17 +872,6 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 	case SDCODE_B52ISP_A3R1:
 		cur_cmd->src_type = CMD_SRC_AXI;
 		cur_cmd->pre_crop = src->crop_pad[B52PAD_AXI_OUT];
-		/* get vdev */
-		r_pad = media_entity_remote_pad(src->pads + B52PAD_AXI_IN);
-		if (unlikely(WARN_ON(r_pad == NULL))) {
-			ret = -EPIPE;
-			goto exit;
-		}
-		cur_cmd->mem.vnode = me_to_vnode(r_pad->entity);
-		if (unlikely(WARN_ON(cur_cmd->mem.vnode == NULL))) {
-			ret = -EPIPE;
-			goto exit;
-		}
 		break;
 	}
 
@@ -1467,13 +1527,13 @@ static int b52isp_path_link_setup(struct media_entity *entity,
 		return -EPERM;
 	lpipe = isd->drv_priv;
 	b52isp = lpipe->parent;
-	WARN_ON(atomic_read(&lpipe->ref_cnt) < 0);
+	WARN_ON(atomic_read(&lpipe->link_ref) < 0);
 
 	if ((flags & MEDIA_LNK_FL_ENABLED) == 0)
 		goto link_off;
 
 	/* already mappend? */
-	if (atomic_inc_return(&lpipe->ref_cnt) > 1)
+	if (atomic_inc_return(&lpipe->link_ref) > 1)
 		return 0;
 
 	switch (lpipe->isd.sd_code) {
@@ -1597,7 +1657,7 @@ fail_double:
 	return ret;
 
 link_off:
-	if (atomic_dec_return(&lpipe->ref_cnt) > 0)
+	if (atomic_dec_return(&lpipe->link_ref) > 0)
 		return 0;
 	do {
 		struct isp_dev_ptr *item = list_first_entry(
@@ -1957,7 +2017,7 @@ static inline int b52_fill_buf(struct isp_videobuf *buf,
 	dma_addr_t dmad[VIDEO_MAX_PLANES];
 
 	if (buf == NULL) {
-		d_inf(3, "%s: buffer is NULL", __func__);
+		d_inf(4, "%s: buffer is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -2353,21 +2413,20 @@ do {	\
 	}	\
 } while (0)
 
-static int b52isp_stream_handler(struct isp_subdev *isd,
+static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		struct isp_vnode *vnode, int stream)
 {
 	int ret = 0, port, out_id;
 	struct isp_subdev *pipe;
-	struct b52isp_laxi *laxi;
-	struct isp_build *build = container_of(isd->subdev.entity.parent,
+	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
 						struct isp_build, media_dev);
 	struct plat_cam *pcam = build->plat_priv;
 	int num_planes = vnode->format.fmt.pix_mp.num_planes;
 	struct b52isp_paxi *paxi;
 	struct plat_pipeline ppl;
 
-	d_inf(4, "%s: handling the stream %d event from %s",
-		isd->subdev.name, stream, vnode->vdev.name);
+	d_inf(3, "%s: handling the stream %d event from %s",
+		laxi->isd.subdev.name, stream, vnode->vdev.name);
 
 	ret = plat_vdev_get_pipeline(vnode, &ppl);
 	if (WARN_ON(ret < 0))
@@ -2377,7 +2436,6 @@ static int b52isp_stream_handler(struct isp_subdev *isd,
 		return -ENODEV;
 	out_id = ret;
 
-	laxi = isd->drv_priv;
 	laxi->stream = stream;
 
 	/* stream off must happen before unmap LAXI and PAXI */
@@ -2386,12 +2444,12 @@ static int b52isp_stream_handler(struct isp_subdev *isd,
 		struct isp_block *blk = isp_sd2blk(&laxi->isd);
 		int mac_id;
 
+		if (blk == NULL)
+			return 0;
 		paxi = container_of(blk, struct b52isp_paxi, blk);
 		mac_id = laxi->mac;
 		port = laxi->port;
-		mutex_lock(&lpipe->state_lock);
 
-		lpipe->cur_cmd->output_map = ppl.dst_map;
 		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 			clear_bit(out_id, &lpipe->cur_cmd->enable_map);
 
@@ -2399,7 +2457,7 @@ static int b52isp_stream_handler(struct isp_subdev *isd,
 		case CMD_IMG_CAPTURE:
 		case CMD_RAW_PROCESS:
 		case CMD_HDR_STILL:
-			goto after_notifier_unregister;
+			return 0;
 		default:
 			break;
 		}
@@ -2425,22 +2483,16 @@ static int b52isp_stream_handler(struct isp_subdev *isd,
 			WARN_ON(1);
 		}
 
-after_notifier_unregister:
 		switch (lpipe->cur_cmd->cmd_name) {
 		case CMD_TEST:
 		case CMD_RAW_DUMP:
 		case CMD_IMG_CAPTURE:
 		case CMD_RAW_PROCESS:
 		case CMD_HDR_STILL:
-			if (vnode->buf_type ==
-				V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-				lpipe->cur_cmd->output[out_id].vnode = NULL;
-				memset(&lpipe->cur_cmd->output[out_id].pix_mp,
-				0, sizeof(struct v4l2_pix_format_mplane));
-			}
 			break;
 		case CMD_CHG_FORMAT:
 		case CMD_SET_FORMAT:
+			mutex_lock(&lpipe->state_lock);
 			if (!lpipe->cur_cmd->enable_map)
 				lpipe->cur_cmd->cmd_name = CMD_SET_FORMAT;
 			/* set the stream off flag for isp cmd*/
@@ -2452,14 +2504,14 @@ after_notifier_unregister:
 					out_id);
 				break;
 			}
+			mutex_unlock(&lpipe->state_lock);
 			break;
 		default:
 			d_inf(1, "TODO: add stream off support of %s in command %d",
-				isd->subdev.name, lpipe->cur_cmd->cmd_name);
+				laxi->isd.subdev.name,
+				lpipe->cur_cmd->cmd_name);
 			break;
 		}
-
-		mutex_unlock(&lpipe->state_lock);
 	}
 
 	/* Map / Unmap Logical AXI and Physical AXI */
@@ -2482,7 +2534,7 @@ after_notifier_unregister:
 	if (laxi->stream) {
 		struct b52isp_lpipe *lpipe = pipe->drv_priv;
 		struct isp_block *blk = isp_sd2blk(&laxi->isd);
-		int mac_id, i, nr_rd_buf;
+		int mac_id, i, nr_out;
 		struct isp_videobuf *isp_vb;
 
 		paxi = container_of(blk, struct b52isp_paxi, blk);
@@ -2490,7 +2542,6 @@ after_notifier_unregister:
 		port = laxi->port;
 		mutex_lock(&lpipe->state_lock);
 
-		lpipe->cur_cmd->output_map = ppl.dst_map;
 		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 			set_bit(out_id, &lpipe->cur_cmd->enable_map);
 
@@ -2508,10 +2559,17 @@ after_notifier_unregister:
 			break;
 		}
 
+		/*
+		 * For Multiple output pipelines, no need to worry about
+		 * concurrent stream on, because all vdev stream on must hold
+		 * pipeline state lock first, so only one vdev thread will
+		 * reach this switch case
+		 */
 		switch (lpipe->cur_cmd->cmd_name) {
 		case CMD_RAW_DUMP:
 		case CMD_CHG_FORMAT:
 		case CMD_SET_FORMAT:
+			lpipe->cur_cmd->output_map = ppl.dst_map;
 			if (vnode->buf_type ==
 				V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 
@@ -2566,6 +2624,7 @@ after_notifier_unregister:
 			}
 			break;
 		case CMD_IMG_CAPTURE:
+			lpipe->cur_cmd->output_map = ppl.dst_map;
 			for (i = 0; i < lpipe->path_arg.nr_frame; i++) {
 				isp_vb = isp_vnode_get_idle_buffer(vnode);
 				if (isp_vb == NULL) {
@@ -2606,69 +2665,96 @@ after_notifier_unregister:
 			/* ignore MAC IRQ, so skip notifier chain */
 			goto unlock;
 		case CMD_HDR_STILL:
-			nr_rd_buf = 2;
-			goto offline_setup;
 		case CMD_RAW_PROCESS:
-			nr_rd_buf = 1;
-offline_setup:
-			if (lpipe->cur_cmd->mem.vnode == vnode) {
-				/*
-				 * For offline commands, only input vdev
-				 * state change will trigger the MCU command
-				 */
-				lpipe->cur_cmd->mem.axi_id = mac_id;
-				for (i = 0; i < nr_rd_buf; i++) {
-					isp_vb = isp_vnode_get_idle_buffer(vnode);
-					BUG_ON(isp_vb == NULL);
-					ret = isp_vnode_put_busy_buffer(vnode, isp_vb);
-					if (unlikely(WARN_ON(ret < 0)))
-						goto unlock;
-					lpipe->cur_cmd->mem.buf[i] = isp_vb;
-					if (!pcam->fill_mmu_chnl)
-						continue;
-					ret = pcam->fill_mmu_chnl(pcam, &isp_vb->vb,
-						num_planes);
-					if (ret < 0) {
-						d_inf(1, "%s: failed to config MMU channel",
-							vnode->vdev.name);
-						goto unlock;
-					}
-				}
-				lpipe->cur_cmd->mem.vnode = vnode;
-				ret = b52isp_try_apply_cmd(lpipe);
-				if (ret < 0)
-					goto unlock;
-				b52isp_export_cmd_buffer(lpipe->cur_cmd);
-				goto unlock;
-			} else {
-				/*
-				 * output vdev state change will only
-				 * update command struct
-				 */
+			for (i = 0; i < vnode->hw_min_buf; i++) {
 				isp_vb = isp_vnode_get_idle_buffer(vnode);
 				BUG_ON(isp_vb == NULL);
 				ret = isp_vnode_put_busy_buffer(vnode, isp_vb);
 				if (unlikely(WARN_ON(ret < 0)))
 					goto unlock;
-				lpipe->cur_cmd->output[out_id].vnode = vnode;
-				lpipe->cur_cmd->output[out_id].pix_mp =
-					vnode->format.fmt.pix_mp;
-				lpipe->cur_cmd->output[out_id].buf[0] = isp_vb;
-				lpipe->cur_cmd->output[out_id].nr_buffer = 1;
-				if (pcam->fill_mmu_chnl) {
-					ret = pcam->fill_mmu_chnl(pcam,
-						&isp_vb->vb, num_planes);
-					if (ret < 0) {
-						d_inf(1, "%s: failed to config MMU channel",
-							vnode->vdev.name);
-						goto unlock;
-					}
+				if (!pcam->fill_mmu_chnl)
+					continue;
+				ret = pcam->fill_mmu_chnl(pcam, &isp_vb->vb,
+					num_planes);
+				if (ret < 0) {
+					d_inf(1, "%s: failed to config MMU channel",
+						vnode->vdev.name);
+					goto unlock;
 				}
 			}
+			nr_out = find_first_bit(&lpipe->cur_cmd->output_map,
+					BITS_PER_LONG) + 1;
+			if (nr_out >= BITS_PER_LONG)
+				nr_out = 0;
+			if (vnode->buf_type ==
+				V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+				lpipe->cur_cmd->output[nr_out].vnode = vnode;
+				lpipe->cur_cmd->output[nr_out].pix_mp =
+					vnode->format.fmt.pix_mp;
+				lpipe->cur_cmd->output[nr_out].buf[0] =
+					isp_vnode_find_busy_buffer(vnode, 0);
+				lpipe->cur_cmd->output[nr_out].nr_buffer = 1;
+				lpipe->cur_cmd->output_map =
+					(lpipe->cur_cmd->output_map << 1) + 1;
+			} else {
+				lpipe->cur_cmd->mem.vnode = vnode;
+				lpipe->cur_cmd->mem.axi_id = mac_id;
+				for (i = 0;; i++) {
+					isp_vb = isp_vnode_find_busy_buffer(
+						vnode, i);
+					if (isp_vb == NULL)
+						break;
+					lpipe->cur_cmd->mem.buf[i] = isp_vb;
+				}
+			}
+
+			/* Check if all output and input are ready */
+			if (lpipe->cur_cmd->mem.vnode == NULL) {
+				d_inf(3, "%s: input not ready",
+					ppl.path->subdev.name);
+				ret = 0;
+				goto unlock;
+			}
+
+			for (i = 0; ppl.dst[i]; i++) {
+				if (ppl.dst[i]->state < ISP_VNODE_ST_WORK)
+					continue;
+				if (ppl.dst[i] == vnode)
+					continue;
+				nr_out--;
+			}
+			/*
+			 * If number of stream_on output and number of buffer
+			 * ready outputs not match, refuse to send command
+			 */
+			if (nr_out) {
+				d_inf(3, "%s: at least one output not ready",
+					ppl.path->subdev.name);
+				ret = 0;
+				goto unlock;
+			}
+			ret = b52isp_try_apply_cmd(lpipe);
+			if (ret < 0)
+				goto unlock;
+			b52isp_export_cmd_buffer(lpipe->cur_cmd);
+			lpipe->cur_cmd->mem.vnode = NULL;
+			memset(lpipe->cur_cmd->output, 0,
+				sizeof(lpipe->cur_cmd->output));
+			lpipe->cur_cmd->output_map = 0;
+
+		ret = b52_map_axi_port(ppl.scalar_a->drv_priv, 0,
+					ppl.src.vnode, &ppl);
+		WARN_ON(ret < 0);
+		for (i = 0; ppl.scalar_b[i]; i++) {
+			ret = b52_map_axi_port(ppl.scalar_b[i]->drv_priv,
+						laxi->stream, vnode, &ppl);
+			WARN_ON(ret < 0);
+		}
 			goto unlock;
 		default:
 			d_inf(1, "TODO: add stream on support of %s in command %d",
-				isd->subdev.name, lpipe->cur_cmd->cmd_name);
+				laxi->isd.subdev.name,
+				lpipe->cur_cmd->cmd_name);
 			break;
 		}
 
@@ -2698,19 +2784,59 @@ offline_setup:
 unlock:
 		mutex_unlock(&lpipe->state_lock);
 	}
-
 	return ret;
 }
 
-static int b52isp_vdev_close_handler(struct isp_subdev *isd,
+static int b52isp_laxi_close_handler(struct b52isp_laxi *laxi,
 					struct isp_vnode *vnode)
 {
+	d_inf(3, "close %s", vnode->vdev.name);
 	return 0;
 }
 
-static int b52isp_vdev_open_handler(struct isp_subdev *isd,
+static int b52isp_laxi_open_handler(struct b52isp_laxi *laxi,
 					struct isp_vnode *vnode)
 {
+	struct plat_pipeline ppl;
+	struct b52isp_lpipe *pipe = NULL;
+	struct b52isp_cmd_mapping_item *item;
+	int ret;
+
+	ret = plat_vdev_get_pipeline(vnode, &ppl);
+	if (ret < 0)
+		return ret;
+	pipe = ppl.path->drv_priv;
+
+	WARN_ON(pipe->cur_cmd == NULL);
+
+	/* setup MCU command for vdev part */
+	if (pipe->isd.sd_code < B52ISP_ISD_HS) {
+		item = &b52_scmd_table[ppl.src_type][pipe->path_arg.aeag]
+				[pipe->isd.sd_code - B52ISP_ISD_PIPE1];
+		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+			/* output vdev */
+			if (item->cmd_name == CMD_IMG_CAPTURE)
+				vnode->hw_min_buf = pipe->path_arg.nr_frame;
+			else
+				vnode->hw_min_buf = item->output_min_buf;
+		} else {
+			/* input vdev */
+			vnode->hw_min_buf = item->input_min_buf;
+		}
+	} else {
+		item = &b52_dcmd_table[ppl.src_type][pipe->path_arg.combo];
+		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+			/* output vdev */
+			vnode->hw_min_buf = item->output_min_buf;
+		} else {
+			/* input vdev */
+			vnode->hw_min_buf = item->input_min_buf;
+		}
+	}
+	WARN_ON(pipe->cur_cmd->cmd_name != item->cmd_name);
+	d_inf(3, "open %s (path:%s, hw_min_buf:%d)", vnode->vdev.name,
+		ppl.path->subdev.name, vnode->hw_min_buf);
+
 	return 0;
 }
 
@@ -2718,26 +2844,28 @@ static int b52isp_video_event(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
 	struct isp_vnode *vnode = data;
-	struct isp_subdev *isd = vnode->notifier.priv;
+	struct b52isp_laxi *laxi = vnode->notifier.priv;
 	int ret = 0;
 
 	switch (event) {
 	case VDEV_NOTIFY_STM_ON:
-		ret = b52isp_stream_handler(isd, vnode, 1);
+		ret = b52isp_laxi_stream_handler(laxi, vnode, 1);
 		break;
 	case VDEV_NOTIFY_STM_OFF:
-		ret = b52isp_stream_handler(isd, vnode, 0);
+		ret = b52isp_laxi_stream_handler(laxi, vnode, 0);
 		break;
 	case VDEV_NOTIFY_OPEN:
-		ret = b52isp_vdev_open_handler(isd, vnode);
+		ret = b52isp_laxi_open_handler(laxi, vnode);
 		break;
 	case VDEV_NOTIFY_CLOSE:
-		ret = b52isp_vdev_close_handler(isd, vnode);
+		ret = b52isp_laxi_close_handler(laxi, vnode);
+		break;
+	case VDEV_NOTIFY_S_FMT:
 		break;
 	default:
+		ret = -EINVAL;
 		break;
 	}
-
 	return ret;
 }
 
@@ -2748,6 +2876,7 @@ static struct notifier_block b52isp_video_nb = {
 static int b52isp_axi_connect_video(struct isp_subdev *isd,
 					struct isp_vnode *vnode)
 {
+	struct b52isp_laxi *laxi = isd->drv_priv;
 	int ret;
 
 	ret = blocking_notifier_chain_register(&vnode->notifier.head,
@@ -2755,7 +2884,7 @@ static int b52isp_axi_connect_video(struct isp_subdev *isd,
 	if (ret < 0)
 		return ret;
 
-	vnode->notifier.priv = isd;
+	vnode->notifier.priv = laxi;
 
 	return 0;
 }

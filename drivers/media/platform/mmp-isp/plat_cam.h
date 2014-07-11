@@ -54,9 +54,9 @@ struct plat_vnode {
 
 #define MAX_OUTPUT_PER_PIPELINE	6
 enum plat_src_type {
-	PLAT_SRC_T_NONE = 0,
-	PLAT_SRC_T_SNSR,
+	PLAT_SRC_T_SNSR	= 0,
 	PLAT_SRC_T_VDEV,
+	PLAT_SRC_T_CNT,
 };
 struct plat_pipeline {
 	struct media_pipeline	mpipe;
