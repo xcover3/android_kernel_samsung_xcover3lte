@@ -127,6 +127,49 @@ config VIDEO_MMPISP
 	  must be enabled too.
 	  This framework will support AREA51 and B52 ISP project
 
+config VIDEO_MMPISP_B52SENSOR
+	bool "B52ISP common camera sensor support"
+	depends on VIDEO_MMPISP_B52 && I2C
+	default n
+	---help---
+	  Say Y here to enable b52 common sensor driver.
+	  The framework implements the v4l2 interface.
+	  Each sensor mainly provides the setting to the
+	  framework. The framework will handle the setting.
+
+config VIDEO_MMPISP_B52
+	bool "MMP serial SoC B52 ISP support"
+	depends on VIDEO_MMPISP
+	default n
+	---help---
+	  Say Y here to enable MMP serial SoC B52 ISP driver.
+	  B52 ISP can support both dual pipeline and single
+	  pipeline. The dual pipeline and single pipeline have
+	  different number of MAC.
+
+config VIDEO_MMPISP_CCICV2
+	bool "MMP serial SoC CCIC version 2 support"
+	depends on VIDEO_MMPISP
+	select VIDEO_MV_SC2_CCIC
+	default n
+	---help---
+	  Say Y here to enable MMP serial SoC CCICv2 driver.
+	  SoC CCICv2 driver shares the functions with VIDEO_MV_SC2_CCIC.
+	  CCICv2 provides the media control interfaces.
+	  CCICv2 includes csi-ctrl and csi-dma.
+
+config VIDEO_MMPISP_PLATFORM
+	bool "Marvell Platform Camera support"
+	depends on VIDEO_MMPISP
+	select VIDEO_MMPISP_B52
+	select VIDEO_MMPISP_CCICV2
+	default n
+	---help---
+	  Say Y here to enable Camera driver.
+	  The platform has the overall view of the ISP topology.
+	  It provides the interface to find other linked subdev.
+	  It also detects sensor during the probe.
+
 config VIDEO_MV_SC2_MMU
 	tristate "Marvell SC2 mmu driver"
 	depends on VIDEO_DEV
