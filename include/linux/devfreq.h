@@ -41,6 +41,7 @@ struct devfreq_dev_status {
 	unsigned long total_time;
 	unsigned long busy_time;
 	unsigned long current_frequency;
+	int throughput;
 	void *private_data;
 };
 
@@ -211,6 +212,21 @@ extern int devfreq_unregister_opp_notifier(struct device *dev,
 struct devfreq_simple_ondemand_data {
 	unsigned int upthreshold;
 	unsigned int downdifferential;
+};
+#endif
+
+#if IS_ENABLED(CONFIG_DEVFREQ_GOV_THROUGHPUT)
+struct throughput_threshold {
+	unsigned int up;
+	unsigned int down;
+};
+
+struct devfreq_throughput_data {
+	unsigned int upthreshold;
+	unsigned int downdifferential;
+	u32 table_len;
+	u32 *freq_table;        /* unit Khz */
+	struct throughput_threshold *throughput_table;
 };
 #endif
 

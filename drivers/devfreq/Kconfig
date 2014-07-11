@@ -63,6 +63,16 @@ config DEVFREQ_GOV_USERSPACE
 	  Otherwise, the governor does not change the frequnecy
 	  given at the initialization.
 
+config DEVFREQ_GOV_THROUGHPUT
+	tristate "Throughput"
+	help
+	  Set frequency based on recent throughput (e.g. MB/s).
+	  A device with throughput governor should provide current throughput
+	  value and available freq table. The throughput governor will choose
+	  a proper frequency according to current throughput. A device may
+	  provide tuned values to the governor with data field at
+	  devfreq_add_device().
+
 comment "DEVFREQ Drivers"
 
 config ARM_EXYNOS4_BUS_DEVFREQ
