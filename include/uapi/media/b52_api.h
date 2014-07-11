@@ -63,12 +63,14 @@ struct b52isp_adv_dns {
 enum type_aeag {
 	TYPE_3A_UNLOCK,
 	TYPE_3A_LOCKED,
+	TYPE_3A_CNT,
 };
 
 enum type_combo {
 	TYPE_3D_COMBO,
 	TYPE_HS_COMBO,
 	TYPE_HDR_COMBO,
+	TYPE_COMBO_CNT,
 };
 
 struct b52isp_path_arg {
