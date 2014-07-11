@@ -21,6 +21,9 @@ obj-$(CONFIG_CPU_PXA910)	+= pm-pxa910.o
 obj-$(CONFIG_CPU_MMP2)		+= pm-mmp2.o
 endif
 
+# coresight support
+obj-$(CONFIG_CORESIGHT_SUPPORT) += coresight-v7.o
+
 # board support
 obj-$(CONFIG_MACH_ASPENITE)	+= aspenite.o
 obj-$(CONFIG_MACH_ZYLONITE2)	+= aspenite.o

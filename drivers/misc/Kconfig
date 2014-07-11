@@ -519,6 +519,17 @@ config SRAM
 	  the genalloc API. It is supposed to be used for small on-chip SRAM
 	  areas found on many SoCs.
 
+config CORESIGHT_SUPPORT
+	bool "support coresight features"
+	help
+	  Support coresight features such as dump pcsr, trigger panic etc.
+
+config CORESIGHT_TRACE_SUPPORT
+	bool "support save/restore coresight trace setting when enter/exit LPM"
+	depends on CORESIGHT_SUPPORT
+	help
+	  Enables support save/restore coresight trace setting when enter/exit LPM.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
