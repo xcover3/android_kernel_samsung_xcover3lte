@@ -114,6 +114,19 @@ config VIDEO_S3C_CAMIF
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called s3c-camif.
+
+config VIDEO_MMPISP
+	bool "Marvell MMP ISP framework support"
+	select VIDEOBUF2_DMA_CONTIG
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API && ARCH_MMP
+	select DMA_SHARED_BUFFER
+	default n
+	---help---
+	  Driver framework for Marvell MMP serial SoC ISP.
+	  Say Y here to enable the ISP driver framework, and then ISP driver
+	  must be enabled too.
+	  This framework will support AREA51 and B52 ISP project
+
 config VIDEO_MV_SC2_MMU
 	tristate "Marvell SC2 mmu driver"
 	depends on VIDEO_DEV
