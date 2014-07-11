@@ -114,6 +114,35 @@ config VIDEO_S3C_CAMIF
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called s3c-camif.
+config VIDEO_MV_SC2_MMU
+	tristate "Marvell SC2 mmu driver"
+	depends on VIDEO_DEV
+	select VIDEOBUF2_DMA_SG
+	---help---
+	  This is a v4l2 driver for the Marvell sc2 MMU
+	  To compile this driver as a module, choose M here: the module will
+	  be called mv_sc2_mmu.
+	  In new Marvell architecture, CCIC/ISP drivers depend on
+	  this driver.
+
+config ISP_USE_TWSI3
+	tristate "Marvell b52 isp use twsi3 as i2c"
+	depends on VIDEO_MMPISP
+	default n
+	---help---
+	  This is a new feture for the Marvell B52 ISP
+	  To compile this driver as a module, choose M here: the module will
+	  be called system i2c module.
+	  In new Marvell SOC architecture, ISP drivers can use it access sensor
+
+config VIDEO_MV_SC2_CCIC
+	tristate "Marvell SC2 ccic driver"
+	select VIDEOBUF2_DMA_SG
+	select VIDEOBUF2_DMA_CONTIG
+	---help---
+	  This is a v4l2 driver for the Marvell sc2 CCIC
+	  To compile this driver as a module, choose M here: the module will
+	  be called mv_sc2_ccic.
 
 source "drivers/media/platform/soc_camera/Kconfig"
 source "drivers/media/platform/exynos4-is/Kconfig"
