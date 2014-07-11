@@ -368,6 +368,7 @@ static int __verify_planes_array(struct vb2_buffer *vb, const struct v4l2_buffer
 			   "expected %d, got %d\n", vb->num_planes, b->length);
 		return -EINVAL;
 	}
+	vb->num_planes = b->length;
 
 	return 0;
 }
@@ -988,6 +989,11 @@ static void __fill_vb2_buffer(struct vb2_buffer *vb, const struct v4l2_buffer *b
 					b->m.planes[plane].m.userptr;
 				v4l2_planes[plane].length =
 					b->m.planes[plane].length;
+				v4l2_planes[plane].data_offset =
+					b->m.planes[plane].data_offset;
+				memcpy(v4l2_planes[plane].reserved,
+					b->m.planes[plane].reserved,
+					sizeof(v4l2_planes[plane].reserved));
 			}
 		}
 		if (b->memory == V4L2_MEMORY_DMABUF) {
@@ -998,6 +1004,9 @@ static void __fill_vb2_buffer(struct vb2_buffer *vb, const struct v4l2_buffer *b
 					b->m.planes[plane].length;
 				v4l2_planes[plane].data_offset =
 					b->m.planes[plane].data_offset;
+				memcpy(v4l2_planes[plane].reserved,
+					b->m.planes[plane].reserved,
+					sizeof(v4l2_planes[plane].reserved));
 			}
 		}
 	} else {
@@ -1154,7 +1163,7 @@ static int __qbuf_dmabuf(struct vb2_buffer *vb, const struct v4l2_buffer *b)
 		/* use DMABUF size if length is not provided */
 		if (planes[plane].length == 0)
 			planes[plane].length = dbuf->size;
-
+#if 0
 		if (planes[plane].length < planes[plane].data_offset +
 		    q->plane_sizes[plane]) {
 			dprintk(1, "qbuf: invalid dmabuf length for plane %d\n",
@@ -1162,7 +1171,7 @@ static int __qbuf_dmabuf(struct vb2_buffer *vb, const struct v4l2_buffer *b)
 			ret = -EINVAL;
 			goto err;
 		}
-
+#endif
 		/* Skip the plane if already verified */
 		if (dbuf == vb->planes[plane].dbuf &&
 		    vb->v4l2_planes[plane].length == planes[plane].length) {

@@ -78,6 +78,7 @@ struct media_device {
 
 	int (*link_notify)(struct media_link *link, u32 flags,
 			   unsigned int notification);
+	void (*close_notify)(struct media_device *media_dev);
 };
 
 /* Supported link_notify @notification values. */

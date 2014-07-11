@@ -41,6 +41,26 @@ static int media_device_open(struct file *filp)
 
 static int media_device_close(struct file *filp)
 {
+	struct media_devnode *mnode = media_devnode_data(filp);
+	struct media_device *mdev = to_media_device(mnode);
+	struct media_entity *ent;
+
+	if (mdev->close_notify)
+		mdev->close_notify(mdev);
+	/* check link status 1-by-1 to make sure they are disabled */
+	media_device_for_each_entity(ent, mdev) {
+		struct media_link *link;
+		unsigned long flags;
+		int i;
+		for (i = 0; i < ent->num_links; i++) {
+			link = ent->links + i;
+			flags = link->flags;
+			if (likely(!(flags & MEDIA_LNK_FL_ENABLED)))
+				continue;
+			flags &= ~MEDIA_LNK_FL_ENABLED;
+			media_entity_setup_link(link, flags);
+		}
+	};
 	return 0;
 }
 

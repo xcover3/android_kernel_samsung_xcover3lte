@@ -77,8 +77,8 @@ static unsigned long vb2_dc_get_contiguous_size(struct sg_table *sgt)
 	for_each_sg(sgt->sgl, s, sgt->nents, i) {
 		if (sg_dma_address(s) != expected)
 			break;
-		expected = sg_dma_address(s) + sg_dma_len(s);
-		size += sg_dma_len(s);
+		expected = sg_dma_address(s) + s->length;
+		size += s->length;
 	}
 	return size;
 }

@@ -1295,6 +1295,11 @@ static int cluster_changed(struct v4l2_ctrl *master)
 {
 	int diff = 0;
 	int i;
+	/*
+	we needn't check the new and old value
+	All controls are always 'different'
+	*/
+	return 1;
 
 	for (i = 0; !diff && i < master->ncontrols; i++) {
 		struct v4l2_ctrl *ctrl = master->cluster[i];

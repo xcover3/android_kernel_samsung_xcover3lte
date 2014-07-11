@@ -334,7 +334,9 @@ static int get_v4l2_plane32(struct v4l2_plane *up, struct v4l2_plane32 *up32,
 
 	if (copy_in_user(up, up32, 2 * sizeof(__u32)) ||
 		copy_in_user(&up->data_offset, &up32->data_offset,
-				sizeof(__u32)))
+				sizeof(__u32)) ||
+		copy_in_user(up->reserved, up32->reserved,
+				sizeof(up->reserved)))
 		return -EFAULT;
 
 	if (memory == V4L2_MEMORY_USERPTR) {
@@ -360,7 +362,9 @@ static int put_v4l2_plane32(struct v4l2_plane *up, struct v4l2_plane32 *up32,
 {
 	if (copy_in_user(up32, up, 2 * sizeof(__u32)) ||
 		copy_in_user(&up32->data_offset, &up->data_offset,
-				sizeof(__u32)))
+				sizeof(__u32)) ||
+		copy_in_user(up32->reserved, up->reserved,
+				sizeof(up32->reserved)))
 		return -EFAULT;
 
 	/* For MMAP, driver might've set up the offset, so copy it back.
@@ -1007,6 +1011,7 @@ long v4l2_compat_ioctl32(struct file *file, unsigned int cmd, unsigned long arg)
 		return ret;
 
 	switch (cmd) {
+	/* V4L2 ioctls */
 	case VIDIOC_QUERYCAP:
 	case VIDIOC_RESERVED:
 	case VIDIOC_ENUM_FMT:
@@ -1087,8 +1092,21 @@ long v4l2_compat_ioctl32(struct file *file, unsigned int cmd, unsigned long arg)
 	case VIDIOC_QUERY_DV_TIMINGS:
 	case VIDIOC_DV_TIMINGS_CAP:
 	case VIDIOC_ENUM_FREQ_BANDS:
+
+	/* V4L2 subdev ioctls */
 	case VIDIOC_SUBDEV_G_EDID32:
 	case VIDIOC_SUBDEV_S_EDID32:
+	case VIDIOC_SUBDEV_G_FMT:
+	case VIDIOC_SUBDEV_S_FMT:
+	case VIDIOC_SUBDEV_G_FRAME_INTERVAL:
+	case VIDIOC_SUBDEV_S_FRAME_INTERVAL:
+	case VIDIOC_SUBDEV_ENUM_MBUS_CODE:
+	case VIDIOC_SUBDEV_ENUM_FRAME_SIZE:
+	case VIDIOC_SUBDEV_ENUM_FRAME_INTERVAL:
+	case VIDIOC_SUBDEV_G_CROP:
+	case VIDIOC_SUBDEV_S_CROP:
+	case VIDIOC_SUBDEV_G_SELECTION:
+	case VIDIOC_SUBDEV_S_SELECTION:
 		ret = do_video_ioctl(file, cmd, arg);
 		break;
 
