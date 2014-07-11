@@ -731,7 +731,7 @@ static int plat_tune_power(struct isp_build *isb,
 	if (!blk)
 		return -EINVAL;
 
-	isp_block_tune_power(blk, ~0);
+	isp_block_tune_power(blk, enable);
 
 	return 0;
 }
@@ -757,8 +757,8 @@ static int plat_setup_sensor(struct isp_build *isb,
 		pr_info("detect front sensor failed\n");
 
 	ret = plat_tune_power(isb, SDCODE_CCICV2_CSI1, 0);
-	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 1);
-	ret |= plat_tune_power(isb, SDCODE_B52ISP_IDI, 1);
+	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 0);
+	ret |= plat_tune_power(isb, SDCODE_B52ISP_IDI, 0);
 
 	return ret;
 }

@@ -30,12 +30,11 @@
 #include <linux/of_device.h>
 #include <linux/firmware.h>
 #include <linux/pm_qos.h>
+#include <linux/pm_runtime.h>
 #include <media/v4l2-ctrls.h>
 #include <media/mrvl-camera.h>
 #include <media/b52-sensor.h>
 #include <uapi/media/b52_api.h>
-
-#include "power_domain_isp.h"
 
 #include "plat_cam.h"
 #include "b52isp.h"
@@ -373,7 +372,12 @@ static void b52isp_idi_hw_close(struct isp_block *block)
 static int b52isp_idi_set_power(struct isp_block *block, int level)
 {
 	int ret = 0;
-	ret = b52isp_pwr_ctrl(level);
+
+	if (level)
+		ret = pm_runtime_get_sync(block->dev);
+	else
+		ret = pm_runtime_put(block->dev);
+
 	b52_set_base_addr(block->reg_base);
 	return ret;
 }
@@ -646,7 +650,13 @@ static int b52isp_path_s_clock(struct isp_block *block, int rate)
 
 static int b52isp_path_hw_s_power(struct isp_block *block, int level)
 {
-	return b52isp_pwr_ctrl(level);
+	int ret = 0;
+	if (level)
+		ret = pm_runtime_get_sync(block->dev);
+	else
+		ret = pm_runtime_put(block->dev);
+
+	return ret;
 }
 
 struct isp_block_ops b52isp_path_hw_ops = {
@@ -3345,12 +3355,15 @@ static int b52isp_probe(struct platform_device *pdev)
 	pm_qos_add_request(&b52isp_qos_idle, PM_QOS_CPUIDLE_BLOCK,
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 #endif
+
 	ret = b52isp_setup(b52isp);
 	if (unlikely(ret < 0)) {
 		dev_err(&pdev->dev, "failed to break down %s into isp-subdev\n",
 			B52ISP_NAME);
 		goto out;
 	}
+
+	pm_runtime_enable(b52isp->dev);
 
 	return 0;
 
@@ -3368,6 +3381,8 @@ static int b52isp_remove(struct platform_device *pdev)
 #if 0
 	pm_qos_remove_request(&b52isp_qos_idle);
 #endif
+
+	pm_runtime_disable(b52isp->dev);
 	devm_kfree(b52isp->dev, b52isp);
 	return 0;
 }

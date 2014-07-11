@@ -41,6 +41,7 @@ enum mcam_state {
 };
 
 struct mv_camera_dev {
+	struct device *dev;
 	struct soc_camera_host soc_host;
 	struct soc_camera_device *icd;
 	struct platform_device *pdev;
@@ -69,12 +70,5 @@ struct mv_camera_dev {
 	struct clk *axi_clk;
 	int i2c_dyn_ctrl;
 };
-
-void sc2_power_switch(unsigned int power_on)
-	__attribute__ ((weak, alias("ccic_power_switch")));
-void ccic_power_switch(unsigned int power_on)
-{
-	return;
-}
 
 #endif

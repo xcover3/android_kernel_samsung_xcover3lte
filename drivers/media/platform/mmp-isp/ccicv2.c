@@ -29,12 +29,11 @@
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/pm_runtime.h>
 #include <media/v4l2-ctrls.h>
 
 #include <media/b52-sensor.h>
 #include <media/mrvl-camera.h>
-
-#include "power_domain_isp.h"
 
 #include "plat_cam.h"
 #include "ccicv2.h"
@@ -95,7 +94,10 @@ static void ccic_csi_hw_close(struct isp_block *block)
 
 static int ccic_csi_hw_s_power(struct isp_block *block, int level)
 {
-	return b52isp_pwr_ctrl(level);
+	if (level)
+		return pm_runtime_get_sync(block->dev);
+	else
+		return pm_runtime_put(block->dev);
 }
 
 struct isp_block_ops ccic_csi_hw_ops = {
@@ -269,6 +271,7 @@ struct isp_subdev_ops ccic_csi_sd_ops = {
 
 static void ccic_csi_remove(struct ccic_csi *ccic_csi)
 {
+	pm_runtime_disable(ccic_csi->dev);
 	msc2_put_ccic_ctrl(&ccic_csi->ccic_ctrl);
 	v4l2_ctrl_handler_free(&ccic_csi->ispsd.ctrl_handler);
 	devm_kfree(ccic_csi->dev, ccic_csi);
@@ -329,6 +332,8 @@ static int ccic_csi_create(struct ccic_csi *ccic_csi)
 	ret = plat_ispsd_register(ispsd);
 	if (ret < 0)
 		goto exit_err;
+
+	pm_runtime_enable(ccic_csi->dev);
 	return 0;
 
 exit_err:
@@ -476,6 +481,7 @@ struct isp_subdev_ops ccic_dma_sd_ops = {
 
 static void ccic_dma_remove(struct ccic_dma *ccic_dma)
 {
+	pm_runtime_disable(ccic_dma->dev);
 	msc2_put_ccic_dma(&ccic_dma->ccic_dma);
 	v4l2_ctrl_handler_free(&ccic_dma->ispsd.ctrl_handler);
 	devm_kfree(ccic_dma->dev, ccic_dma);
@@ -535,6 +541,8 @@ static int ccic_dma_create(struct ccic_dma *ccic_dma)
 	ret = plat_ispsd_register(ispsd);
 	if (ret < 0)
 		goto exit_err;
+
+	pm_runtime_enable(ccic_dma->dev);
 	return 0;
 
 exit_err:

@@ -22,17 +22,17 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
+#include <linux/delay.h>
+#include <linux/clk.h>
+#include <linux/pm_runtime.h>
 #include <media/soc_camera.h>
 #include <media/soc_mediabus.h>
 #include <media/v4l2-common.h>
 #include <media/v4l2-dev.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-dma-sg.h>
-#include <linux/delay.h>
-#include <linux/clk.h>
 
 #include <media/mrvl-camera.h> /* TBD refined */
-
 #include <media/mv_sc2.h>
 #include <media/mv_sc2_twsi_conf.h>
 
@@ -631,7 +631,7 @@ static int mccic_add_device(struct soc_camera_device *icd)
 	/* GPIO and regulator related for sensor */
 	soc_camera_power_on(&mcam_dev->pdev->dev, ssdd, NULL);
 	/* CCIC/ISP/MMU power on */
-	sc2_power_switch(1);
+	pm_runtime_get_sync(mcam_dev->dev);
 	/* ccic_enable_clk(mcam_dev); */
 	/* ccic_power_up(mcam_dev); */
 	/* TBD: ccic_stop(mcam_dev); */
@@ -725,7 +725,7 @@ put_mmu:
 	/* TBD: ccic_power_down(mcam_dev); */
 	/* TBD: ccic_disable_clk(mcam_dev); */
 power_off:
-	sc2_power_switch(0);
+	pm_runtime_put(mcam_dev->dev);
 	soc_camera_power_off(&mcam_dev->pdev->dev, ssdd, NULL);
 	if (mcam_dev->i2c_dyn_ctrl)
 		sc2_select_pins_state(&mcam_dev->pdev->dev,
@@ -750,7 +750,7 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	clk_disable_unprepare(mcam_dev->axi_clk);
 	/* TBD ccic_power_down(ccic_dev); */
 	/* TBD ccic_disable_clk(ccic_dev); */
-	sc2_power_switch(0);
+	pm_runtime_put(mcam_dev->dev);
 	/* 3.4 is not necessary */
 	soc_camera_power_off(&mcam_dev->pdev->dev, ssdd, NULL);
 	if (mcam_dev->i2c_dyn_ctrl)
@@ -1302,8 +1302,10 @@ static int mv_camera_probe(struct platform_device *pdev)
 	}
 	mcam_dev->id = pdev->id;
 	mcam_dev->pdev = pdev;
+	mcam_dev->dev = &pdev->dev;
 	mcam_dev->buffer_mode = B_DMA_CONTIG;
 
+	pm_runtime_enable(mcam_dev->dev);
 	mcam_dev->axi_clk = devm_clk_get(&pdev->dev, "SC2AXICLK");
 	if (IS_ERR(mcam_dev->axi_clk))
 		return PTR_ERR(mcam_dev->axi_clk);
@@ -1336,6 +1338,7 @@ static int mv_camera_remove(struct platform_device *pdev)
 		mcam_dev->mbus_fmt_code[i] = 0;
 	mcam_dev->mbus_fmt_num = 0;
 
+	pm_runtime_disable(mcam_dev->dev);
 	soc_camera_host_unregister(soc_host);
 	dev_info(&pdev->dev, "camera driver unloaded\n");
 
