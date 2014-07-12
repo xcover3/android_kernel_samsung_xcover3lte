@@ -10,6 +10,7 @@
 /include/ "skeleton.dtsi"
 #include "pxa988-pinfunc.h"
 #include <dt-bindings/clock/marvell-pxa1U88.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 
 / {
 	interrupt-parent = <&gic>;
@@ -18,6 +19,10 @@
 		serial0 = &uart2;
 		serial1 = &uart0;
 		serial2 = &uart1;
+		i2c0 = &twsi0;
+		i2c1 = &twsi1;
+		i2c2 = &twsi2;
+		i2c3 = &twsi3;
 	};
 
 	cpus {
@@ -250,6 +255,77 @@
 				range: gpio-range {
 					#pinctrl-single,gpio-range-cells = <3>;
 				};
+			};
+
+			twsi0: i2c@d4011000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0xd4011000 0x60>;
+				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI0>;
+
+				mrvl,i2c-fast-mode;
+				/*
+				 *ilcr: fast mode b17~9=0x23, 390k
+				 *      standard mode b8~0=0x9f, 97k
+				 *iwcr: b5~0=b01010 recommended value from spec
+				 */
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+				status = "disabled";
+			};
+
+			twsi1: i2c@d4010800 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0xd4010800 0x60>;
+				interrupts = <0 33 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI1>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+
+				status = "disabled";
+			};
+
+			twsi2: i2c@d4037000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				interrupts = <0 54 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI2>;
+
+				/* RIPC3 */
+				reg = <0xd4037000 0x60>,
+				      <0xd403d300 0x4>;
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+
+				marvell,i2c-always-on;
+				status = "disabled";
+			};
+
+			twsi3: i2c@d4013800 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0xd4013800 0x60>;
+				interrupts = <0 93 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI3>;
+
+				mrvl,i2c-fast-mode;
+				/*
+				 *ilcr: fast mode b17~9=0x23, 390k
+				 *      standard mode b8~0=0x9f, 97k
+				 *iwcr: b5~0=b01010 recommended value from spec
+				 */
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+				status = "disabled";
 			};
 		};
 	};
