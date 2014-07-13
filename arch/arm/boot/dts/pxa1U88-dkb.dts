@@ -126,6 +126,13 @@
 					>;
 					MFP_LPM_FLOAT;
 				};
+				dvc_pmx_func: dvc_pmx_func {
+					pinctrl-single,pins = <
+						GPIO93 AF5
+						GPIO94 AF5
+					>;
+					MFP_DEFAULT;
+				};
 			};
 			twsi0: i2c@d4011000 {
 				pinctrl-names = "default","gpio";
@@ -143,6 +150,17 @@
 			};
 			twsi2: i2c@d4037000 {
 				status = "okay";
+
+				pmic0: 88pm822@30 {
+					reg = <0x30>;
+					interrupts = <0 4 IRQ_TYPE_EDGE_FALLING>;
+					interrupt-parent = <&gic>;
+					/* TODO: move this part out */
+					dvc {
+						pinctrl-names = "default";
+						pinctrl-0 = <&dvc_pmx_func>;
+					};
+				};
 			};
 			twsi3: i2c@d4013800 {
 				pinctrl-names = "default", "gpio";
@@ -154,3 +172,5 @@
 		};
 	};
 };
+#include "88pm822.dtsi"
+#include "88pm822_pxa1u88_dkb.dtsi"
