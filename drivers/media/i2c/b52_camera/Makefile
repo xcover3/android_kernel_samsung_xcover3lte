@@ -1,0 +1,2 @@
+obj-$(CONFIG_B52_CAMERA_OV13850)		+= ov13850.o
+obj-$(CONFIG_B52_CAMERA_IMX219)		+= imx219.o

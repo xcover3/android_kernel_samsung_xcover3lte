@@ -2199,40 +2199,40 @@ static const struct i2c_device_id b52_sensor_ids[] = {
 static const struct of_device_id b52_sensor_of_match[] = {
 #ifdef CONFIG_B52_CAMERA_IMX219
 	{
-		.compatible	= "marvell,imx219",
+		.compatible	= "sony,imx219",
 		.data       = &b52_imx219,
 	},
 #endif
 #ifdef CONFIG_B52_CAMERA_OV5642
 	{
-		.compatible	= "marvell,ov5642",
+		.compatible	= "ovt,ov5642",
 		.data       = &b52_ov5642,
 	},
 #endif
 #ifdef CONFIG_B52_CAMERA_OV13850
 	{
-		.compatible	= "marvell,ov13850",
+		.compatible	= "ovt,ov13850",
 		.data       = &b52_ov13850,
 	},
 #endif
 #ifdef CONFIG_B52_CAMERA_OV8858
 	{
-		.compatible = "marvell,ov8858",
+		.compatible = "ovt,ov8858",
 		.data = &b52_ov8858,
 	},
 #endif
 
 #ifdef CONFIG_B52_CAMERA_OV5648
 	{
-		.compatible = "marvell,ov5648",
+		.compatible = "ovt,ov5648",
 		.data = &b52_ov5648,
 	},
 #endif
 #ifdef CONFIG_B52_CAMERA_OV2680
-		{
-			.compatible = "marvell,ov2680",
-			.data = &b52_ov2680,
-		},
+	{
+		.compatible = "ovt,ov2680",
+		.data = &b52_ov2680,
+	},
 #endif
 	{  }
 };
