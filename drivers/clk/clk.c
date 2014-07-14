@@ -20,6 +20,7 @@
 #include <linux/device.h>
 #include <linux/init.h>
 #include <linux/sched.h>
+#include <linux/uaccess.h>
 
 #include "clk.h"
 
@@ -230,6 +231,61 @@ static const struct file_operations clk_dump_fops = {
 	.release	= single_release,
 };
 
+
+static int clk_rate_open(struct inode *inode, struct file *filp)
+{
+	filp->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t
+clk_getrate_read(struct file *filp, char __user *ubuf, size_t cnt,
+		loff_t *ppos)
+{
+	struct clk *clk = filp->private_data;
+	char buf[12];
+	int ret, len = 0;
+
+	len = snprintf(buf, sizeof(buf), "%10lu\n", clk_get_rate(clk));
+
+	ret = simple_read_from_buffer(ubuf, cnt, ppos, buf, len);
+	return ret;
+}
+
+static ssize_t
+clk_setrate_write(struct file *filp, const char __user *ubuf, size_t cnt,
+		 loff_t *ppos)
+{
+	struct clk *clk = filp->private_data;
+	char buf[64];
+	unsigned long rate;
+	int ret;
+
+	if (cnt >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(&buf, ubuf, cnt))
+		return -EFAULT;
+
+	buf[cnt] = 0;
+
+	ret = kstrtoul(buf, 10, &rate);
+	if (ret < 0)
+		return ret;
+
+	*ppos += cnt;
+	clk_set_rate(clk, rate);
+
+	return cnt;
+}
+
+
+static const struct file_operations clk_rate_fops = {
+	.open = clk_rate_open,
+	.read = clk_getrate_read,
+	.write = clk_setrate_write,
+};
+
 /* caller must hold prepare_lock */
 static int clk_debug_create_one(struct clk *clk, struct dentry *pdentry)
 {
@@ -246,9 +302,12 @@ static int clk_debug_create_one(struct clk *clk, struct dentry *pdentry)
 		goto out;
 
 	clk->dentry = d;
-
-	d = debugfs_create_u32("clk_rate", S_IRUGO, clk->dentry,
-			(u32 *)&clk->rate);
+	if (clk->ops->set_rate)
+		d = debugfs_create_file("clk_rate", 0644, clk->dentry,
+				(void *)clk, &clk_rate_fops);
+	else
+		d = debugfs_create_u32("clk_rate", S_IRUGO, clk->dentry,
+				(u32 *)&clk->rate);
 	if (!d)
 		goto err_out;
 
