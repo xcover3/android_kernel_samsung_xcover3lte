@@ -213,6 +213,31 @@ struct devfreq {
 	unsigned long last_stat_updated;
 };
 
+/* frequency table helpers */
+enum devfreq_device_id {
+	DEVFREQ_DDR = 0,
+	DEVFREQ_VPU_BASE,
+	DEVFREQ_VPU_0 = DEVFREQ_VPU_BASE,
+	DEVFREQ_VPU_1,
+	DEVFREQ_MAX_ID,
+};
+
+#define DEVFREQ_TABLE_END	(~1)
+struct devfreq_frequency_table {
+	unsigned int index;
+	unsigned int frequency;
+};
+
+struct devfreq_dev_freq_info {
+	struct devfreq_frequency_table *tbl;
+};
+
+void devfreq_frequency_table_register(struct devfreq_frequency_table *table,
+				unsigned int dev_id);
+
+struct devfreq_frequency_table *devfreq_frequency_get_table(
+		unsigned int dev_id);
+
 #if defined(CONFIG_PM_DEVFREQ)
 extern struct devfreq *devfreq_add_device(struct device *dev,
 				  struct devfreq_dev_profile *profile,
