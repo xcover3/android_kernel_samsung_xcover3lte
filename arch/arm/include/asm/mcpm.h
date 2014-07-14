@@ -145,7 +145,7 @@ int mcpm_cpu_power_down_finish(unsigned int cpu, unsigned int cluster);
  * This will return if mcpm_platform_register() has not been called
  * previously in which case the caller should take appropriate action.
  */
-void mcpm_cpu_suspend(u64 expected_residency);
+void mcpm_cpu_suspend(unsigned long);
 
 /**
  * mcpm_cpu_powered_up - housekeeping workafter a CPU has been powered up
@@ -165,7 +165,7 @@ struct mcpm_platform_ops {
 	int (*power_up)(unsigned int cpu, unsigned int cluster);
 	void (*power_down)(void);
 	int (*power_down_finish)(unsigned int cpu, unsigned int cluster);
-	void (*suspend)(u64);
+	void (*suspend)(unsigned long);
 	void (*powered_up)(void);
 };
 

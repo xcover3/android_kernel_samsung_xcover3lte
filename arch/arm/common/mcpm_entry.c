@@ -116,7 +116,7 @@ int mcpm_cpu_power_down_finish(unsigned int cpu, unsigned int cluster)
 	return ret;
 }
 
-void mcpm_cpu_suspend(u64 expected_residency)
+void mcpm_cpu_suspend(unsigned long addr)
 {
 	phys_reset_t phys_reset;
 
@@ -126,7 +126,7 @@ void mcpm_cpu_suspend(u64 expected_residency)
 
 	/* Very similar to mcpm_cpu_power_down() */
 	setup_mm_for_reboot();
-	platform_ops->suspend(expected_residency);
+	platform_ops->suspend(addr);
 	phys_reset = (phys_reset_t)(unsigned long)virt_to_phys(cpu_reset);
 	phys_reset(virt_to_phys(mcpm_entry_point));
 	BUG();
