@@ -947,8 +947,7 @@ static int mmp_pdma_probe(struct platform_device *op)
 	}
 
 	pdev->phy = devm_kcalloc(pdev->dev,
-				 dma_channels, sizeof(struct mmp_pdma_chan),
-				 GFP_KERNEL);
+				 dma_channels, sizeof(*pdev->phy), GFP_KERNEL);
 	if (pdev->phy == NULL)
 		return -ENOMEM;
 
