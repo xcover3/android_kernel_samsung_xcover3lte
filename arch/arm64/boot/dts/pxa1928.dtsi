@@ -91,6 +91,14 @@
 			reg = <0xd1020000 0x10000>;	/* 64KB */
 		};
 
+		axi@d4200000 {	/* AXI */
+			compatible = "arm,axi-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0xd4200000 0x00200000>;
+			ranges;
+		};
+
 		apb@d4000000 {	/* APB */
 			compatible = "arm,apb-bus", "simple-bus";
 			#address-cells = <1>;
