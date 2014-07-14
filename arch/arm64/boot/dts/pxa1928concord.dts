@@ -41,6 +41,33 @@
 	};
 
 	soc {
+		axi@d4200000 {	/* AXI */
+			vdma: vdma@d427f000 {
+				marvell,vdma-num = <4>;
+				status = "okay";
+				vdma1 {
+					marvell,vdma-id = <0>;
+					marvell,sram-size = <69632>;
+					marvell,is_vid = <0>;
+				};
+				vdma2 {
+					marvell,vdma-id = <1>;
+					marvell,sram-size = <0>;
+					marvell,is_vid = <0>;
+				};
+				vdma3 {
+					marvell,vdma-id = <2>;
+					marvell,sram-size = <60928>;
+					marvell,is_vid = <1>;
+				};
+				vdma4 {
+					marvell,vdma-id = <3>;
+					marvell,sram-size = <0>;
+					marvell,is_vid = <1>;
+				};
+			};
+		};
+
 		apb@d4000000 {
 			pmx: pinmux@d401e000 {
 				status = "okay";
