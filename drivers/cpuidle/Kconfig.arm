@@ -44,3 +44,10 @@ config ARM_AT91_CPUIDLE
 	depends on ARCH_AT91
 	help
 	  Select this to enable cpuidle for AT91 processors
+
+config CPU_IDLE_MMP_V7
+	bool "CPU Idle Driver for MMP processors (ARMv7)"
+	depends on ARCH_MMP
+	default y
+	help
+	  Select this to enable cpuidle on MMP processors (ARMv7).
