@@ -154,3 +154,14 @@ DT_MACHINE_START(PXA1U88_DT, "PXA1U88")
 	.init_time      = pxa1U88_timer_init,
 	.dt_compat      = pxa1U88_dt_board_compat,
 MACHINE_END
+
+static const char *pxa1L88_dt_board_compat[] __initdata = {
+	"marvell,pxa1L88",
+	NULL,
+};
+
+DT_MACHINE_START(PXA1L88_DT, "PXA1L88")
+	.smp_init	= smp_init_ops(mmp_smp_init_ops),
+	.init_time      = pxa1U88_timer_init,
+	.dt_compat      = pxa1L88_dt_board_compat,
+MACHINE_END

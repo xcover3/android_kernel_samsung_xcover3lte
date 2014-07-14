@@ -1,0 +1,70 @@
+/*
+ *  Copyright (C) 2012 Marvell Technology Group Ltd.
+ *  Author: Haojian Zhuang <haojian.zhuang@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+#include "pxa1088.dtsi"
+
+/ {
+	model = "Marvell PXA1L88 DKB Development Board";
+
+	chosen {
+		bootargs = "console=ttyS0,115200 root=/dev/nfs nfsroot=192.168.1.100:/nfsroot/ ip=192.168.1.101:192.168.1.100::255.255.255.0::eth0:on";
+	};
+
+	memory {
+		reg = <0x00000000 0x10000000>;
+	};
+
+	soc {
+		ddr@c0100000 {  /* DDR memory controller */
+			status = "okay";
+		};
+
+		apb@d4000000 {
+			keypad: keypad@d4012000 {
+				keypad,num-rows = <2>;
+				keypad,num-columns = <1>;
+				linux,keymap = <0x00000073
+						0x01000072>;
+				marvell,debounce-interval = <30>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&keypad_in_func  &keypad_out_func>;
+			};
+
+			pmx: pinmux@d401e000 {
+				/* pin base, nr pins & gpio function */
+				pinctrl-single,gpio-range = <
+					/*
+					 * GPIO number is hardcoded for range at here.
+					 * In gpio chip, GPIO number is not hardcoded for range.
+					 * Since one gpio pin may be routed to multiple pins,
+					 * define these gpio range in pxa910-dkb.dts not pxa910.dtsi.
+					 */
+					&range 55 55 0	/* GPIO0 ~ GPIO54 */
+					&range 110 32 0 /* GPIO67 ~ GPIO98 */
+					&range 52 1 0	/* GPIO124 */
+				>;
+				keypad_in_func: keypad_in_func {
+					pinctrl-single,pins = <
+						GPIO0 AF1
+						GPIO2 AF1
+					>;
+					MFP_DEFAULT;
+				};
+
+				keypad_out_func: keypad_out_func {
+					pinctrl-single,pins = <
+						GPIO1 AF1
+					>;
+					DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_DRIVE_HIGH;
+				};
+
+			};
+		};
+	};
+};

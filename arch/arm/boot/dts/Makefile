@@ -118,7 +118,7 @@ dtb-$(CONFIG_ARCH_KIRKWOOD) += kirkwood-cloudbox.dtb \
 	kirkwood-ts219-6281.dtb \
 	kirkwood-ts219-6282.dtb
 dtb-$(CONFIG_ARCH_MARCO) += marco-evb.dtb
-dtb-$(CONFIG_ARCH_MMP) += pxa1U88-dkb.dtb
+dtb-$(CONFIG_ARCH_MMP) += pxa1U88-dkb.dtb pxa1L88-dkb-v10.dtb pxa1L88-dkb-v20.dtb
 dtb-$(CONFIG_ARCH_MOXART) += moxart-uc7112lx.dtb
 dtb-$(CONFIG_ARCH_MSM) += qcom-msm8660-surf.dtb \
 	qcom-msm8960-cdp.dtb \
