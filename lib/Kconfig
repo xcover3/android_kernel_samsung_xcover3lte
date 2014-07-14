@@ -248,11 +248,17 @@ config GENERIC_ALLOCATOR
 	boolean
 
 #
+# Marvell Media MMU support is selected if ISP/CCIC/LCD needs MMU support
+#
+config MARVELL_MEDIA_MMU
+       bool "Marvell Media MMU support"
+
+#
 # reed solomon support is select'ed if needed
 #
 config REED_SOLOMON
 	tristate
-	
+
 config REED_SOLOMON_ENC8
 	boolean
 
