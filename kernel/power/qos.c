@@ -102,11 +102,25 @@ static struct pm_qos_object network_throughput_pm_qos = {
 };
 
 
+static BLOCKING_NOTIFIER_HEAD(cpuidle_block_notifier);
+static struct pm_qos_constraints cpuidle_block_constraints = {
+	.list = PLIST_HEAD_INIT(cpuidle_block_constraints.list),
+	.target_value = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE,
+	.default_value = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE,
+	.type = PM_QOS_MIN,
+	.notifiers = &cpuidle_block_notifier,
+};
+static struct pm_qos_object cpuidle_block_pm_qos = {
+	.constraints = &cpuidle_block_constraints,
+	.name = "cpuidle_block",
+};
+
 static struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
 	&network_lat_pm_qos,
-	&network_throughput_pm_qos
+	&network_throughput_pm_qos,
+	&cpuidle_block_pm_qos
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,

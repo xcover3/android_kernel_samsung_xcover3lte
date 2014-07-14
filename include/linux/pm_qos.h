@@ -15,7 +15,7 @@ enum {
 	PM_QOS_CPU_DMA_LATENCY,
 	PM_QOS_NETWORK_LATENCY,
 	PM_QOS_NETWORK_THROUGHPUT,
-
+	PM_QOS_CPUIDLE_BLOCK,
 	/* insert new class ID */
 	PM_QOS_NUM_CLASSES,
 };
@@ -33,6 +33,8 @@ enum pm_qos_flags_status {
 #define PM_QOS_NETWORK_LAT_DEFAULT_VALUE	(2000 * USEC_PER_SEC)
 #define PM_QOS_NETWORK_THROUGHPUT_DEFAULT_VALUE	0
 #define PM_QOS_DEV_LAT_DEFAULT_VALUE		0
+/* Assume maxium hardware lowpower state is 15 */
+#define PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE	15
 
 #define PM_QOS_FLAG_NO_POWER_OFF	(1 << 0)
 #define PM_QOS_FLAG_REMOTE_WAKEUP	(1 << 1)
