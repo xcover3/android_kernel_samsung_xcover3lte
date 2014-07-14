@@ -758,6 +758,17 @@ static void free_one_page(struct zone *zone, struct page *page, int order,
 	spin_lock(&zone->lock);
 	zone->pages_scanned = 0;
 
+	if (unlikely(migratetype == MIGRATE_ISOLATE)) {
+		/*
+		 * We got migratetype without holding the lock so it could be
+		 * racy. If some pages go on the isolate migratetype buddy list
+		 * by this race, we can't allocate this page anymore until next
+		 * isolation attempt on this pageblock. To prevent this
+		 * possibility, re-check migratetype with holding the lock.
+		 */
+		migratetype = get_pageblock_migratetype(page);
+	}
+
 	__free_one_page(page, zone, order, migratetype);
 	if (unlikely(!is_migrate_isolate(migratetype)))
 		__mod_zone_freepage_state(zone, 1 << order, migratetype);
