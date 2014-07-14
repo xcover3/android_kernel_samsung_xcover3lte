@@ -530,7 +530,7 @@ static int mmp_tdma_chan_init(struct mmp_tdma_device *tdev,
 	tdmac->chan.device = &tdev->device;
 	tdmac->idx	   = idx;
 	tdmac->type	   = type;
-	tdmac->reg_base	   = tdev->base + idx * 4;
+	tdmac->reg_base	   = (void __iomem *)tdev->base + idx * 4;
 	tdmac->pool	   = pool;
 	tdmac->status = DMA_COMPLETE;
 	tdev->tdmac[tdmac->idx] = tdmac;
