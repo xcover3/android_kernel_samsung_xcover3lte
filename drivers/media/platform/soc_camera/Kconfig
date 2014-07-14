@@ -89,3 +89,15 @@ config VIDEO_ATMEL_ISI
 	  This module makes the ATMEL Image Sensor Interface available
 	  as a v4l2 device.
 
+config VIDEO_MV_SC2_CAMERA
+    tristate "Marvell SC2 soc camera driver"
+    select VIDEOBUF2_DMA_SG
+    select VIDEOBUF2_DMA_CONTIG
+    select DMA_SHARED_BUFFER
+    select VIDEO_MV_SC2_MMU
+    select VIDEO_MV_SC2_CCIC
+    ---help---
+      This is a v4l2 driver for the Marvell sc2 camera
+      To compile this driver as a module, choose M here: the module will
+      be called mv_sc2_ccic.
+      It requires the mv_sc2_mmu module.
