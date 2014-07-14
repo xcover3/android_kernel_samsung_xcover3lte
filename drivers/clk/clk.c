@@ -286,6 +286,67 @@ static const struct file_operations clk_rate_fops = {
 	.write = clk_setrate_write,
 };
 
+static int clk_enable_open(struct inode *inode, struct file *filp)
+{
+	filp->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t
+clk_enable_read(struct file *filp, char __user *ubuf, size_t cnt,
+		loff_t *ppos)
+{
+	char buf[5];
+	int ret;
+	struct clk *clk = filp->private_data;
+
+	sprintf(buf, "%4x", __clk_is_enabled(clk));
+	buf[4] = '\n';
+
+	ret = simple_read_from_buffer(ubuf, cnt, ppos, buf, 5);
+
+	return ret;
+}
+
+static ssize_t
+clk_enable_write(struct file *filp, const char __user *ubuf, size_t cnt,
+		 loff_t *ppos)
+{
+	struct clk *clk = filp->private_data;
+	char buf[64];
+	int ret;
+	unsigned long enable_val;
+
+	if (cnt >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(&buf, ubuf, cnt))
+		return -EFAULT;
+
+	buf[cnt] = 0;
+
+	ret = kstrtoul(buf, 10, &enable_val);
+	if (ret < 0)
+		return ret;
+
+	if (enable_val != 0 && enable_val != 1)
+		return -EINVAL;
+
+	*ppos += cnt;
+	if (enable_val)
+		clk_prepare_enable(clk);
+	else
+		clk_disable_unprepare(clk);
+
+	return cnt;
+}
+
+static const struct file_operations clk_enable_fops = {
+	.open = clk_enable_open,
+	.read = clk_enable_read,
+	.write = clk_enable_write,
+};
+
 /* caller must hold prepare_lock */
 static int clk_debug_create_one(struct clk *clk, struct dentry *pdentry)
 {
@@ -313,6 +374,12 @@ static int clk_debug_create_one(struct clk *clk, struct dentry *pdentry)
 
 	d = debugfs_create_u32("clk_accuracy", S_IRUGO, clk->dentry,
 			(u32 *)&clk->accuracy);
+	if (!d)
+		goto err_out;
+
+	if (clk->ops->enable && clk->ops->disable)
+		d = debugfs_create_file("enable", 0644, clk->dentry,
+				(void *)clk, &clk_enable_fops);
 	if (!d)
 		goto err_out;
 
