@@ -4,3 +4,9 @@ config MMP_PANEL_TPOHVGA
 	default n
 	help
 		tpohvga panel support
+
+config MMP_PANEL_HX8394_IPS3P5071
+	bool "MIPI panel hx8394-ips3p5071 support"
+	default n
+	help
+		MIPI panel hx8394-ips3p5071 support
