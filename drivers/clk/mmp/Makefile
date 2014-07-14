@@ -5,7 +5,7 @@
 obj-y += clk-apbc.o clk-apmu.o clk-frac.o clk-mix.o clk-gate.o clk.o
 
 ifneq ($(CONFIG_OF),)
-obj-y += clk-pxa1U88.o clk-pxa1928.o
+obj-y += clk-pxa1U88.o clk-pxa1928.o clk-pxa1L88.o
 endif
 
 obj-$(CONFIG_CPU_PXA168) += clk-pxa168.o
