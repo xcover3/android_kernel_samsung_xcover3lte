@@ -21,4 +21,8 @@
 /* Functional Clock Selection Mask */
 #define APBC_FNCLKSEL(x)	(((x) & 0xf) << 4)
 
+#define TIMER0		0x034
+#define TIMER1		0x044
+#define TIMER2		0x068
+
 #endif /* __ASM_MACH_REGS_APBC_H */
