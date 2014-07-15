@@ -114,6 +114,11 @@ struct ion_handle {
 	int id;
 };
 
+struct ion_vma_list {
+	struct list_head list;
+	struct vm_area_struct *vma;
+};
+
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
 	return (buffer->flags & ION_FLAG_CACHED) &&
@@ -271,6 +276,17 @@ err2:
 
 void ion_buffer_destroy(struct ion_buffer *buffer)
 {
+	struct ion_vma_list *vma_list, *tmp;
+
+	/* remove the vmas that won't be used */
+	mutex_lock(&buffer->lock);
+	list_for_each_entry_safe(vma_list, tmp, &buffer->vmas, list) {
+		WARN(1, "--\n");
+		list_del(&vma_list->list);
+		kfree(vma_list);
+	}
+	mutex_unlock(&buffer->lock);
+
 	if (WARN_ON(buffer->kmap_cnt > 0))
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
 	buffer->heap->ops->unmap_dma(buffer->heap, buffer);
@@ -899,11 +915,6 @@ void ion_pages_sync_for_device(struct device *dev, struct page *page,
 	sg_dma_address(&sg) = page_to_phys(page);
 	dma_sync_sg_for_device(dev, &sg, 1, dir);
 }
-
-struct ion_vma_list {
-	struct list_head list;
-	struct vm_area_struct *vma;
-};
 
 static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 				       struct device *dev,
