@@ -33,3 +33,9 @@ config ION_TEGRA
 	help
 	  Choose this option if you wish to use ion on an nVidia Tegra.
 
+config ION_PXA
+       tristate "ION for PXA"
+       depends on ION && (ARCH_PXA || ARCH_MMP)
+       default y
+       help
+         Choose this option to enable ION on PXA.
