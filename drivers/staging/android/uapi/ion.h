@@ -127,6 +127,17 @@ struct ion_custom_data {
 	unsigned long arg;
 };
 
+/**
+ * struct ion_buffer_name_data - passed to/from userspace for a name/fd pair
+ * @fd:		a file descriptor of the buffer exported
+ * @name:	optional name of the buffer
+ */
+#define ION_BUFFER_NAME_LEN	16
+struct ion_buffer_name_data {
+	int fd;
+	char name[ION_BUFFER_NAME_LEN];
+};
+
 #define ION_IOC_MAGIC		'I'
 
 /**
@@ -192,5 +203,12 @@ struct ion_custom_data {
  * passes appropriate userdata for that ioctl
  */
 #define ION_IOC_CUSTOM		_IOWR(ION_IOC_MAGIC, 6, struct ion_custom_data)
+
+/**
+ * DOC: ION_IOC_NAME - assign a name to the buffer
+ *
+ * Takes an ion_buffer_name_data with share_fd and a string name.
+ */
+#define ION_IOC_NAME	_IOWR(ION_IOC_MAGIC, 8, struct ion_buffer_name_data)
 
 #endif /* _UAPI_LINUX_ION_H */

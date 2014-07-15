@@ -1239,6 +1239,7 @@ static unsigned int ion_ioctl_dir(unsigned int cmd)
 {
 	switch (cmd) {
 	case ION_IOC_SYNC:
+	case ION_IOC_NAME:
 	case ION_IOC_FREE:
 	case ION_IOC_CUSTOM:
 		return _IOC_WRITE;
@@ -1260,6 +1261,7 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_allocation_data allocation;
 		struct ion_handle_data handle;
 		struct ion_custom_data custom;
+		struct ion_buffer_name_data name;
 	} data;
 
 	dir = ion_ioctl_dir(cmd);
@@ -1326,6 +1328,21 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case ION_IOC_SYNC:
 	{
 		ret = ion_sync_for_device(client, data.fd.fd);
+		break;
+	}
+	case ION_IOC_NAME:
+	{
+		struct dma_buf *dmabuf;
+		struct ion_buffer *buffer;
+
+		dmabuf = dma_buf_get(data.name.fd);
+		if (IS_ERR_OR_NULL(dmabuf))
+			return -EFAULT;
+
+		buffer = dmabuf->priv;
+		strncpy(buffer->name, data.name.name, ION_BUFFER_NAME_LEN - 1);
+		buffer->name[ION_BUFFER_NAME_LEN - 1] = '\0';
+		dma_buf_put(dmabuf);
 		break;
 	}
 	case ION_IOC_CUSTOM:
