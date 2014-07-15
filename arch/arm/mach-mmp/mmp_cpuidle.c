@@ -14,14 +14,56 @@
 #include <linux/init.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/kernel.h>
+#include <linux/pm_qos.h>
 #include <asm/cputype.h>
+#include <asm/io.h>
 #include <asm/mcpm.h>
+#include <mach/help_v7.h>
 #include <mach/mmp_cpuidle.h>
 
 #include "reset.h"
+#include "regs-addr.h"
 
+#define LPM_NUM			16
+#define INVALID_LPM		-1
+#define DEFAULT_LPM_FLAG	0xFFFFFFFF
+
+struct platform_idle *mmp_idle;
+static int mmp_wake_saved;
 static arch_spinlock_t mmp_lpm_lock = __ARCH_SPIN_LOCK_UNLOCKED;
+static int mmp_enter_lpm[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
 static int mmp_pm_use_count[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
+/*
+ * find_couple_state - Find the maximum state platform can enter
+ *
+ * @index: pointer to variable which stores the maximum state
+ * @cluster: cluster number
+ *
+ * Must be called with function holds mmp_lpm_lock
+ */
+static void find_coupled_state(int *index, int cluster)
+{
+	int i;
+	int platform_lpm = DEFAULT_LPM_FLAG;
+
+	for (i = 0; i < MAX_CPUS_PER_CLUSTER; i++)
+		platform_lpm &= mmp_enter_lpm[cluster][i];
+
+	*index = min(find_first_zero_bit((void *)&platform_lpm, LPM_NUM),
+			pm_qos_request(PM_QOS_CPUIDLE_BLOCK)) - 1;
+
+}
+
+static bool cluster_is_idle(int cluster)
+{
+	int i;
+
+	for (i = 0; i < MAX_CPUS_PER_CLUSTER; i++)
+		if (mmp_pm_use_count[cluster][i] != 0)
+			return false;
+
+	return true;
+}
 
 /*
  * mmp_pm_down - Programs CPU to enter the specified state
@@ -33,6 +75,7 @@ static int mmp_pm_use_count[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
  */
 static void mmp_pm_down(unsigned long addr)
 {
+	int *idx = (int *)addr;
 	int mpidr, cpu, cluster;
 	bool skip_wfi = false, last_man = false;
 
@@ -40,7 +83,7 @@ static void mmp_pm_down(unsigned long addr)
 	cpu = MPIDR_AFFINITY_LEVEL(mpidr, 0);
 	cluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 
-	pr_info("%s: cpu %u cluster %u\n", __func__, cpu, cluster);
+	pr_debug("%s: cpu %u cluster %u\n", __func__, cpu, cluster);
 	BUG_ON(cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER);
 
 	__mcpm_cpu_going_down(cpu, cluster);
@@ -50,7 +93,22 @@ static void mmp_pm_down(unsigned long addr)
 	mmp_pm_use_count[cluster][cpu]--;
 
 	if (mmp_pm_use_count[cluster][cpu] == 0) {
-		/* TODO: add LPM code here. */
+		mmp_enter_lpm[cluster][cpu] = (1 << (*idx + 1)) - 1;
+		*idx = mmp_idle->cpudown_state;
+		if (cluster_is_idle(cluster)) {
+			cpu_cluster_pm_enter();
+			find_coupled_state(idx, cluster);
+			if (*idx >= mmp_idle->wakeup_state &&
+				*idx < mmp_idle->l2_flush_state &&
+				mmp_idle->ops->save_wakeup) {
+				mmp_wake_saved = 1;
+				mmp_idle->ops->save_wakeup();
+			}
+			BUG_ON(__mcpm_cluster_state(cluster) != CLUSTER_UP);
+			last_man = true;
+		}
+		if (mmp_idle->ops->set_pmu)
+			mmp_idle->ops->set_pmu(cpu, *idx);
 	} else if (mmp_pm_use_count[cluster][cpu] == 1) {
 		/*
 		 * A power_up request went ahead of us.
@@ -59,6 +117,7 @@ static void mmp_pm_down(unsigned long addr)
 		 * was aborted.  So let's continue with cache cleaning.
 		 */
 		skip_wfi = true;
+		*idx = INVALID_LPM;
 	} else
 		BUG();
 
@@ -66,9 +125,14 @@ static void mmp_pm_down(unsigned long addr)
 		arch_spin_unlock(&mmp_lpm_lock);
 		__mcpm_outbound_leave_critical(cluster, CLUSTER_DOWN);
 		__mcpm_cpu_down(cpu, cluster);
+		if (*idx >= mmp_idle->l2_flush_state)
+			ca7_power_down_udr();
+		else
+			ca7_power_down();
 	} else {
 		arch_spin_unlock(&mmp_lpm_lock);
 		__mcpm_cpu_down(cpu, cluster);
+		ca7_power_down();
 	}
 
 	if (!skip_wfi)
@@ -77,7 +141,7 @@ static void mmp_pm_down(unsigned long addr)
 
 static int mmp_pm_power_up(unsigned int cpu, unsigned int cluster)
 {
-	pr_info("%s: cpu %u cluster %u\n", __func__, cpu, cluster);
+	pr_debug("%s: cpu %u cluster %u\n", __func__, cpu, cluster);
 	if (cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER)
 		return -EINVAL;
 
@@ -119,7 +183,7 @@ static void mmp_pm_power_down(void)
 	mmp_pm_down(0);
 }
 
-static void mmp_pm_suspend(u64 addr)
+static void mmp_pm_suspend(unsigned long addr)
 {
 	mmp_pm_down(addr);
 }
@@ -138,11 +202,49 @@ static void mmp_pm_powered_up(void)
 	local_irq_save(flags);
 	arch_spin_lock(&mmp_lpm_lock);
 
+	if (cluster_is_idle(cluster)) {
+		if (mmp_wake_saved && mmp_idle->ops->restore_wakeup) {
+			mmp_wake_saved = 0;
+			mmp_idle->ops->restore_wakeup();
+		}
+		/* If hardware really shutdown MP subsystem */
+		if (!(readl_relaxed(regs_addr_get_va(REGS_ADDR_GIC) +
+				GIC_DIST_CTRL) & 0x1)) {
+			pr_debug("%s: cpu%u: cluster%u is up!\n", __func__, cpu, cluster);
+			cpu_cluster_pm_exit();
+		}
+	}
+
 	if (!mmp_pm_use_count[cluster][cpu])
 		mmp_pm_use_count[cluster][cpu] = 1;
 
+	mmp_enter_lpm[cluster][cpu] = 0;
+
+	if (mmp_idle->ops->clr_pmu)
+		mmp_idle->ops->clr_pmu(cpu);
+
 	arch_spin_unlock(&mmp_lpm_lock);
 	local_irq_restore(flags);
+}
+
+/**
+ * mmp_platform_power_register - register platform power ops
+ *
+ * @idle: platform_idle structure points to platform power ops
+ *
+ * An error is returned if the registration has been done previously.
+ */
+int __init mmp_platform_power_register(struct platform_idle *idle)
+{
+	if (mmp_idle)
+		return -EBUSY;
+	mmp_idle = idle;
+
+#ifdef CONFIG_CPU_IDLE_MMP_V7
+	mcpm_platform_state_register(mmp_idle->states, mmp_idle->state_count);
+#endif
+
+	return 0;
 }
 
 static const struct mcpm_platform_ops mmp_pm_power_ops = {
@@ -170,10 +272,7 @@ static int __init mmp_pm_init(void)
 {
 	int ret;
 
-	/*
-	 * TODO:Should check if hardware is initialized here.
-	 * See vexpress_spc_check_loaded()
-	 */
+	memset(mmp_enter_lpm, DEFAULT_LPM_FLAG, sizeof(mmp_enter_lpm));
 	mmp_pm_usage_count_init();
 
 	mmp_entry_vector_init();
