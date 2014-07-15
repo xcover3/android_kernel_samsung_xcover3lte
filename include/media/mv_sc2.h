@@ -157,6 +157,7 @@ struct ccic_ctrl_dev {
 	struct clk *csi_clk;
 	struct clk *clk4x;
 	struct clk *ahb_clk;
+	struct clk *mclk;
 };
 
 struct ccic_ctrl_ops {

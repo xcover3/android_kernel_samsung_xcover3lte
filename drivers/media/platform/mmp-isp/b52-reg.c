@@ -2619,7 +2619,8 @@ static int b52_cfg_adv_dns(int type, u8 *dns)
 		break;
 	default:
 		return -EINVAL;
-	};
+	}
+
 	return ret;
 }
 

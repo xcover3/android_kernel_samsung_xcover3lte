@@ -713,25 +713,41 @@ static struct v4l2_subdev *b52_detect_sensor(
 	return NULL;
 }
 
-static int plat_setup_sensor(struct isp_build *isb,
-		struct v4l2_subdev **sensor_sd)
+static int plat_tune_power(struct isp_build *isb,
+		enum plat_subdev_code code, int enable)
 {
-	struct isp_subdev *idi_isd;
+	struct isp_subdev *isd;
 	struct isp_block *blk;
 
-	list_for_each_entry(idi_isd, &isb->ispsd_list, hook)
-		if (idi_isd->sd_code == SDCODE_B52ISP_IDI)
+	list_for_each_entry(isd, &isb->ispsd_list, hook)
+		if (isd->sd_code == code)
 			break;
 
-	if (&idi_isd->hook == &isb->ispsd_list ||
-			idi_isd->sd_code != SDCODE_B52ISP_IDI)
+	if (&isd->hook == &isb->ispsd_list ||
+			isd->sd_code != code)
 		return -ENODEV;
 
-	blk = isp_sd2blk(idi_isd);
+	blk = isp_sd2blk(isd);
 	if (!blk)
 		return -EINVAL;
 
 	isp_block_tune_power(blk, ~0);
+
+	return 0;
+}
+
+static int plat_setup_sensor(struct isp_build *isb,
+		struct v4l2_subdev **sensor_sd)
+{
+	int ret;
+
+	ret = plat_tune_power(isb, SDCODE_B52ISP_IDI, 1);
+	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 1);
+	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI1, 1);
+	if (ret < 0) {
+		pr_err("%s: tune power failed\n", __func__);
+		return ret;
+	}
 
 	sensor_sd[0] = b52_detect_sensor(isb, "backsensor");
 	if (!(sensor_sd[0]))
@@ -740,9 +756,11 @@ static int plat_setup_sensor(struct isp_build *isb,
 	if (!(sensor_sd[1]))
 		pr_info("detect front sensor failed\n");
 
-	isp_block_tune_power(blk, 0);
+	ret = plat_tune_power(isb, SDCODE_CCICV2_CSI1, 0);
+	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 1);
+	ret |= plat_tune_power(isb, SDCODE_B52ISP_IDI, 1);
 
-	return 0;
+	return ret;
 }
 static int plat_cam_remove(struct platform_device *pdev)
 {

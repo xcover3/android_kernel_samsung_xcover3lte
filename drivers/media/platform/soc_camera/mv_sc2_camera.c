@@ -633,8 +633,6 @@ static int mccic_add_device(struct soc_camera_device *icd)
 	/* CCIC/ISP/MMU power on */
 	sc2_power_switch(1);
 	/* ccic_enable_clk(mcam_dev); */
-	clk_set_rate(mcam_dev->mclk, 26000000);
-	clk_prepare_enable(mcam_dev->mclk);
 	/* ccic_power_up(mcam_dev); */
 	/* TBD: ccic_stop(mcam_dev); */
 
@@ -752,7 +750,6 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	clk_disable_unprepare(mcam_dev->axi_clk);
 	/* TBD ccic_power_down(ccic_dev); */
 	/* TBD ccic_disable_clk(ccic_dev); */
-	clk_disable_unprepare(mcam_dev->mclk);
 	sc2_power_switch(0);
 	/* 3.4 is not necessary */
 	soc_camera_power_off(&mcam_dev->pdev->dev, ssdd, NULL);
@@ -1307,9 +1304,6 @@ static int mv_camera_probe(struct platform_device *pdev)
 	mcam_dev->pdev = pdev;
 	mcam_dev->buffer_mode = B_DMA_CONTIG;
 
-	mcam_dev->mclk = devm_clk_get(&pdev->dev, "SC2MCLK");
-	if (IS_ERR(mcam_dev->mclk))
-		return PTR_ERR(mcam_dev->mclk);
 	mcam_dev->axi_clk = devm_clk_get(&pdev->dev, "SC2AXICLK");
 	if (IS_ERR(mcam_dev->axi_clk))
 		return PTR_ERR(mcam_dev->axi_clk);

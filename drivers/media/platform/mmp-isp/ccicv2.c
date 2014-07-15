@@ -34,8 +34,9 @@
 #include <media/b52-sensor.h>
 #include <media/mrvl-camera.h>
 
-#include "plat_cam.h"
 #include "power_domain_isp.h"
+
+#include "plat_cam.h"
 #include "ccicv2.h"
 
 #define CCIC_DRV_NAME		"ccicv2-drv"
@@ -68,11 +69,13 @@ static irqreturn_t dma_irq_handler(struct ccic_dma_dev *ccic_dmal, u32 irq)
 /********************************* CCICv2 CSI *********************************/
 static int ccic_csi_hw_open(struct isp_block *block)
 {
+	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
+
+	csi->ccic_ctrl->ops->clk_enable(csi->ccic_ctrl);
+#if 0
 /*
  * FIXME: ISP and SC2 use separate power, need share it
  */
-#if 0
-	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
 	csi->ccic_ctrl->ops->power_up(csi->ccic_ctrl);
 #endif
 	return 0;
@@ -80,11 +83,12 @@ static int ccic_csi_hw_open(struct isp_block *block)
 
 static void ccic_csi_hw_close(struct isp_block *block)
 {
+	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
+	csi->ccic_ctrl->ops->clk_disable(csi->ccic_ctrl);
+#if 0
 /*
  * FIXME: ISP and SC2 use separate power, need share it
  */
-#if 0
-	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
 	csi->ccic_ctrl->ops->power_down(csi->ccic_ctrl);
 #endif
 }

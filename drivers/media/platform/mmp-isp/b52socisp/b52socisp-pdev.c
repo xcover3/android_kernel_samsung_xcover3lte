@@ -23,6 +23,7 @@ struct isp_resrc *isp_resrc_register(struct device *dev,
 	struct block_id mask, int res_id, void *handle, void *priv)
 {
 	struct isp_resrc *item;
+	unsigned long flags;
 
 	item = devm_kzalloc(dev, sizeof(*item), GFP_KERNEL);
 	if (item == NULL)
@@ -36,7 +37,12 @@ struct isp_resrc *isp_resrc_register(struct device *dev,
 	item->size	= resource_size(res);
 	item->handle	= handle;
 	item->priv	= priv;
-	switch (res->flags & ~IORESOURCE_BITS) {
+
+	if (res->flags == ISP_RESRC_CLK)
+		flags = res->flags;
+	else
+		flags = res->flags & ~IORESOURCE_BITS;
+	switch (flags) {
 	case IORESOURCE_MEM:
 		item->type = ISP_RESRC_MEM;
 		break;
@@ -119,15 +125,12 @@ static inline void isp_irq_release(struct isp_resrc *irq)
 
 static inline int isp_clk_request(struct isp_resrc *clk)
 {
-	int ret;
-
 	if (clk->refcnt == 0) {
 		clk->clk = devm_clk_get(clk->dev, clk->name);
 		if (IS_ERR(clk->clk)) {
 			dev_err(clk->dev, "get clock'%s' failed\n",
 				clk->name);
-			ret = PTR_ERR(clk);
-			return ret;
+			return PTR_ERR(clk->clk);
 		}
 	}
 	clk->refcnt++;
@@ -176,6 +179,8 @@ resrc_found:
 			block->reg_base = res->va + (item->priv - (void *) 0);
 			break;
 		case ISP_RESRC_CLK:
+			if (!(res->name))
+				break;
 			ret = isp_clk_request(res);
 			if (ret < 0)
 				return ret;
@@ -229,6 +234,8 @@ res_match:
 			block->reg_base = 0;
 			break;
 		case ISP_RESRC_CLK:
+			if (!(res->name))
+				break;
 			isp_clk_release(res);
 			block->clock[--block->clock_cnt] = NULL;
 			break;

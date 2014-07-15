@@ -66,7 +66,6 @@ struct mv_camera_dev {
 #define CF_FRAME_SOF0	1
 #define CF_FRAME_OVERFLOW	2
 	unsigned long flags;		/* Indicate frame buffer state */
-	struct clk *mclk;
 	struct clk *axi_clk;
 	int i2c_dyn_ctrl;
 };

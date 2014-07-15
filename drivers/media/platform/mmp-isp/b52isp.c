@@ -130,22 +130,38 @@ static char b52isp_ispsd_name[][32] = {
 	[B52ISP_ISD_A3R1]	= B52_INPUT_C_NAME,
 };
 
+enum {
+	ISP_CLK_AXI = 0,
+	ISP_CLK_CORE,
+	ISP_CLK_PIPE,
+	ISP_CLK_AHB,
+	ISP_CLK_END
+};
+
+static const char *clock_name[ISP_CLK_END];
+
+/* FIXME this W/R for DE limitation, since AXI clk need enable before release reset*/
 static struct isp_res_req b52idi_req[] = {
 	{ISP_RESRC_MEM, 0,      0},
-	/*{ISP_RESRC_CLK},*/
+	{ISP_RESRC_IRQ},
+	{ISP_RESRC_CLK, ISP_CLK_AXI},
+	{ISP_RESRC_CLK, ISP_CLK_CORE},
+	{ISP_RESRC_CLK, ISP_CLK_PIPE},
+	{ISP_RESRC_CLK, ISP_CLK_AHB},
 	{ISP_RESRC_END}
 };
 
 static struct isp_res_req b52pipe_req[] = {
 	{ISP_RESRC_MEM, 0,      0},
 	{ISP_RESRC_IRQ},
-	/*{ISP_RESRC_CLK},*/
+/*	{ISP_RESRC_CLK, ISP_CLK_PIPE},*/
+	{ISP_RESRC_CLK, ISP_CLK_AHB},
 	{ISP_RESRC_END}
 };
 
 static struct isp_res_req b52axi_req[] = {
 	{ISP_RESRC_MEM, 0,      0},
-	/*{ISP_RESRC_CLK},*/
+/*	{ISP_RESRC_CLK, ISP_CLK_AXI},*/
 	{ISP_RESRC_END}
 };
 
@@ -346,7 +362,6 @@ err_exit:
 /********************************* IDI block *********************************/
 static int b52isp_idi_hw_open(struct isp_block *block)
 {
-
 	b52isp_lpm_update(1);
 	return 0;
 }
@@ -360,14 +375,29 @@ static int b52isp_idi_set_power(struct isp_block *block, int level)
 	int ret = 0;
 	ret = b52isp_pwr_ctrl(level);
 	b52_set_base_addr(block->reg_base);
-
 	return ret;
+}
+
+static int b52isp_idi_set_clock(struct isp_block *block, int rate)
+{
+	struct clk *axi_clk = block->clock[0];
+	struct clk *core_clk = block->clock[1];
+	struct clk *pipe_clk = block->clock[2];
+
+	if (rate) {
+		clk_set_rate(axi_clk, 312000000);
+		clk_set_rate(core_clk, 156000000);
+		clk_set_rate(pipe_clk, 312000000);
+	}
+
+	return 0;
 }
 
 struct isp_block_ops b52isp_idi_hw_ops = {
 	.open	= b52isp_idi_hw_open,
 	.close	= b52isp_idi_hw_close,
 	.set_power	= b52isp_idi_set_power,
+	.set_clock  = b52isp_idi_set_clock,
 };
 
 /********************************* IDI subdev *********************************/
@@ -609,6 +639,11 @@ static void b52isp_path_hw_close(struct isp_block *block)
 	b52_load_fw(block->dev, block->reg_base, 0, b52isp_pwr_enable);
 }
 
+static int b52isp_path_s_clock(struct isp_block *block, int rate)
+{
+	return 0;
+}
+
 static int b52isp_path_hw_s_power(struct isp_block *block, int level)
 {
 	return b52isp_pwr_ctrl(level);
@@ -618,6 +653,7 @@ struct isp_block_ops b52isp_path_hw_ops = {
 	.open	= b52isp_path_hw_open,
 	.close	= b52isp_path_hw_close,
 	.set_power	= b52isp_path_hw_s_power,
+	.set_clock  = b52isp_path_s_clock,
 };
 
 /****************************** ISP Path Subdev ******************************/
@@ -1721,9 +1757,15 @@ static void b52isp_axi_hw_close(struct isp_block *block)
 
 }
 
+static int b52isp_axi_set_clock(struct isp_block *block, int rate)
+{
+	return 0;
+}
+
 struct isp_block_ops b52isp_axi_hw_ops = {
 	.open	= b52isp_axi_hw_open,
 	.close	= b52isp_axi_hw_close,
+	.set_clock = b52isp_axi_set_clock,
 };
 
 /***************************** AXI Master Subdev *****************************/
@@ -3202,11 +3244,13 @@ MODULE_DEVICE_TABLE(of, b52isp_dt_match);
 
 static int b52isp_probe(struct platform_device *pdev)
 {
+	int count;
 	struct b52isp *b52isp;
 	const struct of_device_id *of_id =
 				of_match_device(b52isp_dt_match, &pdev->dev);
 	struct device_node *np = pdev->dev.of_node;
-	struct resource *res, clk = {.flags = ISP_RESRC_CLK, .name = "ISP-CLK"};
+	struct resource *res;
+	struct resource clk;
 	struct block_id pdev_mask = {
 		.dev_type = PCAM_IP_B52ISP,
 		.dev_id = pdev->dev.id,
@@ -3265,17 +3309,32 @@ static int b52isp_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = of_property_read_string(np, "fclk-name", &clk.name);
-	if (!clk.name)
-		return -EINVAL;
-
 	/* get clock(s) */
-	ret = plat_resrc_register(&pdev->dev, &clk, NULL, pdev_mask,
-					0, NULL, NULL);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed register clock resource %s",
-			res->name);
-		return ret;
+	count = of_property_count_strings(np, "clock-names");
+	if (count < 1 || count > ISP_CLK_END) {
+		pr_err("%s: clock count error %d\n", __func__, count);
+		return -EINVAL;
+	}
+/* the clocks order in ISP_CLK_END need align in DTS */
+	for (i = 0; i < count; i++) {
+		ret = of_property_read_string_index(np, "clock-names",
+					    i, &clock_name[i]);
+		if (ret) {
+			pr_err("%s: unable to get clock %d\n", __func__, count);
+			return -ENODEV;
+		}
+	}
+
+	clk.flags = ISP_RESRC_CLK;
+	for (i = 0; i < ISP_CLK_END; i++) {
+		clk.name = clock_name[i];
+		ret = plat_resrc_register(&pdev->dev, &clk, NULL, pdev_mask,
+						i, NULL, NULL);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed register clock resource %s",
+				res->name);
+			return ret;
+		}
 	}
 
 #if 0
