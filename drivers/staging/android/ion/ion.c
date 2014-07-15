@@ -1262,6 +1262,7 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_handle_data handle;
 		struct ion_custom_data custom;
 		struct ion_buffer_name_data name;
+		struct ion_phys_data phys;
 	} data;
 
 	dir = ion_ioctl_dir(cmd);
@@ -1342,6 +1343,30 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		buffer = dmabuf->priv;
 		strncpy(buffer->name, data.name.name, ION_BUFFER_NAME_LEN - 1);
 		buffer->name[ION_BUFFER_NAME_LEN - 1] = '\0';
+		dma_buf_put(dmabuf);
+		break;
+	}
+	case ION_IOC_PHYS:
+	{
+		struct dma_buf *dmabuf;
+		struct ion_buffer *buffer;
+		ion_phys_addr_t phys_addr;
+		size_t phys_size;
+		int ret = -EFAULT;
+
+		dmabuf = dma_buf_get(data.phys.fd);
+		if (IS_ERR_OR_NULL(dmabuf))
+			return -EFAULT;
+
+		buffer = dmabuf->priv;
+		if (!buffer->heap->ops->phys) {
+			dma_buf_put(dmabuf);
+			return -EFAULT;
+		}
+		ret = buffer->heap->ops->phys(buffer->heap, buffer,
+				&phys_addr, &phys_size);
+		if (!ret)
+			data.phys.addr = phys_addr;
 		dma_buf_put(dmabuf);
 		break;
 	}

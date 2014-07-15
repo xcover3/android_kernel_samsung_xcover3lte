@@ -138,6 +138,17 @@ struct ion_buffer_name_data {
 	char name[ION_BUFFER_NAME_LEN];
 };
 
+/**
+ * struct ion_phys_data - passed to/from userspace for a fd/addr pair
+ * @fd:		a file descriptor of the buffer exported
+ * @addr:	phys or dma address of the buffer
+ */
+struct ion_phys_data {
+	int fd;
+	unsigned int addr;
+	unsigned int flags;
+};
+
 #define ION_IOC_MAGIC		'I'
 
 /**
@@ -210,5 +221,12 @@ struct ion_buffer_name_data {
  * Takes an ion_buffer_name_data with share_fd and a string name.
  */
 #define ION_IOC_NAME	_IOWR(ION_IOC_MAGIC, 8, struct ion_buffer_name_data)
+
+/**
+ * DOC: ION_IOC_PHYS - get the physical address or iova of the buffer
+ *
+ * Takes an ion_phys_data with share_fd and returns the address.
+ */
+#define ION_IOC_PHYS		_IOWR(ION_IOC_MAGIC, 9, struct ion_phys_data)
 
 #endif /* _UAPI_LINUX_ION_H */
