@@ -86,6 +86,18 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			intc: wakeupgen@d4282000 {
+				compatible = "mrvl,mmp-intc-wakeupgen";
+				reg = <0xd4282000 0x1000>;
+				mrvl,intc-nr-irqs = <96>;
+				mrvl,intc-gbl-mask = <0x228 0x3
+						     0x238 0x3
+						     0x248 0x3
+						     0x258 0x3>;
+				mrvl,intc-for-cp = <0 31 32>;
+				mrvl,intc-for-sp = <92>;
+				status = "disabled";
+			};
 		};
 
 		apb@d4000000 {	/* APB */
