@@ -272,6 +272,37 @@
 					marvell,timer-counter-frequency = <32768>;
 				};
 			};
+
+			coresight: coresight@d4100000 {
+				compatible = "marvell,coresight";
+				clocks = <&soc_clocks PXA1928_CLK_DBGCLK>,
+					 <&soc_clocks PXA1928_CLK_TRACECLK>;
+				clock-names = "DBGCLK","TRACECLK";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0xd4100000 0x100000>;
+				ranges;
+
+				dbg: dbg@0xd4150000 {
+					compatible = "marvell,coresight-dbg";
+					reg = <0xd4150000 0x8000>;
+				};
+
+				cti: cti@0xd4158000 {
+					compatible = "marvell,coresight-cti";
+				        reg = <0xd4158000 0x4000>;
+				};
+
+				etm: etm@0xd415c000 {
+					compatible = "marvell,coresight-etm";
+				        reg = <0xd415c000 0x4000>;
+				};
+
+				etf: etf@0xd4190000 {
+					compatible = "marvell,coresight-etf";
+				        reg = <0xd4190000 0x4000>;
+				};
+			};
 		};
 		soc_clocks: clocks{
 			compatible = "marvell,pxa1928-clock";
