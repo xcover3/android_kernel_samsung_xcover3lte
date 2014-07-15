@@ -66,6 +66,7 @@ struct device;
 #define MAX_CMA_AREAS	(1 + CONFIG_CMA_AREAS)
 
 extern struct cma *dma_contiguous_default_area;
+extern int cma_available;
 
 static inline struct cma *dev_get_cma_area(struct device *dev)
 {
@@ -123,6 +124,7 @@ bool dma_release_from_contiguous(struct device *dev, struct page *pages,
 #else
 
 #define MAX_CMA_AREAS	(0)
+#define cma_available (0)
 
 static inline struct cma *dev_get_cma_area(struct device *dev)
 {
