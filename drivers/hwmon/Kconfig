@@ -1508,6 +1508,16 @@ config SENSORS_WM831X
 	  This driver can also be built as a module.  If so, the module
 	  will be called wm831x-hwmon.
 
+config SENSORS_ISL29043
+	tristate "ISL29043 light and proximity sensor"
+	depends on I2C && INPUT
+	help
+	  If you say yes here you get support for the hardware
+	  monitoring functionality of the Intersil sensor chip.
+
+	  This driver provides support for ISL29043, which include light
+	  sensor and proximity sensor.
+
 config SENSORS_WM8350
 	tristate "Wolfson Microelectronics WM835x"
 	depends on MFD_WM8350
