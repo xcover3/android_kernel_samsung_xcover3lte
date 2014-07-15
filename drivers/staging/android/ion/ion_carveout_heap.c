@@ -22,6 +22,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#include <linux/dma-contiguous.h>
 #include "ion.h"
 #include "ion_priv.h"
 
@@ -76,10 +77,8 @@ static int ion_carveout_heap_allocate(struct ion_heap *heap,
 {
 	struct sg_table *table;
 	ion_phys_addr_t paddr;
+	struct page *page;
 	int ret;
-
-	if (align > PAGE_SIZE)
-		return -EINVAL;
 
 	table = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 	if (!table)
@@ -90,9 +89,17 @@ static int ion_carveout_heap_allocate(struct ion_heap *heap,
 
 	paddr = ion_carveout_allocate(heap, size, align);
 	if (paddr == ION_CARVEOUT_ALLOCATE_FAIL) {
-		ret = -ENOMEM;
-		goto err_free_table;
-	}
+		page = dma_alloc_from_contiguous(NULL, size >> PAGE_SHIFT,
+				get_order(align));
+		if (!page) {
+			buffer->priv_phys = ION_CARVEOUT_ALLOCATE_FAIL;
+			ret = -ENOMEM;
+			goto err_free_table;
+		}
+		buffer->flags |= ION_FLAG_CMA;
+		paddr = PFN_PHYS(page_to_pfn(page));
+	} else
+		buffer->flags &= ~ION_FLAG_CMA;
 
 	sg_set_page(table->sgl, pfn_to_page(PFN_DOWN(paddr)), size, 0);
 	buffer->priv_virt = table;
@@ -118,8 +125,12 @@ static void ion_carveout_heap_free(struct ion_buffer *buffer)
 	if (ion_buffer_cached(buffer))
 		dma_sync_sg_for_device(NULL, table->sgl, table->nents,
 							DMA_BIDIRECTIONAL);
+	if (buffer->flags & ION_FLAG_CMA)
+		dma_release_from_contiguous(NULL, page,
+			buffer->size >> PAGE_SHIFT);
+	else
+		ion_carveout_free(heap, paddr, buffer->size);
 
-	ion_carveout_free(heap, paddr, buffer->size);
 	sg_free_table(table);
 	kfree(table);
 }
