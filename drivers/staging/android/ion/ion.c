@@ -527,6 +527,18 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 
 	handle = ion_handle_create(client, buffer);
 
+	if (!ion_buffer_cached(buffer)) {
+		struct scatterlist *sg;
+		int i;
+
+		mutex_lock(&buffer->lock);
+		for_each_sg(buffer->sg_table->sgl, sg,
+			buffer->sg_table->nents, i) {
+			dma_sync_sg_for_device(NULL, sg, 1, DMA_BIDIRECTIONAL);
+		}
+		mutex_unlock(&buffer->lock);
+	}
+
 	/*
 	 * ion_buffer_create will create a buffer with a ref_cnt of 1,
 	 * and ion_handle_create will take a second reference, drop one here
