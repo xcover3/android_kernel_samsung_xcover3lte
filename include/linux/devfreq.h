@@ -292,6 +292,19 @@ struct devfreq_throughput_data {
 };
 #endif
 
+/* calculate workload according to busy and total time, unit percent */
+static inline unsigned int cal_workload(unsigned long busy_time,
+	unsigned long total_time)
+{
+	u64 tmp0, tmp1;
+
+	if (!total_time || !busy_time)
+		return 0;
+	tmp0 = busy_time * 100;
+	tmp1 = div_u64(tmp0, total_time);
+	return (unsigned int)tmp1;
+}
+
 #else /* !CONFIG_PM_DEVFREQ */
 static inline struct devfreq *devfreq_add_device(struct device *dev,
 					  struct devfreq_dev_profile *profile,
