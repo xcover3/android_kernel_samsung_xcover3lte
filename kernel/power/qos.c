@@ -29,8 +29,10 @@
 
 /*#define DEBUG*/
 
+#include <linux/debugfs.h>
 #include <linux/pm_qos.h>
 #include <linux/sched.h>
+#include <linux/seq_file.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
 #include <linux/time.h>
@@ -586,6 +588,68 @@ static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
 	return count;
 }
 
+static struct dentry *cpuidle_block_dentry;
+
+/**
+ * cpuidle_block_show - Print information of devices blocking LPM.
+ * @m: seq_file to print the statistics into.
+ */
+
+static int cpuidle_block_show(struct seq_file *m, void *unused)
+{
+	unsigned long flags;
+	struct pm_qos_object *o;
+	struct list_head *list;
+	struct plist_node *node;
+	struct pm_qos_request *req;
+	s32 target_value = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
+
+	o = pm_qos_array[PM_QOS_CPUIDLE_BLOCK];
+	list = &o->constraints->list.node_list;
+
+	rcu_read_lock();
+	spin_lock_irqsave(&pm_qos_lock, flags);
+
+	target_value = pm_qos_read_value(o->constraints);
+	if (target_value != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE) {
+		seq_puts(m, "Can't enter state equals to or deeper than state ");
+		seq_printf(m, "%d\n", target_value);
+		seq_puts(m, "*****Blocking devices*****\n");
+	} else
+		seq_puts(m, "SOC can enter all states\n");
+
+	list_for_each_entry(node, list, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE)
+			seq_printf(m, "state %d:\t%s\n", node->prio, req->name);
+	}
+
+	spin_unlock_irqrestore(&pm_qos_lock, flags);
+	rcu_read_unlock();
+
+	return 0;
+}
+
+static int cpuidle_block_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, cpuidle_block_show, NULL);
+}
+
+const struct file_operations cpuidle_block_stats_fops = {
+	.owner = THIS_MODULE,
+	.open = cpuidle_block_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+};
+
+static int __init cpuidle_block_debugfs_init(void)
+{
+	cpuidle_block_dentry = debugfs_create_file("cpuidle_block_devices",
+			S_IRUGO, NULL, NULL, &cpuidle_block_stats_fops);
+	return 0;
+}
+
+postcore_initcall(cpuidle_block_debugfs_init);
 
 static int __init pm_qos_power_init(void)
 {

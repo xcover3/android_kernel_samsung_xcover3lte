@@ -42,6 +42,7 @@ enum pm_qos_flags_status {
 struct pm_qos_request {
 	struct plist_node node;
 	int pm_qos_class;
+	const char *name;
 	struct delayed_work work; /* for pm_qos_update_request_timeout */
 };
 
