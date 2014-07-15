@@ -1,6 +1,7 @@
 #ifndef	__IRQCHIP_MMP_H
 #define	__IRQCHIP_MMP_H
 
+#define ICU_INT_CONF_SP		(1 << 10)
 #define ICU_INT_CONF_CPU3	(1 << 9)
 #define ICU_INT_CONF_CPU2	(1 << 8)
 #define ICU_INT_CONF_CPU1	(1 << 7)

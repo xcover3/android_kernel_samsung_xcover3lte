@@ -17,8 +17,6 @@ Required properties:
   interrupt source.
 - mrvl,intc-nr-irqs : Specifies the number of interrupts in the interrupt
   controller.
-- mrvl,clr-mfp-irq : Specifies the interrupt that needs to clear MFP edge
-  detection first.
 
 Example:
 	intc: interrupt-controller@d4282000 {

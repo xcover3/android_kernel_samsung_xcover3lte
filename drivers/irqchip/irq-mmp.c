@@ -16,6 +16,8 @@
 #include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
+#include <linux/irqchip/arm-gic.h>
+#include <linux/irqchip/mmp.h>
 #include <linux/io.h>
 #include <linux/ioport.h>
 #include <linux/of_address.h>
@@ -58,8 +60,56 @@ struct mmp_intc_conf {
 static void __iomem *mmp_icu_base;
 static struct icu_chip_data icu_data[MAX_ICU_NR];
 static int max_icu_nr;
+static u32 irq_for_cp[64];
+static u32 irq_for_cp_nr;	/* How many irqs will be routed to cp */
+static u32 irq_for_sp[32];
+static u32 irq_for_sp_nr;	/* How many irqs will be routed to sp */
 
 extern void mmp2_clear_pmic_int(void);
+
+static int irq_ignore_wakeup(struct icu_chip_data *data, int hwirq)
+{
+	int i;
+
+	if (hwirq < 0 || hwirq >= data->nr_irqs)
+		return 1;
+
+	for (i = 0; i < irq_for_cp_nr; i++)
+		if (irq_for_cp[i] == hwirq)
+			return 1;
+
+	return 0;
+}
+
+static void icu_mask_irq_wakeup(struct irq_data *d)
+{
+	struct icu_chip_data *data = &icu_data[0];
+	int hwirq = d->hwirq - data->virq_base;
+	u32 r;
+
+	if (irq_ignore_wakeup(data, hwirq))
+		return;
+
+	r = readl_relaxed(mmp_icu_base + (hwirq << 2));
+	r &= ~data->conf_mask;
+	r |= data->conf_disable;
+	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
+}
+
+static void icu_unmask_irq_wakeup(struct irq_data *d)
+{
+	struct icu_chip_data *data = &icu_data[0];
+	int hwirq = d->irq - data->virq_base;
+	u32 r;
+
+	if (irq_ignore_wakeup(data, hwirq))
+		return;
+
+	r = readl_relaxed(mmp_icu_base + (hwirq << 2));
+	r &= ~data->conf_mask;
+	r |= data->conf_enable;
+	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
+}
 
 static void icu_mask_ack_irq(struct irq_data *d)
 {
@@ -492,4 +542,84 @@ err:
 	return -EINVAL;
 }
 IRQCHIP_DECLARE(mmp2_mux_intc, "mrvl,mmp2-mux-intc", mmp2_mux_of_init);
+
+void __init mmp_of_wakeup_init(void)
+{
+	struct device_node *node;
+	int ret, nr_irqs;
+	int i = 0;
+	int irq;
+
+	node = of_find_compatible_node(NULL, NULL, "mrvl,mmp-intc-wakeupgen");
+	if (!node) {
+		pr_err("Failed to find interrupt controller in arch-mmp\n");
+		return;
+	}
+
+	mmp_icu_base = of_iomap(node, 0);
+	if (!mmp_icu_base) {
+		pr_err("Failed to get interrupt controller register\n");
+		return;
+	}
+
+	ret = of_property_read_u32(node, "mrvl,intc-nr-irqs", &nr_irqs);
+	if (ret) {
+		pr_err("Not found mrvl,intc-nr-irqs property\n");
+		return;
+	}
+
+	/*
+	 * Config all the interrupt source be able to interrupt the cpu 0,
+	 * in IRQ mode, with priority 0 as masked by default.
+	 */
+	for (irq = 0; irq < nr_irqs; irq++)
+		__raw_writel(ICU_IRQ_CPU0_MASKED, mmp_icu_base + (irq << 2));
+
+	/* ICU is only used as wakeup logic,  disable the icu global mask. */
+	i = 0;
+	while (1) {
+		u32 offset, val;
+		if (of_property_read_u32_index(node, "mrvl,intc-gbl-mask",
+						i++, &offset))
+			break;
+		if (of_property_read_u32_index(node, "mrvl,intc-gbl-mask",
+						i++, &val)) {
+			pr_warn("The params should keep pair!!!\n");
+			break;
+		}
+
+		writel_relaxed(val, mmp_icu_base + offset);
+	}
+	/* Get the irq lines for cp */
+	i = 0;
+	while (!of_property_read_u32_index(node, "mrvl,intc-for-cp",
+						i, &irq_for_cp[i])) {
+		writel_relaxed(ICU_INT_CONF_SEAGULL,
+				mmp_icu_base + (irq_for_cp[i] << 2));
+		i++;
+	}
+	irq_for_cp_nr = i;
+	/* Get the irq lines for sp */
+	i = 0;
+	while (!of_property_read_u32_index(node, "mrvl,intc-for-sp",
+					i, &irq_for_sp[i])) {
+		writel_relaxed(ICU_INT_CONF_SP,
+				mmp_icu_base + (irq_for_sp[i] << 2));
+		i++;
+	}
+	irq_for_sp_nr = i;
+	/*
+	 * Othe initilization.
+	 */
+	icu_data[0].conf_enable = mmp_conf.conf_enable;
+	icu_data[0].conf_disable = mmp_conf.conf_disable;
+	icu_data[0].conf_mask = mmp_conf.conf_mask;
+	icu_data[0].nr_irqs = nr_irqs;
+	icu_data[0].virq_base = 32;
+
+	gic_arch_extn.irq_mask = icu_mask_irq_wakeup;
+	gic_arch_extn.irq_unmask = icu_unmask_irq_wakeup;
+
+	return;
+}
 #endif

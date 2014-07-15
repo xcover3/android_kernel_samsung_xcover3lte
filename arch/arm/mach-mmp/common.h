@@ -6,3 +6,4 @@ extern void mmp_restart(enum reboot_mode, const char *);
 extern void __init pxa168_clk_init(void);
 extern void __init pxa910_clk_init(void);
 extern void __init mmp2_clk_init(void);
+extern void __init mmp_of_wakeup_init(void);
