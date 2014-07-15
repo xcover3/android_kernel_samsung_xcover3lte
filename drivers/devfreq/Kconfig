@@ -98,4 +98,11 @@ config ARM_EXYNOS5_BUS_DEVFREQ
 	  It reads PPMU counters of memory controllers and adjusts the
 	  operating frequencies and voltages with OPP support.
 
+config DDR_DEVFREQ
+	bool "DDR devfreq driver support"
+	help
+	  This adds the DEVFREQ driver for McKinley DDR memory bus. It reads
+	  performance counters of memory controller and adjusts the DDR
+	  frequencies.
+
 endif # PM_DEVFREQ
