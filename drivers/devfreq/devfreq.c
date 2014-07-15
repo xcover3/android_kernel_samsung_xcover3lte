@@ -969,6 +969,11 @@ static ssize_t min_freq_store(struct device *dev, struct device_attribute *attr,
 		goto unlock;
 	}
 
+	if (df->min_freq == value) {
+		ret = count;
+		goto unlock;
+	}
+
 	df->min_freq = value;
 	update_devfreq(df);
 	ret = count;
@@ -999,6 +1004,11 @@ static ssize_t max_freq_store(struct device *dev, struct device_attribute *attr,
 	min = df->min_freq;
 	if (value && min && value < min) {
 		ret = -EINVAL;
+		goto unlock;
+	}
+
+	if (df->max_freq == value) {
+		ret = count;
 		goto unlock;
 	}
 
