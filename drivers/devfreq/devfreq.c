@@ -169,20 +169,20 @@ int update_devfreq(struct devfreq *devfreq)
 
 	/*
 	 * Adjust the freuqency with user freq and QoS.
-	 *
-	 * List from the highest proiority
-	 * max_freq (probably called by thermal when it's too hot)
-	 * min_freq
+	 * min_freq and qos_min have lower priority than max_freq and qos_max
 	 */
+	if (devfreq->profile->min_qos_type)
+		freq = max(freq, devfreq->qos_min_freq);
+	freq = max(freq, devfreq->min_freq);
+	if (devfreq->profile->max_qos_type)
+		freq = min(freq, devfreq->qos_max_freq);
+	freq = min(freq, devfreq->max_freq);
 
-	if (devfreq->min_freq && freq < devfreq->min_freq) {
-		freq = devfreq->min_freq;
-		flags &= ~DEVFREQ_FLAG_LEAST_UPPER_BOUND; /* Use GLB */
-	}
-	if (devfreq->max_freq && freq > devfreq->max_freq) {
-		freq = devfreq->max_freq;
+	if ((devfreq->profile->max_qos_type && (freq == devfreq->qos_max_freq))
+	   || (freq == devfreq->max_freq))
 		flags |= DEVFREQ_FLAG_LEAST_UPPER_BOUND; /* Use LUB */
-	}
+	else
+		flags &= ~DEVFREQ_FLAG_LEAST_UPPER_BOUND; /* Use GLB */
 
 	err = devfreq->profile->target(devfreq->dev.parent, &freq, flags);
 	if (err)
@@ -381,6 +381,76 @@ static int devfreq_notifier_call(struct notifier_block *nb, unsigned long type,
 }
 
 /**
+ * devfreq_qos_notifier_call() - It is called when kernel driver
+ * has constraints
+ */
+static int devfreq_qos_min_notifier_call(struct notifier_block *nb,
+					 unsigned long value, void *devp)
+{
+	struct devfreq *devfreq = container_of(nb, struct devfreq, qos_min_nb);
+	int default_value = PM_QOS_DEFAULT_VALUE, ret, i;
+	unsigned int *freq_tbl = devfreq->profile->freq_table;
+	unsigned int tbl_len = devfreq->profile->max_state;
+
+	mutex_lock(&devfreq->lock);
+
+	if (value == default_value) {
+		devfreq->qos_min_freq = freq_tbl[0];
+		goto update;
+	}
+
+	for (i = 0; i < tbl_len; i++) {
+		if (freq_tbl[i] >= value) {
+			devfreq->qos_min_freq = freq_tbl[i];
+			goto update;
+		}
+	}
+
+	if (i == tbl_len)
+		devfreq->qos_min_freq = freq_tbl[tbl_len - 1];
+update:
+	ret = update_devfreq(devfreq);
+	mutex_unlock(&devfreq->lock);
+
+	return ret;
+}
+
+/**
+ * devfreq_qos_max_notifier_call() - It is called when kernel driver
+ * has constraints
+ */
+static int devfreq_qos_max_notifier_call(struct notifier_block *nb,
+					unsigned long value, void *devp)
+{
+	struct devfreq *devfreq = container_of(nb, struct devfreq, qos_max_nb);
+	int default_value = PM_QOS_DEFAULT_VALUE, ret, i;
+	unsigned int *freq_tbl = devfreq->profile->freq_table;
+	unsigned int tbl_len = devfreq->profile->max_state;
+
+	mutex_lock(&devfreq->lock);
+
+	if (value == default_value) {
+		devfreq->qos_max_freq = freq_tbl[tbl_len - 1];
+		goto update;
+	}
+
+	for (i = tbl_len - 1; i >= 0; i--) {
+		if (freq_tbl[i] <= value) {
+			devfreq->qos_max_freq = freq_tbl[i];
+			goto update;
+		}
+	}
+
+	if (i < 0)
+		devfreq->qos_max_freq = freq_tbl[0];
+update:
+	ret = update_devfreq(devfreq);
+	mutex_unlock(&devfreq->lock);
+
+	return ret;
+}
+
+/**
  * _remove_devfreq() - Remove devfreq from the list and release its resources.
  * @devfreq:	the devfreq struct
  * @skip:	skip calling device_unregister().
@@ -443,6 +513,7 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	struct devfreq *devfreq;
 	struct devfreq_governor *governor;
 	int err = 0;
+	int i = 0;
 
 	if (!dev || !profile || !governor_name) {
 		dev_err(dev, "%s: Invalid parameters.\n", __func__);
@@ -476,6 +547,8 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	devfreq->previous_freq = profile->initial_freq;
 	devfreq->data = data;
 	devfreq->nb.notifier_call = devfreq_notifier_call;
+	devfreq->qos_min_nb.notifier_call = devfreq_qos_min_notifier_call;
+	devfreq->qos_max_nb.notifier_call = devfreq_qos_max_notifier_call;
 
 	devfreq->trans_table =	devm_kzalloc(dev, sizeof(unsigned int) *
 						devfreq->profile->max_state *
@@ -491,10 +564,45 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	if (err) {
 		put_device(&devfreq->dev);
 		mutex_unlock(&devfreq->lock);
-		goto err_dev;
+		goto err_qos_add;
 	}
 
 	mutex_unlock(&devfreq->lock);
+
+	/* Check the sanity of freq list */
+	if (profile->max_state) {
+		for (i = 1; i < profile->max_state; i++) {
+			if (WARN(profile->freq_table[i] <=
+				 profile->freq_table[i - 1],
+				"%s's freq not sorted in the "
+				"ascending order. ([%d]=%u, [%d]=%u)\n",
+				dev_name(dev), i - 1,
+				profile->freq_table[i - 1], i,
+				profile->freq_table[i])) {
+				err = -EINVAL;
+				goto err_dev;
+			}
+		}
+		if (profile->min_qos_type) {
+			pm_qos_add_notifier(profile->min_qos_type,
+					    &devfreq->qos_min_nb);
+			profile->qos_req_min.name = "userspace";
+			/* Must be out of devfreq->lock
+			 or qos notify will cause deadlock */
+			pm_qos_add_request(&profile->qos_req_min,
+				profile->min_qos_type, profile->freq_table[0]);
+		}
+		if (profile->max_qos_type) {
+			pm_qos_add_notifier(profile->max_qos_type,
+					    &devfreq->qos_max_nb);
+			profile->qos_req_max.name = "userspace";
+			/* Must be out of devfreq->lock
+			 or qos notify will cause deadlock */
+			pm_qos_add_request(&profile->qos_req_max,
+				profile->max_qos_type,
+				profile->freq_table[profile->max_state - 1]);
+		}
+	}
 
 	mutex_lock(&devfreq_list_lock);
 	list_add(&devfreq->node, &devfreq_list);
@@ -517,6 +625,13 @@ struct devfreq *devfreq_add_device(struct device *dev,
 err_init:
 	list_del(&devfreq->node);
 	device_unregister(&devfreq->dev);
+err_qos_add:
+	if (profile->min_qos_type)
+		pm_qos_remove_notifier(profile->min_qos_type,
+				       &devfreq->qos_min_nb);
+	if (profile->max_qos_type)
+		pm_qos_remove_notifier(profile->max_qos_type,
+				       &devfreq->qos_max_nb);
 err_dev:
 	kfree(devfreq);
 err_out:
@@ -534,6 +649,13 @@ int devfreq_remove_device(struct devfreq *devfreq)
 {
 	if (!devfreq)
 		return -EINVAL;
+
+	if (devfreq->profile->min_qos_type)
+		pm_qos_remove_notifier(devfreq->profile->min_qos_type,
+				       &devfreq->qos_min_nb);
+	if (devfreq->profile->max_qos_type)
+		pm_qos_remove_notifier(devfreq->profile->max_qos_type,
+				       &devfreq->qos_max_nb);
 
 	_remove_devfreq(devfreq, false);
 
@@ -970,6 +1092,88 @@ static ssize_t trans_stat_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(trans_stat);
 
+static ssize_t qos_min_freq_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	if (to_devfreq(dev)->profile->min_qos_type)
+		return sprintf(buf, "%lu\n", to_devfreq(dev)->qos_min_freq);
+	else
+		return sprintf(buf, "Qos_min_freq Unsupport!!\n");
+}
+
+static ssize_t qos_min_freq_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct devfreq *df = to_devfreq(dev);
+	struct devfreq_dev_profile *profile = df->profile;
+	unsigned long min_freq, temp = 0;
+	int i, ret;
+
+	ret = sscanf(buf, "%lu", &min_freq);
+	if (ret != 1) {
+		dev_err(dev, "<ERR> wrong parameter");
+		dev_err(dev, "echo freq(Khz) > qos_min_freq to set min qos rate\n");
+		dev_err(dev, "For example: echo 312000 > min_qos_freq\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < profile->max_state; i++)
+		if (profile->freq_table[i] >= min_freq) {
+			temp = profile->freq_table[i];
+			break;
+		}
+	if (i == profile->max_state)
+		temp = profile->freq_table[profile->max_state - 1];
+
+	pm_qos_update_request(&profile->qos_req_min, temp);
+
+	return count;
+}
+static DEVICE_ATTR_RW(qos_min_freq);
+
+static ssize_t qos_max_freq_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	if (to_devfreq(dev)->profile->max_qos_type)
+		return sprintf(buf, "%lu\n", to_devfreq(dev)->qos_max_freq);
+	else
+		return sprintf(buf, "Qos_max_freq Unsupport!!\n");
+}
+
+static ssize_t qos_max_freq_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct devfreq *df = to_devfreq(dev);
+	struct devfreq_dev_profile *profile = df->profile;
+	unsigned long max_freq, temp = INT_MAX;
+	int i, ret;
+
+	ret = sscanf(buf, "%lu", &max_freq);
+	if (ret != 1) {
+		dev_err(dev, "<ERR> wrong parameter");
+		dev_err(dev, "echo freq(Khz) > qos_max_freq to set max qos rate\n");
+		dev_err(dev, "For example: echo 312000 > max_qos_freq\n");
+		return -EINVAL;
+	}
+
+	for (i = profile->max_state - 1; i >= 0; i--)
+		if (profile->freq_table[i] <= max_freq) {
+			temp = profile->freq_table[i];
+			break;
+		}
+	if (i < 0)
+		temp = profile->freq_table[0];
+
+	pm_qos_update_request(&profile->qos_req_max, temp);
+
+	return count;
+}
+static DEVICE_ATTR_RW(qos_max_freq);
+
 static struct attribute *devfreq_attrs[] = {
 	&dev_attr_governor.attr,
 	&dev_attr_available_governors.attr,
@@ -980,6 +1184,8 @@ static struct attribute *devfreq_attrs[] = {
 	&dev_attr_min_freq.attr,
 	&dev_attr_max_freq.attr,
 	&dev_attr_trans_stat.attr,
+	&dev_attr_qos_min_freq.attr,
+	&dev_attr_qos_max_freq.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(devfreq);
