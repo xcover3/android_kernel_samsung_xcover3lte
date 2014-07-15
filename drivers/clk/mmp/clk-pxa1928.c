@@ -37,6 +37,8 @@
 #define APMU_SDH3		0xec
 #define APMU_SDH4		0x15c
 #define APMU_USB		0x5c
+#define APMU_APDBG		0x340
+#define APMU_AP_DEBUG1		0x38c
 
 /* PLL2~PLL7 related */
 #define POSR_PLL2_LOCK		(1 << 29)
@@ -369,6 +371,25 @@ static DEFINE_SPINLOCK(uart2_lock);
 static DEFINE_SPINLOCK(uart3_lock);
 static const char *uart_parent_names[] = {"uart_pll", "vctcxo"};
 
+#ifdef CONFIG_CORESIGHT_SUPPORT
+static void pxa1928_coresight_clk_init(struct pxa1928_clk_unit *pxa_unit)
+{
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
+	struct clk *clk;
+
+	clk = mmp_clk_register_gate(NULL, "DBGCLK", "pll1_624", 0,
+				pxa_unit->apmu_base + APMU_APDBG,
+				0x10, 0x10, 0x0, 0, NULL);
+	mmp_clk_add(unit, PXA1928_CLK_DBGCLK, clk);
+
+	/* TMC clock */
+	clk = mmp_clk_register_gate(NULL, "TRACECLK", "DBGCLK", 0,
+				pxa_unit->apmu_base + APMU_AP_DEBUG1,
+				(1 << 25), (1 << 25), 0x0, 0, NULL);
+	mmp_clk_add(unit, PXA1928_CLK_TRACECLK, clk);
+}
+#endif
+
 static void pxa1928_apb_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -420,6 +441,10 @@ static void pxa1928_apb_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apbc_base + APBC_UART3,
 				0x7, 0x3, 0x0, 0, &uart3_lock);
 	mmp_clk_add(unit, PXA1928_CLK_UART3, clk);
+
+#ifdef CONFIG_CORESIGHT_SUPPORT
+	pxa1928_coresight_clk_init(pxa_unit);
+#endif
 }
 
 static DEFINE_SPINLOCK(sdh0_lock);
