@@ -105,4 +105,10 @@ config DDR_DEVFREQ
 	  performance counters of memory controller and adjusts the DDR
 	  frequencies.
 
+config VPU_DEVFREQ
+	bool "VPU devfreq driver support"
+	help
+	  This adds the DEVFREQ driver for Marvell Soc's VPU.
+	  It supports several governors, including simple-ondemand governor.
+
 endif # PM_DEVFREQ

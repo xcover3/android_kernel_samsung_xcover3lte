@@ -8,4 +8,5 @@ obj-$(CONFIG_DEVFREQ_GOV_THROUGHPUT)    += governor_throughput.o
 # DEVFREQ Drivers
 obj-$(CONFIG_ARM_EXYNOS4_BUS_DEVFREQ)	+= exynos/
 obj-$(CONFIG_ARM_EXYNOS5_BUS_DEVFREQ)	+= exynos/
+obj-$(CONFIG_VPU_DEVFREQ)	+= devfreq-vpu.o
 obj-$(CONFIG_DDR_DEVFREQ)       += mck_memorybus.o
