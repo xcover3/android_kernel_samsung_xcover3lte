@@ -1174,18 +1174,18 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	if (ret > 0)
 		ret = i2c_pxa_probe_pdata(dev, i2c, &i2c_type);
 	if (ret < 0)
-		goto eclk;
+		goto eres;
 
 	res = platform_get_resource(dev, IORESOURCE_MEM, 0);
 	irq = platform_get_irq(dev, 0);
 	if (res == NULL || irq < 0) {
 		ret = -ENODEV;
-		goto eclk;
+		goto eres;
 	}
 
 	if (!request_mem_region(res->start, resource_size(res), res->name)) {
 		ret = -ENOMEM;
-		goto eclk;
+		goto eres;
 	}
 
 	i2c->adap.owner   = THIS_MODULE;
@@ -1293,9 +1293,10 @@ ereqirq:
 eremap:
 	clk_put(i2c->clk);
 eclk:
+	release_mem_region(res->start, resource_size(res));
+eres:
 	kfree(i2c);
 emalloc:
-	release_mem_region(res->start, resource_size(res));
 	return ret;
 }
 
