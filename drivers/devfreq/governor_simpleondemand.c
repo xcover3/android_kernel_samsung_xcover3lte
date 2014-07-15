@@ -29,8 +29,14 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 	struct devfreq_simple_ondemand_data *data = df->data;
 	unsigned long max = (df->max_freq) ? df->max_freq : UINT_MAX;
 
-	if (err)
-		return err;
+	if (err) {
+		/* Used to represent ignoring the profiling result */
+		if (err == -EINVAL) {
+			*freq = stat.current_frequency;
+			return 0;
+		} else
+			return err;
+	}
 
 	if (data) {
 		if (data->upthreshold)
