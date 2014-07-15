@@ -9,6 +9,7 @@
 
 #include "clk.h"
 #include "clk-pll-pxa1928.h"
+#include "clk-core-pxa1928.h"
 
 #define APBC_RTC		0x0
 #define APBC_TWSI0		0x4
@@ -326,6 +327,23 @@ static void pxa1928_pll_init(struct pxa1928_clk_unit *pxa_unit)
 	}
 }
 
+static void pxa1928_acpu_init(struct pxa1928_clk_unit *pxa_unit)
+{
+	void __iomem *ddrdfc_base;
+
+	ddrdfc_base = ioremap(0xd4282600, SZ_512);
+	if (ddrdfc_base == NULL) {
+		pr_err("error to ioremap ddfdfc base\n");
+		return;
+	}
+
+	pxa1928_core_clk_init(pxa_unit->apmu_base);
+	pxa1928_axi_clk_init(pxa_unit->apmu_base);
+	pxa1928_axi11_clk_init(pxa_unit->apmu_base);
+	pxa1928_ddr_clk_init(pxa_unit->apmu_base,
+		ddrdfc_base, pxa_unit->ciu_base);
+}
+
 static struct mmp_param_gate_clk apbc_gate_clks[] = {
 	{PXA1928_CLK_TWSI0, "twsi0_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_TWSI0, 0x7, 0x3, 0x0, 0, NULL},
 	{PXA1928_CLK_TWSI1, "twsi1_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_TWSI1, 0x7, 0x3, 0x0, 0, NULL},
@@ -479,6 +497,8 @@ static void __init pxa1928_clk_init(struct device_node *np)
 	mmp_clk_init(np, &pxa_unit->unit, PXA1928_NR_CLKS);
 
 	pxa1928_pll_init(pxa_unit);
+
+	pxa1928_acpu_init(pxa_unit);
 
 	pxa1928_apb_periph_clk_init(pxa_unit);
 
