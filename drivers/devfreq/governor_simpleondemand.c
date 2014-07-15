@@ -18,6 +18,7 @@
 /* Default constants for DevFreq-Simple-Ondemand (DFSO) */
 #define DFSO_UPTHRESHOLD	(90)
 #define DFSO_DOWNDIFFERENCTIAL	(5)
+#define DFSO_MAX_UPTHRESHOLD	(100)
 static int devfreq_simple_ondemand_func(struct devfreq *df,
 					unsigned long *freq)
 {
@@ -96,16 +97,118 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 	return 0;
 }
 
+static ssize_t upthreshold_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct devfreq *devfreq = to_devfreq(dev);
+	struct devfreq_simple_ondemand_data *data;
+	int rc = 0;
+
+	mutex_lock(&devfreq->lock);
+	data = devfreq->data;
+	rc = sprintf(buf, "%u\n", data->upthreshold);
+	mutex_unlock(&devfreq->lock);
+
+	return rc;
+}
+
+static ssize_t upthreshold_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct devfreq *devfreq = to_devfreq(dev);
+	struct devfreq_simple_ondemand_data *data;
+	int ret;
+	unsigned int input;
+
+	mutex_lock(&devfreq->lock);
+	data = devfreq->data;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1 || input > DFSO_MAX_UPTHRESHOLD ||
+			input <= data->downdifferential) {
+		mutex_unlock(&devfreq->lock);
+		return -EINVAL;
+	}
+	data->upthreshold = input;
+	mutex_unlock(&devfreq->lock);
+
+	return count;
+}
+static DEVICE_ATTR_RW(upthreshold);
+
+static ssize_t downdifferential_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct devfreq *devfreq = to_devfreq(dev);
+	struct devfreq_simple_ondemand_data *data;
+	int rc = 0;
+
+	mutex_lock(&devfreq->lock);
+	data = devfreq->data;
+	rc = sprintf(buf, "%u\n", data->downdifferential);
+	mutex_unlock(&devfreq->lock);
+	return rc;
+}
+
+static ssize_t downdifferential_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct devfreq *devfreq = to_devfreq(dev);
+	struct devfreq_simple_ondemand_data *data;
+	int ret;
+	unsigned int input;
+
+	mutex_lock(&devfreq->lock);
+	data = devfreq->data;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1 || input > data->upthreshold) {
+		mutex_unlock(&devfreq->lock);
+		return -EINVAL;
+	}
+	data->downdifferential = input;
+	mutex_unlock(&devfreq->lock);
+
+	return count;
+}
+static DEVICE_ATTR_RW(downdifferential);
+
+static struct attribute *dev_entries[] = {
+	&dev_attr_upthreshold.attr,
+	&dev_attr_downdifferential.attr,
+	NULL,
+};
+
+static struct attribute_group simpondemand_attributes = {
+	.name	= "ondemand",
+	.attrs	= dev_entries,
+};
+
+static int devfreq_simpleondemand_init(struct devfreq *devfreq)
+{
+	return sysfs_create_group(&devfreq->dev.kobj,
+			&simpondemand_attributes);
+}
+
+static void devfreq_simpleondemand_exit(struct devfreq *devfreq)
+{
+	sysfs_remove_group(&devfreq->dev.kobj, &simpondemand_attributes);
+}
+
 static int devfreq_simple_ondemand_handler(struct devfreq *devfreq,
 				unsigned int event, void *data)
 {
 	switch (event) {
 	case DEVFREQ_GOV_START:
 		devfreq_monitor_start(devfreq);
+		devfreq_simpleondemand_init(devfreq);
 		break;
 
 	case DEVFREQ_GOV_STOP:
 		devfreq_monitor_stop(devfreq);
+		devfreq_simpleondemand_exit(devfreq);
 		break;
 
 	case DEVFREQ_GOV_INTERVAL:
