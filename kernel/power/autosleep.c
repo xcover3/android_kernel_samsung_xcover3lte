@@ -103,6 +103,7 @@ int pm_autosleep_set_state(suspend_state_t state)
 	__pm_relax(autosleep_ws);
 
 	if (state > PM_SUSPEND_ON) {
+		print_active_wakeup_events();
 		pm_wakep_autosleep_enabled(true);
 		queue_up_suspend_work();
 	} else {
