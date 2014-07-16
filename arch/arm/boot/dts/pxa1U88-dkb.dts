@@ -153,7 +153,7 @@
 
 				pmic0: 88pm822@30 {
 					reg = <0x30>;
-					interrupts = <0 4 IRQ_TYPE_EDGE_FALLING>;
+					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
 					interrupt-parent = <&gic>;
 					/* TODO: move this part out */
 					dvc {
