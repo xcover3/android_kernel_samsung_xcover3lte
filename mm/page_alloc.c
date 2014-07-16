@@ -987,7 +987,7 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
 static inline
 struct page *__rmqueue_highest_cma(struct zone *zone, unsigned int order)
 {
-	unsigned int cur_order, sel_order;
+	unsigned int cur_order, sel_order = order;
 	struct free_area *area, *sel_area = NULL;
 	struct page *page, *sel_page = NULL;
 
@@ -1177,6 +1177,26 @@ static int try_to_steal_freepages(struct zone *zone, struct page *page,
 	return fallback_type;
 }
 
+#ifdef CONFIG_CMA
+int cma_balance_ratio = 50;
+static struct page *__rmqueue_cma_balance(struct zone *zone,
+	unsigned int order, int migratetype)
+{
+	unsigned long nr_free_pages, nr_free_cma_pages;
+
+	if (migratetype != MIGRATE_MOVABLE)
+		return NULL;
+
+	nr_free_pages = global_page_state(NR_FREE_PAGES);
+	nr_free_cma_pages = global_page_state(NR_FREE_CMA_PAGES);
+
+	if ((nr_free_pages * cma_balance_ratio) > (nr_free_cma_pages * 100))
+		return NULL;
+
+	return __rmqueue_highest_cma(zone, order);
+}
+#endif
+
 /* Remove an element from the buddy allocator from the fallback list */
 static inline struct page *
 __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
@@ -1187,7 +1207,8 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 	int migratetype, new_type, i;
 
 #ifdef CONFIG_CMA
-	if (cma_available && (start_migratetype == MIGRATE_MOVABLE)) {
+	if (cma_available && (!cma_balance_ratio) &&
+			(start_migratetype == MIGRATE_MOVABLE)) {
 		page = __rmqueue_highest_cma(zone, order);
 		if (page)
 			return page;
@@ -1240,10 +1261,15 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 static struct page *__rmqueue(struct zone *zone, unsigned int order,
 						int migratetype)
 {
-	struct page *page;
+	struct page *page = NULL;
 
 retry_reserve:
-	page = __rmqueue_smallest(zone, order, migratetype);
+#ifdef CONFIG_CMA
+	if (cma_available && cma_balance_ratio)
+		page = __rmqueue_cma_balance(zone, order, migratetype);
+	if (!page)
+#endif
+		page = __rmqueue_smallest(zone, order, migratetype);
 
 	if (unlikely(!page) && migratetype != MIGRATE_RESERVE) {
 		page = __rmqueue_fallback(zone, order, migratetype);
