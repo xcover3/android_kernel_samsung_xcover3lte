@@ -273,6 +273,9 @@
 				 */
 				marvell,i2c-ilcr = <0x82c469f>;
 				marvell,i2c-iwcr = <0x142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
 				status = "disabled";
 			};
 
@@ -287,6 +290,8 @@
 				mrvl,i2c-fast-mode;
 				marvell,i2c-ilcr = <0x82c469f>;
 				marvell,i2c-iwcr = <0x142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
 
 				status = "disabled";
 			};
@@ -325,6 +330,9 @@
 				 */
 				marvell,i2c-ilcr = <0x82c469f>;
 				marvell,i2c-iwcr = <0x142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
 				status = "disabled";
 			};
 		};
