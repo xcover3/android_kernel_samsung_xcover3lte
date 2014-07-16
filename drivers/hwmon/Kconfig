@@ -1605,6 +1605,17 @@ config SENSORS_GRIP
 	  SAR or grip sensor work as an input device in this driver,
 	  like a gpio input device.
 
+config SENSORS_STK3X1X
+	bool "SensorTek stk3x1x"
+	depends on I2C
+	default n
+	help
+	Say Y here if you have a stk3x1x sensor.
+	If unsure, say N.
+
+	Stk3x1x is a light and proximity sensor.
+	Config dts is also needed.
+
 if ACPI
 
 comment "ACPI drivers"
