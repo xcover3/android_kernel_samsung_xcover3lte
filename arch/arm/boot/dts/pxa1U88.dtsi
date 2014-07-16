@@ -74,6 +74,14 @@
 		interrupt-parent = <&gic>;
 		ranges;
 
+		devfreq-ddr {  /* DDR memory controller */
+			compatible = "marvell,devfreq-ddr";
+			reg = <0xc0100000 0x880>;
+			interrupts = <0 43 0x4>;
+			clocks = <&soc_clocks PXA1U88_CLK_DDR>;
+			marvell,qos;
+		};
+
 		sram: sram@0xd1004000 {
 			compatible = "mmio-sram";
 			reg = <0xd1004000 0xaa00>;
