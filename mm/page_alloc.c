@@ -1008,10 +1008,27 @@ struct page *__rmqueue_highest_cma(struct zone *zone, unsigned int order)
 	}
 
 	if (sel_page) {
+		unsigned long size = 1 << sel_order;
+		unsigned long offset = 0;
+
 		list_del(&sel_page->lru);
 		rmv_page_order(sel_page);
 		sel_area->nr_free--;
-		expand(zone, sel_page, order, sel_order, sel_area, MIGRATE_CMA);
+
+		while (sel_order > order) {
+			sel_area--;
+			sel_order--;
+
+			list_add_cma(&sel_page[offset].lru,
+				&sel_area->free_list[MIGRATE_CMA]);
+			sel_area->nr_free++;
+			set_page_order(&sel_page[offset], sel_order);
+
+			size >>= 1;
+			offset += size;
+		}
+
+		sel_page = &sel_page[offset];
 	}
 
 	return sel_page;
