@@ -162,6 +162,14 @@ struct shm_skctl {
 	/* dvc voltage table number */
 	volatile unsigned int dvc_vol_tbl_num;
 	volatile unsigned int dvc_vol_tbl[16];
+
+#define VERSION_MAGIC_FLAG 0x56455253
+#define VERSION_NUMBER_FLAG 0x1
+	volatile unsigned int version_magic;
+	volatile unsigned int version_number;
+
+	volatile unsigned int dfc_dclk_num;
+	volatile unsigned int dfc_dclk[16];
 };
 
 /* share memory socket header structure */

@@ -1215,7 +1215,7 @@ fail:
 
 	return result;
 }
-
+#if 0
 static void read_mv_profile(void)
 {
 	struct device_node *node;
@@ -1255,7 +1255,32 @@ static void read_dvc_table(void)
 	}
 	return;
 }
+#endif
+static void set_version_numb(void)
+{
+	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
 
+	skctl_va->version_magic = VERSION_MAGIC_FLAG;
+	skctl_va->version_number = VERSION_NUMBER_FLAG;
+	return;
+}
+#if 0
+static void read_dfc_table(void)
+{
+	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
+	struct pxa1928_ddr_opt *tbl;
+	int len = 0, i = 0;
+
+	get_dfc_tables(CIU_VIR_BASE, &tbl, &len);
+	BUG_ON(len > (sizeof(skctl_va->dfc_dclk) / sizeof(skctl_va->dfc_dclk[0])));
+	skctl_va->dfc_dclk_num = len;
+	for (i = 0; i < len; i++) {
+		skctl_va->dfc_dclk[i] = tbl[i].dclk;
+		pr_info("skctl_va->dfc_dclk[%d] = %u\n", i, skctl_va->dfc_dclk[i]);
+	}
+	return;
+}
+#endif
 static int reboot_notifier_func(struct notifier_block *this,
 	unsigned long code, void *cmd)
 {
@@ -1327,8 +1352,12 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 		goto acipc_err;
 	}
 
+	set_version_numb();
+#if 0
 	read_mv_profile();
 	read_dvc_table();
+	read_dfc_table();
+#endif
 	/* start msocket peer sync */
 	msocket_connect(portq_grp_cp_main);
 

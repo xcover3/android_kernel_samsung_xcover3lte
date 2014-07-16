@@ -21,6 +21,9 @@
 #define MSOCKET_H_
 
 #include <linux/skbuff.h>
+#if 0
+#include <linux/platform_data/mmp_ddr_tbl.h>
+#endif
 #include "pxa_cp_load_ioctl.h"
 #include "shm.h"
 
@@ -75,8 +78,11 @@ extern int msendskb(int sock, struct sk_buff *skb, int len, int flags);
 extern struct sk_buff *mrecvskb(int sock, int len, int flags);
 extern void data_dump(const unsigned char *data, unsigned int len, int port,
 		      int direction);
+#if 0
 extern int get_voltage_table_for_cp(unsigned int *dvc_voltage_tbl,
 				unsigned int *level_num);
+extern void get_dfc_tables(void __iomem *ciu_base, struct pxa1928_ddr_opt **tbl, int *len);
+#endif
 /* designed for future use, not used here */
 /*
  * extern void msched_work(struct work_struct *work);
