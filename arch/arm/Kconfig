@@ -1391,6 +1391,21 @@ config ARM_ERRATA_773022
 	  loop buffer may deliver incorrect instructions. This
 	  workaround disables the loop buffer to avoid the erratum.
 
+config ARM_ERRATA_802022
+	bool "ARM errata: last duplicate tag may become un-sync with L1 tag after exiting MP shutdown mode"
+	depends on CPU_V7 && !ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+	 This option enables the fix for erratum 802022 affecting
+	 Cortex-A7 MPCore r0p0, r0p1, r0p2, r0p3, r0p4. A duplicate tag
+	 update for CPU A gets priority over the last duplicate tag
+	 invalidate for CPU B during CPU B's automatic invalidation process.
+	 Normally CPU B's tag invalidation will pause and then continue,
+	 but for the last tag entry it will pause and then forget it was
+	 invalidating entries because the index counter has reached the
+	 maximum value.
+	 This fix to make sure all CPUs exit shutdown mode when
+	 exit MP shutdown mode before dcache of any core is enabled.
+
 config ARM_ERRATA_814220
 	bool "ARM errata: Cache maintenance by set/way operations can execute out of order"
 	depends on CPU_V7
