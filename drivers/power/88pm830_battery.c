@@ -226,7 +226,7 @@ static int pm830_gp0_bias_set(struct pm830_battery_info *info, int bias)
 {
 	int data, ret;
 
-	dev_dbg(info->dev, "%s: set bias to %d\n", __func__, info->gp0_bias_curr[bias]);
+	dev_info(info->dev, "%s: set bias to %d\n", __func__, info->gp0_bias_curr[bias]);
 
 	data = BIAS_GP0_SET(info->gp0_bias_curr[bias]);
 	ret = regmap_update_bits(info->chip->regmap, PM830_GPADC0_BIAS, BIAS_GP0_MASK, data);
@@ -268,7 +268,8 @@ static int pm830_get_batt_temp(struct pm830_battery_info *info, int *data)
 	if (i == NTC_TABLE_SIZE)
 		temp = info->ntc_table[info->bias][NTC_TABLE_SIZE - 1].temp;
 
-	dev_dbg(info->dev, "temp_C:%dC, NTC voltage: %d\n", temp, voltage);
+	dev_dbg(info->dev, "temp_C=%dC, NTC_voltage=%d, bias=%d\n",
+		temp, voltage, info->gp0_bias_curr[info->bias]);
 
 	*data = temp;
 	return ret;
@@ -335,8 +336,10 @@ static int pm830_handle_tbat(struct pm830_battery_info *info)
 	}
 
 	/* bias current changed, read battery temperature again */
-	if (old_bias != info->bias)
+	if (old_bias != info->bias) {
+		msleep(20);
 		pm830_get_batt_temp(info, &temp);
+	}
 
 	/* get battery health status according to battery temp */
 	if (temp < info->tbat_thr[0]) {
@@ -423,13 +426,21 @@ static int pm830_handle_tbat(struct pm830_battery_info *info)
 	return 0;
 }
 
+static void pm830_tbat_work(struct work_struct *work)
+{
+	struct pm830_battery_info *info =
+		container_of(work, struct pm830_battery_info, tbat_work);
+
+	pm830_handle_tbat(info);
+	power_supply_changed(&info->battery);
+}
+
 static irqreturn_t pm830_tbat_handler(int irq, void *data)
 {
 	struct pm830_battery_info *info = data;
 
 	dev_dbg(info->chip->dev, "%s: Temperature event\n", __func__);
-	pm830_handle_tbat(info);
-	power_supply_changed(&info->battery);
+	queue_work(info->bat_wqueue, &info->tbat_work);
 
 	return IRQ_HANDLED;
 }
@@ -1557,6 +1568,7 @@ static int pm830_battery_probe(struct platform_device *pdev)
 	INIT_DEFERRABLE_WORK(&info->monitor_work, pm830_battery_work);
 	INIT_DELAYED_WORK(&info->charged_work, pm830_charged_work);
 	INIT_DELAYED_WORK(&info->cc_work, pm830_cc_work);
+	INIT_WORK(&info->tbat_work, pm830_tbat_work);
 	queue_delayed_work(info->bat_wqueue, &info->cc_work, 5 * HZ);
 	queue_delayed_work(info->bat_wqueue, &info->monitor_work, HZ);
 

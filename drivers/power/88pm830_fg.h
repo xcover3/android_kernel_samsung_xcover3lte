@@ -45,6 +45,7 @@ struct pm830_battery_info {
 	struct delayed_work	monitor_work;
 	struct delayed_work	charged_work;
 	struct delayed_work	cc_work; /* cc_work for sigma-delta offset compensation */
+	struct work_struct	tbat_work;
 	struct workqueue_struct *bat_wqueue;
 	atomic_t		cc_done;
 
