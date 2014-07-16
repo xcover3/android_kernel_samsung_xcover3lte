@@ -177,6 +177,8 @@ struct pxa_i2c {
 	unsigned int		fast_mode :1;
 	unsigned int		high_mode:1;
 	unsigned int		always_on:1;
+	unsigned int		enable_bus_rst:1;
+	unsigned int		gpio_bus_rst:1;
 	/* pins configration may be different between AP and CP */
 	unsigned int		apdcp:1;
 
@@ -292,6 +294,10 @@ static void i2c_bus_reset(struct pxa_i2c *i2c)
 	int ret, ccnt, pins_scl, pins_sda;
 	struct device *dev = i2c->adap.dev.parent;
 	struct device_node *np = dev->of_node;
+
+	/* cannot do bus reset */
+	if (!i2c->enable_bus_rst)
+		return;
 
 	if (!i2c->pinctrl) {
 		dev_info(dev, "no need to do i2c bus reset\n");
@@ -1444,6 +1450,20 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 
 	if (of_get_property(np, "marvell,i2c-always-on", NULL))
 		i2c->always_on = 1;
+
+	if (of_get_property(np, "marvell,i2c-enable-bus-rst", NULL))
+		i2c->enable_bus_rst = 1;
+
+	/* cannot do bus reset */
+	if (!i2c->enable_bus_rst)
+		return 0;
+
+	if (of_get_property(np, "marvell,i2c-gpio-bus-rst", NULL))
+		i2c->gpio_bus_rst = 1;
+
+	/* use hardware bus reset, no need to toggle scl/sda */
+	if (!i2c->gpio_bus_rst)
+		return 0;
 
 	i2c->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(i2c->pinctrl)) {
