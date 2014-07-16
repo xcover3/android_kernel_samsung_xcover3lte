@@ -14,13 +14,22 @@
 #ifndef _PXA_SDHCI_H_
 #define _PXA_SDHCI_H_
 
-/* pxa specific flag */
-/* Require clock free running */
-#define PXA_FLAG_ENABLE_CLOCK_GATING (1<<0)
-/* card always wired to host, like on-chip emmc */
-#define PXA_FLAG_CARD_PERMANENT	(1<<1)
-/* Board design supports 8-bit data on SD/SDIO BUS */
-#define PXA_FLAG_SD_8_BIT_CAPABLE_SLOT (1<<2)
+/*
+ * sdhci_pxa_dtr_data: sdhc data transfer rate table
+ * @timing: the specification used timing
+ * @preset_rate: the clock could set by the SOC
+ * @src_rate: send to the clock subsystem
+ * related to APMU on SOC
+ * @tx_delay: use this value for TX DDLL
+ * @rx_delay: use this value for RX DDLL
+ */
+struct sdhci_pxa_dtr_data {
+	unsigned char timing;
+	unsigned long preset_rate;
+	unsigned long src_rate;
+	unsigned int tx_delay;
+	unsigned int rx_delay;
+};
 
 /*
  * struct pxa_sdhci_platdata() - Platform device data for PXA SDHCI
@@ -49,9 +58,12 @@ struct sdhci_pxa_platdata {
 	unsigned int	max_speed;
 	u32		host_caps;
 	u32		host_caps2;
+	unsigned int    host_caps_disable;
+	unsigned int    host_caps2_disable;
 	unsigned int	quirks;
 	unsigned int	quirks2;
 	unsigned int	pm_caps;
+	struct sdhci_pxa_dtr_data *dtr_data;
 };
 
 struct sdhci_pxa {

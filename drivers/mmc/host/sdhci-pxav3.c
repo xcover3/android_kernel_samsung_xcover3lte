@@ -34,6 +34,7 @@
 #include <linux/of_gpio.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
+#include <dt-bindings/mmc/pxa_sdhci.h>
 
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
@@ -182,6 +183,29 @@ static struct sdhci_pltfm_data sdhci_pxav3_pdata = {
 	.ops = &pxav3_sdhci_ops,
 };
 
+static int pxav3_init_host_with_pdata(struct sdhci_host *host,
+		struct sdhci_pxa_platdata *pdata)
+{
+	int ret = 0;
+
+	/* If slot design supports 8 bit data, indicate this to MMC. */
+	if (pdata->flags & PXA_FLAG_SD_8_BIT_CAPABLE_SLOT)
+		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
+
+	if (pdata->quirks)
+		host->quirks |= pdata->quirks;
+	if (pdata->quirks2)
+		host->quirks2 |= pdata->quirks2;
+	if (pdata->host_caps)
+		host->mmc->caps |= pdata->host_caps;
+	if (pdata->host_caps2)
+		host->mmc->caps2 |= pdata->host_caps2;
+	if (pdata->pm_caps)
+		host->mmc->pm_caps |= pdata->pm_caps;
+
+	return ret;
+}
+
 #ifdef CONFIG_OF
 static const struct of_device_id sdhci_pxav3_of_match[] = {
 	{
@@ -191,26 +215,85 @@ static const struct of_device_id sdhci_pxav3_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, sdhci_pxav3_of_match);
 
-static struct sdhci_pxa_platdata *pxav3_get_mmc_pdata(struct device *dev)
+static void pxav3_get_of_perperty(struct sdhci_host *host,
+		struct device *dev, struct sdhci_pxa_platdata *pdata)
 {
-	struct sdhci_pxa_platdata *pdata;
 	struct device_node *np = dev->of_node;
-	u32 clk_delay_cycles;
+	u32 tmp;
+	struct property *prop;
+	const __be32 *p;
+	u32 val, timing;
+	struct sdhci_pxa_dtr_data *dtr_data;
 
-	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
-	if (!pdata)
-		return NULL;
+	if (!of_property_read_u32(np, "marvell,sdh-flags", &tmp))
+		pdata->flags |= tmp;
 
-	of_property_read_u32(np, "mrvl,clk-delay-cycles", &clk_delay_cycles);
-	if (clk_delay_cycles > 0)
-		pdata->clk_delay_cycles = clk_delay_cycles;
+	if (!of_property_read_u32(np, "marvell,sdh-host-caps", &tmp))
+		pdata->host_caps |= tmp;
+	if (!of_property_read_u32(np, "marvell,sdh-host-caps2", &tmp))
+		pdata->host_caps2 |= tmp;
+	if (!of_property_read_u32(np, "marvell,sdh-host-caps-disable", &tmp))
+		pdata->host_caps_disable |= tmp;
+	if (!of_property_read_u32(np, "marvell,sdh-host-caps2-disable", &tmp))
+		pdata->host_caps2_disable |= tmp;
+	if (!of_property_read_u32(np, "marvell,sdh-quirks", &tmp))
+		pdata->quirks |= tmp;
+	if (!of_property_read_u32(np, "marvell,sdh-quirks2", &tmp))
+		pdata->quirks2 |= tmp;
+	if (!of_property_read_u32(np, "marvell,sdh-pm-caps", &tmp))
+		pdata->pm_caps |= tmp;
 
-	return pdata;
-}
-#else
-static inline struct sdhci_pxa_platdata *pxav3_get_mmc_pdata(struct device *dev)
-{
-	return NULL;
+	/*
+	 * property "marvell,sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay>, [<..>]
+	 * allow to set clock related parameters.
+	 */
+	if (of_property_read_bool(np, "marvell,sdh-dtr-data")) {
+		dtr_data = devm_kzalloc(dev,
+				MMC_TIMING_MAX * sizeof(struct sdhci_pxa_dtr_data),
+				GFP_KERNEL);
+		if (!dtr_data) {
+			dev_err(dev, "failed to allocate memory for sdh-dtr-data\n");
+			return;
+		}
+		of_property_for_each_u32(np, "marvell,sdh-dtr-data", prop, p, timing) {
+			if (timing > MMC_TIMING_MAX) {
+				dev_err(dev, "invalid timing %d on sdh-dtr-data prop\n",
+						timing);
+				continue;
+			} else {
+				dtr_data[timing].timing = timing;
+			}
+			p = of_prop_next_u32(prop, p, &val);
+			if (!p) {
+				dev_err(dev, "missing preset_rate for timing %d\n",
+						timing);
+			} else {
+				dtr_data[timing].preset_rate = val;
+			}
+			p = of_prop_next_u32(prop, p, &val);
+			if (!p) {
+				dev_err(dev, "missing src_rate for timing %d\n",
+						timing);
+			} else {
+				dtr_data[timing].src_rate = val;
+			}
+			p = of_prop_next_u32(prop, p, &val);
+			if (!p) {
+				dev_err(dev, "missing tx_delay for timing %d\n",
+						timing);
+			} else {
+				dtr_data[timing].tx_delay = val;
+			}
+			p = of_prop_next_u32(prop, p, &val);
+			if (!p) {
+				dev_err(dev, "missing rx_delay for timing %d\n",
+						timing);
+			} else {
+				dtr_data[timing].rx_delay = val;
+			}
+		}
+		pdata->dtr_data = dtr_data;
+	}
 }
 #endif
 
@@ -256,26 +339,24 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 		if (ret)
 			goto err_of_parse;
 		sdhci_get_of_property(pdev);
-		pdata = pxav3_get_mmc_pdata(dev);
-	} else if (pdata) {
-		/* on-chip device */
-		if (pdata->flags & PXA_FLAG_CARD_PERMANENT)
-			host->mmc->caps |= MMC_CAP_NONREMOVABLE;
-
-		/* If slot design supports 8 bit data, indicate this to MMC. */
-		if (pdata->flags & PXA_FLAG_SD_8_BIT_CAPABLE_SLOT)
-			host->mmc->caps |= MMC_CAP_8_BIT_DATA;
-
-		if (pdata->quirks)
-			host->quirks |= pdata->quirks;
-		if (pdata->quirks2)
-			host->quirks2 |= pdata->quirks2;
-		if (pdata->host_caps)
-			host->mmc->caps |= pdata->host_caps;
-		if (pdata->host_caps2)
-			host->mmc->caps2 |= pdata->host_caps2;
-		if (pdata->pm_caps)
-			host->mmc->pm_caps |= pdata->pm_caps;
+		if (!pdata) {
+			pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
+			if (!pdata) {
+				dev_err(mmc_dev(host->mmc),
+					"failed to alloc pdata\n");
+				goto err_init_host;
+			}
+			pdev->dev.platform_data = pdata;
+		}
+		pxav3_get_of_perperty(host, dev, pdata);
+	}
+	if (pdata) {
+		ret = pxav3_init_host_with_pdata(host, pdata);
+		if (ret) {
+			dev_err(mmc_dev(host->mmc),
+					"failed to init host with pdata\n");
+			goto err_init_host;
+		}
 	}
 
 	pm_runtime_enable(&pdev->dev);
@@ -306,6 +387,7 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 err_add_host:
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+err_init_host:
 err_of_parse:
 	clk_disable_unprepare(clk);
 	clk_put(clk);
