@@ -114,6 +114,22 @@ struct ion_handle_data {
 	ion_user_handle_t handle;
 };
 
+#define ION_BUFFER_UNKOWN	0
+#define ION_BUFFER_DMA_VALID	(1 << 0)
+#define ION_BUFFER_CPU_VALID	(1 << 1)
+
+#define ION_BUFFER_NOTIFY_QUERY		0
+#define ION_BUFFER_NOTIFY_DMA_READ	1
+#define ION_BUFFER_NOTIFY_DMA_WRITE	2
+#define ION_BUFFER_NOTIFY_CPU_READ	4
+#define ION_BUFFER_NOTIFY_CPU_WRITE	8
+#define ION_BUFFER_NOTIFY_VARIED	0xF
+
+struct ion_notify_data {
+	int fd;
+	unsigned int note;
+};
+
 /**
  * struct ion_custom_data - metadata passed to/from userspace for a custom ioctl
  * @cmd:	the custom ioctl function to call
@@ -228,5 +244,12 @@ struct ion_phys_data {
  * Takes an ion_phys_data with share_fd and returns the address.
  */
 #define ION_IOC_PHYS		_IOWR(ION_IOC_MAGIC, 9, struct ion_phys_data)
+
+/**
+ * DOC: ION_IOC_NOTIFY - notify the buffer usage type of next operation
+ *
+ * Takes an ion_notify_data with share_fd and the notification.
+ */
+#define ION_IOC_NOTIFY		_IOWR(ION_IOC_MAGIC, 10, struct ion_notify_data)
 
 #endif /* _UAPI_LINUX_ION_H */

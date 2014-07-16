@@ -152,6 +152,84 @@ static inline void ion_buffer_page_clean(struct page **page)
 	*page = (struct page *)((unsigned long)(*page) & ~(1UL));
 }
 
+static enum dma_data_direction ion_buffer_need_sync(struct ion_buffer *buffer,
+	unsigned int note, int *sync_device, unsigned int *next_state)
+{
+	unsigned int current_state;
+	enum dma_data_direction dir = DMA_NONE;
+
+	*sync_device = 1;
+	current_state = buffer->state;
+	*next_state = current_state;
+
+	switch (note) {
+	case ION_BUFFER_NOTIFY_CPU_READ:
+		if ((current_state & ION_BUFFER_CPU_VALID) == 0)
+			dir = DMA_FROM_DEVICE; /* INV */
+		*next_state |= ION_BUFFER_CPU_VALID;
+		*sync_device = 0;
+		break;
+	case ION_BUFFER_NOTIFY_CPU_WRITE:
+		*next_state = ION_BUFFER_CPU_VALID;
+		*sync_device = 0;
+		break;
+	case ION_BUFFER_NOTIFY_DMA_READ:
+		if ((current_state & ION_BUFFER_DMA_VALID) == 0)
+			dir = DMA_TO_DEVICE; /* CLEAN */
+		*next_state |= ION_BUFFER_DMA_VALID;
+		break;
+	case ION_BUFFER_NOTIFY_DMA_WRITE:
+		if ((current_state & ION_BUFFER_DMA_VALID) == 0)
+			dir = DMA_FROM_DEVICE; /* INV */
+		*next_state = ION_BUFFER_DMA_VALID;
+		break;
+	case ION_BUFFER_NOTIFY_CPU_READ | ION_BUFFER_NOTIFY_CPU_WRITE:
+		if ((current_state & ION_BUFFER_CPU_VALID) == 0)
+			dir = DMA_FROM_DEVICE; /* INV */
+		*next_state = ION_BUFFER_CPU_VALID;
+		*sync_device = 0;
+		break;
+	case ION_BUFFER_NOTIFY_QUERY:
+		break;
+	default:
+		dir = DMA_BIDIRECTIONAL; /* FLUSH */
+		*next_state = ION_BUFFER_UNKOWN;
+	}
+
+	if ((dir != DMA_NONE) && (current_state == ION_BUFFER_UNKOWN))
+		dir = DMA_BIDIRECTIONAL;
+
+	return dir;
+}
+
+static int ion_buffer_notify(struct ion_buffer *buffer, struct device *dev,
+	unsigned int note)
+{
+	unsigned int next_state;
+	enum dma_data_direction dir = DMA_NONE;
+	int sync_device = 1;
+
+	mutex_lock(&buffer->lock);
+
+	dir = ion_buffer_need_sync(buffer, note, &sync_device, &next_state);
+	if (dir != DMA_NONE) {
+		struct scatterlist *sg;
+		int i;
+
+		for_each_sg(buffer->sg_table->sgl, sg,
+			buffer->sg_table->nents, i) {
+			if (sync_device)
+				dma_sync_sg_for_device(dev, sg, 1, dir);
+			else
+				dma_sync_sg_for_cpu(dev, sg, 1, dir);
+		}
+	}
+
+	buffer->state = next_state;
+	mutex_unlock(&buffer->lock);
+	return 0;
+}
+
 /* this function should only be called while dev->lock is held */
 static void ion_buffer_add(struct ion_device *dev,
 			   struct ion_buffer *buffer)
@@ -196,6 +274,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 	buffer->heap = heap;
 	buffer->flags = flags;
+	buffer->state = ION_BUFFER_UNKOWN;
 	kref_init(&buffer->ref);
 
 	ret = heap->ops->allocate(heap, buffer, len, align, flags);
@@ -904,7 +983,9 @@ static struct sg_table *ion_map_dma_buf(struct dma_buf_attachment *attachment,
 	struct dma_buf *dmabuf = attachment->dmabuf;
 	struct ion_buffer *buffer = dmabuf->priv;
 
-	ion_buffer_sync_for_device(buffer, attachment->dev, direction);
+	if (valid_dma_direction(direction))
+		ion_buffer_sync_for_device(buffer, attachment->dev, direction);
+
 	return buffer->sg_table;
 }
 
@@ -941,8 +1022,25 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 	pr_debug("%s: syncing for device %s\n", __func__,
 		 dev ? dev_name(dev) : "null");
 
-	if (!ion_buffer_fault_user_mappings(buffer))
+	if (!ion_buffer_cached(buffer))
 		return;
+
+	if (!ion_buffer_fault_user_mappings(buffer)) {
+		unsigned int note;
+		switch (dir) {
+		case DMA_TO_DEVICE:
+			note = ION_BUFFER_NOTIFY_DMA_READ;
+			break;
+		case DMA_FROM_DEVICE:
+			note = ION_BUFFER_NOTIFY_DMA_WRITE;
+			break;
+		default:
+			note = ION_BUFFER_NOTIFY_VARIED;
+		}
+
+		ion_buffer_notify(buffer, dev, note);
+		return;
+	}
 
 	mutex_lock(&buffer->lock);
 	for (i = 0; i < pages; i++) {
@@ -1092,6 +1190,24 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start,
 	mutex_unlock(&buffer->lock);
 	if (IS_ERR(vaddr))
 		return PTR_ERR(vaddr);
+
+	if (buffer->flags & ION_FLAG_CACHED) {
+		unsigned int note;
+		switch (direction) {
+		case DMA_TO_DEVICE:
+			note = ION_BUFFER_NOTIFY_CPU_WRITE;
+			break;
+		case DMA_FROM_DEVICE:
+			note = ION_BUFFER_NOTIFY_CPU_READ;
+			break;
+		default:
+			note = ION_BUFFER_NOTIFY_VARIED;
+		}
+
+		ion_buffer_notify(buffer, NULL, note);
+	}
+
+
 	return 0;
 }
 
@@ -1231,8 +1347,15 @@ static int ion_sync_for_device(struct ion_client *client, int fd)
 	}
 	buffer = dmabuf->priv;
 
-	dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
+	if (buffer->flags & ION_FLAG_CACHED) {
+		if (buffer->flags & ION_FLAG_CACHED_NEEDS_SYNC)
+			ion_buffer_notify(buffer, NULL,
+				ION_BUFFER_NOTIFY_VARIED);
+		else
+			dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
 			       buffer->sg_table->nents, DMA_BIDIRECTIONAL);
+	}
+
 	dma_buf_put(dmabuf);
 	return 0;
 }
@@ -1266,6 +1389,7 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_custom_data custom;
 		struct ion_buffer_name_data name;
 		struct ion_phys_data phys;
+		struct ion_notify_data notify;
 	} data;
 
 	dir = ion_ioctl_dir(cmd);
@@ -1370,6 +1494,27 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				&phys_addr, &phys_size);
 		if (!ret)
 			data.phys.addr = phys_addr;
+		dma_buf_put(dmabuf);
+		break;
+	}
+	case ION_IOC_NOTIFY:
+	{
+		struct dma_buf *dmabuf;
+		struct ion_buffer *buffer;
+
+		dmabuf = dma_buf_get(data.notify.fd);
+		if (IS_ERR_OR_NULL(dmabuf))
+			return -EFAULT;
+
+		buffer = dmabuf->priv;
+		if (!buffer) {
+			dma_buf_put(dmabuf);
+			return -EFAULT;
+		}
+		if (buffer->flags & ION_FLAG_CACHED)
+			ion_buffer_notify(buffer, NULL, data.notify.note);
+		data.notify.note = buffer->state;
+
 		dma_buf_put(dmabuf);
 		break;
 	}

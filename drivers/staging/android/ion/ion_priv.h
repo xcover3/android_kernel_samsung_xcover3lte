@@ -80,6 +80,7 @@ struct ion_buffer {
 	struct list_head vmas;
 	char name[ION_BUFFER_NAME_LEN];
 	struct dma_buf *dma;
+	unsigned int state;
 	/* used to track orphaned buffers */
 	int handle_count;
 	char task_comm[TASK_COMM_LEN];
