@@ -3364,6 +3364,7 @@ void show_free_areas(unsigned int filter)
 
 	for_each_populated_zone(zone) {
 		unsigned long nr[MAX_ORDER], flags, order, total = 0;
+		unsigned long fl[MAX_ORDER + 1][MIGRATE_TYPES], mtype;
 		unsigned char types[MAX_ORDER];
 
 		if (skip_free_areas_node(filter, zone_to_nid(zone)))
@@ -3385,6 +3386,20 @@ void show_free_areas(unsigned int filter)
 					types[order] |= 1 << type;
 			}
 		}
+		for (mtype = 0; mtype < MIGRATE_TYPES; mtype++) {
+			unsigned long sum = 0;
+			for (order = 0; order < MAX_ORDER; ++order) {
+				unsigned long freecount = 0;
+				struct free_area *area;
+				struct list_head *curr;
+				area = &(zone->free_area[order]);
+				list_for_each(curr, &area->free_list[mtype])
+					freecount++;
+				fl[order][mtype] = freecount;
+				sum += freecount << order;
+			}
+			fl[MAX_ORDER][mtype] = sum;
+		}
 		spin_unlock_irqrestore(&zone->lock, flags);
 		for (order = 0; order < MAX_ORDER; order++) {
 			printk("%lu*%lukB ", nr[order], K(1UL) << order);
@@ -3392,6 +3407,18 @@ void show_free_areas(unsigned int filter)
 				show_migration_types(types[order]);
 		}
 		printk("= %lukB\n", K(total));
+
+		printk("%-16s ", "Free pages:");
+		for (order = 0; order < MAX_ORDER; ++order)
+			printk("%6lu ", order);
+		printk("\n");
+
+		for (mtype = 0; mtype < MIGRATE_TYPES; mtype++) {
+			printk("%8s: M[%2lu]: ", zone->name, mtype);
+			for (order = 0; order <= MAX_ORDER; ++order)
+				printk("%6lu ", fl[order][mtype]);
+			printk("\n");
+		}
 	}
 
 	hugetlb_show_meminfo();
