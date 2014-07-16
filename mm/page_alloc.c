@@ -61,6 +61,9 @@
 #include <linux/page-debug-flags.h>
 #include <linux/hugetlb.h>
 #include <linux/sched/rt.h>
+#ifdef CONFIG_CMA
+#include <linux/dma-contiguous.h>
+#endif
 
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
@@ -535,6 +538,22 @@ static inline int page_is_buddy(struct page *page, struct page *buddy,
 	return 0;
 }
 
+#ifdef CONFIG_CMA
+void list_add_cma(struct list_head *new, struct list_head *head)
+{
+	struct list_head *pos = head;
+	struct list_head *curr;
+
+	list_for_each(curr, head) {
+		if ((unsigned long)new > (unsigned long)curr)
+			break;
+		pos = curr;
+	}
+
+	list_add(new, pos);
+}
+#endif
+
 /*
  * Freeing function for a buddy system allocator.
  *
@@ -608,6 +627,13 @@ static inline void __free_one_page(struct page *page,
 	}
 	set_page_order(page, order);
 
+#ifdef CONFIG_CMA
+	if (is_migrate_cma(migratetype)) {
+		list_add_cma(&page->lru,
+			&zone->free_area[order].free_list[migratetype]);
+		goto out;
+	}
+#endif
 	/*
 	 * If this is not the largest possible page, check if the buddy
 	 * of the next-highest order is free. If it is, it's possible
@@ -861,7 +887,15 @@ static inline void expand(struct zone *zone, struct page *page,
 			continue;
 		}
 #endif
-		list_add(&page[size].lru, &area->free_list[migratetype]);
+#ifdef CONFIG_CMA
+		if (is_migrate_cma(migratetype))
+			list_add_cma(&page[size].lru,
+				&area->free_list[migratetype]);
+		else
+#endif
+			list_add(&page[size].lru,
+				&area->free_list[migratetype]);
+
 		area->nr_free++;
 		set_page_order(&page[size], high);
 	}
@@ -949,6 +983,40 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
 	return NULL;
 }
 
+#ifdef CONFIG_CMA
+static inline
+struct page *__rmqueue_highest_cma(struct zone *zone, unsigned int order)
+{
+	unsigned int cur_order, sel_order;
+	struct free_area *area, *sel_area = NULL;
+	struct page *page, *sel_page = NULL;
+
+	/* Select the available block with the highest address */
+	for (cur_order = order; cur_order < MAX_ORDER; ++cur_order) {
+		area = &(zone->free_area[cur_order]);
+		if (list_empty(&area->free_list[MIGRATE_CMA]))
+			continue;
+
+		page = list_entry(area->free_list[MIGRATE_CMA].next,
+							struct page, lru);
+
+		if (!sel_page || (page > sel_page)) {
+			sel_page = page;
+			sel_area = area;
+			sel_order = cur_order;
+		}
+	}
+
+	if (sel_page) {
+		list_del(&sel_page->lru);
+		rmv_page_order(sel_page);
+		sel_area->nr_free--;
+		expand(zone, sel_page, order, sel_order, sel_area, MIGRATE_CMA);
+	}
+
+	return sel_page;
+}
+#endif
 
 /*
  * This array describes the order lists are fallen back to when
@@ -958,7 +1026,7 @@ static int fallbacks[MIGRATE_TYPES][4] = {
 	[MIGRATE_UNMOVABLE]   = { MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE,     MIGRATE_RESERVE },
 	[MIGRATE_RECLAIMABLE] = { MIGRATE_UNMOVABLE,   MIGRATE_MOVABLE,     MIGRATE_RESERVE },
 #ifdef CONFIG_CMA
-	[MIGRATE_MOVABLE]     = { MIGRATE_CMA,         MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_RESERVE },
+	[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_RESERVE },
 	[MIGRATE_CMA]         = { MIGRATE_RESERVE }, /* Never used */
 #else
 	[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE,   MIGRATE_RESERVE },
@@ -1008,7 +1076,16 @@ int move_freepages(struct zone *zone,
 		}
 
 		order = page_order(page);
-		list_move(&page->lru,
+
+#ifdef CONFIG_CMA
+		if (is_migrate_cma(migratetype)) {
+			struct free_area *area = &zone->free_area[order];
+			__list_del_entry(&page->lru);
+			list_add_cma(&page->lru,
+				&area->free_list[migratetype]);
+		} else
+#endif
+			list_move(&page->lru,
 			  &zone->free_area[order].free_list[migratetype]);
 		set_freepage_migratetype(page, migratetype);
 		page += 1 << order;
@@ -1108,6 +1185,14 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 	int current_order;
 	struct page *page;
 	int migratetype, new_type, i;
+
+#ifdef CONFIG_CMA
+	if (cma_available && (start_migratetype == MIGRATE_MOVABLE)) {
+		page = __rmqueue_highest_cma(zone, order);
+		if (page)
+			return page;
+	}
+#endif
 
 	/* Find the largest possible block of pages in the other list */
 	for (current_order = MAX_ORDER-1; current_order >= order;
