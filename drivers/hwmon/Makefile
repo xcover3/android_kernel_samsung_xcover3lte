@@ -147,6 +147,7 @@ obj-$(CONFIG_SENSORS_LPS331AP)	+= lps331ap.o
 obj-$(CONFIG_SENSORS_BMP18X)	+= bmp18x-core.o bmp18x-i2c.o
 obj-$(CONFIG_SENSORS_APDS9930)	+= apds9930.o
 obj-$(CONFIG_SENSORS_APDS990X_MRVL)	+= apds990x.o
+obj-$(CONFIG_SENSORS_GRIP)	+= grip_sensor.o
 
 obj-$(CONFIG_PMBUS)		+= pmbus/
 

@@ -1596,6 +1596,15 @@ config SENSORS_APDS990X_MRVL
        This driver provides support the APDS990x deivce
          sensor.Read pressures and temperatures output.
 
+config SENSORS_GRIP
+	bool "grip(sar) sensor support"
+	default n
+	help
+	  Say Y here if you want to enable sar sensor.
+	  Say N to disable.
+	  SAR or grip sensor work as an input device in this driver,
+	  like a gpio input device.
+
 if ACPI
 
 comment "ACPI drivers"
