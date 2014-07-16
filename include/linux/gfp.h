@@ -36,6 +36,7 @@ struct vm_area_struct;
 #define ___GFP_NO_KSWAPD	0x400000u
 #define ___GFP_OTHER_NODE	0x800000u
 #define ___GFP_WRITE		0x1000000u
+#define ___GFP_CMA		0x20000000u
 /* If the above are modified, __GFP_BITS_SHIFT may need updating */
 
 /*
@@ -93,6 +94,7 @@ struct vm_area_struct;
 #define __GFP_OTHER_NODE ((__force gfp_t)___GFP_OTHER_NODE) /* On behalf of other node */
 #define __GFP_KMEMCG	((__force gfp_t)___GFP_KMEMCG) /* Allocation comes from a memcg-accounted resource */
 #define __GFP_WRITE	((__force gfp_t)___GFP_WRITE)	/* Allocator intends to dirty page */
+#define __GFP_CMA	((__force gfp_t)___GFP_CMA)	/* Allocator intends to cma page */
 
 /*
  * This may seem redundant, but it's a way of annotating false positives vs.

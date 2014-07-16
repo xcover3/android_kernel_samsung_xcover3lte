@@ -2834,10 +2834,21 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	enum zone_type high_zoneidx = gfp_zone(gfp_mask);
 	struct zone *preferred_zone;
 	struct page *page = NULL;
-	int migratetype = allocflags_to_migratetype(gfp_mask);
+	int migratetype;
 	unsigned int cpuset_mems_cookie;
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET;
 	struct mem_cgroup *memcg = NULL;
+
+	/*
+	 * Limit the page allocation of "movable" when cma is enabled, make
+	 * "movable" only valid when it's capable of cma.
+	 */
+#ifdef CONFIG_CMA
+	if (cma_available && !(gfp_mask & __GFP_CMA)) {
+		gfp_mask &= ~(__GFP_MOVABLE);
+	}
+#endif
+	migratetype = allocflags_to_migratetype(gfp_mask);
 
 	gfp_mask &= gfp_allowed_mask;
 
