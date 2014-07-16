@@ -46,8 +46,6 @@ struct sdhci_pxa_platdata {
 	unsigned int	clk_delay_cycles;
 	unsigned int	clk_delay_sel;
 	bool		clk_delay_enable;
-	unsigned int	ext_cd_gpio;
-	bool		ext_cd_gpio_invert;
 	unsigned int	max_speed;
 	u32		host_caps;
 	u32		host_caps2;

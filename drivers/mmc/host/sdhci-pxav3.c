@@ -276,16 +276,6 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 			host->mmc->caps2 |= pdata->host_caps2;
 		if (pdata->pm_caps)
 			host->mmc->pm_caps |= pdata->pm_caps;
-
-		if (gpio_is_valid(pdata->ext_cd_gpio)) {
-			ret = mmc_gpio_request_cd(host->mmc, pdata->ext_cd_gpio,
-						  0);
-			if (ret) {
-				dev_err(mmc_dev(host->mmc),
-					"failed to allocate card detect gpio\n");
-				goto err_cd_req;
-			}
-		}
 	}
 
 	pm_runtime_enable(&pdev->dev);
@@ -317,7 +307,6 @@ err_add_host:
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 err_of_parse:
-err_cd_req:
 	clk_disable_unprepare(clk);
 	clk_put(clk);
 err_clk_get:
