@@ -39,6 +39,10 @@
 				status = "disabled";
 			};
 
+			edgewakeup: edgewakeup@d4019800 {
+				status = "okay";
+			};
+
 			keypad: keypad@d4012000 {
 				marvell,direct-keys;
 				marvell,direct-key-low-active;
