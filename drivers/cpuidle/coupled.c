@@ -460,17 +460,25 @@ int cpuidle_enter_state_coupled(struct cpuidle_device *dev,
 		struct cpuidle_driver *drv, int next_state)
 {
 	int entered_state = -1;
+	int skip = 0;
 	struct cpuidle_coupled *coupled = dev->coupled;
+	struct cpuidle_state *target_state = &drv->states[next_state];
+	bool broadcast;
 	int w;
 
 	if (!coupled)
 		return -EINVAL;
 
+	broadcast = !!(target_state->flags & CPUIDLE_FLAG_TIMER_STOP);
+
+	if (broadcast)
+		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &dev->cpu);
+
 	while (coupled->prevent) {
 		cpuidle_coupled_clear_pokes(dev->cpu);
 		if (need_resched()) {
-			local_irq_enable();
-			return entered_state;
+			skip = 1;
+			goto out;
 		}
 		entered_state = cpuidle_enter_state(dev, drv,
 			dev->safe_state_index);
@@ -586,6 +594,8 @@ retry:
 	cpuidle_coupled_set_done(dev->cpu, coupled);
 
 out:
+	if (broadcast)
+		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &dev->cpu);
 	/*
 	 * Normal cpuidle states are expected to return with irqs enabled.
 	 * That leads to an inefficiency where a cpu receiving an interrupt
@@ -607,8 +617,10 @@ out:
 	 * a cpu exits and re-enters the ready state because this cpu has
 	 * already decremented its waiting_count.
 	 */
-	while (!cpuidle_coupled_no_cpus_ready(coupled))
-		cpu_relax();
+	if (!skip) {
+		while (!cpuidle_coupled_no_cpus_ready(coupled))
+			cpu_relax();
+	}
 
 	return entered_state;
 }
