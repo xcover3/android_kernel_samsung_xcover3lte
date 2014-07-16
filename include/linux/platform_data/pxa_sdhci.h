@@ -69,5 +69,7 @@ struct sdhci_pxa_platdata {
 struct sdhci_pxa {
 	u8	clk_enable;
 	u8	power_mode;
+	struct clk	*clk;
+	struct clk	*axi_clk;
 };
 #endif /* _PXA_SDHCI_H_ */

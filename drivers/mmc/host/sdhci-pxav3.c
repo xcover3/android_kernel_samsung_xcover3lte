@@ -321,13 +321,23 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	pltfm_host = sdhci_priv(host);
 	pltfm_host->priv = pxa;
 
-	clk = clk_get(dev, NULL);
+	/* If sdh-axi-clk doesn't exist on some platform, warn and go ahead. */
+	clk = devm_clk_get(dev, "sdh-axi-clk");
+	if (IS_ERR(clk)) {
+		dev_warn(dev, "failed to get axi clock\n");
+	} else {
+		pxa->axi_clk = clk;
+		clk_prepare_enable(clk);
+	}
+
+	clk = devm_clk_get(dev, "sdh-base-clk");
 	if (IS_ERR(clk)) {
 		dev_err(dev, "failed to get io clock\n");
 		ret = PTR_ERR(clk);
 		goto err_clk_get;
 	}
 	pltfm_host->clk = clk;
+	pxa->clk = clk;
 	clk_prepare_enable(clk);
 
 	/* enable 1/8V DDR capable */
@@ -389,9 +399,9 @@ err_add_host:
 	pm_runtime_disable(&pdev->dev);
 err_init_host:
 err_of_parse:
-	clk_disable_unprepare(clk);
-	clk_put(clk);
+	clk_disable_unprepare(pxa->clk);
 err_clk_get:
+	clk_disable_unprepare(pxa->axi_clk);
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
 	return ret;
@@ -407,8 +417,8 @@ static int sdhci_pxav3_remove(struct platform_device *pdev)
 	sdhci_remove_host(host, 1);
 	pm_runtime_disable(&pdev->dev);
 
-	clk_disable_unprepare(pltfm_host->clk);
-	clk_put(pltfm_host->clk);
+	clk_disable_unprepare(pxa->clk);
+	clk_disable_unprepare(pxa->axi_clk);
 
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
@@ -449,14 +459,16 @@ static int sdhci_pxav3_runtime_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
 	unsigned long flags;
 
-	if (pltfm_host->clk) {
+	if (pxa->clk) {
 		spin_lock_irqsave(&host->lock, flags);
 		host->runtime_suspended = true;
 		spin_unlock_irqrestore(&host->lock, flags);
 
-		clk_disable_unprepare(pltfm_host->clk);
+		clk_disable_unprepare(pxa->clk);
+		clk_disable_unprepare(pxa->axi_clk);
 	}
 
 	return 0;
@@ -466,10 +478,13 @@ static int sdhci_pxav3_runtime_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
 	unsigned long flags;
 
-	if (pltfm_host->clk) {
-		clk_prepare_enable(pltfm_host->clk);
+	if (pxa->clk) {
+		/* If axi_clk == NULL, do nothing */
+		clk_prepare_enable(pxa->axi_clk);
+		clk_prepare_enable(pxa->clk);
 
 		spin_lock_irqsave(&host->lock, flags);
 		host->runtime_suspended = false;
