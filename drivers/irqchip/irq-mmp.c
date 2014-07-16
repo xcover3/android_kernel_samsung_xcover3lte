@@ -687,7 +687,7 @@ void __init mmp_of_wakeup_init(void)
 	i = 0;
 	while (!of_property_read_u32_index(node, "mrvl,intc-for-sp",
 					i, &irq_for_sp[i])) {
-		writel_relaxed(ICU_INT_CONF_SEAGULL,
+		writel_relaxed(ICU_INT_CONF_SP | ICU_INT_CONF_PRIO(1),
 				mmp_icu_base + (irq_for_sp[i] << 2));
 		i++;
 	}
