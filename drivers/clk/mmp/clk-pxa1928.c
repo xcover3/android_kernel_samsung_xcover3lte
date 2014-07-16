@@ -88,6 +88,9 @@
 #define GATE_CTRL_SHIFT_PLL5	(28)
 #define GATE_CTRL_SHIFT_PLL6	(30)
 #define GATE_CTRL_SHIFT_PLL7	(16)
+#define APMU_DISP_RST_CTRL	(0x180)
+#define APMU_DISP_CLK_CTRL	(0x184)
+#define APMU_DISP_CLK_CTRL2	(0x188)
 
 struct pxa1928_clk_unit {
 	struct mmp_clk_unit unit;
@@ -425,6 +428,24 @@ static struct mmp_clk_mix_config sdh_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(4, 10, 2, 8, 32),
 };
 
+static DEFINE_SPINLOCK(disp_lock);
+static const char *disp1_parent_names[] = {"pll1_624", "pll1_416"};
+static const char *vdma_parent_names[] = {"pll1_2", "pll1_416", "pll1_624"};
+
+static const char *disp_axi_parent_names[] = {"pll1_2", "pll1_416", "pll1_624"};
+static int disp_axi_mux_table[] = {0x0, 0x1, 0x2};
+static struct mmp_clk_mix_config disp_axi_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 0, 3, 4, 32),
+	.mux_table = disp_axi_mux_table,
+	.div_flags = CLK_DIVIDER_ONE_BASED,
+};
+
+static struct mmp_param_gate_clk disp_gate_clks[] = {
+	{PXA1928_CLK_DISP_DISP1_EN, "disp1_en_clk", "disp1_sel_clk", CLK_SET_RATE_PARENT, APMU_DISP_CLK_CTRL, 0x700, 0x100, 0x0, 0, &disp_lock},
+	{PXA1928_CLK_DISP_ESC_CLK, "esc_clk", NULL, CLK_IS_ROOT, APMU_DISP_CLK_CTRL, 0x70, 0x10, 0x0, 0, &disp_lock},
+	{PXA1928_CLK_DISP_VDMA_EN, "vdma_clk", "vdma_sel_clk", CLK_SET_RATE_PARENT, APMU_DISP_CLK_CTRL, 0x7000000, 0x1000000, 0x0, 0, &disp_lock},
+};
+
 static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -458,6 +479,33 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_SDH2,
 				0x1b, 0x1b, 0x0, 0, NULL);
 	mmp_clk_add(unit, PXA1928_CLK_SDH2, clk);
+
+	clk = clk_register_mux(NULL, "disp1_sel_clk", disp1_parent_names,
+				ARRAY_SIZE(disp1_parent_names),
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apmu_base + APMU_DISP_CLK_CTRL,
+				12, 3, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1928_CLK_DISP_DISP1_CLK, clk);
+	clk_set_parent(clk, unit->clk_table[PXA1928_CLK_PLL1_416]);
+
+	clk = clk_register_mux(NULL, "vdma_sel_clk", vdma_parent_names,
+				ARRAY_SIZE(vdma_parent_names),
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apmu_base + APMU_DISP_CLK_CTRL,
+				28, 3, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1928_CLK_DISP_VDMA_CLK, clk);
+	clk_set_parent(clk, unit->clk_table[PXA1928_CLK_PLL1_416]);
+
+	mmp_register_gate_clks(unit, disp_gate_clks, pxa_unit->apmu_base,
+				ARRAY_SIZE(disp_gate_clks));
+
+	disp_axi_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_DISP_CLK_CTRL2;
+	clk = mmp_clk_register_mix(NULL, "disp_axi_clk", disp_axi_parent_names,
+				ARRAY_SIZE(disp_axi_parent_names),
+				CLK_SET_RATE_PARENT,
+				&disp_axi_mix_config, &disp_lock);
+	mmp_clk_add(unit, PXA1928_CLK_DISP_AXI_CLK, clk);
+	clk_set_rate(clk, 156000000);
 }
 
 static void __init pxa1928_clk_init(struct device_node *np)
