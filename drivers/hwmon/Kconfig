@@ -1574,6 +1574,15 @@ config SENSORS_LPS331AP
          monitoring functionality of the LPS331AP Barometer sensor.
          This driver support STMicroelectronics LPS331AP Barometer
 
+config SENSORS_BMP18X
+        tristate "BMP18X digital pressure sensor"
+	depends on (I2C || SPI_MASTER) && SYSFS
+	help
+	If you say yes here you get support for Bosch Sensortec
+	digital pressure sensors BMP085, BMP180 and BMP181.
+	To compile this driver as a module, choose M here:
+	the module will be called bmp18x-core.
+
 if ACPI
 
 comment "ACPI drivers"
