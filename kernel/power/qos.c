@@ -48,18 +48,7 @@
 #include <linux/export.h>
 #include <trace/events/power.h>
 
-/*
- * locking rule: all changes to constraints or notifiers lists
- * or pm_qos_object list and pm_qos_objects need to happen with pm_qos_lock
- * held, taken with _irqsave.  One lock to rule them all
- */
-struct pm_qos_object {
-	struct pm_qos_constraints *constraints;
-	struct miscdevice pm_qos_power_miscdev;
-	char *name;
-};
-
-static DEFINE_SPINLOCK(pm_qos_lock);
+DEFINE_SPINLOCK(pm_qos_lock);
 
 static struct pm_qos_object null_pm_qos;
 
@@ -117,7 +106,7 @@ static struct pm_qos_object cpuidle_block_pm_qos = {
 	.name = "cpuidle_block",
 };
 
-static struct pm_qos_object *pm_qos_array[] = {
+struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
 	&network_lat_pm_qos,
