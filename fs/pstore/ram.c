@@ -470,8 +470,14 @@ static int ramoops_probe(struct platform_device *pdev)
 
 	if (pdata->record_size && !is_power_of_2(pdata->record_size))
 		pdata->record_size = rounddown_pow_of_two(pdata->record_size);
+	/*
+	 * remove this limitation in our solution, otherwise it brings too many
+	 * limits. 3.4 has no such limit either. no side effect found yet.
+	 */
+#if 0
 	if (pdata->console_size && !is_power_of_2(pdata->console_size))
 		pdata->console_size = rounddown_pow_of_two(pdata->console_size);
+#endif
 	if (pdata->ftrace_size && !is_power_of_2(pdata->ftrace_size))
 		pdata->ftrace_size = rounddown_pow_of_two(pdata->ftrace_size);
 
