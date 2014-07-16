@@ -143,6 +143,7 @@ obj-$(CONFIG_SENSORS_W83L786NG)	+= w83l786ng.o
 obj-$(CONFIG_SENSORS_WM831X)	+= wm831x-hwmon.o
 obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
 obj-$(CONFIG_SENSORS_ISL29043)	+= isl29043.o
+obj-$(CONFIG_SENSORS_LPS331AP)	+= lps331ap.o
 
 obj-$(CONFIG_PMBUS)		+= pmbus/
 
