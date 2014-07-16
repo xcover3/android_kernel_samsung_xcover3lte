@@ -1589,6 +1589,13 @@ config SENSORS_APDS9930
 	help
 	  This driver provides support the APDS990x deivce.
 
+config SENSORS_APDS990X_MRVL
+       tristate "APDS990x_MRVL light and proximity sensor"
+       depends on I2C && INPUT
+       help
+       This driver provides support the APDS990x deivce
+         sensor.Read pressures and temperatures output.
+
 if ACPI
 
 comment "ACPI drivers"
