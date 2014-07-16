@@ -1583,6 +1583,12 @@ config SENSORS_BMP18X
 	To compile this driver as a module, choose M here:
 	the module will be called bmp18x-core.
 
+config SENSORS_APDS9930
+	tristate "APDS9930 light and proximity sensor"
+	depends on I2C && INPUT
+	help
+	  This driver provides support the APDS990x deivce.
+
 if ACPI
 
 comment "ACPI drivers"

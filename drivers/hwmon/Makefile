@@ -145,6 +145,7 @@ obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
 obj-$(CONFIG_SENSORS_ISL29043)	+= isl29043.o
 obj-$(CONFIG_SENSORS_LPS331AP)	+= lps331ap.o
 obj-$(CONFIG_SENSORS_BMP18X)	+= bmp18x-core.o bmp18x-i2c.o
+obj-$(CONFIG_SENSORS_APDS9930)	+= apds9930.o
 
 obj-$(CONFIG_PMBUS)		+= pmbus/
 
