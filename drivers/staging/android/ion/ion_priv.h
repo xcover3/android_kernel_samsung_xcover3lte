@@ -79,6 +79,7 @@ struct ion_buffer {
 	struct page **pages;
 	struct list_head vmas;
 	char name[ION_BUFFER_NAME_LEN];
+	struct dma_buf *dma;
 	/* used to track orphaned buffers */
 	int handle_count;
 	char task_comm[TASK_COMM_LEN];
@@ -158,6 +159,7 @@ struct ion_heap {
 	unsigned long flags;
 	unsigned int id;
 	const char *name;
+	size_t size;
 	struct shrinker shrinker;
 	struct list_head free_list;
 	size_t free_list_size;

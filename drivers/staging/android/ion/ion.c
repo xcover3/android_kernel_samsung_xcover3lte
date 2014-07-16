@@ -35,6 +35,8 @@
 #include <linux/debugfs.h>
 #include <linux/dma-buf.h>
 #include <linux/idr.h>
+#include <linux/fdtable.h>
+#include <linux/file.h>
 
 #include "ion.h"
 #include "ion_priv.h"
@@ -1141,6 +1143,7 @@ struct dma_buf *ion_share_dma_buf(struct ion_client *client,
 		return dmabuf;
 	}
 
+	buffer->dma = dmabuf;
 	return dmabuf;
 }
 EXPORT_SYMBOL(ion_share_dma_buf);
@@ -1449,8 +1452,9 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	struct ion_heap *heap = s->private;
 	struct ion_device *dev = heap->dev;
 	struct rb_node *n;
-	size_t total_size = 0;
-	size_t total_orphaned_size = 0;
+	size_t total_carveout_size = 0;
+	size_t total_cma_size = 0;
+	struct task_struct *p;
 
 	seq_printf(s, "%16.s %16.s %16.s\n", "client", "pid", "size");
 	seq_printf(s, "----------------------------------------------------\n");
@@ -1472,33 +1476,75 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 				   client->pid, size);
 		}
 	}
-	seq_printf(s, "----------------------------------------------------\n");
-	seq_printf(s, "orphaned allocations (info is from last known client):"
-		   "\n");
+
+	seq_printf(s, "\nlist of buffers allocated:\n");
+	seq_printf(s, "%8.s %8.s %8.s %6.s %16.s\n",
+		"id", "size_KB", "flags", "count", "name");
+	seq_printf(s, "---------------------------------------------------\n");
 	mutex_lock(&dev->buffer_lock);
 	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
 		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer,
 						     node);
 		if (buffer->heap->id != heap->id)
 			continue;
-		total_size += buffer->size;
-		if (!buffer->handle_count) {
-			seq_printf(s, "%16.s %16u %16zu %d %d\n",
-				   buffer->task_comm, buffer->pid,
-				   buffer->size, buffer->kmap_cnt,
-				   atomic_read(&buffer->ref.refcount));
-			total_orphaned_size += buffer->size;
+
+		if (buffer->flags & ION_FLAG_CMA)
+			total_cma_size += buffer->size;
+		else
+			total_carveout_size += buffer->size;
+
+		seq_printf(s, "%08x %8.zu %8.lx %6.u %16.s",
+			(unsigned int)buffer->priv_phys,
+			buffer->size >> 10, buffer->flags,
+			atomic_read(&(&buffer->ref)->refcount),
+			buffer->name);
+
+		read_lock(&tasklist_lock);
+		for_each_process(p) {
+			struct fdtable *fdt;
+			struct files_struct *files;
+			int i = 0;
+			struct file *f;
+
+			if (buffer->dma)
+				f = buffer->dma->file;
+			else
+				continue;
+
+			files = p->files;
+			/* check if files is still valid */
+			if (!files) {
+				pr_debug("No opened file on process %d: %s.\n",
+						p->pid, p->comm);
+				continue;
+			}
+
+			fdt = files_fdtable(files);
+
+			while (1) {
+				i = find_next_bit(fdt->open_fds,
+							fdt->max_fds, i);
+				if (i >= fdt->max_fds)
+					break;
+				if (fdt->fd[i] == f)
+					seq_printf(s, " [%d %d %d %s]", p->pid,
+						i, p->signal->oom_score_adj,
+						p->comm);
+				i++;
+			}
 		}
+		read_unlock(&tasklist_lock);
+		seq_putc(s, '\n');
+
 	}
 	mutex_unlock(&dev->buffer_lock);
-	seq_printf(s, "----------------------------------------------------\n");
-	seq_printf(s, "%16.s %16zu\n", "total orphaned",
-		   total_orphaned_size);
-	seq_printf(s, "%16.s %16zu\n", "total ", total_size);
-	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
-		seq_printf(s, "%16.s %16zu\n", "deferred free",
-				heap->free_list_size);
-	seq_printf(s, "----------------------------------------------------\n");
+	seq_printf(s, "---------------------------------------------------\n");
+	seq_printf(s, "%8.s%8.uKB %8.s%8.zuKB %8.s%8.zuKB %8.s%8.zuKB\n",
+		"total:", heap->size >> 10,
+		"used:", total_carveout_size >> 10,
+		"free:", (heap->size - total_carveout_size) >> 10,
+		"cma used:", total_cma_size >> 10);
+	seq_printf(s, "---------------------------------------------------\n");
 
 	if (heap->debug_show)
 		heap->debug_show(heap, s, unused);
