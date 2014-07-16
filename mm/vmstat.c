@@ -891,8 +891,10 @@ static void pagetypeinfo_showfree_print(struct seq_file *m,
 					pg_data_t *pgdat, struct zone *zone)
 {
 	int order, mtype;
+	unsigned long sum;
 
 	for (mtype = 0; mtype < MIGRATE_TYPES; mtype++) {
+		sum = 0;
 		seq_printf(m, "Node %4d, zone %8s, type %12s ",
 					pgdat->node_id,
 					zone->name,
@@ -907,7 +909,9 @@ static void pagetypeinfo_showfree_print(struct seq_file *m,
 			list_for_each(curr, &area->free_list[mtype])
 				freecount++;
 			seq_printf(m, "%6lu ", freecount);
+			sum += freecount << order;
 		}
+		seq_printf(m, "%6lu ", sum);
 		seq_putc(m, '\n');
 	}
 }
