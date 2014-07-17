@@ -130,6 +130,13 @@ struct ion_notify_data {
 	unsigned int note;
 };
 
+struct ion_sync_range_data {
+	int fd;
+	unsigned int offset;
+	unsigned int size;
+	unsigned int note;
+};
+
 /**
  * struct ion_custom_data - metadata passed to/from userspace for a custom ioctl
  * @cmd:	the custom ioctl function to call
@@ -251,5 +258,12 @@ struct ion_phys_data {
  * Takes an ion_notify_data with share_fd and the notification.
  */
 #define ION_IOC_NOTIFY		_IOWR(ION_IOC_MAGIC, 10, struct ion_notify_data)
+
+/**
+ * DOC: ION_IOC_SYNC_RANGE - syncs a shared file descriptors to memory by range
+ *
+ * Takes an ion_sync_range_data with share_fd, buffer offset and size
+ */
+#define ION_IOC_SYNC_RANGE _IOWR(ION_IOC_MAGIC, 11, struct ion_sync_range_data)
 
 #endif /* _UAPI_LINUX_ION_H */

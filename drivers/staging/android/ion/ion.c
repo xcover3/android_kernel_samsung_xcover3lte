@@ -303,7 +303,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		return ERR_PTR(PTR_ERR(table));
 	}
 	buffer->sg_table = table;
-	if (ion_buffer_fault_user_mappings(buffer)) {
+	if (ion_buffer_cached(buffer)) {
 		int num_pages = PAGE_ALIGN(buffer->size) / PAGE_SIZE;
 		struct scatterlist *sg;
 		int i, j, k = 0;
@@ -995,8 +995,8 @@ static void ion_unmap_dma_buf(struct dma_buf_attachment *attachment,
 {
 }
 
-void ion_pages_sync_for_device(struct device *dev, struct page *page,
-		size_t size, enum dma_data_direction dir)
+static void ion_pages_sync(struct device *dev, struct page *page, size_t size,
+			enum dma_data_direction dir, int sync_device)
 {
 	struct scatterlist sg;
 
@@ -1008,7 +1008,15 @@ void ion_pages_sync_for_device(struct device *dev, struct page *page,
 	 * hardware.
 	 */
 	sg_dma_address(&sg) = page_to_phys(page);
-	dma_sync_sg_for_device(dev, &sg, 1, dir);
+	if (sync_device)
+		dma_sync_sg_for_device(dev, &sg, 1, dir);
+	else
+		dma_sync_sg_for_cpu(dev, &sg, 1, dir);
+}
+void ion_pages_sync_for_device(struct device *dev, struct page *page,
+		size_t size, enum dma_data_direction dir)
+{
+	ion_pages_sync(dev, page, size, dir, 1);
 }
 
 static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
@@ -1058,6 +1066,36 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 		zap_page_range(vma, vma->vm_start, vma->vm_end - vma->vm_start,
 			       NULL);
 	}
+	mutex_unlock(&buffer->lock);
+}
+
+static void ion_buffer_sync_range(struct ion_buffer *buffer,
+	unsigned int offset, unsigned int size, unsigned int note)
+{
+	int i, start, end, total, sync_device;
+	unsigned next_state;
+	enum dma_data_direction dir;
+
+	if (!buffer || size == 0)
+		return;
+
+	start = offset / PAGE_SIZE;
+	total = PAGE_ALIGN(buffer->size) / PAGE_SIZE;
+	end = PAGE_ALIGN(offset + size) / PAGE_SIZE;
+
+	if (end > total)
+		end = total;
+
+	mutex_lock(&buffer->lock);
+	dir = ion_buffer_need_sync(buffer, note, &sync_device, &next_state);
+	if (dir != DMA_NONE) {
+		for (i = start; i < end; i++) {
+			struct page *page = buffer->pages[i];
+			ion_pages_sync(NULL, ion_buffer_page(page),
+					PAGE_SIZE, dir, sync_device);
+		}
+	}
+	buffer->state = next_state;
 	mutex_unlock(&buffer->lock);
 }
 
@@ -1365,6 +1403,7 @@ static unsigned int ion_ioctl_dir(unsigned int cmd)
 {
 	switch (cmd) {
 	case ION_IOC_SYNC:
+	case ION_IOC_SYNC_RANGE:
 	case ION_IOC_NAME:
 	case ION_IOC_FREE:
 	case ION_IOC_CUSTOM:
@@ -1387,6 +1426,7 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_allocation_data allocation;
 		struct ion_handle_data handle;
 		struct ion_custom_data custom;
+		struct ion_sync_range_data range;
 		struct ion_buffer_name_data name;
 		struct ion_phys_data phys;
 		struct ion_notify_data notify;
@@ -1456,6 +1496,24 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case ION_IOC_SYNC:
 	{
 		ret = ion_sync_for_device(client, data.fd.fd);
+		break;
+	}
+	case ION_IOC_SYNC_RANGE:
+	{
+		struct dma_buf *dmabuf;
+		struct ion_buffer *buffer;
+
+		dmabuf = dma_buf_get(data.range.fd);
+		if (IS_ERR_OR_NULL(dmabuf))
+			return -EFAULT;
+
+		buffer = dmabuf->priv;
+		if (buffer->flags & ION_FLAG_CACHED)
+			ion_buffer_sync_range(buffer, data.range.offset,
+					data.range.size, data.range.note);
+		data.range.note = buffer->state;
+
+		dma_buf_put(dmabuf);
 		break;
 	}
 	case ION_IOC_NAME:
