@@ -20,10 +20,17 @@ struct dev_archdata {
 	struct dma_map_ops *dma_ops;
 #ifdef CONFIG_IOMMU_API
 	void *iommu;			/* private IOMMU data */
+	struct dma_iommu_mapping	*mapping;
 #endif
 };
 
 struct pdev_archdata {
 };
+
+#ifdef CONFIG_IOMMU_API
+#define to_dma_iommu_mapping(dev) ((dev)->archdata.mapping)
+#else
+#define to_dma_iommu_mapping(dev) NULL
+#endif
 
 #endif
