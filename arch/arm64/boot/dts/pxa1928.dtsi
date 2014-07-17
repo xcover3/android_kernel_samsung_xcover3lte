@@ -97,6 +97,43 @@
 			#size-cells = <1>;
 			reg = <0xd4200000 0x00200000>;
 			ranges;
+
+			dsi: dsi@d420b800 {
+				compatible = "marvell,mmp-dsi";
+				reg = <0xd420b800 0x1ec>;
+				interrupts = <0 29 0x4>;
+				status = "disabled";
+			};
+
+			vdma: vdma@d427f000 {
+				compatible = "marvell,mmp-vdma";
+				reg = <0xd427f000 0x850>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+
+			apical: apical@d420b400 {
+				compatible = "marvell,mmp-apical";
+				reg = <0xd420b400 0x400>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+
+			disp: disp@d420b000 {
+				compatible = "marvell,mmp-disp";
+				reg = <0xd420b000 0x3d0>;
+				interrupts = <0 41 0x4>;
+				status = "disabled";
+			};
+
+			fb: fb {
+				bus_number = <2>;
+				compatible = "marvell,mmp-fb";
+				status = "disabled";
+			};
+
+			fb1: fb-overlay {
+				compatible = "marvell,mmp-fb-overlay";
+				status = "disabled";
+			};
 		};
 
 		apb@d4000000 {	/* APB */
