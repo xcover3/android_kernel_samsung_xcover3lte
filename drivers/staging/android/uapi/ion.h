@@ -161,6 +161,8 @@ struct ion_buffer_name_data {
 	char name[ION_BUFFER_NAME_LEN];
 };
 
+#define ION_BUFFER_TYPE_PHYS	(1 << 0)
+#define ION_BUFFER_TYPE_DMA	(1 << 1)
 /**
  * struct ion_phys_data - passed to/from userspace for a fd/addr pair
  * @fd:		a file descriptor of the buffer exported

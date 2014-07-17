@@ -1536,23 +1536,31 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct dma_buf *dmabuf;
 		struct ion_buffer *buffer;
 		ion_phys_addr_t phys_addr;
+		struct ion_device *dev = client->dev;
 		size_t phys_size;
 		int ret = -EFAULT;
 
-		dmabuf = dma_buf_get(data.phys.fd);
-		if (IS_ERR_OR_NULL(dmabuf))
-			return -EFAULT;
+		if ((data.phys.flags & ION_BUFFER_TYPE_DMA)
+				&& dev->custom_ioctl)
+			ret = dev->custom_ioctl(client, ION_IOC_PHYS,
+				(unsigned long)&data);
 
-		buffer = dmabuf->priv;
-		if (!buffer->heap->ops->phys) {
+		if (ret) {
+			dmabuf = dma_buf_get(data.phys.fd);
+			if (IS_ERR_OR_NULL(dmabuf))
+				return -EFAULT;
+
+			buffer = dmabuf->priv;
+			if (!buffer->heap->ops->phys) {
+				dma_buf_put(dmabuf);
+				return -EFAULT;
+			}
+			ret = buffer->heap->ops->phys(buffer->heap, buffer,
+					&phys_addr, &phys_size);
+			if (!ret)
+				data.phys.addr = phys_addr;
 			dma_buf_put(dmabuf);
-			return -EFAULT;
 		}
-		ret = buffer->heap->ops->phys(buffer->heap, buffer,
-				&phys_addr, &phys_size);
-		if (!ret)
-			data.phys.addr = phys_addr;
-		dma_buf_put(dmabuf);
 		break;
 	}
 	case ION_IOC_NOTIFY:
