@@ -10,6 +10,7 @@
  * the Free Software Foundation.
  */
 
+#include <linux/dma-buf.h>
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/scatterlist.h>
@@ -30,6 +31,10 @@ module_param(debug, int, 0644);
 			printk(KERN_DEBUG "vb2-dma-sg: " fmt, ## arg);	\
 	} while (0)
 
+struct vb2_dma_sg_conf {
+	struct device		*dev;
+};
+
 struct vb2_dma_sg_buf {
 	void				*vaddr;
 	struct page			**pages;
@@ -41,6 +46,8 @@ struct vb2_dma_sg_buf {
 	atomic_t			refcount;
 	struct vb2_vmarea_handler	handler;
 	struct vm_area_struct		*vma;
+	/* DMABUF related */
+	struct dma_buf_attachment       *db_attach;
 };
 
 static void vb2_dma_sg_put(void *buf_priv);
@@ -342,6 +349,103 @@ static void *vb2_dma_sg_cookie(void *buf_priv)
 	return &buf->sg_table;
 }
 
+/*********************************************/
+/*       callbacks for DMABUF buffers        */
+/*********************************************/
+
+static int vb2_dma_sg_map_dmabuf(void *mem_priv)
+{
+	struct vb2_dma_sg_buf *buf = mem_priv;
+	struct sg_table *sg_table;
+
+	if (WARN_ON(!buf->db_attach)) {
+		pr_err("trying to pin a non attached buffer\n");
+		return -EINVAL;
+	}
+
+	if (WARN_ON(buf->sg_table.sgl)) {
+		pr_err("dmabuf buffer is already pinned\n");
+		return 0;
+	}
+
+	/* get the associated scatterlist for this buffer */
+	sg_table = dma_buf_map_attachment(buf->db_attach,
+				buf->write ? DMA_FROM_DEVICE : DMA_TO_DEVICE);
+	if (IS_ERR_OR_NULL(sg_table)) {
+		pr_err("Error getting dmabuf scatterlist\n");
+		return -EINVAL;
+	}
+
+	buf->sg_table = *sg_table;
+	buf->num_pages = PAGE_ALIGN(buf->size) / PAGE_SIZE;
+
+	return 0;
+}
+
+static void vb2_dma_sg_unmap_dmabuf(void *mem_priv)
+{
+	struct vb2_dma_sg_buf *buf = mem_priv;
+
+	if (WARN_ON(!buf->db_attach)) {
+		pr_err("trying to unpin a not attached buffer\n");
+		return;
+	}
+
+	if (WARN_ON(!buf->sg_table.sgl)) {
+		pr_err("dmabuf buffer is already unpinned\n");
+		return;
+	}
+
+	dma_buf_unmap_attachment(buf->db_attach, &buf->sg_table,
+				buf->write ? DMA_FROM_DEVICE : DMA_TO_DEVICE);
+
+	buf->size = 0;
+	buf->num_pages = 0;
+	buf->sg_table.sgl = NULL;
+}
+
+static void vb2_dma_sg_detach_dmabuf(void *mem_priv)
+{
+	struct vb2_dma_sg_buf *buf = mem_priv;
+
+	/* if vb2 works correctly you should never detach mapped buffer */
+	if (WARN_ON(buf->sg_table.sgl))
+		vb2_dma_sg_unmap_dmabuf(buf);
+
+	/* detach this attachment */
+	dma_buf_detach(buf->db_attach->dmabuf, buf->db_attach);
+	kfree(buf);
+}
+
+static void *vb2_dma_sg_attach_dmabuf(void *alloc_ctx, struct dma_buf *dbuf,
+	unsigned long size, int write)
+{
+	struct vb2_dma_sg_conf *conf = alloc_ctx;
+	struct vb2_dma_sg_buf *buf;
+	struct dma_buf_attachment *dba;
+
+	if (dbuf->size < size)
+		return ERR_PTR(-EFAULT);
+
+	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
+	if (!buf)
+		return ERR_PTR(-ENOMEM);
+
+	/* create attachment for the dmabuf with the user device */
+	dba = dma_buf_attach(dbuf, conf->dev);
+	if (IS_ERR(dba)) {
+		pr_err("failed to attach dmabuf\n");
+		kfree(buf);
+		return dba;
+	}
+
+	buf->write = write;
+	buf->size = size;
+	buf->db_attach = dba;
+
+	return buf;
+}
+
 const struct vb2_mem_ops vb2_dma_sg_memops = {
 	.alloc		= vb2_dma_sg_alloc,
 	.put		= vb2_dma_sg_put,
@@ -351,8 +455,34 @@ const struct vb2_mem_ops vb2_dma_sg_memops = {
 	.mmap		= vb2_dma_sg_mmap,
 	.num_users	= vb2_dma_sg_num_users,
 	.cookie		= vb2_dma_sg_cookie,
+	.map_dmabuf	= vb2_dma_sg_map_dmabuf,
+	.unmap_dmabuf	= vb2_dma_sg_unmap_dmabuf,
+	.attach_dmabuf	= vb2_dma_sg_attach_dmabuf,
+	.detach_dmabuf	= vb2_dma_sg_detach_dmabuf,
 };
 EXPORT_SYMBOL_GPL(vb2_dma_sg_memops);
+
+void *vb2_dma_sg_init_ctx(struct device *dev)
+{
+	struct vb2_dma_sg_conf *conf;
+
+	conf = devm_kzalloc(dev, sizeof(*conf), GFP_KERNEL);
+	if (!conf)
+		return ERR_PTR(-ENOMEM);
+
+	conf->dev = dev;
+
+	return conf;
+}
+EXPORT_SYMBOL_GPL(vb2_dma_sg_init_ctx);
+
+void vb2_dma_sg_cleanup_ctx(void *alloc_ctx)
+{
+	struct vb2_dma_sg_conf *conf = alloc_ctx;
+	struct device *dev = conf->dev;
+	devm_kfree(dev, alloc_ctx);
+}
+EXPORT_SYMBOL_GPL(vb2_dma_sg_cleanup_ctx);
 
 MODULE_DESCRIPTION("dma scatter/gather memory handling routines for videobuf2");
 MODULE_AUTHOR("Andrzej Pietrasiewicz");
