@@ -4,6 +4,10 @@
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
 
+
+#define MHZ (1000000)
+#define MHZ_TO_KHZ (1000)
+
 #define APBC_NO_BUS_CTRL	BIT(0)
 #define APBC_POWER_CTRL		BIT(1)
 
