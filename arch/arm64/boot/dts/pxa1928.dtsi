@@ -304,4 +304,8 @@
 			reg = <0xd4282c00 0xf0>;
 		};
 	};
+
+	touch: vnc {
+		compatible = "vnc-ts";
+	};
 };
