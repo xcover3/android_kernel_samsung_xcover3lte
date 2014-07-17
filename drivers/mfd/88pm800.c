@@ -31,6 +31,7 @@
 #include <linux/of_device.h>
 #include <linux/reboot.h>
 #include "88pm8xx-config.h"
+#include "88pm8xx-debugfs.h"
 
 /* Interrupt Registers */
 #define PM800_INT_STATUS1		(0x05)
@@ -851,6 +852,12 @@ static int pm800_probe(struct i2c_client *client,
 	parse_powerup_down_log(chip);
 	chip->reboot_notifier.notifier_call = reboot_notifier_func;
 
+	ret = pm800_dump_debugfs_init(chip);
+	if (ret) {
+		dev_err(chip->dev, "create debugfs fails, but let's continue.\n");
+		ret = 0;
+	}
+
 	chip_g = chip;
 	pm_power_off = sw_poweroff;
 	register_reboot_notifier(&(chip->reboot_notifier));
@@ -875,6 +882,7 @@ static int pm800_remove(struct i2c_client *client)
 
 	pm800_pages_exit(chip);
 	pm80x_deinit();
+	pm800_dump_debugfs_remove(chip);
 
 	return 0;
 }

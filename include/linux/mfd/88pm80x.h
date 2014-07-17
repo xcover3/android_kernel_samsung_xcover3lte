@@ -475,6 +475,7 @@ struct pm80x_chip {
 	unsigned long wu_flag;
 	spinlock_t lock;
 	struct notifier_block reboot_notifier;
+	struct dentry *debugfs;
 };
 
 struct pm80x_platform_data {
