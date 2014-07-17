@@ -376,4 +376,8 @@
 		interrupts = <0 95 0x4>;
 		status = "okay";
 	};
+
+	touch: vnc {
+		compatible = "vnc-ts";
+	};
 };
