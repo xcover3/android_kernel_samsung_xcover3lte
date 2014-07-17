@@ -21,8 +21,17 @@ struct of_device_id regs_addr_matches[] = {
 		.compatible = "marvell,mmp-pmu-apmu",
 		.data = &all_regs_addr[REGS_ADDR_APMU],
 	}, {
+		.compatible = "marvell,mmp-pmu-apbc",
+		.data = &all_regs_addr[REGS_ADDR_APBC],
+	}, {
 		.compatible = "marvell,mmp-ciu",
 		.data = &all_regs_addr[REGS_ADDR_CIU],
+	}, {
+		.compatible = "mrvl,mmp-intc-wakeupgen",
+		.data = &all_regs_addr[REGS_ADDR_ICU],
+	}, {
+		.compatible = "arm,cortex-a7-gic",
+		.data = &all_regs_addr[REGS_ADDR_GIC],
 	},
 	{},
 };
