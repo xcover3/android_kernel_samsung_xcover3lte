@@ -88,7 +88,8 @@
 
 			intc: wakeupgen@d4282000 {
 				compatible = "mrvl,mmp-intc-wakeupgen";
-				reg = <0xd4282000 0x1000>;
+				reg = <0xd4282000 0x1000>,
+				      <0xd4282800 0x12c>;
 				mrvl,intc-nr-irqs = <96>;
 				mrvl,intc-gbl-mask = <0x228 0x3
 						     0x238 0x3
@@ -96,6 +97,8 @@
 						     0x258 0x3>;
 				mrvl,intc-for-cp = <0 31 32>;
 				mrvl,intc-for-sp = <92>;
+				mrvl,intc-wake-clr = <9  (1 << 3)
+						      39 (1 << 0 | 1 << 1 | 1 << 6)>;
 				status = "disabled";
 			};
 		};
