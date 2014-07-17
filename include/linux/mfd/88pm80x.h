@@ -118,6 +118,16 @@ enum {
 #define PM800_GPIO4_VAL				(1 << 0)
 #define PM800_GPIO4_GPIO_MODE(x)	(x << 1)
 
+/*88pm860 gpio control registers*/
+#define PM860_GPIO_2_3_CNTRL		(0x31)
+#define PM860_GPIO3_GPIO_MODE(x)	(x << 5)
+#define PM860_GPIO_4_5_CNTRL		(0x32)
+#define PM860_GPIO4_GPIO_MODE(x)	(x << 1)
+
+#define PM800_HEADSET_CNTRL		(0x38)
+#define PM800_HEADSET_DET_EN		(1 << 7)
+#define PM800_HSDET_SLP			(1 << 1)
+
 #define PM800_HEADSET_CNTRL		(0x38)
 #define PM800_HEADSET_DET_EN		(1 << 7)
 #define PM800_HSDET_SLP			(1 << 1)
@@ -147,7 +157,10 @@ enum {
 #define PM800_RTC_MISC2			(0xE2)
 #define PM800_RTC_MISC3			(0xE3)
 #define PM800_RTC_MISC4			(0xE4)
+#define PM800_POWER_DOWN_LOG1		(0xE5)
+#define PM800_POWER_DOWN_LOG2		(0xE6)
 #define PM800_RTC_MISC5			(0xE7)
+#define PM800_RTC_MISC6			(0xE8)
 /* user data register, in RTC domain */
 #define PM800_USER_DATA1		(0xEA)
 #define PM800_USER_DATA2		(0xEB)
@@ -155,6 +168,8 @@ enum {
 #define PM800_USER_DATA4		(0xED)
 #define PM800_USER_DATA5		(0xEE)
 #define PM800_USER_DATA6		(0xEF)
+
+#define PM860_MISC_RTC3			(0xE8)
 /* bit definitions of RTC Register 1 (0xD0) */
 #define PM800_ALARM1_EN			(1 << 0)
 #define PM800_ALARM_WAKEUP		(1 << 4)
@@ -210,6 +225,13 @@ enum {
 #define PM800_BUCK5_SLP2_SHIFT	0
 #define PM800_BUCK5_SLP2_MASK	(0x3 << PM800_BUCK5_SLP2_SHIFT)
 
+/* LDO Sleep Mode Register */
+#define PM800_LDO_SLP1		(0x5c)
+#define PM800_LDO_SLP2		(0x5d)
+#define PM800_LDO_SLP3		(0x5e)
+#define PM800_LDO_SLP4		(0x5f)
+#define PM800_LDO_SLP5		(0x60)
+
 #define PM800_LDO1_1		(0x08)
 #define PM800_LDO1_2		(0x09)
 #define PM800_LDO1_3		(0x0a)
@@ -248,6 +270,20 @@ enum {
 #define PM822_LDO2_AUDIO	(0x0A)
 #define PM822_VOUTSW		(0xFF)	/* fake register */
 
+/*88pm86x registers*/
+#define PM800_BUCK1A		(0x3C)
+#define PM800_BUCK1A_1		(0x3D)
+#define PM800_BUCK1A_2		(0x3E)
+#define PM800_BUCK1A_3		(0x3F)
+
+#define PM800_BUCK6		(0x4A)
+#define PM800_BUCK1B		(0x4B)
+#define PM800_BUCK1B_1		(0x4C)
+#define PM800_BUCK1B_2		(0x4D)
+#define PM800_BUCK1B_3		(0x4E)
+
+#define PM860_BUCK1_MISC	(0x8E)
+#define BUCK1_DUAL_PHASE_SEL	(1 << 2)
 
 /* BUCK Sleep Mode Register 1: BUCK[1..4] */
 #define PM800_BUCK_SLP1		(0x5A)
@@ -337,6 +373,8 @@ enum {
 
 #define PM800_GPADC4_AVG1		0xA8
 #define PM800_GPADC4_AVG2		0xA9
+
+#define PM822_LDO13_CTRL		0x98
 
 /* 88PM805 Registers */
 #define PM805_MAIN_POWERUP		(0x01)
