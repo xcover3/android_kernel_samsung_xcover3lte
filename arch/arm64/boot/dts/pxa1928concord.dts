@@ -139,4 +139,20 @@
 		};
 	};
 
+	ion {
+		marvell,ion-nr = <2>;
+		status = "okay";
+		heap1 {
+			marvell,ion-name = "carveout_heap";
+			marvell,ion-type = <2>;
+			marvell,ion-id = <2>;
+			marvell,ion-base = <0x1200000>;
+			marvell,ion-size = <0>;
+		};
+		heap2 {
+			marvell,ion-name = "system_heap";
+			marvell,ion-type = <0>;
+			marvell,ion-id = <0>;
+		};
+	};
 };

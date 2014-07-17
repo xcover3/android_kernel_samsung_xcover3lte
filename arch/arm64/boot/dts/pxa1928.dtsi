@@ -71,6 +71,12 @@
 		clock-frequency = <3250000>;
 	};
 
+	ion: ion {
+		compatible = "pxa-ion";
+		#stream-id-cells = <1>;
+		status = "disabled";
+	};
+
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
