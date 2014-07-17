@@ -67,4 +67,8 @@
 			};
 		};
 	};
+
+	touch: vnc {
+		compatible = "vnc-ts";
+	};
 };
