@@ -192,7 +192,7 @@ static int ion_carveout_heap_debug_show(struct ion_heap *heap,
 	struct ion_carveout_heap *carveout_heap =
 		container_of(heap, struct ion_carveout_heap, heap);
 
-	seq_printf(s, "\ncarveout heap free list, avail: %u\n",
+	seq_printf(s, "\ncarveout heap free list, avail: %zu\n",
 		gen_pool_avail(carveout_heap->pool));
 
 	seq_printf(s, "%8.s %12.s\n", "phys", "size");

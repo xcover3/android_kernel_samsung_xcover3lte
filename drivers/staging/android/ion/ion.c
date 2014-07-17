@@ -1684,7 +1684,7 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	}
 	mutex_unlock(&dev->buffer_lock);
 	seq_printf(s, "---------------------------------------------------\n");
-	seq_printf(s, "%8.s%8.uKB %8.s%8.zuKB %8.s%8.zuKB %8.s%8.zuKB\n",
+	seq_printf(s, "%8.s%8.zuKB %8.s%8.zuKB %8.s%8.zuKB %8.s%8.zuKB\n",
 		"total:", heap->size >> 10,
 		"used:", total_carveout_size >> 10,
 		"free:", (heap->size - total_carveout_size) >> 10,

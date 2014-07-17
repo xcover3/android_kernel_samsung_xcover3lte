@@ -14,7 +14,6 @@
  *
  */
 
-#include <asm/page.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/highmem.h>
