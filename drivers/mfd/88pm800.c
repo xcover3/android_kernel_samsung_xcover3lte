@@ -29,6 +29,7 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/slab.h>
 #include <linux/of_device.h>
+#include <linux/reboot.h>
 
 /* Interrupt Registers */
 #define PM800_INT_STATUS1		(0x05)
@@ -122,6 +123,9 @@ enum {
 
 /* PM800: generation identification number */
 #define PM800_CHIP_GEN_ID_NUM	0x3
+
+/* globle device pointer */
+static struct pm80x_chip *chip_g;
 
 enum pm8xx_parent {
 	PM822 = 0x822,
@@ -673,6 +677,92 @@ static int pm800_dt_init(struct device_node *np,
 	return 0;
 }
 
+#define PM800_SW_PDOWN			(1 << 5)
+void sw_poweroff(void)
+{
+	int ret;
+	u8 reg = PM800_WAKEUP1, data, buf[2];
+	struct i2c_client *client = chip_g->client;
+	struct i2c_msg msgs[] = {
+		{
+			.addr = client->addr,
+			.flags = 0,
+			.len = 1,
+			.buf = buf,
+		},
+		{
+			.addr = client->addr,
+			.flags = I2C_M_RD,
+			.len = 1,
+			.buf = &data,
+		},
+	};
+
+	pr_info("turning off power....\n");
+	/*
+	 * I2C pins may be in non-AP pinstate, and __i2c_transfer
+	 * won't change it back to AP pinstate like i2c_transfer,
+	 * so change i2c pins to AP pinstate explicitly here.
+	 */
+	i2c_pxa_set_pinstate(client->adapter, "default");
+
+	/*
+	 * set i2c to pio mode
+	 * for in power off sequence, irq has been disabled
+	 */
+	i2c_set_pio_mode(client->adapter, 1);
+
+	/* read original data from PM800_WAKEUP1 */
+	buf[0] = reg;
+	ret = __i2c_transfer(client->adapter, msgs, 2);
+	if (ret < 0) {
+		pr_err("%s send reg fails...\n", __func__);
+		BUG();
+	}
+
+	/* write data */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = 2;
+	msgs[0].buf[0] = reg;
+	msgs[0].buf[1] = data | PM800_SW_PDOWN;
+	ret = __i2c_transfer(client->adapter, msgs, 1);
+	if (ret < 0) {
+		pr_err("%s write data fails...\n", __func__);
+		BUG();
+	}
+	/* we will not see this log if power off is sucessful */
+	pr_err("power down failes!\n");
+}
+
+static int reboot_notifier_func(struct notifier_block *this,
+		unsigned long code, void *cmd)
+{
+	int data;
+	struct pm80x_chip *chip;
+
+	pr_info("reboot notifier...\n");
+
+	chip = container_of(this, struct pm80x_chip, reboot_notifier);
+	if (cmd && (0 == strcmp(cmd, "recovery"))) {
+		pr_info("Enter recovery mode\n");
+		regmap_read(chip->regmap, PM800_USER_DATA6, &data);
+		regmap_write(chip->regmap, PM800_USER_DATA6, data | 0x1);
+
+	} else {
+		regmap_read(chip->regmap, PM800_USER_DATA6, &data);
+		regmap_write(chip->regmap, PM800_USER_DATA6, data & 0xfe);
+	}
+
+	if (code != SYS_POWER_OFF) {
+		regmap_read(chip->regmap, PM800_USER_DATA6, &data);
+		/* this bit is for charger server */
+		regmap_write(chip->regmap, PM800_USER_DATA6, data | 0x2);
+	}
+
+	return 0;
+}
+
 static int pm800_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
@@ -745,6 +835,12 @@ static int pm800_probe(struct i2c_client *client,
 
 	if (pdata && pdata->plat_config)
 		pdata->plat_config(chip, pdata);
+
+	chip->reboot_notifier.notifier_call = reboot_notifier_func;
+
+	chip_g = chip;
+	pm_power_off = sw_poweroff;
+	register_reboot_notifier(&(chip->reboot_notifier));
 
 	return 0;
 

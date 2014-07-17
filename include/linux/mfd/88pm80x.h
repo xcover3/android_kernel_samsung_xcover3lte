@@ -148,6 +148,13 @@ enum {
 #define PM800_RTC_MISC3			(0xE3)
 #define PM800_RTC_MISC4			(0xE4)
 #define PM800_RTC_MISC5			(0xE7)
+/* user data register, in RTC domain */
+#define PM800_USER_DATA1		(0xEA)
+#define PM800_USER_DATA2		(0xEB)
+#define PM800_USER_DATA3		(0xEC)
+#define PM800_USER_DATA4		(0xED)
+#define PM800_USER_DATA5		(0xEE)
+#define PM800_USER_DATA6		(0xEF)
 /* bit definitions of RTC Register 1 (0xD0) */
 #define PM800_ALARM1_EN			(1 << 0)
 #define PM800_ALARM_WAKEUP		(1 << 4)
@@ -429,6 +436,7 @@ struct pm80x_chip {
 	int irq_mode;
 	unsigned long wu_flag;
 	spinlock_t lock;
+	struct notifier_block reboot_notifier;
 };
 
 struct pm80x_platform_data {
