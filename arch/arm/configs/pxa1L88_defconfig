@@ -1315,8 +1315,8 @@ CONFIG_OF_GPIO=y
 #
 # CONFIG_GPIO_GENERIC_PLATFORM is not set
 # CONFIG_GPIO_EM is not set
-CONFIG_GPIO_PXA=y
-# CONFIG_GPIO_MMP is not set
+# CONFIG_GPIO_PXA is not set
+CONFIG_GPIO_MMP=y
 # CONFIG_GPIO_RCAR is not set
 # CONFIG_GPIO_SCH311X is not set
 # CONFIG_GPIO_TS5500 is not set
@@ -2267,6 +2267,7 @@ CONFIG_LEDS_CLASS=y
 # CONFIG_LEDS_LM355x is not set
 # CONFIG_LEDS_OT200 is not set
 # CONFIG_LEDS_BLINKM is not set
+# CONFIG_LEDS_88PM828X is not set
 
 #
 # LED Triggers
