@@ -598,6 +598,7 @@ static int mmp_tdma_probe(struct platform_device *pdev)
 	int irq = 0, irq_num = 0;
 	int chan_num = TDMA_CHANNEL_NUM;
 	struct gen_pool *pool;
+	struct device_node *np = pdev->dev.of_node;
 
 	of_id = of_match_device(mmp_tdma_dt_ids, &pdev->dev);
 	if (of_id)
