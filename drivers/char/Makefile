@@ -67,3 +67,4 @@ js-rtc-y = rtc.o
 
 obj-$(CONFIG_TILE_SROM)		+= tile-srom.o
 obj-$(CONFIG_PXA9XX_AMIPC)	+= pxa9xx_amipc.o
+obj-$(CONFIG_PXA9XX_ACIPC)	+= pxa9xx_acipc.o

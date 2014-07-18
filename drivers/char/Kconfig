@@ -665,5 +665,13 @@ config VIBRATOR_PWM
 	  The pwm supllied by the PWM3 pin on PXA1928 chip
 	  If unsusre, say N.
 
+config PXA9XX_ACIPC
+	tristate "PXA9xx AC-IPC Driver"
+	depends on ARCH_MMP
+	help
+	  Please say Y here if want to support Application to
+	  Communication Intel-Processor Communication on PXA988,
+	  PXA1088, PXA1U88 and PXA1928.
+
 endmenu
 
