@@ -37,6 +37,10 @@ static HLIST_HEAD(clk_root_list);
 static HLIST_HEAD(clk_orphan_list);
 static LIST_HEAD(clk_notifier_list);
 
+static int __clk_notify(struct clk *clk, unsigned long msg,
+	unsigned long old_rate, unsigned long new_rate);
+
+
 /***           locking             ***/
 static void clk_prepare_lock(void)
 {
@@ -929,6 +933,10 @@ void __clk_unprepare(struct clk *clk)
 		clk->ops->unprepare(clk->hw);
 
 	__clk_unprepare(clk->parent);
+
+	/* send out notifier for dvfs */
+	if (clk->notifier_count)
+		__clk_notify(clk, POST_RATE_CHANGE, clk->rate, 0);
 }
 
 /**
@@ -969,6 +977,9 @@ int __clk_prepare(struct clk *clk)
 				return ret;
 			}
 		}
+		/* send out notifier for dvfs */
+		if (clk->notifier_count)
+			__clk_notify(clk, PRE_RATE_CHANGE, 0, clk->rate);
 	}
 
 	clk->prepare_count++;
