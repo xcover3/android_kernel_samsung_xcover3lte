@@ -9,6 +9,7 @@
 
 #include "clk.h"
 #include "clk-pll-helanx.h"
+#include "clk-core-helanx.h"
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -434,6 +435,301 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	mmp_clk_add(unit, PXA1U88_CLK_SDH2, clk);
 }
 
+static DEFINE_SPINLOCK(fc_seq_lock);
+
+/* CORE */
+static const char *core_parent[] = {
+	"pll1_624", "pll1_1248", "pll2", "pll1_832", "pll3p",
+};
+
+static struct parents_table core_parent_table[] = {
+	{
+		.parent_name = "pll1_624",
+		.hw_sel_val = 0x0,
+	},
+	{
+		.parent_name = "pll1_1248",
+		.hw_sel_val = 0x1,
+	},
+	{
+		.parent_name = "pll2",
+		.hw_sel_val = 0x2,
+	},
+	{
+		.parent_name = "pll1_832",
+		.hw_sel_val = 0x3,
+	},
+	{
+		.parent_name = "pll3p",
+		.hw_sel_val = 0x5,
+	},
+};
+
+/*
+ * For HELAN2:
+ * PCLK = AP_CLK_SRC / (CORE_CLK_DIV + 1)
+ * BIU_CLK = PCLK / (BIU_CLK_DIV + 1)
+ * MC_CLK = PCLK / (MC_CLK_DIV + 1)
+ *
+ * AP clock source:
+ * 0x0 = PLL1 624 MHz
+ * 0x1 = PLL1 1248 MHz  or PLL3_CLKOUT
+ * (depending on FCAP[2])
+ * 0x2 = PLL2_CLKOUT
+ * 0x3 = PLL1 832 MHZ
+ * 0x5 = PLL3_CLKOUTP
+ */
+static struct cpu_opt helan2_op_array[] = {
+	{
+		.pclk = 312,
+		.pdclk = 156,
+		.baclk = 156,
+		.ap_clk_sel = 0x0,
+	},
+	{
+		.pclk = 624,
+		.pdclk = 312,
+		.baclk = 156,
+		.ap_clk_sel = 0x0,
+	},
+	{
+		.pclk = 832,
+		.pdclk = 416,
+		.baclk = 208,
+		.ap_clk_sel = 0x3,
+	},
+	{
+		.pclk = 1057,
+		.pdclk = 528,
+		.baclk = 264,
+		.ap_clk_sel = 0x2,
+	},
+	{
+		.pclk = 1248,
+		.pdclk = 624,
+		.baclk = 312,
+		.ap_clk_sel = 0x1,
+	},
+	{
+		.pclk = 1526,
+		.pdclk = 763,
+		.baclk = 381,
+		.ap_clk_sel = 0x5,
+		.ap_clk_src = 1526,
+	},
+	{
+		.pclk = 1803,
+		.pdclk = 901,
+		.baclk = 450,
+		.ap_clk_sel = 0x5,
+		.ap_clk_src = 1803,
+	}
+};
+
+static struct cpu_rtcwtc cpu_rtcwtc_1u88[] = {
+	{.max_pclk = 624, .l1_xtc = 0x02222222, .l2_xtc = 0x00002221,},
+	{.max_pclk = 1526, .l1_xtc = 0x02666666, .l2_xtc = 0x00006265,},
+	{.max_pclk = 1803, .l1_xtc = 0x02AAAAAA, .l2_xtc = 0x0000A2A9,},
+};
+
+static struct core_params core_params = {
+	.parent_table = core_parent_table,
+	.parent_table_size = ARRAY_SIZE(core_parent_table),
+	.cpu_opt = helan2_op_array,
+	.cpu_opt_size = ARRAY_SIZE(helan2_op_array),
+	.cpu_rtcwtc_table = cpu_rtcwtc_1u88,
+	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_1u88),
+	.bridge_cpurate = 1248,
+	.max_cpurate = 1526,
+#if 0
+	.dcstat_support = true,
+#endif
+};
+
+/* DDR */
+static const char *ddr_parent[] = {
+	"pll1_624", "pll1_832", "pll2", "pll4", "pll3p",
+};
+
+/*
+ * DDR clock source:
+ * 0x0 = PLL1 624 MHz
+ * 0x1 = PLL1 832 MHz
+ * 0x4 = PLL2_CLKOUT
+ * 0x5 = PLL4_CLKOUT
+ * 0x6 = PLL3_CLKOUTP
+ */
+static struct parents_table ddr_parent_table[] = {
+	{
+		.parent_name = "pll1_624",
+		.hw_sel_val = 0x0,
+	},
+	{
+		.parent_name = "pll1_832",
+		.hw_sel_val = 0x1,
+	},
+	{
+		.parent_name = "pll2",
+		.hw_sel_val = 0x4,
+	},
+	{
+		.parent_name = "pll4",
+		.hw_sel_val = 0x5,
+	},
+	{
+		.parent_name = "pll3p",
+		.hw_sel_val = 0x6,
+	},
+};
+
+
+static struct ddr_opt lpddr800_oparray[] = {
+	{
+		.dclk = 156,
+		.ddr_tbl_index = 2,
+		.ddr_freq_level = 0,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 312,
+		.ddr_tbl_index = 4,
+		.ddr_freq_level = 1,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 416,
+		.ddr_tbl_index = 6,
+		.ddr_freq_level = 2,
+		.ddr_clk_sel = 0x1,
+	},
+	{
+		.dclk = 528,
+		.ddr_tbl_index = 8,
+		.ddr_freq_level = 3,
+		.ddr_clk_sel = 0x4,
+	},
+	{
+		.dclk = 797,
+		.ddr_tbl_index = 10,
+		.ddr_freq_level = 4,
+		.ddr_clk_sel = 0x5,
+	},
+};
+
+static unsigned long hwdfc_freq_table[] = {
+	533000, 533000, 800000, 800000
+};
+
+static struct ddr_params ddr_params = {
+	.parent_table = ddr_parent_table,
+	.parent_table_size = ARRAY_SIZE(ddr_parent_table),
+	.hwdfc_freq_table = hwdfc_freq_table,
+	.hwdfc_table_size = ARRAY_SIZE(hwdfc_freq_table),
+	.dcstat_support = true,
+};
+
+
+static const char *axi_parent[] = {
+	"pll1_416", "pll1_624", "pll2", "pll2p",
+};
+
+/*
+ * AXI clock source:
+ * 0x0 = PLL1 416 MHz
+ * 0x1 = PLL1 624 MHz
+ * 0x2 = PLL2_CLKOUT
+ * 0x3 = PLL2_CLKOUTP
+ */
+static struct parents_table axi_parent_table[] = {
+	{
+		.parent_name = "pll1_416",
+		.hw_sel_val = 0x0,
+	},
+	{
+		.parent_name = "pll1_624",
+		.hw_sel_val = 0x1,
+	},
+	{
+		.parent_name = "pll2",
+		.hw_sel_val = 0x2,
+	},
+	{
+		.parent_name = "pll2p",
+		.hw_sel_val = 0x3,
+	},
+};
+
+static struct axi_opt axi_oparray[] = {
+	{
+		.aclk = 156,
+		.axi_clk_sel = 0x1,
+	},
+	{
+		.aclk = 208,
+		.axi_clk_sel = 0x0,
+	},
+	{
+		.aclk = 312,
+		.axi_clk_sel = 0x1,
+	},
+};
+
+static struct axi_params axi_params = {
+	.parent_table = axi_parent_table,
+	.parent_table_size = ARRAY_SIZE(axi_parent_table),
+#if 0
+	.dcstat_support = true,
+#endif
+};
+
+static struct ddr_combclk_relation aclk_dclk_relationtbl_1U88[] = {
+	{.dclk_rate = 156000000, .combclk_rate = 156000000},
+	{.dclk_rate = 312000000, .combclk_rate = 156000000},
+	{.dclk_rate = 398000000, .combclk_rate = 208000000},
+	{.dclk_rate = 416000000, .combclk_rate = 208000000},
+	{.dclk_rate = 528000000, .combclk_rate = 208000000},
+	{.dclk_rate = 667000000, .combclk_rate = 312000000},
+	{.dclk_rate = 797000000, .combclk_rate = 312000000},
+};
+
+static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
+{
+	struct clk *clk;
+
+	core_params.apmu_base = pxa_unit->apmu_base;
+	core_params.mpmu_base = pxa_unit->mpmu_base;
+	core_params.ciu_base = pxa_unit->ciu_base;
+
+	ddr_params.apmu_base = pxa_unit->apmu_base;
+	ddr_params.mpmu_base = pxa_unit->mpmu_base;
+	ddr_params.ddr_opt = lpddr800_oparray;
+	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_oparray);
+
+	axi_params.apmu_base = pxa_unit->apmu_base;
+	axi_params.mpmu_base = pxa_unit->mpmu_base;
+	axi_params.axi_opt = axi_oparray;
+	axi_params.axi_opt_size = ARRAY_SIZE(axi_oparray);
+
+	clk = mmp_clk_register_core("cpu", core_parent,
+		ARRAY_SIZE(core_parent), CLK_GET_RATE_NOCACHE,
+		HELANX_FC_V2, &fc_seq_lock, &core_params);
+	clk_prepare_enable(clk);
+
+	clk = mmp_clk_register_ddr("ddr", ddr_parent,
+		ARRAY_SIZE(ddr_parent), CLK_GET_RATE_NOCACHE,
+		HELANX_FC_V2, &fc_seq_lock, &ddr_params);
+	clk_prepare_enable(clk);
+
+	clk = mmp_clk_register_axi("axi", axi_parent,
+		ARRAY_SIZE(axi_parent), CLK_GET_RATE_NOCACHE,
+		HELANX_FC_V2, &fc_seq_lock, &axi_params);
+	clk_prepare_enable(clk);
+	register_clk_bind2ddr(clk,
+		axi_params.axi_opt[axi_params.axi_opt_size - 1].aclk * MHZ,
+		aclk_dclk_relationtbl_1U88,
+		ARRAY_SIZE(aclk_dclk_relationtbl_1U88));
+}
+
 static void __init pxa1U88_clk_init(struct device_node *np)
 {
 	struct pxa1U88_clk_unit *pxa_unit;
@@ -483,10 +779,9 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 	mmp_clk_init(np, &pxa_unit->unit, PXA1U88_NR_CLKS);
 
 	pxa1U88_pll_init(pxa_unit);
-
+	pxa1U88_acpu_init(pxa_unit);
 	pxa1U88_apb_periph_clk_init(pxa_unit);
 
 	pxa1U88_axi_periph_clk_init(pxa_unit);
 }
-
 CLK_OF_DECLARE(pxa1U88_clk, "marvell,pxa1U88-clock", pxa1U88_clk_init);
