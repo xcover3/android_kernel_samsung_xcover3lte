@@ -10,6 +10,7 @@
 /dts-v1/;
 #include "pxa1928.dtsi"
 #include "pxa1928concord-pinfunc.h"
+#include "../../../../include/dt-bindings/interrupt-controller/irq.h"
 
 / {
 	model = "PXA1928";
@@ -20,6 +21,12 @@
 		serial1 = &uart1;
 		serial2 = &uart0;
 		serial3 = &uart3;
+		i2c0 = &twsi0;
+		i2c1 = &twsi1;
+		i2c2 = &twsi2;
+		i2c3 = &twsi3;
+		i2c4 = &twsi4;
+		i2c5 = &twsi5;
 	};
 
 	gpio_keys {
@@ -135,6 +142,131 @@
 					pinctrl-single,pins = <GPIO(DKIN0) GPIO(DKIN1)>;
 					MFP_LPM_PULL_HIGH;
 				};
+
+				twsi0_pins: pinmux_twsi0_pins {
+					pinctrl-single,pins = <PWR_SCL PWR_SDA>;
+					MFP_DEFAULT;
+				};
+
+				twsi0_gpio_pins: pinmux_twsi0_gpio_pins {
+					pinctrl-single,pins = <GPIO(PWR_SCL_GPIO) GPIO(PWR_SDA_GPIO)>;
+					MFP_DEFAULT;
+				};
+
+				twsi0_cp_pins: pinmux_twsi0_cp_pins {
+					pinctrl-single,pins = <PWR_CP_SCL PWR_CP_SDA>;
+					MFP_DEFAULT;
+				};
+
+				twsi1_pins: pinmux_twsi1_pins {
+					pinctrl-single,pins = <TWSI1_SCL TWSI1_SDA>;
+					MFP_DEFAULT;
+				};
+
+				twsi1_gpio_pins: pinmux_twsi1_gpio_pins {
+					pinctrl-single,pins = <GPIO(TWSI1_SCL_GPIO) GPIO(TWSI1_SDA_GPIO)>;
+					MFP_DEFAULT;
+				};
+
+				twsi2_pins: pinmux_twsi2_pins {
+					pinctrl-single,pins = <TWSI2_SCL TWSI2_SDA>;
+					MFP_DEFAULT;
+				};
+
+				twsi2_gpio_pins: pinmux_twsi2_gpio_pins {
+					pinctrl-single,pins = <GPIO(TWSI2_SCL_GPIO) GPIO(TWSI2_SDA_GPIO)>;
+					MFP_DEFAULT;
+				};
+
+				twsi2_isp_pins: pinmux_isp_twsi2_pins {
+					pinctrl-single,pins = <TWSI2_SCL_ISP TWSI2_SDA_ISP>;
+					MFP_DEFAULT;
+				};
+
+				twsi2_isp_gpio_pins: pinmux_isp_twsi2_gpio_pins {
+					pinctrl-single,pins = <GPIO(TWSI2_SCL_ISP_GPIO) GPIO(TWSI2_SDA_ISP_GPIO)>;
+					MFP_DEFAULT;
+				};
+
+				twsi3_pins: pinmux_twsi3_pins {
+					pinctrl-single,pins = <TWSI3_SCL TWSI3_SDA>;
+					MFP_DEFAULT;
+				};
+
+				twsi3_gpio_pins: pinmux_twsi3_gpio_pins {
+					pinctrl-single,pins = <GPIO(TWSI3_SCL_GPIO) GPIO(TWSI3_SDA_GPIO)>;
+					MFP_DEFAULT;
+				};
+
+				twsi4_pins: pinmux_twsi4_pins {
+					pinctrl-single,pins = <TWSI4_SCL TWSI4_SDA>;
+					MFP_DEFAULT;
+				};
+
+				twsi4_gpio_pins: pinmux_twsi4_gpio_pins {
+					pinctrl-single,pins = <GPIO(TWSI4_SCL_GPIO) GPIO(TWSI4_SDA_GPIO)>;
+					MFP_DEFAULT;
+				};
+
+				twsi5_pins: pinmux_twsi5_pins {
+					pinctrl-single,pins = <TWSI5_SCL TWSI5_SDA>;
+					MFP_DEFAULT;
+				};
+
+				twsi5_gpio_pins: pinmux_twsi5_gpio_pins {
+					pinctrl-single,pins = <GPIO(TWSI5_SCL_GPIO) GPIO(TWSI5_SDA_GPIO)>;
+					MFP_DEFAULT;
+				};
+			};
+
+			twsi0: i2c@d4011000 {
+				pinctrl-names = "default", "gpio", "i2c_cp";
+				pinctrl-0 = <&twsi0_pins>;
+				pinctrl-1 = <&twsi0_gpio_pins>;
+				pinctrl-2 = <&twsi0_cp_pins>;
+				i2c-gpio = <&gpio PWR_SCL_GPIO 0 &gpio PWR_SDA_GPIO 0>;
+				mrvl,i2c-apdcp;
+				status = "okay";
+			};
+
+			twsi1: i2c@d4031000 {
+				pinctrl-names = "default", "gpio";
+				pinctrl-0 = <&twsi1_pins>;
+				pinctrl-1 = <&twsi1_gpio_pins>;
+				i2c-gpio = <&gpio TWSI1_SCL_GPIO 0 &gpio TWSI1_SDA_GPIO 0>;
+				status = "okay";
+			};
+
+			twsi2: i2c@d4032000 {
+				pinctrl-names = "default", "gpio";
+				pinctrl-0 = <&twsi2_pins>;
+				pinctrl-1 = <&twsi2_gpio_pins>;
+				i2c-gpio = <&gpio TWSI2_SCL_GPIO 0 &gpio TWSI2_SDA_GPIO 0>;
+				status = "okay";
+			};
+
+			twsi3: i2c@d4033000 {
+				pinctrl-names = "default", "gpio";
+				pinctrl-0 = <&twsi3_pins>;
+				pinctrl-1 = <&twsi3_gpio_pins>;
+				i2c-gpio = <&gpio TWSI3_SCL_GPIO 0 &gpio TWSI3_SDA_GPIO 0>;
+				status = "okay";
+			};
+
+			twsi4: i2c@d4033800 {
+				pinctrl-names = "default", "gpio";
+				pinctrl-0 = <&twsi4_pins>;
+				pinctrl-1 = <&twsi4_gpio_pins>;
+				i2c-gpio = <&gpio TWSI4_SCL_GPIO 0 &gpio TWSI4_SDA_GPIO 0>;
+				status = "okay";
+			};
+
+			twsi5: i2c@d4034000 {
+				pinctrl-names = "default", "gpio";
+				pinctrl-0 = <&twsi5_pins>;
+				pinctrl-1 = <&twsi5_gpio_pins>;
+				i2c-gpio = <&gpio TWSI5_SCL_GPIO 0 &gpio TWSI5_SDA_GPIO 0>;
+				status = "okay";
 			};
 		};
 	};

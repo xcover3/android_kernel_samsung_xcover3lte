@@ -52,16 +52,16 @@
 #define GSSP_RXD			P28 0x1
 
 /* I2C */
-#define TWSI5_SCL			P29 0x7
-#define TWSI5_SDA			P30 0x7
-#define TWSI3_SCL			P18 0x4
-#define TWSI3_SDA			P19 0x4
-#define TWSI3_SCL_ISP			P31 0x7
-#define TWSI3_SDA_ISP			P32 0x7
-#define TWSI2_SCL			P43 0x6
-#define TWSI2_SDA			P44 0x6
-#define TWSI4_SDA			P45 0x6
-#define TWSI4_SCL			P46 0x6
+#define TWSI4_SCL			P29 0x7
+#define TWSI4_SDA			P30 0x7
+#define TWSI2_SCL			P18 0x4
+#define TWSI2_SDA			P19 0x4
+#define TWSI2_SCL_ISP			P31 0x7
+#define TWSI2_SDA_ISP			P32 0x7
+#define TWSI1_SCL			P43 0x6
+#define TWSI1_SDA			P44 0x6
+#define TWSI3_SDA			P45 0x6
+#define TWSI3_SCL			P46 0x6
 
 /* PWM2 */
 #define PWM2				P51 0x2
@@ -89,16 +89,16 @@
 #define DKIN0				15
 #define DKIN1				17
 
-#define TWSI3_SCL_GPIO			18
-#define TWSI3_SDA_GPIO			19
-#define TWSI5_SCL_GPIO			29
-#define TWSI5_SDA_GPIO			30
-#define TWSI3_SCL_ISP_GPIO		31
-#define TWSI3_SDA_ISP_GPIO		32
-#define TWSI2_SCL_GPIO			43
-#define TWSI2_SDA_GPIO			44
-#define TWSI4_SDA_GPIO			45
-#define TWSI4_SCL_GPIO			46
+#define TWSI2_SCL_GPIO			18
+#define TWSI2_SDA_GPIO			19
+#define TWSI4_SCL_GPIO			29
+#define TWSI4_SDA_GPIO			30
+#define TWSI2_SCL_ISP_GPIO		31
+#define TWSI2_SDA_ISP_GPIO		32
+#define TWSI1_SCL_GPIO			43
+#define TWSI1_SDA_GPIO			44
+#define TWSI3_SDA_GPIO			45
+#define TWSI3_SCL_GPIO			46
 
 #define TP_INT				52
 #define GPS_ON_OFF			53
@@ -151,16 +151,16 @@
 #define GSSP_RXD			P173 0x1
 
 /* I2C */
-#define TWSI5_SCL			P174 0x7
-#define TWSI5_SDA			P175 0x7
-#define TWSI3_SCL			P163 0x4
-#define TWSI3_SDA			P164 0x4
-#define TWSI3_SCL_ISP			P176 0x7
-#define TWSI3_SDA_ISP			P177 0x7
-#define TWSI2_SCL			P178 0x6
-#define TWSI2_SDA			P179 0x6
-#define TWSI4_SDA			P180 0x6
-#define TWSI4_SCL			P181 0x6
+#define TWSI4_SCL			P174 0x7
+#define TWSI4_SDA			P175 0x7
+#define TWSI2_SCL			P163 0x4
+#define TWSI2_SDA			P164 0x4
+#define TWSI2_SCL_ISP			P176 0x7
+#define TWSI2_SDA_ISP			P177 0x7
+#define TWSI1_SCL			P178 0x6
+#define TWSI1_SDA			P179 0x6
+#define TWSI3_SDA			P180 0x6
+#define TWSI3_SCL			P181 0x6
 
 /* PWM2 */
 #define PWM2				P186 0x2
@@ -184,17 +184,17 @@
 
 #define DKIN0				160
 #define DKIN1				162
-#define TWSI3_SCL_GPIO			163
-#define TWSI3_SDA_GPIO			164
-#define TWSI5_SCL_GPIO			174
-#define TWSI5_SDA_GPIO			175
-#define TWSI3_SCL_ISP_GPIO		176
-#define TWSI3_SDA_ISP_GPIO		177
+#define TWSI2_SCL_GPIO			163
+#define TWSI2_SDA_GPIO			164
+#define TWSI4_SCL_GPIO			174
+#define TWSI4_SDA_GPIO			175
+#define TWSI2_SCL_ISP_GPIO		176
+#define TWSI2_SDA_ISP_GPIO		177
 
-#define TWSI2_SCL_GPIO			178
-#define TWSI2_SDA_GPIO			179
-#define TWSI4_SDA_GPIO			180
-#define TWSI4_SCL_GPIO			181
+#define TWSI1_SCL_GPIO			178
+#define TWSI1_SDA_GPIO			179
+#define TWSI3_SDA_GPIO			180
+#define TWSI3_SCL_GPIO			181
 
 #define TP_INT				187
 #define GPS_ON_OFF			188
@@ -203,11 +203,11 @@
 
 #endif	/* PXA1928_DISCRETE */
 
-#define TWSI6_SCL			P35 0x5
-#define TWSI6_SDA			P36 0x5
+#define TWSI5_SCL			P35 0x5
+#define TWSI5_SDA			P36 0x5
 
-#define TWSI6_SCL_GPIO			35
-#define TWSI6_SDA_GPIO			36
+#define TWSI5_SCL_GPIO			35
+#define TWSI5_SDA_GPIO			36
 #define PWR_SCL_GPIO			67
 #define PWR_SDA_GPIO			68
 #define PWR_SCL				P67 0x0

@@ -9,6 +9,7 @@
 /memreserve/ 0x01210000 0x8;
 #include "pxa1928-pinfunc.h"
 #include "../../../../include/dt-bindings/clock/marvell-pxa1928.h"
+#include "../../../../include/dt-bindings/interrupt-controller/irq.h"
 
 / {
 	interrupt-parent = <&gic>;
@@ -309,7 +310,124 @@
 				        reg = <0xd4190000 0x4000>;
 				};
 			};
+
+			twsi0: i2c@d4011000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/* RIPC */
+				reg = <0xd4011000 0x70>,
+				      <0xd403d000 0x4>;
+				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI0>;
+
+				mrvl,i2c-fast-mode;
+				/*
+				 *ilcr: fast mode b17~9=0x1a, 380k
+				 *      standard mode b8~0=0x7e, 100k
+				 *iwcr: b5~0=b01010 recommended value from spec
+				 */
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-always-on;
+
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi1: i2c@d4031000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4031000 0x70>;
+				interrupts = <0 84 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI1>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi2: i2c@d4032000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4032000 0x70>;
+				interrupts = <0 85 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI2>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi3: i2c@d4033000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4033000 0x70>;
+				interrupts = <0 86 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI3>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi4: i2c@d4033800 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4033800 0x70>;
+				interrupts = <0 87 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI4>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+			twsi5: i2c@d4034000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4034000 0x70>;
+				interrupts = <0 88 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI5>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
 		};
+
 		soc_clocks: clocks{
 			compatible = "marvell,pxa1928-clock";
 			reg = <0xd4050000 0x2000>,
