@@ -169,6 +169,7 @@
 #define sTLBGSTATUS_GSACTIVE		(1 << 0)
 #define TLB_LOOP_TIMEOUT		1000000	/* 1s! */
 
+#define ARM_SMMU_NSCR0			0x400
 /* Stream mapping registers */
 #define ARM_SMMU_GR0_SMR(n)		(0x800 + ((n) << 2))
 #define SMR_VALID			(1 << 31)
@@ -1639,6 +1640,12 @@ static void arm_smmu_device_reset(struct arm_smmu_device *smmu)
 	/* Push the button */
 	arm_smmu_tlb_sync(smmu);
 	writel_relaxed(reg, gr0_base + ARM_SMMU_GR0_sCR0);
+
+	/*
+	 * Non-secure configuration the same as secure configuration,
+	 * as device maybe use non-secure transaction like coda7542.
+	 */
+	writel_relaxed(reg, gr0_base + ARM_SMMU_NSCR0);
 }
 
 static int arm_smmu_id_size_to_bits(int size)
