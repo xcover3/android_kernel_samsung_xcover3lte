@@ -487,14 +487,7 @@ static void ion_handle_get(struct ion_handle *handle)
 
 static int ion_handle_put(struct ion_handle *handle)
 {
-	struct ion_client *client = handle->client;
-	int ret;
-
-	mutex_lock(&client->lock);
-	ret = kref_put(&handle->ref, ion_handle_destroy);
-	mutex_unlock(&client->lock);
-
-	return ret;
+	return kref_put(&handle->ref, ion_handle_destroy);
 }
 
 static struct ion_handle *ion_handle_lookup(struct ion_client *client,
@@ -521,8 +514,6 @@ static struct ion_handle *ion_handle_get_by_id(struct ion_client *client,
 
 	mutex_lock(&client->lock);
 	handle = idr_find(&client->idr, id);
-	if (handle)
-		ion_handle_get(handle);
 	mutex_unlock(&client->lock);
 
 	return handle ? handle : ERR_PTR(-EINVAL);
@@ -631,11 +622,11 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 
 	mutex_lock(&client->lock);
 	ret = ion_handle_add(client, handle);
-	mutex_unlock(&client->lock);
 	if (ret) {
 		ion_handle_put(handle);
 		handle = ERR_PTR(ret);
 	}
+	mutex_unlock(&client->lock);
 
 	return handle;
 }
@@ -655,8 +646,8 @@ void ion_free(struct ion_client *client, struct ion_handle *handle)
 		mutex_unlock(&client->lock);
 		return;
 	}
-	mutex_unlock(&client->lock);
 	ion_handle_put(handle);
+	mutex_unlock(&client->lock);
 }
 EXPORT_SYMBOL(ion_free);
 
@@ -1289,13 +1280,14 @@ struct dma_buf *ion_share_dma_buf(struct ion_client *client,
 	}
 	buffer = handle->buffer;
 	ion_buffer_get(buffer);
-	mutex_unlock(&client->lock);
 
 	dmabuf = dma_buf_export(buffer, &dma_buf_ops, buffer->size, O_RDWR);
 	if (IS_ERR(dmabuf)) {
 		ion_buffer_put(buffer);
+		mutex_unlock(&client->lock);
 		return dmabuf;
 	}
+	mutex_unlock(&client->lock);
 
 	buffer->dma = dmabuf;
 	return dmabuf;
@@ -1355,11 +1347,11 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd)
 
 	mutex_lock(&client->lock);
 	ret = ion_handle_add(client, handle);
-	mutex_unlock(&client->lock);
 	if (ret) {
 		ion_handle_put(handle);
 		handle = ERR_PTR(ret);
 	}
+	mutex_unlock(&client->lock);
 
 end:
 	dma_buf_put(dmabuf);
@@ -1466,7 +1458,6 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (IS_ERR(handle))
 			return PTR_ERR(handle);
 		ion_free(client, handle);
-		ion_handle_put(handle);
 		break;
 	}
 	case ION_IOC_SHARE:
@@ -1475,10 +1466,11 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_handle *handle;
 
 		handle = ion_handle_get_by_id(client, data.handle.handle);
+		ion_handle_get(handle);
 		if (IS_ERR(handle))
 			return PTR_ERR(handle);
 		data.fd.fd = ion_share_dma_buf_fd(client, handle);
-		ion_handle_put(handle);
+		ion_free(client, handle);
 		if (data.fd.fd < 0)
 			ret = data.fd.fd;
 		break;
