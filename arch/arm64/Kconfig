@@ -132,6 +132,7 @@ config ARCH_MMP
 	select ARCH_REQUIRE_GPIOLIB
 	select PINCTRL
 	select PINCTRL_SINGLE
+	select PM_GENERIC_DOMAINS
 	help
 	  This enables support for the Marvell MMP platforms.
 endmenu
