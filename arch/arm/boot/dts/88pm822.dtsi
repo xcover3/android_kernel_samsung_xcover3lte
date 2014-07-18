@@ -7,6 +7,10 @@
 #include "88pm8xx.dtsi"
 
 &pmic0 {
+	regulators {
+		voutsw: VOUTSW {PM8XX_VOUTSW;};
+	};
+
 	dvc {
 		/* pm822 dvc affect buck1/3/5, affected 32bit = (1 << 4) | (1 << 2) | (1 << 0)*/
 		dvc-affected-buckbits = <21>;

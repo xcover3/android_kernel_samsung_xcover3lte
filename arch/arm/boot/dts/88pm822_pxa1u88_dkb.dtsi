@@ -5,6 +5,7 @@
  */
 
 #include "88pm8xx.dtsi"
+#include "88pm822.dtsi"
 
 &pmic0 {
 	regulators {
@@ -25,6 +26,7 @@
 	vibrator {
 		min-timeout = <10>;
 		duty-cycle = <0x3f>;
+		status = "okay";
 	};
 
 	headset {
@@ -36,5 +38,6 @@
 		marvell,mic-det-th = <600>;
 		marvell,press-release-th = <600>;
 		marvell,micbias-supply = <&ldo14>;
+		status = "okay";
 	};
 };
