@@ -224,6 +224,15 @@ config USB_MV_OTG
 
 	  To compile this driver as a module, choose M here.
 
+config MV_USB2_PHY
+	tristate "Marvell USB 2.0 PHY Driver"
+	help
+	  Enable this to support Marvell USB 2.0 PHY driver for Marvell
+	  SoC. This driver will do the PHY initialization and shutdown.
+	  The PHY driver will be used by Marvell udc/ehci/otg driver.
+
+	  To compile this driver as a module, choose M here.
+
 config USB_MXS_PHY
 	tristate "Freescale MXS USB PHY support"
 	depends on ARCH_MXC || ARCH_MXS

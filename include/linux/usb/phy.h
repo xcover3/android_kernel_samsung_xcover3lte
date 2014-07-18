@@ -100,6 +100,9 @@ struct usb_phy {
 	int	(*init)(struct usb_phy *x);
 	void	(*shutdown)(struct usb_phy *x);
 
+	/* use USB PHY to detect charger type */
+	int	(*charger_detect)(struct usb_phy *x);
+
 	/* enable/disable VBUS */
 	int	(*set_vbus)(struct usb_phy *x, int on);
 
@@ -163,6 +166,17 @@ usb_phy_init(struct usb_phy *x)
 		return x->init(x);
 
 	return 0;
+}
+
+static inline int
+usb_phy_charger_detect(struct usb_phy *x)
+{
+	int ret = 0;
+
+	if (x->charger_detect)
+		ret = x->charger_detect(x);
+
+	return ret;
 }
 
 static inline void

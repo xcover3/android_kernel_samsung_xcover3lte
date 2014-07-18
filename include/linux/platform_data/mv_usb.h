@@ -39,6 +39,7 @@ struct pxa_usb_vbus_ops {
 };
 
 enum {
+	MV_USB_MODE_UDC,
 	MV_USB_MODE_OTG,
 	MV_USB_MODE_HOST,
 };
@@ -144,4 +145,15 @@ struct mv_usb_platform_data {
 	int	(*set_vbus)(unsigned int vbus);
 	int     (*private_init)(void __iomem *opregs, void __iomem *phyregs);
 };
+
+enum charger_type {
+	NULL_CHARGER    = 0,
+	DEFAULT_CHARGER,
+	DCP_CHARGER,            /* standard wall charger */
+	CDP_CHARGER,            /* Charging Downstream Port */
+	SDP_CHARGER,            /* standard PC charger */
+	NONE_STANDARD_CHARGER,  /* none-standard charger */
+	MAX_CHARGER
+};
+
 #endif
