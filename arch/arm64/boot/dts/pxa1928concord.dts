@@ -238,6 +238,23 @@
 				i2c-gpio = <&gpio PWR_SCL_GPIO 0 &gpio PWR_SDA_GPIO 0>;
 				mrvl,i2c-apdcp;
 				status = "okay";
+
+				pmic0: 88pm860@30 {
+					reg = <0x30>;
+					interrupts = <0 77 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-parent = <&gic>;
+					/* TODO: move this part out */
+					dvc {
+						pinctrl-names = "default";
+						pinctrl-single,pins = <
+							DVC00
+							DVC01
+							DVC02
+							DVC03
+						>;
+						MFP_DEFAULT;
+					};
+				};
 			};
 
 			twsi1: i2c@d4031000 {
@@ -328,3 +345,5 @@
 		status = "okay";
 	};
 };
+#include "88pm860.dtsi"
+#include "88pm860_pxa1928_concord.dtsi"
