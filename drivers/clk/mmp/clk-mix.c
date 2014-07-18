@@ -34,12 +34,12 @@ static unsigned int _get_maxdiv(struct mmp_clk_mix *mix)
 		return div_mask;
 	if (mix->div_flags & CLK_DIVIDER_POWER_OF_TWO)
 		return 1 << div_mask;
-	if (mix->div_table)
+	if (mix->div_table) {
 		for (clkt = mix->div_table; clkt->div; clkt++)
 			if (clkt->div > maxdiv)
 				maxdiv = clkt->div;
 		return maxdiv;
-
+	}
 	return div_mask + 1;
 }
 
