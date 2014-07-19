@@ -25,6 +25,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 
+#define MAX_SLEEP_CURRENT	5000 /* uA */
 /* LDO1 with DVC[0..3] */
 #define PM800_LDO1_VOUT		(0x08) /* VOUT1 */
 #define PM800_LDO1_VOUT_2	(0x09)
@@ -83,6 +84,8 @@
 struct pm800_regulator_info {
 	struct regulator_desc desc;
 	int max_ua;
+	unsigned int sleep_enable_bit;
+	unsigned int sleep_enable_reg;
 };
 
 struct pm800_regulators {
@@ -96,11 +99,13 @@ struct pm800_regulators {
  * ereg - the string for the enable register.
  * ebit - the bit number in the enable register.
  * amax - the current
+ * slp_bit - sleep control bits
+ * slp_reg - sleep control register
  * Buck has 2 kinds of voltage steps. It is easy to find voltage by ranges,
  * not the constant voltage table.
  * n_volt - Number of available selectors
  */
-#define PM800_BUCK(vreg, ereg, ebit, amax, volt_ranges, n_volt)		\
+#define PM800_BUCK(vreg, ereg, ebit, amax, slp_bit, slp_reg, volt_ranges, n_volt)		\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
@@ -117,6 +122,8 @@ struct pm800_regulators {
 		.enable_mask		= 1 << (ebit),			\
 	},								\
 	.max_ua		= (amax),					\
+	.sleep_enable_bit = slp_bit,					\
+	.sleep_enable_reg = PM800_##slp_reg,				\
 }
 
 /*
@@ -124,11 +131,13 @@ struct pm800_regulators {
  * ereg -  the string for the enable register.
  * ebit - the bit number in the enable register.
  * amax - the current
+ * slp_bit - sleep control bits
+ * slp_reg - sleep control register
  * volt_table - the LDO voltage table
  * For all the LDOes, there are too many ranges. Using volt_table will be
  * simpler and faster.
  */
-#define PM800_LDO(vreg, ereg, ebit, amax, ldo_volt_table)		\
+#define PM800_LDO(vreg, ereg, ebit, amax, slp_bit, slp_reg, ldo_volt_table)		\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
@@ -144,6 +153,8 @@ struct pm800_regulators {
 		.volt_table	= ldo_volt_table,			\
 	},								\
 	.max_ua		= (amax),					\
+	.sleep_enable_bit = slp_bit,					\
+	.sleep_enable_reg = PM800_##slp_reg,				\
 }
 
 #define PM800_REGULATOR_OF_MATCH(id)					\

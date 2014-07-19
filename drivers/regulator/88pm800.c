@@ -75,6 +75,56 @@ static int pm800_get_voltage(struct regulator_dev *rdev)
 	return ret;
 }
 
+int pm800_set_mode(struct regulator_dev *rdev, unsigned int mode)
+{
+	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
+	unsigned int val, sleep_bit, sleep_enable_mask, reg;
+
+	sleep_bit = info->sleep_enable_bit;
+	sleep_enable_mask = (0x3 << sleep_bit);
+
+	switch (mode) {
+	case REGULATOR_MODE_IDLE:
+		val = (0x2 << sleep_bit);
+		break;
+	case REGULATOR_MODE_NORMAL:
+		val = (0x3 << sleep_bit);
+		break;
+	default:
+		dev_err(rdev_get_dev(rdev), "not supported mode.\n");
+		return -EINVAL;
+	}
+
+	reg = info->sleep_enable_reg;
+
+	return regmap_update_bits(rdev->regmap, reg, sleep_enable_mask, val);
+}
+
+static unsigned int pm800_get_optimum_mode(struct regulator_dev *rdev,
+						 int input_uV, int output_uV,
+						 int current_uA)
+{
+	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
+
+	if (!info) {
+		dev_err(rdev_get_dev(rdev),
+			"return REGULATOR_MODE_IDLE by default\n");
+		return REGULATOR_MODE_IDLE;
+	}
+	if (current_uA < 0) {
+		dev_err(rdev_get_dev(rdev),
+			"return REGULATOR_MODE_IDLE for unexpected current\n");
+		return REGULATOR_MODE_IDLE;
+	}
+	/*
+	 * get_optimum_mode be called at enbale/disable_regulator function.
+	 * If current_uA is not set it will be 0,
+	 * set defult value to be REGULATOR_MODE_IDLE.
+	 */
+	return (MAX_SLEEP_CURRENT > current_uA) ?
+		REGULATOR_MODE_IDLE : REGULATOR_MODE_NORMAL;
+}
+
 static int pm800_get_current_limit(struct regulator_dev *rdev)
 {
 	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
@@ -90,6 +140,8 @@ struct regulator_ops pm800_volt_range_ops = {
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
 	.get_current_limit = pm800_get_current_limit,
+	.get_optimum_mode = pm800_get_optimum_mode,
+	.set_mode = pm800_set_mode,
 };
 
 struct regulator_ops pm800_volt_table_ops = {
@@ -101,6 +153,8 @@ struct regulator_ops pm800_volt_table_ops = {
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
 	.get_current_limit = pm800_get_current_limit,
+	.get_optimum_mode = pm800_get_optimum_mode,
+	.set_mode = pm800_set_mode,
 };
 
 static int pm800_regulator_dt_init(struct platform_device *pdev,
@@ -203,6 +257,13 @@ static int pm800_regulator_probe(struct platform_device *pdev)
 
 			return ret;
 		}
+
+		pm800_data->regulators[i]->constraints->valid_ops_mask |=
+				(REGULATOR_CHANGE_DRMS | REGULATOR_CHANGE_MODE);
+		pm800_data->regulators[i]->constraints->valid_modes_mask |=
+				(REGULATOR_MODE_NORMAL | REGULATOR_MODE_IDLE);
+		pm800_data->regulators[i]->constraints->input_uV = 1000;
+
 		regulator_matches++;
 	}
 
