@@ -22,6 +22,7 @@ static inline int cpuidle_simple_enter(struct cpuidle_device *dev,
 #endif
 
 struct platform_power_ops {
+	void (*release)(u32 cpu);
 	void (*set_pmu)(u32 cpu, u32 power_state, u32 vote_state);
 	void (*clr_pmu)(u32 cpu);
 	void (*save_wakeup)(void);
