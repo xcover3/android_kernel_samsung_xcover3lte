@@ -266,13 +266,17 @@ static int mcpm_plat_cpu_power_up(unsigned int cpu, unsigned int cluster,
 {
 	u64 id = mcpm_function_id[MCPM_FN_CPU_ON];
 
+	unsigned int hwid = (cpu<<MPIDR_LEVEL_SHIFT(0))
+			    | (cluster<<MPIDR_LEVEL_SHIFT(1));
+
 	if (up_mode)
 		return -EINVAL;
 
+	/* TODO: release(cpu) assumes there's only one cluster */
 	if (mcpm_plat_idle->ops->release)
 		mcpm_plat_idle->ops->release(cpu);
 
-	return invoke_mcpm_fn(id, cpu_logical_map(cpu), entry_point, 0);
+	return invoke_mcpm_fn(id, hwid, entry_point, 0);
 }
 
 /*
