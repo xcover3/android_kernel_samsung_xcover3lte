@@ -18,6 +18,26 @@ enum pxa_ehci_type {
 	MMP3_FSIC,	/* mmp3 fsic */
 };
 
+/* for usb middle layer support */
+enum {
+	PXA_USB_DEV_OTG,
+	PXA_USB_DEV_SPH1,
+	PXA_USB_DEV_SPH2,
+	PXA_USB_DEV_SPH3,
+	PXA_USB_DEV_MAX,
+};
+
+enum {
+	EVENT_VBUS,
+	EVENT_ID,
+};
+
+struct pxa_usb_vbus_ops {
+	int (*get_vbus)(unsigned int *level);
+	int (*set_vbus)(unsigned int level);
+	int (*init)(void);
+};
+
 enum {
 	MV_USB_MODE_OTG,
 	MV_USB_MODE_HOST,
@@ -28,14 +48,82 @@ enum {
 	VBUS_HIGH	= 1 << 0,
 };
 
-struct mv_usb_addon_irq {
-	unsigned int	irq;
-	int		(*poll)(void);
+struct pxa_usb_idpin_ops {
+	int (*get_idpin)(unsigned int *level);
+	int (*init)(void);
+ };
+
+struct pxa_usb_extern_ops {
+	struct pxa_usb_vbus_ops		vbus;
+	struct pxa_usb_idpin_ops	idpin;
 };
 
+#define pxa_usb_has_extern_call(id, o, f, arg...)	( \
+{ \
+	struct pxa_usb_extern_ops *ops;			\
+	int ret;					\
+	ops  = pxa_usb_get_extern_ops(id);		\
+	ret = (!ops ? 0 : ((ops->o.f) ?			\
+		1 : 0));				\
+	ret;						\
+} \
+)
+
+#define pxa_usb_extern_call(id, o, f, args...)	( \
+{ \
+	struct pxa_usb_extern_ops *ops;			\
+	int ret;					\
+	ops  = pxa_usb_get_extern_ops(id);		\
+	ret = (!ops ? -ENODEV : ((ops->o.f) ?		\
+		ops->o.f(args) : -ENOIOCTLCMD));	\
+	ret;						\
+} \
+)
+
+#define pxa_usb_set_extern_call(id, o, f, p) ( \
+{ \
+	struct pxa_usb_extern_ops *ops;		\
+	int ret;				\
+	ops = pxa_usb_get_extern_ops(id);	\
+	ret = !ops ? -ENODEV : ((ops->o.f) ?	\
+		-EINVAL : ({ops->o.f = p; 0; }));\
+	ret;					\
+} \
+)
+
+#define MV_USB_HAS_VBUS_DETECTION	(1 << 0)
+#define MV_USB_HAS_IDPIN_DETECTION	(1 << 1)
+
+#if defined(CONFIG_VBUS_88PM80X) || defined (CONFIG_VBUS_88PM830)
+extern int mv_udc_register_client(struct notifier_block *nb);
+extern int mv_udc_unregister_client(struct notifier_block *nb);
+extern struct pxa_usb_extern_ops *pxa_usb_get_extern_ops(unsigned int id);
+extern int pxa_usb_register_notifier(unsigned int id,
+					struct notifier_block *nb);
+extern int pxa_usb_unregister_notifier(unsigned int id,
+					struct notifier_block *nb);
+extern int pxa_usb_notify(unsigned int id, unsigned long val, void *v);
+/* end of usb middle layer support */
+
+extern int mv_udc_register_client(struct notifier_block *nb);
+extern int mv_udc_unregister_client(struct notifier_block *nb);
+#else
+static inline int mv_udc_register_client(struct notifier_block *nb) {return 0;}
+static inline int mv_udc_unregister_client(struct notifier_block *nb) {return 0;}
+static inline struct pxa_usb_extern_ops *pxa_usb_get_extern_ops(unsigned int id) {return NULL;}
+static inline int pxa_usb_register_notifier(unsigned int id, struct notifier_block *nb) {return 0;}
+static inline int pxa_usb_unregister_notifier(unsigned int id, struct notifier_block *nb) {return 0;}
+static inline int pxa_usb_notify(unsigned int id, unsigned long val, void *v) {return 0;}
+/* end of usb middle layer support */
+#endif
+
 struct mv_usb_platform_data {
-	struct mv_usb_addon_irq	*id;	/* Only valid for OTG. ID pin change*/
-	struct mv_usb_addon_irq	*vbus;	/* valid for OTG/UDC. VBUS change*/
+	/*
+	 * select from PXA_USB_DEV_OTG to PXA_USB_DEV_MAX.
+	 * It indicates the index of usb device.
+	 */
+	unsigned int		id;
+	unsigned int		extern_attr;
 
 	/* only valid for HCD. OTG or Host only*/
 	unsigned int		mode;
