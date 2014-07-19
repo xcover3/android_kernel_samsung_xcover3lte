@@ -24,6 +24,57 @@
 #include <linux/regulator/of_regulator.h>
 #include "88pm8xx-regulator.h"
 
+static int pm800_set_voltage(struct regulator_dev *rdev,
+			     int min_uv, int max_uv, unsigned *selector)
+{
+	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
+	int ret, old_selector = -1, best_val = 0;
+
+	if (!info)
+		return -EINVAL;
+
+	if (info->desc.id == PM800_ID_VOUTSW)
+		return 0;
+
+	ret = regulator_map_voltage_iterate(rdev, min_uv, max_uv);
+	if (ret >= 0) {
+		best_val = rdev->desc->ops->list_voltage(rdev, ret);
+		if (min_uv <= best_val && max_uv >= best_val) {
+			*selector = ret;
+			if (old_selector == *selector)
+				ret = 0;
+			else
+				ret = regulator_set_voltage_sel_regmap(rdev, ret);
+		} else {
+			ret = -EINVAL;
+		}
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+static int pm800_get_voltage(struct regulator_dev *rdev)
+{
+	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
+	int sel, ret;
+
+	if (!info)
+		return -EINVAL;
+
+	if (info->desc.id == PM800_ID_VOUTSW)
+		return 0;
+
+	sel = regulator_get_voltage_sel_regmap(rdev);
+	if (sel < 0)
+		return sel;
+
+	ret = rdev->desc->ops->list_voltage(rdev, sel);
+
+	return ret;
+}
+
 static int pm800_get_current_limit(struct regulator_dev *rdev)
 {
 	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
@@ -33,9 +84,8 @@ static int pm800_get_current_limit(struct regulator_dev *rdev)
 
 struct regulator_ops pm800_volt_range_ops = {
 	.list_voltage = regulator_list_voltage_linear_range,
-	.map_voltage = regulator_map_voltage_linear_range,
-	.set_voltage_sel = regulator_set_voltage_sel_regmap,
-	.get_voltage_sel = regulator_get_voltage_sel_regmap,
+	.set_voltage = pm800_set_voltage,
+	.get_voltage = pm800_get_voltage,
 	.enable = regulator_enable_regmap,
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
