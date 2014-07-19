@@ -26,6 +26,7 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/rtc.h>
+#include <linux/reboot.h>
 
 #define PM800_RTC_COUNTER1		(0xD1)
 #define PM800_RTC_COUNTER2		(0xD2)
@@ -63,6 +64,13 @@ struct pm80x_rtc_info {
 extern int sync_time_to_soc(unsigned int ticks);
 #endif
 
+static void deferred_restart(struct work_struct *dummy)
+{
+	kernel_restart("charger-alarm");
+	BUG();
+}
+static DECLARE_WORK(restart_work, deferred_restart);
+
 static irqreturn_t rtc_update_handler(int irq, void *data)
 {
 	struct pm80x_rtc_info *info = (struct pm80x_rtc_info *)data;
@@ -72,6 +80,18 @@ static irqreturn_t rtc_update_handler(int irq, void *data)
 	regmap_update_bits(info->map, PM800_RTC_CONTROL, mask | PM800_ALARM1_EN,
 			   mask);
 	rtc_update_irq(info->rtc_dev, 1, RTC_AF);
+
+	if (strstr(saved_command_line, "androidboot.mode=charger")) {
+		/*
+		 * for uboot,
+		 * this bit indicates the system powers up because of "reboot",
+		 * then it boots up to the generic android instead of entering
+		 * power-off charge
+		 */
+		regmap_update_bits(info->map, PM800_USER_DATA6, (1 << 1), (1 << 1));
+		schedule_work(&restart_work);
+	}
+
 	return IRQ_HANDLED;
 }
 
