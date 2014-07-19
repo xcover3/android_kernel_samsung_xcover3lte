@@ -213,6 +213,14 @@ static struct mfd_cell usb_devs[] = {
 	},
 };
 
+static struct mfd_cell vibrator_devs[] = {
+	{
+	 .name = "88pm80x-vibrator",
+	 .of_compatible = "marvell,88pm80x-vibrator",
+	 .id = -1,
+	},
+};
+
 static struct resource headset_resources_800[] = {
 	{
 		.name = "gpio-03",
@@ -462,6 +470,26 @@ static int device_vbus_init(struct pm80x_chip *chip,
 	return 0;
 }
 
+static int device_vibrator_init(struct pm80x_chip *chip,
+				struct pm80x_platform_data *pdata)
+{
+	int ret;
+
+	vibrator_devs[0].platform_data = pdata->vibrator;
+	vibrator_devs[0].pdata_size = sizeof(struct pm80x_vibrator_pdata);
+
+	ret = mfd_add_devices(chip->dev, 0, &vibrator_devs[0],
+		ARRAY_SIZE(vibrator_devs), NULL,
+		regmap_irq_chip_get_base(chip->irq_data), NULL);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to add vibrator subdev\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+
 static int device_headset_init(struct pm80x_chip *chip,
 					   struct pm80x_platform_data *pdata)
 {
@@ -651,6 +679,12 @@ static int device_800_init(struct pm80x_chip *chip,
 	ret = device_vbus_init(chip, pdata);
 	if (ret) {
 		dev_err(chip->dev, "Failed to add vbus detection subdev\n");
+		goto out;
+	}
+
+	ret = device_vibrator_init(chip, pdata);
+	if (ret) {
+		dev_err(chip->dev, "Failed to add vibrator subdev\n");
 		goto out;
 	}
 
