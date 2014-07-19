@@ -57,6 +57,7 @@ obj-$(CONFIG_TCG_TPM)		+= tpm/
 
 obj-$(CONFIG_DCC_TTY)		+= dcc_tty.o
 obj-$(CONFIG_VIBRATOR_88PM80X)  += 88pm80x_vibrator.o
+obj-$(CONFIG_VBUS_88PM80X)  	+= 88pm80x_vbus.o mv-usb-connector.o
 obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
 
 obj-$(CONFIG_JS_RTC)		+= js-rtc.o

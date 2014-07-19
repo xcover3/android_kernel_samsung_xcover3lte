@@ -617,6 +617,16 @@ config VIBRATOR_88PM80X
 	  This driver can cover 88pm800/88pm822 and the later
 	  Marvell pmic.
 
+config VBUS_88PM80X
+	tristate "Marvell VBUS 88PM80x PMIC support"
+	depends on MFD_88PM800
+	help
+	Say Y here if you have a 88PM80X PMIC to detect USB Vbus/IDpin event.
+	If unsure, say N.
+
+	To compile this driver as a module, choose M here: the module will
+	be called 88pm80x_vbus.
+
 config TILE_SROM
 	bool "Character-device access via hypervisor to the Tilera SPI ROM"
 	depends on TILE
