@@ -606,6 +606,17 @@ config MSM_SMD_PKT
 	  Enables userspace clients to read and write to some packet SMD
 	  ports via device interface for MSM chipset.
 
+config VIBRATOR_88PM80X
+        tristate "88pm80X based vibrator"
+        depends on MFD_88PM800
+        depends on ANDROID_TIMED_OUTPUT
+        default y
+        help
+          Say Y here to enable Marvell pmic vibrator driver, actually it uses
+	  the pwm module in pmic;
+	  This driver can cover 88pm800/88pm822 and the later
+	  Marvell pmic.
+
 config TILE_SROM
 	bool "Character-device access via hypervisor to the Tilera SPI ROM"
 	depends on TILE
