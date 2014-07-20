@@ -33,18 +33,26 @@ pmic: 88pm830@68 {
 
 	      marvell,88pm830-irq-flags = IRQF_ONESHOT;
 
-	      chg {
+	      charger {
+			compatible = "marvell,88pm830-chg";
 
 	      };
 
-	      bat {
+	      battery {
+			compatible = "marvell,88pm830-bat";
 
 	      };
 
 	      vbus {
+			compatible = "marvell,88pm830-led";
 
 	      };
 	      led {
+			compatible = "marvell,88pm830-vbus";
+
+	      };
+	      debug {
+			compatible = "marvell,88pm830-debug";
 
 	      };
       };
