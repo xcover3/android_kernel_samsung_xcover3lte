@@ -306,6 +306,18 @@ config MFD_88PM805
 	  components like codec device, headset/Mic device under the
 	  corresponding menus.
 
+config MFD_88PM830
+	tristate "Marvell 88PM830"
+	depends on I2C=y
+	select REGMAP_I2C
+	select REGMAP_IRQ
+	select MFD_CORE
+	help
+	  This supports for Marvell 88PM830 Power Management IC.
+	  This includes the I2C driver and the core APIs _only_,
+	  you have to select individual components like  battery-charger
+	  under the corresponding menus.
+
 config MFD_88PM860X
 	bool "Marvell 88PM8606/88PM8607"
 	depends on I2C=y
