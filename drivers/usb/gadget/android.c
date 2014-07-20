@@ -30,6 +30,9 @@
 
 #include "gadget_chips.h"
 
+#include "pxa910_u_serial.c"
+#include "pxa910_f_diag.c"
+#include "pxa910_f_modem.c"
 #include "f_fs.c"
 #include "f_audio_source.c"
 #include "f_mtp.c"
@@ -206,6 +209,58 @@ static void android_disable(struct android_dev *dev)
 
 /*-------------------------------------------------------------------------*/
 /* Supported functions initialization */
+
+/* Marvell modem function initialization */
+static int marvell_modem_function_init(struct android_usb_function *f,
+			struct usb_composite_dev *cdev)
+{
+	return pxa910_modem_gserial_setup(cdev->gadget, 1);
+}
+
+static void marvell_modem_function_cleanup(struct android_usb_function *f)
+{
+	pxa910_modem_gserial_cleanup();
+}
+
+int marvell_modem_function_bind_config(struct android_usb_function *f,
+			struct usb_configuration *c)
+{
+	int ret = pxa910_acm_bind_config(c, 0);
+	return ret;
+}
+
+static struct android_usb_function marvell_modem_function = {
+	.name           = "marvell_modem",
+	.init           = marvell_modem_function_init,
+	.cleanup        = marvell_modem_function_cleanup,
+	.bind_config    = marvell_modem_function_bind_config,
+};
+
+/* Marvell diag function initialization */
+static int marvell_diag_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
+{
+	return pxa910_diag_gserial_setup(cdev->gadget, 1);
+}
+
+static void marvell_diag_function_cleanup(struct android_usb_function *f)
+{
+	pxa910_diag_gserial_cleanup();
+}
+
+int marvell_diag_function_bind_config(struct android_usb_function *f,
+					struct usb_configuration *c)
+{
+	int ret = pxa910_diag_bind_config(c, 1);
+	return ret;
+}
+
+static struct android_usb_function marvell_diag_function = {
+	.name	= "marvell_diag",
+	.init = marvell_diag_function_init,
+	.cleanup	= marvell_diag_function_cleanup,
+	.bind_config	= marvell_diag_function_bind_config,
+};
 
 struct functionfs_config {
 	bool opened;
@@ -974,6 +1029,8 @@ static struct android_usb_function audio_source_function = {
 };
 
 static struct android_usb_function *supported_functions[] = {
+	&marvell_modem_function,
+	&marvell_diag_function,
 	&ffs_function,
 	&acm_function,
 	&mtp_function,
