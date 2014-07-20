@@ -627,6 +627,16 @@ config VBUS_88PM80X
 	To compile this driver as a module, choose M here: the module will
 	be called 88pm80x_vbus.
 
+config VBUS_88PM830
+	tristate "Marvell VBUS 88PM830 PMIC support"
+	depends on MFD_88PM830
+	help
+	  Say Y here if you have a 88PM830 charger/fuel-gauge IC to detect
+	  USB Vbus/IDpin event.
+	  If unsure, say N.
+	  This driver can be used by vbus detection and otg booster for usb
+	  subsystem.
+
 config TILE_SROM
 	bool "Character-device access via hypervisor to the Tilera SPI ROM"
 	depends on TILE
