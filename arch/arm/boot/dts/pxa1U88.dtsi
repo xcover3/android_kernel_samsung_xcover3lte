@@ -9,6 +9,7 @@
 
 /include/ "skeleton.dtsi"
 #include "pxa988-pinfunc.h"
+#include "pxa1U88-pm.h"
 #include <dt-bindings/clock/marvell-pxa1U88.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 
