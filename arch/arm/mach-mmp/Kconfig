@@ -164,12 +164,6 @@ config CPU_PXA988
 	  PXA988 is an SoC with dual-core Cotex-A9 and comunication
 	  processor, code name "Emei".
 
-config USB_EHCI_MV_U2O
-        bool "EHCI support for PXA USB OTG controller"
-	depends on USB_EHCI_MV
-	help
-	  Enables support for OTG controller which can be switched to host mode.
-
 config MMP_SRAM
 	bool
 

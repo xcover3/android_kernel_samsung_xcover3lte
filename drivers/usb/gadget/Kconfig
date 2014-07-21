@@ -94,6 +94,11 @@ config USB_GADGET_DEBUG_FS
 	   Enable these files by choosing "Y" here.  If in doubt, or
 	   to conserve kernel memory, say "N".
 
+config USB_GADGET_CHARGE_ONLY
+	boolean "enable USB charge only mode"
+	help
+	   enable USB charge only mode
+
 config USB_GADGET_VBUS_DRAW
 	int "Maximum VBUS Power usage (2-500 mA)"
 	range 2 500
