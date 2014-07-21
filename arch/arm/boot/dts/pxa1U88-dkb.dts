@@ -10,6 +10,7 @@
 /dts-v1/;
 #include "pxa1U88.dtsi"
 #include "pxa988-pinfunc.h"
+#include <dt-bindings/mmc/pxa_sdhci.h>
 
 / {
 	model = "Marvell PXA1U88 DKB Development Board";
@@ -28,6 +29,16 @@
 			intc: wakeupgen@d4282000 {
 				status = "okay";
 			};
+
+			sdh2: sdh@d4281000 {
+				bus-width = <8>;
+				non-removable;
+				marvell,sdh-quirks = <(SDHCI_QUIRK_BROKEN_CARD_DETECTION)>;
+				marvell,sdh-quirks2 = <(SDHCI_QUIRK2_BROKEN_HS200)>;
+				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
+				marvell,sdh-host-caps2 = <(MMC_CAP2_DISABLE_BLK_ASYNC)>;
+				status = "okay";
+			 };
 		};
 
 		apb@d4000000 {
