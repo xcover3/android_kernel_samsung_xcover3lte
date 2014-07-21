@@ -31,6 +31,17 @@ struct sdhci_pxa_dtr_data {
 	unsigned int rx_delay;
 };
 
+struct sdhci_regdata {
+	u32 TX_DELAY_MASK;
+	u32 RX_TUNING_DLY_INC_MASK;
+	u32 RX_TUNING_DLY_INC_SHIFT;
+	u32 RX_SDCLK_DELAY_MASK;
+	u32 SD_RX_TUNE_MAX;
+	u32 MMC1_PAD_2V5;
+	u32 PAD_POWERDOWNn;
+	u32 APBC_ASFAR;
+};
+
 /*
  * struct pxa_sdhci_platdata() - Platform device data for PXA SDHCI
  * @flags: flags for platform requirement
@@ -64,6 +75,7 @@ struct sdhci_pxa_platdata {
 	unsigned int	quirks2;
 	unsigned int	pm_caps;
 	struct sdhci_pxa_dtr_data *dtr_data;
+	const struct sdhci_regdata *regdata;
 };
 
 struct sdhci_pxa {

@@ -39,24 +39,77 @@
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
 
-#define PXAV3_RPM_DELAY_MS     50
-
-#define SD_CLOCK_BURST_SIZE_SETUP		0x10A
-#define SDCLK_SEL	0x100
-#define SDCLK_DELAY_SHIFT	9
-#define SDCLK_DELAY_MASK	0x1f
-
-#define SD_CFG_FIFO_PARAM       0x100
-#define SDCFG_GEN_PAD_CLK_ON	(1<<6)
+#define PXAV3_RPM_DELAY_MS		50
+#define SDCLK_SEL			0x100
+#define SDCLK_DELAY_SHIFT		9
+#define SDCLK_DELAY_MASK		0x1f
+#define SDCFG_GEN_PAD_CLK_ON		(1<<6)
 #define SDCFG_GEN_PAD_CLK_CNT_MASK	0xFF
 #define SDCFG_GEN_PAD_CLK_CNT_SHIFT	24
+#define SDCFG_PIO_RDFC			(1<<0)
+#define SD_SPI_MODE			0x108
+#define SDCE_MISC_INT			(1<<2)
+#define SDCE_MISC_INT_EN		(1<<1)
+#define RX_SDCLK_DELAY_SHIFT		8
+#define RX_SDCLK_SEL0_MASK		0x3
+#define RX_SDCLK_SEL1_MASK		0x3
+#define RX_SDCLK_SEL0_SHIFT		0
+#define RX_SDCLK_SEL1_SHIFT		2
+#define PAD_CLK_GATE_MASK		(0x3<<11)
+#define TX_DELAY1_SHIFT			16
+#define TX_MUX_SEL			(0x1<<31)
+#define TX_SEL_BUS_CLK			(0x1<<30)
+#define RX_TUNING_CFG_REG		0x11C
+#define RX_TUNING_WD_CNT_MASK		0x3F
+#define RX_TUNING_WD_CNT_SHIFT		8
+#define RX_TUNING_TT_CNT_MASK		0xFF
+#define RX_TUNING_TT_CNT_SHIFT		0
+#define SD_CE_ATA2_HS200_EN		(1<<10)
+#define SD_CE_ATA2_MMC_MODE		(1<<12)
 
-#define SD_SPI_MODE          0x108
-#define SD_CE_ATA_1          0x10C
+#define SD_CLOCK_BURST_SIZE_SETUP	0x10A
+#define SD_CFG_FIFO_PARAM		0x100
+#define SD_CE_ATA_1			0x10C
+#define SD_CE_ATA_2			0x10E
+#define SD_FIFO_PARAM			0x104
+#define SD_RX_CFG_REG			0x114
+#define SD_TX_CFG_REG			0x118
 
-#define SD_CE_ATA_2          0x10E
-#define SDCE_MISC_INT		(1<<2)
-#define SDCE_MISC_INT_EN	(1<<1)
+/* pxav3_regdata_v1: pxa988/pxa1088/pxa1L88 */
+static struct sdhci_regdata pxav3_regdata_v1 = {
+	.TX_DELAY_MASK = 0x1FF,
+	.RX_TUNING_DLY_INC_MASK = 0x1FF,
+	.RX_TUNING_DLY_INC_SHIFT = 17,
+	.RX_SDCLK_DELAY_MASK = 0x1FF,
+	.SD_RX_TUNE_MAX = 0x1FF,
+	.MMC1_PAD_2V5 = (0x2 << 2),
+	.PAD_POWERDOWNn = (0x1 << 0),
+	.APBC_ASFAR = 0xD4015050,
+};
+
+/* pxav3_regdata_v2: pxa1U88 */
+static struct sdhci_regdata pxav3_regdata_v2 = {
+	.TX_DELAY_MASK = 0x3FF,
+	.RX_TUNING_DLY_INC_MASK = 0x3FF,
+	.RX_TUNING_DLY_INC_SHIFT = 18,
+	.RX_SDCLK_DELAY_MASK = 0x3FF,
+	.SD_RX_TUNE_MAX = 0x3FF,
+	.MMC1_PAD_2V5 = (0x2 << 2),
+	.PAD_POWERDOWNn = (0x1 << 0),
+	.APBC_ASFAR = 0xD4015050,
+};
+
+/* pxav3_regdata_v3: pxa1928 */
+static struct sdhci_regdata pxav3_regdata_v3 = {
+	.TX_DELAY_MASK = 0x3FF,
+	.RX_TUNING_DLY_INC_MASK = 0x3FF,
+	.RX_TUNING_DLY_INC_SHIFT = 18,
+	.RX_SDCLK_DELAY_MASK = 0x3FF,
+	.SD_RX_TUNE_MAX = 0x3FF,
+	.MMC1_PAD_2V5 = 0,
+	.PAD_POWERDOWNn = 0,
+	.APBC_ASFAR = 0xD4015068,
+};
 
 static void pxav3_set_private_registers(struct sdhci_host *host, u8 mask)
 {
@@ -209,7 +262,16 @@ static int pxav3_init_host_with_pdata(struct sdhci_host *host,
 #ifdef CONFIG_OF
 static const struct of_device_id sdhci_pxav3_of_match[] = {
 	{
-		.compatible = "mrvl,pxav3-mmc",
+		.compatible = "marvell,pxav3-mmc-v1",
+		.data = (void *)&pxav3_regdata_v1,
+	},
+	{
+		.compatible = "marvell,pxav3-mmc-v2",
+		.data = (void *)&pxav3_regdata_v2,
+	},
+	{
+		.compatible = "marvell,pxav3-mmc-v3",
+		.data = (void *)&pxav3_regdata_v3,
 	},
 	{},
 };
@@ -359,6 +421,7 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 			pdev->dev.platform_data = pdata;
 		}
 		pxav3_get_of_perperty(host, dev, pdata);
+		pdata->regdata = match->data;
 	}
 	if (pdata) {
 		ret = pxav3_init_host_with_pdata(host, pdata);
