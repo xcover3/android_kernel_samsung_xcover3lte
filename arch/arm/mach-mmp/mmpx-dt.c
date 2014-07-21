@@ -11,6 +11,7 @@
 
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/irqchip.h>
 #include <linux/of_platform.h>
 #include <linux/clocksource.h>
 #include <linux/clk-provider.h>
@@ -18,6 +19,7 @@
 
 #include <asm/mach/arch.h>
 
+#include "common.h"
 #include "regs-addr.h"
 #include "mmpx-dt.h"
 
@@ -147,6 +149,13 @@ static void __init pxa988_sdhc_reset_all(void)
 	__raw_writel(reg_tmp | (1), apmu_base + APMU_SDH0);
 }
 
+static void __init pxa1U88_dt_irq_init(void)
+{
+	irqchip_init();
+	/* only for wake up */
+	mmp_of_wakeup_init();
+}
+
 static __init void pxa1U88_timer_init(void)
 {
 	regs_addr_iomap();
@@ -173,6 +182,7 @@ static const char *pxa1U88_dt_board_compat[] __initdata = {
 
 DT_MACHINE_START(PXA1U88_DT, "PXA1U88")
 	.smp_init	= smp_init_ops(mmp_smp_init_ops),
+	.init_irq	= pxa1U88_dt_irq_init,
 	.init_time      = pxa1U88_timer_init,
 	.dt_compat      = pxa1U88_dt_board_compat,
 MACHINE_END
