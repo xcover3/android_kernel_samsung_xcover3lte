@@ -35,6 +35,7 @@
 
 #include <mach/hardware.h>
 #include <linux/platform_data/keypad-pxa27x.h>
+#include <linux/edge_wakeup_mmp.h>
 /*
  * Keypad Controller registers
  */
@@ -124,6 +125,8 @@ struct pxa27x_keypad {
 	bool keypad_lpm_mode;
 	struct work_struct	keypad_lpm_work;
 	struct workqueue_struct	*keypad_lpm_wq;
+	int gpio_wakeup[MAX_KEYPAD_KEYS];
+	int maped_key[MAX_KEYPAD_KEYS];
 };
 
 #ifdef CONFIG_OF
@@ -759,6 +762,22 @@ static int pxa27x_keypad_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(pxa27x_keypad_pm_ops,
 			 pxa27x_keypad_suspend, pxa27x_keypad_resume);
 
+void trigger_keypad_wakeup(int gpio, void *data)
+{
+	int i, code = 0;
+	struct pxa27x_keypad *keypad = (struct pxa27x_keypad *)data;
+	struct input_dev *input_dev = keypad->input_dev;
+	for (i = 0; i < MAX_KEYPAD_KEYS; i++) {
+		if (gpio == keypad->gpio_wakeup[i]) {
+			code = keypad->maped_key[i];
+			break;
+		}
+	}
+	input_report_key(input_dev, code, 1);
+	input_report_key(input_dev, code, 0);
+	input_sync(input_dev);
+	return;
+}
 
 static int pxa27x_keypad_probe(struct platform_device *pdev)
 {
@@ -769,6 +788,9 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 	struct input_dev *input_dev;
 	struct resource *res;
 	int irq, error;
+	const __be32 *prop, *prop_map;
+	unsigned int proplen, proplen_map;
+	int size, i, ret;
 
 	/* Driver need build keycode from device tree or pdata */
 	if (!np && !pdata)
@@ -870,7 +892,32 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev,
 				"[keypad] warning: create work queue failed\n");
 	}
-
+	/*
+	* marvell,keypad-edge-wakeup function is required by SS,
+	* it won't be enabled by default.
+	*/
+	prop = of_get_property(np, "marvell,edge-wakeup-gpio", &proplen);
+	prop_map = of_get_property(np, "marvell,keypad-map", &proplen_map);
+	if (prop && prop_map) {
+		size = proplen / sizeof(u32);
+		if (size > MAX_KEYPAD_KEYS) {
+			dev_err(&pdev->dev,
+				"too many gpio wake up pin setting\n");
+			return -EINVAL;
+		}
+		for (i = 0; i < size; i++) {
+			keypad->gpio_wakeup[i] = be32_to_cpup(prop + i);
+			keypad->maped_key[i] = be32_to_cpup(prop_map + i);
+			ret = request_mfp_edge_wakeup(keypad->gpio_wakeup[i],
+					trigger_keypad_wakeup, keypad,
+					&pdev->dev);
+			if (ret) {
+				dev_err(&pdev->dev,
+					"failed to register edge wakeup\n");
+				return -EINVAL;
+			}
+		}
+	}
 	platform_set_drvdata(pdev, keypad);
 	device_set_wakeup_capable(&pdev->dev, 1);
 
@@ -900,6 +947,7 @@ static int pxa27x_keypad_remove(struct platform_device *pdev)
 {
 	struct pxa27x_keypad *keypad = platform_get_drvdata(pdev);
 	struct resource *res;
+	int i, ret;
 
 	free_irq(keypad->irq, keypad);
 	clk_put(keypad->clk);
@@ -907,6 +955,15 @@ static int pxa27x_keypad_remove(struct platform_device *pdev)
 	input_unregister_device(keypad->input_dev);
 	iounmap(keypad->mmio_base);
 
+	for (i = 0; i < MAX_KEYPAD_KEYS; i++) {
+		if (!keypad->gpio_wakeup[i])
+			break;
+		ret = remove_mfp_edge_wakeup(keypad->gpio_wakeup[i]);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to remove edge wakeup\n");
+			return -EINVAL;
+		}
+	}
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res)
 		release_mem_region(res->start, resource_size(res));
