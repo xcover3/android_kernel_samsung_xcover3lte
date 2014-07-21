@@ -96,6 +96,13 @@ struct usb_phy {
 	/* to support controllers that have multiple transceivers */
 	struct list_head	head;
 
+	/*
+	 * PHY may be shared by multiple devices.
+	 * Being protected by phy_refcount, PHY is initialized
+	 * or shut down only once.
+	 */
+	unsigned int            refcount;
+
 	/* initialize/shutdown the OTG controller */
 	int	(*init)(struct usb_phy *x);
 	void	(*shutdown)(struct usb_phy *x);
@@ -162,10 +169,12 @@ static inline int usb_phy_io_write(struct usb_phy *x, u32 val, u32 reg)
 static inline int
 usb_phy_init(struct usb_phy *x)
 {
-	if (x && x->init)
-		return x->init(x);
+	int ret = 0;
 
-	return 0;
+	if (x && x->refcount++ == 0 && x->init)
+		ret = x->init(x);
+
+	return ret;
 }
 
 static inline int
@@ -182,7 +191,7 @@ usb_phy_charger_detect(struct usb_phy *x)
 static inline void
 usb_phy_shutdown(struct usb_phy *x)
 {
-	if (x && x->shutdown)
+	if (x && --x->refcount == 0 && x->shutdown)
 		x->shutdown(x);
 }
 

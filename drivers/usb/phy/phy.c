@@ -329,6 +329,8 @@ int usb_add_phy(struct usb_phy *x, enum usb_phy_type type)
 		return -EINVAL;
 	}
 
+	x->refcount = 0;
+
 	ATOMIC_INIT_NOTIFIER_HEAD(&x->notifier);
 
 	spin_lock_irqsave(&phy_lock, flags);
@@ -368,6 +370,8 @@ int usb_add_phy_dev(struct usb_phy *x)
 		dev_err(x->dev, "no device provided for PHY\n");
 		return -EINVAL;
 	}
+
+	x->refcount = 0;
 
 	ATOMIC_INIT_NOTIFIER_HEAD(&x->notifier);
 
