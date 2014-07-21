@@ -395,6 +395,11 @@
 			reg = <0xd4282800 0x1c0>;
 		};
 
+		apbc: pmu@d4015000 {
+			compatible = "marvell,mmp-pmu-apbc";
+			reg = <0xd4015000 0x74>;
+		};
+
 		ciu: ciu@d4282c00 {
 			compatible = "marvell,mmp-ciu";
 			reg = <0xd4282c00 0x1ac>;
