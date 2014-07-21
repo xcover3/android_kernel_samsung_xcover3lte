@@ -9,6 +9,7 @@
 
 /dts-v1/;
 #include "pxa1928.dtsi"
+#include "pxa1928concord-pinfunc.h"
 
 / {
 	model = "PXA1928";
@@ -131,7 +132,7 @@
 				pinctrl-single,gpio-range = <PXA1928_GPIO_PINMUX>;
 
 				gpio_keys_pins: pinmux_gpio_keys_pins {
-					pinctrl-single,pins = <P15_GPIO  P17_GPIO>;
+					pinctrl-single,pins = <GPIO(DKIN0) GPIO(DKIN1)>;
 					MFP_LPM_PULL_HIGH;
 				};
 			};

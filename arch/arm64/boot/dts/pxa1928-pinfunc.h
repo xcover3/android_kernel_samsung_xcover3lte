@@ -264,18 +264,16 @@
 /* mfpr_offset */
 #ifndef PXA1928_DISCRETE
 
-#define GPIO(x)			(x)
-
-#define P00			0x110
-#define P01			0x114
-#define P02			0x118
-#define P03			0x11c
-#define P04			0x120
-#define P05			0x124
-#define P06			0x128
-#define P07			0x12c
-#define P08			0x130
-#define P09			0x134
+#define P0			0x110
+#define P1			0x114
+#define P2			0x118
+#define P3			0x11c
+#define P4			0x120
+#define P5			0x124
+#define P6			0x128
+#define P7			0x12c
+#define P8			0x130
+#define P9			0x134
 #define P10			0x138
 #define P11			0x13c
 #define P12			0x148
@@ -324,68 +322,61 @@
 
 #else /* PXA1928_DISCRETE */
 
-#define GPIO_DIS(n, min, max, delta)	(((n) >= (min) && (n) <= (max)) ? ((n) + (delta)) : 0)
-#define GPIO(x)			(GPIO_DIS(x, 0, 32, 145) ? GPIO_DIS(x, 0, 32, 145) : \
-				(GPIO_DIS(x, 43, 54, 135) ? GPIO_DIS(x, 43, 54, 135) : \
-				(GPIO_DIS(x, 136, 138, 54) ? GPIO_DIS(x, 136, 138, 54) : \
-				(GPIO_DIS(x, 140, 142, 55) ? GPIO_DIS(x, 140, 142, 55) : \
-				(GPIO_DIS(x, 143, 144, 50) ? GPIO_DIS(x, 143, 144, 50) : x)))))
+#define P145			0x248
+#define P146			0x24c
+#define P147			0x250
+#define P148			0x254
+#define P149			0x258
+#define P150			0x25c
+#define P151			0x260
+#define P152			0x264
+#define P153			0x268
+#define P154			0x26c
+#define P155			0x270
+#define P156			0x274
+#define P157			0x278
+#define P158			0x27c
+#define P159			0x280
+#define P160			0x284
+#define P161			0x288
+#define P162			0x28c
+#define P163			0x290
+#define P164			0x294
+#define P165			0x298
+#define P166			0x29c
+#define P167			0x2a0
+#define P168			0x2f8
+#define P169			0x2f4
+#define P170			0x2f0
+#define P171			0x2ec
+#define P172			0x2e8
+#define P173			0x2e4
+#define P174			0x2e0
+#define P175			0x2dc
+#define P176			0x2d8
+#define P177			0x2d4
+#define P178			0x2d0
+#define P179			0x2cc
+#define P180			0x2c8
+#define P181			0x2c4
+#define P182			0x2c0
+#define P183			0x2bc
+#define P184			0x2b8
+#define P185			0x2b4
+#define P186			0x2b0
+#define P187			0x2ac
+#define P188			0x2a8
+#define P189			0x2a4
 
-#define P00			0x248
-#define P01			0x24c
-#define P02			0x250
-#define P03			0x254
-#define P04			0x258
-#define P05			0x25c
-#define P06			0x260
-#define P07			0x264
-#define P08			0x268
-#define P09			0x26c
-#define P10			0x270
-#define P11			0x274
-#define P12			0x278
-#define P13			0x27c
-#define P14			0x280
-#define P15			0x284
-#define P16			0x288
-#define P17			0x28c
-#define P18			0x290
-#define P19			0x294
-#define P20			0x298
-#define P21			0x29c
-#define P22			0x2a0
-#define P23			0x2f8
-#define P24			0x2f4
-#define P25			0x2f0
-#define P26			0x2ec
-#define P27			0x2e8
-#define P28			0x2e4
-#define P29			0x2e0
-#define P30			0x2dc
-#define P31			0x2d8
-#define P32			0x2d4
-#define P43			0x2d0
-#define P44			0x2cc
-#define P45			0x2c8
-#define P46			0x2c4
-#define P47			0x2c0
-#define P48			0x2bc
-#define P49			0x2b8
-#define P50			0x2b4
-#define P51			0x2b0
-#define P52			0x2ac
-#define P53			0x2a8
-#define P54			0x2a4
+#define P190			0x304
+#define P191			0x2fc
+#define P192			0x300
 
-#define P136			0x304
-#define P137			0x2fc
-#define P138			0x300
-
-#define P140			0x318
-#define P141			0x310
-#define P142			0x314
-#define P143			0x308
-#define P144			0x30c
+#define P193			0x308
+#define P194			0x30c
+#define P195			0x318
+#define P196			0x310
+#define P197			0x314
 
 #endif /* PXA1928_DISCRETE */
 
@@ -483,185 +474,18 @@
 #define P135			0x218
 #define P139			0x230
 
-/*
- * The pin function ID is a tuple of <mfpr_offset alternate_function>
- */
+#define MFPR_OFFSET(n)		P##n
 
-/* GPIO */
-#define P02_GPIO			P02 0x0
-#define P03_GPIO			P03 0x0
-#define P04_GPIO			P04 0x0
-#define P05_GPIO			P05 0x0
-#define P11_GPIO			P11 0x0
-#define P15_GPIO			P15 0x0
-#define P17_GPIO			P17 0x0
-#define P18_GPIO			P18 0x0
-#define P19_GPIO			P19 0x0
-#define P29_GPIO			P29 0x0
-#define P30_GPIO			P30 0x0
-#define P31_GPIO			P31 0x0
-#define P32_GPIO			P32 0x0
-#define P35_GPIO			P35 0x1
-#define P36_GPIO			P36 0x1
-#define P43_GPIO			P43 0x0
-#define P44_GPIO			P44 0x0
-#define P45_GPIO			P45 0x0
-#define P46_GPIO			P46 0x0
-#define P52_GPIO			P52 0x0
-#define P67_GPIO			P67 0x1
-#define P68_GPIO			P68 0x1
-#define P75_GPIO			P75 0x1
-#define P112_GPIO			P112 0x0
-#define P122_GPIO			P122 0x0
-#define P132_GPIO			P132 0x0
+/* GPIO alternate function in MFPR */
+#define GPIO_AF1(n)		((((n) >= 33 && (n) <= 42) || ((n) >= 55 && (n) <= 58)		\
+				|| ((n) >= 65 && (n) <= 75) || ((n) >= 77 && (n) <= 79)		\
+				|| ((n) >= 123 && (n) <= 127) || ((n) >= 136 && (n) <= 138)	\
+				|| ((n) >= 140 && (n) <= 144)) ? 1 : 0)
+#define GPIO_AF2(n)		(((n) >= 80 && (n) <= 110) ? 2 : 0)
+#define GPIO_AF4(n)		(((n) == 62 || (n) == 63) ? 4 : 0)
+#define GPIO_AF5(n)		((((n) == 64) || ((n) >= 59 && (n) <= 61)) ? 5 : 0)
+#define MFPR_AF_GPIO(n)		(GPIO_AF1(n) ? 1 : ((GPIO_AF2(n) ? 2 : ((GPIO_AF4(n) ? 4 : ((GPIO_AF5(n) ? 5 : 0)))))))
 
-/* UART 1 */
-#define P00_UART1_RXD			P00 0x6
-#define P01_UART1_TXD			P01 0x6
-#define P02_UART1_CTS			P02 0x6
-#define P03_UART1_RTS			P03 0x6
-
-/* UART 3 */
-#define P33_UART3_RXD			P33 0x7
-#define P34_UART3_TXD			P34 0x7
-
-/* UART 4 */
-#define P47_UART4_TXD			P47 0x2
-#define P48_UART4_RXD			P48 0x2
-#define P49_UART4_CTS			P49 0x2
-#define P50_UART4_RTS			P50 0x2
-
-/* Camera */
-#define P14_CAM_MCLK			P14 0x3
-
-/* Keyboard */
-#define P16_KP_DKIN0			P16 0x1
-#define P17_KP_DKIN1			P17 0x1
-
-/* SSPA1 */
-#define P20_I2S_SYSCLK			P20 0x1
-#define P21_I2S_BITCLK			P21 0x1
-#define P22_I2S_SYNC			P22 0x1
-#define P23_I2S_DATA_OUT		P23 0x1
-#define P24_I2S_SDATA_IN		P24 0x1
-#define P25_I2S_SYNC_2			P25 0x6
-#define P26_I2S_BITCLK_2		P26 0x6
-#define P27_I2S_DATA_OUT_2		P27 0x6
-#define P28_I2S_SDATA_IN_2		P28 0x6
-
-/* GSSP from CP */
-#define P25_GSSP_SFRM			P25 0x1
-#define P26_GSSP_SCLK			P26 0x1
-#define P27_GSSP_TXD			P27 0x1
-#define P28_GSSP_RXD			P28 0x1
-
-/* I2C */
-#define P18_TWSI2_SCL			P18 0x6
-#define P19_TWSI2_SDA			P19 0x6
-#define P31_TWSI1_SCL			P31 0x6
-#define P32_TWSI1_SDA			P32 0x6
-#define P29_TWSI5_SCL			P29 0x7
-#define P30_TWSI5_SDA			P30 0x7
-#define P18_TWSI3_SCL			P18 0x4
-#define P19_TWSI3_SDA			P19 0x4
-#define P31_TWSI3_SCL			P31 0x7
-#define P32_TWSI3_SDA			P32 0x7
-#define P35_TWSI6_SCL			P35 0x5
-#define P36_TWSI6_SDA			P36 0x5
-#define P43_TWSI2_SCL			P43 0x6
-#define P44_TWSI2_SDA			P44 0x6
-#define P43_TWSI_DSPA_SDA		P43 0x7
-#define P44_TWSI_DSPA_SCL		P44 0x7
-#define P45_TWSI4_SDA			P45 0x6
-#define P46_TWSI4_SCL			P46 0x6
-#define P67_PWR_SCL			P67 0x0
-#define P68_PWR_SDA			P68 0x0
-#define P35_TWSI6_SCL			P35 0x5
-#define P36_TWSI6_SDA			P36 0x5
-
-#define P67_PWR_CP_SCL			P67 0x2
-#define P68_PWR_CP_SDA			P68 0x2
-
-/* PWM2 */
-#define P51_PWM2			P51 0x2
-#define P76_PWM3			P76 0x3
-
-/* SSP3 */
-#define P114_SSP3_CLK			P114 0x2
-#define P115_SSP3_FRM			P115 0x2
-#define P116_SSP3_TXD			P116 0x2
-#define P117_SSP3_RXD			P117 0x2
-
-#ifndef PXA1928_DISCRETE
-/* USIM1 */
-#define P136_USIM1_UCLK			(P136 0x0)
-#define P137_USIM1_UIO			(P137 0x0)
-#define P138_USIM1_URSTn		(P138 0x0)
-
-/* USIM2 */
-#define P140_USIM2_UCLK			(P140 0x0)
-#define P141_USIM2_UIO			(P141 0x0)
-#define P142_USIM2_URSTn		(P142 0x0)
-#else
-/* USIM1 */
-#define P136_USIM1_UCLK			(P136 0x1)
-#define P137_USIM1_UIO			(P137 0x1)
-#define P138_USIM1_URSTn		(P138 0x1)
-
-/* USIM2 */
-#define P140_USIM2_UCLK			(P140 0x1)
-#define P141_USIM2_UIO			(P141 0x1)
-#define P142_USIM2_URSTn		(P142 0x1)
-#endif
-
-/* MISC */
-#define P73_SLAVE_RESET_OUT		P73 0x0
-#define P74_CLK_REQ			P74 0x0
-#define P76_SLEEP_IND			P76 0x0
-#define P77_VCXO_REQ			P77 0x0
-#define P78_VCXO_OUT			P78 0x0
-#define P79_MN_CLK_OUT			P79 0x0
-
-/* DVC */
-#define P107_DVC00			P107 0x7
-#define P108_DVC01			P108 0x7
-#define P99_DVC02			P99 0x7
-#define P103_DVC03			P103 0x7
-
-/* MMC1(SD) */
-#define P55_MMC1_DAT7			P55 0x0
-#define P56_MMC1_DAT6			P56 0x0
-#define P57_MMC1_DAT5			P57 0x0
-#define P58_MMC1_DAT4			P58 0x0
-#define P59_MMC1_DAT3			P59 0x0
-#define P60_MMC1_DAT2			P60 0x0
-#define P61_MMC1_DAT1			P61 0x0
-#define P62_MMC1_DAT0			P62 0x0
-#define P63_MMC1_CMD			P63 0x0
-#define P64_MMC1_CLK			P64 0x0
-#define P66_MMC1_WP			P66 0x0
-
-/* MMC2(SDIO) */
-#define P37_MMC2_DAT3			P37 0x0
-#define P38_MMC2_DAT2			P38 0x0
-#define P39_MMC2_DAT1			P39 0x0
-#define P40_MMC2_DAT0			P40 0x0
-#define P41_MMC2_CMD			P41 0x0
-#define P42_MMC2_CLK			P42 0x0
-#define P118_WIFI_RST_N			P118 0x0
-#define P119_WIFI_PD_N			P119 0x0
-
-/* MMC3(eMMC) */
-#define P80_MMC3_DAT7			P80 0x1
-#define P81_MMC3_DAT6			P81 0x1
-#define P82_MMC3_DAT5			P82 0x1
-#define P83_MMC3_DAT4			P83 0x1
-#define P84_MMC3_DAT3			P84 0x1
-#define P85_MMC3_DAT2			P85 0x1
-#define P86_MMC3_DAT1			P86 0x1
-#define P87_MMC3_DAT0			P87 0x1
-#define P88_MMC3_CLK			P88 0x1
-#define P89_MMC3_CMD			P89 0x1
-#define P90_MMC3_RST			P90 0x1
+#define GPIO(n)		MFPR_OFFSET(n) MFPR_AF_GPIO(n)
 
 #endif /* __DTS_PXA1928_PINFUNC_H */
