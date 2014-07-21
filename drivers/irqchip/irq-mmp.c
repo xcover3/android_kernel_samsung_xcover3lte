@@ -22,6 +22,7 @@
 #include <linux/ioport.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#include <linux/slab.h>
 
 #include <asm/exception.h>
 #include <asm/hardirq.h>
@@ -37,6 +38,12 @@
 #define SEL_INT_PENDING		(1 << 6)
 #define SEL_INT_NUM_MASK	0x3f
 
+#define WAKE_CLR_OFFSET		0x7c
+struct icu_wake_clr {
+	int	irq;
+	int	mask;
+};
+
 struct icu_chip_data {
 	int			nr_irqs;
 	unsigned int		virq_base;
@@ -49,6 +56,8 @@ struct icu_chip_data {
 	unsigned int		clr_mfp_irq_base;
 	unsigned int		clr_mfp_hwirq;
 	struct irq_domain	*domain;
+	struct	icu_wake_clr	*wake_clr;
+	int			nr_wake_clr;
 };
 
 struct mmp_intc_conf {
@@ -57,6 +66,7 @@ struct mmp_intc_conf {
 	unsigned int	conf_mask;
 };
 
+static void __iomem *apmu_virt_addr;
 static void __iomem *mmp_icu_base;
 static struct icu_chip_data icu_data[MAX_ICU_NR];
 static int max_icu_nr;
@@ -190,6 +200,24 @@ static void icu_unmask_irq(struct irq_data *d)
 		r = readl_relaxed(data->reg_mask) & ~(1 << hwirq);
 		writel_relaxed(r, data->reg_mask);
 	}
+}
+
+static void icu_eoi_clr_wakeup(struct irq_data *d)
+{
+	struct icu_chip_data *data = &icu_data[0];
+	int hwirq = d->hwirq - data->virq_base;
+	u32 val;
+	int i;
+
+	for (i = 0; i < data->nr_wake_clr; i++) {
+		if (hwirq == data->wake_clr[i].irq) {
+			val = readl_relaxed(apmu_virt_addr + WAKE_CLR_OFFSET);
+			writel_relaxed(val | data->wake_clr[i].mask, \
+				apmu_virt_addr + WAKE_CLR_OFFSET);
+			break;
+		}
+	}
+	return;
 }
 
 struct irq_chip icu_irq_chip = {
@@ -565,9 +593,10 @@ IRQCHIP_DECLARE(mmp2_mux_intc, "mrvl,mmp2-mux-intc", mmp2_mux_of_init);
 void __init mmp_of_wakeup_init(void)
 {
 	struct device_node *node;
+	const __be32 *wake_clr_devs;
 	int ret, nr_irqs;
-	int i = 0;
-	int irq;
+	int i = 0, j = 0;
+	int irq, size;
 
 	node = of_find_compatible_node(NULL, NULL, "mrvl,mmp-intc-wakeupgen");
 	if (!node) {
@@ -628,6 +657,32 @@ void __init mmp_of_wakeup_init(void)
 	}
 	irq_for_sp_nr = i;
 	/*
+	 * Get wake clr devices info.
+	 */
+	wake_clr_devs = of_get_property(node, "mrvl,intc-wake-clr", &size);
+	if (!wake_clr_devs)
+		pr_warning("Not found mrvl,intc-wake-clr property\n");
+	else {
+		icu_data[0].nr_wake_clr = size / sizeof(struct icu_wake_clr);
+		icu_data[0].wake_clr = kmalloc(size, GFP_KERNEL);
+		if (!icu_data[0].wake_clr)
+			return;
+
+		i = 0;
+		j = 0;
+		while (j < icu_data[0].nr_wake_clr) {
+			icu_data[0].wake_clr[j].irq = be32_to_cpup(wake_clr_devs + i++);
+			icu_data[0].wake_clr[j++].mask = be32_to_cpup(wake_clr_devs + i++);
+		}
+
+		apmu_virt_addr = of_iomap(node, 1);
+		if (!apmu_virt_addr) {
+			pr_err("Failed to get apmu register base address!\n");
+			return;
+		}
+	}
+
+	/*
 	 * Othe initilization.
 	 */
 	icu_data[0].conf_enable = mmp_conf.conf_enable;
@@ -639,6 +694,7 @@ void __init mmp_of_wakeup_init(void)
 	gic_arch_extn.irq_mask = icu_mask_irq_wakeup;
 	gic_arch_extn.irq_unmask = icu_unmask_irq_wakeup;
 	gic_arch_extn.irq_set_affinity = icu_set_affinity;
+	gic_arch_extn.irq_eoi = icu_eoi_clr_wakeup;
 
 	return;
 }
