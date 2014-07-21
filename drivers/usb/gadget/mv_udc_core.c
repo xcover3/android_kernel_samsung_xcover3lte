@@ -33,6 +33,7 @@
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/of.h>
 #include <linux/platform_data/mv_usb.h>
 #include <linux/usb/mv_usb2_phy.h>
 #include <linux/pm_qos.h>
@@ -2700,12 +2701,19 @@ static void mv_udc_shutdown(struct platform_device *pdev)
 	mv_udc_disable(udc);
 }
 
+static const struct of_device_id mv_udc_dt_match[] = {
+	{ .compatible = "marvell,mv-udc" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, mv_udc_dt_match);
+
 static struct platform_driver udc_driver = {
 	.probe		= mv_udc_probe,
 	.remove		= mv_udc_remove,
 	.shutdown	= mv_udc_shutdown,
 	.driver		= {
 		.owner	= THIS_MODULE,
+		.of_match_table = of_match_ptr(mv_udc_dt_match),
 		.name	= "mv-udc",
 #ifdef CONFIG_PM
 		.pm	= &mv_udc_pm_ops,
