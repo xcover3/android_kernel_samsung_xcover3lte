@@ -127,6 +127,21 @@ static void pxa988_edge_wakeup_disable(void)
 	need_restore_pad_wakeup = 0;
 }
 
+/* SDH wakeup */
+#define SDH_WAKEUP_ICU		94	/* icu interrupt num for sdh wakeup */
+static void sdh_wakeup_icu_enable(void)
+{
+	if (cpu_is_pxa1U88())
+		writel_relaxed(ICU_IRQ_ENABLE, regs_addr_get_va(REGS_ADDR_ICU) +
+			(SDH_WAKEUP_ICU << 2));
+}
+
+static void sdh_wakeup_icu_disable(void)
+{
+	if (cpu_is_pxa1U88())
+		writel_relaxed(0, regs_addr_get_va(REGS_ADDR_ICU) +
+			(SDH_WAKEUP_ICU << 2));
+}
 
 static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 		u32 lowpower_enable)
@@ -177,6 +192,7 @@ static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 			 * it has to be put in D1P mode.
 			 */
 			pxa988_edge_wakeup_enable();
+			sdh_wakeup_icu_enable();
 			/* fall through */
 		case POWER_MODE_CORE_POWERDOWN:
 			mp_idle_cfg[cpu] |= PMUA_MP_POWER_DOWN;
@@ -197,6 +213,7 @@ static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 		apcr &= ~(PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD |
 			PMUM_VCTCXOSD | PMUM_STBYEN | PMUM_SLPEN);
 		pxa988_edge_wakeup_disable();
+		sdh_wakeup_icu_disable();
 	}
 
 	writel_relaxed(core_idle_cfg, APMU_CORE_IDLE_CFG[cpu]);
