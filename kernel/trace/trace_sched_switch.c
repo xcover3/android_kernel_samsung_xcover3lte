@@ -50,7 +50,8 @@ tracing_sched_switch_trace(struct trace_array *tr,
 }
 
 static void
-probe_sched_switch(void *ignore, struct task_struct *prev, struct task_struct *next)
+probe_sched_switch(void *ignore, struct task_struct *prev, struct task_struct *next,
+		unsigned int caller)
 {
 	struct trace_array_cpu *data;
 	unsigned long flags;
