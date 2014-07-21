@@ -13,6 +13,7 @@
 #include <linux/cpuidle.h>
 #include <linux/cpu_pm.h>
 #include <linux/kernel.h>
+#include <linux/edge_wakeup_mmp.h>
 #include <linux/errno.h>
 #include <linux/err.h>
 #include <linux/io.h>
@@ -60,6 +61,73 @@ static struct cpuidle_state pxa988_modes[] = {
 	},
 };
 
+/*
+ * edge wakeup
+ *
+ * To enable edge wakeup:
+ * 1. Set mfp reg edge detection bits;
+ * 2. Enable mfp ICU interrupt, but disable gic interrupt;
+ * 3. Enable corrosponding wakeup port;
+ */
+#define ICU_IRQ_ENABLE		((1 << 6) | (1 << 4) | (1 << 0))
+#define EDGE_WAKEUP_ICU		50	//icu interrupt num for edge wakeup
+
+static void edge_wakeup_port_enable(void)
+{
+	u32 pad_awucrm;
+
+	if (readl_relaxed(regs_addr_get_va(REGS_ADDR_MPMU) + APCR) & PMUM_SLPWP2) {
+		pr_err("Port2 is NOT enabled in APCR!\n");
+		pr_err("APCR: 0x%x\n",
+			readl_relaxed(regs_addr_get_va(REGS_ADDR_MPMU) + APCR));
+		BUG();
+	}
+
+	pad_awucrm = readl_relaxed(regs_addr_get_va(REGS_ADDR_MPMU) + AWUCRM);
+	writel_relaxed(pad_awucrm | PMUM_WAKEUP2,
+		regs_addr_get_va(REGS_ADDR_MPMU) + AWUCRM);
+}
+
+static void edge_wakeup_port_disable(void)
+{
+	u32 pad_awucrm;
+
+	pad_awucrm = readl_relaxed(regs_addr_get_va(REGS_ADDR_MPMU) + AWUCRM);
+	writel_relaxed(pad_awucrm & ~PMUM_WAKEUP2,
+		regs_addr_get_va(REGS_ADDR_MPMU) + AWUCRM);
+}
+
+static void edge_wakeup_icu_enable(void)
+{
+	writel_relaxed(ICU_IRQ_ENABLE,
+		regs_addr_get_va(REGS_ADDR_ICU) + (EDGE_WAKEUP_ICU << 2));
+}
+
+static void edge_wakeup_icu_disable(void)
+{
+	writel_relaxed(0, regs_addr_get_va(REGS_ADDR_ICU) + (EDGE_WAKEUP_ICU << 2));
+}
+
+static int need_restore_pad_wakeup;
+static void pxa988_edge_wakeup_enable(void)
+{
+	edge_wakeup_mfp_enable();
+	edge_wakeup_icu_enable();
+	edge_wakeup_port_enable();
+	need_restore_pad_wakeup = 1;
+}
+
+static void pxa988_edge_wakeup_disable(void)
+{
+	if (!need_restore_pad_wakeup)
+		return;
+	edge_wakeup_port_disable();
+	edge_wakeup_icu_disable();
+	edge_wakeup_mfp_disable();
+	need_restore_pad_wakeup = 0;
+}
+
+
 static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 		u32 lowpower_enable)
 {
@@ -103,7 +171,12 @@ static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 			/* fall through */
 		case POWER_MODE_APPS_IDLE:
 			apcr |= PMUM_AXISD;
-			/* TODO:enable gpio edge wakeup */
+			/*
+			 * Normally edge wakeup should only take effect in D1 and
+			 * deeper modes. But due to SD host hardware requirement,
+			 * it has to be put in D1P mode.
+			 */
+			pxa988_edge_wakeup_enable();
 			/* fall through */
 		case POWER_MODE_CORE_POWERDOWN:
 			mp_idle_cfg[cpu] |= PMUA_MP_POWER_DOWN;
@@ -123,7 +196,7 @@ static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 				PMUA_MP_MASK_CLK_OFF);
 		apcr &= ~(PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD |
 			PMUM_VCTCXOSD | PMUM_STBYEN | PMUM_SLPEN);
-		/* TODO:disable gpio edge wakeup */
+		pxa988_edge_wakeup_disable();
 	}
 
 	writel_relaxed(core_idle_cfg, APMU_CORE_IDLE_CFG[cpu]);
