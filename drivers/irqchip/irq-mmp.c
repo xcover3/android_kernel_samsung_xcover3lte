@@ -111,6 +111,25 @@ static void icu_unmask_irq_wakeup(struct irq_data *d)
 	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
 }
 
+static int icu_set_affinity(struct irq_data *d,
+	const struct cpumask *mask_val, bool force)
+{
+	struct icu_chip_data *data = &icu_data[0];
+	int hwirq = d->irq - data->virq_base;
+	u32 r, cpu;
+
+	if (irq_ignore_wakeup(data, hwirq))
+		return 0;
+
+	cpu = cpumask_first(mask_val);
+	r = readl_relaxed(mmp_icu_base + (hwirq << 2));
+	r &= ~ICU_INT_CONF_AP_MASK;
+	r |= ICU_INT_CONF_AP(cpu);
+	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
+
+	return 0;
+}
+
 static void icu_mask_ack_irq(struct irq_data *d)
 {
 	struct irq_domain *domain = d->domain;
@@ -619,6 +638,7 @@ void __init mmp_of_wakeup_init(void)
 
 	gic_arch_extn.irq_mask = icu_mask_irq_wakeup;
 	gic_arch_extn.irq_unmask = icu_unmask_irq_wakeup;
+	gic_arch_extn.irq_set_affinity = icu_set_affinity;
 
 	return;
 }
