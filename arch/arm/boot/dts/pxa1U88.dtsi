@@ -101,6 +101,16 @@
 						      39 (1 << 0 | 1 << 1 | 1 << 6)>;
 				status = "disabled";
 			};
+
+			sdh2: sdh@d4281000 {
+				compatible = "marvell,pxav3-mmc-v2";
+				reg = <0xd4281000 0x120>;
+				interrupts = <0 39 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_SDH2
+					  &soc_clocks PXA1U88_CLK_SDH_AXI>;
+				clock-names = "sdh-base-clk", "sdh-axi-clk";
+				status = "disabled";
+			 };
 		};
 
 		apb@d4000000 {	/* APB */
