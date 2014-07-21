@@ -26,6 +26,8 @@
 #include <linux/err.h>
 #include <linux/input/matrix_keypad.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
+#include <linux/workqueue.h>
 #include <linux/of.h>
 
 #include <asm/mach/arch.h>
@@ -87,6 +89,8 @@
 #define KPAS_SO         (0x1 << 31)
 #define KPASMKPx_SO     (0x1 << 31)
 
+#define KPAS_SCANON     (0x1 << 31)
+
 #define KPAS_MUKP(n)	(((n) >> 26) & 0x1f)
 #define KPAS_RP(n)	(((n) >> 4) & 0xf)
 #define KPAS_CP(n)	((n) & 0xf)
@@ -117,6 +121,9 @@ struct pxa27x_keypad {
 	uint32_t direct_key_state;
 
 	unsigned int direct_key_mask;
+	bool keypad_lpm_mode;
+	struct work_struct	keypad_lpm_work;
+	struct workqueue_struct	*keypad_lpm_wq;
 };
 
 #ifdef CONFIG_OF
@@ -565,7 +572,6 @@ static void pxa27x_keypad_scan_direct(struct pxa27x_keypad *keypad)
 	for (i = 0; i < pdata->direct_key_num; i++) {
 		if (bits_changed & (1 << i)) {
 			int code = MAX_MATRIX_KEY_NUM + i;
-
 			input_event(input_dev, EV_MSC, MSC_SCAN, code);
 			input_report_key(input_dev, keypad->keycodes[code],
 					 new_state & (1 << i));
@@ -583,19 +589,54 @@ static void clear_wakeup_event(struct pxa27x_keypad *keypad)
 		(pdata->clear_wakeup_event)();
 }
 
+static void pxa27x_keypad_wq_func(struct work_struct *work)
+{
+	struct pxa27x_keypad *keypad = container_of(work, struct pxa27x_keypad,
+					keypad_lpm_work);
+	u32 kpc, kpc_as;
+	int retries = 5;
+	while (retries) {
+		retries--;
+		kpc_as = keypad_readl(KPAS);
+		/* test if last auto scan is finish */
+		if (kpc_as & KPAS_SCANON)
+			usleep_range(2000, 2010);
+		else {
+			keypad_writel(KPC, keypad_readl(KPC) | KPC_AS);
+			break;
+		}
+	}
+	if (unlikely(retries == 0))
+		return;
+	retries = 5;
+	do {
+		retries--;
+		usleep_range(2000, 2010);
+		kpc = keypad_readl(KPC);
+	} while ((kpc & KPC_AS) && retries);
+
+	if (kpc & KPC_ME)
+		pxa27x_keypad_scan_matrix(keypad);
+
+	if (kpc & KPC_DE)
+		pxa27x_keypad_scan_direct(keypad);
+}
+
 static irqreturn_t pxa27x_keypad_irq_handler(int irq, void *dev_id)
 {
 	struct pxa27x_keypad *keypad = dev_id;
 	unsigned long kpc = keypad_readl(KPC);
 
 	clear_wakeup_event(keypad);
+	if (keypad->keypad_lpm_mode) {
+		queue_work(keypad->keypad_lpm_wq, &keypad->keypad_lpm_work);
+	} else {
+		if (kpc & KPC_DI)
+			pxa27x_keypad_scan_direct(keypad);
 
-	if (kpc & KPC_DI)
-		pxa27x_keypad_scan_direct(keypad);
-
-	if (kpc & KPC_MI)
-		pxa27x_keypad_scan_matrix(keypad);
-
+		if (kpc & KPC_MI)
+			pxa27x_keypad_scan_matrix(keypad);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -674,6 +715,9 @@ static int pxa27x_keypad_suspend(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct pxa27x_keypad *keypad = platform_get_drvdata(pdev);
 
+	/* guarantee workqueue finish after suspend */
+	if (keypad->keypad_lpm_mode)
+		flush_work(&keypad->keypad_lpm_work);
 	/*
 	 * If the keypad is used a wake up source, clock can not be disabled.
 	 * Or it can not detect the key pressing.
@@ -682,7 +726,6 @@ static int pxa27x_keypad_suspend(struct device *dev)
 		enable_irq_wake(keypad->irq);
 	else
 		clk_disable_unprepare(keypad->clk);
-
 	return 0;
 }
 
@@ -709,7 +752,6 @@ static int pxa27x_keypad_resume(struct device *dev)
 
 		mutex_unlock(&input_dev->mutex);
 	}
-
 	return 0;
 }
 #endif
@@ -813,27 +855,35 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 		input_dev->evbit[0] |= BIT_MASK(EV_REL);
 	}
 
-	error = request_irq(irq, pxa27x_keypad_irq_handler, 0,
-			    pdev->name, keypad);
-	if (error) {
-		dev_err(&pdev->dev, "failed to request IRQ\n");
-		goto failed_put_clk;
-	}
-
 	/* Register the input device */
 	error = input_register_device(input_dev);
 	if (error) {
 		dev_err(&pdev->dev, "failed to register input device\n");
-		goto failed_free_irq;
+		goto failed_put_clk;
+	}
+	keypad->keypad_lpm_mode = of_property_read_bool(np,
+					"marvell,keypad-lpm-mod");
+	if (keypad->keypad_lpm_mode) {
+		INIT_WORK(&keypad->keypad_lpm_work, pxa27x_keypad_wq_func);
+		keypad->keypad_lpm_wq = create_workqueue("keypad_rx_lpm_wq");
+		if (unlikely(keypad->keypad_lpm_wq == NULL))
+			dev_err(&pdev->dev,
+				"[keypad] warning: create work queue failed\n");
 	}
 
 	platform_set_drvdata(pdev, keypad);
 	device_set_wakeup_capable(&pdev->dev, 1);
 
+	error = request_irq(irq, pxa27x_keypad_irq_handler, 0,
+			    pdev->name, keypad);
+	if (error) {
+		dev_err(&pdev->dev, "failed to request IRQ\n");
+		goto failed_input_device;
+	}
 	return 0;
 
-failed_free_irq:
-	free_irq(irq, keypad);
+failed_input_device:
+	input_unregister_device(keypad->input_dev);
 failed_put_clk:
 	clk_put(keypad->clk);
 failed_free_io:
