@@ -8,6 +8,12 @@
 #include "88pm822.dtsi"
 
 &pmic0 {
+	/*
+	 * board specific register configuration
+	 * marvell,pmic-board-cfg = <page reg mask data>;
+	 */
+	marvell,pmic-board-cfg = <>;
+
 	regulators {
 	        buck1: BUCK1 {regulator-boot-on; regulator-always-on;};
 	        buck2: BUCK2 {regulator-boot-on; regulator-always-on;};
