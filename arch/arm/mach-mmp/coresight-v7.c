@@ -470,7 +470,7 @@ static int __init coresight_parse_trace_dt(void)
 	return 0;
 }
 
-void __init arch_enable_trace(u32 enable_mask)
+void arch_enable_trace(u32 enable_mask)
 {
 	int cpu;
 
@@ -544,7 +544,7 @@ static int __init coresight_parse_dbg_dt(void)
 	return 0;
 }
 
-void __init arch_coresight_init(void)
+void arch_coresight_init(void)
 {
 	/* Needed for debug modules */
 	coresight_parse_dbg_dt();
