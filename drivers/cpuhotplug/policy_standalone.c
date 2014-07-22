@@ -24,8 +24,11 @@
 #include <linux/cpu.h>
 #include <linux/pm_qos.h>
 #include <linux/cpunum_qos.h>
+#ifndef CONFIG_ARM64
 #include <linux/cputype.h>
+#endif
 #include <linux/clk-provider.h>
+#include <linux/of.h>
 #include <trace/events/pxa.h>
 
 #define BOOT_DELAY	60
@@ -44,7 +47,7 @@ static struct workqueue_struct *hotplug_wq;
 static struct delayed_work hotplug_work;
 
 static unsigned int freq_max;
-static unsigned int freq_min = -1UL;
+static unsigned int freq_min = -1;
 static unsigned int max_performance;
 
 static unsigned int hotpluging_rate = CHECK_DELAY_OFF;
@@ -94,6 +97,7 @@ struct cpu_hotplug_info {
 static DEFINE_PER_CPU(struct cpu_time_info, hotplug_cpu_time);
 
 static u32 trans_load[][2] = {
+	{150000, 312000},	/* pxa1928 */
 	{150000, 312000},	/* pxa1L88 */
 };
 
@@ -508,13 +512,13 @@ static struct notifier_block hotplug_reboot_notifier = {
 	.notifier_call = hotplug_reboot_notifier_call,
 };
 
-static int bound_freq_get(struct device *dev, struct device_attribute *attr,
+static ssize_t bound_freq_get(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
 	return sprintf(buf, "%d\n", freq_min);
 }
 
-static int bound_freq_set(struct device *dev, struct device_attribute *attr,
+static ssize_t bound_freq_set(struct device *dev, struct device_attribute *attr,
 			  const char *buf, size_t count)
 {
 	int freq_tmp;
@@ -527,13 +531,13 @@ static int bound_freq_set(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(bound_freq, S_IRUGO | S_IWUSR, bound_freq_get,
 		   bound_freq_set);
 
-static int lock_get(struct device *dev, struct device_attribute *attr,
+static ssize_t lock_get(struct device *dev, struct device_attribute *attr,
 		    char *buf)
 {
 	return sprintf(buf, "%d\n", user_lock);
 }
 
-static int lock_set(struct device *dev, struct device_attribute *attr,
+static ssize_t lock_set(struct device *dev, struct device_attribute *attr,
 		    const char *buf, size_t count)
 {
 	u32 val;
@@ -680,7 +684,10 @@ static int __init stand_alone_hotplug_init(void)
 	max_performance = freq_max * NUM_CPUS;
 	pr_info("init max_performance : %u\n", max_performance);
 
-	i = 0;
+	if (of_machine_is_compatible("marvell,pxa1928"))
+		i = 0;
+	else
+		i = 1;
 
 	/* set trans_load_XX */
 	trans_load_l0 = 0;
