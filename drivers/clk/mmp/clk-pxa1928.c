@@ -345,8 +345,8 @@ static void pxa1928_acpu_init(struct pxa1928_clk_unit *pxa_unit)
 	pxa1928_core_clk_init(pxa_unit->apmu_base);
 	pxa1928_axi_clk_init(pxa_unit->apmu_base);
 	pxa1928_axi11_clk_init(pxa_unit->apmu_base);
-	pxa1928_ddr_clk_init(pxa_unit->apmu_base,
-		ddrdfc_base, pxa_unit->ciu_base);
+	pxa1928_ddr_clk_init(pxa_unit->apmu_base, ddrdfc_base,
+		pxa_unit->ciu_base, &pxa_unit->unit);
 }
 
 static struct mmp_param_gate_clk apbc_gate_clks[] = {

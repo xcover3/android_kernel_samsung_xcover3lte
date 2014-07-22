@@ -25,6 +25,8 @@
 #include <linux/clk-provider.h>
 #include <linux/clk-private.h>
 
+#include <dt-bindings/clock/marvell-pxa1928.h>
+
 #include "clk.h"
 
 #define APMU_COREAPSS_CLKCTRL		(0x2E0)
@@ -2279,7 +2281,8 @@ static struct clk_ops ddr_clk_ops = {
 };
 
 void __init pxa1928_ddr_clk_init(void __iomem *apmu_base,
-		void __iomem *ddrdfc_base, void __iomem *ciu_base)
+		void __iomem *ddrdfc_base, void __iomem *ciu_base,
+		struct mmp_clk_unit *unit)
 {
 	struct clk *clk;
 	struct clk_hw *hw;
@@ -2365,8 +2368,9 @@ void __init pxa1928_ddr_clk_init(void __iomem *apmu_base,
 		return;
 	}
 	clk_register_clkdev(clk, "ddr", NULL);
-	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1928_CLK_DDR, clk);
 
+	clk_prepare_enable(clk);
 }
 
 static int __init cpu_max_speed_set(char *str)
