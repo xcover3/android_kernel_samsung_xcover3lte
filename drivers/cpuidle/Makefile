@@ -14,6 +14,7 @@ obj-$(CONFIG_ARM_ZYNQ_CPUIDLE)		+= cpuidle-zynq.o
 obj-$(CONFIG_ARM_U8500_CPUIDLE)         += cpuidle-ux500.o
 obj-$(CONFIG_ARM_AT91_CPUIDLE)          += cpuidle-at91.o
 obj-$(CONFIG_CPU_IDLE_MMP_V7)		+= cpuidle-mmp-armv7.o
+obj-$(CONFIG_ARM64_CPUIDLE)		+= cpuidle-arm64.o
 
 ###############################################################################
 # POWERPC drivers

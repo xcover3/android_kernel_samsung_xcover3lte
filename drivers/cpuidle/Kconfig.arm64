@@ -1,0 +1,11 @@
+#
+# ARM64 CPU Idle drivers
+#
+
+config ARM64_CPUIDLE
+	bool "Generic ARM64 CPU idle Driver"
+	select ARM64_CPU_SUSPEND
+	help
+	  Select this to enable generic cpuidle driver for ARM v8.
+	  It provides a driver for testing purpose on ARM v8 models based
+	  on cpu_suspend API for entering power down modes.
