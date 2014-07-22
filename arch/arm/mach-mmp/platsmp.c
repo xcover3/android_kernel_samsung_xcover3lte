@@ -51,6 +51,10 @@ void pxa988_gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 
 	gic_raise_softirq(mask, irq);
 
+	/* We shouldn't access any registers when AXI time out occurred */
+	if (keep_silent)
+		return;
+
 	apmu_base = regs_addr_get_va(REGS_ADDR_APMU);
 	BUG_ON(!apmu_base);
 	/*

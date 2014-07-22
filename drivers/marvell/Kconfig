@@ -5,4 +5,10 @@ menuconfig MARVELL_DRIVERS
 
 if MARVELL_DRIVERS
 
+config MRVL_DEBUG
+	tristate "Support Marvell debug features"
+	default y
+	---help---
+	  This will enable Marvell debug features.
+
 endif
