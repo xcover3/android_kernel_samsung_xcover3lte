@@ -2211,6 +2211,7 @@ source "drivers/cpufreq/Kconfig"
 endif
 
 source "drivers/cpuidle/Kconfig"
+source "drivers/cpuhotplug/Kconfig"
 
 endmenu
 
