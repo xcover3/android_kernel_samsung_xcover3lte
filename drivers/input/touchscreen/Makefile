@@ -78,3 +78,4 @@ obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_ZFORCE)	+= zforce_ts.o
 obj-$(CONFIG_TOUCHSCREEN_VNC)           += vnc_touch.o
+obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C)     += synaptics_dsx_i2c.o
