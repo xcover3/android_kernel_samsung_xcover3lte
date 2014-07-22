@@ -136,6 +136,34 @@ static struct pm_qos_object cpu_freq_max_pm_qos = {
 	.name = "cpu_freq_max",
 };
 
+static BLOCKING_NOTIFIER_HEAD(cpu_num_min_notifier);
+static struct pm_qos_constraints cpu_num_min_constraints = {
+	.list = PLIST_HEAD_INIT(cpu_num_min_constraints.list),
+	.notifiers = &cpu_num_min_notifier,
+	.default_value = PM_QOS_DEFAULT_VALUE,
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.type = PM_QOS_MAX,
+};
+
+static struct pm_qos_object cpu_num_min_pm_qos = {
+	.constraints = &cpu_num_min_constraints,
+	.name = "cpu_num_min",
+};
+
+static BLOCKING_NOTIFIER_HEAD(cpu_num_max_notifier);
+static struct pm_qos_constraints cpu_num_max_constraints = {
+	.list = PLIST_HEAD_INIT(cpu_num_max_constraints.list),
+	.notifiers = &cpu_num_max_notifier,
+	.default_value = INT_MAX,
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.type = PM_QOS_MIN,
+};
+
+static struct pm_qos_object cpu_num_max_pm_qos = {
+	.constraints = &cpu_num_max_constraints,
+	.name = "cpu_num_max",
+};
+
 struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
@@ -144,6 +172,8 @@ struct pm_qos_object *pm_qos_array[] = {
 	&cpuidle_block_pm_qos,
 	&cpu_freq_min_pm_qos,
 	&cpu_freq_max_pm_qos,
+	&cpu_num_min_pm_qos,
+	&cpu_num_max_pm_qos,
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
@@ -761,3 +791,68 @@ static int __init cpufreq_qos_debugfs_init(void)
 	return 0;
 }
 postcore_initcall(cpufreq_qos_debugfs_init);
+
+/**
+ * cpu_num_qos_show - Print information of cpu num qos.
+ * @m: seq_file to print the statistics info.
+ */
+static int cpu_num_qos_show(struct seq_file *m, void *unused)
+{
+	unsigned long flags;
+	struct pm_qos_object *qos_max, *qos_min;
+	struct list_head *list_max, *list_min;
+	struct plist_node *node;
+	s32 target_max = 0, target_min = 0;
+	struct pm_qos_request *req;
+
+	qos_min = pm_qos_array[PM_QOS_CPU_NUM_MIN];
+	list_min = &qos_min->constraints->list.node_list;
+	qos_max = pm_qos_array[PM_QOS_CPU_NUM_MAX];
+	list_max = &qos_max->constraints->list.node_list;
+
+	rcu_read_lock();
+	spin_lock_irqsave(&pm_qos_lock, flags);
+
+	target_min = pm_qos_read_value(qos_min->constraints);
+	seq_printf(m, "Target min %d\n", target_min);
+	list_for_each_entry(node, list_min, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_DEFAULT_VALUE)
+			seq_printf(m, "Req: %d\t Name: %s\n",
+					node->prio, req->name);
+	}
+
+	target_max = pm_qos_read_value(qos_max->constraints);
+
+	seq_printf(m, "Target max %d\n", target_max);
+	list_for_each_entry(node, list_max, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_DEFAULT_VALUE)
+			seq_printf(m, "Req: %d\t Name: %s\n",
+				node->prio, req->name);
+	}
+	spin_unlock_irqrestore(&pm_qos_lock, flags);
+	rcu_read_unlock();
+
+	return 0;
+}
+
+static int cpu_num_qos_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, cpu_num_qos_show, NULL);
+}
+
+const struct file_operations cpu_num_qos_fops = {
+	.owner = THIS_MODULE,
+	.open = cpu_num_qos_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+};
+
+static int __init cpu_num_qos_debugfs_init(void)
+{
+	debugfs_create_file("cpu_num_qos",
+			S_IRUGO, NULL, NULL, &cpu_num_qos_fops);
+	return 0;
+}
+postcore_initcall(cpu_num_qos_debugfs_init);
