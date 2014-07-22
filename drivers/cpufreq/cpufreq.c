@@ -765,6 +765,15 @@ static struct kobj_type ktype_cpufreq = {
 };
 
 struct kobject *cpufreq_global_kobject;
+struct kset *cpufreq_kset;
+static int cpufreq_uevent_filter(struct kset *kset, struct kobject *kobj)
+{
+	return 1;
+}
+
+static const struct kset_uevent_ops cpufreq_uevent_ops = {
+	.filter = cpufreq_uevent_filter,
+};
 EXPORT_SYMBOL(cpufreq_global_kobject);
 
 static int cpufreq_global_kobject_usage;
@@ -1920,7 +1929,6 @@ static int __cpufreq_governor(struct cpufreq_policy *policy,
 	if (((event == CPUFREQ_GOV_POLICY_INIT) && ret) ||
 			((event == CPUFREQ_GOV_POLICY_EXIT) && !ret))
 		module_put(policy->governor->owner);
-
 	return ret;
 }
 
@@ -2407,7 +2415,10 @@ static int __init cpufreq_core_init(void)
 	if (cpufreq_disabled())
 		return -ENODEV;
 
+	cpufreq_kset = kset_create_and_add("cpufreq", &cpufreq_uevent_ops,
+					   NULL);
 	cpufreq_global_kobject = kobject_create();
+	cpufreq_global_kobject->kset = cpufreq_kset;
 	BUG_ON(!cpufreq_global_kobject);
 	register_syscore_ops(&cpufreq_syscore_ops);
 

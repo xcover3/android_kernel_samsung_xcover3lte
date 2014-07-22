@@ -242,6 +242,14 @@ int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			return rc;
 		}
 
+		/*
+		* send out uevent for userspace to modify the access permission
+		* of related governor para file node
+		*/
+		if (event == CPUFREQ_GOV_START)
+			kobject_uevent(get_governor_parent_kobj(policy),
+				       KOBJ_ADD);
+
 		policy->governor_data = dbs_data;
 
 		/* policy latency is in ns. Convert it to us first */

@@ -1,3 +1,4 @@
+
 /*
  * drivers/cpufreq/cpufreq_interactive.c
  *
@@ -1137,6 +1138,12 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			pr_err("%s: POLICY_INIT: kzalloc failed\n", __func__);
 			return -ENOMEM;
 		}
+
+		/*
+		 * send out uevent for userspace to modify the access permission
+		 * of related governor para file node
+		 */
+		kobject_uevent(get_governor_parent_kobj(policy), KOBJ_ADD);
 
 		tunables->usage_count = 1;
 		tunables->above_hispeed_delay = default_above_hispeed_delay;
