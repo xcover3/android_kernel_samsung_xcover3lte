@@ -81,7 +81,6 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
-		ranges;
 
 		version {
 			ver = "ax";
@@ -324,7 +323,6 @@
 	regs_addr {
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges;
 
 		mpmu: pmu@d4050000 {
 			compatible = "marvell,mmp-pmu-mpmu";
