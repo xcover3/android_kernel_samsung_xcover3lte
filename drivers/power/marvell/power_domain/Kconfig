@@ -15,4 +15,8 @@ config MMP_PM_DOMAIN_COMMON
         help
           Say Y here to enable related power domain for pxa1088/pxa1L88
 
+config MMP_PM_DOMAIN_DISPLAY
+        bool "power domain for display"
+        help
+          Say Y here to enable related power domain for pxa1088/pxa1L88/pxa1920
 endif
