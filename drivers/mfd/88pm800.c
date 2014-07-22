@@ -246,6 +246,14 @@ static struct mfd_cell headset_devs_800[] = {
 	 },
 };
 
+static struct mfd_cell dvc_devs[] = {
+	{
+	 .name = "88pm8xx-dvc",
+	 .of_compatible = "marvell,88pm8xx-dvc",
+	 .id = -1,
+	},
+};
+
 static const struct regmap_irq pm800_irqs[] = {
 	/* INT0 */
 	[PM800_IRQ_ONKEY] = {
@@ -507,6 +515,22 @@ static int device_headset_init(struct pm80x_chip *chip,
 	return 0;
 }
 
+static int device_dvc_init(struct pm80x_chip *chip,
+					   struct pm80x_platform_data *pdata)
+{
+	int ret;
+
+	ret = mfd_add_devices(chip->dev, 0, &dvc_devs[0],
+			      ARRAY_SIZE(dvc_devs), NULL,
+			      regmap_irq_chip_get_base(chip->irq_data), NULL);
+	if (ret) {
+		dev_err(chip->dev, "Failed to add dvc subdev\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static int device_irq_init_800(struct pm80x_chip *chip)
 {
 	struct regmap *map = chip->regmap;
@@ -693,6 +717,10 @@ static int device_800_init(struct pm80x_chip *chip,
 		dev_err(chip->dev, "Failed to add headset subdev\n");
 		goto out;
 	}
+
+	ret = device_dvc_init(chip, pdata);
+	if (ret)
+		dev_warn(chip->dev, "Failied to add dvc subdev\n");
 
 	return 0;
 out_dev:

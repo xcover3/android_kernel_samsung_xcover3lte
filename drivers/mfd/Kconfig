@@ -1205,6 +1205,15 @@ config MFD_STW481X
 	  in various ST Microelectronics and ST-Ericsson embedded
 	  Nomadik series.
 
+config MFD_88PM8XX_DVC
+	bool "Marvell 88PM80x DVC"
+	depends on MFD_88PM800=y
+	help
+	  This driver supports Marvell 88PM800 DVC feature.
+	  It delivers buckx DVC four level's digitally programmable output,
+	  the voltage is programmed via I2C interface.
+	  It's suitable to support PXA988 chips to control VCC_MAIN.
+
 endmenu
 endif
 

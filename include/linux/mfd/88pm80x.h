@@ -584,4 +584,7 @@ static inline int pm80x_dev_resume(struct device *dev)
 
 extern int pm80x_init(struct i2c_client *client);
 extern int pm80x_deinit(void);
+
+extern int pm8xx_dvc_setvolt(unsigned int buckid, unsigned int lvl, int uv);
+extern int pm8xx_dvc_getvolt(unsigned int buckid, unsigned int lvl, int *uv);
 #endif /* __LINUX_MFD_88PM80X_H */

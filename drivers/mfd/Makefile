@@ -7,6 +7,7 @@ obj-$(CONFIG_MFD_88PM860X)	+= 88pm860x.o
 obj-$(CONFIG_MFD_88PM800)	+= 88pm800.o 88pm80x.o 88pm8xx-config.o 88pm8xx-debugfs.o
 obj-$(CONFIG_MFD_88PM805)	+= 88pm805.o 88pm80x.o
 obj-$(CONFIG_MFD_88PM830)	+= 88pm830.o 88pm830-debugfs.o
+obj-$(CONFIG_MFD_88PM8XX_DVC)	+= 88pm8xx-dvc.o
 obj-$(CONFIG_MFD_SM501)		+= sm501.o
 obj-$(CONFIG_MFD_ASIC3)		+= asic3.o tmio_core.o
 obj-$(CONFIG_MFD_CROS_EC)	+= cros_ec.o
