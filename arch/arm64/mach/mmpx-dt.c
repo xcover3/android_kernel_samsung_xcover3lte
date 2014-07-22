@@ -19,6 +19,14 @@
 #include "mmpx-dt.h"
 #include "regs-addr.h"
 
+static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
+#ifdef CONFIG_DDR_DEVFREQ
+	OF_DEV_AUXDATA("marvell,devfreq-ddr", 0xd0000000,
+			"devfreq-ddr", NULL),
+#endif
+	{}
+};
+
 #define MPMU_PHYS_BASE		0xd4050000
 #define GEN_TMR2_PHYS_BASE	0xd4080000
 #define MPMU_PRR_SP		0x0020
@@ -103,6 +111,12 @@ static __init void pxa1928_timer_init(void)
 	clocksource_of_init();
 }
 
+static void __init pxa1928_init_machine(void)
+{
+	of_platform_populate(NULL, of_default_bus_match_table,
+			     mmpx_auxdata_lookup, &platform_bus);
+}
+
 static const char *pxa1928_dt_board_compat[] __initdata = {
 	"marvell,pxa1928",
 	NULL,
@@ -110,5 +124,6 @@ static const char *pxa1928_dt_board_compat[] __initdata = {
 
 DT_MACHINE_START(PXA1928_DT, "PXA1928")
 	.init_time      = pxa1928_timer_init,
+	.init_machine	= pxa1928_init_machine,
 	.dt_compat      = pxa1928_dt_board_compat,
 MACHINE_END
