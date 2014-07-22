@@ -36,6 +36,15 @@
 				pinctrl-0 = <&keypad_in_func  &keypad_out_func>;
 			};
 
+			thermal: thermal@d4013200 {
+				compatible = "marvell,pxa-thermal";
+				reg = <0xd4013200 0x50>;
+				interrupts = <0 60 0x4>;
+				trigger_levels_count = <4>;
+				type = <2>;
+				status = "ok";
+			};
+
 			pmx: pinmux@d401e000 {
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <
