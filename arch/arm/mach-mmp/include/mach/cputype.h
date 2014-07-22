@@ -3,6 +3,22 @@
 
 #include <asm/cputype.h>
 
+static inline bool cpu_is_ca9(void)
+{
+	if ((read_cpuid_id() & 0xfff0) == 0xc090)
+		return true;
+
+	return false;
+}
+
+static inline bool cpu_is_ca7(void)
+{
+	if ((read_cpuid_id() & 0xfff0) == 0xc070)
+		return true;
+
+	return false;
+}
+
 /*
  *  CPU   Stepping   CPU_ID      CHIP_ID
  *
