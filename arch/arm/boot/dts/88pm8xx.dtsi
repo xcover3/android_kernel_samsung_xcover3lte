@@ -21,7 +21,6 @@
 	regulators {
 		compatible = "marvell,88pm80x-regulator";
 
-	        buck1: BUCK1 {PM8XX_BUCK1;};
 	        buck2: BUCK2 {PM8XX_BUCK2;};
 	        buck3: BUCK3 {PM8XX_BUCK3;};
 	        buck4: BUCK4 {PM8XX_BUCK4;};
