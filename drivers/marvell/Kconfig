@@ -1,0 +1,8 @@
+menuconfig MARVELL_DRIVERS
+	bool "Marvell kernel module drivers"
+	---help---
+	  marvell kernel module drivers
+
+if MARVELL_DRIVERS
+
+endif
