@@ -62,6 +62,11 @@ static void _set_vote_state(int cpu, int cluster, unsigned int vote)
 	mcpm_plat_enter_lpm[cluster][cpu] = _state2bit(vote);
 }
 
+static unsigned int _get_vote_state(int cpu, int cluster)
+{
+	return _bit2state(mcpm_plat_enter_lpm[cluster][cpu]);
+}
+
 /*
  * _calc_max_state - Find the maximum state cluster can enter
  *
@@ -113,9 +118,30 @@ static unsigned int _calc_coupled_state(int cpu, int cluster,
 
 	couple_state = _calc_max_state(cluster);
 
-	*cluster_off = 0;
+	/* set default s/w state */
 	if (sw_state)
-		*sw_state = couple_state;
+		*sw_state = mcpm_plat_idle->cpudown_state;
+
+	/*
+	 * that means cluster is off, so calculate the final D state
+	 * according to the peripheral's constarint
+	 */
+	if (couple_state >= mcpm_plat_idle->clusterdown_state) {
+		*cluster_off = 1;
+		couple_state = min(couple_state,
+			((unsigned int)pm_qos_request(PM_QOS_CPUIDLE_BLOCK) - 1));
+
+		if (sw_state)
+			*sw_state = couple_state;
+	} else {
+		/*
+		 * the cluster is on, so the cpu need set C state
+		 * and it cannot maximum than cluster level's SD;
+		 */
+		*cluster_off = 0;
+		couple_state = min(_get_vote_state(cpu, cluster),
+				mcpm_plat_idle->clusterdown_state);
+	}
 
 	return couple_state;
 }
