@@ -17,6 +17,7 @@ Required properties:
   interrupt source.
 - mrvl,intc-nr-irqs : Specifies the number of interrupts in the interrupt
   controller.
+- mrvl,mmp-edge-wakeup : Specifies for the edge wakeup feature.
 
 Example:
 	intc: interrupt-controller@d4282000 {

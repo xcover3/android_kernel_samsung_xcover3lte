@@ -26,6 +26,10 @@
 		};
 
 		apb@d4000000 {
+			edgewakeup: edgewakeup@d4019800 {
+				status = "ok";
+			};
+
 			keypad: keypad@d4012000 {
 				keypad,num-rows = <2>;
 				keypad,num-columns = <1>;
