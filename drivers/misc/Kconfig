@@ -538,6 +538,16 @@ config MMP_GPS
           Creates an entry in sysfs for Marvell GPS chips to control
 	  power/clock, enable/disable.
 
+config GATOR
+	tristate "Support ARM DS5"
+	depends on PERF_EVENTS && PROFILING
+	depends on HIGH_RES_TIMERS && HW_PERF_EVENTS
+	depends on DEBUG_INFO
+	default m
+	help
+	  This is required to run on the ARM linux target in order for ARM
+	  Streamline to operate.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

@@ -1,7 +1,7 @@
 ifneq ($(KERNELRELEASE),)
 
 # Uncomment the following line to enable kernel stack unwinding within gator, or update gator_backtrace.c
-# EXTRA_CFLAGS +=	-DGATOR_KERNEL_STACK_UNWINDING
+EXTRA_CFLAGS +=	-DGATOR_KERNEL_STACK_UNWINDING
 
 CONFIG_GATOR ?= m
 obj-$(CONFIG_GATOR) := gator.o
@@ -51,6 +51,7 @@ endif
 # GATOR_TEST controls whether to include (=1) or exclude (=0) test code. 
 GATOR_TEST ?= 0
 EXTRA_CFLAGS +=	-DGATOR_TEST=$(GATOR_TEST)
+EXTRA_CFLAGS +=	-fno-pic
 
 gator-$(CONFIG_ARM) +=	gator_events_armv6.o \
 			gator_events_armv7.o \

@@ -58,3 +58,4 @@ obj-$(CONFIG_GENWQE)		+= genwqe/
 obj-$(CONFIG_CORESIGHT_SUPPORT)	+= arm-coresight.o
 obj-$(CONFIG_MMP_GPS)		+= mmp_gps.o
 obj-$(CONFIG_DEBUG_FS)		+= debugfs-pxa.o
+obj-$(CONFIG_GATOR)		+= gator/
