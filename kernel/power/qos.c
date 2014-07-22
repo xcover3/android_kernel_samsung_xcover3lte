@@ -106,12 +106,42 @@ static struct pm_qos_object cpuidle_block_pm_qos = {
 	.name = "cpuidle_block",
 };
 
+static BLOCKING_NOTIFIER_HEAD(cpu_freq_min_notifier);
+static struct pm_qos_constraints cpu_freq_min_constraints = {
+	.list = PLIST_HEAD_INIT(cpu_freq_min_constraints.list),
+	.notifiers = &cpu_freq_min_notifier,
+	.default_value = PM_QOS_DEFAULT_VALUE,
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.type = PM_QOS_MAX,
+};
+
+static struct pm_qos_object cpu_freq_min_pm_qos = {
+	.constraints = &cpu_freq_min_constraints,
+	.name = "cpu_freq_min",
+};
+
+static BLOCKING_NOTIFIER_HEAD(cpu_freq_max_notifier);
+static struct pm_qos_constraints cpu_freq_max_constraints = {
+	.list = PLIST_HEAD_INIT(cpu_freq_max_constraints.list),
+	.notifiers = &cpu_freq_max_notifier,
+	.default_value = INT_MAX,
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.type = PM_QOS_MIN,
+};
+
+static struct pm_qos_object cpu_freq_max_pm_qos = {
+	.constraints = &cpu_freq_max_constraints,
+	.name = "cpu_freq_max",
+};
+
 struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
 	&network_lat_pm_qos,
 	&network_throughput_pm_qos,
-	&cpuidle_block_pm_qos
+	&cpuidle_block_pm_qos,
+	&cpu_freq_min_pm_qos,
+	&cpu_freq_max_pm_qos,
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
