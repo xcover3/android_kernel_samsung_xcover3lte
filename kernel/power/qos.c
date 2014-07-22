@@ -46,6 +46,8 @@
 
 #include <linux/uaccess.h>
 #include <linux/export.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
 #include <trace/events/power.h>
 
 DEFINE_SPINLOCK(pm_qos_lock);
@@ -693,3 +695,69 @@ static int __init pm_qos_power_init(void)
 }
 
 late_initcall(pm_qos_power_init);
+
+
+/**
+ * cpufreq_qos_show - Print information of cpu freq qos min and max.
+ * @m: seq_file to print the statistics into.
+ */
+static int cpufreq_qos_show(struct seq_file *m, void *unused)
+{
+	unsigned long flags;
+	struct pm_qos_object *qos_min, *qos_max;
+	struct list_head *list_min, *list_max;
+	struct plist_node *node;
+	s32 target_min = 0, target_max = 0;
+	struct pm_qos_request *req;
+
+	qos_min = pm_qos_array[PM_QOS_CPUFREQ_MIN];
+	list_min = &qos_min->constraints->list.node_list;
+	qos_max = pm_qos_array[PM_QOS_CPUFREQ_MAX];
+	list_max = &qos_max->constraints->list.node_list;
+
+	rcu_read_lock();
+	spin_lock_irqsave(&pm_qos_lock, flags);
+
+	target_min = pm_qos_read_value(qos_min->constraints);
+	target_max = pm_qos_read_value(qos_max->constraints);
+
+	seq_printf(m, "Target min %d\n", target_min);
+	list_for_each_entry(node, list_min, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_DEFAULT_VALUE)
+			seq_printf(m, "Req: %d\t Name: %s\n",
+				node->prio, req->name);
+	}
+
+	seq_printf(m, "Target max %d\n", target_max);
+	list_for_each_entry(node, list_max, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_DEFAULT_VALUE)
+			seq_printf(m, "Req: %d\t Name: %s\n",
+				node->prio, req->name);
+	}
+	spin_unlock_irqrestore(&pm_qos_lock, flags);
+	rcu_read_unlock();
+
+	return 0;
+}
+
+static int cpufreq_qos_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, cpufreq_qos_show, NULL);
+}
+
+const struct file_operations cpufreq_qos_fops = {
+	.owner = THIS_MODULE,
+	.open = cpufreq_qos_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+};
+
+static int __init cpufreq_qos_debugfs_init(void)
+{
+	debugfs_create_file("cpufreq_qos",
+			S_IRUGO, NULL, NULL, &cpufreq_qos_fops);
+	return 0;
+}
+postcore_initcall(cpufreq_qos_debugfs_init);
