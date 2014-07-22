@@ -136,6 +136,10 @@ static inline int etm_need_enabled(void)
 
 static int arm_coresight_probe(struct platform_device *pdev)
 {
+#ifdef CONFIG_CORESIGHT_TRACE_SUPPORT
+	static struct clk *traceclk;
+#endif
+
 	dbgclk = clk_get(&pdev->dev, "DBGCLK");
 	if (IS_ERR(dbgclk)) {
 		pr_warn("No DBGCLK is defined...\n");
@@ -148,7 +152,6 @@ static int arm_coresight_probe(struct platform_device *pdev)
 	arch_coresight_init();
 
 #ifdef CONFIG_CORESIGHT_TRACE_SUPPORT
-	static struct clk *traceclk;
 
 	/* enable etm trace by default */
 	if (etm_need_enabled()) {
