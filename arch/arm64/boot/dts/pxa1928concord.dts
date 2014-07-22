@@ -50,6 +50,16 @@
 	};
 
 	soc {
+		pd_display: pd_display@0xd4282800 {
+			compatible = "marvell,power-domain-display";
+			reg = <0xd4282800 0x1000>;
+			clocks = <&soc_clocks PXA1928_CLK_DISP_AXI_CLK>,
+				<&soc_clocks PXA1928_CLK_DISP_ESC_CLK>,
+				<&soc_clocks PXA1928_CLK_DISP_DISP1_EN>,
+				<&soc_clocks PXA1928_CLK_DISP_VDMA_EN>;
+			clock-names = "axi_clk", "esc_clk", "disp1_clk_gate", "vdma_clk_gate";
+		};
+
 		axi@d4200000 {	/* AXI */
 			dsi: dsi@d420b800 {
 				marvell,phy-name = "mmp_dsi1";
@@ -58,16 +68,12 @@
 				marvell,burst-mode = <2>;
 				marvell,hbp-en;
 				status = "okay";
-				clocks = <&soc_clocks PXA1928_CLK_DISP_ESC_CLK>;
-				clock-names = "esc_clk";
 			};
 
 			vdma: vdma@d427f000 {
 				marvell,vdma-num = <4>;
 				marvell,vdma-ch-clk-ctrl;
 				status = "okay";
-				clocks = <&soc_clocks PXA1928_CLK_DISP_VDMA_EN>;
-				clock-names = "vdma_clk_gate";
 				vdma1 {
 					marvell,vdma-id = <0>;
 					marvell,sram-size = <69632>;
@@ -97,10 +103,10 @@
 			disp: disp@d420b000 {
 				marvell,disp-name = "mmp_disp";
 				marvell,path-num = <1>;
+				marvell,power-domain = <&pd_display>;
 				status = "okay";
-				clocks = <&soc_clocks PXA1928_CLK_DISP_DISP1_EN>,
-					<&soc_clocks PXA1928_CLK_DISP_AXI_CLK>;
-				clock-names = "disp1_clk_gate", "axi_clk";
+				clocks = 	<&soc_clocks PXA1928_CLK_DISP_AXI_CLK>;
+				clock-names = "axi_clk";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
 					marvell,overlay-num = <2>;
