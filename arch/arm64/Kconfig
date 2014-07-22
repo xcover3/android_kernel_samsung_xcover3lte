@@ -130,6 +130,7 @@ config ARCH_XGENE
 
 config ARCH_MMP
 	bool "Marvell MMP"
+	select ARCH_HAS_OPP
 	select ARCH_REQUIRE_GPIOLIB
 	select PINCTRL
 	select PINCTRL_SINGLE
