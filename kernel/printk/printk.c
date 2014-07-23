@@ -793,7 +793,7 @@ static bool __read_mostly ignore_loglevel;
 
 static int __init ignore_loglevel_setup(char *str)
 {
-	ignore_loglevel = 1;
+	ignore_loglevel = true;
 	pr_info("debug: ignoring loglevel setting.\n");
 
 	return 0;
@@ -860,7 +860,7 @@ static inline void boot_delay_msec(int level)
 #endif
 
 #if defined(CONFIG_PRINTK_TIME)
-static bool printk_time = 1;
+static bool printk_time = true;
 #else
 static bool printk_time;
 #endif
@@ -1867,12 +1867,12 @@ int update_console_cmdline(char *name, int idx, char *name_new, int idx_new, cha
 	return -1;
 }
 
-bool console_suspend_enabled = 1;
+bool console_suspend_enabled = true;
 EXPORT_SYMBOL(console_suspend_enabled);
 
 static int __init console_suspend_disable(char *str)
 {
-	console_suspend_enabled = 0;
+	console_suspend_enabled = false;
 	return 1;
 }
 __setup("no_console_suspend", console_suspend_disable);
