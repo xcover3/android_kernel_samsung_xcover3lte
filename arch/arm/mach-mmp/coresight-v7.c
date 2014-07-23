@@ -17,6 +17,8 @@
 #include <linux/percpu.h>
 #include <linux/of_address.h>
 
+#include "regs-addr.h"
+
 static void __iomem *debug_base;
 
 #define DBG_REG(cpu, offset)	(debug_base + cpu * 0x2000 + offset)
@@ -208,7 +210,6 @@ static int __init mmp_cti_init(void)
 		pr_err("Failed to map coresight cti register\n");
 		return -ENOMEM;
 	}
-
 
 	for (cpu = 0; cpu < nr_cpu_ids; cpu++)
 		mmp_cti_enable(cpu);
@@ -544,10 +545,37 @@ static int __init coresight_parse_dbg_dt(void)
 	return 0;
 }
 
+static void __init coresight_enable_external_agent(void __iomem *addr)
+{
+	u32 tmp;
+
+	tmp = readl_relaxed(addr);
+	tmp |= 0x100000;
+	writel_relaxed(tmp, addr);
+}
+
+static int __init coresight_external_agent_init(void)
+{
+	void __iomem *ciu_base = regs_addr_get_va(REGS_ADDR_CIU);
+
+	/* enable access CTI registers for core */
+	coresight_enable_external_agent(ciu_base + 0xd0);
+	coresight_enable_external_agent(ciu_base + 0xe0);
+	coresight_enable_external_agent(ciu_base + 0xf0);
+	coresight_enable_external_agent(ciu_base + 0xf8);
+
+	return 0;
+}
+
 void arch_coresight_init(void)
 {
 	/* Needed for debug modules */
 	coresight_parse_dbg_dt();
+
+#ifndef CONFIG_TZ_HYPERVISOR
+	/* if enable TrustZone, move core config to TZSW. */
+	coresight_external_agent_init();
+#endif
 
 	/* It is needed on emei/helan serials to route PMU interrupt */
 	mmp_cti_init();
