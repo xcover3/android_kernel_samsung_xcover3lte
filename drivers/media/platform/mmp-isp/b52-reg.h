@@ -714,6 +714,8 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 #define REG_FW_AEC_EXP_SHIFT        (0x013)
 #define REG_FW_AEC_TARGET_LOW       (0x014)
 #define REG_FW_AEC_TARGET_HIGH      (0x015)
+#define REG_FW_AEC_STABLE_RANGE0    (0x018)
+#define REG_FW_AEC_STABLE_RANGE1    (0x019)
 
 #define REG_FW_AEC_MANUAL_EN        (0x022)
 	#define AEC_MANUAL		(0x1)

@@ -650,6 +650,7 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id)
 	static u8 high_def[B52_NR_PIPELINE_MAX];
 	u16 low_target;
 	u16 high_target;
+	u16 min_target_distance, adjacent_low_target;
 	s64 bias;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 
@@ -673,6 +674,11 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id)
 	} else if (bias < 0) {
 		bias *= -1;
 		low_target = (low_def[id] + high_def[id]) >> (bias + 1);
+		adjacent_low_target = (low_def[id] + high_def[id]) >> bias;
+		min_target_distance = b52_readb(base + REG_FW_AEC_STABLE_RANGE0) +
+			b52_readb(base + REG_FW_AEC_STABLE_RANGE1) + 1;
+		if (low_target > adjacent_low_target - min_target_distance)
+			low_target = adjacent_low_target - min_target_distance;
 		high_target = low_target;
 	} else {
 		low_target = low_def[id];
