@@ -12,6 +12,15 @@ config POWER_RESET_AS3722
 	help
 	  This driver supports turning off board via a ams AS3722 power-off.
 
+config POWER_RESET_PXA
+	bool "Marvell PXA reset driver"
+	depends on POWER_RESET
+	help
+	  Power off and reset support for the Marvell PXA boards.
+	  To support this feature, please select CONFIG_POWER_RESET_PXA
+	  in platform defconfig
+	  if platform doesn't want this feature, just say no
+
 config POWER_RESET_GPIO
 	bool "GPIO power-off driver"
 	depends on OF_GPIO && POWER_RESET
