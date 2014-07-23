@@ -300,6 +300,15 @@ static void mcpm_plat_pm_down(void *arg)
 			BUG_ON(__mcpm_cluster_state(cluster) != CLUSTER_UP);
 			last_man = true;
 		}
+
+		if ((calc_state >= mcpm_plat_idle->wakeup_state) &&
+		    (calc_state < mcpm_plat_idle->l2_flush_state) &&
+		    (mcpm_plat_idle->ops->save_wakeup))
+			mcpm_plat_idle->ops->save_wakeup();
+
+		if (mcpm_plat_idle->ops->set_pmu)
+			mcpm_plat_idle->ops->set_pmu(cpu, calc_state,
+						    vote_state);
 	} else if (mcpm_plat_pm_use_count[cluster][cpu] == 1) {
 		/*
 		 * A power_up request went ahead of us.
@@ -395,6 +404,14 @@ static void mcpm_plat_pm_powered_up(void)
 	calc_state = _calc_coupled_state(cpu, cluster, &cluster_off, NULL);
 	if (cluster_off)
 		cpu_cluster_pm_exit();
+
+	if (calc_state >= mcpm_plat_idle->wakeup_state &&
+	    calc_state < mcpm_plat_idle->l2_flush_state &&
+	    mcpm_plat_idle->ops->restore_wakeup)
+		mcpm_plat_idle->ops->restore_wakeup();
+
+	if (mcpm_plat_idle->ops->clr_pmu)
+		mcpm_plat_idle->ops->clr_pmu(cpu);
 
 	if (!mcpm_plat_pm_use_count[cluster][cpu])
 		mcpm_plat_pm_use_count[cluster][cpu] = 1;
