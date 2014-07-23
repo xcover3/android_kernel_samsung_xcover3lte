@@ -337,6 +337,7 @@
 					dvc {
 						pinctrl-names = "default";
 						pinctrl-0 = <&dvc_pmx_func>;
+						status = "okay";
 					};
 				};
 
