@@ -245,6 +245,8 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 	u64 total_time = 0, run_total = 0, idle_total = 0, pwr_off_total = 0;
 	struct clk_dcstat *cdcs;
 	struct clk_dc_stat_info *dc_stat_info = NULL;
+	unsigned int ddr_glob_ratio = 0, ddr_idle_ratio = 0, ddr_busy_ratio = 0,
+	ddr_data_ratio = 0, ddr_util_ratio = 0;
 
 	list_for_each_entry(cdcs, &clk_dcstat_list, node)
 	    if (cdcs->clk == clk) {
@@ -292,9 +294,18 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 	dc_int = calculate_dc((u32)run_total, (u32)total_time, &dc_frac);
 	seq_printf(seq, "\n%s clk: Totally %u.%2u%% busy in %lums.\n",
 			clk->name, dc_int, dc_frac, (long)total_time);
-	seq_printf(seq, "|%3s|%10s|%10s|%10s|%10s|%7s|%7s|%7s|%7s|\n", "OP#",
-			"rate(HZ)", "run (ms)", "idle (ms)", "pwroff(ms)",
+
+	if (!strcmp(clk->name, "ddr")) {
+		ddr_profiling_show(dc_stat_info);
+		seq_printf(seq, "|%3s|%10s|%10s|%7s|%7s|%7s|%7s|%7s|%7s|%7s|\n",
+		"OP#", "rate(HZ)", "run (ms)", "rt", "gl",
+		"glob(tick)", "idle(tick)", "busy(tick)",
+		"data(tick)", "util(tick)");
+	} else
+		seq_printf(seq, "|%3s|%10s|%10s|%10s|%10s|%7s|%7s|%7s|%7s|\n",
+		"OP#", "rate(HZ)", "run (ms)", "idle (ms)", "pwroff(ms)",
 			"rt", "idle", "pwr off", "gl");
+
 	for (i = 0; i < dc_stat_info->ops_stat_size; i++) {
 		dc_int =
 		calculate_dc((u32)dc_stat_info->ops_dcstat[i].clk_busy_time,
@@ -308,15 +319,45 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 				(u32)dc_stat_info->ops_dcstat[i].clk_idle_time +
 				(u32)dc_stat_info->ops_dcstat[i].pwr_off_time,
 				(u32)total_time, &gr_frac);
-		seq_printf(seq, "|%3u|%10lu|%10ld|%10ld|%10ld",
+
+		if (!strcmp(clk->name, "ddr")) {
+			ddr_glob_ratio =
+				dc_stat_info->ops_dcstat[i].ddr_glob_ratio;
+			ddr_idle_ratio =
+				dc_stat_info->ops_dcstat[i].ddr_idle_ratio;
+			ddr_busy_ratio =
+				dc_stat_info->ops_dcstat[i].ddr_busy_ratio;
+			ddr_data_ratio =
+				dc_stat_info->ops_dcstat[i].ddr_data_ratio;
+			ddr_util_ratio =
+				dc_stat_info->ops_dcstat[i].ddr_util_ratio;
+		}
+
+		if (!strcmp(clk->name, "ddr")) {
+			seq_printf(seq, "|%3u|%10lu|%10ld|",
+			dc_stat_info->ops_dcstat[i].ppindex,
+			dc_stat_info->ops_dcstat[i].pprate,
+			(long)dc_stat_info->ops_dcstat[i].clk_busy_time);
+			seq_printf(seq, "%3u.%2u%%|%3u.%2u%%|",
+				dc_int, dc_frac, gr_int, gr_frac);
+			seq_printf(seq, "%6u.%2u%%|%6u.%2u%%|%6u.%2u%%|%6u.%2u%%|%6u.%2u%%|\n",
+				ddr_glob_ratio/1000, (ddr_glob_ratio%1000)/10,
+				ddr_idle_ratio/1000, (ddr_idle_ratio%1000)/10,
+				ddr_busy_ratio/1000, (ddr_busy_ratio%1000)/10,
+				ddr_data_ratio/1000, (ddr_data_ratio%1000)/10,
+				ddr_util_ratio/1000, (ddr_util_ratio%1000)/10);
+		} else {
+			seq_printf(seq, "|%3u|%10lu|%10ld|%10ld|%10ld",
 				dc_stat_info->ops_dcstat[i].ppindex,
 				dc_stat_info->ops_dcstat[i].pprate,
 				(long)dc_stat_info->ops_dcstat[i].clk_busy_time,
 				(long)dc_stat_info->ops_dcstat[i].clk_idle_time,
 				(long)dc_stat_info->ops_dcstat[i].pwr_off_time);
-		seq_printf(seq, "|%3u.%2u%%|%3u.%2u%%|%3u.%2u%%|%3u.%2u%%|\n",
+
+			seq_printf(seq, "|%3u.%2u%%|%3u.%2u%%|%3u.%2u%%|%3u.%2u%%|\n",
 				dc_int, dc_frac, clk_idle_int, clk_idle_frac,
 				pwr_off_int, pwr_off_frac, gr_int, gr_frac);
+		}
 	}
 	seq_puts(seq, "\n");
 	return 0;
@@ -357,9 +398,15 @@ int start_stop_dc_stat(struct clk *clk, unsigned int start)
 		}
 		dc_stat_info->stat_start = true;
 		clk_dutycycle_stats(clk, CLK_STAT_START, dc_stat_info, 0);
+
+		if (!strcmp(clk->name, "ddr"))
+			ddr_profiling_store(1);
+
 	} else {
 		clk_dutycycle_stats(clk, CLK_STAT_STOP, dc_stat_info, 0);
 		dc_stat_info->stat_start = false;
+		if (!strcmp(clk->name, "ddr"))
+			ddr_profiling_store(0);
 	}
 	return 0;
 }

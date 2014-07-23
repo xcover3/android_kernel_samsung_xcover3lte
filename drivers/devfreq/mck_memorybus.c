@@ -31,6 +31,9 @@
 
 #include "mck_memorybus.h"
 
+#include <linux/clk/mmpdcstat.h>
+
+
 #define DDR_DEVFREQ_UPTHRESHOLD 65
 #define DDR_DEVFREQ_DOWNDIFFERENTIAL 5
 
@@ -785,11 +788,12 @@ static ssize_t ddr_freq_show(struct device *dev, struct device_attribute *attr,
 		 clk_get_rate(data->ddr_clk) / KHZ_TO_HZ);
 }
 
+
+static struct ddr_devfreq_data *ddrfreq_data;
+
 /* used to collect ddr cnt during 20ms */
-static ssize_t dp_show(struct device *dev, struct device_attribute *attr,
-		       char *buf)
+int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info)
 {
-	struct platform_device *pdev;
 	struct ddr_devfreq_data *data;
 	struct perf_counters *ddr_ticks, *ddr_ticks_base, *ddr_ticks_diff;
 	int i, j, k, len = 0;
@@ -800,8 +804,7 @@ static ssize_t dp_show(struct device *dev, struct device_attribute *attr,
 	unsigned int tmp_data_cycle, cnttime_ms, cnttime_ms_ddr;
 	u64 glob_ticks;
 
-	pdev = container_of(dev, struct platform_device, dev);
-	data = platform_get_drvdata(pdev);
+	data = ddrfreq_data;
 	ddr_ticks = data->dmc.ddr_ticks;
 	ddr_ticks_base = data->ddr_stats.ddr_ticks_base;
 	ddr_ticks_diff = data->ddr_stats.ddr_ticks_diff;
@@ -823,57 +826,16 @@ static ssize_t dp_show(struct device *dev, struct device_attribute *attr,
 	cnttime_ms = (data->stop_ts.tv_sec - data->start_ts.tv_sec) * MSEC_PER_SEC +
 		(data->stop_ts.tv_nsec - data->start_ts.tv_nsec) / NSEC_PER_MSEC;
 
-	len += sprintf(buf + len, "Timespan: %dms.", cnttime_ms);
 
 	cnttime_ms_ddr = 0;
 	for (i = 0; i < data->ddr_freq_tbl_len; i++) {
 		cnttime_ms_ddr += div_u64(ddr_ticks_diff[i].reg[1],
 				ddr_index2_rate(data, i));
 	}
-	len += sprintf(buf + len, " (Debug: Timspan from ddr ticks: %dms.)\n",
-			cnttime_ms_ddr);
-
-	/* ddr ticks show */
-	len += sprintf(buf + len, "\nddr_ticks operating point list:\n");
-
-	len += sprintf(buf + len, "idx|dmcfs|  total_ticks   |");
-	if (ver == MCK4)
-		len += sprintf(buf + len,
-			"  R+W_cmd_cnt   |no_util_not_idle\n");
-	else if (ver == MCK5)
-		len += sprintf(buf + len,
-			"  R+W_cmd_cnt   |    busy_ticks\n");
-	else
-		/* this should never happen */
-		BUG_ON(1);
-
-	len += sprintf(buf + len, "----------------------------------"
-			"-------------------------------------------\n");
-
-	spin_lock_irqsave(&data->lock, flags);
-	for (i = 0; i < data->ddr_freq_tbl_len; i++) {
-		len += sprintf(buf + len,
-			"%3d|%5u|%16llu|%16llu|%16llu\n",
-			i, ddr_index2_rate(data, i)/1000,
-			ddr_ticks_diff[i].reg[1],
-			ddr_ticks_diff[i].reg[2],
-			ddr_ticks_diff[i].reg[3]);
-	}
-	spin_unlock_irqrestore(&data->lock, flags);
-
-	len += sprintf(buf + len, "\n");
 
 	/* ddr duty cycle show */
 	glob_ticks = 0;
 
-	len += sprintf(buf + len,
-			"\nddr_duty_cycle operating point list:\n");
-
-	len += sprintf(buf + len, "idx|dmcfs|glob_ratio|idle_ratio"
-			"|busy_ratio|data_ratio|util_ratio\n");
-
-	len += sprintf(buf + len, "-----------------------------"
-			"------------------------------------\n");
 
 	spin_lock_irqsave(&data->lock, flags);
 
@@ -935,7 +897,7 @@ static ssize_t dp_show(struct device *dev, struct device_attribute *attr,
 			data_ratio = 0;
 			util_ratio = 0;
 		}
-
+/*
 		len += sprintf(buf + len, "%3d|%5u|%6u.%02u%%|%6u.%02u%%"
 			"|%6u.%02u%%|%6u.%02u%%|%6u.%02u%%\n",
 			       i, ddr_index2_rate(data, i)/1000,
@@ -944,31 +906,32 @@ static ssize_t dp_show(struct device *dev, struct device_attribute *attr,
 				busy_ratio/1000, (busy_ratio%1000)/10,
 				data_ratio/1000, (data_ratio%1000)/10,
 				util_ratio/1000, (util_ratio%1000)/10);
+*/
+		dc_stat_info->ops_dcstat[i].ddr_glob_ratio = glob_ratio;
+		dc_stat_info->ops_dcstat[i].ddr_idle_ratio = idle_ratio;
+		dc_stat_info->ops_dcstat[i].ddr_busy_ratio = busy_ratio;
+		dc_stat_info->ops_dcstat[i].ddr_data_ratio = data_ratio;
+		dc_stat_info->ops_dcstat[i].ddr_util_ratio = util_ratio;
 	}
 	spin_unlock_irqrestore(&data->lock, flags);
-
-	len += sprintf(buf + len, "\n");
 
 	return len;
 }
 
 /* used to collect ddr cnt during a time */
-static ssize_t dp_store(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t size)
+int ddr_profiling_store(int start)
 {
-	struct platform_device *pdev;
 	struct ddr_devfreq_data *data;
 	unsigned int cap_flag, i, j;
 	unsigned long flags;
 	struct perf_counters *ddr_ticks_base;
 	struct perf_counters *ddr_ticks_diff;
 
-	pdev = container_of(dev, struct platform_device, dev);
-	data = platform_get_drvdata(pdev);
+	data = ddrfreq_data;
 	ddr_ticks_base = data->ddr_stats.ddr_ticks_base;
 	ddr_ticks_diff = data->ddr_stats.ddr_ticks_diff;
 
-	sscanf(buf, "%u", &cap_flag);
+	cap_flag = start;
 
 	if (cap_flag == 1) {
 		ddr_perf_cnt_update(data, 0, 1);
@@ -993,13 +956,9 @@ static ssize_t dp_store(struct device *dev, struct device_attribute *attr,
 					data->dmc.ddr_ticks[i].reg[j] -
 					ddr_ticks_base[i].reg[j];
 		spin_unlock_irqrestore(&data->lock, flags);
-	} else if (cap_flag != 0 && cap_flag != 1)
-		dev_err(&data->devfreq->dev,
-			"echo 1 > ddr_profiling to reset and start\n"
-			"echo 0 > ddr_profiling to stop\n"
-			"cat ddr_profiling to show ddr ticks and duty cycle\n");
+	}
 
-	return size;
+	return 0;
 }
 
 static struct pm_qos_request ddrfreq_qos_boot_max;
@@ -1012,7 +971,6 @@ static DEVICE_ATTR(high_upthrd, S_IRUGO | S_IWUSR,
 static DEVICE_ATTR(disable_ddr_fc, S_IRUGO | S_IWUSR,
 		disable_show, disable_store);
 static DEVICE_ATTR(ddr_freq, S_IRUGO | S_IWUSR, ddr_freq_show, ddr_freq_store);
-static DEVICE_ATTR(ddr_profiling, S_IRUGO | S_IWUSR, dp_show, dp_store);
 
 /*
  * Overflow interrupt handler
@@ -1277,6 +1235,7 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 	data->freq_transition.notifier_call = upthreshold_freq_notifer_call;
 #endif /* CONFIG_DEVFREQ_GOV_THROUGHPUT */
+	ddrfreq_data = data;
 
 	/* init default devfreq min_freq and max_freq */
 	data->devfreq->min_freq = data->devfreq->qos_min_freq =
@@ -1299,22 +1258,13 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		ret = -ENOENT;
 		goto err_file_create1;
 	}
-
-	res = device_create_file(&pdev->dev, &dev_attr_ddr_profiling);
-	if (res) {
-		dev_err(dev,
-			"device attr ddr_profiling create fail: %d\n", res);
-		ret = -ENOENT;
-		goto err_file_create2;
-	}
-
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 	res = device_create_file(&pdev->dev, &dev_attr_high_upthrd_swp);
 	if (res) {
 		dev_err(dev,
 			"device attr high_upthrd_swp create fail: %d\n", res);
 		ret = -ENOENT;
-		goto err_file_create3;
+		goto err_file_create2;
 	}
 
 	res = device_create_file(&pdev->dev, &dev_attr_high_upthrd);
@@ -1366,8 +1316,6 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 
 err_file_create4:
 	device_remove_file(&pdev->dev, &dev_attr_high_upthrd_swp);
-err_file_create3:
-	device_remove_file(&pdev->dev, &dev_attr_ddr_profiling);
 err_file_create2:
 	device_remove_file(&pdev->dev, &dev_attr_ddr_freq);
 err_file_create1:
@@ -1391,7 +1339,6 @@ static int ddr_devfreq_remove(struct platform_device *pdev)
 
 	device_remove_file(&pdev->dev, &dev_attr_disable_ddr_fc);
 	device_remove_file(&pdev->dev, &dev_attr_ddr_freq);
-	device_remove_file(&pdev->dev, &dev_attr_ddr_profiling);
 	device_remove_file(&pdev->dev, &dev_attr_high_upthrd_swp);
 	device_remove_file(&pdev->dev, &dev_attr_high_upthrd);
 	devfreq_remove_device(data->devfreq);

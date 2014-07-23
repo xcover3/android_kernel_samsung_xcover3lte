@@ -43,6 +43,14 @@ struct op_dcstat_info {
 	/* used for core stat */
 	cputime64_t prev_cpu_idle;
 	cputime64_t prev_cpu_wall;
+
+	/* used for ddr ticks ratio */
+	long ddr_glob_ratio;
+	long ddr_idle_ratio;
+	long ddr_busy_ratio;
+	long ddr_data_ratio;
+	long ddr_util_ratio;
+
 };
 
 struct clk_dc_stat_info {
@@ -305,5 +313,8 @@ static inline cputime64_t get_cpu_idle_time_dcstat(unsigned int cpu,
 
 	return idle_time;
 }
+
+extern int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info);
+extern int ddr_profiling_store(int start);
 
 #endif /* __MMPDCSTAT_H */
