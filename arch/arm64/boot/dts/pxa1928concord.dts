@@ -268,6 +268,12 @@
 				i2c-gpio = <&gpio TWSI5_SCL_GPIO 0 &gpio TWSI5_SDA_GPIO 0>;
 				status = "okay";
 			};
+
+			keyreset {
+				compatible = "marvell,keyreset";
+				keys-down = <0x73 0x72>;
+				keyreset-need-panic;
+			};
 		};
 	};
 
