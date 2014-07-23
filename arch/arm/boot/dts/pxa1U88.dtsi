@@ -108,6 +108,58 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			usbphy: usbphy@d4207000 {
+				compatible = "marvell,usb2-phy-28lp";
+				reg = <0xd4207000 0x200>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,phy-name = "mv-usb-phy";
+				marvell,pll-lock-bypass;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
+			udc: udc@d4208100 {
+				compatible = "marvell,mv-udc";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 44 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,udc-mode = <1>;
+				marvell,extern-attr = <1>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
+			ehci: ehci@d4208100 {
+				compatible = "marvell,pxa-u2oehci";
+				reg = <0xd4208100 0x200>;
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,udc-mode = <1>;
+				marvell,extern-attr = <1>;
+				marvell,otg-force-a-bus-req;
+				interrupts = <0 44 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
+			otg: otg@d4208100 {
+				compatible = "marvell,mv-otg";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 44 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,udc-mode = <1>;
+				marvell,extern-attr = <1>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
 			intc: wakeupgen@d4282000 {
 				compatible = "mrvl,mmp-intc-wakeupgen";
 				reg = <0xd4282000 0x1000>,
