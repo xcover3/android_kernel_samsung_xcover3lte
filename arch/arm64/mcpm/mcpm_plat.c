@@ -281,6 +281,8 @@ static void mcpm_plat_pm_down(void *arg)
 
 	BUG_ON(cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER);
 
+	__mcpm_cpu_going_down(cpu, cluster);
+
 	arch_spin_lock(&mcpm_plat_lpm_lock);
 
 	mcpm_plat_pm_use_count[cluster][cpu]--;
@@ -322,7 +324,7 @@ static void mcpm_plat_pm_down(void *arg)
 	__mcpm_cpu_down(cpu, cluster);
 
 	if (!skip_wfi)
-		cpu_do_idle();
+		mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point));
 }
 
 static int mcpm_plat_pm_power_up(unsigned int cpu, unsigned int cluster)
@@ -365,7 +367,7 @@ static int mcpm_plat_pm_power_up(unsigned int cpu, unsigned int cluster)
 
 static void mcpm_plat_pm_power_down(void)
 {
-	int idx = 0;
+	int idx = mcpm_plat_idle->hotplug_state;
 	mcpm_plat_pm_down(&idx);
 }
 
@@ -396,6 +398,8 @@ static void mcpm_plat_pm_powered_up(void)
 
 	if (!mcpm_plat_pm_use_count[cluster][cpu])
 		mcpm_plat_pm_use_count[cluster][cpu] = 1;
+
+	_set_vote_state(cpu, cluster, 0);
 
 	arch_spin_unlock(&mcpm_plat_lpm_lock);
 	local_irq_restore(flags);
