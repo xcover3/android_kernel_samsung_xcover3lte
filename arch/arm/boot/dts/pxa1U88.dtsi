@@ -407,6 +407,13 @@
 					compatible = "marvell,coresight-letb";
 				        reg = <0xd410a000 0x4000>;
 				};
+
+				watchdog: watchdog@d4080000 {
+					compatible = "marvell,mmp-wdt";
+					reg = <0xd4080000 0xff>,
+					      <0xd4050000 0x1024>;
+					status = "disabled";
+				};
 			};
 		};
 	};
