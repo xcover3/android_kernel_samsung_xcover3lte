@@ -39,7 +39,7 @@ EXPORT_SYMBOL(pxa_ion_dev);
 
 #ifdef CONFIG_OF
 static const struct of_device_id pxa_ion_dt_match[] = {
-	{ .compatible = "pxa-ion" },
+	{ .compatible = "marvell,pxa-ion" },
 	{},
 };
 #endif
