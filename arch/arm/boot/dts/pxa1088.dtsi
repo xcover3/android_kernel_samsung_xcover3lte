@@ -43,6 +43,14 @@
 		      <0xd1dfa000 0x2000>;
 	};
 
+	pmu {
+		compatible = "arm,cortex-a7-pmu";
+		interrupts = <0 58 0x04
+			      0 61 0x04
+			      0 66 0x04
+			      0 68 0x04>;
+	};
+
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
