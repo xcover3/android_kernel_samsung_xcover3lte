@@ -209,6 +209,15 @@ config S3C2410_WATCHDOG
 	  The driver can be built as a module by choosing M, and will
 	  be called s3c2410_wdt
 
+config MMP_WATCHDOG
+	tristate "MMP Watchdog"
+	help
+	  Watchdog timer embedded into pxa1L88 chips. This will
+	  reboot your system when timeout is reached.
+
+	  Say Y here if to include support for the watchdog timer
+	  embedded in the PXA family of devices.
+
 config SA1100_WATCHDOG
 	tristate "SA1100/PXA2xx watchdog"
 	depends on ARCH_SA1100 || ARCH_PXA
