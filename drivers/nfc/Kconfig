@@ -56,6 +56,18 @@ config NFC_PORT100
 
 	  If unsure, say N.
 
+config ST21NFCA
+	bool "ST Microelectronics ST21NFCA NFC Controller Driver"
+	depends on I2C && GPIOLIB
+	default n
+	---help---
+	  ST NFC driver.
+	  ST Microelectronics ST21NFCA Near Field Communication
+	  controller support.
+
+	  Say Y here to compile support for ST devices into the
+	  kernel or say N to disable.
+
 source "drivers/nfc/pn544/Kconfig"
 source "drivers/nfc/microread/Kconfig"
 source "drivers/nfc/nfcmrvl/Kconfig"
