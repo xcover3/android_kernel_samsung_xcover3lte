@@ -144,10 +144,20 @@
 		};
 
 		apb@d4000000 {
+			pwm2: pwm@d401a400 {
+				pinctrl-names = "default"; pinctrl-0 = <&pwm2_pins>;
+				status = "okay";
+			};
+
 			pmx: pinmux@d401e000 {
 				status = "okay";
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <PXA1928_GPIO_PINMUX>;
+
+				pwm2_pins: pinmux_pwm2_pins {
+					pinctrl-single,pins = <P51_PWM2>;
+					MFP_DEFAULT;
+				};
 
 				gpio_keys_pins: pinmux_gpio_keys_pins {
 					pinctrl-single,pins = <GPIO(DKIN0) GPIO(DKIN1)>;
