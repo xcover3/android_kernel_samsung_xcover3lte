@@ -216,6 +216,13 @@
 				clocks = <&soc_clocks PXA1L88_CLK_RTC>;
 			};
 
+			watchdog: watchdog@d4080000 {
+				compatible = "marvell,mmp-wdt";
+				reg = <0xd4080000 0xff>,
+				      <0xd4050000 0x1024>;
+				status = "disabled";
+			};
+
 			keypad: keypad@d4012000 {
 				compatible = "marvell,pxa27x-keypad";
 				reg = <0xd4012000 0x4c>;
