@@ -527,6 +527,11 @@
 				      <0xd4050000 0x1024>;
 				marvell,mmp-wdt-disabled;
 			};
+
+			edgewakeup: edgewakeup@d4019800 {
+				compatible = "mrvl,mmp-edge-wakeup";
+				reg = <0xd4019800 0x10>;
+			};
 		};
 
 		soc_clocks: clocks{
