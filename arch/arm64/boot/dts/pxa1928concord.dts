@@ -228,6 +228,16 @@
 					pinctrl-single,pins = <GPIO(TWSI5_SCL_GPIO) GPIO(TWSI5_SDA_GPIO)>;
 					MFP_DEFAULT;
 				};
+
+				pmic1_pins: pinmux_88pm830_pins {
+					pinctrl-single,pins = <GPIO(BAT_IRQ) GPIO(TORCH_EN) GPIO(FLASH_EN)>;
+					MFP_DEFAULT;
+				};
+
+				pmic1_pins_sleep: pinmux_88pm830_pins_sleep {
+					pinctrl-single,pins = <GPIO(BAT_IRQ)>;
+					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+				};
 			};
 
 			twsi0: i2c@d4011000 {
@@ -255,6 +265,43 @@
 						MFP_DEFAULT;
 					};
 				};
+
+				pmic1: 88pm830@68 {
+					/* gpio 4, 5, 75 */
+					pinctrl-names = "default","sleep";
+					pinctrl-0 = <&pmic1_pins>;
+					pinctrl-1 = <&pmic1_pins_sleep>;
+
+					reg = <0x68>;
+					interrupt-parent = <&gpio>;
+					interrupts = <BAT_IRQ IRQ_TYPE_EDGE_FALLING>;
+					edge-wakeup-gpio = <BAT_IRQ>;
+
+				        charger {
+					        status = "okay";
+				        };
+				        battery {
+					        /* board design related */
+					        external-resistor = <200>; /* mohm */
+					        /* using scenario */
+					        power-off-threshold = <3350>; /* mV */
+					        safe-power-off-threshold = <3000>; /* mV */
+					        status = "okay";
+				        };
+				        led {
+					        flash-en-gpio = <95>;
+					        flash-txmsk-gpio = <19>;
+					        status = "okay";
+				        };
+					vbus {
+						gpadc-number = <1>;
+						status = "okay";
+					};
+
+				        debug {
+					       status = "okay";
+				        };
+			       };
 			};
 
 			twsi1: i2c@d4031000 {
