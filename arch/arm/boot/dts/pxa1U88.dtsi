@@ -467,7 +467,7 @@
 	};
 
 	ion: ion {
-		compatible = "pxa-ion";
+		compatible = "marvell,pxa-ion";
 		#stream-id-cells = <1>;
 		status = "disabled";
 	};
