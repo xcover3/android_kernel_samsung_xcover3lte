@@ -1790,7 +1790,7 @@ static int smc911x_probe(struct net_device *dev)
 {
 	struct smc911x_local *lp = netdev_priv(dev);
 	int i, retval;
-	unsigned int val, chip_id, revision;
+	unsigned long val, chip_id, revision;
 	const char *version_string;
 	unsigned long irq_flags;
 
@@ -1977,7 +1977,7 @@ static int smc911x_probe(struct net_device *dev)
 	retval = register_netdev(dev);
 	if (retval == 0) {
 		/* now, print out the card info, in a short format.. */
-		netdev_info(dev, "%s (rev %d) at %#lx IRQ %d",
+		netdev_info(dev, "%s (rev %lu) at %#lx IRQ %d",
 			    version_string, lp->revision,
 			    dev->base_addr, dev->irq);
 
