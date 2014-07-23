@@ -38,6 +38,7 @@
 #define APMU_SDH3		0xec
 #define APMU_SDH4		0x15c
 #define APMU_USB		0x5c
+#define APMU_SMC		0xd4
 #define APMU_APDBG		0x340
 #define APMU_AP_DEBUG1		0x38c
 
@@ -685,6 +686,22 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 	mmp_clk_add(unit, PXA1928_CLK_DISP_AXI_CLK, clk);
 }
 
+#ifdef CONFIG_SMC91X
+static void __init pxa1928_smc91x_clk_init(void __iomem *apmu_base)
+{
+	struct device_node *np = of_find_node_by_name(NULL, "smc91x");
+	const char *str = NULL;
+	if (np && !of_property_read_string(np, "clksrc", &str))
+		if (!strcmp(str, "smc91x")) {
+			/* Enable clock to SMC Controller */
+			writel(0x5b, apmu_base + APMU_SMC);
+			/* Configure SMC Controller */
+			/* Set CS0 to A\D type memory */
+			writel(0x52880008, apmu_base + 0x1090);
+		}
+}
+#endif
+
 static void __init pxa1928_clk_init(struct device_node *np)
 {
 	struct pxa1928_clk_unit *pxa_unit;
@@ -728,6 +745,10 @@ static void __init pxa1928_clk_init(struct device_node *np)
 	pxa1928_apb_periph_clk_init(pxa_unit);
 
 	pxa1928_axi_periph_clk_init(pxa_unit);
+
+#ifdef CONFIG_SMC91X
+	pxa1928_smc91x_clk_init(pxa_unit->apmu_base);
+#endif
 }
 
 CLK_OF_DECLARE(pxa1928_clk, "marvell,pxa1928-clock", pxa1928_clk_init);
