@@ -80,6 +80,11 @@ int sendPSDData(int cid, struct sk_buff *skb)
 
 	DP_ENTER();
 
+	if (!gCcinetDataEnabled) {
+		dev_kfree_skb_any(skb);
+		return PSD_DATA_SEND_DROP;
+	}
+
 	/* data path is not open, drop the packet and return */
 	if (!psd_dp) {
 		DP_PRINT("%s: data path is not open!\n", __func__);

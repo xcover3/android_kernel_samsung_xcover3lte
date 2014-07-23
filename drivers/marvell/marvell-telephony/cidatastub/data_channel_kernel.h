@@ -43,6 +43,7 @@ extern int dataSvgHandle;
 extern spinlock_t data_handle_list_lock;
 
 extern int imsChannelInited;
+extern int gCcinetDataEnabled;
 
 typedef int (*DataRxCallbackFunc) (char *packet, int len, unsigned char cid);
 typedef void (*PSDFCCallbackFunc) (bool is_throttle);

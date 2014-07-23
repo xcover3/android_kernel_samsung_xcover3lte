@@ -43,6 +43,8 @@ int dataChannelInited;
 int csdChannelInited;
 int imsChannelInited;
 DEFINE_SPINLOCK(data_handle_list_lock);
+int gCcinetDataEnabled = TRUE;
+EXPORT_SYMBOL(gCcinetDataEnabled);
 
 #if     1
 #define DPRINT(fmt, args ...)     printk(fmt, ## args)
@@ -264,6 +266,17 @@ static long ccidatastub_ioctl(struct file *filp,
 		}
 		sendPSDData(gcfdata.cid, gcfbuf);
 		break;
+
+	case CCIDATASTUB_TOGGLE_DATA_ENABLE_DISABLE:
+		if (gCcinetDataEnabled == TRUE)
+			gCcinetDataEnabled = FALSE;
+		else
+			gCcinetDataEnabled = TRUE;
+
+		DPRINT("%s: Toggle Data to %s", __func__, (gCcinetDataEnabled == TRUE) ?
+			"Enabled" : "Disabled");
+		break;
+
 	}
 	LEAVE();
 	return 0;
