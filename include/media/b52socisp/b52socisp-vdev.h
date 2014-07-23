@@ -81,6 +81,7 @@ struct isp_vnode {
 	 */
 	struct mmu_chs_desc	mmu_ch_dsc;
 #endif
+	struct v4l2_ctrl_handler	ctrl_handler;
 };
 
 #define me_to_vnode(_e) ((media_entity_type(_e) == MEDIA_ENT_T_DEVNODE) ? \

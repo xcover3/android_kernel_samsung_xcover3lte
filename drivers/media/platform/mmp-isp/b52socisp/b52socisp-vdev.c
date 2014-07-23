@@ -821,7 +821,7 @@ vnode_init:
 	vnode->state = ISP_VNODE_ST_LINK;
 	vnode->file = file;
 	mutex_unlock(&vnode->st_lock);
-	return 0;
+	return v4l2_ctrl_handler_setup(&vnode->ctrl_handler);
 
 err_notify:
 err_vb:
@@ -917,6 +917,7 @@ int isp_vnode_add(struct isp_vnode *vnode, struct v4l2_device *vdev,
 	vnode->vdev.fops	= &isp_vnode_fops;
 	vnode->vdev.lock	= &vnode->vdev_lock;
 	vnode->vdev.v4l2_dev	= vdev;
+	vnode->vdev.ctrl_handler = &vnode->ctrl_handler;
 	video_set_drvdata(&vnode->vdev, vnode);
 	ret = video_register_device(&vnode->vdev, VFL_TYPE_GRABBER, vdev_nr);
 	/* FIXME: hard coding, not all DMA device needs contig mem, try pass
@@ -937,6 +938,7 @@ int isp_vnode_add(struct isp_vnode *vnode, struct v4l2_device *vdev,
 	vnode->vdev.dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	vnode->vdev.dev.dma_mask = &vnode->vdev.dev.coherent_dma_mask;
 	vnode->format.fmt.pix_mp = default_output_format;
+	v4l2_ctrl_handler_init(&vnode->ctrl_handler, 0);
 exit:
 	return ret;
 }
@@ -952,39 +954,7 @@ void isp_vnode_remove(struct isp_vnode *vnode)
 #endif
 		media_entity_cleanup(&vnode->vdev.entity);
 		video_unregister_device(&vnode->vdev);
+		v4l2_ctrl_handler_free(&vnode->ctrl_handler);
 	}
 }
 EXPORT_SYMBOL(isp_vnode_remove);
-
-int isp_vnode_attach(struct isp_build *build)
-{
-	struct isp_vnode *vnode;
-	struct isp_subdev *ispsd;
-	int ret, dir;
-
-	list_for_each_entry(ispsd, &build->ispsd_list, hook) {
-		switch (ispsd->sd_type) {
-		case ISD_TYPE_DMA_OUT:
-			/* Create pipeline here */
-			dir = 0;
-			break;
-		case ISD_TYPE_DMA_IN:
-			dir = 1;
-			break;
-		default:
-			continue;
-		}
-
-		vnode = devm_kzalloc(build->dev,
-					sizeof(struct isp_vnode), GFP_KERNEL);
-		if (vnode == NULL)
-			return -ENOMEM;
-
-		snprintf(vnode->vdev.name, sizeof(vnode->vdev.name),
-				"%s %s", ispsd->subdev.name, "video");
-		ret = isp_vnode_add(vnode, &build->v4l2_dev, dir, -1);
-		if (ret < 0)
-			return ret;
-	}
-	return 0;
-}
