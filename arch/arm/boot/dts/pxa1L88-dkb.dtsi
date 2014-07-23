@@ -90,4 +90,30 @@
 	touch: vnc {
 		compatible = "vnc-ts";
 	};
+
+	panel1: lg4591 {
+		compatible = "marvell,mmp-lg4591";
+		marvell,path-name = "mmp_pnpath";
+		panel_esd = <0>;
+		rst_gpio = <&gpio 4 0>;
+		status = "okay";
+	};
+
+	panel2: r63311 {
+		compatible = "marvell,mmp-r63311";
+		marvell,path-name = "mmp_pnpath";
+		marvell,ddrfreq-qos = <312000>; /* DDR_CONSTRAINT_LVL1 */
+		rst_gpio = <&gpio 4 0>;
+		power_gpio = <&gpio 6 0>;
+		bl_gpio = <&gpio 32 0>;
+		status = "okay";
+	};
+
+	panel4: hx8394 {
+		compatible = "marvell,mmp-hx8394";
+		marvell,path-name = "mmp_pnpath";
+		panel_esd = <0>;
+		rst_gpio = <&gpio 4 0>;
+		status = "okay";
+	};
 };
