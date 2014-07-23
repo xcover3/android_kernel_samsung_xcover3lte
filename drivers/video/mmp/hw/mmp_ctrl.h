@@ -1499,4 +1499,5 @@ static inline struct lcd_regs *path_regs(struct mmp_path *path)
 #ifdef CONFIG_MMP_DISP_SPI
 extern int lcd_spi_register(struct mmphw_ctrl *ctrl);
 #endif
+extern void mmp_display_clk_init(void);
 #endif	/* _MMP_CTRL_H_ */

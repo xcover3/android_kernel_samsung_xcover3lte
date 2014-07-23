@@ -453,6 +453,9 @@ static int mmphw_probe(struct platform_device *pdev)
 	struct mmphw_path_plat *path_plat;
 	struct mmphw_ctrl *ctrl = NULL;
 
+	/* register lcd internal clock firstly */
+	mmp_display_clk_init();
+
 	/* get resources from platform data */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
