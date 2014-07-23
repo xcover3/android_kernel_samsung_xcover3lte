@@ -11,6 +11,7 @@
 #include "pxa1928.dtsi"
 #include "pxa1928concord-pinfunc.h"
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
+#include "../../../../include/dt-bindings/mmc/pxa_sdhci.h"
 
 / {
 	model = "PXA1928";
@@ -130,6 +131,16 @@
 				marvell,overlay-id = <0>;
 				status = "okay";
 			};
+
+			/* emmc */
+			sdh3: sdh@d4217000 {
+				bus-width = <8>;
+				non-removable;
+				marvell,sdh-quirks = <(SDHCI_QUIRK_BROKEN_CARD_DETECTION)>;
+				marvell,sdh-quirks2 = <(SDHCI_QUIRK2_BROKEN_HS200)>;
+				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
+				status = "okay";
+                        };
 		};
 
 		apb@d4000000 {
