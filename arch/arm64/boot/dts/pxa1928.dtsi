@@ -105,6 +105,14 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			intc: interrupt-controller@d4284000 {
+				compatible = "marvell,pxa1928-intc";
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				reg = <0xd4284000 0x1000>;
+				mrvl,intc-nr-irqs = <64>;
+				status = "disabled";
+			};
 			dsi: dsi@d420b800 {
 				compatible = "marvell,mmp-dsi";
 				reg = <0xd420b800 0x1ec>;

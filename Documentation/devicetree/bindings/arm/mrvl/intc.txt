@@ -21,6 +21,7 @@ Required properties:
 - mrvl,intc-nr-irqs : Specifies the number of interrupts in the interrupt
   controller.
 - mrvl,mmp-edge-wakeup : Specifies for the edge wakeup feature.
+- marvell,pxa1928-intc : Specifies for PXA1928(aka Eden) support.
 
 Example:
 	intc: interrupt-controller@d4282000 {
