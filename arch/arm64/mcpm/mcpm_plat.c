@@ -425,7 +425,17 @@ int __init mcpm_plat_power_register(struct platform_idle *idle)
 
 int __init mcpm_plat_get_cpuidle_states(struct cpuidle_state *states)
 {
-	return 0;
+	int i;
+
+	if (!states || !mcpm_plat_idle)
+		return -EINVAL;
+
+	for (i = 0; i < CPUIDLE_STATE_MAX &&
+		    i < mcpm_plat_idle->state_count; i++)
+		memcpy(&states[i], &mcpm_plat_idle->states[i],
+				sizeof(struct cpuidle_state));
+
+	return i;
 }
 
 static const struct mcpm_platform_ops mcpm_plat_pm_power_ops = {
