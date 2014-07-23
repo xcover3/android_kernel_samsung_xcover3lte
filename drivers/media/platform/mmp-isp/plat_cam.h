@@ -35,20 +35,21 @@ struct plat_cam {
 	struct isp_build	*isb;
 	struct msc2_mmu_dev	*mmu_dev;
 	int			mmu_ref;
-	int (*alloc_mmu_chnl)(struct plat_cam *pcam,
-					__u8 blk_id, __u8 port_id, __u8 nr_chnl,
-					struct mmu_chs_desc *ch_dsc);
-	void (*free_mmu_chnl)(struct plat_cam *pcam,
-					struct mmu_chs_desc *ch_dsc);
-	int (*fill_mmu_chnl)(struct plat_cam *pcam,
-					struct vb2_buffer *vb, int num_planes);
-	__u16 (*get_axi_id)(__u8 port_id, __u8 yuv_id);
 	struct list_head	vnode_pool;
 	struct list_head	host_pool;
 };
 
 struct plat_vnode {
 	struct list_head	hook;
+	struct mmu_chs_desc	mmu_ch_dsc;
+	int	(*alloc_mmu_chnl)(struct plat_cam *pcam,
+					__u8 blk_id, __u8 port_id, __u8 nr_chnl,
+					struct mmu_chs_desc *ch_dsc);
+	void			(*free_mmu_chnl)(struct plat_cam *pcam,
+					struct mmu_chs_desc *ch_dsc);
+	int			(*fill_mmu_chnl)(struct plat_cam *pcam,
+					struct vb2_buffer *vb, int num_planes);
+	__u16			(*get_axi_id)(__u8 port_id, __u8 yuv_id);
 	struct isp_vnode	vnode;
 };
 

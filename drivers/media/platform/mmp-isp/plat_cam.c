@@ -44,7 +44,6 @@ MODULE_PARM_DESC(trace,
 		"3 - briefing log"
 		"4 - detailed log");
 
-#ifdef CONFIG_MARVELL_MEDIA_MMU
 /*
  * Get the AXI_ID that is written into MMU channel control register
  */
@@ -222,6 +221,8 @@ static int plat_mmu_fill_channel(struct plat_cam *pcam,
 	struct isp_videobuf *buf = container_of(vb, struct isp_videobuf, vb);
 	struct isp_vnode *vnode = container_of(vb->vb2_queue,
 						struct isp_vnode, vq);
+	struct plat_vnode *pvnode = container_of(vnode,
+						struct plat_vnode, vnode);
 	int ch;
 
 	if (unlikely((!pcam->mmu_dev || !vb || !buf))) {
@@ -231,12 +232,11 @@ static int plat_mmu_fill_channel(struct plat_cam *pcam,
 
 	for (ch = 0; ch < num_planes; ch++) {
 		struct msc2_ch_info *info = &buf->ch_info[ch];
-		info->tid = vnode->mmu_ch_dsc.tid[ch];
+		info->tid = pvnode->mmu_ch_dsc.tid[ch];
 	}
 	return pcam->mmu_dev->ops->config_ch(pcam->mmu_dev, buf->ch_info,
 						num_planes);
 }
-#endif /* #ifdef CONFIG_MARVELL_MEDIA_MMU */
 
 __u32 plat_get_src_tag(struct plat_pipeline *ppl)
 {
@@ -690,6 +690,72 @@ static int __maybe_unused plat_hsd_disconnect_video(struct plat_hsd *phsd,
 static int host_subdev_cnt;
 #endif
 
+/**************** video device related ****************/
+
+static void plat_set_vdev_mmu(struct isp_vnode *vnode, int enable)
+{
+	struct plat_vnode *pvnode = container_of(vnode,
+						struct plat_vnode, vnode);
+	if (enable) {
+		pvnode->alloc_mmu_chnl = &plat_mmu_alloc_channel;
+		pvnode->free_mmu_chnl = &plat_mmu_free_channel;
+		pvnode->fill_mmu_chnl = &plat_mmu_fill_channel;
+		pvnode->get_axi_id = &plat_axi_id;
+	} else {
+		pvnode->alloc_mmu_chnl = NULL;
+		pvnode->free_mmu_chnl = NULL;
+		pvnode->fill_mmu_chnl = NULL;
+		pvnode->get_axi_id = NULL;
+	}
+}
+
+static int pvnode_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct plat_vnode *pvnode = ctrl->priv;
+
+	switch (ctrl->id) {
+	case V4L2_CID_VDEV_BUFFER_LAYOUT:
+		d_inf(3, "%s: set buffer layout as %d",
+			pvnode->vnode.vdev.name, ctrl->val);
+		if (ctrl->val == VDEV_BUFFER_LAYOUT_PA_CONTIG)
+			plat_set_vdev_mmu(&pvnode->vnode, 0);
+		else
+			plat_set_vdev_mmu(&pvnode->vnode, 1);
+		return 0;
+	case V4L2_CID_VDEV_BUFFER_DETAIN_NUM:
+		d_inf(3, "%s: buffer number hold by driver: %d",
+			pvnode->vnode.vdev.name, ctrl->val);
+		pvnode->vnode.sw_min_buf = ctrl->val;
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
+static const struct v4l2_ctrl_ops pvnode_ctrl_ops = {
+	.s_ctrl = pvnode_s_ctrl,
+};
+
+struct v4l2_ctrl_config pvnode_buf_layout = {
+	.id	=  V4L2_CID_VDEV_BUFFER_LAYOUT,
+	.name	= "video device buffer layout",
+	.min	= VDEV_BUFFER_LAYOUT_PA_CONTIG,
+	.max	= VDEV_BUFFER_LAYOUT_VA_CONTIG,
+	.step	= 1,
+	.def	= VDEV_BUFFER_LAYOUT_PA_CONTIG,
+	.type	= V4L2_CTRL_TYPE_INTEGER,
+	.ops	= &pvnode_ctrl_ops,
+};
+struct v4l2_ctrl_config pvnode_buf_detain_num = {
+	.id	= V4L2_CID_VDEV_BUFFER_DETAIN_NUM,
+	.name	= "video device buffe detain number",
+	.min	= 0,
+	.max	= VIDEO_MAX_FRAME - 1,
+	.step	= 1,
+	.type	= V4L2_CTRL_TYPE_INTEGER,
+	.ops	= &pvnode_ctrl_ops,
+};
+
 static int plat_add_vdev(struct isp_build *build, struct isp_subdev *ispsd)
 {
 	struct plat_vnode *pvnode;
@@ -805,6 +871,14 @@ attach_input:
 	}
 	INIT_LIST_HEAD(&pvnode->hook);
 	list_add_tail(&pvnode->hook, &pcam->vnode_pool);
+	v4l2_ctrl_new_custom(&pvnode->vnode.ctrl_handler,
+				&pvnode_buf_layout, pvnode);
+	v4l2_ctrl_new_custom(&pvnode->vnode.ctrl_handler,
+				&pvnode_buf_detain_num, pvnode);
+	if (pvnode->vnode.ctrl_handler.error) {
+		ret = pvnode->vnode.ctrl_handler.error;
+		d_inf(1, "failed to register video dev controls: %d", ret);
+	}
 	return ret;
 }
 
@@ -1036,8 +1110,11 @@ static int plat_setup_sensor(struct isp_build *isb,
 }
 static int plat_cam_remove(struct platform_device *pdev)
 {
+	struct plat_vnode *pvnode;
 	struct plat_cam *cam = platform_get_drvdata(pdev);
 
+	list_for_each_entry(pvnode, &cam->vnode_pool, hook)
+		isp_vnode_remove(&pvnode->vnode);
 	kfree(cam);
 	isp_block_pool_clean(&plat_cam.resrc_pool);
 

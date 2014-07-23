@@ -2015,6 +2015,7 @@ static inline int b52_fill_buf(struct isp_videobuf *buf,
 	int i;
 	int ret = 0;
 	dma_addr_t dmad[VIDEO_MAX_PLANES];
+	struct plat_vnode *pvnode = NULL;
 
 	if (buf == NULL) {
 		d_inf(4, "%s: buffer is NULL", __func__);
@@ -2030,8 +2031,9 @@ static inline int b52_fill_buf(struct isp_videobuf *buf,
 		return ret;
 	}
 
-	if (pcam->fill_mmu_chnl)
-		ret = pcam->fill_mmu_chnl(pcam, &buf->vb, num_planes);
+	pvnode = container_of(buf->vb.vb2_queue, struct plat_vnode, vnode.vq);
+	if (pvnode->fill_mmu_chnl)
+		ret = pvnode->fill_mmu_chnl(pcam, &buf->vb, num_planes);
 
 	return ret;
 }
@@ -2247,11 +2249,11 @@ static int b52_map_axi_port(struct b52isp_laxi *laxi, int map,
 	struct b52isp_paxi *paxi = NULL;
 	int ret = 0, fit_bit, ok_bit;
 	__u32 idle_map, tag;
-#ifdef CONFIG_MARVELL_MEDIA_MMU
 	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
 					struct isp_build, media_dev);
 	struct plat_cam *pcam = build->plat_priv;
-#endif
+	struct plat_vnode *pvnode = container_of(vnode,
+						struct plat_vnode, vnode);
 
 	WARN_ON(atomic_read(&laxi->ref_cnt) < 0);
 
@@ -2327,16 +2329,16 @@ static int b52_map_axi_port(struct b52isp_laxi *laxi, int map,
 	if (unlikely(ret < 0))
 		goto power_off;
 
-#ifdef CONFIG_MARVELL_MEDIA_MMU
 	/* MMU related */
-	if (pcam->alloc_mmu_chnl) {
-		ret = pcam->alloc_mmu_chnl(pcam, paxi->blk.id.mod_id, port,
+	if (pvnode->alloc_mmu_chnl) {
+		ret = pvnode->alloc_mmu_chnl(pcam,
+					paxi->blk.id.mod_id, laxi->port,
 					vnode->format.fmt.pix_mp.num_planes,
-					&vnode->mmu_ch_dsc);
+					&pvnode->mmu_ch_dsc);
 		if (unlikely(ret < 0))
 			goto unmap;
 	}
-#endif
+
 	d_inf(3, "%s couple to MAC%d, port%d", laxi->isd.subdev.name,
 		laxi->mac + 1, laxi->port + 1);
 	return 0;
@@ -2352,10 +2354,10 @@ unmap:
 	if (atomic_dec_return(&laxi->ref_cnt) > 0)
 		return 0;
 	paxi = container_of(isp_sd2blk(&laxi->isd), struct b52isp_paxi, blk);
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-	if (pcam->free_mmu_chnl)
-		pcam->free_mmu_chnl(pcam, &vnode->mmu_ch_dsc);
-#endif
+
+	if (pvnode->free_mmu_chnl)
+		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
+
 	fit_bit = laxi->mac * B52AXI_PORT_CNT + laxi->port;
 	b52_ctrl_mac_irq(fit_bit, 0);
 	isp_block_tune_power(&paxi->blk, 0);
@@ -2420,6 +2422,8 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 	struct isp_subdev *pipe;
 	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
 						struct isp_build, media_dev);
+	struct plat_vnode *pvnode = container_of(vnode,
+						struct plat_vnode, vnode);
 	struct plat_cam *pcam = build->plat_priv;
 	int num_planes = vnode->format.fmt.pix_mp.num_planes;
 	struct b52isp_paxi *paxi;
@@ -2641,9 +2645,9 @@ stream_data_off:
 				lpipe->cur_cmd->output[out_id].pix_mp =
 					vnode->format.fmt.pix_mp;
 				lpipe->cur_cmd->output[out_id].buf[i] = isp_vb;
-				if (!pcam->fill_mmu_chnl)
+				if (!pvnode->fill_mmu_chnl)
 					continue;
-				ret = pcam->fill_mmu_chnl(pcam,	&isp_vb->vb,
+				ret = pvnode->fill_mmu_chnl(pcam, &isp_vb->vb,
 					num_planes);
 				if (ret < 0) {
 					d_inf(1, "%s: failed to config MMU channel",
@@ -2673,9 +2677,9 @@ stream_data_off:
 				ret = isp_vnode_put_busy_buffer(vnode, isp_vb);
 				if (unlikely(WARN_ON(ret < 0)))
 					goto unlock;
-				if (!pcam->fill_mmu_chnl)
+				if (!pvnode->fill_mmu_chnl)
 					continue;
-				ret = pcam->fill_mmu_chnl(pcam, &isp_vb->vb,
+				ret = pvnode->fill_mmu_chnl(pcam, &isp_vb->vb,
 					num_planes);
 				if (ret < 0) {
 					d_inf(1, "%s: failed to config MMU channel",
