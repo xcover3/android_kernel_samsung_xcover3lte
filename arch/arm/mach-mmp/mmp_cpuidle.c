@@ -21,6 +21,7 @@
 #include <mach/help_v7.h>
 #include <mach/mmp_cpuidle.h>
 
+#include <trace/events/pxa.h>
 #include "reset.h"
 #include "regs-addr.h"
 
