@@ -789,6 +789,18 @@ void log_buf_kexec_setup(void)
 /* requested log_buf_len from kernel cmdline */
 static unsigned long __initdata new_log_buf_len;
 
+#ifdef CONFIG_PXA_RAMDUMP
+#include <linux/ramdump.h>
+static int __init printk_ramdump_register(void)
+{
+	ramdump_attach_cbuffer("printk",
+		(void **)&log_buf, &log_buf_len, &log_next_idx,
+		sizeof(log_buf[0]));
+	return 0;
+}
+late_initcall(printk_ramdump_register);
+#endif
+
 /* save requested log_buf_len since it's too early to process it */
 static int __init log_buf_len_setup(char *str)
 {
