@@ -218,7 +218,7 @@ static noinline int __invoke_mcpm_fn_smc(u64 function_id, u64 arg0, u64 arg1,
 	return function_id;
 }
 
-static int mcpm_plat_cpu_power_down(u64 entry_point)
+static int __maybe_unused mcpm_plat_cpu_power_down(u64 entry_point)
 {
 	u64 id = mcpm_function_id[MCPM_FN_CPU_OFF];
 
