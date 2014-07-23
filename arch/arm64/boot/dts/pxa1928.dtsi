@@ -12,7 +12,7 @@
 
 / {
 	interrupt-parent = <&gic>;
-	#address-cells = <2>;
+	#address-cells = <1>;
 	#size-cells = <1>;
 
 	cpus {
@@ -60,8 +60,8 @@
 		compatible = "arm,cortex-a7-gic";
 		interrupt-controller;
 		#interrupt-cells = <3>;
-		reg = <0 0xd1e01000 0x1000>,
-		      <0 0xd1e02000 0x1000>;
+		reg = <0xd1e01000 0x1000>,
+		      <0xd1e02000 0x1000>;
 	};
 
 	generic-timer {
