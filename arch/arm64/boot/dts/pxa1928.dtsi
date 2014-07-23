@@ -88,6 +88,12 @@
 			ver = "ax";
 		};
 
+		reset {
+			compatible = "marvell,pxa-reset";
+			/* RTC Backup Registers 0 that store erasable data */
+			reg = <0xd4014000 0x4>;
+		};
+
 		isram: sram@d1018000 {
 			compatible = "mmio-sram";
 			reg = <0xd1018000 0x8000>;	/* 32KB */

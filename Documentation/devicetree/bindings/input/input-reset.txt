@@ -38,3 +38,10 @@ keyreset {
 		keyreset-need-panic;
 	};
 Two keys with value 0x73 and 0x72 will trigger reset
+
+reset {
+		compatible = "marvell,pxa-reset";
+		/* RTC Backup Registers 0 that store erasable data */
+		reg = <0 0xd4014000 0x4>;
+	};
+marvell pxa reset data
