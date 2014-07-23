@@ -123,11 +123,20 @@ struct mipi_csi2 {
 #define MIPI_DISABLE	(0 << 1)
 #define MIPI_ENABLE	(1 << 1)
 
-/* V4L2 related */
-#define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD \
-					(V4L2_CID_CAMERA_CLASS_BASE + 0x1000)
-#define V4L2_CID_PRIVATE_GET_MIPI_PHY \
-					(V4L2_CID_CAMERA_CLASS_BASE + 0x1001)
+/* V4L2 control related */
+enum vdev_buffer_layout {
+	VDEV_BUFFER_LAYOUT_PA_CONTIG	= 0,
+	VDEV_BUFFER_LAYOUT_VA_CONTIG,
+};
+
+#define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD	\
+		(V4L2_CID_CAMERA_CLASS_BASE + 0x1000)
+#define V4L2_CID_PRIVATE_GET_MIPI_PHY	\
+		(V4L2_CID_CAMERA_CLASS_BASE + 0x1001)
+#define V4L2_CID_VDEV_BUFFER_LAYOUT	\
+		(V4L2_CID_CAMERA_CLASS_BASE + 0x1002)
+#define V4L2_CID_VDEV_BUFFER_DETAIN_NUM	\
+		(V4L2_CID_CAMERA_CLASS_BASE + 0x1003)
 
 /* sleep function for sensor power sequence, only provide 1ms precision */
 /* According to Documentation/timers/timers-howto.txt, we should choose *sleep
