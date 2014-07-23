@@ -2271,7 +2271,7 @@ static int smc_drv_probe(struct platform_device *pdev)
 		smc91x_rst = of_get_named_gpio(pdev->dev.of_node,
 				"rst_gpio", 0);
 		if (smc91x_rst >= 0) {
-			lp->cfg.flags |= SMC91X_USE_16BIT | SMC91X_NOWAIT;
+			lp->cfg.flags = SMC91X_USE_16BIT | SMC91X_NOWAIT;
 			if (gpio_request(smc91x_rst, "SMSC RESET")) {
 				pr_err("gpio %d request failed\n", smc91x_rst);
 				ret = -ENOENT;
