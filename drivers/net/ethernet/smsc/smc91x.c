@@ -81,6 +81,7 @@ static const char version[] =
 #include <linux/workqueue.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_gpio.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -1856,6 +1857,7 @@ static int smc_probe(struct net_device *dev, void __iomem *ioaddr,
 	int retval;
 	unsigned int val, revision_register;
 	const char *version_string;
+	struct device_node *np = of_find_node_by_name(NULL, "smc91x");
 
 	DBG(2, dev, "%s: %s\n", CARDNAME, __func__);
 
@@ -1928,6 +1930,12 @@ static int smc_probe(struct net_device *dev, void __iomem *ioaddr,
 	/* Get the MAC address */
 	SMC_SELECT_BANK(lp, 1);
 	SMC_GET_MAC_ADDR(lp, dev->dev_addr);
+
+	/* Temporary WA if the onboard eeprom has no programmed
+	 * MAC Address.
+	 */
+	if (np && !is_valid_ether_addr(dev->dev_addr))
+		eth_hw_addr_random(dev);
 
 	/* now, reset the chip, and put it into a known state */
 	smc_reset(dev);
@@ -2213,6 +2221,7 @@ static int smc_drv_probe(struct platform_device *pdev)
 	unsigned int __iomem *addr;
 	unsigned long irq_flags = SMC_IRQ_FLAGS;
 	int ret;
+	int smc91x_rst;
 
 	ndev = alloc_etherdev(sizeof(struct smc_local));
 	if (!ndev) {
@@ -2258,6 +2267,23 @@ static int smc_drv_probe(struct platform_device *pdev)
 		lp->cfg.flags |= (SMC_CAN_USE_16BIT) ? SMC91X_USE_16BIT : 0;
 		lp->cfg.flags |= (SMC_CAN_USE_32BIT) ? SMC91X_USE_32BIT : 0;
 		lp->cfg.flags |= (nowait) ? SMC91X_NOWAIT : 0;
+#ifdef CONFIG_OF
+		smc91x_rst = of_get_named_gpio(pdev->dev.of_node,
+				"rst_gpio", 0);
+		if (smc91x_rst >= 0) {
+			lp->cfg.flags |= SMC91X_USE_16BIT | SMC91X_NOWAIT;
+			if (gpio_request(smc91x_rst, "SMSC RESET")) {
+				pr_err("gpio %d request failed\n", smc91x_rst);
+				ret = -ENOENT;
+				goto out_free_netdev;
+			}
+			gpio_direction_output(smc91x_rst, 1);
+			mdelay(10);
+			gpio_direction_output(smc91x_rst, 0);
+			mdelay(10);
+			gpio_free(smc91x_rst);
+		}
+#endif
 	}
 
 	if (!lp->cfg.leda && !lp->cfg.ledb) {
