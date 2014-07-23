@@ -28,6 +28,15 @@ struct address_space;
 		IS_ENABLED(CONFIG_ARCH_ENABLE_SPLIT_PMD_PTLOCK))
 #define ALLOC_SPLIT_PTLOCKS	(SPINLOCK_SIZE > BITS_PER_LONG/8)
 
+struct tracker {
+#ifdef CONFIG_STACKTRACE
+	unsigned long addrs[8];	/* Called from address */
+#endif
+	unsigned long when;	/* When did the operation occur */
+	int pid;		/* Pid context */
+};
+
+
 /*
  * Each physical page in the system has a struct page associated with
  * it to keep track of whatever it is we are using the page for at the
@@ -182,6 +191,7 @@ struct page {
 #endif /* WANT_PAGE_VIRTUAL */
 #ifdef CONFIG_WANT_PAGE_DEBUG_FLAGS
 	unsigned long debug_flags;	/* Use atomic bitops on this */
+	struct tracker tracker[2];
 #endif
 
 #ifdef CONFIG_KMEMCHECK
