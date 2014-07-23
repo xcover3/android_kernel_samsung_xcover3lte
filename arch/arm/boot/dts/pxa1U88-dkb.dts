@@ -271,6 +271,23 @@
 			marvell,ion-id = <0>;
 		};
 	};
+
+	panel1: lg4591 {
+		compatible = "marvell,mmp-lg4591";
+		marvell,path-name = "mmp_pnpath";
+		rst_gpio = <&gpio 4 0>;
+		avdd-supply = <&ldo10>;
+		status = "okay";
+	};
+
+	panel2: r63311 {
+		compatible = "marvell,mmp-r63311";
+		marvell,path-name = "mmp_pnpath";
+		rst_gpio = <&gpio 4 0>;
+		power_gpio = <&gpio 6 0>;
+		bl_gpio = <&gpio 32 0>;
+		status = "okay";
+	};
 };
 #include "88pm822.dtsi"
 #include "88pm822_pxa1u88_dkb.dtsi"
