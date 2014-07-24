@@ -903,7 +903,7 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 		if (size > MAX_KEYPAD_KEYS) {
 			dev_err(&pdev->dev,
 				"too many gpio wake up pin setting\n");
-			return -EINVAL;
+			goto failed_get_property;
 		}
 		for (i = 0; i < size; i++) {
 			keypad->gpio_wakeup[i] = be32_to_cpup(prop + i);
@@ -914,7 +914,7 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 			if (ret) {
 				dev_err(&pdev->dev,
 					"failed to register edge wakeup\n");
-				return -EINVAL;
+				goto failed_mfp_wakeup;
 			}
 		}
 	}
@@ -930,6 +930,8 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 	return 0;
 
 failed_input_device:
+failed_mfp_wakeup:
+failed_get_property:
 	input_unregister_device(keypad->input_dev);
 failed_put_clk:
 	clk_put(keypad->clk);
