@@ -940,7 +940,7 @@ static long cpu_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 	return (core_op_array[i].freq_khz) * KHZ_TO_HZ;
 }
 
-#ifdef CONFIG_CPU_FREQ_TABLE
+#ifdef CONFIG_CPU_FREQ
 static void __init_cpufreq_table(void)
 {
 	int i, num;
@@ -962,13 +962,13 @@ static void __init_cpufreq_table(void)
 	for (i = 0; i < num; i++) {
 		if (core_op_array[i].freq_khz > cpu_max_freq)
 			break;
-		cpufreq_tbl[i].index = i;
+		cpufreq_tbl[i].driver_data = i;
 		cpufreq_tbl[i].frequency = core_op_array[i].freq_khz;
 		/* take MHz as unit */
 		pp[i] = core_op_array[i].freq_khz / 1000;
 	}
 
-	cpufreq_tbl[i].index = i;
+	cpufreq_tbl[i].driver_data = i;
 	cpufreq_tbl[i].frequency = CPUFREQ_TABLE_END;
 
 	for_each_possible_cpu(i)

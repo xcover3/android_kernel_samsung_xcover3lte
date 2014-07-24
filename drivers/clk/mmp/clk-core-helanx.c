@@ -845,7 +845,7 @@ static void __init __init_cpu_rtcwtc(struct clk_hw *hw, struct cpu_opt *cpu_opt)
 	cpu_opt->l2_xtc = cpu_rtcwtc_table[index].l2_xtc;
 };
 
-#ifdef CONFIG_CPU_FREQ_TABLE
+#ifdef CONFIG_CPU_FREQ
 static struct cpufreq_frequency_table *cpufreq_tbl;
 
 static void __init_cpufreq_table(struct clk_hw *hw)
@@ -866,7 +866,7 @@ static void __init_cpufreq_table(struct clk_hw *hw)
 		cpufreq_tbl[i].frequency = cop->pclk * MHZ_TO_KHZ;
 		i++;
 	}
-	cpufreq_tbl[i].index = i;
+	cpufreq_tbl[i].driver_data = i;
 	cpufreq_tbl[i].frequency = CPUFREQ_TABLE_END;
 
 	for_each_possible_cpu(i)
@@ -1072,7 +1072,7 @@ static void clk_cpu_init(struct clk_hw *hw)
 	}
 #endif
 
-#ifdef CONFIG_CPU_FREQ_TABLE
+#ifdef CONFIG_CPU_FREQ
 	__init_cpufreq_table(hw);
 #endif
 	pr_info(" CPU boot up @%luHZ\n", hw->clk->rate);
