@@ -21,6 +21,7 @@
 #include <linux/list.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -260,24 +261,43 @@ int edge_wakeup_mfp_status(unsigned long *edge_reg)
 
 static int edge_wakeup_mfp_probe(struct platform_device *pdev)
 {
-	struct resource *res;
+	void __iomem *base;
+	int size;
+
+	if (IS_ENABLED(CONFIG_OF)) {
+		struct device_node *np = pdev->dev.of_node;
+		const __be32 *prop = of_get_property(np, "reg", NULL);
+
+		base = of_iomap(np, 0);
+		if (!base) {
+			dev_err(&pdev->dev, "Fail to map base address\n");
+			return -EINVAL;
+		}
+
+		size = be32_to_cpup(prop + 1);
+	} else {
+		struct resource *res;
+
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		if (res == NULL) {
+			dev_err(&pdev->dev, "no memory resource defined\n");
+			return -ENODEV;
+		}
+
+		base = devm_ioremap_resource(&pdev->dev, res);
+		if (IS_ERR(base))
+			return PTR_ERR(base);
+
+		size = resource_size(res);
+	}
 
 	info = devm_kzalloc(&pdev->dev, sizeof(struct edge_wakeup), GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res == NULL) {
-		dev_err(&pdev->dev, "no memory resource defined\n");
-		return -ENODEV;
-	}
-
-	info->base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(info->base))
-		return PTR_ERR(info->base);
-	/* each bit represents a mfp */
-	info->num = resource_size(res) * 8;
-
+	info->base = base;
+	/* size represents bytes num, and each bit represents a mfp */
+	info->num = size * 8;
 	info->enabled = 0;
 	spin_lock_init(&info->lock);
 	INIT_LIST_HEAD(&info->list);
