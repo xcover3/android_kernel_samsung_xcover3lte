@@ -254,6 +254,10 @@
 					pinctrl-single,pins = <GPIO(BAT_IRQ)>;
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
+				touch_pins: pinmux_touch_pins {
+					pinctrl-single,pins = <GPIO(TP_INT) GPIO(TP_RESET)>;
+					MFP_DEFAULT;
+				};
 			};
 
 			twsi0: i2c@d4011000 {
@@ -372,6 +376,44 @@
 					str_config = <0x1>;
 					avdd-supply = <&ldo12>;
 				};
+
+                                touch2: s3202@20 {
+                                        compatible = "synaptics,s3202-touch";
+                                        pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+                                        reg = <0x20>;
+                                        interrupt-parent = <&gpio>;
+                                        interrupts = <TP_INT 0x1>;
+                                        /* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+                                        synaptics,irq-flags =  <0x2002>;
+                                        synaptics,irq-gpios = <&gpio TP_INT 0>;
+                                        synaptics,reset-gpios = <&gpio TP_RESET 0>;
+                                        synaptics,sensor_res_x = <720>;
+                                        synaptics,sensor_res_y = <1280>;
+                                        synaptics,sensor_max_x = <798>;
+                                        synaptics,sensor_max_y = <1392>;
+                                        synaptics,sensor_margin_x = <39>;
+                                        synaptics,sensor_margin_y = <0>;
+                                        avdd-supply = <&ldo12>;
+                                };
+
+                                touch3: s3202@22 {
+                                        compatible = "synaptics,s3202-touch";
+                                        pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+                                        reg = <0x22>;
+                                        interrupt-parent = <&gpio>;
+                                        interrupts = <TP_INT 0x1>;
+                                        /* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+                                        synaptics,irq-flags =  <0x2002>;
+                                        synaptics,irq-gpios = <&gpio TP_INT 0>;
+                                        synaptics,reset-gpios = <&gpio TP_RESET 0>;
+                                        synaptics,sensor_res_x = <1080>;
+                                        synaptics,sensor_res_y = <1920>;
+                                        synaptics,sensor_max_x = <1080>;
+                                        synaptics,sensor_max_y = <2070>;
+                                        synaptics,sensor_margin_x = <0>;
+                                        synaptics,sensor_margin_y = <0>;
+                                        avdd-supply = <&ldo12>;
+                                };
 			};
 
 			twsi5: i2c@d4034000 {
