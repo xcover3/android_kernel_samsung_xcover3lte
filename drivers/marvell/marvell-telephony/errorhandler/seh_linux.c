@@ -413,11 +413,24 @@ static int seh_probe(struct platform_device *dev)
 	if (cp_watchdog_probe(dev) < 0)
 		return -ENOENT;
 
+	/* map common register base address */
+	if (!map_apmu_base_va()) {
+		pr_err("error to ioremap APMU_BASE_ADDR\n");
+		ret = -ENOMEM;
+		goto remove_watchdog;
+	}
+
+	if (!map_mpmu_base_va()) {
+		pr_err("error to ioremap MPMU_BASE_ADDR\n");
+		ret = -ENOMEM;
+		goto unmap_apmu;
+	}
+
 	seh_int_wq = create_workqueue("seh_rx_wq");
 	if (!seh_int_wq) {
 		ERRMSG("create workqueue error\n");
 		ret = -ENOMEM;
-		goto remove_watchdog;
+		goto unmap_mpmu;
 	}
 
 	INIT_WORK(&seh_int_request, seh_int_handler_high);
@@ -472,6 +485,10 @@ free_mem:
 	kfree(seh_dev);
 free_workqueue:
 	destroy_workqueue(seh_int_wq);
+unmap_mpmu:
+	unmap_mpmu_base_va();
+unmap_apmu:
+	unmap_apmu_base_va();
 remove_watchdog:
 	cp_watchdog_remove(dev);
 
@@ -1002,6 +1019,11 @@ static int seh_remove(struct platform_device *dev)
 	destroy_workqueue(seh_int_wq);
 	wakeup_source_trash(&seh_wakeup);
 	cp_watchdog_remove(dev);
+
+	/* unmap common register */
+	unmap_apmu_base_va();
+	unmap_mpmu_base_va();
+
 	LEAVE();
 	return 0;
 }

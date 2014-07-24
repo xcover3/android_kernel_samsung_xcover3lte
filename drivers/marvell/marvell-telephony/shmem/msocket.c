@@ -1419,6 +1419,12 @@ static int __init msocket_init(void)
 	int rc;
 	u8 apmu_debug_byte3;
 
+	/* map common register base address */
+	if (!map_apmu_base_va()) {
+		pr_err("error to ioremap APMU_BASE_ADDR\n");
+		return -ENOENT;
+	}
+
 	/* init lock */
 	spin_lock_init(&cp_sync_lock);
 	shm_lock_init();
@@ -1426,7 +1432,7 @@ static int __init msocket_init(void)
 	rc = shm_debugfs_init();
 	if (rc < 0) {
 		pr_err("%s: shm debugfs init failed\n", __func__);
-		return -1;
+		goto unmap_apmu;
 	}
 
 	/* create proc file */
@@ -1488,6 +1494,8 @@ portq_err:
 	remove_proc_entry(PROC_FILE_NAME, NULL);
 proc_err:
 	shm_debugfs_exit();
+unmap_apmu:
+	unmap_apmu_base_va();
 	return rc;
 }
 
@@ -1507,6 +1515,9 @@ static void __exit msocket_exit(void)
 	if (m3_shm_ch_inited)
 		m3_shm_ch_deinit();
 	m3_shm_ch_inited = 0;
+
+	/* unmap common registers */
+	unmap_apmu_base_va();
 }
 
 module_init(msocket_init);

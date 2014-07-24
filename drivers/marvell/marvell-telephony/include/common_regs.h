@@ -1,6 +1,25 @@
 #ifndef COMMON_REGS_H
 #define COMMON_REGS_H
-#include <linux/regs-addr.h>
+
+/* for each driver want to use apmu/mpmu/ciu/apbs register
+ * should init corresponding base addr when driver probe or init */
+extern void __iomem *map_apmu_base_va(void);
+extern void __iomem *map_mpmu_base_va(void);
+extern void __iomem *map_ciu_base_va(void);
+extern void __iomem *map_apbs_base_va(void);
+
+/* for each driver want to use apmu/mpmu/ciu/apbs register */
+extern void __iomem *get_apmu_base_va(void);
+extern void __iomem *get_mpmu_base_va(void);
+extern void __iomem *get_ciu_base_va(void);
+extern void __iomem *get_apbs_base_va(void);
+
+/* for each driver used apmu/mpmu/ciu/apbs register
+ * should unmap corresponding base addr when remove or exit */
+extern void unmap_apmu_base_va(void);
+extern void unmap_mpmu_base_va(void);
+extern void unmap_ciu_base_va(void);
+extern void unmap_apbs_base_va(void);
 
 /* APMU regs */
 #define		APMU_VIR_BASE	(get_apmu_base_va())
@@ -35,11 +54,15 @@
 #define MPMU_CPPMU_AXI_CLEAR	(~(0x1F << 6))
 
 /* CIU regs */
-#define CIU_VIR_BASE	(get_ciu_base_va())
+#define CIU_VIR_BASE		(get_ciu_base_va())
 #define CIU_REG(x)		(CIU_VIR_BASE + x)
 #define CIU_FABRIC_CKGT_CTRL0   CIU_REG(0x0064)
 #define CIU_FABRIC_CKGT_CTRL1   CIU_REG(0x0068)
-#define CIU_SW_BRANCH_ADDR			CIU_REG(0x0024)
+#define CIU_SW_BRANCH_ADDR	CIU_REG(0x0024)
+
+/* APB SPARE regs */
+#define APBS_VIR_BASE		(get_apbs_base_va())
+#define APBS_REG(x)		(APBS_VIR_BASE + x)
 
 
 /* watchdog related */
@@ -64,7 +87,7 @@
 #define TMR_WSAR	(0x00A0)
 #define TMR_CVWR(n)	(0x00A4 + ((n) << 2))
 
-#define TMR_WMER_WE		(1 << 0)
+#define TMR_WMER_WE	(1 << 0)
 #define TMR_WMER_WRIE	(1 << 1)
 
 #define TMR_WFAR_KEY	(0xbaba)

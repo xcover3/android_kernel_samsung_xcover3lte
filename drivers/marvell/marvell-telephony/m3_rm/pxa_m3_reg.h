@@ -2,15 +2,13 @@
 #define PXA_M3_REG_H
 
 #include <linux/io.h>
-#include <linux/regs-addr.h>
+#include "common_regs.h"
 #include "shm_map.h"
-#define REG_READ(addr)	__raw_readl(addr)
-#define REG_WRITE(v, addr)	__raw_writel((v), addr)
-#define AM_MPER_PA (0xC9000000 + 0x803000)
 
-void __iomem *am_mapb_base_addr;
-void __iomem *am_apmu_base_addr;
-void __iomem *am_mciu_base_addr;
+#define REG_READ(addr)		__raw_readl(addr)
+#define REG_WRITE(v, addr)	__raw_writel((v), addr)
+#define AM_MPER_PA		(0xC9000000 + 0x803000)
+
 void __iomem *am_mper_base_addr;
 
 static struct device *m3rm_dev;
@@ -18,45 +16,47 @@ static struct device *m3rm_dev;
 static int init_gnss_base_addr(void)
 {
 	 /*0xD4090000*/
-	am_mapb_base_addr = get_apbsp_base_va();
-	if (am_mapb_base_addr == NULL) {
-		pr_err("error to ioremap APB_PHYS_BASE\n");
-		return -ENOENT;
+	if (!map_apbs_base_va()) {
+		pr_err("error to ioremap APBS_BASE_ADDR\n");
+		goto err;
 	}
 
 	/*0xD4282800*/
-	am_apmu_base_addr = get_apmu_base_va();
-	if (am_apmu_base_addr == NULL) {
-		pr_err("error to ioremap APMU_PHYS_BASE\n");
-		return -ENOENT;
+	if (!map_apmu_base_va()) {
+		pr_err("error to ioremap APMU_BASE_ADDR\n");
+		goto unmap_apbs;
 	}
 
 	/* 0xD4282C00 */
-	am_mciu_base_addr = get_ciu_base_va();
-	if (am_mciu_base_addr == NULL) {
-		pr_err("error to ioremap MCIU_PHYS_BASE\n");
-		return -ENOENT;
+	if (!map_ciu_base_va()) {
+		pr_err("error to ioremap CIU_BASE_ADDR\n");
+		goto unmap_apmu;
 	}
 
 	/* 0xC9000000; */
 	am_mper_base_addr = shm_map(AM_MPER_PA, SZ_4K);
 	if (am_mper_base_addr == NULL) {
 		pr_err("error to ioremap MCIU_PHYS_BASE\n");
-		return -ENOENT;
+		goto unmap_ciu;
 	}
 	return 0;
+
+unmap_ciu:
+	unmap_ciu_base_va();
+unmap_apmu:
+	unmap_apmu_base_va();
+unmap_apbs:
+	unmap_apbs_base_va();
+err:
+	return -EIO;
 }
 
 static void deinit_gnss_base_addr(void)
 {
-	if (am_mapb_base_addr)
-		am_mapb_base_addr = NULL;
-
-	if (am_apmu_base_addr)
-		am_apmu_base_addr = NULL;
-
-	if (am_mciu_base_addr)
-		am_mciu_base_addr = NULL;
+	/* unmap common register */
+	unmap_apbs_base_va();
+	unmap_apmu_base_va();
+	unmap_ciu_base_va();
 
 	if (am_mper_base_addr) {
 		shm_unmap(AM_MPER_PA, am_mper_base_addr);
@@ -66,12 +66,11 @@ static void deinit_gnss_base_addr(void)
 
 #define GNSS_PERIPHERAL_BASE  am_mper_base_addr
 
+#define CIU_SYS_SEC_CTRL      CIU_REG(0x5C)
+#define APB_SPARE9_REG        APBS_REG(0x120)
 
-#define CIU_SYS_SEC_CTRL      (am_mciu_base_addr + 0x5C)
-#define APB_SPARE9_REG        (am_mapb_base_addr + 0x120)
-
-#define PMUA_GNSS_PWR_STATUS  (am_apmu_base_addr + 0xf0)
-#define PMUA_GNSS_PWR_CTRL    (am_apmu_base_addr + 0xfc)
+#define PMUA_GNSS_PWR_STATUS  APMU_REG(0xf0)
+#define PMUA_GNSS_PWR_CTRL    APMU_REG(0xfc)
 
 #define APB_ANAGRP_PWR_ON_OFFSET                      0
 
@@ -91,14 +90,14 @@ static void deinit_gnss_base_addr(void)
 #define GNSS_WAKEUP_CLR                               1
 #define GNSS_WAKEUP_STATUS                            2
 
-#define CIU_GPS_HANDSHAKE                (am_mciu_base_addr + 0x168)
-#define CIU_GNSS_HANDSHAKE               (am_mciu_base_addr + 0x168)
-#define CIU_GNSS_SQU_START_ADDR          (am_mciu_base_addr + 0x16c)
-#define CIU_GNSS_SQU_END_ADDR            (am_mciu_base_addr + 0x170)
-#define CIU_GNSS_DDR_START_ADDR          (am_mciu_base_addr + 0x174)
-#define CIU_GNSS_DDR_END_ADDR            (am_mciu_base_addr + 0x178)
-#define CIU_GNSS_DMA_DDR_START_ADDR      (am_mciu_base_addr + 0x17c)
-#define CIU_GNSS_DMA_DDR_END_ADDR        (am_mciu_base_addr + 0x180)
+#define CIU_GPS_HANDSHAKE                CIU_REG(0x168)
+#define CIU_GNSS_HANDSHAKE               CIU_REG(0x168)
+#define CIU_GNSS_SQU_START_ADDR          CIU_REG(0x16c)
+#define CIU_GNSS_SQU_END_ADDR            CIU_REG(0x170)
+#define CIU_GNSS_DDR_START_ADDR          CIU_REG(0x174)
+#define CIU_GNSS_DDR_END_ADDR            CIU_REG(0x178)
+#define CIU_GNSS_DMA_DDR_START_ADDR      CIU_REG(0x17c)
+#define CIU_GNSS_DMA_DDR_END_ADDR        CIU_REG(0x180)
 
 #define GNSS_IRQ_CLR_OFFSET           0
 #define AP_GNSS_WAKEUP_OFFSET         1

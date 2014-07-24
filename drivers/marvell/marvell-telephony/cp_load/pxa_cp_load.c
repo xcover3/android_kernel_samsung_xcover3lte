@@ -40,6 +40,7 @@
 
 #include "pxa_cp_load.h"
 #include "pxa_cp_load_ioctl.h"
+#include "common_regs.h"
 #include "msocket.h"
 #include "shm.h"
 #include "shm_map.h"
@@ -333,49 +334,71 @@ static int cp_load_probe(struct platform_device *pdev)
 {
 	int ret;
 
+	/* map common register base address */
+	if (!map_apmu_base_va()) {
+		pr_err("error to ioremap APMU_BASE_ADDR\n");
+		goto err;
+	}
+
+	if (!map_mpmu_base_va()) {
+		pr_err("error to ioremap MPMU_BASE_ADDR\n");
+		goto err1;
+	}
+
+	if (!map_ciu_base_va()) {
+		pr_err("error to ioremap CIU_BASE_ADDR\n");
+		goto err2;
+	}
+
 	ret = misc_register(&cp_miscdev);
 	if (ret) {
 		pr_err("%s: failed to register arbel_bin\n",
 			   __func__);
-		goto err;
+		goto err3;
 	}
 	ret = subsys_interface_register(&cp_interface);
 	if (ret) {
 		pr_err("%s: failed to register cp_sysdev\n",
 			   __func__);
-		goto err1;
+		goto err4;
 	}
 
 	global_cp = kzalloc(sizeof(struct cp_dev), GFP_KERNEL);
 	if (!global_cp) {
 		pr_err("%s: failed to alloc global_cp\n",
 			   __func__);
-		goto err2;
+		goto err5;
 	}
 
 	if (of_property_read_u32(pdev->dev.of_node, "cp-type",
 					&global_cp->cp_type)) {
 		pr_err("%s: failed to read cp-type\n", __func__);
-		goto err3;
+		goto err6;
 	}
 
 	if (of_property_read_u32(pdev->dev.of_node, "lpm-qos",
 					&global_cp->lpm_qos)) {
 		pr_err("%s: failed to read lpm-qos\n", __func__);
-		goto err3;
+		goto err6;
 	}
 
 	if (cp_set_ops())
-		goto err3;
+		goto err6;
 
 	return 0;
 
-err3:
+err6:
 	kfree(global_cp);
-err2:
+err5:
 	subsys_interface_unregister(&cp_interface);
-err1:
+err4:
 	misc_deregister(&cp_miscdev);
+err3:
+	unmap_ciu_base_va();
+err2:
+	unmap_mpmu_base_va();
+err1:
+	unmap_apmu_base_va();
 err:
 	return -EIO;
 }
@@ -386,6 +409,11 @@ static int cp_load_remove(struct platform_device *dev)
 		shm_unmap(arbel_bin_phys_addr, arbel_bin_virt_addr);
 	if (reliable_bin_virt_addr)
 		shm_unmap(reliable_bin_phys_addr, reliable_bin_virt_addr);
+
+	/* unmap common register */
+	unmap_apmu_base_va();
+	unmap_mpmu_base_va();
+	unmap_ciu_base_va();
 
 	misc_deregister(&cp_miscdev);
 	kfree(global_cp);
