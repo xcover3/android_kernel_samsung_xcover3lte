@@ -256,3 +256,10 @@ config ARM_PXA988_CPUFREQ
 	help
 	  This adds the CPUFreq driver for PXA988 and PXA1X88
 	  If in doubt, say N.
+
+config ARM_MMP_V8_CPUFREQ
+	bool "MARVELL ARMv8 SoC"
+	depends on ARCH_MMP && ARM64
+	help
+	  This adds the CPUFreq driver for Marvell's ARMv8 SoCs.
+	  If in doubt, say N.
