@@ -28,6 +28,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/workqueue.h>
+#include <linux/pm_qos.h>
 #include <linux/of.h>
 
 #include <asm/mach/arch.h>
@@ -122,6 +123,8 @@ struct pxa27x_keypad {
 	uint32_t direct_key_state;
 
 	unsigned int direct_key_mask;
+	struct pm_qos_request qos_idle;
+	int qos_idle_value;
 	bool keypad_lpm_mode;
 	struct work_struct	keypad_lpm_work;
 	struct workqueue_struct	*keypad_lpm_wq;
@@ -612,6 +615,14 @@ static void pxa27x_keypad_wq_func(struct work_struct *work)
 	if (unlikely(retries == 0))
 		return;
 	retries = 5;
+	if (keypad->qos_idle_value != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE)
+		pm_qos_update_request(&keypad->qos_idle,
+				keypad->qos_idle_value);
+
+	if (keypad->qos_idle_value != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE)
+		pm_qos_update_request(&keypad->qos_idle,
+				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
 	do {
 		retries--;
 		usleep_range(2000, 2010);
@@ -883,6 +894,17 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register input device\n");
 		goto failed_put_clk;
 	}
+
+	keypad->qos_idle.name = pdev->name;
+	pm_qos_add_request(&keypad->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+	prop = of_get_property(np, "lpm-qos", &proplen);
+	if (!prop) {
+		dev_err(&pdev->dev, "lpm-qos for keypad is not defined!\n");
+		goto failed_get_property;
+	} else
+		keypad->qos_idle_value = be32_to_cpup(prop);
+
 	keypad->keypad_lpm_mode = of_property_read_bool(np,
 					"marvell,keypad-lpm-mod");
 	if (keypad->keypad_lpm_mode) {
