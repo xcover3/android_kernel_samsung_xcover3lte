@@ -925,6 +925,8 @@ static int setup(struct spi_device *spi)
 			rx_thres = chip_info->rx_threshold;
 		chip->enable_dma = drv_data->master_info->enable_dma;
 		chip->dma_threshold = 0;
+		if (chip_info->using_gpio_cs == 0 && chip_info->gpio_cs == 0)
+			chip_info->gpio_cs = -1;
 		if (chip_info->enable_loopback)
 			chip->cr1 = SSCR1_LBM;
 	} else if (ACPI_HANDLE(&spi->dev)) {
