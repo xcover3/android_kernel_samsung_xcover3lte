@@ -142,6 +142,132 @@ static const u32 tuning_patten8[32] = {
 	0xffffbbbb, 0xffff77ff, 0xff7777ff, 0xeeddbb77,
 };
 
+static void pxav3_set_rx_cfg(struct sdhci_host *host,
+		struct sdhci_pxa_platdata *pdata)
+{
+	u32 tmp_reg = 0;
+	unsigned char timing = host->mmc->ios.timing;
+	struct sdhci_pxa_dtr_data *dtr_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+
+	if ((!pdata) || (!pdata->dtr_data))
+		return;
+
+	if (MMC_TIMING_LEGACY == timing)
+		goto exit;
+
+	/* From PXA988, the RX_CFG Reg is changed to 0x114 */
+	if (pdata->flags & PXA_FLAG_NEW_RX_CFG_REG) {
+		if (timing >= MMC_TIMING_MAX) {
+			pr_err("%s: invalid timing %d\n", mmc_hostname(host->mmc), timing);
+			return;
+		}
+
+		dtr_data = &pdata->dtr_data[timing];
+
+		if (timing != dtr_data->timing)
+			return;
+
+		/* set Rx delay */
+		if (dtr_data->rx_delay) {
+			/*
+			 * Only SEL1 = 0b01, SEL0 is meanful and Rx delay value works
+			 *  SEL0
+			 *   = 0b00: clock from PADd
+			 *   = 0b01: inverted clock from PAD
+			 *   = 0b10: internal clock
+			 *   = 0b11: inverted internal clock
+			 */
+			tmp_reg |= 0x1 << RX_SDCLK_SEL1_SHIFT;
+
+			tmp_reg |= (dtr_data->rx_delay & regdata->RX_SDCLK_DELAY_MASK)
+					<< RX_SDCLK_DELAY_SHIFT;
+			tmp_reg |= (dtr_data->rx_sdclk_sel0 & RX_SDCLK_SEL0_MASK)
+					<< RX_SDCLK_SEL0_SHIFT;
+
+			if ((MMC_TIMING_UHS_SDR104 != timing)
+					&& (MMC_TIMING_MMC_HS200 != timing)) {
+				/*
+				 * Rx delay works for all speed modes,
+				 * but only SDR104 and HS200 need to use it.
+				 */
+				pr_info("suggest only to set Rx delay for HS200 or SDR104\n");
+			}
+		} else if (dtr_data->rx_sdclk_sel1 != 0x1) {
+			/*
+			 * If SEL1 != 0b01, Rx delay value doesn't work and SEL0 is meanless
+			 *  SEL1
+			 *   = 0b00: Select clock from PAD
+			 *   = 0b10/0b11: Select clock from internal clock
+			 */
+			tmp_reg |= (dtr_data->rx_sdclk_sel1 & RX_SDCLK_SEL1_MASK)
+					<< RX_SDCLK_SEL1_SHIFT;
+		}
+	}
+exit:
+	sdhci_writel(host, tmp_reg, SD_RX_CFG_REG);
+}
+
+static void pxav3_set_tx_cfg(struct sdhci_host *host,
+		struct sdhci_pxa_platdata *pdata)
+{
+	u32 tmp_reg = 0;
+	unsigned char timing = host->mmc->ios.timing;
+	struct sdhci_pxa_dtr_data *dtr_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+
+	if (pdata && pdata->flags & PXA_FLAG_TX_SEL_BUS_CLK) {
+		/*
+		 * For the hold time at default speed mode or high speed mode
+		 * PXAV3 should enable the TX_SEL_BUS_CLK which will select
+		 * clock from inverter of internal work clock.
+		 * This setting will guarantee the hold time.
+		 */
+		if (timing <= MMC_TIMING_UHS_SDR25) {
+			tmp_reg |= TX_SEL_BUS_CLK;
+			sdhci_writel(host, tmp_reg, SD_TX_CFG_REG);
+			return;
+		}
+	}
+
+	if (pdata && pdata->dtr_data) {
+		if (timing >= MMC_TIMING_MAX) {
+			pr_err("%s: invalid timing %d\n", mmc_hostname(host->mmc), timing);
+			return;
+		}
+
+		dtr_data = &pdata->dtr_data[timing];
+
+		if (timing != dtr_data->timing)
+			goto exit;
+
+		/* set Tx delay */
+		if (dtr_data->tx_delay) {
+			tmp_reg |= TX_MUX_SEL;
+			if ((MMC_TIMING_UHS_SDR104 == timing)
+					|| (MMC_TIMING_MMC_HS200 == timing))
+				tmp_reg |= (dtr_data->tx_delay & regdata->TX_DELAY_MASK)
+						<< TX_DELAY1_SHIFT;
+			else
+				tmp_reg |= (dtr_data->tx_delay & regdata->TX_DELAY_MASK);
+		}
+	}
+exit:
+	sdhci_writel(host, tmp_reg, SD_TX_CFG_REG);
+}
+
+static void pxav3_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (clock == 0)
+		return;
+
+	pxav3_set_tx_cfg(host, pdata);
+	pxav3_set_rx_cfg(host, pdata);
+}
+
 static unsigned long pxav3_clk_prepare(struct sdhci_host *host,
 		unsigned long rate)
 {
@@ -224,21 +350,17 @@ static void pxav3_set_private_registers(struct sdhci_host *host, u8 mask)
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
 
-	if (mask == SDHCI_RESET_ALL) {
-		/*
-		 * tune timing of read data/command when crc error happen
-		 * no performance impact
-		 */
-		if (pdata && 0 != pdata->clk_delay_cycles) {
-			u16 tmp;
-
-			tmp = readw(host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
-			tmp |= (pdata->clk_delay_cycles & SDCLK_DELAY_MASK)
-				<< SDCLK_DELAY_SHIFT;
-			tmp |= SDCLK_SEL;
-			writew(tmp, host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
-		}
+	if (mask != SDHCI_RESET_ALL) {
+		/* Return if not Reset All */
+		return;
 	}
+
+	/*
+	 * tune timing of read data/command when crc error happen
+	 * no performance impact
+	 */
+	pxav3_set_tx_cfg(host, pdata);
+	pxav3_set_rx_cfg(host, pdata);
 }
 
 #define MAX_WAIT_COUNT 74
@@ -763,6 +885,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.clk_prepare = pxav3_clk_prepare,
 	.signal_vol_change = pxav3_signal_vol_change,
 	.clk_gate_auto  = pxav3_clk_gate_auto,
+	.set_clock = pxav3_set_clock,
 	.access_constrain = pxav3_access_constrain,
 	.platform_execute_tuning = pxav3_executing_tuning,
 	.platform_hw_tuning_prepare = pxav3_hw_tuning_prepare,
@@ -912,6 +1035,20 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 						timing);
 			} else {
 				dtr_data[timing].rx_delay = val;
+			}
+			p = of_prop_next_u32(prop, p, &val);
+			if (!p) {
+				dev_err(dev, "missing rx_sdclk_sel0 for timing %d\n",
+						timing);
+			} else {
+				dtr_data[timing].rx_sdclk_sel0 = val;
+			}
+			p = of_prop_next_u32(prop, p, &val);
+			if (!p) {
+				dev_err(dev, "missing rx_sdclk_sel1 for timing %d\n",
+						timing);
+			} else {
+				dtr_data[timing].rx_sdclk_sel1 = val;
 			}
 		}
 		pdata->dtr_data = dtr_data;
