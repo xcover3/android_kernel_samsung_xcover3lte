@@ -158,11 +158,6 @@ struct lcd_regs {
 
 /* 32 bit TV Path I/O Pad Control*/
 #define LCD_TVIOPAD_CTRL				(0x0098)
-/* 32 bit TV Path Cloc	Divider  */
-#define LCD_TCLK_DIV					(0x009C)
-
-#define LCD_SCLK(path) ((PATH_PN == path->id) ? LCD_CFG_SCLK_DIV :\
-	((PATH_TV == path->id) ? LCD_TCLK_DIV : LCD_PN2_SCLK_DIV))
 #define intf_rbswap_ctrl(id)	((id) ? (((id) & 1) ? LCD_TVIF_CTRL : \
 				PN2_IOPAD_CONTROL) : LCD_TOP_CTRL)
 
@@ -580,18 +575,6 @@ struct lcd_regs {
 #define	 CFG_PDWN64x66(pdwn)			(pdwn)
 #define	 CFG_PDWN64x66_MASK			0x00000001
 
-/* Smart or Dumb Panel Clock Divider */
-#define LCD_CFG_SCLK_DIV			0x01A8
-#define	 SCLK_SRC_SEL(src)		((src)<<31)
-#define	 SCLK_SRC_SEL_MASK		0x80000000
-#define  SCLK_DISABLE				(1<<28)
-#define	 CLK_FRACDIV(frac)			((frac)<<16)
-#define	 CLK_FRACDIV_MASK			0x0FFF0000
-#define	 DSI1_BITCLK_DIV(div)			(div<<8)
-#define	 DSI1_BITCLK_DIV_MASK			0x00000F00
-#define	 CLK_INT_DIV(div)			(div)
-#define	 CLK_INT_DIV_MASK			0x000000FF
-
 /* Video Contrast Register */
 #define LCD_SPU_CONTRAST			0x01AC
 #define	 CFG_BRIGHTNESS(bright)			((bright)<<16)
@@ -874,10 +857,6 @@ struct lcd_regs {
 /* 32 bit LCD Mixed Overlay Control Register */
 #define LCD_AFA_ALL2ONE				(0x01E8)
 
-#define LCD_PN2_SCLK_DIV			(0x01EC)
-#define LCD_PN2_TCLK_DIV			(0x01F0)
-#define LCD_LVDS_SCLK_DIV_WR			(0x01F4)
-#define LCD_LVDS_SCLK_DIV_RD			(0x01FC)
 #define PN2_LCD_DMA_START_ADDR_Y0		(0x0200)
 #define PN2_LCD_DMA_START_ADDR_U0		(0x0204)
 #define PN2_LCD_DMA_START_ADDR_V0		(0x0208)
@@ -954,10 +933,6 @@ struct lcd_regs {
 #define LVDS_SRC_SHIFT				(30)
 #define LVDS_FMT_MASK				(1 << 28)
 #define LVDS_FMT_SHIFT				(28)
-
-#define CLK_SCLK	(1 << 0)
-#define CLK_LVDS_RD	(1 << 1)
-#define CLK_LVDS_WR	(1 << 2)
 
 #define gra_partdisp_ctrl_hor(id)	((id) ? (((id) & 1) ? \
 	LCD_TVG_CUTHPXL : PN2_LCD_GRA_CUTHPXL) : LCD_GRA_CUTHPXL)
@@ -1427,6 +1402,7 @@ enum {
 struct mmphw_ctrl;
 struct mmphw_path_plat {
 	int id;
+	struct clk *clk;
 	struct mmphw_ctrl *ctrl;
 	struct mmp_path *path;
 	u32 path_config;

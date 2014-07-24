@@ -188,21 +188,22 @@ static void dmafetch_onoff(struct mmp_overlay *overlay, int on)
 
 static void path_enabledisable(struct mmp_path *path, int on)
 {
-	u32 tmp;
-	tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK(path));
+	struct clk *clk = path_to_path_plat(path)->clk;
+	if (!clk)
+		return;
 	if (on)
-		tmp &= ~SCLK_DISABLE;
+		clk_prepare_enable(clk);
 	else
-		tmp |= SCLK_DISABLE;
-	writel_relaxed(tmp, ctrl_regs(path) + LCD_SCLK(path));
+		clk_disable_unprepare(clk);
 }
 
 static void path_set_timing(struct mmp_path *path)
 {
 	struct lcd_regs *regs = path_regs(path);
-	u32 total_x, total_y, vsync_ctrl, tmp, sclk_src, sclk_div,
+	u32 total_x, total_y, vsync_ctrl, tmp,
 		link_config = path_to_path_plat(path)->link_config;
 	struct mmp_mode *mode = &path->mode;
+	struct clk *clk = path_to_path_plat(path)->clk;
 
 	/* polarity of timing signals */
 	tmp = readl_relaxed(ctrl_regs(path) + intf_ctrl(path->id)) & 0x1;
@@ -237,19 +238,9 @@ static void path_set_timing(struct mmp_path *path)
 					| (mode->xres + mode->right_margin);
 	writel_relaxed(vsync_ctrl, &regs->vsync_ctrl);
 
-	/* set pixclock div */
-	sclk_src = clk_get_rate(path_to_ctrl(path)->clk);
-	sclk_div = sclk_src / mode->pixclock_freq;
-	if (sclk_div * mode->pixclock_freq < sclk_src)
-		sclk_div++;
-
-	dev_info(path->dev, "%s sclk_src %d sclk_div 0x%x pclk %d\n",
-			__func__, sclk_src, sclk_div, mode->pixclock_freq);
-
-	tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK(path));
-	tmp &= ~CLK_INT_DIV_MASK;
-	tmp |= sclk_div;
-	writel_relaxed(tmp, ctrl_regs(path) + LCD_SCLK(path));
+	/* set path_clk */
+	if (clk && path->output_type == PATH_OUT_PARALLEL)
+		clk_set_rate(clk, mode->pixclock_freq);
 }
 
 static void path_onoff(struct mmp_path *path, int on)
@@ -400,12 +391,6 @@ static void path_set_default(struct mmp_path *path)
 		writel_relaxed(tmp, ctrl_regs(path) + SPU_IOPAD_CONTROL);
 	}
 
-	/* Select path clock source */
-	tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK(path));
-	tmp &= ~SCLK_SRC_SEL_MASK;
-	tmp |= path_config;
-	writel_relaxed(tmp, ctrl_regs(path) + LCD_SCLK(path));
-
 	/*
 	 * Configure default bits: vsync triggers DMA,
 	 * power save enable, configure alpha registers to
@@ -466,6 +451,13 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path_plat->path = path;
 	path_plat->path_config = config->path_config;
 	path_plat->link_config = config->link_config;
+	/* get clock: path clock name same as path name */
+	path_plat->clk = devm_clk_get(ctrl->dev, config->name);
+	if (IS_ERR(path_plat->clk)) {
+		/* it's possible to not have path_plat->clk */
+		dev_info(ctrl->dev, "unable to get clk %s\n", config->name);
+		path_plat->clk = NULL;
+	}
 	/* add operations after path set */
 	path->ops.set_mode = path_set_mode;
 
@@ -479,6 +471,9 @@ static void path_deinit(struct mmphw_path_plat *path_plat)
 {
 	if (!path_plat)
 		return;
+
+	if (path_plat->clk)
+		devm_clk_put(path_plat->ctrl->dev, path_plat->clk);
 
 	if (path_plat->path)
 		mmp_unregister_path(path_plat->path);
