@@ -106,7 +106,7 @@ void parse_powerup_down_log(struct pm80x_chip *chip)
 	dev_info(chip->dev, " -------------------------------\n");
 	/*power down log2*/
 	regmap_read(chip->regmap, PM800_POWER_DOWN_LOG2, &down2_log);
-	dev_info(chip->dev, "power log2 0x%x: 0x%x\n", PM800_POWER_DOWN_LOG2, down2_log);
+	dev_info(chip->dev, "powerdown log2 0x%x: 0x%x\n", PM800_POWER_DOWN_LOG2, down2_log);
 	dev_info(chip->dev, " -------------------------------\n");
 	dev_info(chip->dev, "|  name(power down2) |  status  |\n");
 	dev_info(chip->dev, "|--------------------|----------|\n");
@@ -114,6 +114,18 @@ void parse_powerup_down_log(struct pm80x_chip *chip)
 		dev_info(chip->dev, "|    %s     |    %x     |\n",
 			powerd2_name[bit], (down2_log>> bit) & 1);
 	dev_info(chip->dev, " -------------------------------\n");
+
+	/* write to clear */
+	regmap_write(chip->regmap, PM800_POWER_DOWN_LOG1, 0xff);
+	regmap_write(chip->regmap, PM800_POWER_DOWN_LOG2, 0xff);
+
+	/* mask reserved bits and sleep indication */
+	down2_log &= 0x1e;
+
+	/* keep globals for external usage */
+	chip->powerup = up_log;
+	chip->powerdown1 = down1_log;
+	chip->powerdown2 = down2_log;
 }
 
 int pm800_init_config(struct pm80x_chip *chip, struct device_node *np)

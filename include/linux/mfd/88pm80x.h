@@ -518,6 +518,9 @@ struct pm80x_chip {
 	int type;
 	int irq;
 	int irq_mode;
+	int powerup;
+	int powerdown1;
+	int powerdown2;
 	unsigned long wu_flag;
 	spinlock_t lock;
 	struct notifier_block reboot_notifier;
