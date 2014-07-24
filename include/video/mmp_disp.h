@@ -251,50 +251,50 @@ extern struct mmp_path *mmp_get_path(const char *name);
 static inline void mmp_path_set_mode(struct mmp_path *path,
 		struct mmp_mode *mode)
 {
-	if (path)
+	if (path && path->ops.set_mode)
 		path->ops.set_mode(path, mode);
 }
 static inline void mmp_path_set_onoff(struct mmp_path *path, int status)
 {
-	if (path)
+	if (path && path->ops.set_onoff)
 		path->ops.set_onoff(path, status);
 }
 static inline int mmp_path_get_modelist(struct mmp_path *path,
 		struct mmp_mode **modelist)
 {
-	if (path)
+	if (path && path->ops.get_modelist)
 		return path->ops.get_modelist(path, modelist);
 	return 0;
 }
 static inline struct mmp_overlay *mmp_path_get_overlay(
 		struct mmp_path *path, int overlay_id)
 {
-	if (path)
+	if (path && path->ops.get_overlay)
 		return path->ops.get_overlay(path, overlay_id);
 	return NULL;
 }
 static inline void mmp_overlay_set_fetch(struct mmp_overlay *overlay,
 		int fetch_id)
 {
-	if (overlay)
+	if (overlay && overlay->ops->set_fetch)
 		overlay->ops->set_fetch(overlay, fetch_id);
 }
 static inline void mmp_overlay_set_onoff(struct mmp_overlay *overlay,
 		int status)
 {
-	if (overlay)
+	if (overlay && overlay->ops->set_onoff)
 		overlay->ops->set_onoff(overlay, status);
 }
 static inline void mmp_overlay_set_win(struct mmp_overlay *overlay,
 		struct mmp_win *win)
 {
-	if (overlay)
+	if (overlay && overlay->ops->set_win)
 		overlay->ops->set_win(overlay, win);
 }
 static inline int mmp_overlay_set_addr(struct mmp_overlay *overlay,
 		struct mmp_addr *addr)
 {
-	if (overlay)
+	if (overlay && overlay->ops->set_addr)
 		return overlay->ops->set_addr(overlay, addr);
 	return 0;
 }
@@ -310,8 +310,6 @@ struct mmp_path_info {
 	int id;
 	int output_type;
 	int overlay_num;
-	void (*set_mode)(struct mmp_path *path, struct mmp_mode *mode);
-	void (*set_onoff)(struct mmp_path *path, int status);
 	struct mmp_overlay_ops *overlay_ops;
 	void *plat_data;
 };

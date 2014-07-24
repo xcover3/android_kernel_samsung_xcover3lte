@@ -183,7 +183,6 @@ struct mmp_path *mmp_register_path(struct mmp_path_info *info)
 	path->output_type = info->output_type;
 	path->overlay_num = info->overlay_num;
 	path->plat_data = info->plat_data;
-	path->ops.set_mode = info->set_mode;
 
 	mutex_lock(&disp_lock);
 	/* get panel */
@@ -198,13 +197,10 @@ struct mmp_path *mmp_register_path(struct mmp_path_info *info)
 	dev_info(path->dev, "register %s, overlay_num %d\n",
 			path->name, path->overlay_num);
 
-	/* default op set: if already set by driver, never cover it */
-	if (!path->ops.check_status)
-		path->ops.check_status = path_check_status;
-	if (!path->ops.get_overlay)
-		path->ops.get_overlay = path_get_overlay;
-	if (!path->ops.get_modelist)
-		path->ops.get_modelist = path_get_modelist;
+	/* default op set */
+	path->ops.check_status = path_check_status;
+	path->ops.get_overlay = path_get_overlay;
+	path->ops.get_modelist = path_get_modelist;
 
 	/* step3: init overlays */
 	for (i = 0; i < path->overlay_num; i++) {

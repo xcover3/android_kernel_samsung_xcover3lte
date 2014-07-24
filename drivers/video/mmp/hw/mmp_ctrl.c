@@ -454,7 +454,6 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path_info->dev = ctrl->dev;
 	path_info->overlay_num = config->overlay_num;
 	path_info->overlay_ops = &mmphw_overlay_ops;
-	path_info->set_mode = path_set_mode;
 	path_info->plat_data = path_plat;
 
 	/* create/register platform device */
@@ -466,6 +465,9 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path_plat->path = path;
 	path_plat->path_config = config->path_config;
 	path_plat->link_config = config->link_config;
+	/* add operations after path set */
+	path->ops.set_mode = path_set_mode;
+
 	path_set_default(path);
 
 	kfree(path_info);
