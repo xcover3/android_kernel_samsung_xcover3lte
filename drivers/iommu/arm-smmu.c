@@ -44,6 +44,7 @@
 #include <linux/spinlock.h>
 
 #include <linux/amba/bus.h>
+#include <linux/pm_runtime.h>
 
 #include <asm/pgalloc.h>
 
@@ -372,6 +373,7 @@ struct arm_smmu_device {
 
 	struct list_head		list;
 	struct rb_root			masters;
+	struct clk			*clk;
 };
 
 struct arm_smmu_cfg {
@@ -518,6 +520,19 @@ static int __arm_smmu_alloc_bitmap(unsigned long *map, int start, int end)
 static void __arm_smmu_free_bitmap(unsigned long *map, int idx)
 {
 	clear_bit(idx, map);
+}
+
+static void arm_smmu_power_switch(struct arm_smmu_device *smmu, bool on)
+{
+	if (on) {
+		if (smmu->clk)
+			clk_prepare_enable(smmu->clk);
+		pm_runtime_get_sync(smmu->dev);
+	} else {
+		pm_runtime_put_sync(smmu->dev);
+		if (smmu->clk)
+			clk_disable_unprepare(smmu->clk);
+	}
 }
 
 /* Wait for any pending TLB invalidations to complete */
@@ -901,10 +916,12 @@ static void arm_smmu_destroy_domain_context(struct iommu_domain *domain)
 	if (!smmu)
 		return;
 
+	arm_smmu_power_switch(smmu, 1);
 	/* Disable the context bank and nuke the TLB before freeing it. */
 	cb_base = ARM_SMMU_CB_BASE(smmu) + ARM_SMMU_CB(smmu, root_cfg->cbndx);
 	writel_relaxed(0, cb_base + ARM_SMMU_CB_SCTLR);
 	arm_smmu_tlb_inv_context(root_cfg);
+	arm_smmu_power_switch(smmu, 0);
 
 	if (root_cfg->irptndx != INVALID_IRPTNDX) {
 		irq = smmu->irqs[smmu->num_global_irqs + root_cfg->irptndx];
@@ -1167,6 +1184,7 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		return -ENXIO;
 	}
 
+	arm_smmu_power_switch(device_smmu, 1);
 	/*
 	 * Sanity check the domain. We don't currently support domains
 	 * that cross between different SMMU chains.
@@ -1190,24 +1208,33 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 
 	/* Looks ok, so add the device to the domain */
 	master = find_smmu_master(smmu_domain->leaf_smmu, dev->of_node);
-	if (!master)
-		return -ENODEV;
+	if (!master) {
+		ret = -ENODEV;
+		goto out;
+	}
 
-	return arm_smmu_domain_add_master(smmu_domain, master);
+	ret = arm_smmu_domain_add_master(smmu_domain, master);
+	goto out;
 
 err_unlock:
 	spin_unlock_irqrestore(&smmu_domain->lock, flags);
+out:
+	arm_smmu_power_switch(device_smmu, 0);
 	return ret;
 }
 
 static void arm_smmu_detach_dev(struct iommu_domain *domain, struct device *dev)
 {
 	struct arm_smmu_domain *smmu_domain = domain->priv;
+	struct arm_smmu_device *smmu = smmu_domain->root_cfg.smmu;
 	struct arm_smmu_master *master;
 
 	master = find_smmu_master(smmu_domain->leaf_smmu, dev->of_node);
-	if (master)
+	if (master) {
+		arm_smmu_power_switch(smmu, 1);
 		arm_smmu_domain_remove_master(smmu_domain, master);
+		arm_smmu_power_switch(smmu, 0);
+	}
 }
 
 static bool arm_smmu_pte_is_contiguous_range(unsigned long addr,
@@ -1462,9 +1489,13 @@ static size_t arm_smmu_unmap(struct iommu_domain *domain, unsigned long iova,
 {
 	int ret;
 	struct arm_smmu_domain *smmu_domain = domain->priv;
+	struct arm_smmu_device *smmu = smmu_domain->root_cfg.smmu;
 
 	ret = arm_smmu_handle_mapping(smmu_domain, iova, 0, size, 0);
+
+	arm_smmu_power_switch(smmu, 1);
 	arm_smmu_tlb_inv_context(&smmu_domain->root_cfg);
+	arm_smmu_power_switch(smmu, 0);
 	return ret ? ret : size;
 }
 
@@ -1892,6 +1923,12 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	if ((dev_node = of_parse_phandle(dev->of_node, "smmu-parent", 0)))
 		smmu->parent_of_node = dev_node;
 
+	smmu->clk = devm_clk_get(dev, NULL);
+	if (IS_ERR(smmu->clk))
+		smmu->clk = NULL;
+
+	pm_runtime_enable(dev);
+	arm_smmu_power_switch(smmu, 1);
 	err = arm_smmu_device_cfg_probe(smmu);
 	if (err)
 		goto out_put_parent;
@@ -1924,6 +1961,8 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	spin_unlock(&arm_smmu_devices_lock);
 
 	arm_smmu_device_reset(smmu);
+	arm_smmu_power_switch(smmu, 0);
+
 	return 0;
 
 out_free_irqs:
@@ -1940,6 +1979,7 @@ out_put_masters:
 		master = container_of(node, struct arm_smmu_master, node);
 		of_node_put(master->of_node);
 	}
+	arm_smmu_power_switch(smmu, 0);
 
 	return err;
 }
@@ -1964,6 +2004,7 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 	if (!smmu)
 		return -ENODEV;
 
+	arm_smmu_power_switch(smmu, 1);
 	if (smmu->parent_of_node)
 		of_node_put(smmu->parent_of_node);
 
@@ -1981,6 +2022,7 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 
 	/* Turn the thing off */
 	writel_relaxed(sCR0_CLIENTPD, ARM_SMMU_GR0(smmu) + ARM_SMMU_GR0_sCR0);
+	arm_smmu_power_switch(smmu, 0);
 	return 0;
 }
 
