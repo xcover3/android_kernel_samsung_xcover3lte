@@ -70,7 +70,7 @@ static ssize_t vnc_ts_proc_write(struct file	*file,
 	struct ts_data ts;
 
 	if (count != sizeof(struct ts_data)) {
-		dbg("size error %zd of %zd\n", count, sizeof(struct ts_data));
+		dbg("size error %zd of %zd", count, sizeof(struct ts_data));
 		return -EINVAL;
 	}
 
@@ -93,7 +93,7 @@ static void vnc_ts_handler(u8 pen_state, u16 tem_x, u16 tem_y)
 	static int iReportUp;
 
 	if (pen_state) {
-		dbg("pen down event x = %d,y = %d\n", tem_x, tem_y);
+		dbg("pen down event x = %d,y = %d", tem_x, tem_y);
 
 		iReportUp = 1;
 		/*send measure to user here.*/
@@ -107,7 +107,7 @@ static void vnc_ts_handler(u8 pen_state, u16 tem_x, u16 tem_y)
 		tem_y_pre = tem_y;/* update for next points evaluate*/
 	} else if (iReportUp == 1) {
 		iReportUp = 0;
-		dbg("-------->vnc_ts_handler - pen up event\n");
+		dbg("-------->vnc_ts_handler - pen up event");
 		/* Report a pen up event */
 		input_report_key(vnc_ts_input_dev, BTN_TOUCH, 0);
 		input_sync(vnc_ts_input_dev);
@@ -165,7 +165,7 @@ static int vnc_ts_probe(struct platform_device *pdev)
 	int ret;
 	struct proc_dir_entry *vnc_ts_proc_entry;
 
-	dbg("------->vnc_ts_probe - start\n");
+	dbg("------->vnc_ts_probe - start");
 
 	vnc_td = kzalloc(sizeof(struct vnc_ts_data), GFP_KERNEL);
 	if (!vnc_td) {
@@ -215,7 +215,7 @@ static int vnc_ts_probe(struct platform_device *pdev)
 
 	ret = input_register_device(vnc_ts_input_dev);
 	if (ret) {
-		dbg("------->vnc_ts_probe - fail to register device\n");
+		dbg("------->vnc_ts_probe - fail to register device");
 		return ret;
 	}
 
