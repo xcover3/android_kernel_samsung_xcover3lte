@@ -1117,13 +1117,24 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	}
 
 	/* Allocate master with space for drv_data and null dma buffer */
-	master = spi_alloc_master(dev, sizeof(struct driver_data) + 16);
+	master = spi_alloc_master(dev, sizeof(struct driver_data));
 	if (!master) {
 		dev_err(&pdev->dev, "cannot alloc spi_master\n");
 		pxa_ssp_free(ssp);
 		return -ENOMEM;
 	}
 	drv_data = spi_master_get_devdata(master);
+	/*
+	 * the null DMA buf should malloc form DMA_ZONE
+	 * and align of DMA_ALIGNMENT
+	 */
+	drv_data->alloc_dma_buf =
+		kzalloc(DMA_ALIGNMENT + 4, GFP_KERNEL | GFP_DMA);
+	if (!drv_data->alloc_dma_buf) {
+		status = -ENOMEM;
+		goto out_error_dma_buf;
+	}
+
 	drv_data->master = master;
 	drv_data->master_info = platform_info;
 	drv_data->pdev = pdev;
@@ -1144,8 +1155,8 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	master->auto_runtime_pm = true;
 
 	drv_data->ssp_type = ssp->type;
-	drv_data->null_dma_buf = (u32 *)PTR_ALIGN(&drv_data[1], DMA_ALIGNMENT);
-
+	drv_data->null_dma_buf =
+		(u32 *)ALIGN((u32)drv_data->alloc_dma_buf, DMA_ALIGNMENT);
 	drv_data->ioaddr = ssp->mmio_base;
 	drv_data->ssdr_physical = ssp->phys_base + SSDR;
 	if (pxa25x_ssp_comp(drv_data)) {
@@ -1224,6 +1235,8 @@ out_error_clock_enabled:
 	free_irq(ssp->irq, drv_data);
 
 out_error_master_alloc:
+	kfree(drv_data->alloc_dma_buf);
+out_error_dma_buf:
 	spi_master_put(master);
 	pxa_ssp_free(ssp);
 	return status;
@@ -1256,7 +1269,7 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 
 	/* Release SSP */
 	pxa_ssp_free(ssp);
-
+	kfree(drv_data->alloc_dma_buf);
 	return 0;
 }
 

@@ -39,6 +39,7 @@ struct driver_data {
 	/* PXA private DMA setup stuff */
 	int rx_channel;
 	int tx_channel;
+	u32 *alloc_dma_buf;
 	u32 *null_dma_buf;
 
 	/* SSP register addresses */
@@ -136,8 +137,8 @@ DEFINE_SSP_REG(SSIRF, SSIRF)
 #define DONE_STATE ((void *)2)
 #define ERROR_STATE ((void *)-1)
 
+#define DMA_ALIGNMENT           64
 #define IS_DMA_ALIGNED(x)	IS_ALIGNED((unsigned long)(x), DMA_ALIGNMENT)
-#define DMA_ALIGNMENT		8
 
 static inline int pxa25x_ssp_comp(struct driver_data *drv_data)
 {
