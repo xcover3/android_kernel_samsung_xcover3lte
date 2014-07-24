@@ -187,14 +187,67 @@ static void dmafetch_onoff(struct mmp_overlay *overlay, int on)
 static void path_enabledisable(struct mmp_path *path, int on)
 {
 	u32 tmp;
-	mutex_lock(&path->access_ok);
 	tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK(path));
 	if (on)
 		tmp &= ~SCLK_DISABLE;
 	else
 		tmp |= SCLK_DISABLE;
 	writel_relaxed(tmp, ctrl_regs(path) + LCD_SCLK(path));
-	mutex_unlock(&path->access_ok);
+}
+
+static void path_set_timing(struct mmp_path *path)
+{
+	struct lcd_regs *regs = path_regs(path);
+	u32 total_x, total_y, vsync_ctrl, tmp, sclk_src, sclk_div,
+		link_config = path_to_path_plat(path)->link_config;
+	struct mmp_mode *mode = &path->mode;
+
+	/* polarity of timing signals */
+	tmp = readl_relaxed(ctrl_regs(path) + intf_ctrl(path->id)) & 0x1;
+	tmp |= mode->vsync_invert ? 0 : 0x8;
+	tmp |= mode->hsync_invert ? 0 : 0x4;
+	tmp |= link_config & CFG_DUMBMODE_MASK;
+	tmp |= CFG_DUMB_ENA(1);
+	writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
+
+	/* interface rb_swap setting */
+	tmp = readl_relaxed(ctrl_regs(path) + intf_rbswap_ctrl(path->id)) &
+		(~(CFG_INTFRBSWAP_MASK));
+	tmp |= link_config & CFG_INTFRBSWAP_MASK;
+	writel_relaxed(tmp, ctrl_regs(path) + intf_rbswap_ctrl(path->id));
+
+	writel_relaxed((mode->yres << 16) | mode->xres, &regs->screen_active);
+	writel_relaxed((mode->left_margin << 16) | mode->right_margin,
+		&regs->screen_h_porch);
+	writel_relaxed((mode->upper_margin << 16) | mode->lower_margin,
+		&regs->screen_v_porch);
+	total_x = mode->xres + mode->left_margin + mode->right_margin +
+		mode->hsync_len;
+	total_y = mode->yres + mode->upper_margin + mode->lower_margin +
+		mode->vsync_len;
+	writel_relaxed((total_y << 16) | total_x, &regs->screen_size);
+
+	/* vsync ctrl */
+	if (path->output_type == PATH_OUT_DSI)
+		vsync_ctrl = 0x01330133;
+	else
+		vsync_ctrl = ((mode->xres + mode->right_margin) << 16)
+					| (mode->xres + mode->right_margin);
+	writel_relaxed(vsync_ctrl, &regs->vsync_ctrl);
+
+	/* set pixclock div */
+	sclk_src = clk_get_rate(path_to_ctrl(path)->clk);
+	sclk_div = sclk_src / mode->pixclock_freq;
+	if (sclk_div * mode->pixclock_freq < sclk_src)
+		sclk_div++;
+
+	dev_info(path->dev, "%s sclk_src %d sclk_div 0x%x pclk %d\n",
+			__func__, sclk_src, sclk_div, mode->pixclock_freq);
+
+	tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK(path));
+	tmp &= ~CLK_INT_DIV_MASK;
+	tmp |= sclk_div;
+	writel_relaxed(tmp, ctrl_regs(path) + LCD_SCLK(path));
 }
 
 static void path_onoff(struct mmp_path *path, int on)
@@ -204,6 +257,8 @@ static void path_onoff(struct mmp_path *path, int on)
 				path->name, stat_name(path->status));
 		return;
 	}
+
+	mutex_lock(&path->access_ok);
 
 	if (on) {
 		path_enabledisable(path, 1);
@@ -217,6 +272,8 @@ static void path_onoff(struct mmp_path *path, int on)
 		path_enabledisable(path, 0);
 	}
 	path->status = on;
+
+	mutex_unlock(&path->access_ok);
 }
 
 static void overlay_set_onoff(struct mmp_overlay *overlay, int on)
@@ -255,66 +312,46 @@ static int overlay_set_addr(struct mmp_overlay *overlay, struct mmp_addr *addr)
 	return overlay->addr.phys[0];
 }
 
+
+static int is_mode_changed(struct mmp_mode *dst, struct mmp_mode *src)
+{
+	return !src || !dst
+		|| src->refresh != dst->refresh
+		|| src->xres != dst->xres
+		|| src->yres != dst->yres
+		|| src->left_margin != dst->left_margin
+		|| src->right_margin != dst->right_margin
+		|| src->upper_margin != dst->upper_margin
+		|| src->lower_margin != dst->lower_margin
+		|| src->hsync_len != dst->hsync_len
+		|| src->vsync_len != dst->vsync_len
+		|| !!(src->hsync_invert) != !!(dst->hsync_invert)
+		|| !!(src->vsync_invert) != !!(dst->vsync_invert)
+		|| !!(src->invert_pixclock) != !!(dst->invert_pixclock)
+		|| src->pixclock_freq / 1024 != src->pixclock_freq / 1024
+		|| src->pix_fmt_out != src->pix_fmt_out;
+}
+
+/*
+ * dynamically set mode is not supported.
+ * if change mode when path on, path on/off is required.
+ * or we would direct set path->mode
+*/
 static void path_set_mode(struct mmp_path *path, struct mmp_mode *mode)
 {
-	struct lcd_regs *regs = path_regs(path);
-	u32 total_x, total_y, vsync_ctrl, tmp, sclk_src, sclk_div,
-		link_config = path_to_path_plat(path)->link_config,
-		dsi_rbswap = path_to_path_plat(path)->link_config;
+	/* mode unchanged? do nothing */
+	if (!is_mode_changed(&path->mode, mode))
+		return;
 
-	/* FIXME: assert videomode supported */
+	/* FIXME: assert mode supported */
 	memcpy(&path->mode, mode, sizeof(struct mmp_mode));
-
-	mutex_lock(&path->access_ok);
-
-	/* polarity of timing signals */
-	tmp = readl_relaxed(ctrl_regs(path) + intf_ctrl(path->id)) & 0x1;
-	tmp |= mode->vsync_invert ? 0 : 0x8;
-	tmp |= mode->hsync_invert ? 0 : 0x4;
-	tmp |= link_config & CFG_DUMBMODE_MASK;
-	tmp |= CFG_DUMB_ENA(1);
-	writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
-
-	/* interface rb_swap setting */
-	tmp = readl_relaxed(ctrl_regs(path) + intf_rbswap_ctrl(path->id)) &
-		(~(CFG_INTFRBSWAP_MASK));
-	tmp |= dsi_rbswap & CFG_INTFRBSWAP_MASK;
-	writel_relaxed(tmp, ctrl_regs(path) + intf_rbswap_ctrl(path->id));
-
-	writel_relaxed((mode->yres << 16) | mode->xres, &regs->screen_active);
-	writel_relaxed((mode->left_margin << 16) | mode->right_margin,
-		&regs->screen_h_porch);
-	writel_relaxed((mode->upper_margin << 16) | mode->lower_margin,
-		&regs->screen_v_porch);
-	total_x = mode->xres + mode->left_margin + mode->right_margin +
-		mode->hsync_len;
-	total_y = mode->yres + mode->upper_margin + mode->lower_margin +
-		mode->vsync_len;
-	writel_relaxed((total_y << 16) | total_x, &regs->screen_size);
-
-	/* vsync ctrl */
-	if (path->output_type == PATH_OUT_DSI)
-		vsync_ctrl = 0x01330133;
-	else
-		vsync_ctrl = ((mode->xres + mode->right_margin) << 16)
-					| (mode->xres + mode->right_margin);
-	writel_relaxed(vsync_ctrl, &regs->vsync_ctrl);
-
-	/* set pixclock div */
-	sclk_src = clk_get_rate(path_to_ctrl(path)->clk);
-	sclk_div = sclk_src / mode->pixclock_freq;
-	if (sclk_div * mode->pixclock_freq < sclk_src)
-		sclk_div++;
-
-	dev_info(path->dev, "%s sclk_src %d sclk_div 0x%x pclk %d\n",
-			__func__, sclk_src, sclk_div, mode->pixclock_freq);
-
-	tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK(path));
-	tmp &= ~CLK_INT_DIV_MASK;
-	tmp |= sclk_div;
-	writel_relaxed(tmp, ctrl_regs(path) + LCD_SCLK(path));
-
-	mutex_unlock(&path->access_ok);
+	if (path->status) {
+		path_onoff(path, 0);
+		path_set_timing(path);
+		path_onoff(path, 1);
+	} else {
+		path_set_timing(path);
+	}
 }
 
 static struct mmp_overlay_ops mmphw_overlay_ops = {
@@ -429,7 +466,6 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path_plat->path = path;
 	path_plat->path_config = config->path_config;
 	path_plat->link_config = config->link_config;
-	path_plat->dsi_rbswap = config->dsi_rbswap;
 	path_set_default(path);
 
 	kfree(path_info);
@@ -507,8 +543,8 @@ static int mmphw_probe(struct platform_device *pdev)
 	ctrl->reg_base = devm_ioremap_nocache(ctrl->dev,
 			res->start, resource_size(res));
 	if (ctrl->reg_base == NULL) {
-		dev_err(ctrl->dev, "%s: res %x - %x map failed\n", __func__,
-			res->start, res->end);
+		dev_err(ctrl->dev, "%s: res %lx - %lx map failed\n", __func__,
+			(unsigned long)res->start, (unsigned long)res->end);
 		ret = -ENOMEM;
 		goto failed;
 	}

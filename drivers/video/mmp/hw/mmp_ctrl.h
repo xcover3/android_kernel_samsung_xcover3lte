@@ -1431,7 +1431,6 @@ struct mmphw_path_plat {
 	struct mmp_path *path;
 	u32 path_config;
 	u32 link_config;
-	u32 dsi_rbswap;
 };
 
 /* mmp ctrl describes mmp controller related info */
