@@ -56,4 +56,16 @@ config MRVL_SKMALLOC_WIRELESS_EN
 	After enable this config, all the kmalloc used in marvell wireless
 	driver will use skmalloc-xxx instead of kmalloc-xxx.
 
+config MRVL_MMP_MODEM
+	tristate "Marvell mmp modem driver"
+	default n
+	help
+	  Marvell MMP modem driver for communication processor
+
+config MRVL_MMP_CM3
+	tristate "Marvell CM3 resource manager driver"
+	default n
+	help
+	  Marvell CM3 resource manager driver for PXA1U88
+
 endif
