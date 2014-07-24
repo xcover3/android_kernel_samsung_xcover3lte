@@ -25,6 +25,10 @@
 	};
 
 	soc {
+		smmu {  /* iommu in vpu */
+			status = "okay";
+		};
+
 		axi@d4200000 {	/* AXI */
 			intc: wakeupgen@d4282000 {
 				status = "okay";

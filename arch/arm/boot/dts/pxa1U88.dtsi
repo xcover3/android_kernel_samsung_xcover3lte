@@ -79,6 +79,20 @@
 			reg = <0xd1004000 0xaa00>;
 		};
 
+		smmu {
+			compatible = "arm,mmu-400";
+			reg = <0xc0010000 0x10000>;
+			#global-interrupts = <1>;
+
+			/* we need a context intr
+			/* unless there is error
+			 */
+			interrupts = <0 78 4>,
+				     <0 78 4>;
+			mmu-masters = <&ion 0x0>;
+			status = "disabled";
+		};
+
 		axi@d4200000 {	/* AXI */
 			compatible = "mrvl,axi-bus", "simple-bus";
 			#address-cells = <1>;
