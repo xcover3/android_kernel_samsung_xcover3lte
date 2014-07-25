@@ -8,6 +8,7 @@
 #include <dt-bindings/clock/marvell-pxa1L88.h>
 
 #include "clk.h"
+#include "clk-pll-helanx.h"
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -29,6 +30,15 @@
 #define APMU_SDH1		0x58
 #define APMU_SDH2		0xe0
 #define APMU_USB		0x5c
+
+/* PLL */
+#define MPMU_PLL2CR	   (0x0034)
+#define MPMU_PLL3CR	   (0x001c)
+#define MPMU_POSR	   (0x0010)
+#define POSR_PLL2_LOCK	   (1 << 29)
+#define POSR_PLL3_LOCK	   (1 << 30)
+#define APB_SPARE_PLL2CR    (0x104)
+#define APB_SPARE_PLL3CR    (0x108)
 
 struct pxa1L88_clk_unit {
 	struct mmp_clk_unit unit;
@@ -64,6 +74,125 @@ static struct mmp_param_fixed_factor_clk fixed_factor_clks[] = {
 	{PXA1L88_CLK_PLL1_2_1_5, "pll1_2_1_5", "pll1_2", 2, 3, 0},
 	{PXA1L88_CLK_PLL1_3_16, "pll1_3_16", "pll1_624", 3, 16, 0},
 };
+
+enum pll {
+	PLL2 = 0,
+	PLL3,
+	MAX_PLL_NUM
+};
+
+struct plat_pll_info {
+	spinlock_t lock;
+	const char *vco_name;
+	const char *out_name;
+	const char *outp_name;
+	unsigned long vco_flag;
+	unsigned long vcoclk_flag;
+	unsigned long out_flag;
+	unsigned long outclk_flag;
+	unsigned long outp_flag;
+	unsigned long outpclk_flag;
+};
+
+static struct mmp_vco_params pll_vco_params[MAX_PLL_NUM] = {
+	{
+		.vco_min = 1200000000UL,
+		.vco_max = 2500000000UL,
+		.lock_enable_bit = POSR_PLL2_LOCK,
+		.default_rate = 2132 * MHZ,
+	},
+	{
+		.vco_min = 1200000000UL,
+		.vco_max = 2500000000UL,
+		.lock_enable_bit = POSR_PLL3_LOCK,
+		.default_rate = (unsigned long)2366 * MHZ,
+	},
+};
+
+static struct mmp_pll_params pll_params[MAX_PLL_NUM] = {
+	{
+		.default_rate = 710 * MHZ,
+	},
+	{
+		.default_rate = 788 * MHZ,
+	},
+};
+
+static struct mmp_pll_params pllp_params[MAX_PLL_NUM] = {
+	{
+		.default_rate = 1066 * MHZ,
+	},
+	{
+		.default_rate = 1183 * MHZ,
+	},
+};
+
+static struct plat_pll_info pllx_platinfo[] = {
+	{
+		.vco_name = "pll2_vco",
+		.out_name = "pll2",
+		.outp_name = "pll2p",
+		.vcoclk_flag = CLK_IS_ROOT,
+		.vco_flag = HELANX_PLL2CR_V1 | HELANX_PLL_40NM,
+		.out_flag = HELANX_PLLOUT,
+		.outp_flag = HELANX_PLLOUTP,
+	},
+	{
+		.vco_name = "pll3_vco",
+		.out_name = "pll3",
+		.outp_name = "pll3p",
+		.vcoclk_flag = CLK_IS_ROOT,
+		.vco_flag = HELANX_PLL_40NM,
+		.out_flag = HELANX_PLLOUT,
+		.outp_flag = HELANX_PLLOUTP,
+	},
+};
+
+static void pxa1L88_dynpll_init(struct pxa1L88_clk_unit *pxa_unit)
+{
+	int idx;
+	struct clk *clk;
+
+	pll_vco_params[PLL2].cr_reg = pxa_unit->mpmu_base + MPMU_PLL2CR;
+	pll_vco_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
+	pll_vco_params[PLL3].cr_reg = pxa_unit->mpmu_base + MPMU_PLL3CR;
+	pll_vco_params[PLL3].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL3CR;
+
+	pll_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
+	pll_params[PLL3].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL3CR;
+
+	pllp_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
+	pllp_params[PLL3].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL3CR;
+
+	for (idx = 0; idx < ARRAY_SIZE(pllx_platinfo); idx++) {
+		spin_lock_init(&pllx_platinfo[idx].lock);
+		/* vco */
+		pll_vco_params[idx].lock_reg = pxa_unit->mpmu_base + MPMU_POSR;
+		clk = helanx_clk_register_vco(pllx_platinfo[idx].vco_name, 0,
+					      pllx_platinfo[idx].vcoclk_flag,
+					      pllx_platinfo[idx].vco_flag,
+					      &pllx_platinfo[idx].lock,
+					      &pll_vco_params[idx]);
+		clk_set_rate(clk, pll_vco_params[idx].default_rate);
+		/* pll */
+		clk = helanx_clk_register_pll(pllx_platinfo[idx].out_name,
+					      pllx_platinfo[idx].vco_name,
+					      pllx_platinfo[idx].outclk_flag,
+					      pllx_platinfo[idx].out_flag,
+					      &pllx_platinfo[idx].lock,
+					      &pll_params[idx]);
+		clk_set_rate(clk, pll_params[idx].default_rate);
+
+		/* pllp */
+		clk = helanx_clk_register_pll(pllx_platinfo[idx].outp_name,
+					      pllx_platinfo[idx].vco_name,
+					      pllx_platinfo[idx].outpclk_flag,
+					      pllx_platinfo[idx].outp_flag,
+					      &pllx_platinfo[idx].lock,
+					      &pllp_params[idx]);
+		clk_set_rate(clk, pllp_params[idx].default_rate);
+	}
+}
 
 static struct mmp_clk_factor_masks uart_factor_masks = {
 	.factor = 2,
@@ -104,6 +233,7 @@ static void pxa1L88_pll_init(struct pxa1L88_clk_unit *pxa_unit)
 	mmp_register_general_gate_clks(unit, pll1_gate_clks,
 				pxa_unit->apmu_base,
 				ARRAY_SIZE(pll1_gate_clks));
+	pxa1L88_dynpll_init(pxa_unit);
 }
 
 static struct mmp_param_gate_clk apbc_gate_clks[] = {
