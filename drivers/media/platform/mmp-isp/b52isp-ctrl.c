@@ -164,8 +164,8 @@ static struct b52isp_ctrl_colorfx_reg __colorfx_negative[] = {
 	{REG_SDE_YUVTHRE20, 0x80,  1, 0},
 	{REG_SDE_YUVTHRE21, 0x7f,  1, 0},
 	{REG_SDE_CTRL06,    0x00,  1, 0x3f},
-	{REG_SDE_YGAIN,     0x80,  2, 0},
-	{REG_SDE_YOFFSET,   0x00,  2, 0},
+	{REG_SDE_YGAIN,     0x780,  2, 0},
+	{REG_SDE_YOFFSET,   0xff,  2, 0},
 	{REG_SDE_UV_M00,    0x140, 2, 0},
 	{REG_SDE_UV_M01,    0x00,  2, 0},
 	{REG_SDE_UV_M10,    0x00,  2, 0},
@@ -176,7 +176,7 @@ static struct b52isp_ctrl_colorfx_reg __colorfx_negative[] = {
 	{REG_SDE_CTRL17,    0x00,  1, 0x8},
 	{REG_SDE_CTRL17,    0x00,  1, 0x10},
 	{REG_SDE_HTHRE,     0x00,  1, 0},
-	{REG_SDE_HGAIN,     0x04,  1, 0},
+	{REG_SDE_HGAIN,     0x02,  1, 0},
 };
 
 static struct b52isp_ctrl_colorfx_reg __colorfx_sepia[] = {
