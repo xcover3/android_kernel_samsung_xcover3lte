@@ -65,6 +65,7 @@
 				marvell,debounce-interval = <30>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&keypad_in_func>;
+				status = "okay";
 			};
 
 			pmx: pinmux@d401e000 {

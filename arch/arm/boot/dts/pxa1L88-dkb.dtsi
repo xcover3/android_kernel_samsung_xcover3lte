@@ -38,6 +38,7 @@
 				marvell,debounce-interval = <30>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&keypad_in_func  &keypad_out_func>;
+				status = "okay";
 			};
 
 			keyreset {
