@@ -8,6 +8,7 @@
  */
 /memreserve/ 0x01210000 0x8;
 #include "pxa1928-pinfunc.h"
+#include "pxa1928-pm.h"
 #include "../../../../include/dt-bindings/clock/marvell-pxa1928.h"
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
 
