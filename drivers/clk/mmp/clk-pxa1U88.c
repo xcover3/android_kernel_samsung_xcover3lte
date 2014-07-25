@@ -178,6 +178,7 @@ struct plat_pll_info {
 	const char *vco_name;
 	const char *out_name;
 	const char *outp_name;
+	const char *vco_div3_name;
 	unsigned long vco_flag;
 	unsigned long vcoclk_flag;
 	unsigned long out_flag;
@@ -191,6 +192,7 @@ struct plat_pll_info pllx_platinfo[] = {
 		.vco_name = "pll2_vco",
 		.out_name = "pll2",
 		.outp_name = "pll2p",
+		.vco_div3_name = "pll2_div3",
 		.vcoclk_flag = CLK_IS_ROOT,
 		.vco_flag = HELANX_PLL2CR_V1,
 		.out_flag = HELANX_PLLOUT,
@@ -200,6 +202,7 @@ struct plat_pll_info pllx_platinfo[] = {
 		.vco_name = "pll3_vco",
 		.out_name = "pll3",
 		.outp_name = "pll3p",
+		.vco_div3_name = "pll3_div3",
 		.vcoclk_flag = CLK_IS_ROOT,
 		.outpclk_flag = CLK_SET_RATE_PARENT,
 		.out_flag = HELANX_PLLOUT,
@@ -209,6 +212,7 @@ struct plat_pll_info pllx_platinfo[] = {
 		.vco_name = "pll4_vco",
 		.out_name = "pll4",
 		.outp_name = "pll4p",
+		.vco_div3_name = "pll4_div3",
 		.vcoclk_flag = CLK_IS_ROOT,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
@@ -256,6 +260,11 @@ static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 			pllx_platinfo[idx].outpclk_flag, pllx_platinfo[idx].outp_flag,
 			&pllx_platinfo[idx].lock, &pllx_pllp_params[idx]);
 		clk_set_rate(clk, pllx_pllp_params[idx].default_rate);
+
+		/* vco div3 */
+		clk_register_fixed_factor(NULL,
+			pllx_platinfo[idx].vco_div3_name,
+			pllx_platinfo[idx].vco_name, 0, 1, 3);
 	}
 }
 
