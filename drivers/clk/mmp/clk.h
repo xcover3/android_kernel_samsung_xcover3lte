@@ -11,6 +11,9 @@
 #define APBC_NO_BUS_CTRL	BIT(0)
 #define APBC_POWER_CTRL		BIT(1)
 
+#define MHZ_TO_HZ (1000000)
+#define MHZ_TO_KHZ (1000)
+#define MHZ (1000000)
 
 /* Clock type "factor" */
 struct mmp_clk_factor_masks {
