@@ -714,6 +714,10 @@
 				status = "okay";
 			};
 
+			acipc: acipc@d401c000 {
+				status = "okay";
+			};
+
 			keyreset {
 				compatible = "marvell,keyreset";
 				keys-down = <0x73 0x72>;

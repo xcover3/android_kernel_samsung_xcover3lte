@@ -601,6 +601,14 @@
 				};
 			};
 
+			acipc: acipc@d401c000 {
+				compatible = "marvell,mmp-acipc";
+				reg = <0xd401c000 0x100>;
+				interrupts = <0 59 0x4>;
+				interrupt-names = "IPC_CP2AP";
+				status = "disabled";
+			};
+
 			timer: timer@d4088000 {
 				compatible = "marvell,mmp-timer";
 				reg = <0xd4088000 0xc8>;
