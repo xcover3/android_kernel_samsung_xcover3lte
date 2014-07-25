@@ -1,5 +1,5 @@
-#ifndef __MACH_CLK_PLL_PXA1928_H
-#define __MACH_CLK_PLL_PXA1928_H
+#ifndef __MACH_CLK_CORE_HELANX_H
+#define __MACH_CLK_CORE_HELANX_H
 
 /* flag for different FC version */
 /* V1 for helanLTE */
