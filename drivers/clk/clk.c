@@ -1686,6 +1686,7 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 {
 	struct clk *top, *fail_clk;
 	int ret = 0;
+	unsigned int clk_need_enable = 0;
 
 	if (!clk)
 		return 0;
@@ -1719,8 +1720,17 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 		goto out;
 	}
 
+	/* For clock which need enable clock to successful set rate */
+	if ((clk->flags & CLK_SET_RATE_ENABLED) && (!__clk_is_enabled(clk))) {
+		clk_prepare_enable(clk);
+		clk_need_enable = 1;
+	}
+
 	/* change the rates */
 	clk_change_rate(top);
+
+	if (clk_need_enable)
+		clk_disable_unprepare(clk);
 
 out:
 	clk_prepare_unlock();
