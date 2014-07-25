@@ -28,8 +28,12 @@
 static struct mmp_overlay *path_get_overlay(struct mmp_path *path,
 		int overlay_id)
 {
-	if (path && overlay_id < path->overlay_num)
-		return &path->overlays[overlay_id];
+	int i;
+
+	for (i = 0; i < path->overlay_num; i++)
+		if (path->overlays[i].id == overlay_id)
+			return &path->overlays[i];
+
 	return NULL;
 }
 
@@ -205,7 +209,7 @@ struct mmp_path *mmp_register_path(struct mmp_path_info *info)
 	/* step3: init overlays */
 	for (i = 0; i < path->overlay_num; i++) {
 		path->overlays[i].path = path;
-		path->overlays[i].id = i;
+		path->overlays[i].id = info->overlay_table[i];
 		mutex_init(&path->overlays[i].access_ok);
 		path->overlays[i].ops = info->overlay_ops;
 	}

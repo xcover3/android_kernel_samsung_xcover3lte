@@ -1430,9 +1430,9 @@ struct mmphw_ctrl {
 	struct mmphw_path_plat path_plats[0];
 };
 
-static inline int overlay_is_vid(struct mmp_overlay *overlay)
+static inline int overlay_is_vid(int overlay_id)
 {
-	return overlay->dmafetch_id & 1;
+	return !(overlay_id & PN_GRA);
 }
 
 static inline struct mmphw_path_plat *path_to_path_plat(struct mmp_path *path)

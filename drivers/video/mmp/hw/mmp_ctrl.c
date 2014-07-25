@@ -60,11 +60,11 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static u32 fmt_to_reg(struct mmp_overlay *overlay, int pix_fmt)
+static u32 fmt_to_reg(int overlay_id, int pix_fmt)
 {
 	u32 rbswap = 0, uvswap = 0, yuvswap = 0,
 		csc_en = 0, val = 0,
-		vid = overlay_is_vid(overlay);
+		vid = overlay_is_vid(overlay_id);
 
 	switch (pix_fmt) {
 	case PIXFMT_RGB565:
@@ -131,26 +131,29 @@ static u32 fmt_to_reg(struct mmp_overlay *overlay, int pix_fmt)
 		dma_swapyuv(vid, yuvswap) | dma_csc(vid, csc_en));
 }
 
-static void dmafetch_set_fmt(struct mmp_overlay *overlay)
+static void overlay_set_fmt(struct mmp_overlay *overlay)
 {
 	u32 tmp;
 	struct mmp_path *path = overlay->path;
+	int overlay_id = overlay->id;
+
 	tmp = readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id));
-	tmp &= ~dma_mask(overlay_is_vid(overlay));
-	tmp |= fmt_to_reg(overlay, overlay->win.pix_fmt);
+	tmp &= ~dma_mask(overlay_is_vid(overlay_id));
+	tmp |= fmt_to_reg(overlay_id, overlay->win.pix_fmt);
 	writel_relaxed(tmp, ctrl_regs(path) + dma_ctrl(0, path->id));
 }
 
 static void overlay_set_win(struct mmp_overlay *overlay, struct mmp_win *win)
 {
 	struct lcd_regs *regs = path_regs(overlay->path);
+	int overlay_id = overlay->id;
 
 	/* assert win supported */
 	memcpy(&overlay->win, win, sizeof(struct mmp_win));
 
 	mutex_lock(&overlay->access_ok);
 
-	if (overlay_is_vid(overlay)) {
+	if (overlay_is_vid(overlay_id)) {
 		writel_relaxed(win->pitch[0], &regs->v_pitch_yc);
 		writel_relaxed(win->pitch[2] << 16 |
 				win->pitch[1], &regs->v_pitch_uv);
@@ -166,15 +169,17 @@ static void overlay_set_win(struct mmp_overlay *overlay, struct mmp_win *win)
 		writel_relaxed(win->ypos << 16 | win->xpos, &regs->g_start);
 	}
 
-	dmafetch_set_fmt(overlay);
+	overlay_set_fmt(overlay);
 	mutex_unlock(&overlay->access_ok);
 }
 
 static void dmafetch_onoff(struct mmp_overlay *overlay, int on)
 {
-	u32 mask = overlay_is_vid(overlay) ? CFG_DMA_ENA_MASK :
-		   CFG_GRA_ENA_MASK;
-	u32 enable = overlay_is_vid(overlay) ? CFG_DMA_ENA(1) : CFG_GRA_ENA(1);
+	int overlay_id = overlay->id;
+	u32 mask = overlay_is_vid(overlay_id) ? CFG_DMA_ENA_MASK :
+		CFG_GRA_ENA_MASK;
+	u32 enable = overlay_is_vid(overlay_id) ? CFG_DMA_ENA(1) :
+		CFG_GRA_ENA(1);
 	u32 tmp;
 	struct mmp_path *path = overlay->path;
 
@@ -283,19 +288,15 @@ static void overlay_set_onoff(struct mmp_overlay *overlay, int on)
 		path_onoff(overlay->path, on);
 }
 
-static void overlay_set_fetch(struct mmp_overlay *overlay, int fetch_id)
-{
-	overlay->dmafetch_id = fetch_id;
-}
-
 static int overlay_set_addr(struct mmp_overlay *overlay, struct mmp_addr *addr)
 {
 	struct lcd_regs *regs = path_regs(overlay->path);
+	int overlay_id = overlay->id;
 
 	/* FIXME: assert addr supported */
 	memcpy(&overlay->addr, addr, sizeof(struct mmp_addr));
 
-	if (overlay_is_vid(overlay)) {
+	if (overlay_is_vid(overlay_id)) {
 		writel_relaxed(addr->phys[0], &regs->v_y0);
 		writel_relaxed(addr->phys[1], &regs->v_u0);
 		writel_relaxed(addr->phys[2], &regs->v_v0);
@@ -348,7 +349,6 @@ static void path_set_mode(struct mmp_path *path, struct mmp_mode *mode)
 }
 
 static struct mmp_overlay_ops mmphw_overlay_ops = {
-	.set_fetch = overlay_set_fetch,
 	.set_onoff = overlay_set_onoff,
 	.set_win = overlay_set_win,
 	.set_addr = overlay_set_addr,
@@ -439,6 +439,7 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path_info->id = path_plat->id;
 	path_info->dev = ctrl->dev;
 	path_info->overlay_num = config->overlay_num;
+	path_info->overlay_table = config->overlay_table;
 	path_info->overlay_ops = &mmphw_overlay_ops;
 	path_info->plat_data = path_plat;
 

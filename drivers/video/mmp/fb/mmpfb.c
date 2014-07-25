@@ -676,8 +676,6 @@ static int mmpfb_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto failed_destroy_mutex;
 	}
-	/* set fetch used */
-	mmp_overlay_set_fetch(fbi->overlay, 0);
 
 	modes_num = modes_setup(fbi);
 	if (modes_num < 0) {

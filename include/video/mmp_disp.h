@@ -147,7 +147,6 @@ static inline const char *stat_name(int stat)
 
 struct mmp_overlay_ops {
 	/* should be provided by driver */
-	void (*set_fetch)(struct mmp_overlay *overlay, int fetch_id);
 	void (*set_onoff)(struct mmp_overlay *overlay, int status);
 	void (*set_win)(struct mmp_overlay *overlay, struct mmp_win *win);
 	int (*set_addr)(struct mmp_overlay *overlay, struct mmp_addr *addr);
@@ -160,7 +159,6 @@ struct mmp_overlay {
 	struct mmp_path *path;
 
 	/* overlay info: private data */
-	int dmafetch_id;
 	struct mmp_addr addr;
 	struct mmp_win win;
 
@@ -273,12 +271,6 @@ static inline struct mmp_overlay *mmp_path_get_overlay(
 		return path->ops.get_overlay(path, overlay_id);
 	return NULL;
 }
-static inline void mmp_overlay_set_fetch(struct mmp_overlay *overlay,
-		int fetch_id)
-{
-	if (overlay && overlay->ops->set_fetch)
-		overlay->ops->set_fetch(overlay, fetch_id);
-}
 static inline void mmp_overlay_set_onoff(struct mmp_overlay *overlay,
 		int status)
 {
@@ -344,7 +336,6 @@ struct mmp_buffer_driver_mach_info {
 	const char	*name;
 	const char	*path_name;
 	int	overlay_id;
-	int	dmafetch_id;
 	int	default_pixfmt;
 	int     buffer_num;
 };
