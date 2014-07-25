@@ -169,12 +169,13 @@ static int _set_rate(struct mmp_clk_mix *mix, u32 mux_val, u32 div_val,
 	if (mix->type == MMP_CLK_MIX_TYPE_V1) {
 		writel(mux_div, ri->reg_clk_ctrl);
 	} else if (mix->type == MMP_CLK_MIX_TYPE_V2) {
+		mux_div |= (1 << ri->bit_fc);
 		writel(mux_div, ri->reg_clk_ctrl);
 
 		do {
 			fc_req = readl(ri->reg_clk_ctrl);
 			timeout--;
-			if (fc_req & (1 << ri->bit_fc))
+			if (!(fc_req & (1 << ri->bit_fc)))
 				break;
 		} while (timeout);
 
@@ -464,7 +465,7 @@ struct clk *mmp_clk_register_mix(struct device *dev,
 
 	memcpy(&mix->reg_info, &config->reg_info, sizeof(config->reg_info));
 	if (config->table) {
-		table_bytes = sizeof(config->table) * config->table_size;
+		table_bytes = sizeof(*config->table) * config->table_size;
 		mix->table = kzalloc(table_bytes, GFP_KERNEL);
 		if (!mix->table) {
 			pr_err("%s:%s: could not allocate mmp mix table\n",
