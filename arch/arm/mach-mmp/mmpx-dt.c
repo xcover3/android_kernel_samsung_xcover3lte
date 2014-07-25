@@ -23,6 +23,14 @@
 #include "regs-addr.h"
 #include "mmpx-dt.h"
 
+static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
+#ifdef CONFIG_DDR_DEVFREQ
+	OF_DEV_AUXDATA("marvell,devfreq-ddr", 0xc0100000,
+			"devfreq-ddr", NULL),
+#endif
+	{}
+};
+
 #define MPMU_PHYS_BASE		0xd4050000
 #define MPMU_APRR		(0x1020)
 #define MPMU_WDTPCR		(0x0200)
@@ -175,6 +183,12 @@ static __init void pxa1U88_timer_init(void)
 	pxa988_sdhc_reset_all();
 }
 
+static void __init pxa1U88_init_machine(void)
+{
+	of_platform_populate(NULL, of_default_bus_match_table,
+			     mmpx_auxdata_lookup, &platform_bus);
+}
+
 static const char *pxa1U88_dt_board_compat[] __initdata = {
 	"marvell,pxa1U88",
 	NULL,
@@ -184,6 +198,7 @@ DT_MACHINE_START(PXA1U88_DT, "PXA1U88")
 	.smp_init	= smp_init_ops(mmp_smp_init_ops),
 	.init_irq	= pxa1U88_dt_irq_init,
 	.init_time      = pxa1U88_timer_init,
+	.init_machine	= pxa1U88_init_machine,
 	.dt_compat      = pxa1U88_dt_board_compat,
 MACHINE_END
 
@@ -195,5 +210,6 @@ static const char *pxa1L88_dt_board_compat[] __initdata = {
 DT_MACHINE_START(PXA1L88_DT, "PXA1L88")
 	.smp_init	= smp_init_ops(mmp_smp_init_ops),
 	.init_time      = pxa1U88_timer_init,
+	.init_machine	= pxa1U88_init_machine,
 	.dt_compat      = pxa1L88_dt_board_compat,
 MACHINE_END
