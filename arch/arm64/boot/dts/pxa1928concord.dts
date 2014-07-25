@@ -350,6 +350,28 @@
 				pinctrl-1 = <&twsi4_gpio_pins>;
 				i2c-gpio = <&gpio TWSI4_SCL_GPIO 0 &gpio TWSI4_SDA_GPIO 0>;
 				status = "okay";
+
+				backlight1: lm3532@38 {
+					compatible = "marvell,lm3532";
+					reg = <0x38>;
+					flags = <0>;
+					ramp_time = <0>;
+					ctrl_a_fs_current = <0x1b>;
+					ctrl_a_mapping_mode = <0x2>;
+					ctrl_a_pwm = <0x86>;
+					rst_gpio = <&gpio GPIO(6) 0>;
+					avdd-supply = <&ldo12>;
+				};
+
+				backlight2: pm828x@10 {
+					compatible = "marvell,88pm828x";
+					reg = <0x10>;
+					ramp_mode = <0x2>;
+					idac_current = <0xa00>;
+					ramp_clk = <0>;
+					str_config = <0x1>;
+					avdd-supply = <&ldo12>;
+				};
 			};
 
 			twsi5: i2c@d4034000 {
@@ -406,6 +428,14 @@
 		marvell,path-name = "mmp_pnpath";
 		rst_gpio = <&gpio LCD_RESET_N 0>;
 		status = "okay";
+	};
+
+	backlight: pwm-bl {
+		compatible = "pwm-backlight";
+		pwms = <&pwm2 0 100000>;
+
+		brightness-levels = <0 2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 44 46 48 50 52 54 56 58 60 62 64 66 68 70 72 74 76 78 80 82 84 86 88 90 92 94 96 98 100>;
+		default-brightness-level = <24>;
 	};
 };
 #include "88pm860.dtsi"
