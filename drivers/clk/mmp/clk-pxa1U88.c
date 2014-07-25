@@ -64,6 +64,11 @@
 #define APB_PLL4_SSC_CONF   (0x14c)
 #define APB_PLL4_FREQOFFSET_CTRL    (0x150)
 
+#define APMU_GC			0xcc
+#define APMU_GC2D		0xf4
+
+#define APMU_VPU		0xa4
+
 struct pxa1U88_clk_unit {
 	struct mmp_clk_unit unit;
 	void __iomem *mpmu_base;
@@ -395,6 +400,126 @@ static struct mmp_clk_mix_config sdh_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 8, 1, 6, 11),
 };
 
+/* Protect GC 3D register access APMU_GC&APMU_GC2D */
+static DEFINE_SPINLOCK(gc_lock);
+static DEFINE_SPINLOCK(gc2d_lock);
+
+/* GC 3D */
+static const char *gc3d_parent_names[] = {
+	"pll1_832_gate", "pll1_624_gate", "pll2p", "pll2_div3"
+};
+
+static struct mmp_clk_mix_clk_table gc3d_pptbl[] = {
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0,/* pll1_832_gate */},
+	{.rate = 624000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 705000000, .parent_index = 3, /* pll2_div3 */},
+};
+
+static struct mmp_clk_mix_config gc3d_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 2, 6, 15),
+	.table = gc3d_pptbl,
+	.table_size = ARRAY_SIZE(gc3d_pptbl),
+};
+
+/* GC shader */
+static const char *gcsh_parent_names[] = {
+	"pll1_416_gate", "pll1_624_gate",  "pll2p", "pll3p",
+};
+
+static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0,/* pll1_416_gate */},
+	{.rate = 624000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 705000000, .parent_index = 2, /* pll2p */},
+};
+
+static struct mmp_clk_mix_config gcsh_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 28, 2, 26, 31),
+	.table = gcsh_pptbl,
+	.table_size = ARRAY_SIZE(gcsh_pptbl),
+};
+
+/* GC 2D */
+static const char *gc2d_parent_names[] = {
+	"pll1_416_gate", "pll1_624_gate",  "pll2", "pll2_div3",
+};
+
+static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
+	{.rate = 78000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
+};
+
+static struct mmp_clk_mix_config gc2d_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 2, 6, 15),
+	.table = gc2d_pptbl,
+	.table_size = ARRAY_SIZE(gc2d_pptbl),
+};
+
+/* GC bus(shared by GC 3D and 2D) */
+static const char *gcbus_parent_names[] = {
+	"pll1_416_gate", "pll1_624_gate", "pll2", "pll4",
+};
+
+static struct mmp_clk_mix_clk_table gcbus_pptbl[] = {
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
+};
+
+static struct mmp_clk_mix_config gcbus_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 17, 2, 20, 16),
+	.table = gcbus_pptbl,
+	.table_size = ARRAY_SIZE(gcbus_pptbl),
+};
+
+/* Protect register access APMU_VPU */
+static DEFINE_SPINLOCK(vpu_lock);
+
+/* VPU fclk */
+static const char *vpufclk_parent_names[] = {
+	"pll1_416_gate", "pll1_624_gate", "pll2_div3", "pll2p",
+};
+
+static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
+	{.rate = 528750000, .parent_index = 3, /* pll2p */},
+};
+
+static struct mmp_clk_mix_config vpufclk_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 8, 2, 6, 20),
+	.table = vpufclk_pptbl,
+	.table_size = ARRAY_SIZE(vpufclk_pptbl),
+};
+
+/* vpu bus */
+static const char *vpubus_parent_names[] = {
+	"pll1_416_gate", "pll1_624_gate", "pll2", "pll2_div3",
+};
+
+static struct mmp_clk_mix_clk_table vpubus_pptbl[] = {
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
+	{.rate = 528500000, .parent_index = 2, /* pll2 */},
+};
+
+static struct mmp_clk_mix_config vpubus_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 13, 2, 11, 21),
+	.table = vpubus_pptbl,
+	.table_size = ARRAY_SIZE(vpubus_pptbl),
+};
+
 static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -442,6 +567,78 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_SDH2,
 				0x12, 0x12, 0x0, 0, &sdh2_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SDH2, clk);
+
+	/*
+	 * DE suggest SW to release GC_2D_3D_AXI_Reset
+	 * before both 3D/2D power on sequence
+	 */
+	clk = mmp_clk_register_gate(NULL, "gc_axi_rst", NULL,
+				0, pxa_unit->apmu_base + APMU_GC2D,
+				0x1, 0x1, 0x0, 0, &gc2d_lock);
+	clk_prepare_enable(clk);
+
+	gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+	clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk", gc3d_parent_names,
+				ARRAY_SIZE(gc3d_parent_names),
+				0, &gc3d_mix_config, &gc_lock);
+	clk = mmp_clk_register_gate(NULL, "gc3d_clk", "gc3d_mix_clk",
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+				pxa_unit->apmu_base + APMU_GC,
+				(3 << 4), (3 << 4), 0x0, 0, &gc_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_GC3D, clk);
+
+	gcsh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+	clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk", gcsh_parent_names,
+				ARRAY_SIZE(gcsh_parent_names),
+				0, &gcsh_mix_config, &gc_lock);
+	clk = mmp_clk_register_gate(NULL, "gcsh_clk", "gcsh_mix_clk",
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+				pxa_unit->apmu_base + APMU_GC,
+				(1 << 25), (1 << 25), 0x0, 0, &gc_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_GCSH, clk);
+
+	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
+	clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk", gc2d_parent_names,
+				ARRAY_SIZE(gc2d_parent_names),
+				0, &gc2d_mix_config, &gc2d_lock);
+	clk = mmp_clk_register_gate(NULL, "gc2d_clk", "gc2d_mix_clk",
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+				pxa_unit->apmu_base + APMU_GC2D,
+				(3 << 4), (3 << 4), 0x0, 0, &gc2d_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_GC2D, clk);
+
+	gcbus_mix_config.reg_info.reg_clk_ctrl =
+				pxa_unit->apmu_base + APMU_GC2D;
+	clk = mmp_clk_register_mix(NULL, "gcbus_mix_clk", gcbus_parent_names,
+				ARRAY_SIZE(gcbus_parent_names),
+				0, &gcbus_mix_config, &gc2d_lock);
+	clk = mmp_clk_register_gate(NULL, "gcbus_clk", "gcbus_mix_clk",
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+				pxa_unit->apmu_base + APMU_GC2D,
+				(1 << 3), (1 << 3), 0x0, 0, &gc2d_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_GCBUS, clk);
+
+	vpufclk_mix_config.reg_info.reg_clk_ctrl =
+			pxa_unit->apmu_base + APMU_VPU;
+	clk = mmp_clk_register_mix(NULL, "vpufunc_mix_clk",
+			vpufclk_parent_names, ARRAY_SIZE(vpufclk_parent_names),
+			0, &vpufclk_mix_config, &vpu_lock);
+	clk = mmp_clk_register_gate(NULL, "vpufunc_clk", "vpufunc_mix_clk",
+			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+			pxa_unit->apmu_base + APMU_VPU,
+			(3 << 4), (3 << 4), 0x0, 0, &vpu_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_VPU, clk);
+
+	vpubus_mix_config.reg_info.reg_clk_ctrl =
+			pxa_unit->apmu_base + APMU_VPU;
+	clk = mmp_clk_register_mix(NULL, "vpubus_mix_clk",
+			vpubus_parent_names, ARRAY_SIZE(vpubus_parent_names),
+			0, &vpubus_mix_config, &vpu_lock);
+	clk = mmp_clk_register_gate(NULL, "vpubus_clk", "vpubus_mix_clk",
+			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+			pxa_unit->apmu_base + APMU_VPU,
+			(1 << 3), (1 << 3), 0x0, 0, &vpu_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_VPUBUS, clk);
 }
 
 static DEFINE_SPINLOCK(fc_seq_lock);
