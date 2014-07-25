@@ -129,25 +129,43 @@ struct mmp_panel;
 
 /* status types */
 enum {
+	/* status of what object at */
 	MMP_OFF = 0,
 	MMP_ON,
+	MMP_ON_REDUCED,
+	MMP_OFF_DMA,
+	MMP_ON_DMA,
 };
 
-static inline const char *stat_name(int stat)
+static inline const char *status_name(int status)
 {
-	switch (stat) {
-	case MMP_OFF:
-		return "OFF";
-	case MMP_ON:
-		return "ON";
-	default:
-		return "UNKNOWNSTAT";
-	}
+	static const char names[][50] = {
+		"off",
+		"on",
+		"on in reduced sequence",
+		"off dma only",
+		"on dma only",
+		"reset",
+	};
+	return names[status];
+}
+
+static inline int status_is_on(int status)
+{
+	return	status == MMP_ON ||
+		status == MMP_ON_REDUCED ||
+		status == MMP_ON_DMA;
+}
+
+static inline int status_is_off(int status)
+{
+	return	status == MMP_OFF ||
+		status == MMP_OFF_DMA;
 }
 
 struct mmp_overlay_ops {
 	/* should be provided by driver */
-	void (*set_onoff)(struct mmp_overlay *overlay, int status);
+	void (*set_status)(struct mmp_overlay *overlay, int status);
 	void (*set_win)(struct mmp_overlay *overlay, struct mmp_win *win);
 	int (*set_addr)(struct mmp_overlay *overlay, struct mmp_addr *addr);
 };
@@ -163,9 +181,9 @@ struct mmp_overlay {
 	struct mmp_win win;
 
 	/* state */
-	int open_count;
 	int status;
 	struct mutex access_ok;
+	atomic_t on_count;
 
 	struct mmp_overlay_ops *ops;
 };
@@ -192,7 +210,7 @@ struct mmp_panel {
 			struct mmp_mode **modelist);
 	void (*set_mode)(struct mmp_panel *panel,
 			struct mmp_mode *mode);
-	void (*set_onoff)(struct mmp_panel *panel,
+	void (*set_status)(struct mmp_panel *panel,
 			int status);
 };
 
@@ -271,11 +289,11 @@ static inline struct mmp_overlay *mmp_path_get_overlay(
 		return path->ops.get_overlay(path, overlay_id);
 	return NULL;
 }
-static inline void mmp_overlay_set_onoff(struct mmp_overlay *overlay,
+static inline void mmp_overlay_set_status(struct mmp_overlay *overlay,
 		int status)
 {
-	if (overlay && overlay->ops->set_onoff)
-		overlay->ops->set_onoff(overlay, status);
+	if (overlay && overlay->ops->set_status)
+		overlay->ops->set_status(overlay, status);
 }
 static inline void mmp_overlay_set_win(struct mmp_overlay *overlay,
 		struct mmp_win *win)

@@ -448,7 +448,7 @@ static void mmpfb_power(struct mmpfb_info *fbi, int power)
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
 
 	/* for power on, always set address/window again */
-	if (power) {
+	if (status_is_on(power)) {
 		/* set window related info */
 		mmpfb_set_win(fbi->fb_info);
 
@@ -459,14 +459,20 @@ static void mmpfb_power(struct mmpfb_info *fbi, int power)
 			* var->bits_per_pixel / 8;
 		mmp_overlay_set_addr(fbi->overlay, &addr);
 	}
-	mmp_overlay_set_onoff(fbi->overlay, power);
+	mmp_overlay_set_status(fbi->overlay, power);
 }
 
 static int mmpfb_blank(int blank, struct fb_info *info)
 {
 	struct mmpfb_info *fbi = info->par;
 
-	mmpfb_power(fbi, (blank == FB_BLANK_UNBLANK));
+	if (blank == FB_BLANK_UNBLANK) {
+		mmpfb_power(fbi, MMP_ON);
+		fb_set_suspend(info, 0);
+	} else {
+		fb_set_suspend(info, 1);
+		mmpfb_power(fbi, MMP_OFF);
+	}
 
 	return 0;
 }
@@ -713,7 +719,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 
 	/* fb power on */
 	if (modes_num > 0)
-		mmpfb_power(fbi, 1);
+		mmpfb_power(fbi, MMP_ON);
 
 	ret = fb_info_setup(info, fbi);
 	if (ret < 0)

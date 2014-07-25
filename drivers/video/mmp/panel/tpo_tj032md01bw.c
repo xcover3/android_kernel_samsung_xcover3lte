@@ -85,24 +85,26 @@ struct tpohvga_plat_data {
 	struct spi_device *spi;
 };
 
-static void tpohvga_onoff(struct mmp_panel *panel, int status)
+static void tpohvga_set_status(struct mmp_panel *panel, int status)
 {
 	struct tpohvga_plat_data *plat = panel->plat_data;
 	int ret;
 
-	if (status) {
+	if (status_is_on(status)) {
 		plat->plat_onoff(1);
 
 		ret = spi_write(plat->spi, init, sizeof(init));
 		if (ret < 0)
 			dev_warn(panel->dev, "init cmd failed(%d)\n", ret);
-	} else {
+	} else if (status_is_off(status)) {
 		ret = spi_write(plat->spi, poweroff, sizeof(poweroff));
 		if (ret < 0)
 			dev_warn(panel->dev, "poweroff cmd failed(%d)\n", ret);
 
 		plat->plat_onoff(0);
-	}
+	} else
+		dev_warn(panel->dev, "set status %s not supported\n",
+					status_name(status));
 }
 
 static struct mmp_mode mmp_modes_tpohvga[] = {
@@ -133,7 +135,7 @@ static struct mmp_panel panel_tpohvga = {
 	.name = "tpohvga",
 	.panel_type = PANELTYPE_ACTIVE,
 	.get_modelist = tpohvga_get_modelist,
-	.set_onoff = tpohvga_onoff,
+	.set_status = tpohvga_onoff,
 };
 
 static int tpohvga_probe(struct spi_device *spi)

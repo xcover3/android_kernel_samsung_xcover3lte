@@ -183,23 +183,34 @@ static void dmafetch_onoff(struct mmp_overlay *overlay, int on)
 	u32 tmp;
 	struct mmp_path *path = overlay->path;
 
-	mutex_lock(&overlay->access_ok);
+	/* dma enable control */
 	tmp = readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id));
 	tmp &= ~mask;
 	tmp |= (on ? enable : 0);
 	writel(tmp, ctrl_regs(path) + dma_ctrl(0, path->id));
-	mutex_unlock(&overlay->access_ok);
 }
 
 static void path_enabledisable(struct mmp_path *path, int on)
 {
-	struct clk *clk = path_to_path_plat(path)->clk;
+	struct mmphw_path_plat *plat = path_to_path_plat(path);
+	struct clk *clk = plat->clk;
+	u32 tmp;
+
 	if (!clk)
 		return;
-	if (on)
+
+	/* path enable control */
+	tmp = readl_relaxed(ctrl_regs(path) + intf_ctrl(path->id));
+	tmp &= ~CFG_DUMB_ENA_MASK;
+	tmp |= (on ? CFG_DUMB_ENA(1) : 0);
+
+	if (on) {
 		clk_prepare_enable(clk);
-	else
+		writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
+	} else {
+		writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
 		clk_disable_unprepare(clk);
+	}
 }
 
 static void path_set_timing(struct mmp_path *path)
@@ -252,7 +263,7 @@ static void path_onoff(struct mmp_path *path, int on)
 {
 	if (path->status == on) {
 		dev_info(path->dev, "path %s is already %s\n",
-				path->name, stat_name(path->status));
+				path->name, status_name(path->status));
 		return;
 	}
 
@@ -261,11 +272,11 @@ static void path_onoff(struct mmp_path *path, int on)
 	if (on) {
 		path_enabledisable(path, 1);
 
-		if (path->panel && path->panel->set_onoff)
-			path->panel->set_onoff(path->panel, 1);
+		if (path->panel && path->panel->set_status)
+			path->panel->set_status(path->panel, MMP_ON);
 	} else {
-		if (path->panel && path->panel->set_onoff)
-			path->panel->set_onoff(path->panel, 0);
+		if (path->panel && path->panel->set_status)
+			path->panel->set_status(path->panel, MMP_OFF);
 
 		path_enabledisable(path, 0);
 	}
@@ -274,18 +285,62 @@ static void path_onoff(struct mmp_path *path, int on)
 	mutex_unlock(&path->access_ok);
 }
 
-static void overlay_set_onoff(struct mmp_overlay *overlay, int on)
+static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 {
-	if (overlay->status == on) {
-		dev_info(overlay_to_ctrl(overlay)->dev, "overlay %s is already %s\n",
-			overlay->path->name, stat_name(overlay->status));
-		return;
-	}
+	struct mmphw_ctrl *ctrl = path_to_ctrl(overlay->path);
+	int on = status_is_on(status);
+	struct mmp_path *path = overlay->path;
+
+	mutex_lock(&ctrl->access_ok);
+
 	overlay->status = on;
-	dmafetch_onoff(overlay, on);
-	if (overlay->path->ops.check_status(overlay->path)
-			!= overlay->path->status)
-		path_onoff(overlay->path, on);
+
+	if (status == MMP_ON_REDUCED) {
+		path_enabledisable(path, 1);
+		if (path->panel && path->panel->set_status)
+			path->panel->set_status(path->panel, status);
+		path->status = on;
+	} else if (on) {
+		if (path->ops.check_status(path) != path->status)
+			path_onoff(path, on);
+
+		dmafetch_onoff(overlay, on);
+	} else {
+		dmafetch_onoff(overlay, on);
+
+		if (path->ops.check_status(path) != path->status)
+			path_onoff(path, on);
+	}
+
+	mutex_unlock(&ctrl->access_ok);
+}
+
+static void overlay_set_status(struct mmp_overlay *overlay, int status)
+{
+	int on = status_is_on(status);
+	mutex_lock(&overlay->access_ok);
+	switch (status) {
+	case MMP_ON:
+	case MMP_ON_REDUCED:
+		if (!atomic_read(&overlay->on_count))
+			overlay_do_onoff(overlay, status);
+		atomic_inc(&overlay->on_count);
+		break;
+	case MMP_OFF:
+		if (atomic_dec_and_test(&overlay->on_count))
+			overlay_do_onoff(overlay, status);
+		break;
+	case MMP_ON_DMA:
+	case MMP_OFF_DMA:
+		overlay->status = on;
+		dmafetch_onoff(overlay, on);
+		break;
+	default:
+		break;
+	}
+	dev_dbg(overlay_to_ctrl(overlay)->dev, "set %s: count %d\n",
+		status_name(status), atomic_read(&overlay->on_count));
+	mutex_unlock(&overlay->access_ok);
 }
 
 static int overlay_set_addr(struct mmp_overlay *overlay, struct mmp_addr *addr)
@@ -349,7 +404,7 @@ static void path_set_mode(struct mmp_path *path, struct mmp_mode *mode)
 }
 
 static struct mmp_overlay_ops mmphw_overlay_ops = {
-	.set_onoff = overlay_set_onoff,
+	.set_status = overlay_set_status,
 	.set_win = overlay_set_win,
 	.set_addr = overlay_set_addr,
 };
