@@ -72,6 +72,8 @@
 #define APMU_GC2D		0xf4
 
 #define APMU_VPU		0xa4
+#define APMU_DSI1		0x44
+#define APMU_DISP1		0x4c
 
 #define CIU_MC_CONF	0x0040
 #define VPU_XTC		0x00a8
@@ -546,6 +548,18 @@ static struct mmp_clk_mix_config vpubus_mix_config = {
 	.table_size = ARRAY_SIZE(vpubus_pptbl),
 };
 
+static DEFINE_SPINLOCK(disp_lock);
+static const char *disp1_parent_names[] = {"pll1_624", "pll1_832", "pll1_499"};
+static const char *disp2_parent_names[] = {"pll2", "pll2p", "pll2_div3"};
+static const char *disp3_parent_names[] = {"pll3p", "pll3_div3"};
+
+static const char *disp_axi_parent_names[] = {"pll1_416", "pll1_624", "pll2", "pll2p"};
+static int disp_axi_mux_table[] = {0x0, 0x1, 0x2, 0x3};
+static struct mmp_clk_mix_config disp_axi_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(2, 19, 2, 17, 22),
+	.mux_table = disp_axi_mux_table,
+};
+
 static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -676,6 +690,69 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			(1 << 3), (1 << 3), 0x0, 0, &vpu_lock);
 	clk_set_rate(clk, 416000000);
 	mmp_clk_add(unit, PXA1U88_CLK_VPUBUS, clk);
+
+	clk = mmp_clk_register_gate(NULL, "dsi_esc_clk", NULL, 0,
+			pxa_unit->apmu_base + APMU_DSI1,
+			0xf, 0xc, 0x0, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DSI_ESC, clk);
+
+	clk = clk_register_mux(NULL, "disp1_sel_clk", disp1_parent_names,
+			ARRAY_SIZE(disp1_parent_names),
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			9, 2, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP1, clk);
+
+	clk = mmp_clk_register_gate(NULL, "dsip1_clk", "disp1_sel_clk",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			0x20, 0x20, 0x0, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP1_EN, clk);
+
+	clk = clk_register_mux(NULL, "disp2_sel_clk", disp2_parent_names,
+			ARRAY_SIZE(disp2_parent_names),
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			11, 2, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP2, clk);
+
+	clk = mmp_clk_register_gate(NULL, "dsip2_clk", "disp2_sel_clk",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			0x40, 0x40, 0x0, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP2_EN, clk);
+
+	clk = clk_register_mux(NULL, "disp3_sel_clk", disp3_parent_names,
+			ARRAY_SIZE(disp3_parent_names),
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			13, 1, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP3, clk);
+
+	clk = mmp_clk_register_gate(NULL, "dsip3_en_clk", "disp3_sel_clk",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			0x80, 0x80, 0x0, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP3_EN, clk);
+
+	disp_axi_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_DISP1;
+	clk = mmp_clk_register_mix(NULL, "disp_axi_sel_clk", disp_axi_parent_names,
+				ARRAY_SIZE(disp_axi_parent_names),
+				CLK_SET_RATE_PARENT,
+				&disp_axi_mix_config, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP_AXI_SEL_CLK, clk);
+	clk_set_rate(clk, 208000000);
+
+	clk = mmp_clk_register_gate(NULL, "disp_axi_clk", "disp_axi_sel_clk",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			0x10005, 0x10005, 0x0, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP_AXI_CLK, clk);
+
+	clk = mmp_clk_register_gate(NULL, "LCDCIHCLK", "disp_axi_clk", 0,
+			pxa_unit->apmu_base + APMU_DISP1,
+			0x16, 0x16, 0x0, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP_HCLK, clk);
 }
 
 static DEFINE_SPINLOCK(fc_seq_lock);
