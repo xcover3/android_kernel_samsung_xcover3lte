@@ -92,6 +92,23 @@
 		compatible = "vnc-ts";
 	};
 
+	ion {
+		marvell,ion-nr = <2>;
+		status = "okay";
+		heap1 {
+			marvell,ion-name = "carveout_heap";
+			marvell,ion-type = <2>;
+			marvell,ion-id = <2>;
+			marvell,ion-base = <0>;
+			marvell,ion-size = <0>;
+		};
+		heap2 {
+			marvell,ion-name = "system_heap";
+			marvell,ion-type = <0>;
+			marvell,ion-id = <0>;
+		};
+	};
+
 	panel1: lg4591 {
 		compatible = "marvell,mmp-lg4591";
 		marvell,path-name = "mmp_pnpath";

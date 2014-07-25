@@ -290,4 +290,9 @@
 		reg-names = "mpmu", "apmu", "apbc", "apbcp", "apbs", "ciu";
 		#clock-cells = <1>;
         };
+
+	ion {
+		compatible = "marvell,pxa-ion";
+		status = "disabled";
+	};
 };
