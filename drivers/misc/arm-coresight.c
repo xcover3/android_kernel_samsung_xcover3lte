@@ -155,7 +155,7 @@ static int arm_coresight_probe(struct platform_device *pdev)
 
 	/* enable etm trace by default */
 	if (etm_need_enabled()) {
-		traceclk = clk_get(NULL, "TRACECLK");
+		traceclk = clk_get(&pdev->dev, "TRACECLK");
 		if (IS_ERR(traceclk)) {
 			pr_warn("No TRACECLK is defined...\n");
 			traceclk = NULL;
