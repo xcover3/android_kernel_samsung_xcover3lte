@@ -1266,7 +1266,7 @@ static UNIVERSAL_DEV_PM_OPS(lm3532_pm_ops, lm3532_runtime_suspend,
 			    lm3532_runtime_resume, NULL);
 
 static struct of_device_id lm3532_dt_ids[] = {
-	{.compatible = "bl,lm3532",},
+	{.compatible = "marvell,lm3532",},
 	{}
 };
 

@@ -637,7 +637,7 @@ static UNIVERSAL_DEV_PM_OPS(pm828x_pm_ops, pm828x_runtime_suspend,
 			    pm828x_runtime_resume, NULL);
 
 static struct of_device_id pm828x_dt_ids[] = {
-	{.compatible = "bl,88pm828x",},
+	{.compatible = "marvell,88pm828x",},
 	{}
 };
 
