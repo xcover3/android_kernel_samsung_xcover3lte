@@ -60,6 +60,10 @@
 			clock-names = "axi_clk", "esc_clk", "disp1_clk_gate", "vdma_clk_gate";
 		};
 
+		smmu {	/* iommu in vpu */
+			status = "okay";
+		};
+
 		axi@d4200000 {	/* AXI */
 			dsi: dsi@d420b800 {
 				marvell,phy-name = "mmp_dsi1";

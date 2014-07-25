@@ -112,6 +112,20 @@
 			reg = <0xd1020000 0x10000>;	/* 64KB */
 		};
 
+		smmu {
+			compatible = "arm,mmu-400";
+			reg = <0xf0500000 0x10000>;
+			#global-interrupts = <1>;
+
+			/* we need a context intr
+			/* unless there is error
+			 */
+			interrupts = <0 34 4>,
+				     <0 34 4>;
+			pd_index = <1>;
+			mmu-masters = <&ion 0x0>;
+		};
+
 		axi@d4200000 {	/* AXI */
 			compatible = "arm,axi-bus", "simple-bus";
 			#address-cells = <1>;
