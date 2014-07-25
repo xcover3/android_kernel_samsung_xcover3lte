@@ -39,6 +39,7 @@
 #include "f_mtp.c"
 #include "f_accessory.c"
 #define USB_ETH_RNDIS y
+#define USB_FRNDIS_INCLUDED y
 #include "f_rndis.c"
 #include "rndis.c"
 #include "u_ether.c"

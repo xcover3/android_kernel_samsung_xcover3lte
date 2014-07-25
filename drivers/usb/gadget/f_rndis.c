@@ -675,6 +675,7 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	int			status;
 	struct usb_ep		*ep;
 
+#ifndef USB_FRNDIS_INCLUDED
 	struct f_rndis_opts *rndis_opts;
 
 	if (!can_support_rndis(c))
@@ -696,6 +697,7 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 			return status;
 		rndis_opts->bound = true;
 	}
+#endif
 
 	us = usb_gstrings_attach(cdev, rndis_strings,
 				 ARRAY_SIZE(rndis_string_defs));
@@ -780,6 +782,13 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 
 	rndis->port.open = rndis_open;
 	rndis->port.close = rndis_close;
+
+#ifdef USB_FRNDIS_INCLUDED
+	status = rndis_register(rndis_response_available, rndis);
+	if (status < 0)
+		goto fail;
+	rndis->config = status;
+#endif
 
 	rndis_set_param_medium(rndis->config, RNDIS_MEDIUM_802_3, 0);
 	rndis_set_host_mac(rndis->config, rndis->ethaddr);
