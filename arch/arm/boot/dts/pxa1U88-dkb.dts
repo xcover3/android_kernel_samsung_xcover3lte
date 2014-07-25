@@ -166,6 +166,14 @@
 					>;
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
+				touch_pins: touch_pins {
+					pinctrl-single,pins = <
+						GPIO72 0x0
+						GPIO75 0x0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
 				pm830_pmx_leds: pm830_pmx_leds {
 					pinctrl-single,pins = <
 						GPIO19 AF0	/* PA_EN */
@@ -193,6 +201,44 @@
 				pinctrl-1 = <&twsi1_pmx_gpio>;
 				i2c-gpio = <&gpio 87 0 &gpio 88 0>;
 				status = "okay";
+
+                                touch1: s3202@720p {
+                                        compatible = "synaptics,s3202-touch";
+                                        pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+                                        reg = <0x22>;
+                                        interrupt-parent = <&gpio>;
+                                        interrupts = <72 0x1>;
+                                        /* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+                                        synaptics,irq-flags =  <0x2002>;
+                                        synaptics,irq-gpios = <&gpio 72 0>;
+                                        synaptics,reset-gpios = <&gpio 75 0>;
+                                        synaptics,sensor_res_x = <720>;
+                                        synaptics,sensor_res_y = <1280>;
+                                        synaptics,sensor_max_x = <798>;
+                                        synaptics,sensor_max_y = <1392>;
+                                        synaptics,sensor_margin_x = <39>;
+                                        synaptics,sensor_margin_y = <0>;
+                                        avdd-supply = <&ldo10>;
+                                };
+
+                                touch2: s3202@1080p {
+                                        compatible = "synaptics,s3202-touch";
+                                        pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+                                        reg = <0x22>;
+                                        interrupt-parent = <&gpio>;
+                                        interrupts = <72 0x1>;
+                                        /* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+                                        synaptics,irq-flags =  <0x2002>;
+                                        synaptics,irq-gpios = <&gpio 72 0>;
+                                        synaptics,reset-gpios = <&gpio 75 0>;
+                                        synaptics,sensor_res_x = <1080>;
+                                        synaptics,sensor_res_y = <1920>;
+                                        synaptics,sensor_max_x = <1080>;
+                                        synaptics,sensor_max_y = <2070>;
+                                        synaptics,sensor_margin_x = <0>;
+                                        synaptics,sensor_margin_y = <0>;
+                                        avdd-supply = <&ldo10>;
+                                };
 			};
 			twsi2: i2c@d4037000 {
 				status = "okay";
