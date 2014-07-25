@@ -72,6 +72,9 @@
 #endif
 #endif
 
+/* map ripc status register 0xd403_d000 , need hold lock_for_ripc when touch it*/
+static void __iomem *ripc_hwlock;
+
 unsigned short seh_open_count;
 DEFINE_SPINLOCK(seh_init_lock);
 
@@ -165,24 +168,20 @@ static struct miscdevice ramfile_miscdev = {
 void reset_ripc_lock(void)
 {
 	unsigned long flags;
-	struct clk *ripc_clk = NULL;
-
-	if (!seh_dev) {
-		pr_info("seh is not enabled!\n");
-		return;
-	}
-	ripc_clk = seh_dev->ripc_clk;
-
-	if (!ripc_clk) {
-		pr_info("Can not get ripc clock!\n");
-		return;
-	}
 
 	spin_lock_irqsave(&lock_for_ripc, flags);
 	if (!mmp_hwlock_get_status()) {
-		/* reset RIPC lock */
-		clk_disable(ripc_clk);
-		clk_enable(ripc_clk);
+		/* below code is weird, but need it. if reading ripc_hwlock return
+		 * ture, it indicates that cp has held this lock, so we need free it. if
+		 * reading  ripc_hwlock return false, it indicates that we aquire
+		 * this lock, so we also need free it
+		 */
+		if (__raw_readl(ripc_hwlock)) {
+			/* write "1" to this register will free the resource */
+			__raw_writel(0x1, ripc_hwlock);
+		} else {
+			__raw_writel(0x1, ripc_hwlock);
+		}
 	}
 	spin_unlock_irqrestore(&lock_for_ripc, flags);
 }
@@ -403,12 +402,38 @@ int seh_api_ioctl_handler(unsigned long arg)
 	return 0;
 }
 
+
+int ripc_init(struct platform_device *pdev)
+{
+	struct resource *res;
+	int ret = 0;
+
+	/* iomap ripc register */
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!res) {
+		dev_err(&pdev->dev, "%s: no iomem defined\n", __func__);
+		ret = -ENOMEM;
+		goto out;
+	}
+	ripc_hwlock = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(ripc_hwlock)) {
+		dev_err(&pdev->dev, "ioremap ripc_hwlock failure\n");
+		ret = (int)PTR_ERR(ripc_hwlock);
+	}
+
+out:
+	return ret;
+}
+
 static int seh_probe(struct platform_device *dev)
 {
 	int ret;
-	struct clk *ripc_clk = NULL;
 
 	ENTER();
+
+	ret = ripc_init(dev);
+	if (ret < 0)
+		return ret;
 
 	if (cp_watchdog_probe(dev) < 0)
 		return -ENOENT;
@@ -448,18 +473,11 @@ static int seh_probe(struct platform_device *dev)
 	sema_init(&seh_dev->read_sem, 1);
 	sema_init(&seh_dev->ast_sem, 1);
 	seh_dev->dev = (struct device *)dev;
-	ripc_clk = clk_get(&dev->dev, NULL);
-	if (IS_ERR(ripc_clk)) {
-		ERRMSG("seh_probe: failed to get ripc clk\n");
-		ret = -EFAULT;
-		goto free_mem;
-	}
-	seh_dev->ripc_clk = ripc_clk;
 
 	ret = misc_register(&seh_miscdev);
 	if (ret) {
 		ERRMSG("seh_probe: failed to call misc_register\n");
-		goto free_clk;
+		goto free_mem;
 	}
 
 	wakeup_source_init(&seh_wakeup, "seh_wakeups");
@@ -479,8 +497,6 @@ static int seh_probe(struct platform_device *dev)
 dereg_misc:
 	misc_deregister(&seh_miscdev);
 	wakeup_source_trash(&seh_wakeup);
-free_clk:
-	clk_put(seh_dev->ripc_clk);
 free_mem:
 	kfree(seh_dev);
 free_workqueue:
@@ -1015,7 +1031,6 @@ static int seh_remove(struct platform_device *dev)
 		list_del(&m_curr->msg_list);
 		kfree(m_curr);
 	}
-	clk_put(seh_dev->ripc_clk);
 	kfree(seh_dev);
 	destroy_workqueue(seh_int_wq);
 	wakeup_source_trash(&seh_wakeup);

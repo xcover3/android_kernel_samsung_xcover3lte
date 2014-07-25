@@ -29,7 +29,6 @@ struct eeh_ast_list_struct {
 };
 
 struct seh_dev {
-	struct clk *ripc_clk;
 	struct list_head msg_head;
 	struct list_head ast_head;
 	struct device *dev;
