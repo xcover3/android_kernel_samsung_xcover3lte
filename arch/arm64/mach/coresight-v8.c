@@ -16,37 +16,50 @@
 #include <linux/percpu.h>
 #include <linux/of_address.h>
 
+#include <asm/cputype.h>
+#include <asm/smp_plat.h>
+
 #define EDITR		0x84
 #define EDSCR		0x88
 #define EDRCR		0x90
 
-#define EDPCSRlo	0xA0
-#define EDPCSRhi	0xAC
+#define EDPCSR_LO	0xA0
+#define EDPCSR_HI	0xAC
 #define EDPRSR		0x314
 #define EDLAR		0xFB0
 #define EDCIDR		0xFF0
 
-static void __iomem *debug_base;
-static void __iomem *cti_base;
+/*
+ * Each cluster may have it's own base address for coresight components,
+ * while cpu's inside a cluster are expected to occupy consequtive
+ * locations.
+ */
+#define NR_CLUS 2	/* max number of clusters supported */
+#define CLUSID(cpu)	(MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1))
+#define CPUID(cpu)	(MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0))
 
-#define DBG_REG(cpu, offset)	(debug_base + cpu * 0x2000 + offset)
-#define CTI_REG(cpu, offset)	(cti_base + cpu * 0x1000 + offset)
+static void __iomem *debug_base[NR_CLUS];
+static void __iomem *cti_base[NR_CLUS];
+
+#define DBG_BASE(cpu)	(debug_base[CLUSID(cpu)] + CPUID(cpu) * 0x2000)
+#define CTI_BASE(cpu)	(cti_base[CLUSID(cpu)] + CPUID(cpu) * 0x1000)
 
 void arch_enable_access(u32 cpu)
 {
-	writel(0xC5ACCE55, DBG_REG(cpu, EDLAR));
+	writel(0xC5ACCE55, DBG_BASE(cpu) + EDLAR);
 }
 
 void arch_dump_pcsr(u32 cpu)
 {
+	void __iomem *p_dbg_base = DBG_BASE(cpu);
 	u32 pcsrhi, pcsrlo;
 	u64 pcsr;
 	int i;
 
 	pr_emerg("=========== dump PCSR for cpu%d ===========\n", cpu);
 	for (i = 0; i < 8; i++) {
-		pcsrlo = readl_relaxed(DBG_REG(cpu, EDPCSRlo));
-		pcsrhi = readl_relaxed(DBG_REG(cpu, EDPCSRhi));
+		pcsrlo = readl_relaxed(p_dbg_base + EDPCSR_LO);
+		pcsrhi = readl_relaxed(p_dbg_base + EDPCSR_HI);
 		pcsr = pcsrhi;
 		pcsr = (pcsr << 32) | pcsrlo;
 		pr_emerg("PCSR of cpu%d is 0x%llx\n", cpu, pcsr);
@@ -66,35 +79,36 @@ void arch_dump_pcsr(u32 cpu)
 
 static inline void cti_enable_access(u32 cpu)
 {
-	writel(0xC5ACCE55, CTI_REG(cpu, CTI_LOCK));
+	writel(0xC5ACCE55, CTI_BASE(cpu) + CTI_LOCK);
 }
 
 int arch_halt_cpu(u32 cpu)
 {
 	u32 timeout, val;
-
+	void __iomem *p_dbg_base = DBG_BASE(cpu);
+	void __iomem *p_cti_base = CTI_BASE(cpu);
 	/* Enable Halt Debug mode */
-	val = readl(DBG_REG(cpu, EDSCR));
+	val = readl(p_dbg_base + EDSCR);
 	val |= (0x1 << 14);
-	writel(val, DBG_REG(cpu, EDSCR));
+	writel(val, p_dbg_base + EDSCR);
 
 	/* Enable CTI access */
 	cti_enable_access(cpu);
 
 	/* Enable CTI */
-	writel(0x1, CTI_REG(cpu, CTI_CTRL));
+	writel(0x1, p_cti_base + CTI_CTRL);
 
 	/* Set output channel0 */
-	val = readl(CTI_REG(cpu, CTI_OUT0EN)) | 0x1;
-	writel(val, CTI_REG(cpu, CTI_OUT0EN));
+	val = readl(p_cti_base + CTI_OUT0EN) | 0x1;
+	writel(val, p_cti_base + CTI_OUT0EN);
 
 	/* Trigger pulse event */
-	writel(0x1, CTI_REG(cpu, CTI_APP_PULSE));
+	writel(0x1, p_cti_base + CTI_APP_PULSE);
 
 	/* Wait the cpu halted */
 	timeout = 10000;
 	do {
-		val = readl(DBG_REG(cpu, EDPRSR));
+		val = readl(p_dbg_base + EDPRSR);
 		if (val & (0x1 << 4))
 			break;
 	} while (--timeout);
@@ -108,14 +122,15 @@ int arch_halt_cpu(u32 cpu)
 void arch_insert_inst(u32 cpu)
 {
 	u32 timeout, val;
+	void __iomem *p_dbg_base = DBG_BASE(cpu);
 
 	/* msr dlr_el0, xzr */
-	writel(0xD51B453F, DBG_REG(cpu, EDITR));
+	writel(0xD51B453F, p_dbg_base + EDITR);
 
 	/* Wait until the ITR become empty. */
 	timeout = 10000;
 	do {
-		val = readl(DBG_REG(cpu, EDSCR));
+		val = readl(p_dbg_base + EDSCR);
 		if (val & (0x1 << 24))
 			break;
 	} while (--timeout);
@@ -129,32 +144,34 @@ void arch_insert_inst(u32 cpu)
 void arch_restart_cpu(u32 cpu)
 {
 	u32 timeout, val;
+	void __iomem *p_dbg_base = DBG_BASE(cpu);
+	void __iomem *p_cti_base = CTI_BASE(cpu);
 
 	/* Disable Halt Debug Mode */
-	val = readl(DBG_REG(cpu, EDSCR));
+	val = readl(p_dbg_base + EDSCR);
 	val &= ~(0x1 << 14);
-	writel(val, DBG_REG(cpu, EDSCR));
+	writel(val, p_dbg_base + EDSCR);
 
 	/* Enable CTI access */
 	cti_enable_access(cpu);
 
 	/* Enable CTI */
-	writel(0x1, CTI_REG(cpu, CTI_CTRL));
+	writel(0x1, p_cti_base + CTI_CTRL);
 
 	/* ACK the outut event */
-	writel(0x1, CTI_REG(cpu, CTI_INTACK));
+	writel(0x1, p_cti_base + CTI_INTACK);
 
 	/* Set output channel1 */
-	val = readl(CTI_REG(cpu, CTI_OUT1EN)) | 0x2;
-	writel(val, CTI_REG(cpu, CTI_OUT1EN));
+	val = readl(p_cti_base + CTI_OUT1EN) | 0x2;
+	writel(val, p_cti_base + CTI_OUT1EN);
 
 	/* Trigger pulse event */
-	writel(0x2, CTI_REG(cpu, CTI_APP_PULSE));
+	writel(0x2, p_cti_base + CTI_APP_PULSE);
 
 	/* Wait the cpu become running */
 	timeout = 10000;
 	do {
-		val = readl(DBG_REG(cpu, EDPRSR));
+		val = readl(p_dbg_base + EDPRSR);
 		if (!(val & (0x1 << 4)))
 			break;
 	} while (--timeout);
@@ -164,16 +181,13 @@ void arch_restart_cpu(u32 cpu)
 }
 
 #ifdef CONFIG_CORESIGHT_TRACE_SUPPORT
-static void __iomem *etm_base;
-static void __iomem *local_etf_base;
+static void __iomem *etm_base[NR_CLUS];
+static void __iomem *local_etf_base[NR_CLUS];
+#define ETM_BASE(cpu) \
+			(etm_base[CLUSID(cpu)] + 0x1000 * CPUID(cpu))
 
-#define ETM_REG(offset)		(etm_base \
-				+ 0x1000 * raw_smp_processor_id() \
-				+ offset)
-
-#define LOCAL_ETF_REG(offset)	(local_etf_base \
-				+ 0x1000 * raw_smp_processor_id() \
-				+ offset)
+#define LOCAL_ETF_BASE(cpu) \
+			(local_etf_base[CLUSID(cpu)] + 0x1000 * CPUID(cpu))
 
 struct etm_info {
 	u32	trc_prgctl;	/* offset: 0x4 */
@@ -224,13 +238,13 @@ static DEFINE_PER_CPU(struct etm_info, cpu_etm_info);
 static inline void etm_enable_access(void)
 {
 	u32 timeout, val;
-
+	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
 	/*Unlock the software lock*/
-	writel_relaxed(0xC5ACCE55, ETM_REG(TRC_LAR));
+	writel_relaxed(0xC5ACCE55, p_etm_base + TRC_LAR);
 
 	timeout = 10000;
 	do {
-		val = readl_relaxed(ETM_REG(TRC_LSR));
+		val = readl_relaxed(p_etm_base + TRC_LSR);
 		if (!(val & (0x1 << 1)))
 			break;
 	} while (--timeout);
@@ -239,10 +253,10 @@ static inline void etm_enable_access(void)
 			raw_smp_processor_id());
 
 	/*Unlock the OS lock*/
-	writel_relaxed(0x0, ETM_REG(TRC_OSLAR));
+	writel_relaxed(0x0, p_etm_base + TRC_OSLAR);
 	timeout = 10000;
 	do {
-		val = readl_relaxed(ETM_REG(TRC_OSLSR));
+		val = readl_relaxed(p_etm_base + TRC_OSLSR);
 		if (!(val & (0x1 << 0)))
 			break;
 	} while (--timeout);
@@ -254,37 +268,39 @@ static inline void etm_enable_access(void)
 static void coresight_etm_save(void)
 {
 	struct etm_info *p_etm_info;
+	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
 
 	etm_enable_access();
 	p_etm_info = this_cpu_ptr(&cpu_etm_info);
-	p_etm_info->trc_config = readl_relaxed(ETM_REG(TRC_CONFIGR));
-	p_etm_info->trc_bbctl = readl_relaxed(ETM_REG(TRC_BBCTLR));
-	p_etm_info->trc_eventctl0 = readl_relaxed(ETM_REG(TRC_EVENTCTL0R));
-	p_etm_info->trc_eventctl1 = readl_relaxed(ETM_REG(TRC_EVENTCTL1R));
-	p_etm_info->trc_stallctl = readl_relaxed(ETM_REG(TRC_STALLCTLR));
-	p_etm_info->trc_syncpr = readl_relaxed(ETM_REG(TRC_SYNCPR));
-	p_etm_info->trc_traceid = readl_relaxed(ETM_REG(TRC_TRACEIDR));
-	p_etm_info->trc_tsctlr = readl_relaxed(ETM_REG(TRC_TSCTLR));
-	p_etm_info->trc_victlr = readl_relaxed(ETM_REG(TRC_VICTLR));
-	p_etm_info->trc_viiectl = readl_relaxed(ETM_REG(TRC_VIIECTLR));
-	p_etm_info->trc_vissctl = readl_relaxed(ETM_REG(TRC_VISSCTLR));
-	p_etm_info->trc_prgctl = readl_relaxed(ETM_REG(TRC_PRGCTLR));
+	p_etm_info->trc_config = readl_relaxed(p_etm_base + TRC_CONFIGR);
+	p_etm_info->trc_bbctl = readl_relaxed(p_etm_base + TRC_BBCTLR);
+	p_etm_info->trc_eventctl0 = readl_relaxed(p_etm_base + TRC_EVENTCTL0R);
+	p_etm_info->trc_eventctl1 = readl_relaxed(p_etm_base + TRC_EVENTCTL1R);
+	p_etm_info->trc_stallctl = readl_relaxed(p_etm_base + TRC_STALLCTLR);
+	p_etm_info->trc_syncpr = readl_relaxed(p_etm_base + TRC_SYNCPR);
+	p_etm_info->trc_traceid = readl_relaxed(p_etm_base + TRC_TRACEIDR);
+	p_etm_info->trc_tsctlr = readl_relaxed(p_etm_base + TRC_TSCTLR);
+	p_etm_info->trc_victlr = readl_relaxed(p_etm_base + TRC_VICTLR);
+	p_etm_info->trc_viiectl = readl_relaxed(p_etm_base + TRC_VIIECTLR);
+	p_etm_info->trc_vissctl = readl_relaxed(p_etm_base + TRC_VISSCTLR);
+	p_etm_info->trc_prgctl = readl_relaxed(p_etm_base + TRC_PRGCTLR);
 }
 
 static void coresight_etm_restore(void)
 {
 	struct etm_info *p_etm_info;
 	u32 timeout, val;
+	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
 
 	etm_enable_access();
 
-	if (readl_relaxed(ETM_REG(TRC_PRGCTLR)))
+	if (readl_relaxed(p_etm_base + TRC_PRGCTLR))
 		return;
 
 	/* Check the programmers' model is stable */
 	timeout = 10000;
 	do {
-		val = readl_relaxed(ETM_REG(TRC_STATR));
+		val = readl_relaxed(p_etm_base + TRC_STATR);
 		if (val & (0x1 << 1))
 			break;
 	} while (--timeout);
@@ -293,18 +309,18 @@ static void coresight_etm_restore(void)
 			raw_smp_processor_id());
 
 	p_etm_info = this_cpu_ptr(&cpu_etm_info);
-	writel_relaxed(p_etm_info->trc_config, ETM_REG(TRC_CONFIGR));
-	writel_relaxed(p_etm_info->trc_bbctl, ETM_REG(TRC_BBCTLR));
-	writel_relaxed(p_etm_info->trc_eventctl0, ETM_REG(TRC_EVENTCTL0R));
-	writel_relaxed(p_etm_info->trc_eventctl1, ETM_REG(TRC_EVENTCTL1R));
-	writel_relaxed(p_etm_info->trc_stallctl, ETM_REG(TRC_STALLCTLR));
-	writel_relaxed(p_etm_info->trc_syncpr, ETM_REG(TRC_SYNCPR));
-	writel_relaxed(p_etm_info->trc_traceid, ETM_REG(TRC_TRACEIDR));
-	writel_relaxed(p_etm_info->trc_tsctlr, ETM_REG(TRC_TSCTLR));
-	writel_relaxed(p_etm_info->trc_victlr, ETM_REG(TRC_VICTLR));
-	writel_relaxed(p_etm_info->trc_viiectl, ETM_REG(TRC_VIIECTLR));
-	writel_relaxed(p_etm_info->trc_vissctl, ETM_REG(TRC_VISSCTLR));
-	writel_relaxed(p_etm_info->trc_prgctl, ETM_REG(TRC_PRGCTLR));
+	writel_relaxed(p_etm_info->trc_config, p_etm_base + TRC_CONFIGR);
+	writel_relaxed(p_etm_info->trc_bbctl, p_etm_base + TRC_BBCTLR);
+	writel_relaxed(p_etm_info->trc_eventctl0, p_etm_base + TRC_EVENTCTL0R);
+	writel_relaxed(p_etm_info->trc_eventctl1, p_etm_base + TRC_EVENTCTL1R);
+	writel_relaxed(p_etm_info->trc_stallctl, p_etm_base + TRC_STALLCTLR);
+	writel_relaxed(p_etm_info->trc_syncpr, p_etm_base + TRC_SYNCPR);
+	writel_relaxed(p_etm_info->trc_traceid, p_etm_base + TRC_TRACEIDR);
+	writel_relaxed(p_etm_info->trc_tsctlr, p_etm_base + TRC_TSCTLR);
+	writel_relaxed(p_etm_info->trc_victlr, p_etm_base + TRC_VICTLR);
+	writel_relaxed(p_etm_info->trc_viiectl, p_etm_base + TRC_VIIECTLR);
+	writel_relaxed(p_etm_info->trc_vissctl, p_etm_base + TRC_VISSCTLR);
+	writel_relaxed(p_etm_info->trc_prgctl, p_etm_base + TRC_PRGCTLR);
 }
 
 static DEFINE_PER_CPU(struct etf_info, local_etf_info);
@@ -317,39 +333,43 @@ static DEFINE_PER_CPU(struct etf_info, local_etf_info);
 
 static inline void local_etf_enable_access(void)
 {
-	writel_relaxed(0xC5ACCE55, LOCAL_ETF_REG(TMC_LAR));
+	writel_relaxed(0xC5ACCE55,
+		LOCAL_ETF_BASE(raw_smp_processor_id()) + TMC_LAR);
 }
 
 static inline void local_etf_disable_access(void)
 {
-	writel_relaxed(0x0, LOCAL_ETF_REG(TMC_LAR));
+	writel_relaxed(0x0,
+		LOCAL_ETF_BASE(raw_smp_processor_id()) + TMC_LAR);
 }
 
 static void coresight_local_etf_save(void)
 {
 	struct etf_info *p_local_etf_info;
+	void __iomem *local_etb = LOCAL_ETF_BASE(raw_smp_processor_id());
 	p_local_etf_info = this_cpu_ptr(&local_etf_info);
 
 	local_etf_enable_access();
-	p_local_etf_info->etf_mode = readl_relaxed(LOCAL_ETF_REG(TMC_MODE));
-	p_local_etf_info->etf_ffcr = readl_relaxed(LOCAL_ETF_REG(TMC_FFCR));
-	p_local_etf_info->etf_ctrl = readl_relaxed(LOCAL_ETF_REG(TMC_CTL));
+	p_local_etf_info->etf_mode = readl_relaxed(local_etb + TMC_MODE);
+	p_local_etf_info->etf_ffcr = readl_relaxed(local_etb + TMC_FFCR);
+	p_local_etf_info->etf_ctrl = readl_relaxed(local_etb + TMC_CTL);
 	local_etf_disable_access();
 }
 
 static void coresight_local_etf_restore(void)
 {
 	struct etf_info *p_local_etf_info;
+	void __iomem *local_etb = LOCAL_ETF_BASE(raw_smp_processor_id());
 	p_local_etf_info = this_cpu_ptr(&local_etf_info);
 
 	local_etf_enable_access();
-	if (!readl_relaxed(LOCAL_ETF_REG(TMC_CTL))) {
+	if (!readl_relaxed(local_etb + TMC_CTL)) {
 		writel_relaxed(p_local_etf_info->etf_mode,
-				LOCAL_ETF_REG(TMC_MODE));
+				local_etb + TMC_MODE);
 		writel_relaxed(p_local_etf_info->etf_ffcr,
-				LOCAL_ETF_REG(TMC_FFCR));
+				local_etb + TMC_FFCR);
 		writel_relaxed(p_local_etf_info->etf_ctrl,
-				LOCAL_ETF_REG(TMC_CTL));
+				local_etb + TMC_CTL);
 	}
 	local_etf_disable_access();
 }
@@ -361,7 +381,7 @@ static void __init coresight_mp_init(u32 enable_mask)
 
 static void __init coresight_local_etb_init(u32 cpu)
 {
-	void __iomem *local_etb = local_etf_base + 0x1000 * cpu;
+	void __iomem *local_etb = LOCAL_ETF_BASE(cpu);
 
 	writel_relaxed(0xC5ACCE55, local_etb + TMC_LAR);
 	writel_relaxed(0x0, local_etb + TMC_MODE);
@@ -372,7 +392,7 @@ static void __init coresight_local_etb_init(u32 cpu)
 
 static void __init coresight_etm_enable(u32 cpu)
 {
-	void __iomem *p_etm_base = etm_base + cpu * 0x1000;
+	void __iomem *p_etm_base = ETM_BASE(cpu);
 	u32 timeout, val;
 
 	/*Unlock the software lock*/
@@ -454,11 +474,12 @@ static int __init coresight_parse_trace_dt(void)
 		return -ENODEV;
 	}
 
-	etm_base = of_iomap(node, 0);
-	if (!etm_base) {
+	etm_base[0] = of_iomap(node, 0);
+	if (!etm_base[0]) {
 		pr_err("Failed to map coresight etm register\n");
 		return -ENOMEM;
 	}
+	etm_base[1] = of_iomap(node, 1); /* NULL in 1-cluster config */
 
 	node = of_find_compatible_node(NULL, NULL, "marvell,coresight-letb");
 	if (!node) {
@@ -466,12 +487,12 @@ static int __init coresight_parse_trace_dt(void)
 		return -ENODEV;
 	}
 
-	local_etf_base = of_iomap(node, 0);
-	if (!local_etf_base) {
+	local_etf_base[0] = of_iomap(node, 0);
+	if (!local_etf_base[0]) {
 		pr_err("Failed to map coresight local etf register\n");
 		return -ENOMEM;
 	}
-
+	local_etf_base[1] = of_iomap(node, 1); /* NULL in 1-cluster config */
 	return 0;
 }
 
@@ -531,6 +552,11 @@ void arch_restore_mpinfo(void)
 
 static int __init coresight_parse_dbg_dt(void)
 {
+	/*
+	 * Should we check if dtb defines two coresight properties
+	 * in two cluster configuration? For now just try of_iomap(, 1)
+	 * and silently assume 1-cluster configuration if this fails.
+	 */
 	struct device_node *node;
 
 	node = of_find_compatible_node(NULL, NULL, "marvell,coresight-dbg");
@@ -539,11 +565,12 @@ static int __init coresight_parse_dbg_dt(void)
 		return -ENODEV;
 	}
 
-	debug_base = of_iomap(node, 0);
-	if (!debug_base) {
+	debug_base[0] = of_iomap(node, 0);
+	if (!debug_base[0]) {
 		pr_err("Failed to map coresight debug register\n");
 		return -ENOMEM;
 	}
+	debug_base[1] = of_iomap(node, 1); /* NULL in 1-cluster config */
 
 	node = of_find_compatible_node(NULL, NULL, "marvell,coresight-cti");
 	if (!node) {
@@ -551,12 +578,12 @@ static int __init coresight_parse_dbg_dt(void)
 		return -ENODEV;
 	}
 
-	cti_base = of_iomap(node, 0);
-	if (!cti_base) {
+	cti_base[0] = of_iomap(node, 0);
+	if (!cti_base[0]) {
 		pr_err("Failed to map coresight cti register\n");
 		return -ENOMEM;
 	}
-
+	cti_base[1] = of_iomap(node, 1); /* NULL in 1-cluster config */
 	return 0;
 }
 
