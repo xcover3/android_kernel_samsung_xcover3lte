@@ -10,6 +10,7 @@
 #include "clk.h"
 #include "clk-pll-helanx.h"
 #include "clk-core-helanx.h"
+#include "clk-plat.h"
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -1066,5 +1067,9 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 	pxa1U88_apb_periph_clk_init(pxa_unit);
 
 	pxa1U88_axi_periph_clk_init(pxa_unit);
+
+#if defined(CONFIG_PXA_DVFS) && defined(CONFIG_CPU_PXA988)
+	setup_pxa1u88_dvfs_platinfo();
+#endif
 }
 CLK_OF_DECLARE(pxa1U88_clk, "marvell,pxa1U88-clock", pxa1U88_clk_init);
