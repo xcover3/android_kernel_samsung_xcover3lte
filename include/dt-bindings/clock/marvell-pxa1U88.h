@@ -51,6 +51,7 @@
 #define PXA1U88_CLK_DBGCLK		74
 #define PXA1U88_CLK_TRACECLK		75
 #define PXA1U88_CLK_THERMAL		76
+#define PXA1U88_CLK_SWJTAG		77
 
 /* axi periphrals */
 #define PXA1U88_CLK_USB			100

@@ -331,6 +331,10 @@
 				i2c-gpio = <&gpio 73 0 &gpio 74 0>;
 				status = "okay";
 			};
+
+			swjtag: swjtag@d4013100 {
+				status = "okay";
+			};
 		};
 
                 /*

@@ -27,6 +27,7 @@
 #define APBC_PWM3		0x18
 #define APBC_SSP0		0x1c
 #define APBC_SSP1		0x20
+#define APBC_SWJTAG		0x40
 #define APBC_SSP2		0x4c
 #define APBC_TERMAL		0x6c
 
@@ -395,6 +396,11 @@ static void pxa1U88_apb_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				pxa_unit->apbcp_base + APBCP_UART2,
 				0x7, 0x3, 0x0, 0, &uart2_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_UART2, clk);
+
+	clk = mmp_clk_register_apbc("swjtag", NULL,
+				pxa_unit->apbc_base + APBC_SWJTAG,
+				10, 0, NULL);
+	mmp_clk_add(unit, PXA1U88_CLK_SWJTAG, clk);
 
 #ifdef CONFIG_CORESIGHT_SUPPORT
 	pxa1U88_coresight_clk_init(pxa_unit);

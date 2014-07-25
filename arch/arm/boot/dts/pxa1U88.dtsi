@@ -438,6 +438,12 @@
 					status = "disabled";
 				};
 			};
+
+			swjtag: swjtag@d4013100 {
+				compatible = "marvell,sw-jtag";
+				reg = <0xd4013100 0x10>;
+				status = "disabled";
+			};
 		};
 	};
 
