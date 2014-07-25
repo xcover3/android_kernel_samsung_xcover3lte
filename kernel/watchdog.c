@@ -28,6 +28,7 @@
 #include <asm/irq_regs.h>
 #include <linux/kvm_para.h>
 #include <linux/perf_event.h>
+#include <linux/arm-coresight.h>
 
 int watchdog_user_enabled = 1;
 int __read_mostly watchdog_thresh = 10;
@@ -52,6 +53,8 @@ static cpumask_t __read_mostly watchdog_cpus;
 #ifdef CONFIG_HARDLOCKUP_DETECTOR_NMI
 static DEFINE_PER_CPU(struct perf_event *, watchdog_ev);
 #endif
+
+static void watchdog_disable_all_cpus(void);
 
 /* boot commands */
 /*
@@ -253,11 +256,20 @@ static void watchdog_check_hardlockup_other_cpu(void)
 		if (per_cpu(hard_watchdog_warn, next_cpu) == true)
 			return;
 
+#ifdef CONFIG_CORESIGHT_SUPPORT
+		pr_emerg("BUG: CPU%d detected hard LOCKUP on CPU%d\n"
+			"will trigger panic on CPU%d via coresight\n",
+			smp_processor_id(), next_cpu, next_cpu);
+
+		coresight_trigger_panic(next_cpu);
+		watchdog_disable_all_cpus();
+#else
+
 		if (hardlockup_panic)
 			panic("Watchdog detected hard LOCKUP on cpu %u", next_cpu);
 		else
 			WARN(1, "Watchdog detected hard LOCKUP on cpu %u", next_cpu);
-
+#endif
 		per_cpu(hard_watchdog_warn, next_cpu) = true;
 	} else {
 		per_cpu(hard_watchdog_warn, next_cpu) = false;
