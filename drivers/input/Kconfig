@@ -183,6 +183,11 @@ config INPUT_KEYRESET
 	  To compile this driver as a module, choose M here: the
 	  module will be called keyreset.
 
+config BOOST_SUPPORT
+	bool "support input boost feature"
+	help
+	  Enables support input boost feature.
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"
