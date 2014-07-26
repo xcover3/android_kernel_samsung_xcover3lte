@@ -897,10 +897,9 @@ static void portq_tx_worker(struct work_struct *work)
 			/* acquire queue lock first */
 			spin_lock(&portq->lock);
 
-			if (portq_is_ap_xmit_throttled(portq)) {
-				/*
-				 * port throttled by CP, skip this queue
-				 */
+			if (portq_is_ap_xmit_throttled(portq)
+					|| skb_queue_empty(&portq->tx_q)) {
+				/* skip this queue */
 				spin_unlock(&portq->lock);
 				continue;
 			}
