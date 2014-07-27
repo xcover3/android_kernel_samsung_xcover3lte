@@ -15,6 +15,33 @@ config PRINTK_TIME
 	  The behavior is also controlled by the kernel command line
 	  parameter printk.time=1. See Documentation/kernel-parameters.txt
 
+config PRINTK_CPU_ID
+	bool "Show cpu id on printks"
+	depends on PRINTK && SMP
+	help
+	  Selecting this option causes current printk cpu id to be
+	  included in printk output. Or add printk.cpu=1 at boot-time.
+	  This allows you to see the running cpu id with kernel log.
+	  See Documentation/kernel-parameters.txt
+
+config PRINTK_PID
+	bool "Show pid on printks"
+	depends on PRINTK
+	help
+	  Selecting this option causes current task's pid to be
+	  included in printk output. Or add printk.pid=1 at boot-time.
+	  This allows you to see the running process id with kernel log.
+	  See Documentation/kernel-parameters.txt
+
+config PRINTK_COMM
+	bool "Show comm on printks"
+	depends on PRINTK
+	help
+	  Selecting this option causes current task's comm to be
+	  included in printk output. Or add printk.comm=1 at boot-time.
+	  This allows you to see the running process name with kernel log.
+	  See Documentation/kernel-parameters.txt
+
 config DEFAULT_MESSAGE_LOGLEVEL
 	int "Default message log level (1-7)"
 	range 1 7

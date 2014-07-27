@@ -304,6 +304,27 @@ static u32 log_next(u32 idx)
 	return idx + msg->len;
 }
 
+#if defined(CONFIG_PRINTK_CPU_ID)
+static bool printk_cpu_id = 1;
+#else
+static bool printk_cpu_id;
+#endif
+module_param_named(cpu, printk_cpu_id, bool, S_IRUGO | S_IWUSR);
+
+#if defined(CONFIG_PRINTK_PID)
+static bool printk_pid = 1;
+#else
+static bool printk_pid;
+#endif
+module_param_named(pid, printk_pid, bool, S_IRUGO | S_IWUSR);
+
+#if defined(CONFIG_PRINTK_COMM)
+static bool printk_comm = 1;
+#else
+static bool printk_comm;
+#endif
+module_param_named(comm, printk_comm, bool, S_IRUGO | S_IWUSR);
+
 /* insert record into the buffer, discard old ones, update heads */
 static void log_store(int facility, int level,
 		      enum log_flags flags, u64 ts_nsec,
@@ -311,10 +332,20 @@ static void log_store(int facility, int level,
 		      const char *text, u16 text_len)
 {
 	struct printk_log *msg;
-	u32 size, pad_len;
+	u32 size, pad_len, prefix_len = 0;
+	char prefix[TASK_COMM_LEN + 20];
+
+	if (printk_cpu_id)
+		prefix_len += sprintf(prefix, "c%u ", smp_processor_id());
+	if (printk_pid)
+		prefix_len += sprintf(prefix+prefix_len, "%u ",
+				task_pid_nr(current));
+	if (printk_comm)
+		prefix_len += sprintf(prefix+prefix_len, "(%s) ",
+				current->comm);
 
 	/* number of '\0' padding bytes to next message */
-	size = sizeof(struct printk_log) + text_len + dict_len;
+	size = sizeof(struct printk_log) + prefix_len + text_len + dict_len;
 	pad_len = (-size) & (LOG_ALIGN - 1);
 	size += pad_len;
 
@@ -346,8 +377,10 @@ static void log_store(int facility, int level,
 
 	/* fill message */
 	msg = (struct printk_log *)(log_buf + log_next_idx);
-	memcpy(log_text(msg), text, text_len);
-	msg->text_len = text_len;
+	if (prefix_len)
+		memcpy(log_text(msg), prefix, prefix_len);
+	memcpy(log_text(msg) + prefix_len, text, text_len);
+	msg->text_len = prefix_len + text_len;
 	memcpy(log_dict(msg), dict, dict_len);
 	msg->dict_len = dict_len;
 	msg->facility = facility;
@@ -358,7 +391,7 @@ static void log_store(int facility, int level,
 	else
 		msg->ts_nsec = local_clock();
 	memset(log_dict(msg) + dict_len, 0, pad_len);
-	msg->len = sizeof(struct printk_log) + text_len + dict_len + pad_len;
+	msg->len = sizeof(struct printk_log) + msg->text_len + dict_len + pad_len;
 
 	/* insert message */
 	log_next_idx += msg->len;
