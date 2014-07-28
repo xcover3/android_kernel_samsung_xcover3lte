@@ -235,13 +235,6 @@ static const struct file_operations clk_dump_fops = {
 	.release	= single_release,
 };
 
-
-static int clk_rate_open(struct inode *inode, struct file *filp)
-{
-	filp->private_data = inode->i_private;
-	return 0;
-}
-
 static ssize_t
 clk_getrate_read(struct file *filp, char __user *ubuf, size_t cnt,
 		loff_t *ppos)
@@ -285,16 +278,10 @@ clk_setrate_write(struct file *filp, const char __user *ubuf, size_t cnt,
 
 
 static const struct file_operations clk_rate_fops = {
-	.open = clk_rate_open,
+	.open = simple_open,
 	.read = clk_getrate_read,
 	.write = clk_setrate_write,
 };
-
-static int clk_enable_open(struct inode *inode, struct file *filp)
-{
-	filp->private_data = inode->i_private;
-	return 0;
-}
 
 static ssize_t
 clk_enable_read(struct file *filp, char __user *ubuf, size_t cnt,
@@ -346,7 +333,7 @@ clk_enable_write(struct file *filp, const char __user *ubuf, size_t cnt,
 }
 
 static const struct file_operations clk_enable_fops = {
-	.open = clk_enable_open,
+	.open = simple_open,
 	.read = clk_enable_read,
 	.write = clk_enable_write,
 };
@@ -367,7 +354,7 @@ static int clk_debug_create_one(struct clk *clk, struct dentry *pdentry)
 		goto out;
 
 	clk->dentry = d;
-	if (clk->ops->set_rate)
+	if (clk->ops->set_rate || (clk->flags & CLK_SET_RATE_PARENT))
 		d = debugfs_create_file("clk_rate", 0644, clk->dentry,
 				(void *)clk, &clk_rate_fops);
 	else
