@@ -91,6 +91,13 @@
 #define GATE_CTRL_SHIFT_PLL5	(28)
 #define GATE_CTRL_SHIFT_PLL6	(30)
 #define GATE_CTRL_SHIFT_PLL7	(16)
+
+#define MPMU_SC2_ISIM1_CLK_CR 0x1140
+#define MPMU_SC2_ISIM2_CLK_CR 0x1144
+#define APMU_ISP_RSTCTRL    (0x1E0)
+#define APMU_ISP_CLKCTRL    (0x1E4)
+#define APMU_ISP_CLKCTRL2   (0x1E8)
+
 #define APMU_DISP_RST_CTRL	(0x180)
 #define APMU_DISP_CLK_CTRL	(0x184)
 #define APMU_DISP_CLK_CTRL2	(0x188)
@@ -470,6 +477,133 @@ static struct mmp_clk_mix_config disp_axi_mix_config = {
 	.div_flags = CLK_DIVIDER_ONE_BASED,
 };
 
+static DEFINE_SPINLOCK(sc2_lock);
+static const char *sc2_mclk_parent_names[] = {"pll1_2", "vctcxo"};
+static int sc2_mclk_mux_table[] = {0x0, 0x1};
+static struct mmp_clk_mix_config sc2_mclk_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(16, 2, 1, 0, 32),
+	.mux_table = sc2_mclk_mux_table,
+	.div_flags = CLK_DIVIDER_ONE_BASED,
+};
+static const char *sc2_csi_4x_parent_names[] = {"pll1_624", "pll1_416"};
+static int sc2_csi_4x_mux_table[] = {0x0, 0x2};
+static struct mmp_clk_mix_config sc2_csi_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 0, 3, 4, 9),
+	.mux_table = sc2_csi_4x_mux_table,
+	.div_flags = CLK_DIVIDER_ONE_BASED,
+};
+static struct mmp_clk_mix_config sc2_4x_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 0, 3, 4, 9),
+	.mux_table = sc2_csi_4x_mux_table,
+	.div_flags = CLK_DIVIDER_ONE_BASED,
+};
+static const char *sc2_clk_parent_names[] = {"pll1_2", "pll1_416"};
+static int sc2_clk_mux_table[] = {0x0, 0x2};
+static struct mmp_clk_mix_config sc2_axi_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 8, 3, 12, 9),
+	.mux_table = sc2_clk_mux_table,
+	.div_flags = CLK_DIVIDER_ONE_BASED,
+};
+static struct mmp_clk_mix_config isp_pipe_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 16, 3, 20, 9),
+	.mux_table = sc2_clk_mux_table,
+	.div_flags = CLK_DIVIDER_ONE_BASED,
+};
+static struct mmp_clk_mix_config isp_core_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(4, 24, 3, 28, 9),
+	.mux_table = sc2_clk_mux_table,
+	.div_flags = CLK_DIVIDER_ONE_BASED,
+};
+
+static void __init pxa1928_sc2_clk_init(struct pxa1928_clk_unit *pxa_unit)
+{
+	struct clk *clk;
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
+
+	sc2_mclk_mix_config.reg_info.reg_clk_ctrl =
+		pxa_unit->mpmu_base + MPMU_SC2_ISIM1_CLK_CR;
+	clk = mmp_clk_register_mix(NULL, "sc2_mclk1_clk",
+				sc2_mclk_parent_names,
+				ARRAY_SIZE(sc2_mclk_parent_names),
+				0,
+				&sc2_mclk_mix_config, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_MCLK1_CLK, clk);
+
+	sc2_mclk_mix_config.reg_info.reg_clk_ctrl =
+		pxa_unit->apmu_base + MPMU_SC2_ISIM2_CLK_CR;
+	clk = mmp_clk_register_mix(NULL, "sc2_mclk2_clk",
+				sc2_mclk_parent_names,
+				ARRAY_SIZE(sc2_mclk_parent_names),
+				0,
+				&sc2_mclk_mix_config, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_MCLK2_CLK, clk);
+
+	sc2_csi_mix_config.reg_info.reg_clk_ctrl =
+		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
+	sc2_csi_mix_config.reg_info.reg_clk_sel =
+		pxa_unit->apmu_base + APMU_ISP_CLKCTRL2;
+	clk = mmp_clk_register_mix(NULL, "sc2_csi_clk",
+				sc2_csi_4x_parent_names,
+				ARRAY_SIZE(sc2_csi_4x_parent_names),
+				CLK_SET_RATE_PARENT,
+				&sc2_csi_mix_config, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_CSI_MIX_CLK, clk);
+
+	sc2_4x_mix_config.reg_info.reg_clk_ctrl =
+		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
+	sc2_4x_mix_config.reg_info.reg_clk_sel =
+		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
+	clk = mmp_clk_register_mix(NULL, "sc2_4x_clk",
+				sc2_csi_4x_parent_names,
+				ARRAY_SIZE(sc2_csi_4x_parent_names),
+				CLK_SET_RATE_PARENT,
+				&sc2_4x_mix_config, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_4X_MIX_CLK, clk);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_dphy2ln_clk", NULL, 0,
+				pxa_unit->apmu_base + APMU_ISP_CLKCTRL2,
+				0x200, 0x200, 0x0, 0, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_DPHY2LN_CLK, clk);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_dphy4ln_clk", NULL, 0,
+				pxa_unit->apmu_base + APMU_ISP_CLKCTRL2,
+				0x200, 0x200, 0x0, 0, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_DPHY4LN_CLK, clk);
+
+	sc2_axi_mix_config.reg_info.reg_clk_ctrl =
+		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
+	sc2_axi_mix_config.reg_info.reg_clk_sel =
+		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
+	clk = mmp_clk_register_mix(NULL, "sc2_axi_clk",
+				sc2_clk_parent_names,
+				ARRAY_SIZE(sc2_clk_parent_names),
+				CLK_SET_RATE_PARENT,
+				&sc2_axi_mix_config, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_AXI_MIX_CLK, clk);
+
+	isp_pipe_mix_config.reg_info.reg_clk_ctrl =
+		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
+	isp_pipe_mix_config.reg_info.reg_clk_sel =
+		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
+	clk = mmp_clk_register_mix(NULL, "isp_pipe_clk",
+				sc2_clk_parent_names,
+				ARRAY_SIZE(sc2_clk_parent_names),
+				CLK_SET_RATE_PARENT,
+				&isp_pipe_mix_config, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_ISP_PIPE_MIX_CLK, clk);
+
+	isp_core_mix_config.reg_info.reg_clk_ctrl =
+		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
+	isp_core_mix_config.reg_info.reg_clk_sel =
+		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
+	clk = mmp_clk_register_mix(NULL, "isp_core_clk",
+				sc2_clk_parent_names,
+				ARRAY_SIZE(sc2_clk_parent_names),
+				CLK_SET_RATE_PARENT,
+				&isp_core_mix_config, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_ISP_CORE_MIX_CLK, clk);
+}
+
 static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -503,6 +637,8 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_SDH2,
 				0x1b, 0x1b, 0x0, 0, NULL);
 	mmp_clk_add(unit, PXA1928_CLK_SDH2, clk);
+
+	pxa1928_sc2_clk_init(pxa_unit);
 
 	clk = clk_register_mux(NULL, "disp1_sel_clk", disp1_parent_names,
 				ARRAY_SIZE(disp1_parent_names),
