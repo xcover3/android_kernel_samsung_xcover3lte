@@ -67,6 +67,9 @@
 
 #define SDHCI_QUIRK_INVERTED_WRITE_PROTECT              (1<<16)
 
+/* some SD host need to set IO capability by SOC part register */
+#define SDHCI_QUIRK2_SET_AIB_MMC			(1<<14)
+
 /* for SDIO card */
 /* Controller must enable clock gate by software during CMDs */
 #define SDHCI_QUIRK2_SDIO_SW_CLK_GATE			(1<<13)

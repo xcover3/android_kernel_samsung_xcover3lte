@@ -76,6 +76,13 @@
 #define SD_RX_CFG_REG			0x114
 #define SD_TX_CFG_REG			0x118
 
+#define AIB_MMC1_IO_REG         0xD401E81C
+#define AKEY_ASFAR	0xbaba
+#define AKEY_ASSAR	0xeb10
+#define MMC1_PAD_1V8            (0x1 << 2)
+#define MMC1_PAD_3V3            (0x0 << 2)
+#define MMC1_PAD_MASK           (0x3 << 2)
+
 /* pxav3_regdata_v1: pxa988/pxa1088/pxa1L88 */
 static struct sdhci_regdata pxav3_regdata_v1 = {
 	.TX_DELAY_MASK = 0x1FF,
@@ -292,6 +299,69 @@ static int pxav3_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
 	return 0;
 }
 
+static void set_mmc1_aib(struct sdhci_host *host, int vol)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	u32 tmp;
+	void __iomem *aib_mmc1_io;
+	void __iomem *apbc_asfar;
+
+	aib_mmc1_io = ioremap(AIB_MMC1_IO_REG, 4);
+	apbc_asfar = ioremap(regdata->APBC_ASFAR, 8);
+
+	writel(AKEY_ASFAR, apbc_asfar);
+	writel(AKEY_ASSAR, apbc_asfar + 4);
+	tmp = readl(aib_mmc1_io);
+
+	/* 0= power down, only set power down when vol = 0 */
+	tmp |= regdata->PAD_POWERDOWNn;
+
+	tmp &= ~MMC1_PAD_MASK;
+	if (vol >= 2800000)
+		tmp |= MMC1_PAD_3V3;
+	else if (vol >= 2300000)
+		tmp |= regdata->MMC1_PAD_2V5;
+	else if (vol >= 1200000)
+		tmp |= MMC1_PAD_1V8;
+	else if (vol == 0)
+		tmp &= ~regdata->PAD_POWERDOWNn;
+
+	writel(AKEY_ASFAR, apbc_asfar);
+	writel(AKEY_ASSAR, apbc_asfar + 4);
+	writel(tmp, aib_mmc1_io);
+
+	iounmap(apbc_asfar);
+	iounmap(aib_mmc1_io);
+}
+
+static void pxav3_signal_vol_change(struct sdhci_host *host, u8 vol)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	unsigned int set = 0;
+
+	if (!pdata || !(pdata->quirks2 & SDHCI_QUIRK2_SET_AIB_MMC))
+		return;
+
+	switch (vol) {
+	case MMC_SIGNAL_VOLTAGE_330:
+		set = 3300000;
+		break;
+	case MMC_SIGNAL_VOLTAGE_180:
+		set = 1800000;
+		break;
+	case MMC_SIGNAL_VOLTAGE_120:
+		set = 1200000;
+		break;
+	default:
+		set = 3300000;
+		break;
+	}
+	set_mmc1_aib(host, set);
+}
+
 /*
  * remove the caps that supported by the controller but not available
  * for certain platforms.
@@ -313,6 +383,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.clk_prepare = pxav3_clk_prepare,
+	.signal_vol_change = pxav3_signal_vol_change,
 	.clk_gate_auto  = pxav3_clk_gate_auto,
 	.host_caps_disable = pxav3_host_caps_disable,
 };

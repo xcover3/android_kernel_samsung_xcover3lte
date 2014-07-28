@@ -108,6 +108,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_BUS_CLK_GATE_ENABLED		(1<<12)
 /* Controller must enable clock gate by software during CMDs */
 #define SDHCI_QUIRK2_SDIO_SW_CLK_GATE			(1<<13)
+/* some SD host need to set IO capability by SOC part register */
+#define SDHCI_QUIRK2_SET_AIB_MMC			(1<<14)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
