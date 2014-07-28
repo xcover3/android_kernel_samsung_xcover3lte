@@ -222,6 +222,7 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4017000 0x1000>;
 				interrupts = <0 27 0x4>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_UART0>;
 			};
 

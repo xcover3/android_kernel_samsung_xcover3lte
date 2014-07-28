@@ -59,6 +59,13 @@
 				status = "okay";
 			};
 
+			uart0: uart@d4017000 {
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&uart0_pmx_func1 &uart0_pmx_func2>;
+				pinctrl-1 = <&uart0_pmx_func1_sleep &uart0_pmx_func2>;
+				edge-wakeup-gpio = <47>; /* GPIO47: UART rx pin */
+			};
+
 			keypad: keypad@d4012000 {
 				marvell,direct-keys;
 				marvell,direct-key-low-active;
@@ -192,6 +199,27 @@
 						GPIO31 AF0	/* BAT_DET */
 					>;
 					MFP_LPM_PULL_DW;
+				};
+
+				uart0_pmx_func1: uart0_pmx_func1 {
+					pinctrl-single,pins = <
+						GPIO47 AF6
+					>;
+					MFP_DEFAULT;
+				};
+
+				uart0_pmx_func2: uart0_pmx_func2 {
+					pinctrl-single,pins = <
+						GPIO48 AF6
+					>;
+					MFP_DEFAULT;
+				};
+
+				uart0_pmx_func1_sleep: uart0_pmx_func1_sleep {
+					pinctrl-single,pins = <
+						GPIO47 AF6
+					>;
+					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
 			};
 			twsi0: i2c@d4011000 {
