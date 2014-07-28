@@ -431,16 +431,15 @@ static int var_update(struct fb_info *info)
 		dev_err(fbi->dev, "set par: no match mode, use best mode\n");
 		m = (struct fb_videomode *)fb_find_best_mode(var,
 				&info->modelist);
-		fb_videomode_to_var(var, m);
+		if (m)
+			fb_videomode_to_var(var, m);
 	}
 	memcpy(&fbi->mode, m, sizeof(struct fb_videomode));
 
-	/* fix to 2* yres */
-	var->yres_virtual = var->yres * fbi->buffer_num;
 	info->fix.visual = (pix_fmt == PIXFMT_PSEUDOCOLOR) ?
 		FB_VISUAL_PSEUDOCOLOR : FB_VISUAL_TRUECOLOR;
 	info->fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
-	info->fix.ypanstep = var->yres;
+	info->fix.ypanstep = 1;
 	return 0;
 }
 
@@ -593,7 +592,7 @@ static int fb_info_setup(struct fb_info *info,
 	info->fix.type = FB_TYPE_PACKED_PIXELS;
 	info->fix.type_aux = 0;
 	info->fix.xpanstep = 0;
-	info->fix.ypanstep = info->var.yres;
+	info->fix.ypanstep = 1;
 	info->fix.ywrapstep = 0;
 	info->fix.accel = FB_ACCEL_NONE;
 	info->fix.smem_start = fbi->fb_start_dma;
@@ -753,8 +752,9 @@ static int mmpfb_probe(struct platform_device *pdev)
 	 * or use default size
 	 */
 	if (modes_num > 0) {
-		/* fix to 2* yres */
-		info->var.yres_virtual = info->var.yres * fbi->buffer_num;
+		info->var.xres_virtual = MMP_XALIGN(info->var.xres);
+		info->var.yres_virtual = MMP_YALIGN(info->var.yres)
+			* fbi->buffer_num;
 
 		/* Allocate framebuffer memory: size = modes xy *4 */
 		fbi->fb_size = info->var.xres_virtual * info->var.yres_virtual

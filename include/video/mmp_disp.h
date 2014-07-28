@@ -23,6 +23,9 @@
 #ifndef _MMP_DISP_H_
 #define _MMP_DISP_H_
 
+#define MMP_XALIGN(x) ALIGN(x, 16)
+#define MMP_YALIGN(x) ALIGN(x, 4)
+
 enum {
 	PIXFMT_UYVY = 0,
 	PIXFMT_VYUY,
@@ -687,6 +690,8 @@ extern struct mmp_path *mmp_register_path(
 extern void mmp_unregister_path(struct mmp_path *path);
 extern void mmp_register_panel(struct mmp_panel *panel);
 extern void mmp_unregister_panel(struct mmp_panel *panel);
+extern void mmp_reserve_fbmem(void);
+extern char *mmp_get_paneltype(void);
 
 enum {
 	PN_VID = 0,
@@ -697,6 +702,8 @@ enum {
 	PN2_GRA,
 	MAX_OVERLAY,
 };
+
+extern char panel_type[20];
 
 /* defintions for platform data */
 /* interface for buffer driver */

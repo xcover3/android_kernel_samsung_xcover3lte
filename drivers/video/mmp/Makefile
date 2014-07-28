@@ -1,1 +1,1 @@
-obj-y += core.o hw/ panel/ fb/
+obj-y += core.o setup.o hw/ panel/ fb/
