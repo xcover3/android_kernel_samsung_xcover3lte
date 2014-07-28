@@ -257,6 +257,22 @@ static char __log_buf[__LOG_BUF_LEN] __aligned(LOG_ALIGN);
 static char *log_buf = __log_buf;
 static u32 log_buf_len = __LOG_BUF_LEN;
 
+static u64 print_clock(void)
+{
+	struct timespec ts;
+	u64 ts_nsec;
+
+	read_persistent_clock(&ts);
+	if (!ts.tv_sec && !ts.tv_nsec) {
+		ts_nsec = local_clock();
+		ts = ns_to_timespec(ts_nsec);
+		monotonic_to_bootbased(&ts);
+	}
+	ts_nsec = timespec_to_ns(&ts);
+
+	return ts_nsec;
+}
+
 /* cpu currently holding logbuf_lock */
 static volatile unsigned int logbuf_cpu = UINT_MAX;
 
@@ -389,7 +405,7 @@ static void log_store(int facility, int level,
 	if (ts_nsec > 0)
 		msg->ts_nsec = ts_nsec;
 	else
-		msg->ts_nsec = local_clock();
+		msg->ts_nsec = print_clock();
 	memset(log_dict(msg) + dict_len, 0, pad_len);
 	msg->len = sizeof(struct printk_log) + msg->text_len + dict_len + pad_len;
 
@@ -1480,7 +1496,7 @@ static bool cont_add(int facility, int level, const char *text, size_t len)
 		cont.facility = facility;
 		cont.level = level;
 		cont.owner = current;
-		cont.ts_nsec = local_clock();
+		cont.ts_nsec = print_clock();
 		cont.flags = 0;
 		cont.cons = 0;
 		cont.flushed = false;
