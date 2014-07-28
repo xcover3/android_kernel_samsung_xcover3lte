@@ -655,5 +655,15 @@ config PXA9XX_AMIPC
          Please say Y here if want to support Application to
          CM3 coprocessor communication on PXA1U88
 
+config VIBRATOR_PWM
+	tristate "PWM based vibrator"
+	depends on ANDROID_TIMED_OUTPUT
+	default y
+	help
+	  Say Y here if you want to support Application to
+	  have vibrator feature
+	  The pwm supllied by the PWM3 pin on PXA1928 chip
+	  If unsusre, say N.
+
 endmenu
 
