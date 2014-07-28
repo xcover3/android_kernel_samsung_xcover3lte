@@ -2,7 +2,7 @@
 # Makefile for mmp specific clk
 #
 
-obj-y += clk-apbc.o clk-apmu.o clk-frac.o clk-mix.o clk-gate.o clk.o clk-gate2.o clk-pll-pxa1928.o clk-core-pxa1928.o clk-core-helanx.o clk-pll-helanx-28nm.o
+obj-y += clk-apbc.o clk-apmu.o clk-frac.o clk-mix.o clk-gate.o clk.o clk-gate2.o clk-pll-pxa1928.o clk-core-pxa1928.o clk-core-helanx.o clk-pll-helanx.o
 
 ifneq ($(CONFIG_OF),)
 obj-y += clk-pxa1U88.o clk-pxa1928.o clk-pxa1L88.o

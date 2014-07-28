@@ -239,19 +239,19 @@ static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 		spin_lock_init(&pllx_platinfo[idx].lock);
 		/* vco */
 		pllx_vco_params[idx].lock_reg = pxa_unit->mpmu_base + MPMU_POSR;
-		clk = helanx_clk_register_28nmvco(pllx_platinfo[idx].vco_name,
+		clk = helanx_clk_register_vco(pllx_platinfo[idx].vco_name,
 			0, pllx_platinfo[idx].vcoclk_flag, pllx_platinfo[idx].vco_flag,
 			&pllx_platinfo[idx].lock, &pllx_vco_params[idx]);
 		clk_set_rate(clk, pllx_vco_params[idx].default_rate);
 		/* pll */
-		clk = helanx_clk_register_28nmpll(pllx_platinfo[idx].out_name,
+		clk = helanx_clk_register_pll(pllx_platinfo[idx].out_name,
 			pllx_platinfo[idx].vco_name,
 			pllx_platinfo[idx].outclk_flag, pllx_platinfo[idx].out_flag,
 			&pllx_platinfo[idx].lock, &pllx_pll_params[idx]);
 		clk_set_rate(clk, pllx_pll_params[idx].default_rate);
 
 		/* pllp */
-		clk = helanx_clk_register_28nmpll(pllx_platinfo[idx].outp_name,
+		clk = helanx_clk_register_pll(pllx_platinfo[idx].outp_name,
 			pllx_platinfo[idx].vco_name,
 			pllx_platinfo[idx].outpclk_flag, pllx_platinfo[idx].outp_flag,
 			&pllx_platinfo[idx].lock, &pllx_pllp_params[idx]);
