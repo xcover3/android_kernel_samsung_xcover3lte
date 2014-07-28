@@ -1,0 +1,15 @@
+SoC camera driver for SC2.
+
+mcam node
+------------
+Required properties:
+- compatible	: should be "marvell,mv_sc2_camera";
+- reg		: mcam1 or mcam2;
+- marvell,power-domain	: power domain;
+
+Example:
+mcam0: mcam@0 {
+	compatible = "marvell,mv_sc2_camera";
+	marvell,power-domain = <&pd_sc2>;
+	reg = <0x0 0x0>;
+};

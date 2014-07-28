@@ -23,6 +23,11 @@
 		serial1 = &uart1;
 		serial2 = &uart0;
 		serial3 = &uart3;
+		mv_sc2_mmu0 = &sc2mmu1;
+		mv_sc2_ccic0 = &ccic1;
+		mv_sc2_ccic1 = &ccic2;
+		mv_sc2_camera0 = &mcam0;
+		mv_sc2_camera1 = &mcam1;
 		i2c0 = &twsi0;
 		i2c1 = &twsi1;
 		i2c2 = &twsi2;
@@ -105,6 +110,20 @@
 				marvell,apical-num = <1>;
 			};
 
+			sc2mmu1: sc2mmu@d4209000 {
+				status = "okay";
+			};
+
+			ccic1: ccic@d420a000 {
+				status = "okay";
+				pinctrl-names = "default";
+			};
+
+			ccic2: ccic@d420a800 {
+				status = "okay";
+				pinctrl-names = "default";
+			};
+
 			disp: disp@d420b000 {
 				marvell,disp-name = "mmp_disp";
 				marvell,path-num = <1>;
@@ -152,6 +171,12 @@
 				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
 				status = "okay";
                         };
+		};
+
+		axi@f0400000 {
+			b52isp: b52isp@0xF0B00000 {
+				status = "okay";
+			};
 		};
 
 		apb@d4000000 {
@@ -468,6 +493,56 @@
 				keyreset-need-panic;
 			};
 		};
+	};
+
+	mcam0: mcam@0 {
+		pinctrl-names = "default", "twsi3";
+/*
+		pinctrl-0 = <&twsi3_isp_gpio_pins>;
+		pinctrl-1 = <&twsi3_isp_pins>;
+		sc2-i2c-dyn-ctrl;
+		avdd_2v8-supply = <&ldo3>;
+		dovdd_1v8-supply = <&ldo6>;
+		af_2v8-supply = <&ldo7>;
+		dvdd_1v2-supply = <&ldo19>;
+*/
+		pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 0>;
+		reset-gpios = <&gpio CAM1_RST_N 0>;
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "disable";
+	};
+
+	mcam1: mcam@1 {
+/*
+		avdd_2v8-supply = <&ldo3>;
+		dovdd_1v8-supply = <&ldo6>;
+		af_2v8-supply = <&ldo7>;
+		dvdd_1v2-supply = <&ldo19>;
+*/
+		pwdn-gpios = <&gpio CAM_SEC_PWDN_N 0>;
+		reset-gpios = <&gpio CAM2_RST_N 0>;
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "okay";
+	};
+
+	b52isp_sc2_csi0 {
+		status = "okay";
+	};
+
+	b52isp_sc2_csi1 {
+		status = "okay";
+	};
+
+	b52isp_sc2_dma0 {
+		status = "okay";
+	};
+
+	b52isp_sc2_dma1 {
+		status = "okay";
+	};
+
+	plat_cam {
+		status = "okay";
 	};
 
 	ion {
