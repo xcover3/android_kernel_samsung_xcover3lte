@@ -59,6 +59,22 @@ static struct cpuidle_state pxa988_modes[] = {
 		.name			= "C2",
 		.desc			= "C2: Core power down",
 	},
+	[2] = {
+		.exit_latency		= 500,
+		.target_residency	= 1000,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
+		.name			= "D1p",
+		.desc			= "D1p: AP idle state",
+	},
+	[3] = {
+		.exit_latency		= 600,
+		.target_residency	= 1200,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
+		.name			= "D1",
+		.desc			= "D1: Chip idle state",
+	},
 };
 
 /*
