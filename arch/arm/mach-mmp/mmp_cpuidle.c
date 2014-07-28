@@ -228,6 +228,17 @@ static void mmp_pm_powered_up(void)
 	local_irq_restore(flags);
 }
 
+/*
+ * The function is used in the last step of cpu_hotplug if mcpm_smp_ops.cpu_kill
+ * is defined (We don't need it in 3.10 kernel since cpu_kill is undefined). It
+ * can be used to do the powering off and/or cutting of clocks to the dying cpu.
+ * Currently we do nothing in it. In the future, maybe it can be used to check
+ * if the cpu is trully powered off.
+ */
+static int mmp_pm_power_down_finish(unsigned int cpu, unsigned int cluster)
+{
+	return 0;
+}
 /**
  * mmp_platform_power_register - register platform power ops
  *
@@ -249,10 +260,11 @@ int __init mmp_platform_power_register(struct platform_idle *idle)
 }
 
 static const struct mcpm_platform_ops mmp_pm_power_ops = {
-	.power_up	= mmp_pm_power_up,
-	.power_down	= mmp_pm_power_down,
-	.suspend	= mmp_pm_suspend,
-	.powered_up	= mmp_pm_powered_up,
+	.power_up		= mmp_pm_power_up,
+	.power_down		= mmp_pm_power_down,
+	.suspend		= mmp_pm_suspend,
+	.powered_up		= mmp_pm_powered_up,
+	.power_down_finish	= mmp_pm_power_down_finish,
 };
 
 static void __init mmp_pm_usage_count_init(void)
