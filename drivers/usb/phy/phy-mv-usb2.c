@@ -1139,6 +1139,7 @@ static int mv_usb2_phy_probe(struct platform_device *pdev)
 	struct mv_usb2_phy *mv_phy;
 	struct resource *r;
 	int ret = 0;
+	struct device_node *np = pdev->dev.of_node;
 
 	mv_phy = devm_kzalloc(&pdev->dev, sizeof(*mv_phy), GFP_KERNEL);
 	if (mv_phy == NULL) {
@@ -1146,6 +1147,8 @@ static int mv_usb2_phy_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	of_property_read_string(np, "marvell,udc-name",
+			&((pdev->dev).init_name));
 	mv_phy->pdev = pdev;
 
 	ret = mv_usb2_get_phydata(pdev, mv_phy);

@@ -2449,9 +2449,33 @@ static int mv_udc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int mv_udc_dt_parse(struct platform_device *pdev,
+			struct mv_usb_platform_data *pdata)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	if (of_property_read_string(np, "marvell,udc-name",
+			&((pdev->dev).init_name)))
+		return -EINVAL;
+
+	if (of_property_read_u32(np, "marvell,udc-mode", &(pdata->mode)))
+		return -EINVAL;
+
+	if (of_property_read_u32(np, "marvell,dev-id", &(pdata->id)))
+		pdata->id = PXA_USB_DEV_OTG;
+
+	of_property_read_u32(np, "marvell,extern-attr", &(pdata->extern_attr));
+	pdata->otg_force_a_bus_req = of_property_read_bool(np,
+					"marvell,otg-force-a-bus-req");
+	pdata->disable_otg_clock_gating = of_property_read_bool(np,
+						"marvell,disable-otg-clock-gating");
+
+	return 0;
+}
+
 static int mv_udc_probe(struct platform_device *pdev)
 {
-	struct mv_usb_platform_data *pdata = dev_get_platdata(&pdev->dev);
+	struct mv_usb_platform_data *pdata;
 	struct mv_udc *udc;
 	int retval = 0;
 	struct resource *r;
@@ -2460,11 +2484,12 @@ static int mv_udc_probe(struct platform_device *pdev)
 	const __be32 *prop;
 	unsigned int proplen;
 
+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (pdata == NULL) {
-		dev_err(&pdev->dev, "missing platform_data\n");
+		dev_err(&pdev->dev, "failed to allocate memory for platform_data\n");
 		return -ENODEV;
 	}
-
+	mv_udc_dt_parse(pdev, pdata);
 	udc = devm_kzalloc(&pdev->dev, sizeof(*udc), GFP_KERNEL);
 	if (udc == NULL) {
 		dev_err(&pdev->dev, "failed to allocate memory for udc\n");
@@ -2474,7 +2499,7 @@ static int mv_udc_probe(struct platform_device *pdev)
 	the_controller = udc;
 
 	udc->done = &release_done;
-	udc->pdata = dev_get_platdata(&pdev->dev);
+	udc->pdata = pdata;
 	spin_lock_init(&udc->lock);
 
 	udc->dev = pdev;

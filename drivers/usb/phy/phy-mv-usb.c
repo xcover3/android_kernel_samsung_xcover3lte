@@ -99,7 +99,7 @@ phys_addr_t get_apmu_base_pa(void)
 {
 	static phys_addr_t apmu_phys_addr;
 	if (unlikely(!apmu_phys_addr))
-		apmu_phys_addr = get_register_pa("mrvl,mmp-pmu-apmu");
+		apmu_phys_addr = get_register_pa("marvell,mmp-pmu-apmu");
 	return apmu_phys_addr;
 }
 
@@ -107,7 +107,7 @@ void __iomem *get_apmu_base_va(void)
 {
 	static void __iomem *apmu_virt_addr;
 	if (unlikely(!apmu_virt_addr))
-		apmu_virt_addr = iomap_register("mrvl,mmp-pmu-apmu");
+		apmu_virt_addr = iomap_register("marvell,mmp-pmu-apmu");
 	return apmu_virt_addr;
 }
 
@@ -846,19 +846,44 @@ static void mv_otg_phy_bind_device(struct mv_otg *mvotg)
 						dev_name(mvotg->phy.dev));
 }
 
+static int mv_otg_dt_parse(struct platform_device *pdev,
+			struct mv_usb_platform_data *pdata)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	if (of_property_read_string(np, "marvell,otg-name",
+				&((pdev->dev).init_name)))
+		return -EINVAL;
+
+	if (of_property_read_u32(np, "marvell,udc-mode", &(pdata->mode)))
+		return -EINVAL;
+
+	if (of_property_read_u32(np, "marvell,dev-id", &(pdata->id)))
+		pdata->id = PXA_USB_DEV_OTG;
+
+	of_property_read_u32(np, "marvell,extern-attr", &(pdata->extern_attr));
+	pdata->otg_force_a_bus_req = of_property_read_bool(np,
+				"marvell,otg-force-a-bus-req");
+	pdata->disable_otg_clock_gating = of_property_read_bool(np,
+					"marvell,disable-otg-clock-gating");
+
+	return 0;
+}
+
 static int mv_otg_probe(struct platform_device *pdev)
 {
-	struct mv_usb_platform_data *pdata = dev_get_platdata(&pdev->dev);
+	struct mv_usb_platform_data *pdata;
 	struct mv_otg *mvotg;
 	struct usb_otg *otg;
 	struct resource *r;
 	int retval = 0, i;
 
+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (pdata == NULL) {
-		dev_err(&pdev->dev, "failed to get platform data\n");
+		dev_err(&pdev->dev, "failed to allocate platform data\n");
 		return -ENODEV;
 	}
-
+	mv_otg_dt_parse(pdev, pdata);
 	mvotg = devm_kzalloc(&pdev->dev, sizeof(*mvotg), GFP_KERNEL);
 	if (!mvotg) {
 		dev_err(&pdev->dev, "failed to allocate memory!\n");

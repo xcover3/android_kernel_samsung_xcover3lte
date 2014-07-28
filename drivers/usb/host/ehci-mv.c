@@ -124,9 +124,33 @@ static const struct hc_driver mv_ehci_hc_driver = {
 	.bus_resume = ehci_bus_resume,
 };
 
+static int mv_ehci_dt_parse(struct platform_device *pdev,
+			struct mv_usb_platform_data *pdata)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	if (of_property_read_string(np,
+			"marvell,ehci-name", &((pdev->dev).init_name)))
+		return -EINVAL;
+
+	if (of_property_read_u32(np, "marvell,udc-mode", &(pdata->mode)))
+		return -EINVAL;
+
+	if (of_property_read_u32(np, "marvell,dev-id", &(pdata->id)))
+		pdata->id = PXA_USB_DEV_OTG;
+
+	of_property_read_u32(np, "marvell,extern-attr", &(pdata->extern_attr));
+	pdata->otg_force_a_bus_req = of_property_read_bool(np,
+					"marvell,otg-force-a-bus-req");
+	pdata->disable_otg_clock_gating = of_property_read_bool(np,
+						"marvell,disable-otg-clock-gating");
+
+	return 0;
+}
+
 static int mv_ehci_probe(struct platform_device *pdev)
 {
-	struct mv_usb_platform_data *pdata = pdev->dev.platform_data;
+	struct mv_usb_platform_data *pdata;
 	struct device *dev = &pdev->dev;
 	struct usb_hcd *hcd;
 	struct ehci_hcd *ehci;
@@ -135,11 +159,12 @@ static int mv_ehci_probe(struct platform_device *pdev)
 	int retval = -ENODEV;
 	u32 offset;
 
+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata) {
-		dev_err(&pdev->dev, "missing platform_data\n");
+		dev_err(&pdev->dev, "failed to allocate memory for platform_data\n");
 		return -ENODEV;
 	}
-
+	mv_ehci_dt_parse(pdev, pdata);
 	/*
 	 * Right now device-tree probed devices don't get dma_mask set.
 	 * Since shared usb code relies on it, set it here for now.
