@@ -1995,6 +1995,7 @@ int soc_dpcm_runtime_update(struct snd_soc_card *card)
 	for (i = 0; i < card->num_rtd; i++) {
 		struct snd_soc_dapm_widget_list *list;
 		struct snd_soc_pcm_runtime *fe = &card->rtd[i];
+		struct snd_pcm_substream *fe_substream;
 
 		/* make sure link is FE */
 		if (!fe->dai_link->dynamic)
@@ -2031,7 +2032,9 @@ int soc_dpcm_runtime_update(struct snd_soc_card *card)
 
 		/* update any old playback paths */
 		old = dpcm_process_paths(fe, SNDRV_PCM_STREAM_PLAYBACK, &list, 0);
-		if (old) {
+		fe_substream = snd_soc_dpcm_get_substream(fe, SNDRV_PCM_STREAM_PLAYBACK);
+		/* only process old paths when fe playback ends */
+		if (old && snd_pcm_playback_empty(fe_substream)) {
 			dpcm_run_old_update(fe, SNDRV_PCM_STREAM_PLAYBACK);
 			dpcm_clear_pending_state(fe, SNDRV_PCM_STREAM_PLAYBACK);
 			dpcm_be_disconnect(fe, SNDRV_PCM_STREAM_PLAYBACK);
