@@ -900,6 +900,7 @@ static struct ddr_combclk_relation aclk_dclk_relationtbl_1U88[] = {
 
 static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 {
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
 	struct clk *clk;
 
 	core_params.apmu_base = pxa_unit->apmu_base;
@@ -924,6 +925,7 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk = mmp_clk_register_ddr("ddr", ddr_parent,
 		ARRAY_SIZE(ddr_parent), CLK_GET_RATE_NOCACHE,
 		HELANX_FC_V2, &fc_seq_lock, &ddr_params);
+	mmp_clk_add(unit, PXA1U88_CLK_DDR, clk);
 	clk_prepare_enable(clk);
 
 	clk = mmp_clk_register_axi("axi", axi_parent,

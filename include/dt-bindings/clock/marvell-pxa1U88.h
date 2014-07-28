@@ -30,6 +30,9 @@
 #define PXA1U88_CLK_PLL1_499_EN		26
 #define PXA1U88_CLK_UART_PLL		27
 
+/* ddr/axi etc */
+#define PXA1U88_CLK_DDR			40
+
 /* apb periphrals */
 #define PXA1U88_CLK_TWSI0		60
 #define PXA1U88_CLK_TWSI1		61
