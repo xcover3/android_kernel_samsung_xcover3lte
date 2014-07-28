@@ -46,6 +46,8 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
+#include <linux/pm_qos.h>
+#include <linux/edge_wakeup_mmp.h>
 
 #define	DMA_BLOCK	UART_XMIT_SIZE
 
@@ -95,6 +97,10 @@ struct uart_pxa_port {
 	unsigned char           lcr;
 	unsigned char           mcr;
 	unsigned int            lsr_break_flag;
+	struct timer_list	pxa_timer;
+	struct pm_qos_request	qos_idle[2];
+	s32			lpm_qos;
+	int			edge_wakeup_gpio;
 	struct clk		*clk;
 	char			name[PXA_NAME_LEN];
 	int			dma_enable;
@@ -1449,6 +1455,22 @@ static const struct dev_pm_ops serial_pxa_pm_ops = {
 };
 #endif
 
+static void pxa_timer_handler(unsigned long data)
+{
+	struct uart_pxa_port *up = (struct uart_pxa_port *)data;
+	pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+}
+
+#define PXA_TIMER_TIMEOUT (3 * HZ)
+static void uart_edge_wakeup_handler(int gpio, void *data)
+{
+	struct uart_pxa_port *up = (struct uart_pxa_port *)data;
+	if (!mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT))
+		pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
+				      up->lpm_qos);
+}
+
 static struct of_device_id serial_pxa_dt_ids[] = {
 	{ .compatible = "mrvl,pxa-uart", },
 	{ .compatible = "mrvl,mmp-uart", },
@@ -1475,6 +1497,16 @@ static int serial_pxa_probe_dt(struct platform_device *pdev,
 		return ret;
 	}
 	sport->port.line = ret;
+
+	if (of_property_read_u32(np, "lpm-qos", &sport->lpm_qos)) {
+		dev_err(&pdev->dev, "cannot find lpm-qos in device tree\n");
+		return -EINVAL;
+	}
+
+	if (of_property_read_u32(np,
+			"edge-wakeup-gpio", &sport->edge_wakeup_gpio))
+		dev_info(&pdev->dev, "no edge-wakeup-gpio defined\n");
+
 	return 0;
 }
 
@@ -1515,6 +1547,7 @@ static int serial_pxa_probe(struct platform_device *dev)
 	sport->port.dev = &dev->dev;
 	sport->port.flags = UPF_IOREMAP | UPF_BOOT_AUTOCONF;
 	sport->port.uartclk = clk_get_rate(sport->clk);
+	sport->edge_wakeup_gpio = -1;
 
 	pxa_dma = &sport->uart_dma;
 	pxa_dma->drcmr_rx = 0;
@@ -1553,9 +1586,42 @@ static int serial_pxa_probe(struct platform_device *dev)
 		goto err_clk;
 	}
 
+	init_timer(&sport->pxa_timer);
+	sport->pxa_timer.function = pxa_timer_handler;
+	sport->pxa_timer.data = (long)sport;
+
 	serial_pxa_ports[sport->port.line] = sport;
 
 	uart_add_one_port(&serial_pxa_reg, &sport->port);
+
+	sport->qos_idle[PXA_UART_TX].name = kasprintf(GFP_KERNEL,
+					    "%s%s", "tx", sport->name);
+	if (!sport->qos_idle[PXA_UART_TX].name) {
+		ret = -ENOMEM;
+		goto err_clk;
+	}
+
+	sport->qos_idle[PXA_UART_RX].name = kasprintf(GFP_KERNEL,
+					    "%s%s", "rx", sport->name);
+	if (!sport->qos_idle[PXA_UART_RX].name) {
+		ret = -ENOMEM;
+		kfree(sport->qos_idle[PXA_UART_TX].name);
+		goto err_clk;
+	}
+
+	pm_qos_add_request(&sport->qos_idle[PXA_UART_TX], PM_QOS_CPUIDLE_BLOCK,
+			   PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+	pm_qos_add_request(&sport->qos_idle[PXA_UART_RX], PM_QOS_CPUIDLE_BLOCK,
+			   PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
+	if (sport->edge_wakeup_gpio >= 0) {
+		ret = request_mfp_edge_wakeup(sport->edge_wakeup_gpio,
+					      uart_edge_wakeup_handler,
+					      sport, &dev->dev);
+		if (ret)
+			dev_err(&dev->dev, "failed to request edge wakeup.\n");
+	}
+
 	platform_set_drvdata(dev, sport);
 
 	return 0;
@@ -1576,6 +1642,10 @@ static int serial_pxa_remove(struct platform_device *dev)
 
 	clk_unprepare(sport->clk);
 	clk_put(sport->clk);
+
+	if (sport->edge_wakeup_gpio >= 0)
+		remove_mfp_edge_wakeup(sport->edge_wakeup_gpio);
+
 	kfree(sport);
 	serial_pxa_ports[dev->id] = NULL;
 
