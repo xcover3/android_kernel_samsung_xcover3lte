@@ -458,7 +458,7 @@ struct clk *mmp_clk_register_mix(struct device *dev,
 	}
 
 	init.name = name;
-	init.flags = flags;
+	init.flags = flags | CLK_GET_RATE_NOCACHE;
 	init.parent_names = parent_names;
 	init.num_parents = num_parents;
 	init.ops = &mmp_clk_mix_ops;
