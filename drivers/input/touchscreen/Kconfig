@@ -278,6 +278,18 @@ config TOUCHSCREEN_FUJITSU
 	  To compile this driver as a module, choose M here: the
 	  module will be called fujitsu-ts.
 
+config TOUCHSCREEN_GT9XX
+	tristate "GT9XX Touchscreen interface support"
+	depends on I2C
+	help
+	  Say Y here if enable support for the Goodix GT9XX multi fingers
+	  touchscreen controller.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gt9xx_touch.
+
 config TOUCHSCREEN_ILI210X
 	tristate "Ilitek ILI210X based touchscreen"
 	depends on I2C
