@@ -102,6 +102,14 @@
 			reg = <0xd4014000 0x4>;
 		};
 
+		devfreq-ddr {  /* DDR memory controller */
+			compatible = "marvell,devfreq-ddr";
+			reg = <0xd0000000 0xbb0>;
+			interrupts = <0 118 4>;
+			clocks = <&soc_clocks PXA1928_CLK_DDR>;
+			marvell,qos;
+		};
+
 		isram: sram@d1018000 {
 			compatible = "mmio-sram";
 			reg = <0xd1018000 0x8000>;	/* 32KB */
