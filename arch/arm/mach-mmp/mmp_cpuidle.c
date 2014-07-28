@@ -181,7 +181,9 @@ static int mmp_pm_power_up(unsigned int cpu, unsigned int cluster)
 
 static void mmp_pm_power_down(void)
 {
-	mmp_pm_down(0);
+	int idx = mmp_idle->hotplug_state;
+
+	mmp_pm_down((unsigned long)&idx);
 }
 
 static void mmp_pm_suspend(unsigned long addr)
