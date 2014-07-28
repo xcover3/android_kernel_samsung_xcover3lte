@@ -20,6 +20,7 @@
 #define APBC_UART0		0x0
 #define APBC_UART1		0x4
 #define APBC_GPIO		0x8
+#define APBC_DROTS		0x58
 
 #define APBCP_TWSI2		0x28
 #define APBCP_UART2		0x1c
@@ -241,6 +242,7 @@ static struct mmp_param_gate_clk apbc_gate_clks[] = {
 	{PXA1L88_CLK_GPIO, "gpio_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_GPIO, 0x7, 0x3, 0x0, 0, NULL},
 	{PXA1L88_CLK_KPC, "kpc_clk", "clk32", CLK_SET_RATE_PARENT, APBC_KPC, 0x7, 0x3, 0x0, MMP_CLK_GATE_NEED_DELAY, NULL},
 	{PXA1L88_CLK_RTC, "rtc_clk", "clk32", CLK_SET_RATE_PARENT, APBC_RTC, 0x87, 0x83, 0x0, MMP_CLK_GATE_NEED_DELAY, NULL},
+	{PXA1L88_CLK_THERMAL, "thermal", NULL, 0, APBC_DROTS, 0x7, 0x3, 0x0, 0, NULL},
 };
 
 static DEFINE_SPINLOCK(uart0_lock);

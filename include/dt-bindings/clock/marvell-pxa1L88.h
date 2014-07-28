@@ -39,6 +39,7 @@
 #define PXA1L88_CLK_UART0		71
 #define PXA1L88_CLK_UART1		72
 #define PXA1L88_CLK_UART2		73
+#define PXA1L88_CLK_THERMAL		74
 
 /* axi periphrals */
 #define PXA1L88_CLK_USB			100
