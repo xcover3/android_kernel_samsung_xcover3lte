@@ -59,3 +59,4 @@ obj-$(CONFIG_CORESIGHT_SUPPORT)	+= arm-coresight.o
 obj-$(CONFIG_MMP_GPS)		+= mmp_gps.o
 obj-$(CONFIG_DEBUG_FS)		+= debugfs-pxa.o
 obj-$(CONFIG_GATOR)		+= gator/
+obj-$(CONFIG_LEDS_RGB)		+= led-rgb.o

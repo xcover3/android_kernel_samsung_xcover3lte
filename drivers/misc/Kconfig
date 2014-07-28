@@ -548,6 +548,12 @@ config GATOR
 	  This is required to run on the ARM linux target in order for ARM
 	  Streamline to operate.
 
+config LEDS_RGB
+	bool "Support RGB leds"
+	default n
+	help
+	  This option enables dkb RGB leds.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
