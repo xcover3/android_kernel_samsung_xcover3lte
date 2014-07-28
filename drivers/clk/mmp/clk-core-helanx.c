@@ -1002,9 +1002,9 @@ static void clk_cpu_init(struct clk_hw *hw)
 			pr_err("%s : can't find clk %s\n", __func__,
 				parent_table[i].parent_name);
 	}
-
-	pr_info("pclk(src:sel,div)\tpdclk(src,div)\tbaclk(src,div)\t");
-	pr_info("l1_xtc:l2_xtc\n");
+	pr_info("%-20s%-12s%-12s%-16s",
+		"pclk(src:sel,div)", "pdclk(div)",
+		"baclk(div)", "l1_xtc:l2_xtc");
 	for (i = 0; i < core->params->cpu_opt_size; i++) {
 		cop = &core->params->cpu_opt[i];
 		parent = hwsel2parent(parent_table,
@@ -1025,15 +1025,11 @@ static void clk_cpu_init(struct clk_hw *hw)
 		cop->baclk_div =
 			cop->pclk / cop->baclk - 1;
 
-		pr_info("%d(%d:%d,%d)\t%d(%d)\t%d(%d)\t"
-			"0x%x:0x%x\n",
-			cop->pclk, cop->ap_clk_src,
-			cop->ap_clk_sel,
-			cop->pclk_div,
-			cop->pdclk, cop->pdclk_div,
-			cop->baclk, cop->baclk_div,
+		pr_info("%-4d(%-4d:%-d,%-d)%6s%-4d(%-d)%5s%-4d(%-d)%5s0x%x:0x%x\n",
+			cop->pclk, cop->ap_clk_src, cop->ap_clk_sel,
+			cop->pclk_div, " ", cop->pdclk, cop->pdclk_div, " ",
+			cop->baclk, cop->baclk_div, " ",
 			cop->l1_xtc, cop->l2_xtc);
-		pr_info("\n");
 
 		/* add it into core op list */
 		list_add_tail(&core->params->cpu_opt[i].node, &core_op_list);
