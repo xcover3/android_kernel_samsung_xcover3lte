@@ -9,6 +9,7 @@
 
 /include/ "skeleton.dtsi"
 #include "pxa988-pinfunc.h"
+#include "pxa1U88-pm.h"
 #include <dt-bindings/clock/marvell-pxa1L88.h>
 
 / {
@@ -226,6 +227,7 @@
 			keypad: keypad@d4012000 {
 				compatible = "marvell,pxa27x-keypad";
 				reg = <0xd4012000 0x4c>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 				interrupts = <0 9 0x4>;
 				marvell,keypad-lpm-mod;
 				clocks = <&soc_clocks PXA1L88_CLK_KPC>;
