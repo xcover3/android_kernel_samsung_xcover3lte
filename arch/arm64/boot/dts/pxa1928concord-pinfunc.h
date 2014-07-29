@@ -216,10 +216,10 @@
 #define PWR_CP_SCL			P67 0x2
 #define PWR_CP_SDA			P68 0x2
 
-/* UART 3 */
-#define UART3_RXD_GPIO			33
-#define UART3_RXD			P33 0x7
-#define UART3_TXD			P34 0x7
+/* UART 2 */
+#define UART2_RXD_GPIO			33
+#define UART2_RXD			P33 0x7
+#define UART2_TXD			P34 0x7
 
 /* PWM3 */
 #define PWM3				P76 0x3

@@ -164,6 +164,14 @@
 				status = "okay";
 			};
 
+			uart2: uart@d4018000 {
+				pinctrl-names = "default","sleep";
+				pinctrl-0 = <&uart2_pins_rx &uart2_pins_tx>;
+				pinctrl-1 = <&uart2_pins_rx_sleep &uart2_pins_tx>;
+				edge-wakeup-gpio = <UART2_RXD_GPIO>;
+				status = "okay";
+			};
+
 			pwm2: pwm@d401a400 {
 				pinctrl-names = "default"; pinctrl-0 = <&pwm2_pins>;
 				status = "okay";
@@ -173,6 +181,21 @@
 				status = "okay";
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <PXA1928_GPIO_PINMUX>;
+
+				uart2_pins_rx: pinmux_uart2_pins_rx {
+					pinctrl-single,pins = <UART2_RXD>;
+					MFP_DEFAULT;
+				};
+
+				uart2_pins_tx: pinmux_uart2_pins_tx {
+					pinctrl-single,pins = <UART2_TXD>;
+					MFP_DEFAULT;
+				};
+
+				uart2_pins_rx_sleep: pinmux_uart2_pins_rx_sleep {
+					pinctrl-single,pins = <UART2_RXD>;
+					MFP_EDGE_BOTH_DETECT;
+				};
 
 				pwm2_pins: pinmux_pwm2_pins {
 					pinctrl-single,pins = <P51_PWM2>;
