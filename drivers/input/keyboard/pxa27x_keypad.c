@@ -138,12 +138,17 @@ static int pxa27x_keypad_matrix_key_parse_dt(struct pxa27x_keypad *keypad,
 {
 	struct input_dev *input_dev = keypad->input_dev;
 	struct device *dev = input_dev->dev.parent;
-	u32 rows, cols;
+	u32 rows = 0, cols = 0;
 	int error;
 
 	error = matrix_keypad_parse_of_params(dev, &rows, &cols);
-	if (error)
-		return error;
+	if (error) {
+		/*
+		 * If do not have keypad,num-rows or keypad,num-columns defined,
+		 * it means matrix key is not supported.
+		 */
+		return error == -EINVAL ? 0 : error;
+	}
 
 	if (rows > MAX_MATRIX_KEY_ROWS || cols > MAX_MATRIX_KEY_COLS) {
 		dev_err(dev, "rows or cols exceeds maximum value\n");
@@ -170,7 +175,7 @@ static int pxa27x_keypad_direct_key_parse_dt(struct pxa27x_keypad *keypad,
 	struct input_dev *input_dev = keypad->input_dev;
 	struct device *dev = input_dev->dev.parent;
 	struct device_node *np = dev->of_node;
-	const __be16 *prop;
+	const __be32 *prop;
 	unsigned short code;
 	unsigned int proplen, size;
 	int i;
@@ -206,17 +211,17 @@ static int pxa27x_keypad_direct_key_parse_dt(struct pxa27x_keypad *keypad,
 	if (!prop)
 		return -EINVAL;
 
-	if (proplen % sizeof(u16))
+	if (proplen % sizeof(u32))
 		return -EINVAL;
 
-	size = proplen / sizeof(u16);
+	size = proplen / sizeof(u32);
 
 	/* Only MAX_DIRECT_KEY_NUM is accepted.*/
 	if (size > MAX_DIRECT_KEY_NUM)
 		return -EINVAL;
 
 	for (i = 0; i < size; i++) {
-		code = be16_to_cpup(prop + i);
+		code = be32_to_cpup(prop + i);
 		keypad->keycodes[MAX_MATRIX_KEY_NUM + i] = code;
 		__set_bit(code, input_dev->keybit);
 	}
@@ -238,8 +243,14 @@ static int pxa27x_keypad_rotary_parse_dt(struct pxa27x_keypad *keypad,
 	struct device_node *np = dev->of_node;
 
 	relkey_ret = of_property_read_u32(np, relkeyname, &code);
-	/* if can read correct rotary key-code, we do not need this. */
-	if (relkey_ret == 0) {
+	if (relkey_ret) {
+		/*
+		 * If do not have marvel,rotary-rel-key defined,
+		 * it means rotary key is not supported.
+		 */
+		return relkey_ret == -EINVAL ? 0 : relkey_ret;
+	} else {
+		/* if can read correct rotary key-code, we do not need this. */
 		unsigned short relcode;
 
 		/* rotary0 taks lower half, rotary1 taks upper half. */
