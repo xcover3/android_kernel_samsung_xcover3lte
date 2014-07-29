@@ -33,4 +33,8 @@ config MMP_PM_DOMAIN_GC2D
         bool "power domain for gc2d"
         help
           Say Y here to enable related power domain for pxa1928
+config MMP_PM_DOMAIN_GC3D
+        bool "power domain for gc3d"
+        help
+          Say Y here to enable related power domain for pxa1928
 endif
