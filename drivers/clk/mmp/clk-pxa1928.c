@@ -28,6 +28,7 @@
 #define APBC_PWM1		0x40
 #define APBC_PWM2		0x44
 #define APBC_PWM3		0x48
+#define APBC_THSENS		0x90 /* Thermal Sensor */
 
 #define MPMU_UART_PLL		0x14
 
@@ -363,6 +364,10 @@ static struct mmp_param_gate_clk apbc_gate_clks[] = {
 	{PXA1928_CLK_PWM1, "pwm1_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_PWM1, 0x7, 0x3, 0x0, 0, NULL},
 	{PXA1928_CLK_PWM2, "pwm2_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_PWM2, 0x7, 0x3, 0x0, 0, NULL},
 	{PXA1928_CLK_PWM3, "pwm3_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_PWM3, 0x7, 0x3, 0x0, 0, NULL},
+	{PXA1928_CLK_THSEN_G, "thermal_g", NULL, 0, APBC_THSENS, 0x7, 0x3, 0x0, 0, NULL},
+	{PXA1928_CLK_THSEN_VPU, "thermal_vpu", NULL, 0, APBC_THSENS + 0x8, 0x7, 0x3, 0x0, 0, NULL},
+	{PXA1928_CLK_THSEN_CPU, "thermal_cpu", NULL, 0, APBC_THSENS + 0xC, 0x7, 0x3, 0x0, 0, NULL},
+	{PXA1928_CLK_THSEN_GC, "thermal_gc", NULL, 0, APBC_THSENS + 0x10, 0x7, 0x3, 0x0, 0, NULL},
 };
 
 static DEFINE_SPINLOCK(uart0_lock);
