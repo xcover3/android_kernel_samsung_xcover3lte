@@ -29,4 +29,8 @@ config MMP_PM_DOMAIN_HANTRO
         bool "power domain for hantro"
         help
           Say Y here to enable related power domain for pxa1928
+config MMP_PM_DOMAIN_GC2D
+        bool "power domain for gc2d"
+        help
+          Say Y here to enable related power domain for pxa1928
 endif
