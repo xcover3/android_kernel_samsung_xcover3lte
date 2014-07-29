@@ -196,6 +196,30 @@
 			reg = <0xd4000000 0x00200000>;
 			ranges;
 
+			pdma0: pdma@d4000000 {
+				compatible = "marvell,pdma-1.0";
+				reg = <0xd4000000 0x1000>;
+				interrupts = <0 135 0x4>, <0 136 0x4>, <0 137 0x4>, <0 138 0x4>,
+					     <0 139 0x4>, <0 140 0x4>, <0 141 0x4>, <0 142 0x4>,
+					     <0 143 0x4>, <0 144 0x4>, <0 145 0x4>, <0 146 0x4>,
+					     <0 147 0x4>, <0 148 0x4>, <0 149 0x4>, <0 150 0x4>;
+				#dma-cells= <2>;
+				#dma-channels = <16>;
+				status = "disabled";
+			};
+
+			pdma1: pdma@d4008000 {
+				compatible = "marvell,pdma-1.0";
+				reg = <0xd4008000 0x1000>;
+				interrupts = <0 135 0x4>, <0 136 0x4>, <0 137 0x4>, <0 138 0x4>,
+					     <0 139 0x4>, <0 140 0x4>, <0 141 0x4>, <0 142 0x4>,
+					     <0 143 0x4>, <0 144 0x4>, <0 145 0x4>, <0 146 0x4>,
+					     <0 147 0x4>, <0 148 0x4>, <0 149 0x4>, <0 150 0x4>;
+				#dma-cells= <2>;
+				#dma-channels = <16>;
+				status = "disabled";
+			};
+
 			uart0: uart@d4030000 {
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4030000 0x1000>;
