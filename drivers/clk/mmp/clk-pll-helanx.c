@@ -206,7 +206,7 @@ static void __enable_ssc(struct ssc_params *ssc_params,
 	ssc_conf.v = pll_readl_ssccfg(ssc_params);
 	ssc_conf.b.ssc_freq_div = div;
 	ssc_conf.b.ssc_rnge = rng;
-	pll_writel(ssc_conf.v, ssc_params);
+	pll_writel_ssccfg(ssc_conf.v, ssc_params);
 
 	ssc_ctrl.v = pll_readl_sscctrl(ssc_params);
 	ssc_ctrl.b.intpi = intpi;
