@@ -932,7 +932,13 @@ static void ctrl_set_default(struct mmphw_ctrl *ctrl)
 	 * any other LCD registers read/write, or there maybe issues.
 	 */
 	tmp = readl_relaxed(ctrl->reg_base + LCD_TOP_CTRL);
-	tmp |= 0xfff0;
+
+	/* If define master/slave path, set all DMA objects to master path */
+	if (ctrl->master_path_name && ctrl->slave_path_name)
+		tmp |= 0x50fff0;
+	else
+		tmp |= 0xfff0;
+
 	writel_relaxed(tmp, ctrl->reg_base + LCD_TOP_CTRL);
 
 	/* clear all the interrupts */
@@ -1128,6 +1134,20 @@ static int mmphw_probe(struct platform_device *pdev)
 		ctrl->path_num = path_num;
 		if (of_property_read_string(np, "marvell,disp-name",
 					&ctrl->name)) {
+			ret = -EINVAL;
+			goto failed;
+		}
+
+		if (of_find_property(np, "marvell,master-path", NULL) &&
+			of_property_read_string(np, "marvell,master-path",
+					&ctrl->master_path_name)) {
+			ret = -EINVAL;
+			goto failed;
+		}
+
+		if (of_find_property(np, "marvell,slave-path", NULL) &&
+			of_property_read_string(np, "marvell,slave-path",
+					&ctrl->slave_path_name)) {
 			ret = -EINVAL;
 			goto failed;
 		}

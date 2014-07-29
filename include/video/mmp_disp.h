@@ -727,6 +727,8 @@ struct mmp_mach_path_config {
 
 struct mmp_mach_plat_info {
 	const char *name;
+	const char *master_path_name;
+	const char *slave_path_name;
 	const char *clk_name;
 	int path_num;
 	struct mmp_mach_path_config *paths;

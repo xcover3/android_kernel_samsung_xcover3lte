@@ -1188,6 +1188,10 @@ struct mmphw_ctrl {
 	u32 *regs_store;
 	u32 regs_len;
 
+	/* If whole path as other path's overlay, define master/slave path */
+	const char *master_path_name;
+	const char *slave_path_name;
+
 	/*pathes*/
 	int path_num;
 	struct mmphw_path_plat path_plats[0];
