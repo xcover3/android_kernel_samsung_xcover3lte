@@ -154,6 +154,16 @@
 		};
 
 		apb@d4000000 {
+			/* PDMA Controller 0 */
+			pdma0: pdma@d4000000 {
+				status = "okay";
+			};
+
+			/* PDMA Controller 1 */
+			pdma1: pdma@d4008000 {
+				status = "okay";
+			};
+
 			pwm2: pwm@d401a400 {
 				pinctrl-names = "default"; pinctrl-0 = <&pwm2_pins>;
 				status = "okay";
