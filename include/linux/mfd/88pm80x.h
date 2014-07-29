@@ -18,6 +18,9 @@
 #include <linux/atomic.h>
 #include <linux/switch.h>
 
+#define CHIP_PM860_ID			(0x90)
+#define CHIP_PM860_A0_ID		(0x91)
+
 enum {
 	CHIP_INVALID = 0,
 	CHIP_PM800,
@@ -62,6 +65,9 @@ enum {
 	PM800_ID_RG_MAX = 24,
 	PM822_ID_RG_MAX = 20,
 	PM86X_ID_RG_MAX = 27,
+
+	/* must be the max value, now it's PM86X_ID_RG_MAX */
+	PMIC_ID_RG_MAX = 27,
 };
 
 enum {
@@ -82,11 +88,17 @@ enum {
 	PM800_GPADC4,
 };
 
-#define PM800_MAX_REGULATOR	PM800_ID_RG_MAX	/* 5 Bucks, 19 LDOs */
+#define PM800_MAX_REGULATOR	PMIC_ID_RG_MAX
 #define PM800_NUM_BUCK (5)	/*5 Bucks */
 #define PM800_NUM_LDO (19)	/*19 Bucks */
 
 /* page 0 basic: slave adder 0x60 */
+
+
+/* 88pm80x chips have same definition for chip id register. */
+#define PM80X_CHIP_ID			(0x00)
+#define PM80X_CHIP_ID_NUM(x)		(((x) >> 5) & 0x7)
+#define PM80X_CHIP_ID_REVISION(x)	((x) & 0x1F)
 
 #define PM800_STATUS_1			(0x01)
 #define PM800_ONKEY_STS1		(1 << 0)
@@ -142,6 +154,7 @@ enum {
 #define PM860_GPIO3_GPIO_MODE(x)	(x << 5)
 #define PM860_GPIO_4_5_CNTRL		(0x32)
 #define PM860_GPIO4_GPIO_MODE(x)	(x << 1)
+#define PM860_GPIO5_GPIO_MODE(x)	(x << 5)
 
 #define PM800_HEADSET_CNTRL		(0x38)
 #define PM800_HEADSET_DET_EN		(1 << 7)
@@ -515,7 +528,7 @@ struct pm80x_platform_data {
 	 * initialized. If all regulators are not defined, set num_regulators
 	 * to be 0.
 	 */
-	struct regulator_init_data *regulators[PM800_ID_RG_MAX];
+	struct regulator_init_data *regulators[PMIC_ID_RG_MAX];
 	unsigned int num_regulators;
 	int irq_mode;		/* Clear interrupt by read/write(0/1) */
 	int batt_det;		/* enable/disable */

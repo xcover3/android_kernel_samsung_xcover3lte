@@ -89,7 +89,7 @@ struct pm800_regulator_info {
 };
 
 struct pm800_regulators {
-	struct regulator_dev *regulators[PM800_ID_RG_MAX];
+	struct regulator_dev *regulators[PMIC_ID_RG_MAX];
 	struct pm80x_chip *chip;
 	struct regmap *map;
 };

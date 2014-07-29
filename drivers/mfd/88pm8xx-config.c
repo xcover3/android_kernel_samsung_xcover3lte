@@ -207,31 +207,41 @@ int pm800_init_config(struct pm80x_chip *chip, struct device_node *np)
 		break;
 
 	case CHIP_PM86X:
-		/* enable buck1 dual phase mode*/
+		/* enable buck1 dual phase mode */
 		regmap_read(chip->subchip->regmap_power, PM860_BUCK1_MISC,
 				&data);
 		data |= BUCK1_DUAL_PHASE_SEL;
 		regmap_write(chip->subchip->regmap_power, PM860_BUCK1_MISC,
 				data);
 
-		/*xo_cap sel bit(4~6)= 100 12pf register:0xe8*/
+		/* xo_cap sel bit(4~6)= 100 12pf register:0xe8 */
 		regmap_read(chip->regmap, PM860_MISC_RTC3, &data);
 		data |= (0x4 << 4);
 		regmap_write(chip->regmap, PM860_MISC_RTC3, data);
 
-		/*set gpio3 and gpio4 to be DVC mode*/
-		regmap_read(chip->regmap, PM860_GPIO_2_3_CNTRL, &data);
-		data |= PM860_GPIO3_GPIO_MODE(7);
-		regmap_write(chip->regmap, PM860_GPIO_2_3_CNTRL, data);
+		regmap_read(chip->regmap, PM80X_CHIP_ID, &data);
+		pr_info("88pm860 id: 0x%x\n", data);
+		if (data == CHIP_PM860_A0_ID) {
+			/* set gpio4 and gpio5 to be DVC mode */
+			regmap_read(chip->regmap, PM860_GPIO_4_5_CNTRL, &data);
+			data |= PM860_GPIO4_GPIO_MODE(7) | PM860_GPIO5_GPIO_MODE(7);
+			regmap_write(chip->regmap, PM860_GPIO_4_5_CNTRL, data);
+		} else {
+			/* set gpio3 and gpio4 to be DVC mode */
+			regmap_read(chip->regmap, PM860_GPIO_2_3_CNTRL, &data);
+			data |= PM860_GPIO3_GPIO_MODE(7);
+			regmap_write(chip->regmap, PM860_GPIO_2_3_CNTRL, data);
 
-		regmap_read(chip->regmap, PM860_GPIO_4_5_CNTRL, &data);
-		data |= PM860_GPIO4_GPIO_MODE(7);
-		regmap_write(chip->regmap, PM860_GPIO_4_5_CNTRL, data);
+			regmap_read(chip->regmap, PM860_GPIO_4_5_CNTRL, &data);
+			data |= PM860_GPIO4_GPIO_MODE(7);
+			regmap_write(chip->regmap, PM860_GPIO_4_5_CNTRL, data);
+		}
 
 		break;
 
 	default:
 		dev_err(chip->dev, "Unknown device type: %d\n", chip->type);
+		break;
 	}
 
 	/*
