@@ -633,7 +633,8 @@ static void set_ap_clk_sel(struct clk_core *core, struct cpu_opt *top)
 		/* only for V1, separate pll1_1248 & pll3 switch */
 		pll1_pll3_switch(core, top->ap_clk_sel);
 		fccr.v = __raw_readl(src_sel_reg);
-		fccr.b.mohclksel = src_sel_val = top->ap_clk_sel;
+		fccr.b.mohclksel = top->ap_clk_sel;
+		src_sel_val = fccr.v;
 		__raw_writel(fccr.v, src_sel_reg);
 	} else if (core->flags & HELANX_FC_V2) {
 		src_sel_val = top->ap_clk_sel;
