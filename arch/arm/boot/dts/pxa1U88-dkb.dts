@@ -1048,6 +1048,17 @@
 			acipc: acipc@d401d000 {
 				status = "okay";
 			};
+
+			seh: seh@d4080000 {
+				status = "okay";
+			};
+
+			cp-load {
+				compatible = "marvell,cp_load";
+				cp-type = <1>; /* pxa1U88 */
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "okay";
+			};
 		};
 
                 /*
