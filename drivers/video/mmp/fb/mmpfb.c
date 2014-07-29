@@ -50,6 +50,32 @@ static int __init early_fbmem(char *str)
 }
 early_param("fbmem", early_fbmem);
 
+static int __init early_resolution(char *str)
+{
+	int ret = 0;
+	char *width_str;
+	char *height_str;
+
+	width_str = strchr(str, 'x');
+	height_str = strsep(&str, "x");
+
+	ret = kstrtoul(height_str, 0, &virtual_x);
+	if (ret < 0) {
+		pr_err("strtoul err.\n");
+		return ret;
+	}
+
+	ret = kstrtoul(width_str + 1, 0, &virtual_y);
+	if (ret < 0) {
+		pr_err("strtoul err.\n");
+		return ret;
+	}
+
+	skip_power_on = 0;
+	return 1;
+}
+early_param("resolution.lcd", early_resolution);
+
 static int var_to_pixfmt(struct fb_var_screeninfo *var)
 {
 	/*
@@ -447,12 +473,17 @@ static void mmpfb_set_win(struct fb_info *info)
 {
 	struct mmpfb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
+	struct mmp_path *path = fbi->path;
 	struct mmp_win win;
 	u32 stride;
 
 	memset(&win, 0, sizeof(win));
 	win.xsrc = win.xdst = fbi->mode.xres;
 	win.ysrc = win.ydst = fbi->mode.yres;
+	if (path && (path->mode.xres != fbi->mode.xres))
+		win.xdst = path->mode.xres;
+	if (path && (path->mode.yres != fbi->mode.yres))
+		win.ydst = path->mode.yres;
 	win.pix_fmt = fbi->pix_fmt;
 	stride = pixfmt_to_stride(win.pix_fmt);
 	win.pitch[0] = var->xres_virtual * stride;
@@ -466,8 +497,8 @@ static int mmpfb_set_par(struct fb_info *info)
 	struct mmpfb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
 	struct mmp_addr addr;
-	struct mmp_mode mode;
-	int ret;
+	struct mmp_mode mode, *mmp_modes;
+	int ret, videomode_num;
 
 	if (!mmp_path_ctrl_safe(fbi->path))
 		return -EINVAL;
@@ -478,6 +509,17 @@ static int mmpfb_set_par(struct fb_info *info)
 
 	/* set window/path according to new videomode */
 	fbmode_to_mmpmode(&mode, &fbi->mode, fbi->output_fmt);
+
+	/* get videomodes from path and update the real xres and yres */
+	videomode_num = mmp_path_get_modelist(fbi->path, &mmp_modes);
+	if (!videomode_num) {
+		dev_warn(fbi->dev, "can't get videomode num\n");
+		mode.real_xres = mode.xres;
+		mode.real_yres = mode.yres;
+	}
+	mode.real_xres = mmp_modes[0].real_xres;
+	mode.real_yres = mmp_modes[0].real_yres;
+
 	mmp_path_set_mode(fbi->path, &mode);
 
 	/* set window related info */
@@ -582,6 +624,7 @@ static int modes_setup(struct mmpfb_info *fbi)
 		dev_warn(fbi->dev, "can't get videomode num\n");
 		return 0;
 	}
+	mmpfb_check_virtural_mode(mmp_modes);
 	/* put videomode list to info structure */
 	videomodes = kzalloc(sizeof(struct fb_videomode) * videomode_num,
 			GFP_KERNEL);

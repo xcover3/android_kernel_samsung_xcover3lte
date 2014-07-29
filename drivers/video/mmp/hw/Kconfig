@@ -18,4 +18,28 @@ config MMP_DISP_SPI
 		Marvell MMP display hw controller spi port support
 		will register as a spi master for panel usage
 
+config MMP_VIRTUAL_RESOLUTION
+	bool "support virtual resulution"
+	depends on MMP_DISP_CONTROLLER
+	default n
+	help
+		Enable virtual resolution feature to support simulate
+		some resolution which current panel can't support or
+		no such panel of resolution
+
+config MMP_VIRTUAL_RESOLUTION_X
+	int "virtual resolution x (0~1920)"
+	depends on MMP_VIRTUAL_RESOLUTION
+	range 0 1920
+	default 720
+	help
+		Set the x resolution for virtual resolution
+
+config MMP_VIRTUAL_RESOLUTION_Y
+	int "virtual resolution y (0~1920)"
+	depends on MMP_VIRTUAL_RESOLUTION
+	range 0 1920
+	default 1280
+	help
+		Set the y resolution for virtual resolution
 endif

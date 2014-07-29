@@ -69,6 +69,32 @@ struct mmpfb_info {
 	atomic_t	op_count;
 };
 
+static unsigned long virtual_x;
+static unsigned long virtual_y;
+
+static inline void mmpfb_check_virtural_mode(struct mmp_mode *mode)
+{
+	if (!mode)
+		return;
+
+#if defined(CONFIG_MMP_VIRTUAL_RESOLUTION)
+	virtual_x = CONFIG_MMP_VIRTUAL_RESOLUTION_X;
+	virtual_y = CONFIG_MMP_VIRTUAL_RESOLUTION_Y;
+#endif
+
+	if (virtual_x && virtual_y) {
+		mode->xres = virtual_x;
+		mode->yres = virtual_y;
+		mode->pixclock_freq =  (virtual_x + mode->left_margin +
+			mode->right_margin + mode->hsync_len) * (virtual_y +
+			mode->vsync_len + mode->upper_margin
+			+ mode->lower_margin) * mode->refresh;
+	} else {
+		mode->xres = mode->real_xres;
+		mode->yres = mode->real_yres;
+	}
+}
+
 #define MMPFB_DEFAULT_SIZE (PAGE_ALIGN(1920 * 1080 * 4 * 2))
 
 extern int mmpfb_vsync_notify_init(struct mmpfb_info *fbi);

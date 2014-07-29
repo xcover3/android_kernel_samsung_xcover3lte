@@ -179,6 +179,8 @@ struct mmp_mode {
 	unsigned int refresh;
 	unsigned int xres;
 	unsigned int yres;
+	unsigned int real_xres;
+	unsigned int real_yres;
 	unsigned int left_margin;
 	unsigned int right_margin;
 	unsigned int upper_margin;
