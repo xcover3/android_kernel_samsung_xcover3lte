@@ -224,6 +224,9 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4030000 0x1000>;
 				interrupts = <0 27 0x4>;
+				dmas = <&pdma0 4 1
+					&pdma0 5 1>;
+				dma-names = "rx", "tx";
 				clocks = <&soc_clocks PXA1928_CLK_UART0>;
 			};
 
@@ -231,6 +234,9 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4017000 0x1000>;
 				interrupts = <0 28 0x4>;
+				dmas = <&pdma1 20 1
+					&pdma1 21 1>;
+				dma-names = "rx", "tx";
 				clocks = <&soc_clocks PXA1928_CLK_UART1>;
 			};
 
@@ -238,6 +244,9 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4018000 0x1000>;
 				interrupts = <0 24 0x4>;
+				dmas = <&pdma0 22 1
+					&pdma0 23 1>;
+				dma-names = "rx", "tx";
 				clocks = <&soc_clocks PXA1928_CLK_UART2>;
 			};
 
@@ -245,6 +254,9 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4016000 0x1000>;
 				interrupts = <0 46 0x4>;
+				dmas = <&pdma1 18 1
+					&pdma1 19 1>;
+				dma-names = "rx", "tx";
 				clocks = <&soc_clocks PXA1928_CLK_UART3>;
 			};
 
