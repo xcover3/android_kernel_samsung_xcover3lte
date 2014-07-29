@@ -299,7 +299,7 @@ CONFIG_FORCE_MAX_ZONEORDER=11
 #
 # Boot options
 #
-CONFIG_CMDLINE="rdinit=/busybox/rdinit console=ttyS0,115200 mem=512M earlyprintk"
+CONFIG_CMDLINE="rdinit=/busybox/rdinit console=ttyS0,115200 mem=512M earlyprintk uart_dma"
 CONFIG_CMDLINE_FORCE=y
 
 #
