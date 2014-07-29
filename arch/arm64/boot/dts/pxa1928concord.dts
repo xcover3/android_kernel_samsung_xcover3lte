@@ -321,6 +321,16 @@
 					pinctrl-single,pins = <GPIO(TP_INT) GPIO(TP_RESET)>;
 					MFP_DEFAULT;
 				};
+
+				dvc_pins: pinmux_dvc_pins {
+					pinctrl-single,pins = <
+						DVC00
+						DVC01
+						DVC02
+						DVC03
+					>;
+					MFP_DEFAULT;
+				};
 			};
 
 			twsi0: i2c@d4011000 {
@@ -339,13 +349,8 @@
 					/* TODO: move this part out */
 					dvc {
 						pinctrl-names = "default";
-						pinctrl-single,pins = <
-							DVC00
-							DVC01
-							DVC02
-							DVC03
-						>;
-						MFP_DEFAULT;
+						pinctrl-0 = <&dvc_pins>;
+						status = "okay";
 					};
 				};
 
