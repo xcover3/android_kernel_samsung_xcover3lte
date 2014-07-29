@@ -28,6 +28,7 @@
 #include <dt-bindings/clock/marvell-pxa1928.h>
 
 #include "clk.h"
+#include "clk-plat.h"
 
 #define APMU_COREAPSS_CLKCTRL		(0x2E0)
 #define APMU_BUS	(0x06c)
