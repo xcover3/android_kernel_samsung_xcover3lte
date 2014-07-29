@@ -239,6 +239,22 @@
 					MFP_LPM_FLOAT;
 				};
 
+				gps_pmx_eclk: gps_pmx_eclk {
+					/* eclk */
+					pinctrl-single,pins = <
+						GPIO89 AF5
+					>;
+					MFP_DEFAULT;
+				};
+
+				gps_pmx_gpio: gps_pmx_gpio {
+					/* gpio */
+					pinctrl-single,pins = <
+						GPIO89 AF0
+					>;
+					MFP_DEFAULT;
+				};
+
 			};
 
 			twsi0: i2c@d4011000 {
@@ -338,6 +354,21 @@
 			};
 
 		};
+	};
+
+	gps: mmp-gps {
+		compatible = "marvell,mmp-gps";
+		marvell,gps-eclk-ctrl;
+
+		vgps-supply = <&ldo13>;
+
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&gps_pmx_eclk>;
+		pinctrl-1 = <&gps_pmx_gpio>;
+
+		ldo-en-gpio = <&gpio 20 0>;
+		on-off-gpio = <&gpio 96 0>;
+		reset-n-gpio = <&gpio 70 0>;
 	};
 
 	touch: vnc {
