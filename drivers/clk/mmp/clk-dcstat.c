@@ -879,9 +879,9 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 {
 	unsigned int cpu, i, dc_int = 0, dc_fra = 0;
 	struct clk_dc_stat_info *percpu_stat = NULL;
-	u32 total_time = 0, run_total, idle_total, busy_time;
+	u32 total_time = 0, run_total, idle_total, busy_time, rt_total = 0;
 	u64 av_mips, av_mips_total = 0;
-	u32 av_mips_l, av_mips_h;
+	u32 av_mips_l, av_mips_h, rt_h, rt_l;
 	u32 temp_total_time = 0, temp_total_count = 0;
 	char *lpm_time_string[12] = { "<10 ms", "<20 ms", "<30 ms",
 		"<40 ms", "<50 ms", "<60 ms", "<70 ms", "<80 ms",
@@ -921,12 +921,15 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 		dc_int = calculate_dc(run_total, total_time, &dc_fra);
 		seq_printf(seq, "| %-4u | %10u | %4u.%02u%% | %7u.%02u |\n", cpu,
 				run_total, dc_int, dc_fra, av_mips_h, av_mips_l);
+		rt_total += run_total;
 	}
+	rt_l = 0;
+	rt_h = calculate_dc(rt_total, total_time, &rt_l);
 	av_mips_l = 0;
 	av_mips_h = div_u64_rem(av_mips_total, total_time, &av_mips_l);
 	av_mips_l = div_u64(av_mips_l * 100, total_time);
-	seq_printf(seq, "Total stat for %ums, total MIPS: %u.%02uMHz.\n\n",
-			total_time, av_mips_h, av_mips_l);
+	seq_printf(seq, "Total stat for %ums, total MIPS: %u.%02uMHz. rt_total %u.%02u%%\n\n",
+			total_time, av_mips_h, av_mips_l, rt_h, rt_l);
 
 	seq_printf(seq, "| %-10s | %5s | %10s | %10s |\n",
 		     "state", "ratio", "time(ms)", "count");
