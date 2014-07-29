@@ -22,8 +22,6 @@
 
 #ifndef _MMP_DISP_H_
 #define _MMP_DISP_H_
-#include <linux/kthread.h>
-#include <linux/device.h>
 
 enum {
 	PIXFMT_UYVY = 0,
@@ -31,8 +29,10 @@ enum {
 	PIXFMT_YUYV,
 	PIXFMT_YUV422P,
 	PIXFMT_YVU422P,
-	PIXFMT_YUV420P,
+	PIXFMT_YUV420P = 0x6,
 	PIXFMT_YVU420P,
+	PIXFMT_YUV420SP = 0xA,
+	PIXFMT_YVU420SP,
 	PIXFMT_RGB565 = 0x100,
 	PIXFMT_BGR565,
 	PIXFMT_RGB1555,
@@ -50,6 +50,80 @@ enum {
 
 	PIXFMT_PSEUDOCOLOR = 0x200,
 };
+
+/* parameters used by path/overlay */
+/* overlay related para: win/addr */
+struct mmp_win {
+	/* position/size of window */
+	unsigned short	xsrc;
+	unsigned short	ysrc;
+	unsigned short	xdst;
+	unsigned short	ydst;
+	unsigned short	xpos;
+	unsigned short	ypos;
+	unsigned short	left_crop;
+	unsigned short	right_crop;
+	unsigned short	up_crop;
+	unsigned short	bottom_crop;
+	int	pix_fmt;
+	/*
+	 * pitch[0]: graphics/video layer line length or y pitch
+	 * pitch[1]/pitch[2]: video u/v pitch if non-zero
+	 */
+	unsigned int	pitch[3];
+};
+
+struct mmp_addr {
+	/* phys address */
+	unsigned int	phys[6];
+};
+
+struct mmp_gamma {
+#define GAMMA_ENABLE	(1 << 0)
+#define GAMMA_DUMP	(1 << 1)
+	unsigned int	flag;
+#define GAMMA_TABLE_LEN	256
+	char		table[GAMMA_TABLE_LEN];
+};
+
+struct mmp_colorkey_alpha {
+#define FB_DISABLE_COLORKEY_MODE		0x0
+#define FB_ENABLE_Y_COLORKEY_MODE		0x1
+#define FB_ENABLE_U_COLORKEY_MODE		0x2
+#define FB_ENABLE_RGB_COLORKEY_MODE		0x3
+#define FB_ENABLE_V_COLORKEY_MODE		0x4
+#define FB_ENABLE_R_COLORKEY_MODE		0x5
+#define FB_ENABLE_G_COLORKEY_MODE		0x6
+#define FB_ENABLE_B_COLORKEY_MODE		0x7
+	unsigned int mode;
+#define FB_VID_PATH_ALPHA			0x0
+#define FB_GRA_PATH_ALPHA			0x1
+#define FB_CONFIG_ALPHA				0x2
+	unsigned int alphapath;
+	unsigned int config;
+	unsigned int y_coloralpha;
+	unsigned int u_coloralpha;
+	unsigned int v_coloralpha;
+};
+
+struct mmp_alpha {
+#define ALPHA_PN_GRA_AND_PN_VID		(1 << 0)
+#define ALPHA_PN_GRA_AND_TV_GRA		(1 << 1)
+#define ALPHA_PN_GRA_AND_TV_VID		(1 << 2)
+#define ALPHA_PN_VID_AND_TV_GRA		(1 << 3)
+#define ALPHA_PN_VID_AND_TV_VID		(1 << 4)
+#define ALPHA_TV_GRA_AND_TV_VID		(1 << 5)
+	unsigned int alphapath;
+#define ALPHA_PATH_PN_PATH_ALPHA		(1 << 0)
+#define ALPHA_PATH_TV_PATH_ALPHA		(1 << 1)
+#define ALPHA_PATH_VID_PATH_ALPHA	(1 << 2)
+#define ALPHA_PATH_GRA_PATH_ALPHA	(1 << 3)
+	unsigned int config;
+};
+
+#ifdef __KERNEL__
+#include <linux/kthread.h>
+#include <linux/device.h>
 
 static inline int pixfmt_to_stride(int pix_fmt)
 {
@@ -74,6 +148,8 @@ static inline int pixfmt_to_stride(int pix_fmt)
 	case PIXFMT_YVU422P:
 	case PIXFMT_YUV420P:
 	case PIXFMT_YVU420P:
+	case PIXFMT_YUV420SP:
+	case PIXFMT_YVU420SP:
 	case PIXFMT_PSEUDOCOLOR:
 		return 1;
 	default:
@@ -81,49 +157,22 @@ static inline int pixfmt_to_stride(int pix_fmt)
 	}
 }
 
-/* parameters used by path/overlay */
-/* overlay related para: win/addr */
-struct mmp_win {
-	/* position/size of window */
-	u16	xsrc;
-	u16	ysrc;
-	u16	xdst;
-	u16	ydst;
-	u16	xpos;
-	u16	ypos;
-	u16	left_crop;
-	u16	right_crop;
-	u16	up_crop;
-	u16	bottom_crop;
-	int	pix_fmt;
-	/*
-	 * pitch[0]: graphics/video layer line length or y pitch
-	 * pitch[1]/pitch[2]: video u/v pitch if non-zero
-	 */
-	u32	pitch[3];
-};
-
-struct mmp_addr {
-	/* phys address */
-	u32	phys[6];
-};
-
 /* path related para: mode */
 struct mmp_mode {
 	const char *name;
-	u32 refresh;
-	u32 xres;
-	u32 yres;
-	u32 left_margin;
-	u32 right_margin;
-	u32 upper_margin;
-	u32 lower_margin;
-	u32 hsync_len;
-	u32 vsync_len;
-	u32 hsync_invert;
-	u32 vsync_invert;
-	u32 invert_pixclock;
-	u32 pixclock_freq;
+	unsigned int refresh;
+	unsigned int xres;
+	unsigned int yres;
+	unsigned int left_margin;
+	unsigned int right_margin;
+	unsigned int upper_margin;
+	unsigned int lower_margin;
+	unsigned int hsync_len;
+	unsigned int vsync_len;
+	unsigned int hsync_invert;
+	unsigned int vsync_invert;
+	unsigned int invert_pixclock;
+	unsigned int pixclock_freq;
 	int pix_fmt_out;
 };
 
@@ -174,6 +223,11 @@ struct mmp_overlay_ops {
 	void (*set_status)(struct mmp_overlay *overlay, int status);
 	void (*set_win)(struct mmp_overlay *overlay, struct mmp_win *win);
 	int (*set_addr)(struct mmp_overlay *overlay, struct mmp_addr *addr);
+	int (*set_colorkey_alpha)(struct mmp_overlay *overlay,
+				struct mmp_colorkey_alpha *ca);
+	int (*set_alpha)(struct mmp_overlay *overlay,
+				struct mmp_alpha *pa);
+	void (*set_vsmooth_en)(struct mmp_overlay *overlay, int en);
 };
 
 /* overlay describes a z-order indexed slot in each path. */
@@ -246,6 +300,7 @@ struct mmp_path_ops {
 	void (*set_onoff)(struct mmp_path *path, int status);
 	int (*wait_vsync)(struct mmp_path *path);
 	int (*set_irq)(struct mmp_path *path, int on);
+	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
 	/* todo: add query */
 };
 
@@ -259,8 +314,8 @@ enum {
 struct mmp_dsi_cmd_desc {
 	u8 data_type;
 	u8 lp;      /*command tx through low power mode or high-speed mode */
-	u32 delay;  /* time to delay */
-	u32 length; /* cmds length */
+	unsigned int delay;  /* time to delay */
+	unsigned int length; /* cmds length */
 	u8 *data;
 };
 
@@ -269,7 +324,7 @@ struct mmp_dsi_buf {
 	/* DSI maximum packet data buffer */
 	#define DSI_MAX_DATA_BYTES	256
 	u8 data[DSI_MAX_DATA_BYTES];
-	u32 length; /* cmds length */
+	unsigned int length; /* cmds length */
 };
 
 /* for panel to dsi */
@@ -423,6 +478,13 @@ static inline int mmp_path_wait_vsync(struct mmp_path *path)
 		return path->ops.wait_vsync(path);
 	return 0;
 }
+static inline int mmp_path_set_gamma(struct mmp_path *path,
+		int flag, char *table)
+{
+	if (path && path->ops.set_gamma)
+		return path->ops.set_gamma(path, flag, table);
+	return 0;
+}
 static inline int mmp_path_set_irq(struct mmp_path *path, int on)
 {
 	if (path && path->ops.set_irq)
@@ -467,11 +529,56 @@ static inline void mmp_overlay_set_status(struct mmp_overlay *overlay,
 	if (overlay && overlay->ops->set_status)
 		overlay->ops->set_status(overlay, status);
 }
+static inline int mmp_overlay_set_colorkey_alpha(struct mmp_overlay *overlay,
+		struct mmp_colorkey_alpha *ca)
+{
+	if (overlay && overlay->ops->set_colorkey_alpha)
+		return overlay->ops->set_colorkey_alpha(overlay, ca);
+	return 0;
+}
+
+static inline void mmp_overlay_vsmooth_en(struct mmp_overlay *overlay,
+		int en)
+{
+	if (overlay && overlay->ops->set_vsmooth_en)
+		overlay->ops->set_vsmooth_en(overlay, en);
+}
+
+static inline int mmp_overlay_set_path_alpha(struct mmp_overlay *overlay,
+		struct mmp_alpha *pa)
+{
+	if (overlay && overlay->ops->set_alpha)
+		return overlay->ops->set_alpha(overlay, pa);
+	return 0;
+}
+
+static int is_win_changed(struct mmp_win *dst, struct mmp_win *src)
+{
+	return	!src || !dst
+		|| src->xsrc != dst->xsrc
+		|| src->ysrc != dst->ysrc
+		|| src->xdst != dst->xdst
+		|| src->ydst != dst->ydst
+		|| src->xpos != dst->xpos
+		|| src->ypos != dst->ypos
+		|| src->left_crop != dst->left_crop
+		|| src->right_crop != dst->right_crop
+		|| src->up_crop != dst->up_crop
+		|| src->bottom_crop != dst->bottom_crop
+		|| src->pix_fmt != dst->pix_fmt
+		|| src->pitch[0] != dst->pitch[0]
+		|| src->pitch[1] != dst->pitch[1]
+		|| src->pitch[2] != dst->pitch[2];
+}
+
 static inline void mmp_overlay_set_win(struct mmp_overlay *overlay,
 		struct mmp_win *win)
 {
-	if (overlay && overlay->ops->set_win)
+	if (overlay && overlay->ops->set_win
+		&& is_win_changed(&overlay->win, win)) {
+		overlay->win = *win;
 		overlay->ops->set_win(overlay, win);
+	}
 }
 static inline int mmp_overlay_set_addr(struct mmp_overlay *overlay,
 		struct mmp_addr *addr)
@@ -561,7 +668,7 @@ struct mmp_path_info {
 	int id;
 	int output_type;
 	int overlay_num;
-	u32 *overlay_table;
+	unsigned int *overlay_table;
 	struct mmp_overlay_ops *overlay_ops;
 	void *plat_data;
 };
@@ -596,10 +703,10 @@ struct mmp_buffer_driver_mach_info {
 struct mmp_mach_path_config {
 	const char *name;
 	int overlay_num;
-	u32 *overlay_table;
+	unsigned int *overlay_table;
 	int output_type;
-	u32 path_config;
-	u32 link_config;
+	unsigned int path_config;
+	unsigned int link_config;
 };
 
 struct mmp_mach_plat_info {
@@ -634,4 +741,5 @@ struct mmp_mach_dsi_info {
 	int hfp_en;
 	const char *plat_path_name;
 };
+#endif /* __KERNEL__ */
 #endif	/* _MMP_DISP_H_ */

@@ -25,6 +25,7 @@
 
 #include <video/mmp_disp.h>
 #include <linux/fb.h>
+#include <video/mmp_ioctl.h>
 
 struct mmpfb_vsync {
 	int en;
@@ -61,6 +62,10 @@ struct mmpfb_info {
 	int output_fmt;
 
 	struct mmpfb_vsync vsync;
+
+	struct mmp_alpha pa;
+
+	struct mmp_colorkey_alpha ca;
 };
 
 #define MMPFB_DEFAULT_SIZE (PAGE_ALIGN(1920 * 1080 * 4 * 2))
@@ -68,4 +73,10 @@ struct mmpfb_info {
 extern int mmpfb_vsync_notify_init(struct mmpfb_info *fbi);
 extern void mmpfb_vsync_notify_deinit(struct mmpfb_info *fbi);
 void mmpfb_wait_vsync(struct mmpfb_info *fbi);
+extern int mmpfb_ioctl(struct fb_info *info,
+			unsigned int cmd, unsigned long arg);
+#ifdef CONFIG_COMPAT
+extern int mmpfb_compat_ioctl(struct fb_info *info,
+			unsigned int cmd, unsigned long arg);
+#endif
 #endif /* _MMP_FB_H_ */

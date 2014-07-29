@@ -42,6 +42,327 @@
 
 #include "mmp_ctrl.h"
 
+static void gamma_write(struct mmp_path *path, u32 addr, u32 gamma_id, u32 val)
+{
+	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_WRDAT);
+	val = (0x8 << 12) | (gamma_id << 8) | addr;
+	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_CTRL);
+}
+
+static u32 gamma_read(struct mmp_path *path, u32 addr, int gamma_id, int id)
+{
+	int count = 10000, val, pn2 = (id == 2) ? (1 << 16) : 0;
+
+	val = pn2 | (0x0 << 12) | (gamma_id << 8) | addr;
+	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_CTRL);
+	while ((readl(ctrl_regs(path) + LCD_SPU_SRAM_CTRL) & (1<<31))
+		&& count--)
+		;
+
+	if (count > 0)
+		val = readl(ctrl_regs(path) + (((path->id) & 1) ?
+				LCD_TV_GAMMA_RDDAT : LCD_SPU_GAMMA_RDDAT))
+			& CFG_GAMMA_RDDAT_MASK;
+	else
+		val = -1;
+
+	return val;
+}
+
+static void gamma_dump(struct mmp_path *path, int lines)
+{
+	u32 i = 0, val;
+	int id = path->id;
+
+	if (!(readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id))
+		& CFG_GAMMA_ENA_MASK))
+		dev_info(path->dev, "gamma correction not enabled yet\n");
+
+	/* enable gamma correction table update */
+	val = readl_relaxed(ctrl_regs(path) + LCD_SPU_SRAM_PARA1)
+			| CFG_CSB_256x8_MASK;
+	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_PARA1);
+
+	for (; i < lines; i++)
+		dev_info(path->dev, "%3d: yr %3d, ug %3d, vb %3d\n", i,
+			gamma_read(path, i, gamma_id_yr(id), id),
+			gamma_read(path, i, gamma_id_ug(id), id),
+			gamma_read(path, i, gamma_id_vb(id), id));
+
+	val = readl_relaxed(ctrl_regs(path) + LCD_SPU_SRAM_PARA1)
+			& ~CFG_CSB_256x8_MASK;
+	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_PARA1);
+}
+
+static int path_set_gamma(struct mmp_path *path, int flag, char *gamma_table)
+{
+	u32 tmp, val, i;
+
+	/* disable gamma correction */
+	tmp = readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id));
+	tmp &= ~CFG_GAMMA_ENA_MASK;
+	tmp |= CFG_GAMMA_ENA(0);
+	writel(tmp, ctrl_regs(path) + dma_ctrl(0, path->id));
+
+	if (!(flag & GAMMA_ENABLE))
+		goto dump;
+
+	/* enable gamma correction table update */
+	val = readl_relaxed(ctrl_regs(path) + LCD_SPU_SRAM_PARA1)
+			| CFG_CSB_256x8_MASK;
+	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_PARA1);
+
+	/* write gamma corrrection table */
+	for (i = 0; i < GAMMA_TABLE_LEN; i++) {
+		gamma_write(path, i, gamma_id_yr(path->id), gamma_table[i]);
+		gamma_write(path, i, gamma_id_ug(path->id), gamma_table[i]);
+		gamma_write(path, i, gamma_id_vb(path->id), gamma_table[i]);
+	}
+
+	val = readl_relaxed(ctrl_regs(path) + LCD_SPU_SRAM_PARA1)
+			& ~CFG_CSB_256x8_MASK;
+	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_PARA1);
+
+	/* enable gamma correction table */
+	tmp = readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id));
+	tmp &= ~CFG_GAMMA_ENA_MASK;
+	tmp |= CFG_GAMMA_ENA(1);
+	writel(tmp, ctrl_regs(path) + dma_ctrl(0, path->id));
+
+dump:
+	if (flag & GAMMA_DUMP)
+		gamma_dump(path, GAMMA_TABLE_LEN);
+
+	return 0;
+}
+
+static int is_rbswap(struct mmp_overlay *overlay)
+{
+	int fmt = overlay->win.pix_fmt;
+	if (fmt == PIXFMT_BGR565
+		|| fmt == PIXFMT_BGR1555
+		|| fmt == PIXFMT_BGR888PACK
+		|| fmt == PIXFMT_BGR888UNPACK
+		|| fmt == PIXFMT_BGRA888)
+		return 1;
+	else
+		return 0;
+}
+
+static int overlay_set_colorkey_alpha(struct mmp_overlay *overlay,
+					struct mmp_colorkey_alpha *ca)
+{
+	struct mmp_path *path = overlay->path;
+	struct lcd_regs *regs = path_regs(overlay->path);
+	struct mmphw_ctrl *ctrl = overlay_to_ctrl(overlay);
+	u32 rb, x, layer, dma0, shift, r, b;
+
+	dma0 = readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id));
+	shift = path->id ? 20 : 18;
+	rb = layer = 0;
+	r = ca->y_coloralpha;
+	b = ca->v_coloralpha;
+
+	/* reset to 0x0 to disable color key. */
+	x = readl_relaxed(ctrl_regs(path) + dma_ctrl(1, path->id))
+			& ~(CFG_COLOR_KEY_MASK | CFG_ALPHA_MODE_MASK
+			| CFG_ALPHA_MASK);
+
+	/* switch to color key mode */
+	switch (ca->mode) {
+	case FB_DISABLE_COLORKEY_MODE:
+		/* do nothing */
+		break;
+	case FB_ENABLE_Y_COLORKEY_MODE:
+		x |= CFG_COLOR_KEY_MODE(0x1);
+		break;
+	case FB_ENABLE_U_COLORKEY_MODE:
+		x |= CFG_COLOR_KEY_MODE(0x2);
+		break;
+	case FB_ENABLE_V_COLORKEY_MODE:
+		x |= CFG_COLOR_KEY_MODE(0x4);
+		dev_info(ctrl->dev,
+			"V colorkey not supported, Chroma key instead\n");
+		break;
+	case FB_ENABLE_RGB_COLORKEY_MODE:
+		x |= CFG_COLOR_KEY_MODE(0x3);
+		rb = 1;
+		break;
+	case FB_ENABLE_R_COLORKEY_MODE:
+		x |= CFG_COLOR_KEY_MODE(0x1);
+		rb = 1;
+		break;
+	case FB_ENABLE_G_COLORKEY_MODE:
+		x |= CFG_COLOR_KEY_MODE(0x6);
+		dev_info(ctrl->dev,
+			"G colorkey not supported, Luma key instead\n");
+		break;
+	case FB_ENABLE_B_COLORKEY_MODE:
+		x |= CFG_COLOR_KEY_MODE(0x7);
+		rb = 1;
+		break;
+	default:
+		dev_info(ctrl->dev, "unknown mode\n");
+		return -1;
+	}
+
+	/* switch to alpha path selection */
+	switch (ca->alphapath) {
+	case FB_VID_PATH_ALPHA:
+		x |= CFG_ALPHA_MODE(0x0);
+		layer = CFG_CKEY_DMA;
+		if (rb) {
+			rb = ((dma0 & CFG_DMA_SWAPRB_MASK) >> 4) ^
+				(is_rbswap(overlay));
+		}
+		break;
+	case FB_GRA_PATH_ALPHA:
+		x |= CFG_ALPHA_MODE(0x1);
+		layer = CFG_CKEY_GRA;
+		if (rb) {
+			rb = ((dma0 & CFG_GRA_SWAPRB_MASK) >> 12) ^
+				(is_rbswap(overlay));
+		}
+		break;
+	case FB_CONFIG_ALPHA:
+		x |= CFG_ALPHA_MODE(0x2);
+		rb = 0;
+		break;
+	default:
+		dev_info(ctrl->dev, "unknown alpha path");
+		return -1;
+	}
+
+	/* check whether DMA turn on RB swap for this pixelformat. */
+	if (rb) {
+		if (ca->mode == FB_ENABLE_R_COLORKEY_MODE) {
+			x &= ~CFG_COLOR_KEY_MODE(0x1);
+			x |= CFG_COLOR_KEY_MODE(0x7);
+		}
+
+		if (ca->mode == FB_ENABLE_B_COLORKEY_MODE) {
+			x &= ~CFG_COLOR_KEY_MODE(0x7);
+			x |= CFG_COLOR_KEY_MODE(0x1);
+		}
+
+		/* exchange r b fields. */
+		r = ca->v_coloralpha;
+		b = ca->y_coloralpha;
+
+		/* only alpha_Y take effect, switch back from V */
+		if (ca->mode == FB_ENABLE_RGB_COLORKEY_MODE) {
+			r &= 0xffffff00;
+			r |= (ca->y_coloralpha & 0xff);
+		}
+	}
+
+	/* configure alpha */
+	x |= CFG_ALPHA((ca->config & 0xff));
+	writel(x, ctrl_regs(path) + dma_ctrl(1, path->id));
+	writel(r, &regs->v_colorkey_y);
+	writel(ca->u_coloralpha, &regs->v_colorkey_u);
+	writel(b, &regs->v_colorkey_v);
+
+	if (DISP_GEN4(ctrl->version) && (!path->id)) {
+		shift = 1;
+		x = readl_relaxed(ctrl_regs(path) + dma_ctrl(2, path->id));
+		x &= ~(3 << shift);
+		x |= layer << shift;
+		writel(x, ctrl_regs(path) + dma_ctrl(2, path->id));
+	} else if (path->id != 2) {
+		/*
+		 * enable DMA colorkey on graphics/video layer
+		 * in panel/TV path. On GEN4 TV path keeps the same setting.
+		 */
+		x = readl_relaxed(ctrl_regs(path) + LCD_TV_CTRL1);
+		x &= ~(3 << shift);
+		x |= layer << shift;
+		writel(x, ctrl_regs(path) + LCD_TV_CTRL1);
+	}
+
+	return 0;
+}
+
+static int overlay_set_path_alpha(struct mmp_overlay *overlay,
+					struct mmp_alpha *pa)
+{
+	struct mmp_path *path = overlay->path;
+	u32 alpha_mode = 0x0, mask, val;
+
+	if ((pa->alphapath & ALPHA_TV_GRA_AND_TV_VID) ||
+		(pa->alphapath & ALPHA_PN_GRA_AND_PN_VID)) {
+		if (pa->config & ALPHA_PATH_VID_PATH_ALPHA)
+			alpha_mode = 0x0;
+		else if (pa->config & ALPHA_PATH_GRA_PATH_ALPHA)
+			alpha_mode = 0x1;
+		val = readl_relaxed(ctrl_regs(path) + dma_ctrl(1, path->id));
+		mask = CFG_ALPHA_MODE_MASK;
+		val &= ~mask;
+		val |= CFG_ALPHA_MODE(alpha_mode);
+		writel(val, ctrl_regs(path) + dma_ctrl(1, path->id));
+		val = readl_relaxed(ctrl_regs(path) + LCD_AFA_ALL2ONE);
+		mask = CFG_OVTOP_MASK | CFG_OVNXT_MASK;
+		val &= ~mask;
+		if (pa->alphapath == ALPHA_PN_GRA_AND_PN_VID)
+			val |= CFG_OVTOP_SEL(1) | CFG_OVNXT_SEL(0);
+		else
+			val |= CFG_OVTOP_SEL(3) | CFG_OVNXT_SEL(2);
+		writel(val, ctrl_regs(path) + LCD_AFA_ALL2ONE);
+	} else if (pa->alphapath & ALPHA_PN_GRA_AND_TV_GRA) {
+		if (pa->config & ALPHA_PATH_VID_PATH_ALPHA)
+			alpha_mode = 0x0;
+		else if (pa->config & ALPHA_PATH_GRA_PATH_ALPHA)
+			alpha_mode = 0x1;
+		val = readl_relaxed(ctrl_regs(path) + LCD_AFA_ALL2ONE);
+		mask = CFG_GRATVG_MASK | CFG_OVTOP_MASK
+			| CFG_OVNXT_MASK;
+		val &= ~mask;
+		val |= CFG_GRATVG_AMOD(alpha_mode) | CFG_OVTOP_SEL(1)
+			| CFG_OVNXT_SEL(3);
+		writel(val, ctrl_regs(path) + LCD_AFA_ALL2ONE);
+	} else if (pa->alphapath & ALPHA_PN_GRA_AND_TV_VID) {
+		if (pa->config & ALPHA_PATH_VID_PATH_ALPHA)
+			alpha_mode = 0x0;
+		else if (pa->config & ALPHA_PATH_GRA_PATH_ALPHA)
+			alpha_mode = 0x1;
+		val = readl_relaxed(ctrl_regs(path) + LCD_AFA_ALL2ONE);
+		mask = CFG_GRATVD_MASK | CFG_OVTOP_MASK
+			| CFG_OVNXT_MASK;
+		val &= ~mask;
+		val |= CFG_GRATVD_AMOD(alpha_mode) | CFG_OVTOP_SEL(1)
+			| CFG_OVNXT_SEL(2);
+		writel(val, ctrl_regs(path) + LCD_AFA_ALL2ONE);
+	} else if (pa->alphapath & ALPHA_PN_VID_AND_TV_GRA) {
+		if (pa->config & ALPHA_PATH_PN_PATH_ALPHA)
+			alpha_mode = 0x0;
+		else if (pa->config & ALPHA_PATH_TV_PATH_ALPHA)
+			alpha_mode = 0x1;
+		val = readl_relaxed(ctrl_regs(path) + LCD_AFA_ALL2ONE);
+		mask = CFG_DMATVG_MASK | CFG_OVTOP_MASK
+			| CFG_OVNXT_MASK;
+		val &= ~mask;
+		val |= CFG_DMATVG_AMOD(alpha_mode) | CFG_OVTOP_SEL(0)
+			| CFG_OVNXT_SEL(3);
+		writel(val, ctrl_regs(path) + LCD_AFA_ALL2ONE);
+	} else if (pa->alphapath & ALPHA_PN_VID_AND_TV_VID) {
+		if (pa->config & ALPHA_PATH_PN_PATH_ALPHA)
+			alpha_mode = 0x0;
+		else if (pa->config & ALPHA_PATH_TV_PATH_ALPHA)
+			alpha_mode = 0x1;
+		val = readl_relaxed(ctrl_regs(path) + LCD_AFA_ALL2ONE);
+		mask = CFG_DMATVD_MASK | CFG_OVTOP_MASK
+			| CFG_OVNXT_MASK;
+		val &= ~mask;
+		val |= CFG_DMATVD_AMOD(alpha_mode) | CFG_OVTOP_SEL(0)
+			| CFG_OVNXT_SEL(2);
+		writel(val, ctrl_regs(path) + LCD_AFA_ALL2ONE);
+	} else {
+		dev_info(overlay_to_ctrl(overlay)->dev, "unknown alpha path");
+		return -1;
+	}
+	return 0;
+}
+
 static int path_set_irq(struct mmp_path *path, int on)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
@@ -212,6 +533,11 @@ static u32 fmt_to_reg(int overlay_id, int pix_fmt)
 		val = 0x7;
 		csc_en = 1;
 		break;
+	case PIXFMT_YUV420SP:
+	case PIXFMT_YVU420SP:
+		val = 0xc;
+		csc_en = 1;
+		break;
 	default:
 		break;
 	}
@@ -231,6 +557,13 @@ static void overlay_set_fmt(struct mmp_overlay *overlay)
 	tmp &= ~dma_mask(overlay_is_vid(overlay_id));
 	tmp |= fmt_to_reg(overlay_id, overlay->win.pix_fmt);
 	writel_relaxed(tmp, ctrl_regs(path) + dma_ctrl(0, path->id));
+	if (is_420sp(overlay->win.pix_fmt)) {
+		tmp = readl_relaxed(ctrl_regs(path) + LCD_YUV420SP_FMT_CTRL);
+		tmp &= ~SWAP_420SP(path->id);
+		if (overlay->win.pix_fmt == PIXFMT_YVU420SP)
+			tmp |= SWAP_420SP(path->id);
+		writel_relaxed(tmp, ctrl_regs(path) + LCD_YUV420SP_FMT_CTRL);
+	}
 }
 
 static void overlay_set_win(struct mmp_overlay *overlay, struct mmp_win *win)
@@ -515,6 +848,24 @@ static int overlay_set_addr(struct mmp_overlay *overlay, struct mmp_addr *addr)
 	return overlay->addr.phys[0];
 }
 
+static void overlay_set_vsmooth_en(struct mmp_overlay *overlay, int en)
+{
+	struct mmp_path *path = overlay->path;
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+	u32 tmp;
+
+	if (!DISP_GEN4(ctrl->version))
+		return;
+	/* only video layer support vertical smooth */
+	if (!overlay_is_vid(overlay->id))
+		return;
+	mutex_lock(&overlay->access_ok);
+	tmp = readl_relaxed(ctrl_regs(path) + dma_ctrl(2, path->id));
+	tmp &= ~1;
+	tmp |= !!en;
+	writel(tmp, ctrl_regs(path) + dma_ctrl(2, path->id));
+	mutex_unlock(&overlay->access_ok);
+}
 
 static int is_mode_changed(struct mmp_mode *dst, struct mmp_mode *src)
 {
@@ -566,6 +917,9 @@ static struct mmp_overlay_ops mmphw_overlay_ops = {
 	.set_status = overlay_set_status,
 	.set_win = overlay_set_win,
 	.set_addr = overlay_set_addr,
+	.set_colorkey_alpha = overlay_set_colorkey_alpha,
+	.set_alpha = overlay_set_path_alpha,
+	.set_vsmooth_en = overlay_set_vsmooth_en,
 };
 
 static void ctrl_set_default(struct mmphw_ctrl *ctrl)
@@ -683,6 +1037,7 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	mmp_vsync_init(path);
 	path->ops.set_mode = path_set_mode;
 	path->ops.set_irq = path_set_irq;
+	path->ops.set_gamma = path_set_gamma;
 
 	path_set_default(path);
 

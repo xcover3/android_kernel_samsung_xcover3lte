@@ -140,7 +140,9 @@ struct lcd_regs {
 				LCD_PN2_CTRL0) : LCD_SPU_DMA_CTRL0)
 #define dma_ctrl1(id)	   ((id) ? (((id) & 1) ? LCD_TV_CTRL1 : \
 				LCD_PN2_CTRL1) : LCD_SPU_DMA_CTRL1)
-#define dma_ctrl(ctrl1, id)	 (ctrl1 ? dma_ctrl1(id) : dma_ctrl0(id))
+#define dma_ctrl(ctrl_id, path_id)	((ctrl_id) ? (((ctrl_id) & 1) ? \
+			dma_ctrl1(path_id) : dma_ctrl2(path_id)) : \
+			dma_ctrl0(path_id))
 
 /* 32 bit		TV Path DMA Control 0*/
 #define LCD_TV_CTRL0					(0x0080)
@@ -855,10 +857,31 @@ struct lcd_regs {
 			LCD_PN2_SQULN1_CTRL) : LCD_SQULN1_CTRL)
 
 /* 32 bit LCD Mixed Overlay Control Register */
-#define LCD_AFA_ALL2ONE				(0x01E8)
+#define	LCD_AFA_ALL2ONE			(0x01E8)
+#define	CFG_GRATVG_MASK			(0xC000)
+#define	CFG_GRATVG_AMOD(amode)		((amode)<<14)
+#define	CFG_GRATVD_MASK			(0x3000)
+#define	CFG_GRATVD_AMOD(amode)		((amode)<<12)
+#define	CFG_DMATVG_MASK			(0xC00)
+#define	CFG_DMATVG_AMOD(amode)		((amode)<<10)
+#define	CFG_DMATVD_MASK			(0x300)
+#define	CFG_DMATVD_AMOD(amode)		((amode)<<8)
+#define	CFG_OVNXT_MASK		(0xC)
+#define	CFG_OVNXT_SEL(sel)		((sel)<<2)
+#define	CFG_OVTOP_MASK		(0x3)
+#define	CFG_OVTOP_SEL(sel)		((sel)<<0)
+
+#define LCD_YUV420SP_FMT_CTRL			(0x01F4)
+#define SWAP_420SP(id)				(1 << (id))
+#define is_420sp(pix_fmt)			((pix_fmt) == PIXFMT_YUV420SP \
+		|| (pix_fmt) == PIXFMT_YVU420SP)
 
 #define LCD_VERSION				(0x0240)
 #define DISP_GEN4(version)			((version) == 4)
+
+#define LCD_PN_CTRL2				(0x200)
+#define LCD_TV_CTRL2				(0x204)
+#define dma_ctrl2(id)				((id) ? (LCD_TV_CTRL2) : LCD_PN_CTRL2)
 
 #define PN2_LCD_DMA_START_ADDR_Y0		(0x0200)
 #define PN2_LCD_DMA_START_ADDR_U0		(0x0204)
@@ -1120,6 +1143,10 @@ struct lcd_regs {
 #define LVDS_FREQ_OFFSET_VALID			(0x1 << 2)
 #define LVDS_FREQ_OFFSET_MODE_CK_DIV4_OUT	(0x1 << 1)
 #define LVDS_FREQ_OFFSET_MODE_EN		(0x1 << 0)
+
+#define gamma_id_yr(path)	((path) ? (((path) & 1) ? 0x4 : 0x9) : 0x0)
+#define gamma_id_ug(path)	((path) ? (((path) & 1) ? 0x5 : 0xa) : 0x1)
+#define gamma_id_vb(path)	((path) ? (((path) & 1) ? 0x6 : 0xb) : 0x2)
 
 enum {
 	PATH_PN = 0,

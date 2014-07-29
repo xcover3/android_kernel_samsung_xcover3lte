@@ -59,6 +59,17 @@ static int var_to_pixfmt(struct fb_var_screeninfo *var)
 	}
 
 	/*
+	 * Check for YUV420SEMIPLANAR.
+	 */
+	if (var->bits_per_pixel == 12 && var->red.length == 8 &&
+			(var->green.length == 0 || var->blue.length == 0)) {
+		if (var->green.length)
+			return PIXFMT_YUV420SP;
+		else
+			return PIXFMT_YVU420SP;
+	}
+
+	/*
 	 * Check for YUV422PACK.
 	 */
 	if (var->bits_per_pixel == 16 && var->red.length == 16 &&
@@ -185,6 +196,20 @@ static void pixfmt_to_var(struct fb_var_screeninfo *var, int pix_fmt)
 		var->red.offset = 4;	 var->red.length = 8;
 		var->green.offset = 0;	 var->green.length = 2;
 		var->blue.offset = 2;	var->blue.length = 2;
+		var->transp.offset = 0;  var->transp.length = 0;
+		break;
+	case PIXFMT_YUV420SP:
+		var->bits_per_pixel = 12;
+		var->red.offset = 4;	 var->red.length = 8;
+		var->green.offset = 2;   var->green.length = 4;
+		var->blue.offset = 0;   var->blue.length = 0;
+		var->transp.offset = 0;  var->transp.length = 0;
+		break;
+	case PIXFMT_YVU420SP:
+		var->bits_per_pixel = 12;
+		var->red.offset = 4;	 var->red.length = 8;
+		var->green.offset = 0;	 var->green.length = 0;
+		var->blue.offset = 2;	var->blue.length = 4;
 		var->transp.offset = 0;  var->transp.length = 0;
 		break;
 	case PIXFMT_YUV422P:
@@ -485,6 +510,10 @@ static struct fb_ops mmpfb_ops = {
 	.fb_set_par	= mmpfb_set_par,
 	.fb_setcolreg	= mmpfb_setcolreg,
 	.fb_pan_display	= mmpfb_pan_display,
+	.fb_ioctl	= mmpfb_ioctl,
+#ifdef CONFIG_COMPAT
+	.fb_compat_ioctl	= mmpfb_compat_ioctl,
+#endif
 	.fb_fillrect	= cfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
 	.fb_imageblit	= cfb_imageblit,
