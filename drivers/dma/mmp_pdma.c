@@ -113,6 +113,7 @@ struct mmp_pdma_chan {
 	struct list_head chain_running;	/* Link descriptors queue for running */
 	bool idle;			/* channel statue machine */
 	bool byte_align;
+	u32 bytes_residue;
 
 	struct dma_pool *desc_pool;	/* Descriptors pool */
 };
@@ -166,7 +167,9 @@ static void enable_chan(struct mmp_pdma_phy *phy)
 	writel(dalgn, phy->base + DALGN);
 
 	reg = (phy->idx << 2) + DCSR;
-	writel(readl(phy->base + reg) | DCSR_RUN, phy->base + reg);
+
+	writel(readl(phy->base + reg) | DCSR_RUN
+		| DCSR_EORIRQEN | DCSR_EORSTOPEN, phy->base + reg);
 }
 
 static void disable_chan(struct mmp_pdma_phy *phy)
@@ -330,6 +333,7 @@ static void start_pending_queue(struct mmp_pdma_chan *chan)
 	set_desc(chan->phy, desc->async_tx.phys);
 	enable_chan(chan->phy);
 	chan->idle = false;
+	chan->bytes_residue = 0;
 }
 
 
@@ -534,7 +538,7 @@ mmp_pdma_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 	if ((sgl == NULL) || (sg_len == 0))
 		return NULL;
 
-	chan->byte_align = false;
+	chan->byte_align = true;
 
 	for_each_sg(sgl, sg, sg_len, i) {
 		addr = sg_dma_address(sg);
@@ -702,6 +706,7 @@ static int mmp_pdma_control(struct dma_chan *dchan, enum dma_ctrl_cmd cmd,
 		spin_lock_irqsave(&chan->desc_lock, flags);
 		mmp_pdma_free_desc_list(chan, &chan->chain_pending);
 		mmp_pdma_free_desc_list(chan, &chan->chain_running);
+		chan->bytes_residue = 0;
 		spin_unlock_irqrestore(&chan->desc_lock, flags);
 		chan->idle = true;
 		break;
@@ -761,7 +766,7 @@ static unsigned int mmp_pdma_residue(struct mmp_pdma_chan *chan,
 	 * been completed. Therefore, its residue is 0.
 	 */
 	if (!chan->phy)
-		return 0;
+		return chan->bytes_residue; /* special case for EORIRQEN */
 
 	if (chan->dir == DMA_DEV_TO_MEM)
 		curr = readl(chan->phy->base + DTADR(chan->phy->idx));
@@ -881,6 +886,15 @@ static void dma_do_tasklet(unsigned long data)
 	/* submit pending list; callback for each desc; free desc */
 	spin_lock_irqsave(&chan->desc_lock, flags);
 
+	/* special for the EORIRQEN case, residue is not 0 */
+	list_for_each_entry(desc, &chan->chain_running, node) {
+		if (desc->desc.dcmd & DCMD_ENDIRQEN) {
+			chan->bytes_residue =
+				mmp_pdma_residue(chan, desc->async_tx.cookie);
+			break;
+		}
+	}
+
 	list_for_each_entry_safe(desc, _desc, &chan->chain_running, node) {
 		/*
 		 * move the descriptors to a temporary list so we can drop
@@ -962,6 +976,7 @@ static int mmp_pdma_chan_init(struct mmp_pdma_device *pdev, int idx, int irq)
 	tasklet_init(&chan->tasklet, dma_do_tasklet, (unsigned long)chan);
 	INIT_LIST_HEAD(&chan->chain_pending);
 	INIT_LIST_HEAD(&chan->chain_running);
+	chan->bytes_residue = 0;
 
 	/* register virt channel to dma engine */
 	list_add_tail(&chan->chan.device_node, &pdev->device.channels);
