@@ -288,6 +288,43 @@
 					>;
 					MFP_DEFAULT;
 				};
+
+				gnss_pmx_def1: gnss_pmx_def1 {
+					pinctrl-single,pins = <
+						ND_IO11 AF1
+						ND_IO12 AF1
+						ND_IO13 AF1
+						ND_IO15 AF1
+					>;
+					MFP_LPM_PULL_DW;
+				};
+
+				gnss_pmx_def2: gnss_pmx_def2 {
+					pinctrl-single,pins = <
+						ND_IO14 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
+				gnss_pmx_power_on: gnss_pmx_power_on {
+					pinctrl-single,pins = <
+						ND_IO11 AF5
+						ND_IO12 AF5
+						ND_IO13 AF5
+						ND_IO14 AF5
+						ND_IO15 AF5
+					>;
+					MFP_DEFAULT;
+				};
+
+				senhb_irq_pins_def: senhb_irq_pins_def {
+					pinctrl-single,pins = <
+						GPIO11 AF0
+						GPIO10 AF0
+						ND_IO10 AF5
+					>;
+					MFP_DEFAULT;
+				};
 			};
 
 			twsi0: i2c@d4011000 {
@@ -466,6 +503,31 @@
 		led_r = <&gpio 102 0>;
 		led_g = <&gpio 103 0>;
 		led_b = <&gpio 104 0>;
+		status = "okay";
+	};
+
+	mmp_m3_1: apsenhb {
+		compatible = "marvell,mmp-m3";
+		vm3pwr-supply = <&ldo13>;
+		antpwr-supply = <&ldo8>;
+
+		pinctrl-names = "default", "poweron", "unfuse_en_d2";
+		pinctrl-0 = <&gnss_pmx_def1 &gnss_pmx_def2>;
+		pinctrl-1 = <&gnss_pmx_power_on>;
+		pinctrl-2 = <&gnss_pmx_def2>;
+		status = "okay";
+	};
+
+	mmp_m3_2: cm3senhb {
+		compatible = "marvell,mmp-m3";
+		vm3pwr-supply = <&ldo13>;
+		senpwr-supply = <&ldo10>;
+		antpwr-supply = <&ldo8>;
+
+		pinctrl-names = "default", "poweron", "unfuse_en_d2";
+		pinctrl-0 = <&gnss_pmx_def1 &gnss_pmx_def2 &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
+		pinctrl-1 = <&gnss_pmx_power_on &twsi3_pmx_senhb>;
+		pinctrl-2 = <&gnss_pmx_def2>;
 		status = "okay";
 	};
 };

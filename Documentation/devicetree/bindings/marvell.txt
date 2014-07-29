@@ -513,4 +513,17 @@ prefixed with the string "marvell,", for Marvell Technology Group Ltd.
 	     interrupt-parent = <&PIC>;
      };
 
+   t) Marvell cm3 resource manager
+
+   Required properties:
+     - compatible : "marvell,mmp-m3"
+     - vm3pwr-supply: gps power supply
+     - antpwr-supply: antenna power supply
+
+   Example :
+	mmp_m3: apsenhb {
+		compatible = "marvell,mmp-m3";
+		vm3pwr-supply = <&ldo13>;
+		antpwr-supply = <&ldo8>;
+	};
 
