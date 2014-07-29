@@ -44,8 +44,50 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
+
+#define	DMA_BLOCK	UART_XMIT_SIZE
+
+#define PXA_UART_TX	0
+#define PXA_UART_RX	1
 
 #define PXA_NAME_LEN		8
+
+/*
+ * DMA related data is stored in this struct,
+ * making it separated from non-DMA mode.
+ */
+struct uart_pxa_dma {
+#define TX_DMA_RUNNING		(1 << 0)
+#define RX_DMA_RUNNING		(1 << 1)
+	unsigned int		dma_status;
+
+	struct dma_chan *txdma_chan;
+	struct dma_chan *rxdma_chan;
+	struct dma_async_tx_descriptor *rx_desc;
+	struct dma_async_tx_descriptor *tx_desc;
+	void			*txdma_addr;
+	void			*rxdma_addr;
+	dma_addr_t		txdma_addr_phys;
+	dma_addr_t		rxdma_addr_phys;
+	int			tx_stop;
+	int			rx_stop;
+	dma_cookie_t rx_cookie;
+	dma_cookie_t tx_cookie;
+	unsigned int		drcmr_tx;
+	unsigned int		drcmr_rx;
+	int			tx_size; /* size of last transmit bytes */
+	struct	tasklet_struct	tklet;
+
+#ifdef	CONFIG_PM
+	/* We needn't save rx dma register because we
+	 * just restart the dma totallly after resume
+	 */
+	void			*tx_buf_save;
+	int			tx_saved_len;
+#endif
+};
 
 struct uart_pxa_port {
 	struct uart_port        port;
@@ -55,7 +97,50 @@ struct uart_pxa_port {
 	unsigned int            lsr_break_flag;
 	struct clk		*clk;
 	char			name[PXA_NAME_LEN];
+	int			dma_enable;
+	struct uart_pxa_dma	uart_dma;
 };
+
+static int uart_dma;
+
+static int __init uart_dma_setup(char *__unused)
+{
+/* if CONFIG_MMP_PDMA not enabled, uart will work in non-DMA mode */
+#ifdef CONFIG_MMP_PDMA
+	uart_dma = 1;
+#endif
+	return 1;
+}
+
+__setup("uart_dma", uart_dma_setup);
+
+static inline void stop_dma(struct uart_pxa_port *up, int read)
+{
+	unsigned long flags;
+	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
+	struct dma_chan *channel;
+	dma_cookie_t cookie;
+
+	channel = read ? pxa_dma->rxdma_chan : pxa_dma->txdma_chan;
+	cookie = read ? pxa_dma->rx_cookie : pxa_dma->tx_cookie;
+
+	dmaengine_terminate_all(channel);
+	spin_lock_irqsave(&up->port.lock, flags);
+	if (read)
+		pxa_dma->dma_status &= ~RX_DMA_RUNNING;
+	else
+		pxa_dma->dma_status &= ~TX_DMA_RUNNING;
+	spin_unlock_irqrestore(&up->port.lock, flags);
+}
+
+static void pxa_uart_transmit_dma_cb(void *data);
+static void pxa_uart_receive_dma_cb(void *data);
+static void pxa_uart_transmit_dma_start(struct uart_pxa_port *up, int count);
+static void pxa_uart_receive_dma_start(struct uart_pxa_port *up);
+static inline void wait_for_xmitr(struct uart_pxa_port *up);
+static inline void serial_out(struct uart_pxa_port *up, int offset, int value);
+
+static unsigned int serial_pxa_tx_empty(struct uart_port *port);
 
 static inline unsigned int serial_in(struct uart_pxa_port *up, int offset)
 {
@@ -73,6 +158,9 @@ static void serial_pxa_enable_ms(struct uart_port *port)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
 
+	if (up->dma_enable)
+		return;
+
 	up->ier |= UART_IER_MSI;
 	serial_out(up, UART_IER, up->ier);
 }
@@ -80,10 +168,33 @@ static void serial_pxa_enable_ms(struct uart_port *port)
 static void serial_pxa_stop_tx(struct uart_port *port)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
+	unsigned int timeout = 0x100000;
 
-	if (up->ier & UART_IER_THRI) {
-		up->ier &= ~UART_IER_THRI;
-		serial_out(up, UART_IER, up->ier);
+	if (up->dma_enable) {
+		up->uart_dma.tx_stop = 1;
+
+		if (up->ier & UART_IER_DMAE) {
+			/*
+			 * Here we cannot use dma_status to determine
+			 * whether dma has been transfer completed
+			 * As there when this function is being caled,
+			 * it would hold a spinlock and possible with irqsave,
+			 * If this function is being called over core0,
+			 * we may cannot get status change from the flag,
+			 * As irq handler is being blocked to be called yet.
+			 */
+			while (dma_async_is_tx_complete(up->uart_dma.txdma_chan,
+			       up->uart_dma.tx_cookie, NULL, NULL)
+				!= DMA_COMPLETE && (timeout-- > 0))
+				udelay(1);
+
+			BUG_ON(timeout == 0);
+		}
+	} else {
+		if (up->ier & UART_IER_THRI) {
+			up->ier &= ~UART_IER_THRI;
+			serial_out(up, UART_IER, up->ier);
+		}
 	}
 }
 
@@ -91,9 +202,18 @@ static void serial_pxa_stop_rx(struct uart_port *port)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
 
-	up->ier &= ~UART_IER_RLSI;
-	up->port.read_status_mask &= ~UART_LSR_DR;
-	serial_out(up, UART_IER, up->ier);
+	if (up->dma_enable) {
+		if (up->ier & UART_IER_DMAE) {
+			spin_unlock(&up->port.lock);
+			stop_dma(up, 1);
+			spin_lock(&up->port.lock);
+		}
+		up->uart_dma.rx_stop = 1;
+	} else {
+		up->ier &= ~UART_IER_RLSI;
+		up->port.read_status_mask &= ~UART_LSR_DR;
+		serial_out(up, UART_IER, up->ier);
+	}
 }
 
 static inline void receive_chars(struct uart_pxa_port *up, int *status)
@@ -213,13 +333,116 @@ static void transmit_chars(struct uart_pxa_port *up)
 		serial_pxa_stop_tx(&up->port);
 }
 
+static inline void
+dma_receive_chars(struct uart_pxa_port *up, int *status)
+{
+	struct tty_port *port = &up->port.state->port;
+	unsigned char ch;
+	int max_count = 256;
+	int count = 0;
+	unsigned char *tmp;
+	unsigned int flag = TTY_NORMAL;
+	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
+	struct dma_tx_state dma_state;
+
+	/*
+	 * Pause DMA channel and deal with the bytes received by DMA
+	 */
+	dmaengine_pause(pxa_dma->rxdma_chan);
+	dmaengine_tx_status(pxa_dma->rxdma_chan, pxa_dma->rx_cookie,
+			    &dma_state);
+	count = DMA_BLOCK - dma_state.residue;
+	tmp = pxa_dma->rxdma_addr;
+	if (up->port.sysrq) {
+		while (count > 0) {
+			if (!uart_handle_sysrq_char(&up->port, *tmp)) {
+				uart_insert_char(&up->port, *status,
+						 0, *tmp, flag);
+				up->port.icount.rx++;
+			}
+			tmp++;
+			count--;
+		}
+	} else {
+		tty_insert_flip_string(port, tmp, count);
+		up->port.icount.rx += count;
+	}
+
+	/* deal with the bytes in rx FIFO */
+	do {
+		ch = serial_in(up, UART_RX);
+		flag = TTY_NORMAL;
+		up->port.icount.rx++;
+
+		if (unlikely(*status & (UART_LSR_BI | UART_LSR_PE |
+					UART_LSR_FE | UART_LSR_OE))) {
+			/*
+			 * For statistics only
+			 */
+			if (*status & UART_LSR_BI) {
+				*status &= ~(UART_LSR_FE | UART_LSR_PE);
+				up->port.icount.brk++;
+				/*
+				 * We do the SysRQ and SAK checking
+				 * here because otherwise the break
+				 * may get masked by ignore_status_mask
+				 * or read_status_mask.
+				 */
+				if (uart_handle_break(&up->port))
+					goto ignore_char2;
+			} else if (*status & UART_LSR_PE) {
+				up->port.icount.parity++;
+			} else if (*status & UART_LSR_FE) {
+				up->port.icount.frame++;
+			}
+			if (*status & UART_LSR_OE)
+				up->port.icount.overrun++;
+
+			/*
+			 * Mask off conditions which should be ignored.
+			 */
+			*status &= up->port.read_status_mask;
+
+#ifdef CONFIG_SERIAL_PXA_CONSOLE
+			if (up->port.line == up->port.cons->index) {
+				/* Recover the break flag from console xmit */
+				*status |= up->lsr_break_flag;
+				up->lsr_break_flag = 0;
+			}
+#endif
+			if (*status & UART_LSR_BI)
+				flag = TTY_BREAK;
+			else if (*status & UART_LSR_PE)
+				flag = TTY_PARITY;
+			else if (*status & UART_LSR_FE)
+				flag = TTY_FRAME;
+		}
+		if (!uart_handle_sysrq_char(&up->port, ch))
+			uart_insert_char(&up->port, *status, UART_LSR_OE,
+					 ch, flag);
+ignore_char2:
+		*status = serial_in(up, UART_LSR);
+	} while ((*status & UART_LSR_DR) && (max_count-- > 0));
+
+	tty_schedule_flip(port);
+	stop_dma(up, 1);
+	if (pxa_dma->rx_stop)
+		return;
+	pxa_uart_receive_dma_start(up);
+}
+
 static void serial_pxa_start_tx(struct uart_port *port)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
 
-	if (!(up->ier & UART_IER_THRI)) {
-		up->ier |= UART_IER_THRI;
-		serial_out(up, UART_IER, up->ier);
+	if (up->dma_enable) {
+		up->uart_dma.tx_stop = 0;
+		tasklet_schedule(&up->uart_dma.tklet);
+	} else {
+		if (!(up->ier & UART_IER_THRI)) {
+			up->ier |= UART_IER_THRI;
+			serial_out(up, UART_IER, up->ier);
+		}
 	}
 }
 
@@ -252,15 +475,30 @@ static inline irqreturn_t serial_pxa_irq(int irq, void *dev_id)
 	struct uart_pxa_port *up = dev_id;
 	unsigned int iir, lsr;
 
+	/*
+	 * If FCR[4] is set, we may receive EOC interrupt when:
+	 * 1) current descritor of DMA finishes successfully;
+	 * 2) there are still trailing bytes in UART FIFO.
+	 * This interrupt alway comes along with UART_IIR_NO_INT.
+	 * So this interrupt is just ignored by us.
+	 */
 	iir = serial_in(up, UART_IIR);
 	if (iir & UART_IIR_NO_INT)
 		return IRQ_NONE;
 	lsr = serial_in(up, UART_LSR);
-	if (lsr & UART_LSR_DR)
-		receive_chars(up, &lsr);
-	check_modem_status(up);
-	if (lsr & UART_LSR_THRE)
-		transmit_chars(up);
+	if (up->dma_enable) {
+		/* we only need to deal with FIFOE here */
+		if (lsr & UART_LSR_FIFOE)
+			dma_receive_chars(up, &lsr);
+	} else {
+		if (lsr & UART_LSR_DR)
+			receive_chars(up, &lsr);
+
+		check_modem_status(up);
+		if (lsr & UART_LSR_THRE)
+			transmit_chars(up);
+	}
+
 	return IRQ_HANDLED;
 }
 
@@ -271,6 +509,16 @@ static unsigned int serial_pxa_tx_empty(struct uart_port *port)
 	unsigned int ret;
 
 	spin_lock_irqsave(&up->port.lock, flags);
+
+	if (up->dma_enable) {
+		if (up->ier & UART_IER_DMAE) {
+			if (up->uart_dma.dma_status & TX_DMA_RUNNING) {
+				spin_unlock_irqrestore(&up->port.lock, flags);
+				return 0;
+			}
+		}
+	}
+
 	ret = serial_in(up, UART_LSR) & UART_LSR_TEMT ? TIOCSER_TEMT : 0;
 	spin_unlock_irqrestore(&up->port.lock, flags);
 
@@ -332,6 +580,301 @@ static void serial_pxa_break_ctl(struct uart_port *port, int break_state)
 	spin_unlock_irqrestore(&up->port.lock, flags);
 }
 
+static void pxa_uart_transmit_dma_start(struct uart_pxa_port *up, int count)
+{
+	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
+	struct dma_slave_config slave_config;
+	int ret;
+
+	slave_config.direction	    = DMA_MEM_TO_DEV;
+	slave_config.dst_addr	    = up->port.mapbase;
+	slave_config.dst_maxburst   = 16;
+	slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+	/*
+	 * FIXME: keep slave_id for compatibility.
+	 * If mmp_pdma doesn't use it any more, we should remove all code
+	 * related with slave_id/drcmr_rx/drdmr_tx.
+	 */
+	if (pxa_dma->drcmr_tx)
+		slave_config.slave_id       = pxa_dma->drcmr_tx;
+	else
+		slave_config.slave_id	    = 0;
+
+	ret = dmaengine_slave_config(pxa_dma->txdma_chan, &slave_config);
+	if (ret) {
+		dev_err(up->port.dev,
+			"%s: dmaengine slave config err.\n", __func__);
+		return;
+	}
+
+	pxa_dma->tx_size = count;
+	pxa_dma->tx_desc = dmaengine_prep_slave_single(pxa_dma->txdma_chan,
+		pxa_dma->txdma_addr_phys, count, DMA_MEM_TO_DEV, 0);
+	pxa_dma->tx_desc->callback = pxa_uart_transmit_dma_cb;
+	pxa_dma->tx_desc->callback_param = up;
+
+	pxa_dma->tx_cookie = dmaengine_submit(pxa_dma->tx_desc);
+
+	dma_async_issue_pending(pxa_dma->txdma_chan);
+}
+
+static void pxa_uart_receive_dma_start(struct uart_pxa_port *up)
+{
+	unsigned long flags;
+	struct uart_pxa_dma *uart_dma = &up->uart_dma;
+	struct dma_slave_config slave_config;
+	int ret;
+
+	spin_lock_irqsave(&up->port.lock, flags);
+	if (uart_dma->dma_status & RX_DMA_RUNNING) {
+		spin_unlock_irqrestore(&up->port.lock, flags);
+		return;
+	}
+	uart_dma->dma_status |= RX_DMA_RUNNING;
+	spin_unlock_irqrestore(&up->port.lock, flags);
+
+	slave_config.direction	    = DMA_DEV_TO_MEM;
+	slave_config.src_addr	    = up->port.mapbase;
+	slave_config.src_maxburst   = 16;
+	slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+	/*
+	 * FIXME: keep slave_id for compatibility.
+	 * If mmp_pdma doesn't use it any more, we should remove all code
+	 * related with slave_id/drcmr_rx/drdmr_tx.
+	 */
+	if (uart_dma->drcmr_rx)
+		slave_config.slave_id       = uart_dma->drcmr_rx;
+	else
+		slave_config.slave_id	    = 0;
+
+	ret = dmaengine_slave_config(uart_dma->rxdma_chan, &slave_config);
+	if (ret) {
+		dev_err(up->port.dev,
+			"%s: dmaengine slave config err.\n", __func__);
+		return;
+	}
+
+	uart_dma->rx_desc = dmaengine_prep_slave_single(uart_dma->rxdma_chan,
+		uart_dma->rxdma_addr_phys, DMA_BLOCK, DMA_DEV_TO_MEM, 0);
+	uart_dma->rx_desc->callback = pxa_uart_receive_dma_cb;
+	uart_dma->rx_desc->callback_param = up;
+
+	uart_dma->rx_cookie = dmaengine_submit(uart_dma->rx_desc);
+	dma_async_issue_pending(uart_dma->rxdma_chan);
+}
+
+static void pxa_uart_receive_dma_cb(void *data)
+{
+	unsigned long flags;
+	struct uart_pxa_port *up = (struct uart_pxa_port *)data;
+	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
+	struct tty_port *port = &up->port.state->port;
+	unsigned int count;
+	unsigned char *tmp = pxa_dma->rxdma_addr;
+	struct dma_tx_state dma_state;
+
+	serial_in(up, UART_LSR);
+
+	dmaengine_tx_status(pxa_dma->rxdma_chan, pxa_dma->rx_cookie,
+			    &dma_state);
+	count = DMA_BLOCK - dma_state.residue;
+	if (up->port.sysrq) {
+		while (count > 0) {
+			if (!uart_handle_sysrq_char(&up->port, *tmp)) {
+				tty_insert_flip_char(port, *tmp, TTY_NORMAL);
+				up->port.icount.rx++;
+			}
+			tmp++;
+			count--;
+		}
+	} else {
+		tty_insert_flip_string(port, tmp, count);
+		up->port.icount.rx += count;
+	}
+	tty_flip_buffer_push(port);
+
+	spin_lock_irqsave(&up->port.lock, flags);
+	/*
+	 * DMA_RUNNING flag should be clear only after
+	 * all dma interface operation completed
+	 */
+	pxa_dma->dma_status &= ~RX_DMA_RUNNING;
+	spin_unlock_irqrestore(&up->port.lock, flags);
+
+	if (pxa_dma->rx_stop)
+		return;
+	pxa_uart_receive_dma_start(up);
+	return;
+}
+
+static void pxa_uart_transmit_dma_cb(void *data)
+{
+	struct uart_pxa_port *up = (struct uart_pxa_port *)data;
+	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
+	struct circ_buf *xmit = &up->port.state->xmit;
+
+	spin_lock(&up->port.lock);
+	/*
+	 * DMA_RUNNING flag should be clear only after
+	 * all dma interface operation completed
+	 */
+	pxa_dma->dma_status &= ~TX_DMA_RUNNING;
+	spin_unlock(&up->port.lock);
+
+	/* if tx stop, stop transmit DMA and return */
+	if (pxa_dma->tx_stop)
+		return;
+
+	if (up->port.x_char) {
+		serial_out(up, UART_TX, up->port.x_char);
+		up->port.icount.tx++;
+		up->port.x_char = 0;
+	}
+
+	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(&up->port);
+
+	if (!uart_circ_empty(xmit))
+		tasklet_schedule(&pxa_dma->tklet);
+	return;
+}
+
+static void uart_pxa_dma_init(struct uart_pxa_port *up)
+{
+	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
+	dma_cap_mask_t mask;
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+
+	if (NULL == pxa_dma->rxdma_chan) {
+		pxa_dma->rxdma_chan = dma_request_slave_channel(up->port.dev,
+								"rx");
+		if (NULL == pxa_dma->rxdma_chan)
+			goto out;
+	}
+
+	if (NULL == pxa_dma->txdma_chan) {
+		pxa_dma->txdma_chan = dma_request_slave_channel(up->port.dev,
+								"tx");
+		if (pxa_dma->txdma_chan < 0)
+			goto err_txdma;
+	}
+
+	if (NULL == pxa_dma->txdma_addr) {
+		pxa_dma->txdma_addr = dma_alloc_coherent(NULL, DMA_BLOCK,
+				&pxa_dma->txdma_addr_phys, GFP_KERNEL);
+		if (!pxa_dma->txdma_addr)
+			goto txdma_err_alloc;
+	}
+
+	if (NULL == pxa_dma->rxdma_addr) {
+		pxa_dma->rxdma_addr = dma_alloc_coherent(NULL, DMA_BLOCK,
+				&pxa_dma->rxdma_addr_phys, GFP_KERNEL);
+		if (!pxa_dma->rxdma_addr)
+			goto rxdma_err_alloc;
+	}
+
+#ifdef CONFIG_PM
+	pxa_dma->tx_buf_save = kmalloc(DMA_BLOCK, GFP_KERNEL);
+	if (!pxa_dma->tx_buf_save)
+		goto buf_err_alloc;
+#endif
+
+	pxa_dma->dma_status = 0;
+	return;
+
+#ifdef CONFIG_PM
+buf_err_alloc:
+	dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->rxdma_addr,
+			  pxa_dma->rxdma_addr_phys);
+	pxa_dma->rxdma_addr = NULL;
+#endif
+rxdma_err_alloc:
+	dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->txdma_addr,
+			  pxa_dma->txdma_addr_phys);
+	pxa_dma->txdma_addr = NULL;
+txdma_err_alloc:
+	dma_release_channel(pxa_dma->txdma_chan);
+	pxa_dma->txdma_chan = NULL;
+err_txdma:
+	dma_release_channel(pxa_dma->rxdma_chan);
+	pxa_dma->rxdma_chan = NULL;
+out:
+	return;
+}
+
+static void uart_pxa_dma_uninit(struct uart_pxa_port *up)
+{
+	struct uart_pxa_dma *pxa_dma;
+	pxa_dma = &up->uart_dma;
+
+#ifdef CONFIG_PM
+	kfree(pxa_dma->tx_buf_save);
+#endif
+
+	stop_dma(up, 0);
+	stop_dma(up, 1);
+	if (pxa_dma->txdma_addr != NULL) {
+		dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->txdma_addr,
+				  pxa_dma->txdma_addr_phys);
+		pxa_dma->txdma_addr = NULL;
+	}
+	if (pxa_dma->txdma_chan != NULL) {
+		dma_release_channel(pxa_dma->txdma_chan);
+		pxa_dma->txdma_chan = NULL;
+	}
+
+	if (pxa_dma->rxdma_addr != NULL) {
+		dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->rxdma_addr,
+				  pxa_dma->rxdma_addr_phys);
+		pxa_dma->rxdma_addr = NULL;
+	}
+
+	if (pxa_dma->rxdma_chan != NULL) {
+		dma_release_channel(pxa_dma->rxdma_chan);
+		pxa_dma->rxdma_chan = NULL;
+	}
+
+	return;
+}
+
+static void uart_task_action(unsigned long data)
+{
+	struct uart_pxa_port *up = (struct uart_pxa_port *)data;
+	struct circ_buf *xmit = &up->port.state->xmit;
+	unsigned char *tmp = up->uart_dma.txdma_addr;
+	unsigned long flags;
+	int count = 0, c;
+
+	/* if the tx is stop, just return.*/
+	if (up->uart_dma.tx_stop)
+		return;
+
+	spin_lock_irqsave(&up->port.lock, flags);
+	if (up->uart_dma.dma_status & TX_DMA_RUNNING) {
+		spin_unlock_irqrestore(&up->port.lock, flags);
+		return;
+	}
+
+	up->uart_dma.dma_status |= TX_DMA_RUNNING;
+	while (1) {
+		c = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
+		if (c <= 0)
+			break;
+
+		memcpy(tmp, xmit->buf + xmit->tail, c);
+		xmit->tail = (xmit->tail + c) & (UART_XMIT_SIZE - 1);
+		tmp += c;
+		count += c;
+		up->port.icount.tx += c;
+	}
+	spin_unlock_irqrestore(&up->port.lock, flags);
+
+	pr_debug("count =%d", count);
+	pxa_uart_transmit_dma_start(up, count);
+}
+
 static int serial_pxa_startup(struct uart_port *port)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
@@ -384,7 +927,20 @@ static int serial_pxa_startup(struct uart_port *port)
 	 * are set via set_termios(), which will be occurring imminently
 	 * anyway, so we don't enable them here.
 	 */
-	up->ier = UART_IER_RLSI | UART_IER_RDI | UART_IER_RTOIE | UART_IER_UUE;
+	if (up->dma_enable) {
+		uart_pxa_dma_init(up);
+		up->uart_dma.rx_stop = 0;
+		pxa_uart_receive_dma_start(up);
+		tasklet_init(&up->uart_dma.tklet, uart_task_action,
+			     (unsigned long)up);
+	}
+
+	if (up->dma_enable) {
+		up->ier = UART_IER_DMAE | UART_IER_UUE;
+	} else {
+		up->ier = UART_IER_RLSI | UART_IER_RDI |
+			UART_IER_RTOIE | UART_IER_UUE;
+	}
 	serial_out(up, UART_IER, up->ier);
 
 	/*
@@ -404,6 +960,11 @@ static void serial_pxa_shutdown(struct uart_port *port)
 	unsigned long flags;
 
 	free_irq(up->port.irq, up);
+
+	if (up->dma_enable) {
+		tasklet_kill(&up->uart_dma.tklet);
+		uart_pxa_dma_uninit(up);
+	}
 
 	/*
 	 * Disable interrupts from this port
@@ -465,12 +1026,18 @@ serial_pxa_set_termios(struct uart_port *port, struct ktermios *termios,
 	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk/16);
 	quot = uart_get_divisor(port, baud);
 
-	if ((up->port.uartclk / quot) < (2400 * 16))
-		fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR1;
-	else if ((up->port.uartclk / quot) < (230400 * 16))
-		fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR8;
-	else
-		fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR32;
+	if (up->dma_enable) {
+		fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR32 |
+					     UART_FCR_PXA_TRAIL;
+		fcr &= ~UART_FCR_PXA_BUS32;
+	} else {
+		if ((up->port.uartclk / quot) < (2400 * 16))
+			fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR1;
+		else if ((up->port.uartclk / quot) < (230400 * 16))
+			fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR8;
+		else
+			fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR32;
+	}
 
 	/*
 	 * Ok, we're now changing the port state.  Do it with
@@ -520,9 +1087,15 @@ serial_pxa_set_termios(struct uart_port *port, struct ktermios *termios,
 	/*
 	 * CTS flow control flag and modem status interrupts
 	 */
-	up->ier &= ~UART_IER_MSI;
-	if (UART_ENABLE_MS(&up->port, termios->c_cflag))
-		up->ier |= UART_IER_MSI;
+	if (!up->dma_enable) {
+		/* Don't enable modem status interrupt if DMA is enabled.
+		 * Inherited from the old code.
+		 * Please also refer to serial_pxa_enable_ms().
+		 */
+		up->ier &= ~UART_IER_MSI;
+		if (UART_ENABLE_MS(&up->port, termios->c_cflag))
+			up->ier |= UART_IER_MSI;
+	}
 
 	serial_out(up, UART_IER, up->ier);
 
@@ -803,9 +1376,45 @@ static struct uart_driver serial_pxa_reg = {
 static int serial_pxa_suspend(struct device *dev)
 {
         struct uart_pxa_port *sport = dev_get_drvdata(dev);
+	struct uart_pxa_dma *pxa_dma = &sport->uart_dma;
+	struct dma_tx_state dma_state;
 
-        if (sport)
-                uart_suspend_port(&serial_pxa_reg, &sport->port);
+	if (sport && (sport->ier & UART_IER_DMAE)) {
+		int sent = 0;
+		unsigned long flags;
+
+		local_irq_save(flags);
+		/*
+		 * tx stop and suspend and when resume,
+		 * tx startup would be called and set it to 0
+		*/
+		pxa_dma->tx_stop = 1;
+		pxa_dma->rx_stop = 1;
+		pxa_dma->tx_saved_len = 0;
+		if (dma_async_is_tx_complete(pxa_dma->txdma_chan,
+					     pxa_dma->tx_cookie, NULL, NULL)
+			!= DMA_COMPLETE) {
+			dmaengine_pause(pxa_dma->txdma_chan);
+			dmaengine_tx_status(pxa_dma->txdma_chan,
+					    pxa_dma->tx_cookie, &dma_state);
+			sent = pxa_dma->tx_size - dma_state.residue;
+			pxa_dma->tx_saved_len = dma_state.residue;
+			memcpy(pxa_dma->tx_buf_save, pxa_dma->txdma_addr + sent,
+			       dma_state.residue);
+			stop_dma(sport, 0);
+		}
+		if (dma_async_is_tx_complete(pxa_dma->rxdma_chan,
+					     pxa_dma->rx_cookie, NULL, NULL)
+			!= DMA_COMPLETE) {
+			dmaengine_pause(pxa_dma->rxdma_chan);
+			pxa_uart_receive_dma_cb(sport);
+			stop_dma(sport, 1);
+		}
+		local_irq_restore(flags);
+	}
+
+	if (sport)
+		uart_suspend_port(&serial_pxa_reg, &sport->port);
 
         return 0;
 }
@@ -813,9 +1422,23 @@ static int serial_pxa_suspend(struct device *dev)
 static int serial_pxa_resume(struct device *dev)
 {
         struct uart_pxa_port *sport = dev_get_drvdata(dev);
+	struct uart_pxa_dma *pxa_dma = &sport->uart_dma;
 
         if (sport)
                 uart_resume_port(&serial_pxa_reg, &sport->port);
+
+	if (sport && (sport->ier & UART_IER_DMAE)) {
+		if (pxa_dma->tx_saved_len > 0) {
+			memcpy(pxa_dma->txdma_addr, pxa_dma->tx_buf_save,
+			       pxa_dma->tx_saved_len);
+			pxa_uart_transmit_dma_start(sport,
+						    pxa_dma->tx_saved_len);
+		} else {
+			tasklet_schedule(&pxa_dma->tklet);
+		}
+
+		pxa_uart_receive_dma_start(sport);
+	}
 
         return 0;
 }
@@ -842,6 +1465,10 @@ static int serial_pxa_probe_dt(struct platform_device *pdev,
 	if (!np)
 		return 1;
 
+	/* device tree is used */
+	if (uart_dma)
+		sport->dma_enable = 1;
+
 	ret = of_alias_get_id(np, "serial");
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to get alias id, errno %d\n", ret);
@@ -854,8 +1481,9 @@ static int serial_pxa_probe_dt(struct platform_device *pdev,
 static int serial_pxa_probe(struct platform_device *dev)
 {
 	struct uart_pxa_port *sport;
-	struct resource *mmres, *irqres;
+	struct resource *mmres, *irqres, *dmares;
 	int ret;
+	struct uart_pxa_dma *pxa_dma;
 
 	mmres = platform_get_resource(dev, IORESOURCE_MEM, 0);
 	irqres = platform_get_resource(dev, IORESOURCE_IRQ, 0);
@@ -888,12 +1516,36 @@ static int serial_pxa_probe(struct platform_device *dev)
 	sport->port.flags = UPF_IOREMAP | UPF_BOOT_AUTOCONF;
 	sport->port.uartclk = clk_get_rate(sport->clk);
 
+	pxa_dma = &sport->uart_dma;
+	pxa_dma->drcmr_rx = 0;
+	pxa_dma->drcmr_tx = 0;
+	pxa_dma->txdma_chan = NULL;
+	pxa_dma->rxdma_chan = NULL;
+	pxa_dma->txdma_addr = NULL;
+	pxa_dma->rxdma_addr = NULL;
+	sport->dma_enable = 0;
+
 	ret = serial_pxa_probe_dt(dev, sport);
 	if (ret > 0)
 		sport->port.line = dev->id;
 	else if (ret < 0)
 		goto err_clk;
 	snprintf(sport->name, PXA_NAME_LEN - 1, "UART%d", sport->port.line + 1);
+
+	if (ret > 0 && uart_dma) {
+		/* Get Rx DMA mapping value */
+		dmares = platform_get_resource(dev, IORESOURCE_DMA, 0);
+		if (dmares) {
+			pxa_dma->drcmr_rx = dmares->start;
+
+			/* Get Tx DMA mapping value */
+			dmares = platform_get_resource(dev, IORESOURCE_DMA, 1);
+			if (dmares) {
+				pxa_dma->drcmr_tx = dmares->start;
+				sport->dma_enable = 1;
+			}
+		}
+	}
 
 	sport->port.membase = ioremap(mmres->start, resource_size(mmres));
 	if (!sport->port.membase) {
@@ -925,6 +1577,7 @@ static int serial_pxa_remove(struct platform_device *dev)
 	clk_unprepare(sport->clk);
 	clk_put(sport->clk);
 	kfree(sport);
+	serial_pxa_ports[dev->id] = NULL;
 
 	return 0;
 }

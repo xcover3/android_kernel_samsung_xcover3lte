@@ -227,6 +227,7 @@
 #define UART_IER_UUE	0x40	/* UART Unit Enable */
 #define UART_IER_NRZE	0x20	/* NRZ coding Enable */
 #define UART_IER_RTOIE	0x10	/* Receiver Time Out Interrupt Enable */
+#define UART_IER_HSE	0x100	/* High Speed UART Enable */
 
 #define UART_IIR_TOD	0x08	/* Character Timeout Indication Detected */
 
@@ -234,6 +235,10 @@
 #define UART_FCR_PXAR8	0x40	/* receive FIFO threshold = 8 */
 #define UART_FCR_PXAR16	0x80	/* receive FIFO threshold = 16 */
 #define UART_FCR_PXAR32	0xc0	/* receive FIFO threshold = 32 */
+#define UART_FCR_PXA_BUS32	0x20	/* 32-Bit Peripheral Bus */
+#define UART_FCR_PXA_TRAIL	0x10	/* Trailing Bytes */
+
+#define UART_LSR_FIFOE	0x80	/* FIFO Error Status */
 
 /*
  * Intel MID on-chip HSU (High Speed UART) defined bits
