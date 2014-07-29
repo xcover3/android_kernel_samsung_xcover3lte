@@ -66,6 +66,7 @@ struct mmpfb_info {
 	struct mmp_alpha pa;
 
 	struct mmp_colorkey_alpha ca;
+	atomic_t	op_count;
 };
 
 #define MMPFB_DEFAULT_SIZE (PAGE_ALIGN(1920 * 1080 * 4 * 2))

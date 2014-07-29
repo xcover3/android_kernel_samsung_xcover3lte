@@ -530,6 +530,27 @@ static int mmpfb_blank(int blank, struct fb_info *info)
 	return 0;
 }
 
+static int mmpfb_open(struct fb_info *info, int user)
+{
+	struct mmpfb_info *fbi = info->par;
+
+	atomic_inc(&fbi->op_count);
+	dev_info(info->dev, "mmpfb open: op_count = %d\n",
+		 atomic_read(&fbi->op_count));
+	return 0;
+}
+
+static int mmpfb_release(struct fb_info *info, int user)
+{
+	struct mmpfb_info *fbi = info->par;
+
+	atomic_dec(&fbi->op_count);
+
+	dev_info(info->dev, "mmpfb release: op_count = %d\n",
+		 atomic_read(&fbi->op_count));
+	return 0;
+}
+
 static struct fb_ops mmpfb_ops = {
 	.owner		= THIS_MODULE,
 	.fb_blank	= mmpfb_blank,
@@ -541,6 +562,8 @@ static struct fb_ops mmpfb_ops = {
 #ifdef CONFIG_COMPAT
 	.fb_compat_ioctl	= mmpfb_compat_ioctl,
 #endif
+	.fb_open	= mmpfb_open,
+	.fb_release	= mmpfb_release,
 	.fb_fillrect	= cfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
 	.fb_imageblit	= cfb_imageblit,
