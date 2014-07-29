@@ -5,6 +5,52 @@ menuconfig MARVELL_DRIVERS
 
 if MARVELL_DRIVERS
 
+config MRVL_WIRELESS
+	bool "marvell wireless driver"
+	---help---
+	This enables the marvell wireless driver for application processor
+
+choice
+	depends on MRVL_WIRELESS
+	bool "Choose the chip for marvell wireless"
+	default MRVL_WL_SD8777
+
+config MRVL_WL_SD8777
+	bool "SD8777"
+	---help---
+	Marvell NIC driver: SD8777 chip
+
+config MRVL_WL_SD8787
+	bool "SD8787"
+	---help---
+	Marvell NIC driver: SD8787 chip
+
+config MRVL_WL_SD8887
+	bool "SD8887"
+	---help---
+	Marvell NIC driver: SD8887 chip
+
+config MRVL_WL_SD8897
+	bool "SD8897"
+	---help---
+	Temporarily maintain SD8897 specifically, this item will be
+	removed when Marvell combo driver support SD8897
+
+config MRVL_WL_SD8XXX
+	bool "SD8787/SD8777/SD8801/SD8887"
+	---help---
+	Marvell combo driver support: SD8787/SD8777/SD8801/SD8887 chips
+
+endchoice
+
+config MRVL_WL_BUILD_TYPE
+	depends on MRVL_WL_SD8777 || MRVL_WL_SD8787 || MRVL_WL_SD8887 || MRVL_WL_SD8897 || (MRVL_WL_SD8XXX && m)
+	tristate "Build type of the driver for MARVELL wireless"
+	default m
+	---help---
+	Choose <m> if you want to build the driver as module;
+	<y> to build-in kernel; <n> if you do not want to build.
+
 config MRVL_DEBUG
 	tristate "Support Marvell debug features"
 	default y
