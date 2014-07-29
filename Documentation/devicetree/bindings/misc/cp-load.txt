@@ -1,0 +1,14 @@
+* Cp Load
+
+Required properties:
+- compatible: "marvell, cp_load"
+- cp-type: 0 for pxa988, 1 for pxa1L88, 2 means pxa1928.
+- lpm-qos: should be PM_QOS_CPUIDLE_BLOCK_AXI;
+
+Examples:
+	cp-load {
+		compatible = "marvell,cp_load";
+		cp-type = <1>;
+		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+		status = "okay";
+	};
