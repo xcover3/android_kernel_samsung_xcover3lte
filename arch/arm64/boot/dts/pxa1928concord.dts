@@ -331,6 +331,16 @@
 					>;
 					MFP_DEFAULT;
 				};
+
+				gps_lpm_drv_low_pins: pinmux_gps_lpm_drv_low_pins {
+					pinctrl-single,pins = <GPIO(GPS_RST_N)>;
+					MFP_LPM_DRIVE_LOW;
+				};
+
+				gps_lpm_drv_high_pins: pinmux_gps_lpm_drv_high_pins {
+					pinctrl-single,pins = <GPIO(GPS_RST_N)>;
+					MFP_LPM_DRIVE_HIGH;
+				};
 			};
 
 			twsi0: i2c@d4011000 {
@@ -565,6 +575,17 @@
 			marvell,ion-type = <0>;
 			marvell,ion-id = <0>;
 		};
+	};
+
+	gps: mmp-gps {
+		compatible = "marvell,mmp-gps";
+		pinctrl-names = "lpm_drv_low", "lpm_drv_high";
+		pinctrl-0 = <&gps_lpm_drv_low_pins>;
+		pinctrl-1 = <&gps_lpm_drv_high_pins>;
+		marvell,mfp-lpm;
+		vgps-supply = <&ldo18>;
+		on-off-gpio = <&gpio GPS_ON_OFF 0>;
+		reset-n-gpio = <&gpio GPS_RST_N 0>;
 	};
 
 	panel: r63311 {
