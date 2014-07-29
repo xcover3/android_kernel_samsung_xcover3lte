@@ -21,7 +21,7 @@ static DEFINE_PER_CPU(int[SCHED_TOTAL * 2], schedGet);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 GATOR_DEFINE_PROBE(sched_switch, TP_PROTO(struct rq *rq, struct task_struct *prev, struct task_struct *next))
 #else
-GATOR_DEFINE_PROBE(sched_switch, TP_PROTO(struct task_struct *prev, struct task_struct *next))
+GATOR_DEFINE_PROBE(sched_switch, TP_PROTO(struct task_struct *prev, struct task_struct *next, unsigned int prev_ip))
 #endif
 {
 	unsigned long flags;

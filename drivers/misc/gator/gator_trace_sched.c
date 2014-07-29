@@ -154,7 +154,7 @@ GATOR_DEFINE_PROBE(sched_process_fork, TP_PROTO(struct task_struct *parent, stru
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 GATOR_DEFINE_PROBE(sched_switch, TP_PROTO(struct rq *rq, struct task_struct *prev, struct task_struct *next))
 #else
-GATOR_DEFINE_PROBE(sched_switch, TP_PROTO(struct task_struct *prev, struct task_struct *next))
+GATOR_DEFINE_PROBE(sched_switch, TP_PROTO(struct task_struct *prev, struct task_struct *next, unsigned int prev_ip))
 #endif
 {
 	int cookie;
