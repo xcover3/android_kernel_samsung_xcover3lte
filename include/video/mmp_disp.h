@@ -522,6 +522,10 @@ struct mmp_path {
 	struct mmp_mode mode;
 	struct mmp_vsync vsync;
 
+	/*master/slave path*/
+	struct mmp_path *master;
+	struct mmp_path *slave;
+
 	/* state */
 	int open_count;
 	int status;

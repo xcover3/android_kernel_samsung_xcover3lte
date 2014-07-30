@@ -47,6 +47,35 @@ static int mmpfb_overlay_release(struct fb_info *info, int user)
 	return 0;
 }
 
+static int mmpfb_overlay_path_init(struct mmpfb_info *fbi)
+{
+	struct mmp_path *path = fbi->path;
+	struct mmp_path *path_master = 0;
+	struct mmp_mode *video_mode = 0;
+	int videomode_num;
+
+	/*
+	* If GRA layer as overlay, then this layer should be binded to
+	* other path.
+	* need get video mode from the binded path and set path timing
+	*/
+	/* Get video mode from main path */
+	path_master = path->master;
+	videomode_num = mmp_path_get_modelist(path_master,
+	&video_mode);
+	if (!videomode_num) {
+		dev_warn(fbi->dev, "can't get videomode num\n");
+		return 0;
+	}
+	mmpfb_check_virtural_mode(video_mode);
+	path->encoder = path_master->encoder;
+	mmp_path_set_mode(path, &video_mode[0]);
+	path->encoder = NULL;
+	path->panel = NULL;
+
+	return 0;
+}
+
 static struct fb_ops mmpfb_overlay_ops = {
 	.fb_open	= mmpfb_overlay_open,
 	.fb_ioctl	= mmpfb_ioctl,
@@ -133,6 +162,11 @@ static int mmpfb_overlay_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto failed_destroy_mutex;
 	}
+
+	/* If path has master path, need initialize this path*/
+	if (fbi->path->slave && fbi->path->master &&
+		(!strcmp(fbi->path->slave->name, fbi->path->name)))
+		mmpfb_overlay_path_init(fbi);
 
 	ret = register_framebuffer(info);
 	if (ret < 0) {

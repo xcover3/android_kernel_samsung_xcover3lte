@@ -160,8 +160,14 @@ struct lcd_regs {
 
 /* 32 bit		TV Path DMA Control 0*/
 #define LCD_TV_CTRL0					(0x0080)
+
 /* 32 bit		TV Path DMA Control 1*/
 #define LCD_TV_CTRL1					(0x0084)
+#define	 CFG_TMSYNC_ENA(value)			((value)<<6)
+#define	 CFG_TMSYNC_ENA_MASK			0x00000040
+#define	 CFG_TV_NIB(value)			((value)<<6)
+#define	 CFG_TV_NIB_MASK			0x00000001
+
 /* 32 bit		TV Path Video Contrast*/
 #define LCD_TV_CONTRAST					(0x0088)
 /* 32 bit		TV Path Video Saturation*/
@@ -355,7 +361,6 @@ struct lcd_regs {
 
 /* Interlace mode enable bits in LCD_TV_CTRL1 */
 #define     CFG_TV_INTERLACE_EN                 (1 << 22)
-#define     CFG_TV_NIB                          (1 << 0)
 
 #define LCD_PN_SEPXLCNT				0x013c /* MMP2 */
 

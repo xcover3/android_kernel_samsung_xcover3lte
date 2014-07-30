@@ -43,6 +43,27 @@
 
 #include "mmp_ctrl.h"
 
+static void path_vsync_sync(struct mmp_path *path)
+{
+	struct mmp_path *slave = path->slave;
+	u32 dma_ctrl1;
+
+	if (slave) {
+		/* If slave path use the same CLK with master path,
+		 * sync the timing
+		 */
+		dma_ctrl1 = readl_relaxed(ctrl_regs(slave) +
+			dma_ctrl(1, slave->id));
+		dma_ctrl1 &= ~CFG_TMSYNC_ENA_MASK;
+		dma_ctrl1 |= CFG_TMSYNC_ENA(1);
+		writel_relaxed(dma_ctrl1, ctrl_regs(slave) +
+			dma_ctrl(1, slave->id));
+		dma_ctrl1 &= ~CFG_TMSYNC_ENA_MASK;
+		writel_relaxed(dma_ctrl1, ctrl_regs(slave) +
+			dma_ctrl(1, slave->id));
+	}
+}
+
 static void gamma_write(struct mmp_path *path, u32 addr, u32 gamma_id, u32 val)
 {
 	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_WRDAT);
@@ -766,7 +787,7 @@ static void path_onoff(struct mmp_path *path, int on)
 
 	if (on) {
 		path_enabledisable(path, 1);
-
+		path_vsync_sync(path);
 		if (dsi && dsi->set_status)
 			/* panel onoff would be called in dsi onoff if exist */
 			dsi->set_status(dsi, MMP_ON);
@@ -979,6 +1000,7 @@ static void ctrl_set_default(struct mmphw_ctrl *ctrl)
 static void path_set_default(struct mmp_path *path)
 {
 	struct lcd_regs *regs = path_regs(path);
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	u32 dma_ctrl1, mask, tmp, path_config;
 
 	path_config = path_to_path_plat(path)->path_config;
@@ -998,6 +1020,12 @@ static void path_set_default(struct mmp_path *path)
 	 * display 100% graphics, and set pixel command.
 	 */
 	dma_ctrl1 = 0x2032ff81;
+
+	/* If TV path as slave, diable interlace mode */
+	if (ctrl->slave_path_name &&
+		(!strcmp(ctrl->slave_path_name, path->name)))
+		/* Fix me, when slave path isn't TV path */
+		dma_ctrl1 &= ~CFG_TV_NIB_MASK;
 
 	dma_ctrl1 |= CFG_VSYNC_INV_MASK;
 	writel_relaxed(dma_ctrl1, ctrl_regs(path) + dma_ctrl(1, path->id));
@@ -1123,6 +1151,7 @@ static int mmphw_probe(struct platform_device *pdev)
 	struct mmp_mach_path_config *paths_config;
 	struct mmp_mach_path_config dt_paths_config[MAX_PATH];
 	u32 overlay_num[MAX_PATH][MAX_OVERLAY];
+	struct mmp_path *path = NULL;
 
 	/* register lcd internal clock firstly */
 	mmp_display_clk_init();
@@ -1304,6 +1333,32 @@ static int mmphw_probe(struct platform_device *pdev)
 		if (!path_init(path_plat, (paths_config + i))) {
 			ret = -EINVAL;
 			goto failed_path_init;
+		}
+	}
+
+	for (i = 0; i < ctrl->path_num; i++) {
+		path = ctrl->path_plats[i].path;
+		path->master = NULL;
+		path->slave = NULL;
+		if (ctrl->master_path_name && ctrl->slave_path_name) {
+			/* if current path is master path, assign to its master
+			 *  member meanwhile, get the slave path and assign
+			 *  to its slave member
+			 */
+			if (!strcmp(ctrl->master_path_name, path->name)) {
+				path->master = path;
+				path->slave =
+					mmp_get_path(ctrl->slave_path_name);
+			}
+			/* if current path is salve path, assign to its slave
+			 *  member meanwhile, get the master path and assign
+			 *  to ist master member
+			 */
+			if (!strcmp(ctrl->slave_path_name, path->name)) {
+				path->master =
+					mmp_get_path(ctrl->master_path_name);
+				path->slave = path;
+			}
 		}
 	}
 
