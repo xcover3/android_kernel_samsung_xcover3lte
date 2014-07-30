@@ -20,6 +20,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/cpufreq.h>
 #include <linux/cpumask.h>
 #include <linux/delay.h>
@@ -98,6 +99,7 @@ static int pxa988_update_cpu_speed(unsigned long rate)
 		freqs.new = freqs.old;
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
+	cpufreq_cpu_put(policy);
 	return ret;
 }
 
@@ -303,7 +305,7 @@ static int pxa988_cpufreq_init(struct cpufreq_policy *policy)
 		return -EINVAL;
 
 	if (unlikely(!cpu_clk)) {
-		cpu_clk = clk_get_sys(NULL, "cpu");
+		cpu_clk = __clk_lookup("cpu");
 		if (IS_ERR(cpu_clk))
 			return PTR_ERR(cpu_clk);
 	}
