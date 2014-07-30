@@ -899,3 +899,68 @@ static int __init cpu_num_qos_debugfs_init(void)
 	return 0;
 }
 postcore_initcall(cpu_num_qos_debugfs_init);
+
+/**
+ * ddrfreq_qos_show - Print information of ddr freq qos min and max.
+ * @m: seq_file to print the statistics into.
+ */
+static int ddrfreq_qos_show(struct seq_file *m, void *unused)
+{
+	unsigned long flags;
+	struct pm_qos_object *qos_min, *qos_max;
+	struct list_head *list_min, *list_max;
+	struct plist_node *node;
+	s32 target_min = 0, target_max = 0;
+	struct pm_qos_request *req;
+
+	qos_min = pm_qos_array[PM_QOS_DDR_DEVFREQ_MIN];
+	list_min = &qos_min->constraints->list.node_list;
+	qos_max = pm_qos_array[PM_QOS_DDR_DEVFREQ_MAX];
+	list_max = &qos_max->constraints->list.node_list;
+
+	rcu_read_lock();
+	spin_lock_irqsave(&pm_qos_lock, flags);
+
+	target_min = pm_qos_read_value(qos_min->constraints);
+	target_max = pm_qos_read_value(qos_max->constraints);
+
+	seq_printf(m, "Target min %d\n", target_min);
+	list_for_each_entry(node, list_min, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_DEFAULT_VALUE)
+			seq_printf(m, "Req: %d\t Name: %s\n",
+				node->prio, req->name);
+	}
+
+	seq_printf(m, "Target max %d\n", target_max);
+	list_for_each_entry(node, list_max, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_DEFAULT_VALUE)
+			seq_printf(m, "Req: %d\t Name: %s\n",
+				node->prio, req->name);
+	}
+	spin_unlock_irqrestore(&pm_qos_lock, flags);
+	rcu_read_unlock();
+
+	return 0;
+}
+
+static int ddrfreq_qos_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ddrfreq_qos_show, NULL);
+}
+
+const struct file_operations ddrfreq_qos_fops = {
+	.owner = THIS_MODULE,
+	.open = ddrfreq_qos_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+};
+
+static int __init ddrfreq_qos_debugfs_init(void)
+{
+	debugfs_create_file("ddrfreq_qos",
+			S_IRUGO, NULL, NULL, &ddrfreq_qos_fops);
+	return 0;
+}
+postcore_initcall(ddrfreq_qos_debugfs_init);
