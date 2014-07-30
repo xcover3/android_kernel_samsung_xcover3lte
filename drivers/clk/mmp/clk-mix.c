@@ -10,9 +10,11 @@
  */
 
 #include <linux/clk-provider.h>
+#include <linux/clk-private.h>
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/err.h>
+#include <trace/events/power.h>
 
 #include "clk.h"
 
@@ -282,6 +284,7 @@ static int mmp_clk_mix_set_rate_and_parent(struct clk_hw *hw,
 	div_val = _get_div_val(mix, div);
 	mux_val = _get_mux_val(mix, index);
 
+	trace_clock_set_rate(hw->clk->name, rate, 0);
 	return _set_rate(mix, mux_val, div_val, 1, 1);
 }
 
