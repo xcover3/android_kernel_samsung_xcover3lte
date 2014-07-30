@@ -37,6 +37,8 @@
 #include <linux/uaccess.h>
 #include <linux/kthread.h>
 #include <linux/io.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 
 #include "mmp_ctrl.h"
 
@@ -379,7 +381,6 @@ static void ctrl_set_default(struct mmphw_ctrl *ctrl)
 		   path_imasks(1) | err_imask(1);
 	tmp = readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA);
 	tmp &= ~irq_mask;
-	tmp |= irq_mask;
 	writel_relaxed(tmp, ctrl->reg_base + SPU_IRQ_ENA);
 }
 
@@ -483,13 +484,25 @@ static void path_deinit(struct mmphw_path_plat *path_plat)
 		mmp_unregister_path(path_plat->path);
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id mmp_disp_dt_match[] = {
+	{ .compatible = "marvell,mmp-disp" },
+	{},
+};
+#endif
+
 static int mmphw_probe(struct platform_device *pdev)
 {
 	struct mmp_mach_plat_info *mi;
 	struct resource *res;
-	int ret, i, size, irq;
+	int ret, i, size, irq, path_num;
 	struct mmphw_path_plat *path_plat;
 	struct mmphw_ctrl *ctrl = NULL;
+	struct device_node *np = pdev->dev.of_node;
+	struct device_node *child_np;
+	struct mmp_mach_path_config *paths_config;
+	struct mmp_mach_path_config dt_paths_config[MAX_PATH];
+	u32 overlay_num[MAX_PATH][MAX_OVERLAY];
 
 	/* register lcd internal clock firstly */
 	mmp_display_clk_init();
@@ -509,25 +522,101 @@ static int mmphw_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-	/* get configs from platform data */
-	mi = pdev->dev.platform_data;
-	if (mi == NULL || !mi->path_num || !mi->paths) {
-		dev_err(&pdev->dev, "%s: no platform data defined\n", __func__);
-		ret = -EINVAL;
-		goto failed;
+	if (IS_ENABLED(CONFIG_OF)) {
+		if (of_property_read_u32(np, "marvell,path-num", &path_num)) {
+			ret = -EINVAL;
+			goto failed;
+		}
+		/* allocate ctrl */
+		size = sizeof(struct mmphw_ctrl) +
+			sizeof(struct mmphw_path_plat) * path_num;
+		ctrl = devm_kzalloc(&pdev->dev, size, GFP_KERNEL);
+		if (!ctrl) {
+			ret = -ENOMEM;
+			goto failed;
+		}
+
+		ctrl->path_num = path_num;
+		if (of_property_read_string(np, "marvell,disp-name",
+					&ctrl->name)) {
+			ret = -EINVAL;
+			goto failed;
+		}
+
+		if (of_get_child_count(np) != ctrl->path_num) {
+			dev_err(&pdev->dev, "%s: path_num not match!\n",
+					__func__);
+			ret = -EINVAL;
+			goto failed;
+		}
+
+		i = 0;
+		for_each_child_of_node(np, child_np) {
+			if (of_property_read_string(child_np,
+					"marvell,path-name",
+					&dt_paths_config[i].name)) {
+				ret = -EINVAL;
+				goto failed;
+			}
+			if (of_property_read_u32(child_np,
+					"marvell,overlay-num",
+					&dt_paths_config[i].overlay_num)) {
+				ret = -EINVAL;
+				goto failed;
+			}
+			if (of_property_read_u32_array(child_np,
+					"marvell,overlay-table",
+					overlay_num[i],
+					dt_paths_config[i].overlay_num)) {
+				ret = -EINVAL;
+				goto failed;
+			}
+			dt_paths_config[i].overlay_table = overlay_num[i];
+			if (of_property_read_u32(child_np,
+					"marvell,output-type",
+					&dt_paths_config[i].output_type)) {
+				ret = -EINVAL;
+				goto failed;
+			}
+			if (of_property_read_u32(child_np,
+					"marvell,path-config",
+					&dt_paths_config[i].path_config)) {
+				ret = -EINVAL;
+				goto failed;
+			}
+			if (of_property_read_u32(child_np,
+					"marvell,link-config",
+					&dt_paths_config[i].link_config)) {
+				ret = -EINVAL;
+				goto failed;
+			}
+			i++;
+		}
+		paths_config = dt_paths_config;
+	} else {
+		/* get configs from platform data */
+		mi = pdev->dev.platform_data;
+		if (mi == NULL || !mi->path_num || !mi->paths) {
+			dev_err(&pdev->dev, "%s: no platform data defined\n",
+					__func__);
+			ret = -EINVAL;
+			goto failed;
+		}
+
+		/* allocate ctrl */
+		size = sizeof(struct mmphw_ctrl) +
+			sizeof(struct mmphw_path_plat) * mi->path_num;
+		ctrl = devm_kzalloc(&pdev->dev, size, GFP_KERNEL);
+		if (!ctrl) {
+			ret = -ENOMEM;
+			goto failed;
+		}
+
+		ctrl->path_num = mi->path_num;
+		ctrl->name = mi->name;
+		paths_config = mi->paths;
 	}
 
-	/* allocate */
-	size = sizeof(struct mmphw_ctrl) + sizeof(struct mmphw_path_plat) *
-	       mi->path_num;
-	ctrl = devm_kzalloc(&pdev->dev, size, GFP_KERNEL);
-	if (!ctrl) {
-		ret = -ENOMEM;
-		goto failed;
-	}
-
-	ctrl->name = mi->name;
-	ctrl->path_num = mi->path_num;
 	ctrl->dev = &pdev->dev;
 	ctrl->irq = irq;
 	platform_set_drvdata(pdev, ctrl);
@@ -562,9 +651,9 @@ static int mmphw_probe(struct platform_device *pdev)
 	}
 
 	/* get clock */
-	ctrl->clk = devm_clk_get(ctrl->dev, mi->clk_name);
+	ctrl->clk = devm_clk_get(ctrl->dev, "LCDCIHCLK");
 	if (IS_ERR(ctrl->clk)) {
-		dev_err(ctrl->dev, "unable to get clk %s\n", mi->clk_name);
+		dev_err(ctrl->dev, "unable to get clk LCDCIHCLK\n");
 		ret = -ENOENT;
 		goto failed;
 	}
@@ -581,7 +670,7 @@ static int mmphw_probe(struct platform_device *pdev)
 		path_plat->ctrl = ctrl;
 
 		/* path init */
-		if (!path_init(path_plat, &mi->paths[i])) {
+		if (!path_init(path_plat, (paths_config + i))) {
 			ret = -EINVAL;
 			goto failed_path_init;
 		}
@@ -614,6 +703,7 @@ static struct platform_driver mmphw_driver = {
 	.driver		= {
 		.name	= "mmp-disp",
 		.owner	= THIS_MODULE,
+		.of_match_table = of_match_ptr(mmp_disp_dt_match),
 	},
 	.probe		= mmphw_probe,
 };

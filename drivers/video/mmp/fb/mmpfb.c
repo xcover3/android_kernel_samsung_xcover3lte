@@ -22,6 +22,8 @@
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 #include "mmpfb.h"
 
 static int var_to_pixfmt(struct fb_var_screeninfo *var)
@@ -551,18 +553,21 @@ static void fb_info_clear(struct fb_info *info)
 	fb_dealloc_cmap(&info->cmap);
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id mmp_fb_dt_match[] = {
+	{ .compatible = "marvell,mmp-fb" },
+	{},
+};
+#endif
+
 static int mmpfb_probe(struct platform_device *pdev)
 {
 	struct mmp_buffer_driver_mach_info *mi;
 	struct fb_info *info = 0;
 	struct mmpfb_info *fbi = 0;
 	int ret, modes_num;
-
-	mi = pdev->dev.platform_data;
-	if (mi == NULL) {
-		dev_err(&pdev->dev, "no platform data defined\n");
-		return -EINVAL;
-	}
+	int overlay_id = 0, buf_num = 2;
+	const char *path_name;
 
 	/* initialize fb */
 	info = framebuffer_alloc(sizeof(struct mmpfb_info), &pdev->dev);
@@ -574,19 +579,48 @@ static int mmpfb_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
+	if (IS_ENABLED(CONFIG_OF)) {
+		struct device_node *np = pdev->dev.of_node;
+
+		if (!np)
+			return -EINVAL;
+		if (of_property_read_string(np, "marvell,fb-name", &fbi->name))
+			return -EINVAL;
+		if (of_property_read_string(np, "marvell,path-name",
+					    &path_name))
+			return -EINVAL;
+		if (of_property_read_u32(np, "marvell,overlay-id",
+					 &overlay_id))
+			return -EINVAL;
+		if (of_property_read_u32(np, "marvell,default-pixfmt",
+					&fbi->pix_fmt))
+			return -EINVAL;
+		if (of_property_read_u32(np, "marvell,buffer-num", &buf_num))
+			return -EINVAL;
+	} else {
+		mi = pdev->dev.platform_data;
+		if (mi == NULL) {
+			dev_err(&pdev->dev, "no platform data defined\n");
+			return -EINVAL;
+		}
+		fbi->name = mi->name;
+		fbi->pix_fmt = mi->default_pixfmt;
+		buf_num = mi->buffer_num;
+		path_name = mi->path_name;
+		overlay_id = mi->overlay_id;
+	}
+
 	/* init fb */
 	fbi->fb_info = info;
 	platform_set_drvdata(pdev, fbi);
 	fbi->dev = &pdev->dev;
-	fbi->name = mi->name;
-	fbi->pix_fmt = mi->default_pixfmt;
 	pixfmt_to_var(&info->var, fbi->pix_fmt);
 	mutex_init(&fbi->access_ok);
 
 	/* get display path by name */
-	fbi->path = mmp_get_path(mi->path_name);
+	fbi->path = mmp_get_path(path_name);
 	if (!fbi->path) {
-		dev_err(&pdev->dev, "can't get the path %s\n", mi->path_name);
+		dev_err(&pdev->dev, "can't get the path %s\n", path_name);
 		ret = -EINVAL;
 		goto failed_destroy_mutex;
 	}
@@ -594,13 +628,13 @@ static int mmpfb_probe(struct platform_device *pdev)
 	dev_info(fbi->dev, "path %s get\n", fbi->path->name);
 
 	/* get overlay */
-	fbi->overlay = mmp_path_get_overlay(fbi->path, mi->overlay_id);
+	fbi->overlay = mmp_path_get_overlay(fbi->path, overlay_id);
 	if (!fbi->overlay) {
 		ret = -EINVAL;
 		goto failed_destroy_mutex;
 	}
 	/* set fetch used */
-	mmp_overlay_set_fetch(fbi->overlay, mi->dmafetch_id);
+	mmp_overlay_set_fetch(fbi->overlay, 0);
 
 	modes_num = modes_setup(fbi);
 	if (modes_num < 0) {
@@ -668,7 +702,8 @@ failed_free_buff:
 failed_destroy_mutex:
 	mutex_destroy(&fbi->access_ok);
 failed:
-	dev_err(fbi->dev, "mmp-fb: frame buffer device init failed\n");
+	if (fbi)
+		dev_err(fbi->dev, "mmp-fb: frame buffer device init failed\n");
 
 	framebuffer_release(info);
 
@@ -679,6 +714,7 @@ static struct platform_driver mmpfb_driver = {
 	.driver		= {
 		.name	= "mmp-fb",
 		.owner	= THIS_MODULE,
+		.of_match_table = of_match_ptr(mmp_fb_dt_match),
 	},
 	.probe		= mmpfb_probe,
 };

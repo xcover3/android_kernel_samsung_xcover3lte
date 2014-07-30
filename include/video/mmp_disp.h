@@ -299,6 +299,13 @@ static inline int mmp_overlay_set_addr(struct mmp_overlay *overlay,
 	return 0;
 }
 
+enum {
+	PN_PATH = 0,
+	TV_PATH,
+	PN2_PATH,
+	MAX_PATH,
+};
+
 /*
  * driver data is set from each detailed ctrl driver for path usage
  * it defined a common interface that plat driver need to implement
@@ -310,6 +317,7 @@ struct mmp_path_info {
 	int id;
 	int output_type;
 	int overlay_num;
+	u32 *overlay_table;
 	struct mmp_overlay_ops *overlay_ops;
 	void *plat_data;
 };
@@ -320,6 +328,16 @@ extern void mmp_unregister_path(struct mmp_path *path);
 extern void mmp_register_panel(struct mmp_panel *panel);
 extern void mmp_unregister_panel(struct mmp_panel *panel);
 
+enum {
+	PN_VID = 0,
+	PN_GRA,
+	TV_VID,
+	TV_GRA,
+	PN2_VID,
+	PN2_GRA,
+	MAX_OVERLAY,
+};
+
 /* defintions for platform data */
 /* interface for buffer driver */
 struct mmp_buffer_driver_mach_info {
@@ -328,12 +346,14 @@ struct mmp_buffer_driver_mach_info {
 	int	overlay_id;
 	int	dmafetch_id;
 	int	default_pixfmt;
+	int     buffer_num;
 };
 
 /* interface for controllers driver */
 struct mmp_mach_path_config {
 	const char *name;
 	int overlay_num;
+	u32 *overlay_table;
 	int output_type;
 	u32 path_config;
 	u32 link_config;
