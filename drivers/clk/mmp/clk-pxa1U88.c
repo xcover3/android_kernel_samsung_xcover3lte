@@ -37,10 +37,12 @@
 #define MPMU_UART_PLL		0x14
 
 #define APMU_CLK_GATE_CTRL	0x40
+#define APMU_CCIC0	0x50
 #define APMU_SDH0		0x54
 #define APMU_SDH1		0x58
 #define APMU_SDH2		0xe0
 #define APMU_USB		0x5c
+#define APMU_NF			0x60
 #define APMU_TRACE		0x108
 
 /* PLL */
@@ -69,6 +71,14 @@
 #define APMU_GC2D		0xf4
 
 #define APMU_VPU		0xa4
+
+#define CIU_MC_CONF	0x0040
+#define VPU_XTC		0x00a8
+#define GPU2D_XTC	0x00a0
+#define GPU_XTC		0x00a4
+#define SC2_DESC	0xD420F000
+#define ISP_XTC		0x84C
+
 
 struct pxa1U88_clk_unit {
 	struct mmp_clk_unit unit;
@@ -545,6 +555,11 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				0x9, 0x9, 0x1, 0, NULL);
 	mmp_clk_add(unit, PXA1U88_CLK_USB, clk);
 
+	/* nand flash clock, no one use it, expect to be disabled */
+	clk = mmp_clk_register_gate(NULL, "nf_clk", NULL, 0,
+				pxa_unit->apmu_base + APMU_NF,
+				0x1db, 0x1db, 0x0, 0, NULL);
+
 	clk = mmp_clk_register_gate(NULL, "sdh_axi_clk", NULL, 0,
 				pxa_unit->apmu_base + APMU_SDH0,
 				0x8, 0x8, 0x0, 0, &sdh0_lock);
@@ -953,6 +968,44 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 		ARRAY_SIZE(aclk_dclk_relationtbl_1U88));
 }
 
+static void __init pxa1U88_misc_init(struct pxa1U88_clk_unit *pxa_unit)
+{
+	void __iomem *sc2_base;
+	unsigned int val;
+
+	/* enable all MCK and AXI fabric dynamic clk gating */
+	val = __raw_readl(pxa_unit->ciu_base + CIU_MC_CONF);
+	/* enable dclk gating */
+	val &= ~(1 << 19);
+	/* enable 1x2 fabric AXI clock dynamic gating */
+	val |= (0xff << 8) |	/* MCK5 P0~P7*/
+		(1 << 16) |		/* CP 2x1 fabric*/
+		(1 << 17) | (1 << 18) |	/* AP&CP */
+		(1 << 20) | (1 << 21) |	/* SP&CSAP 2x1 fabric */
+		(1 << 26) | (1 << 27) | /* Fabric 0/1 */
+		(1 << 29) | (1 << 30);	/* CA7 2x1 fabric */
+	__raw_writel(val, pxa_unit->ciu_base + CIU_MC_CONF);
+
+	/* init GC related RTC register here */
+	__raw_writel(0x00066666, pxa_unit->ciu_base + GPU_XTC);
+	__raw_writel(0x00044444, pxa_unit->ciu_base + GPU2D_XTC);
+
+	/* init VPU related RTC register here */
+	__raw_writel(0x00B06655, pxa_unit->ciu_base + VPU_XTC);
+
+	/* init ISP related RTC register here */
+	sc2_base = ioremap(SC2_DESC, SZ_4K);
+	if (sc2_base == NULL) {
+		pr_err("error to ioremap SC2_DESCRIPTOR base\n");
+		return;
+	}
+	val = __raw_readl(pxa_unit->apmu_base + APMU_CCIC0);
+	__raw_writel(val | (3 << 21), pxa_unit->apmu_base + APMU_CCIC0);
+	__raw_writel(0x00555555, sc2_base + ISP_XTC);
+	__raw_writel(val, pxa_unit->apmu_base + APMU_CCIC0);
+	iounmap(sc2_base);
+}
+
 static void __init pxa1U88_clk_init(struct device_node *np)
 {
 	struct pxa1U88_clk_unit *pxa_unit;
@@ -1001,6 +1054,7 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 
 	mmp_clk_init(np, &pxa_unit->unit, PXA1U88_NR_CLKS);
 
+	pxa1U88_misc_init(pxa_unit);
 	pxa1U88_pll_init(pxa_unit);
 	pxa1U88_acpu_init(pxa_unit);
 	pxa1U88_apb_periph_clk_init(pxa_unit);
