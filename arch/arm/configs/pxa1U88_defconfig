@@ -381,6 +381,7 @@ CONFIG_MULTI_IRQ_HANDLER=y
 # CONFIG_ARM_ERRATA_775420 is not set
 # CONFIG_ARM_ERRATA_798181 is not set
 # CONFIG_ARM_ERRATA_773022 is not set
+# CONFIG_ARM_ERRATA_802022 is not set
 # CONFIG_ARM_ERRATA_814220 is not set
 # CONFIG_FIQ_DEBUGGER is not set
 
@@ -480,7 +481,7 @@ CONFIG_ATAGS=y
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
 # CONFIG_ARM_APPENDED_DTB is not set
-CONFIG_CMDLINE="rdinit=/busybox/rdinit console=ttyS1,115200 mem=512M user_debug=255 earlyprintk"
+CONFIG_CMDLINE="rdinit=/busybox/rdinit console=ttyS1,115200 mem=512M user_debug=255 earlyprintk uart_dma"
 # CONFIG_CMDLINE_FROM_BOOTLOADER is not set
 # CONFIG_CMDLINE_EXTEND is not set
 CONFIG_CMDLINE_FORCE=y
