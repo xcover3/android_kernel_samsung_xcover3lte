@@ -47,6 +47,10 @@
 		};
 
 		apb@d4000000 {
+			pdma0: pdma@d4000000 {
+				status = "okay";
+			};
+
 			timer0: timer@d4014000 {
 				status = "disabled";
 			};
