@@ -203,6 +203,9 @@
 				status = "okay";
 			};
 
+			thermal: thermal@d403b000 {
+				status = "okay";
+			};
 			pmx: pinmux@d401e000 {
 				status = "okay";
 				/* pin base, nr pins & gpio function */
