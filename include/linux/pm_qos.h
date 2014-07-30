@@ -22,6 +22,7 @@ enum {
 	PM_QOS_CPU_NUM_MAX,
 	PM_QOS_DDR_DEVFREQ_MIN,
 	PM_QOS_DDR_DEVFREQ_MAX,
+	PM_QOS_AXI_MIN,
 	/* insert new class ID */
 	PM_QOS_NUM_CLASSES,
 };
