@@ -362,6 +362,7 @@
 			keypad: keypad@d4012000 {
 				compatible = "marvell,pxa27x-keypad";
 				reg = <0xd4012000 0x4c>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 				interrupts = <0 9 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_KPC>;
 			};
