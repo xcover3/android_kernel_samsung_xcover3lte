@@ -41,6 +41,18 @@ static int __clk_notify(struct clk *clk, unsigned long msg,
 	unsigned long old_rate, unsigned long new_rate);
 
 
+static int disable_freqchg;
+
+static int __init disable_freqchg_setup(char *str)
+{
+	int n;
+	if (!get_option(&str, &n))
+		return 0;
+	disable_freqchg = n;
+	return 1;
+}
+__setup("disable_freqchg=", disable_freqchg_setup);
+
 /***           locking             ***/
 static void clk_prepare_lock(void)
 {
@@ -1689,6 +1701,9 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 	unsigned int clk_need_enable = 0;
 
 	if (!clk)
+		return 0;
+
+	if (unlikely(disable_freqchg))
 		return 0;
 
 	/* prevent racing with updates to the clock topology */
