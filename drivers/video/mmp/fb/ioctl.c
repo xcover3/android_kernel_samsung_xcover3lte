@@ -392,6 +392,9 @@ int mmpfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 
 	dev_dbg(info->dev, "cmd 0x%x, arg 0x%lx\n", cmd, arg);
 
+	if (!mmp_path_ctrl_safe(fbi->path))
+		return -EINVAL;
+
 	switch (cmd) {
 	case FB_IOCTL_QUERY_GLOBAL_INFO:
 		get_global_info(info, arg);

@@ -23,10 +23,32 @@
 #include <linux/dma-mapping.h>
 #include <linux/vmalloc.h>
 #include <asm/cacheflush.h>
+#include <linux/pm_runtime.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include "mmpfb.h"
+
+/* uboot display start address */
+static unsigned int disp_start_addr;
+static unsigned int skip_power_on;
+
+static int __init early_fbmem(char *str)
+{
+	char *endp;
+	static unsigned int max_fb_size;
+
+	max_fb_size = memparse(str, &endp);
+	if (*endp == '@') {
+		disp_start_addr = memparse(endp + 1, NULL);
+#if !defined(CONFIG_MMP_VIRTUAL_RESOLUTION)
+		skip_power_on = 1;
+#endif
+	}
+
+	return 1;
+}
+early_param("fbmem", early_fbmem);
 
 static int var_to_pixfmt(struct fb_var_screeninfo *var)
 {
@@ -448,6 +470,9 @@ static int mmpfb_set_par(struct fb_info *info)
 	struct mmp_mode mode;
 	int ret;
 
+	if (!mmp_path_ctrl_safe(fbi->path))
+		return -EINVAL;
+
 	ret = var_update(info);
 	if (ret != 0)
 		return ret;
@@ -472,6 +497,9 @@ static void mmpfb_power(struct mmpfb_info *fbi, int power)
 {
 	struct mmp_addr addr;
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
+
+	if (!mmp_path_ctrl_safe(fbi->path))
+		return;
 
 	/* for power on, always set address/window again */
 	if (status_is_on(power)) {
@@ -743,14 +771,22 @@ static int mmpfb_probe(struct platform_device *pdev)
 		goto failed_destroy_mutex;
 	}
 
+	/* memset framebuffer, or there may be dirty data in fb */
 	memset(fbi->fb_start, 0, fbi->fb_size);
+	if (skip_power_on) {
+		memcpy(fbi->fb_start + fbi->fb_size / fbi->buffer_num,
+			__va(disp_start_addr), fbi->fb_size / fbi->buffer_num);
+		info->var.yoffset = info->var.yres;
+	}
 	dev_info(fbi->dev, "fb phys_addr 0x%lx, virt_addr 0x%p, size %dk\n",
 		(unsigned long)fbi->fb_start_dma,
 		fbi->fb_start, (fbi->fb_size >> 10));
 
+#ifndef CONFIG_PM_RUNTIME
 	/* fb power on */
 	if (modes_num > 0)
 		mmpfb_power(fbi, MMP_ON);
+#endif
 
 	ret = fb_info_setup(info, fbi);
 	if (ret < 0)
@@ -769,11 +805,14 @@ static int mmpfb_probe(struct platform_device *pdev)
 		info->node, info->fix.id);
 
 #ifdef CONFIG_LOGO
-	if (fbi->fb_start) {
+	if ((fbi->fb_start) && (!skip_power_on)) {
 		fb_prepare_logo(info, 0);
 		fb_show_logo(info, 0);
 	}
 #endif
+	pm_runtime_enable(&pdev->dev);
+	pm_runtime_forbid(&pdev->dev);
+	skip_power_on = 0;
 
 	return 0;
 
@@ -792,10 +831,49 @@ failed:
 	return ret;
 }
 
+#if defined(CONFIG_PM_RUNTIME) || defined(CONFIG_PM_SLEEP)
+static int mmpfb_runtime_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct mmpfb_info *fbi = platform_get_drvdata(pdev);
+	struct fb_info *info = fbi->fb_info;
+
+	fb_set_suspend(info, 1);
+
+	mmpfb_power(fbi, MMP_OFF);
+
+	dev_dbg(&pdev->dev, "mmpfb suspended\n");
+	return 0;
+}
+
+static int mmpfb_runtime_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct mmpfb_info *fbi = platform_get_drvdata(pdev);
+	struct fb_info *info = fbi->fb_info;
+
+	if (skip_power_on)
+		mmpfb_power(fbi, MMP_ON_REDUCED);
+	else
+		mmpfb_power(fbi, MMP_ON);
+
+	fb_set_suspend(info, 0);
+
+	dev_dbg(&pdev->dev, "mmpfb resumed.\n");
+	return 0;
+}
+#endif
+
+const struct dev_pm_ops mmpfb_pm_ops = {
+	SET_RUNTIME_PM_OPS(mmpfb_runtime_suspend,
+		mmpfb_runtime_resume, NULL)
+};
+
 static struct platform_driver mmpfb_driver = {
 	.driver		= {
 		.name	= "mmp-fb",
 		.owner	= THIS_MODULE,
+		.pm	= &mmpfb_pm_ops,
 		.of_match_table = of_match_ptr(mmp_fb_dt_match),
 	},
 	.probe		= mmpfb_probe,

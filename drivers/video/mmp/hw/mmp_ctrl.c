@@ -39,6 +39,7 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/pm_runtime.h>
 
 #include "mmp_ctrl.h"
 
@@ -992,6 +993,18 @@ static void path_set_default(struct mmp_path *path)
 	writel_relaxed(tmp, ctrl_regs(path) + dma_ctrl(0, path->id));
 }
 
+static int path_ctrl_safe(struct mmp_path *path)
+{
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+
+	if (unlikely(ctrl->status == MMP_OFF)) {
+		pr_warn("WARN: LCDC already off\n");
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
 static int path_init(struct mmphw_path_plat *path_plat,
 		struct mmp_mach_path_config *config)
 {
@@ -1038,6 +1051,7 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path->ops.set_mode = path_set_mode;
 	path->ops.set_irq = path_set_irq;
 	path->ops.set_gamma = path_set_gamma;
+	path->ops.ctrl_safe = path_ctrl_safe;
 
 	path_set_default(path);
 
@@ -1214,6 +1228,7 @@ static int mmphw_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto failed;
 	}
+	ctrl->regs_len = resource_size(res) / sizeof(u32);
 
 	/* get clock */
 	ctrl->clk = devm_clk_get(ctrl->dev, "LCDCIHCLK");
@@ -1222,7 +1237,12 @@ static int mmphw_probe(struct platform_device *pdev)
 		ret = -ENOENT;
 		goto failed;
 	}
+
+#ifndef CONFIG_PM_RUNTIME
 	clk_prepare_enable(ctrl->clk);
+#endif
+	pm_runtime_enable(ctrl->dev);
+	pm_runtime_forbid(ctrl->dev);
 
 	ctrl->version = readl_relaxed(ctrl->reg_base + LCD_VERSION);
 	/* init global regs */
@@ -1258,6 +1278,15 @@ static int mmphw_probe(struct platform_device *pdev)
 		goto failed_path_init;
 	}
 
+	ctrl->regs_store = devm_kzalloc(ctrl->dev,
+			ctrl->regs_len * sizeof(u32), GFP_KERNEL);
+	if (!ctrl->regs_store) {
+		dev_err(ctrl->dev,
+				"%s: unable to kzalloc memory for regs store\n",
+				__func__);
+		goto failed_path_init;
+	}
+
 	dev_info(ctrl->dev, "device init done\n");
 
 	return 0;
@@ -1275,10 +1304,68 @@ failed:
 	return ret;
 }
 
+static void mmphw_regs_store(struct mmphw_ctrl *ctrl)
+{
+	int i = 0;
+
+	if (ctrl->regs_store)
+		/* store registers */
+		while (i < ctrl->regs_len) {
+			ctrl->regs_store[i] =
+				readl_relaxed(ctrl->reg_base + i * 4);
+			i++;
+		}
+}
+
+static void mmphw_regs_recovery(struct mmphw_ctrl *ctrl)
+{
+	int i = 0;
+
+	if (ctrl->regs_store)
+		/* recovery registers */
+		while (i < ctrl->regs_len) {
+			writel_relaxed(ctrl->regs_store[i],
+				ctrl->reg_base + i * 4);
+			i++;
+		}
+}
+
+#if defined(CONFIG_PM_SLEEP) || defined(CONFIG_PM_RUNTIME)
+static int mmphw_runtime_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct mmphw_ctrl *ctrl = platform_get_drvdata(pdev);
+
+	ctrl->status = MMP_OFF;
+	mmphw_regs_store(ctrl);
+	clk_disable_unprepare(ctrl->clk);
+
+	return 0;
+}
+
+static int mmphw_runtime_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct mmphw_ctrl *ctrl = platform_get_drvdata(pdev);
+
+	clk_prepare_enable(ctrl->clk);
+	mmphw_regs_recovery(ctrl);
+	ctrl->status = MMP_ON;
+
+	return 0;
+}
+#endif
+
+const struct dev_pm_ops mmphw_pm_ops = {
+	SET_RUNTIME_PM_OPS(mmphw_runtime_suspend,
+		mmphw_runtime_resume, NULL)
+};
+
 static struct platform_driver mmphw_driver = {
 	.driver		= {
 		.name	= "mmp-disp",
 		.owner	= THIS_MODULE,
+		.pm	= &mmphw_pm_ops,
 		.of_match_table = of_match_ptr(mmp_disp_dt_match),
 	},
 	.probe		= mmphw_probe,

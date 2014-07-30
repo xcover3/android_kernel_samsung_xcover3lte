@@ -1185,6 +1185,9 @@ struct mmphw_ctrl {
 	int status;
 	struct mutex access_ok;
 
+	u32 *regs_store;
+	u32 regs_len;
+
 	/*pathes*/
 	int path_num;
 	struct mmphw_path_plat path_plats[0];

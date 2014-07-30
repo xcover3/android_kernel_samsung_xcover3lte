@@ -302,6 +302,7 @@ struct mmp_path_ops {
 	void (*set_onoff)(struct mmp_path *path, int status);
 	int (*wait_vsync)(struct mmp_path *path);
 	int (*set_irq)(struct mmp_path *path, int on);
+	int (*ctrl_safe)(struct mmp_path *path);
 	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
 	/* todo: add query */
 };
@@ -524,6 +525,12 @@ static inline struct mmp_overlay *mmp_path_get_overlay(
 	if (path && path->ops.get_overlay)
 		return path->ops.get_overlay(path, overlay_id);
 	return NULL;
+}
+static inline int mmp_path_ctrl_safe(struct mmp_path *path)
+{
+	if (path && path->ops.ctrl_safe)
+		return path->ops.ctrl_safe(path);
+	return 1;
 }
 static inline void mmp_overlay_set_status(struct mmp_overlay *overlay,
 		int status)
