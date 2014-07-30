@@ -120,7 +120,7 @@ static struct mmp_mode mmp_modes_tpohvga[] = {
 		.upper_margin = 4,
 		.lower_margin = 2,
 		.invert_pixclock = 1,
-		.pix_fmt_out = PIXFMT_RGB565,
+		.pix_fmt_out = PIXFMT_BGR565,
 	},
 };
 

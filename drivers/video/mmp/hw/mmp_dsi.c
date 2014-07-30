@@ -588,16 +588,16 @@ static void dsi_reset(struct mmp_dsi_regs *dsi_regs, int hold)
 static u32 dsi_get_rgb_type_from_inputfmt(int fmt, u32 *rgb_type)
 {
 	switch (fmt) {
-	case PIXFMT_RGB565:
+	case PIXFMT_BGR565:
 		*rgb_type = 0;
 		return 16;
-	case PIXFMT_RGB666PACK:
+	case PIXFMT_BGR666PACK:
 		*rgb_type = 1;
 		return 18;
-	case PIXFMT_RGB666UNPACK:
+	case PIXFMT_BGR666UNPACK:
 		*rgb_type = 2;
 		return 24;
-	case PIXFMT_RGB888PACK:
+	case PIXFMT_BGR888PACK:
 		*rgb_type = 3;
 		return 24;
 	default:

@@ -139,11 +139,11 @@ dump:
 static int is_rbswap(struct mmp_overlay *overlay)
 {
 	int fmt = overlay->win.pix_fmt;
-	if (fmt == PIXFMT_BGR565
-		|| fmt == PIXFMT_BGR1555
-		|| fmt == PIXFMT_BGR888PACK
-		|| fmt == PIXFMT_BGR888UNPACK
-		|| fmt == PIXFMT_BGRA888)
+	if (fmt == PIXFMT_RGB565
+		|| fmt == PIXFMT_RGB1555
+		|| fmt == PIXFMT_RGB888PACK
+		|| fmt == PIXFMT_RGB888UNPACK
+		|| fmt == PIXFMT_RGBA888)
 		return 1;
 	else
 		return 0;
@@ -478,11 +478,11 @@ static u32 fmt_to_reg(int overlay_id, int pix_fmt)
 		vid = overlay_is_vid(overlay_id);
 
 	switch (pix_fmt) {
-	case PIXFMT_RGB565:
-	case PIXFMT_RGB1555:
-	case PIXFMT_RGB888PACK:
-	case PIXFMT_RGB888UNPACK:
-	case PIXFMT_RGBA888:
+	case PIXFMT_BGR565:
+	case PIXFMT_BGR1555:
+	case PIXFMT_BGR888PACK:
+	case PIXFMT_BGR888UNPACK:
+	case PIXFMT_BGRA888:
 		rbswap = 1;
 		break;
 	case PIXFMT_VYUY:

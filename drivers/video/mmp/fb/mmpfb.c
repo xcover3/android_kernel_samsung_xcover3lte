@@ -89,9 +89,9 @@ static int var_to_pixfmt(struct fb_var_screeninfo *var)
 			var->green.length <= 6 && var->blue.length <= 5) {
 		if (var->transp.length == 0) {
 			if (var->red.offset >= var->blue.offset)
-				return PIXFMT_RGB565;
-			else
 				return PIXFMT_BGR565;
+			else
+				return PIXFMT_RGB565;
 		}
 	}
 
@@ -102,21 +102,21 @@ static int var_to_pixfmt(struct fb_var_screeninfo *var)
 			var->green.length <= 8 && var->blue.length <= 8) {
 		if (var->bits_per_pixel == 24 && var->transp.length == 0) {
 			if (var->red.offset >= var->blue.offset)
-				return PIXFMT_RGB888PACK;
-			else
 				return PIXFMT_BGR888PACK;
+			else
+				return PIXFMT_RGB888PACK;
 		}
 
 		if (var->bits_per_pixel == 32 && var->transp.offset == 24) {
 			if (var->red.offset >= var->blue.offset)
-				return PIXFMT_RGBA888;
-			else
 				return PIXFMT_BGRA888;
+			else
+				return PIXFMT_RGBA888;
 		} else {
 			if (var->red.offset >= var->blue.offset)
-				return PIXFMT_RGB888UNPACK;
-			else
 				return PIXFMT_BGR888UNPACK;
+			else
+				return PIXFMT_RGB888UNPACK;
 		}
 
 		/* fall through */
@@ -128,56 +128,56 @@ static int var_to_pixfmt(struct fb_var_screeninfo *var)
 static void pixfmt_to_var(struct fb_var_screeninfo *var, int pix_fmt)
 {
 	switch (pix_fmt) {
-	case PIXFMT_RGB565:
+	case PIXFMT_BGR565:
 		var->bits_per_pixel = 16;
 		var->red.offset = 11;	var->red.length = 5;
 		var->green.offset = 5;   var->green.length = 6;
 		var->blue.offset = 0;	var->blue.length = 5;
 		var->transp.offset = 0;  var->transp.length = 0;
 		break;
-	case PIXFMT_BGR565:
+	case PIXFMT_RGB565:
 		var->bits_per_pixel = 16;
 		var->red.offset = 0;	var->red.length = 5;
 		var->green.offset = 5;	 var->green.length = 6;
 		var->blue.offset = 11;	var->blue.length = 5;
 		var->transp.offset = 0;  var->transp.length = 0;
 		break;
-	case PIXFMT_RGB888UNPACK:
+	case PIXFMT_BGR888UNPACK:
 		var->bits_per_pixel = 32;
 		var->red.offset = 16;	var->red.length = 8;
 		var->green.offset = 8;   var->green.length = 8;
 		var->blue.offset = 0;	var->blue.length = 8;
 		var->transp.offset = 0;  var->transp.length = 0;
 		break;
-	case PIXFMT_BGR888UNPACK:
+	case PIXFMT_RGB888UNPACK:
 		var->bits_per_pixel = 32;
 		var->red.offset = 0;	var->red.length = 8;
 		var->green.offset = 8;	 var->green.length = 8;
 		var->blue.offset = 16;	var->blue.length = 8;
 		var->transp.offset = 0;  var->transp.length = 0;
-		break;
-	case PIXFMT_RGBA888:
-		var->bits_per_pixel = 32;
-		var->red.offset = 16;	var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;	var->blue.length = 8;
-		var->transp.offset = 24; var->transp.length = 8;
 		break;
 	case PIXFMT_BGRA888:
 		var->bits_per_pixel = 32;
+		var->red.offset = 16;	var->red.length = 8;
+		var->green.offset = 8;   var->green.length = 8;
+		var->blue.offset = 0;	var->blue.length = 8;
+		var->transp.offset = 24; var->transp.length = 8;
+		break;
+	case PIXFMT_RGBA888:
+		var->bits_per_pixel = 32;
 		var->red.offset = 0;	var->red.length = 8;
 		var->green.offset = 8;	 var->green.length = 8;
 		var->blue.offset = 16;	var->blue.length = 8;
 		var->transp.offset = 24; var->transp.length = 8;
 		break;
-	case PIXFMT_RGB888PACK:
+	case PIXFMT_BGR888PACK:
 		var->bits_per_pixel = 24;
 		var->red.offset = 16;	var->red.length = 8;
 		var->green.offset = 8;   var->green.length = 8;
 		var->blue.offset = 0;	var->blue.length = 8;
 		var->transp.offset = 0;  var->transp.length = 0;
 		break;
-	case PIXFMT_BGR888PACK:
+	case PIXFMT_RGB888PACK:
 		var->bits_per_pixel = 24;
 		var->red.offset = 0;	var->red.length = 8;
 		var->green.offset = 8;	 var->green.length = 8;
