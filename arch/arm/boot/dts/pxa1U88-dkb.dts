@@ -441,6 +441,16 @@
 			swjtag: swjtag@d4013100 {
 				status = "okay";
 			};
+
+			thermal: thermal@d4013300 {
+				/* A cooling path is defined with the increased num */
+				/* 4core 3core 2core 1core */
+				core-p0 = <0 0 0 0  /* 2.0G */
+					   1 0 0 0  /* 1.8G */
+					   2 0 0 0  /* 1.5G */
+					   3 0 0 0>;/* 1.2G */
+				status = "okay";
+			};
 		};
 
                 /*

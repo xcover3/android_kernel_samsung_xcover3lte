@@ -462,6 +462,13 @@
 				status = "disabled";
 			};
 
+			thermal: thermal@d4013300 {
+				compatible = "marvell,pxa28nm-thermal";
+				reg = <0xd4013300 0x1C>;
+				interrupts = <0 60 0x4>;
+				status = "disabled";
+			};
+
 			coresight: coresight@d4100000 {
 				compatible = "marvell,coresight";
 				clocks = <&soc_clocks PXA1U88_CLK_DBGCLK>,
