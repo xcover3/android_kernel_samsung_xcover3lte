@@ -281,6 +281,11 @@
 				status = "disabled";
 			};
 
+			mfpr: mfpr@d401e000 {
+				compatible = "marvell,mmp-mfp-leftover";
+				status = "disable";
+			};
+
 			rtc: rtc@d4010000 {
 				compatible = "mrvl,mmp-rtc";
 				reg = <0xd4010000 0x100>;

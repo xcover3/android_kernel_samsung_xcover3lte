@@ -80,6 +80,13 @@
 				status = "okay";
 			};
 
+			mfpr: mfpr@d401e000 {
+				pinctrl-names = "default";
+				reg = <0xd401e000 0x280>;
+				pinctrl-0 = <&mfp_pins_group_0>;
+				status = "ok";
+			};
+
 			pmx: pinmux@d401e000 {
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <
@@ -93,6 +100,20 @@
 					&range 110 32 0 /* GPIO67 ~ GPIO98 */
 					&range 52 1 0	/* GPIO124 */
 				>;
+
+                                /* MFP_PULL_HIGH | MFP_LPM_FLOAT */
+                                mfp_pins_group_0: mfp_pins_group_0 {
+                                        pinctrl-single,pins = <
+                                                PRI_TDO AF0
+                                                DF_RDY0 AF1
+                                                DF_RDY1 AF1
+                                                DF_nCS0_SM_nCS2 AF1
+                                                PA_MODE AF6
+                                                RF_CONF_4 AF6
+                                                SM_ADVMUX AF1
+                                        >;
+                                        MFP_LPM_PULL_UP;
+                                };
 
 				keypad_in_func: keypad_in_func {
 					pinctrl-single,pins = <
@@ -220,6 +241,18 @@
 						GPIO47 AF6
 					>;
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+				};
+
+				led_pmx_func: led_pmx_func {
+					pinctrl-single,pins = <
+						/* LED_R_CTRL */
+						DF_nCS1_SM_nCS3 AF1
+						/* LED_G_CTRL */
+						SM_nCS0 AF1
+						/* LED_B_CTRL */
+						SM_nCS1 AF1
+					>;
+					MFP_LPM_PULL_DW;
 				};
 			};
 			twsi0: i2c@d4011000 {
@@ -387,6 +420,16 @@
 		rst_gpio = <&gpio 4 0>;
 		power_gpio = <&gpio 6 0>;
 		bl_gpio = <&gpio 32 0>;
+		status = "okay";
+	};
+
+	led-rgb {
+		compatible = "marvell,led-rgb";
+		pinctrl-names = "default";
+		pinctrl-0 = <&led_pmx_func>;
+		led_r = <&gpio 102 0>;
+		led_g = <&gpio 103 0>;
+		led_b = <&gpio 104 0>;
 		status = "okay";
 	};
 };

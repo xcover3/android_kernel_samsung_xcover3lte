@@ -220,6 +220,8 @@
 #define MMC1_CD			0x00ac
 #define MMC1_WP			0x00b0
 #define ANT_SW4			0x026c
+#define PA_MODE                 0x0270
+#define RF_CONF_4               0x0274
 #define VCXO_REQ		0x00d4
 
 #define PRI_TDI			0x00b4
