@@ -8,7 +8,6 @@
  * 88pm830 parameters for most Li-ion batteries
  */
 
-#include <dt-bindings/interrupt-controller/irq.h>
 
 &pmic1 {
 	charger {

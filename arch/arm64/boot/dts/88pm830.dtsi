@@ -8,8 +8,6 @@
  * header file for Marvell charger/fuel gauge/camera flash chip: 88pm830
  */
 
-#include <dt-bindings/interrupt-controller/irq.h>
-
 &pmic1 {
 	compatible = "marvell,88pm830";
 	interrupt-controller;

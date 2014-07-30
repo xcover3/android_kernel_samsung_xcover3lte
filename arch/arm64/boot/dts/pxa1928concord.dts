@@ -641,3 +641,7 @@
 };
 #include "88pm860.dtsi"
 #include "88pm860_pxa1928_concord.dtsi"
+
+#include "88pm830.dtsi"
+#include "88pm830_battery_common.dtsi"
+#include "88pm830_sp4555557sa.dtsi"

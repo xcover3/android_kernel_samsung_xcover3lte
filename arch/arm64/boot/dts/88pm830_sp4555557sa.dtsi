@@ -12,7 +12,6 @@
  * Pack Model: 1S1P-SP455557SA-PCM
  */
 
-#include <dt-bindings/interrupt-controller/irq.h>
 
 &pmic1 {
 	charger {
