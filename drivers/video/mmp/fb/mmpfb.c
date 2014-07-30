@@ -257,8 +257,8 @@ static void fbmode_to_mmpmode(struct mmp_mode *mode,
 	mode->lower_margin = videomode->lower_margin;
 	mode->hsync_len = videomode->hsync_len;
 	mode->vsync_len = videomode->vsync_len;
-	mode->hsync_invert = !!(videomode->sync & FB_SYNC_HOR_HIGH_ACT);
-	mode->vsync_invert = !!(videomode->sync & FB_SYNC_VERT_HIGH_ACT);
+	mode->hsync_invert = !(videomode->sync & FB_SYNC_HOR_HIGH_ACT);
+	mode->vsync_invert = !(videomode->sync & FB_SYNC_VERT_HIGH_ACT);
 	/* no defined flag in fb, use vmode>>3*/
 	mode->invert_pixclock = !!(videomode->vmode & 8);
 	mode->pix_fmt_out = output_fmt;
@@ -283,8 +283,8 @@ static void mmpmode_to_fbmode(struct fb_videomode *videomode,
 	videomode->lower_margin = mode->lower_margin;
 	videomode->hsync_len = mode->hsync_len;
 	videomode->vsync_len = mode->vsync_len;
-	videomode->sync = (mode->hsync_invert ? FB_SYNC_HOR_HIGH_ACT : 0)
-		| (mode->vsync_invert ? FB_SYNC_VERT_HIGH_ACT : 0);
+	videomode->sync = (mode->hsync_invert ? 0 : FB_SYNC_HOR_HIGH_ACT)
+		| (mode->vsync_invert ? 0 : FB_SYNC_VERT_HIGH_ACT);
 	videomode->vmode = mode->invert_pixclock ? 8 : 0;
 }
 

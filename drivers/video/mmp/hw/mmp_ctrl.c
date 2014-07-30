@@ -216,15 +216,24 @@ static void path_enabledisable(struct mmp_path *path, int on)
 static void path_set_timing(struct mmp_path *path)
 {
 	struct lcd_regs *regs = path_regs(path);
-	u32 total_x, total_y, vsync_ctrl, tmp,
-		link_config = path_to_path_plat(path)->link_config;
+	u32 total_x, total_y, vsync_ctrl, tmp, mask, path_clk_req,
+		link_config = path_to_path_plat(path)->link_config,
+		h_porch, sync_ratio, master_mode;
 	struct mmp_mode *mode = &path->mode;
 	struct clk *clk = path_to_path_plat(path)->clk;
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
+
+	if (PATH_OUT_DSI == path->output_type
+			&& (!dsi || !dsi->get_sync_val)) {
+		dev_err(path->dev, "dsi invalid\n");
+		return;
+	}
 
 	/* polarity of timing signals */
 	tmp = readl_relaxed(ctrl_regs(path) + intf_ctrl(path->id)) & 0x1;
-	tmp |= mode->vsync_invert ? 0 : 0x8;
-	tmp |= mode->hsync_invert ? 0 : 0x4;
+	tmp |= mode->vsync_invert ? 0x8 : 0;
+	tmp |= mode->hsync_invert ? 0x4 : 0;
 	tmp |= link_config & CFG_DUMBMODE_MASK;
 	tmp |= CFG_DUMB_ENA(1);
 	writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
@@ -235,32 +244,78 @@ static void path_set_timing(struct mmp_path *path)
 	tmp |= link_config & CFG_INTFRBSWAP_MASK;
 	writel_relaxed(tmp, ctrl_regs(path) + intf_rbswap_ctrl(path->id));
 
+	/* x/y res, porch, sync */
+	if (PATH_OUT_PARALLEL == path->output_type) {
+		h_porch = (mode->left_margin << 16) | mode->right_margin;
+		total_x = mode->xres + mode->left_margin + mode->right_margin +
+			mode->hsync_len;
+		path_clk_req = mode->pixclock_freq;
+		vsync_ctrl = (mode->left_margin << 16) | (mode->left_margin);
+	} else {
+		sync_ratio = dsi->get_sync_val(dsi, DSI_SYNC_RATIO);
+		h_porch = (mode->xres + mode->right_margin) * sync_ratio / 10 -
+			mode->xres;
+		h_porch |= (mode->left_margin * sync_ratio / 10) << 16;
+		total_x = (mode->xres + mode->left_margin + mode->right_margin +
+			mode->hsync_len) * sync_ratio / 10;
+		vsync_ctrl = (((mode->xres + mode->right_margin) * sync_ratio / 10) << 16) |
+			((mode->xres + mode->right_margin) * sync_ratio / 10);
+		path_clk_req = dsi->get_sync_val(dsi,
+			DSI_SYNC_CLKREQ);
+
+		/* master mode setting of dsi phy */
+		master_mode = dsi->get_sync_val(dsi,
+			DSI_SYNC_MASTER_MODE);
+		tmp = readl_relaxed(ctrl_regs(path) +
+				(DISP_GEN4(ctrl->version) ?
+				TIMING_MASTER_CONTROL_GEN4 :
+				 TIMING_MASTER_CONTROL));
+		if (!DISP_GEN4(ctrl->version))
+			mask = MASTER_ENH(path->id) | MASTER_ENV(path->id) |
+				DSI_START_SEL_MASK(path->id);
+		else
+			mask = MASTER_ENH_GEN4(path->id) |
+				MASTER_ENV_GEN4(path->id) |
+				DSI_START_SEL_MASK_GEN4(path->id);
+
+		tmp &= ~mask;
+		if (master_mode) {
+			/*
+			 * FIXME: only support DSI1, need dsi id and
+			 * active panel id if more DSI added
+			 */
+			if (!DISP_GEN4(ctrl->version))
+				tmp |= MASTER_ENH(path->id) |
+					MASTER_ENV(path->id) |
+					DSI_START_SEL(path->id, 0, 0);
+			else
+				tmp |= MASTER_ENH_GEN4(path->id) |
+					MASTER_ENV_GEN4(path->id) |
+					DSI_START_SEL_GEN4(path->id, 0);
+		}
+		writel_relaxed(tmp, ctrl_regs(path) +
+				(DISP_GEN4(ctrl->version) ?
+				TIMING_MASTER_CONTROL_GEN4 :
+				 TIMING_MASTER_CONTROL));
+	}
 	writel_relaxed((mode->yres << 16) | mode->xres, &regs->screen_active);
-	writel_relaxed((mode->left_margin << 16) | mode->right_margin,
-		&regs->screen_h_porch);
+	writel_relaxed(h_porch, &regs->screen_h_porch);
 	writel_relaxed((mode->upper_margin << 16) | mode->lower_margin,
 		&regs->screen_v_porch);
-	total_x = mode->xres + mode->left_margin + mode->right_margin +
-		mode->hsync_len;
 	total_y = mode->yres + mode->upper_margin + mode->lower_margin +
 		mode->vsync_len;
 	writel_relaxed((total_y << 16) | total_x, &regs->screen_size);
-
-	/* vsync ctrl */
-	if (path->output_type == PATH_OUT_DSI)
-		vsync_ctrl = 0x01330133;
-	else
-		vsync_ctrl = ((mode->xres + mode->right_margin) << 16)
-					| (mode->xres + mode->right_margin);
 	writel_relaxed(vsync_ctrl, &regs->vsync_ctrl);
 
 	/* set path_clk */
-	if (clk && path->output_type == PATH_OUT_PARALLEL)
-		clk_set_rate(clk, mode->pixclock_freq);
+	if (clk && path_clk_req)
+		clk_set_rate(clk, path_clk_req);
 }
 
 static void path_onoff(struct mmp_path *path, int on)
 {
+	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
+
 	if (path->status == on) {
 		dev_info(path->dev, "path %s is already %s\n",
 				path->name, status_name(path->status));
@@ -272,10 +327,16 @@ static void path_onoff(struct mmp_path *path, int on)
 	if (on) {
 		path_enabledisable(path, 1);
 
-		if (path->panel && path->panel->set_status)
+		if (dsi && dsi->set_status)
+			/* panel onoff would be called in dsi onoff if exist */
+			dsi->set_status(dsi, MMP_ON);
+		else if (path->panel && path->panel->set_status)
 			path->panel->set_status(path->panel, MMP_ON);
 	} else {
-		if (path->panel && path->panel->set_status)
+		if (dsi && dsi->set_status)
+			/* panel onoff would be called in dsi onoff if exist */
+			dsi->set_status(dsi, MMP_OFF);
+		else if (path->panel && path->panel->set_status)
 			path->panel->set_status(path->panel, MMP_OFF);
 
 		path_enabledisable(path, 0);
@@ -290,6 +351,7 @@ static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 	struct mmphw_ctrl *ctrl = path_to_ctrl(overlay->path);
 	int on = status_is_on(status);
 	struct mmp_path *path = overlay->path;
+	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
 
 	mutex_lock(&ctrl->access_ok);
 
@@ -297,6 +359,8 @@ static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 
 	if (status == MMP_ON_REDUCED) {
 		path_enabledisable(path, 1);
+		if (dsi && dsi->set_status)
+			dsi->set_status(dsi, status);
 		if (path->panel && path->panel->set_status)
 			path->panel->set_status(path->panel, status);
 		path->status = on;
@@ -388,6 +452,7 @@ static int is_mode_changed(struct mmp_mode *dst, struct mmp_mode *src)
 */
 static void path_set_mode(struct mmp_path *path, struct mmp_mode *mode)
 {
+	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
 	/* mode unchanged? do nothing */
 	if (!is_mode_changed(&path->mode, mode))
 		return;
@@ -396,9 +461,13 @@ static void path_set_mode(struct mmp_path *path, struct mmp_mode *mode)
 	memcpy(&path->mode, mode, sizeof(struct mmp_mode));
 	if (path->status) {
 		path_onoff(path, 0);
+		if (dsi && dsi->set_mode)
+			dsi->set_mode(dsi, &path->mode);
 		path_set_timing(path);
 		path_onoff(path, 1);
 	} else {
+		if (dsi && dsi->set_mode)
+			dsi->set_mode(dsi, &path->mode);
 		path_set_timing(path);
 	}
 }
@@ -493,6 +562,7 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path_info->name = config->name;
 	path_info->id = path_plat->id;
 	path_info->dev = ctrl->dev;
+	path_info->output_type = config->output_type;
 	path_info->overlay_num = config->overlay_num;
 	path_info->overlay_table = config->overlay_table;
 	path_info->overlay_ops = &mmphw_overlay_ops;
@@ -710,6 +780,7 @@ static int mmphw_probe(struct platform_device *pdev)
 	}
 	clk_prepare_enable(ctrl->clk);
 
+	ctrl->version = readl_relaxed(ctrl->reg_base + LCD_VERSION);
 	/* init global regs */
 	ctrl_set_default(ctrl);
 
@@ -761,7 +832,16 @@ static struct platform_driver mmphw_driver = {
 
 static int mmphw_init(void)
 {
-	return platform_driver_register(&mmphw_driver);
+	int ret;
+
+	ret = platform_driver_register(&mmphw_driver);
+	if (ret < 0)
+		return ret;
+	ret = phy_dsi_register();
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 module_init(mmphw_init);
 

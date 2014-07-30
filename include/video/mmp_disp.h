@@ -42,7 +42,11 @@ enum {
 	PIXFMT_BGR888UNPACK,
 	PIXFMT_RGBA888,
 	PIXFMT_BGRA888,
-	PIXFMT_RGB666, /* for output usage */
+
+	/* for output usage */
+	PIXFMT_RGB666PACK,
+	PIXFMT_RGB666UNPACK,
+
 	PIXFMT_PSEUDOCOLOR = 0x200,
 };
 
@@ -135,6 +139,7 @@ enum {
 	MMP_ON_REDUCED,
 	MMP_OFF_DMA,
 	MMP_ON_DMA,
+	MMP_RESET,
 };
 
 static inline const char *status_name(int status)
@@ -197,6 +202,13 @@ enum {
 	PANELTYPE_DSI_VIDEO,
 };
 
+struct dsi_esd {
+	struct delayed_work work;
+	u8 dsi_reset_state;
+	int (*esd_check)(struct mmp_panel *panel);
+	void (*esd_recover)(struct mmp_panel *panel);
+};
+
 struct mmp_panel {
 	/* use node to register to list */
 	struct list_head node;
@@ -205,6 +217,7 @@ struct mmp_panel {
 	const char *plat_path_name;
 	struct device *dev;
 	int panel_type;
+	struct dsi_esd esd;
 	void *plat_data;
 	int (*get_modelist)(struct mmp_panel *panel,
 			struct mmp_mode **modelist);
@@ -212,6 +225,12 @@ struct mmp_panel {
 			struct mmp_mode *mode);
 	void (*set_status)(struct mmp_panel *panel,
 			int status);
+	void (*panel_start)(struct mmp_panel *panel,
+			int status);
+	void (*panel_esd_recover)(struct mmp_panel *panel);
+	int (*get_status)(struct mmp_panel *panel);
+	void (*esd_set_onoff)(struct mmp_panel *panel,
+		int status);
 };
 
 struct mmp_path_ops {
@@ -234,6 +253,92 @@ enum {
 	PATH_OUT_HDMI,
 };
 
+struct mmp_dsi_cmd_desc {
+	u8 data_type;
+	u8 lp;      /*command tx through low power mode or high-speed mode */
+	u32 delay;  /* time to delay */
+	u32 length; /* cmds length */
+	u8 *data;
+};
+
+struct mmp_dsi_buf {
+	u8 data_type;
+	/* DSI maximum packet data buffer */
+	#define DSI_MAX_DATA_BYTES	256
+	u8 data[DSI_MAX_DATA_BYTES];
+	u32 length; /* cmds length */
+};
+
+/* for panel to dsi */
+struct mmp_dsi_port {
+	const char *name;
+	/* use node to register to list */
+	struct list_head node;
+	/* functions */
+	int (*tx_cmds)(struct mmp_dsi_port *dsi_port,
+			struct mmp_dsi_cmd_desc cmds[], int count);
+	int (*rx_cmds)(struct mmp_dsi_port *dsi_port, struct mmp_dsi_buf *dbuf,
+		struct mmp_dsi_cmd_desc cmds[], int count);
+	void (*ulps_set_on)(struct mmp_dsi_port *dsi_port, int status);
+};
+
+enum {
+	/* get dsi requested min path clock rate */
+	DSI_SYNC_CLKREQ,
+	/* get margin ratio which might be impacted by dsi lane number */
+	DSI_SYNC_RATIO,
+	/* get dsi mode setting */
+	DSI_SYNC_MASTER_MODE,
+};
+
+struct mmp_dsi_setting {
+	u32 lanes:3;
+	u32 burst_mode:2;
+	u32 master_mode:1;
+	u32 lpm_line_en:1;
+	u32 lpm_frame_en:1;
+	u32 last_line_turn:1;
+	u32 hex_slot_en:1;
+	u32 all_slot_en:1;
+	u32 hbp_en:1;
+	u32 hact_en:1;
+	u32 hfp_en:1;
+	u32 hex_en:1;
+	u32 hlp_en:1;
+	u32 hsa_en:1;
+	u32 hse_en:1;
+	u32 eotp_en:1;
+};
+
+struct mmp_dsi {
+	struct device *dev;
+	struct mutex lock;
+	const char *name;
+	int status;
+
+	/* use node to register to list */
+	struct list_head node;
+
+	/* path name used to connect to proper path configed */
+	const char *plat_path_name;
+
+	/* dsi info */
+	struct clk *clk;
+	void *reg_base;
+	struct mmp_mode mode;
+	struct completion tx_done;
+	u32 version;
+	struct mmp_dsi_setting setting;
+
+	/* ops could be added here */
+	void (*set_mode)(struct mmp_dsi *dsi, struct mmp_mode *mode);
+	void (*set_status)(struct mmp_dsi *dsi, int status);
+	unsigned int (*get_sync_val)(struct mmp_dsi *dsi, int val_type);
+
+	/* output dsi port */
+	struct mmp_dsi_port dsi_port;
+};
+
 /* path is main part of mmp-disp */
 struct mmp_path {
 	/* use node to register to list */
@@ -245,6 +350,7 @@ struct mmp_path {
 	int id;
 	const char *name;
 	int output_type;
+	void *encoder;
 	struct mmp_panel *panel;
 	void *plat_data;
 
@@ -307,6 +413,68 @@ static inline int mmp_overlay_set_addr(struct mmp_overlay *overlay,
 	if (overlay && overlay->ops->set_addr)
 		return overlay->ops->set_addr(overlay, addr);
 	return 0;
+}
+
+static inline struct mmp_dsi *mmp_path_to_dsi(struct mmp_path *path)
+{
+	if (!path || path->output_type != PATH_OUT_DSI)
+		return NULL;
+	return path->encoder;
+}
+
+static inline struct mmp_dsi_port *mmp_panel_to_dsi_port(struct mmp_panel *panel)
+{
+	struct mmp_path *path = mmp_get_path(panel->plat_path_name);
+	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
+	if (!dsi)
+		return NULL;
+	return &dsi->dsi_port;
+}
+
+static inline int mmp_panel_dsi_tx_cmd_array(struct mmp_panel *panel,
+		struct mmp_dsi_cmd_desc cmds[], int count)
+{
+	struct mmp_dsi_port *dsi_port = mmp_panel_to_dsi_port(panel);
+	if (dsi_port && dsi_port->tx_cmds)
+		return dsi_port->tx_cmds(dsi_port, cmds, count);
+
+	return 0;
+}
+static inline int mmp_panel_dsi_rx_cmd_array(struct mmp_panel *panel,
+		struct mmp_dsi_buf *dbuf,
+		struct mmp_dsi_cmd_desc cmds[], int count)
+{
+	struct mmp_dsi_port *dsi_port = mmp_panel_to_dsi_port(panel);
+	if (dsi_port && dsi_port->rx_cmds)
+		return dsi_port->rx_cmds(dsi_port, dbuf, cmds, count);
+
+	return 0;
+}
+
+static inline void mmp_panel_dsi_ulps_set_on(struct mmp_panel *panel, int status)
+{
+	struct mmp_dsi_port *dsi_port = mmp_panel_to_dsi_port(panel);
+	if (dsi_port && dsi_port->ulps_set_on)
+		dsi_port->ulps_set_on(dsi_port, status);
+}
+
+static inline struct mmp_dsi *mmp_dsi_port_to_dsi(struct mmp_dsi_port *dsi_port)
+{
+	return container_of(dsi_port, struct mmp_dsi, dsi_port);
+}
+
+static inline void mmp_register_dsi(struct mmp_dsi *dsi)
+{
+	struct mmp_path *path = mmp_get_path(dsi->plat_path_name);
+	if (path && path->output_type == PATH_OUT_DSI)
+		path->encoder = dsi;
+}
+
+static inline void mmp_unregister_dsi(struct mmp_dsi *dsi)
+{
+	struct mmp_path *path = mmp_get_path(dsi->plat_path_name);
+	if (path && path->output_type == PATH_OUT_DSI && path->encoder)
+		path->encoder = NULL;
 }
 
 enum {
@@ -379,6 +547,25 @@ struct mmp_mach_plat_info {
 struct mmp_mach_panel_info {
 	const char *name;
 	void (*plat_set_onoff)(int status);
+	void (*plat_panel_start)(int status);
+	const char *plat_path_name;
+	u32 esd_enable;
+};
+
+/* DSI burst mode */
+enum {
+	DSI_BURST_MODE_SYNC_PULSE = 0x0,
+	DSI_BURST_MODE_SYNC_EVENT,
+	DSI_BURST_MODE_BURST,
+};
+
+/* interface for dsi drivers */
+struct mmp_mach_dsi_info {
+	const char *name;
+	int lanes;
+	int burst_mode;
+	int hbp_en;
+	int hfp_en;
 	const char *plat_path_name;
 };
 #endif	/* _MMP_DISP_H_ */

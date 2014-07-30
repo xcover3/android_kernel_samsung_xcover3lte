@@ -70,6 +70,7 @@ static int path_get_modelist(struct mmp_path *path,
  * path list is used for both buffer driver and platdriver
  * plat driver do path register/unregister
  * panel driver do panel register/unregister
+ * port driver do port register/unregister
  * buffer driver get registered path
  */
 static LIST_HEAD(panel_list);

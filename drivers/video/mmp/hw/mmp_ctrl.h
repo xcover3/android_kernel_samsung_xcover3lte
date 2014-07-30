@@ -857,6 +857,9 @@ struct lcd_regs {
 /* 32 bit LCD Mixed Overlay Control Register */
 #define LCD_AFA_ALL2ONE				(0x01E8)
 
+#define LCD_VERSION				(0x0240)
+#define DISP_GEN4(version)			((version) == 4)
+
 #define PN2_LCD_DMA_START_ADDR_Y0		(0x0200)
 #define PN2_LCD_DMA_START_ADDR_U0		(0x0204)
 #define PN2_LCD_DMA_START_ADDR_V0		(0x0208)
@@ -915,7 +918,7 @@ struct lcd_regs {
 /* pxa988 has different MASTER_CTRL from MMP3/MMP2 */
 #ifdef CONFIG_CPU_PXA988
 #define TIMING_MASTER_CONTROL			(0x01F4)
-#define MASTER_ENH(id)				(1 << ((id) + 5))
+#define MASTER_ENH(id)				(1 << ((id) + 4))
 #define MASTER_ENV(id)				(1 << ((id) + 6))
 #else
 #define TIMING_MASTER_CONTROL			(0x02F8)
@@ -923,10 +926,18 @@ struct lcd_regs {
 #define MASTER_ENV(id)				(1 << ((id) + 4))
 #endif
 
-#define DSI_START_SEL_SHIFT(id)		(((id) << 1) + 8)
-#define timing_master_config(path, dsi_id, lcd_id) \
-	(MASTER_ENH(path) | MASTER_ENV(path) | \
-	(((lcd_id) + ((dsi_id) << 1)) << DSI_START_SEL_SHIFT(path)))
+#define TIMING_MASTER_CONTROL_GEN4		(0x02F8)
+#define MASTER_ENH_GEN4(id)			(1 << (id))
+#define MASTER_ENV_GEN4(id)			(1 << ((id) + 4))
+
+#define DSI_START_SEL_SHIFT(id)			(((id) << 1) + 8)
+#define DSI_START_SEL(path_id, dsi_id, act_pn_id)	(((act_pn_id) + \
+		((dsi_id) << 1)) << DSI_START_SEL_SHIFT(path_id))
+#define DSI_START_SEL_MASK(path_id)		(0xf << \
+		DSI_START_SEL_SHIFT(path_id))
+#define DSI_START_SEL_GEN4(path_id, dsi_id) ((dsi_id) << ((path_id) + 8))
+#define DSI_START_SEL_MASK_GEN4(path_id)	(0x1 << \
+		DSI_START_SEL_SHIFT(path_id))
 
 #define LCD_2ND_BLD_CTL				(0x02Fc)
 #define LVDS_SRC_MASK				(3 << 30)
@@ -1021,285 +1032,6 @@ struct lcd_regs {
  * DMA1 bit[07:00]
  */
 #define PIXEL_CMD			0x81
-
-/* DSI */
-/* DSI1 - 4 Lane Controller base */
-#define DSI1_REGS_PHYSICAL_BASE		0xD420B800
-/* DSI2 - 3 Lane Controller base */
-#define DSI2_REGS_PHYSICAL_BASE		0xD420BA00
-
-/*	   DSI Controller Registers	   */
-struct dsi_lcd_regs {
-#define DSI_LCD1_CTRL_0  0x100   /* DSI Active Panel 1 Control register 0 */
-#define DSI_LCD1_CTRL_1  0x104   /* DSI Active Panel 1 Control register 1 */
-	u32 ctrl0;
-	u32 ctrl1;
-	u32 reserved1[2];
-
-#define DSI_LCD1_TIMING_0		0x110   /* Timing register 0 */
-#define DSI_LCD1_TIMING_1		0x114   /* Timing register 1 */
-#define DSI_LCD1_TIMING_2		0x118   /* Timing register 2 */
-#define DSI_LCD1_TIMING_3		0x11C   /* Timing register 3 */
-#define DSI_LCD1_WC_0			0x120   /* Word Count register 0 */
-#define DSI_LCD1_WC_1			0x124   /* Word Count register 1 */
-#define DSI_LCD1_WC_2			0x128	 /* Word Count register 2 */
-	u32 timing0;
-	u32 timing1;
-	u32 timing2;
-	u32 timing3;
-	u32 wc0;
-	u32 wc1;
-	u32 wc2;
-	u32 reserved2[1];
-	u32 slot_cnt0;
-	u32 slot_cnt1;
-	u32 reserved3[2];
-	u32 status_0;
-	u32 status_1;
-	u32 status_2;
-	u32 status_3;
-	u32 status_4;
-};
-
-struct dsi_regs {
-#define DSI_CTRL_0	  0x000   /* DSI control register 0 */
-#define DSI_CTRL_1	  0x004   /* DSI control register 1 */
-	u32 ctrl0;
-	u32 ctrl1;
-	u32 reserved1[2];
-	u32 irq_status;
-	u32 irq_mask;
-	u32 reserved2[2];
-
-#define DSI_CPU_CMD_0   0x020   /* DSI CPU packet command register 0 */
-#define DSI_CPU_CMD_1   0x024   /* DSU CPU Packet Command Register 1 */
-#define DSI_CPU_CMD_3	0x02C   /* DSU CPU Packet Command Register 3 */
-#define DSI_CPU_WDAT_0	0x030   /* DSI CUP */
-	u32 cmd0;
-	u32 cmd1;
-	u32 cmd2;
-	u32 cmd3;
-	u32 dat0;
-	u32 status0;
-	u32 status1;
-	u32 status2;
-	u32 status3;
-	u32 status4;
-	u32 reserved3[2];
-
-	u32 smt_cmd;
-	u32 smt_ctrl0;
-	u32 smt_ctrl1;
-	u32 reserved4[1];
-
-	u32 rx0_status;
-
-/* Rx Packet Header - data from slave device */
-#define DSI_RX_PKT_HDR_0 0x064
-	u32 rx0_header;
-	u32 rx1_status;
-	u32 rx1_header;
-	u32 rx_ctrl;
-	u32 rx_ctrl1;
-	u32 rx2_status;
-	u32 rx2_header;
-	u32 reserved5[1];
-
-	u32 phy_ctrl1;
-#define DSI_PHY_CTRL_2		0x088   /* DSI DPHI Control Register 2 */
-#define DSI_PHY_CTRL_3		0x08C   /* DPHY Control Register 3 */
-	u32 phy_ctrl2;
-	u32 phy_ctrl3;
-	u32 phy_status0;
-	u32 phy_status1;
-	u32 reserved6[5];
-	u32 phy_status2;
-
-#define DSI_PHY_RCOMP_0		0x0B0   /* DPHY Rcomp Control Register */
-	u32 phy_rcomp0;
-	u32 reserved7[3];
-#define DSI_PHY_TIME_0		0x0C0   /* DPHY Timing Control Register 0 */
-#define DSI_PHY_TIME_1		0x0C4   /* DPHY Timing Control Register 1 */
-#define DSI_PHY_TIME_2		0x0C8   /* DPHY Timing Control Register 2 */
-#define DSI_PHY_TIME_3		0x0CC   /* DPHY Timing Control Register 3 */
-#define DSI_PHY_TIME_4		0x0D0   /* DPHY Timing Control Register 4 */
-#define DSI_PHY_TIME_5		0x0D4   /* DPHY Timing Control Register 5 */
-	u32 phy_timing0;
-	u32 phy_timing1;
-	u32 phy_timing2;
-	u32 phy_timing3;
-	u32 phy_code_0;
-	u32 phy_code_1;
-	u32 reserved8[2];
-	u32 mem_ctrl;
-	u32 tx_timer;
-	u32 rx_timer;
-	u32 turn_timer;
-	u32 reserved9[4];
-
-#define DSI_LCD1_CTRL_0  0x100   /* DSI Active Panel 1 Control register 0 */
-#define DSI_LCD1_CTRL_1  0x104   /* DSI Active Panel 1 Control register 1 */
-#define DSI_LCD1_TIMING_0		0x110   /* Timing register 0 */
-#define DSI_LCD1_TIMING_1		0x114   /* Timing register 1 */
-#define DSI_LCD1_TIMING_2		0x118   /* Timing register 2 */
-#define DSI_LCD1_TIMING_3		0x11C   /* Timing register 3 */
-#define DSI_LCD1_WC_0			0x120   /* Word Count register 0 */
-#define DSI_LCD1_WC_1			0x124   /* Word Count register 1 */
-#define DSI_LCD1_WC_2			0x128   /* Word Count register 2 */
-	struct dsi_lcd_regs lcd1;
-	u32 reserved10[11];
-	struct dsi_lcd_regs lcd2;
-};
-
-#define DSI_LCD2_CTRL_0  0x180   /* DSI Active Panel 2 Control register 0 */
-#define DSI_LCD2_CTRL_1  0x184   /* DSI Active Panel 2 Control register 1 */
-#define DSI_LCD2_TIMING_0		0x190   /* Timing register 0 */
-#define DSI_LCD2_TIMING_1		0x194   /* Timing register 1 */
-#define DSI_LCD2_TIMING_2		0x198   /* Timing register 2 */
-#define DSI_LCD2_TIMING_3		0x19C   /* Timing register 3 */
-#define DSI_LCD2_WC_0			0x1A0   /* Word Count register 0 */
-#define DSI_LCD2_WC_1			0x1A4   /* Word Count register 1 */
-#define DSI_LCD2_WC_2			0x1A8	 /* Word Count register 2 */
-
-/*	DSI_CTRL_0		0x0000	DSI Control Register 0 */
-#define DSI_CTRL_0_CFG_SOFT_RST			(1<<31)
-#define DSI_CTRL_0_CFG_SOFT_RST_REG		(1<<30)
-#define DSI_CTRL_0_CFG_LCD1_TX_EN		(1<<8)
-#define DSI_CTRL_0_CFG_LCD1_SLV			(1<<4)
-#define DSI_CTRL_0_CFG_LCD1_EN			(1<<0)
-
-/*	DSI_CTRL_1		0x0004	DSI Control Register 1 */
-#define DSI_CTRL_1_CFG_EOTP			(1<<8)
-#define DSI_CTRL_1_CFG_RSVD			(2<<4)
-#define DSI_CTRL_1_CFG_LCD2_VCH_NO_MASK		(3<<2)
-#define DSI_CTRL_1_CFG_LCD2_VCH_NO_SHIFT	2
-#define DSI_CTRL_1_CFG_LCD1_VCH_NO_MASK		(3<<0)
-#define DSI_CTRL_1_CFG_LCD1_VCH_NO_SHIFT	0
-
-/*	DSI_LCD1_CTRL_1	0x0104	DSI Active Panel 1 Control Register 1 */
-/* LCD 1 Vsync Reset Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_VSYNC_RST_EN	(1<<31)
-/* LCD 1 2K Pixel Buffer Mode Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_M2K_EN		(1<<30)
-/*		Bit(s) DSI_LCD1_CTRL_1_RSRV_29_23 reserved */
-/* Long Blanking Packet Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HLP_PKT_EN	(1<<22)
-/* Extra Long Blanking Packet Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HEX_PKT_EN	(1<<21)
-/* Front Porch Packet Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HFP_PKT_EN	(1<<20)
-/* hact Packet Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HACT_PKT_EN	(1<<19)
-/* Back Porch Packet Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HBP_PKT_EN	(1<<18)
-/* hse Packet Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HSE_PKT_EN	(1<<17)
-/* hsa Packet Enable */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HSA_PKT_EN	(1<<16)
-/* All Item Enable after Pixel Data */
-#define	DSI_LCD1_CTRL_1_CFG_L1_ALL_SLOT_EN	(1<<15)
-/* Extra Long Packet Enable after Pixel Data */
-#define	DSI_LCD1_CTRL_1_CFG_L1_HEX_SLOT_EN	(1<<14)
-/*		Bit(s) DSI_LCD1_CTRL_1_RSRV_13_11 reserved */
-/* Turn Around Bus at Last h Line */
-#define	DSI_LCD1_CTRL_1_CFG_L1_LAST_LINE_TURN	(1<<10)
-/* Go to Low Power Every Frame */
-#define	DSI_LCD1_CTRL_1_CFG_L1_LPM_FRAME_EN	(1<<9)
-/* Go to Low Power Every Line */
-#define	DSI_LCD1_CTRL_1_CFG_L1_LPM_LINE_EN	(1<<8)
-/*		Bit(s) DSI_LCD1_CTRL_1_RSRV_7_4 reserved */
-/* DSI Transmission Mode for LCD 1 */
-#define DSI_LCD1_CTRL_1_CFG_L1_BURST_MODE_SHIFT	2
-#define DSI_LCD1_CTRL_1_CFG_L1_BURST_MODE_MASK	(3<<2)
-/* LCD 1 Input Data RGB Mode for LCD 1 */
-#define DSI_LCD2_CTRL_1_CFG_L1_RGB_TYPE_SHIFT	0
-#define DSI_LCD2_CTRL_1_CFG_L1_RGB_TYPE_MASK	(3<<2)
-
-/*	DSI_PHY_CTRL_2		0x0088	DPHY Control Register 2 */
-/*		Bit(s) DSI_PHY_CTRL_2_RSRV_31_12 reserved */
-/* DPHY LP Receiver Enable */
-#define	DSI_PHY_CTRL_2_CFG_CSR_LANE_RESC_EN_MASK	(0xf<<8)
-#define	DSI_PHY_CTRL_2_CFG_CSR_LANE_RESC_EN_SHIFT	8
-/* DPHY Data Lane Enable */
-#define	DSI_PHY_CTRL_2_CFG_CSR_LANE_EN_MASK		(0xf<<4)
-#define	DSI_PHY_CTRL_2_CFG_CSR_LANE_EN_SHIFT		4
-/* DPHY Bus Turn Around */
-#define	DSI_PHY_CTRL_2_CFG_CSR_LANE_TURN_MASK		(0xf)
-#define	DSI_PHY_CTRL_2_CFG_CSR_LANE_TURN_SHIFT		0
-
-/*	DSI_CPU_CMD_1		0x0024	DSI CPU Packet Command Register 1 */
-/*		Bit(s) DSI_CPU_CMD_1_RSRV_31_24 reserved */
-/* LPDT TX Enable */
-#define	DSI_CPU_CMD_1_CFG_TXLP_LPDT_MASK		(0xf<<20)
-#define	DSI_CPU_CMD_1_CFG_TXLP_LPDT_SHIFT		20
-/* ULPS TX Enable */
-#define	DSI_CPU_CMD_1_CFG_TXLP_ULPS_MASK		(0xf<<16)
-#define	DSI_CPU_CMD_1_CFG_TXLP_ULPS_SHIFT		16
-/* Low Power TX Trigger Code */
-#define	DSI_CPU_CMD_1_CFG_TXLP_TRIGGER_CODE_MASK	(0xffff)
-#define	DSI_CPU_CMD_1_CFG_TXLP_TRIGGER_CODE_SHIFT	0
-
-/*	DSI_PHY_TIME_0	0x00c0	DPHY Timing Control Register 0 */
-/* Length of HS Exit Period in tx_clk_esc Cycles */
-#define	DSI_PHY_TIME_0_CFG_CSR_TIME_HS_EXIT_MASK	(0xff<<24)
-#define	DSI_PHY_TIME_0_CFG_CSR_TIME_HS_EXIT_SHIFT	24
-/* DPHY HS Trail Period Length */
-#define	DSI_PHY_TIME_0_CFG_CSR_TIME_HS_TRAIL_MASK	(0xff<<16)
-#define	DSI_PHY_TIME_0_CFG_CSR_TIME_HS_TRAIL_SHIFT	16
-/* DPHY HS Zero State Length */
-#define	DSI_PHY_TIME_0_CDG_CSR_TIME_HS_ZERO_MASK	(0xff<<8)
-#define	DSI_PHY_TIME_0_CDG_CSR_TIME_HS_ZERO_SHIFT	8
-/* DPHY HS Prepare State Length */
-#define	DSI_PHY_TIME_0_CFG_CSR_TIME_HS_PREP_MASK	(0xff)
-#define	DSI_PHY_TIME_0_CFG_CSR_TIME_HS_PREP_SHIFT	0
-
-/*	DSI_PHY_TIME_1		0x00c4	DPHY Timing Control Register 1 */
-/* Time to Drive LP-00 by New Transmitter */
-#define	DSI_PHY_TIME_1_CFG_CSR_TIME_TA_GET_MASK		(0xff<<24)
-#define	DSI_PHY_TIME_1_CFG_CSR_TIME_TA_GET_SHIFT	24
-/* Time to Drive LP-00 after Turn Request */
-#define	DSI_PHY_TIME_1_CFG_CSR_TIME_TA_GO_MASK		(0xff<<16)
-#define	DSI_PHY_TIME_1_CFG_CSR_TIME_TA_GO_SHIFT		16
-/* DPHY HS Wakeup Period Length */
-#define	DSI_PHY_TIME_1_CFG_CSR_TIME_WAKEUP_MASK		(0xffff)
-#define	DSI_PHY_TIME_1_CFG_CSR_TIME_WAKEUP_SHIFT	0
-
-/*	DSI_PHY_TIME_2		0x00c8	DPHY Timing Control Register 2 */
-/* DPHY CLK Exit Period Length */
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_EXIT_MASK	(0xff<<24)
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_EXIT_SHIFT	24
-/* DPHY CLK Trail Period Length */
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_TRAIL_MASK	(0xff<<16)
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_TRAIL_SHIFT	16
-/* DPHY CLK Zero State Length */
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_ZERO_MASK	(0xff<<8)
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_ZERO_SHIFT	8
-/* DPHY CLK LP Length */
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_LPX_MASK		(0xff)
-#define	DSI_PHY_TIME_2_CFG_CSR_TIME_CK_LPX_SHIFT	0
-
-/*	DSI_PHY_TIME_3		0x00cc	DPHY Timing Control Register 3 */
-/*		Bit(s) DSI_PHY_TIME_3_RSRV_31_16 reserved */
-/* DPHY LP Length */
-#define	DSI_PHY_TIME_3_CFG_CSR_TIME_LPX_MASK		(0xff<<8)
-#define	DSI_PHY_TIME_3_CFG_CSR_TIME_LPX_SHIFT		8
-/* DPHY HS req to rdy Length */
-#define	DSI_PHY_TIME_3_CFG_CSR_TIME_REQRDY_MASK		(0xff)
-#define	DSI_PHY_TIME_3_CFG_CSR_TIME_REQRDY_SHIFT	0
-
-/*
- * DSI timings
- * PXA988 has diffrent ESC CLK with MMP2/MMP3
- * it will be used in dsi_set_dphy() in pxa688_phy.c
- * as low power mode clock.
- */
-#ifdef CONFIG_CPU_PXA988
-#define DSI_ESC_CLK				52  /* Unit: Mhz */
-#define DSI_ESC_CLK_T				19  /* Unit: ns */
-#else
-#define DSI_ESC_CLK				66  /* Unit: Mhz */
-#define DSI_ESC_CLK_T				15  /* Unit: ns */
-#endif
 
 /* LVDS */
 /* LVDS_PHY_CTRL */
@@ -1416,6 +1148,7 @@ struct mmphw_ctrl {
 	int irq;
 	void *reg_base;
 	struct clk *clk;
+	u32 version;
 
 	/* sys info */
 	struct device *dev;
@@ -1474,5 +1207,8 @@ static inline struct lcd_regs *path_regs(struct mmp_path *path)
 #ifdef CONFIG_MMP_DISP_SPI
 extern int lcd_spi_register(struct mmphw_ctrl *ctrl);
 #endif
+
+extern int phy_dsi_register(void);
+extern void phy_dsi_unregister(void);
 extern void mmp_display_clk_init(void);
 #endif	/* _MMP_CTRL_H_ */
