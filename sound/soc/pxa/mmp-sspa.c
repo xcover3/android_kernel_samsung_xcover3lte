@@ -196,9 +196,12 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 		return -EINVAL;
 	}
 
+	sspa_sp &= ~SSPA_SP_FSP;
 	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
 	case SND_SOC_DAIFMT_NB_NF:
 		sspa_sp |= SSPA_SP_FSP;
+		break;
+	case SND_SOC_DAIFMT_NB_IF:
 		break;
 	default:
 		return -EINVAL;
