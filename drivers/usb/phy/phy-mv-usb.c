@@ -28,6 +28,7 @@
 #include <linux/usb/mv_usb2_phy.h>
 #include <linux/platform_data/mv_usb.h>
 #include <linux/of_address.h>
+#include <dt-bindings/usb/mv_usb.h>
 
 #include "phy-mv-usb.h"
 

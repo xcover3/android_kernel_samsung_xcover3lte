@@ -41,12 +41,6 @@ struct pxa_usb_vbus_ops {
 };
 
 enum {
-	MV_USB_MODE_UDC,
-	MV_USB_MODE_OTG,
-	MV_USB_MODE_HOST,
-};
-
-enum {
 	VBUS_LOW	= 0,
 	VBUS_HIGH	= 1 << 0,
 };
@@ -93,9 +87,6 @@ struct pxa_usb_extern_ops {
 	ret;					\
 } \
 )
-
-#define MV_USB_HAS_VBUS_DETECTION	(1 << 0)
-#define MV_USB_HAS_IDPIN_DETECTION	(1 << 1)
 
 #if defined(CONFIG_VBUS_88PM80X) || defined (CONFIG_VBUS_88PM830)
 extern int mv_udc_register_client(struct notifier_block *nb);

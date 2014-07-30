@@ -29,7 +29,6 @@
 #include <linux/platform_data/mv_usb.h>
 #include <linux/usb/phy.h>
 #include <linux/usb/mv_usb2_phy.h>
-#include <dt-bindings/usb/mv_usb_phy.h>
 
 /* phy regs */
 /* for pxa910 and mmp2, there is no revision register */

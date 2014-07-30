@@ -18,6 +18,7 @@
 #include <linux/usb/otg.h>
 #include <linux/usb/mv_usb2_phy.h>
 #include <linux/platform_data/mv_usb.h>
+#include <dt-bindings/usb/mv_usb.h>
 
 #define CAPLENGTH_MASK         (0xff)
 

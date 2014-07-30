@@ -39,6 +39,16 @@ struct mv_usb2_phy {
 	struct mv_usb2_phydata  drv_data;
 };
 
+/*
+ * PHY revision: For those has small difference with default setting.
+ * bit [15..8]: represent PHY IP as below:
+ *     PHY_55LP        0x5500,
+ *     PHY_40LP        0x4000,
+ *     PHY_28LP        0x2800,
+ */
+#define REV_PXA168     0x5500
+#define REV_PXA910     0x5501
+
 #ifdef CONFIG_USB_GADGET_CHARGE_ONLY
 extern int is_charge_only_mode(void);
 extern void charge_only_send_uevent(int event);

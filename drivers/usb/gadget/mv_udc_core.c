@@ -38,6 +38,7 @@
 #include <linux/usb/mv_usb2_phy.h>
 #include <linux/pm_qos.h>
 #include <asm/unaligned.h>
+#include <dt-bindings/usb/mv_usb.h>
 
 #include "mv_udc.h"
 
