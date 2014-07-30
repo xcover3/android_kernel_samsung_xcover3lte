@@ -26,6 +26,8 @@
 #include <linux/of_device.h>
 #include <linux/pm_qos.h>
 
+#include <linux/pm_runtime.h>
+
 #define UIO_HANTRO_VERSION	"build-001"
 
 #ifdef HANTRO_DEBUG
@@ -256,7 +258,7 @@ static int vpu_power_on(struct vpu_dev *vdev)
 {
 	mutex_lock(&hw_mutex);
 	if (!atomic_cmpxchg(&vdev->power_on, 0, 1))
-		hantro_power_switch(1);
+		pm_runtime_get_sync(vdev->dev);
 	mutex_unlock(&hw_mutex);
 	PDEBUG("%s, dev_type = %d\n", __func__, vdev->codec_type);
 
@@ -267,7 +269,7 @@ static int vpu_power_off(struct vpu_dev *vdev)
 {
 	mutex_lock(&hw_mutex);
 	if (atomic_cmpxchg(&vdev->power_on, 1, 0))
-		hantro_power_switch(0);
+		pm_runtime_put_sync(vdev->dev);
 	mutex_unlock(&hw_mutex);
 	PDEBUG("%s, dev_type = %d\n", __func__, vdev->codec_type);
 
@@ -555,6 +557,7 @@ static int vpu_probe(struct platform_device *pdev)
 	vdev->ins_cnt = 0;
 	vdev->hw_cap = capacity;
 
+	vdev->dev = &pdev->dev;
 	vdev->uio_info.name = UIO_HANTRO_NAME;
 	vdev->uio_info.version = UIO_HANTRO_VERSION;
 	vdev->uio_info.mem[0].internal_addr = (void __iomem *)vdev->reg_base;
@@ -571,6 +574,8 @@ static int vpu_probe(struct platform_device *pdev)
 	vdev->uio_info.release = vpu_release;
 	vdev->uio_info.ioctl = vpu_ioctl;
 	vdev->uio_info.mmap = NULL;
+
+	pm_runtime_enable(vdev->dev);
 
 	mutex_init(&(vdev->mutex));
 	vpu_lock_init(vdev);
@@ -619,6 +624,8 @@ static int vpu_remove(struct platform_device *pdev)
 	iounmap(vdev->uio_info.mem[0].internal_addr);
 
 	clk_put(vdev->clk);
+
+	pm_runtime_disable(vdev->dev);
 
 	kfree(vdev);
 

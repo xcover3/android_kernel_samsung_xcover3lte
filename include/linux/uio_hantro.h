@@ -68,6 +68,7 @@ struct vpu_dev {
 	struct semaphore *sema;
 	struct vpu_instance *fd_ins_arr;
 	unsigned int ins_cnt;	/* multi-instance counter */
+	struct device *dev;
 };
 
 struct vpu_plat_data {
