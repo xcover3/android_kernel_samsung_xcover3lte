@@ -183,6 +183,7 @@
 				clocks = <&soc_clocks PXA1U88_CLK_SDH2
 					  &soc_clocks PXA1U88_CLK_SDH_AXI>;
 				clock-names = "sdh-base-clk", "sdh-axi-clk";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			 };
 		};
