@@ -21,6 +21,7 @@
  */
 
 #include "mmpfb.h"
+#include <video/mmp_trace.h>
 
 void mmpfb_wait_vsync(struct mmpfb_info *fbi)
 {
@@ -81,6 +82,7 @@ static ssize_t mmpfb_vsync_store(
 		dev_dbg(fbi->dev, "\tu1: enable vsync uevent\n");
 		dev_dbg(fbi->dev, "\tu0: disable vsync uevent\n");
 	}
+	trace_vsync(fbi->vsync.en);
 	dev_dbg(fbi->dev, "vsync_en = %d\n", fbi->vsync.en);
 	return size;
 }

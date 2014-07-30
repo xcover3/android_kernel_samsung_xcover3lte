@@ -24,6 +24,7 @@
 #include <linux/uaccess.h>
 #include <video/mmp_disp.h>
 #include <video/mmp_ioctl.h>
+#include <video/mmp_trace.h>
 #include <video/mmpfb.h>
 #include "mmpfb.h"
 
@@ -94,6 +95,7 @@ static int flip_buffer_vsync(struct fb_info *info, unsigned long arg)
 		return -EFAULT;
 
 	check_pitch(&surface);
+	trace_surface(fbi->overlay->id, &surface);
 	mmp_overlay_set_surface(fbi->overlay, &surface);
 	return 0;
 }

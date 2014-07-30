@@ -42,6 +42,8 @@
 #include <linux/pm_runtime.h>
 
 #include "mmp_ctrl.h"
+#define CREATE_TRACE_POINTS
+#include <video/mmp_trace.h>
 
 static void path_vsync_sync(struct mmp_path *path)
 {
@@ -546,6 +548,7 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 					if (path->slave)
 						path_trigger(path->slave);
 					atomic_set(&path->commit, 0);
+					trace_commit(path, 0);
 				}
 				spin_unlock(&path->commit_lock);
 			}
@@ -1075,6 +1078,7 @@ static void overlay_trigger(struct mmp_overlay *overlay)
 
 		if (buffer && (buffer->flags & UPDATE_ADDR)) {
 			addr = &buffer->addr;
+			trace_addr(overlay->id, addr, 0);
 			if (vdma && vdma->ops && vdma->ops->set_addr)
 				vdma->ops->set_addr(vdma, addr, overlay->status);
 			if (overlay_is_vid(overlay_id)) {
@@ -1088,6 +1092,7 @@ static void overlay_trigger(struct mmp_overlay *overlay)
 
 		if (buffer && (buffer->flags & UPDATE_WIN)) {
 			win = &buffer->win;
+			trace_win(overlay->id, win, 0);
 			if (vdma && vdma->ops && vdma->ops->set_win)
 				vdma->ops->set_win(vdma, win, overlay->status);
 			if (overlay_is_vid(overlay_id)) {
@@ -1123,6 +1128,7 @@ static void overlay_trigger(struct mmp_overlay *overlay)
 			&shadow->dma_list.queue,
 			struct mmp_shadow_dma, queue);
 		list_del(&dma->queue);
+		trace_dma(overlay->id, dma->dma_onoff, 0);
 		dmafetch_onoff(overlay, dma->dma_onoff);
 		dma->flags &= ~UPDATE_DMA;
 		kfree(dma);
@@ -1133,6 +1139,7 @@ static void overlay_trigger(struct mmp_overlay *overlay)
 			&shadow->alpha_list.queue,
 			struct mmp_shadow_alpha, queue);
 		list_del(&alpha->queue);
+		trace_alpha(overlay->id, &alpha->alpha, 0);
 		path_set_alpha(overlay, &alpha->alpha);
 		alpha->flags &= ~UPDATE_ALPHA;
 		kfree(alpha);
@@ -1291,17 +1298,20 @@ static int path_set_commit(struct mmp_path *path)
 	if (unlikely(atomic_read(&path->commit))) {
 		while (atomic_read(&path->commit)) {
 			mmp_path_set_irq(path, 1);
+			trace_commit(path, 2);
 			mmp_path_wait_vsync(path);
 			mmp_path_set_irq(path, 0);
 		}
 		if (!atomic_read(&path->commit)) {
 			spin_lock_irqsave(&path->commit_lock, flags);
+			trace_commit(path, 1);
 			atomic_set(&path->commit, 1);
 			spin_unlock_irqrestore(&path->commit_lock, flags);
 		} else
 			BUG_ON(1);
 	} else {
 		spin_lock_irqsave(&path->commit_lock, flags);
+		trace_commit(path, 1);
 		atomic_set(&path->commit, 1);
 		spin_unlock_irqrestore(&path->commit_lock, flags);
 	}

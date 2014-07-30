@@ -22,6 +22,7 @@
 
 #include <linux/fb.h>
 #include "mmp_ctrl.h"
+#include <video/mmp_trace.h>
 
 static int is_dma_changed(struct mmp_shadow_dma *src,  int onoff)
 {
@@ -60,6 +61,7 @@ static int shadow_set_dmaonoff(struct mmp_shadow *shadow, int on)
 			spin_unlock_irqrestore(&shadow->shadow_lock, flags);
 			return -EFAULT;
 		}
+		trace_dma(shadow->overlay->id, on, 1);
 		shadow->dma_list.current_dma.dma_onoff = on;
 		dma->dma_onoff = on;
 		dma->flags |= UPDATE_DMA;
@@ -83,6 +85,7 @@ static int shadow_set_alpha(struct mmp_shadow *shadow,
 			spin_unlock_irqrestore(&shadow->shadow_lock, flags);
 			return -EFAULT;
 		}
+		trace_alpha(shadow->overlay->id, alpha, 1);
 		shadow->alpha_list.current_alpha.alpha = *alpha;
 		alphabuffer->alpha = *alpha;
 		alphabuffer->flags |= UPDATE_ALPHA;
@@ -113,6 +116,7 @@ static int shadow_set_surface(struct mmp_shadow *shadow,
 
 		if (is_win_changed(&shadow->buffer_list.current_buffer.win,
 			win)) {
+			trace_win(shadow->overlay->id, win, 1);
 			shadow->buffer_list.current_buffer.win = *win;
 			buffer->win = *win;
 			buffer->flags |= UPDATE_WIN;
@@ -120,6 +124,7 @@ static int shadow_set_surface(struct mmp_shadow *shadow,
 
 		if (is_addr_changed(addr,
 			&shadow->buffer_list.current_buffer.addr)) {
+			trace_addr(shadow->overlay->id, addr, 1);
 			shadow->buffer_list.current_buffer.addr = *addr;
 			buffer->addr = *addr;
 			buffer->flags |= UPDATE_ADDR;

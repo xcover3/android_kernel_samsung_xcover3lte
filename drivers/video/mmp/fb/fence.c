@@ -23,6 +23,7 @@
 #include <linux/uaccess.h>
 #include <linux/fb.h>
 #include <linux/file.h>
+#include <video/mmp_trace.h>
 #include "mmpfb.h"
 #include "sync.h"
 #include "sw_sync.h"
@@ -95,6 +96,8 @@ int mmpfb_ioctl_flip_fence(struct fb_info *info, unsigned long arg)
 	if (copy_from_user(&surface, argp, sizeof(struct mmp_surface)))
 		return -EFAULT;
 
+	trace_surface(fbi->overlay->id, &surface);
+
 	if (!is_addr_same(&fbi->fence_surface.addr, &surface.addr)) {
 		fd = get_unused_fd();
 		if (fd < 0)
@@ -159,6 +162,8 @@ void mmpfb_overlay_fence_work(struct work_struct *work)
 	 * -1, and signal to release PT(previous timeline point).
 	 */
 	mutex_lock(&fbi->fence_mutex);
+	trace_fence(&timeline->obj, fbi->overlay->id, fbi->fence_commit_id,
+		fbi->fence_next_frame_id, 0);
 	if (timeline->value < (fbi->fence_commit_id - 1)) {
 		timeline->value = fbi->fence_commit_id - 1;
 		sync_timeline_signal(&timeline->obj);
@@ -176,6 +181,8 @@ void mmpfb_fence_pause(struct mmpfb_info *fbi)
 	mutex_lock(&fbi->fence_mutex);
 	fbi->fence_next_frame_id += 1;
 	fbi->fence_commit_id = fbi->fence_next_frame_id;
+	trace_fence(&timeline->obj, fbi->overlay->id, fbi->fence_commit_id,
+		fbi->fence_next_frame_id, 1);
 	mutex_unlock(&fbi->fence_mutex);
 }
 EXPORT_SYMBOL_GPL(mmpfb_fence_pause);
