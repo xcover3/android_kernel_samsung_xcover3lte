@@ -1208,6 +1208,8 @@ static inline struct lcd_regs *path_regs(struct mmp_path *path)
 extern int lcd_spi_register(struct mmphw_ctrl *ctrl);
 #endif
 
+extern int mmp_vsync_init(struct mmp_path *path);
+extern void mmp_vsync_deinit(struct mmp_path *path);
 extern int phy_dsi_register(void);
 extern void phy_dsi_unregister(void);
 extern void mmp_display_clk_init(void);

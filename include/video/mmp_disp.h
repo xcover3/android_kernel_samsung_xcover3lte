@@ -23,6 +23,7 @@
 #ifndef _MMP_DISP_H_
 #define _MMP_DISP_H_
 #include <linux/kthread.h>
+#include <linux/device.h>
 
 enum {
 	PIXFMT_UYVY = 0,
@@ -243,6 +244,8 @@ struct mmp_path_ops {
 	/* follow ops should be provided by driver */
 	void (*set_mode)(struct mmp_path *path, struct mmp_mode *mode);
 	void (*set_onoff)(struct mmp_path *path, int status);
+	int (*wait_vsync)(struct mmp_path *path);
+	int (*set_irq)(struct mmp_path *path, int on);
 	/* todo: add query */
 };
 
@@ -339,6 +342,27 @@ struct mmp_dsi {
 	struct mmp_dsi_port dsi_port;
 };
 
+struct mmp_vsync_notifier_node {
+	/* use node to register to list */
+	struct list_head node;
+	void (*cb_notify)(void *);
+	void *cb_data;
+};
+
+struct mmp_vsync {
+	atomic_t ready;
+	wait_queue_head_t waitqueue;
+	void (*handle_irq)(struct mmp_vsync *vsync);
+	struct list_head	notifier_list;
+};
+
+struct mmp_mach_debug_irq_count {
+	int irq_count;
+	int dispd_count;
+	int vsync_count;
+	int vsync_check;
+};
+
 /* path is main part of mmp-disp */
 struct mmp_path {
 	/* use node to register to list */
@@ -356,11 +380,16 @@ struct mmp_path {
 
 	/* dynamic use */
 	struct mmp_mode mode;
+	struct mmp_vsync vsync;
 
 	/* state */
 	int open_count;
 	int status;
 	struct mutex access_ok;
+	atomic_t irq_en_ref;
+
+	/* debug */
+	struct mmp_mach_debug_irq_count irq_count;
 
 	struct mmp_path_ops ops;
 
@@ -387,6 +416,43 @@ static inline int mmp_path_get_modelist(struct mmp_path *path,
 	if (path && path->ops.get_modelist)
 		return path->ops.get_modelist(path, modelist);
 	return 0;
+}
+static inline int mmp_path_wait_vsync(struct mmp_path *path)
+{
+	if (path && path->ops.wait_vsync)
+		return path->ops.wait_vsync(path);
+	return 0;
+}
+static inline int mmp_path_set_irq(struct mmp_path *path, int on)
+{
+	if (path && path->ops.set_irq)
+		return path->ops.set_irq(path, on);
+	return 0;
+}
+static inline int mmp_path_get_irq_state(struct mmp_path *path)
+{
+	if (path)
+		return atomic_read(&path->irq_en_ref) > 0;
+	return 0;
+}
+static inline void mmp_path_register_vsync_cb(
+		struct mmp_path *path,
+		struct mmp_vsync_notifier_node *notifier_node)
+{
+	if (path)
+		list_add_tail(&notifier_node->node,
+				&path->vsync.notifier_list);
+}
+
+static inline void mmp_path_unregister_vsync_cb(
+		struct mmp_path *path,
+		struct mmp_vsync_notifier_node *notifier_node)
+{
+	if (path) {
+		notifier_node->cb_notify = NULL;
+		notifier_node->cb_data = NULL;
+		list_del(&notifier_node->node);
+	}
 }
 static inline struct mmp_overlay *mmp_path_get_overlay(
 		struct mmp_path *path, int overlay_id)

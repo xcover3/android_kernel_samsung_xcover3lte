@@ -359,6 +359,7 @@ static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 	addr.phys[0] = (var->yoffset * var->xres_virtual + var->xoffset)
 		* var->bits_per_pixel / 8 + fbi->fb_start_dma;
 	mmp_overlay_set_addr(fbi->overlay, &addr);
+	mmpfb_wait_vsync(fbi);
 
 	return 0;
 }
@@ -388,7 +389,7 @@ static int var_update(struct fb_info *info)
 	memcpy(&fbi->mode, m, sizeof(struct fb_videomode));
 
 	/* fix to 2* yres */
-	var->yres_virtual = var->yres * 2;
+	var->yres_virtual = var->yres * fbi->buffer_num;
 	info->fix.visual = (pix_fmt == PIXFMT_PSEUDOCOLOR) ?
 		FB_VISUAL_PSEUDOCOLOR : FB_VISUAL_TRUECOLOR;
 	info->fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
@@ -664,6 +665,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, fbi);
 	fbi->dev = &pdev->dev;
 	pixfmt_to_var(&info->var, fbi->pix_fmt);
+	fbi->buffer_num = mi->buffer_num ? mi->buffer_num : 2;
 	mutex_init(&fbi->access_ok);
 
 	/* get display path by name */
@@ -695,7 +697,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	 */
 	if (modes_num > 0) {
 		/* fix to 2* yres */
-		info->var.yres_virtual = info->var.yres * 2;
+		info->var.yres_virtual = info->var.yres * fbi->buffer_num;
 
 		/* Allocate framebuffer memory: size = modes xy *4 */
 		fbi->fb_size = info->var.xres_virtual * info->var.yres_virtual
@@ -731,6 +733,8 @@ static int mmpfb_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto failed_clear_info;
 	}
+
+	mmpfb_vsync_notify_init(fbi);
 
 	dev_info(fbi->dev, "loaded to /dev/fb%d <%s>.\n",
 		info->node, info->fix.id);

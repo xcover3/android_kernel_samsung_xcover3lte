@@ -42,20 +42,110 @@
 
 #include "mmp_ctrl.h"
 
+static int path_set_irq(struct mmp_path *path, int on)
+{
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+	u32 tmp;
+	u32 mask = display_done_imask(path->id) | vsync_imask(path->id);
+	int retry = 0;
+
+	/* It is possible to disable/enable irq anytime, enable HCLK for it */
+	if (ctrl->clk)
+		clk_prepare_enable(ctrl->clk);
+
+	if (!on) {
+		if (atomic_dec_and_test(&path->irq_en_ref)) {
+			tmp = readl_relaxed(ctrl_regs(path) + SPU_IRQ_ENA);
+			tmp &= ~mask;
+			writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ENA);
+			/* FIXME: irq register write failure */
+			while (tmp != readl(ctrl_regs(path) + SPU_IRQ_ENA)
+				&& retry < 10000) {
+				retry++;
+				writel_relaxed(tmp, ctrl_regs(path)
+					+ SPU_IRQ_ENA);
+			}
+			if (retry == 10000)
+				pr_info("write LCD IRQ failure\n");
+			dev_dbg(path->dev, "%s eof intr off\n", path->name);
+		}
+	} else {
+		if (!atomic_read(&path->irq_en_ref)) {
+			/*
+			 * FIXME: clear the interrupt status.
+			 * It would not trigger handler if the status on
+			 * before enable.
+			 */
+			if (!DISP_GEN4(ctrl->version)) {
+				tmp = readl(ctrl_regs(path) + SPU_IRQ_ISR);
+				tmp &= ~mask;
+			} else
+				tmp = mask;
+			writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ISR);
+			tmp = readl(ctrl_regs(path) + SPU_IRQ_ENA);
+			tmp |= mask;
+			writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ENA);
+			/* FIXME: irq register write failure */
+			while (tmp != readl(ctrl_regs(path) + SPU_IRQ_ENA)
+				&& retry < 10000) {
+				retry++;
+				writel_relaxed(tmp, ctrl_regs(path)
+					+ SPU_IRQ_ENA);
+			}
+			if (retry == 10000)
+				pr_info("write LCD IRQ failure\n");
+			dev_dbg(path->dev, "%s eof intr on\n", path->name);
+		}
+		atomic_inc(&path->irq_en_ref);
+	}
+
+	if (ctrl->clk)
+		clk_disable_unprepare(ctrl->clk);
+
+	return atomic_read(&path->irq_en_ref) > 0;
+}
+
 static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 {
 	struct mmphw_ctrl *ctrl = (struct mmphw_ctrl *)dev_id;
-	u32 isr, imask, tmp;
+	struct mmp_path *path;
+	u32 isr_en, disp_done, id, vsync_done;
 
-	isr = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR);
-	imask = readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA);
+	isr_en = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR) &
+		readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA);
 
 	do {
-		/* clear clock only */
-		tmp = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR);
-		if (tmp & isr)
-			writel_relaxed(~isr, ctrl->reg_base + SPU_IRQ_ISR);
-	} while ((isr = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR)) & imask);
+		/* clear enabled irqs */
+		if (!DISP_GEN4(ctrl->version))
+			writel_relaxed(~isr_en, ctrl->reg_base + SPU_IRQ_ISR);
+		else
+			writel_relaxed(isr_en, ctrl->reg_base + SPU_IRQ_ISR);
+
+		disp_done = isr_en & display_done_imasks;
+		vsync_done = isr_en & vsync_imasks;
+
+		for (id = 0; id < ctrl->path_num; id++) {
+			path = ctrl->path_plats[id].path;
+			if (path->irq_count.vsync_check) {
+				path->irq_count.irq_count++;
+				if (disp_done & display_done_imask(id))
+					path->irq_count.dispd_count++;
+				if (vsync_done & vsync_imask(id))
+					path->irq_count.vsync_count++;
+			}
+		}
+
+		if (!disp_done)
+			return IRQ_HANDLED;
+		for (id = 0; id < ctrl->path_num; id++) {
+			if (!(disp_done & display_done_imask(id)))
+				continue;
+			path = ctrl->path_plats[id].path;
+			if (path && path->vsync.handle_irq)
+				path->vsync.handle_irq(&path->vsync);
+		}
+	} while ((isr_en = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR) &
+				readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA)));
 
 	return IRQ_HANDLED;
 }
@@ -490,6 +580,11 @@ static void ctrl_set_default(struct mmphw_ctrl *ctrl)
 	tmp |= 0xfff0;
 	writel_relaxed(tmp, ctrl->reg_base + LCD_TOP_CTRL);
 
+	/* clear all the interrupts */
+	if (!DISP_GEN4(ctrl->version))
+		writel_relaxed(0x0, ctrl->reg_base + SPU_IRQ_ISR);
+	else
+		writel_relaxed(0xffffffff, ctrl->reg_base + SPU_IRQ_ISR);
 
 	/* disable all interrupts */
 	irq_mask = path_imasks(0) | err_imask(0) |
@@ -585,7 +680,9 @@ static int path_init(struct mmphw_path_plat *path_plat,
 		path_plat->clk = NULL;
 	}
 	/* add operations after path set */
+	mmp_vsync_init(path);
 	path->ops.set_mode = path_set_mode;
+	path->ops.set_irq = path_set_irq;
 
 	path_set_default(path);
 
@@ -601,8 +698,10 @@ static void path_deinit(struct mmphw_path_plat *path_plat)
 	if (path_plat->clk)
 		devm_clk_put(path_plat->ctrl->dev, path_plat->clk);
 
-	if (path_plat->path)
+	if (path_plat->path) {
+		mmp_vsync_deinit(path_plat->path);
 		mmp_unregister_path(path_plat->path);
+	}
 }
 
 #ifdef CONFIG_OF
@@ -761,16 +860,6 @@ static int mmphw_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-	/* request irq */
-	ret = devm_request_irq(ctrl->dev, ctrl->irq, ctrl_handle_irq,
-		IRQF_SHARED, "lcd_controller", ctrl);
-	if (ret < 0) {
-		dev_err(ctrl->dev, "%s unable to request IRQ %d\n",
-				__func__, ctrl->irq);
-		ret = -ENXIO;
-		goto failed;
-	}
-
 	/* get clock */
 	ctrl->clk = devm_clk_get(ctrl->dev, "LCDCIHCLK");
 	if (IS_ERR(ctrl->clk)) {
@@ -803,6 +892,16 @@ static int mmphw_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto failed_path_init;
 #endif
+
+	/* request irq */
+	ret = devm_request_irq(ctrl->dev, ctrl->irq, ctrl_handle_irq,
+		IRQF_SHARED, "lcd_controller", ctrl);
+	if (ret < 0) {
+		dev_err(ctrl->dev, "%s unable to request IRQ %d\n",
+				__func__, ctrl->irq);
+		ret = -ENXIO;
+		goto failed_path_init;
+	}
 
 	dev_info(ctrl->dev, "device init done\n");
 

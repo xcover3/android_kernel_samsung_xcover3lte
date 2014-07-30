@@ -26,6 +26,16 @@
 #include <video/mmp_disp.h>
 #include <linux/fb.h>
 
+struct mmpfb_vsync {
+	int en;
+	uint64_t ts_nano;
+	struct work_struct work;
+	struct workqueue_struct *wq;
+	struct mmp_vsync_notifier_node notifier_node;
+	/* tricky: count for 3 buffer sync */
+	atomic_t vcnt;
+};
+
 /* LCD controller private state. */
 struct mmpfb_info {
 	struct device	*dev;
@@ -39,6 +49,7 @@ struct mmpfb_info {
 
 	void	*fb_start;
 	int	fb_size;
+	int	buffer_num;
 	dma_addr_t	fb_start_dma;
 
 	struct mmp_overlay	*overlay;
@@ -48,7 +59,13 @@ struct mmpfb_info {
 
 	unsigned int		pseudo_palette[16];
 	int output_fmt;
+
+	struct mmpfb_vsync vsync;
 };
 
 #define MMPFB_DEFAULT_SIZE (PAGE_ALIGN(1920 * 1080 * 4 * 2))
+
+extern int mmpfb_vsync_notify_init(struct mmpfb_info *fbi);
+extern void mmpfb_vsync_notify_deinit(struct mmpfb_info *fbi);
+void mmpfb_wait_vsync(struct mmpfb_info *fbi);
 #endif /* _MMP_FB_H_ */
