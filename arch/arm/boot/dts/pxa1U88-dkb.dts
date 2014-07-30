@@ -70,6 +70,12 @@
 				edge-wakeup-gpio = <47>; /* GPIO47: UART rx pin */
 			};
 
+			uart3: uart@d4018000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart3_pmx_func>;
+				status = "okay";
+			};
+
 			keypad: keypad@d4012000 {
 				marvell,direct-keys;
 				marvell,direct-key-low-active;
@@ -258,7 +264,16 @@
 					>;
 					MFP_LPM_PULL_DW;
 				};
+
+				uart3_pmx_func: uart3_pmx_func {
+					pinctrl-single,pins = <
+						GPIO45 AF1
+						GPIO46 AF1
+					>;
+					MFP_DEFAULT;
+				};
 			};
+
 			twsi0: i2c@d4011000 {
 				pinctrl-names = "default","gpio";
 				pinctrl-0 = <&twsi0_pmx_func>;
