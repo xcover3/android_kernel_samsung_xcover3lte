@@ -242,12 +242,13 @@
 			};
 
 			/* emmc */
-			sdh3: sdh@d4217000 {
+			sdh2: sdh@d4217000 {
 				compatible = "marvell,pxav3-mmc-v3";
 				reg = <0xd4217000 0x120>;
 				interrupts = <0 73 0x4>;
 				clocks = <&soc_clocks PXA1928_CLK_SDH2>;
 				clock-names = "sdh-base-clk";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
 		};
