@@ -29,18 +29,23 @@
 static int mmpfb_overlay_open(struct fb_info *info, int user)
 {
 	struct mmpfb_info *fbi = info->par;
+	int ret = 0;
+
+	if (!atomic_read(&fbi->op_count))
+		ret = mmpfb_fence_sync_open(info);
 
 	atomic_inc(&fbi->op_count);
 	dev_info(info->dev, "fb-overlay open: op_count = %d\n",
 		 atomic_read(&fbi->op_count));
-	return 0;
+	return ret;
 }
 
 static int mmpfb_overlay_release(struct fb_info *info, int user)
 {
 	struct mmpfb_info *fbi = info->par;
 
-	atomic_dec(&fbi->op_count);
+	if (atomic_dec_and_test(&fbi->op_count))
+		mmpfb_fence_sync_release(info);
 
 	dev_info(info->dev, "fb-overlay release: op_count = %d\n",
 		 atomic_read(&fbi->op_count));
@@ -145,6 +150,7 @@ static int mmpfb_overlay_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, fbi);
 	fbi->dev = &pdev->dev;
 	mutex_init(&fbi->access_ok);
+	mutex_init(&fbi->fence_mutex);
 
 	/* get display path by name */
 	fbi->path = mmp_get_path(path_name);
@@ -175,6 +181,8 @@ static int mmpfb_overlay_probe(struct platform_device *pdev)
 		goto failed_destroy_mutex;
 	}
 
+	mmpfb_overlay_vsync_notify_init(fbi);
+
 	dev_info(fbi->dev, "loaded to /dev/fb%d <%s>.\n",
 		info->node, info->fix.id);
 
@@ -182,6 +190,7 @@ static int mmpfb_overlay_probe(struct platform_device *pdev)
 
 failed_destroy_mutex:
 	mutex_destroy(&fbi->access_ok);
+	mutex_destroy(&fbi->fence_mutex);
 failed:
 	if (fbi)
 		dev_err(fbi->dev, "mmp-fb: frame buffer device init failed\n");

@@ -10,4 +10,10 @@ config MMP_FB
 	help
 		fb driver for Marvell MMP Display Subsystem
 
+config MMP_FENCE
+	bool "enable fence for Marvell MMP Display Subsystem"
+	depends on SW_SYNC
+	default y
+	help
+		fence driver for Marvell MMP Display Subsystem
 endif

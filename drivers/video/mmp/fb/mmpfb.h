@@ -31,6 +31,7 @@ struct mmpfb_vsync {
 	int en;
 	uint64_t ts_nano;
 	struct work_struct work;
+	struct work_struct fence_work;
 	struct workqueue_struct *wq;
 	struct mmp_vsync_notifier_node notifier_node;
 	/* tricky: count for 3 buffer sync */
@@ -62,6 +63,13 @@ struct mmpfb_info {
 	int output_fmt;
 
 	struct mmpfb_vsync vsync;
+
+	/* fence */
+	struct mmp_surface fence_surface;
+	struct sw_sync_timeline *fence_timeline;
+	unsigned int fence_next_frame_id;
+	unsigned int fence_commit_id;
+	struct mutex fence_mutex;
 
 	struct mmp_alpha pa;
 
@@ -99,11 +107,30 @@ static inline void mmpfb_check_virtural_mode(struct mmp_mode *mode)
 
 extern int mmpfb_vsync_notify_init(struct mmpfb_info *fbi);
 extern void mmpfb_vsync_notify_deinit(struct mmpfb_info *fbi);
+extern int mmpfb_overlay_vsync_notify_init(struct mmpfb_info *fbi);
 void mmpfb_wait_vsync(struct mmpfb_info *fbi);
 extern int mmpfb_ioctl(struct fb_info *info,
 			unsigned int cmd, unsigned long arg);
 #ifdef CONFIG_COMPAT
 extern int mmpfb_compat_ioctl(struct fb_info *info,
 			unsigned int cmd, unsigned long arg);
+#endif
+extern void check_pitch(struct mmp_surface *surface);
+
+/* fence interface */
+#ifdef CONFIG_MMP_FENCE
+extern int mmpfb_fence_sync_open(struct fb_info *info);
+extern int mmpfb_fence_sync_release(struct fb_info *info);
+extern int mmpfb_ioctl_flip_fence(struct fb_info *info, unsigned long arg);
+extern void mmpfb_overlay_fence_work(struct work_struct *work);
+extern void mmpfb_fence_pause(struct mmpfb_info *fbi);
+extern void mmpfb_fence_store_commit_id(struct mmpfb_info *fbi);
+#else
+static inline int mmpfb_fence_sync_open(struct fb_info *info) { return 0; }
+static inline int mmpfb_fence_sync_release(struct fb_info *info) { return 0; }
+static inline int mmpfb_ioctl_flip_fence(struct fb_info *info, unsigned long arg) { return 0; }
+static inline void mmpfb_overlay_fence_work(struct work_struct *work) {}
+static inline void mmpfb_fence_pause(struct mmpfb_info *fbi) {}
+static inline void mmpfb_fence_store_commit_id(struct mmpfb_info *fbi) {}
 #endif
 #endif /* _MMP_FB_H_ */

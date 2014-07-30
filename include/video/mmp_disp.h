@@ -135,6 +135,7 @@ struct mmp_surface {
 #define WAIT_VSYNC	(1 << 0)
 #define	DECOMPRESS_MODE	(1 << 1)
 	unsigned int flag;
+	int fence_fd;
 };
 
 #ifdef __KERNEL__

@@ -578,6 +578,9 @@ static int mmpfb_open(struct fb_info *info, int user)
 {
 	struct mmpfb_info *fbi = info->par;
 
+	if (!atomic_read(&fbi->op_count))
+		mmpfb_fence_sync_open(info);
+
 	atomic_inc(&fbi->op_count);
 	dev_info(info->dev, "mmpfb open: op_count = %d\n",
 		 atomic_read(&fbi->op_count));
@@ -588,7 +591,8 @@ static int mmpfb_release(struct fb_info *info, int user)
 {
 	struct mmpfb_info *fbi = info->par;
 
-	atomic_dec(&fbi->op_count);
+	if (atomic_dec_and_test(&fbi->op_count))
+		mmpfb_fence_sync_release(info);
 
 	dev_info(info->dev, "mmpfb release: op_count = %d\n",
 		 atomic_read(&fbi->op_count));
@@ -794,6 +798,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	pixfmt_to_var(&info->var, fbi->pix_fmt);
 	fbi->buffer_num = mi->buffer_num ? mi->buffer_num : 2;
 	mutex_init(&fbi->access_ok);
+	mutex_init(&fbi->fence_mutex);
 
 	/* get display path by name */
 	fbi->path = mmp_get_path(path_name);

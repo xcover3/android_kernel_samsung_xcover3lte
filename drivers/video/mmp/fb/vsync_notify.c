@@ -86,6 +86,14 @@ static ssize_t mmpfb_vsync_store(
 }
 DEVICE_ATTR(vsync, S_IRUGO | S_IWUSR, mmpfb_vsync_show, mmpfb_vsync_store);
 
+static void mmpfb_overlay_vsync_cb(void *data)
+{
+	struct mmpfb_info *fbi = (struct mmpfb_info *)data;
+
+	if (fbi)
+		queue_work(fbi->vsync.wq, &fbi->vsync.fence_work);
+}
+
 static void mmpfb_vsync_cb(void *data)
 {
 	struct timespec vsync_time;
@@ -100,7 +108,10 @@ static void mmpfb_vsync_cb(void *data)
 		* 1000 * 1000 * 1000 +
 		((uint64_t)vsync_time.tv_nsec);
 
-	queue_work(fbi->vsync.wq, &fbi->vsync.work);
+	if (atomic_read(&fbi->op_count)) {
+		queue_work(fbi->vsync.wq, &fbi->vsync.work);
+		queue_work(fbi->vsync.wq, &fbi->vsync.fence_work);
+	}
 }
 
 static void mmpfb_vsync_notify_work(struct work_struct *work)
@@ -111,6 +122,29 @@ static void mmpfb_vsync_notify_work(struct work_struct *work)
 		container_of(vsync, struct mmpfb_info, vsync);
 
 	sysfs_notify(&fbi->dev->kobj, NULL, "vsync_ts");
+}
+
+int mmpfb_overlay_vsync_notify_init(struct mmpfb_info *fbi)
+{
+	int ret = 0;
+	struct mmp_vsync_notifier_node *notifier_node;
+
+	notifier_node = &fbi->vsync.notifier_node;
+	fbi->vsync.wq =
+		alloc_workqueue(fbi->name, WQ_HIGHPRI |
+				WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	if (!fbi->vsync.wq) {
+		dev_err(fbi->dev, "alloc_workqueue failed\n");
+		return ret;
+	}
+
+	INIT_WORK(&fbi->vsync.fence_work, mmpfb_overlay_fence_work);
+	notifier_node->cb_notify = mmpfb_overlay_vsync_cb;
+	notifier_node->cb_data = (void *)fbi;
+
+	mmp_path_register_vsync_cb(fbi->path,
+			notifier_node);
+	return ret;
 }
 
 int mmpfb_vsync_notify_init(struct mmpfb_info *fbi)
@@ -140,6 +174,7 @@ int mmpfb_vsync_notify_init(struct mmpfb_info *fbi)
 	}
 
 	INIT_WORK(&fbi->vsync.work, mmpfb_vsync_notify_work);
+	INIT_WORK(&fbi->vsync.fence_work, mmpfb_overlay_fence_work);
 	notifier_node->cb_notify = mmpfb_vsync_cb;
 	notifier_node->cb_data = (void *)fbi;
 	mmp_path_register_vsync_cb(fbi->path,

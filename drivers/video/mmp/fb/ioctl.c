@@ -27,7 +27,7 @@
 #include <video/mmpfb.h>
 #include "mmpfb.h"
 
-static void check_pitch(struct mmp_surface *surface)
+void check_pitch(struct mmp_surface *surface)
 {
 	struct mmp_win *win = &surface->win;
 	u32 pitch[3];
@@ -77,26 +77,12 @@ static void check_pitch(struct mmp_surface *surface)
 	win->pitch[2] = pitch[2];
 }
 
+#ifdef CONFIG_MMP_FENCE
 static int flip_buffer(struct fb_info *info, unsigned long arg)
 {
-	void __user *argp = (void __user *)arg;
-	struct mmpfb_info *fbi = info->par;
-	struct mmp_surface surface;
-
-	if (copy_from_user(&surface, argp, sizeof(struct mmp_surface)))
-		return -EFAULT;
-
-	check_pitch(&surface);
-
-	mmp_overlay_set_win(fbi->overlay, &surface.win);
-
-	mmp_overlay_set_addr(fbi->overlay, &surface.addr);
-
-	if (surface.flag & WAIT_VSYNC)
-		mmp_path_wait_vsync(fbi->path);
-
-	return 0;
+	return mmpfb_ioctl_flip_fence(info, arg);
 }
+#endif
 
 static int flip_buffer_vsync(struct fb_info *info, unsigned long arg)
 {
@@ -169,6 +155,9 @@ static int enable_dma(struct fb_info *info, unsigned long arg)
 	if (copy_from_user(&dma_on, argp, sizeof(u32)))
 		return -EFAULT;
 
+	if (!dma_on)
+		mmpfb_fence_pause(fbi);
+
 	mmp_overlay_set_status(fbi->overlay, dma_on ?
 				MMP_ON : MMP_OFF);
 
@@ -203,6 +192,9 @@ static int enable_commit_dma(struct fb_info *info, unsigned long arg)
 	if (copy_from_user(&dma_on, argp, sizeof(u32)))
 		return -EFAULT;
 
+	if (!dma_on)
+		mmpfb_fence_pause(fbi);
+
 	mmp_overlay_set_status(fbi->overlay, dma_on ?
 			MMP_ON_DMA : MMP_OFF_DMA);
 
@@ -217,6 +209,7 @@ static int enable_commit(struct fb_info *info, unsigned long arg)
 
 	mmp_path_set_commit(fbi->overlay->path);
 
+	mmpfb_fence_store_commit_id(fbi);
 	return 0;
 }
 
@@ -399,7 +392,11 @@ int mmpfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 		mmp_path_wait_vsync(fbi->path);
 		break;
 	case FB_IOCTL_FLIP_USR_BUF:
+#ifdef CONFIG_MMP_FENCE
 		return flip_buffer(info, arg);
+#else
+		return flip_buffer_vsync(info, arg);
+#endif
 	case FB_IOCTL_FLIP_VSYNC:
 		return flip_buffer_vsync(info, arg);
 	case FB_IOCTL_GAMMA_SET:
