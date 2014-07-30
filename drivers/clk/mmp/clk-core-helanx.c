@@ -21,7 +21,8 @@
 #include <linux/cpufreq.h>
 #include <linux/devfreq.h>
 #include <linux/clk-private.h>
-
+#define CREATE_TRACE_POINTS
+#include <trace/events/pxa.h>
 #include "clk.h"
 #include "clk-core-helanx.h"
 
@@ -710,6 +711,8 @@ static void core_fc_seq(struct clk_hw *hw, struct cpu_opt *cop,
 		writel_relaxed(top->l2_xtc, CIU_CPU_CONF_SRAM_1(core));
 	}
 
+	trace_pxa_core_clk_chg(CLK_CHG_ENTRY, cop->pclk, top->pclk);
+
 	/* 0) pre FC */
 	pre_fc(apmu_base);
 
@@ -718,6 +721,7 @@ static void core_fc_seq(struct clk_hw *hw, struct cpu_opt *cop,
 	set_ap_clk_sel(core, top);
 	trigger_ap_fc(core, top);
 
+	trace_pxa_core_clk_chg(CLK_CHG_EXIT, cop->pclk, top->pclk);
 
 	/*  update L1/L2 rtc/wtc if neccessary, high -> low */
 	if ((cop->pclk > top->pclk) && (top->l1_xtc != cop->l1_xtc)) {
@@ -1326,9 +1330,7 @@ static int ddr_hwdfc_seq(struct clk_hw *hw, unsigned int level)
 			__raw_readl(DFC_STATUS(apmu_base)));
 		return -EAGAIN;
 	}
-#if 0
-	trace_pxa_ddr_clk_chg(CLK_CHG_ENTRY, cop->dclk, top->dclk);
-#endif
+
 	/* Check if AP ISR is set, if set, clear it */
 	pre_fc(apmu_base);
 
@@ -1337,9 +1339,7 @@ static int ddr_hwdfc_seq(struct clk_hw *hw, unsigned int level)
 	dfc_ap.b.fl = level;
 	dfc_ap.b.dfc_req = 1;
 	__raw_writel(dfc_ap.v, DFC_AP(apmu_base));
-#if 0
-	trace_pxa_ddr_clk_chg(CLK_CHG_EXIT, cop->dclk, top->dclk);
-#endif
+
 	/* Check dfc status and done */
 	inpro = check_hwdfc_inpro(apmu_base, level);
 	if (likely(!inpro))
@@ -1366,6 +1366,7 @@ static int set_hwdfc_freq(struct clk_hw *hw, struct ddr_opt *old,
 		old->dclk, new->dclk);
 
 	clk_prepare_enable(new->ddr_parent);
+	trace_pxa_ddr_clk_chg(CLK_CHG_ENTRY, old->dclk, new->dclk);
 	local_irq_save(flags);
 	ret = ddr_hwdfc_seq(hw, new->ddr_freq_level);
 	if (unlikely(ret == -EAGAIN)) {
@@ -1375,6 +1376,7 @@ static int set_hwdfc_freq(struct clk_hw *hw, struct ddr_opt *old,
 		goto out;
 	}
 	local_irq_restore(flags);
+	trace_pxa_ddr_clk_chg(CLK_CHG_EXIT, old->dclk, new->dclk);
 	clk_disable_unprepare(old->ddr_parent);
 
 	pr_debug("DDR set_freq end: old %u, new %u\n",
@@ -1870,15 +1872,14 @@ static void axi_fc_seq(struct clk_axi *axi, struct axi_opt *cop,
 	    (cop->aclk != top->aclk);
 	if (!needchg)
 		return;
-#if 0
+
 	trace_pxa_axi_clk_chg(CLK_CHG_ENTRY, cop->aclk, top->aclk);
-#endif
+
 	pre_fc(apmu_base);
 	set_axi_clk_sel(axi, top);
 	trigger_axi_fc(axi, top);
-#if 0
+
 	trace_pxa_axi_clk_chg(CLK_CHG_EXIT, cop->aclk, top->aclk);
-#endif
 }
 
 static inline void get_axi_srcdiv(struct clk_axi *axi,
