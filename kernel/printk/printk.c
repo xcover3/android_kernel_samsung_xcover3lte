@@ -321,21 +321,21 @@ static u32 log_next(u32 idx)
 }
 
 #if defined(CONFIG_PRINTK_CPU_ID)
-static bool printk_cpu_id = 1;
+static bool printk_cpu_id = true;
 #else
 static bool printk_cpu_id;
 #endif
 module_param_named(cpu, printk_cpu_id, bool, S_IRUGO | S_IWUSR);
 
 #if defined(CONFIG_PRINTK_PID)
-static bool printk_pid = 1;
+static bool printk_pid = true;
 #else
 static bool printk_pid;
 #endif
 module_param_named(pid, printk_pid, bool, S_IRUGO | S_IWUSR);
 
 #if defined(CONFIG_PRINTK_COMM)
-static bool printk_comm = 1;
+static bool printk_comm = true;
 #else
 static bool printk_comm;
 #endif
