@@ -81,6 +81,9 @@ struct mmp_win {
 struct mmp_addr {
 	/* phys address */
 	unsigned int	phys[6];
+	/* used by decompression */
+	unsigned int	hdr_addr[3];
+	unsigned int	hdr_size[3];
 };
 
 struct mmp_gamma {
@@ -124,6 +127,14 @@ struct mmp_alpha {
 #define ALPHA_PATH_VID_PATH_ALPHA	(1 << 2)
 #define ALPHA_PATH_GRA_PATH_ALPHA	(1 << 3)
 	unsigned int config;
+};
+
+struct mmp_surface {
+	struct mmp_win win;
+	struct mmp_addr addr;
+#define WAIT_VSYNC	(1 << 0)
+#define	DECOMPRESS_MODE	(1 << 1)
+	unsigned int flag;
 };
 
 #ifdef __KERNEL__
@@ -186,6 +197,57 @@ struct mmp_path;
 struct mmp_overlay;
 struct mmp_panel;
 
+enum {
+	VDMA_FREED = 0,
+	VDMA_REQUESTED,
+	VDMA_ALLOCATED,
+	VDMA_RELEASED,
+};
+
+struct mmp_vdma_info;
+struct mmp_vdma_ops {
+	void (*set_on)(struct mmp_vdma_info *vdma_info, int on);
+	void (*set_win)(struct mmp_vdma_info *vdma_info,
+			struct mmp_win *win, int overlay_status);
+	void (*set_addr)(struct mmp_vdma_info *vdma_info,
+			struct mmp_addr *addr, int overlay_status);
+	void (*trigger)(struct mmp_vdma_info *vdma);
+	void (*set_decompress_en)(struct mmp_vdma_info *vdma_info, int en);
+};
+
+struct mmp_vdma_info {
+	unsigned int vdma_id;
+	unsigned int vid;
+	u8 sub_ch_num;
+
+	/*
+	 * 0: PN vid;
+	 * 1: PN gra;
+	 * 2: TV vid;
+	 * 3: TV gra;
+	 * 4: PN2 vid;
+	 * 5: PN2 gra;
+	 * 6: SCAL vid;
+	 * 7: SCAL gra;
+	 */
+	u8 overlay_id;
+	u8 status;
+
+	/* SQU start address(SQULN_SA) */
+	unsigned int sram_paddr;
+
+	/* used to allocate/free SRAM */
+	unsigned long sram_vaddr;
+	size_t sram_size;
+	int decompress;
+
+	/* used to free/alloca vdma dynamically */
+	struct mmp_win win_bakup;
+
+	struct mutex access_ok;
+	struct mmp_vdma_ops *ops;
+};
+
 /* status types */
 enum {
 	/* status of what object at */
@@ -223,6 +285,8 @@ static inline int status_is_off(int status)
 		status == MMP_OFF_DMA;
 }
 
+#define BUFFER_DEC (0x1 << 4)
+
 struct mmp_overlay_ops {
 	/* should be provided by driver */
 	void (*set_status)(struct mmp_overlay *overlay, int status);
@@ -249,6 +313,7 @@ struct mmp_overlay {
 	int status;
 	struct mutex access_ok;
 	atomic_t on_count;
+	struct mmp_vdma_info *vdma;
 
 	struct mmp_overlay_ops *ops;
 };
@@ -758,6 +823,19 @@ struct mmp_mach_dsi_info {
 	int hbp_en;
 	int hfp_en;
 	const char *plat_path_name;
+};
+
+#define MAX_VDMA (4)
+struct vdma_channel {
+	unsigned int id;
+	unsigned int vid;
+	unsigned int sram_size;
+};
+
+struct mmp_mach_vdma_info {
+	const char *name;
+	int vdma_channel_num;
+	struct vdma_channel *vdma;
 };
 #endif /* __KERNEL__ */
 #endif	/* _MMP_DISP_H_ */

@@ -570,6 +570,8 @@ static void overlay_set_fmt(struct mmp_overlay *overlay)
 static void overlay_set_win(struct mmp_overlay *overlay, struct mmp_win *win)
 {
 	struct lcd_regs *regs = path_regs(overlay->path);
+	struct mmphw_ctrl *ctrl = overlay_to_ctrl(overlay);
+	struct mmp_vdma_info *vdma;
 	int overlay_id = overlay->id;
 
 	/* assert win supported */
@@ -589,11 +591,21 @@ static void overlay_set_win(struct mmp_overlay *overlay, struct mmp_win *win)
 		writel_relaxed(win->pitch[0], &regs->g_pitch);
 
 		writel_relaxed((win->ysrc << 16) | win->xsrc, &regs->g_size);
-		writel_relaxed((win->ydst << 16) | win->xdst, &regs->g_size_z);
+		if (!DISP_GEN4(ctrl->version))
+			writel_relaxed((win->ydst << 16) | win->xdst,
+					&regs->g_size_z);
+		else {
+			if (win->xsrc != win->xdst || win->ysrc != win->ydst)
+				dev_warn(ctrl->dev,
+					"resize not support for graphic layer of GEN4\n");
+		}
 		writel_relaxed(win->ypos << 16 | win->xpos, &regs->g_start);
 	}
 
 	overlay_set_fmt(overlay);
+	vdma = overlay->vdma;
+	if (vdma && vdma->ops && vdma->ops->set_win)
+		vdma->ops->set_win(vdma, win, overlay->status);
 	mutex_unlock(&overlay->access_ok);
 }
 
@@ -606,7 +618,11 @@ static void dmafetch_onoff(struct mmp_overlay *overlay, int on)
 		CFG_GRA_ENA(1);
 	u32 tmp;
 	struct mmp_path *path = overlay->path;
+	struct mmp_vdma_info *vdma;
 
+	vdma = overlay->vdma;
+	if (vdma && vdma->ops && vdma->ops->set_on)
+		vdma->ops->set_on(vdma, on);
 	/* dma enable control */
 	tmp = readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id));
 	tmp &= ~mask;
@@ -834,6 +850,7 @@ static void overlay_set_status(struct mmp_overlay *overlay, int status)
 static int overlay_set_addr(struct mmp_overlay *overlay, struct mmp_addr *addr)
 {
 	struct lcd_regs *regs = path_regs(overlay->path);
+	struct mmp_vdma_info *vdma;
 	int overlay_id = overlay->id;
 
 	/* FIXME: assert addr supported */
@@ -845,6 +862,10 @@ static int overlay_set_addr(struct mmp_overlay *overlay, struct mmp_addr *addr)
 		writel_relaxed(addr->phys[2], &regs->v_v0);
 	} else
 		writel_relaxed(addr->phys[0], &regs->g_0);
+
+	vdma = overlay->vdma;
+	if (vdma && vdma->ops && vdma->ops->set_addr)
+		vdma->ops->set_addr(vdma, addr, overlay->status);
 
 	return overlay->addr.phys[0];
 }
@@ -1017,6 +1038,7 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	struct mmphw_ctrl *ctrl = path_plat->ctrl;
 	struct mmp_path_info *path_info;
 	struct mmp_path *path = NULL;
+	int i;
 
 	dev_info(ctrl->dev, "%s: %s\n", __func__, config->name);
 
@@ -1042,6 +1064,9 @@ static int path_init(struct mmphw_path_plat *path_plat,
 		kfree(path_info);
 		return 0;
 	}
+	for (i = 0; i < path->overlay_num; i++)
+		path->overlays[i].vdma =
+			mmp_vdma_alloc(path->overlays[i].id, 0);
 	path_plat->path = path;
 	path_plat->path_config = config->path_config;
 	path_plat->link_config = config->link_config;
@@ -1395,14 +1420,25 @@ static int mmphw_init(void)
 {
 	int ret;
 
-	ret = platform_driver_register(&mmphw_driver);
-	if (ret < 0)
-		return ret;
-	ret = phy_dsi_register();
+	ret = mmp_vdma_register();
 	if (ret < 0)
 		return ret;
 
+	ret = platform_driver_register(&mmphw_driver);
+	if (ret < 0)
+		goto ctrl_fail;
+
+	ret = phy_dsi_register();
+	if (ret < 0)
+		goto phy_fail;
+
 	return 0;
+
+phy_fail:
+	platform_driver_unregister(&mmphw_driver);
+ctrl_fail:
+	mmp_vdma_unregister();
+	return ret;
 }
 module_init(mmphw_init);
 

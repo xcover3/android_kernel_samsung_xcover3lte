@@ -111,13 +111,6 @@
  * user space into the kernel for the creation of
  * overlay surfaces and setting the video mode.
  */
-struct mmp_surface {
-	struct mmp_win win;
-	struct mmp_addr addr;
-#define WAIT_VSYNC	(1 << 0)
-	unsigned int flag;
-};
-
 
 struct _sViewPortInfo {
 	unsigned short srcWidth;        /* video source size */

@@ -60,9 +60,20 @@ struct lcd_regs {
 	u32 v_u0;
 	u32 v_v0;
 	u32 v_c0;
-	u32 v_y1;
-	u32 v_u1;
-	u32 v_v1;
+	union {
+		/* frame1 start address for legacy LCD controller */
+		u32 v_y1;
+		/* SQU start address */
+		u32 v_squln_y;
+	};
+	union {
+		u32 v_u1;
+		u32 v_squln_u;
+	};
+	union {
+		u32 v_v1;
+		u32 v_squln_v;
+	};
 	u32 v_c1;
 	u32 v_pitch_yc;		/* Video Y and C Line Length (Pitch) */
 	u32 v_pitch_uv;		/* Video U and V Line Length (Pitch) */
@@ -83,7 +94,10 @@ struct lcd_regs {
 /* 32 bit		TV Graphic Destination size (after Zooming)Register*/
 #define LCD_TVGZM_HPXL_VLN				(0x0048)
 	u32 g_0;			/* Graphic Frame 0/1 Starting Address */
-	u32 g_1;
+	union {
+		u32 g_1;
+		u32 g_squln;
+	};
 	u32 g_pitch;		/* Graphic Line Length (Pitch) */
 	u32 g_start;		/* Graphic Starting Point on Screen */
 	u32 g_size;			/* Graphic Source Size */
@@ -849,12 +863,9 @@ struct lcd_regs {
 #define LCD_TVG_CUTVLN				(0x01D8)
 /* 32 bit LCD Global Control Register*/
 #define LCD_TOP_CTRL				(0x01DC)
-/* 32 bit LCD SQU Line Buffer Control Register 1*/
-#define LCD_SQULN1_CTRL				(0x01E0)
-/* 32 bit LCD SQU Line Buffer Control Register 2*/
-#define LCD_SQULN2_CTRL				(0x01E4)
-#define squln_ctrl(id)	((id) ? (((id) & 1) ? LCD_SQULN2_CTRL : \
-			LCD_PN2_SQULN1_CTRL) : LCD_SQULN1_CTRL)
+
+#define LCD_PN_SQULN_CTRL			(0x01E0)
+#define LCD_TV_SQULN_CTRL			(0x01E4)
 
 /* 32 bit LCD Mixed Overlay Control Register */
 #define	LCD_AFA_ALL2ONE			(0x01E8)
@@ -932,7 +943,7 @@ struct lcd_regs {
 #define LCD_DUMB2_CTRL				(0x02d8)
 #define LCD_PN2_CTRL1				(0x02DC)
 #define PN2_IOPAD_CONTROL			(0x02E0)
-#define LCD_PN2_SQULN1_CTRL			(0x02E4)
+#define LCD_PN2_SQULN_CTRL			(0x02E4)
 #define PN2_LCD_GRA_CUTHPXL			(0x02e8)
 #define PN2_LCD_GRA_CUTVLN			(0x02ec)
 #define LCD_PN2_SQULN2_CTRL			(0x02F0)
@@ -1185,12 +1196,12 @@ struct mmphw_ctrl {
 	int status;
 	struct mutex access_ok;
 
-	u32 *regs_store;
-	u32 regs_len;
-
 	/* If whole path as other path's overlay, define master/slave path */
 	const char *master_path_name;
 	const char *slave_path_name;
+
+	u32 *regs_store;
+	u32 regs_len;
 
 	/*pathes*/
 	int path_num;
@@ -1246,5 +1257,9 @@ extern int mmp_vsync_init(struct mmp_path *path);
 extern void mmp_vsync_deinit(struct mmp_path *path);
 extern int phy_dsi_register(void);
 extern void phy_dsi_unregister(void);
+extern int mmp_vdma_register(void);
+extern void mmp_vdma_unregister(void);
+extern struct mmp_vdma_info *mmp_vdma_alloc(int overlay_id, int sram_size);
+extern void mmp_vdma_free(int overlay_id);
 extern void mmp_display_clk_init(void);
 #endif	/* _MMP_CTRL_H_ */
