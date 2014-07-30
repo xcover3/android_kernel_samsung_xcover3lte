@@ -73,6 +73,11 @@
 		clock-frequency = <3250000>;
 	};
 
+	profile {
+		compatible = "marvell,profile";
+		marvell,profile-number = <0>;
+	};
+
 	ion: ion {
 		compatible = "marvell,pxa-ion";
 		#stream-id-cells = <1>;
