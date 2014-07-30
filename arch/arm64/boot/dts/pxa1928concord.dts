@@ -89,6 +89,22 @@
 				pinctrl-names = "default";
 			};
 
+			usbphy: usbphy@d4207000 {
+				status = "okay";
+			};
+
+			udc: udc@d4208100 {
+				status = "okay";
+			};
+
+			ehci: ehci@d4208100 {
+				status = "okay";
+			};
+
+			otg: otg@d4208100 {
+				status = "okay";
+			};
+
 			dsi: dsi@d420b800 {
 				marvell,phy-name = "mmp_dsi1";
 				marvell,plat-path-name = "mmp_pnpath";

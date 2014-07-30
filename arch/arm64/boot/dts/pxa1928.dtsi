@@ -11,6 +11,7 @@
 #include "pxa1928-pm.h"
 #include "../../../../include/dt-bindings/clock/marvell-pxa1928.h"
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
+#include "../../../../include/dt-bindings/usb/mv_usb.h"
 
 / {
 	interrupt-parent = <&gic>;
@@ -150,6 +151,58 @@
 			#size-cells = <1>;
 			reg = <0xd4200000 0x00200000>;
 			ranges;
+
+			usbphy: usbphy@d4207000 {
+				compatible = "marvell,usb2-phy-28lp";
+				reg = <0xd4207000 0xe0>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,phy-name = "mv-usb-phy";
+				marvell,pll-lock-bypass;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
+
+			udc: udc@d4208100 {
+				compatible = "marvell,mv-udc";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 67 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,udc-mode = <MV_USB_MODE_OTG>;
+				marvell,extern-attr = <MV_USB_HAS_VBUS_IDPIN_DETECTION>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
+
+			ehci: ehci@d4208100 {
+				compatible = "marvell,pxa-u2oehci";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 67 0x4>;
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,udc-mode = <MV_USB_MODE_OTG>;
+				marvell,extern-attr = <MV_USB_HAS_VBUS_IDPIN_DETECTION>;
+				marvell,otg-force-a-bus-req;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
+
+			otg: otg@d4208100 {
+				compatible = "marvell,mv-otg";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 67 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,udc-mode = <MV_USB_MODE_OTG>;
+				marvell,extern-attr = <MV_USB_HAS_VBUS_IDPIN_DETECTION>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
 
 			intc: interrupt-controller@d4284000 {
 				compatible = "marvell,pxa1928-intc";
