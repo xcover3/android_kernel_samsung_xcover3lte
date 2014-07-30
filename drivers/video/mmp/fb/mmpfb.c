@@ -21,6 +21,8 @@
  */
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
+#include <linux/vmalloc.h>
+#include <asm/cacheflush.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -560,6 +562,43 @@ static const struct of_device_id mmp_fb_dt_match[] = {
 };
 #endif
 
+static void *fb_remap_framebuffer(size_t size, dma_addr_t dma)
+{
+	int nr, i = 0;
+	struct page **pages;
+	void *start = NULL;
+
+	size = PAGE_ALIGN(size);
+	nr = size >> PAGE_SHIFT;
+
+	/* invalidate the buffer before vmap as noncacheable */
+	flush_cache_all();
+#ifdef CONFIG_OUTER_CACHE
+	outer_flush_range(dma, dma + size);
+#endif
+
+	pages = vmalloc(sizeof(struct page *) * nr);
+	if (pages == NULL) {
+		BUG_ON("fb remap framebuffer failed\n");
+		return NULL;
+	}
+
+	while (i < nr) {
+		pages[i] = phys_to_page(dma + (i << PAGE_SHIFT));
+		i++;
+	}
+	start = vmap(pages, nr, 0, pgprot_writecombine(PAGE_KERNEL));
+
+	vfree(pages);
+	return start;
+}
+
+static void fb_free_framebuffer(void *vaddr)
+{
+	vunmap(vaddr);
+	return;
+}
+
 static int mmpfb_probe(struct platform_device *pdev)
 {
 	struct mmp_buffer_driver_mach_info *mi;
@@ -568,6 +607,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	int ret, modes_num;
 	int overlay_id = 0, buf_num = 2;
 	const char *path_name;
+	u32 start_addr;
 
 	/* initialize fb */
 	info = framebuffer_alloc(sizeof(struct mmpfb_info), &pdev->dev);
@@ -597,6 +637,9 @@ static int mmpfb_probe(struct platform_device *pdev)
 			return -EINVAL;
 		if (of_property_read_u32(np, "marvell,buffer-num", &buf_num))
 			return -EINVAL;
+		if (of_property_read_u32(np, "marvell,fb-mem", &start_addr))
+			return -EINVAL;
+		fbi->fb_start_dma = start_addr;
 	} else {
 		mi = pdev->dev.platform_data;
 		if (mi == NULL) {
@@ -657,15 +700,18 @@ static int mmpfb_probe(struct platform_device *pdev)
 		fbi->fb_size = MMPFB_DEFAULT_SIZE;
 	}
 
-	fbi->fb_start = dma_alloc_coherent(&pdev->dev, PAGE_ALIGN(fbi->fb_size),
-				&fbi->fb_start_dma, GFP_KERNEL);
-	if (fbi->fb_start == NULL) {
-		dev_err(&pdev->dev, "can't alloc framebuffer\n");
+	if (fbi->fb_start_dma)
+		fbi->fb_start = fb_remap_framebuffer(PAGE_ALIGN(fbi->fb_size),
+				fbi->fb_start_dma);
+	else {
 		ret = -ENOMEM;
 		goto failed_destroy_mutex;
 	}
+
 	memset(fbi->fb_start, 0, fbi->fb_size);
-	dev_info(fbi->dev, "fb %dk allocated\n", fbi->fb_size/1024);
+	dev_info(fbi->dev, "fb phys_addr 0x%lx, virt_addr 0x%p, size %dk\n",
+		(unsigned long)fbi->fb_start_dma,
+		fbi->fb_start, (fbi->fb_size >> 10));
 
 	/* fb power on */
 	if (modes_num > 0)
@@ -697,8 +743,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 failed_clear_info:
 	fb_info_clear(info);
 failed_free_buff:
-	dma_free_coherent(&pdev->dev, PAGE_ALIGN(fbi->fb_size), fbi->fb_start,
-		fbi->fb_start_dma);
+	fb_free_framebuffer(fbi->fb_start);
 failed_destroy_mutex:
 	mutex_destroy(&fbi->access_ok);
 failed:
