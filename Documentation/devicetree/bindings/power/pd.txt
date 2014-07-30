@@ -38,6 +38,10 @@ pd_gc2d: pd_gc2d@d4282800 {
 	compatible = "marvell,power-domain-common-gc2d";
 	reg = <0xd4282800 0x1000>;
 	clocks = <&soc_clocks PXA1U88_CLK_GC2D>;
+
+pd_vpu: pd_vpu@d4282800 {
+	compatible = "marvell,power-domain-hantro";
+	reg = <0xd4282800 0x1000>;
 };
 
 pd_gc: pd_gc@d4282800 {
@@ -58,3 +62,13 @@ pd_smmu: pd_smmu@c0010000 {
 	marvell,power-domain-parent = <&pd_vpu>;
 	clocks = <&soc_clocks PXA1U88_CLK_VPU>;
 };
+
+pd_smmu: pd_smmu@f0500000 {
+	compatible = "marvell,power-domain-smmu-pxa1928";
+	reg = <0xf0500000 0x10000>;
+	marvell,power-domain-parent = <&pd_vpu>;
+	clocks = <&soc_clocks PXA1928_CLK_VPUBUS>;
+	clock-names = "VPUACLK";
+};
+
+

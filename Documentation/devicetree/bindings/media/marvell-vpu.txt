@@ -20,3 +20,34 @@ coda7542: coda7542@d420d000 {
 	marvell,power-domain = <&pd_vpu>;
 	status = "disabled";
 };
+
+axi@f0400000 {
+	compatible = "mrvl,axi-bus", "simple-bus";
+	#address-cells = <1>;
+	#size-cells = <1>;
+	reg = <0xf0400000 0x07c00000>;
+	ranges;
+
+	dec@0xf0400000 {
+		compatible = "mrvl,mmp-hantro";
+		reg = <0xf0400000 0x00000800>;
+		interrupts = <0 26 0x4>;
+		marvell,power-domain = <&pd_vpu>;
+		status = "disabled";
+	};
+
+	pp@0xf0400000 {
+		compatible = "mrvl,mmp-hantro";
+		reg = <0xf0400000 0x00000800>;
+		interrupts = <0 26 0x4>;
+		status = "disabled";
+	};
+
+	enc@0xf0400800 {
+		compatible = "mrvl,mmp-hantro";
+		reg = <0xf0400800 0x003ff800>;
+		interrupts = <0 26 0x4>;
+		marvell,power-domain = <&pd_vpu>;
+		status = "disabled";
+	};
+};

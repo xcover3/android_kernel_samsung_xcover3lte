@@ -393,6 +393,11 @@
 			};
 		};
 
+		pd_vpu: pd_vpu@d4282800 {
+			compatible = "marvell,power-domain-hantro";
+			reg = <0xd4282800 0x1000>;
+		};
+
 		axi@f0400000 {
 			compatible = "arm,axi-bus", "simple-bus";
 			#address-cells = <1>;
@@ -410,6 +415,39 @@
 				clock-names = "SC2AXICLK", "ISPCORECLK", "ISPPIPECLK";
 				marvell,power-domain = <&pd_sc2>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			dec@0xf0400000 {
+				compatible = "mrvl,mmp-hantro";
+				reg = <0xf0400000 0x00000800>;
+				interrupts = <0 26 0x4>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUDEC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				status = "disabled";
+			};
+
+			pp@0xf0400000 {
+				compatible = "mrvl,mmp-hantro";
+				reg = <0xf0400000 0x00000800>;
+				interrupts = <0 26 0x4>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUDEC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				status = "disabled";
+			};
+
+			enc@0xf0400800 {
+				compatible = "mrvl,mmp-hantro";
+				reg = <0xf0400800 0x003ff800>;
+				interrupts = <0 26 0x4>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUENC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
 				status = "disabled";
 			};
 		};

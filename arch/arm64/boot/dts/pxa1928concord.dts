@@ -68,7 +68,11 @@
 			clock-names = "axi_clk", "esc_clk", "disp1_clk_gate", "vdma_clk_gate";
 		};
 
-		smmu {	/* iommu in vpu */
+
+		smmu {  /* iommu in vpu */
+			clocks = <&soc_clocks PXA1928_CLK_VPUBUS>;
+			clock-names = "VPUACLK";
+			marvell,power-domain = <&pd_vpu>;
 			status = "okay";
 		};
 
@@ -116,6 +120,14 @@
 				compatible = "marvell,power-domain-gc2d";
 				reg = <0xd4282800 0x1000>;
 				clocks = <&soc_clocks PXA1928_CLK_GC2D>;
+			};
+
+			pd_smmu: pd_smmu@f0500000 {
+				compatible = "marvell,power-domain-smmu-pxa1928";
+				reg = <0xf0500000 0x10000>;
+				marvell,power-domain-parent = <&pd_vpu>;
+				clocks = 	<&soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "VPUACLK";
 			};
 
 			gpu: gpu@d420d000 {
@@ -331,6 +343,24 @@
 
 		axi@f0400000 {
 			b52isp: b52isp@0xF0B00000 {
+				status = "okay";
+			};
+
+			dec@0xf0400000 {
+				marvell,codec-type = <0>;
+				marvell,hw-capacity = <0>;
+				status = "okay";
+			};
+
+			pp@0xf0400000 {
+				marvell,codec-type = <1>;
+				marvell,hw-capacity = <0>;
+				status = "okay";
+			};
+
+			enc@0xf0400800 {
+				marvell,codec-type = <2>;
+				marvell,hw-capacity = <0>;
 				status = "okay";
 			};
 		};
@@ -1263,6 +1293,8 @@
 	ion {
 		marvell,ion-nr = <2>;
 		status = "okay";
+		marvell,ion-iommu = <1>;
+		marvell,power-domain = <&pd_smmu>;
 		heap1 {
 			marvell,ion-name = "carveout_heap";
 			marvell,ion-type = <2>;
