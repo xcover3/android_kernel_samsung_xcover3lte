@@ -192,57 +192,65 @@ static void __clk_get_sscdivrng(enum ssc_mode mode,
 	}
 	if (*div == 0)
 		*div = 1;
-	/* SSC_RNGE = Desired_SSC_Amplitude / (SSC_FREQ_DIV * 2^-28) */
-	*rng = (1 << 28) / (*div * base / amplitude);
+	/* SSC_RNGE = Desired_SSC_Amplitude / (SSC_FREQ_DIV * 2^-26) */
+	*rng = (1 << 26) / (*div * base / amplitude);
 }
 
-static void __enable_ssc(struct ssc_params *ssc_params,
-			 enum ssc_mode mode, unsigned int div,
-			 unsigned int rng, unsigned int intpi)
+/* only change config when vco output changes */
+static void config_ssc(struct clk_vco *vco, unsigned long new_rate)
 {
+	struct ssc_params *ssc_params = vco->params->ssc_params;
+	unsigned int div = 0, rng = 0;
 	union pllx_ssc_conf ssc_conf;
-	union pllx_ssc_ctrl ssc_ctrl;
+
+	__clk_get_sscdivrng(ssc_params->ssc_mode,
+			    ssc_params->desired_mod_freq,
+			    ssc_params->amplitude,
+			    ssc_params->base, new_rate, &div, &rng);
 
 	ssc_conf.v = pll_readl_ssccfg(ssc_params);
 	ssc_conf.b.ssc_freq_div = div;
 	ssc_conf.b.ssc_rnge = rng;
 	pll_writel_ssccfg(ssc_conf.v, ssc_params);
+}
+
+static void __enable_ssc(struct ssc_params *ssc_params,
+	unsigned int intpi)
+{
+	union pllx_ssc_ctrl ssc_ctrl;
 
 	ssc_ctrl.v = pll_readl_sscctrl(ssc_params);
 	ssc_ctrl.b.intpi = intpi;
 	ssc_ctrl.b.intpr = 4;
+	ssc_ctrl.b.ssc_mode = ssc_params->ssc_mode;
 	ssc_ctrl.b.pi_en = 1;
 	ssc_ctrl.b.clk_det_en = 1;
-	ssc_ctrl.b.reset_pi = 0;
-	ssc_ctrl.b.pi_loop_mode = 0;
-	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
-
-	ssc_ctrl.b.ssc_mode = mode;
+	ssc_ctrl.b.reset_pi = 1;
 	ssc_ctrl.b.reset_ssc = 1;
-	ssc_ctrl.b.ssc_clk_en = 1;
+	ssc_ctrl.b.pi_loop_mode = 0;
+	ssc_ctrl.b.ssc_clk_en = 0;
 	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
 
 	udelay(2);
 	ssc_ctrl.b.reset_ssc = 0;
+	ssc_ctrl.b.reset_pi = 0;
 	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
+
 	udelay(2);
 	ssc_ctrl.b.pi_loop_mode = 1;
 	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
+
+	udelay(2);
+	ssc_ctrl.b.ssc_clk_en = 1;
+	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
 }
 
-static void enable_pll_ssc(struct clk_hw *hw)
+static void enable_pll_ssc(struct clk_vco *vco)
 {
-	struct clk_vco *vco = to_clk_vco(hw);
-	unsigned int div = 0, rng = 0;
-	struct mmp_vco_params *params = vco->params;
-	struct ssc_params *ssc_params = params->ssc_params;
+	struct ssc_params *ssc_params = vco->params->ssc_params;
 	unsigned int intpi = __clk_pll_vco2intpi(vco);
 
-	__clk_get_sscdivrng(ssc_params->ssc_mode,
-			    ssc_params->desired_mod_freq,
-			    ssc_params->amplitude,
-			    ssc_params->base, hw->clk->rate, &div, &rng);
-	__enable_ssc(ssc_params, ssc_params->ssc_mode, div, rng, intpi);
+	__enable_ssc(ssc_params, intpi);
 }
 
 static void __disable_ssc(struct ssc_params *ssc_params)
@@ -250,19 +258,21 @@ static void __disable_ssc(struct ssc_params *ssc_params)
 	union pllx_ssc_ctrl ssc_ctrl;
 
 	ssc_ctrl.v = pll_readl_sscctrl(ssc_params);
-	ssc_ctrl.b.pi_en = 0;
-	ssc_ctrl.b.clk_det_en = 0;
-	ssc_ctrl.b.reset_pi = 0;
-	ssc_ctrl.b.pi_loop_mode = 0;
 	ssc_ctrl.b.ssc_clk_en = 0;
-	ssc_ctrl.b.reset_ssc = 0;
+	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
+	udelay(100);
+
+	ssc_ctrl.b.pi_loop_mode = 0;
+	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
+	udelay(2);
+
+	ssc_ctrl.b.pi_en = 0;
 	pll_writel_sscctrl(ssc_ctrl.v, ssc_params);
 }
 
 static void disable_pll_ssc(struct clk_vco *vco)
 {
-	struct mmp_vco_params *params = vco->params;
-	struct ssc_params *ssc_params = params->ssc_params;
+	struct ssc_params *ssc_params = vco->params->ssc_params;
 
 	__disable_ssc(ssc_params);
 }
@@ -427,7 +437,8 @@ static void clk_pll_vco_init(struct clk_hw *hw)
 
 		/* Make sure SSC is enabled if pll is on */
 		if (vco->flags & HELANX_PLL_SSC_FEAT) {
-			enable_pll_ssc(hw);
+			config_ssc(vco, hw->clk->rate);
+			enable_pll_ssc(vco);
 			params->ssc_enabled = true;
 		}
 		pr_info("%s is enabled @ %lu\n", hw->clk->name, vco_rate * MHZ);
@@ -476,7 +487,7 @@ static int clk_pll_vco_enable(struct clk_hw *hw)
 	if (vco->flags & HELANX_PLL_SSC_FEAT)
 		if (((vco->flags & HELANX_PLL_SSC_AON) && !params->ssc_enabled)
 		    || !(vco->flags & HELANX_PLL_SSC_AON)) {
-			enable_pll_ssc(hw);
+			enable_pll_ssc(vco);
 			params->ssc_enabled = true;
 		}
 
@@ -587,6 +598,9 @@ static int clk_pll_vco_setrate(struct clk_hw *hw, unsigned long rate,
 	}
 	hw->clk->rate = new_rate;
 	spin_unlock_irqrestore(vco->lock, flags);
+
+	if (vco->flags & HELANX_PLL_SSC_FEAT)
+		config_ssc(vco, new_rate);
 
 	pr_debug("%s %s rate %lu->%lu!\n", __func__,
 		 hw->clk->name, old_rate, new_rate);
