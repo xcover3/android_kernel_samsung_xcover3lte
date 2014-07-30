@@ -292,6 +292,7 @@ CONFIG_CMA=y
 # CONFIG_CMA_DEBUG is not set
 # CONFIG_ZBUD is not set
 # CONFIG_ZSMALLOC is not set
+# CONFIG_KEXEC is not set
 # CONFIG_XEN is not set
 CONFIG_FORCE_MAX_ZONEORDER=11
 
@@ -475,12 +476,15 @@ CONFIG_NET_FLOW_LIMIT=y
 # CONFIG_CAIF is not set
 # CONFIG_CEPH_LIB is not set
 CONFIG_NFC=y
+# CONFIG_NFC_DIGITAL is not set
 # CONFIG_NFC_NCI is not set
 # CONFIG_NFC_HCI is not set
 
 #
 # Near Field Communication (NFC) devices
 #
+# CONFIG_NFC_PN533 is not set
+# CONFIG_NFC_SIM is not set
 CONFIG_ST21NFCA=y
 
 #
@@ -673,6 +677,7 @@ CONFIG_ATA_BMDMA=y
 #
 # PATA SFF controllers with BMDMA
 #
+# CONFIG_PATA_ARASAN_CF is not set
 
 #
 # PIO-only SFF controllers
@@ -729,6 +734,7 @@ CONFIG_NET_VENDOR_I825XX=y
 CONFIG_NET_VENDOR_MARVELL=y
 # CONFIG_MVMDIO is not set
 CONFIG_NET_VENDOR_MICREL=y
+# CONFIG_KS8842 is not set
 # CONFIG_KS8851_MLL is not set
 CONFIG_NET_VENDOR_NATSEMI=y
 CONFIG_NET_VENDOR_8390=y
@@ -829,6 +835,7 @@ CONFIG_KEYBOARD_GPIO=y
 # CONFIG_KEYBOARD_TCA6416 is not set
 # CONFIG_KEYBOARD_TCA8418 is not set
 # CONFIG_KEYBOARD_MATRIX is not set
+# CONFIG_KEYBOARD_LM8323 is not set
 # CONFIG_KEYBOARD_LM8333 is not set
 # CONFIG_KEYBOARD_MAX7359 is not set
 # CONFIG_KEYBOARD_MCS is not set
@@ -1349,6 +1356,7 @@ CONFIG_HID_MONTEREY=y
 # CONFIG_HID_ROCCAT is not set
 # CONFIG_HID_SAITEK is not set
 # CONFIG_HID_SAMSUNG is not set
+# CONFIG_HID_SONY is not set
 # CONFIG_HID_SPEEDLINK is not set
 # CONFIG_HID_STEELSERIES is not set
 # CONFIG_HID_SUNPLUS is not set
@@ -1356,7 +1364,10 @@ CONFIG_HID_MONTEREY=y
 # CONFIG_HID_SMARTJOYPLUS is not set
 # CONFIG_HID_TIVO is not set
 # CONFIG_HID_TOPSEED is not set
+# CONFIG_HID_THINGM is not set
 # CONFIG_HID_THRUSTMASTER is not set
+# CONFIG_HID_WACOM is not set
+# CONFIG_HID_WIIMOTE is not set
 # CONFIG_HID_XINMO is not set
 # CONFIG_HID_ZEROPLUS is not set
 # CONFIG_HID_ZYDACRON is not set
@@ -1488,6 +1499,7 @@ CONFIG_USB_STORAGE=y
 # CONFIG_SAMSUNG_USB3PHY is not set
 # CONFIG_USB_GPIO_VBUS is not set
 # CONFIG_USB_ISP1301 is not set
+# CONFIG_MV_USB2_PHY is not set
 # CONFIG_USB_RCAR_PHY is not set
 # CONFIG_USB_GADGET is not set
 CONFIG_MMC=y
@@ -1546,13 +1558,39 @@ CONFIG_LEDS_LM3532=y
 # CONFIG_LEDS_OT200 is not set
 # CONFIG_LEDS_BLINKM is not set
 CONFIG_LEDS_88PM828X=y
+
+#
+# LED Triggers
+#
+# CONFIG_LEDS_TRIGGERS is not set
 # CONFIG_SWITCH is not set
 # CONFIG_ACCESSIBILITY is not set
 CONFIG_RTC_LIB=y
 # CONFIG_RTC_CLASS is not set
-# CONFIG_DMADEVICES is not set
+CONFIG_DMADEVICES=y
+# CONFIG_DMADEVICES_DEBUG is not set
+
+#
+# DMA Devices
+#
+# CONFIG_AMBA_PL08X is not set
+# CONFIG_DW_DMAC_CORE is not set
+# CONFIG_DW_DMAC is not set
+# CONFIG_TIMB_DMA is not set
+# CONFIG_PL330_DMA is not set
+# CONFIG_MMP_TDMA is not set
+CONFIG_MMP_PDMA=y
+CONFIG_DMA_ENGINE=y
+CONFIG_DMA_OF=y
+
+#
+# DMA Clients
+#
+# CONFIG_ASYNC_TX_DMA is not set
+# CONFIG_DMATEST is not set
 # CONFIG_AUXDISPLAY is not set
 # CONFIG_UIO is not set
+# CONFIG_VFIO is not set
 # CONFIG_VIRT_DRIVERS is not set
 CONFIG_VIRTIO=y
 
@@ -1827,6 +1865,9 @@ CONFIG_NLS_ISO8859_1=y
 # printk and dmesg options
 #
 # CONFIG_PRINTK_TIME is not set
+# CONFIG_PRINTK_CPU_ID is not set
+# CONFIG_PRINTK_PID is not set
+# CONFIG_PRINTK_COMM is not set
 CONFIG_DEFAULT_MESSAGE_LOGLEVEL=4
 # CONFIG_BOOT_PRINTK_DELAY is not set
 # CONFIG_DYNAMIC_DEBUG is not set
