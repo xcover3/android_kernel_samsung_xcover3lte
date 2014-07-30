@@ -257,6 +257,7 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4018000 0x1000>;
 				interrupts = <0 24 0x4>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				dmas = <&pdma0 22 1
 					&pdma0 23 1>;
 				dma-names = "rx", "tx";
