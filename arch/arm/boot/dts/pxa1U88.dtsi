@@ -186,6 +186,43 @@
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			 };
+
+			dsi: dsi@d420b800 {
+				compatible = "marvell,mmp-dsi";
+				reg = <0xd420b800 0x1ec>;
+				interrupts = <0 53 0x4>;
+				status = "disabled";
+			};
+
+			vdma: vdma@d4209000 {
+				compatible = "marvell,mmp-vdma";
+				reg = <0xd4209000 0x850>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+
+			apical: apical@d420b400 {
+				compatible = "marvell,mmp-apical";
+				reg = <0xd420b400 0x400>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+
+			disp: disp@d420b000 {
+				compatible = "marvell,mmp-disp";
+				reg = <0xd420b000 0x3d0>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+				interrupts = <0 41 0x4>;
+				status = "disabled";
+			};
+
+			fb0: fbbase {
+				compatible = "marvell,mmp-fb";
+				status = "disabled";
+			};
+
+			fb1: fboverlay {
+				compatible = "marvell,mmp-fb-overlay";
+				status = "disabled";
+			};
 		};
 
 		apb@d4000000 {	/* APB */
