@@ -1690,6 +1690,7 @@ static int mmphw_probe(struct platform_device *pdev)
 		goto failed_path_init;
 	}
 
+	ctrl_dbg_init(&pdev->dev);
 	dev_info(ctrl->dev, "device init done\n");
 
 	return 0;

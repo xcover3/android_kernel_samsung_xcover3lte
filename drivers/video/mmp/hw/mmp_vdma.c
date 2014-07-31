@@ -711,6 +711,7 @@ static int mmp_vdma_probe(struct platform_device *pdev)
 	of_property_read_u32(np, "marvell,vdma-axi", &use_axi);
 
 	platform_set_drvdata(pdev, vdma);
+	vdma_dbg_init(vdma->dev);
 
 	pm_runtime_enable(vdma->dev);
 	pm_runtime_forbid(vdma->dev);

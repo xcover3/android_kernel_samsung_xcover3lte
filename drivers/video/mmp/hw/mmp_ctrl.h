@@ -183,6 +183,9 @@ struct lcd_regs {
 #define intf_rbswap_ctrl(id)	((id) ? (((id) & 1) ? LCD_TVIF_CTRL : \
 				PN2_IOPAD_CONTROL) : LCD_TOP_CTRL)
 
+/* 32 bit TV Path Clock Divider */
+#define LCD_TCLK_DIV				(0x009C)
+
 /* dither configure */
 #ifdef CONFIG_CPU_PXA988
 #define LCD_DITHER_CTRL				(0x01EC)
@@ -595,6 +598,9 @@ struct lcd_regs {
 #define	 CFG_PDWN32x66_MASK			0x00000002
 #define	 CFG_PDWN64x66(pdwn)			(pdwn)
 #define	 CFG_PDWN64x66_MASK			0x00000001
+
+/* Smart Panel Clock Divider Register */
+#define LCD_SCLK_DIV				0x1A8
 
 /* Video Contrast Register */
 #define LCD_SPU_CONTRAST			0x01AC
@@ -1264,6 +1270,7 @@ extern int lcd_spi_register(struct mmphw_ctrl *ctrl);
 
 extern int mmp_vsync_init(struct mmp_path *path);
 extern void mmp_vsync_deinit(struct mmp_path *path);
+extern void ctrl_dbg_init(struct device *dev);
 extern int phy_dsi_register(void);
 extern void phy_dsi_unregister(void);
 extern int mmp_vdma_register(void);

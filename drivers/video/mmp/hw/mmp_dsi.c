@@ -1324,6 +1324,7 @@ static int mmp_dsi_probe(struct platform_device *pdev)
 	ctrl = path_to_ctrl(path);
 	dsi->version = ctrl->version;
 
+	dsi_dbg_init(&pdev->dev);
 	return 0;
 failed:
 	if (dsi)
