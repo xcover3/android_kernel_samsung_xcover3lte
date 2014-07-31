@@ -80,6 +80,7 @@ static unsigned int _get_mux(struct mmp_clk_mix *mix, unsigned int val)
 
 	return val;
 }
+
 static unsigned int _get_div_val(struct mmp_clk_mix *mix, unsigned int div)
 {
 	struct clk_div_table *clkt;
@@ -107,6 +108,22 @@ static unsigned int _get_mux_val(struct mmp_clk_mix *mix, unsigned int mux)
 	return mux;
 }
 
+static unsigned int _get_xtc_val(struct mmp_clk_mix *mix, unsigned long rate)
+{
+	struct mmp_clk_mix_clk_table *item = mix->table;
+	unsigned int i;
+
+	if (!item)
+		return 0;
+
+	for (i = 0; i < mix->table_size; i++) {
+		if (item[i].valid && (item[i].rate == rate))
+			return item[i].xtc;
+	}
+
+	return 0;
+}
+
 static void _filter_clk_table(struct mmp_clk_mix *mix,
 				struct mmp_clk_mix_clk_table *table,
 				unsigned int table_size)
@@ -131,8 +148,9 @@ static void _filter_clk_table(struct mmp_clk_mix *mix,
 	}
 }
 
+/* prepost indicates xtc change point is before/after freq-chg, 0 pre, 1 post */
 static int _set_rate(struct mmp_clk_mix *mix, u32 mux_val, u32 div_val,
-			unsigned int change_mux, unsigned int change_div)
+		u32 change_mux, u32 change_div, u32 xtc_val, u32 prepost)
 {
 	struct mmp_clk_mix_reg_info *ri = &mix->reg_info;
 	u8 width, shift;
@@ -151,6 +169,9 @@ static int _set_rate(struct mmp_clk_mix *mix, u32 mux_val, u32 div_val,
 		mux_div = readl(ri->reg_clk_ctrl);
 	else
 		mux_div = readl(ri->reg_clk_sel);
+
+	if (xtc_val && !prepost)
+		writel(xtc_val, ri->reg_clk_xtc);
 
 	if (change_div) {
 		width = ri->width_div;
@@ -192,6 +213,10 @@ static int _set_rate(struct mmp_clk_mix *mix, u32 mux_val, u32 div_val,
 		writel(mux_div, ri->reg_clk_sel);
 		fc_req &= ~(1 << ri->bit_fc);
 	}
+
+	if (xtc_val && prepost)
+		writel(xtc_val, ri->reg_clk_xtc);
+
 
 	ret = 0;
 error:
@@ -276,14 +301,18 @@ static int mmp_clk_mix_set_rate_and_parent(struct clk_hw *hw,
 {
 	struct mmp_clk_mix *mix = to_clk_mix(hw);
 	unsigned int div;
-	u32 div_val, mux_val;
+	u32 div_val, mux_val, xtc_val, prepost;
 
 	div = parent_rate / rate;
 	div_val = _get_div_val(mix, div);
 	mux_val = _get_mux_val(mix, index);
+	xtc_val = _get_xtc_val(mix, rate);
+
+	/* pre: low -> high, post: high->low */
+	prepost = (rate > hw->clk->rate) ? 0 : 1;
 
 	trace_clock_set_rate(hw->clk->name, rate, 0);
-	return _set_rate(mix, mux_val, div_val, 1, 1);
+	return _set_rate(mix, mux_val, div_val, 1, 1, xtc_val, prepost);
 }
 
 static u8 mmp_clk_mix_get_parent(struct clk_hw *hw)
@@ -370,7 +399,7 @@ static int mmp_clk_set_parent(struct clk_hw *hw, u8 index)
 		div_val = 0;
 	}
 
-	return _set_rate(mix, mux_val, div_val, 1, div_val ? 1 : 0);
+	return _set_rate(mix, mux_val, div_val, 1, div_val ? 1 : 0, 0, 0);
 }
 
 static int mmp_clk_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -398,11 +427,14 @@ static int mmp_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 				&& item->divisor == best_divisor)
 				break;
 		}
-		if (i < mix->table_size)
+		if (i < mix->table_size) {
+			trace_clock_set_rate(hw->clk->name, rate, 0);
 			return _set_rate(mix,
 					_get_mux_val(mix, item->parent_index),
 					_get_div_val(mix, item->divisor),
-					1, 1);
+					1, 1, _get_xtc_val(mix, rate),
+					(rate > hw->clk->rate) ? 0 : 1);
+			}
 		else
 			return -EINVAL;
 	} else {
@@ -412,9 +444,11 @@ static int mmp_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 			if (parent_rate == best_parent_rate)
 				break;
 		}
-		if (i < __clk_get_num_parents(mix_clk))
+		if (i < __clk_get_num_parents(mix_clk)) {
+			trace_clock_set_rate(hw->clk->name, rate, 0);
 			return _set_rate(mix, _get_mux_val(mix, i),
-					_get_div_val(mix, best_divisor), 1, 1);
+				_get_div_val(mix, best_divisor), 1, 1, 0, 0);
+		}
 		else
 			return -EINVAL;
 	}

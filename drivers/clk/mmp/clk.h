@@ -62,6 +62,7 @@ enum {
 struct mmp_clk_mix_reg_info {
 	void __iomem *reg_clk_ctrl;
 	void __iomem *reg_clk_sel;
+	void __iomem *reg_clk_xtc;
 	u8 width_div;
 	u8 shift_div;
 	u8 width_mux;
@@ -75,6 +76,7 @@ struct mmp_clk_mix_clk_table {
 	u8 parent_index;
 	unsigned int divisor;
 	unsigned int valid;
+	unsigned int xtc;
 };
 
 struct mmp_clk_mix_config {
