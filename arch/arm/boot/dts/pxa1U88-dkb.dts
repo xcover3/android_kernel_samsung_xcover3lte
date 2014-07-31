@@ -325,6 +325,29 @@
 					>;
 					MFP_DEFAULT;
 				};
+
+				gps_pmx_reset: gps_pmx_reset {
+					pinctrl-single,pins = <
+						GPIO12 AF0
+					>;
+					DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_NONE;
+				};
+
+				gps_pmx_eclk: gps_pmx_eclk {
+					/* eclk */
+					pinctrl-single,pins = <
+						0x0124 0x6
+					>;
+					MFP_DEFAULT;
+				};
+
+				gps_pmx_gpio: gps_pmx_gpio {
+					/* gpio18 */
+					pinctrl-single,pins = <
+						0x0124 0x0
+					>;
+					MFP_DEFAULT;
+				};
 			};
 
 			twsi0: i2c@d4011000 {
@@ -504,6 +527,20 @@
 		power_gpio = <&gpio 6 0>;
 		bl_gpio = <&gpio 32 0>;
 		status = "okay";
+	};
+
+	gps: mmp-gps {
+		compatible = "marvell,mmp-gps";
+		marvell,gps-eclk-ctrl;
+
+		vgps-supply = <&ldo13>;
+
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&gps_pmx_eclk &gps_pmx_reset>;
+		pinctrl-1 = <&gps_pmx_gpio>;
+
+		on-off-gpio = <&gpio 96 0>;
+		reset-n-gpio = <&gpio 12 0>;
 	};
 
 	led-rgb {
