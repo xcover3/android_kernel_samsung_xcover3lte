@@ -111,7 +111,7 @@ struct mmp_tdma_chan {
 	struct tasklet_struct		tasklet;
 
 	struct mmp_tdma_desc		*desc_arr;
-	phys_addr_t			desc_arr_phys;
+	dma_addr_t			desc_arr_phys;
 	int				desc_num;
 	enum dma_transfer_direction	dir;
 	dma_addr_t			dev_addr;
