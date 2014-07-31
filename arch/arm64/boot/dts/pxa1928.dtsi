@@ -531,6 +531,7 @@
 				      <0xd403d000 0x4>;
 				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1928_CLK_TWSI0>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
 				/*
@@ -556,6 +557,7 @@
 				reg = <0xd4031000 0x70>;
 				interrupts = <0 84 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1928_CLK_TWSI1>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
 				marvell,i2c-ilcr = <0x082c347e>;
@@ -574,6 +576,7 @@
 				reg = <0xd4032000 0x70>;
 				interrupts = <0 85 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1928_CLK_TWSI2>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
 				marvell,i2c-ilcr = <0x082c347e>;
@@ -592,6 +595,7 @@
 				reg = <0xd4033000 0x70>;
 				interrupts = <0 86 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1928_CLK_TWSI3>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
 				marvell,i2c-ilcr = <0x082c347e>;
@@ -610,6 +614,7 @@
 				reg = <0xd4033800 0x70>;
 				interrupts = <0 87 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1928_CLK_TWSI4>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
 				marvell,i2c-ilcr = <0x082c347e>;
@@ -627,6 +632,7 @@
 				reg = <0xd4034000 0x70>;
 				interrupts = <0 88 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1928_CLK_TWSI5>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
 				marvell,i2c-ilcr = <0x082c347e>;
