@@ -472,7 +472,7 @@ static struct mmp_clk_mix_config gcsh_mix_config = {
 
 /* GC 2D */
 static const char *gc2d_parent_names[] = {
-	"pll1_416_gate", "pll1_624_gate",  "pll2", "pll2_div3",
+	"pll1_416_gate", "pll1_624_gate",  "pll2", "pll2p",
 };
 
 static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
