@@ -28,3 +28,9 @@ config MMP_PANEL_OTM1281A
 	default n
 	help
 		MIPI panel OTM1281A support
+
+config MMP_PANEL_TD043MGEA1
+	bool "parallel panel TD043MGEA1 support"
+	default n
+	help
+		parallel panel TD043MGEA1 support
