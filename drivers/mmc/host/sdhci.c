@@ -323,7 +323,7 @@ out:
  * and release the constrain after the operation finish to save power.
  * @ac: access constrain config, 0/1 to set/release the constrain.
  */
-inline void sdhci_access_constrain(struct sdhci_host *host, unsigned int ac)
+void sdhci_access_constrain(struct sdhci_host *host, unsigned int ac)
 {
 	unsigned long flags;
 	int call_constrain = 0;
@@ -348,6 +348,7 @@ inline void sdhci_access_constrain(struct sdhci_host *host, unsigned int ac)
 			host->ops->access_constrain(host, ac);
 	}
 }
+EXPORT_SYMBOL_GPL(sdhci_access_constrain);
 
 /*****************************************************************************\
  *                                                                           *
