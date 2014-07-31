@@ -34,3 +34,9 @@ config MMP_PANEL_TD043MGEA1
 	default n
 	help
 		parallel panel TD043MGEA1 support
+
+config MMP_PANEL_HX8394
+	bool "MIPI panel hx8394 support"
+	default n
+	help
+		MIPI panel hx8394 support
