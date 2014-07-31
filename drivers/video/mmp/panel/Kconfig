@@ -22,3 +22,9 @@ config MMP_PANEL_LG4591
 	default n
 	help
 		MIPI panel LG4591 support
+
+config MMP_PANEL_OTM1281A
+	bool "MIPI panel OTM1281A support"
+	default n
+	help
+		MIPI panel OTM1281A support
