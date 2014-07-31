@@ -1015,6 +1015,12 @@ static int overlay_set_surface(struct mmp_overlay *overlay,
 		if (shadow && shadow->ops && shadow->ops->set_surface)
 			shadow->ops->set_surface(shadow, surface);
 	} else {
+		pr_debug("%s: decompress_en : %d\n", __func__,
+				!!(surface->flag & DECOMPRESS_MODE));
+		if (vdma && vdma->ops && vdma->ops->set_decompress_en)
+			vdma->ops->set_decompress_en(vdma,
+				!!(surface->flag & DECOMPRESS_MODE));
+
 		if (vdma && vdma->ops && vdma->ops->set_win)
 			vdma->ops->set_win(vdma, win, overlay->status);
 
@@ -1075,6 +1081,12 @@ static void overlay_trigger(struct mmp_overlay *overlay)
 		list_del(&buffer->queue);
 
 		vdma = overlay->vdma;
+		if (buffer) {
+			if (vdma && vdma->ops && vdma->ops->set_decompress_en)
+				vdma->ops->set_decompress_en(vdma,
+					!!(buffer->flags & BUFFER_DEC));
+			buffer->flags &= ~BUFFER_DEC;
+		}
 
 		if (buffer && (buffer->flags & UPDATE_ADDR)) {
 			addr = &buffer->addr;
@@ -1192,6 +1204,16 @@ static void path_set_mode(struct mmp_path *path, struct mmp_mode *mode)
 	}
 }
 
+static void overlay_set_decompress_en(struct mmp_overlay *overlay, int en)
+{
+	struct mmp_vdma_info *vdma;
+
+	overlay->decompress = en;
+	vdma = overlay->vdma;
+	if (vdma && vdma->ops && vdma->ops->set_decompress_en)
+		vdma->ops->set_decompress_en(vdma, en);
+}
+
 static struct mmp_overlay_ops mmphw_overlay_ops = {
 	.set_status = overlay_set_status,
 	.set_win = overlay_set_win,
@@ -1201,6 +1223,7 @@ static struct mmp_overlay_ops mmphw_overlay_ops = {
 	.set_alpha = overlay_set_path_alpha,
 	.set_vsmooth_en = overlay_set_vsmooth_en,
 	.trigger = overlay_trigger,
+	.set_decompress_en = overlay_set_decompress_en,
 };
 
 static void ctrl_set_default(struct mmphw_ctrl *ctrl)

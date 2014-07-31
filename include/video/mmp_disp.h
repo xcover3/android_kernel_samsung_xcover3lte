@@ -138,6 +138,8 @@ struct mmp_surface {
 	int fence_fd;
 };
 
+#define PITCH_ALIGN_FOR_DECOMP(x) ALIGN(x, 256)
+
 #ifdef __KERNEL__
 #include <linux/kthread.h>
 #include <linux/device.h>
@@ -386,6 +388,7 @@ struct mmp_overlay_ops {
 				struct mmp_alpha *pa);
 	void (*set_vsmooth_en)(struct mmp_overlay *overlay, int en);
 	void (*trigger)(struct mmp_overlay *overlay);
+	void (*set_decompress_en)(struct mmp_overlay *overlay, int en);
 };
 
 /* overlay describes a z-order indexed slot in each path. */
@@ -402,6 +405,7 @@ struct mmp_overlay {
 	int status;
 	struct mutex access_ok;
 	atomic_t on_count;
+	int decompress;
 
 	struct mmp_vdma_info *vdma;
 	struct mmp_shadow *shadow;
@@ -750,6 +754,13 @@ static inline int mmp_overlay_set_path_alpha(struct mmp_overlay *overlay,
 	if (overlay && overlay->ops->set_alpha)
 		return overlay->ops->set_alpha(overlay, pa);
 	return 0;
+}
+
+static inline void mmp_overlay_decompress_en(struct mmp_overlay *overlay,
+		int en)
+{
+	if (overlay && overlay->ops->set_decompress_en)
+		overlay->ops->set_decompress_en(overlay, en);
 }
 
 static int is_win_changed(struct mmp_win *dst, struct mmp_win *src)

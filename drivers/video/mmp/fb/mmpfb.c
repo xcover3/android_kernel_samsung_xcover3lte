@@ -422,17 +422,84 @@ static int mmpfb_setcolreg(unsigned int regno, unsigned int red,
 	return 0;
 }
 
+static void mmpfb_set_win(struct fb_info *info)
+{
+	struct mmpfb_info *fbi = info->par;
+	struct fb_var_screeninfo *var = &info->var;
+	struct mmp_path *path = fbi->path;
+	struct mmp_win win;
+	u32 stride;
+
+	memset(&win, 0, sizeof(win));
+	win.xsrc = win.xdst = fbi->mode.xres;
+	win.ysrc = win.ydst = fbi->mode.yres;
+	if (path && (path->mode.xres != fbi->mode.xres))
+		win.xdst = path->mode.xres;
+	if (path && (path->mode.yres != fbi->mode.yres))
+		win.ydst = path->mode.yres;
+	win.pix_fmt = fbi->pix_fmt;
+	stride = pixfmt_to_stride(win.pix_fmt);
+	win.pitch[0] = var->xres_virtual * stride;
+	win.pitch[1] = win.pitch[2] =
+		(stride == 1) ? (var->xres_virtual >> 1) : 0;
+	mmp_overlay_set_win(fbi->overlay, &win);
+}
+
+static void mmpfb_set_adress(struct fb_var_screeninfo *var,
+		struct mmpfb_info *fb_info)
+{
+	struct mmp_addr addr;
+	u32 frame_size, pitch, line_length;
+
+	memset(&addr, 0, sizeof(addr));
+
+	line_length = var->xres_virtual * var->bits_per_pixel / 8;
+
+	if (fb_info->overlay->decompress) {
+		pitch = PITCH_ALIGN_FOR_DECOMP(line_length);
+		frame_size = pitch * MMP_YALIGN(var->yres);
+		/*
+		 * FIXME: hdr_size = frame_size/512, for decompression mode
+		 * 256 bytes per unit, and 4 bits(1/2 byte) for one unit status.
+		 */
+		addr.hdr_size[0] = frame_size >> 9;
+		/* FIXME: frame address should be 256 bytes align, the buffer
+		 * to save header should be pitch aligned */
+		addr.phys[0] = fb_info->fb_start_dma + var->yoffset * pitch;
+		addr.hdr_addr[0] = addr.phys[0] + frame_size;
+		/* FIXME:
+		 * decompress mode buffer mapping:
+		 * _____________________ ->fb_start_dma
+		 * |                   |
+		 * |___________________| ->hdr_addr_start
+		 * |___________________|
+		 *
+		 *  ...
+		 */
+	} else
+		addr.phys[0] = (var->yoffset * var->xres_virtual + var->xoffset)
+			* var->bits_per_pixel / 8 + fb_info->fb_start_dma;
+	mmp_overlay_set_addr(fb_info->overlay, &addr);
+}
+
 static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 		struct fb_info *info)
 {
 	struct mmpfb_info *fbi = info->par;
-	struct mmp_addr addr;
+	int decompress_en;
 
-	memset(&addr, 0, sizeof(addr));
-	addr.phys[0] = (var->yoffset * var->xres_virtual + var->xoffset)
-		* var->bits_per_pixel / 8 + fbi->fb_start_dma;
-	mmp_overlay_set_addr(fbi->overlay, &addr);
-	mmp_path_set_commit(fbi->path);
+	if (!mmp_path_ctrl_safe(fbi->path))
+		return -EINVAL;
+
+	decompress_en = !!(var->reserved[0] & DECOMPRESS_MODE);
+	pr_debug("%s: decompress_en : %d\n", __func__, decompress_en);
+	if (decompress_en != fbi->overlay->decompress) {
+		mmp_overlay_decompress_en(fbi->overlay, decompress_en);
+		mmpfb_set_win(info);
+	}
+	mmpfb_set_adress(var, fbi);
+	mmp_path_set_trigger(fbi->path);
+
 	mmpfb_wait_vsync(fbi);
 
 	return 0;
@@ -470,34 +537,10 @@ static int var_update(struct fb_info *info)
 	return 0;
 }
 
-static void mmpfb_set_win(struct fb_info *info)
-{
-	struct mmpfb_info *fbi = info->par;
-	struct fb_var_screeninfo *var = &info->var;
-	struct mmp_path *path = fbi->path;
-	struct mmp_win win;
-	u32 stride;
-
-	memset(&win, 0, sizeof(win));
-	win.xsrc = win.xdst = fbi->mode.xres;
-	win.ysrc = win.ydst = fbi->mode.yres;
-	if (path && (path->mode.xres != fbi->mode.xres))
-		win.xdst = path->mode.xres;
-	if (path && (path->mode.yres != fbi->mode.yres))
-		win.ydst = path->mode.yres;
-	win.pix_fmt = fbi->pix_fmt;
-	stride = pixfmt_to_stride(win.pix_fmt);
-	win.pitch[0] = var->xres_virtual * stride;
-	win.pitch[1] = win.pitch[2] =
-		(stride == 1) ? (var->xres_virtual >> 1) : 0;
-	mmp_overlay_set_win(fbi->overlay, &win);
-}
-
 static int mmpfb_set_par(struct fb_info *info)
 {
 	struct mmpfb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
-	struct mmp_addr addr;
 	struct mmp_mode mode, *mmp_modes;
 	int ret, videomode_num;
 
@@ -527,10 +570,7 @@ static int mmpfb_set_par(struct fb_info *info)
 	mmpfb_set_win(info);
 
 	/* set address always */
-	memset(&addr, 0, sizeof(addr));
-	addr.phys[0] = (var->yoffset * var->xres_virtual + var->xoffset)
-		* var->bits_per_pixel / 8 + fbi->fb_start_dma;
-	mmp_overlay_set_addr(fbi->overlay, &addr);
+	mmpfb_set_adress(var, fbi);
 	mmp_path_set_commit(fbi->path);
 
 	return 0;
@@ -538,7 +578,6 @@ static int mmpfb_set_par(struct fb_info *info)
 
 static void mmpfb_power(struct mmpfb_info *fbi, int power)
 {
-	struct mmp_addr addr;
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
 
 	if (!mmp_path_ctrl_safe(fbi->path))
@@ -550,11 +589,7 @@ static void mmpfb_power(struct mmpfb_info *fbi, int power)
 		mmpfb_set_win(fbi->fb_info);
 
 		/* set address always */
-		memset(&addr, 0, sizeof(addr));
-		addr.phys[0] = fbi->fb_start_dma +
-			(var->yoffset * var->xres_virtual + var->xoffset)
-			* var->bits_per_pixel / 8;
-		mmp_overlay_set_addr(fbi->overlay, &addr);
+		mmpfb_set_adress(var, fbi);
 	}
 	mmp_overlay_set_status(fbi->overlay, power);
 }
