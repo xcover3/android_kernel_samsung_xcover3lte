@@ -204,6 +204,32 @@ static struct pm_qos_object axi_min_pm_qos = {
 	.name = "axi_min",
 };
 
+static BLOCKING_NOTIFIER_HEAD(vpu_devfreq_min_notifier);
+static struct pm_qos_constraints vpu_devfreq_min_constraints = {
+	.list = PLIST_HEAD_INIT(vpu_devfreq_min_constraints.list),
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.default_value = PM_QOS_DEFAULT_VALUE,
+	.type = PM_QOS_MAX,
+	.notifiers = &vpu_devfreq_min_notifier,
+};
+static struct pm_qos_object vpu_devfreq_min_pm_qos = {
+	.constraints = &vpu_devfreq_min_constraints,
+	.name = "vpu_devfreq_min",
+};
+
+static BLOCKING_NOTIFIER_HEAD(vpu_devfreq_max_notifier);
+static struct pm_qos_constraints vpu_devfreq_max_constraints = {
+	.list = PLIST_HEAD_INIT(vpu_devfreq_max_constraints.list),
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.default_value = INT_MAX,
+	.type = PM_QOS_MIN,
+	.notifiers = &vpu_devfreq_max_notifier,
+};
+static struct pm_qos_object vpu_devfreq_max_pm_qos = {
+	.constraints = &vpu_devfreq_max_constraints,
+	.name = "vpu_devfreq_max",
+};
+
 struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
@@ -217,6 +243,8 @@ struct pm_qos_object *pm_qos_array[] = {
 	&ddr_devfreq_min_pm_qos,
 	&ddr_devfreq_max_pm_qos,
 	&axi_min_pm_qos,
+	&vpu_devfreq_min_pm_qos,
+	&vpu_devfreq_max_pm_qos,
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
