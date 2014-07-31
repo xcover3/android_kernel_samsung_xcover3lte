@@ -743,7 +743,7 @@ static struct dvfs *vcc_main_dvfs_init
 
 	clk_name = dvfs_component[factor].clk_name;
 	clk_node = __clk_lookup(clk_name);
-	if (IS_ERR(clk_node)) {
+	if (!clk_node) {
 		pr_err("failed to get clk node %s\n", clk_name);
 		goto err;
 	}
