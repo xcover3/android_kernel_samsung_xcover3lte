@@ -37,6 +37,7 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/i2c/pxa-i2c.h>
+#include <linux/pm_qos.h>
 #include <linux/platform_data/mmp-hwlock.h>
 #include <linux/of_gpio.h>
 
@@ -188,8 +189,9 @@ struct pxa_i2c {
 	unsigned int		ilcr;
 	unsigned int		iwcr;
 	void __iomem		*hwlock_addr;
+	struct pm_qos_request	qos_idle;
+	s32			pm_qos;
 	u32			icr_save;
-
 	struct pinctrl		*pinctrl;
 	struct pinctrl_state	*pin_i2c;
 	struct pinctrl_state	*pin_gpio;
@@ -966,6 +968,8 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
 
+	pm_qos_update_request(&i2c->qos_idle, i2c->pm_qos);
+
 	i2c_pxa_start_message(i2c);
 
 	while (i2c->msg_num > 0 && --timeout) {
@@ -974,6 +978,8 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 	}
 
 	i2c_pxa_stop_message(i2c);
+	pm_qos_update_request(&i2c->qos_idle,
+			      PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 
 	/*
 	 * We place the return code in i2c->msg_idx.
@@ -1034,6 +1040,8 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
 
+	pm_qos_update_request(&i2c->qos_idle, i2c->pm_qos);
+
 	i2c_pxa_start_message(i2c);
 
 	spin_unlock_irq(&i2c->lock);
@@ -1043,6 +1051,9 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	 */
 	timeout = wait_event_timeout(i2c->wait, i2c->msg_num == 0, HZ * 1);
 	i2c_pxa_stop_message(i2c);
+
+	pm_qos_update_request(&i2c->qos_idle,
+			      PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 
 	/*
 	 * We place the return code in i2c->msg_idx.
@@ -1448,6 +1459,10 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 	if (ret)
 		return ret;
 
+	ret = of_property_read_u32(np, "lpm-qos", &i2c->pm_qos);
+	if (ret)
+		return ret;
+
 	if (of_get_property(np, "marvell,i2c-always-on", NULL))
 		i2c->always_on = 1;
 
@@ -1563,6 +1578,10 @@ static int i2c_pxa_probe(struct platform_device *dev)
 
 	i2c->adap.owner   = THIS_MODULE;
 	i2c->adap.retries = 5;
+
+	i2c->qos_idle.name = i2c->adap.name;
+	pm_qos_add_request(&i2c->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 
 	spin_lock_init(&i2c->lock);
 	init_waitqueue_head(&i2c->wait);
@@ -1691,6 +1710,7 @@ eremap:
 	clk_put(i2c->clk);
 eclk:
 	release_mem_region(res->start, resource_size(res));
+	pm_qos_remove_request(&i2c->qos_idle);
 eres:
 	kfree(i2c);
 emalloc:
@@ -1700,6 +1720,7 @@ emalloc:
 static int i2c_pxa_remove(struct platform_device *dev)
 {
 	struct pxa_i2c *i2c = platform_get_drvdata(dev);
+	pm_qos_remove_request(&i2c->qos_idle);
 
 	i2c_del_adapter(&i2c->adap);
 	if (!i2c->use_pio)
