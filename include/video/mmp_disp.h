@@ -289,18 +289,102 @@ static inline int status_is_off(int status)
 		status == MMP_OFF_DMA;
 }
 
+struct mmp_shadow;
+struct mmp_shadow_ops {
+	int (*set_dmaonoff)(struct mmp_shadow *shadow, int on);
+	int (*set_alpha)(struct mmp_shadow *shadow,
+			struct mmp_alpha *alpha);
+	int (*set_surface)(struct mmp_shadow *shadow,
+			struct mmp_surface *surface);
+};
+
+#define UPDATE_ADDR (0x1 << 0)
+#define UPDATE_ALPHA (0x1 << 1)
+#define UPDATE_WIN (0x1 << 2)
+#define UPDATE_DMA (0x1 << 3)
 #define BUFFER_DEC (0x1 << 4)
+
+#define BUFFER_VALID 1
+#define BUFFER_INVALID 0
+
+struct mmp_shadow_buffer {
+	u8 flags;
+	u8 status;
+	/*shadow buffer for win info*/
+	struct mmp_win win;
+	/*shadow buffer for addr info*/
+	struct mmp_addr addr;
+	struct list_head queue;
+};
+
+struct mmp_shadow_dma {
+	/*shadow buffer for DMA on/off*/
+	u8 dma_onoff;
+	u8 flags;
+	u8 status;
+	struct list_head queue;
+};
+
+struct mmp_shadow_alpha {
+	u8 flags;
+	u8 status;
+	/*shadow buffer for alpha setting*/
+	struct mmp_alpha alpha;
+	struct list_head queue;
+};
+
+/* shadowreg list for buffer */
+struct mmp_shadow_buffer_list {
+	struct mmp_shadow_buffer current_buffer;
+	struct list_head queue;
+};
+
+/* shadowreg list for dma */
+struct mmp_shadow_dma_list {
+	struct mmp_shadow_dma current_dma;
+	struct list_head queue;
+};
+
+/* shadowreg list for alpha */
+struct mmp_shadow_alpha_list {
+	struct mmp_shadow_alpha current_alpha;
+	struct list_head queue;
+};
+
+struct mmp_shadow {
+	/*shadow's overlay id*/
+	u8 overlay_id;
+
+	/*commit to refresh register*/
+	atomic_t commit;
+
+	spinlock_t shadow_lock;
+
+	/*shadow's overlay*/
+	struct mmp_overlay *overlay;
+
+	/*shadow two buffers for commit*/
+	struct mmp_shadow_buffer_list buffer_list;
+	struct mmp_shadow_dma_list dma_list;
+	struct mmp_shadow_alpha_list alpha_list;
+
+	/*shadow's ops*/
+	struct mmp_shadow_ops *ops;
+};
 
 struct mmp_overlay_ops {
 	/* should be provided by driver */
 	void (*set_status)(struct mmp_overlay *overlay, int status);
 	void (*set_win)(struct mmp_overlay *overlay, struct mmp_win *win);
 	int (*set_addr)(struct mmp_overlay *overlay, struct mmp_addr *addr);
+	int (*set_surface)(struct mmp_overlay *overlay,
+			struct mmp_surface *surface);
 	int (*set_colorkey_alpha)(struct mmp_overlay *overlay,
 				struct mmp_colorkey_alpha *ca);
 	int (*set_alpha)(struct mmp_overlay *overlay,
 				struct mmp_alpha *pa);
 	void (*set_vsmooth_en)(struct mmp_overlay *overlay, int en);
+	void (*trigger)(struct mmp_overlay *overlay);
 };
 
 /* overlay describes a z-order indexed slot in each path. */
@@ -317,8 +401,9 @@ struct mmp_overlay {
 	int status;
 	struct mutex access_ok;
 	atomic_t on_count;
-	struct mmp_vdma_info *vdma;
 
+	struct mmp_vdma_info *vdma;
+	struct mmp_shadow *shadow;
 	struct mmp_overlay_ops *ops;
 };
 
@@ -386,6 +471,8 @@ struct mmp_path_ops {
 	int (*set_irq)(struct mmp_path *path, int on);
 	int (*ctrl_safe)(struct mmp_path *path);
 	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
+	int (*set_commit)(struct mmp_path *path);
+	void (*set_trigger)(struct mmp_path *path);
 	/* todo: add query */
 };
 
@@ -522,6 +609,10 @@ struct mmp_path {
 	struct mmp_mode mode;
 	struct mmp_vsync vsync;
 
+	/* commit flag */
+	atomic_t commit;
+	spinlock_t commit_lock;
+
 	/*master/slave path*/
 	struct mmp_path *master;
 	struct mmp_path *slave;
@@ -612,6 +703,19 @@ static inline struct mmp_overlay *mmp_path_get_overlay(
 		return path->ops.get_overlay(path, overlay_id);
 	return NULL;
 }
+
+static inline void mmp_path_set_commit(struct mmp_path *path)
+{
+	if (path && path->ops.set_commit)
+		path->ops.set_commit(path);
+}
+
+static inline void mmp_path_set_trigger(struct mmp_path *path)
+{
+	if (path && path->ops.set_trigger)
+		path->ops.set_trigger(path);
+}
+
 static inline int mmp_path_ctrl_safe(struct mmp_path *path)
 {
 	if (path && path->ops.ctrl_safe)
@@ -699,6 +803,13 @@ static inline struct mmp_dsi_port *mmp_panel_to_dsi_port(struct mmp_panel *panel
 	return &dsi->dsi_port;
 }
 
+static inline int mmp_overlay_set_surface(struct mmp_overlay *overlay,
+		struct mmp_surface *surface)
+{
+	if (overlay && overlay->ops->set_surface)
+		return overlay->ops->set_surface(overlay, surface);
+	return 0;
+}
 static inline int mmp_panel_dsi_tx_cmd_array(struct mmp_panel *panel,
 		struct mmp_dsi_cmd_desc cmds[], int count)
 {

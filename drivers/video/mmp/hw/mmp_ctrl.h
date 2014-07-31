@@ -954,6 +954,10 @@ struct lcd_regs {
 #define LCD_PN2_SQULN2_CTRL			(0x02F0)
 #define ALL_LAYER_ALPHA_SEL			(0x02F4)
 
+/* HW register shadow in GEN4 */
+#define LCD_SHADOW_CTRL				(0x2c0)
+#define SHADOW_TRIG(id)				(1 << (30 + (id)))
+
 /* pxa988 has different MASTER_CTRL from MMP3/MMP2 */
 #ifdef CONFIG_CPU_PXA988
 #define TIMING_MASTER_CONTROL			(0x01F4)
@@ -1266,5 +1270,7 @@ extern int mmp_vdma_register(void);
 extern void mmp_vdma_unregister(void);
 extern struct mmp_vdma_info *mmp_vdma_alloc(int overlay_id, int sram_size);
 extern void mmp_vdma_free(int overlay_id);
+extern struct mmp_shadow *mmp_shadow_alloc(struct mmp_overlay *overlay);
+extern void mmp_shadow_free(struct mmp_shadow *shadow_info);
 extern void mmp_display_clk_init(void);
 #endif	/* _MMP_CTRL_H_ */

@@ -98,50 +98,17 @@ static int flip_buffer(struct fb_info *info, unsigned long arg)
 	return 0;
 }
 
-static void surface_convert(struct _sOvlySurface *s1, struct mmp_surface *s2)
-{
-	struct _sViewPortInfo *vpinfo = &s1->viewPortInfo;
-	struct _sViewPortOffset *vpoff = &s1->viewPortOffset;
-	struct mmp_win *win = &s2->win;
-
-	win->xsrc = vpinfo->srcWidth;
-	win->ysrc = vpinfo->srcHeight;
-	win->xdst = vpinfo->zoomXSize;
-	win->ydst = vpinfo->zoomYSize;
-	win->pitch[0] = vpinfo->yPitch;
-	win->pitch[1] = vpinfo->uPitch;
-	win->pitch[2] = vpinfo->vPitch;
-	win->xpos = vpoff->xOffset;
-	win->ypos = vpoff->yOffset;
-	win->pix_fmt = s1->videoMode;
-
-	/* FIXME: DMA HW only allow 32bit address now, maybe 64bit someday */
-	s2->addr.phys[0] = (unsigned long)s1->videoBufferAddr.startAddr[0];
-	s2->addr.phys[1] = (unsigned long)s1->videoBufferAddr.startAddr[1];
-	s2->addr.phys[2] = (unsigned long)s1->videoBufferAddr.startAddr[2];
-}
-
 static int flip_buffer_vsync(struct fb_info *info, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	struct mmpfb_info *fbi = info->par;
 	struct mmp_surface surface;
-	struct _sOvlySurface OvlySurface;
 
-	if (copy_from_user(&OvlySurface, argp, sizeof(struct _sOvlySurface)))
+	if (copy_from_user(&surface, argp, sizeof(struct mmp_surface)))
 		return -EFAULT;
 
-	memcpy(&surface.win, &fbi->overlay->win, sizeof(struct mmp_win));
-	surface_convert(&OvlySurface, &surface);
-
 	check_pitch(&surface);
-
-	mmp_overlay_set_win(fbi->overlay, &surface.win);
-
-	mmp_overlay_set_addr(fbi->overlay, &surface.addr);
-
-	mmp_path_wait_vsync(fbi->path);
-
+	mmp_overlay_set_surface(fbi->overlay, &surface);
 	return 0;
 }
 
@@ -223,6 +190,32 @@ static int get_global_info(struct fb_info *info, unsigned long arg)
 
 	if (copy_to_user(argp, &global_info, sizeof(struct mmpfb_global_info)))
 		return -EFAULT;
+
+	return 0;
+}
+
+static int enable_commit_dma(struct fb_info *info, unsigned long arg)
+{
+	void __user *argp = (void __user *)arg;
+	struct mmpfb_info *fbi = info->par;
+	u32 dma_on;
+
+	if (copy_from_user(&dma_on, argp, sizeof(u32)))
+		return -EFAULT;
+
+	mmp_overlay_set_status(fbi->overlay, dma_on ?
+			MMP_ON_DMA : MMP_OFF_DMA);
+
+	dev_dbg(info->dev, "fbi %d dma_on %d\n", fbi->id, dma_on);
+
+	return 0;
+}
+
+static int enable_commit(struct fb_info *info, unsigned long arg)
+{
+	struct mmpfb_info *fbi = info->par;
+
+	mmp_path_set_commit(fbi->overlay->path);
 
 	return 0;
 }
@@ -399,6 +392,9 @@ int mmpfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 	case FB_IOCTL_QUERY_GLOBAL_INFO:
 		get_global_info(info, arg);
 		break;
+	case FB_IOCTL_FLIP_COMMIT:
+		enable_commit(info, arg);
+		break;
 	case FB_IOCTL_WAIT_VSYNC:
 		mmp_path_wait_vsync(fbi->path);
 		break;
@@ -416,6 +412,9 @@ int mmpfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 		return enable_dma(info, arg);
 	case FB_IOCTL_VSMOOTH_EN:
 		return vsmooth_en(info, arg);
+	/* FB_IOCTL_ENABLE_COMMIT_DMA is only for overlay commit temporarily */
+	case FB_IOCTL_ENABLE_COMMIT_DMA:
+		return enable_commit_dma(info, arg);
 	case FB_IOCTL_SET_PATHALPHA:
 		return set_path_alpha(info, arg);
 	default:

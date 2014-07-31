@@ -432,6 +432,7 @@ static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 	addr.phys[0] = (var->yoffset * var->xres_virtual + var->xoffset)
 		* var->bits_per_pixel / 8 + fbi->fb_start_dma;
 	mmp_overlay_set_addr(fbi->overlay, &addr);
+	mmp_path_set_commit(fbi->path);
 	mmpfb_wait_vsync(fbi);
 
 	return 0;
@@ -530,6 +531,7 @@ static int mmpfb_set_par(struct fb_info *info)
 	addr.phys[0] = (var->yoffset * var->xres_virtual + var->xoffset)
 		* var->bits_per_pixel / 8 + fbi->fb_start_dma;
 	mmp_overlay_set_addr(fbi->overlay, &addr);
+	mmp_path_set_commit(fbi->path);
 
 	return 0;
 }

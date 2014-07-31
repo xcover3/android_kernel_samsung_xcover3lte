@@ -64,6 +64,27 @@ static void path_vsync_sync(struct mmp_path *path)
 	}
 }
 
+static void path_hw_trigger(struct mmp_path *path)
+{
+	struct mmp_overlay *overlay;
+	struct mmp_vdma_info *vdma;
+	int i;
+	u32 tmp;
+
+	if (DISP_GEN4(path_to_ctrl(path)->version)) {
+		tmp = readl_relaxed(ctrl_regs(path) + LCD_SHADOW_CTRL) |
+			SHADOW_TRIG(path->id);
+		writel_relaxed(tmp, ctrl_regs(path) + LCD_SHADOW_CTRL);
+
+		for (i = 0; i < path->overlay_num; i++) {
+			overlay = &path->overlays[i];
+			vdma = overlay->vdma;
+			if (vdma && vdma->ops && vdma->ops->trigger)
+				vdma->ops->trigger(vdma);
+		}
+	}
+}
+
 static void gamma_write(struct mmp_path *path, u32 addr, u32 gamma_id, u32 val)
 {
 	writel(val, ctrl_regs(path) + LCD_SPU_SRAM_WRDAT);
@@ -305,7 +326,7 @@ static int overlay_set_colorkey_alpha(struct mmp_overlay *overlay,
 	return 0;
 }
 
-static int overlay_set_path_alpha(struct mmp_overlay *overlay,
+static int path_set_alpha(struct mmp_overlay *overlay,
 					struct mmp_alpha *pa)
 {
 	struct mmp_path *path = overlay->path;
@@ -385,6 +406,19 @@ static int overlay_set_path_alpha(struct mmp_overlay *overlay,
 	return 0;
 }
 
+static int overlay_set_path_alpha(struct mmp_overlay *overlay,
+					struct mmp_alpha *pa)
+{
+	struct mmp_shadow *shadow = overlay->shadow;
+	if (overlay->ops->trigger) {
+		if (shadow && shadow->ops && shadow->ops->set_alpha)
+			shadow->ops->set_alpha(shadow, pa);
+	} else
+		path_set_alpha(overlay, pa);
+
+	return 0;
+}
+
 static int path_set_irq(struct mmp_path *path, int on)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
@@ -448,10 +482,24 @@ static int path_set_irq(struct mmp_path *path, int on)
 	return atomic_read(&path->irq_en_ref) > 0;
 }
 
+static void path_trigger(struct mmp_path *path)
+{
+	struct mmp_overlay *overlay;
+	int i;
+
+	/* Called in display(DMA) done interrupt,
+	 * set shadow buffer to registers */
+	for (i = 0; i < path->overlay_num; i++) {
+		overlay = &path->overlays[i];
+		if (overlay->ops->trigger)
+			overlay->ops->trigger(overlay);
+	}
+}
+
 static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 {
 	struct mmphw_ctrl *ctrl = (struct mmphw_ctrl *)dev_id;
-	struct mmp_path *path;
+	struct mmp_path *path, *slave;
 	u32 isr_en, disp_done, id, vsync_done;
 
 	isr_en = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR) &
@@ -484,8 +532,23 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 			if (!(disp_done & display_done_imask(id)))
 				continue;
 			path = ctrl->path_plats[id].path;
+			slave = path->slave;
 			if (path && path->vsync.handle_irq)
 				path->vsync.handle_irq(&path->vsync);
+			if (slave && slave->vsync.handle_irq)
+				slave->vsync.handle_irq(&slave->vsync);
+			if ((disp_done & display_done_imask(id)) &&
+				(!(vsync_done & vsync_imasks))) {
+				spin_lock(&path->commit_lock);
+				if (path && atomic_read(&path->commit)) {
+					path_trigger(path);
+					/* update slave path */
+					if (path->slave)
+						path_trigger(path->slave);
+					atomic_set(&path->commit, 0);
+				}
+				spin_unlock(&path->commit_lock);
+			}
 		}
 	} while ((isr_en = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR) &
 				readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA)));
@@ -810,6 +873,7 @@ static void path_onoff(struct mmp_path *path, int on)
 static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(overlay->path);
+	int hw_trigger = 0;
 	int on = status_is_on(status);
 	struct mmp_path *path = overlay->path;
 	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
@@ -828,8 +892,13 @@ static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 	} else if (on) {
 		if (path->ops.check_status(path) != path->status)
 			path_onoff(path, on);
+			hw_trigger = 1;
 
 		dmafetch_onoff(overlay, on);
+		if (hw_trigger)
+			/* if path DMA enabled the first time, we need set hw
+			 * trigger immediately */
+			path_hw_trigger(path);
 	} else {
 		dmafetch_onoff(overlay, on);
 
@@ -910,6 +979,166 @@ static void overlay_set_vsmooth_en(struct mmp_overlay *overlay, int en)
 	mutex_unlock(&overlay->access_ok);
 }
 
+static int overlay_set_surface(struct mmp_overlay *overlay,
+	struct mmp_surface *surface)
+{
+	struct lcd_regs *regs = path_regs(overlay->path);
+	struct mmp_vdma_info *vdma;
+	struct mmp_shadow *shadow;
+	struct mmp_win *win = &surface->win;
+	struct mmp_addr *addr = &surface->addr;
+	struct mmp_path *path = overlay->path;
+	int overlay_id = overlay->id, count = 0;
+
+	if (unlikely(atomic_read(&path->commit))) {
+		while (atomic_read(&path->commit) && count < 10) {
+			mmp_path_set_irq(path, 1);
+			mmp_path_wait_vsync(path);
+			mmp_path_set_irq(path, 0);
+			count++;
+		}
+		if (count >= 10)
+			pr_warn("WARN: fb commit faild after tried 10 times\n");
+	}
+
+	/* FIXME: assert addr supported */
+	memcpy(&overlay->addr, addr, sizeof(struct mmp_addr));
+	memcpy(&overlay->win, win, sizeof(struct mmp_win));
+
+	vdma = overlay->vdma;
+	shadow = overlay->shadow;
+	/* Check whether there is software trigger */
+	if (overlay->ops->trigger) {
+		if (shadow && shadow->ops && shadow->ops->set_surface)
+			shadow->ops->set_surface(shadow, surface);
+	} else {
+		if (vdma && vdma->ops && vdma->ops->set_win)
+			vdma->ops->set_win(vdma, win, overlay->status);
+
+		if (vdma && vdma->ops && vdma->ops->set_addr)
+			vdma->ops->set_addr(vdma, addr, overlay->status);
+
+		if (overlay_is_vid(overlay_id)) {
+			writel_relaxed(addr->phys[0], &regs->v_y0);
+			writel_relaxed(addr->phys[1], &regs->v_u0);
+			writel_relaxed(addr->phys[2], &regs->v_v0);
+		} else
+			writel_relaxed(addr->phys[0], &regs->g_0);
+
+		if (overlay_is_vid(overlay_id)) {
+			writel_relaxed(win->pitch[0], &regs->v_pitch_yc);
+			writel_relaxed(win->pitch[2] << 16 |
+					win->pitch[1], &regs->v_pitch_uv);
+
+			writel_relaxed((win->ysrc << 16) | win->xsrc,
+				&regs->v_size);
+			writel_relaxed((win->ydst << 16) | win->xdst,
+				&regs->v_size_z);
+			writel_relaxed(win->ypos << 16 | win->xpos,
+				&regs->v_start);
+		} else {
+			writel_relaxed(win->pitch[0], &regs->g_pitch);
+
+			writel_relaxed((win->ysrc << 16) | win->xsrc,
+				&regs->g_size);
+			writel_relaxed((win->ydst << 16) | win->xdst,
+				&regs->g_size_z);
+			writel_relaxed(win->ypos << 16 | win->xpos,
+				&regs->g_start);
+		}
+
+		overlay_set_fmt(overlay);
+
+	}
+	return overlay->addr.phys[0];
+}
+
+static void overlay_trigger(struct mmp_overlay *overlay)
+{
+	struct lcd_regs *regs = path_regs(overlay->path);
+	int overlay_id = overlay->id;
+	struct mmp_shadow *shadow = overlay->shadow;
+	struct mmp_addr *addr;
+	struct mmp_win *win;
+	struct mmp_shadow_dma *dma;
+	struct mmp_shadow_buffer *buffer;
+	struct mmp_shadow_alpha *alpha;
+	struct mmp_vdma_info *vdma;
+
+	if (!list_empty(&shadow->buffer_list.queue)) {
+		buffer = list_first_entry(
+				&shadow->buffer_list.queue,
+				struct mmp_shadow_buffer, queue);
+		list_del(&buffer->queue);
+
+		vdma = overlay->vdma;
+
+		if (buffer && (buffer->flags & UPDATE_ADDR)) {
+			addr = &buffer->addr;
+			if (vdma && vdma->ops && vdma->ops->set_addr)
+				vdma->ops->set_addr(vdma, addr, overlay->status);
+			if (overlay_is_vid(overlay_id)) {
+				writel_relaxed(addr->phys[0], &regs->v_y0);
+				writel_relaxed(addr->phys[1], &regs->v_u0);
+				writel_relaxed(addr->phys[2], &regs->v_v0);
+			} else
+				writel_relaxed(addr->phys[0], &regs->g_0);
+			buffer->flags &= ~UPDATE_ADDR;
+		}
+
+		if (buffer && (buffer->flags & UPDATE_WIN)) {
+			win = &buffer->win;
+			if (vdma && vdma->ops && vdma->ops->set_win)
+				vdma->ops->set_win(vdma, win, overlay->status);
+			if (overlay_is_vid(overlay_id)) {
+				writel_relaxed(win->pitch[0],
+					&regs->v_pitch_yc);
+				writel_relaxed(win->pitch[2] << 16 |
+					win->pitch[1], &regs->v_pitch_uv);
+				writel_relaxed((win->ysrc << 16) | win->xsrc,
+					&regs->v_size);
+				writel_relaxed((win->ydst << 16) | win->xdst,
+					&regs->v_size_z);
+				writel_relaxed(win->ypos << 16 | win->xpos,
+					&regs->v_start);
+			} else {
+				writel_relaxed(win->pitch[0], &regs->g_pitch);
+
+				writel_relaxed((win->ysrc << 16) | win->xsrc,
+					&regs->g_size);
+				writel_relaxed((win->ydst << 16) | win->xdst,
+					&regs->g_size_z);
+				writel_relaxed(win->ypos << 16 | win->xpos,
+					&regs->g_start);
+			}
+
+			overlay_set_fmt(overlay);
+			buffer->flags &= ~UPDATE_WIN;
+		}
+		kfree(buffer);
+	}
+
+	if (!list_empty(&shadow->dma_list.queue)) {
+		dma = list_first_entry(
+			&shadow->dma_list.queue,
+			struct mmp_shadow_dma, queue);
+		list_del(&dma->queue);
+		dmafetch_onoff(overlay, dma->dma_onoff);
+		dma->flags &= ~UPDATE_DMA;
+		kfree(dma);
+	}
+
+	if (!list_empty(&shadow->alpha_list.queue)) {
+		alpha = list_first_entry(
+			&shadow->alpha_list.queue,
+			struct mmp_shadow_alpha, queue);
+		list_del(&alpha->queue);
+		path_set_alpha(overlay, &alpha->alpha);
+		alpha->flags &= ~UPDATE_ALPHA;
+		kfree(alpha);
+	}
+}
+
 static int is_mode_changed(struct mmp_mode *dst, struct mmp_mode *src)
 {
 	return !src || !dst
@@ -960,9 +1189,11 @@ static struct mmp_overlay_ops mmphw_overlay_ops = {
 	.set_status = overlay_set_status,
 	.set_win = overlay_set_win,
 	.set_addr = overlay_set_addr,
+	.set_surface = overlay_set_surface,
 	.set_colorkey_alpha = overlay_set_colorkey_alpha,
 	.set_alpha = overlay_set_path_alpha,
 	.set_vsmooth_en = overlay_set_vsmooth_en,
+	.trigger = overlay_trigger,
 };
 
 static void ctrl_set_default(struct mmphw_ctrl *ctrl)
@@ -1048,6 +1279,36 @@ static void path_set_default(struct mmp_path *path)
 	writel_relaxed(tmp, ctrl_regs(path) + dma_ctrl(0, path->id));
 }
 
+static int path_set_commit(struct mmp_path *path)
+{
+	unsigned long flags;
+
+	if (DISP_GEN4(path_to_ctrl(path)->version)) {
+		path_hw_trigger(path);
+		return 0;
+	}
+
+	if (unlikely(atomic_read(&path->commit))) {
+		while (atomic_read(&path->commit)) {
+			mmp_path_set_irq(path, 1);
+			mmp_path_wait_vsync(path);
+			mmp_path_set_irq(path, 0);
+		}
+		if (!atomic_read(&path->commit)) {
+			spin_lock_irqsave(&path->commit_lock, flags);
+			atomic_set(&path->commit, 1);
+			spin_unlock_irqrestore(&path->commit_lock, flags);
+		} else
+			BUG_ON(1);
+	} else {
+		spin_lock_irqsave(&path->commit_lock, flags);
+		atomic_set(&path->commit, 1);
+		spin_unlock_irqrestore(&path->commit_lock, flags);
+	}
+
+	return 0;
+}
+
 static int path_ctrl_safe(struct mmp_path *path)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
@@ -1083,6 +1344,8 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path_info->output_type = config->output_type;
 	path_info->overlay_num = config->overlay_num;
 	path_info->overlay_table = config->overlay_table;
+	if (DISP_GEN4(ctrl->version))
+		mmphw_overlay_ops.trigger = NULL;
 	path_info->overlay_ops = &mmphw_overlay_ops;
 	path_info->plat_data = path_plat;
 
@@ -1092,12 +1355,21 @@ static int path_init(struct mmphw_path_plat *path_plat,
 		kfree(path_info);
 		return 0;
 	}
-	for (i = 0; i < path->overlay_num; i++)
+	for (i = 0; i < path->overlay_num; i++) {
 		path->overlays[i].vdma =
 			mmp_vdma_alloc(path->overlays[i].id, 0);
+		if (path->overlays[i].ops->trigger)
+			path->overlays[i].shadow =
+				mmp_shadow_alloc(&path->overlays[i]);
+	}
 	path_plat->path = path;
 	path_plat->path_config = config->path_config;
 	path_plat->link_config = config->link_config;
+	for (i = 0; i < path->overlay_num; i++) {
+		if (path->overlays[i].ops->trigger)
+			path->overlays[i].shadow =
+				mmp_shadow_alloc(&path->overlays[i]);
+	}
 	/* get clock: path clock name same as path name */
 	path_plat->clk = devm_clk_get(ctrl->dev, config->name);
 	if (IS_ERR(path_plat->clk)) {
@@ -1110,6 +1382,8 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path->ops.set_mode = path_set_mode;
 	path->ops.set_irq = path_set_irq;
 	path->ops.set_gamma = path_set_gamma;
+	path->ops.set_commit = path_set_commit;
+	path->ops.set_trigger = path_hw_trigger;
 	path->ops.ctrl_safe = path_ctrl_safe;
 
 	path_set_default(path);
@@ -1120,6 +1394,8 @@ static int path_init(struct mmphw_path_plat *path_plat,
 
 static void path_deinit(struct mmphw_path_plat *path_plat)
 {
+	int i = 0;
+
 	if (!path_plat)
 		return;
 
@@ -1129,6 +1405,11 @@ static void path_deinit(struct mmphw_path_plat *path_plat)
 	if (path_plat->path) {
 		mmp_vsync_deinit(path_plat->path);
 		mmp_unregister_path(path_plat->path);
+	}
+
+	if (path_plat->path->overlays[i].ops->trigger) {
+		for (i = 0; i < path_plat->path->overlay_num; i++)
+			mmp_shadow_free(path_plat->path->overlays[i].shadow);
 	}
 }
 

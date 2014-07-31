@@ -43,6 +43,9 @@
 /* Enable DMA */
 #define FB_IOCTL_ENABLE_DMA		_IO(FB_IOC_MAGIC, 15)
 
+/* Enable DMA */
+#define FB_IOCTL_ENABLE_COMMIT_DMA		_IO(FB_IOC_MAGIC, 16)
+
 /* Wait for vsync happen */
 #define FB_IOCTL_WAIT_VSYNC		_IO(FB_IOC_MAGIC, 18)
 
@@ -52,6 +55,8 @@
 /* Flip buffer from user space, then vait for vsync and return */
 #define FB_IOCTL_FLIP_VSYNC		_IO(FB_IOC_MAGIC, 26)
 
+/* Flip buffer from user space, for multi layer to sync */
+#define FB_IOCTL_FLIP_COMMIT		_IO(FB_IOC_MAGIC, 27)
 
 /* Query fb global info */
 #define FB_IOCTL_QUERY_GLOBAL_INFO	_IO(FB_IOC_MAGIC, 29)

@@ -182,6 +182,7 @@ struct mmp_path *mmp_register_path(struct mmp_path_info *info)
 
 	/* path set */
 	mutex_init(&path->access_ok);
+	spin_lock_init(&path->commit_lock);
 	path->dev = info->dev;
 	path->id = info->id;
 	path->name = info->name;
