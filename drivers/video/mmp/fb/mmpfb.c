@@ -640,6 +640,9 @@ static int modes_setup(struct mmpfb_info *fbi)
 	memcpy(&fbi->mode, &videomodes[0], sizeof(struct fb_videomode));
 	fbi->output_fmt = mmp_modes[0].pix_fmt_out;
 	fb_videomode_to_var(&info->var, &fbi->mode);
+	/* set screen width and height in mm */
+	info->var.height = mmp_modes[0].height;
+	info->var.width = mmp_modes[0].width;
 	mmp_path_set_mode(fbi->path, &mmp_modes[0]);
 
 	kfree(videomodes);

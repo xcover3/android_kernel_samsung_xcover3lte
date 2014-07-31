@@ -192,6 +192,8 @@ struct mmp_mode {
 	unsigned int invert_pixclock;
 	unsigned int pixclock_freq;
 	int pix_fmt_out;
+	u32 height; /* screen height in mm */
+	u32 width; /* screen width in mm */
 };
 
 /* main structures */
@@ -336,6 +338,7 @@ struct dsi_esd {
 	void (*esd_recover)(struct mmp_panel *panel);
 };
 
+#include <linux/pm_qos.h>
 struct mmp_panel {
 	/* use node to register to list */
 	struct list_head node;
@@ -344,8 +347,15 @@ struct mmp_panel {
 	const char *plat_path_name;
 	struct device *dev;
 	int panel_type;
+	/* power */
+	int is_iovdd;
+	int is_avdd;
 	struct dsi_esd esd;
 	void *plat_data;
+#ifdef CONFIG_DDR_DEVFREQ
+	struct pm_qos_request ddrfreq_qos_req_min;
+	u32 ddrfreq_qos;
+#endif
 	int (*get_modelist)(struct mmp_panel *panel,
 			struct mmp_mode **modelist);
 	void (*set_mode)(struct mmp_panel *panel,
@@ -354,6 +364,8 @@ struct mmp_panel {
 			int status);
 	void (*panel_start)(struct mmp_panel *panel,
 			int status);
+	void (*set_brightness)(struct mmp_panel *panel,
+			int level);
 	void (*panel_esd_recover)(struct mmp_panel *panel);
 	int (*get_status)(struct mmp_panel *panel);
 	void (*esd_set_onoff)(struct mmp_panel *panel,
@@ -806,6 +818,7 @@ struct mmp_mach_panel_info {
 	const char *name;
 	void (*plat_set_onoff)(int status);
 	void (*plat_panel_start)(int status);
+	void (*plat_set_backlight)(struct mmp_panel *panel, int level);
 	const char *plat_path_name;
 	u32 esd_enable;
 };
