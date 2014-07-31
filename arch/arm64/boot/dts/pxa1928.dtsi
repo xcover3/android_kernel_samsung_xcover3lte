@@ -344,6 +344,34 @@
 				clocks = <&soc_clocks PXA1928_CLK_UART3>;
 			};
 
+			pwm1: pwm@d401a000 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401a000 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
+			pwm2: pwm@d401a400 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401a400 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
+			pwm3: pwm@d401a800 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401a800 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
+			pwm4: pwm@d401ac00 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401ac00 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
 			gpio: gpio@d4019000 {
 				compatible = "marvell,mmp-gpio";
 				#address-cells = <1>;
