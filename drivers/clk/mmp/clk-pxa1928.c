@@ -34,6 +34,9 @@
 #define APBC_PWM3		0x48
 #define APBC_THSENS		0x90 /* Thermal Sensor */
 
+#define APBC_RIPC_CLK_RST       0x8c
+#define APBC_IPC_CP_CLK_RST     0xac
+
 #define MPMU_UART_PLL		0x14
 
 #define APMU_SDH0		0x54
@@ -466,6 +469,18 @@ static void pxa1928_apb_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apbc_base + APBC_UART3,
 				0x7, 0x3, 0x0, 0, &uart3_lock);
 	mmp_clk_add(unit, PXA1928_CLK_UART3, clk);
+
+	clk = mmp_clk_register_gate(NULL, "ipc_clk", NULL, 0,
+			pxa_unit->apbc_base + APBC_IPC_CP_CLK_RST,
+			0x7, 0x1, 0x0, 0, NULL);
+	mmp_clk_add(unit, PXA1928_CLK_IPC_RST, clk);
+	clk_prepare_enable(clk);
+
+	clk = mmp_clk_register_gate(NULL, "ripc_clk", NULL, 0,
+			pxa_unit->apbc_base + APBC_RIPC_CLK_RST,
+			0x7, 0x1, 0x0, 0, NULL);
+	mmp_clk_add(unit, PXA1928_CLK_RIPC_RST, clk);
+	clk_prepare_enable(clk);
 
 #ifdef CONFIG_CORESIGHT_SUPPORT
 	pxa1928_coresight_clk_init(pxa_unit);
