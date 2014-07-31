@@ -18,10 +18,8 @@
 struct mmp_pd_display_data {
 	int id;
 	char *name;
-	u32 reg_clk_res_ctrl;
-	u32 bit_hw_mode;
-	u32 bit_auto_pwr_on;
-	u32 bit_pwr_stat;
+	int (*power_on)(struct generic_pm_domain *domain);
+	int (*power_off)(struct generic_pm_domain *domain);
 };
 
 struct mmp_pd_display {
@@ -31,6 +29,7 @@ struct mmp_pd_display {
 	struct clk *esc_clk;
 	struct clk *disp1_clk;
 	struct clk *vdma_clk;
+	struct clk *hclk_clk;
 	struct device *dev;
 	/* latency for us. */
 	u32 power_on_latency;
@@ -38,9 +37,9 @@ struct mmp_pd_display {
 	const struct mmp_pd_display_data *data;
 };
 
-static struct mmp_pd_display_data display_data = {
-	.id			= 0,
-	.name			= "power-domain-display",
+enum {
+	MMP_PD_DISPLAY_PXA1U88,
+	MMP_PD_DISPLAY_PXA1928,
 };
 
 #define PMUA_DISP_RSTCTRL 0x180
@@ -64,18 +63,64 @@ static struct mmp_pd_display_data display_data = {
 #define PMUA_ISLD_LCD_CTRL 0x1ac
 #define DMMY_CLK	(1 << 4)
 
-static int mmp_pd_display_power_on(struct generic_pm_domain *domain)
+static DEFINE_SPINLOCK(mmp_pd_display_lock);
+
+static int mmp_pd_pxa1u88_power_on(struct generic_pm_domain *domain)
+{
+	struct mmp_pd_display *pd = container_of(domain,
+			struct mmp_pd_display, genpd);
+
+	spin_lock(&mmp_pd_display_lock);
+
+	if (pd->hclk_clk)
+		clk_prepare_enable(pd->hclk_clk);
+	if (pd->esc_clk)
+		clk_prepare_enable(pd->esc_clk);
+	if (pd->disp1_clk)
+		clk_prepare_enable(pd->disp1_clk);
+
+	spin_unlock(&mmp_pd_display_lock);
+
+	return 0;
+}
+
+static int mmp_pd_pxa1u88_power_off(struct generic_pm_domain *domain)
+{
+	struct mmp_pd_display *pd = container_of(domain,
+			struct mmp_pd_display, genpd);
+
+	spin_lock(&mmp_pd_display_lock);
+
+	if (pd->esc_clk)
+		clk_disable_unprepare(pd->esc_clk);
+	if (pd->disp1_clk)
+		clk_disable_unprepare(pd->disp1_clk);
+	if (pd->hclk_clk)
+		clk_disable_unprepare(pd->hclk_clk);
+
+	spin_unlock(&mmp_pd_display_lock);
+
+	return 0;
+}
+
+static int mmp_pd_pxa1928_power_on(struct generic_pm_domain *domain)
 {
 	struct mmp_pd_display *pd = container_of(domain,
 			struct mmp_pd_display, genpd);
 	u32 val;
 	int count = 0;
 
+	spin_lock(&mmp_pd_display_lock);
+
 	/* 1. clock enable, in prepare process */
-	clk_prepare_enable(pd->axi_clk);
-	clk_prepare_enable(pd->esc_clk);
-	clk_prepare_enable(pd->disp1_clk);
-	clk_prepare_enable(pd->vdma_clk);
+	if (pd->axi_clk)
+		clk_prepare_enable(pd->axi_clk);
+	if (pd->esc_clk)
+		clk_prepare_enable(pd->esc_clk);
+	if (pd->disp1_clk)
+		clk_prepare_enable(pd->disp1_clk);
+	if (pd->vdma_clk)
+		clk_prepare_enable(pd->vdma_clk);
 
 	/* 2. disable fabirc x2h dynamical clock gating */
 	val = readl_relaxed(pd->reg_base + CIU_FABRIC1_CKGT) | X2H_CKGT_DISABLE;
@@ -122,20 +167,28 @@ static int mmp_pd_display_power_on(struct generic_pm_domain *domain)
 	val &= ~X2H_CKGT_DISABLE;
 	writel_relaxed(val, pd->reg_base + CIU_FABRIC1_CKGT);
 
+	spin_unlock(&mmp_pd_display_lock);
+
 	return 0;
 }
 
-static int mmp_pd_display_power_off(struct generic_pm_domain *domain)
+static int mmp_pd_pxa1928_power_off(struct generic_pm_domain *domain)
 {
 	struct mmp_pd_display *pd = container_of(domain,
 			struct mmp_pd_display, genpd);
 	u32 val;
 
+	spin_lock(&mmp_pd_display_lock);
+
 	/* 1. disable clk */
-	clk_disable_unprepare(pd->axi_clk);
-	clk_disable_unprepare(pd->esc_clk);
-	clk_disable_unprepare(pd->disp1_clk);
-	clk_disable_unprepare(pd->vdma_clk);
+	if (pd->axi_clk)
+		clk_disable_unprepare(pd->axi_clk);
+	if (pd->esc_clk)
+		clk_disable_unprepare(pd->esc_clk);
+	if (pd->disp1_clk)
+		clk_disable_unprepare(pd->disp1_clk);
+	if (pd->vdma_clk)
+		clk_disable_unprepare(pd->vdma_clk);
 
 	/* 2. reset all clks*/
 	val = readl_relaxed(pd->reg_base + PMUA_DISP_RSTCTRL);
@@ -147,13 +200,34 @@ static int mmp_pd_display_power_off(struct generic_pm_domain *domain)
 	val &= ~PWRUP;
 	writel_relaxed(val, pd->reg_base + PMUA_ISLD_LCD_PWRCTRL);
 
+	spin_unlock(&mmp_pd_display_lock);
+
 	return 0;
 }
 
+static struct mmp_pd_display_data display_pxa1u88_data = {
+	.id			= MMP_PD_DISPLAY_PXA1U88,
+	.name			= "power-domain-display",
+	.power_on = mmp_pd_pxa1u88_power_on,
+	.power_off = mmp_pd_pxa1u88_power_off,
+};
+
+static struct mmp_pd_display_data display_pxa1928_data = {
+	.id			= MMP_PD_DISPLAY_PXA1928,
+	.name			= "power-domain-display",
+	.power_on = mmp_pd_pxa1928_power_on,
+	.power_off = mmp_pd_pxa1928_power_off,
+};
+
+
 static const struct of_device_id of_mmp_pd_match[] = {
 	{
-		.compatible = "marvell,power-domain-display",
-		.data = (void *)&display_data,
+		.compatible = "marvell,power-domain-display-pxa1u88",
+		.data = (void *)&display_pxa1u88_data,
+	},
+	{
+		.compatible = "marvell,power-domain-display-pxa1928",
+		.data = (void *)&display_pxa1928_data,
 	},
 	{ },
 };
@@ -190,25 +264,42 @@ static int mmp_pd_display_probe(struct platform_device *pdev)
 	if (!pd->reg_base)
 		return -EINVAL;
 
-	/* Some power domain may need clk for power on. */
-	pd->axi_clk = devm_clk_get(&pdev->dev, "axi_clk");
-	if (IS_ERR(pd->axi_clk))
-		pd->axi_clk = NULL;
+	if (pd->data->id == MMP_PD_DISPLAY_PXA1928) {
+		/* Some power domain may need clk for power on. */
+		pd->axi_clk = devm_clk_get(&pdev->dev, "axi_clk");
+		if (IS_ERR(pd->axi_clk))
+			pd->axi_clk = NULL;
 
-	/* Some power domain may need clk for power on. */
-	pd->vdma_clk = devm_clk_get(&pdev->dev, "vdma_clk_gate");
-	if (IS_ERR(pd->vdma_clk))
-		pd->vdma_clk = NULL;
+		/* Some power domain may need clk for power on. */
+		pd->vdma_clk = devm_clk_get(&pdev->dev, "vdma_clk_gate");
+		if (IS_ERR(pd->vdma_clk))
+			pd->vdma_clk = NULL;
 
-	/* Some power domain may need clk for power on. */
-	pd->esc_clk = devm_clk_get(&pdev->dev, "esc_clk");
-	if (IS_ERR(pd->esc_clk))
-		pd->esc_clk = NULL;
+		/* Some power domain may need clk for power on. */
+		pd->esc_clk = devm_clk_get(&pdev->dev, "esc_clk");
+		if (IS_ERR(pd->esc_clk))
+			pd->esc_clk = NULL;
 
-	/* Some power domain may need clk for power on. */
-	pd->disp1_clk = devm_clk_get(&pdev->dev, "disp1_clk_gate");
-	if (IS_ERR(pd->disp1_clk))
-		pd->disp1_clk = NULL;
+		/* Some power domain may need clk for power on. */
+		pd->disp1_clk = devm_clk_get(&pdev->dev, "disp1_clk_gate");
+		if (IS_ERR(pd->disp1_clk))
+			pd->disp1_clk = NULL;
+	} else {
+		/* Some power domain may need clk for power on. */
+		pd->esc_clk = devm_clk_get(&pdev->dev, "esc_clk");
+		if (IS_ERR(pd->esc_clk))
+			pd->esc_clk = NULL;
+
+		/* Some power domain may need clk for power on. */
+		pd->disp1_clk = devm_clk_get(&pdev->dev, "disp1_clk_gate");
+		if (IS_ERR(pd->disp1_clk))
+			pd->disp1_clk = NULL;
+
+		/* Some power domain may need clk for power on. */
+		pd->hclk_clk = devm_clk_get(&pdev->dev, "LCDCIHCLK");
+		if (IS_ERR(pd->hclk_clk))
+			pd->hclk_clk = NULL;
+	}
 
 	latency = MMP_PD_POWER_ON_LATENCY;
 	if (of_find_property(np, "power-on-latency", NULL)) {
@@ -232,9 +323,9 @@ static int mmp_pd_display_probe(struct platform_device *pdev)
 
 	pd->genpd.of_node = np;
 	pd->genpd.name = pd->data->name;
-	pd->genpd.power_on = mmp_pd_display_power_on;
+	pd->genpd.power_on = pd->data->power_on;
 	pd->genpd.power_on_latency_ns = pd->power_on_latency * 1000;
-	pd->genpd.power_off = mmp_pd_display_power_off;
+	pd->genpd.power_off = pd->data->power_off;
 	pd->genpd.power_off_latency_ns = pd->power_off_latency * 1000;
 
 	ret = mmp_pd_init(&pd->genpd, NULL, true);
