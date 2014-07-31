@@ -23,7 +23,7 @@
 #define LCD_PN_SCLK	(0xd420b1a8)
 static DEFINE_SPINLOCK(disp_lock);
 
-static const char *dsisclk_parent[] = {"disp1_sel_clk", "dsipll"};
+static const char *dsisclk_parent[] = {"disp1_sel_clk"};
 static const char *dsipll_parent[] = {"pll3"};
 static const char *dsi_parent[] = {"dsi_sclk"};
 static u32 dsi_mux_tbl[] = {1, 3};

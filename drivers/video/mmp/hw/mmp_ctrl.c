@@ -1595,17 +1595,6 @@ static int mmphw_probe(struct platform_device *pdev)
 	}
 	ctrl->regs_len = resource_size(res) / sizeof(u32);
 
-	/* get clock */
-	ctrl->clk = devm_clk_get(ctrl->dev, "LCDCIHCLK");
-	if (IS_ERR(ctrl->clk)) {
-		dev_err(ctrl->dev, "unable to get clk LCDCIHCLK\n");
-		ret = -ENOENT;
-		goto failed;
-	}
-
-#ifndef CONFIG_PM_RUNTIME
-	clk_prepare_enable(ctrl->clk);
-#endif
 	pm_runtime_enable(ctrl->dev);
 	pm_runtime_forbid(ctrl->dev);
 
@@ -1729,7 +1718,6 @@ static int mmphw_runtime_suspend(struct device *dev)
 
 	ctrl->status = MMP_OFF;
 	mmphw_regs_store(ctrl);
-	clk_disable_unprepare(ctrl->clk);
 
 	return 0;
 }
@@ -1739,7 +1727,6 @@ static int mmphw_runtime_resume(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mmphw_ctrl *ctrl = platform_get_drvdata(pdev);
 
-	clk_prepare_enable(ctrl->clk);
 	mmphw_regs_recovery(ctrl);
 	ctrl->status = MMP_ON;
 

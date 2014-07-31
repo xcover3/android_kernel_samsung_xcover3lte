@@ -710,21 +710,8 @@ static int mmp_vdma_probe(struct platform_device *pdev)
 
 	of_property_read_u32(np, "marvell,vdma-axi", &use_axi);
 
-	/* get clock */
-	if (use_axi)
-		vdma->clk = devm_clk_get(vdma->dev, "LCDCIHCLK");
-	else
-		vdma->clk = devm_clk_get(vdma->dev, "vdma_axi");
-
-	if (IS_ERR(vdma->clk)) {
-		dev_err(vdma->dev, "unable to get clk vdma_axi\n");
-		ret = -ENOENT;
-		goto ioremap1_fail;
-	}
 	platform_set_drvdata(pdev, vdma);
-#ifndef CONFIG_PM_RUNTIME
-	clk_prepare_enable(vdma->clk);
-#endif
+
 	pm_runtime_enable(vdma->dev);
 	pm_runtime_forbid(vdma->dev);
 
@@ -815,7 +802,6 @@ static int mmp_vdma_runtime_suspend(struct device *dev)
 
 	vdma->status = MMP_OFF;
 	mmp_vdma_regs_store(vdma);
-	clk_disable_unprepare(vdma->clk);
 
 	return 0;
 }
@@ -825,7 +811,6 @@ static int mmp_vdma_runtime_resume(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mmp_vdma *vdma = platform_get_drvdata(pdev);
 
-	clk_prepare_enable(vdma->clk);
 	mmp_vdma_regs_recovery(vdma);
 	vdma->status = MMP_ON;
 
