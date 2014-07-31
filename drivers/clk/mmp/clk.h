@@ -100,6 +100,8 @@ struct mmp_clk_mix {
 	spinlock_t *lock;
 };
 
+#define to_clk_mix(hw)	container_of(hw, struct mmp_clk_mix, hw)
+
 extern const struct clk_ops mmp_clk_mix_ops;
 extern struct clk *mmp_clk_register_mix(struct device *dev,
 					const char *name,

@@ -8,4 +8,19 @@ extern int setup_pxa1u88_dvfs_platinfo(void);
 extern int ddr_get_dvc_level(int rate);
 #endif
 
+/* supported DDR chip type */
+enum ddr_type {
+	DDR_400M = 0,
+	DDR_533M,
+	DDR_667M,
+	DDR_800M,
+	DDR_TYPE_MAX,
+};
+
+extern enum ddr_type ddr_mode;
+
+extern unsigned int mmp_clk_mix_get_opnum(struct clk *clk);
+extern unsigned long mmp_clk_mix_get_oprate(struct clk *clk,
+		unsigned int index);
+
 #endif

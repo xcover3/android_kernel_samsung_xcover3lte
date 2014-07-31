@@ -24,8 +24,6 @@
  * time, we can not divide it into 2 types of clock
  */
 
-#define to_clk_mix(hw)	container_of(hw, struct mmp_clk_mix, hw)
-
 static unsigned int _get_maxdiv(struct mmp_clk_mix *mix)
 {
 	unsigned int div_mask = (1 << mix->reg_info.width_div) - 1;
