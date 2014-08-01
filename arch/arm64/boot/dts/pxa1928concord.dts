@@ -972,6 +972,15 @@
 		status = "okay";
 	};
 
+	panel4: hx8394 {
+		compatible = "marvell,mmp-hx8394";
+		marvell,path-name = "mmp_pnpath";
+		rst_gpio = <&gpio LCD_RESET_N 0>;
+		iovdd-supply = <&buck2>;
+		avdd-supply = <&ldo12>;
+		status = "okay";
+	};
+
 	backlight: pwm-bl {
 		compatible = "pwm-backlight";
 		pwms = <&pwm2 0 100000>;
