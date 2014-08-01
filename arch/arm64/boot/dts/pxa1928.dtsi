@@ -270,6 +270,7 @@
 					   <&soc_clocks PXA1928_CLK_ISP_PIPE_GATE_CLK>;
 				clock-names = "SC2AXICLK", "ISPCORECLK", "ISPPIPECLK";
 				marvell,power-domain = <&pd_sc2>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
 		};

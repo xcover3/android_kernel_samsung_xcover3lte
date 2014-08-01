@@ -78,7 +78,10 @@
 
 			ccic1: ccic@d420a000 {
 				status = "okay";
-				pinctrl-names = "default";
+				pinctrl-names = "default", "twsi3";
+				pinctrl-0 = <&ccic1_pins &twsi3_isp_gpio_pins>;
+				pinctrl-1 = <&ccic1_pins &twsi3_isp_pins>;
+				sc2-i2c-dyn-ctrl;
 			};
 
 			ccic2: ccic@d420a800 {
@@ -280,6 +283,11 @@
 					MFP_LPM_PULL_HIGH;
 				};
 
+				ccic1_pins: pinmux_ccic1_pins {
+					pinctrl-single,pins = <CAM_MCLK>;
+					MFP_DEFAULT;
+				};
+
 				twsi0_pins: pinmux_twsi0_pins {
 					pinctrl-single,pins = <PWR_SCL PWR_SDA>;
 					MFP_DEFAULT;
@@ -315,13 +323,13 @@
 					MFP_DEFAULT;
 				};
 
-				twsi2_isp_pins: pinmux_isp_twsi2_pins {
-					pinctrl-single,pins = <TWSI2_SCL_ISP TWSI2_SDA_ISP>;
+				twsi3_isp_pins: pinmux_isp_twsi3_pins {
+					pinctrl-single,pins = <TWSI3_SCL_ISP TWSI3_SDA_ISP>;
 					MFP_DEFAULT;
 				};
 
-				twsi2_isp_gpio_pins: pinmux_isp_twsi2_gpio_pins {
-					pinctrl-single,pins = <GPIO(TWSI2_SCL_ISP_GPIO) GPIO(TWSI2_SDA_ISP_GPIO)>;
+				twsi3_isp_gpio_pins: pinmux_isp_twsi3_gpio_pins {
+					pinctrl-single,pins = <GPIO(TWSI3_SCL_ISP_GPIO) GPIO(TWSI3_SDA_ISP_GPIO)>;
 					MFP_DEFAULT;
 				};
 
@@ -558,16 +566,10 @@
 	};
 
 	mcam0: mcam@0 {
-		pinctrl-names = "default", "twsi3";
-/*
-		pinctrl-0 = <&twsi3_isp_gpio_pins>;
-		pinctrl-1 = <&twsi3_isp_pins>;
-		sc2-i2c-dyn-ctrl;
 		avdd_2v8-supply = <&ldo3>;
 		dovdd_1v8-supply = <&ldo6>;
 		af_2v8-supply = <&ldo7>;
 		dvdd_1v2-supply = <&ldo19>;
-*/
 		pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 0>;
 		reset-gpios = <&gpio CAM1_RST_N 0>;
 		dphy_val = <0xff1d00 0x00024733 0x04001001>;
@@ -575,12 +577,10 @@
 	};
 
 	mcam1: mcam@1 {
-/*
 		avdd_2v8-supply = <&ldo3>;
 		dovdd_1v8-supply = <&ldo6>;
 		af_2v8-supply = <&ldo7>;
 		dvdd_1v2-supply = <&ldo19>;
-*/
 		pwdn-gpios = <&gpio CAM_SEC_PWDN_N 0>;
 		reset-gpios = <&gpio CAM2_RST_N 0>;
 		dphy_val = <0xff1d00 0x00024733 0x04001001>;
@@ -605,6 +605,45 @@
 
 	plat_cam {
 		status = "okay";
+		backsensor {
+			compatible = "marvell,backsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			IMX219: sensor@0 {
+				compatible = "sony,imx219";
+				status = "okay";
+				reg = <0x1A>;
+				adapter = <0x1>;
+				sensor-pos = <1>;/*SCCB1/CCIC1*/
+				mclk = <26000000>;
+				dphy3 = <0x2700>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo7>;
+				avdd_2v8-supply = <&ldo3>;
+				dovdd_1v8-supply = <&ldo6>;
+				dvdd_1v2-supply = <&CAMERA_DVDD_SUPPLY>;
+				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
+				reset-gpios = <&gpio CAM1_RST_N 1>;
+			};
+			OV13850: sensor@1 {
+				compatible = "ovt,ov13850";
+				status = "okay";
+				reg = <0x10>;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo7>;
+				avdd_2v8-supply = <&ldo3>;
+				dovdd_1v8-supply = <&ldo6>;
+				dvdd_1v2-supply = <&CAMERA_DVDD_SUPPLY>;
+				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
+				reset-gpios = <&gpio CAM1_RST_N 1>;
+			};
+		};
 	};
 
 	ion {

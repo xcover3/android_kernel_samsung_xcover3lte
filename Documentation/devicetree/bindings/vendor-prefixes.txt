@@ -63,6 +63,7 @@ nintendo	Nintendo
 nvidia	NVIDIA
 nxp	NXP Semiconductors
 onnn	ON Semiconductor Corp.
+ovt		OmniVision Technology Co.,Ltd
 panasonic	Panasonic Corporation
 phytec	PHYTEC Messtechnik GmbH
 picochip	Picochip Ltd
@@ -82,6 +83,7 @@ silabs	Silicon Laboratories
 simtek
 sirf	SiRF Technology, Inc.
 snps 	Synopsys, Inc.
+sony	Sony corporation
 spansion	Spansion Inc.
 st	STMicroelectronics
 ste	ST-Ericsson
