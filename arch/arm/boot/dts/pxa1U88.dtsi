@@ -336,6 +336,7 @@
 				dmas = <&pdma0 23 1
 					&pdma0 24 1>;
 				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_UART1>;
 			};
 
@@ -346,6 +347,7 @@
 				dmas = <&pdma0 4 1
 					&pdma0 5 1>;
 				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_UART2>;
 			};
 
