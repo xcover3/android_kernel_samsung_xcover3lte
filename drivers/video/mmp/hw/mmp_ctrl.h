@@ -576,6 +576,15 @@ struct lcd_regs {
 /* SRAM RTC/WTC Control Register */
 #define LCD_SPU_SRAM_PARA0			0x01A0
 
+/* Clock Register */
+#define LCD_SCLK_DIV				0x1A8
+#define SCLK_SOURCE_SELECT(src)				((src)<<29)
+#define SCLK_SOURCE_SELECT_MASK			0xe0000000
+#define SCLK_SOURCE_SELECT_OFFSET			29
+#define DSI1_BITCLK_SOURCE_SELECT(src)		((src)<<12)
+#define DSI1_BITCLK_SROUCE_SELECT_MASK	0x00003000
+#define DSI1_BITCLK_SOURCE_SELECT_OFFSET	12
+
 /* SRAM Power Down Control Register */
 #define LCD_SPU_SRAM_PARA1			0x01A4
 #define	 CFG_CSB_256x32(hwc)			((hwc)<<15)	/* HWC */

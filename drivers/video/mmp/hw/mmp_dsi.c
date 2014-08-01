@@ -1091,7 +1091,9 @@ static inline int check_mode_is_changed(struct mmp_mode *mode_old,
 
 static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 {
+	struct mmp_path *path = mmp_get_path(dsi->plat_path_name);
 	unsigned long clk_rate;
+	u32 tmp, value;
 
 	if (check_mode_is_changed(&dsi->mode, mode)) {
 		memcpy(&dsi->mode, mode, sizeof(struct mmp_mode));
@@ -1100,6 +1102,22 @@ static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 			return;
 
 		clk_set_rate(dsi->clk, clk_rate);
+
+		/*
+		* pixel clk and dsi bit clk have different register bits to select source,
+		* it is possbile that they select different parent clock, in order to avoid
+		* this possibility, decide to use dsi->clk to select clock for pixel clk,
+		* and pixel clk only can set the divider, can't change parent; so after
+		* select the clock source for pixel clk, need copy the clock source from
+		* pixel source register bits(31:29) to dsi clock source register bits(13:12)
+		*/
+
+		tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK_DIV);
+		value = tmp & SCLK_SOURCE_SELECT_MASK;
+		value >>= (SCLK_SOURCE_SELECT_OFFSET - DSI1_BITCLK_SOURCE_SELECT_OFFSET);
+		value &= DSI1_BITCLK_SROUCE_SELECT_MASK;
+		writel_relaxed(tmp | value, ctrl_regs(path) + LCD_SCLK_DIV);
+
 		dsi->set_status(dsi, MMP_RESET);
 	}
 
