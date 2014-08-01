@@ -190,11 +190,25 @@
 				status = "okay";
 			};
 
+			/* UART for GPS */
+			uart0: uart@d4030000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart0_pins>;
+				status = "okay";
+			};
+
 			uart2: uart@d4018000 {
 				pinctrl-names = "default","sleep";
 				pinctrl-0 = <&uart2_pins_rx &uart2_pins_tx>;
 				pinctrl-1 = <&uart2_pins_rx_sleep &uart2_pins_tx>;
 				edge-wakeup-gpio = <UART2_RXD_GPIO>;
+				status = "okay";
+			};
+
+			/* UART for WIFI and SPI NOR */
+			uart3: uart@d4016000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart3_pins>;
 				status = "okay";
 			};
 
@@ -211,6 +225,11 @@
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <PXA1928_GPIO_PINMUX>;
 
+				uart0_pins: pinmux_uart0_pins {
+					pinctrl-single,pins = <UART0_RXD UART0_TXD>;
+					MFP_DEFAULT;
+				};
+
 				uart2_pins_rx: pinmux_uart2_pins_rx {
 					pinctrl-single,pins = <UART2_RXD>;
 					MFP_DEFAULT;
@@ -224,6 +243,12 @@
 				uart2_pins_rx_sleep: pinmux_uart2_pins_rx_sleep {
 					pinctrl-single,pins = <UART2_RXD>;
 					MFP_EDGE_BOTH_DETECT;
+				};
+
+				uart3_pins: pinmux_uart3_pins {
+					pinctrl-single,pins = <UART3_RXD UART3_TXD
+								UART3_RTS UART3_CTS>;
+					MFP_DEFAULT;
 				};
 
 				pwm2_pins: pinmux_pwm2_pins {

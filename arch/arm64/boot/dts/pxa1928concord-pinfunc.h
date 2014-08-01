@@ -15,17 +15,17 @@
 
 #ifndef PXA1928_DISCRETE
 
-/* UART 1 */
-#define	UART1_RXD			P0 0x6
-#define UART1_TXD			P1 0x6
-#define UART1_CTS			P2 0x6
-#define UART1_RTS			P3 0x6
+/* UART 0 */
+#define	UART0_RXD			P0 0x6
+#define UART0_TXD			P1 0x6
+#define UART0_CTS			P2 0x6
+#define UART0_RTS			P3 0x6
 
-/* UART 4 */
-#define UART4_TXD			P47 0x2
-#define UART4_RXD			P48 0x2
-#define UART4_CTS			P49 0x2
-#define UART4_RTS			P50 0x2
+/* UART 3 */
+#define UART3_TXD			P47 0x2
+#define UART3_RXD			P48 0x2
+#define UART3_CTS			P49 0x2
+#define UART3_RTS			P50 0x2
 
 /* Camera */
 #define CAM_MCLK			P14 0x3
