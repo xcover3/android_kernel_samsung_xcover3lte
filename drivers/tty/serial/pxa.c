@@ -128,10 +128,8 @@ static inline void stop_dma(struct uart_pxa_port *up, int read)
 	unsigned long flags;
 	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
 	struct dma_chan *channel;
-	dma_cookie_t cookie;
 
 	channel = read ? pxa_dma->rxdma_chan : pxa_dma->txdma_chan;
-	cookie = read ? pxa_dma->rx_cookie : pxa_dma->tx_cookie;
 
 	dmaengine_terminate_all(channel);
 	spin_lock_irqsave(&up->port.lock, flags);
@@ -216,7 +214,7 @@ static void serial_pxa_stop_rx(struct uart_port *port)
 	if (up->dma_enable) {
 		if (up->ier & UART_IER_DMAE) {
 			spin_unlock_irqrestore(&up->port.lock, up->flags);
-			stop_dma(up, 1);
+			stop_dma(up, PXA_UART_RX);
 			spin_lock_irqsave(&up->port.lock, up->flags);
 		}
 		up->uart_dma.rx_stop = 1;
@@ -777,7 +775,7 @@ static void pxa_uart_transmit_dma_cb(void *data)
 	return;
 }
 
-static void uart_pxa_dma_init(struct uart_pxa_port *up)
+static void pxa_uart_dma_init(struct uart_pxa_port *up)
 {
 	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
 	dma_cap_mask_t mask;
@@ -842,7 +840,7 @@ out:
 	return;
 }
 
-static void uart_pxa_dma_uninit(struct uart_pxa_port *up)
+static void pxa_uart_dma_uninit(struct uart_pxa_port *up)
 {
 	struct uart_pxa_dma *pxa_dma;
 	pxa_dma = &up->uart_dma;
@@ -851,8 +849,8 @@ static void uart_pxa_dma_uninit(struct uart_pxa_port *up)
 	kfree(pxa_dma->tx_buf_save);
 #endif
 
-	stop_dma(up, 0);
-	stop_dma(up, 1);
+	stop_dma(up, PXA_UART_TX);
+	stop_dma(up, PXA_UART_RX);
 	if (pxa_dma->txdma_addr != NULL) {
 		dma_free_coherent(up->port.dev, DMA_BLOCK, pxa_dma->txdma_addr,
 				  pxa_dma->txdma_addr_phys);
@@ -966,7 +964,7 @@ static int serial_pxa_startup(struct uart_port *port)
 	 * anyway, so we don't enable them here.
 	 */
 	if (up->dma_enable) {
-		uart_pxa_dma_init(up);
+		pxa_uart_dma_init(up);
 		up->uart_dma.rx_stop = 0;
 		pxa_uart_receive_dma_start(up);
 		tasklet_init(&up->uart_dma.tklet, uart_task_action,
@@ -1005,7 +1003,7 @@ static void serial_pxa_shutdown(struct uart_port *port)
 
 	if (up->dma_enable) {
 		tasklet_kill(&up->uart_dma.tklet);
-		uart_pxa_dma_uninit(up);
+		pxa_uart_dma_uninit(up);
 	}
 
 	/*
@@ -1457,14 +1455,14 @@ static int serial_pxa_suspend(struct device *dev)
 			pxa_dma->tx_saved_len = dma_state.residue;
 			memcpy(pxa_dma->tx_buf_save, pxa_dma->txdma_addr + sent,
 			       dma_state.residue);
-			stop_dma(sport, 0);
+			stop_dma(sport, PXA_UART_TX);
 		}
 		if (dma_async_is_tx_complete(pxa_dma->rxdma_chan,
 					     pxa_dma->rx_cookie, NULL, NULL)
 			!= DMA_COMPLETE) {
 			dmaengine_pause(pxa_dma->rxdma_chan);
 			pxa_uart_receive_dma_cb(sport);
-			stop_dma(sport, 1);
+			stop_dma(sport, PXA_UART_RX);
 		}
 		local_irq_restore(flags);
 	}
