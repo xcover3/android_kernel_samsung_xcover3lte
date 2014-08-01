@@ -190,6 +190,7 @@ struct msc2_ccic_dev {
 	int lane_num;
 	unsigned int mbus_flags;
 	int ahb_enable;
+	int i2c_dyn_ctrl;
 };
 
 int msc2_get_sc2(struct msc2_mmu_dev **sc2_host, int id);

@@ -15,7 +15,6 @@
 
 #include <linux/of.h>
 #include <linux/of_device.h>
-#include <linux/of_gpio.h>
 #include <linux/regulator/driver.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
@@ -23,7 +22,6 @@
 #include <linux/leds.h>
 #include <linux/math64.h>
 
-#include <media/mv_sc2_twsi_conf.h>
 #ifdef CONFIG_ISP_USE_TWSI3
 #include <linux/i2c.h>
 int twsi_read_i2c_bb(u16 addr, u8 reg, u8 *val)
@@ -845,36 +843,12 @@ static int b52_sensor_detect_sensor(struct v4l2_subdev *sd)
 
 static int b52_sensor_get_power(struct v4l2_subdev *sd)
 {
-	int ret;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct b52_sensor *sensor = to_b52_sensor(sd)
-	struct device_node *pdata_np, *power_np;
+	struct device_node *pdata_np;
 
 	pdata_np = (struct device_node *)client->dev.of_node;
-	power_np = of_get_child_by_name(pdata_np, "sensor_power");
 
-	sensor->power.pwdn = of_get_named_gpio(power_np, "pwdn-gpios", 0);
-	if (sensor->power.pwdn < 0) {
-		pr_err("%x: of_get_named_gpio failed\n", __LINE__);
-		return -ENODEV;
-	}
-	ret = of_property_read_u32(power_np,
-			"pwdn-validvalue", &sensor->power.pwdn_value);
-	if (ret < 0) {
-		pr_err("%x: of_get_gpio_value failed\n", __LINE__);
-		return -ENODEV;
-	}
-	sensor->power.rst = of_get_named_gpio(power_np, "reset-gpios", 0);
-	if (sensor->power.rst < 0) {
-		pr_err("%x: of_get_named_gpio failed\n", __LINE__);
-		return -1;
-	}
-	ret = of_property_read_u32(power_np,
-			"reset-validvalue", &sensor->power.rst_value);
-	if (ret < 0) {
-		pr_err("%x: of_get_gpio_value failed\n", __LINE__);
-		return -ENODEV;
-	}
 	sensor->power.af_2v8 = devm_regulator_get(&client->dev, "af_2v8");
 	if (IS_ERR(sensor->power.af_2v8)) {
 		dev_warn(&client->dev, "Failed to get regulator af_2v8\n");
@@ -1300,27 +1274,39 @@ static int b52_sensor_set_defalut(struct b52_sensor *sensor)
 static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 {
 	int ret = 0;
-	static int pwr_cnt;
 	struct sensor_power *power;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 	power = (struct sensor_power *) &(sensor->power);
 
 	if (on) {
-		if (pwr_cnt++ > 0)
+		if (power->ref_cnt++ > 0)
 			return 0;
 
-		if (sensor->i2c_dyn_ctrl) {
-			ret = sc2_select_pins_state(&client->dev,
-					SC2_PIN_ST_TWSI, SC2_MOD_B52ISP);
+		power->pwdn = devm_gpiod_get(&client->dev, "pwdn");
+		if (IS_ERR(power->pwdn)) {
+			dev_warn(&client->dev, "Failed to get gpio pwdn\n");
+			power->pwdn = NULL;
+		} else {
+			ret = gpiod_direction_output(power->pwdn, 0);
 			if (ret < 0) {
-				pr_err("b52 sensor i2c pin is not configured\n");
+				dev_err(&client->dev, "Failed to set gpio pwdn\n");
 				return ret;
 			}
 		}
 
-		gpio_request(power->pwdn, "CAM_ENABLE_LOW");
-		gpio_request(power->rst, "CAM_RESET_LOW");
+		power->rst = devm_gpiod_get(&client->dev, "reset");
+		if (IS_ERR(power->rst)) {
+			dev_warn(&client->dev, "Failed to get gpio reset\n");
+			power->rst = NULL;
+		} else {
+			ret = gpiod_direction_output(power->rst, 0);
+			if (ret < 0) {
+				dev_err(&client->dev, "Failed to set gpio rst\n");
+				goto rst_err;
+			}
+		}
+
 		if (power->avdd_2v8) {
 			regulator_set_voltage(power->avdd_2v8,
 						2800000, 2800000);
@@ -1328,7 +1314,10 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				goto avdd_err;
 		}
-		gpio_direction_output(power->pwdn, !power->pwdn_value);
+
+		if (power->pwdn)
+			gpiod_set_value_cansleep(power->pwdn, 0);
+
 		if (power->dovdd_1v8) {
 			regulator_set_voltage(power->dovdd_1v8,
 						1800000, 1800000);
@@ -1351,47 +1340,55 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 				goto af_err;
 		}
 
-		gpio_direction_output(power->rst, power->rst_value);
-		usleep_range(100, 120);
-		gpio_direction_output(power->rst, !power->rst_value);
+		if (power->rst) {
+			gpiod_set_value_cansleep(power->rst, 1);
+			usleep_range(100, 120);
+			gpiod_set_value_cansleep(power->rst, 0);
+		}
+
 	} else {
-		if (WARN_ON(pwr_cnt == 0))
+		if (WARN_ON(power->ref_cnt == 0))
 			return -EINVAL;
 
-		if (--pwr_cnt > 0)
+		if (--power->ref_cnt > 0)
 			return 0;
 
-		gpio_direction_output(power->rst, power->rst_value);
+		if (power->rst)
+			gpiod_set_value_cansleep(power->rst, 1);
 		if (power->dvdd_1v2)
 			regulator_disable(power->dvdd_1v2);
 		if (power->avdd_2v8)
 			regulator_disable(power->avdd_2v8);
-		gpio_direction_output(power->pwdn, power->pwdn_value);
+		if (power->pwdn)
+			gpiod_set_value_cansleep(power->pwdn, 1);
 		if (power->dovdd_1v8)
 			regulator_disable(power->dovdd_1v8);
 		if (power->af_2v8)
 			regulator_disable(power->af_2v8);
-		gpio_free(power->rst);
-		gpio_free(power->pwdn);
 
-		if (sensor->i2c_dyn_ctrl) {
-			ret = sc2_select_pins_state(&client->dev,
-					SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);
-			if (ret < 0)
-				pr_err("b52 sensor gpio pin is not configured\n");
-		}
+		if (sensor->power.rst)
+			devm_gpiod_put(&client->dev, sensor->power.rst);
+		if (sensor->power.pwdn)
+			devm_gpiod_put(&client->dev, sensor->power.pwdn);
 	}
+
 	return ret;
+
 af_err:
-	regulator_disable(power->dvdd_1v2);
+	if (power->dvdd_1v2)
+		regulator_disable(power->dvdd_1v2);
 dvdd_err:
-	regulator_disable(power->dovdd_1v8);
+	if (power->dovdd_1v8)
+		regulator_disable(power->dovdd_1v8);
 dovdd_err:
-	regulator_disable(power->af_2v8);
+	if (power->avdd_2v8)
+		regulator_disable(power->af_2v8);
 avdd_err:
-	if (sensor->i2c_dyn_ctrl)
-		ret = sc2_select_pins_state(&client->dev,
-				SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);
+	if (sensor->power.rst)
+		devm_gpiod_put(&client->dev, sensor->power.rst);
+rst_err:
+	if (sensor->power.pwdn)
+		devm_gpiod_put(&client->dev, sensor->power.pwdn);
 
 	return ret;
 }
@@ -2077,10 +2074,6 @@ static int b52_sensor_probe(struct i2c_client *client,
 
 	sensor->drvdata = of_id->data;
 	sensor->dev = dev;
-
-
-	if (of_get_property(np, "sc2-i2c-dyn-ctrl", NULL))
-		sensor->i2c_dyn_ctrl = 1;
 
 	ret = of_property_read_u32(np, "sensor-pos", (u32 *)&sensor->pos);
 	if (ret < 0) {

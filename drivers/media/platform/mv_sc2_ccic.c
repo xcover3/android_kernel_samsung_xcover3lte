@@ -32,6 +32,7 @@
 #include <linux/clk.h>
 
 #include <media/mrvl-camera.h> /* TBD refined */
+#include <media/mv_sc2_twsi_conf.h>
 
 #include "mv_sc2_ccic.h"
 
@@ -804,6 +805,10 @@ static void ccic_clk_enable(struct ccic_ctrl_dev *ctrl_dev)
 	clk_prepare_enable(ctrl_dev->clk4x);
 	if (ccic_dev->ahb_enable)
 		clk_prepare_enable(ctrl_dev->ahb_clk);
+
+	if (ccic_dev->i2c_dyn_ctrl)
+		sc2_select_pins_state(&ccic_dev->pdev->dev,
+				SC2_PIN_ST_TWSI, SC2_MOD_CCIC);
 }
 
 static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
@@ -815,6 +820,10 @@ static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
 	clk_disable_unprepare(ctrl_dev->clk4x);
 	if (ccic_dev->ahb_enable)
 		clk_disable_unprepare(ctrl_dev->ahb_clk);
+
+	if (ccic_dev->i2c_dyn_ctrl)
+		sc2_select_pins_state(&ccic_dev->pdev->dev,
+			SC2_PIN_ST_GPIO, SC2_MOD_CCIC);
 }
 
 static struct ccic_ctrl_ops ccic_ctrl_ops = {
@@ -1038,6 +1047,9 @@ static int msc2_ccic_probe(struct platform_device *pdev)
 
 	if (!of_property_read_u32(np, "ahb_enable", &ahb_enable))
 		ccic_dev->ahb_enable = ahb_enable;
+
+	if (of_get_property(np, "sc2-i2c-dyn-ctrl", NULL))
+		ccic_dev->i2c_dyn_ctrl = 1;
 
 	ret = ccic_init_clk(ctrl_dev);
 	if (ret) {

@@ -2,6 +2,7 @@
 #define __MMP_B52_SENSOR_H__
 
 #include <linux/types.h>
+#include <linux/gpio/consumer.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-ctrls.h>
 #include <uapi/linux/v4l2-mediabus.h>
@@ -265,10 +266,9 @@ struct sensor_power {
 	struct regulator *avdd_2v8;
 	struct regulator *dovdd_1v8;
 	struct regulator *dvdd_1v2;
-	int pwdn;
-	int pwdn_value;
-	int rst;
-	int rst_value;
+	struct gpio_desc *pwdn;
+	struct gpio_desc *rst;
+	int ref_cnt;
 };
 
 struct b52_sensor_flash {
@@ -308,8 +308,6 @@ struct b52_sensor {
 	struct b52_sensor_regs mf_regs;
 	u8 cur_res_idx;
 	u8 cur_mbus_idx;
-
-	int i2c_dyn_ctrl;
 };
 
 extern struct b52_sensor *b52_get_sensor(struct media_entity *entity);

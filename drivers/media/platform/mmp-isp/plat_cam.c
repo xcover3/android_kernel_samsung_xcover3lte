@@ -677,7 +677,7 @@ static struct v4l2_subdev *b52_detect_sensor(
 			return NULL;
 		}
 		ret = of_property_read_string(subdev_np,
-					"sensor-name", &s);
+					"compatible", &s);
 		if (ret < 0) {
 			pr_err("%s Unable to get sensor full name\n", __func__);
 			return NULL;

@@ -46,10 +46,10 @@
 #define MS_PER_JIFFIES  10
 
 #define PATH_PER_PIPE 3
-#if 0
+
 static struct pm_qos_request b52isp_qos_idle;
 static int b52isp_req_qos;
-#endif
+
 static void b52isp_tasklet(unsigned long data);
 
 static int trace = 2;
@@ -166,7 +166,6 @@ static struct isp_res_req b52axi_req[] = {
 
 static void b52isp_lpm_update(int level)
 {
-#if 0
 	static atomic_t ref_cnt = ATOMIC_INIT(0);
 	if (level) {
 		if (atomic_inc_return(&ref_cnt) == 1) {
@@ -180,7 +179,6 @@ static void b52isp_lpm_update(int level)
 				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 		}
 	}
-#endif
 }
 
 static void __maybe_unused dump_mac_reg(void __iomem *mac_base)
@@ -3347,14 +3345,12 @@ static int b52isp_probe(struct platform_device *pdev)
 		}
 	}
 
-#if 0
 	ret = of_property_read_u32(np, "lpm-qos", &b52isp_req_qos);
 	if (ret)
 		return ret;
 	b52isp_qos_idle.name = B52ISP_DRV_NAME;
 	pm_qos_add_request(&b52isp_qos_idle, PM_QOS_CPUIDLE_BLOCK,
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
-#endif
 
 	ret = b52isp_setup(b52isp);
 	if (unlikely(ret < 0)) {
@@ -3368,9 +3364,8 @@ static int b52isp_probe(struct platform_device *pdev)
 	return 0;
 
 out:
-#if 0
 	pm_qos_remove_request(&b52isp_qos_idle);
-#endif
+
 	return ret;
 }
 
@@ -3378,10 +3373,7 @@ static int b52isp_remove(struct platform_device *pdev)
 {
 	struct b52isp *b52isp = platform_get_drvdata(pdev);
 
-#if 0
 	pm_qos_remove_request(&b52isp_qos_idle);
-#endif
-
 	pm_runtime_disable(b52isp->dev);
 	devm_kfree(b52isp->dev, b52isp);
 	return 0;
