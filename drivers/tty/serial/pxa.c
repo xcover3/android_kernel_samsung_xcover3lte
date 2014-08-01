@@ -800,15 +800,15 @@ static void uart_pxa_dma_init(struct uart_pxa_port *up)
 	}
 
 	if (NULL == pxa_dma->txdma_addr) {
-		pxa_dma->txdma_addr = dma_alloc_coherent(NULL, DMA_BLOCK,
-				&pxa_dma->txdma_addr_phys, GFP_KERNEL);
+		pxa_dma->txdma_addr = dma_alloc_coherent(up->port.dev,
+			DMA_BLOCK, &pxa_dma->txdma_addr_phys, GFP_KERNEL);
 		if (!pxa_dma->txdma_addr)
 			goto txdma_err_alloc;
 	}
 
 	if (NULL == pxa_dma->rxdma_addr) {
-		pxa_dma->rxdma_addr = dma_alloc_coherent(NULL, DMA_BLOCK,
-				&pxa_dma->rxdma_addr_phys, GFP_KERNEL);
+		pxa_dma->rxdma_addr = dma_alloc_coherent(up->port.dev,
+			DMA_BLOCK, &pxa_dma->rxdma_addr_phys, GFP_KERNEL);
 		if (!pxa_dma->rxdma_addr)
 			goto rxdma_err_alloc;
 	}
@@ -824,12 +824,12 @@ static void uart_pxa_dma_init(struct uart_pxa_port *up)
 
 #ifdef CONFIG_PM
 buf_err_alloc:
-	dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->rxdma_addr,
+	dma_free_coherent(up->port.dev, DMA_BLOCK, pxa_dma->rxdma_addr,
 			  pxa_dma->rxdma_addr_phys);
 	pxa_dma->rxdma_addr = NULL;
 #endif
 rxdma_err_alloc:
-	dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->txdma_addr,
+	dma_free_coherent(up->port.dev, DMA_BLOCK, pxa_dma->txdma_addr,
 			  pxa_dma->txdma_addr_phys);
 	pxa_dma->txdma_addr = NULL;
 txdma_err_alloc:
@@ -854,7 +854,7 @@ static void uart_pxa_dma_uninit(struct uart_pxa_port *up)
 	stop_dma(up, 0);
 	stop_dma(up, 1);
 	if (pxa_dma->txdma_addr != NULL) {
-		dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->txdma_addr,
+		dma_free_coherent(up->port.dev, DMA_BLOCK, pxa_dma->txdma_addr,
 				  pxa_dma->txdma_addr_phys);
 		pxa_dma->txdma_addr = NULL;
 	}
@@ -864,7 +864,7 @@ static void uart_pxa_dma_uninit(struct uart_pxa_port *up)
 	}
 
 	if (pxa_dma->rxdma_addr != NULL) {
-		dma_free_coherent(NULL, DMA_BLOCK, pxa_dma->rxdma_addr,
+		dma_free_coherent(up->port.dev, DMA_BLOCK, pxa_dma->rxdma_addr,
 				  pxa_dma->rxdma_addr_phys);
 		pxa_dma->rxdma_addr = NULL;
 	}
