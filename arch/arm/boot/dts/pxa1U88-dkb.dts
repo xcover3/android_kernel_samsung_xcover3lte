@@ -181,7 +181,7 @@
 			mfpr: mfpr@d401e000 {
 				pinctrl-names = "default";
 				reg = <0xd401e000 0x280>;
-				pinctrl-0 = <&mfp_pins_group_0>;
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1>;
 				status = "ok";
 			};
 
@@ -212,6 +212,15 @@
                                         >;
                                         MFP_LPM_PULL_UP;
                                 };
+
+				/* CP UART Rx and Tx */
+				mfp_pins_group_1: mfp_pins_group_1 {
+					pinctrl-single,pins = <
+						GPIO43 AF7
+						GPIO44 AF7
+					>;
+					MFP_DEFAULT;
+				};
 
 				keypad_in_func: keypad_in_func {
 					pinctrl-single,pins = <
