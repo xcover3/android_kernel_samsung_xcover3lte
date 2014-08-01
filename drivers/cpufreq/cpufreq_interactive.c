@@ -1139,12 +1139,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			return -ENOMEM;
 		}
 
-		/*
-		 * send out uevent for userspace to modify the access permission
-		 * of related governor para file node
-		 */
-		kobject_uevent(get_governor_parent_kobj(policy), KOBJ_ADD);
-
 		tunables->usage_count = 1;
 		tunables->above_hispeed_delay = default_above_hispeed_delay;
 		tunables->nabove_hispeed_delay =
@@ -1182,6 +1176,11 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 					CPUFREQ_TRANSITION_NOTIFIER);
 		}
 
+		/*
+		 * send out uevent for userspace to modify the access permission
+		 * of related governor para file node
+		 */
+		kobject_uevent(get_governor_parent_kobj(policy), KOBJ_ADD);
 		break;
 
 	case CPUFREQ_GOV_POLICY_EXIT:
