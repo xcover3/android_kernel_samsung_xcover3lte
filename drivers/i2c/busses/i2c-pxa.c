@@ -1577,7 +1577,7 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	}
 
 	i2c->adap.owner   = THIS_MODULE;
-	i2c->adap.retries = 5;
+	i2c->adap.retries = 3;
 
 	i2c->qos_idle.name = i2c->adap.name;
 	pm_qos_add_request(&i2c->qos_idle, PM_QOS_CPUIDLE_BLOCK,
