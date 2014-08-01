@@ -97,10 +97,16 @@ static u32 vdma_cal_line(struct mmp_vdma_info *vdma_info,
 	sram_size = vdma_pix_fmt ? (vdma_info->sram_size >> 1) :
 		vdma_info->sram_size;
 
+	/* In DC4_LITE the SQU lize least is 1 */
+	if (DISP_GEN4_LITE(vdma->version)) {
+		mulfactor = 1;
+		least_lines = 1;
+	} else {
+		least_lines = is_yuv420_fmt(win->pix_fmt) ? 4 : 2;
+	}
 	lines = (sram_size / pitch) & (~(mulfactor - 1));
 	if (lines > 16)
 		lines = 16;
-	least_lines = is_yuv420_fmt(win->pix_fmt) ? 4 : 2;
 	lines /= least_lines;
 	lines *= least_lines;
 	/* at least 2 lines */
@@ -402,8 +408,13 @@ static void vdma_set_win(struct mmp_vdma_info *vdma_info,
 	}
 	vdma_ch_sel(vdma_info);
 	vdma_set_dst_addr(vdma_info);
-	vdma_squ_set(vdma_info->overlay_id, vdma_info->sub_ch_num,
-			0x1f << 1, sram_lines - 2);
+	if (DISP_GEN4_LITE(vdma->version)) {
+		vdma_squ_set(vdma_info->overlay_id, vdma_info->sub_ch_num,
+				0x1f << 1, (sram_lines - 1) << 1);
+	} else {
+		vdma_squ_set(vdma_info->overlay_id, vdma_info->sub_ch_num,
+				0x1f << 1, ((sram_lines >> 1) - 1)  << 1);
+	}
 	height = win->ysrc & 0xffff;
 
 	sub_ch_id = get_sub_ch_id(vdma_info->vdma_id);
@@ -423,7 +434,12 @@ static void vdma_set_win(struct mmp_vdma_info *vdma_info,
 		writel_relaxed(size, &ch_reg->dst_size);
 		tmp = readl_relaxed(&ch_reg->ctrl) &
 			(~((0x7 << 16) | (0xff << 8)));
-		tmp |= (sram_lines << 8) | (vdma_pix_fmt << 16);
+		/* Allocated memory in SQU line size is SQU_LN_SZ + 1 */
+		if (DISP_GEN4_LITE(vdma->version))
+			tmp |= ((sram_lines - 1) << 8) | (vdma_pix_fmt << 16);
+		else
+			tmp |= (sram_lines << 8) | (vdma_pix_fmt << 16);
+
 		writel_relaxed(tmp, &ch_reg->ctrl);
 
 	}

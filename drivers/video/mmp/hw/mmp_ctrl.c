@@ -76,7 +76,8 @@ static void path_hw_trigger(struct mmp_path *path)
 	if (DISP_GEN4(path_to_ctrl(path)->version)) {
 		tmp = readl_relaxed(ctrl_regs(path) + LCD_SHADOW_CTRL) |
 			SHADOW_TRIG(path->id);
-		writel_relaxed(tmp, ctrl_regs(path) + LCD_SHADOW_CTRL);
+		if (!DISP_GEN4_LITE(path_to_ctrl(path)->version))
+			writel_relaxed(tmp, ctrl_regs(path) + LCD_SHADOW_CTRL);
 
 		for (i = 0; i < path->overlay_num; i++) {
 			overlay = &path->overlays[i];
@@ -897,15 +898,22 @@ static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 			path->panel->set_status(path->panel, status);
 		path->status = on;
 	} else if (on) {
-		if (path->ops.check_status(path) != path->status)
-			path_onoff(path, on);
+		if (path->ops.check_status(path) != path->status) {
+			if (!DISP_GEN4_LITE(path_to_ctrl(path)->version))
+				path_onoff(path, on);
 			hw_trigger = 1;
+		}
 
 		dmafetch_onoff(overlay, on);
-		if (hw_trigger)
+		if (hw_trigger) {
 			/* if path DMA enabled the first time, we need set hw
 			 * trigger immediately */
 			path_hw_trigger(path);
+			/* in ulc and helan3, we need to move dump_en after bit
+			 * trigger */
+			if (DISP_GEN4_LITE(path_to_ctrl(path)->version))
+				path_onoff(path, on);
+		}
 	} else {
 		dmafetch_onoff(overlay, on);
 

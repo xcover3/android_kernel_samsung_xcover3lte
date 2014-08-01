@@ -909,7 +909,8 @@ struct lcd_regs {
 		|| (pix_fmt) == PIXFMT_YVU420SP)
 
 #define LCD_VERSION				(0x0240)
-#define DISP_GEN4(version)			((version) == 4)
+#define DISP_GEN4(version)	((version) == 4 || (version) == 0x14)
+#define DISP_GEN4_LITE(version)	((version) == 0x14)
 
 #define LCD_PN_CTRL2				(0x200)
 #define LCD_TV_CTRL2				(0x204)
