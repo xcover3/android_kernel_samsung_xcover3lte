@@ -748,6 +748,11 @@
 			reg = <0xd4015000 0x74>;
 		};
 
+		apbs: apbs@d4090000 {
+			compatible = "marvell,mmp-apb-spare";
+			reg = <0xd4090000 0x154>;
+		};
+
 		ciu: ciu@d4282c00 {
 			compatible = "marvell,mmp-ciu";
 			reg = <0xd4282c00 0x1ac>;
