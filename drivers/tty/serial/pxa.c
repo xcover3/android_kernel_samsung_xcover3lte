@@ -94,9 +94,9 @@ struct uart_pxa_dma {
 
 struct uart_pxa_port {
 	struct uart_port        port;
-	unsigned char           ier;
+	unsigned int            ier;
 	unsigned char           lcr;
-	unsigned char           mcr;
+	unsigned int            mcr;
 	unsigned int            lsr_break_flag;
 	struct timer_list	pxa_timer;
 	struct pm_qos_request	qos_idle[2];
@@ -521,8 +521,12 @@ static inline irqreturn_t serial_pxa_irq(int irq, void *dev_id)
 			receive_chars(up, &lsr);
 
 		check_modem_status(up);
-		if (lsr & UART_LSR_THRE)
+		if (lsr & UART_LSR_THRE) {
 			transmit_chars(up);
+			/* wait Tx empty */
+			while (!serial_pxa_tx_empty((struct uart_port *)dev_id))
+				;
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -574,7 +578,7 @@ static unsigned int serial_pxa_get_mctrl(struct uart_port *port)
 static void serial_pxa_set_mctrl(struct uart_port *port, unsigned int mctrl)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
-	unsigned char mcr = 0;
+	unsigned int mcr = 0;
 
 	if (mctrl & TIOCM_RTS)
 		mcr |= UART_MCR_RTS;
@@ -701,8 +705,6 @@ static void pxa_uart_receive_dma_cb(void *data)
 	unsigned char *tmp = pxa_dma->rxdma_addr;
 	struct dma_tx_state dma_state;
 
-	serial_in(up, UART_LSR);
-
 	if (!mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT))
 		pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
 				      up->lpm_qos);
@@ -786,14 +788,14 @@ static void uart_pxa_dma_init(struct uart_pxa_port *up)
 	if (NULL == pxa_dma->rxdma_chan) {
 		pxa_dma->rxdma_chan = dma_request_slave_channel(up->port.dev,
 								"rx");
-		if (NULL == pxa_dma->rxdma_chan)
+		if (IS_ERR_OR_NULL(pxa_dma->rxdma_chan))
 			goto out;
 	}
 
 	if (NULL == pxa_dma->txdma_chan) {
 		pxa_dma->txdma_chan = dma_request_slave_channel(up->port.dev,
 								"tx");
-		if (pxa_dma->txdma_chan < 0)
+		if (IS_ERR_OR_NULL(pxa_dma->txdma_chan))
 			goto err_txdma;
 	}
 
@@ -1034,7 +1036,7 @@ serial_pxa_set_termios(struct uart_port *port, struct ktermios *termios,
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
 	unsigned char cval, fcr = 0;
 	unsigned long flags;
-	unsigned int baud, quot;
+	unsigned int baud, quot = 0;
 	unsigned int dll;
 
 	switch (termios->c_cflag & CSIZE) {
@@ -1063,8 +1065,18 @@ serial_pxa_set_termios(struct uart_port *port, struct ktermios *termios,
 	/*
 	 * Ask the core to calculate the divisor for us.
 	 */
-	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk/16);
-	quot = uart_get_divisor(port, baud);
+	baud = uart_get_baud_rate(port, termios, old, 0, 921600*16*4/16);
+	if (baud > 921600) {
+		port->uartclk = 921600*16*4; /* 58.9823MHz as the clk src */
+		if (B1500000 == (termios->c_cflag & B1500000))
+			quot = 2;
+		if (B3500000 == (termios->c_cflag & B3500000))
+			quot = 1;
+		if (quot == 0)
+			quot = uart_get_divisor(port, baud);
+	} else {
+		quot = uart_get_divisor(port, baud);
+	}
 
 	if (up->dma_enable) {
 		fcr = UART_FCR_ENABLE_FIFO | UART_FCR_PXAR32 |
@@ -1084,6 +1096,10 @@ serial_pxa_set_termios(struct uart_port *port, struct ktermios *termios,
 	 * interrupts disabled.
 	 */
 	spin_lock_irqsave(&up->port.lock, flags);
+	if (baud > 921600)
+		up->ier |= UART_IER_HSE;
+	else
+		up->ier &= ~UART_IER_HSE;
 
 	/*
 	 * Ensure the port will be enabled.
@@ -1649,8 +1665,10 @@ static int serial_pxa_probe(struct platform_device *dev)
 		ret = request_mfp_edge_wakeup(sport->edge_wakeup_gpio,
 					      uart_edge_wakeup_handler,
 					      sport, &dev->dev);
-		if (ret)
+		if (ret) {
 			dev_err(&dev->dev, "failed to request edge wakeup.\n");
+			goto err_qos;
+		}
 	}
 
 	sport->port.membase = ioremap(mmres->start, resource_size(mmres));
@@ -1674,6 +1692,9 @@ static int serial_pxa_probe(struct platform_device *dev)
 	return 0;
 
  err_map:
+	if (sport->edge_wakeup_gpio >= 0)
+		remove_mfp_edge_wakeup(sport->edge_wakeup_gpio);
+ err_qos:
 	kfree(sport->qos_idle[PXA_UART_TX].name);
 	kfree(sport->qos_idle[PXA_UART_RX].name);
 	pm_qos_remove_request(&sport->qos_idle[PXA_UART_RX]);
