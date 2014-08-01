@@ -311,7 +311,9 @@
 				dmas = <&pdma0 4 1
 					&pdma0 5 1>;
 				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1928_CLK_UART0>;
+				status = "disabled";
 			};
 
 			uart1: uart@d4017000 {
@@ -321,18 +323,21 @@
 				dmas = <&pdma1 20 1
 					&pdma1 21 1>;
 				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1928_CLK_UART1>;
+				status = "disabled";
 			};
 
 			uart2: uart@d4018000 {
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4018000 0x1000>;
 				interrupts = <0 24 0x4>;
-				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				dmas = <&pdma0 22 1
 					&pdma0 23 1>;
 				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1928_CLK_UART2>;
+				status = "disabled";
 			};
 
 			uart3: uart@d4016000 {
@@ -342,7 +347,9 @@
 				dmas = <&pdma1 18 1
 					&pdma1 19 1>;
 				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1928_CLK_UART3>;
+				status = "disabled";
 			};
 
 			pwm1: pwm@d401a000 {
