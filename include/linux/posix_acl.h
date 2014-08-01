@@ -39,6 +39,9 @@ struct posix_acl_entry {
 	union {
 		kuid_t		e_uid;
 		kgid_t		e_gid;
+#ifndef CONFIG_UIDGID_STRICT_TYPE_CHECKS
+		unsigned int	e_id;
+#endif
 	};
 };
 
