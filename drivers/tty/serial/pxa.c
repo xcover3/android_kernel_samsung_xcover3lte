@@ -148,7 +148,7 @@ static void pxa_uart_transmit_dma_start(struct uart_pxa_port *up, int count);
 static void pxa_uart_receive_dma_start(struct uart_pxa_port *up);
 static inline void wait_for_xmitr(struct uart_pxa_port *up);
 static inline void serial_out(struct uart_pxa_port *up, int offset, int value);
-
+static void pxa_timer_handler(unsigned long data);
 static unsigned int serial_pxa_tx_empty(struct uart_port *port);
 
 #define PXA_TIMER_TIMEOUT (3*HZ)
@@ -1471,6 +1471,10 @@ static int serial_pxa_suspend(struct device *dev)
 
 	if (sport)
 		uart_suspend_port(&serial_pxa_reg, &sport->port);
+
+	/* Remove uart rx constraint which will block system entering D1p. */
+	if (del_timer_sync(&sport->pxa_timer))
+		pxa_timer_handler((unsigned long)sport);
 
         return 0;
 }
