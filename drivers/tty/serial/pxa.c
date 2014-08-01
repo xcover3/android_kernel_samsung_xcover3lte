@@ -48,6 +48,7 @@
 #include <linux/dmaengine.h>
 #include <linux/pm_qos.h>
 #include <linux/edge_wakeup_mmp.h>
+#include <linux/wakelock.h>
 
 #define	DMA_BLOCK	UART_XMIT_SIZE
 
@@ -103,6 +104,7 @@ struct uart_pxa_port {
 	int			edge_wakeup_gpio;
 	struct clk		*clk;
 	char			name[PXA_NAME_LEN];
+	struct work_struct	uart_tx_lpm_work;
 	int			dma_enable;
 	struct uart_pxa_dma	uart_dma;
 };
@@ -147,6 +149,8 @@ static inline void wait_for_xmitr(struct uart_pxa_port *up);
 static inline void serial_out(struct uart_pxa_port *up, int offset, int value);
 
 static unsigned int serial_pxa_tx_empty(struct uart_port *port);
+
+#define PXA_TIMER_TIMEOUT (3*HZ)
 
 static inline unsigned int serial_in(struct uart_pxa_port *up, int offset)
 {
@@ -491,6 +495,12 @@ static inline irqreturn_t serial_pxa_irq(int irq, void *dev_id)
 	iir = serial_in(up, UART_IIR);
 	if (iir & UART_IIR_NO_INT)
 		return IRQ_NONE;
+
+	/* timer is not active */
+	if (!mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT))
+		pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
+				      up->lpm_qos);
+
 	lsr = serial_in(up, UART_LSR);
 	if (up->dma_enable) {
 		/* we only need to deal with FIFOE here */
@@ -620,6 +630,8 @@ static void pxa_uart_transmit_dma_start(struct uart_pxa_port *up, int count)
 	pxa_dma->tx_desc->callback_param = up;
 
 	pxa_dma->tx_cookie = dmaengine_submit(pxa_dma->tx_desc);
+	pm_qos_update_request(&up->qos_idle[PXA_UART_TX],
+			      up->lpm_qos);
 
 	dma_async_issue_pending(pxa_dma->txdma_chan);
 }
@@ -681,6 +693,10 @@ static void pxa_uart_receive_dma_cb(void *data)
 
 	serial_in(up, UART_LSR);
 
+	if (!mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT))
+		pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
+				      up->lpm_qos);
+
 	dmaengine_tx_status(pxa_dma->rxdma_chan, pxa_dma->rx_cookie,
 			    &dma_state);
 	count = DMA_BLOCK - dma_state.residue;
@@ -718,6 +734,10 @@ static void pxa_uart_transmit_dma_cb(void *data)
 	struct uart_pxa_port *up = (struct uart_pxa_port *)data;
 	struct uart_pxa_dma *pxa_dma = &up->uart_dma;
 	struct circ_buf *xmit = &up->port.state->xmit;
+
+	if (dma_async_is_tx_complete(pxa_dma->txdma_chan, pxa_dma->tx_cookie,
+				     NULL, NULL) == DMA_COMPLETE)
+		schedule_work(&up->uart_tx_lpm_work);
 
 	spin_lock(&up->port.lock);
 	/*
@@ -964,6 +984,8 @@ static void serial_pxa_shutdown(struct uart_port *port)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
 	unsigned long flags;
+
+	flush_work(&up->uart_tx_lpm_work);
 
 	free_irq(up->port.irq, up);
 
@@ -1462,13 +1484,24 @@ static void pxa_timer_handler(unsigned long data)
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 }
 
-#define PXA_TIMER_TIMEOUT (3 * HZ)
 static void uart_edge_wakeup_handler(int gpio, void *data)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)data;
 	if (!mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT))
 		pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
 				      up->lpm_qos);
+}
+
+static void uart_tx_lpm_handler(struct work_struct *work)
+{
+	struct uart_pxa_port *up =
+		container_of(work, struct uart_pxa_port, uart_tx_lpm_work);
+
+	/* Polling until TX FIFO is empty */
+	while (!(serial_in(up, UART_LSR) & UART_LSR_TEMT))
+		usleep_range(1000, 2000);
+	pm_qos_update_request(&up->qos_idle[PXA_UART_TX],
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 }
 
 static struct of_device_id serial_pxa_dt_ids[] = {
@@ -1580,20 +1613,6 @@ static int serial_pxa_probe(struct platform_device *dev)
 		}
 	}
 
-	sport->port.membase = ioremap(mmres->start, resource_size(mmres));
-	if (!sport->port.membase) {
-		ret = -ENOMEM;
-		goto err_clk;
-	}
-
-	init_timer(&sport->pxa_timer);
-	sport->pxa_timer.function = pxa_timer_handler;
-	sport->pxa_timer.data = (long)sport;
-
-	serial_pxa_ports[sport->port.line] = sport;
-
-	uart_add_one_port(&serial_pxa_reg, &sport->port);
-
 	sport->qos_idle[PXA_UART_TX].name = kasprintf(GFP_KERNEL,
 					    "%s%s", "tx", sport->name);
 	if (!sport->qos_idle[PXA_UART_TX].name) {
@@ -1622,10 +1641,31 @@ static int serial_pxa_probe(struct platform_device *dev)
 			dev_err(&dev->dev, "failed to request edge wakeup.\n");
 	}
 
+	sport->port.membase = ioremap(mmres->start, resource_size(mmres));
+	if (!sport->port.membase) {
+		ret = -ENOMEM;
+		goto err_map;
+	}
+
+	INIT_WORK(&sport->uart_tx_lpm_work, uart_tx_lpm_handler);
+
+	init_timer(&sport->pxa_timer);
+	sport->pxa_timer.function = pxa_timer_handler;
+	sport->pxa_timer.data = (long)sport;
+
+	serial_pxa_ports[sport->port.line] = sport;
+
+	uart_add_one_port(&serial_pxa_reg, &sport->port);
+
 	platform_set_drvdata(dev, sport);
 
 	return 0;
 
+ err_map:
+	kfree(sport->qos_idle[PXA_UART_TX].name);
+	kfree(sport->qos_idle[PXA_UART_RX].name);
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_RX]);
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_TX]);
  err_clk:
 	clk_unprepare(sport->clk);
 	clk_put(sport->clk);
@@ -1637,6 +1677,11 @@ static int serial_pxa_probe(struct platform_device *dev)
 static int serial_pxa_remove(struct platform_device *dev)
 {
 	struct uart_pxa_port *sport = platform_get_drvdata(dev);
+
+	kfree(sport->qos_idle[PXA_UART_TX].name);
+	kfree(sport->qos_idle[PXA_UART_RX].name);
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_RX]);
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_TX]);
 
 	uart_remove_one_port(&serial_pxa_reg, &sport->port);
 
