@@ -107,6 +107,7 @@ struct uart_pxa_port {
 	struct work_struct	uart_tx_lpm_work;
 	int			dma_enable;
 	struct uart_pxa_dma	uart_dma;
+	unsigned long		flags;
 };
 
 static int uart_dma;
@@ -214,9 +215,9 @@ static void serial_pxa_stop_rx(struct uart_port *port)
 
 	if (up->dma_enable) {
 		if (up->ier & UART_IER_DMAE) {
-			spin_unlock(&up->port.lock);
+			spin_unlock_irqrestore(&up->port.lock, up->flags);
 			stop_dma(up, 1);
-			spin_lock(&up->port.lock);
+			spin_lock_irqsave(&up->port.lock, up->flags);
 		}
 		up->uart_dma.rx_stop = 1;
 	} else {
@@ -239,8 +240,10 @@ static inline void receive_chars(struct uart_pxa_port *up, int *status)
 		 * Step 2
 		 * Disable the Reciever Time Out Interrupt via IER[RTOEI]
 		 */
+		spin_lock_irqsave(&up->port.lock, up->flags);
 		up->ier &= ~UART_IER_RTOIE;
 		serial_out(up, UART_IER, up->ier);
+		spin_unlock_irqrestore(&up->port.lock, up->flags);
 
 		ch = serial_in(up, UART_RX);
 		flag = TTY_NORMAL;
@@ -306,8 +309,10 @@ static inline void receive_chars(struct uart_pxa_port *up, int *status)
 	 * Step 6:
 	 * No more data in FIFO: Re-enable RTO interrupt via IER[RTOIE]
 	 */
+	spin_lock_irqsave(&up->port.lock, up->flags);
 	up->ier |= UART_IER_RTOIE;
 	serial_out(up, UART_IER, up->ier);
+	spin_unlock_irqrestore(&up->port.lock, up->flags);
 }
 
 static void transmit_chars(struct uart_pxa_port *up)
@@ -322,7 +327,9 @@ static void transmit_chars(struct uart_pxa_port *up)
 		return;
 	}
 	if (uart_circ_empty(xmit) || uart_tx_stopped(&up->port)) {
+		spin_lock_irqsave(&up->port.lock, up->flags);
 		serial_pxa_stop_tx(&up->port);
+		spin_unlock_irqrestore(&up->port.lock, up->flags);
 		return;
 	}
 
@@ -339,8 +346,11 @@ static void transmit_chars(struct uart_pxa_port *up)
 		uart_write_wakeup(&up->port);
 
 
-	if (uart_circ_empty(xmit))
+	if (uart_circ_empty(xmit)) {
+		spin_lock_irqsave(&up->port.lock, up->flags);
 		serial_pxa_stop_tx(&up->port);
+		spin_unlock_irqrestore(&up->port.lock, up->flags);
+	}
 }
 
 static inline void
@@ -739,13 +749,13 @@ static void pxa_uart_transmit_dma_cb(void *data)
 				     NULL, NULL) == DMA_COMPLETE)
 		schedule_work(&up->uart_tx_lpm_work);
 
-	spin_lock(&up->port.lock);
+	spin_lock_irqsave(&up->port.lock, up->flags);
 	/*
 	 * DMA_RUNNING flag should be clear only after
 	 * all dma interface operation completed
 	 */
 	pxa_dma->dma_status &= ~TX_DMA_RUNNING;
-	spin_unlock(&up->port.lock);
+	spin_unlock_irqrestore(&up->port.lock, up->flags);
 
 	/* if tx stop, stop transmit DMA and return */
 	if (pxa_dma->tx_stop)
@@ -961,6 +971,7 @@ static int serial_pxa_startup(struct uart_port *port)
 			     (unsigned long)up);
 	}
 
+	spin_lock_irqsave(&up->port.lock, flags);
 	if (up->dma_enable) {
 		up->ier = UART_IER_DMAE | UART_IER_UUE;
 	} else {
@@ -968,6 +979,7 @@ static int serial_pxa_startup(struct uart_port *port)
 			UART_IER_RTOIE | UART_IER_UUE;
 	}
 	serial_out(up, UART_IER, up->ier);
+	spin_unlock_irqrestore(&up->port.lock, flags);
 
 	/*
 	 * And clear the interrupt registers again for luck.
@@ -997,10 +1009,10 @@ static void serial_pxa_shutdown(struct uart_port *port)
 	/*
 	 * Disable interrupts from this port
 	 */
+	spin_lock_irqsave(&up->port.lock, flags);
 	up->ier = 0;
 	serial_out(up, UART_IER, 0);
 
-	spin_lock_irqsave(&up->port.lock, flags);
 	up->port.mctrl &= ~TIOCM_OUT2;
 	serial_pxa_set_mctrl(&up->port, up->port.mctrl);
 	spin_unlock_irqrestore(&up->port.lock, flags);
@@ -1253,9 +1265,9 @@ serial_pxa_console_write(struct console *co, const char *s, unsigned int count)
 	if (up->port.sysrq)
 		locked = 0;
 	else if (oops_in_progress)
-		locked = spin_trylock(&up->port.lock);
+		locked = spin_trylock_irqsave(&up->port.lock, up->flags);
 	else
-		spin_lock(&up->port.lock);
+		spin_lock_irqsave(&up->port.lock, up->flags);
 
 	/*
 	 *	First save the IER then disable the interrupts
@@ -1273,7 +1285,7 @@ serial_pxa_console_write(struct console *co, const char *s, unsigned int count)
 	serial_out(up, UART_IER, ier);
 
 	if (locked)
-		spin_unlock(&up->port.lock);
+		spin_unlock_irqrestore(&up->port.lock, up->flags);
 	local_irq_restore(flags);
 	clk_disable(up->clk);
 
