@@ -2,6 +2,7 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
+#include <linux/devfreq.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 
@@ -560,6 +561,33 @@ static struct mmp_clk_mix_config disp_axi_mix_config = {
 	.mux_table = disp_axi_mux_table,
 };
 
+#ifdef CONFIG_VPU_DEVFREQ
+static struct devfreq_frequency_table *vpu_devfreq_tbl;
+
+static void __init_vpu_devfreq_table(struct clk *clk)
+{
+	unsigned int vpu_freq_num = 0, i = 0;
+
+	vpu_freq_num = mmp_clk_mix_get_opnum(clk);
+	vpu_devfreq_tbl =
+		kmalloc(sizeof(struct devfreq_frequency_table)
+			* (vpu_freq_num + 1), GFP_KERNEL);
+	if (!vpu_devfreq_tbl)
+		return;
+
+	for (i = 0; i < vpu_freq_num; i++) {
+		vpu_devfreq_tbl[i].index = i;
+		vpu_devfreq_tbl[i].frequency =
+			mmp_clk_mix_get_oprate(clk, i) / MHZ_TO_KHZ;
+	}
+
+	vpu_devfreq_tbl[i].index = i;
+	vpu_devfreq_tbl[i].frequency = DEVFREQ_TABLE_END;
+
+	devfreq_frequency_table_register(vpu_devfreq_tbl, DEVFREQ_VPU_BASE);
+}
+#endif
+
 static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -672,6 +700,9 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk = mmp_clk_register_mix(NULL, "vpufunc_mix_clk",
 			vpufclk_parent_names, ARRAY_SIZE(vpufclk_parent_names),
 			0, &vpufclk_mix_config, &vpu_lock);
+#ifdef CONFIG_VPU_DEVFREQ
+	__init_vpu_devfreq_table(clk);
+#endif
 	clk = mmp_clk_register_gate(NULL, "vpufunc_clk", "vpufunc_mix_clk",
 			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 			pxa_unit->apmu_base + APMU_VPU,
