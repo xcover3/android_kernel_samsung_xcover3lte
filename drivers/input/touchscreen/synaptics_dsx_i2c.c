@@ -985,6 +985,37 @@ static irqreturn_t synaptics_rmi4_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
+					bool enable)
+{
+	unsigned char intr_status;
+	int retval = 0;
+	unsigned long irqflags;
+
+	if (enable) {
+		/* Clear interrupts first */
+		retval = synaptics_rmi4_i2c_read(rmi4_data,
+			rmi4_data->f01_data_base_addr + 1, &intr_status,
+			rmi4_data->num_of_intr_regs);
+		if (retval < 0)
+			return retval;
+		spin_lock_irqsave(&rmi4_data->irq_lock, irqflags);
+		if (rmi4_data->irq_is_disable) {
+			enable_irq(rmi4_data->irq);
+			rmi4_data->irq_is_disable = 0;
+		}
+	} else {
+		spin_lock_irqsave(&rmi4_data->irq_lock, irqflags);
+		if (!rmi4_data->irq_is_disable) {
+			rmi4_data->irq_is_disable = 1;
+			disable_irq(rmi4_data->irq);
+		}
+	}
+
+	spin_unlock_irqrestore(&rmi4_data->irq_lock, irqflags);
+	return retval;
+}
+
 static int synaptics_rmi4_irq_acquire(struct synaptics_rmi4_data *rmi4_data,
 					bool enable)
 {
@@ -2059,6 +2090,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 	}
 
 #ifdef CONFIG_PM_RUNTIME
+	synaptics_rmi4_irq_enable(rmi4_data, false);
 	pm_runtime_enable(&client->dev);
 	pm_runtime_forbid(&client->dev);
 #endif
@@ -2165,37 +2197,6 @@ static int synaptics_rmi4_remove(struct i2c_client *client)
 }
 
 #ifdef CONFIG_PM_RUNTIME
-static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
-					bool enable)
-{
-	unsigned char intr_status;
-	int retval = 0;
-	unsigned long irqflags;
-
-	if (enable) {
-		/* Clear interrupts first */
-		retval = synaptics_rmi4_i2c_read(rmi4_data,
-			rmi4_data->f01_data_base_addr + 1, &intr_status,
-			rmi4_data->num_of_intr_regs);
-		if (retval < 0)
-			return retval;
-		spin_lock_irqsave(&rmi4_data->irq_lock, irqflags);
-		if (rmi4_data->irq_is_disable) {
-			enable_irq(rmi4_data->irq);
-			rmi4_data->irq_is_disable = 0;
-		}
-	} else {
-		spin_lock_irqsave(&rmi4_data->irq_lock, irqflags);
-		if (!rmi4_data->irq_is_disable) {
-			rmi4_data->irq_is_disable = 1;
-			disable_irq(rmi4_data->irq);
-		}
-	}
-
-	spin_unlock_irqrestore(&rmi4_data->irq_lock, irqflags);
-	return retval;
-}
-
 static void synaptics_rmi4_sensor_sleep(struct synaptics_rmi4_data *rmi4_data)
 {
 	unsigned char device_ctrl;
