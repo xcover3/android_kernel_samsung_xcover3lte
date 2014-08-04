@@ -223,6 +223,21 @@
 				compatible = "marvell,mmp-fb-overlay";
 				status = "disabled";
 			};
+
+			devfreq-vpu {
+				compatible = "marvell,devfreq-vpu";
+				marvell,vpu-id = <0>;
+				clocks = <&soc_clocks PXA1U88_CLK_VPU
+					  &soc_clocks PXA1U88_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				marvell,mmp-clk-freq-combine =
+						<156000 156000>,
+						<208000 208000>,
+						<312000 312000>,
+						<416000 416000>,
+						<528750 528500>;
+				marvell,qos;
+			};
 		};
 
 		apb@d4000000 {	/* APB */
