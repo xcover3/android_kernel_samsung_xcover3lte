@@ -364,8 +364,6 @@ static void mmpmode_to_fbmode(struct fb_videomode *videomode,
 static int mmpfb_check_var(struct fb_var_screeninfo *var,
 		struct fb_info *info)
 {
-	struct mmpfb_info *fbi = info->par;
-
 	if (var->bits_per_pixel == 8)
 		return -EINVAL;
 	/*
@@ -380,7 +378,7 @@ static int mmpfb_check_var(struct fb_var_screeninfo *var,
 	 * Check size of framebuffer.
 	 */
 	if (var->xres_virtual * var->yres_virtual *
-			(var->bits_per_pixel >> 3) > fbi->fb_size)
+			(var->bits_per_pixel >> 3) > MMPFB_DEFAULT_SIZE)
 		return -EINVAL;
 
 	return 0;
@@ -706,7 +704,7 @@ static int fb_info_setup(struct fb_info *info,
 	info->fix.ywrapstep = 0;
 	info->fix.accel = FB_ACCEL_NONE;
 	info->fix.smem_start = fbi->fb_start_dma;
-	info->fix.smem_len = fbi->fb_size;
+	info->fix.smem_len = MMPFB_DEFAULT_SIZE;
 	info->fix.visual = (fbi->pix_fmt == PIXFMT_PSEUDOCOLOR) ?
 		FB_VISUAL_PSEUDOCOLOR : FB_VISUAL_TRUECOLOR;
 	info->fix.line_length = info->var.xres_virtual *

@@ -103,7 +103,9 @@ static inline void mmpfb_check_virtural_mode(struct mmp_mode *mode)
 	}
 }
 
-#define MMPFB_DEFAULT_SIZE (PAGE_ALIGN(1920 * 1080 * 4 * 2))
+/* FIXME: 0xc000 was for decompression header
+ * pitch_align(256_align(1080*4)*1920/512)*3 */
+#define MMPFB_DEFAULT_SIZE (ALIGN(1080, 64) * ALIGN(1920, 4) * 4 * 3 + 0xcc00)
 
 extern int mmpfb_vsync_notify_init(struct mmpfb_info *fbi);
 extern void mmpfb_vsync_notify_deinit(struct mmpfb_info *fbi);
