@@ -1113,6 +1113,9 @@ static int b52_convert_input_fmt(u32 fmt, u16 *val, u8 *bpp)
 		__bpp = 10;
 		break;
 	case V4L2_PIX_FMT_SBGGR16:
+	case V4L2_PIX_FMT_SGBRG16:
+	case V4L2_PIX_FMT_SGRBG16:
+	case V4L2_PIX_FMT_SRGGB16:
 		__val = 1;
 		__bpp = 16;
 		break;
@@ -1208,6 +1211,9 @@ static int b52_convert_output_fmt(u32 fmt, u16 *val, u8 *bpp)
 		break;
 #endif
 	case V4L2_PIX_FMT_SBGGR16:
+	case V4L2_PIX_FMT_SGBRG16:
+	case V4L2_PIX_FMT_SGRBG16:
+	case V4L2_PIX_FMT_SRGGB16:
 		*val = 1;
 		*bpp = 16;
 		break;
@@ -2387,6 +2393,57 @@ static void b52_g_sensor_fmt_data(struct v4l2_subdev *sd,
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 	b52_sensor_call(sensor, g_cur_fmt, data);
 }
+
+static int b52_cfg_pixel_order(struct v4l2_pix_format *fmt, int path)
+{
+	u8 order = PIXEL_ORDER_BGGR;
+
+	switch (fmt->pixelformat) {
+	case V4L2_PIX_FMT_SBGGR8:
+	case V4L2_PIX_FMT_SBGGR10:
+	case V4L2_PIX_FMT_SBGGR16:
+		order = PIXEL_ORDER_BGGR;
+		break;
+
+	case V4L2_PIX_FMT_SGBRG8:
+	case V4L2_PIX_FMT_SGBRG10:
+	case V4L2_PIX_FMT_SGBRG16:
+		order = PIXEL_ORDER_GBRG;
+		break;
+
+	case V4L2_PIX_FMT_SGRBG8:
+	case V4L2_PIX_FMT_SGRBG10:
+	case V4L2_PIX_FMT_SGRBG16:
+		order = PIXEL_ORDER_GRBG;
+		break;
+
+	case V4L2_PIX_FMT_SRGGB8:
+	case V4L2_PIX_FMT_SRGGB10:
+	case V4L2_PIX_FMT_SRGGB16:
+		order = PIXEL_ORDER_RGGB;
+		break;
+	default:
+		pr_err("%s: wrong pixelformat\n", __func__);
+		break;
+	}
+
+	switch (path) {
+	case B52ISP_ISD_PIPE1:
+	case B52ISP_ISD_MS1:
+		b52_writeb(ISP1_REG_BASE + REG_ISP_TOP6, order);
+		break;
+	case B52ISP_ISD_PIPE2:
+	case B52ISP_ISD_MS2:
+		b52_writeb(ISP2_REG_BASE + REG_ISP_TOP6, order);
+		break;
+	default:
+		pr_err("%s: wrong path %d\n", __func__, path);
+		break;
+	}
+
+	return 0;
+}
+
 static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 {
 	u8 val;
@@ -2431,6 +2488,7 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	b52_writeb(CMD_REG8, (u8)cmd->enable_map);
 
 	b52_cfg_input(&cmd->src_fmt, cmd->src_type);
+	b52_cfg_pixel_order(&cmd->src_fmt, cmd->path);
 	b52_cfg_idi(&cmd->src_fmt, &cmd->pre_crop);
 	b52_cfg_output(cmd->output, cmd->output_map);
 	b52_cfg_zoom(&cmd->pre_crop, &cmd->post_crop);
@@ -2714,6 +2772,7 @@ static int b52_cmd_process_raw(struct b52isp_cmd *cmd)
 	b52_writeb(CMD_REG2, val);
 
 	b52_cfg_input(&cmd->src_fmt, cmd->src_type);
+	b52_cfg_pixel_order(&cmd->src_fmt, cmd->path);
 	b52_cfg_output(cmd->output, cmd->output_map);
 	b52_cfg_rd(&cmd->src_fmt, cmd->mem.axi_id,
 		(u32)cmd->mem.buf[0]->ch_info[0].daddr, 0);

@@ -291,6 +291,7 @@ struct b52_sensor_data b52_imx219 = {
 		.num = N_IMX219_VFLIP,
 	},
 
+	.flip_change_phase = 1,
 	.gain_shift = 0,
 	.calc_dphy = 1,
 	.nr_lane = 4,

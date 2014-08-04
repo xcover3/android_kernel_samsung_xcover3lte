@@ -763,7 +763,7 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 			pr_err("%s, error param\n", __func__);
 	}
 #endif
-	ret = v4l2_ctrl_handler_setup(&sensor->ctrl_hdl);
+	ret = v4l2_ctrl_handler_setup(&sensor->ctrls.ctrl_hdl);
 	if (ret < 0)
 		pr_err("%s: setup hadnler failed\n", __func__);
 	return ret;
@@ -1438,6 +1438,118 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 			regs, sensor->pos);
 }
 
+static enum v4l2_mbus_pixelcode b52_sensor_get_real_mbus(
+	    struct v4l2_subdev *sd, enum v4l2_mbus_pixelcode code)
+{
+	int hflip;
+	int vflip;
+	enum v4l2_mbus_pixelcode new_code;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+
+	if (!sensor->drvdata->flip_change_phase)
+		return code;
+
+	hflip = v4l2_ctrl_g_ctrl(sensor->ctrls.hflip);
+	vflip = v4l2_ctrl_g_ctrl(sensor->ctrls.vflip);
+
+	switch (code) {
+	case V4L2_MBUS_FMT_SBGGR10_1X10:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB10_1X10;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG10_1X10;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG10_1X10;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR10_1X10;
+		break;
+
+	case V4L2_MBUS_FMT_SGBRG10_1X10:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG10_1X10;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR10_1X10;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB10_1X10;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG10_1X10;
+		break;
+
+	case V4L2_MBUS_FMT_SGRBG10_1X10:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG10_1X10;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB10_1X10;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR10_1X10;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG10_1X10;
+		break;
+
+	case V4L2_MBUS_FMT_SRGGB10_1X10:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR10_1X10;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG10_1X10;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG10_1X10;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB10_1X10;
+		break;
+
+	case V4L2_MBUS_FMT_SBGGR8_1X8:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB8_1X8;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG8_1X8;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG8_1X8;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR8_1X8;
+		break;
+
+	case V4L2_MBUS_FMT_SGBRG8_1X8:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG8_1X8;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR8_1X8;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB8_1X8;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG8_1X8;
+		break;
+
+	case V4L2_MBUS_FMT_SGRBG8_1X8:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG8_1X8;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB8_1X8;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR8_1X8;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG8_1X8;
+		break;
+
+	case V4L2_MBUS_FMT_SRGGB8_1X8:
+		if (hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SBGGR8_1X8;
+		else if (hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SGRBG8_1X8;
+		else if (!hflip && vflip)
+			new_code = V4L2_MBUS_FMT_SGBRG8_1X8;
+		else if (!hflip && !vflip)
+			new_code = V4L2_MBUS_FMT_SRGGB8_1X8;
+		break;
+
+	default:
+		pr_err("Not support mbus phase change of [h/v]flip\n");
+		new_code = code;
+		break;
+	}
+
+	return new_code;
+}
+
 static int b52_sensor_enum_mbus_code(struct v4l2_subdev *sd,
 		struct v4l2_subdev_fh *fh,
 		struct v4l2_subdev_mbus_code_enum *code)
@@ -1452,7 +1564,8 @@ static int b52_sensor_enum_mbus_code(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	code->code = data->mbus_fmt[code->index].mbus_code;
+	code->code = b52_sensor_get_real_mbus(sd,
+		data->mbus_fmt[code->index].mbus_code);
 
 	return 0;
 }
@@ -1472,7 +1585,8 @@ static int b52_sensor_enum_frame_size(struct v4l2_subdev *sd,
 	}
 
 	for (i = 0; i < data->num_mbus_fmt; i++)
-		if (fse->code == data->mbus_fmt[i].mbus_code)
+		if (fse->code == b52_sensor_get_real_mbus(sd,
+			data->mbus_fmt[i].mbus_code))
 			break;
 
 	if (i >= data->num_mbus_fmt) {
@@ -1505,7 +1619,8 @@ static int b52_sensor_enum_frame_interval(struct v4l2_subdev *sd,
 	}
 
 	for (i = 0; i < data->num_mbus_fmt; i++)
-		if (fie->code == data->mbus_fmt[i].mbus_code)
+		if (fie->code == b52_sensor_get_real_mbus(sd,
+			data->mbus_fmt[i].mbus_code))
 			break;
 
 	if (i >= data->num_mbus_fmt) {
@@ -1584,7 +1699,8 @@ static int b52_sensor_set_fmt(struct v4l2_subdev *sd,
 	}
 
 	for (i = 0; i < data->num_mbus_fmt; i++)
-		if (mf->code == data->mbus_fmt[i].mbus_code)
+		if (mf->code == b52_sensor_get_real_mbus(sd,
+			data->mbus_fmt[i].mbus_code))
 			break;
 
 	if (i >= data->num_mbus_fmt) {
@@ -1592,7 +1708,7 @@ static int b52_sensor_set_fmt(struct v4l2_subdev *sd,
 		i = 0;
 	};
 
-	mf->code = data->mbus_fmt[i].mbus_code;
+	mf->code = b52_sensor_get_real_mbus(sd, data->mbus_fmt[i].mbus_code);
 	mf->colorspace = data->mbus_fmt[i].colorspace;
 
 	for (j = 0; j < data->num_res; j++)
@@ -1805,7 +1921,7 @@ static int b52_sensor_g_ctrl(struct v4l2_ctrl *ctrl)
 	int i;
 	struct b52_sensor_flash *flash;
 	struct b52_sensor *sensor = container_of(
-			ctrl->handler, struct b52_sensor, ctrl_hdl);
+			ctrl->handler, struct b52_sensor, ctrls.ctrl_hdl);
 	flash = &sensor->flash;
 
 	switch (ctrl->id) {
@@ -1840,7 +1956,7 @@ static int b52_sensor_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct b52_sensor_flash *flash;
 	struct b52_sensor *sensor = container_of(
-			ctrl->handler, struct b52_sensor, ctrl_hdl);
+			ctrl->handler, struct b52_sensor, ctrls.ctrl_hdl);
 	flash = &sensor->flash;
 
 	/*FIXME: implement flash config and set function*/
@@ -1928,20 +2044,23 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 	u32 min = 0;
 	u32 max = 0;
 	struct v4l2_ctrl *ctrl;
+	struct b52isp_sensor_ctrls *ctrls;
 	struct b52_sensor_flash *flash = &sensor->flash;
 	const struct b52_sensor_data *data = sensor->drvdata;
 
-	v4l2_ctrl_handler_init(&sensor->ctrl_hdl, 18);
+	ctrls = &sensor->ctrls;
 
-	v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	v4l2_ctrl_handler_init(&ctrls->ctrl_hdl, 18);
+
+	ctrls->hflip = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_HFLIP, 0, 1, 1, 0);
 
-	v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrls->vflip = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_VFLIP, 0, 1, 1, 0);
 
-	ctrl = v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_ANALOGUE_GAIN,
 			data->gain_range[B52_SENSOR_AG].min,
@@ -1952,7 +2071,7 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 			V4L2_CTRL_FLAG_READ_ONLY;
 
 /*FIXME: use vts not vb*/
-	ctrl = v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_VBLANK, data->vts_range.min,
 			data->vts_range.max, 1, data->vts_range.min);
@@ -1960,7 +2079,7 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
 
-	ctrl = v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FOCUS_ABSOLUTE, data->focus_range.min,
 			data->focus_range.max, 1, data->focus_range.min);
@@ -1974,40 +2093,40 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 		max = max_t(u32, max, sensor->drvdata->res[i].hts
 				- sensor->drvdata->res[i].width);
 	}
-	ctrl = v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_HBLANK, min, max, 1, min);
 	if (ctrl != NULL)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
 
-	ctrl = v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_PIXEL_RATE, 0, 0, 1, 0);
 	if (ctrl != NULL)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
 
-	v4l2_ctrl_new_std_menu(&sensor->ctrl_hdl,
+	v4l2_ctrl_new_std_menu(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_LED_MODE, 2, ~7,
 			V4L2_FLASH_LED_MODE_NONE);
 
 	flash->strobe_source = V4L2_FLASH_STROBE_SOURCE_SOFTWARE;
-	v4l2_ctrl_new_std_menu(&sensor->ctrl_hdl,
+	v4l2_ctrl_new_std_menu(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_STROBE_SOURCE, 0, ~1,
 			V4L2_FLASH_STROBE_SOURCE_SOFTWARE);
 
-	v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_STROBE, 0, 1, 1, 0);
 
-	v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_STROBE_STOP, 0, 1, 1, 0);
 
-	ctrl = v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_STROBE_STATUS, 0, 1, 1, 0);
 	if (ctrl != NULL)
@@ -2015,27 +2134,27 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 			V4L2_CTRL_FLAG_READ_ONLY;
 
 	flash->timeout = FLASH_TIMEOUT_MIN;
-	v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_TIMEOUT, FLASH_TIMEOUT_MIN,
 			FLASH_TIMEOUT_MAX, FLASH_TIMEOUT_STEP,
 			FLASH_TIMEOUT_MIN);
 
 	flash->flash_current = FLASH_INTENSITY_MIN;
-	v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_INTENSITY, FLASH_INTENSITY_MIN,
 			FLASH_INTENSITY_MAX, FLASH_INTENSITY_STEP,
 			FLASH_INTENSITY_MIN);
 
-	v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_TORCH_INTENSITY,
 			TORCH_INTENSITY_MIN, TORCH_INTENSITY_MAX,
 			TORCH_INTENSITY_STEP,
 			TORCH_INTENSITY_MIN);
 
-	ctrl = v4l2_ctrl_new_std(&sensor->ctrl_hdl,
+	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
 			V4L2_CID_FLASH_FAULT, 0,
 			V4L2_FLASH_FAULT_OVER_VOLTAGE |
@@ -2046,9 +2165,9 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
 
-	sensor->sd.ctrl_handler = &sensor->ctrl_hdl;
+	sensor->sd.ctrl_handler = &ctrls->ctrl_hdl;
 
-	return sensor->ctrl_hdl.error;
+	return ctrls->ctrl_hdl.error;
 }
 
 static int b52_sensor_alloc_fmt_regs(struct b52_sensor *sensor)
@@ -2184,7 +2303,7 @@ static int b52_sensor_probe(struct i2c_client *client,
 	sensor->mf.filed = V4L2_FIELD_NONE;
 #endif
 error:
-	v4l2_ctrl_handler_free(&sensor->ctrl_hdl);
+	v4l2_ctrl_handler_free(&sensor->ctrls.ctrl_hdl);
 
 	return ret;
 }
@@ -2195,7 +2314,7 @@ static int b52_sensor_remove(struct i2c_client *client)
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 
 	b52_sensor_call(sensor, put_power);
-	v4l2_ctrl_handler_free(&sensor->ctrl_hdl);
+	v4l2_ctrl_handler_free(&sensor->ctrls.ctrl_hdl);
 	media_entity_cleanup(&sd->entity);
 	v4l2_device_unregister_subdev(sd);
 	devm_kfree(sensor->dev, sensor);

@@ -238,6 +238,57 @@ find:
 	return 0;
 }
 
+static inline int b52isp_mfmt_to_pfmt(struct v4l2_pix_format *pf,
+	struct v4l2_mbus_framefmt mf)
+{
+	pf->width = mf.width;
+	pf->height = mf.height;
+
+	switch (mf.code) {
+	case V4L2_MBUS_FMT_SBGGR8_1X8:
+		pf->pixelformat = V4L2_PIX_FMT_SBGGR8;
+		pf->bytesperline = pf->width;
+		break;
+	case V4L2_MBUS_FMT_SGBRG8_1X8:
+		pf->pixelformat = V4L2_PIX_FMT_SGBRG8;
+		pf->bytesperline = pf->width;
+		break;
+	case V4L2_MBUS_FMT_SGRBG8_1X8:
+		pf->pixelformat = V4L2_PIX_FMT_SGRBG8;
+		pf->bytesperline = pf->width;
+		break;
+	case V4L2_MBUS_FMT_SRGGB8_1X8:
+		pf->pixelformat = V4L2_PIX_FMT_SRGGB8;
+		pf->bytesperline = pf->width;
+		break;
+	case V4L2_MBUS_FMT_SBGGR10_1X10:
+		pf->pixelformat = V4L2_PIX_FMT_SBGGR10;
+		pf->bytesperline = pf->width * 10 / 8;
+		break;
+	case V4L2_MBUS_FMT_SGBRG10_1X10:
+		pf->pixelformat = V4L2_PIX_FMT_SGBRG10;
+		pf->bytesperline = pf->width * 10 / 8;
+		break;
+	case V4L2_MBUS_FMT_SGRBG10_1X10:
+		pf->pixelformat = V4L2_PIX_FMT_SGRBG10;
+		pf->bytesperline = pf->width * 10 / 8;
+		break;
+	case V4L2_MBUS_FMT_SRGGB10_1X10:
+		pf->pixelformat = V4L2_PIX_FMT_SRGGB10;
+		pf->bytesperline = pf->width * 10 / 8;
+		break;
+	default:
+		pr_err("%s: not supported mbus code\n", __func__);
+		return -EINVAL;
+	}
+
+	pf->sizeimage = pf->bytesperline * mf.height;
+	pf->field = 0;
+	pf->colorspace = mf.colorspace;
+
+	return 0;
+}
+
 static inline int b52isp_try_apply_cmd(struct b52isp_lpipe *pipe)
 {
 	struct b52isp_cmd *cmd;
@@ -308,15 +359,10 @@ static inline int b52isp_try_apply_cmd(struct b52isp_lpipe *pipe)
 		d_inf(4, "got sensor %s <w%d, h%d, c%X>",
 			sensor->name, fmt.format.width,
 			fmt.format.height, fmt.format.code);
-		cmd->src_fmt.width = fmt.format.width;
-		cmd->src_fmt.height = fmt.format.height;
-		/* FIXME: hard code format code here */
-		cmd->src_fmt.pixelformat = V4L2_PIX_FMT_SBGGR10;
-		cmd->src_fmt.bytesperline = cmd->src_fmt.width * 10 / 8;
-		cmd->src_fmt.sizeimage =
-			cmd->src_fmt.bytesperline * cmd->src_fmt.height;
-		cmd->src_fmt.field = 0;
-		cmd->src_fmt.colorspace = fmt.format.colorspace;
+
+		ret = b52isp_mfmt_to_pfmt(&cmd->src_fmt, fmt.format);
+		if (ret < 0)
+			goto err_exit;
 	}
 
 	if (cmd->cmd_name == CMD_SET_FORMAT ||

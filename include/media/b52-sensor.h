@@ -220,7 +220,7 @@ struct b52_sensor_data {
 	u32 skip_frames;
 	struct b52_sensor_regs hflip;
 	struct b52_sensor_regs vflip;
-
+	int flip_change_phase;
 };
 
 struct b52_sensor_ops {
@@ -280,6 +280,13 @@ struct b52_sensor_flash {
 	int flash_status;
 };
 
+struct b52isp_sensor_ctrls {
+	struct v4l2_ctrl_handler ctrl_hdl;
+
+	struct v4l2_ctrl *hflip;
+	struct v4l2_ctrl *vflip;
+};
+
 struct b52_sensor {
 	const struct b52_sensor_data *drvdata;
 
@@ -299,7 +306,7 @@ struct b52_sensor {
 
 	struct b52_sensor_flash flash;
 
-	struct v4l2_ctrl_handler ctrl_hdl;
+	struct b52isp_sensor_ctrls ctrls;
 
 	int cur_mod_id;
 

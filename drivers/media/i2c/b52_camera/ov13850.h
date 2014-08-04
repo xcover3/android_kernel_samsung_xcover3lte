@@ -557,6 +557,7 @@ struct b52_sensor_data b52_ov13850 = {
 		.num = N_OV13850_VFLIP,
 	},
 
+	.flip_change_phase = 0,
 	.gain_shift = 1,
 /*	.calc_dphy = 1, */
 	.nr_lane = 4,

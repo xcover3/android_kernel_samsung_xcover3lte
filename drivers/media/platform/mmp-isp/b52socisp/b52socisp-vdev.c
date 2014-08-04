@@ -24,6 +24,9 @@ MODULE_PARM_DESC(trace,
 
 static struct isp_format_desc isp_format_table[] = {
 	{ V4L2_MBUS_FMT_SBGGR10_2X8_PADHI_LE, V4L2_PIX_FMT_SBGGR16, 16, 1},
+	{ V4L2_MBUS_FMT_SGBRG10_2X8_PADHI_LE, V4L2_PIX_FMT_SGBRG16, 16, 1},
+	{ V4L2_MBUS_FMT_SGRBG10_2X8_PADHI_LE, V4L2_PIX_FMT_SGRBG16, 16, 1},
+	{ V4L2_MBUS_FMT_SRGGB10_2X8_PADHI_LE, V4L2_PIX_FMT_SRGGB16, 16, 1},
 	{ V4L2_MBUS_FMT_SBGGR10_1X10,	V4L2_PIX_FMT_SBGGR10,	10,	1},
 	{ V4L2_MBUS_FMT_SBGGR8_1X8,	V4L2_PIX_FMT_SBGGR8,	8,	1},
 	{ V4L2_MBUS_FMT_UYVY8_1X16,	V4L2_PIX_FMT_UYVY,	16,	1},
@@ -46,6 +49,9 @@ static int isp_video_calc_mplane_sizeimage(
 	case V4L2_PIX_FMT_SBGGR10:
 	case V4L2_PIX_FMT_SBGGR8:
 	case V4L2_PIX_FMT_SBGGR16:
+	case V4L2_PIX_FMT_SGBRG16:
+	case V4L2_PIX_FMT_SGRBG16:
+	case V4L2_PIX_FMT_SRGGB16:
 		pitch = isp_format_table[idx].bpp * width >> 3;
 		pix_mp->plane_fmt[0].bytesperline = pitch;
 		pix_mp->plane_fmt[0].sizeimage = pitch * height;
