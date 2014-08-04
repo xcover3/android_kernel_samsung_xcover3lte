@@ -2128,6 +2128,13 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		return 0;
 	}
 
+	if (host->quirks2 & SDHCI_QUIRK2_TUNING_BROKEN) {
+		spin_unlock_irqrestore(&host->lock, flags);
+		sdhci_runtime_pm_put(host);
+		sdhci_access_constrain(host, 0);
+		return 0;
+	}
+
 	if ((host->ops->platform_execute_tuning) &&
 		!(host->quirks2 & SDHCI_QUIRK2_TUNING_SW_BROKEN)) {
 		spin_unlock_irqrestore(&host->lock, flags);

@@ -92,5 +92,7 @@
 #define SDHCI_QUIRK2_TUNING_SW_BROKEN			(1<<17)
 /* Controller supported max data timeout is too short (~10s for 52Mhz bus clock) */
 #define SDHCI_QUIRK2_TIMEOUT_SHORT			(1<<18)
+/* HS200/SDR104 tuning broken and must use predefined fixed delay */
+#define SDHCI_QUIRK2_TUNING_BROKEN                      (1<<20)
 
 #endif

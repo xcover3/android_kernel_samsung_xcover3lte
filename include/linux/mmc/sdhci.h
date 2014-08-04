@@ -122,6 +122,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_TIMEOUT_SHORT			(1<<18)
 /* Some PXA SDH, fake interrupt would happen during CMD53 in UHS mode */
 #define SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS		(1<<19)
+/* HS200/SDR104 tuning broken and must use predefined fixed delay */
+#define SDHCI_QUIRK2_TUNING_BROKEN			(1<<20)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
