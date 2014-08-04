@@ -51,6 +51,7 @@ struct pxa_reg_layout {
 	u32 isar;
 	u32 ilcr;
 	u32 iwcr;
+	u32 icyc;
 };
 
 enum pxa_i2c_types {
@@ -94,6 +95,7 @@ static struct pxa_reg_layout pxa_reg_layout[] = {
 		/* ilcr and iwcr are used to adjust clock rate */
 		.ilcr = 0x28,
 		.iwcr = 0x30,
+		.icyc = 0x60,
 	},
 };
 
@@ -128,6 +130,7 @@ MODULE_DEVICE_TABLE(platform, i2c_pxa_id_table);
 #define ICR_FM		(1 << 15)	   /* fast mode */
 #define ICR_HS		(1 << 16)	   /* High Speed mode */
 #define ICR_GPIOEN	(1 << 19)	   /* enable GPIO mode for SCL in HS */
+#define ICR_BUSRSTEN	(1 << 28)	   /* enable bus reset */
 
 #define ISR_RWM		(1 << 0)	   /* read/write mode */
 #define ISR_ACKNAK	(1 << 1)	   /* ack/nak status */
@@ -169,6 +172,7 @@ struct pxa_i2c {
 	void __iomem		*reg_isar;
 	void __iomem		*reg_ilcr;
 	void __iomem		*reg_iwcr;
+	void __iomem		*reg_icyc;
 
 	resource_size_t		iobase;
 	resource_size_t		iosize;
@@ -205,6 +209,7 @@ struct pxa_i2c {
 #define _ISAR(i2c)	((i2c)->reg_isar)
 #define _ILCR(i2c)	((i2c)->reg_ilcr)
 #define _IWCR(i2c)	((i2c)->reg_iwcr)
+#define _ICYC(i2c)	((i2c)->reg_icyc)
 
 /*
  * I2C Slave mode address
@@ -300,6 +305,19 @@ static void i2c_bus_reset(struct pxa_i2c *i2c)
 	/* cannot do bus reset */
 	if (!i2c->enable_bus_rst)
 		return;
+	/* hardware bus reset, no need to toggle gpio */
+	if (!i2c->gpio_bus_rst) {
+		/* 9 cycles */
+		writel(readl(_ICYC(i2c)) | 0x9, _ICYC(i2c));
+		writel(readl(_ICR(i2c)) | ICR_BUSRSTEN, _ICR(i2c));
+		/*
+		 * wait until the control bit is self-cleard
+		 * suppose we use 100kbps, 9 clocks need about 100us
+		 */
+		usleep_range(100, 150);
+		WARN_ON(readl(_ICR(i2c)) & ICR_BUSRSTEN);
+		return;
+	}
 
 	if (!i2c->pinctrl) {
 		dev_info(dev, "no need to do i2c bus reset\n");
@@ -1604,6 +1622,7 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	i2c->reg_idbr = i2c->reg_base + pxa_reg_layout[i2c_type].idbr;
 	i2c->reg_icr = i2c->reg_base + pxa_reg_layout[i2c_type].icr;
 	i2c->reg_isr = i2c->reg_base + pxa_reg_layout[i2c_type].isr;
+	i2c->reg_icyc = i2c->reg_base + pxa_reg_layout[i2c_type].icyc;
 	if (i2c_type != REGS_CE4100)
 		i2c->reg_isar = i2c->reg_base + pxa_reg_layout[i2c_type].isar;
 
