@@ -345,3 +345,32 @@ void set_buck1_audio_mode_vol(int uv)
 	regmap_write(chip_g->subchip->regmap_power, PM800_AUDIO_MODE_CONFIG1, val);
 }
 EXPORT_SYMBOL(set_buck1_audio_mode_vol);
+
+void extern_set_buck1_slp_volt(int on)
+{
+	int data;
+	static int data_old;
+	static bool get_data_old;
+	/*
+	 * needs to set buck1 sleep voltage as 0.95v if gps is powered on,
+	 * and set it back when gps is powered off;
+	 * This function provide such an interface to satisfy it.
+	 */
+	if (!get_data_old) {
+		regmap_read(chip_g->subchip->regmap_power, PM800_BUCK1_SLEEP, &data_old);
+		get_data_old = true;
+	}
+	data = data_old;
+	if (on) {
+		/*
+		 * this means gps power on
+		 * buck1 sleep voltage is set to be 0.95v
+		 */
+		data &= ~PM800_BUCK1_SLP_MASK;
+		data |= PM800_BUCK1_SLP_V095;
+		regmap_write(chip_g->subchip->regmap_power, PM800_BUCK1_SLEEP, data);
+	} else {
+		regmap_write(chip_g->subchip->regmap_power, PM800_BUCK1_SLEEP, data);
+	}
+}
+EXPORT_SYMBOL(extern_set_buck1_slp_volt);

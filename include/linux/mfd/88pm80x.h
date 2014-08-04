@@ -268,6 +268,9 @@ enum {
 #define PM800_LDO_SLP4		(0x5f)
 #define PM800_LDO_SLP5		(0x60)
 
+#define PM800_BUCK1_SLP_MASK	(0x7f)
+#define PM800_BUCK1_SLP_V095	(0x1c)
+
 #define PM800_LDO1_1		(0x08)
 #define PM800_LDO1_2		(0x09)
 #define PM800_LDO1_3		(0x0a)
@@ -594,4 +597,6 @@ extern int pm8xx_dvc_setvolt(unsigned int buckid, unsigned int lvl, int uv);
 extern int pm8xx_dvc_getvolt(unsigned int buckid, unsigned int lvl, int *uv);
 extern void buck1_audio_mode_ctrl(int on);
 extern void set_buck1_audio_mode_vol(int vol);
+extern void extern_set_buck1_slp_volt(int on);
+
 #endif /* __LINUX_MFD_88PM80X_H */
