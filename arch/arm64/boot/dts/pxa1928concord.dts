@@ -9,6 +9,7 @@
 
 /dts-v1/;
 /memreserve/ 0x08100000 0x00040000;	/* ramoops buffer (256KB) */
+/memreserve/ 0x17000000 0x017f4c00;	/* default fb-mem (size: 256_align(1080*4)*1920*3+pitch_align(256_align(1080*4)*1920/512)*3(for dec header)) */
 #include "pxa1928.dtsi"
 #include "pxa1928concord-pinfunc.h"
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
@@ -71,12 +72,27 @@
 		};
 
 		axi@d4200000 {	/* AXI */
+			sc2mmu1: sc2mmu@d4209000 {
+				status = "okay";
+			};
+
+			ccic1: ccic@d420a000 {
+				status = "okay";
+				pinctrl-names = "default";
+			};
+
+			ccic2: ccic@d420a800 {
+				status = "okay";
+				pinctrl-names = "default";
+			};
+
 			dsi: dsi@d420b800 {
 				marvell,phy-name = "mmp_dsi1";
 				marvell,plat-path-name = "mmp_pnpath";
 				marvell,dsi-lanes = <4>;
 				marvell,burst-mode = <2>;
 				marvell,hbp-en;
+				dsi_avdd-supply = <&buck3>;
 				status = "okay";
 			};
 
@@ -108,20 +124,6 @@
 
 			apical: apical@d420b400 {
 				marvell,apical-num = <1>;
-			};
-
-			sc2mmu1: sc2mmu@d4209000 {
-				status = "okay";
-			};
-
-			ccic1: ccic@d420a000 {
-				status = "okay";
-				pinctrl-names = "default";
-			};
-
-			ccic2: ccic@d420a800 {
-				status = "okay";
-				pinctrl-names = "default";
 			};
 
 			disp: disp@d420b000 {
