@@ -26,6 +26,7 @@
 #define _MMP_CTRL_H_
 
 #include <video/mmp_disp.h>
+#include <linux/pm_qos.h>
 
 /* ------------< LCD register >------------ */
 struct lcd_regs {
@@ -1199,6 +1200,8 @@ struct mmphw_path_plat {
 	struct clk *clk;
 	struct mmphw_ctrl *ctrl;
 	struct mmp_path *path;
+	/* constraint is for path enabling */
+	struct pm_qos_request   qos_idle;
 	u32 path_config;
 	u32 link_config;
 };
@@ -1229,6 +1232,7 @@ struct mmphw_ctrl {
 
 	/*pathes*/
 	int path_num;
+	int lpm_qos;
 	struct mmphw_path_plat path_plats[0];
 };
 

@@ -732,11 +732,15 @@ static void path_enabledisable(struct mmp_path *path, int on)
 	tmp |= (on ? CFG_DUMB_ENA(1) : 0);
 
 	if (on) {
+		pm_qos_update_request(&plat->qos_idle,
+					plat->ctrl->lpm_qos);
 		clk_prepare_enable(clk);
 		writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
 	} else {
 		writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
 		clk_disable_unprepare(clk);
+		pm_qos_update_request(&plat->qos_idle,
+					PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	}
 }
 
@@ -1410,6 +1414,9 @@ static int path_init(struct mmphw_path_plat *path_plat,
 		dev_info(ctrl->dev, "unable to get clk %s\n", config->name);
 		path_plat->clk = NULL;
 	}
+	path_plat->qos_idle.name = path->name;
+	pm_qos_add_request(&path_plat->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	/* add operations after path set */
 	mmp_vsync_init(path);
 	path->ops.set_mode = path_set_mode;
@@ -1431,6 +1438,7 @@ static void path_deinit(struct mmphw_path_plat *path_plat)
 
 	if (!path_plat)
 		return;
+	pm_qos_remove_request(&path_plat->qos_idle);
 
 	if (path_plat->clk)
 		devm_clk_put(path_plat->ctrl->dev, path_plat->clk);
@@ -1517,6 +1525,13 @@ static int mmphw_probe(struct platform_device *pdev)
 			of_property_read_string(np, "marvell,slave-path",
 					&ctrl->slave_path_name)) {
 			ret = -EINVAL;
+			goto failed;
+		}
+
+		if (of_property_read_u32(np, "lpm-qos", &ctrl->lpm_qos)) {
+			ret = -EINVAL;
+			dev_err(&pdev->dev, "%s: get lpm-ops failed!\n",
+					__func__);
 			goto failed;
 		}
 
