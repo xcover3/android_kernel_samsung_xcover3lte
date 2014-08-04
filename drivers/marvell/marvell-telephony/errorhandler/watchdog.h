@@ -38,5 +38,7 @@ extern void watchdog_count_stop(void);
 extern void watchdog_interrupt_clear(void);
 extern void watchdog_hw_kick(void);
 extern bool watchdog_deactive(void);
+extern int watchdog_suspend(void);
+extern int watchdog_resume(void);
 
 #endif

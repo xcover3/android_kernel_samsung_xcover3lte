@@ -14,6 +14,7 @@
 #include <linux/of.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+#include <linux/cputype.h>
 #include "watchdog.h"
 #include "common_regs.h"
 
@@ -39,6 +40,8 @@ struct timer_operation {
 	unsigned long (*get_match)(void *data);
 	void (*clear_interrupt)(void *data);
 	void (*reset_counter)(void *data);
+	int (*suspend)(struct cp_watchdog *watchdog);
+	int (*resume)(struct cp_watchdog *watchdog);
 };
 
 struct wdt_timer {
@@ -221,6 +224,16 @@ static void soc_clear_interrupt(void *data)
 	writel(value, st->base + TMR_ICR(st->timer_num));
 }
 
+static int cp_timer_suspend(struct cp_watchdog *watchdog)
+{
+	return enable_irq_wake(watchdog->irq);
+}
+
+static int cp_timer_resume(struct cp_watchdog *watchdog)
+{
+	return disable_irq_wake(watchdog->irq);
+}
+
 static const struct timer_operation wdt_timer_ops = {
 	.init				= wdt_init,
 	.exit				= wdt_exit,
@@ -247,7 +260,10 @@ static const struct timer_operation soc_timer_ops = {
 	.clear_interrupt	= soc_clear_interrupt,
 };
 
-static const struct timer_operation cp_timer_ops = {NULL,};
+static const struct timer_operation cp_timer_ops = {
+	.suspend			= cp_timer_suspend,
+	.resume				= cp_timer_resume,
+};
 
 struct cp_watchdog *cp_watchdog;
 
@@ -497,3 +513,24 @@ bool watchdog_deactive(void)
 	return true;
 }
 
+int watchdog_suspend(void)
+{
+	if (!cp_watchdog || !cp_watchdog->ops)
+		return 0;
+
+	if (cp_watchdog->ops->suspend)
+		return cp_watchdog->ops->suspend(cp_watchdog);
+
+	return 0;
+}
+
+int watchdog_resume(void)
+{
+	if (!cp_watchdog || !cp_watchdog->ops)
+		return 0;
+
+	if (cp_watchdog->ops->resume)
+		return cp_watchdog->ops->resume(cp_watchdog);
+
+	return 0;
+}

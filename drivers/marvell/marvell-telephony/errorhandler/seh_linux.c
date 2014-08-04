@@ -92,6 +92,9 @@ static ssize_t seh_read(struct file *filp, char *buf, size_t count,
 static unsigned int seh_poll(struct file *filp, poll_table *wait);
 static int seh_mmap(struct file *file, struct vm_area_struct *vma);
 static int seh_release(struct inode *inode, struct file *filp);
+static int seh_suspend(struct platform_device *pdev, pm_message_t state);
+static int seh_resume(struct platform_device *pdev);
+
 #ifdef CONFIG_COMPAT
 static long compat_seh_ioctl(struct file *filp, unsigned int cmd,
 			unsigned long arg);
@@ -119,6 +122,8 @@ static struct of_device_id seh_dt_ids[] = {
 static struct platform_driver seh_driver = {
 	.probe		= seh_probe,
 	.remove		= seh_remove,
+	.suspend	= seh_suspend,
+	.resume		= seh_resume,
 	.driver		= {
 		.name	= "seh",
 		.of_match_table = seh_dt_ids,
@@ -425,6 +430,16 @@ out:
 	return ret;
 }
 
+static int seh_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	return watchdog_suspend();
+}
+
+static int seh_resume(struct platform_device *pdev)
+{
+	return watchdog_resume();
+}
+
 static int seh_probe(struct platform_device *dev)
 {
 	int ret;
@@ -482,8 +497,8 @@ static int seh_probe(struct platform_device *dev)
 
 	wakeup_source_init(&seh_wakeup, "seh_wakeups");
 
-	ret = request_irq(cp_watchdog->irq, seh_int_handler_low, IRQF_DISABLED,
-			  seh_name, NULL);
+	ret = request_irq(cp_watchdog->irq, seh_int_handler_low,
+		IRQF_DISABLED, seh_name, NULL);
 	if (ret) {
 		ERRMSG("seh_probe: cannot register the COMM WDT interrupt\n");
 		goto dereg_misc;
