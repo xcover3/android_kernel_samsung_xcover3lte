@@ -38,56 +38,56 @@ static void __init pmu_mapping(void)
 	APMU_WKUP_STAT = apmu_virt_addr + WKUP_STAT;
 }
 
-#define IRQ_EDEN_START			32
-#define IRQ_EDEN_KEYPAD			(IRQ_EDEN_START + 9)
-#define IRQ_EDEN_TIMER1			(IRQ_EDEN_START + 13)
-#define IRQ_EDEN_TIMER2			(IRQ_EDEN_START + 32)
-#define IRQ_EDEN_TIMER3			(IRQ_EDEN_START + 38)
-#define IRQ_EDEN_PAD_EDGE		(IRQ_EDEN_START + 43)
-#define IRQ_EDEN_GPIO			(IRQ_EDEN_START + 49)
-#define IRQ_EDEN_USB_OTG		(IRQ_EDEN_START + 67)
-#define IRQ_EDEN_MMC			(IRQ_EDEN_START + 69)
-#define IRQ_EDEN_MMC2			(IRQ_EDEN_START + 71)
-#define IRQ_EDEN_MMC3			(IRQ_EDEN_START + 73)
-#define IRQ_EDEN_MMC4			(IRQ_EDEN_START + 75)
-#define IRQ_EDEN_PMIC			(IRQ_EDEN_START + 77)
-#define IRQ_EDEN_RTC_ALARM		(IRQ_EDEN_START + 79)
+#define IRQ_PXA1928_START			32
+#define IRQ_PXA1928_KEYPAD			(IRQ_PXA1928_START + 9)
+#define IRQ_PXA1928_TIMER1			(IRQ_PXA1928_START + 13)
+#define IRQ_PXA1928_TIMER2			(IRQ_PXA1928_START + 32)
+#define IRQ_PXA1928_TIMER3			(IRQ_PXA1928_START + 38)
+#define IRQ_PXA1928_PAD_EDGE		(IRQ_PXA1928_START + 43)
+#define IRQ_PXA1928_GPIO			(IRQ_PXA1928_START + 49)
+#define IRQ_PXA1928_USB_OTG		(IRQ_PXA1928_START + 67)
+#define IRQ_PXA1928_MMC			(IRQ_PXA1928_START + 69)
+#define IRQ_PXA1928_MMC2			(IRQ_PXA1928_START + 71)
+#define IRQ_PXA1928_MMC3			(IRQ_PXA1928_START + 73)
+#define IRQ_PXA1928_MMC4			(IRQ_PXA1928_START + 75)
+#define IRQ_PXA1928_PMIC			(IRQ_PXA1928_START + 77)
+#define IRQ_PXA1928_RTC_ALARM		(IRQ_PXA1928_START + 79)
 static void pxa1928_set_wake(int irq, unsigned int on)
 {
 	uint32_t wkup_mask = 0;
 
 	/* setting wakeup sources */
 	switch (irq) {
-	case IRQ_EDEN_PMIC:
+	case IRQ_PXA1928_PMIC:
 		wkup_mask = PMUA_PMIC;
 		break;
-	case IRQ_EDEN_USB_OTG:
+	case IRQ_PXA1928_USB_OTG:
 		wkup_mask = PMUA_USB;
 		break;
-	case IRQ_EDEN_GPIO:
+	case IRQ_PXA1928_GPIO:
 		wkup_mask = PMUA_GPIO;
 		break;
-	case IRQ_EDEN_MMC:
-	case IRQ_EDEN_MMC2:
+	case IRQ_PXA1928_MMC:
+	case IRQ_PXA1928_MMC2:
 		wkup_mask = PMUA_SDH1;
 		break;
-	case IRQ_EDEN_MMC3:
-	case IRQ_EDEN_MMC4:
+	case IRQ_PXA1928_MMC3:
+	case IRQ_PXA1928_MMC4:
 		wkup_mask = PMUA_SDH2;
 		break;
-	case IRQ_EDEN_KEYPAD:
+	case IRQ_PXA1928_KEYPAD:
 		wkup_mask = PMUA_KEYPAD;
 		break;
-	case IRQ_EDEN_RTC_ALARM:
+	case IRQ_PXA1928_RTC_ALARM:
 		wkup_mask = PMUA_RTC_ALARM;
 		break;
-	case IRQ_EDEN_TIMER1:
+	case IRQ_PXA1928_TIMER1:
 		wkup_mask = PMUA_TIMER_1_1;
 		break;
-	case IRQ_EDEN_TIMER2:
+	case IRQ_PXA1928_TIMER2:
 		wkup_mask = PMUA_TIMER_2_2;
 		break;
-	case IRQ_EDEN_TIMER3:
+	case IRQ_PXA1928_TIMER3:
 		wkup_mask = PMUA_TIMER_3_2;
 	default:
 		/* do nothing */
@@ -330,7 +330,7 @@ static int __init pxa1928_suspend_init(void)
 	int ret;
 	ret = mmp_platform_suspend_register(&pxa1928_suspend);
 	if (ret)
-		WARN_ON("EDEN Suspend Register fails!!");
+		WARN_ON("PXA1928 Suspend Register fails!!");
 
 	return 0;
 }

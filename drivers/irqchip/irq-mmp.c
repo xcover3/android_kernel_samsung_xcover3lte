@@ -33,7 +33,7 @@
 
 #define PJ1_INT_SEL		0x10c
 #define PJ4_INT_SEL		0x104
-#define EDEN_INT_SEL		0x108
+#define PXA1928_INT_SEL		0x108
 
 /* bit fields in PJ1_INT_SEL and PJ4_INT_SEL */
 #define SEL_INT_PENDING		(1 << 6)
@@ -297,7 +297,7 @@ static struct mmp_intc_conf mmp2_conf = {
 	.conf_mask	= 0x7f,
 };
 
-static struct mmp_intc_conf eden_conf = {
+static struct mmp_intc_conf pxa1928_conf = {
 	.conf_enable	= 0x41,
 	.conf_disable	= 0x0,
 	.conf_mask	= 0x1fff,
@@ -330,11 +330,11 @@ mmp2_handle_irq(struct pt_regs *regs)
 }
 
 static asmlinkage void __exception_irq_entry
-eden_handle_irq(struct pt_regs *regs)
+pxa1928_handle_irq(struct pt_regs *regs)
 {
 	int irq, hwirq;
 
-	hwirq = readl_relaxed(mmp_icu_base + EDEN_INT_SEL);
+	hwirq = readl_relaxed(mmp_icu_base + PXA1928_INT_SEL);
 	if (!(hwirq & SEL_INT_PENDING))
 		return;
 	hwirq &= SEL_INT_NUM_MASK;
@@ -546,7 +546,7 @@ static int __init mmp2_of_init(struct device_node *node,
 	return 0;
 }
 
-static int __init eden_of_init(struct device_node *node,
+static int __init pxa1928_of_init(struct device_node *node,
 			       struct device_node *parent)
 {
 	int ret;
@@ -555,11 +555,11 @@ static int __init eden_of_init(struct device_node *node,
 	if (ret < 0)
 		return ret;
 
-	icu_data[0].conf_enable = eden_conf.conf_enable;
-	icu_data[0].conf_disable = eden_conf.conf_disable;
-	icu_data[0].conf_mask = eden_conf.conf_mask;
+	icu_data[0].conf_enable = pxa1928_conf.conf_enable;
+	icu_data[0].conf_disable = pxa1928_conf.conf_disable;
+	icu_data[0].conf_mask = pxa1928_conf.conf_mask;
 	irq_set_default_host(icu_data[0].domain);
-	set_handle_irq(eden_handle_irq);
+	set_handle_irq(pxa1928_handle_irq);
 	max_icu_nr = 1;
 	return 0;
 }
@@ -736,5 +736,5 @@ void __init mmp_of_wakeup_init(void)
 	return;
 }
 
-IRQCHIP_DECLARE(eden_intc, "marvell,pxa1928-intc", eden_of_init);
+IRQCHIP_DECLARE(pxa1928_intc, "marvell,pxa1928-intc", pxa1928_of_init);
 #endif
