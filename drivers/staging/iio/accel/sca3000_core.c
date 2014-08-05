@@ -419,11 +419,8 @@ static IIO_DEVICE_ATTR(measurement_mode, S_IRUGO | S_IWUSR,
 
 static IIO_DEVICE_ATTR(revision, S_IRUGO, sca3000_show_rev, NULL, 0);
 
-static const struct iio_event_spec sca3000_event = {
-	.type = IIO_EV_TYPE_MAG,
-	.dir = IIO_EV_DIR_RISING,
-	.mask_separate = BIT(IIO_EV_INFO_VALUE) | BIT(IIO_EV_INFO_ENABLE),
-};
+#define SCA3000_EVENT_MASK					\
+	(IIO_EV_BIT(IIO_EV_TYPE_MAG, IIO_EV_DIR_RISING))
 
 #define SCA3000_CHAN(index, mod)				\
 	{							\
@@ -440,8 +437,7 @@ static const struct iio_event_spec sca3000_event = {
 			.storagebits = 16,			\
 			.shift = 5,				\
 		},						\
-		.event_spec = &sca3000_event,			\
-		.num_event_specs = 1,				\
+		.event_mask = SCA3000_EVENT_MASK,		\
 	 }
 
 static const struct iio_chan_spec sca3000_channels[] = {
@@ -628,9 +624,9 @@ static ssize_t sca3000_set_frequency(struct device *dev,
 	struct sca3000_state *st = iio_priv(indio_dev);
 	int ret, base_freq = 0;
 	int ctrlval;
-	int val;
+	long val;
 
-	ret = kstrtoint(buf, 10, &val);
+	ret = kstrtol(buf, 10, &val);
 	if (ret)
 		return ret;
 
@@ -707,15 +703,12 @@ static IIO_CONST_ATTR_TEMP_OFFSET("-214.6");
  * sca3000_read_thresh() - query of a threshold
  **/
 static int sca3000_read_thresh(struct iio_dev *indio_dev,
-			       const struct iio_chan_spec *chan,
-			       enum iio_event_type type,
-			       enum iio_event_direction dir,
-			       enum iio_event_info info,
-			       int *val, int *val2)
+			       u64 e,
+			       int *val)
 {
 	int ret, i;
 	struct sca3000_state *st = iio_priv(indio_dev);
-	int num = chan->channel2;
+	int num = IIO_EVENT_CODE_EXTRACT_MODIFIER(e);
 	mutex_lock(&st->lock);
 	ret = sca3000_read_ctrl_reg(st, sca3000_addresses[num][1]);
 	mutex_unlock(&st->lock);
@@ -731,21 +724,18 @@ static int sca3000_read_thresh(struct iio_dev *indio_dev,
 				 ARRAY_SIZE(st->info->mot_det_mult_xz))
 			*val += st->info->mot_det_mult_xz[i];
 
-	return IIO_VAL_INT;
+	return 0;
 }
 
 /**
  * sca3000_write_thresh() control of threshold
  **/
 static int sca3000_write_thresh(struct iio_dev *indio_dev,
-				const struct iio_chan_spec *chan,
-				enum iio_event_type type,
-				enum iio_event_direction dir,
-				enum iio_event_info info,
-				int val, int val2)
+				u64 e,
+				int val)
 {
 	struct sca3000_state *st = iio_priv(indio_dev);
-	int num = chan->channel2;
+	int num = IIO_EVENT_CODE_EXTRACT_MODIFIER(e);
 	int ret;
 	int i;
 	u8 nonlinear = 0;
@@ -876,14 +866,12 @@ done:
  * sca3000_read_event_config() what events are enabled
  **/
 static int sca3000_read_event_config(struct iio_dev *indio_dev,
-				     const struct iio_chan_spec *chan,
-				     enum iio_event_type type,
-				     enum iio_event_direction dir)
+				     u64 e)
 {
 	struct sca3000_state *st = iio_priv(indio_dev);
 	int ret;
 	u8 protect_mask = 0x03;
-	int num = chan->channel2;
+	int num = IIO_EVENT_CODE_EXTRACT_MODIFIER(e);
 
 	/* read current value of mode register */
 	mutex_lock(&st->lock);
@@ -943,12 +931,12 @@ static ssize_t sca3000_set_free_fall_mode(struct device *dev,
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct sca3000_state *st = iio_priv(indio_dev);
-	u8 val;
+	long val;
 	int ret;
 	u8 protect_mask = SCA3000_FREE_FALL_DETECT;
 
 	mutex_lock(&st->lock);
-	ret = kstrtou8(buf, 10, &val);
+	ret = kstrtol(buf, 10, &val);
 	if (ret)
 		goto error_ret;
 
@@ -981,15 +969,13 @@ error_ret:
  * this mode is disabled.  Currently normal mode is assumed.
  **/
 static int sca3000_write_event_config(struct iio_dev *indio_dev,
-				      const struct iio_chan_spec *chan,
-				      enum iio_event_type type,
-				      enum iio_event_direction dir,
+				      u64 e,
 				      int state)
 {
 	struct sca3000_state *st = iio_priv(indio_dev);
 	int ret, ctrlval;
 	u8 protect_mask = 0x03;
-	int num = chan->channel2;
+	int num = IIO_EVENT_CODE_EXTRACT_MODIFIER(e);
 
 	mutex_lock(&st->lock);
 	/* First read the motion detector config to find out if
@@ -1149,9 +1135,11 @@ static int sca3000_probe(struct spi_device *spi)
 	struct sca3000_state *st;
 	struct iio_dev *indio_dev;
 
-	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
-	if (!indio_dev)
-		return -ENOMEM;
+	indio_dev = iio_device_alloc(sizeof(*st));
+	if (indio_dev == NULL) {
+		ret = -ENOMEM;
+		goto error_ret;
+	}
 
 	st = iio_priv(indio_dev);
 	spi_set_drvdata(spi, indio_dev);
@@ -1174,7 +1162,7 @@ static int sca3000_probe(struct spi_device *spi)
 	sca3000_configure_ring(indio_dev);
 	ret = iio_device_register(indio_dev);
 	if (ret < 0)
-		return ret;
+		goto error_free_dev;
 
 	ret = iio_buffer_register(indio_dev,
 				  sca3000_channels,
@@ -1210,6 +1198,10 @@ error_unregister_ring:
 	iio_buffer_unregister(indio_dev);
 error_unregister_dev:
 	iio_device_unregister(indio_dev);
+error_free_dev:
+	iio_device_free(indio_dev);
+
+error_ret:
 	return ret;
 }
 
@@ -1243,6 +1235,7 @@ static int sca3000_remove(struct spi_device *spi)
 	iio_device_unregister(indio_dev);
 	iio_buffer_unregister(indio_dev);
 	sca3000_unconfigure_ring(indio_dev);
+	iio_device_free(indio_dev);
 
 	return 0;
 }

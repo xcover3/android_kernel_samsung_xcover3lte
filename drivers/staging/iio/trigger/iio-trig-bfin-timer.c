@@ -83,28 +83,32 @@ static ssize_t iio_bfin_tmr_frequency_store(struct device *dev,
 {
 	struct iio_trigger *trig = to_iio_trigger(dev);
 	struct bfin_tmr_state *st = iio_trigger_get_drvdata(trig);
-	unsigned int val;
+	unsigned long val;
 	bool enabled;
 	int ret;
 
-	ret = kstrtouint(buf, 10, &val);
+	ret = kstrtoul(buf, 10, &val);
 	if (ret)
-		return ret;
+		goto error_ret;
 
-	if (val > 100000)
-		return -EINVAL;
+	if (val > 100000) {
+		ret = -EINVAL;
+		goto error_ret;
+	}
 
 	enabled = get_enabled_gptimers() & st->t->bit;
 
 	if (enabled)
 		disable_gptimers(st->t->bit);
 
-	if (val == 0)
-		return count;
+	if (!val)
+		goto error_ret;
 
 	val = get_sclk() / val;
-	if (val <= 4 || val <= st->duty)
-		return -EINVAL;
+	if (val <= 4 || val <= st->duty) {
+		ret = -EINVAL;
+		goto error_ret;
+	}
 
 	set_gptimer_period(st->t->id, val);
 	set_gptimer_pwidth(st->t->id, val - st->duty);
@@ -112,7 +116,8 @@ static ssize_t iio_bfin_tmr_frequency_store(struct device *dev,
 	if (enabled)
 		enable_gptimers(st->t->bit);
 
-	return count;
+error_ret:
+	return ret ? ret : count;
 }
 
 static ssize_t iio_bfin_tmr_frequency_show(struct device *dev,

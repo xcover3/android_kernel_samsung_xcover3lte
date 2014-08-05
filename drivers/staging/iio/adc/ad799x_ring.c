@@ -35,6 +35,7 @@ static irqreturn_t ad799x_trigger_handler(int irq, void *p)
 	struct iio_poll_func *pf = p;
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct ad799x_state *st = iio_priv(indio_dev);
+	s64 time_ns;
 	int b_sent;
 	u8 cmd;
 
@@ -64,8 +65,13 @@ static irqreturn_t ad799x_trigger_handler(int irq, void *p)
 	if (b_sent < 0)
 		goto out;
 
-	iio_push_to_buffers_with_timestamp(indio_dev, st->rx_buf,
-			iio_get_time_ns());
+	time_ns = iio_get_time_ns();
+
+	if (indio_dev->scan_timestamp)
+		memcpy(st->rx_buf + indio_dev->scan_bytes - sizeof(s64),
+			&time_ns, sizeof(time_ns));
+
+	iio_push_to_buffers(indio_dev, st->rx_buf);
 out:
 	iio_trigger_notify_done(indio_dev->trig);
 

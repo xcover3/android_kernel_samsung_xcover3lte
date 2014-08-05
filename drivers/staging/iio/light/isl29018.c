@@ -279,18 +279,18 @@ static ssize_t store_resolution(struct device *dev,
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct isl29018_chip *chip = iio_priv(indio_dev);
 	int status;
-	unsigned int val;
+	unsigned long lval;
 	unsigned int new_adc_bit;
 
-	if (kstrtouint(buf, 10, &val))
+	if (kstrtoul(buf, 10, &lval))
 		return -EINVAL;
-	if (!(val == 4 || val == 8 || val == 12 || val == 16)) {
+	if (!(lval == 4 || lval == 8 || lval == 12 || lval == 16)) {
 		dev_err(dev, "The resolution is not supported\n");
 		return -EINVAL;
 	}
 
 	mutex_lock(&chip->lock);
-	status = isl29018_set_resolution(chip, val, &new_adc_bit);
+	status = isl29018_set_resolution(chip, lval, &new_adc_bit);
 	if (status < 0) {
 		mutex_unlock(&chip->lock);
 		dev_err(dev, "Error in setting resolution\n");
@@ -319,11 +319,11 @@ static ssize_t store_prox_infrared_suppression(struct device *dev,
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct isl29018_chip *chip = iio_priv(indio_dev);
-	int val;
+	unsigned long lval;
 
-	if (kstrtoint(buf, 10, &val))
+	if (kstrtoul(buf, 10, &lval))
 		return -EINVAL;
-	if (!(val == 0 || val == 1)) {
+	if (!(lval == 0UL || lval == 1UL)) {
 		dev_err(dev, "The mode is not supported\n");
 		return -EINVAL;
 	}
@@ -331,7 +331,7 @@ static ssize_t store_prox_infrared_suppression(struct device *dev,
 	/* get the  "proximity scheme" i.e. if the chip does on chip
 	infrared suppression (1 means perform on chip suppression) */
 	mutex_lock(&chip->lock);
-	chip->prox_scheme = val;
+	chip->prox_scheme = (int)lval;
 	mutex_unlock(&chip->lock);
 
 	return count;
@@ -550,10 +550,11 @@ static int isl29018_probe(struct i2c_client *client,
 	struct iio_dev *indio_dev;
 	int err;
 
-	indio_dev = devm_iio_device_alloc(&client->dev, sizeof(*chip));
+	indio_dev = iio_device_alloc(sizeof(*chip));
 	if (indio_dev == NULL) {
 		dev_err(&client->dev, "iio allocation fails\n");
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto exit;
 	}
 	chip = iio_priv(indio_dev);
 
@@ -563,7 +564,6 @@ static int isl29018_probe(struct i2c_client *client,
 	mutex_init(&chip->lock);
 
 	chip->lux_scale = 1;
-	chip->lux_uscale = 0;
 	chip->range = 1000;
 	chip->adc_bit = 16;
 	chip->suspended = false;
@@ -572,12 +572,12 @@ static int isl29018_probe(struct i2c_client *client,
 	if (IS_ERR(chip->regmap)) {
 		err = PTR_ERR(chip->regmap);
 		dev_err(chip->dev, "regmap initialization failed: %d\n", err);
-		return err;
+		goto exit;
 	}
 
 	err = isl29018_chip_init(chip);
 	if (err)
-		return err;
+		goto exit_iio_free;
 
 	indio_dev->info = &isl29108_info;
 	indio_dev->channels = isl29018_channels;
@@ -585,11 +585,26 @@ static int isl29018_probe(struct i2c_client *client,
 	indio_dev->name = id->name;
 	indio_dev->dev.parent = &client->dev;
 	indio_dev->modes = INDIO_DIRECT_MODE;
-	err = devm_iio_device_register(&client->dev, indio_dev);
+	err = iio_device_register(indio_dev);
 	if (err) {
 		dev_err(&client->dev, "iio registration fails\n");
-		return err;
+		goto exit_iio_free;
 	}
+
+	return 0;
+exit_iio_free:
+	iio_device_free(indio_dev);
+exit:
+	return err;
+}
+
+static int isl29018_remove(struct i2c_client *client)
+{
+	struct iio_dev *indio_dev = i2c_get_clientdata(client);
+
+	dev_dbg(&client->dev, "%s()\n", __func__);
+	iio_device_unregister(indio_dev);
+	iio_device_free(indio_dev);
 
 	return 0;
 }
@@ -654,6 +669,7 @@ static struct i2c_driver isl29018_driver = {
 			.of_match_table = isl29018_of_match,
 		    },
 	.probe	 = isl29018_probe,
+	.remove	 = isl29018_remove,
 	.id_table = isl29018_id,
 };
 module_i2c_driver(isl29018_driver);

@@ -146,7 +146,11 @@ static irqreturn_t lis3l02dq_trigger_handler(int irq, void *p)
 	if (!bitmap_empty(indio_dev->active_scan_mask, indio_dev->masklength))
 		len = lis3l02dq_get_buffer_element(indio_dev, data);
 
-	iio_push_to_buffers_with_timestamp(indio_dev, data, pf->timestamp);
+	  /* Guaranteed to be aligned with 8 byte boundary */
+	if (indio_dev->scan_timestamp)
+		*(s64 *)((u8 *)data + ALIGN(len, sizeof(s64)))
+			= pf->timestamp;
+	iio_push_to_buffers(indio_dev, (u8 *)data);
 
 	kfree(data);
 done:
@@ -382,6 +386,7 @@ error_ret:
 }
 
 static const struct iio_buffer_setup_ops lis3l02dq_buffer_setup_ops = {
+	.preenable = &iio_sw_buffer_preenable,
 	.postenable = &lis3l02dq_buffer_postenable,
 	.predisable = &lis3l02dq_buffer_predisable,
 };
@@ -395,7 +400,7 @@ int lis3l02dq_configure_buffer(struct iio_dev *indio_dev)
 	if (!buffer)
 		return -ENOMEM;
 
-	iio_device_attach_buffer(indio_dev, buffer);
+	indio_dev->buffer = buffer;
 
 	buffer->scan_timestamp = true;
 	indio_dev->setup_ops = &lis3l02dq_buffer_setup_ops;

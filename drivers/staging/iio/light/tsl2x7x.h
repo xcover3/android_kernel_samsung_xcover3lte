@@ -95,6 +95,7 @@ struct tsl2X7X_platform_data {
 	int (*power_off)     (struct i2c_client *dev);
 	struct tsl2x7x_lux platform_lux_table[TSL2X7X_MAX_LUX_TABLE_SIZE];
 	struct tsl2x7x_settings *platform_default_settings;
+	int irq;
 };
 
 #endif /* __TSL2X7X_H */

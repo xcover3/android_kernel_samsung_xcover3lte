@@ -54,7 +54,7 @@ out:
 	return ret;
 }
 
-/* Whilst this makes a lot of calls to iio_sw_ring functions - it is too device
+/* Whilst this makes a lot of calls to iio_sw_ring functions - it is to device
  * specific to be rolled into the core.
  */
 static irqreturn_t ade7758_trigger_handler(int irq, void *p)
@@ -69,7 +69,11 @@ static irqreturn_t ade7758_trigger_handler(int irq, void *p)
 		if (ade7758_spi_read_burst(indio_dev) >= 0)
 			*dat32 = get_unaligned_be32(&st->rx_buf[5]) & 0xFFFFFF;
 
-	iio_push_to_buffers_with_timestamp(indio_dev, dat64, pf->timestamp);
+	/* Guaranteed to be aligned with 8 byte boundary */
+	if (indio_dev->scan_timestamp)
+		dat64[1] = pf->timestamp;
+
+	iio_push_to_buffers(indio_dev, (u8 *)dat64);
 
 	iio_trigger_notify_done(indio_dev->trig);
 
@@ -87,9 +91,14 @@ static int ade7758_ring_preenable(struct iio_dev *indio_dev)
 {
 	struct ade7758_state *st = iio_priv(indio_dev);
 	unsigned channel;
+	int ret;
 
 	if (!bitmap_empty(indio_dev->active_scan_mask, indio_dev->masklength))
 		return -EINVAL;
+
+	ret = iio_sw_buffer_preenable(indio_dev);
+	if (ret < 0)
+		return ret;
 
 	channel = find_first_bit(indio_dev->active_scan_mask,
 				 indio_dev->masklength);
@@ -116,16 +125,13 @@ void ade7758_unconfigure_ring(struct iio_dev *indio_dev)
 int ade7758_configure_ring(struct iio_dev *indio_dev)
 {
 	struct ade7758_state *st = iio_priv(indio_dev);
-	struct iio_buffer *buffer;
 	int ret = 0;
 
-	buffer = iio_kfifo_allocate(indio_dev);
-	if (!buffer) {
+	indio_dev->buffer = iio_kfifo_allocate(indio_dev);
+	if (!indio_dev->buffer) {
 		ret = -ENOMEM;
 		return ret;
 	}
-
-	iio_device_attach_buffer(indio_dev, buffer);
 
 	indio_dev->setup_ops = &ade7758_ring_setup_ops;
 

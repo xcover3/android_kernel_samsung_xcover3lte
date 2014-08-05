@@ -53,10 +53,10 @@ static ssize_t iio_trig_periodic_write_freq(struct device *dev,
 {
 	struct iio_trigger *trig = to_iio_trigger(dev);
 	struct iio_prtc_trigger_info *trig_info = iio_trigger_get_drvdata(trig);
-	int val;
+	unsigned long val;
 	int ret;
 
-	ret = kstrtoint(buf, 10, &val);
+	ret = kstrtoul(buf, 10, &val);
 	if (ret)
 		goto error_ret;
 

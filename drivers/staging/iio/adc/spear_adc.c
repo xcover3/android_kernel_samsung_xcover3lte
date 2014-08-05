@@ -146,6 +146,7 @@ static int spear_read_raw(struct iio_dev *indio_dev,
 			  long mask)
 {
 	struct spear_adc_info *info = iio_priv(indio_dev);
+	u32 scale_mv;
 	u32 status;
 
 	switch (mask) {
@@ -167,9 +168,10 @@ static int spear_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SCALE:
-		*val = info->vref_external;
-		*val2 = DATA_BITS;
-		return IIO_VAL_FRACTIONAL_LOG2;
+		scale_mv = (info->vref_external * 1000) >> DATA_BITS;
+		*val =  scale_mv / 1000;
+		*val2 = (scale_mv % 1000) * 1000;
+		return IIO_VAL_INT_PLUS_MICRO;
 	}
 
 	return -EINVAL;
@@ -298,10 +300,11 @@ static int spear_adc_probe(struct platform_device *pdev)
 	int ret = -ENODEV;
 	int irq;
 
-	iodev = devm_iio_device_alloc(dev, sizeof(struct spear_adc_info));
+	iodev = iio_device_alloc(sizeof(struct spear_adc_info));
 	if (!iodev) {
 		dev_err(dev, "failed allocating iio device\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto errout1;
 	}
 
 	info = iio_priv(iodev);
@@ -315,41 +318,42 @@ static int spear_adc_probe(struct platform_device *pdev)
 	info->adc_base_spear6xx = of_iomap(np, 0);
 	if (!info->adc_base_spear6xx) {
 		dev_err(dev, "failed mapping memory\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto errout2;
 	}
 	info->adc_base_spear3xx =
-		(struct adc_regs_spear3xx __iomem *)info->adc_base_spear6xx;
+		(struct adc_regs_spear3xx *)info->adc_base_spear6xx;
 
 	info->clk = clk_get(dev, NULL);
 	if (IS_ERR(info->clk)) {
 		dev_err(dev, "failed getting clock\n");
-		goto errout1;
+		goto errout3;
 	}
 
 	ret = clk_prepare_enable(info->clk);
 	if (ret) {
 		dev_err(dev, "failed enabling clock\n");
-		goto errout2;
+		goto errout4;
 	}
 
 	irq = platform_get_irq(pdev, 0);
-	if (irq <= 0) {
+	if ((irq < 0) || (irq >= NR_IRQS)) {
 		dev_err(dev, "failed getting interrupt resource\n");
 		ret = -EINVAL;
-		goto errout3;
+		goto errout5;
 	}
 
 	ret = devm_request_irq(dev, irq, spear_adc_isr, 0, MOD_NAME, info);
 	if (ret < 0) {
 		dev_err(dev, "failed requesting interrupt\n");
-		goto errout3;
+		goto errout5;
 	}
 
 	if (of_property_read_u32(np, "sampling-frequency",
 				 &info->sampling_freq)) {
 		dev_err(dev, "sampling-frequency missing in DT\n");
 		ret = -EINVAL;
-		goto errout3;
+		goto errout5;
 	}
 
 	/*
@@ -379,18 +383,21 @@ static int spear_adc_probe(struct platform_device *pdev)
 
 	ret = iio_device_register(iodev);
 	if (ret)
-		goto errout3;
+		goto errout5;
 
 	dev_info(dev, "SPEAR ADC driver loaded, IRQ %d\n", irq);
 
 	return 0;
 
-errout3:
+errout5:
 	clk_disable_unprepare(info->clk);
-errout2:
+errout4:
 	clk_put(info->clk);
-errout1:
+errout3:
 	iounmap(info->adc_base_spear6xx);
+errout2:
+	iio_device_free(iodev);
+errout1:
 	return ret;
 }
 
@@ -400,20 +407,20 @@ static int spear_adc_remove(struct platform_device *pdev)
 	struct spear_adc_info *info = iio_priv(iodev);
 
 	iio_device_unregister(iodev);
+	platform_set_drvdata(pdev, NULL);
 	clk_disable_unprepare(info->clk);
 	clk_put(info->clk);
 	iounmap(info->adc_base_spear6xx);
+	iio_device_free(iodev);
 
 	return 0;
 }
 
-#ifdef CONFIG_OF
 static const struct of_device_id spear_adc_dt_ids[] = {
 	{ .compatible = "st,spear600-adc", },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, spear_adc_dt_ids);
-#endif
 
 static struct platform_driver spear_adc_driver = {
 	.probe		= spear_adc_probe,
