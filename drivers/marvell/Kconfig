@@ -17,4 +17,14 @@ config MRVL_SW_JTAG
 	help
 	  Marvell software jtag driver to simulate jtag access
 
+config MRVL_PANIC_FLUSH
+        bool "cache flush when panic"
+        depends on KEXEC
+        help
+          Enable support for flush all cache during panic
+
+config PXA_RAMDUMP
+        bool "marvell ramdump driver"
+        help
+          marvell ramdump driver
 endif

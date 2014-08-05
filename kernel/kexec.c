@@ -1077,6 +1077,7 @@ asmlinkage long compat_sys_kexec_load(unsigned long entry,
 }
 #endif
 
+void __weak panic_flush(struct pt_regs *regs) { }
 void crash_kexec(struct pt_regs *regs)
 {
 	/* Take the kexec_mutex here to prevent sys_kexec_load
@@ -1087,6 +1088,7 @@ void crash_kexec(struct pt_regs *regs)
 	 * of memory the xchg(&kexec_crash_image) would be
 	 * sufficient.  But since I reuse the memory...
 	 */
+	panic_flush(regs);
 	if (mutex_trylock(&kexec_mutex)) {
 		if (kexec_crash_image) {
 			struct pt_regs fixed_regs;
