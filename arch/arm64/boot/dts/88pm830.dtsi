@@ -18,31 +18,21 @@
 
 	charger {
 		compatible = "marvell,88pm830-chg";
-
-		status = "disabled";
 	};
 
 	battery {
 		compatible = "marvell,88pm830-bat";
-
-		status = "disabled";
 	};
 
 	led {
 		compatible = "marvell,88pm830-led";
-
-		status = "disabled";
 	};
 
 	vbus {
 		compatible = "marvell,88pm830-vbus";
-
-		status = "disabled";
 	};
 
 	debug {
 		compatible = "marvell,88pm830-debug";
-
-		status = "disabled";
 	};
 };
