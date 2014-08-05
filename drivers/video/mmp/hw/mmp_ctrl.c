@@ -1483,9 +1483,6 @@ static int mmphw_probe(struct platform_device *pdev)
 	u32 overlay_num[MAX_PATH][MAX_OVERLAY];
 	struct mmp_path *path = NULL;
 
-	/* register lcd internal clock firstly */
-	mmp_display_clk_init();
-
 	/* get resources from platform data */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
@@ -1645,6 +1642,14 @@ static int mmphw_probe(struct platform_device *pdev)
 	pm_runtime_forbid(ctrl->dev);
 
 	ctrl->version = readl_relaxed(ctrl->reg_base + LCD_VERSION);
+
+	/* register lcd internal clock firstly */
+	if (mmp_display_clk_init(ctrl) < 0) {
+		dev_err(ctrl->dev, "register clk failure\n");
+		ret = -EINVAL;
+		goto failed;
+	}
+
 	/* init global regs */
 	ctrl_set_default(ctrl);
 

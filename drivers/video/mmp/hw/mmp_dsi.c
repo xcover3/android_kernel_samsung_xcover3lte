@@ -901,6 +901,8 @@ static int dsi_rx_cmds(struct mmp_dsi_port *dsi_port, struct mmp_dsi_buf *dbuf,
 
 static unsigned long clk_calculate(struct mmp_dsi *dsi)
 {
+	struct mmp_path *path = mmp_get_path(dsi->plat_path_name);
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	struct mmp_mode *mode = &dsi->mode;
 	u32 total_w, total_h, byteclk, bitclk, bitclk_div = 1, bpp, rgb_type;
 
@@ -918,7 +920,7 @@ static unsigned long clk_calculate(struct mmp_dsi *dsi)
 	if (bitclk < 150000000)
 		bitclk_div = 150000000 / bitclk + 1;
 
-	return bitclk * bitclk_div;
+	return mmp_disp_clk_round_rate(ctrl, bitclk * bitclk_div);
 }
 
 #ifdef CONFIG_OF
@@ -1114,12 +1116,13 @@ static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 		* select the clock source for pixel clk, need copy the clock source from
 		* pixel source register bits(31:29) to dsi clock source register bits(13:12)
 		*/
-
-		tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK_DIV);
-		value = tmp & SCLK_SOURCE_SELECT_MASK;
-		value >>= (SCLK_SOURCE_SELECT_OFFSET - DSI1_BITCLK_SOURCE_SELECT_OFFSET);
-		value &= DSI1_BITCLK_SROUCE_SELECT_MASK;
-		writel_relaxed(tmp | value, ctrl_regs(path) + LCD_SCLK_DIV);
+		if (DISP_GEN4(dsi->version)) {
+			tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK_DIV);
+			value = tmp & SCLK_SOURCE_SELECT_MASK;
+			value >>= (SCLK_SOURCE_SELECT_OFFSET - DSI1_BITCLK_SOURCE_SELECT_OFFSET);
+			value &= DSI1_BITCLK_SROUCE_SELECT_MASK;
+			writel_relaxed(tmp | value, ctrl_regs(path) + LCD_SCLK_DIV);
+		}
 
 		dsi->set_status(dsi, MMP_RESET);
 	}

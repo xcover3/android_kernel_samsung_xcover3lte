@@ -1282,5 +1282,6 @@ extern struct mmp_vdma_info *mmp_vdma_alloc(int overlay_id, int sram_size);
 extern void mmp_vdma_free(int overlay_id);
 extern struct mmp_shadow *mmp_shadow_alloc(struct mmp_overlay *overlay);
 extern void mmp_shadow_free(struct mmp_shadow *shadow_info);
-extern void mmp_display_clk_init(void);
+extern int mmp_display_clk_init(struct mmphw_ctrl *ctrl);
+extern long mmp_disp_clk_round_rate(struct mmphw_ctrl *ctrl, unsigned long rate);
 #endif	/* _MMP_CTRL_H_ */
