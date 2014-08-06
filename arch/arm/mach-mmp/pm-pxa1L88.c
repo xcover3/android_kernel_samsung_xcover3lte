@@ -511,7 +511,7 @@ static u32 wakeup_source_check(void)
 			if (icu_async_further_check())
 				pr_err("Cannot interpretate the detailed wakeup reason!\n");
 		} else {
-			void __iomem *gic_dist_base = regs_addr_get_va(REGS_ADDR_GIC);
+			void __iomem *gic_dist_base = regs_addr_get_va(REGS_ADDR_GIC_DIST);
 			u32 reg = readl_relaxed(gic_dist_base + GIC_DIST_PENDING_SET);
 			if (reg) {
 				pr_info("!!!!!! GIC got Pending PPI/IPI Before Suspend !!!!!!\n");

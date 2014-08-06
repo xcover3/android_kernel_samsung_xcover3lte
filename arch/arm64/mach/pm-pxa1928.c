@@ -267,7 +267,7 @@ static u32 wakeup_source_check(void)
 		snprintf(buf + (len - 1), size - len + 1, "\n");
 		pr_info("%s", buf);
 	} else {
-		gic_dist_base = regs_addr_get_va(REGS_ADDR_GIC);
+		gic_dist_base = regs_addr_get_va(REGS_ADDR_GIC_DIST);
 		reg = readl_relaxed(gic_dist_base + GIC_DIST_PENDING_SET);
 		if (reg) {
 			pr_info(" GIC info:\n");

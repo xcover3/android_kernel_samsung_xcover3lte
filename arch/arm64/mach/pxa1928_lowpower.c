@@ -213,7 +213,7 @@ static void pxa1928_set_cstate(u32 cpu, u32 power_mode,
 			       bool flush_l2c)
 {
 	u32 core_pwrmode, core_rstctrl;
-	void __iomem *dist_base = regs_addr_get_va(REGS_ADDR_GIC);
+	void __iomem *dist_base = regs_addr_get_va(REGS_ADDR_GIC_DIST);
 
 	core_pwrmode = readl(APMU_CORE_PWRMODE[cpu]);
 

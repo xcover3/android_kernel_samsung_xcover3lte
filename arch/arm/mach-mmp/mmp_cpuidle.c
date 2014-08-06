@@ -211,7 +211,7 @@ static void mmp_pm_powered_up(void)
 			mmp_idle->ops->restore_wakeup();
 		}
 		/* If hardware really shutdown MP subsystem */
-		if (!(readl_relaxed(regs_addr_get_va(REGS_ADDR_GIC) +
+		if (!(readl_relaxed(regs_addr_get_va(REGS_ADDR_GIC_DIST) +
 				GIC_DIST_CTRL) & 0x1)) {
 			pr_debug("%s: cpu%u: cluster%u is up!\n", __func__, cpu, cluster);
 			cpu_cluster_pm_exit();
