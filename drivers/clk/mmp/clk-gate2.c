@@ -94,7 +94,7 @@ static int mmp_clk_gate2_is_enabled(struct clk_hw *hw)
 	if (gate->lock)
 		spin_unlock_irqrestore(gate->lock, flags);
 
-	return (tmp & gate->mask) == gate->val_enable;
+	return (tmp & gate->mask) != 0;
 }
 
 const struct clk_ops mmp_clk_gate2_ops = {
