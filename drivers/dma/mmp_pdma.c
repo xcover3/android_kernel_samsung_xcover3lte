@@ -22,6 +22,8 @@
 #include <linux/of_dma.h>
 #include <linux/of.h>
 #include <linux/dma/mmp-pdma.h>
+#include <linux/pm_runtime.h>
+#include <linux/pm_qos.h>
 
 #include "dmaengine.h"
 
@@ -53,6 +55,7 @@
 #define DRCMR(n)	((((n) < 64) ? 0x0100 : 0x1100) + (((n) & 0x3f) << 2))
 #define DRCMR_MAPVLD	BIT(7)	/* Map Valid (read / write) */
 #define DRCMR_CHLNUM	0x1f	/* mask for Channel Number (read / write) */
+#define DRCMR_INVALID	100		/* Max DMA request number + 1 */
 
 #define DDADR_DESCADDR	0xfffffff0	/* Address of next descriptor (mask) */
 #define DDADR_STOP	BIT(0)	/* Stop (read / write) */
@@ -106,6 +109,8 @@ struct mmp_pdma_chan {
 	u32 dcmd;
 	u32 drcmr;
 	u32 dev_addr;
+	int user_do_qos;
+	int qos_count; /* Per-channel qos count */
 
 	/* list for desc */
 	spinlock_t desc_lock;		/* Descriptor list lock */
@@ -131,6 +136,8 @@ struct mmp_pdma_device {
 	struct dma_device		device;
 	struct mmp_pdma_phy		*phy;
 	spinlock_t phy_lock; /* protect alloc/free phy channels */
+	s32				lpm_qos;
+	struct pm_qos_request		qos_idle;
 };
 
 #define tx_to_mmp_pdma_desc(tx)					\
@@ -141,6 +148,9 @@ struct mmp_pdma_device {
 	container_of(dchan, struct mmp_pdma_chan, chan)
 #define to_mmp_pdma_dev(dmadev)					\
 	container_of(dmadev, struct mmp_pdma_device, device)
+
+static void mmp_pdma_qos_get(struct mmp_pdma_chan *chan);
+static void mmp_pdma_qos_put(struct mmp_pdma_chan *chan);
 
 static void set_desc(struct mmp_pdma_phy *phy, dma_addr_t addr)
 {
@@ -292,29 +302,30 @@ static void mmp_pdma_free_phy(struct mmp_pdma_chan *pchan)
 /**
  * start_pending_queue - transfer any pending transactions
  * pending list ==> running list
+ * Return 0 only when pending queue is started successfully, -1 otherwise.
  */
-static void start_pending_queue(struct mmp_pdma_chan *chan)
+static int start_pending_queue(struct mmp_pdma_chan *chan)
 {
 	struct mmp_pdma_desc_sw *desc;
 
 	/* still in running, irq will start the pending list */
 	if (!chan->idle) {
 		dev_dbg(chan->dev, "DMA controller still busy\n");
-		return;
+		return -1;
 	}
 
 	if (list_empty(&chan->chain_pending)) {
 		/* chance to re-fetch phy channel with higher prio */
 		mmp_pdma_free_phy(chan);
 		dev_dbg(chan->dev, "no pending list\n");
-		return;
+		return -1;
 	}
 
 	if (!chan->phy) {
 		chan->phy = lookup_phy(chan);
 		if (!chan->phy) {
 			dev_dbg(chan->dev, "no free dma channel\n");
-			return;
+			return -1;
 		}
 	}
 
@@ -334,6 +345,7 @@ static void start_pending_queue(struct mmp_pdma_chan *chan)
 	enable_chan(chan->phy);
 	chan->idle = false;
 	chan->bytes_residue = 0;
+	return 0;
 }
 
 
@@ -702,6 +714,7 @@ static int mmp_pdma_control(struct dma_chan *dchan, enum dma_ctrl_cmd cmd,
 	switch (cmd) {
 	case DMA_TERMINATE_ALL:
 		disable_chan(chan->phy);
+		mmp_pdma_qos_put(chan);
 		mmp_pdma_free_phy(chan);
 		spin_lock_irqsave(&chan->desc_lock, flags);
 		mmp_pdma_free_desc_list(chan, &chan->chain_pending);
@@ -849,10 +862,14 @@ static void mmp_pdma_issue_pending(struct dma_chan *dchan)
 {
 	struct mmp_pdma_chan *chan = to_mmp_pdma_chan(dchan);
 	unsigned long flags;
+	int ret = 0;
 
+	mmp_pdma_qos_get(chan);
 	spin_lock_irqsave(&chan->desc_lock, flags);
-	start_pending_queue(chan);
+	ret = start_pending_queue(chan);
 	spin_unlock_irqrestore(&chan->desc_lock, flags);
+	if (ret)
+		mmp_pdma_qos_put(chan);
 }
 
 /*
@@ -866,6 +883,7 @@ static void dma_do_tasklet(unsigned long data)
 	struct mmp_pdma_desc_sw *desc, *_desc;
 	LIST_HEAD(chain_cleanup);
 	unsigned long flags;
+	int ret = 0;
 
 	if (chan->cyclic_first) {
 		dma_async_tx_callback cb = NULL;
@@ -922,8 +940,12 @@ static void dma_do_tasklet(unsigned long data)
 	chan->idle = list_empty(&chan->chain_running);
 
 	/* Start any pending transactions automatically */
-	start_pending_queue(chan);
+	ret = start_pending_queue(chan);
 	spin_unlock_irqrestore(&chan->desc_lock, flags);
+
+	/* restart pending transactions failed, do not need qos anymore */
+	if (ret)
+		mmp_pdma_qos_put(chan);
 
 	/* Run the callback for each descriptor, in order */
 	list_for_each_entry_safe(desc, _desc, &chain_cleanup, node) {
@@ -943,7 +965,13 @@ static int mmp_pdma_remove(struct platform_device *op)
 {
 	struct mmp_pdma_device *pdev = platform_get_drvdata(op);
 
+#ifdef CONFIG_PM_RUNTIME
+	pm_qos_remove_request(&pdev->qos_idle);
+#endif
+
 	dma_async_device_unregister(&pdev->device);
+
+	platform_set_drvdata(op, NULL);
 	return 0;
 }
 
@@ -977,6 +1005,8 @@ static int mmp_pdma_chan_init(struct mmp_pdma_device *pdev, int idx, int irq)
 	INIT_LIST_HEAD(&chan->chain_pending);
 	INIT_LIST_HEAD(&chan->chain_running);
 	chan->bytes_residue = 0;
+	chan->qos_count = 0;
+	chan->user_do_qos = 1;
 
 	/* register virt channel to dma engine */
 	list_add_tail(&chan->chan.device_node, &pdev->device.channels);
@@ -995,13 +1025,34 @@ static struct dma_chan *mmp_pdma_dma_xlate(struct of_phandle_args *dma_spec,
 {
 	struct mmp_pdma_device *d = ofdma->of_dma_data;
 	struct dma_chan *chan;
+	struct mmp_pdma_chan *c;
 
 	chan = dma_get_any_slave_channel(&d->device);
 	if (!chan)
 		return NULL;
 
-	to_mmp_pdma_chan(chan)->drcmr = dma_spec->args[0];
+	/*
+	 * read args from <&pdma arg0 arg1>
+	 * arg0: pdma request number
+	 * arg1: 0 (pdma do qos), others (user do qos itself)
+	 */
+	c = to_mmp_pdma_chan(chan);
+	c->drcmr = dma_spec->args[0];
+	if (c->drcmr >= DRCMR_INVALID)
+		dev_err(c->dev, "Invalid drcmr %d\n", c->drcmr);
+#ifdef CONFIG_PM_RUNTIME
+	if (unlikely(dma_spec->args_count != 2))
+		dev_err(d->dev, "#dma-cells should be 2!\n");
 
+	c->user_do_qos = dma_spec->args[1] ? 1 : 0;
+
+	if (c->user_do_qos)
+		dev_dbg(d->dev, "channel %d: user does qos itself\n",
+			 c->chan.chan_id);
+	else
+		dev_dbg(d->dev, "channel %d: pdma does qos\n",
+			 c->chan.chan_id);
+#endif
 	return chan;
 }
 
@@ -1036,6 +1087,23 @@ static int mmp_pdma_probe(struct platform_device *op)
 	else
 		dma_channels = 32;	/* default 32 channel */
 	pdev->dma_channels = dma_channels;
+
+#ifdef CONFIG_PM_RUNTIME
+	if (!of_id || of_property_read_u32(pdev->dev->of_node,
+					   "lpm-qos", &pdev->lpm_qos)) {
+		dev_err(pdev->dev, "cannot find lpm-qos in device tree\n");
+		return -EINVAL;
+	}
+	pdev->qos_idle.name = op->name;
+	pm_qos_add_request(&pdev->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			   PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+	pm_runtime_enable(&op->dev);
+	/*
+	 * We can't ensure the pm operations are always in non-atomic context.
+	 * Actually it depends on the drivers' behavior. So mark it as irq safe.
+	 */
+	pm_runtime_irq_safe(&op->dev);
+#endif
 
 	for (i = 0; i < dma_channels; i++) {
 		if (platform_get_irq(op, i) > 0)
@@ -1106,16 +1174,94 @@ static int mmp_pdma_probe(struct platform_device *op)
 	return 0;
 }
 
+#ifdef CONFIG_PM_RUNTIME
+
+/*
+ * Per-channel qos get/put function. This function ensures that pm_
+ * runtime_get/put are not called multi times for one channel.
+ * This guarantees pm_runtime_get/put always match for the entire device.
+ */
+static void mmp_pdma_qos_get(struct mmp_pdma_chan *chan)
+{
+	unsigned long flags;
+
+	if (chan->user_do_qos)
+		return;
+
+	spin_lock_irqsave(&chan->desc_lock, flags);
+	if (chan->qos_count == 0) {
+		chan->qos_count = 1;
+		/*
+		 * Safe in spin_lock because it's marked as irq safe.
+		 * Similar case for mmp_pdma_qos_put().
+		 */
+		pm_runtime_get_sync(chan->dev);
+	}
+	spin_unlock_irqrestore(&chan->desc_lock, flags);
+}
+
+static void mmp_pdma_qos_put(struct mmp_pdma_chan *chan)
+{
+	unsigned long flags;
+
+	if (chan->user_do_qos)
+		return;
+
+	spin_lock_irqsave(&chan->desc_lock, flags);
+	if (chan->qos_count == 1) {
+		chan->qos_count = 0;
+		pm_runtime_put_autosuspend(chan->dev);
+	}
+	spin_unlock_irqrestore(&chan->desc_lock, flags);
+}
+
+static int mmp_pdma_runtime_suspend(struct device *dev)
+{
+	struct mmp_pdma_device *pdev = dev_get_drvdata(dev);
+	pm_qos_update_request(&pdev->qos_idle,
+			      PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+	return 0;
+}
+
+static int mmp_pdma_runtime_resume(struct device *dev)
+{
+	struct mmp_pdma_device *pdev = dev_get_drvdata(dev);
+	pm_qos_update_request(&pdev->qos_idle, pdev->lpm_qos);
+	return 0;
+}
+
+#else
+static inline void mmp_pdma_qos_get(struct mmp_pdma_chan *chan)
+{
+}
+
+static inline void mmp_pdma_qos_put(struct mmp_pdma_chan *chan)
+{
+}
+
+#endif
+
 static const struct platform_device_id mmp_pdma_id_table[] = {
 	{ "mmp-pdma", },
 	{ },
 };
+
+#ifdef CONFIG_PM
+static const struct dev_pm_ops mmp_pdma_pmops = {
+	SET_RUNTIME_PM_OPS(mmp_pdma_runtime_suspend,
+			   mmp_pdma_runtime_resume, NULL)
+};
+#define MMP_PDMA_PMOPS (&mmp_pdma_pmops)
+#else
+#define MMP_PDMA_PMOPS NULL
+#endif
 
 static struct platform_driver mmp_pdma_driver = {
 	.driver		= {
 		.name	= "mmp-pdma",
 		.owner  = THIS_MODULE,
 		.of_match_table = mmp_pdma_dt_ids,
+		.pm = MMP_PDMA_PMOPS,
 	},
 	.id_table	= mmp_pdma_id_table,
 	.probe		= mmp_pdma_probe,
