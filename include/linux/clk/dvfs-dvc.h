@@ -23,13 +23,17 @@
 
 /*
  * NOTES: DVC is used to change voltage, currently use max
- * voltage lvl 4 due to PMIC limitation
+ * voltage lvl 8 due to SOC limitation
  */
 enum {
 	VL0 = 0,
 	VL1,
 	VL2,
 	VL3,
+	VL4,
+	VL5,
+	VL6,
+	VL7,
 	MAX_PMIC_LEVEL,
 };
 
@@ -83,14 +87,13 @@ struct dvc_plat_info {
 	unsigned int cp_pmudvc_lvl;
 	unsigned int dp_pmudvc_lvl;
 
-	/* HW dvc switch pin reverted */
-	unsigned int dvc_pin_switch;
-	bool force_dvc;
 	/* delay for extra timer, unit us */
 	unsigned int extra_timer_dlyus;
 	/* voltage setting callback for i2c adjustment, unit mV */
 	int (*set_vccmain_volt)(unsigned int lvl, unsigned int volt);
 	int (*get_vccmain_volt)(unsigned int lvl);
+	/* how many voltage lvls pmic supported */
+	int pmic_maxvl;
 	/* pmic ramp up time, determine the stable time, unit uV/us */
 	unsigned int pmic_rampup_step;
 	/* debug level : 1-to console, 0-to logbuffer */

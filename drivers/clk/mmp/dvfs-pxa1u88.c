@@ -247,9 +247,9 @@ static struct dvc_plat_info dvc_pxa1u88_info = {
 	/* FIXME: CP/MSA VL may need to be adjusted according to SVC */
 	.cp_pmudvc_lvl = VL0,
 	.dp_pmudvc_lvl = VL0,
-	.dvc_pin_switch = 0,
 	.set_vccmain_volt = set_pmic_volt,
 	.get_vccmain_volt = get_pmic_volt,
+	.pmic_maxvl = 4,
 	.pmic_rampup_step = 12500,
 	/* by default print the debug msg into logbuf */
 	.dbglvl = 0,

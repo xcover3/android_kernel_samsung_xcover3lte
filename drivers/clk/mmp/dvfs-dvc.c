@@ -19,16 +19,15 @@
 #include <linux/clk/dvfs-dvc.h>
 
 #include <linux/debugfs-pxa.h>
-#include <mach/pxa988_lowpower.h>
+
 
 #define KHZ_TO_HZ		1000
 #define MV_TO_UV		1000
 #define EXTRA_RAMUPUS		10
 
-/* Start from logic lvl 1 */
+/* Start from logic lvl 0 */
 enum hwdvc_lvl {
-	LEVEL_START = 0,
-	LEVEL0,
+	LEVEL0 = 0,
 	LEVEL1,
 	LEVEL2,
 	LEVEL3,
@@ -36,8 +35,6 @@ enum hwdvc_lvl {
 	LEVEL5,
 	LEVEL6,
 	LEVEL7,
-	LEVEL0_1, /* LEVEL0_x is used to replace level 0 */
-	LEVEL0_2,
 	LEVEL_END,
 };
 
@@ -144,7 +141,7 @@ union pmudvc_apsubchip {
 struct dvc_private_info {
 	struct dvc_plat_info *dvcplatinfo;
 
-	/* record current pmic setting of four lvls due to switch pin WR */
+	/* record current pmic setting of lvls */
 	int cur_level_volt[MAX_PMIC_LEVEL];
 	int cur_level_num;
 
@@ -223,7 +220,7 @@ static struct dvfs_rail hwdvc_dvfs_rail_ap_active = {
 	.reg_id = "vcc_main_ap_active",
 	.max_millivolts = LEVEL7,
 	.min_millivolts = LEVEL0,
-	.nominal_millivolts = LEVEL_START,
+	.nominal_millivolts = LEVEL0,
 	.step = 0xFF,
 	.set_volt = hwdvc_set_active_vl,
 };
@@ -232,7 +229,7 @@ static struct dvfs_rail hwdvc_dvfs_rail_ap_lpm = {
 	.reg_id = "vcc_main_ap_lpm",
 	.max_millivolts = LEVEL7,
 	.min_millivolts = LEVEL0,
-	.nominal_millivolts = LEVEL_START,
+	.nominal_millivolts = LEVEL0,
 	.step = 0xFF,
 	.set_volt = hwdvc_set_m2_vl,
 };
@@ -241,7 +238,7 @@ static struct dvfs_rail hwdvc_dvfs_rail_apsub_idle = {
 	.reg_id = "vcc_main_apsub_idle",
 	.max_millivolts = LEVEL7,
 	.min_millivolts = LEVEL0,
-	.nominal_millivolts = LEVEL_START,
+	.nominal_millivolts = LEVEL0,
 	.step = 0xFF,
 	.set_volt = hwdvc_set_d1p_vl,
 };
@@ -428,41 +425,47 @@ static inline void hwdvc_clr_apvcdone_isr(void)
 static inline void hwdvc_fill_pmic_volt(void)
 {
 	int *millvolts = dvc_info->cur_level_volt;
+	int idx, pmicmaxvl = dvc_info->dvcplatinfo->pmic_maxvl;
+
 	/*
 	 * updated lvl1 ~ lv3 during the first voltage change
 	 * due to we always boot from 00 setting
 	 */
 	if (unlikely(!dvc_info->pmic_lvl_inited)) {
-		set_voltage_value(dvc_info->level_mapping[LEVEL3],
-			millvolts[VL3]);
-		set_voltage_value(dvc_info->level_mapping[LEVEL2],
-			millvolts[VL2]);
-		set_voltage_value(dvc_info->level_mapping[LEVEL1],
-			millvolts[VL1]);
+		for (idx = pmicmaxvl - 1; idx > 0; idx--) {
+			set_voltage_value(dvc_info->level_mapping[idx],
+				millvolts[idx]);
+		}
 		dvc_info->pmic_lvl_inited = true;
 	}
 }
 
 /*
  * pmu level to pmic level mapping
- * Current setting:
+ * At least support 4 VLs, Current setting:
  * level 1 is mapped to level 1
  * level 2 is mapped to level 2
  * level 3~7 is mapped to level 3
- * level 0 and level 0_x is mapped to level 0
  */
 static int __init hwdvc_init_lvl_mapping(void)
 {
-	dvc_info->level_mapping[LEVEL0] = VL0;
-	dvc_info->level_mapping[LEVEL1] = VL1;
-	dvc_info->level_mapping[LEVEL2] = VL2;
-	dvc_info->level_mapping[LEVEL3] = VL3;
-	dvc_info->level_mapping[LEVEL4] = VL3;
-	dvc_info->level_mapping[LEVEL5] = VL3;
-	dvc_info->level_mapping[LEVEL6] = VL3;
-	dvc_info->level_mapping[LEVEL7] = VL3;
-	dvc_info->level_mapping[LEVEL0_1] = VL0;
-	dvc_info->level_mapping[LEVEL0_2] = VL0;
+	int idx, pmicmaxvl = dvc_info->dvcplatinfo->pmic_maxvl;
+
+	if (dvc_info->cur_level_num > pmicmaxvl) {
+		dvc_info->level_mapping[LEVEL0] = LEVEL0;
+		dvc_info->level_mapping[LEVEL1] = LEVEL1;
+		dvc_info->level_mapping[LEVEL2] = LEVEL2;
+		dvc_info->level_mapping[LEVEL3] = LEVEL3;
+		dvc_info->level_mapping[LEVEL4] = LEVEL3;
+		dvc_info->level_mapping[LEVEL5] = LEVEL3;
+		dvc_info->level_mapping[LEVEL6] = LEVEL3;
+		dvc_info->level_mapping[LEVEL7] = LEVEL3;
+	} else {
+		for (idx = 0; idx < LEVEL_END; idx++) {
+			dvc_info->level_mapping[LEVEL0 + idx] =
+				LEVEL0 + idx;
+		}
+	}
 	return 0;
 }
 
@@ -477,6 +480,7 @@ static int hwdvc_replace_lvl_voltage(int *level)
 	int pmic_level = dvc_info->level_mapping[*level];
 	int volt = dvc_info->dvcplatinfo->millivolts[*level - LEVEL0];
 	int *pmic_volts = dvc_info->cur_level_volt;
+	int maxvl = dvc_info->cur_level_num;
 	bool pmic_volts_inited = dvc_info->pmic_lvl_inited;
 	int idx, timeus, rampupstep;
 
@@ -486,13 +490,14 @@ static int hwdvc_replace_lvl_voltage(int *level)
 		set_voltage_value(pmic_level, volt);
 		pmic_volts[pmic_level] = volt;
 		/* Update voltage level change stable time */
-		for (idx = 0; idx < MAX_PMIC_LEVEL - 1; idx++)
+		for (idx = 0; idx < maxvl - 1; idx++)
 			hwdvc_set_stable_timer(idx);
 		/* If voltage increases, delay until voltage rampup ready */
 		if (pmic_volts[pmic_level] < volt) {
 			rampupstep = dvc_info->dvcplatinfo->pmic_rampup_step;
 			timeus = DIV_ROUND_UP((volt - pmic_volts[pmic_level]) *
-					      MV_TO_UV, rampupstep);
+				MV_TO_UV, rampupstep) +
+				dvc_info->dvcplatinfo->extra_timer_dlyus;
 			udelay(timeus);
 		}
 	}
@@ -613,8 +618,7 @@ static int hwdvc_set_d1p_vl(struct dvfs_rail *rail, int lvl)
  */
 int dvfs_setup_dvcplatinfo(struct dvc_plat_info *platinfo)
 {
-	int idx = 0, tmp, maxvl;
-	int min_cp_reqlvl, min_dp_reqlvl, min_reqvolt;
+	int idx = 0, maxvl, min_cp_reqlvl, min_dp_reqlvl, min_reqvolt;
 
 	if (nodvfs) {
 		WARN(1, "nodvfs featue is selected for debug!\n");
@@ -640,14 +644,8 @@ int dvfs_setup_dvcplatinfo(struct dvc_plat_info *platinfo)
 		return -ENOMEM;
 	}
 
-	/* For some platforms which use hw dfc, hw dvc has to be used */
-	if (platinfo->force_dvc && !dvc_flag) {
-		WARN_ON("This plat force to use hw dvc!\n");
-		dvc_flag = 1;
-	}
-
 	/* init pmic avaible voltage setting */
-	maxvl = min(MAX_PMIC_LEVEL, platinfo->num_volts);
+	maxvl = min(platinfo->pmic_maxvl, platinfo->num_volts);
 	dvc_info->cur_level_num = maxvl;
 	for (idx = 0; idx < maxvl; idx++)
 		dvc_info->cur_level_volt[idx] =
@@ -656,13 +654,6 @@ int dvfs_setup_dvcplatinfo(struct dvc_plat_info *platinfo)
 	dvc_reg_base = platinfo->dvc_reg_base;
 	/* For hw dvc feature support */
 	if (dvc_flag) {
-		/* swap level 1 and level 2's voltage due to board design */
-		if (platinfo->dvc_pin_switch) {
-			tmp = dvc_info->cur_level_volt[VL1];
-			dvc_info->cur_level_volt[VL1] =
-				dvc_info->cur_level_volt[VL2];
-			dvc_info->cur_level_volt[VL2] = tmp;
-		}
 		/* hw dvc is using logic voltage lvl */
 		for (idx = 0; idx < platinfo->num_volts; idx++)
 			dvc_info->dvfs_millivolts[idx] = LEVEL0 + idx;
@@ -948,7 +939,7 @@ static int __init hwdvc_init_level_volt(void)
 		DVC_REG_WRITE(extrastbtimer.v, DVC_EXRA_STR);
 	}
 
-	for (idx = 0; idx < MAX_PMIC_LEVEL - 1; idx++)
+	for (idx = 0; idx < dvc_info->cur_level_num - 1; idx++)
 		hwdvc_set_stable_timer(idx);
 	dvc_info->stb_timer_inited = true;
 
@@ -956,11 +947,11 @@ static int __init hwdvc_init_level_volt(void)
 	hwdvc_enable_cpdp_dvc();
 
 	/* Get current PMIC setting */
-	for (idx = 0; idx < MAX_PMIC_LEVEL; idx++) {
+	for (idx = 0; idx < dvc_info->cur_level_num; idx++) {
 		val = get_voltage_value(idx);
 		DVC_PRINT("PMIC level %d: %d mV, cur %d mV\n", idx, val,
 			dvc_info->cur_level_volt[idx]);
-		BUG_ON(dvc_info->cur_level_volt[idx] != val);
+		WARN_ON(dvc_info->cur_level_volt[idx] != val);
 	}
 
 	/* Get current level information */
@@ -1045,13 +1036,6 @@ static ssize_t voltage_read(struct file *filp,
 	len += snprintf(buf + len, size, "|DVC Voltage:\t| Level %d ",
 			cur_vl);
 
-	if (dvc_info->dvcplatinfo->dvc_pin_switch) {
-		if (cur_vl == VL1)
-			cur_vl = VL2;
-		else if (cur_vl == VL2)
-			cur_vl = VL1;
-	}
-
 	len += snprintf(buf + len, size, "(%d mV)\t\t  |\n",
 		(dvc_flag ? get_voltage_value(cur_vl) :
 		(!swdvc_dvfs_rail.reg ? 0 :
@@ -1069,8 +1053,8 @@ static ssize_t voltage_read(struct file *filp,
 			len += snprintf(buf + len, size,
 				"|%-15s| freq %luMhz,\t voltage:%6s %d |\n",
 				comps[i].clk_name, rate / 1000000,
-				(d->millivolts > 0 && dvc_flag) ? "Level" : "",
-				(d->millivolts > 0 && dvc_flag) ?
+				(c->enable_count && dvc_flag) ? "Level" : "",
+				(c->enable_count && dvc_flag) ?
 				dvc_info->level_mapping[d->millivolts] :
 				d->millivolts);
 		}
