@@ -1725,6 +1725,12 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 		goto out;
 	}
 
+	/* For clock which need enable clock to successful set rate */
+	if ((clk->flags & CLK_SET_RATE_ENABLED) && (!__clk_is_enabled(clk))) {
+		clk_prepare_enable(clk);
+		clk_need_enable = 1;
+	}
+
 	/* notify that we are about to change rates */
 	fail_clk = clk_propagate_rate_change(top, PRE_RATE_CHANGE);
 	if (fail_clk) {
@@ -1732,18 +1738,13 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 				fail_clk->name);
 		clk_propagate_rate_change(top, ABORT_RATE_CHANGE);
 		ret = -EBUSY;
-		goto out;
-	}
-
-	/* For clock which need enable clock to successful set rate */
-	if ((clk->flags & CLK_SET_RATE_ENABLED) && (!__clk_is_enabled(clk))) {
-		clk_prepare_enable(clk);
-		clk_need_enable = 1;
+		goto out1;
 	}
 
 	/* change the rates */
 	clk_change_rate(top);
 
+out1:
 	if (clk_need_enable)
 		clk_disable_unprepare(clk);
 
