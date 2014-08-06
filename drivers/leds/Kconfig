@@ -24,6 +24,17 @@ config LEDS_CLASS
 
 comment "LED drivers"
 
+config LEDS_88PM830
+	tristate "LED Support for Marvell 88PM830 PMIC"
+	depends on LEDS_CLASS
+	depends on MFD_88PM830
+	help
+	  This option enables camera torch/flash driver found on Marvell
+	  Semiconductor 88PM830 PMIC.
+	  It enables both torch and flash mode via /sys/class fs. Flash mode
+	  corresponding to /sys/class/leds/flash/, and torch mode corresponding
+	  to /sys/class/leds/torch/.
+
 config LEDS_88PM860X
 	tristate "LED Support for Marvell 88PM860x PMIC"
 	depends on LEDS_CLASS
