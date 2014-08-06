@@ -24,6 +24,11 @@ pd_display: pd_display@0xd4282800 {
 		<&soc_clocks PXA1U88_CLK_DISP1_EN>;
 	clock-names = "LCDCIHCLK", "esc_clk", "disp1_clk_gate";
 
+pd_vpu: pd_vpu@d4282800 {
+	compatible = "marvell,power-domain-common-vpu";
+	reg = <0xd4282800 0x1000>;
+};
+
 pd_gc: pd_gc@d4282800 {
 	compatible = "marvell,power-domain-common-gc";
 	reg = <0xd4282800 0x1000>;

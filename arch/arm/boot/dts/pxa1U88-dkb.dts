@@ -90,6 +90,22 @@
 				status = "okay";
 			};
 
+			pd_vpu: pd_vpu@d4282800 {
+				compatible = "marvell,power-domain-common-vpu";
+				reg = <0xd4282800 0x1000>;
+				clocks = <&soc_clocks PXA1U88_CLK_VPU>;
+			};
+
+			coda7542: coda7542@d420d000 {
+				marvell,sram-internal = <1>;
+				marvell,nv21_support = <0>;
+				marvell,power-domain = <&pd_vpu>;
+				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
+					<&soc_clocks PXA1U88_CLK_VPUBUS>;
+				clock-names = "VPUCLK", "VPUACLK";
+				status = "okay";
+			};
+
 			intc: wakeupgen@d4282000 {
 				status = "okay";
 			};
