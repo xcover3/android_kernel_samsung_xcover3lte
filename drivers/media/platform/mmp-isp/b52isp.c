@@ -2502,8 +2502,9 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			if (ret < 0) {
 				d_inf(1, "apply change cmd failed on port:%d\n",
 					out_id);
-				break;
+				goto stream_data_off;
 			}
+stream_data_off:
 			mutex_unlock(&lpipe->state_lock);
 			break;
 		default:
