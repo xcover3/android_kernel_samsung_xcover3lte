@@ -443,7 +443,7 @@ static SIMPLE_DEV_PM_OPS(pm830_vbus_pm_ops, pm830_dev_suspend,
 #endif
 
 static const struct of_device_id pm830_vbus_dt_match[] = {
-	{ .compatible = "marvell,88pm830-usb", },
+	{ .compatible = "marvell,88pm830-vbus", },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, pm830_fg_dt_match);
