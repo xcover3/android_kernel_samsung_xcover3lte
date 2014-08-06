@@ -160,6 +160,20 @@
 				status = "disabled";
 			};
 
+			gpu: gpu@C0400000 {
+				compatible = "marvell,gpu";
+				reg = <0xC0400000 0x1000>;
+				interrupts = <0 8 0x4>;
+				status = "disabled";
+			};
+
+			gpu2d: gpu2d@d420c000 {
+				compatible = "marvell,gpu2d";
+				reg = <0xd420c000 0x1000>;
+				interrupts = <0 72 0x4>;
+				status = "disabled";
+			};
+
 			intc: wakeupgen@d4282000 {
 				compatible = "mrvl,mmp-intc-wakeupgen";
 				reg = <0xd4282000 0x1000>,

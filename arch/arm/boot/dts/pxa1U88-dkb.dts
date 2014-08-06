@@ -59,6 +59,37 @@
 				status = "okay";
 			};
 
+			pd_gc: pd_gc@d4282800 {
+				compatible = "marvell,power-domain-common-gc";
+				reg = <0xd4282800 0x1000>;
+				clocks = <&soc_clocks PXA1U88_CLK_GC3D>;
+			};
+
+			pd_gc2d: pd_gc2d@d4282800 {
+				compatible = "marvell,power-domain-common-gc2d";
+				reg = <0xd4282800 0x1000>;
+				clocks = <&soc_clocks PXA1U88_CLK_GC2D>;
+			};
+
+			gpu: gpu@C0400000 {
+				marvell,power-domain = <&pd_gc>;
+				marvell,gpu-mem-base = <0x09000000>;
+				marvell,gpu-mem-size = <0x1000000>;
+				clocks = <&soc_clocks PXA1U88_CLK_GC3D>,
+					<&soc_clocks PXA1U88_CLK_GCSH>,
+					<&soc_clocks PXA1U88_CLK_GCBUS>;
+				clock-names = "GC3DFCLK", "GCSHCLK", "GC3DACLK";
+				status = "okay";
+			};
+
+			gpu2d: gpu2d@d420c000 {
+				marvell,power-domain = <&pd_gc2d>;
+				clocks = <&soc_clocks PXA1U88_CLK_GC2D>,
+					<&soc_clocks PXA1U88_CLK_GCBUS>;
+				clock-names = "GC2DFCLK", "GC2DACLK";
+				status = "okay";
+			};
+
 			intc: wakeupgen@d4282000 {
 				status = "okay";
 			};
