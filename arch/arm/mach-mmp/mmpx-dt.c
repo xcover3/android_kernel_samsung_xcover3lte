@@ -190,8 +190,13 @@ static __init void pxa1U88_timer_init(void)
 
 static void __init pxa1U88_init_machine(void)
 {
+	void __iomem *chip_id;
 	of_platform_populate(NULL, of_default_bus_match_table,
 			     mmpx_auxdata_lookup, &platform_bus);
+
+	/* this is early, initialize mmp_chip_id here */
+	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
+	mmp_chip_id = readl_relaxed(chip_id);
 }
 
 static const char *pxa1U88_dt_board_compat[] __initdata = {
