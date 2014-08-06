@@ -166,8 +166,13 @@ static void enable_chan(struct mmp_pdma_phy *phy)
 	if (!phy->vchan)
 		return;
 
-	reg = DRCMR(phy->vchan->drcmr);
-	writel(DRCMR_MAPVLD | phy->idx, phy->base + reg);
+	reg = phy->vchan->drcmr;
+	/*
+	 * Don't update the channel mapping register if a request number is not
+	 * valid or not needed at all (memory copy case).
+	 */
+	if (reg < DRCMR_INVALID)
+		writel(DRCMR_MAPVLD | phy->idx, phy->base + DRCMR(reg));
 
 	dalgn = readl(phy->base + DALGN);
 	if (phy->vchan->byte_align)
@@ -290,8 +295,10 @@ static void mmp_pdma_free_phy(struct mmp_pdma_chan *pchan)
 		return;
 
 	/* clear the channel mapping in DRCMR */
-	reg = DRCMR(pchan->phy->vchan->drcmr);
-	writel(0, pchan->phy->base + reg);
+	reg = pchan->phy->vchan->drcmr;
+	/* refer to enable_chan() */
+	if (reg < DRCMR_INVALID)
+		writel(0, pchan->phy->base + DRCMR(reg));
 
 	spin_lock_irqsave(&pdev->phy_lock, flags);
 	pchan->phy->vchan = NULL;
@@ -421,6 +428,9 @@ static int mmp_pdma_alloc_chan_resources(struct dma_chan *dchan)
 
 	mmp_pdma_free_phy(chan);
 	chan->status = DMA_COMPLETE;
+	chan->dir = 0;
+	chan->dcmd = 0;
+	chan->drcmr = DRCMR_INVALID;
 	chan->dev_addr = 0;
 	return 1;
 }
@@ -449,6 +459,9 @@ static void mmp_pdma_free_chan_resources(struct dma_chan *dchan)
 	dma_pool_destroy(chan->desc_pool);
 	chan->desc_pool = NULL;
 	chan->status = DMA_COMPLETE;
+	chan->dir = 0;
+	chan->dcmd = 0;
+	chan->drcmr = DRCMR_INVALID;
 	chan->dev_addr = 0;
 	mmp_pdma_free_phy(chan);
 	return;
@@ -764,8 +777,12 @@ static int mmp_pdma_control(struct dma_chan *dchan, enum dma_ctrl_cmd cmd,
 		 * function. Once that's done, the following two lines can
 		 * be removed.
 		 */
-		if (cfg->slave_id)
+		if (cfg->slave_id) {
 			chan->drcmr = cfg->slave_id;
+			if (chan->drcmr >= DRCMR_INVALID)
+				dev_err(chan->dev, "Invalid drcmr %d\n",
+					chan->drcmr);
+		}
 		break;
 	default:
 		return -ENOSYS;
