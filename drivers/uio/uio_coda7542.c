@@ -36,7 +36,8 @@
 struct uio_coda7542_dev {
 	struct uio_info uio_info;
 	void *reg_base;
-	struct clk *clk;
+	struct clk *fclk;
+	struct clk *aclk;
 	struct mutex mutex;	/* used to protect open/release */
 	int power_status;       /* 0-off 1-on */
 	int clk_status;
@@ -84,8 +85,8 @@ static int coda7542_power_on(struct uio_coda7542_dev *cdev)
 	if (cdev->power_status == 1)
 		return 0;
 
-	clk_prepare_enable(cdev->clk);
-
+	clk_prepare_enable(cdev->fclk);
+	clk_prepare_enable(cdev->aclk);
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	pm_runtime_get_sync(cdev->dev);
 #endif
@@ -99,7 +100,8 @@ static int coda7542_clk_on(struct uio_coda7542_dev *cdev)
 	if (cdev->clk_status != 0)
 		return 0;
 
-	clk_prepare_enable(cdev->clk);
+	clk_prepare_enable(cdev->fclk);
+	clk_prepare_enable(cdev->aclk);
 	cdev->clk_status = 1;
 
 	return 0;
@@ -113,6 +115,8 @@ static int coda7542_power_off(struct uio_coda7542_dev *cdev)
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	pm_runtime_put_sync(cdev->dev);
 #endif
+	clk_disable_unprepare(cdev->aclk);
+	clk_disable_unprepare(cdev->fclk);
 	cdev->power_status = 0;
 
 	return 0;
@@ -123,7 +127,8 @@ static int coda7542_clk_off(struct uio_coda7542_dev *cdev)
 	if (cdev->clk_status == 0)
 		return 0;
 
-	clk_disable_unprepare(cdev->clk);
+	clk_disable_unprepare(cdev->aclk);
+	clk_disable_unprepare(cdev->fclk);
 	cdev->clk_status = 0;
 
 	return 0;
@@ -433,11 +438,18 @@ static int coda7542_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	cdev->clk = clk_get(&pdev->dev, "VPUCLK");
-	if (IS_ERR(cdev->clk)) {
-		dev_err(&pdev->dev, "cannot get coda7542 clock\n");
-		ret = PTR_ERR(cdev->clk);
-		goto err_clk;
+	cdev->fclk = devm_clk_get(&pdev->dev, "VPUCLK");
+	if (IS_ERR(cdev->fclk)) {
+		dev_err(&pdev->dev, "cannot get coda7542 func clock\n");
+		ret = PTR_ERR(cdev->fclk);
+		goto err_fclk;
+	}
+
+	cdev->aclk = devm_clk_get(&pdev->dev, "VPUACLK");
+	if (IS_ERR(cdev->aclk)) {
+		dev_err(&pdev->dev, "cannot get coda7542 axi clock\n");
+		ret = PTR_ERR(cdev->aclk);
+		goto err_aclk;
 	}
 
 	cdev->reg_base = (void *)ioremap(res->start, resource_size(res));
@@ -524,8 +536,10 @@ err_uio_register:
 err_uio_mem:
 	iounmap(cdev->uio_info.mem[0].internal_addr);
 err_reg_base:
-	clk_put(cdev->clk);
-err_clk:
+	clk_put(cdev->aclk);
+err_aclk:
+	clk_put(cdev->fclk);
+err_fclk:
 	devm_kfree(&pdev->dev, cdev);
 
 	return ret;
@@ -540,7 +554,8 @@ static int coda7542_remove(struct platform_device *pdev)
 			get_order(VDEC_WORKING_BUFFER_SIZE));
 	iounmap(cdev->uio_info.mem[0].internal_addr);
 
-	clk_put(cdev->clk);
+	clk_put(cdev->aclk);
+	clk_put(cdev->fclk);
 
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	pm_runtime_disable(cdev->dev);
