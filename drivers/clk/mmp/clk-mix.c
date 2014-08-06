@@ -208,10 +208,11 @@ static int _set_rate(struct mmp_clk_mix *mix, u32 mux_val, u32 div_val,
 		}
 	} else {
 		fc_req = readl(ri->reg_clk_ctrl);
-		fc_req |= 1 << ri->bit_fc;
+		fc_req &= ~(1 << ri->bit_fc);
 		writel(fc_req, ri->reg_clk_ctrl);
 		writel(mux_div, ri->reg_clk_sel);
-		fc_req &= ~(1 << ri->bit_fc);
+		fc_req |= 1 << ri->bit_fc;
+		writel(fc_req, ri->reg_clk_ctrl);
 	}
 
 	if (xtc_val && prepost)
