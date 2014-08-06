@@ -369,7 +369,8 @@ probe_wakeup_migrate_task(void *ignore, struct task_struct *task, int cpu)
 
 static void notrace
 probe_wakeup_sched_switch(void *ignore,
-			  struct task_struct *prev, struct task_struct *next)
+			  struct task_struct *prev, struct task_struct *next,
+			  unsigned int prev_ip)
 {
 	struct trace_array_cpu *data;
 	cycle_t T0, T1, delta;
