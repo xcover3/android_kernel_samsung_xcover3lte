@@ -84,7 +84,57 @@
 					DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_DRIVE_HIGH;
 				};
 
+				twsi0_pmx_func: twsi0_pmx_func {
+					pinctrl-single,pins = <
+						GPIO53 AF2
+						GPIO54 AF2
+					>;
+					MFP_LPM_FLOAT;
+				};
+				twsi0_pmx_gpio: twsi0_pmx_gpio {
+					pinctrl-single,pins = <
+						GPIO53 AF0
+						GPIO54 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+				twsi1_pmx_func: twsi1_pmx_func {
+					pinctrl-single,pins = <
+						GPIO87 AF5
+						GPIO88 AF5
+					>;
+					MFP_LPM_FLOAT;
+				};
+				twsi1_pmx_gpio: twsi1_pmx_gpio {
+					pinctrl-single,pins = <
+						GPIO87 AF0
+						GPIO88 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
 			};
+
+			twsi0: i2c@d4011000 {
+				pinctrl-names = "default","gpio";
+				pinctrl-0 = <&twsi0_pmx_func>;
+				pinctrl-1 = <&twsi0_pmx_gpio>;
+				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
+				status = "okay";
+			};
+
+			twsi1: i2c@d4010800 {
+				pinctrl-names = "default","gpio";
+				pinctrl-0 = <&twsi1_pmx_func>;
+				pinctrl-1 = <&twsi1_pmx_gpio>;
+				i2c-gpio = <&gpio 87 0 &gpio 88 0>;
+				status = "okay";
+			};
+
+			twsi2: i2c@d4037000 {
+				status = "okay";
+			};
+
 		};
 	};
 
