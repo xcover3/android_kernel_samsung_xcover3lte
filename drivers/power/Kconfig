@@ -276,6 +276,15 @@ config CHARGER_MAX8903
 	  pins based on the status of charger connections with interrupt
 	  handlers.
 
+config CHARGER_88PM830
+	tristate "Marvell 88PM830 Charger"
+	depends on MFD_88PM830
+	help
+	  Say Y to enable support for the 88PM830 charger interface.
+	  The driver supports controlling charger-enable and current-limit
+	  with charger connections by interrupt handling.
+	  It can be used for usb/ac adapater connection.
+
 config CHARGER_TWL4030
 	tristate "OMAP TWL4030 BCI charger driver"
 	depends on TWL4030_CORE
