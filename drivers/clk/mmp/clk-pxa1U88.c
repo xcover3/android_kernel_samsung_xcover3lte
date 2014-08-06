@@ -777,7 +777,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk = mmp_clk_register_gate(NULL, "disp_axi_clk", "disp_axi_sel_clk",
 			CLK_SET_RATE_PARENT,
 			pxa_unit->apmu_base + APMU_DISP1,
-			0x10005, 0x10005, 0x0, 0, &disp_lock);
+			0x10009, 0x10009, 0x0, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_DISP_AXI_CLK, clk);
 
 	clk = mmp_clk_register_gate(NULL, "LCDCIHCLK", "disp_axi_clk", 0,
