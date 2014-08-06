@@ -12,7 +12,6 @@
 #include <linux/list.h>
 #include <linux/slab.h>
 
-#ifdef CONFIG_REGDUMP
 struct regdump_ops;
 struct regdump_region {
 	const char		*name;
@@ -33,19 +32,20 @@ struct regdump_ops {
 	unsigned long		phy_base;
 };
 
-extern int dump_reg_to_mem(void);
-extern int dump_reg_to_console(void);
-extern int register_regdump_ops(struct regdump_ops *ops);
-extern int unregister_regdump_ops(struct regdump_ops *ops);
 static inline int regdump_cond_true(struct regdump_ops *ops)
 {
 	return 1;
 }
+
+#ifdef CONFIG_REGDUMP
+extern int dump_reg_to_mem(void);
+extern int dump_reg_to_console(void);
+extern int register_regdump_ops(struct regdump_ops *ops);
+extern int unregister_regdump_ops(struct regdump_ops *ops);
 #else
-#define register_regdump_ops()		do {} while (0)
-#define unregister_regdump_ops()	do {} while (0)
+#define register_regdump_ops(ops)	do {} while (0)
+#define unregister_regdump_ops(ops)	do {} while (0)
 #define dump_reg_to_mem()		do {} while (0)
 #define regdump_cond_true()		do {} while (0)
-#define dump_reg_to_console()   do {} while (0)
 #endif
 #endif
