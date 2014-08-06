@@ -313,7 +313,7 @@ static void mmp_pdma_free_phy(struct mmp_pdma_chan *pchan)
  */
 static int start_pending_queue(struct mmp_pdma_chan *chan)
 {
-	struct mmp_pdma_desc_sw *desc;
+	struct mmp_pdma_desc_sw *desc, *_desc;
 
 	/* still in running, irq will start the pending list */
 	if (chan->status == DMA_IN_PROGRESS) {
@@ -338,16 +338,22 @@ static int start_pending_queue(struct mmp_pdma_chan *chan)
 
 	/*
 	 * pending -> running
-	 * reintilize pending list
+	 * Only move descs that belong to one transcation to running chain.
+	 * For cyclic case, all descriptors will be moved to running chain.
 	 */
-	desc = list_first_entry(&chan->chain_pending,
-				struct mmp_pdma_desc_sw, node);
-	list_splice_tail_init(&chan->chain_pending, &chan->chain_running);
+	list_for_each_entry_safe(desc, _desc, &chan->chain_pending, node) {
+		list_del(&desc->node);
+		list_add_tail(&desc->node, &chan->chain_running);
+		if (desc->desc.ddadr & DDADR_STOP)
+			break;
+	}
 
 	/*
 	 * Program the descriptor's address into the DMA controller,
 	 * then start the DMA transaction
 	 */
+	desc = list_first_entry(&chan->chain_running,
+				struct mmp_pdma_desc_sw, node);
 	set_desc(chan->phy, desc->async_tx.phys);
 	enable_chan(chan->phy);
 	chan->status = DMA_IN_PROGRESS;
@@ -454,6 +460,7 @@ static void mmp_pdma_free_chan_resources(struct dma_chan *dchan)
 	spin_lock_irqsave(&chan->desc_lock, flags);
 	mmp_pdma_free_desc_list(chan, &chan->chain_pending);
 	mmp_pdma_free_desc_list(chan, &chan->chain_running);
+	mmp_pdma_free_phy(chan);
 	spin_unlock_irqrestore(&chan->desc_lock, flags);
 
 	dma_pool_destroy(chan->desc_pool);
@@ -463,7 +470,6 @@ static void mmp_pdma_free_chan_resources(struct dma_chan *dchan)
 	chan->dcmd = 0;
 	chan->drcmr = DRCMR_INVALID;
 	chan->dev_addr = 0;
-	mmp_pdma_free_phy(chan);
 	return;
 }
 
@@ -726,14 +732,15 @@ static int mmp_pdma_control(struct dma_chan *dchan, enum dma_ctrl_cmd cmd,
 
 	switch (cmd) {
 	case DMA_TERMINATE_ALL:
+		spin_lock_irqsave(&chan->desc_lock, flags);
 		disable_chan(chan->phy);
 		mmp_pdma_qos_put(chan);
 		mmp_pdma_free_phy(chan);
-		spin_lock_irqsave(&chan->desc_lock, flags);
 		mmp_pdma_free_desc_list(chan, &chan->chain_pending);
 		mmp_pdma_free_desc_list(chan, &chan->chain_running);
 		chan->bytes_residue = 0;
 		spin_unlock_irqrestore(&chan->desc_lock, flags);
+		mmp_pdma_qos_put(chan);
 		chan->status = DMA_COMPLETE;
 		break;
 	case DMA_PAUSE:
@@ -1019,8 +1026,9 @@ static int mmp_pdma_chan_init(struct mmp_pdma_device *pdev, int idx, int irq)
 	phy->base = pdev->base;
 
 	if (irq) {
-		ret = devm_request_irq(pdev->dev, irq, mmp_pdma_chan_handler, 0,
-				       "pdma", phy);
+		ret = devm_request_irq(pdev->dev, irq, mmp_pdma_chan_handler,
+				IRQF_DISABLED | IRQF_SHARED, "pdma", phy);
+
 		if (ret) {
 			dev_err(pdev->dev, "channel request irq fail!\n");
 			return ret;
@@ -1151,8 +1159,8 @@ static int mmp_pdma_probe(struct platform_device *op)
 	if (irq_num != dma_channels) {
 		/* all chan share one irq, demux inside */
 		irq = platform_get_irq(op, 0);
-		ret = devm_request_irq(pdev->dev, irq, mmp_pdma_int_handler, 0,
-				       "pdma", pdev);
+		ret = devm_request_irq(pdev->dev, irq, mmp_pdma_int_handler,
+				IRQF_DISABLED | IRQF_SHARED, "pdma", pdev);
 		if (ret)
 			return ret;
 	}
