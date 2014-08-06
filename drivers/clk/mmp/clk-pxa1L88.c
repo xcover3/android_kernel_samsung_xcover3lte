@@ -10,6 +10,7 @@
 #include "clk.h"
 #include "clk-pll-helanx.h"
 #include "clk-core-helanx.h"
+#include "clk-plat.h"
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -96,37 +97,76 @@ struct plat_pll_info {
 	unsigned long outpclk_flag;
 };
 
-static struct mmp_vco_params pll_vco_params[MAX_PLL_NUM] = {
-	{
-		.vco_min = 1200000000UL,
-		.vco_max = 2500000000UL,
-		.lock_enable_bit = POSR_PLL2_LOCK,
-		.default_rate = 2132 * MHZ,
+/* First index is ddr_mode */
+static struct mmp_vco_params pll_vco_params[][MAX_PLL_NUM] = {
+	[0] = {
+		{
+			.vco_min = 1200000000UL,
+			.vco_max = 2500000000UL,
+			.lock_enable_bit = POSR_PLL2_LOCK,
+			.default_rate = 1595 * MHZ,
+		},
+		{
+			.vco_min = 1200000000UL,
+			.vco_max = 2500000000UL,
+			.lock_enable_bit = POSR_PLL3_LOCK,
+			.default_rate = (unsigned long)2366 * MHZ,
+		},
 	},
-	{
-		.vco_min = 1200000000UL,
-		.vco_max = 2500000000UL,
-		.lock_enable_bit = POSR_PLL3_LOCK,
-		.default_rate = (unsigned long)2366 * MHZ,
-	},
+	[1] = {
+		{
+			.vco_min = 1200000000UL,
+			.vco_max = 2500000000UL,
+			.lock_enable_bit = POSR_PLL2_LOCK,
+			.default_rate = 2132 * MHZ,
+		},
+		{
+			.vco_min = 1200000000UL,
+			.vco_max = 2500000000UL,
+			.lock_enable_bit = POSR_PLL3_LOCK,
+			.default_rate = (unsigned long)2366 * MHZ,
+		},
+	}
 };
 
-static struct mmp_pll_params pll_params[MAX_PLL_NUM] = {
-	{
-		.default_rate = 710 * MHZ,
+/* First index is ddr_mode */
+static struct mmp_pll_params pll_params[][MAX_PLL_NUM] = {
+	[0] = {
+		{
+			.default_rate = 797 * MHZ,
+		},
+		{
+			.default_rate = 788 * MHZ,
+		},
 	},
-	{
-		.default_rate = 788 * MHZ,
-	},
+	[1] = {
+		{
+			.default_rate = 710 * MHZ,
+		},
+		{
+			.default_rate = 788 * MHZ,
+		},
+	}
 };
 
-static struct mmp_pll_params pllp_params[MAX_PLL_NUM] = {
-	{
-		.default_rate = 1066 * MHZ,
+/* First index is ddr_mode */
+static struct mmp_pll_params pllp_params[][MAX_PLL_NUM] = {
+	[0] = {
+		{
+			.default_rate = 797 * MHZ,
+		},
+		{
+			.default_rate = 1183 * MHZ,
+		},
 	},
-	{
-		.default_rate = 1183 * MHZ,
-	},
+	[1] = {
+		{
+			.default_rate = 1066 * MHZ,
+		},
+		{
+			.default_rate = 1183 * MHZ,
+		},
+	}
 };
 
 static struct plat_pll_info pllx_platinfo[] = {
@@ -154,36 +194,38 @@ static void pxa1L88_dynpll_init(struct pxa1L88_clk_unit *pxa_unit)
 {
 	int idx;
 	struct clk *clk;
+	void __iomem *mpmu_base = pxa_unit->mpmu_base;
+	void __iomem *apbs_base = pxa_unit->apbs_base;
 
-	pll_vco_params[PLL2].cr_reg = pxa_unit->mpmu_base + MPMU_PLL2CR;
-	pll_vco_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
-	pll_vco_params[PLL3].cr_reg = pxa_unit->mpmu_base + MPMU_PLL3CR;
-	pll_vco_params[PLL3].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL3CR;
+	pll_vco_params[ddr_mode][PLL2].cr_reg = mpmu_base + MPMU_PLL2CR;
+	pll_vco_params[ddr_mode][PLL2].pll_swcr = apbs_base + APB_SPARE_PLL2CR;
+	pll_vco_params[ddr_mode][PLL3].cr_reg = mpmu_base + MPMU_PLL3CR;
+	pll_vco_params[ddr_mode][PLL3].pll_swcr = apbs_base + APB_SPARE_PLL3CR;
 
-	pll_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
-	pll_params[PLL3].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL3CR;
+	pll_params[ddr_mode][PLL2].pll_swcr = apbs_base + APB_SPARE_PLL2CR;
+	pll_params[ddr_mode][PLL3].pll_swcr = apbs_base + APB_SPARE_PLL3CR;
 
-	pllp_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
-	pllp_params[PLL3].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL3CR;
+	pllp_params[ddr_mode][PLL2].pll_swcr = apbs_base + APB_SPARE_PLL2CR;
+	pllp_params[ddr_mode][PLL3].pll_swcr = apbs_base + APB_SPARE_PLL3CR;
 
 	for (idx = 0; idx < ARRAY_SIZE(pllx_platinfo); idx++) {
 		spin_lock_init(&pllx_platinfo[idx].lock);
 		/* vco */
-		pll_vco_params[idx].lock_reg = pxa_unit->mpmu_base + MPMU_POSR;
+		pll_vco_params[ddr_mode][idx].lock_reg = mpmu_base + MPMU_POSR;
 		clk = helanx_clk_register_vco(pllx_platinfo[idx].vco_name, 0,
 					      pllx_platinfo[idx].vcoclk_flag,
 					      pllx_platinfo[idx].vco_flag,
 					      &pllx_platinfo[idx].lock,
-					      &pll_vco_params[idx]);
-		clk_set_rate(clk, pll_vco_params[idx].default_rate);
+					      &pll_vco_params[ddr_mode][idx]);
+		clk_set_rate(clk, pll_vco_params[ddr_mode][idx].default_rate);
 		/* pll */
 		clk = helanx_clk_register_pll(pllx_platinfo[idx].out_name,
 					      pllx_platinfo[idx].vco_name,
 					      pllx_platinfo[idx].outclk_flag,
 					      pllx_platinfo[idx].out_flag,
 					      &pllx_platinfo[idx].lock,
-					      &pll_params[idx]);
-		clk_set_rate(clk, pll_params[idx].default_rate);
+					      &pll_params[ddr_mode][idx]);
+		clk_set_rate(clk, pll_params[ddr_mode][idx].default_rate);
 
 		/* pllp */
 		clk = helanx_clk_register_pll(pllx_platinfo[idx].outp_name,
@@ -191,8 +233,8 @@ static void pxa1L88_dynpll_init(struct pxa1L88_clk_unit *pxa_unit)
 					      pllx_platinfo[idx].outpclk_flag,
 					      pllx_platinfo[idx].outp_flag,
 					      &pllx_platinfo[idx].lock,
-					      &pllp_params[idx]);
-		clk_set_rate(clk, pllp_params[idx].default_rate);
+					      &pllp_params[ddr_mode][idx]);
+		clk_set_rate(clk, pllp_params[ddr_mode][idx].default_rate);
 	}
 }
 
@@ -530,48 +572,48 @@ static struct parents_table ddr_parent_table[] = {
 	},
 };
 
-#if 0
-static struct ddr_opt lpddr400_oparray[] = {
-	{
-		.dclk = 156,
-		.ddr_tbl_index = 2,
-		.ddr_freq_level = 0,
-		.ddr_clk_sel = 0x1,
+static struct ddr_opt ddr_oparray[][3] = {
+	[0] = {
+		{
+			.dclk = 156,
+			.ddr_tbl_index = 2,
+			.ddr_freq_level = 0,
+			.ddr_clk_sel = 0x1,
+		},
+		{
+			.dclk = 312,
+			.ddr_tbl_index = 3,
+			.ddr_freq_level = 1,
+			.ddr_clk_sel = 0x1,
+		},
+		{
+			.dclk = 398,
+			.ddr_tbl_index = 4,
+			.ddr_freq_level = 2,
+			.ddr_clk_sel = 0x3,
+		},
 	},
-	{
-		.dclk = 312,
-		.ddr_tbl_index = 3,
-		.ddr_freq_level = 1,
-		.ddr_clk_sel = 0x1,
+	[1] = {
+		{
+			.dclk = 156,
+			.ddr_tbl_index = 2,
+			.ddr_freq_level = 0,
+			.ddr_clk_sel = 0x1,
+		},
+		{
+			.dclk = 312,
+			.ddr_tbl_index = 3,
+			.ddr_freq_level = 1,
+			.ddr_clk_sel = 0x1,
+		},
+		{
+			.dclk = 533,
+			.ddr_tbl_index = 4,
+			.ddr_freq_level = 2,
+			.ddr_clk_sel = 0x3,
+		},
 	},
-	{
-		.dclk = 398,
-		.ddr_tbl_index = 4,
-		.ddr_freq_level = 2,
-		.ddr_clk_sel = 0x3,
-	},
-};
-#endif
 
-static struct ddr_opt lpddr533_oparray[] = {
-	{
-		.dclk = 156,
-		.ddr_tbl_index = 2,
-		.ddr_freq_level = 0,
-		.ddr_clk_sel = 0x1,
-	},
-	{
-		.dclk = 312,
-		.ddr_tbl_index = 3,
-		.ddr_freq_level = 1,
-		.ddr_clk_sel = 0x1,
-	},
-	{
-		.dclk = 533,
-		.ddr_tbl_index = 4,
-		.ddr_freq_level = 2,
-		.ddr_clk_sel = 0x3,
-	},
 };
 
 /* DDR 400 and 533 uses LV3 */
@@ -617,35 +659,34 @@ static struct parents_table axi_parent_table[] = {
 	},
 };
 
-#if 0
-static struct axi_opt axi200_oparray[] = {
-	{
-		.aclk = 78,
-		.axi_clk_sel = 0x1,
+static struct axi_opt axi_oparray[][3] = {
+	[0] = {
+		{
+			.aclk = 78,
+			.axi_clk_sel = 0x1,
+		},
+		{
+			.aclk = 156,
+			.axi_clk_sel = 0x1,
+		},
+		{
+			.aclk = 199,
+			.axi_clk_sel = 0x3,
+		},
 	},
-	{
-		.aclk = 156,
-		.axi_clk_sel = 0x1,
-	},
-	{
-		.aclk = 199,
-		.axi_clk_sel = 0x3,
-	},
-};
-#endif
-
-static struct axi_opt axi266_oparray[] = {
-	{
-		.aclk = 78,
-		.axi_clk_sel = 0x1,
-	},
-	{
-		.aclk = 156,
-		.axi_clk_sel = 0x1,
-	},
-	{
-		.aclk = 266,
-		.axi_clk_sel = 0x3,
+	[1] = {
+		{
+			.aclk = 78,
+			.axi_clk_sel = 0x1,
+		},
+		{
+			.aclk = 156,
+			.axi_clk_sel = 0x1,
+		},
+		{
+			.aclk = 266,
+			.axi_clk_sel = 0x3,
+		},
 	},
 };
 
@@ -675,13 +716,13 @@ static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 
 	ddr_params.apmu_base = pxa_unit->apmu_base;
 	ddr_params.mpmu_base = pxa_unit->mpmu_base;
-	ddr_params.ddr_opt = lpddr533_oparray;
-	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr533_oparray);
+	ddr_params.ddr_opt = ddr_oparray[ddr_mode];
+	ddr_params.ddr_opt_size = ARRAY_SIZE(ddr_oparray[ddr_mode]);
 
 	axi_params.apmu_base = pxa_unit->apmu_base;
 	axi_params.mpmu_base = pxa_unit->mpmu_base;
-	axi_params.axi_opt = axi266_oparray;
-	axi_params.axi_opt_size = ARRAY_SIZE(axi266_oparray);
+	axi_params.axi_opt = axi_oparray[ddr_mode];
+	axi_params.axi_opt_size = ARRAY_SIZE(axi_oparray[ddr_mode]);
 
 	clk = mmp_clk_register_core("cpu", core_parent,
 				    ARRAY_SIZE(core_parent),
@@ -757,7 +798,11 @@ static void __init pxa1L88_clk_init(struct device_node *np)
 	}
 
 	mmp_clk_init(np, &pxa_unit->unit, PXA1L88_NR_CLKS);
-
+	/*
+	 * FIXME: hack ddr_mode to 1 as uboot cmdline hasn't
+	 *       been passed to kernel
+	 */
+	ddr_mode = 1;
 	pxa1L88_pll_init(pxa_unit);
 	pxa1L88_acpu_init(pxa_unit);
 
