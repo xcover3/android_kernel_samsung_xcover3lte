@@ -174,6 +174,9 @@ struct shm_skctl {
 	/* uuid reserved for SSIPC solution */
 	volatile unsigned int uuid_high;
 	volatile unsigned int uuid_low;
+
+	/*L+G or G+L*/
+	volatile unsigned int network_mode;
 };
 
 /* share memory socket header structure */

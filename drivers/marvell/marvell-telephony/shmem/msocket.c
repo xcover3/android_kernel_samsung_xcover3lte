@@ -901,7 +901,7 @@ static long msocket_ioctl(struct file *filp,
 			  unsigned int cmd, unsigned long arg)
 {
 	struct portq *portq;
-	int port, status;
+	int port, status, network_mode;
 
 	struct direct_rbctl *drbctl = NULL;
 	struct shm_rbctl *portq_rbctl = portq_grp[portq_grp_cp_main].rbctl;
@@ -1018,7 +1018,16 @@ static long msocket_ioctl(struct file *filp,
 		}
 		portq_broadcast_msg(portq_grp_m3, MsocketLinkupProcId);
 		return 0;
-
+	case MSOCKET_IOC_NETWORK_MODE_CP_NOTIFY: /*notify CP network mode*/
+		network_mode = (int)arg;
+		mutex_lock(&portq_rbctl->va_lock);
+		if (portq_rbctl->skctl_va) {
+			portq_rbctl->skctl_va->network_mode = network_mode;
+			pr_info("MSOCK: network mode:%d\n",
+				network_mode);
+		}
+		mutex_unlock(&portq_rbctl->va_lock);
+		return 0;
 	default:
 		return -ENOTTY;
 	}

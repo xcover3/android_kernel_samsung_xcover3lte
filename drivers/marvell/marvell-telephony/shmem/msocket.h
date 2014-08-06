@@ -39,8 +39,9 @@
 #define MSOCKET_IOC_RESET_CP_REQUEST _IO(MSOCKET_IOC_MAGIC, 6)
 #define MSOCKET_IOC_ERRTO	_IO(MSOCKET_IOC_MAGIC, 7)
 #define MSOCKET_IOC_RECOVERY	_IO(MSOCKET_IOC_MAGIC, 8)
+#define MSOCKET_IOC_NETWORK_MODE_CP_NOTIFY _IOW(MSOCKET_IOC_MAGIC, 9, int)
 
-#define MSOCKET_IOC_MAXNR	8
+#define MSOCKET_IOC_MAXNR	9
 
 /* flags for msend/mrecv */
 #define MSOCKET_KERNEL		0	/* can be blocked in kernel context */
