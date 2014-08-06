@@ -17,6 +17,7 @@
 #include <linux/list_sort.h>
 #include <linux/debugfs.h>
 #include <linux/clk/dvfs.h>
+#include <trace/events/pxa.h>
 
 static LIST_HEAD(dvfs_rail_list);
 static DEFINE_MUTEX(dvfs_lock);
@@ -158,6 +159,10 @@ static int dvfs_rail_set_voltage(struct dvfs_rail *rail, int millivolts)
 				rail->reg_id);
 			return ret;
 		}
+
+		trace_pxa_set_voltage(rail->reg_id,
+			rail->millivolts, rail->new_millivolts);
+
 		rail->millivolts = rail->new_millivolts;
 
 		/*
