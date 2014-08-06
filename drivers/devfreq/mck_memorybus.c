@@ -27,6 +27,8 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 
+#include <trace/events/pxa.h>
+
 #include "mck_memorybus.h"
 
 #define DDR_DEVFREQ_UPTHRESHOLD 65
@@ -77,6 +79,8 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 		}
 	}
 	mutex_unlock(&devfreq->lock);
+
+	trace_pxa_ddr_upthreshold(gov_data->upthreshold);
 
 	return NOTIFY_OK;
 }
@@ -458,6 +462,9 @@ static int ddr_get_dev_status(struct device *dev,
 		(unsigned int)stat->total_time);
 	dev_dbg(dev, "throughput is 0x%x, throughput * 8 (speed) is %u\n\n",
 		(unsigned int)stat->throughput, 8 * stat->throughput);
+
+	trace_pxa_ddr_workload(workload, stat->current_frequency,
+				stat->throughput);
 
 	return 0;
 }
