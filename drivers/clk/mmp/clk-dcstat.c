@@ -491,13 +491,10 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			  enum clk_stat_msg msg, unsigned int tgtop)
 {
 	struct clk_dc_stat_info *dc_stat_info = NULL;
-	cputime64_t cur_wall, cur_idle;
-	cputime64_t prev_wall, prev_idle;
-	u32 idle_time_ms, total_time_ms;
-	struct op_dcstat_info *cur, *tgt;
+	struct op_dcstat_info *cur;
 	unsigned int cpu_i;
 	bool mark_keytime;
-	s64 ktime_temp;
+	u64 ktime_temp;
 	u32 i, temp_time = 0;
 	int j;
 	struct core_dcstat *op;
@@ -517,18 +514,9 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		dc_stat_info->curopindex = tgtop;
 	}
 
-	cur_idle = get_cpu_idle_time_dcstat(cpuid, &cur_wall);
-	prev_wall = cur->prev_cpu_wall;
-	prev_idle = cur->prev_cpu_idle;
-	idle_time_ms = (u32) (cur_idle - prev_idle);
-	total_time_ms = (u32) (cur_wall - prev_wall);
-	if (idle_time_ms > total_time_ms)
-		idle_time_ms = total_time_ms;
-
 	switch (msg) {
 	case CLK_STAT_START:
-		cur->prev_cpu_wall = cur_wall;
-		cur->prev_cpu_idle = cur_idle;
+
 		if (0 == cpuid) {
 			memset(&idle_dcstat_info, 0,
 			       sizeof(idle_dcstat_info));
@@ -548,6 +536,12 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
 				dc_stat_info->power_mode = pxa_powermode(cpu_i);
 				dc_stat_info->breakdown_start = 0;
+
+				if (dc_stat_info->power_mode == MAX_LPM_INDEX
+					&& cpu_online(cpu_i)) {
+					dc_stat_info->runtime_start = ktime_temp;
+					dc_stat_info->runtime_op_index = dc_stat_info->curopindex;
+				}
 				if (cpu_online(cpu_i))
 					dc_stat_info->online = 1;
 				else
@@ -572,45 +566,14 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 		break;
 	case CLK_STAT_STOP:
-		if (!cpu_online(cpuid) && (cur_idle == cur->prev_cpu_idle)
-			&& (idle_time_ms == 0))
-			idle_time_ms = total_time_ms;
-		else if (!dc_stat_info->online)
-			idle_time_ms = total_time_ms;
-
-		if (idle_time_ms > total_time_ms)
-			cur->cpu_busy_time += 0;
-		else
-			cur->cpu_busy_time += (total_time_ms - idle_time_ms);
-		cur->cpu_idle_time += idle_time_ms;
-
 		if (0 == cpuid) {
 			ktime_temp = ktime_to_ns(ktime_get());
-
 			idle_dcstat_info.cal_duration =
 			    ktime_temp
 			    - idle_dcstat_info.cal_duration;
 		}
 		break;
 	case CLK_RATE_CHANGE:
-		if (!cpu_online(cpuid) && (cur_idle == cur->prev_cpu_idle)
-			&& (idle_time_ms == 0))
-			idle_time_ms = total_time_ms;
-		else if (!dc_stat_info->online)
-			idle_time_ms = total_time_ms;
-
-		/* rate change from old->new */
-		cur->prev_cpu_idle = cur_idle;
-		cur->prev_cpu_wall = cur_wall;
-
-		if (idle_time_ms > total_time_ms)
-			cur->cpu_busy_time += 0;
-		else
-			cur->cpu_busy_time += (total_time_ms - idle_time_ms);
-		cur->cpu_idle_time += idle_time_ms;
-		tgt = &dc_stat_info->ops_dcstat[tgtop];
-		tgt->prev_cpu_idle = cur_idle;
-		tgt->prev_cpu_wall = cur_wall;
 		ktime_temp = ktime_to_ns(ktime_get());
 
 		for (j = 0; j < op->cpu_num; j++) {
@@ -619,9 +582,17 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				continue;
 			dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
 			spin_lock(&c1c2_exit_lock);
+			if ((u64) 0 != dc_stat_info->runtime_start) {
+				dc_stat_info->runtime_end = ktime_temp;
+				dc_stat_info->runtime_op_total
+				    [dc_stat_info->runtime_op_index] +=
+				    dc_stat_info->runtime_end -
+					dc_stat_info->runtime_start;
+				dc_stat_info->runtime_start = ktime_temp;
+				dc_stat_info->runtime_op_index = tgtop;
+			}
 			if ((dc_stat_info->idle_flag == LPM_C1) &&
-			    ((s64) 0 !=
-			     dc_stat_info->C1_idle_start)) {
+			    ((u64) 0 != dc_stat_info->C1_idle_start)) {
 				dc_stat_info->C1_idle_end = ktime_temp;
 				dc_stat_info->C1_op_total
 				    [dc_stat_info->C1_op_index] +=
@@ -632,8 +603,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				dc_stat_info->C1_idle_start = ktime_temp;
 				dc_stat_info->C1_op_index = tgtop;
 			} else if ((dc_stat_info->idle_flag == LPM_C2) &&
-				   ((s64) 0 !=
-				    dc_stat_info->C2_idle_start)) {
+				   ((u64) 0 != dc_stat_info->C2_idle_start)) {
 				dc_stat_info->C2_idle_end = ktime_temp;
 				dc_stat_info->C2_op_total
 				    [dc_stat_info->C2_op_index] +=
@@ -652,6 +622,14 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			break;
 		ktime_temp = ktime_to_ns(ktime_get());
 		spin_lock(&c1c2_enter_lock);
+
+		if ((u64) 0 != dc_stat_info->runtime_start) {
+			dc_stat_info->runtime_end = ktime_temp;
+			dc_stat_info->runtime_op_index = dc_stat_info->curopindex;
+			dc_stat_info->runtime_op_total[dc_stat_info->runtime_op_index] +=
+				dc_stat_info->runtime_end - dc_stat_info->runtime_start;
+			dc_stat_info->runtime_start = 0;
+		}
 		if (LPM_C1 == tgtop) {
 			dc_stat_info->C1_op_index = dc_stat_info->curopindex;
 			dc_stat_info->C1_idle_start = ktime_temp;
@@ -718,15 +696,19 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			break;
 		ktime_temp = ktime_to_ns(ktime_get());
 		spin_lock(&c1c2_exit_lock);
+
+		dc_stat_info->runtime_op_index = dc_stat_info->curopindex;
+		dc_stat_info->runtime_start = ktime_temp;
+
 		if ((dc_stat_info->idle_flag == LPM_C1) &&
-		    ((s64) 0 != dc_stat_info->C1_idle_start)) {
+		    ((u64) 0 != dc_stat_info->C1_idle_start)) {
 			dc_stat_info->C1_idle_end = ktime_temp;
 			dc_stat_info->C1_op_total[dc_stat_info->C1_op_index] +=
 			dc_stat_info->C1_idle_end - dc_stat_info->C1_idle_start;
 			dc_stat_info->C1_count[dc_stat_info->C1_op_index]++;
 			dc_stat_info->C1_idle_start = 0;
 		} else if ((dc_stat_info->idle_flag == LPM_C2) &&
-			   ((s64) 0 !=
+			   ((u64) 0 !=
 			    dc_stat_info->C2_idle_start)) {
 			dc_stat_info->C2_idle_end = ktime_temp;
 			dc_stat_info->C2_op_total[dc_stat_info->C2_op_index] +=
@@ -737,7 +719,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 		spin_unlock(&c1c2_exit_lock);
 		dc_stat_info->idle_flag = MAX_LPM_INDEX;
-		if ((s64) 0 != dc_stat_info->breakdown_start) {
+		if ((u64) 0 != dc_stat_info->breakdown_start) {
 			dc_stat_info->breakdown_end = ktime_temp;
 			temp_time = dc_stat_info->breakdown_end -
 						 dc_stat_info->breakdown_start;
@@ -778,7 +760,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				       idle_dcstat_info.all_idle_start;
 			idle_dcstat_info.total_all_idle_count++;
 
-			if ((s64) 0 != idle_dcstat_info.all_idle_start) {
+			if ((u64) 0 != idle_dcstat_info.all_idle_start) {
 				idle_dcstat_info.all_idle_op_total
 				    [idle_dcstat_info.all_idle_op_index] +=
 						idle_dcstat_info.
@@ -790,28 +772,28 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 						   all_idle_op_index]++;
 			}
 
-			if ((s64) 0 != idle_dcstat_info.M2_idle_start) {
+			if ((u64) 0 != idle_dcstat_info.M2_idle_start) {
 				idle_dcstat_info.M2_idle_total +=
 				    idle_dcstat_info.
 						 all_idle_end -
 						 idle_dcstat_info.
 						 M2_idle_start;
 				idle_dcstat_info.M2_count++;
-			} else if ((s64) 0 != idle_dcstat_info.D1P_idle_start) {
+			} else if ((u64) 0 != idle_dcstat_info.D1P_idle_start) {
 				idle_dcstat_info.D1P_idle_total +=
 						idle_dcstat_info.
 						 all_idle_end -
 						 idle_dcstat_info.
 						 D1P_idle_start;
 				idle_dcstat_info.D1p_count++;
-			} else if ((s64) 0 != idle_dcstat_info.D1_idle_start) {
+			} else if ((u64) 0 != idle_dcstat_info.D1_idle_start) {
 				idle_dcstat_info.D1_idle_total +=
 						idle_dcstat_info.
 						 all_idle_end -
 						 idle_dcstat_info.
 						 D1_idle_start;
 				idle_dcstat_info.D1_count++;
-			} else if ((s64) 0 != idle_dcstat_info.D2_idle_start) {
+			} else if ((u64) 0 != idle_dcstat_info.D2_idle_start) {
 				idle_dcstat_info.D2_idle_total +=
 						idle_dcstat_info.
 						 all_idle_end -
@@ -865,8 +847,9 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 	unsigned int cpu, i, dc_int = 0, dc_fra = 0;
 	struct clk_dc_stat_info *percpu_stat = NULL;
 	u32 total_time = 0, run_total, idle_total, busy_time, rt_total = 0;
-	u64 av_mips, av_mips_total = 0;
-	u32 av_mips_l, av_mips_h, rt_h, rt_l, idle_h, idle_l, total_all_idle;
+	u32 av_mips, av_mips_total = 0;
+	u32 av_mips_l, av_mips_h, rt_h, rt_l, idle_h, idle_l, total_all_idle,
+	run_time, idle_time;
 	u32 temp_total_time = 0, temp_total_count = 0;
 	char *lpm_time_string[12] = { "<10 ms", "<20 ms", "<30 ms",
 		"<40 ms", "<50 ms", "<60 ms", "<70 ms", "<80 ms",
@@ -879,19 +862,27 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 		goto out;
 	}
 
+	total_time = (u32) div64_u64(idle_dcstat_info.cal_duration,
+			(u64) NSEC_PER_MSEC);
+
 	seq_printf(seq, "\n| CPU# | %10s | rt ratio | MIPS (MHz) |\n",
 			"run (ms)");
 	for_each_possible_cpu(cpu) {
 		percpu_stat = &per_cpu(cpu_dc_stat, cpu);
 		av_mips = run_total = idle_total = 0;
 		for (i = 0; i < percpu_stat->ops_stat_size; i++) {
-			idle_total += percpu_stat->ops_dcstat[i].cpu_idle_time;
-			run_total += percpu_stat->ops_dcstat[i].cpu_busy_time;
-			av_mips += (u64) (percpu_stat->ops_dcstat[i].pprate *
-				  percpu_stat->ops_dcstat[i].cpu_busy_time);
+			percpu_stat->idle_op_total[i] =
+			percpu_stat->C1_op_total[i] + percpu_stat->C2_op_total[i];
+			idle_time = (u32) div64_u64(percpu_stat->idle_op_total[i],
+			(u64) NSEC_PER_MSEC);
+			run_time = (u32) div64_u64(percpu_stat->runtime_op_total[i],
+			(u64) NSEC_PER_MSEC);
+			idle_total += idle_time;
+			run_total += run_time;
+			av_mips += (percpu_stat->ops_dcstat[i].pprate *
+				 run_time);
 		}
 		av_mips_total += av_mips;
-		total_time = idle_total + run_total;
 		if (!total_time) {
 			seq_puts(seq, "No stat information! ");
 			seq_puts(seq, "Help information :\n");
@@ -908,7 +899,7 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 				run_total, dc_int, dc_fra, av_mips_h, av_mips_l);
 		rt_total += run_total;
 	}
-	idle_dcstat_info.cal_duration = total_time * NSEC_PER_MSEC;
+	seq_puts(seq, "\n");
 	rt_l = 0;
 	rt_h = calculate_dc(rt_total, total_time, &rt_l);
 	av_mips_l = 0;
@@ -963,8 +954,8 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 		percpu_stat = &per_cpu(cpu_dc_stat, cpu);
 		for (i = 0; i < percpu_stat->ops_stat_size; i++) {
 			if (total_time) {
-				busy_time =
-				    percpu_stat->ops_dcstat[i].cpu_busy_time;
+				busy_time = (u32) div64_u64(percpu_stat->runtime_op_total[i],
+			(u64) NSEC_PER_MSEC);
 				dc_int = calculate_dc(busy_time, total_time,
 							  &dc_fra);
 			}
@@ -972,11 +963,13 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 				seq_printf(seq, "| %-4d ", cpu);
 			else
 				seq_puts(seq, "|      ");
-			seq_printf(seq, "| %-3u | %10lu | %8lu | %9lu | %4u.%2u%% |%3lld%%, %-7lld | %3lld%%, %-9lld |%3lld%%, %-9lld |\n",
+			seq_printf(seq, "| %-3u | %10lu | %8llu | %9llu | %4u.%2u%% |%3lld%%, %-7llu | %3lld%%, %-9lld | %3lld%%, %-9llu |\n",
 				percpu_stat->ops_dcstat[i].ppindex,
 				percpu_stat->ops_dcstat[i].pprate,
-				percpu_stat->ops_dcstat[i].cpu_busy_time,
-				percpu_stat->ops_dcstat[i].cpu_idle_time,
+				div64_u64(percpu_stat->runtime_op_total[i],
+				(u64) NSEC_PER_MSEC),
+				div64_u64(percpu_stat->idle_op_total[i],
+				(u64) NSEC_PER_MSEC),
 				dc_int, dc_fra,
 				div64_u64
 				(idle_dcstat_info.
@@ -992,8 +985,7 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 					  (u64) (100),
 					  idle_dcstat_info.
 					  cal_duration),
-				percpu_stat->C2_count[i]
-			    );
+				percpu_stat->C2_count[i]);
 		}
 	}
 	seq_puts(seq, "\n");
@@ -1071,8 +1063,8 @@ static ssize_t cpu_dc_write(struct file *filp,
 				cpu = op->cpu_id[j];
 				percpu_stat = &per_cpu(cpu_dc_stat, cpu);
 				for (i = 0; i < percpu_stat->ops_stat_size; i++) {
-					percpu_stat->ops_dcstat[i].cpu_idle_time = 0;
-					percpu_stat->ops_dcstat[i].cpu_busy_time = 0;
+					percpu_stat->runtime_op_total[i] = 0;
+					percpu_stat->idle_op_total[i] = 0;
 				}
 
 				cpu_ops_size = percpu_stat->ops_stat_size;

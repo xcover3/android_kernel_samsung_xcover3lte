@@ -33,16 +33,9 @@ struct op_dcstat_info {
 	unsigned long pprate;
 	struct timespec prev_ts;
 
-	long cpu_idle_time;		/* ms */
-	long cpu_busy_time;		/* ms */
-
 	u64 clk_idle_time;		/* ns */
 	u64 clk_busy_time;		/* ns */
 	u64 pwr_off_time;		/* ns */
-
-	/* used for core stat */
-	cputime64_t prev_cpu_idle;
-	cputime64_t prev_cpu_wall;
 
 	/* used for ddr ticks ratio */
 	long ddr_glob_ratio;
@@ -61,20 +54,25 @@ struct clk_dc_stat_info {
 	unsigned int curopindex;
 	unsigned int idle_flag;
 	unsigned int online;
-	s64 C1_idle_start;
-	s64 C1_idle_end;
-	s64 C1_op_total[MAX_LPM_INDEX_DC];
+	u64 C1_idle_start;
+	u64 C1_idle_end;
+	u64 C1_op_total[MAX_LPM_INDEX_DC];
 	int C1_op_index;
 	u64 C1_count[MAX_LPM_INDEX_DC];
-	s64 C2_idle_start;
-	s64 C2_idle_end;
-	s64 C2_op_total[MAX_LPM_INDEX_DC];
+	u64 C2_idle_start;
+	u64 C2_idle_end;
+	u64 C2_op_total[MAX_LPM_INDEX_DC];
 	int C2_op_index;
 	u64 C2_count[MAX_LPM_INDEX_DC];
-	s64 breakdown_start;
-	s64 breakdown_end;
-	s64 breakdown_time_total[MAX_BREAKDOWN_TIME+1];
-	s64 breakdown_time_count[MAX_BREAKDOWN_TIME+1];
+	u64 breakdown_start;
+	u64 breakdown_end;
+	u64 breakdown_time_total[MAX_BREAKDOWN_TIME+1];
+	u64 breakdown_time_count[MAX_BREAKDOWN_TIME+1];
+	u64 runtime_start;
+	u64 runtime_end;
+	u64 runtime_op_total[MAX_LPM_INDEX_DC];
+	u64 idle_op_total[MAX_LPM_INDEX_DC];
+	int runtime_op_index;
 };
 
 struct clk_dcstat {
@@ -106,28 +104,28 @@ enum clk_stat_msg {
 };
 
 struct idle_dcstat_info {
-	s64 all_idle_start;
-	s64 all_idle_end;
-	s64 total_all_idle;
-	s64 total_all_idle_count;
-	s64 all_active_start;
-	s64 all_active_end;
-	s64 total_all_active;
-	s64 total_all_active_count;
-	s64 M2_idle_start;
-	s64 M2_idle_total;
-	s64 M2_count;
-	s64 D1P_idle_start;
-	s64 D1P_idle_total;
-	s64 D1p_count;
-	s64 D1_idle_start;
-	s64 D1_idle_total;
-	s64 D1_count;
-	s64 D2_idle_start;
-	s64 D2_idle_total;
-	s64 D2_count;
-	s64 cal_duration;
-	s64 all_idle_op_total[MAX_LPM_INDEX_DC];
+	u64 all_idle_start;
+	u64 all_idle_end;
+	u64 total_all_idle;
+	u64 total_all_idle_count;
+	u64 all_active_start;
+	u64 all_active_end;
+	u64 total_all_active;
+	u64 total_all_active_count;
+	u64 M2_idle_start;
+	u64 M2_idle_total;
+	u64 M2_count;
+	u64 D1P_idle_start;
+	u64 D1P_idle_total;
+	u64 D1p_count;
+	u64 D1_idle_start;
+	u64 D1_idle_total;
+	u64 D1_count;
+	u64 D2_idle_start;
+	u64 D2_idle_total;
+	u64 D2_count;
+	u64 cal_duration;
+	u64 all_idle_op_total[MAX_LPM_INDEX_DC];
 	int all_idle_op_index;
 	u64 all_idle_count[MAX_LPM_INDEX_DC];
 };
