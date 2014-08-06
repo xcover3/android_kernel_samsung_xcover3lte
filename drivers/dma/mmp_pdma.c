@@ -116,7 +116,7 @@ struct mmp_pdma_chan {
 	spinlock_t desc_lock;		/* Descriptor list lock */
 	struct list_head chain_pending;	/* Link descriptors queue for pending */
 	struct list_head chain_running;	/* Link descriptors queue for running */
-	bool idle;			/* channel statue machine */
+	enum dma_status status; /* channel state machine */
 	bool byte_align;
 	u32 bytes_residue;
 
@@ -309,7 +309,7 @@ static int start_pending_queue(struct mmp_pdma_chan *chan)
 	struct mmp_pdma_desc_sw *desc;
 
 	/* still in running, irq will start the pending list */
-	if (!chan->idle) {
+	if (chan->status == DMA_IN_PROGRESS) {
 		dev_dbg(chan->dev, "DMA controller still busy\n");
 		return -1;
 	}
@@ -343,7 +343,7 @@ static int start_pending_queue(struct mmp_pdma_chan *chan)
 	 */
 	set_desc(chan->phy, desc->async_tx.phys);
 	enable_chan(chan->phy);
-	chan->idle = false;
+	chan->status = DMA_IN_PROGRESS;
 	chan->bytes_residue = 0;
 	return 0;
 }
@@ -420,7 +420,7 @@ static int mmp_pdma_alloc_chan_resources(struct dma_chan *dchan)
 	}
 
 	mmp_pdma_free_phy(chan);
-	chan->idle = true;
+	chan->status = DMA_COMPLETE;
 	chan->dev_addr = 0;
 	return 1;
 }
@@ -448,7 +448,7 @@ static void mmp_pdma_free_chan_resources(struct dma_chan *dchan)
 
 	dma_pool_destroy(chan->desc_pool);
 	chan->desc_pool = NULL;
-	chan->idle = true;
+	chan->status = DMA_COMPLETE;
 	chan->dev_addr = 0;
 	mmp_pdma_free_phy(chan);
 	return;
@@ -721,7 +721,15 @@ static int mmp_pdma_control(struct dma_chan *dchan, enum dma_ctrl_cmd cmd,
 		mmp_pdma_free_desc_list(chan, &chan->chain_running);
 		chan->bytes_residue = 0;
 		spin_unlock_irqrestore(&chan->desc_lock, flags);
-		chan->idle = true;
+		chan->status = DMA_COMPLETE;
+		break;
+	case DMA_PAUSE:
+		disable_chan(chan->phy);
+		chan->status = DMA_PAUSED;
+		break;
+	case DMA_RESUME:
+		enable_chan(chan->phy);
+		chan->status = DMA_IN_PROGRESS;
 		break;
 	case DMA_SLAVE_CONFIG:
 		if (cfg->direction == DMA_DEV_TO_MEM) {
@@ -851,7 +859,10 @@ static enum dma_status mmp_pdma_tx_status(struct dma_chan *dchan,
 	dma_set_residue(txstate, mmp_pdma_residue(chan, cookie));
 	spin_unlock_irqrestore(&chan->desc_lock, flags);
 
-	return ret;
+	if (ret == DMA_COMPLETE)
+		return ret;
+	else
+		return chan->status;
 }
 
 /**
@@ -937,7 +948,8 @@ static void dma_do_tasklet(unsigned long data)
 	 * The hardware is idle and ready for more when the
 	 * chain_running list is empty.
 	 */
-	chan->idle = list_empty(&chan->chain_running);
+	chan->status = list_empty(&chan->chain_running) ?
+		DMA_COMPLETE : DMA_IN_PROGRESS;
 
 	/* Start any pending transactions automatically */
 	ret = start_pending_queue(chan);
@@ -1004,6 +1016,8 @@ static int mmp_pdma_chan_init(struct mmp_pdma_device *pdev, int idx, int irq)
 	tasklet_init(&chan->tasklet, dma_do_tasklet, (unsigned long)chan);
 	INIT_LIST_HEAD(&chan->chain_pending);
 	INIT_LIST_HEAD(&chan->chain_running);
+
+	chan->status = DMA_COMPLETE;
 	chan->bytes_residue = 0;
 	chan->qos_count = 0;
 	chan->user_do_qos = 1;
