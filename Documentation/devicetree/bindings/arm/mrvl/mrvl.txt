@@ -12,3 +12,11 @@ Required root node properties:
 MMP2 Brownstone Board
 Required root node properties:
 	- compatible = "mrvl,mmp2-brownstone";
+
+PXA1L88 DKB Board
+Required root node properties:
+	- compatible = "marvell,PXA1L88";
+
+PXA1L88 tablet V10 DKB Board
+Required root node properties:
+	- compatible = "marvell,pxa1L88-tablet-v10";
