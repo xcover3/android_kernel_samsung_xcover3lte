@@ -181,9 +181,9 @@
 				interrupts = <0 120 0x4>;
 				clocks = <&soc_clocks PXA1928_CLK_SC2_MCLK1_CLK>,
 					   <&soc_clocks PXA1928_CLK_SC2_DPHY4LN_CLK>,
-					   <&soc_clocks PXA1928_CLK_SC2_CSI_MIX_CLK>,
-					   <&soc_clocks PXA1928_CLK_SC2_4X_MIX_CLK>,
-					   <&soc_clocks PXA1928_CLK_SC2_AXI_MIX_CLK>;
+					   <&soc_clocks PXA1928_CLK_SC2_CSI_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_4X_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
 				clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
 							"SC24XCLK", "SC2AXICLK";
 				status = "disable";
@@ -197,9 +197,9 @@
 				interrupts = <0 119 0x4>;
 				clocks = <&soc_clocks PXA1928_CLK_SC2_MCLK2_CLK>,
 					   <&soc_clocks PXA1928_CLK_SC2_DPHY2LN_CLK>,
-					   <&soc_clocks PXA1928_CLK_SC2_CSI_MIX_CLK>,
-					   <&soc_clocks PXA1928_CLK_SC2_4X_MIX_CLK>,
-					   <&soc_clocks PXA1928_CLK_SC2_AXI_MIX_CLK>;
+					   <&soc_clocks PXA1928_CLK_SC2_CSI_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_4X_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
 				clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
 							"SC24XCLK", "SC2AXICLK";
 				status = "disable";
@@ -265,9 +265,9 @@
 				compatible = "ovt,double-pipeline ISP";
 				reg = <0xF0B00000 0xFFFFF>;
 				interrupts = <0 92 0x4>;
-				clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_MIX_CLK>,
-					   <&soc_clocks PXA1928_CLK_ISP_CORE_MIX_CLK>,
-					   <&soc_clocks PXA1928_CLK_ISP_PIPE_MIX_CLK>;
+				clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_ISP_CORE_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_ISP_PIPE_GATE_CLK>;
 				clock-names = "SC2AXICLK", "ISPCORECLK", "ISPPIPECLK";
 				marvell,power-domain = <&pd_sc2>;
 				status = "disabled";
