@@ -20,8 +20,13 @@
 #include <linux/slab.h>
 #include <linux/uio_driver.h>
 #include <linux/uio_coda7542.h>
-
 #include <linux/pm_runtime.h>
+
+#ifdef CONFIG_ARM_SMMU
+#include <linux/iommu.h>
+#include <asm/dma-iommu.h>
+extern struct dma_iommu_mapping *pxa_ion_iommu_mapping;
+#endif
 
 #define VDEC_WORKING_BUFFER_SIZE	SZ_1M
 #define UIO_CODA7542_VERSION		"build-001"
@@ -484,6 +489,13 @@ static int coda7542_probe(struct platform_device *pdev)
 		goto err_uio_mem;
 	}
 	mem_dma_addr = (dma_addr_t)__virt_to_phys((unsigned long int)mem_vir_addr);
+
+#ifdef CONFIG_ARM_SMMU
+	if (pxa_ion_iommu_mapping)
+		iommu_map(pxa_ion_iommu_mapping->domain, mem_dma_addr,
+				mem_dma_addr, VDEC_WORKING_BUFFER_SIZE,
+				IOMMU_READ | IOMMU_WRITE);
+#endif
 
 	cdev->uio_info.mem[1].internal_addr = (void __iomem *)mem_vir_addr;
 	cdev->uio_info.mem[1].addr = mem_dma_addr;
