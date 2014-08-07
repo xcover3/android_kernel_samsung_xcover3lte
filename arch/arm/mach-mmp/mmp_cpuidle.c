@@ -9,6 +9,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
+#include <linux/clk/mmpdcstat.h>
 #include <linux/cpu_pm.h>
 #include <linux/cpuidle.h>
 #include <linux/init.h>
@@ -122,7 +123,11 @@ static void mmp_pm_down(unsigned long addr)
 	} else
 		BUG();
 
+	if (last_man && (*idx >= mmp_idle->cpudown_state) && (*idx != LPM_D2_UDR))
+		cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_M2_OR_DEEPER_ENTER, *idx);
+
 	trace_pxa_cpu_idle(LPM_ENTRY(*idx), cpu, cluster);
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, *idx);
 
 	if (last_man && __mcpm_outbound_enter_critical(cpu, cluster)) {
 		arch_spin_unlock(&mmp_lpm_lock);
@@ -148,6 +153,7 @@ static int mmp_pm_power_up(unsigned int cpu, unsigned int cluster)
 	if (cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER)
 		return -EINVAL;
 
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
 	/*
 	 * Since this is called with IRQs enabled, and no arch_spin_lock_irq
 	 * variant exists, we need to disable IRQs manually here.
@@ -204,6 +210,7 @@ static void mmp_pm_powered_up(void)
 	pr_debug("%s: cpu %u cluster %u\n", __func__, cpu, cluster);
 	BUG_ON(cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER);
 
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
 	trace_pxa_cpu_idle(LPM_EXIT(0), cpu, cluster);
 
 	local_irq_save(flags);
