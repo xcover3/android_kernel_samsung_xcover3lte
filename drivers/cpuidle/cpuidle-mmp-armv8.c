@@ -19,6 +19,7 @@
 #include <asm/proc-fns.h>
 #include <asm/suspend.h>
 #include <asm/mcpm_plat.h>
+#include <linux/clk/mmpdcstat.h>
 
 static int mmp_enter_powerdown(struct cpuidle_device *dev,
 				 struct cpuidle_driver *drv, int idx);
@@ -34,7 +35,10 @@ static struct cpuidle_driver mmp_idle_driver = {
 int cpuidle_simple_enter(struct cpuidle_device *dev,
 			 struct cpuidle_driver *drv, int idx)
 {
+	cpu_dcstat_event(cpu_dcstat_clk, dev->cpu, CPU_IDLE_ENTER, idx);
 	cpu_do_idle();
+	cpu_dcstat_event(cpu_dcstat_clk, dev->cpu, CPU_IDLE_EXIT,
+		 MAX_LPM_INDEX);
 
 	return idx;
 }
