@@ -16,6 +16,7 @@
 #include <linux/clocksource.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
+#include <linux/memblock.h>
 
 #include <asm/mach/arch.h>
 
@@ -188,6 +189,30 @@ static __init void pxa1U88_timer_init(void)
 	pxa988_sdhc_reset_all();
 }
 
+/* For HELANLTE CP memeory reservation, 32MB by default */
+static u32 cp_area_size = 0x02000000;
+static u32 cp_area_addr = 0x06000000;
+static int __init early_cpmem(char *p)
+{
+	char *endp;
+
+	cp_area_size = memparse(p, &endp);
+	if (*endp == '@')
+		cp_area_addr = memparse(endp + 1, NULL);
+
+	return 0;
+}
+early_param("cpmem", early_cpmem);
+
+static void pxa_reserve_cp_memblock(void)
+{
+	/* Reserve memory for CP */
+	BUG_ON(memblock_reserve(cp_area_addr, cp_area_size) != 0);
+	memblock_free(cp_area_addr, cp_area_size);
+	memblock_remove(cp_area_addr, cp_area_size);
+	pr_info("Reserved CP memory: 0x%x@0x%x\n", cp_area_size, cp_area_addr);
+}
+
 static void __init pxa1U88_init_machine(void)
 {
 	void __iomem *chip_id;
@@ -197,6 +222,11 @@ static void __init pxa1U88_init_machine(void)
 	/* this is early, initialize mmp_chip_id here */
 	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
 	mmp_chip_id = readl_relaxed(chip_id);
+}
+
+static void __init pxa1x88_reserve(void)
+{
+	pxa_reserve_cp_memblock();
 }
 
 static const char *pxa1U88_dt_board_compat[] __initdata = {
@@ -210,6 +240,7 @@ DT_MACHINE_START(PXA1U88_DT, "PXA1U88")
 	.init_time      = pxa1U88_timer_init,
 	.init_machine	= pxa1U88_init_machine,
 	.dt_compat      = pxa1U88_dt_board_compat,
+	.reserve	= pxa1x88_reserve,
 MACHINE_END
 
 static const char *pxa1L88_dt_board_compat[] __initdata = {
@@ -222,4 +253,5 @@ DT_MACHINE_START(PXA1L88_DT, "PXA1L88")
 	.init_time      = pxa1U88_timer_init,
 	.init_machine	= pxa1U88_init_machine,
 	.dt_compat      = pxa1L88_dt_board_compat,
+	.reserve	= pxa1x88_reserve,
 MACHINE_END
