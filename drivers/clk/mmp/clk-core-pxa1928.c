@@ -1322,7 +1322,8 @@ static struct clk_ops axi_clk_ops = {
 	.recalc_rate = axi_clk_recalc,
 };
 
-void __init pxa1928_axi_clk_init(void __iomem *apmu_base)
+void __init pxa1928_axi_clk_init(void __iomem *apmu_base,
+			struct mmp_clk_unit *unit)
 {
 	struct clk *clk;
 	struct clk_hw *hw;
@@ -1359,6 +1360,8 @@ void __init pxa1928_axi_clk_init(void __iomem *apmu_base)
 	}
 	clk_register_clkdev(clk, "axi", NULL);
 	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1928_CLK_AXI, clk);
+
 }
 
 #ifdef AXI_DDR_COUPLE_DFC
@@ -2263,6 +2266,8 @@ static int ddr_clk_setrate(struct clk_hw *hw, unsigned long rate,
 			KHZ_TO_HZ);
 	pr_debug("axi target is %d\n", new_op->axi_constraint * KHZ_TO_HZ);
 #endif
+
+	clk_dcstat_event(hw->clk, CLK_RATE_CHANGE, index);
 
 out:
 	return ret;

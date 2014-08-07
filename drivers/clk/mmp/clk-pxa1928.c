@@ -6,6 +6,8 @@
 #include <linux/of_address.h>
 
 #include <dt-bindings/clock/marvell-pxa1928.h>
+#include <linux/debugfs-pxa.h>
+#include <linux/clk/mmpdcstat.h>
 
 #include "clk.h"
 #include "clk-pll-pxa1928.h"
@@ -116,6 +118,8 @@ struct pxa1928_clk_unit {
 	void __iomem *apbc_base;
 	void __iomem *ciu_base;
 };
+
+static struct pxa1928_clk_unit *globla_pxa_unit;
 
 static struct mmp_param_fixed_rate_clk fixed_rate_clks[] = {
 	{PXA1928_CLK_CLK32, "clk32", NULL, CLK_IS_ROOT, 32768},
@@ -358,7 +362,7 @@ static void pxa1928_acpu_init(struct pxa1928_clk_unit *pxa_unit)
 	}
 
 	pxa1928_core_clk_init(pxa_unit->apmu_base);
-	pxa1928_axi_clk_init(pxa_unit->apmu_base);
+	pxa1928_axi_clk_init(pxa_unit->apmu_base, &pxa_unit->unit);
 	pxa1928_axi11_clk_init(pxa_unit->apmu_base);
 	pxa1928_ddr_clk_init(pxa_unit->apmu_base, ddrdfc_base,
 		pxa_unit->ciu_base, &pxa_unit->unit);
@@ -1005,6 +1009,56 @@ static void __init pxa1928_clk_init(struct device_node *np)
 #ifdef CONFIG_SMC91X
 	pxa1928_smc91x_clk_init(pxa_unit->apmu_base);
 #endif
+
+#ifdef CONFIG_DEBUG_FS
+	globla_pxa_unit = pxa_unit;
+#endif
 }
 
 CLK_OF_DECLARE(pxa1928_clk, "marvell,pxa1928-clock", pxa1928_clk_init);
+
+#ifdef CONFIG_ARM64
+#ifdef CONFIG_DEBUG_FS
+static struct dentry *stat;
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1928_CLK_DDR], ddr);
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1928_CLK_AXI], axi);
+
+static int __init __init_pxa1928_dcstat_debugfs_node(void)
+{
+	struct dentry *cpu_dc_stat = NULL, *ddr_dc_stat = NULL;
+	struct dentry *axi_dc_stat = NULL;
+
+	stat = debugfs_create_dir("stat", pxa);
+	if (!stat)
+		return -ENOENT;
+
+	cpu_dc_stat = cpu_dcstat_file_create("cpu_dc_stat", stat);
+	if (!cpu_dc_stat)
+		goto err_cpu_dc_stat;
+
+	ddr_dc_stat = clk_dcstat_file_create("ddr_dc_stat", stat,
+			&ddr_dc_ops);
+	if (!ddr_dc_stat)
+		goto err_ddr_dc_stat;
+
+	axi_dc_stat = clk_dcstat_file_create("axi_dc_stat", stat,
+			&axi_dc_ops);
+	if (!axi_dc_stat)
+		goto err_axi_dc_stat;
+
+	return 0;
+
+err_axi_dc_stat:
+	debugfs_remove(ddr_dc_stat);
+err_ddr_dc_stat:
+	debugfs_remove(cpu_dc_stat);
+err_cpu_dc_stat:
+	debugfs_remove(stat);
+	return -ENOENT;
+}
+/* clock init is before debugfs_create_dir("pxa", NULL), so
+ * use arch_initcall init the pxa1928 dcstat node.
+ */
+arch_initcall(__init_pxa1928_dcstat_debugfs_node);
+#endif
+#endif

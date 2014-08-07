@@ -16,6 +16,7 @@
 #define PXA1928_CLK_UART_PLL		13
 
 #define PXA1928_CLK_DDR			30
+#define PXA1928_CLK_AXI			31
 
 #define PXA1928_CLK_TWSI0		60
 #define PXA1928_CLK_TWSI1		61
