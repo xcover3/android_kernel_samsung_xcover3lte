@@ -364,4 +364,8 @@
 		compatible = "marvell,pxa-ion";
 		status = "disabled";
 	};
+
+	dip {
+		compatible = "marvell,simple-dip";
+	};
 };
