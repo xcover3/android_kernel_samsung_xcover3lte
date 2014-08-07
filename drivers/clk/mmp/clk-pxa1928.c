@@ -543,23 +543,35 @@ static void __init pxa1928_sc2_clk_init(struct pxa1928_clk_unit *pxa_unit)
 		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
 	sc2_csi_mix_config.reg_info.reg_clk_sel =
 		pxa_unit->apmu_base + APMU_ISP_CLKCTRL2;
-	clk = mmp_clk_register_mix(NULL, "sc2_csi_clk",
+	clk = mmp_clk_register_mix(NULL, "sc2_csi_mix_clk",
 				sc2_csi_4x_parent_names,
 				ARRAY_SIZE(sc2_csi_4x_parent_names),
 				CLK_SET_RATE_PARENT,
 				&sc2_csi_mix_config, &sc2_lock);
 	mmp_clk_add(unit, PXA1928_CLK_SC2_CSI_MIX_CLK, clk);
 
+	clk = mmp_clk_register_gate2(NULL, "sc2_csi_clk", "sc2_csi_mix_clk",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apmu_base + APMU_ISP_CLKCTRL2,
+				0x7, 0x1, 0x0, 0, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_CSI_GATE_CLK, clk);
+
 	sc2_4x_mix_config.reg_info.reg_clk_ctrl =
 		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
 	sc2_4x_mix_config.reg_info.reg_clk_sel =
 		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
-	clk = mmp_clk_register_mix(NULL, "sc2_4x_clk",
+	clk = mmp_clk_register_mix(NULL, "sc2_4x_mix_clk",
 				sc2_csi_4x_parent_names,
 				ARRAY_SIZE(sc2_csi_4x_parent_names),
 				CLK_SET_RATE_PARENT,
 				&sc2_4x_mix_config, &sc2_lock);
 	mmp_clk_add(unit, PXA1928_CLK_SC2_4X_MIX_CLK, clk);
+
+	clk = mmp_clk_register_gate2(NULL, "sc2_4x_clk", "sc2_4x_mix_clk",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apmu_base + APMU_ISP_CLKCTRL,
+				0x7, 0x1, 0x0, 0, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_4X_GATE_CLK, clk);
 
 	clk = mmp_clk_register_gate(NULL, "sc2_dphy2ln_clk", NULL, 0,
 				pxa_unit->apmu_base + APMU_ISP_CLKCTRL2,
@@ -575,34 +587,52 @@ static void __init pxa1928_sc2_clk_init(struct pxa1928_clk_unit *pxa_unit)
 		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
 	sc2_axi_mix_config.reg_info.reg_clk_sel =
 		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
-	clk = mmp_clk_register_mix(NULL, "sc2_axi_clk",
+	clk = mmp_clk_register_mix(NULL, "sc2_axi_mix_clk",
 				sc2_clk_parent_names,
 				ARRAY_SIZE(sc2_clk_parent_names),
 				CLK_SET_RATE_PARENT,
 				&sc2_axi_mix_config, &sc2_lock);
 	mmp_clk_add(unit, PXA1928_CLK_SC2_AXI_MIX_CLK, clk);
 
+	clk = mmp_clk_register_gate2(NULL, "sc2_axi_clk", "sc2_axi_mix_clk",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apmu_base + APMU_ISP_CLKCTRL,
+				0x700, 0x100, 0x0, 0, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_SC2_AXI_GATE_CLK, clk);
+
 	isp_pipe_mix_config.reg_info.reg_clk_ctrl =
 		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
 	isp_pipe_mix_config.reg_info.reg_clk_sel =
 		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
-	clk = mmp_clk_register_mix(NULL, "isp_pipe_clk",
+	clk = mmp_clk_register_mix(NULL, "isp_pipe_mix_clk",
 				sc2_clk_parent_names,
 				ARRAY_SIZE(sc2_clk_parent_names),
 				CLK_SET_RATE_PARENT,
 				&isp_pipe_mix_config, &sc2_lock);
 	mmp_clk_add(unit, PXA1928_CLK_ISP_PIPE_MIX_CLK, clk);
 
+	clk = mmp_clk_register_gate2(NULL, "isp_pipe_clk", "isp_pipe_mix_clk",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apmu_base + APMU_ISP_CLKCTRL,
+				0x70000, 0x10000, 0x0, 0, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_ISP_PIPE_GATE_CLK, clk);
+
 	isp_core_mix_config.reg_info.reg_clk_ctrl =
 		pxa_unit->apmu_base + APMU_ISP_RSTCTRL;
 	isp_core_mix_config.reg_info.reg_clk_sel =
 		pxa_unit->apmu_base + APMU_ISP_CLKCTRL;
-	clk = mmp_clk_register_mix(NULL, "isp_core_clk",
+	clk = mmp_clk_register_mix(NULL, "isp_core_mix_clk",
 				sc2_clk_parent_names,
 				ARRAY_SIZE(sc2_clk_parent_names),
 				CLK_SET_RATE_PARENT,
 				&isp_core_mix_config, &sc2_lock);
 	mmp_clk_add(unit, PXA1928_CLK_ISP_CORE_MIX_CLK, clk);
+
+	clk = mmp_clk_register_gate2(NULL, "isp_core_clk", "isp_core_mix_clk",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apmu_base + APMU_ISP_CLKCTRL,
+				0xF000000, 0x2000000, 0x0, 0, &sc2_lock);
+	mmp_clk_add(unit, PXA1928_CLK_ISP_CORE_GATE_CLK, clk);
 }
 
 static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
