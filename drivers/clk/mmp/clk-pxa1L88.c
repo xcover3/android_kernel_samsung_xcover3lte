@@ -6,11 +6,15 @@
 #include <linux/of_address.h>
 
 #include <dt-bindings/clock/marvell-pxa1L88.h>
+#include <linux/debugfs-pxa.h>
 
 #include "clk.h"
 #include "clk-pll-helanx.h"
 #include "clk-core-helanx.h"
 #include "clk-plat.h"
+#ifdef CONFIG_CPU_PXA988
+#include <mach/cputype.h>
+#endif
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -33,6 +37,8 @@
 #define APMU_SDH1		0x58
 #define APMU_SDH2		0xe0
 #define APMU_USB		0x5c
+
+#define APMU_CORE_STATUS 0x090
 
 /* PLL */
 #define MPMU_PLL2CR	   (0x0034)
@@ -151,6 +157,23 @@ static struct mmp_vco_params pll_vco_params[][MAX_PLL_NUM] = {
 		},
 	}
 };
+
+static struct pxa1L88_clk_unit *globla_pxa_unit;
+int pxa1x88_powermode(u32 cpu)
+{
+	unsigned status_temp = 0;
+	status_temp = ((__raw_readl(globla_pxa_unit->apmu_base +
+			APMU_CORE_STATUS)) &
+			((1 << (6 + 3 * cpu)) | (1 << (7 + 3 * cpu))));
+	if (!status_temp)
+		return MAX_LPM_INDEX;
+	if (status_temp & (1 << (6 + 3 * cpu)))
+		return LPM_C1;
+	else if (status_temp & (1 << (7 + 3 * cpu)))
+		return LPM_C2;
+	return 0;
+}
+
 
 /* First index is ddr_mode */
 static struct mmp_pll_params pll_params[][MAX_PLL_NUM] = {
@@ -832,11 +855,13 @@ static inline void setup_max_freq(void)
 static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
 	int size;
 
 	core_params.apmu_base = pxa_unit->apmu_base;
 	core_params.mpmu_base = pxa_unit->mpmu_base;
 	core_params.ciu_base = pxa_unit->ciu_base;
+	core_params.pxa_powermode = pxa1x88_powermode;
 
 	ddr_params.apmu_base = pxa_unit->apmu_base;
 	ddr_params.mpmu_base = pxa_unit->mpmu_base;
@@ -861,6 +886,8 @@ static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 				   &fc_seq_lock, &ddr_params);
 	clk_register_clkdev(clk, "ddr", NULL);
 	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1L88_CLK_DDR, clk);
+
 
 	clk = mmp_clk_register_axi("axi", axi_parent,
 				  ARRAY_SIZE(axi_parent),
@@ -868,6 +895,8 @@ static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 				  &fc_seq_lock, &axi_params);
 	clk_register_clkdev(clk, "axi", NULL);
 	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1L88_CLK_AXI, clk);
+
 	size = axi_params.axi_opt_size;
 	register_clk_bind2ddr(clk, axi_params.axi_opt[size - 1].aclk * MHZ,
 			      aclk_dclk_relationtbl_1L88,
@@ -940,6 +969,58 @@ static void __init pxa1L88_clk_init(struct device_node *np)
 #if defined(CONFIG_PXA_DVFS) && defined(CONFIG_CPU_PXA988)
 	setup_pxa1L88_dvfs_platinfo();
 #endif
-}
 
+#ifdef CONFIG_DEBUG_FS
+	globla_pxa_unit = pxa_unit;
+#endif
+}
 CLK_OF_DECLARE(pxa1L88_clk, "marvell,pxa1L88-clock", pxa1L88_clk_init);
+
+#ifdef CONFIG_CPU_PXA988
+#ifdef CONFIG_DEBUG_FS
+static struct dentry *stat;
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1L88_CLK_DDR], ddr);
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1L88_CLK_AXI], axi);
+
+static int __init __init_pxa1L88_dcstat_debugfs_node(void)
+{
+	struct dentry *cpu_dc_stat = NULL, *ddr_dc_stat = NULL;
+	struct dentry *axi_dc_stat = NULL;
+
+	if (!cpu_is_pxa1L88())
+		return 0;
+
+	stat = debugfs_create_dir("stat", pxa);
+	if (!stat)
+		return -ENOENT;
+
+	cpu_dc_stat = cpu_dcstat_file_create("cpu_dc_stat", stat);
+	if (!cpu_dc_stat)
+		goto err_cpu_dc_stat;
+
+	ddr_dc_stat = clk_dcstat_file_create("ddr_dc_stat", stat,
+			&ddr_dc_ops);
+	if (!ddr_dc_stat)
+		goto err_ddr_dc_stat;
+
+	axi_dc_stat = clk_dcstat_file_create("axi_dc_stat", stat,
+			&axi_dc_ops);
+	if (!axi_dc_stat)
+		goto err_axi_dc_stat;
+
+	return 0;
+
+err_axi_dc_stat:
+	debugfs_remove(ddr_dc_stat);
+err_ddr_dc_stat:
+	debugfs_remove(cpu_dc_stat);
+err_cpu_dc_stat:
+	debugfs_remove(stat);
+	return -ENOENT;
+}
+/* clock init is before debugfs_create_dir("pxa", NULL), so
+ * use arch_initcall init the pxa1L88 dcstat node.
+ */
+arch_initcall(__init_pxa1L88_dcstat_debugfs_node);
+#endif
+#endif

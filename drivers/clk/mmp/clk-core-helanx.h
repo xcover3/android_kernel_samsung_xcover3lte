@@ -1,6 +1,8 @@
 #ifndef __MACH_CLK_CORE_HELANX_H
 #define __MACH_CLK_CORE_HELANX_H
 
+#include <linux/clk/mmpdcstat.h>
+
 /* flag for different FC version */
 /* V1 for helanLTE */
 #define HELANX_FC_V1	BIT(0)
@@ -81,9 +83,9 @@ struct core_params {
 
 	/* dynamic dc stat support? */
 	bool				dcstat_support;
-#if 0
+
 	powermode			pxa_powermode;
-#endif
+
 };
 
 extern struct clk *mmp_clk_register_core(const char *name,

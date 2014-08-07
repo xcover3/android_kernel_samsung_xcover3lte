@@ -25,6 +25,10 @@
 #define PXA1L88_CLK_PLL1_624_GATE	22
 #define PXA1L88_CLK_UART_PLL		27
 
+/* ddr/axi etc */
+#define PXA1L88_CLK_DDR			40
+#define PXA1L88_CLK_AXI			41
+
 /* apb periphrals */
 #define PXA1L88_CLK_TWSI0		60
 #define PXA1L88_CLK_TWSI1		61
