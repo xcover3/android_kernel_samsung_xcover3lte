@@ -26,6 +26,7 @@
 #include <linux/clk-private.h>
 
 #include <dt-bindings/clock/marvell-pxa1928.h>
+#include <linux/clk/mmpdcstat.h>
 
 #include "clk.h"
 #include "clk-plat.h"
@@ -746,6 +747,7 @@ static int cpu_clk_setrate(struct clk_hw *hw, unsigned long rate,
 	unsigned long flags;
 	struct pxa1928_core_opt *core_op_array;
 	unsigned int core_opt_size = 0;
+	unsigned int cpu;
 
 	if (!pll2_clk || !pll2p_clk) {
 		ret = -EINVAL;
@@ -818,6 +820,9 @@ static int cpu_clk_setrate(struct clk_hw *hw, unsigned long rate,
 		break;
 	}
 	spin_unlock_irqrestore(&cpu_clk_lock, flags);
+
+	for_each_possible_cpu(cpu)
+		cpu_dcstat_event(cpu_dcstat_clk, cpu, CLK_RATE_CHANGE, i);
 
 
 cpu_clk_setrate_err:
@@ -942,6 +947,21 @@ static long cpu_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 }
 
 #ifdef CONFIG_CPU_FREQ
+
+static int pxa1928_powermode(u32 cpu)
+{
+	u32 val;
+
+	val = __raw_readl(apmu_core_pwrmode[cpu]);
+	val &= 0x3;
+	if (val == 1)
+		return LPM_C1;
+	else if (val == 3)
+		return LPM_C2;
+	else
+		return MAX_LPM_INDEX;
+}
+
 static void __init_cpufreq_table(void)
 {
 	int i, num;
@@ -971,6 +991,9 @@ static void __init_cpufreq_table(void)
 
 	cpufreq_tbl[i].driver_data = i;
 	cpufreq_tbl[i].frequency = CPUFREQ_TABLE_END;
+
+	register_cpu_dcstat(cpu_dcstat_clk, num_possible_cpus(), pp, i,
+		pxa1928_powermode);
 
 	for_each_possible_cpu(i)
 		cpufreq_frequency_table_get_attr(cpufreq_tbl, i);
@@ -1051,6 +1074,7 @@ void __init pxa1928_core_clk_init(void __iomem *apmu_base)
 	}
 	clk_register_clkdev(clk, "cpu", NULL);
 	clk_prepare_enable(clk);
+	cpu_dcstat_clk = clk;
 
 	__init_cpufreq_table();
 }
@@ -1960,6 +1984,8 @@ static void ddr_clk_init(struct clk_hw *hw)
 	for (op_index = 0; op_index < cur_ddr_opt_size; op_index++)
 		ddr_op[op_index] =
 			(unsigned long)(&cur_ddr_opt[op_index])->dclk;
+
+	clk_register_dcstat(hw->clk, ddr_op, op_index);
 
 	pr_info("DDR boot up @%lukHZ\n", hw->clk->rate);
 }
