@@ -45,6 +45,7 @@
 
 #include <linux/amba/bus.h>
 #include <linux/pm_runtime.h>
+#include <linux/debugfs.h>
 
 #include <asm/pgalloc.h>
 
@@ -374,6 +375,7 @@ struct arm_smmu_device {
 	struct list_head		list;
 	struct rb_root			masters;
 	struct clk			*clk;
+	struct dentry			*debugfs_root;
 };
 
 struct arm_smmu_cfg {
@@ -1842,6 +1844,127 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 	return 0;
 }
 
+static void smmu_debug_regdump(struct seq_file *s, struct arm_smmu_device *smmu,
+		void __iomem *gr0_base)
+{
+	arm_smmu_power_switch(smmu, 1);
+	seq_printf(s, "\n[iommu] virt(%p)\n", gr0_base);
+	seq_printf(s, "[%08x] %08x\n", 0x0010 + 0x400,
+			readl(gr0_base + 0x0010 + 0x400));
+	seq_printf(s, "[%08x] %08x\n", 0x0800,
+			readl(gr0_base + 0x0800));
+	seq_printf(s, "[%08x] %08x\n", 0x0c00,
+			readl(gr0_base + 0x0c00));
+	seq_printf(s, "[%08x] %08x\n", 0x8000,
+			readl(gr0_base + 0x8000));
+	seq_printf(s, "[%08x] %08x\n", 0x8020,
+			readl(gr0_base + 0x8020));
+	seq_printf(s, "[%08x] %08x\n", 0x8024,
+			readl(gr0_base + 0x8024));
+	seq_printf(s, "[%08x] %08x\n", 0x8030,
+			readl(gr0_base + 0x8030));
+	seq_printf(s, "[%08x] %08x\n", 0x0000 + 0x400,
+			readl(gr0_base + 0x0000 + 0x400));
+	seq_printf(s, "[%08x] %08x\n", 0x0064,
+			readl(gr0_base + 0x0064));
+	seq_printf(s, "[%08x] %08x\n", 0x0070,
+			readl(gr0_base + 0x0070));
+	seq_printf(s, "[%08x] %08x\n", 0x0074,
+			readl(gr0_base + 0x0074));
+	arm_smmu_power_switch(smmu, 0);
+}
+
+static int smmu_stat_show(struct seq_file *s, void *v)
+{
+	struct arm_smmu_device *smmu = s->private;
+	struct rb_node *node;
+	struct arm_smmu_cfg *root_cfg = container_of(&smmu, struct arm_smmu_cfg, smmu);
+
+	seq_puts(s, "arm_smmu_device:\n");
+	seq_printf(s, " regbase: %08lx, size: %08lx\n",
+		(unsigned long)smmu->base, smmu->size);
+
+	for (node = rb_first(&smmu->masters); node; node = rb_next(node)) {
+		struct arm_smmu_master *master;
+		master = container_of(node, struct arm_smmu_master, node);
+		seq_printf(s, "master %s is %s\n", master->of_node->name,
+				master->smrs ? "enabled" : "disabled");
+		seq_printf(s, "pgd: %08lx\n", (unsigned long)root_cfg->pgd);
+	}
+
+	return 0;
+}
+
+static int smmu_reg_show(struct seq_file *s, void *v)
+{
+	struct arm_smmu_device *smmu = s->private;
+	struct rb_node *node;
+	void __iomem *gr0_base = ARM_SMMU_GR0(smmu);
+
+	for (node = rb_first(&smmu->masters); node; node = rb_next(node)) {
+		struct arm_smmu_master *master;
+		master = container_of(node, struct arm_smmu_master, node);
+		if (master->smrs)
+			smmu_debug_regdump(s, smmu, gr0_base);
+	}
+
+	return 0;
+}
+
+static int smmu_stat_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, smmu_stat_show, inode->i_private);
+}
+
+static int smmu_reg_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, smmu_reg_show, inode->i_private);
+}
+
+
+const struct file_operations smmu_stat_fops = {
+	.open	= smmu_stat_open,
+	.read	= seq_read,
+};
+
+const struct file_operations smmu_reg_fops = {
+	.open	= smmu_reg_open,
+	.read	= seq_read,
+};
+
+static void arm_smmu_debugfs_delete(struct arm_smmu_device *smmu)
+{
+	debugfs_remove_recursive(smmu->debugfs_root);
+}
+
+static void arm_smmu_debugfs_create(struct arm_smmu_device *smmu)
+{
+	struct device *dev = smmu->dev;
+	struct dentry *root;
+	struct dentry *file;
+
+	root = debugfs_create_dir(dev_name(dev), NULL);
+	if (!root) {
+		dev_err(dev, "failed create debugfs!\n");
+		goto err_exit;
+	}
+	smmu->debugfs_root = root;
+	file = debugfs_create_file("stat", 0664, root, smmu, &smmu_stat_fops);
+	if (!file)
+		goto err_exit;
+
+
+	file = debugfs_create_file("reg", 0664, root, smmu, &smmu_reg_fops);
+	if (!file)
+		goto err_exit;
+
+	return;
+err_exit:
+	arm_smmu_debugfs_delete(smmu);
+	return;
+}
+
+
 static u64 smmu_dma_mask = ~(u64)0;
 
 static int arm_smmu_device_dt_probe(struct platform_device *pdev)
@@ -1963,6 +2086,9 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	arm_smmu_device_reset(smmu);
 	arm_smmu_power_switch(smmu, 0);
 
+#ifdef CONFIG_DEBUG_FS
+	arm_smmu_debugfs_create(smmu);
+#endif
 	return 0;
 
 out_free_irqs:
