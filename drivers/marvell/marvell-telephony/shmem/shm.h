@@ -170,6 +170,10 @@ struct shm_skctl {
 
 	volatile unsigned int dfc_dclk_num;
 	volatile unsigned int dfc_dclk[16];
+
+	/* uuid reserved for SSIPC solution */
+	volatile unsigned int uuid_high;
+	volatile unsigned int uuid_low;
 };
 
 /* share memory socket header structure */
