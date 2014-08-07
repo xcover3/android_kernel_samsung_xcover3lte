@@ -24,6 +24,7 @@
  * @rx_delay: use this value for RX DDLL
  * @rx_sdclk_sel0: select RX DDLL clock source
  * @rx_sdclk_sel1: select RX DDLL or internal clock
+ * @fakeclk_en: enable fakeclk or not for this timing
  */
 struct sdhci_pxa_dtr_data {
 	unsigned char timing;
@@ -33,6 +34,7 @@ struct sdhci_pxa_dtr_data {
 	unsigned int rx_delay;
 	unsigned char rx_sdclk_sel0;
 	unsigned char rx_sdclk_sel1;
+	unsigned char fakeclk_en;
 };
 
 struct sdhci_regdata {

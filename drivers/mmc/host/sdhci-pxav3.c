@@ -1195,6 +1195,13 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 			} else {
 				dtr_data[timing].rx_sdclk_sel1 = val;
 			}
+			p = of_prop_next_u32(prop, p, &val);
+			if (!p) {
+				dev_err(dev, "missing fakeclk_en for timing %d\n",
+						timing);
+			} else {
+				dtr_data[timing].fakeclk_en = val;
+			}
 		}
 		pdata->dtr_data = dtr_data;
 	}
