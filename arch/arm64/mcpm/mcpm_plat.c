@@ -26,6 +26,8 @@
 #include <asm/mcpm.h>
 #include <asm/mcpm_plat.h>
 #include <asm/memory.h>
+#include <linux/clk/mmpdcstat.h>
+
 
 #define LPM_NUM			16
 
@@ -324,6 +326,13 @@ static void mcpm_plat_pm_down(void *arg)
 	} else
 		BUG();
 
+	/* add statictis for cpuidle */
+	if (cluster_off)
+		cpu_dcstat_event(cpu_dcstat_clk, cpu,
+				 CPU_M2_OR_DEEPER_ENTER, *idx);
+
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, *idx);
+
 	if (last_man && __mcpm_outbound_enter_critical(cpu, cluster)) {
 		arch_spin_unlock(&mcpm_plat_lpm_lock);
 
@@ -403,6 +412,8 @@ static void mcpm_plat_pm_powered_up(void)
 
 	local_irq_save(flags);
 	arch_spin_lock(&mcpm_plat_lpm_lock);
+
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
 
 	calc_state = _calc_coupled_state(cpu, cluster, &cluster_off, NULL);
 	if (cluster_off)
