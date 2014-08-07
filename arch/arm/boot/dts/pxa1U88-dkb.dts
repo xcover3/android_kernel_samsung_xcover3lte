@@ -40,6 +40,8 @@
 		};
 
 		smmu {  /* iommu in vpu */
+			clocks = <&soc_clocks PXA1U88_CLK_VPU>;
+			marvell,power-domain = <&pd_vpu>;
 			status = "okay";
 		};
 
