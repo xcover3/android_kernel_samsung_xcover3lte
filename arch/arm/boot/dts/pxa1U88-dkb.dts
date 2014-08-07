@@ -110,13 +110,35 @@
 				status = "okay";
 			};
 
+			/* eMMC */
 			sdh2: sdh@d4281000 {
+				pinctrl-names = "default", "fast";
+				pinctrl-0 = <&sdh2_pmx_func1 &sdh2_pmx_func2>;
+				pinctrl-1 = <&sdh2_pmx_func1_fast &sdh2_pmx_func2_fast>;
 				bus-width = <8>;
 				non-removable;
-				marvell,sdh-quirks = <(SDHCI_QUIRK_BROKEN_CARD_DETECTION)>;
-				marvell,sdh-quirks2 = <(SDHCI_QUIRK2_BROKEN_HS200)>;
+				marvell,sdh-pm-runtime-en;
+				marvell,sdh-quirks = <(
+						SDHCI_QUIRK_BROKEN_ADMA |
+						SDHCI_QUIRK_BROKEN_CARD_DETECTION
+						)>;
+				marvell,sdh-quirks2 = <(
+						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
+						SDHCI_QUIRK2_TIMEOUT_SHORT |
+						SDHCI_QUIRK2_BROKEN_HS200
+						)>;
 				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
 				marvell,sdh-host-caps2 = <(MMC_CAP2_DISABLE_BLK_ASYNC)>;
+				marvell,sdh-flags = <(
+						PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
+						PXA_FLAG_ENABLE_CLOCK_GATING |
+						PXA_FLAG_TX_SEL_BUS_CLK
+						)>;
+		/* prop "sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay sdclk_sel0 sdclk_sel1 fakeclk_en> */
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_MMC_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
 				status = "okay";
 			 };
 
@@ -282,6 +304,54 @@
 						GPIO77 AF1
 					>;
 					MFP_DEFAULT;
+				};
+
+				/* no pull, no LPM */
+				sdh2_pmx_func1: sdh2_pmx_func1 {
+					pinctrl-single,pins = <
+						ND_IO7 AF1
+						ND_IO6 AF1
+						ND_IO5 AF1
+						ND_IO4 AF1
+						ND_IO3 AF1
+						ND_IO2 AF1
+						ND_IO1 AF1
+						ND_IO0 AF1
+						ND_CLE_SM_OEN AF1
+					>;
+					MFP_DEFAULT;
+				};
+
+				/* MFP_LPM_DRIVE_LOW */
+				sdh2_pmx_func2: sdh2_pmx_func2 {
+					pinctrl-single,pins = <
+						SM_SCLK AF1
+					>;
+					MFP_LPM_DRIVE_LOW;
+				};
+
+				/* ds fast, no pull, no LPM */
+				sdh2_pmx_func1_fast: sdh2_pmx_func1_fast {
+					pinctrl-single,pins = <
+						ND_IO7 AF1
+						ND_IO6 AF1
+						ND_IO5 AF1
+						ND_IO4 AF1
+						ND_IO3 AF1
+						ND_IO2 AF1
+						ND_IO1 AF1
+						ND_IO0 AF1
+						ND_CLE_SM_OEN AF1
+					>;
+					DS_FAST;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+
+				/* ds fast, LPM_DRIVE_LOW */
+				sdh2_pmx_func2_fast: sdh2_pmx_func2_fast {
+					pinctrl-single,pins = <
+						SM_SCLK AF1
+					>;
+					DS_FAST;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
 				};
 
 				keypad_in_func: keypad_in_func {
