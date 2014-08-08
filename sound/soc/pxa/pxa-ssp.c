@@ -24,6 +24,8 @@
 #include <linux/of.h>
 #include <linux/dmaengine.h>
 #include <linux/delay.h>
+#include <linux/pinctrl/consumer.h>
+#include <linux/of_gpio.h>
 
 #include <asm/irq.h>
 
@@ -47,6 +49,11 @@ struct ssp_priv {
 	struct ssp_device *ssp;
 	unsigned int sysclk;
 	int dai_fmt;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pin_ssp;
+	struct pinctrl_state *pin_gpio;
+	int mfp;
+	bool mfp_init;
 #ifdef CONFIG_PM
 	uint32_t	cr0;
 	uint32_t	cr1;
@@ -61,6 +68,74 @@ struct ssp_priv {
 	 */
 	void __iomem	*apbcp_base;
 };
+
+static ssize_t ssp_mfp_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct ssp_priv *priv = dev_get_drvdata(dev);
+	if (!priv)
+		return sprintf(buf, "%s\n", "get ssp-priv failed!!!\n");
+
+	if (priv->ssp->port_id == 2)
+		pr_debug("i2s pin mfp setting:\n");
+	else if (priv->ssp->port_id == 5)
+		pr_debug("gssp pin mfp setting:\n");
+
+	return sprintf(buf, "%s\n", (priv->mfp ? "ssp" : "gpio"));
+}
+
+static ssize_t ssp_mfp_set(struct device *dev,
+			       struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	int ret, i;
+	u32 pins_ssp;
+	struct ssp_priv *priv = dev_get_drvdata(dev);
+	struct device_node *np = dev->of_node;
+
+	if (!priv)
+		return -EINVAL;
+
+	if (IS_ERR(priv->pin_ssp) || IS_ERR(priv->pin_gpio))
+		return -EINVAL;
+
+	ret = kstrtoint(buf, 10, &priv->mfp);
+	if (ret)
+		return ret;
+
+	/* mfp = 0, set to gpio; mfp = 1, set to ssp */
+	if (priv->mfp) {
+		ret = pinctrl_select_state(priv->pinctrl, priv->pin_ssp);
+		if (ret) {
+			dev_err(dev, "could not set ssp pins\n");
+			goto err_out;
+		}
+	} else {
+		ret = pinctrl_select_state(priv->pinctrl, priv->pin_gpio);
+		if (ret) {
+			dev_err(dev, "could not set default(gpio) pins\n");
+			goto err_out;
+		}
+
+		for (i = 0; i < 4; i++) {
+			pins_ssp = of_get_named_gpio(np, "ssp-gpio", i);
+			gpio_request(pins_ssp, NULL);
+			gpio_direction_input(pins_ssp);
+			gpio_free(pins_ssp);
+		}
+	}
+
+	if (priv->ssp->port_id == 2)
+		pr_debug("i2s pin set to %s\n", (priv->mfp ? "ssp" : "gpio"));
+	else if (priv->ssp->port_id == 5)
+		pr_debug("gssp pin set to %s\n", (priv->mfp ? "ssp" : "gpio"));
+
+err_out:
+	return count;
+}
+
+static DEVICE_ATTR(gssp_mfp, 0644, ssp_mfp_show, ssp_mfp_set);
+static DEVICE_ATTR(ssp_mfp, 0644, ssp_mfp_show, ssp_mfp_set);
 
 static void dump_registers(struct ssp_device *ssp)
 {
@@ -106,6 +181,20 @@ static int pxa_ssp_startup(struct snd_pcm_substream *substream,
 	struct snd_dmaengine_dai_dma_data *dma;
 	unsigned int gcer;
 	int ret = 0;
+
+	/*
+	 * when audio stream start, set ssp1 to ssp mfp.
+	 * always config gssp pins mfpr incase CP modify
+	 */
+	if ((ssp->port_id == 5) || !priv->mfp_init) {
+		ret = pinctrl_select_state(priv->pinctrl, priv->pin_ssp);
+		if (ret) {
+			dev_err(cpu_dai->dev, "could not set ssp pins\n");
+			return ret;
+		}
+		priv->mfp_init = true;
+		priv->mfp = 1;
+	}
 
 	if (!cpu_dai->active) {
 		/*
@@ -789,8 +878,28 @@ static int pxa_ssp_probe(struct snd_soc_dai *dai)
 		}
 	}
 
+	priv->pinctrl = devm_pinctrl_get(dev);
+	if (IS_ERR(priv->pinctrl)) {
+		ret = PTR_ERR(priv->pinctrl);
+		goto err_priv;
+	}
+	priv->pin_ssp = pinctrl_lookup_state(priv->pinctrl, "ssp");
+	if (IS_ERR(priv->pin_ssp)) {
+		dev_err(dev, "could not get ssp pinstate\n");
+		ret = IS_ERR(priv->pin_ssp);
+		goto err_priv;
+	}
+
+	priv->pin_gpio = pinctrl_lookup_state(priv->pinctrl, "default");
+	if (IS_ERR(priv->pin_gpio)) {
+		dev_err(dev, "could not get default(gpio) pinstate\n");
+		ret = IS_ERR(priv->pin_gpio);
+		goto err_priv;
+	}
+
 	priv->dai_fmt = (unsigned int) -1;
 	snd_soc_dai_set_drvdata(dai, priv);
+	priv->mfp_init = false;
 
 	/* clear gssp init clock status */
 	if (priv->ssp->port_id == 5) {
@@ -887,10 +996,23 @@ static int asoc_ssp_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	if (strcmp(platform_driver_name, "tdma_platform") == 0)
+	if (strcmp(platform_driver_name, "tdma_platform") == 0) {
 		ret = mmp_pcm_platform_register(&pdev->dev);
-	else if (strcmp(platform_driver_name, "pdma_platform") == 0)
+		/* add ssp_mfp sysfs entries */
+		ret = device_create_file(&pdev->dev, &dev_attr_ssp_mfp);
+		if (ret < 0)
+			dev_err(&pdev->dev,
+				"%s: failed to add ssp_mfp sysfs files: %d\n",
+				__func__, ret);
+	} else if (strcmp(platform_driver_name, "pdma_platform") == 0) {
 		ret = pxa_pcm_platform_register(&pdev->dev);
+		/* add gssp_mfp sysfs entries */
+		ret = device_create_file(&pdev->dev, &dev_attr_gssp_mfp);
+		if (ret < 0)
+			dev_err(&pdev->dev,
+				"%s: failed to add gssp_mfp sysfs files: %d\n",
+				__func__, ret);
+	}
 
 	return ret;
 }
@@ -908,10 +1030,13 @@ static int asoc_ssp_remove(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (strcmp(platform_driver_name, "tdma_platform") == 0)
+	if (strcmp(platform_driver_name, "tdma_platform") == 0) {
+		device_remove_file(&pdev->dev, &dev_attr_ssp_mfp);
 		mmp_pcm_platform_unregister(&pdev->dev);
-	else if (strcmp(platform_driver_name, "pdma_platform") == 0)
+	} else if (strcmp(platform_driver_name, "pdma_platform") == 0) {
+		device_remove_file(&pdev->dev, &dev_attr_gssp_mfp);
 		snd_soc_unregister_component(&pdev->dev);
+	}
 
 	return 0;
 }
