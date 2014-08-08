@@ -329,6 +329,17 @@ config MFD_88PM860X
 	  select individual components like voltage regulators, RTC and
 	  battery-charger under the corresponding menus.
 
+config MFD_MMP_MAP
+	bool "Support Marvell Audio MAP"
+	select MFD_CORE
+	select REGMAP
+	select REGMAP_MMIO
+	 ---help---
+	  This supports for Marvell Audio MAP (Marvell audio processor).
+	  This includes MAP init, you have to select individual components,
+	  like fe dai (i2s1/2/3/4), be dai (TDM, DEI2S, AUX-I2S)
+	  under the corresponding menus.
+
 config MFD_MAX14577
 	bool "Maxim Semiconductor MAX14577 MUIC + Charger Support"
 	depends on I2C=y
