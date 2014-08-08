@@ -43,6 +43,8 @@
 
 #define PXA_SSP_PLL_OUT  0
 
+#define PXA_SSP_FIFO_DEPTH		16
+
 /*
  * FixMe: for port 5 (gssp), it is shared by ap
  * and cp. When AP want to handle it, AP need to

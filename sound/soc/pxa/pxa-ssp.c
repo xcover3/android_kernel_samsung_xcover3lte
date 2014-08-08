@@ -49,6 +49,7 @@ struct ssp_priv {
 	struct ssp_device *ssp;
 	unsigned int sysclk;
 	int dai_fmt;
+	unsigned int burst_size;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pin_ssp;
 	struct pinctrl_state *pin_gpio;
@@ -170,7 +171,10 @@ static void pxa_ssp_set_dma_params(struct ssp_device *ssp, int width4,
 {
 	dma->addr_width = width4 ? DMA_SLAVE_BUSWIDTH_4_BYTES :
 				   DMA_SLAVE_BUSWIDTH_2_BYTES;
-	dma->maxburst = 16;
+
+	if (dma->maxburst > PXA_SSP_FIFO_DEPTH)
+		dma->maxburst = PXA_SSP_FIFO_DEPTH;
+
 	dma->addr = ssp->phys_base + SSDR;
 }
 
@@ -706,6 +710,8 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 
 	dma_data = snd_soc_dai_get_dma_data(cpu_dai, substream);
 
+	dma_data->maxburst = priv->burst_size;
+
 	/* Network mode with one active slot (ttsa == 1) can be used
 	 * to force 16-bit frame width on the wire (for S16_LE), even
 	 * with two channels. Use 16-bit DMA transfers for this case.
@@ -879,6 +885,7 @@ static int pxa_ssp_probe(struct snd_soc_dai *dai)
 {
 	struct device *dev = dai->dev;
 	struct ssp_priv *priv;
+	struct mmp_audio_sspdata *pdata;
 	int ret;
 
 	priv = kzalloc(sizeof(struct ssp_priv), GFP_KERNEL);
@@ -900,12 +907,19 @@ static int pxa_ssp_probe(struct snd_soc_dai *dai)
 			ret = -ENODEV;
 			goto err_priv;
 		}
+
+		of_property_read_u32(dev->of_node, "burst_size",
+				     &priv->burst_size);
 	} else {
 		priv->ssp = pxa_ssp_request(dai->id + 1, "SoC audio");
 		if (priv->ssp == NULL) {
 			ret = -ENODEV;
 			goto err_priv;
 		}
+
+		pdata = dev_get_platdata(dai->dev);
+
+		priv->burst_size = pdata->burst_size;
 	}
 	/*
 	 * FixMe: for port 5 (gssp), it is shared by ap

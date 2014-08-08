@@ -1,7 +1,7 @@
 /*
  *  MMP Platform AUDIO Management
  *
- *  Copyright (c) 2011 Marvell Semiconductors Inc.
+ *  Copyright (c) 2014 Marvell Semiconductors Inc.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -17,6 +17,10 @@ struct mmp_audio_platdata {
 	u32 buffer_max_capture;
 	u32 period_max_playback;
 	u32 buffer_max_playback;
+};
+
+struct mmp_audio_sspdata {
+	u32 burst_size;
 };
 
 #endif /* MMP_AUDIO_H */
