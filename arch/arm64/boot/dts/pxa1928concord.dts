@@ -204,8 +204,10 @@
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
 				status = "okay";
-				clocks = 	<&soc_clocks PXA1928_CLK_DISP_AXI_CLK>;
-				clock-names = "axi_clk";
+				clocks = 	<&soc_clocks PXA1928_CLK_DISP_AXI_CLK>,
+					<&soc_clocks PXA1928_CLK_DISP_DISP1_CLK>,
+					<&soc_clocks PXA1928_CLK_PLL3>;
+				clock-names = "axi_clk",  "disp1_clk", "dsipll_clk";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
 					marvell,overlay-num = <2>;
@@ -213,7 +215,6 @@
 					marvell,output-type = <1>;
 					marvell,path-config = <0x10>;
 					marvell,link-config = <1>;
-
 					disp_apmu_ver {
 						version = "ax";
 					};
