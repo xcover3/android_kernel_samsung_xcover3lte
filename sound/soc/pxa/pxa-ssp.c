@@ -174,41 +174,11 @@ static void pxa_ssp_shutdown(struct snd_pcm_substream *substream,
 
 static int pxa_ssp_suspend(struct snd_soc_dai *cpu_dai)
 {
-	struct ssp_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
-	struct ssp_device *ssp = priv->ssp;
-
-	if (!cpu_dai->active)
-		clk_prepare_enable(ssp->clk);
-
-	priv->cr0 = __raw_readl(ssp->mmio_base + SSCR0);
-	priv->cr1 = __raw_readl(ssp->mmio_base + SSCR1);
-	priv->to  = __raw_readl(ssp->mmio_base + SSTO);
-	priv->psp = __raw_readl(ssp->mmio_base + SSPSP);
-
-	pxa_ssp_disable(ssp);
-	clk_disable_unprepare(ssp->clk);
 	return 0;
 }
 
 static int pxa_ssp_resume(struct snd_soc_dai *cpu_dai)
 {
-	struct ssp_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
-	struct ssp_device *ssp = priv->ssp;
-	uint32_t sssr = SSSR_ROR | SSSR_TUR | SSSR_BCE;
-
-	clk_prepare_enable(ssp->clk);
-
-	__raw_writel(sssr, ssp->mmio_base + SSSR);
-	__raw_writel(priv->cr0 & ~SSCR0_SSE, ssp->mmio_base + SSCR0);
-	__raw_writel(priv->cr1, ssp->mmio_base + SSCR1);
-	__raw_writel(priv->to,  ssp->mmio_base + SSTO);
-	__raw_writel(priv->psp, ssp->mmio_base + SSPSP);
-
-	if (cpu_dai->active)
-		pxa_ssp_enable(ssp);
-	else
-		clk_disable_unprepare(ssp->clk);
-
 	return 0;
 }
 
@@ -711,14 +681,12 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 static void pxa_ssp_set_running_bit(struct snd_pcm_substream *substream,
 				    struct ssp_device *ssp, int value)
 {
-	uint32_t sscr0 = pxa_ssp_read_reg(ssp, SSCR0);
 	uint32_t sscr1 = pxa_ssp_read_reg(ssp, SSCR1);
-	uint32_t sspsp = pxa_ssp_read_reg(ssp, SSPSP);
-	uint32_t sssr = pxa_ssp_read_reg(ssp, SSSR);
 
-	if (value && (sscr0 & SSCR0_SSE))
-		pxa_ssp_write_reg(ssp, SSCR0, sscr0 & ~SSCR0_SSE);
-
+	/*
+	 * here we only enable/disable SSP TX/RX DMA request. ssp enable/
+	 * disable is handled in startup/shutdown to avoid noise.
+	 */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		if (value)
 			sscr1 |= SSCR1_TSRE;
@@ -732,12 +700,6 @@ static void pxa_ssp_set_running_bit(struct snd_pcm_substream *substream,
 	}
 
 	pxa_ssp_write_reg(ssp, SSCR1, sscr1);
-
-	if (value) {
-		pxa_ssp_write_reg(ssp, SSSR, sssr);
-		pxa_ssp_write_reg(ssp, SSPSP, sspsp);
-		pxa_ssp_write_reg(ssp, SSCR0, sscr0 | SSCR0_SSE);
-	}
 }
 
 static int pxa_ssp_trigger(struct snd_pcm_substream *substream, int cmd,
@@ -795,7 +757,8 @@ static int pxa_ssp_probe(struct snd_soc_dai *dai)
 		ssp_handle = of_parse_phandle(dev->of_node, "port", 0);
 		if (!ssp_handle) {
 			dev_err(dev, "unable to get 'port' phandle\n");
-			return -ENODEV;
+			ret = -ENODEV;
+			goto err_priv;
 		}
 
 		priv->ssp = pxa_ssp_request_of(ssp_handle, "SoC audio");
@@ -821,7 +784,8 @@ static int pxa_ssp_probe(struct snd_soc_dai *dai)
 						APBCONTROL_SIZE);
 		if (priv->apbcp_base == NULL) {
 			dev_err(dev, "failed to ioremap() registers\n");
-			return -ENODEV;
+			ret = -ENODEV;
+			goto err_priv;
 		}
 	}
 
