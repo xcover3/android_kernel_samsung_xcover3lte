@@ -199,12 +199,17 @@ struct plat_pll_info {
 	const char *out_name;
 	const char *outp_name;
 	const char *vco_div3_name;
+	/* clk flags */
 	unsigned long vco_flag;
 	unsigned long vcoclk_flag;
 	unsigned long out_flag;
 	unsigned long outclk_flag;
 	unsigned long outp_flag;
 	unsigned long outpclk_flag;
+	/* dt index */
+	unsigned int outdtidx;
+	unsigned int outpdtidx;
+	unsigned int vcodiv3dtidx;
 };
 
 struct plat_pll_info pllx_platinfo[] = {
@@ -217,6 +222,9 @@ struct plat_pll_info pllx_platinfo[] = {
 		.vco_flag = HELANX_PLL2CR_V1,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
+		.outdtidx = PXA1U88_CLK_PLL2,
+		.outpdtidx = PXA1U88_CLK_PLL2P,
+		.vcodiv3dtidx = PXA1U88_CLK_PLL2VCODIV3,
 	},
 	{
 		.vco_name = "pll3_vco",
@@ -227,6 +235,9 @@ struct plat_pll_info pllx_platinfo[] = {
 		.outpclk_flag = CLK_SET_RATE_PARENT,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
+		.outdtidx = PXA1U88_CLK_PLL3,
+		.outpdtidx = PXA1U88_CLK_PLL3P,
+		.vcodiv3dtidx = PXA1U88_CLK_PLL3VCODIV3,
 	},
 	{
 		.vco_name = "pll4_vco",
@@ -236,6 +247,9 @@ struct plat_pll_info pllx_platinfo[] = {
 		.vcoclk_flag = CLK_IS_ROOT,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
+		.outdtidx = PXA1U88_CLK_PLL4,
+		.outpdtidx = PXA1U88_CLK_PLL4P,
+		.vcodiv3dtidx = PXA1U88_CLK_PLL4VCODIV3,
 	}
 };
 
@@ -243,6 +257,7 @@ static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 {
 	int idx;
 	struct clk *clk;
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
 
 	pllx_vco_params[PLL2].cr_reg = pxa_unit->mpmu_base + MPMU_PLL2CR;
 	pllx_vco_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
@@ -273,18 +288,19 @@ static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 			pllx_platinfo[idx].outclk_flag, pllx_platinfo[idx].out_flag,
 			&pllx_platinfo[idx].lock, &pllx_pll_params[idx]);
 		clk_set_rate(clk, pllx_pll_params[idx].default_rate);
-
+		mmp_clk_add(unit, pllx_platinfo[idx].outdtidx, clk);
 		/* pllp */
 		clk = helanx_clk_register_pll(pllx_platinfo[idx].outp_name,
 			pllx_platinfo[idx].vco_name,
 			pllx_platinfo[idx].outpclk_flag, pllx_platinfo[idx].outp_flag,
 			&pllx_platinfo[idx].lock, &pllx_pllp_params[idx]);
 		clk_set_rate(clk, pllx_pllp_params[idx].default_rate);
-
+		mmp_clk_add(unit, pllx_platinfo[idx].outpdtidx, clk);
 		/* vco div3 */
-		clk_register_fixed_factor(NULL,
+		clk = clk_register_fixed_factor(NULL,
 			pllx_platinfo[idx].vco_div3_name,
 			pllx_platinfo[idx].vco_name, 0, 1, 3);
+		mmp_clk_add(unit, pllx_platinfo[idx].vcodiv3dtidx, clk);
 	}
 }
 
