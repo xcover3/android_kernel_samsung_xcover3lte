@@ -47,12 +47,12 @@
 		volume-up {
 			label = "Volume Up";
 			linux,code = <115>; /* KEY_VOLUMEUP */
-			gpios = <&gpio GPIO(15) 1>;
+			gpios = <&gpio DKIN0 1>;
 		};
 		volume-down {
 			label = "Volume Down";
 			linux,code = <114>;/* KEY_VOLUMEDOWN */
-			gpios = <&gpio GPIO(17) 1>;
+			gpios = <&gpio DKIN1 1>;
 		};
 	};
 
@@ -254,7 +254,7 @@
 				};
 
 				pwm2_pins: pinmux_pwm2_pins {
-					pinctrl-single,pins = <P51_PWM2>;
+					pinctrl-single,pins = <PWM2>;
 					MFP_DEFAULT;
 				};
 
@@ -471,7 +471,7 @@
 					ctrl_a_fs_current = <0x1b>;
 					ctrl_a_mapping_mode = <0x2>;
 					ctrl_a_pwm = <0x86>;
-					rst_gpio = <&gpio GPIO(6) 0>;
+					rst_gpio = <&gpio BACKLIGHT_EN 0>;
 					avdd-supply = <&ldo12>;
 				};
 

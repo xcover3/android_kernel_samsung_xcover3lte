@@ -488,8 +488,4 @@
 
 #define GPIO(n)		MFPR_OFFSET(n) MFPR_AF_GPIO(n)
 
-/* PWM2 */
-#define P51_PWM2			P51 0x2
-#define P76_PWM3			P76 0x3
-
 #endif /* __DTS_PXA1928_PINFUNC_H */
