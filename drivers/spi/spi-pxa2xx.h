@@ -89,6 +89,7 @@ struct driver_data {
 	void (*cs_control)(u32 command);
 
 	void __iomem *lpss_base;
+	bool spi_inc_mode;
 };
 
 struct chip_data {

@@ -1130,8 +1130,17 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	 * the null DMA buf should malloc form DMA_ZONE
 	 * and align of DMA_ALIGNMENT
 	 */
-	drv_data->alloc_dma_buf =
-		kzalloc(DMA_ALIGNMENT + 4, GFP_KERNEL | GFP_DMA);
+	drv_data->spi_inc_mode = of_property_read_bool(dev->of_node,
+					"marvell, spi-inc-mode");
+	if (!drv_data->spi_inc_mode) {
+		drv_data->alloc_dma_buf =
+			kzalloc(DMA_ALIGNMENT+4, GFP_KERNEL | GFP_DMA);
+	} else {
+		drv_data->alloc_dma_buf =
+			kzalloc(DMA_ALIGNMENT+MAX_DMA_LEN,
+					GFP_KERNEL | GFP_DMA);
+	}
+
 	if (!drv_data->alloc_dma_buf) {
 		status = -ENOMEM;
 		goto out_error_dma_buf;

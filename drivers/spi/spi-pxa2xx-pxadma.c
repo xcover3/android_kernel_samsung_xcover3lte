@@ -294,13 +294,20 @@ int pxa2xx_spi_dma_prepare(struct driver_data *drv_data, u32 dma_burst)
 	DCSR(drv_data->rx_channel) = RESET_DMA_CHANNEL;
 	DSADR(drv_data->rx_channel) = drv_data->ssdr_physical;
 	DTADR(drv_data->rx_channel) = drv_data->rx_dma;
-	if (drv_data->rx == drv_data->null_dma_buf)
-		/* No target address increment */
-		DCMD(drv_data->rx_channel) = DCMD_FLOWSRC
-						| dma_width
-						| dma_burst
-						| drv_data->len;
-	else
+	if (!drv_data->spi_inc_mode) {
+		if (drv_data->rx == drv_data->null_dma_buf)
+			/* No target address increment */
+			DCMD(drv_data->rx_channel) = DCMD_FLOWSRC
+							| dma_width
+							| dma_burst
+							| drv_data->len;
+		else
+			DCMD(drv_data->rx_channel) = DCMD_INCTRGADDR
+							| DCMD_FLOWSRC
+							| dma_width
+							| dma_burst
+							| drv_data->len;
+	} else
 		DCMD(drv_data->rx_channel) = DCMD_INCTRGADDR
 						| DCMD_FLOWSRC
 						| dma_width
@@ -311,13 +318,20 @@ int pxa2xx_spi_dma_prepare(struct driver_data *drv_data, u32 dma_burst)
 	DCSR(drv_data->tx_channel) = RESET_DMA_CHANNEL;
 	DSADR(drv_data->tx_channel) = drv_data->tx_dma;
 	DTADR(drv_data->tx_channel) = drv_data->ssdr_physical;
-	if (drv_data->tx == drv_data->null_dma_buf)
-		/* No source address increment */
-		DCMD(drv_data->tx_channel) = DCMD_FLOWTRG
-						| dma_width
-						| dma_burst
-						| drv_data->len;
-	else
+	if (!drv_data->spi_inc_mode) {
+		if (drv_data->tx == drv_data->null_dma_buf)
+			/* No source address increment */
+			DCMD(drv_data->tx_channel) = DCMD_FLOWTRG
+							| dma_width
+							| dma_burst
+							| drv_data->len;
+		else
+			DCMD(drv_data->tx_channel) = DCMD_INCSRCADDR
+							| DCMD_FLOWTRG
+							| dma_width
+							| dma_burst
+							| drv_data->len;
+	} else
 		DCMD(drv_data->tx_channel) = DCMD_INCSRCADDR
 						| DCMD_FLOWTRG
 						| dma_width
