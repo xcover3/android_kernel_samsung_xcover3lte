@@ -46,6 +46,26 @@
 #define APMU_DSI1		0x44
 #define APMU_DISP1		0x4c
 
+static unsigned long pll3_vco_default;
+static unsigned long pll3_default;
+static unsigned long pll3p_default;
+
+/*
+ * uboot pass pll3_vco = xxx (unit is Mhz), it is used
+ * to distinguish whether core and display can share pll3.
+ * if core can use it, core max_freq is setup, else core
+ * will not use pll3p, pll3 will only be used by display
+*/
+static int __init pll3_vco_value_setup(char *str)
+{
+	int n;
+	if (!get_option(&str, &n))
+		return 0;
+	pll3_vco_default = n * MHZ_TO_HZ;
+	return 1;
+}
+__setup("pll3_vco=", pll3_vco_value_setup);
+
 struct pxa1L88_clk_unit {
 	struct mmp_clk_unit unit;
 	void __iomem *mpmu_base;
@@ -193,6 +213,35 @@ static struct plat_pll_info pllx_platinfo[] = {
 	},
 };
 
+/*
+ * uboot may pass pll3_vco value to kernel.
+ * pll3 may be shared between core and display.
+ * if it can be shared, core will use pll3p and it is set to max_freq
+ * or pll3 and pll3p will be set to be the same with pll3_vco
+*/
+static inline void setup_pll3(void)
+{
+	if (!pll3_vco_default)
+		return;
+
+	if (!(pll3_vco_default % max_freq))
+		pll3p_default = max_freq * MHZ_TO_HZ;
+	else /* Core will not use pll3p */
+		pll3p_default = pll3_vco_default;
+
+	/* LCD pll3 source can't be higher than 1Ghz */
+	if (pll3_vco_default > 2000 * MHZ_TO_HZ)
+		pll3_default = pll3_vco_default / 3;
+	else if (pll3_vco_default > 1000 * MHZ_TO_HZ)
+		pll3_default = pll3_vco_default / 2;
+	else
+		pll3_default = pll3_vco_default;
+
+	pll_vco_params[ddr_mode][PLL3].default_rate = pll3_vco_default;
+	pll_params[ddr_mode][PLL3].default_rate = pll3_default;
+	pllp_params[ddr_mode][PLL3].default_rate = pll3p_default;
+}
+
 static void pxa1L88_dynpll_init(struct pxa1L88_clk_unit *pxa_unit)
 {
 	int idx;
@@ -210,6 +259,8 @@ static void pxa1L88_dynpll_init(struct pxa1L88_clk_unit *pxa_unit)
 
 	pllp_params[ddr_mode][PLL2].pll_swcr = apbs_base + APB_SPARE_PLL2CR;
 	pllp_params[ddr_mode][PLL3].pll_swcr = apbs_base + APB_SPARE_PLL3CR;
+
+	setup_pll3();
 
 	for (idx = 0; idx < ARRAY_SIZE(pllx_platinfo); idx++) {
 		spin_lock_init(&pllx_platinfo[idx].lock);
@@ -763,6 +814,21 @@ static struct ddr_combclk_relation aclk_dclk_relationtbl_1L88[] = {
 	{.dclk_rate = 533000000, .combclk_rate = 266000000},
 };
 
+static inline void setup_max_freq(void)
+{
+	if (!max_freq)
+		max_freq = core_params.max_cpurate;
+
+	if (max_freq <= CORE_1p2G)
+		max_freq = CORE_1p2G;
+	else if (max_freq <= CORE_1p25G)
+		max_freq = CORE_1p25G;
+	else
+		max_freq = CORE_1p5G;
+
+	core_params.max_cpurate = max_freq;
+}
+
 static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -861,6 +927,9 @@ static void __init pxa1L88_clk_init(struct device_node *np)
 	 *       been passed to kernel
 	 */
 	ddr_mode = 1;
+
+	setup_max_freq();
+
 	pxa1L88_pll_init(pxa_unit);
 	pxa1L88_acpu_init(pxa_unit);
 

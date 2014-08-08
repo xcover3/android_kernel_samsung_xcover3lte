@@ -35,6 +35,16 @@ static int __init __init_ddr_mode(char *arg)
 }
 __setup("ddr_mode=", __init_ddr_mode);
 
+unsigned long max_freq;
+static int __init max_freq_setup(char *str)
+{
+	int n;
+	if (!get_option(&str, &n))
+		return 0;
+	max_freq = n;
+	return 1;
+}
+__setup("max_freq=", max_freq_setup);
 
 /* interface use to get peri clock avaliable op num and rate */
 unsigned int mmp_clk_mix_get_opnum(struct clk *clk)

@@ -17,6 +17,13 @@ enum ddr_type {
 	DDR_TYPE_MAX,
 };
 
+enum {
+	CORE_1p2G = 1183,
+	CORE_1p25G = 1248,
+	CORE_1p5G = 1482,
+};
+
+extern unsigned long max_freq;
 extern enum ddr_type ddr_mode;
 
 extern unsigned int mmp_clk_mix_get_opnum(struct clk *clk);
