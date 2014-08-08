@@ -115,16 +115,16 @@
 #else	/* PXA1928_DISCRETE */
 
 /* UART 1 */
-#define	UART1_RXD			P145 0x6
-#define UART1_TXD			P146 0x6
-#define UART1_CTS			P147 0x6
-#define UART1_RTS			P148 0x6
+#define	UART0_RXD			P145 0x6
+#define UART0_TXD			P146 0x6
+#define UART0_CTS			P147 0x6
+#define UART0_RTS			P148 0x6
 
 /* UART 4 */
-#define UART4_TXD			P182 0x2
-#define UART4_RXD			P183 0x2
-#define UART4_CTS			P184 0x2
-#define UART4_RTS			P185 0x2
+#define UART3_TXD			P182 0x2
+#define UART3_RXD			P183 0x2
+#define UART3_CTS			P184 0x2
+#define UART3_RTS			P185 0x2
 
 /* Camera */
 #define CAM_MCLK			P159 0x3
