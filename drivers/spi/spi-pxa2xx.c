@@ -1299,6 +1299,7 @@ static int pxa2xx_spi_suspend(struct device *dev)
 	struct ssp_device *ssp = drv_data->ssp;
 	int status = 0;
 
+	pm_runtime_get_sync(dev);
 	status = spi_master_suspend(drv_data->master);
 	if (status != 0)
 		return status;
@@ -1324,6 +1325,7 @@ static int pxa2xx_spi_resume(struct device *dev)
 
 	/* Start the queue running */
 	status = spi_master_resume(drv_data->master);
+	pm_runtime_put_sync(dev);
 	if (status != 0) {
 		dev_err(dev, "problem starting queue (%d)\n", status);
 		return status;
