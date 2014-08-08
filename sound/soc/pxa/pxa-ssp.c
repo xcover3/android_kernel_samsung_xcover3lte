@@ -53,6 +53,7 @@ struct ssp_priv {
 	struct pinctrl_state *pin_ssp;
 	struct pinctrl_state *pin_gpio;
 	int mfp;
+	int usr_cnt;
 	bool mfp_init;
 #ifdef CONFIG_PM
 	uint32_t	cr0;
@@ -218,7 +219,49 @@ static int pxa_ssp_startup(struct snd_pcm_substream *substream,
 		}
 
 		clk_prepare_enable(ssp->clk);
-		pxa_ssp_disable(ssp);
+		/*
+		 * Since gssp is used for hifi record, enable
+		 * gssp port when startup to eliminate noise.
+		 */
+		if (ssp->port_id == 5) {
+			/*
+			 * gssp(ssp-dai.4) is shared by AP and CP.AP would read
+			 * the gssp register configured by CP after voice call.
+			 * it would impact DMA configuration. AP and CP use
+			 * different GSSP configuration, and CP's configuration
+			 * would set DMA to 16bit width while AP set it to 32
+			 * bit. so we need to re-init GSSP register setting.
+			 */
+			__raw_writel(0x0, ssp->mmio_base + SSCR0);
+			__raw_writel(0x0, ssp->mmio_base + SSCR1);
+			__raw_writel(0x0, ssp->mmio_base + SSPSP);
+			__raw_writel(0x0, ssp->mmio_base + SSTSA);
+			/*
+			 * Before enable gssp port, need to set frame format
+			 * and data size for PCM format, otherwise there
+			 * will be no frame clock.
+			 * Also need set bit23: Receive Without Transmit of
+			 * sscr1, or can't record.
+			 */
+			__raw_writel(0x0010001F, ssp->mmio_base + SSCR0);
+			__raw_writel(0x00800000, ssp->mmio_base + SSCR1);
+		}
+		if (ssp->port_id == 2) {
+			/*
+			 * Before enable ssp port, need to set frame format
+			 * and data size, otherwise there will be no frame
+			 * clock.
+			 * Also need set bit23: Receive Without Transmit of
+			 * sscr1, or can't record.
+			 */
+			__raw_writel(0x0010003F, ssp->mmio_base + SSCR0);
+			__raw_writel(0x00800000, ssp->mmio_base + SSCR1);
+			__raw_writel(0x02100004, ssp->mmio_base + SSPSP);
+			sscr0_hifi = 0x0010003F;
+			sscr1_hifi = 0x00800000;
+		}
+		pxa_ssp_enable(ssp);
+		priv->usr_cnt = 0;
 	}
 
 	dma = kzalloc(sizeof(struct snd_dmaengine_dai_dma_data), GFP_KERNEL);
@@ -557,7 +600,7 @@ static int pxa_ssp_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 		return 0;
 
 	/* we can only change the settings if the port is not in use */
-	if (pxa_ssp_read_reg(ssp, SSCR0) & SSCR0_SSE) {
+	if (priv->usr_cnt) {
 		dev_err(&ssp->pdev->dev,
 			"can't change hardware dai format: stream is in use");
 		return -EINVAL;
@@ -672,7 +715,7 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 		substream->stream == SNDRV_PCM_STREAM_PLAYBACK, dma_data);
 
 	/* we can only change the settings if the port is not in use */
-	if (pxa_ssp_read_reg(ssp, SSCR0) & SSCR0_SSE)
+	if (priv->usr_cnt)
 		return 0;
 
 	/* clear selected SSP bits */
@@ -809,9 +852,11 @@ static int pxa_ssp_trigger(struct snd_pcm_substream *substream, int cmd,
 		pxa_ssp_write_reg(ssp, SSSR, val);
 		break;
 	case SNDRV_PCM_TRIGGER_START:
+		priv->usr_cnt++;
 		pxa_ssp_set_running_bit(substream, ssp, 1);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
+		priv->usr_cnt--;
 		pxa_ssp_set_running_bit(substream, ssp, 0);
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
@@ -899,6 +944,7 @@ static int pxa_ssp_probe(struct snd_soc_dai *dai)
 
 	priv->dai_fmt = (unsigned int) -1;
 	snd_soc_dai_set_drvdata(dai, priv);
+	priv->usr_cnt = 0;
 	priv->mfp_init = false;
 
 	/* clear gssp init clock status */
