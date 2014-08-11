@@ -24,11 +24,7 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
-
-struct mmp_dma_data {
-	int ssp_id;
-	struct resource *dma_res;
-};
+#include <linux/of.h>
 
 #define MMP_PCM_INFO (SNDRV_PCM_INFO_MMAP |	\
 		SNDRV_PCM_INFO_MMAP_VALID |	\
@@ -36,25 +32,8 @@ struct mmp_dma_data {
 		SNDRV_PCM_INFO_PAUSE |		\
 		SNDRV_PCM_INFO_RESUME)
 
-static struct snd_pcm_hardware mmp_pcm_hardware[] = {
-	{
-		.info			= MMP_PCM_INFO,
-		.period_bytes_min	= 1024,
-		.period_bytes_max	= 2048,
-		.periods_min		= 2,
-		.periods_max		= 32,
-		.buffer_bytes_max	= 4096,
-		.fifo_size		= 32,
-	},
-	{
-		.info			= MMP_PCM_INFO,
-		.period_bytes_min	= 1024,
-		.period_bytes_max	= 2048,
-		.periods_min		= 2,
-		.periods_max		= 32,
-		.buffer_bytes_max	= 4096,
-		.fifo_size		= 32,
-	},
+struct pcm_hardware_info {
+	struct snd_pcm_hardware substream[2];
 };
 
 static int mmp_pcm_hw_params(struct snd_pcm_substream *substream,
@@ -79,43 +58,25 @@ static int mmp_pcm_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static bool filter(struct dma_chan *chan, void *param)
-{
-	struct mmp_dma_data *dma_data = param;
-	bool found = false;
-	char *devname;
-
-	devname = kasprintf(GFP_KERNEL, "%s.%d", dma_data->dma_res->name,
-		dma_data->ssp_id);
-	if ((strcmp(dev_name(chan->device->dev), devname) == 0) &&
-		(chan->chan_id == dma_data->dma_res->start)) {
-		found = true;
-	}
-
-	kfree(devname);
-	return found;
-}
+static const char * const dmaengine_pcm_dma_channel_names[] = {
+	[SNDRV_PCM_STREAM_PLAYBACK] = "tx",
+	[SNDRV_PCM_STREAM_CAPTURE] = "rx",
+};
 
 static int mmp_pcm_open(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct platform_device *pdev = to_platform_device(rtd->platform->dev);
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct mmp_dma_data dma_data;
-	struct resource *r;
-
-	r = platform_get_resource(pdev, IORESOURCE_DMA, substream->stream);
-	if (!r)
-		return -EBUSY;
+	struct dma_chan *chan;
+	struct pcm_hardware_info *pcm_hardware;
+	pcm_hardware =
+		(struct pcm_hardware_info *)rtd->platform->dev->platform_data;
 
 	snd_soc_set_runtime_hwparams(substream,
-				&mmp_pcm_hardware[substream->stream]);
-
-	dma_data.dma_res = r;
-	dma_data.ssp_id = cpu_dai->id;
-
-	return snd_dmaengine_pcm_open_request_chan(substream, filter,
-		    &dma_data);
+				&pcm_hardware->substream[substream->stream]);
+	chan = dma_request_slave_channel(&pdev->dev,
+			dmaengine_pcm_dma_channel_names[substream->stream]);
+	return snd_dmaengine_pcm_open(substream, chan);
 }
 
 static int mmp_pcm_mmap(struct snd_pcm_substream *substream,
@@ -143,16 +104,24 @@ static struct snd_pcm_ops mmp_pcm_ops = {
 static void mmp_pcm_free_dma_buffers(struct snd_pcm *pcm)
 {
 	struct snd_pcm_substream *substream;
+	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
+	struct platform_device *pdev = to_platform_device(rtd->platform->dev);
+	struct device_node *np = pdev->dev.of_node;
+	struct gen_pool *gpool = NULL;
 	struct snd_dma_buffer *buf;
 	int stream;
-	struct gen_pool *gpool;
+	struct pcm_hardware_info *pcm_hardware;
+	pcm_hardware =
+		(struct pcm_hardware_info *)rtd->platform->dev->platform_data;
 
-	gpool = sram_get_gpool("asram");
-	if (!gpool)
-		return;
+	if (!gpool) {
+		gpool = of_get_named_gen_pool(np, "asram", 0);
+		if (!gpool)
+			return;
+	}
 
 	for (stream = 0; stream < 2; stream++) {
-		size_t size = mmp_pcm_hardware[stream].buffer_bytes_max;
+		size_t size = pcm_hardware->substream[stream].buffer_bytes_max;
 
 		substream = pcm->streams[stream].substream;
 		if (!substream)
@@ -171,15 +140,23 @@ static void mmp_pcm_free_dma_buffers(struct snd_pcm *pcm)
 static int mmp_pcm_preallocate_dma_buffer(struct snd_pcm_substream *substream,
 								int stream)
 {
+	struct snd_pcm *pcm = substream->pcm;
+	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
+	struct platform_device *pdev = to_platform_device(rtd->platform->dev);
+	struct device_node *np = pdev->dev.of_node;
 	struct snd_dma_buffer *buf = &substream->dma_buffer;
-	size_t size = mmp_pcm_hardware[stream].buffer_bytes_max;
 	struct gen_pool *gpool;
-
+	struct pcm_hardware_info *pcm_hardware;
+	size_t size;
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = substream->pcm->card->dev;
 	buf->private_data = NULL;
+	pcm_hardware =
+		(struct pcm_hardware_info *)rtd->platform->dev->platform_data;
+	size = pcm_hardware->substream[stream].buffer_bytes_max;
 
-	gpool = sram_get_gpool("asram");
+	/* Get sram pool from device tree or platform data */
+	gpool = of_get_named_gen_pool(np, "asram", 0);
 	if (!gpool)
 		return -ENOMEM;
 
@@ -217,41 +194,68 @@ static struct snd_soc_platform_driver mmp_soc_platform = {
 	.pcm_free	= mmp_pcm_free_dma_buffers,
 };
 
-static int mmp_pcm_probe(struct platform_device *pdev)
+int mmp_pcm_platform_register(struct device *dev)
 {
-	struct mmp_audio_platdata *pdata = pdev->dev.platform_data;
+	struct device_node *np = dev->of_node;
+	u32 playback_period_bytes_max;
+	u32 playback_buffer_bytes_max;
+	u32 capture_period_bytes_max;
+	u32 capture_buffer_bytes_max;
+	struct pcm_hardware_info *pcm_hardware;
+	int ret;
 
-	if (pdata) {
-		mmp_pcm_hardware[SNDRV_PCM_STREAM_PLAYBACK].buffer_bytes_max =
-						pdata->buffer_max_playback;
-		mmp_pcm_hardware[SNDRV_PCM_STREAM_PLAYBACK].period_bytes_max =
-						pdata->period_max_playback;
-		mmp_pcm_hardware[SNDRV_PCM_STREAM_CAPTURE].buffer_bytes_max =
-						pdata->buffer_max_capture;
-		mmp_pcm_hardware[SNDRV_PCM_STREAM_CAPTURE].period_bytes_max =
-						pdata->period_max_capture;
-	}
-	return snd_soc_register_platform(&pdev->dev, &mmp_soc_platform);
+	pcm_hardware = devm_kzalloc(dev, sizeof(struct pcm_hardware_info),
+			 GFP_KERNEL);
+	if (!pcm_hardware)
+		return -ENOMEM;
+
+	/* init the defaut value for playback */
+	pcm_hardware->substream[0].info		= MMP_PCM_INFO,
+	pcm_hardware->substream[0].period_bytes_min	= 1024,
+	pcm_hardware->substream[0].period_bytes_max	= 2048,
+	pcm_hardware->substream[0].periods_min		= 2,
+	pcm_hardware->substream[0].periods_max		= 32,
+	pcm_hardware->substream[0].buffer_bytes_max	= 4096,
+	pcm_hardware->substream[0].fifo_size		= 32,
+
+	/* init the defaut value for recording */
+	pcm_hardware->substream[1].info		= MMP_PCM_INFO,
+	pcm_hardware->substream[1].period_bytes_min	= 1024,
+	pcm_hardware->substream[1].period_bytes_max	= 2048,
+	pcm_hardware->substream[1].periods_min		= 2,
+	pcm_hardware->substream[1].periods_max		= 32,
+	pcm_hardware->substream[1].buffer_bytes_max	= 4096,
+	pcm_hardware->substream[1].fifo_size		= 32,
+
+	ret = of_property_read_u32(np, "playback_period_bytes",
+			&playback_period_bytes_max);
+	if (ret >= 0)
+		pcm_hardware->substream[0].period_bytes_max =
+					playback_period_bytes_max;
+	ret = of_property_read_u32(np, "playback_buffer_bytes",
+			&playback_buffer_bytes_max);
+	if (ret >= 0)
+		pcm_hardware->substream[0].buffer_bytes_max =
+					playback_buffer_bytes_max;
+	ret = of_property_read_u32(np, "capture_period_bytes",
+			&capture_period_bytes_max);
+	if (ret >= 0)
+		pcm_hardware->substream[1].period_bytes_max =
+					capture_period_bytes_max;
+	ret = of_property_read_u32(np, "capture_buffer_bytes",
+			&capture_buffer_bytes_max);
+	if (ret >= 0)
+		pcm_hardware->substream[1].buffer_bytes_max =
+					capture_buffer_bytes_max;
+	dev->platform_data = pcm_hardware;
+	return snd_soc_register_platform(dev, &mmp_soc_platform);
 }
+EXPORT_SYMBOL_GPL(mmp_pcm_platform_register);
 
-static int mmp_pcm_remove(struct platform_device *pdev)
+void mmp_pcm_platform_unregister(struct device *dev)
 {
-	snd_soc_unregister_platform(&pdev->dev);
-	return 0;
+	snd_soc_unregister_platform(dev);
 }
+EXPORT_SYMBOL_GPL(mmp_pcm_platform_unregister);
 
-static struct platform_driver mmp_pcm_driver = {
-	.driver = {
-		.name = "mmp-pcm-audio",
-		.owner = THIS_MODULE,
-	},
-
-	.probe = mmp_pcm_probe,
-	.remove = mmp_pcm_remove,
-};
-
-module_platform_driver(mmp_pcm_driver);
-
-MODULE_AUTHOR("Leo Yan <leoy@marvell.com>");
-MODULE_DESCRIPTION("MMP Soc Audio DMA module");
 MODULE_LICENSE("GPL");
