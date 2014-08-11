@@ -306,6 +306,18 @@ config MFD_88PM805
 	  components like codec device, headset/Mic device under the
 	  corresponding menus.
 
+config MFD_88PM860
+	tristate "Support Marvell 88pm860"
+	depends on I2C=y
+	select REGMAP_I2C
+	select REGMAP_IRQ
+	select MFD_CORE
+	help
+	  This supports for Marvell codec 88PM860. This includes
+	  pm860 codec init and the I2C driver register, you have to select
+	  individual components like codec device, headset/Mic device under
+	  the corresponding menus.
+
 config MFD_88PM830
 	tristate "Marvell 88PM830"
 	depends on I2C=y
