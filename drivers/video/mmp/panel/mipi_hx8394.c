@@ -79,6 +79,7 @@ static char set_vcom[] = {0xB6, 0x0C};
 static char set_init1[] = {0xD4, 0x32};
 static char brightness_ctrl[] = {0x51, 0x00};
 static char display_ctrl[] = {0x53, 0x24};
+static char set_cabc[] = {0xC9, 0x0F, 0x2, 0x1E, 0x1E, 0x00, 0x00, 0x00, 0x01, 0x3E, 0x00, 0x00};
 
 static struct mmp_dsi_cmd_desc hx8394_display_on_cmds[] = {
 	{MIPI_DSI_DCS_LONG_WRITE, 1, 0, sizeof(set_password), set_password},
@@ -94,6 +95,7 @@ static struct mmp_dsi_cmd_desc hx8394_display_on_cmds[] = {
 	{MIPI_DSI_DCS_LONG_WRITE, 1, 0, sizeof(set_dgc), set_dgc},
 	{MIPI_DSI_DCS_LONG_WRITE, 1, 0, sizeof(set_vcom), set_vcom},
 	{MIPI_DSI_DCS_LONG_WRITE, 1, 0, sizeof(set_init1), set_init1},
+	{MIPI_DSI_DCS_LONG_WRITE, 1, 0, sizeof(set_cabc), set_cabc},
 	{MIPI_DSI_DCS_SHORT_WRITE, 1, 200, sizeof(exit_sleep), exit_sleep},
 	{MIPI_DSI_DCS_SHORT_WRITE_PARAM, 1, 0, sizeof(display_ctrl), display_ctrl},
 	{MIPI_DSI_DCS_SHORT_WRITE_PARAM, 1, 0, sizeof(brightness_ctrl), brightness_ctrl},
