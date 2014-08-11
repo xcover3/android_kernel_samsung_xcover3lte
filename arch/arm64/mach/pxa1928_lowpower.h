@@ -60,8 +60,12 @@
 
 #define CURR_REF_PU		0x1
 
+/* AP Core n Reset Control Register */
 #define PMUA_SW_WAKEUP			(0x1 << 16)
+#define PMUA_CORE_RSTCTRL_CPU_NRESET	(0x1<<1)
+#define PMUA_CORE_RSTCTRL_CPU_NPORESET	(0x1<<0)
 
+/* AP Core n Power Mode Register */
 #define PMUA_CLR_C2_STATUS		(0x1 << 30)
 #define PMUA_APCORESS_MP1		(0x2 << 8)
 #define PMUA_APCORESS_MP2		(0x3 << 8)
@@ -132,6 +136,18 @@
 #define	ICU_CORE3_GLB_FIQ_MASK	0x220
 
 #define ICU_MASK	0x1
+
+/* CIU regsiter for release cores */
+#define CIU_APCORE0_CFG_CTL			(0x0008)
+#define CIU_APCORE1_CFG_CTL			(0x0088)
+#define CIU_APCORE2_CFG_CTL			(0x00E4)
+#define CIU_APCORE3_CFG_CTL			(0x00E8)
+
+#define CIU_APCORE_CFG_64BIT			(0x1 << 31)
+#define CIU_APCORE_CFG_NMFI_EN			(0x1 << 27)
+#define CIU_APCORE_CFG_NIDEN			(0x1 << 26)
+#define CIU_APCORE_CFG_SPNIDEN			(0x1 << 25)
+#define CIU_APCORE_CFG_SPIDEN			(0x1 << 24)
 
 extern void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
 

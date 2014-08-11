@@ -37,6 +37,7 @@
 static void __iomem *apmu_virt_addr;
 static void __iomem *mpmu_virt_addr;
 static void __iomem *icu_virt_addr;
+static void __iomem *ciu_virt_addr;
 
 static void __iomem *APMU_CORE_PWRMODE[4];
 static void __iomem *APMU_CORE_RSTCTRL[4];
@@ -384,7 +385,40 @@ static void pxa1928_clr_pmu(u32 cpu)
 	pxa1928_lowpower_config(cpu, 0, 0, 0);
 }
 
+static void pxa1928_release(u32 cpu)
+{
+	unsigned int reg;
+
+	reg = CIU_APCORE_CFG_64BIT | CIU_APCORE_CFG_NMFI_EN |
+	      CIU_APCORE_CFG_NIDEN | CIU_APCORE_CFG_SPNIDEN |
+	      CIU_APCORE_CFG_SPIDEN;
+
+	/* check has been released yet */
+	if (readl(APMU_CORE_RSTCTRL[cpu]) & PMUA_CORE_RSTCTRL_CPU_NPORESET)
+		return;
+
+	switch (cpu) {
+	case 0:
+		writel(reg, ciu_virt_addr + CIU_APCORE0_CFG_CTL);
+		break;
+	case 1:
+		writel(reg, ciu_virt_addr + CIU_APCORE1_CFG_CTL);
+		break;
+	case 2:
+		writel(reg, ciu_virt_addr + CIU_APCORE2_CFG_CTL);
+		break;
+	case 3:
+		writel(reg, ciu_virt_addr + CIU_APCORE3_CFG_CTL);
+		break;
+	}
+
+	dsb();
+	writel(PMUA_CORE_RSTCTRL_CPU_NRESET | PMUA_CORE_RSTCTRL_CPU_NPORESET,
+		APMU_CORE_RSTCTRL[cpu]);
+}
+
 static struct platform_power_ops pxa1928_power_ops = {
+	.release	= pxa1928_release,
 	.set_pmu	= pxa1928_set_pmu,
 	.clr_pmu	= pxa1928_clr_pmu,
 	.save_wakeup	= pxa1928_save_wakeup,
@@ -406,6 +440,7 @@ static void __init pxa1928_pmu_mapping(void)
 {
 	apmu_virt_addr = regs_addr_get_va(REGS_ADDR_APMU);
 	mpmu_virt_addr = regs_addr_get_va(REGS_ADDR_MPMU);
+	ciu_virt_addr = regs_addr_get_va(REGS_ADDR_CIU);
 
 	APMU_CORE_PWRMODE[0] = apmu_virt_addr + CORE0_PWRMODE;
 	APMU_CORE_PWRMODE[1] = apmu_virt_addr + CORE1_PWRMODE;
