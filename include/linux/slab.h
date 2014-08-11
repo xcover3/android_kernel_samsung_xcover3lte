@@ -388,6 +388,7 @@ static __always_inline void *kmalloc_large(size_t size, gfp_t flags)
 	return kmalloc_order_trace(size, flags, order);
 }
 
+extern void *skmalloc(size_t size, gfp_t flags);
 /**
  * kmalloc - allocate memory
  * @size: how many bytes of memory are required.
@@ -443,6 +444,9 @@ static __always_inline void *kmalloc_large(size_t size, gfp_t flags)
  */
 static __always_inline void *kmalloc(size_t size, gfp_t flags)
 {
+#ifdef SUPPER_KMALLOC
+	return skmalloc(size, flags);
+#else
 	if (__builtin_constant_p(size)) {
 		if (size > KMALLOC_MAX_CACHE_SIZE)
 			return kmalloc_large(size, flags);
@@ -459,6 +463,7 @@ static __always_inline void *kmalloc(size_t size, gfp_t flags)
 #endif
 	}
 	return __kmalloc(size, flags);
+#endif
 }
 
 /*
