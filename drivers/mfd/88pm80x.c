@@ -81,6 +81,9 @@ int pm80x_init(struct i2c_client *client)
 		return ret;
 	}
 
+	chip->chip_id = val;
+	dev_info(chip->dev, "pmic id: 0x%x\n", val);
+
 	for (i = 0; i < ARRAY_SIZE(chip_mapping); i++) {
 		if (chip_mapping[i].id == PM80X_CHIP_ID_NUM(val)) {
 			chip->type = chip_mapping[i].type;
@@ -88,7 +91,7 @@ int pm80x_init(struct i2c_client *client)
 		}
 	}
 
-	if (val == CHIP_PM860_ID || val == CHIP_PM860_A0_ID)
+	if (val == CHIP_PM86X_ID_A0 || val == CHIP_PM86X_ID_Z3)
 		chip->type = CHIP_PM86X;
 
 	if (i == ARRAY_SIZE(chip_mapping)) {

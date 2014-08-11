@@ -107,7 +107,7 @@ int pm8xx_dvc_setvolt(unsigned int buckid, unsigned int lvl, int uv)
 	/*check chip id, 88pm860 support more dvc level than other pmic chip*/
 	chip_id = getchip_id();
 
-	if (chip_id == CHIP_PM860) {
+	if (chip_id == CHIP_PM86X_ID_Z3 || chip_id == CHIP_PM86X_ID_A0) {
 		/*88pm860 support 16 level dvc*/
 		if (lvl >= BUCK_MAX_DVC_LVL_16) {
 			dev_err(&pdev->dev, "PM860 DVC lvl out of range\n");

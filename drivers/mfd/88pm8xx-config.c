@@ -231,14 +231,15 @@ int pm800_init_config(struct pm80x_chip *chip, struct device_node *np)
 		data |= (0x4 << 4);
 		regmap_write(chip->regmap, PM860_MISC_RTC3, data);
 
-		regmap_read(chip->regmap, PM80X_CHIP_ID, &data);
-		pr_info("88pm860 id: 0x%x\n", data);
-		if (data == CHIP_PM860_A0_ID) {
+		switch (chip->chip_id) {
+		case CHIP_PM86X_ID_A0:
 			/* set gpio4 and gpio5 to be DVC mode */
 			regmap_read(chip->regmap, PM860_GPIO_4_5_CNTRL, &data);
 			data |= PM860_GPIO4_GPIO_MODE(7) | PM860_GPIO5_GPIO_MODE(7);
 			regmap_write(chip->regmap, PM860_GPIO_4_5_CNTRL, data);
-		} else {
+			break;
+		case CHIP_PM86X_ID_Z3:
+		default:
 			/* set gpio3 and gpio4 to be DVC mode */
 			regmap_read(chip->regmap, PM860_GPIO_2_3_CNTRL, &data);
 			data |= PM860_GPIO3_GPIO_MODE(7);
@@ -247,6 +248,7 @@ int pm800_init_config(struct pm80x_chip *chip, struct device_node *np)
 			regmap_read(chip->regmap, PM860_GPIO_4_5_CNTRL, &data);
 			data |= PM860_GPIO4_GPIO_MODE(7);
 			regmap_write(chip->regmap, PM860_GPIO_4_5_CNTRL, data);
+			break;
 		}
 
 		break;

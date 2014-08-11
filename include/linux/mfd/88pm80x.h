@@ -18,9 +18,6 @@
 #include <linux/atomic.h>
 #include <linux/switch.h>
 
-#define CHIP_PM860_ID			(0x90)
-#define CHIP_PM860_A0_ID		(0x91)
-
 enum {
 	CHIP_INVALID = 0,
 	CHIP_PM800,
@@ -28,6 +25,13 @@ enum {
 	CHIP_PM822,
 	CHIP_PM86X,
 	CHIP_MAX,
+};
+
+enum {
+	CHIP_ID_INVALID = 0,
+	CHIP_PM86X_ID_Z3 = 0x90,
+	CHIP_PM86X_ID_A0 = 0x91,
+	CHIP_ID_MAX,
 };
 
 enum {
@@ -516,6 +520,7 @@ struct pm80x_chip {
 	struct regmap_irq_chip *regmap_irq_chip;
 	struct regmap_irq_chip_data *irq_data;
 	int type;
+	int chip_id;
 	int irq;
 	int irq_mode;
 	int powerup;
