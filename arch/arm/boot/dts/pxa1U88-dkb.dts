@@ -228,13 +228,15 @@
 			};
 
 			mfpr: mfpr@d401e000 {
-				pinctrl-names = "default";
 				reg = <0xd401e000 0x280>;
-				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1>;
 				status = "ok";
 			};
 
 			pmx: pinmux@d401e000 {
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1 &mfp_pins_group_2>;
+
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <
 					/*
@@ -265,8 +267,19 @@
 				/* CP UART Rx and Tx */
 				mfp_pins_group_1: mfp_pins_group_1 {
 					pinctrl-single,pins = <
+						DF_IO8 AF0
+						DF_IO9 AF0
+						GPIO76 AF0
+					>;
+					MFP_LPM_PULL_DW;
+				};
+
+				/* CCIC1/CCI2 MCLK pin */
+				mfp_pins_group_2: mfp_pins_group_2 {
+					pinctrl-single,pins = <
 						GPIO43 AF7
 						GPIO44 AF7
+						GPIO77 AF1
 					>;
 					MFP_DEFAULT;
 				};
