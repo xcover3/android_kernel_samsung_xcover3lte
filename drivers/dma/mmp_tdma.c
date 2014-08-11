@@ -285,12 +285,35 @@ static int mmp_tdma_clear_chan_irq(struct mmp_tdma_chan *tdmac)
 	return -EAGAIN;
 }
 
+static void dma_do_tasklet(unsigned long data)
+{
+	struct mmp_tdma_chan *tdmac = (struct mmp_tdma_chan *)data;
+
+	if (tdmac->desc.callback)
+		tdmac->desc.callback(tdmac->desc.callback_param);
+
+}
+
+static size_t mmp_tdma_get_pos(struct mmp_tdma_chan *tdmac)
+{
+	size_t reg;
+	if (tdmac->idx == 0) {
+		reg = __raw_readl(tdmac->reg_base + TDSAR);
+		reg -= tdmac->desc_arr[0].src_addr;
+	} else if (tdmac->idx == 1) {
+		reg = __raw_readl(tdmac->reg_base + TDDAR);
+		reg -= tdmac->desc_arr[0].dst_addr;
+	} else
+		return -EINVAL;
+
+	return reg;
+}
+
 static irqreturn_t mmp_tdma_chan_handler(int irq, void *dev_id)
 {
 	struct mmp_tdma_chan *tdmac = dev_id;
 
 	if (mmp_tdma_clear_chan_irq(tdmac) == 0) {
-		tdmac->pos = (tdmac->pos + tdmac->period_len) % tdmac->buf_len;
 		tasklet_schedule(&tdmac->tasklet);
 		return IRQ_HANDLED;
 	} else
@@ -315,15 +338,6 @@ static irqreturn_t mmp_tdma_int_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	else
 		return IRQ_NONE;
-}
-
-static void dma_do_tasklet(unsigned long data)
-{
-	struct mmp_tdma_chan *tdmac = (struct mmp_tdma_chan *)data;
-
-	if (tdmac->desc.callback)
-		tdmac->desc.callback(tdmac->desc.callback_param);
-
 }
 
 static void mmp_tdma_free_descriptor(struct mmp_tdma_chan *tdmac)
@@ -496,6 +510,7 @@ static enum dma_status mmp_tdma_tx_status(struct dma_chan *chan,
 {
 	struct mmp_tdma_chan *tdmac = to_mmp_tdma_chan(chan);
 
+	tdmac->pos = mmp_tdma_get_pos(tdmac);
 	dma_set_tx_state(txstate, chan->completed_cookie, chan->cookie,
 			 tdmac->buf_len - tdmac->pos);
 
