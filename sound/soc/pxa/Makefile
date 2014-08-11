@@ -5,6 +5,7 @@ snd-soc-pxa2xx-i2s-objs := pxa2xx-i2s.o
 snd-soc-pxa-ssp-objs := pxa-ssp.o
 snd-soc-mmp-objs := mmp-pcm.o
 snd-soc-mmp-pcm-hostless-objs := mmp-pcm-hostless.o
+snd-soc-pxa-objs := pxa-pcm.o
 snd-soc-mmp-sspa-objs := mmp-sspa.o
 
 obj-$(CONFIG_SND_PXA2XX_SOC) += snd-soc-pxa2xx.o
@@ -14,6 +15,7 @@ obj-$(CONFIG_SND_PXA_SOC_SSP) += snd-soc-pxa-ssp.o
 obj-$(CONFIG_SND_MMP_SOC) += snd-soc-mmp.o
 obj-$(CONFIG_SND_MMP_PCM_HOSTLESS) += snd-soc-mmp-pcm-hostless.o
 obj-$(CONFIG_SND_MMP_SOC_SSPA) += snd-soc-mmp-sspa.o
+obj-$(CONFIG_SND_PXA_SOC) += snd-soc-pxa.o
 
 # PXA Machine Support
 snd-soc-corgi-objs := corgi.o
