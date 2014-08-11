@@ -873,6 +873,9 @@ static int soc_bind_dai_link(struct snd_soc_card *card, int num)
 		if (dai_link->cpu_dai_name &&
 		    strcmp(cpu_dai->name, dai_link->cpu_dai_name))
 			continue;
+		if (!dai_link->cpu_dai_name &&
+			cpu_dai->id != dai_link->cpu_dai_id)
+			continue;
 
 		rtd->cpu_dai = cpu_dai;
 	}
@@ -900,17 +903,27 @@ static int soc_bind_dai_link(struct snd_soc_card *card, int num)
 		 * this CODEC
 		 */
 		list_for_each_entry(codec_dai, &dai_list, list) {
-			if (codec->dev == codec_dai->dev &&
-				!strcmp(codec_dai->name,
-					dai_link->codec_dai_name)) {
-
-				rtd->codec_dai = codec_dai;
+			if (codec->dev == codec_dai->dev) {
+				if (codec_dai->name && dai_link->codec_dai_name
+				    && !strcmp(codec_dai->name,
+					       dai_link->codec_dai_name)) {
+					rtd->codec_dai = codec_dai;
+				} else if (codec_dai->id ==
+						dai_link->codec_dai_id) {
+					rtd->codec_dai = codec_dai;
+				}
 			}
 		}
 
 		if (!rtd->codec_dai) {
-			dev_err(card->dev, "ASoC: CODEC DAI %s not registered\n",
-				dai_link->codec_dai_name);
+			if (dai_link->codec_dai_name)
+				dev_err(card->dev,
+					"ASoC: CODEC DAI %s not registered\n",
+					dai_link->codec_dai_name);
+			else
+				dev_err(card->dev,
+					"ASoC: CODEC DAI %d not registered\n",
+					dai_link->codec_dai_id);
 			return -EPROBE_DEFER;
 		}
 	}
@@ -3748,8 +3761,8 @@ int snd_soc_register_card(struct snd_soc_card *card)
 				link->name);
 			return -EINVAL;
 		}
-		/* Codec DAI name must be specified */
-		if (!link->codec_dai_name) {
+		/* Codec DAI name must be specified if no codec_of_node. */
+		if (!link->codec_dai_name && !link->codec_of_node) {
 			dev_err(card->dev,
 				"ASoC: codec_dai_name not set for %s\n",
 				link->name);

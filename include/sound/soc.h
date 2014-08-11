@@ -858,12 +858,14 @@ struct snd_soc_dai_link {
 	 * only, which only works well when that device exposes a single DAI.
 	 */
 	const char *cpu_dai_name;
+	unsigned int cpu_dai_id;
 	/*
 	 * You MUST specify the link's codec, either by device name, or by
 	 * DT/OF node, but not both.
 	 */
 	const char *codec_name;
 	const struct device_node *codec_of_node;
+	unsigned int codec_dai_id;
 	/* You MUST specify the DAI name within the codec */
 	const char *codec_dai_name;
 	/*
