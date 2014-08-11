@@ -38,6 +38,9 @@ config SND_PXA_SOC_SSP
 config SND_MMP_SOC_SSPA
 	tristate
 
+config SND_MMP_MAP_BE_DAI
+	tristate
+
 config SND_MMP_PCM_HOSTLESS
 	tristate
 
