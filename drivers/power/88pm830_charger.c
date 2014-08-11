@@ -943,6 +943,14 @@ static int pm830_chg_notifier_callback(struct notifier_block *nb,
 {
 	struct pm830_charger_info *info =
 		container_of(nb, struct pm830_charger_info, chg_notif);
+	static unsigned long chg_type = NULL_CHARGER;
+
+	/* no change in charger type - nothing to do */
+	if (type == chg_type)
+		return 0;
+
+	chg_type = type;
+
 	switch (type) {
 	case NULL_CHARGER:
 		info->ac_chg_online = 0;
