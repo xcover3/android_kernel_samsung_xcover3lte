@@ -69,6 +69,125 @@
 					&range 110 32 0 /* GPIO67 ~ GPIO98 */
 					&range 52 1 0	/* GPIO124 */
 				>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1 &mfp_pins_group_2 &mfp_pins_group_3 &mfp_pins_group_4 &mfp_pins_group_5 &mfp_pins_group_6 &mfp_pins_group_7>;
+				/* MFP_LPM_FLOAT */
+				mfp_pins_group_0: mfp_pins_group_0 {
+					pinctrl-single,pins = <
+						DF_IO8 AF0
+						DF_IO9 AF0
+						DF_IO10 AF0
+						DF_IO11 AF0
+						DF_IO12 AF0
+						DF_IO13 AF0
+						DF_IO14 AF0
+						DF_IO15 AF0
+						DF_WEn AF1
+						DF_REn AF1
+						DF_ALE_SM_WEn AF1
+						DF_RDY0 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
+				/* MFP_PULL_LOW && MFP_LPM_PULL_FLOAT */
+				mfp_pins_group_1: mfp_pins_group_1 {
+					pinctrl-single,pins = <
+						DF_nCS0_SM_nCS2 AF0
+						DF_nCS1_SM_nCS3 AF1
+						SM_nCS1 AF1
+						GPIO15 AF0
+						GPIO72 AF0
+					>;
+					DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_FLOAT;
+				};
+
+				/* MFP_PULL_LOW && LPM_OUTPUT_DRIVE_LOW */
+				mfp_pins_group_2: mfp_pins_group_2 {
+					pinctrl-single,pins = <
+						GPIO18 AF0
+					>;
+					DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_DRIVE_LOW;
+				};
+
+				/* MFP_PULL_LOW */
+				mfp_pins_group_3: mfp_pins_group_3 {
+					pinctrl-single,pins = <
+						GPIO70 AF0
+						GPIO97 AF0
+						GPIO43 AF0
+						GPIO44 AF0
+						GPIO49 AF0
+						GPIO50 AF0
+						GPIO90 AF0
+						GPIO92 AF0
+						GPIO98 AF0
+					>;
+					MFP_PULL_DOWN;
+				};
+
+				/* MFP_PULL_HIGH */
+				mfp_pins_group_4: mfp_pins_group_4 {
+					pinctrl-single,pins = <
+						SM_RDY_GPIO_3 AF1
+						GPIO14 AF0
+						GPIO91 AF0
+					>;
+					MFP_PULL_UP;
+				};
+
+				/* MFP_PULL_FLOAT */
+				mfp_pins_group_5: mfp_pins_group_5 {
+					pinctrl-single,pins = <
+						GPIO4 AF0
+						GPIO20 AF0
+						GPIO36 AF0
+						GPIO96 AF0
+						GPIO67 AF0
+						GPIO68 AF0
+						GPIO69 AF0
+						GPIO80 AF0
+					>;
+					MFP_PULL_FLOAT;
+				};
+
+				/* MFP_PULL_FLOAT && MFP_LPM_PULL_FLOAT */
+				mfp_pins_group_6: mfp_pins_group_6 {
+					pinctrl-single,pins = <
+						GPIO32 AF0
+						GPIO12 AF0
+					>;
+					DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_FLOAT;
+				};
+
+				/* MFP_DEFAULT */
+				mfp_pins_group_7: mfp_pins_group_7 {
+					pinctrl-single,pins = <
+						GPIO124 AF0
+						GPIO3 AF0
+						GPIO5 AF0
+						GPIO6 AF0
+						GPIO11 AF0
+						GPIO13 AF0
+						GPIO19 AF0
+						GPIO10 AF0
+						GPIO30 AF0
+						GPIO31 AF0
+						GPIO33 AF0
+						GPIO34 AF0
+						GPIO35 AF0
+						GPIO51 AF1
+						GPIO52 AF1
+						GPIO73 AF0
+						GPIO74 AF0
+						GPIO75 AF0
+						GPIO76 AF0
+						GPIO77 AF1
+						GPIO78 AF0
+						GPIO79 AF0
+					>;
+					MFP_DEFAULT;
+				};
 				keypad_in_func: keypad_in_func {
 					pinctrl-single,pins = <
 						GPIO0 AF1
