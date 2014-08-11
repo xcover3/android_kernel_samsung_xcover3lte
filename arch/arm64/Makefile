@@ -42,7 +42,7 @@ TEXT_OFFSET := 0x00080000
 
 export	TEXT_OFFSET GZFLAGS
 
-core-y		+= arch/arm64/kernel/ arch/arm64/mm/ arch/arm64/mach/ arch/arm64/mcpm/
+core-y		+= arch/arm64/kernel/ arch/arm64/mm/ arch/arm64/mach/ arch/arm64/mcpm/ arch/arm64/plat-mmp/
 core-$(CONFIG_KVM) += arch/arm64/kvm/
 core-$(CONFIG_XEN) += arch/arm64/xen/
 libs-y		:= arch/arm64/lib/ $(libs-y)
