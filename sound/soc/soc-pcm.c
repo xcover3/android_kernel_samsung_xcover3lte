@@ -590,6 +590,7 @@ static int soc_pcm_prepare(struct snd_pcm_substream *substream)
 			SND_SOC_DAPM_STREAM_START);
 
 	snd_soc_dai_digital_mute(codec_dai, 0, substream->stream);
+	snd_soc_dai_digital_mute(cpu_dai, 0, substream->stream);
 
 out:
 	mutex_unlock(&rtd->pcm_mutex);
@@ -709,10 +710,16 @@ static int soc_pcm_hw_free(struct snd_pcm_substream *substream)
 		codec_dai->sample_bits = 0;
 	}
 
+	/*
+	 * Muting the DAC suppresses artifacts caused during digital
+	 * shutdown, for example from stopping clocks.
+	 */
 	/* apply codec digital mute */
 	if ((playback && codec_dai->playback_active == 1) ||
-	    (!playback && codec_dai->capture_active == 1))
+	    (!playback && codec_dai->capture_active == 1)) {
 		snd_soc_dai_digital_mute(codec_dai, 1, substream->stream);
+		snd_soc_dai_digital_mute(cpu_dai, 1, substream->stream);
+	}
 
 	/* free any machine hw params */
 	if (rtd->dai_link->ops && rtd->dai_link->ops->hw_free)
