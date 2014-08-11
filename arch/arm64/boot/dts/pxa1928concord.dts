@@ -224,8 +224,25 @@
 			};
 			pmx: pinmux@d401e000 {
 				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1>;
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <PXA1928_GPIO_PINMUX>;
+
+				mfp_pins_group_0: mfp_pins_group_0 {
+					pinctrl-single,pins = <
+						MMC1_DAT7
+						MMC1_DAT6
+						MMC1_DAT5
+						MMC1_DAT4
+					>;
+					MFP_PULL_UP;
+				};
+
+				mfp_pins_group_1: mfp_pins_group_1 {
+					pinctrl-single,pins = <CAM_MCLK>;
+					MFP_DEFAULT;
+				};
 
 				uart0_pins: pinmux_uart0_pins {
 					pinctrl-single,pins = <UART0_RXD UART0_TXD>;
