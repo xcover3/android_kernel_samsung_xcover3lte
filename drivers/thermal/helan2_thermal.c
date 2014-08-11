@@ -550,7 +550,7 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	thermal_dev.therm_clk = clk_get(NULL, "ts_clk");
+	thermal_dev.therm_clk = devm_clk_get(&pdev->dev, "ts_clk");
 	if (IS_ERR(thermal_dev.therm_clk)) {
 		dev_err(&pdev->dev, "Could not get thermal clock\n");
 		return PTR_ERR(thermal_dev.therm_clk);
