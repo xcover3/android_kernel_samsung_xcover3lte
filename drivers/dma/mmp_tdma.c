@@ -628,7 +628,7 @@ static int mmp_tdma_probe(struct platform_device *pdev)
 	int i, ret;
 	int irq = 0, irq_num = 0;
 	int chan_num = TDMA_CHANNEL_NUM;
-	struct gen_pool *pool;
+	struct gen_pool *pool = NULL;
 	struct device_node *np = pdev->dev.of_node;
 
 	of_id = of_match_device(mmp_tdma_dt_ids, &pdev->dev);
@@ -656,13 +656,15 @@ static int mmp_tdma_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&tdev->device.channels);
 
-	if (pdev->dev.of_node)
-		pool = of_get_named_gen_pool(pdev->dev.of_node, "asram", 0);
-	else
-		pool = sram_get_gpool("asram");
-	if (!pool) {
-		dev_err(&pdev->dev, "asram pool not available\n");
-		return -ENOMEM;
+	if (np) {
+		pool = of_get_named_gen_pool(np, "asram", 0);
+		if (!pool) {
+			dev_err(&pdev->dev, "asram pool not available\n");
+			return -ENOMEM;
+		}
+	} else {
+		dev_err(&pdev->dev, "asram exit due to no dt\n");
+		return -EINVAL;
 	}
 
 	if (irq_num != chan_num) {
