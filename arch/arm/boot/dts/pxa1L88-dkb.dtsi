@@ -252,6 +252,16 @@
 
 			twsi2: i2c@d4037000 {
 				status = "okay";
+
+				pmic0: 88pm822@30 {
+					compatible = "marvell,88pm800";
+					reg = <0x30>;
+					interrupts = <0 4 0x4>;
+					interrupt-parent = <&gic>;
+					interrupt-controller;
+					#interrupt-cells = <1>;
+					marvell,88pm800-irq-write-clear;
+				};
 			};
 
 		};
@@ -304,3 +314,5 @@
 		status = "okay";
 	};
 };
+#include "88pm822.dtsi"
+#include "88pm822_pxa1L88_dkb.dtsi"
