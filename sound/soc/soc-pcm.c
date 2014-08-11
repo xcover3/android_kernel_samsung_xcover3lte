@@ -984,9 +984,22 @@ static int widget_in_list(struct snd_soc_dapm_widget_list *list,
 int dpcm_path_get(struct snd_soc_pcm_runtime *fe,
 	int stream, struct snd_soc_dapm_widget_list **list_)
 {
-	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
+	/* Fixme: In MAP, we use codec name as DAPM widget */
+	struct snd_soc_dai *dai;
 	struct snd_soc_dapm_widget_list *list;
 	int paths;
+
+	dai = fe->cpu_dai;
+	if (!dai->playback_widget && (stream == SNDRV_PCM_STREAM_PLAYBACK)) {
+		dai = fe->codec_dai;
+		if (!dai->playback_widget)
+			dev_err(fe->dev, "ASoC: can't find playback_widget\n");
+	}
+	if (!dai->capture_widget && (stream == SNDRV_PCM_STREAM_CAPTURE)) {
+		dai = fe->codec_dai;
+		if (!dai->capture_widget)
+			dev_err(fe->dev, "ASoC: can't find capture_widget\n");
+	}
 
 	list = kzalloc(sizeof(struct snd_soc_dapm_widget_list) +
 			sizeof(struct snd_soc_dapm_widget *), GFP_KERNEL);
@@ -994,7 +1007,7 @@ int dpcm_path_get(struct snd_soc_pcm_runtime *fe,
 		return -ENOMEM;
 
 	/* get number of valid DAI paths and their widgets */
-	paths = snd_soc_dapm_dai_get_connected_widgets(cpu_dai, stream, &list);
+	paths = snd_soc_dapm_dai_get_connected_widgets(dai, stream, &list);
 
 	dev_dbg(fe->dev, "ASoC: found %d audio %s paths\n", paths,
 			stream ? "capture" : "playback");
