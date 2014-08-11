@@ -210,6 +210,7 @@ static int dapm_kcontrol_data_alloc(struct snd_soc_dapm_widget *widget,
 
 	switch (widget->id) {
 	case snd_soc_dapm_switch:
+	case snd_soc_dapm_virt_switch:
 	case snd_soc_dapm_mixer:
 	case snd_soc_dapm_mixer_named_ctl:
 		mc = (struct soc_mixer_control *)kcontrol->private_value;
@@ -527,6 +528,16 @@ static void dapm_set_path_status(struct snd_soc_dapm_widget *w,
 
 	}
 	break;
+	case snd_soc_dapm_virt_switch: {
+		int val;
+		struct soc_mixer_control *mc = (struct soc_mixer_control *)
+			w->kcontrol_news[i].private_value;
+		int reg = mc->reg;
+
+		soc_widget_read(w, reg, &val);
+		p->connect = !!val;
+	}
+	break;
 	case snd_soc_dapm_mux: {
 		struct soc_enum *e = (struct soc_enum *)
 			w->kcontrol_news[i].private_value;
@@ -714,6 +725,7 @@ static int dapm_create_or_share_mixmux_kcontrol(struct snd_soc_dapm_widget *w,
 		} else {
 			switch (w->id) {
 			case snd_soc_dapm_switch:
+			case snd_soc_dapm_virt_switch:
 			case snd_soc_dapm_mixer:
 				wname_in_long_name = true;
 				kcname_in_long_name = true;
@@ -2452,6 +2464,7 @@ static int snd_soc_dapm_add_path(struct snd_soc_dapm_context *dapm,
 			goto err;
 		break;
 	case snd_soc_dapm_switch:
+	case snd_soc_dapm_virt_switch:
 	case snd_soc_dapm_mixer:
 	case snd_soc_dapm_mixer_named_ctl:
 		ret = dapm_connect_mixer(dapm, wsource, wsink, path, control);
@@ -2767,6 +2780,7 @@ int snd_soc_dapm_new_widgets(struct snd_soc_card *card)
 
 		switch(w->id) {
 		case snd_soc_dapm_switch:
+		case snd_soc_dapm_virt_switch:
 		case snd_soc_dapm_mixer:
 		case snd_soc_dapm_mixer_named_ctl:
 			dapm_new_mixer(w);
@@ -2920,6 +2934,65 @@ int snd_soc_dapm_put_volsw(struct snd_kcontrol *kcontrol,
 	return change;
 }
 EXPORT_SYMBOL_GPL(snd_soc_dapm_put_volsw);
+
+/**
+ * snd_soc_dapm_get_volsw - dapm virtual mixer get callback
+ * @kcontrol: mixer control
+ * @ucontrol: control element information
+ *
+ * Callback to get the value of a dapm mixer control.
+ *
+ * Returns 0 for success.
+ */
+int snd_soc_dapm_get_volsw_virt(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = dapm_kcontrol_get_value(kcontrol);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_soc_dapm_get_volsw_virt);
+
+/**
+ * snd_soc_dapm_put_volsw_virt - dapm virtual mixer set callback
+ * @kcontrol: mixer control
+ * @ucontrol: control element information
+ *
+ * Callback to set the value of a dapm mixer control.
+ *
+ * Returns 0 for success.
+ */
+int snd_soc_dapm_put_volsw_virt(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_dapm_kcontrol_codec(kcontrol);
+	struct snd_soc_card *card = codec->card;
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int max = mc->max;
+	unsigned int mask = (1 << fls(max)) - 1;
+	unsigned int val;
+	int connect, change, ret = 0;
+
+	val = (ucontrol->value.integer.value[0] & mask);
+
+	connect = !!val;
+
+	mutex_lock_nested(&card->dapm_mutex, SND_SOC_DAPM_CLASS_RUNTIME);
+
+	change = dapm_kcontrol_set_value(kcontrol, val);
+
+	if (change)
+		ret = soc_dapm_mixer_update_power(card, kcontrol, connect);
+
+	mutex_unlock(&card->dapm_mutex);
+
+	if (ret > 0)
+		soc_dpcm_runtime_update(card);
+
+	return change;
+}
+EXPORT_SYMBOL_GPL(snd_soc_dapm_put_volsw_virt);
 
 /**
  * snd_soc_dapm_get_enum_double - dapm enumerated double mixer get callback
@@ -3278,6 +3351,7 @@ snd_soc_dapm_new_control(struct snd_soc_dapm_context *dapm,
 
 	switch (w->id) {
 	case snd_soc_dapm_switch:
+	case snd_soc_dapm_virt_switch:
 	case snd_soc_dapm_mixer:
 	case snd_soc_dapm_mixer_named_ctl:
 		w->power_check = dapm_generic_check_power;

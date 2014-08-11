@@ -103,6 +103,10 @@ struct device;
 {	.id = snd_soc_dapm_switch, .name = wname, \
 	SND_SOC_DAPM_INIT_REG_VAL(wreg, wshift, winvert), \
 	.kcontrol_news = wcontrols, .num_kcontrols = 1}
+#define SND_SOC_DAPM_VIRT_SWITCH(wname, wreg, wshift, winvert, wcontrols) \
+{	.id = snd_soc_dapm_virt_switch, .name = wname, \
+	SND_SOC_DAPM_INIT_REG_VAL(wreg, wshift, winvert), \
+	.kcontrol_news = wcontrols, .num_kcontrols = 1}
 #define SND_SOC_DAPM_MUX(wname, wreg, wshift, winvert, wcontrols) \
 {	.id = snd_soc_dapm_mux, .name = wname, \
 	SND_SOC_DAPM_INIT_REG_VAL(wreg, wshift, winvert), \
@@ -161,6 +165,12 @@ struct device;
 #define SND_SOC_DAPM_SWITCH_E(wname, wreg, wshift, winvert, wcontrols, \
 	wevent, wflags) \
 {	.id = snd_soc_dapm_switch, .name = wname, \
+	SND_SOC_DAPM_INIT_REG_VAL(wreg, wshift, winvert), \
+	.kcontrol_news = wcontrols, .num_kcontrols = 1, \
+	.event = wevent, .event_flags = wflags}
+#define SND_SOC_DAPM_VIRT_SWITCH_E(wname, wreg, wshift, winvert, wcontrols, \
+	wevent, wflags) \
+{	.id = snd_soc_dapm_virt_switch, .name = wname, \
 	SND_SOC_DAPM_INIT_REG_VAL(wreg, wshift, winvert), \
 	.kcontrol_news = wcontrols, .num_kcontrols = 1, \
 	.event = wevent, .event_flags = wflags}
@@ -305,6 +315,11 @@ struct device;
 	.private_value = SOC_SINGLE_VALUE(reg, shift, max, invert, 0) }
 #define SOC_DAPM_SINGLE_TLV_VIRT(xname, max, tlv_array) \
 	SOC_DAPM_SINGLE(xname, SND_SOC_NOPM, 0, max, 0, tlv_array)
+#define SOC_DAPM_SINGLE_VIRTUAL(xname, reg, shift, max, invert) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.info = snd_soc_info_volsw, \
+	.get = snd_soc_dapm_get_volsw_virt, .put = snd_soc_dapm_put_volsw_virt,\
+	.private_value =  SOC_SINGLE_VALUE(reg, shift, max, invert, 0) }
 #define SOC_DAPM_ENUM(xname, xenum) \
 {	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
 	.info = snd_soc_info_enum_double, \
@@ -387,6 +402,10 @@ int dapm_clock_event(struct snd_soc_dapm_widget *w,
 int snd_soc_dapm_put_volsw(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol);
 int snd_soc_dapm_get_volsw(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+int snd_soc_dapm_put_volsw_virt(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+int snd_soc_dapm_get_volsw_virt(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol);
 int snd_soc_dapm_get_enum_double(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol);
@@ -498,6 +517,7 @@ enum snd_soc_dapm_type {
 	snd_soc_dapm_spk,			/* speaker */
 	snd_soc_dapm_line,			/* line input/output */
 	snd_soc_dapm_switch,		/* analog switch */
+	snd_soc_dapm_virt_switch,		/* virtual switch */
 	snd_soc_dapm_vmid,			/* codec bias/vmid - to minimise pops */
 	snd_soc_dapm_pre,			/* machine specific pre widget - exec first */
 	snd_soc_dapm_post,			/* machine specific post widget - exec last */
