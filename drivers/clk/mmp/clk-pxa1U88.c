@@ -260,6 +260,16 @@ struct plat_pll_info pllx_platinfo[] = {
 	}
 };
 
+static int board_is_fpga(void)
+{
+	static int rc;
+
+	if (!rc)
+		rc = of_machine_is_compatible("marvell,pxa1908-fpga");
+
+	return rc;
+}
+
 static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 {
 	int idx;
@@ -338,7 +348,8 @@ static void pxa1U88_pll_init(struct pxa1U88_clk_unit *pxa_unit)
 				pxa_unit->apmu_base,
 				ARRAY_SIZE(pll1_gate_clks));
 
-	pxa1U88_dynpll_init(pxa_unit);
+	if (!board_is_fpga())
+		pxa1U88_dynpll_init(pxa_unit);
 }
 
 static struct mmp_param_gate_clk apbc_gate_clks[] = {
@@ -406,10 +417,15 @@ static void pxa1U88_apb_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				pxa_unit->apbc_base + APBC_UART0,
 				4, 3, 0, &uart0_lock);
-	clk = mmp_clk_register_gate(NULL, "uart0_clk", "uart0_mux",
-				CLK_SET_RATE_PARENT,
-				pxa_unit->apbc_base + APBC_UART0,
-				0x7, 0x3, 0x0, 0, &uart0_lock);
+
+	if (board_is_fpga())
+		clk = clk_register_fixed_rate(NULL,
+				"uart0_clk", "uart0_mux", 0, 12500000);
+	else
+		clk = mmp_clk_register_gate(NULL, "uart0_clk", "uart0_mux",
+					CLK_SET_RATE_PARENT,
+					pxa_unit->apbc_base + APBC_UART0,
+					0x7, 0x3, 0x0, 0, &uart0_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_UART0, clk);
 
 	clk = clk_register_mux(NULL, "uart1_mux", uart_parent_names,
@@ -1208,7 +1224,8 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 
 	pxa1U88_misc_init(pxa_unit);
 	pxa1U88_pll_init(pxa_unit);
-	pxa1U88_acpu_init(pxa_unit);
+	if (!board_is_fpga())
+		pxa1U88_acpu_init(pxa_unit);
 	pxa1U88_apb_periph_clk_init(pxa_unit);
 
 	pxa1U88_axi_periph_clk_init(pxa_unit);
