@@ -111,6 +111,9 @@ static int mmp_sspa_startup(struct snd_pcm_substream *substream,
 {
 	struct sspa_priv *priv = snd_soc_dai_get_drvdata(dai);
 
+	if (dai->active)
+		return 0;
+
 	if (priv->sspa->clk)
 		clk_prepare_enable(priv->sspa->clk);
 
@@ -122,8 +125,13 @@ static void mmp_sspa_shutdown(struct snd_pcm_substream *substream,
 {
 	struct sspa_priv *priv = snd_soc_dai_get_drvdata(dai);
 
+	if (dai->active)
+		return;
+
 	if (priv->sspa->clk)
 		clk_disable_unprepare(priv->sspa->clk);
+
+	priv->dai_fmt = (unsigned int) -1;
 
 	return;
 }
