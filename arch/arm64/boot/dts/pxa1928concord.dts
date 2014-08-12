@@ -71,6 +71,10 @@
 			status = "okay";
 		};
 
+		asram: sram@d1020000 {
+			status = "okay";
+		};
+
 		axi@d4200000 {	/* AXI */
 			sc2mmu1: sc2mmu@d4209000 {
 				status = "okay";
@@ -87,6 +91,13 @@
 			ccic2: ccic@d420a800 {
 				status = "okay";
 				pinctrl-names = "default";
+			};
+
+			adma0: adma@c0ffd800 {
+				status = "okay";
+			};
+			adma1: adma@c0ffd900 {
+				status = "okay";
 			};
 
 			usbphy: usbphy@d4207000 {
@@ -236,6 +247,52 @@
 			pwm2: pwm@d401a400 {
 				pinctrl-names = "default"; pinctrl-0 = <&pwm2_pins>;
 				status = "okay";
+			};
+
+			/* SSPA port 0 */
+			sspa0: sspa@c0ffdc00 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&sspa0_func>;
+				playback_period_bytes = <2048>;
+				playback_buffer_bytes = <4096>;
+				capture_period_bytes = <2048>;
+				capture_buffer_bytes = <4096>;
+				burst_size = <4>;
+				sleep_vol = <0x1a>;
+				#dailink-cells = <1>;
+				status = "okay";
+			};
+
+			/* SSPA port 1 */
+			sspa1: sspa@c0ffdd00 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&sspa1_func>;
+				playback_period_bytes = <24576>;
+				playback_buffer_bytes = <49152>;
+				capture_period_bytes = <2048>;
+				capture_buffer_bytes = <4096>;
+				burst_size = <4>;
+				sleep_vol = <0x1a>;
+				#dailink-cells = <1>;
+				status = "okay";
+			};
+
+			map: map@c3000000 {
+				marvell,b0_fix;
+				marvell,apll = <0>;
+				status = "okay";
+				mmp_map_codec: mmp_map_codec {
+					compatible = "marvell,mmp-map-codec";
+					#dailink-cells = <1>;
+				};
+				mmp_map_be: mmp_map_be {
+					compatible = "marvell,mmp-map-be";
+					#dailink-cells = <1>;
+				};
+				mmp_map_be_tdm: mmp_map_be_tdm {
+					compatible = "marvell,mmp-map-be-tdm";
+					#dailink-cells = <1>;
+				};
 			};
 
 			thermal: thermal@d403b000 {
@@ -403,6 +460,27 @@
 					MFP_DEFAULT;
 				};
 
+				sspa0_func: sspa0_func {
+					pinctrl-single,pins = <
+						I2S_SYSCLK
+						I2S_BITCLK
+						I2S_SYNC
+						I2S_DATA_OUT
+						I2S_SDATA_IN
+					>;
+					MFP_DEFAULT;
+				};
+
+				sspa1_func: sspa1_func {
+					pinctrl-single,pins = <
+						I2S_SYNC_2
+						I2S_BITCLK_2
+						I2S_DATA_OUT_2
+						I2S_SDATA_IN_2
+					>;
+					MFP_DEFAULT;
+				};
+
 				gps_lpm_drv_low_pins: pinmux_gps_lpm_drv_low_pins {
 					pinctrl-single,pins = <GPIO(GPS_RST_N)>;
 					MFP_LPM_DRIVE_LOW;
@@ -471,6 +549,16 @@
 					       status = "okay";
 				        };
 			       };
+
+				codec1: 88pm860@38 {
+					compatible = "marvell,88pm860";
+					reg = <0x38>;
+					status = "okay";
+					pm860_codec: pm860_codec {
+						compatible = "marvell,88pm860-codec";
+						#dailink-cells = <1>;
+					};
+				};
 			};
 
 			twsi1: i2c@d4031000 {
@@ -659,6 +747,109 @@
 				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
 				reset-gpios = <&gpio CAM1_RST_N 1>;
 			};
+		};
+	};
+
+	mmp_pcm_hostless: mmp_pcm_hostless {
+		bus_number = <0>;
+		compatible = "marvell,mmp-pcm-hostless";
+		#dailink-cells = <1>;
+		status = "okay";
+	};
+
+	snd_soc_dummy: snd_soc_dummy {
+		compatible = "snd-soc-dummy";
+		#dailink-cells = <1>;
+		status = "okay";
+	};
+
+	sound {
+		compatible = "marvell,map-card";
+		map,dapm-route =
+			"ADC input1", "TDM_MIC1_CAP",
+			"ADC input2", "TDM_MIC2_CAP",
+			"ADC input3", "BT_VC_UL",
+			"TDM_OUT1_PLAYBACK", "DAC1 output out1",
+			"TDM_OUT2_PLAYBACK", "DAC2 output out2",
+			"BT_VC_DL", "ADC output ain3";
+		fe_i2s1: fe_i2s1 {
+			compatible = "marvell,map-dailink-1";
+			dai-name = "MAP I2S1 audio";
+			stream-name = "map i2s1";
+			marvell,cpu-dai = <&sspa0 0>;
+			marvell,codec-dai = <&mmp_map_codec 1>;
+			marvell,dai-dynamic;
+		};
+		fe_i2s2: fe_i2s2 {
+			compatible = "marvell,map-dailink-1";
+			dai-name = "MAP I2S4 audio";
+			stream-name = "map i2s4";
+			marvell,cpu-dai = <&sspa1 1>;
+			marvell,codec-dai = <&mmp_map_codec 4>;
+			marvell,dai-dynamic;
+		};
+		fe_i2s3: fe_i2s3 {
+			compatible = "marvell,map-dailink-2";
+			dai-name = "MAP I2S2 audio";
+			stream-name = "map i2s2";
+			marvell,cpu-dai = <&mmp_pcm_hostless 0>;
+			marvell,codec-dai = <&mmp_map_codec 2>;
+			marvell,dai-dynamic;
+			marvell,dai-no-host-mode;
+		};
+		fe_i2s4: fe_i2s4 {
+			compatible = "marvell,map-dailink-1";
+			dai-name = "MAP I2S3 audio";
+			stream-name = "map i2s3";
+			marvell,cpu-dai = <&mmp_pcm_hostless 0>;
+			marvell,codec-dai = <&mmp_map_codec 3>;
+			marvell,dai-dynamic;
+			marvell,dai-no-host-mode;
+		};
+		be_i2s1: be_i2s1 {
+			compatible = "marvell,map-dailink-3";
+			dai-name = "MAP AUXI2S audio";
+			stream-name = "BT audio";
+			marvell,cpu-dai = <&mmp_map_be 1>;
+			marvell,codec-dai = <&snd_soc_dummy 0>;
+			marvell,codec-name = "snd-soc-dummy";
+			marvell,codec-dai-name = "snd-soc-dummy-dai";
+			marvell,dai-no-pcm;
+			marvell,dai-fixup = <0>;
+		};
+		be_i2s2: be_i2s2 {
+			compatible = "marvell,map-dailink-6";
+			dai-name = "MAP TDM hs audio";
+			stream-name = "codec hs audio";
+			marvell,cpu-dai = <&mmp_map_be_tdm 2>;
+			marvell,codec-dai = <&pm860_codec 3>;
+			marvell,dai-no-pcm;
+			marvell,dai-fixup = <1>;
+		};
+		be_i2s3: be_i2s3 {
+			compatible = "marvell,map-dailink-4";
+			dai-name = "MAP TDM speaker audio";
+			stream-name = "codec speaker audio";
+			marvell,cpu-dai = <&mmp_map_be_tdm 1>;
+			marvell,codec-dai = <&pm860_codec 4>;
+			marvell,dai-no-pcm;
+			marvell,dai-fixup = <1>;
+		};
+		be_i2s4: be_i2s4 {
+			compatible = "marvell,map-dailink-5";
+			dai-name = "MAP TDM mic1 audio";
+			stream-name = "codec mic1 audio";
+			marvell,cpu-dai = <&mmp_map_be_tdm 3>;
+			marvell,codec-dai = <&pm860_codec 1>;
+			marvell,dai-no-pcm;
+		};
+		be_i2s5: be_i2s5 {
+			compatible = "marvell,map-dailink-5";
+			dai-name = "MAP TDM mic2 audio";
+			stream-name = "codec mic2 audio";
+			marvell,cpu-dai = <&mmp_map_be_tdm 4>;
+			marvell,codec-dai = <&pm860_codec 2>;
+			marvell,dai-no-pcm;
 		};
 	};
 

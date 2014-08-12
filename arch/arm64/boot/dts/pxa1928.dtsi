@@ -10,6 +10,7 @@
 #include "pxa1928-pinfunc.h"
 #include "pxa1928-pm.h"
 #include "../../../../include/dt-bindings/clock/marvell-pxa1928.h"
+#include "../../../../include/dt-bindings/clock/marvell-audio-map.h"
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
 #include "../../../../include/dt-bindings/usb/mv_usb.h"
 
@@ -265,6 +266,24 @@
 				status = "disabled";
 			};
 
+			adma0: adma@c0ffd800 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xC0FFD800 0x100>;
+				interrupts = <0 153 0x4>, <0 154 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
+
+			adma1: adma@c0ffd900 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xC0FFD900 0x100>;
+				interrupts = <0 155 0x4>, <0 156 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
+
 			vdma: vdma@d427f000 {
 				compatible = "marvell,mmp-vdma";
 				reg = <0xd427f000 0x850>, <0xd420b000 0x3d0>;
@@ -359,6 +378,30 @@
 				status = "disabled";
 			};
 
+			sspa0: sspa@c0ffdc00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xc0ffdc00 0x100>;
+				dmas = <&adma0 1
+					&adma0 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA0>;
+				status = "disabled";
+			};
+
+			sspa1: sspa@c0ffdd00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xc0ffdd00 0x100>;
+				dmas = <&adma1 1
+					&adma1 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA1>;
+				status = "disabled";
+			};
+
 			uart0: uart@d4030000 {
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4030000 0x1000>;
@@ -440,6 +483,19 @@
 				reg = <0xd403b000 0x7c>;
 				marvell,version-flag = <3>;
 				interrupts = <0 132 0x4>;
+				status = "disabled";
+			};
+
+			map: map@c3000000 {
+				compatible = "marvell,mmp-map";
+				reg = <0xc0140000 0x100
+					0xc3000000 0x8000>;
+				audio_reg = <356>;
+				bit_sram = <1>;
+				bit_apb = <3>;
+				pll_sel = <1>;
+				power_ctrl = <1>;
+				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
 				status = "disabled";
 			};
 
@@ -720,6 +776,17 @@
 			reg-names = "mpmu", "apmu", "apbc", "ciu";
 			#clock-cells = <1>;
 	        };
+
+		audio_map_clocks: clock{
+			compatible = "marvell,audio-map-clock";
+			reg = <0xd4282800 0x1000>,
+			      <0xd4015000 0x1000>,
+			      <0xc3000000 0x8000>,
+			      <0xc0140000 0x80>;
+			reg-names = "apmu", "apbc", "map", "dspaux";
+			#clock-cells = <1>;
+			map = <&map>;
+		};
 	};
 
 	regs_addr {
