@@ -185,6 +185,8 @@ static struct pll_tbl pllx_tbl[] = {
 		.outp_flags = PXA1928_PLL_USE_DIV_3 |
 			PXA1928_PLL_USE_ENABLE_BIT,
 		.vco_flags = PXA1928_PLL_POST_ENABLE,
+		.out_index = PXA1928_CLK_PLL2,
+		.outp_index = PXA1928_CLK_PLL2P,
 		.vco_params = {
 			1200000000, 3200000000UL, MPMU_PLL2CR, MPMU_PLL2_CTRL1,
 			MPMU_PLL2_CTRL2, MPMU_PLL2_CTRL3, MPMU_PLL2_CTRL4,
@@ -204,6 +206,8 @@ static struct pll_tbl pllx_tbl[] = {
 		.outp_name = "pll3p",
 		.out_flags = 0,
 		.outp_flags = PXA1928_PLL_USE_ENABLE_BIT,
+		.out_index = PXA1928_CLK_PLL3,
+		.outp_index = PXA1928_CLK_PLL3P,
 		.vco_params = {
 			1200000000, 3200000000UL, MPMU_PLL3CR, MPMU_PLL3_CTRL1,
 			MPMU_PLL3_CTRL2, MPMU_PLL3_CTRL3, MPMU_PLL3_CTRL4,
@@ -223,6 +227,8 @@ static struct pll_tbl pllx_tbl[] = {
 		.outp_name = "pll4p",
 		.out_flags = PXA1928_PLL_USE_SYNC_DDR,
 		.outp_flags = PXA1928_PLL_USE_ENABLE_BIT,
+		.out_index = PXA1928_CLK_PLL4,
+		.outp_index = PXA1928_CLK_PLL4P,
 		.vco_params = {
 			1200000000, 3200000000UL, MPMU_PLL4CR, MPMU_PLL4_CTRL1,
 			MPMU_PLL4_CTRL2, MPMU_PLL4_CTRL3, MPMU_PLL4_CTRL4,
@@ -243,6 +249,8 @@ static struct pll_tbl pllx_tbl[] = {
 		.out_flags = 0,
 		.outp_flags = PXA1928_PLL_USE_DIV_3 |
 				PXA1928_PLL_USE_ENABLE_BIT,
+		.out_index = PXA1928_CLK_PLL5,
+		.outp_index = PXA1928_CLK_PLL5P,
 		.vco_params = {
 			1200000000, 3200000000UL, MPMU_PLL5CR, MPMU_PLL5_CTRL1,
 			MPMU_PLL5_CTRL2, MPMU_PLL5_CTRL3, MPMU_PLL5_CTRL4,
@@ -262,6 +270,8 @@ static struct pll_tbl pllx_tbl[] = {
 		.outp_name = "pll6p",
 		.out_flags = 0,
 		.outp_flags = PXA1928_PLL_USE_ENABLE_BIT,
+		.out_index = PXA1928_CLK_PLL6,
+		.outp_index = PXA1928_CLK_PLL6P,
 		.vco_params = {
 			1200000000, 3200000000UL, MPMU_PLL6CR, MPMU_PLL6_CTRL1,
 			MPMU_PLL6_CTRL2, MPMU_PLL6_CTRL3, MPMU_PLL6_CTRL4,
@@ -281,6 +291,8 @@ static struct pll_tbl pllx_tbl[] = {
 		.outp_name = "pll7p",
 		.out_flags = 0,
 		.outp_flags = PXA1928_PLL_USE_ENABLE_BIT,
+		.out_index = PXA1928_CLK_PLL7,
+		.outp_index = PXA1928_CLK_PLL7P,
 		.vco_params = {
 			1200000000, 3200000000UL, MPMU_PLL7CR, MPMU_PLL7_CTRL1,
 			MPMU_PLL7_CTRL2, MPMU_PLL7_CTRL3, MPMU_PLL7_CTRL4,
@@ -347,6 +359,8 @@ static void pxa1928_pll_init(struct pxa1928_clk_unit *pxa_unit)
 			&pllx_tbl[i].out_params, pllx_tbl[i].out_tbl);
 		clk_register_clkdev(clk, pllx_tbl[i].out_name, NULL);
 		clk_set_rate(clk, pllx_tbl[i].out_tbl[0].output_rate);
+		if (pllx_tbl[i].out_index)
+			mmp_clk_add(unit, pllx_tbl[i].out_index, clk);
 
 		clk = pxa1928_clk_register_pll_out(pllx_tbl[i].outp_name,
 			pllx_tbl[i].vco_name, pllx_tbl[i].outp_flags,
@@ -354,6 +368,8 @@ static void pxa1928_pll_init(struct pxa1928_clk_unit *pxa_unit)
 			&pllx_tbl[i].outp_params, pllx_tbl[i].outp_tbl);
 		clk_register_clkdev(clk, pllx_tbl[i].outp_name, NULL);
 		clk_set_rate(clk, pllx_tbl[i].outp_tbl[0].output_rate);
+		if (pllx_tbl[i].outp_index)
+			mmp_clk_add(unit, pllx_tbl[i].outp_index, clk);
 	}
 }
 

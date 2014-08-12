@@ -62,6 +62,9 @@ struct pll_tbl {
 	unsigned long vco_flags;
 	unsigned long out_flags;
 	unsigned long outp_flags;
+	/* dt index */
+	unsigned long out_index;
+	unsigned long outp_index;
 	struct pxa1928_clk_pll_vco_table  *vco_tbl;
 	struct pxa1928_clk_pll_out_table  *out_tbl;
 	struct pxa1928_clk_pll_out_table  *outp_tbl;
