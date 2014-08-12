@@ -861,7 +861,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	 * or use default size
 	 */
 	if (modes_num > 0) {
-		info->var.xres_virtual = info->var.xres;
+		info->var.xres_virtual = MMP_XALIGN(info->var.xres);
 		info->var.yres_virtual = MMP_YALIGN(info->var.yres)
 			* fbi->buffer_num;
 
