@@ -231,6 +231,13 @@
 					>;
 					MFP_LPM_FLOAT;
 				};
+				touch_pins: touch_pins {
+					pinctrl-single,pins = <
+						GPIO16 AF0
+						GPIO17 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
 
 			};
 
@@ -240,6 +247,34 @@
 				pinctrl-1 = <&twsi0_pmx_gpio>;
 				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
 				status = "okay";
+
+				touch3: gt913@720p {
+					compatible = "goodix,gt913-touch";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+					reg = <0x5d>;
+					interrupt-parent = <&gpio>;
+					interrupts = <17 0x1>;
+					irq-gpios = <&gpio 17 0>;
+					reset-gpios = <&gpio 16 0>;
+					goodix,cfg-group = <0>;
+					goodix,max-height = <1280>;
+					goodix,max-width = <720>;
+					avdd-supply = <&ldo10>;
+				};
+
+				touch4: gt913@1080p {
+					compatible = "goodix,gt913-touch";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+					reg = <0x5d>;
+					interrupt-parent = <&gpio>;
+					interrupts = <17 0x1>;
+					irq-gpios = <&gpio 17 0>;
+					reset-gpios = <&gpio 16 0>;
+					goodix,cfg-group = <0>;
+					goodix,max-height = <1920>;
+					goodix,max-width = <1080>;
+					avdd-supply = <&ldo10>;
+				};
 			};
 
 			twsi1: i2c@d4010800 {
