@@ -172,6 +172,8 @@ static void __init pxa1U88_dt_irq_init(void)
 
 static __init void pxa1U88_timer_init(void)
 {
+	void __iomem *chip_id;
+
 	regs_addr_iomap();
 
 	enable_pxawdt_clock();
@@ -187,6 +189,10 @@ static __init void pxa1U88_timer_init(void)
 	clocksource_of_init();
 
 	pxa988_sdhc_reset_all();
+
+	/* this is early, initialize mmp_chip_id here */
+	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
+	mmp_chip_id = readl_relaxed(chip_id);
 }
 
 /* For HELANLTE CP memeory reservation, 32MB by default */
@@ -215,13 +221,8 @@ static void pxa_reserve_cp_memblock(void)
 
 static void __init pxa1U88_init_machine(void)
 {
-	void __iomem *chip_id;
 	of_platform_populate(NULL, of_default_bus_match_table,
 			     mmpx_auxdata_lookup, &platform_bus);
-
-	/* this is early, initialize mmp_chip_id here */
-	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
-	mmp_chip_id = readl_relaxed(chip_id);
 }
 
 static void pxa_reserve_obmmem(void)
