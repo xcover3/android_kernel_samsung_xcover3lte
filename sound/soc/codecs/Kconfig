@@ -560,3 +560,6 @@ config SND_MMP_MAP_FE_DAI
 
 config SND_SOC_88PM860
 	tristate
+
+config SND_SOC_88PM800_HS
+	tristate
