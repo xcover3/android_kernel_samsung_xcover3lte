@@ -1,4 +1,5 @@
 snd-soc-88pm860x-objs := 88pm860x-codec.o
+snd-soc-88pm860-objs := 88pm860-codec.o
 snd-soc-ab8500-codec-objs := ab8500-codec.o
 snd-soc-ac97-objs := ac97.o
 snd-soc-ad1836-objs := ad1836.o
@@ -132,6 +133,7 @@ snd-soc-tpa6130a2-objs := tpa6130a2.o
 
 obj-$(CONFIG_SND_MMP_MAP_FE_DAI) += snd-soc-mmp-map-fe-dai.o
 obj-$(CONFIG_SND_SOC_88PM860X)	+= snd-soc-88pm860x.o
+obj-$(CONFIG_SND_SOC_88PM860)     += snd-soc-88pm860.o
 obj-$(CONFIG_SND_SOC_AB8500_CODEC)	+= snd-soc-ab8500-codec.o
 obj-$(CONFIG_SND_SOC_AC97_CODEC)	+= snd-soc-ac97.o
 obj-$(CONFIG_SND_SOC_AD1836)	+= snd-soc-ad1836.o
