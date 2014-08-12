@@ -40,6 +40,7 @@ snd-soc-imote2-objs := imote2.o
 snd-soc-raumfeld-objs := raumfeld.o
 snd-soc-brownstone-objs := brownstone.o
 snd-soc-ttc-dkb-objs := ttc-dkb.o
+snd-soc-mmp-map-objs := mmp-map-card.o
 
 obj-$(CONFIG_SND_PXA2XX_SOC_CORGI) += snd-soc-corgi.o
 obj-$(CONFIG_SND_PXA2XX_SOC_POODLE) += snd-soc-poodle.o
@@ -59,3 +60,4 @@ obj-$(CONFIG_SND_PXA2XX_SOC_IMOTE2) += snd-soc-imote2.o
 obj-$(CONFIG_SND_SOC_RAUMFELD) += snd-soc-raumfeld.o
 obj-$(CONFIG_SND_MMP_SOC_BROWNSTONE) += snd-soc-brownstone.o
 obj-$(CONFIG_SND_SOC_TTC_DKB) += snd-soc-ttc-dkb.o
+obj-$(CONFIG_SND_MMP_MAP) += snd-soc-mmp-map.o

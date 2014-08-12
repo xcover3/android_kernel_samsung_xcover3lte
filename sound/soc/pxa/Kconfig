@@ -225,3 +225,20 @@ config SND_MMP_SOC_BROWNSTONE
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Brownstone reference platform.
+
+config SND_MMP_MAP
+	tristate "SoC Audio support for Marvell MAP"
+	depends on SND_MMP_SOC
+	depends on MFD_MMP_MAP && DMA_ENGINE && MMP_TDMA
+	select SND_MMP_SOC_SSPA
+	select SND_MMP_TDM
+	select SND_MMP_MAP_BE_DAI
+	select SND_MMP_MAP_FE_DAI
+	select SND_MMP_PCM_HOSTLESS
+	select SND_SOC_88PM860
+	select SND_SOC_88PM800_HS
+	help
+	  Say Y if you want to add support for SoC audio on the
+	  Marvell MAP reference platform. It depend on mmp-pcm,
+	  mmp-sspa, mmp-tdma. It will use the FE, BE and audio
+	  processing.
