@@ -47,6 +47,12 @@ struct sspa_priv {
 	struct snd_dmaengine_dai_dma_data *dma_params;
 	int dai_fmt;
 	int running_cnt;
+	int txsp;
+	int rxsp;
+	int txctl;
+	int rxctl;
+	int txfifo;
+	int rxfifo;
 };
 
 static void mmp_sspa_write_reg(struct ssp_device *sspa, u32 reg, u32 val)
@@ -354,8 +360,47 @@ static struct snd_soc_dai_ops mmp_sspa_dai_ops = {
 	.set_fmt	= mmp_sspa_set_dai_fmt,
 };
 
+#ifdef CONFIG_PM
+static int mmp_sspa_suspend(struct snd_soc_dai *cpu_dai)
+{
+	struct sspa_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
+	struct ssp_device *sspa = priv->sspa;
+
+	priv->txsp = __raw_readl(sspa->mmio_base + SSPA_TXSP);
+	priv->rxsp = __raw_readl(sspa->mmio_base + SSPA_RXSP);
+	priv->txctl = __raw_readl(sspa->mmio_base + SSPA_TXCTL);
+	priv->rxctl = __raw_readl(sspa->mmio_base + SSPA_RXCTL);
+	priv->txfifo = __raw_readl(sspa->mmio_base + SSPA_TXFIFO_LL);
+	priv->rxfifo = __raw_readl(sspa->mmio_base + SSPA_RXFIFO_UL);
+
+	return 0;
+}
+
+static int mmp_sspa_resume(struct snd_soc_dai *cpu_dai)
+{
+	struct sspa_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
+	struct ssp_device *sspa = priv->sspa;
+
+	priv->txsp |= SSPA_SP_WEN;
+	__raw_writel(priv->txsp, sspa->mmio_base + SSPA_TXSP);
+	priv->rxsp |= SSPA_SP_WEN;
+	__raw_writel(priv->rxsp, sspa->mmio_base + SSPA_RXSP);
+	__raw_writel(priv->txctl, sspa->mmio_base + SSPA_TXCTL);
+	__raw_writel(priv->rxctl, sspa->mmio_base + SSPA_RXCTL);
+	__raw_writel(priv->txfifo, sspa->mmio_base + SSPA_TXFIFO_LL);
+	__raw_writel(priv->rxfifo, sspa->mmio_base + SSPA_RXFIFO_UL);
+
+	return 0;
+}
+#else
+#define mmp_sspa_suspend	NULL
+#define mmp_sspa_resume		NULL
+#endif
+
 static struct snd_soc_dai_driver mmp_sspa_dai = {
 	.probe = mmp_sspa_probe,
+	.suspend = mmp_sspa_suspend,
+	.resume = mmp_sspa_resume,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 128,
