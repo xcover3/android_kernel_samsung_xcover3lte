@@ -27,6 +27,7 @@
 #include <linux/slab.h>
 #include <linux/pxa2xx_ssp.h>
 #include <linux/io.h>
+#include <linux/of.h>
 #include <linux/dmaengine.h>
 
 #include <sound/core.h>
@@ -44,8 +45,6 @@
 struct sspa_priv {
 	struct ssp_device *sspa;
 	struct snd_dmaengine_dai_dma_data *dma_params;
-	struct clk *audio_clk;
-	struct clk *sysclk;
 	int dai_fmt;
 	int running_cnt;
 };
@@ -105,8 +104,8 @@ static int mmp_sspa_startup(struct snd_pcm_substream *substream,
 {
 	struct sspa_priv *priv = snd_soc_dai_get_drvdata(dai);
 
-	clk_enable(priv->sysclk);
-	clk_enable(priv->sspa->clk);
+	if (priv->sspa->clk)
+		clk_prepare_enable(priv->sspa->clk);
 
 	return 0;
 }
@@ -116,8 +115,8 @@ static void mmp_sspa_shutdown(struct snd_pcm_substream *substream,
 {
 	struct sspa_priv *priv = snd_soc_dai_get_drvdata(dai);
 
-	clk_disable(priv->sspa->clk);
-	clk_disable(priv->sysclk);
+	if (priv->sspa->clk)
+		clk_disable_unprepare(priv->sspa->clk);
 
 	return;
 }
@@ -128,23 +127,6 @@ static void mmp_sspa_shutdown(struct snd_pcm_substream *substream,
 static int mmp_sspa_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 				    int clk_id, unsigned int freq, int dir)
 {
-	struct sspa_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
-	int ret = 0;
-
-	switch (clk_id) {
-	case MMP_SSPA_CLK_AUDIO:
-		ret = clk_set_rate(priv->audio_clk, freq);
-		if (ret)
-			return ret;
-		break;
-	case MMP_SSPA_CLK_PLL:
-	case MMP_SSPA_CLK_VCXO:
-		/* not support yet */
-		return -EINVAL;
-	default:
-		return -EINVAL;
-	}
-
 	return 0;
 }
 
@@ -152,24 +134,6 @@ static int mmp_sspa_set_dai_pll(struct snd_soc_dai *cpu_dai, int pll_id,
 				 int source, unsigned int freq_in,
 				 unsigned int freq_out)
 {
-	struct sspa_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
-	int ret = 0;
-
-	switch (pll_id) {
-	case MMP_SYSCLK:
-		ret = clk_set_rate(priv->sysclk, freq_out);
-		if (ret)
-			return ret;
-		break;
-	case MMP_SSPA_CLK:
-		ret = clk_set_rate(priv->sspa->clk, freq_out);
-		if (ret)
-			return ret;
-		break;
-	default:
-		return -ENODEV;
-	}
-
 	return 0;
 }
 
@@ -184,7 +148,6 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	struct sspa_priv *sspa_priv = snd_soc_dai_get_drvdata(cpu_dai);
 	struct ssp_device *sspa = sspa_priv->sspa;
 	u32 sspa_sp, sspa_ctrl;
-
 	/* check if we need to change anything at all */
 	if (sspa_priv->dai_fmt == fmt)
 		return 0;
@@ -412,10 +375,20 @@ static const struct snd_soc_component_driver mmp_sspa_component = {
 	.name		= "mmp-sspa",
 };
 
+#ifdef CONFIG_OF
+static const struct of_device_id pxa_ssp_of_ids[] = {
+	{ .compatible = "mrvl,mmp-sspa-dai", },
+};
+#endif
+
+
 static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
 	struct sspa_priv *priv;
 	struct resource *res;
+	char const *platform_driver_name;
+	int ret;
 
 	priv = devm_kzalloc(&pdev->dev,
 				sizeof(struct sspa_priv), GFP_KERNEL);
@@ -433,39 +406,70 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 	if (priv->dma_params == NULL)
 		return -ENOMEM;
 
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res == NULL) {
+		dev_err(&pdev->dev, "no memory resource defined\n");
+		return -ENODEV;
+	}
+
+	res = devm_request_mem_region(&pdev->dev, res->start,
+				resource_size(res), pdev->name);
+	if (res == NULL) {
+		dev_err(&pdev->dev, "failed to request memory resource\n");
+		return -EBUSY;
+	}
+
 	priv->sspa->mmio_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(priv->sspa->mmio_base))
 		return PTR_ERR(priv->sspa->mmio_base);
+
+	priv->sspa->phys_base = res->start;
+
+	if (of_property_read_string(np,
+				"platform_driver_name",
+				&platform_driver_name)) {
+		dev_err(&pdev->dev,
+			"Missing platform_driver_name property in the DT\n");
+		return -EINVAL;
+	}
 
 	priv->sspa->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(priv->sspa->clk))
 		return PTR_ERR(priv->sspa->clk);
 
-	priv->audio_clk = clk_get(NULL, "mmp-audio");
-	if (IS_ERR(priv->audio_clk))
-		return PTR_ERR(priv->audio_clk);
-
-	priv->sysclk = clk_get(NULL, "mmp-sysclk");
-	if (IS_ERR(priv->sysclk)) {
-		clk_put(priv->audio_clk);
-		return PTR_ERR(priv->sysclk);
-	}
-	clk_enable(priv->audio_clk);
 	priv->dai_fmt = (unsigned int) -1;
 	platform_set_drvdata(pdev, priv);
 
-	return devm_snd_soc_register_component(&pdev->dev, &mmp_sspa_component,
+	ret = devm_snd_soc_register_component(&pdev->dev, &mmp_sspa_component,
 					       &mmp_sspa_dai, 1);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "Failed to register DAI\n");
+		return ret;
+	}
+
+	if (strcmp(platform_driver_name, "tdma_platform") == 0)
+		ret = mmp_pcm_platform_register(&pdev->dev);
+
+	return ret;
 }
 
 static int asoc_mmp_sspa_remove(struct platform_device *pdev)
 {
-	struct sspa_priv *priv = platform_get_drvdata(pdev);
+	struct device_node *np = pdev->dev.of_node;
+	char const *platform_driver_name;
 
-	clk_disable(priv->audio_clk);
-	clk_put(priv->audio_clk);
-	clk_put(priv->sysclk);
+	if (of_property_read_string(np,
+				"platform_driver_name",
+				&platform_driver_name)) {
+		dev_err(&pdev->dev,
+			"Missing platform_driver_name property in the DT\n");
+		return -EINVAL;
+	}
+
+	if (strcmp(platform_driver_name, "tdma_platform") == 0)
+		mmp_pcm_platform_unregister(&pdev->dev);
+
 	return 0;
 }
 
@@ -473,6 +477,7 @@ static struct platform_driver asoc_mmp_sspa_driver = {
 	.driver = {
 		.name = "mmp-sspa-dai",
 		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(pxa_ssp_of_ids),
 	},
 	.probe = asoc_mmp_sspa_probe,
 	.remove = asoc_mmp_sspa_remove,

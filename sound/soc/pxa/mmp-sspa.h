@@ -89,4 +89,7 @@
 #define MMP_SYSCLK		0
 #define MMP_SSPA_CLK		1
 
+int mmp_pcm_platform_register(struct device *dev);
+void mmp_pcm_platform_unregister(struct device *dev);
+
 #endif /* _MMP_SSPA_H */
