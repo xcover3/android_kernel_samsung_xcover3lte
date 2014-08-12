@@ -582,6 +582,7 @@ static inline int pm80x_dev_resume(struct device *dev)
 }
 #endif
 
+extern struct pm80x_chip *chip_g;
 extern int pm80x_init(struct i2c_client *client);
 extern int pm80x_deinit(void);
 

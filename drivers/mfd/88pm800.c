@@ -126,8 +126,11 @@ enum {
 /* PM800: generation identification number */
 #define PM800_CHIP_GEN_ID_NUM	0x3
 
-/* globle device pointer */
-static struct pm80x_chip *chip_g;
+/*
+ * globle device pointer
+ * please think twice before use, will remove later
+ */
+struct pm80x_chip *chip_g;
 
 enum pm8xx_parent {
 	PM822 = 0x822,
