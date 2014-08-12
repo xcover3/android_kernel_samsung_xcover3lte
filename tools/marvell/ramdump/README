@@ -18,5 +18,9 @@ All the text files are stored with unix line endings.
 Before copying to a Windows machine for build or
 use with T32 (.cmm files), please, convert to DOS:
 
-todos *.c *.h *.cpp *.dsp *.dsw *.bat t32-scripts/*
+todos *.c *.h *.cpp *.dsp *.dsw *.bat t32-scripts/*.cmm *.txt README
+
+When copying back from Windows:
+fromdos *.c *.h *.cpp *.dsp *.dsw *.bat t32-scripts/* *.txt README
+chmod 644 *.c *.cpp *.h *.dsw *.dsp README t32-scripts/* *.txt README
 

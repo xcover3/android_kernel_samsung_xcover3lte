@@ -91,9 +91,17 @@ All Rights Reserved
 								and if not, it can be set manually in the dump file, while RDP still will detect forced dump.
 	4.5 (antone@marvell.com): Fix PHY_OFFSET to allow more than 16MB CP DDR: clear [31:28] only.
 	5.0 (antone@marvell.com): ARM64 support. From now on arm32 and arm64 are supported. Detection based on ELF header.
+	5.1 (antone@marvell.com): Generate a cmm even when RDC is not found
+		based on ELF header (good for EMMD logs).
+	5.2 (antone@marvell.com): Fix ELF32 parsing bug introduced in 5.0.
+		Use linux-3.x for arm64 only.
+	5.3 (antone@marvell.com): Fix ELF64 parsing bug introduced in 5.2.
+		Fix RDI CBUF parsing with cur wrap case.
+	5.4 (antone@marvell.com): Zero RDC content when RDC detection
+		fails to avoid failures due to random content in it.
 */
 
-#define VERSION_STRING "5.0"
+#define VERSION_STRING "5.4"
 
 #include <stdio.h>
 #include "rdp.h"
@@ -277,6 +285,7 @@ static int findRdc(FILE* in)
 		if(!checkRdc(in, bankSizeOptions[i])) return 0;
 	if (!checkRdc_alt(in, 0x08140400))
 		return 0;
+	memset(&rdc,0,sizeof(rdc));
 	return -1;
 }
 
@@ -759,6 +768,7 @@ static int resolveRefs(FILE *fin, struct rdc_dataitem *rdi, int nw)
 static int extractCyclicBuffer(const char* inName, FILE *fin, const char *name, struct rdc_dataitem *rdi, int nw)
 {
 	u64 addr, size, cur;
+	unsigned u;
 	unsigned unit=1;
 	int i = 0;
 	if (nw < 2)
@@ -782,7 +792,8 @@ static int extractCyclicBuffer(const char* inName, FILE *fin, const char *name, 
 
 	/* Since any address (virtual) is either in kernel or vmalloc spaces, it's above 0xc0000000 */
 	if (size > MAX_POSTMORTEM_FILE) {
-		if ((size - addr) <= MAX_POSTMORTEM_FILE) size -= addr;
+		u = (unsigned)(size - addr);
+		if (u <= MAX_POSTMORTEM_FILE) size -= addr;
 		else if (aarch_type == aarch64)
 			size=lo32(size); /* if the value is 32-bit only, discard the upper 32 */
 	}
@@ -790,10 +801,16 @@ static int extractCyclicBuffer(const char* inName, FILE *fin, const char *name, 
 		return -1;
 
 	if (cur > size) {
-		if ((cur - addr) <= size) cur -= addr;
+		u = (unsigned)(cur - addr);
+		if (u <= size) cur -= addr;
 		else if (aarch_type == aarch64)
 			size=lo32(cur); /* if the value is 32-bit only, discard the upper 32 */
 	}
+
+	if (cur >= size)
+			/* cur is assumed to be running index with no wrap around (can be > size) */
+			cur %= size;
+
 	if (cur > size)
 		return -1;
 
@@ -801,10 +818,6 @@ static int extractCyclicBuffer(const char* inName, FILE *fin, const char *name, 
 	unit = nw > i ? rdi->body.w[i++] : 1;
 	if (!unit || (unit > 0x100))
 		unit = 1;
-
-	if (cur >= size)
-			/* cur is assumed to be running index with no wrap around (can be > size) */
-			cur %= size;
 
 	size *= unit;
 	cur *= unit;
@@ -1080,6 +1093,7 @@ static int extractCpuState(const char* inName, const char* outShortName, FILE* f
 	fprintf(fout, "PRINT \"vmlinux kernel version string: &vmlinux_kver\"\n");
 
 	fprintf(fout, "  PRINT \"Adding the Linux Awareness Support...\"\n");
+#if (0) /* Linux3 available supports only arm64 for now */
 	fprintf(fout, "data.find v.range(\"linux_banner\") \"version 3.\"\n");
 	fprintf(fout, "IF FOUND()\n(\n");
 	fprintf(fout, "  TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux-3.x\\linux3     ; loads Linux awareness (linux.t32)\n");
@@ -1088,6 +1102,10 @@ static int extractCpuState(const char* inName, const char* outShortName, FILE* f
 	fprintf(fout, "  TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux\\linux     ; loads Linux awareness (linux.t32)\n");
 	fprintf(fout, "  MENU.ReProgram c:\\t32\\demo\\arm\\kernel\\linux\\linux  ; loads Linux menu (linux.men)\n");
 	fprintf(fout, ")\n");
+#else
+	fprintf(fout, "  TASK.CONFIG c:\\t32\\demo\\arm\\kernel\\linux\\linux     ; loads Linux awareness (linux.t32)\n");
+	fprintf(fout, "  MENU.ReProgram c:\\t32\\demo\\arm\\kernel\\linux\\linux  ; loads Linux menu (linux.men)\n");
+#endif
 	fprintf(fout, "HELP.FILTER.Add rtoslinux                          ; add linux awareness manual to help filter\n");
 
 	// Dump original kernel code to file for later comparison with actual kernel code from dump
@@ -1385,14 +1403,18 @@ static int extractCpuState_64(const char* inName, const char* outShortName, FILE
 	fprintf(fout, "per.set SPR:0x30101 0x%.8x ; ACTLR\n", rdd.spr.actlr);
 	fprintf(fout, "per.set SPR:0x30102 0x%.8x ; CPACR\n", rdd.spr.cpacr);
 
-	if (rdd.spr.ttbr1)
+	if (rdd.spr.ttbr1) {
 		fprintf(fout, "per.set SPR:0x30201 0x%.8x%.8x ; TTBR1\n", hi32(rdd.spr.ttbr1),lo32(rdd.spr.ttbr1));
-	else
+		fprintf(fout, "per.set SPR:0x30202 0x%.8x%.8x ; TCR\n", hi32(rdd.spr.tcr), lo32(rdd.spr.tcr));
+	} else {
+		// Note: there's a compiler bug with implicit case: hi32(unsigned value) returns lo32(value) instead of 0
+		u64 base_pa = (u64)segments[seg0].pa;
 		/* Set TTBR1 to contain the PHYSICAL address of the init_mm primary MMU table (swapper_pg_dir) */
 		fprintf(fout, "per.set SPR:0x30201 v.value(((void *)&swapper_pg_dir) - 0x%.8x%.8x + 0x%.8x%.8x) ; TTBR1 - not available, set to default init_mm \n",
-			hi32(segments[seg0].va), lo32(segments[seg0].va), hi32(segments[seg0].pa), lo32(segments[seg0].pa));
+			hi32(segments[seg0].va), lo32(segments[seg0].va), hi32(base_pa), lo32(base_pa));
+		fprintf(fout, "per.set SPR:0x30202 0x%.8x%.8x ; TCR\n", 0x00000032, 0xb5193519);
+	}
 	fprintf(fout, "per.set SPR:0x30200 0x%.8x%.8x ; TTBR0\n", hi32(rdd.spr.ttbr0), lo32(rdd.spr.ttbr0));
-	fprintf(fout, "per.set SPR:0x30202 0x%.8x%.8x ; TCR\n", hi32(rdd.spr.tcr), lo32(rdd.spr.tcr));
 	fprintf(fout, "per.set SPR:0x30A20 0x%.8x%.8x ; MAIR\n", hi32(rdd.spr.mair), lo32(rdd.spr.mair));
 
 	fprintf(fout, "per.set SPR:0x30C10 0x%.8x ; ISR\n", rdd.spr.isr);
@@ -1553,9 +1575,10 @@ int main(int argc, char* argv[])
 	}
 
 	if(findRdc(fin)) {
-		fprintf(rdplog, "RDC not found. Parse COMM-ONLY. APPS ignored\n");
+		fprintf(rdplog, "RDC not found. Try parsing COMM-ONLY...\n");
 		ret = extractPostmortemfiles(inName, fin, 1);
-		goto bail;
+		if (!DUMP_IS_ELF) /* Without RDC and ELF header we do not have memory map info needed to proceed */
+			goto bail;
 	} else {
 		//RDC found, but could be COM_DDR_RW_FULL_BIN_NAME
 		char *basename = strstr(inName, "\\" COM_DDR_RW_FULL_BIN_NAME);

@@ -207,6 +207,7 @@ int check_elf(FILE *fin)
 	if ((ehdr->e_ident[EI_CLASS] == ELFCLASS32) && (ehdr->e_type == ET_CORE) && (ehdr->e_machine == EM_ARM)
 	  && (ehdr->e_phnum >= 2)) {
 		n_pheaders = ehdr->e_phnum;
+		if(fseek(fin, sizeof(Elf32_Ehdr), SEEK_SET)) return -1;
 		for (i = 0, is = 0; i < n_pheaders; i++) {
 			if(fread((void*)phdr, sizeof(*phdr), 1, fin) != 1) return -1;
 			if(phdr->p_type == PT_LOAD) {
@@ -223,6 +224,7 @@ int check_elf(FILE *fin)
 	} else 	if ((ehdr64->e_ident[EI_CLASS] == ELFCLASS64) && (ehdr64->e_type == ET_CORE) && (ehdr64->e_machine == EM_ARM64)
 				&& (ehdr64->e_phnum >= 2)) {
 		n_pheaders = ehdr64->e_phnum;
+		if(fseek(fin, sizeof(Elf64_Ehdr), SEEK_SET)) return -1;
 		for (i = 0, is = 0; i < n_pheaders; i++) {
 			if(fread((void*)phdr64, sizeof(*phdr64), 1, fin) != 1) return -1;
 			if(phdr64->p_type == PT_LOAD) {
