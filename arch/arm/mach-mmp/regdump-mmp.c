@@ -10,6 +10,7 @@
  */
 
 #include <linux/regdump_ops.h>
+#include <linux/irqchip/arm-gic.h>
 #include <mach/cputype.h>
 
 #include "regs-addr.h"
@@ -221,8 +222,8 @@ static struct regdump_region gic_dump_region[] = {
 
 static void __init mmp_gic_regdump_init(void)
 {
-	gic_regdump_ops.base = regs_addr_get_va(REGS_ADDR_GIC_DIST);
-	gic_regdump_ops.phy_base = regs_addr_get_pa(REGS_ADDR_GIC_DIST);
+	gic_regdump_ops.base = gic_get_dist_base();
+	gic_regdump_ops.phy_base = gic_dist_base_phys();
 	gic_regdump_ops.regions = gic_dump_region;
 	gic_regdump_ops.reg_nums = ARRAY_SIZE(gic_dump_region);
 	register_regdump_ops(&gic_regdump_ops);

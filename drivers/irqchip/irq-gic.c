@@ -978,7 +978,12 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 #ifdef CONFIG_OF
 static int gic_cnt __initdata;
 static void __iomem *gic_dist_base_addr;
+static unsigned long dist_base_phy;
 
+unsigned long gic_dist_base_phys(void)
+{
+	return dist_base_phy;
+}
 void __iomem *gic_get_dist_base(void)
 {
 	return gic_dist_base_addr;
@@ -988,7 +993,7 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 {
 	void __iomem *cpu_base;
 	void __iomem *dist_base;
-	u32 percpu_offset;
+	u32 percpu_offset, reg;
 	int irq;
 
 	if (WARN_ON(!node))
@@ -1002,6 +1007,10 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 	dist_base = of_iomap(node, 0);
 	WARN(!dist_base, "unable to map gic dist registers\n");
 	gic_dist_base_addr = dist_base;
+
+
+	of_property_read_u32(node, "reg", &reg);
+	dist_base_phy = reg;
 
 	cpu_base = of_iomap(node, 1);
 	WARN(!cpu_base, "unable to map gic cpu registers\n");

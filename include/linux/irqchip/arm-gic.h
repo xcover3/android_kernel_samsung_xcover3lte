@@ -79,6 +79,7 @@ extern struct irq_chip gic_arch_extn;
 extern bool is_gic_available;
 
 void __iomem *gic_get_dist_base(void);
+extern unsigned long gic_dist_base_phys(void);
 
 void gic_init_bases(unsigned int, int, void __iomem *, void __iomem *,
 		    u32 offset, struct device_node *);
