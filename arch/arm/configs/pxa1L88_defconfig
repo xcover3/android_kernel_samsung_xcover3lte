@@ -16,7 +16,7 @@ CONFIG_GENERIC_CALIBRATE_DELAY=y
 CONFIG_NEED_DMA_MAP_STATE=y
 CONFIG_VECTORS_BASE=0xffff0000
 # CONFIG_ARM_PATCH_PHYS_VIRT is not set
-CONFIG_PHYS_OFFSET=0x0
+CONFIG_NEED_MACH_MEMORY_H=y
 CONFIG_GENERIC_BUG=y
 CONFIG_DEFCONFIG_LIST="/lib/modules/$UNAME_RELEASE/.config"
 CONFIG_IRQ_WORK=y
@@ -381,6 +381,7 @@ CONFIG_ARM_ERRATA_794322=y
 # CONFIG_ARM_ERRATA_773022 is not set
 # CONFIG_ARM_ERRATA_802022 is not set
 # CONFIG_ARM_ERRATA_814220 is not set
+# CONFIG_ARM_ERRATA_784420 is not set
 # CONFIG_FIQ_DEBUGGER is not set
 
 #
@@ -1131,6 +1132,7 @@ CONFIG_INPUT_TOUCHSCREEN=y
 # CONFIG_TOUCHSCREEN_EETI is not set
 # CONFIG_TOUCHSCREEN_EGALAX is not set
 # CONFIG_TOUCHSCREEN_FUJITSU is not set
+CONFIG_TOUCHSCREEN_GT9XX=y
 # CONFIG_TOUCHSCREEN_ILI210X is not set
 # CONFIG_TOUCHSCREEN_GUNZE is not set
 # CONFIG_TOUCHSCREEN_ELO is not set
@@ -2420,61 +2422,12 @@ CONFIG_STAGING=y
 # CONFIG_TRANZPORT is not set
 # CONFIG_LINE6_USB is not set
 # CONFIG_VT6656 is not set
-
-#
-# IIO staging drivers
-#
-
-#
-# Accelerometers
-#
-# CONFIG_ADIS16201 is not set
-# CONFIG_ADIS16203 is not set
-# CONFIG_ADIS16204 is not set
-# CONFIG_ADIS16209 is not set
-# CONFIG_ADIS16220 is not set
-# CONFIG_ADIS16240 is not set
-# CONFIG_LIS3L02DQ is not set
-# CONFIG_SCA3000 is not set
-
-#
-# Analog to digital converters
-#
-# CONFIG_AD7291 is not set
-# CONFIG_AD7606 is not set
-# CONFIG_AD799X is not set
-# CONFIG_AD7780 is not set
-# CONFIG_AD7816 is not set
-# CONFIG_AD7192 is not set
-# CONFIG_AD7280 is not set
-
-#
-# Analog digital bi-direction converters
-#
-# CONFIG_ADT7316 is not set
-
-#
-# Capacitance to digital converters
-#
-# CONFIG_AD7150 is not set
-# CONFIG_AD7152 is not set
-# CONFIG_AD7746 is not set
-
-#
-# Direct Digital Synthesis
-#
-# CONFIG_AD5930 is not set
-# CONFIG_AD9832 is not set
-# CONFIG_AD9834 is not set
-# CONFIG_AD9850 is not set
-# CONFIG_AD9852 is not set
-# CONFIG_AD9910 is not set
-# CONFIG_AD9951 is not set
-
-#
-# Digital gyroscope sensors
-#
-# CONFIG_ADIS16060 is not set
+CONFIG_IIO=y
+CONFIG_IIO_BUFFER=y
+# CONFIG_IIO_SW_RING is not set
+CONFIG_IIO_KFIFO_BUF=y
+CONFIG_IIO_TRIGGER=y
+CONFIG_IIO_CONSUMERS_PER_TRIGGER=2
 
 #
 # Network Analyzer, Impedance Converters
@@ -2487,12 +2440,22 @@ CONFIG_STAGING=y
 # CONFIG_SENSORS_ISL29018 is not set
 # CONFIG_SENSORS_ISL29028 is not set
 # CONFIG_TSL2583 is not set
-# CONFIG_TSL2x7x is not set
+# CONFIG_SENSORS_TSL2X7X is not set
+
+#
+# Inertial measurement units
+#
+# CONFIG_ADIS16400 is not set
+# CONFIG_INV_MPU_IIO is not set
 
 #
 # Magnetometer sensors
 #
 # CONFIG_SENSORS_HMC5843 is not set
+# CONFIG_INV_MMC328X_IIO is not set
+# CONFIG_INV_YAS53X_IIO is not set
+# CONFIG_INV_AMI306_IIO is not set
+# CONFIG_INV_AK89XX_IIO is not set
 
 #
 # Active energy metering IC
@@ -2513,6 +2476,8 @@ CONFIG_STAGING=y
 #
 # Triggers - standalone
 #
+# CONFIG_IIO_GPIO_TRIGGER is not set
+# CONFIG_IIO_SYSFS_TRIGGER is not set
 # CONFIG_IIO_SIMPLE_DUMMY is not set
 # CONFIG_USB_ENESTORAGE is not set
 # CONFIG_BCM_WIMAX is not set
@@ -2600,12 +2565,7 @@ CONFIG_DEVFREQ_GOV_USERSPACE=y
 # CONFIG_VPU_DEVFREQ is not set
 # CONFIG_EXTCON is not set
 # CONFIG_MEMORY is not set
-CONFIG_IIO=y
-CONFIG_IIO_BUFFER=y
 # CONFIG_IIO_BUFFER_CB is not set
-CONFIG_IIO_KFIFO_BUF=y
-CONFIG_IIO_TRIGGER=y
-CONFIG_IIO_CONSUMERS_PER_TRIGGER=2
 
 #
 # Accelerometers
@@ -2692,7 +2652,6 @@ CONFIG_IIO_CONSUMERS_PER_TRIGGER=2
 #
 # Inertial measurement units
 #
-# CONFIG_ADIS16400 is not set
 # CONFIG_ADIS16480 is not set
 # CONFIG_INV_MPU6050_IIO is not set
 
@@ -2724,7 +2683,6 @@ CONFIG_IIO_CONSUMERS_PER_TRIGGER=2
 # Triggers - standalone
 #
 # CONFIG_IIO_INTERRUPT_TRIGGER is not set
-# CONFIG_IIO_SYSFS_TRIGGER is not set
 
 #
 # Pressure sensors
