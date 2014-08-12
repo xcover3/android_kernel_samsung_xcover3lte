@@ -189,6 +189,11 @@ enum {
 #define PM800_OSC_CNTRL12		(0x5b)
 #define PM800_OSC_CNTRL13		(0x5c)
 
+#define PM860_A0_SLP_CNT1		(0xCE)
+#define PM860_A0_SLP_CNT2		(0xCF)
+#define PM860_A0_SLP_CNT_HD		(1 << 6)
+#define PM860_A0_SLP_CNT_RST		(1 << 7)
+
 /* RTC Registers */
 #define PM800_RTC_CONTROL		(0xD0)
 #define PM800_RTC_MISC1			(0xE1)

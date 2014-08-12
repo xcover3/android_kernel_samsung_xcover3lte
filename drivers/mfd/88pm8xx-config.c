@@ -237,6 +237,10 @@ int pm800_init_config(struct pm80x_chip *chip, struct device_node *np)
 			regmap_read(chip->regmap, PM860_GPIO_4_5_CNTRL, &data);
 			data |= PM860_GPIO4_GPIO_MODE(7) | PM860_GPIO5_GPIO_MODE(7);
 			regmap_write(chip->regmap, PM860_GPIO_4_5_CNTRL, data);
+
+			/* enable SLP_CNT_HD for 88pm860 A0 chip */
+			regmap_update_bits(chip->regmap, PM860_A0_SLP_CNT2,
+					   PM860_A0_SLP_CNT_HD, PM860_A0_SLP_CNT_HD);
 			break;
 		case CHIP_PM86X_ID_Z3:
 		default:
