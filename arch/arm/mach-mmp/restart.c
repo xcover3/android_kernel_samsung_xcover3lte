@@ -41,7 +41,7 @@ void __iomem *mpmu_vaddr);
 /* Using watchdog restart */
 static void do_wdt_restart(const char *cmd)
 {
-	u32 reg, backup;
+	u32 backup;
 	s8 magic[5];
 	void __iomem *mpmu_vaddr, *rtc_vaddr;
 	void __iomem *watchdog_virt_base;
@@ -56,17 +56,7 @@ static void do_wdt_restart(const char *cmd)
 	BUG_ON(!watchdog_virt_base);
 
 	/* Hold cp to avoid restart watchdog */
-	if (cpu_is_pxa1L88()) {
-		/* hold CP first */
-		reg = readl(mpmu_vaddr + MPMU_APRR) | MPMU_APRR_CPR;
-		writel(reg, mpmu_vaddr + MPMU_APRR);
-		udelay(10);
-
-		/* CP restart MSA */
-		reg = readl(mpmu_vaddr + MPMU_CPRR) | MPMU_CPRR_DSPR | MPMU_CPRR_BBR;
-		writel(reg, mpmu_vaddr + MPMU_CPRR);
-		udelay(10);
-	}
+	pr_info("No need to hold CP in %s now!!!\n", __func__);
 
 	/* If reboot by recovery, store info for uboot */
 	if (cpu_is_pxa1L88()) {
@@ -91,6 +81,10 @@ static void do_wdt_restart(const char *cmd)
 		} while (readl(rtc_vaddr + REG_RTC_BR0) != backup);
 
 	}
+
+	/* disable IRQ to avoid interrupt between read and set WDT */
+	local_fiq_disable();
+	local_irq_disable();
 
 	/* Using Watchdog to reset.
 	 * Note that every platform should provide such API,
