@@ -841,6 +841,12 @@
 				i2c-gpio = <&gpio 73 0 &gpio 74 0>;
 				status = "okay";
 
+				sensor2: bmp18x@77 {
+					compatible = "bosch,bmp18x";
+					reg = <0x77>;
+					avdd-supply = <&ldo10>;
+				};
+
 				sensor3: mpu9250@69 {
 					compatible = "invensense,mpu9250";
 					pinctrl-names = "default";
