@@ -936,6 +936,10 @@ static void __init pxa1L88_clk_init(struct device_node *np)
 	pxa1L88_apb_periph_clk_init(pxa_unit);
 
 	pxa1L88_axi_periph_clk_init(pxa_unit);
+
+#if defined(CONFIG_PXA_DVFS) && defined(CONFIG_CPU_PXA988)
+	setup_pxa1L88_dvfs_platinfo();
+#endif
 }
 
 CLK_OF_DECLARE(pxa1L88_clk, "marvell,pxa1L88-clock", pxa1L88_clk_init);

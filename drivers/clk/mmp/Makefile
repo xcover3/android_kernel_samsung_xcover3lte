@@ -14,7 +14,7 @@ obj-$(CONFIG_CPU_MMP2) += clk-mmp2.o
 
 ifeq ($(CONFIG_PXA_DVFS), y)
 obj-y += dvfs.o
-obj-$(CONFIG_CPU_PXA988) += dvfs-dvc.o dvfs-pxa1u88.o hwdvc-stat.o
+obj-$(CONFIG_CPU_PXA988) += dvfs-dvc.o dvfs-pxa1u88.o dvfs-pxa1L88.o hwdvc-stat.o
 obj-y += dvfs-pxa1928.o
 endif
 
