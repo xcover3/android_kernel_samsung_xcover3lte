@@ -720,6 +720,15 @@
 				pinctrl-1 = <&twsi0_pmx_gpio>;
 				i2c-gpio = <&gpio 79 0 &gpio 80 0>;
 				status = "okay";
+
+				sensor1: apds9930@39 {
+					compatible = "avago,apds9930";
+					reg = <0x39>;
+					interrupt-parent = <&gpio>;
+					interrupts = <14 0x1>;
+					irq-gpios = <&gpio 14 0>;
+					avdd-supply = <&ldo10>;
+				};
 			};
 			twsi1: i2c@d4010800 {
 				pinctrl-names = "default","gpio";
