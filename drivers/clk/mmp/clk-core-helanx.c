@@ -993,9 +993,8 @@ static void clk_cpu_init(struct clk_hw *hw)
 	int i, parent_table_size;
 	struct cpu_opt cur_op, *op, *cop;
 	struct clk_core *core = to_clk_core(hw);
-#if 0
 	unsigned int pp[MAX_OP_NUM];
-#endif
+
 	parent_table = core->params->parent_table;
 	parent_table_size = core->params->parent_table_size;
 	for (i = 0; i < parent_table_size; i++) {
@@ -1060,7 +1059,6 @@ static void clk_cpu_init(struct clk_hw *hw)
 		writel_relaxed(cur_cpu_op->l2_xtc, CIU_CPU_CONF_SRAM_1(core));
 
 	/* support dc_stat? */
-#if 0
 	if (core->params->dcstat_support) {
 		i = 0;
 		list_for_each_entry(cop, &core_op_list, node) {
@@ -1071,7 +1069,6 @@ static void clk_cpu_init(struct clk_hw *hw)
 			core->params->pxa_powermode);
 		cpu_dcstat_clk = hw->clk;
 	}
-#endif
 
 #ifdef CONFIG_CPU_FREQ
 	__init_cpufreq_table(hw);
@@ -1099,6 +1096,7 @@ static int clk_cpu_setrate(struct clk_hw *hw, unsigned long rate,
 	unsigned int index;
 	int ret = 0;
 	struct clk_core *core = to_clk_core(hw);
+	int cpu;
 
 	rate /= MHZ;
 	md_new = cpu_rate2_op_ptr(rate, &index);
@@ -1169,13 +1167,11 @@ tmpout:
 	cur_cpu_op = md_new;
 	__clk_reparent(hw->clk, md_new->parent);
 
-#if 0
 	if (core->params->dcstat_support) {
 		for_each_possible_cpu(cpu)
 			cpu_dcstat_event(cpu_dcstat_clk, cpu, CLK_RATE_CHANGE,
 				index);
 	}
-#endif
 out:
 	return ret;
 }
@@ -1520,9 +1516,8 @@ static void clk_ddr_init(struct clk_hw *hw)
 	unsigned int op_index;
 	struct parents_table *parent_table = ddr->params->parent_table;
 	int parent_table_size = ddr->params->parent_table_size;
-#if 0
-	unsigned long op[MAX_OP_NUM];
-#endif
+	unsigned long op[MAX_OP_NUM], idx;
+
 	ddr_opt = ddr->params->ddr_opt;
 	ddr_opt_size = ddr->params->ddr_opt_size;
 
@@ -1585,7 +1580,7 @@ static void clk_ddr_init(struct clk_hw *hw)
 	hw->clk->rate = ddr_opt[op_index].dclk * MHZ;
 	pr_info(" DDR boot up @%luHZ\n", hw->clk->rate);
 
-#if 0
+
 	if (ddr->params->dcstat_support) {
 		idx = 0;
 		for (i = 0; i < ddr_opt_size; i++) {
@@ -1594,7 +1589,7 @@ static void clk_ddr_init(struct clk_hw *hw)
 		}
 		clk_register_dcstat(hw->clk, op, idx);
 	}
-#endif
+
 
 	clk_dclk = hw->clk;
 #ifdef CONFIG_DDR_DEVFREQ
@@ -1719,10 +1714,8 @@ static int clk_ddr_setrate(struct clk_hw *hw, unsigned long rate,
 	trigger_bind2ddr_clk_rate(rate * MHZ);
 	__clk_reparent(hw->clk, md_new->ddr_parent);
 
-#if 0
 	if (ddr->params->dcstat_support)
 		clk_dcstat_event(hw->clk, CLK_RATE_CHANGE, index);
-#endif
 out:
 	return ret;
 }
@@ -2024,9 +2017,8 @@ static void clk_axi_init(struct clk_hw *hw)
 	unsigned int op_index;
 	struct parents_table *parent_table;
 	int parent_table_size;
-#if 0
-	unsigned long op[MAX_OP_NUM];
-#endif
+	unsigned long op[MAX_OP_NUM], idx;
+
 	axi_opt = axi->params->axi_opt;
 	axi_opt_size = axi->params->axi_opt_size;
 	parent_table = axi->params->parent_table;
@@ -2063,7 +2055,6 @@ static void clk_axi_init(struct clk_hw *hw)
 	    (cur_op.aclk != cur_axi_op->aclk))
 		BUG_ON("Boot AXI PP is not supported!");
 
-#if 0
 	if (axi->params->dcstat_support) {
 		idx = 0;
 		for (i = 0; i < axi_opt_size; i++) {
@@ -2072,7 +2063,7 @@ static void clk_axi_init(struct clk_hw *hw)
 		}
 		clk_register_dcstat(hw->clk, op, idx);
 	}
-#endif
+
 	hw->clk->rate = axi_opt[op_index].aclk * MHZ;
 	hw->clk->parent = axi_opt[op_index].axi_parent;
 	pr_info(" AXI boot up @%luHZ\n", hw->clk->rate);
@@ -2170,10 +2161,8 @@ static int clk_axi_setrate(struct clk_hw *hw, unsigned long rate,
 	cur_axi_op = md_new;
 	__clk_reparent(hw->clk, md_new->axi_parent);
 
-#if 0
 	if (axi->params->dcstat_support)
 		clk_dcstat_event(hw->clk, CLK_RATE_CHANGE, index);
-#endif
 
 out:
 	mutex_unlock(&ddraxi_freqs_mutex);

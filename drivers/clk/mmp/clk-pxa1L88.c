@@ -668,9 +668,7 @@ static struct core_params core_params = {
 	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_tsmc_1L88),
 	.bridge_cpurate = 1248,
 	.max_cpurate = 1183,
-#if 0
 	.dcstat_support = true,
-#endif
 };
 
 /* DDR */
@@ -825,9 +823,7 @@ static struct axi_opt axi_oparray[][3] = {
 static struct axi_params axi_params = {
 	.parent_table = axi_parent_table,
 	.parent_table_size = ARRAY_SIZE(axi_parent_table),
-#if 0
 	.dcstat_support = true,
-#endif
 };
 
 static struct ddr_combclk_relation aclk_dclk_relationtbl_1L88[] = {
