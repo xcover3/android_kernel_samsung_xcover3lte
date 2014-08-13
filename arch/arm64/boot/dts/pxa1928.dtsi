@@ -609,6 +609,15 @@
 				status = "disabled";
 			};
 
+			seh {
+				compatible = "marvell,seh";
+				interrupts = <0 32 0x1>;
+				interrupt-names = "CP_TIMER3";
+				clocks = <&soc_clocks PXA1928_CLK_RIPC_RST>;
+				watchdog-type = <2>; /* cp one-shot timer */
+				status = "disabled";
+			};
+
 			timer: timer@d4088000 {
 				compatible = "marvell,mmp-timer";
 				reg = <0xd4088000 0xc8>;

@@ -718,6 +718,17 @@
 				status = "okay";
 			};
 
+			seh {
+				status = "okay";
+			};
+
+			cp-load {
+				compatible = "marvell,cp_load";
+				cp-type = <2>; /* pxa1928 */
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "okay";
+			};
+
 			keyreset {
 				compatible = "marvell,keyreset";
 				keys-down = <0x73 0x72>;
