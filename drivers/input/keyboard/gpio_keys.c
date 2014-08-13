@@ -30,6 +30,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <linux/spinlock.h>
+#include <linux/edge_wakeup_mmp.h>
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
@@ -601,6 +602,10 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 
 	pdata->rep = !!of_get_property(node, "autorepeat", NULL);
 
+	pdata->edge_wakeup_gpio = -1;
+	if (of_property_read_u32(node, "edge-wakeup-gpio", &pdata->edge_wakeup_gpio))
+		dev_err(dev, "no edge-wakeup-gpio defined\n");
+
 	i = 0;
 	for_each_child_of_node(node, pp) {
 		int gpio;
@@ -692,12 +697,20 @@ static int gpio_keys_probe(struct platform_device *pdev)
 	struct gpio_keys_drvdata *ddata;
 	struct input_dev *input;
 	int i, error;
+	int ret = 0;
 	int wakeup = 0;
 
 	if (!pdata) {
 		pdata = gpio_keys_get_devtree_pdata(dev);
 		if (IS_ERR(pdata))
 			return PTR_ERR(pdata);
+	}
+
+	if (pdata->edge_wakeup_gpio >= 0) {
+		ret = request_mfp_edge_wakeup(pdata->edge_wakeup_gpio, NULL,
+						(void *)pdata, dev);
+		if (ret)
+			dev_err(dev, "failed to request edge wakeup.\n");
 	}
 
 	ddata = kzalloc(sizeof(struct gpio_keys_drvdata) +
@@ -769,6 +782,8 @@ static int gpio_keys_probe(struct platform_device *pdev)
 		gpio_remove_key(&ddata->data[i]);
 
  fail1:
+	remove_mfp_edge_wakeup(pdata->edge_wakeup_gpio);
+
 	input_free_device(input);
 	kfree(ddata);
 	/* If we have no platform data, we allocated pdata dynamically. */
@@ -783,6 +798,13 @@ static int gpio_keys_remove(struct platform_device *pdev)
 	struct gpio_keys_drvdata *ddata = platform_get_drvdata(pdev);
 	struct input_dev *input = ddata->input;
 	int i;
+	int ret;
+
+	if (ddata->pdata->edge_wakeup_gpio >= 0) {
+		ret = remove_mfp_edge_wakeup(ddata->pdata->edge_wakeup_gpio);
+		if (ret)
+			dev_err(&pdev->dev, "failed to remove edge wakeup.\n");
+	}
 
 	sysfs_remove_group(&pdev->dev.kobj, &gpio_keys_attr_group);
 

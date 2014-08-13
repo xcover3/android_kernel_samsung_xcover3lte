@@ -22,6 +22,7 @@ struct gpio_keys_platform_data {
 	int nbuttons;
 	unsigned int poll_interval;	/* polling interval in msecs -
 					   for polling driver only */
+	unsigned int edge_wakeup_gpio;
 	unsigned int rep:1;		/* enable input subsystem auto repeat */
 	int (*enable)(struct device *dev);
 	void (*disable)(struct device *dev);
