@@ -875,11 +875,24 @@ static void pm830_battery_work(struct work_struct *work)
 	struct pm830_battery_info *info =
 		container_of(work, struct pm830_battery_info,
 			     monitor_work.work);
+	static int prev_cap = -1;
+	static int prev_volt = -1;
+	static int prev_status = -1;
 
 	pm830_bat_update_status(info);
 
-	dev_dbg(info->dev, "%s--> soc=%d, temp=%d, use_ocv=%d\n", __func__,
-		ccnt_data.soc, info->bat_params.temp, info->use_ocv);
+	/* notify framework when parameters have changed */
+	if ((prev_cap != info->bat_params.cap)
+	|| (abs(prev_volt - info->bat_params.volt) > 100)
+	|| (prev_status != info->bat_params.status)) {
+		power_supply_changed(&info->battery);
+		prev_cap = info->bat_params.cap;
+		prev_volt = info->bat_params.volt;
+		prev_status = info->bat_params.status;
+		dev_info(info->dev, "cap=%d, temp=%d, volt=%d, use_ocv=%d\n",
+			info->bat_params.cap, info->bat_params.temp / 10,
+			info->bat_params.volt, info->use_ocv);
+	}
 
 	/* save the recent value in non-volatile memory */
 	extern_data.soc = ccnt_data.soc;
@@ -887,7 +900,6 @@ static void pm830_battery_work(struct work_struct *work)
 	extern_data.use_ocv = info->use_ocv;
 	pm800_battery_update_buffed(info, &extern_data);
 
-	power_supply_changed(&info->battery);
 	if (info->bat_params.cap <= LOW_BAT_CAP) {
 		queue_delayed_work(info->bat_wqueue, &info->monitor_work,
 				   LOW_BAT_INTERVAL);
