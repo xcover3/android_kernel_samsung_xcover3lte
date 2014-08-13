@@ -28,7 +28,6 @@
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
-#include <linux/regs-addr.h>
 #include <linux/pm_wakeup.h>
 #include <linux/vmalloc.h>
 
@@ -43,9 +42,11 @@
 #define OFF_TO_E(v) ((v) + 1)
 
 /* APMU register */
+#define APMU_BASE_PA		(0xd4282800)
 #define GNSS_WAKEUP_CTRL	(0x1B8)
 
 /* CIU register */
+#define CIU_BASE_PA		(0xd4282c00)
 #define GNSS_HANDSHAKE		(0x168)
 
 /* GNSS_WAKEUP_CTRL */
@@ -117,6 +118,7 @@ struct pxa9xx_amipc {
 static struct pxa9xx_amipc *amipc;
 static DEFINE_SPINLOCK(amipc_lock);
 static void amipc_ping_worker(struct work_struct *work);
+static void *shm_map(phys_addr_t start, size_t size);
 static DECLARE_WORK(ping_work, amipc_ping_worker);
 
 static void init_statistic_info(void)
@@ -776,8 +778,12 @@ static int pxa9xx_amipc_probe(struct platform_device *pdev)
 	if (!amipc)
 		return -ENOMEM;
 
-	amipc->pmu_base = get_apmu_base_va();
-	amipc->ciu_base = get_ciu_base_va();
+	amipc->pmu_base = shm_map((phys_addr_t)APMU_BASE_PA, SZ_4K);
+	amipc->ciu_base = shm_map((phys_addr_t)CIU_BASE_PA, SZ_4K);
+	if (NULL == amipc->pmu_base || NULL == amipc->ciu_base) {
+		dev_err(&pdev->dev, "get register base error\n");
+		return -EINVAL;
+	}
 
 	for (i = 0; i < AMIPC_EVENT_LAST; i++)
 		amipc->amipc_db[i].cb = amipc_default_callback;
