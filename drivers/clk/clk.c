@@ -1383,12 +1383,20 @@ static struct clk *__clk_set_parent_before(struct clk *clk, struct clk *parent)
 	 *
 	 * See also: Comment for clk_set_parent() below.
 	 */
-	if (clk->prepare_count) {
-		__clk_prepare(parent);
-		clk_enable(parent);
-		clk_enable(clk);
+	if (likely(!(clk->flags & CLK_SET_RATE_PARENTS_ENABLED))) {
+		if (clk->prepare_count) {
+			__clk_prepare(parent);
+			clk_enable(parent);
+			clk_enable(clk);
+		}
+	} else {
+		if (parent)
+			clk_prepare_enable(parent);
+		if (clk->prepare_count)
+			clk_enable(clk);
+		else if (old_parent)
+			clk_prepare_enable(old_parent);
 	}
-
 	/* update the clk tree topology */
 	flags = clk_enable_lock();
 	clk_reparent(clk, parent);
@@ -1404,12 +1412,20 @@ static void __clk_set_parent_after(struct clk *clk, struct clk *parent,
 	 * Finish the migration of prepare state and undo the changes done
 	 * for preventing a race with clk_enable().
 	 */
-	if (clk->prepare_count) {
-		clk_disable(clk);
-		clk_disable(old_parent);
-		__clk_unprepare(old_parent);
+	if (likely(!(clk->flags & CLK_SET_RATE_PARENTS_ENABLED))) {
+		if (clk->prepare_count) {
+			clk_disable(clk);
+			clk_disable(old_parent);
+			__clk_unprepare(old_parent);
+		}
+	} else {
+		if (clk->prepare_count)
+			clk_disable(clk);
+		else if (parent)
+			clk_disable_unprepare(parent);
+		if (old_parent)
+			clk_disable_unprepare(old_parent);
 	}
-
 	/* update debugfs with new clk tree topology */
 	clk_debug_reparent(clk, parent);
 }

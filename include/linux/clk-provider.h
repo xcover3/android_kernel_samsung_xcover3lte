@@ -31,6 +31,11 @@
 #define CLK_SET_RATE_NO_REPARENT BIT(7) /* don't re-parent on rate change */
 #define CLK_GET_ACCURACY_NOCACHE BIT(8) /* do not use the cached clk accuracy */
 #define CLK_SET_RATE_ENABLED   BIT(9) /* enable clk before changing clk rate */
+/*
+ * for some clocks,  we need enable the clocks of old & new parents before
+ * change clock rate.
+ */
+#define CLK_SET_RATE_PARENTS_ENABLED   BIT(10)
 
 struct clk_hw;
 
