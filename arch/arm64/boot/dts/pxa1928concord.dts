@@ -76,6 +76,18 @@
 		};
 
 		axi@d4200000 {	/* AXI */
+			wakeup: wakeupgen@d4284000 {
+				compatible = "mrvl,pxa1928-intc-wakeupgen";
+				reg = <0xd4284000 0x1000>,
+					<0xd4282800 0x3ec>;
+				mrvl,intc-gbl-mask = <0x114 0x1
+							0x1d8 0x1
+							0x208 0x1
+							0x238 0x1>;
+				mrvl,intc-for-sp = <>;
+				mrvl,intc-wake-clr = <>;
+			};
+
 			sc2mmu1: sc2mmu@d4209000 {
 				status = "okay";
 			};
