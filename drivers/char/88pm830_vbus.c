@@ -267,34 +267,6 @@ static int pm830_read_id_val(unsigned int *level)
 
 int pm830_init_id(void)
 {
-	int ret;
-	unsigned int en, low_th, upp_th;
-
-	switch (vbus_info->id_gpadc) {
-	case PM830_GPADC0:
-		low_th = PM830_GPADC0_LOW_TH;
-		upp_th = PM830_GPADC0_UPP_TH;
-		en = PM830_GPADC0_MEAS_EN;
-		break;
-	case PM830_GPADC1:
-		low_th = PM830_GPADC1_LOW_TH;
-		upp_th = PM830_GPADC1_UPP_TH;
-		en = PM830_GPADC1_MEAS_EN;
-		break;
-	default:
-		return -ENODEV;
-	}
-
-	/* set the threshold for GPADC to prepare for interrupt */
-	regmap_write(vbus_info->chip->regmap, low_th, 0x10);
-	regmap_write(vbus_info->chip->regmap, upp_th, 0xff);
-
-	ret = regmap_update_bits(vbus_info->chip->regmap,
-				 PM830_GPADC_MEAS_EN, en, en);
-	if (ret)
-		return ret;
-	/* the global enable has been done in host driver */
-
 	return 0;
 }
 
@@ -323,9 +295,36 @@ static irqreturn_t pm830_id_handler(int irq, void *data)
 
 static void pm830_vbus_config(struct pm830_vbus_info *info)
 {
-	/* set booster voltage to 5.0V */
+	unsigned int en, low_th, upp_th;
+
+	if (!info)
+		return;
+
+	/* 1. set booster voltage to 5.0V */
 	regmap_update_bits(info->chip->regmap, PM830_OTG_CTRL1,
 			OTG_VOLT_MASK, OTG_VOLT_SET(5));
+
+	/* 2. set id gpadc low/upp threshold and enable it */
+	switch (info->id_gpadc) {
+	case PM830_GPADC0:
+		low_th = PM830_GPADC0_LOW_TH;
+		upp_th = PM830_GPADC0_UPP_TH;
+		en = PM830_GPADC0_MEAS_EN;
+		break;
+	case PM830_GPADC1:
+		low_th = PM830_GPADC1_LOW_TH;
+		upp_th = PM830_GPADC1_UPP_TH;
+		en = PM830_GPADC1_MEAS_EN;
+		break;
+	default:
+		return;
+	}
+
+	/* set the threshold for GPADC to prepare for interrupt */
+	regmap_write(info->chip->regmap, low_th, 0x10);
+	regmap_write(info->chip->regmap, upp_th, 0xff);
+
+	regmap_update_bits(info->chip->regmap, PM830_GPADC_MEAS_EN, en, en);
 }
 
 static int pm830_vbus_dt_init(struct device_node *np,
