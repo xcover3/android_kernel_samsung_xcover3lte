@@ -255,6 +255,14 @@
 					MFP_DEFAULT;
 				};
 
+				/* no pull, no LPM */
+				dvc_pmx_func: dvc_pmx_func {
+					pinctrl-single,pins = <
+						GPIO93 AF5
+						GPIO94 AF5
+					>;
+					MFP_DEFAULT;
+				};
 			};
 
 			twsi0: i2c@d4011000 {
@@ -350,9 +358,13 @@
 					interrupt-controller;
 					#interrupt-cells = <1>;
 					marvell,88pm800-irq-write-clear;
+					dvc {
+						pinctrl-names = "default";
+						pinctrl-0 = <&dvc_pmx_func>;
+						status = "okay";
+					};
 				};
 			};
-
 		};
 	};
 
