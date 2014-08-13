@@ -937,16 +937,7 @@ int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info)
 			data_ratio = 0;
 			util_ratio = 0;
 		}
-/*
-		len += sprintf(buf + len, "%3d|%5u|%6u.%02u%%|%6u.%02u%%"
-			"|%6u.%02u%%|%6u.%02u%%|%6u.%02u%%\n",
-			       i, ddr_index2_rate(data, i)/1000,
-				glob_ratio/1000, (glob_ratio%1000)/10,
-				idle_ratio/1000, (idle_ratio%1000)/10,
-				busy_ratio/1000, (busy_ratio%1000)/10,
-				data_ratio/1000, (data_ratio%1000)/10,
-				util_ratio/1000, (util_ratio%1000)/10);
-*/
+
 		dc_stat_info->ops_dcstat[i].ddr_glob_ratio = glob_ratio;
 		dc_stat_info->ops_dcstat[i].ddr_idle_ratio = idle_ratio;
 		dc_stat_info->ops_dcstat[i].ddr_busy_ratio = busy_ratio;

@@ -247,6 +247,7 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 	struct clk_dc_stat_info *dc_stat_info = NULL;
 	unsigned int ddr_glob_ratio = 0, ddr_idle_ratio = 0, ddr_busy_ratio = 0,
 	ddr_data_ratio = 0, ddr_util_ratio = 0;
+	u64 ddr_data = 0, ddr_data_total = 0;
 
 	list_for_each_entry(cdcs, &clk_dcstat_list, node)
 	    if (cdcs->clk == clk) {
@@ -297,6 +298,7 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 
 	if (!strcmp(clk->name, "ddr")) {
 		ddr_profiling_show(dc_stat_info);
+
 		seq_printf(seq, "|%3s|%10s|%10s|%7s|%7s|%7s|%7s|%7s|%7s|%7s|\n",
 		"OP#", "rate(HZ)", "run (ms)", "rt", "gl",
 		"glob(tick)", "idle(tick)", "busy(tick)",
@@ -334,6 +336,15 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 		}
 
 		if (!strcmp(clk->name, "ddr")) {
+			ddr_data = ((dc_stat_info->ops_dcstat[i].pprate/1000000) * 8 * dc_int)/100;
+			ddr_data *= ddr_data_ratio;
+			ddr_data_total += ddr_data;
+
+			ddr_data = ((dc_stat_info->ops_dcstat[i].pprate/1000000) * 8 * dc_frac)
+			/10000;
+			ddr_data *= ddr_data_ratio;
+			ddr_data_total += ddr_data;
+
 			seq_printf(seq, "|%3u|%10lu|%10ld|",
 			dc_stat_info->ops_dcstat[i].ppindex,
 			dc_stat_info->ops_dcstat[i].pprate,
@@ -346,6 +357,10 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 				ddr_busy_ratio/1000, (ddr_busy_ratio%1000)/10,
 				ddr_data_ratio/1000, (ddr_data_ratio%1000)/10,
 				ddr_util_ratio/1000, (ddr_util_ratio%1000)/10);
+			if (i == dc_stat_info->ops_stat_size - 1) {
+				seq_printf(seq, "Totally ddr data access bandwidth is %lld MB/s\n",
+				div64_u64(ddr_data_total, (u64)100000));
+			}
 		} else {
 			seq_printf(seq, "|%3u|%10lu|%10ld|%10ld|%10ld",
 				dc_stat_info->ops_dcstat[i].ppindex,
