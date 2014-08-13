@@ -34,6 +34,8 @@ static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_VPU_DEVFREQ
 	OF_DEV_AUXDATA("marvell,devfreq-vpu", 0, "devfreq-vpu.0", NULL),
 #endif
+	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xD128dc00, "mmp-sspa-dai.0", NULL),
+	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xD128dd00, "mmp-sspa-dai.1", NULL),
 	{}
 };
 
