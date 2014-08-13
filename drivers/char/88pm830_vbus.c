@@ -252,7 +252,9 @@ static int pm830_read_id_val(unsigned int *level)
 	data |= val & 0x0f;
 	if (ret)
 		return ret;
-	if (data > 0x10) {
+
+	/* choose 0x100(87.5mV) as threshold */
+	if (data > 0x100) {
 		regmap_write(vbus_info->chip->regmap, low_th, 0x10);
 		regmap_write(vbus_info->chip->regmap, upp_th, 0xff);
 		*level = 1;
