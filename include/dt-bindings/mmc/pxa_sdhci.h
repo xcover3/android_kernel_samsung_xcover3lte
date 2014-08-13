@@ -78,6 +78,9 @@
 
 #define MMC_PM_KEEP_POWER       (1 << 0)
 
+/* Don't need voltage switch */
+#define MMC_CAP2_NO_VOLTAGE_SWITCH			(1 << 23)
+
 /* common flag */
 #define SDHCI_QUIRK_BROKEN_CARD_DETECTION               (1<<15)
 
