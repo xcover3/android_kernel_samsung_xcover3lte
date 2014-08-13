@@ -113,20 +113,17 @@
 				marvell,dsi-lanes = <4>;
 				marvell,burst-mode = <2>;
 				marvell,hbp-en;
+				status = "okay";
 			};
 
 			vdma: vdma@d4209000 {
-				marvell,vdma-num = <2>;
+				marvell,vdma-num = <1>;
 				marvell,vdma-axi = <1>;
+				status = "okay";
 				vdma1 {
 					marvell,vdma-id = <0>;
-					marvell,sram-size = <30720>;
+					marvell,sram-size = <15360>;
 					marvell,is_vid = <0>;
-				};
-				vdma2 {
-					marvell,vdma-id = <2>;
-					marvell,sram-size = <30720>;
-					marvell,is_vid = <1>;
 				};
 			};
 
@@ -135,10 +132,11 @@
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
+				status = "okay";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
-					marvell,overlay-num = <2>;
-					marvell,overlay-table = <0>, <1>;
+					marvell,overlay-num = <1>;
+					marvell,overlay-table = <1>;
 					marvell,output-type = <1>;
 					marvell,path-config = <0x10>;
 					marvell,link-config = <0x1>;
@@ -152,6 +150,7 @@
 				marvell,default-pixfmt = <0x109>;
 				marvell,buffer-num = <3>;
 				marvell,fb-mem = <0x17000000>;
+				status = "okay";
 			};
 
 		};
@@ -611,6 +610,12 @@
 			marvell,ion-type = <0>;
 			marvell,ion-id = <0>;
 		};
+	};
+
+	panel: td043mgea1 {
+		compatible = "marvell,mmp-td043mgea1";
+		marvell,path-name = "mmp_pnpath";
+		status = "okay";
 	};
 
 	gps: mmp-gps {
