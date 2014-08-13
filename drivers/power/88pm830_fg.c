@@ -80,10 +80,9 @@ unsigned int get_extern_data(struct pm830_battery_info *info, int flag)
 
 			/* we only care about slp_cnt[11:4] */
 			val = data << 3;
-			dev_info(info->dev, "%s, msb[0xe9] = %d, 0x%x\n", __func__, data, data);
+			dev_dbg(info->dev, "%s: msb[0xe9]=0x%x, slp_cnt=%d\n", __func__, data, val);
 		}
 
-		dev_info(info->dev, "sleep_counter = %d, 0x%x\n", val, val);
 		break;
 	case PMIC_VBAT_SLP:
 		/* gpadc page */
@@ -96,7 +95,6 @@ unsigned int get_extern_data(struct pm830_battery_info *info, int flag)
 		break;
 	}
 
-	dev_info(info->dev, "%s: flag = %d, val = 0x%x\n", __func__, flag, val);
 	return val;
 }
 
