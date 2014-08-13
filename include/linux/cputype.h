@@ -2,6 +2,7 @@
 #define __ASM_MACH_CPUTYPE_H
 
 #include <asm/cputype.h>
+#include <linux/of.h>
 
 static inline bool cpu_is_ca9(void)
 {
@@ -97,5 +98,28 @@ static inline int cpu_is_pxa1L88_a0c(void)
 #define cpu_is_pxa1L88_a0()	(0)
 #define cpu_is_pxa1L88_a0c()	(0)
 #endif
+
+static inline int pxa1928_is_a0(void)
+{
+	struct device_node *np;
+	const char *str = NULL;
+	static int is_a0 = -1;
+
+	if (is_a0 != -1)
+		return is_a0;
+
+	np = of_find_node_by_name(NULL, "chip_version");
+	if (!np)
+		is_a0 = 0;
+
+	if (np && !of_property_read_string(np, "version", &str)) {
+		if (!strcmp(str, "a0"))
+			is_a0 = 1;
+		else
+			is_a0 = 0;
+	}
+
+	return is_a0;
+}
 
 #endif /* __ASM_MACH_CPUTYPE_H */
