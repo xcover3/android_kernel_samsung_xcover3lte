@@ -722,6 +722,7 @@ static void path_enabledisable(struct mmp_path *path, int on)
 {
 	struct mmphw_path_plat *plat = path_to_path_plat(path);
 	struct clk *clk = plat->clk;
+	struct mmp_apical_info *apical;
 	u32 tmp;
 
 	if (!clk)
@@ -732,13 +733,18 @@ static void path_enabledisable(struct mmp_path *path, int on)
 	tmp &= ~CFG_DUMB_ENA_MASK;
 	tmp |= (on ? CFG_DUMB_ENA(1) : 0);
 
+	apical = path->apical;
 	if (on) {
 		pm_qos_update_request(&plat->qos_idle,
 					plat->ctrl->lpm_qos);
 		clk_prepare_enable(clk);
 		writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
+		if (apical && apical->ops && apical->ops->set_on)
+			apical->ops->set_on(apical, 1);
 	} else {
 		writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
+		if (apical && apical->ops && apical->ops->set_on)
+			apical->ops->set_on(apical, 0);
 		clk_disable_unprepare(clk);
 		pm_qos_update_request(&plat->qos_idle,
 					PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
@@ -1400,6 +1406,7 @@ static int path_init(struct mmphw_path_plat *path_plat,
 		kfree(path_info);
 		return 0;
 	}
+	path->apical = mmp_apical_alloc(path->id);
 	for (i = 0; i < path->overlay_num; i++) {
 		path->overlays[i].vdma =
 			mmp_vdma_alloc(path->overlays[i].id, 0);
@@ -1809,6 +1816,10 @@ static int mmphw_init(void)
 	if (ret < 0)
 		return ret;
 
+	ret = mmp_apical_register();
+	if (ret < 0)
+		goto apical_fail;
+
 	ret = platform_driver_register(&mmphw_driver);
 	if (ret < 0)
 		goto ctrl_fail;
@@ -1822,6 +1833,8 @@ static int mmphw_init(void)
 phy_fail:
 	platform_driver_unregister(&mmphw_driver);
 ctrl_fail:
+	mmp_apical_unregister();
+apical_fail:
 	mmp_vdma_unregister();
 	return ret;
 }

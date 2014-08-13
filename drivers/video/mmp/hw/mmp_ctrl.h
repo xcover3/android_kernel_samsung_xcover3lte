@@ -909,6 +909,7 @@ struct lcd_regs {
 
 #define LCD_PN_CTRL2				(0x200)
 #define LCD_TV_CTRL2				(0x204)
+#define APICAL_EN				(1 << 24)
 #define dma_ctrl2(id)				((id) ? (LCD_TV_CTRL2) : LCD_PN_CTRL2)
 
 #define PN2_LCD_DMA_START_ADDR_Y0		(0x0200)
@@ -1280,6 +1281,9 @@ extern int mmp_vdma_register(void);
 extern void mmp_vdma_unregister(void);
 extern struct mmp_vdma_info *mmp_vdma_alloc(int overlay_id, int sram_size);
 extern void mmp_vdma_free(int overlay_id);
+extern int mmp_apical_register(void);
+extern void mmp_apical_unregister(void);
+extern struct mmp_apical_info *mmp_apical_alloc(int path_id);
 extern struct mmp_shadow *mmp_shadow_alloc(struct mmp_overlay *overlay);
 extern void mmp_shadow_free(struct mmp_shadow *shadow_info);
 extern int mmp_display_clk_init(struct mmphw_ctrl *ctrl);

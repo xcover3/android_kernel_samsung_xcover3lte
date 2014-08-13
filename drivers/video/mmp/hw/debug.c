@@ -26,6 +26,7 @@
 #include "mmp_dsi.h"
 #include "mmp_ctrl.h"
 #include "mmp_vdma.h"
+#include "mmp_apical.h"
 #include <video/mipi_display.h>
 
 static struct timer_list vsync_timer;
@@ -857,4 +858,164 @@ void vdma_dbg_init(struct device *dev)
 void vdma_dbg_uninit(struct device *dev)
 {
 	device_remove_file(dev, &dev_attr_vdma);
+}
+
+ssize_t mmp_apical_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct mmp_apical *apical = dev_get_drvdata(dev);
+	struct mmp_apical_reg *apical_reg;
+	int i, s = 0, status = 0;
+	void *lcd_reg = apical->lcd_reg_base;
+
+	if (!APICAL_GEN4) {
+		s += sprintf(buf + s, "\napical not support\n");
+		return s;
+	}
+
+	for (i = 0; i < apical->apical_channel_num; i++) {
+		if (apical->apical_info[i].status != MMP_OFF) {
+			status = 1;
+			break;
+		}
+	}
+
+	if (unlikely(!status)) {
+		pr_warn("WARN: APICAL already off, %s fail\n", __func__);
+		return s;
+	}
+
+	s += sprintf(buf + s, "\nLCD controller version:%d\n", apical->version);
+	s += sprintf(buf + s, "\nLCD register base: 0x%p\n", lcd_reg);
+	s += sprintf(buf + s, "\tLCD_PN_CTRL2: 0x%x\n",
+		readl_relaxed(lcd_reg + dma_ctrl2(0)));
+	s += sprintf(buf + s, "\tLCD_TV_CTRL2: 0x%x\n",
+		readl_relaxed(lcd_reg + dma_ctrl2(1)));
+
+	s += sprintf(buf + s, "\napical register base: 0x%p\n",
+		apical->reg_base);
+	for (i = 0; i < 2; i++) {
+		apical_reg = (struct mmp_apical_reg *)(apical->reg_base +
+				i * 0x200);
+		s += sprintf(buf + s, "\t------apical%d------\n", i);
+		s += sprintf(buf + s, "\tfmt_ctrl       (@%p):\t0x%x\n",
+			&apical_reg->fmt_ctrl,
+			readl_relaxed(&apical_reg->fmt_ctrl));
+		s += sprintf(buf + s, "\tfrm_size       (@%p):\t0x%x\n",
+			&apical_reg->frm_size,
+			readl_relaxed(&apical_reg->frm_size));
+		s += sprintf(buf + s, "\tiridix_ctrl1   (@%p):\t0x%x\n",
+			&apical_reg->iridix_ctrl1,
+			readl_relaxed(&apical_reg->iridix_ctrl1));
+		s += sprintf(buf + s, "\tiridix_ctrl2   (@%p):\t0x%x\n",
+			&apical_reg->iridix_ctrl2,
+			readl_relaxed(&apical_reg->iridix_ctrl2));
+		s += sprintf(buf + s, "\tlevel_ctrl     (@%p):\t0x%x\n",
+			&apical_reg->level_ctrl,
+			readl_relaxed(&apical_reg->level_ctrl));
+		s += sprintf(buf + s, "\top_ctrl        (@%p):\t0x%x\n",
+			&apical_reg->op_ctrl,
+			readl_relaxed(&apical_reg->op_ctrl));
+		s += sprintf(buf + s, "\tstrength_filt  (@%p):\t0x%x\n",
+			&apical_reg->strength_filt,
+			readl_relaxed(&apical_reg->strength_filt));
+		s += sprintf(buf + s, "\tctrl_in1       (@%p):\t0x%x\n",
+			&apical_reg->ctrl_in1,
+			readl_relaxed(&apical_reg->ctrl_in1));
+		s += sprintf(buf + s, "\tctrl_in2       (@%p):\t0x%x\n",
+			&apical_reg->ctrl_in2,
+			readl_relaxed(&apical_reg->ctrl_in2));
+		s += sprintf(buf + s, "\tcalibrat1      (@%p):\t0x%x\n",
+			&apical_reg->calibrat1,
+			readl_relaxed(&apical_reg->calibrat1));
+		s += sprintf(buf + s, "\tcalibrat2      (@%p):\t0x%x\n",
+			&apical_reg->calibrat2,
+			readl_relaxed(&apical_reg->calibrat2));
+		s += sprintf(buf + s, "\tbl_range       (@%p):\t0x%x\n",
+			&apical_reg->bl_range,
+			readl_relaxed(&apical_reg->bl_range));
+		s += sprintf(buf + s, "\tbl_scale       (@%p):\t0x%x\n",
+			&apical_reg->bl_scale,
+			readl_relaxed(&apical_reg->bl_scale));
+		s += sprintf(buf + s, "\tiridix_config  (@%p):\t0x%x\n",
+			&apical_reg->iridix_config,
+			readl_relaxed(&apical_reg->iridix_config));
+		s += sprintf(buf + s, "\tctrl_out       (@%p):\t0x%x\n",
+			&apical_reg->ctrl_out,
+			readl_relaxed(&apical_reg->ctrl_out));
+		s += sprintf(buf + s, "\tlut_index      (@%p):\t0x%x\n",
+			&apical_reg->lut_index,
+			readl_relaxed(&apical_reg->lut_index));
+		s += sprintf(buf + s, "\tasymmetry_lut  (@%p):\t0x%x\n",
+			&apical_reg->asymmetry_lut,
+			readl_relaxed(&apical_reg->asymmetry_lut));
+		s += sprintf(buf + s, "\tcr_correct_lut (@%p):\t0x%x\n",
+			&apical_reg->color_correct_lut,
+			readl_relaxed(&apical_reg->color_correct_lut));
+		s += sprintf(buf + s, "\tcalibrat_lut   (@%p):\t0x%x\n",
+			&apical_reg->calibrat_lut,
+			readl_relaxed(&apical_reg->calibrat_lut));
+		s += sprintf(buf + s, "\tstrength_out   (@%p):\t0x%x\n",
+			&apical_reg->strength_out,
+			readl_relaxed(&apical_reg->strength_out));
+	}
+
+	return s;
+}
+
+static u32 apical_reg_addr;
+ssize_t mmp_apical_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	struct mmp_apical *apical = dev_get_drvdata(dev);
+	int i, ret, status = 0;
+	unsigned long tmp;
+
+	for (i = 0; i < apical->apical_channel_num; i++) {
+		if (apical->apical_info[i].status != MMP_OFF) {
+			status = 1;
+			break;
+		}
+	}
+
+	if (unlikely(!status)) {
+		pr_warn("WARN: APICAL already off, %s fail\n", __func__);
+		return size;
+	}
+
+	if ('-' == buf[0]) {
+		ret = kstrtoul(buf + 1, 0, &tmp);
+		if (ret < 0) {
+			dev_err(dev, "strtoul err.\n");
+			return ret;
+		}
+		apical_reg_addr = (u32)tmp;
+		pr_info("reg @ 0x%x: 0x%x\n", apical_reg_addr,
+			readl_relaxed(apical->reg_base + apical_reg_addr));
+	} else if ('0' == buf[0] && 'x' == buf[1]) {
+		/* set the register value */
+		ret = kstrtoul(buf, 0, &tmp);
+		if (ret < 0) {
+			dev_err(dev, "strtoul err.\n");
+			return ret;
+		}
+		writel_relaxed((u32)tmp, apical->reg_base + apical_reg_addr);
+		pr_info("set reg @ 0x%x: 0x%x\n", apical_reg_addr,
+			readl_relaxed(apical->reg_base + apical_reg_addr));
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(apical, S_IRUGO | S_IWUSR, mmp_apical_show,
+	mmp_apical_store);
+
+void apical_dbg_init(struct device *dev)
+{
+	device_create_file(dev, &dev_attr_apical);
+}
+
+void apical_dbg_uninit(struct device *dev)
+{
+	device_remove_file(dev, &dev_attr_apical);
 }

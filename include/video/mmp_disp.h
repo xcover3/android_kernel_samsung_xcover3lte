@@ -255,6 +255,19 @@ struct mmp_vdma_info {
 	struct mmp_vdma_ops *ops;
 };
 
+struct mmp_apical_info;
+struct mmp_apical_ops {
+	void (*set_on)(struct mmp_apical_info *apical_info, int on);
+};
+
+struct mmp_apical_info {
+	int id;
+	int status;
+
+	struct mutex access_ok;
+	struct mmp_apical_ops *ops;
+};
+
 /* status types */
 enum {
 	/* status of what object at */
@@ -621,6 +634,7 @@ struct mmp_path {
 	int output_type;
 	void *encoder;
 	struct mmp_panel *panel;
+	struct mmp_apical_info *apical;
 	void *plat_data;
 
 	/* dynamic use */
@@ -991,6 +1005,11 @@ struct mmp_mach_vdma_info {
 	const char *name;
 	int vdma_channel_num;
 	struct vdma_channel *vdma;
+};
+
+struct mmp_mach_apical_info {
+	const char *name;
+	int apical_channel_num;
 };
 #endif /* __KERNEL__ */
 #endif	/* _MMP_DISP_H_ */
