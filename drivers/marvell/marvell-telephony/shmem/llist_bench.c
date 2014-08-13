@@ -436,13 +436,13 @@ exit:
 		}
 
 		pr_info("skb_llist test begin\n");
-		INIT_COMPLETION(consumer_finished);
+		reinit_completion(&consumer_finished);
 		concurrent_test(&skb_llist, len, iter);
 		wait_for_completion(&consumer_finished);
 		pr_info("skb_llist test end\n");
 
 		pr_info("skb_queue test begin\n");
-		INIT_COMPLETION(consumer_finished);
+		reinit_completion(&consumer_finished);
 		concurrent_test(&skb_queue, len, iter);
 		wait_for_completion(&consumer_finished);
 		pr_info("skb_queue test end\n");

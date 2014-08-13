@@ -327,7 +327,7 @@ void acipc_reset_cp_request(void)
 		return;
 	}
 	shm_rbctl[shm_rb_main].skctl_va->reset_request = RESET_CP_REQUEST;
-	INIT_COMPLETION(reset_cp_confirm);
+	reinit_completion(&reset_cp_confirm);
 	acipc_notify_reset_cp_request();
 	mutex_unlock(&rbctl->va_lock);
 	if (wait_for_completion_timeout(&reset_cp_confirm, 2 * HZ))

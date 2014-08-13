@@ -956,7 +956,7 @@ static long msocket_ioctl(struct file *filp,
 		cp_recv_up_ioc = true;
 		spin_unlock(&cp_sync_lock);
 		/* ensure completion cleared before start */
-		INIT_COMPLETION(cp_peer_sync);
+		reinit_completion(&cp_peer_sync);
 		msocket_connect(portq_grp_cp_main);
 		if (wait_for_completion_timeout(&cp_peer_sync, 5 * HZ) ==
 		    0) {
