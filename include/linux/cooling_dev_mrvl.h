@@ -65,7 +65,7 @@ void vpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 }
 #endif
 
-#ifdef CONFIG_COMMON_CLK
+#ifdef CONFIG_PM_DEVFREQ
 struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name);
 void gpufreq_cool_unregister(struct thermal_cooling_device *cdev);
 #else

@@ -393,8 +393,7 @@ void vpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 EXPORT_SYMBOL_GPL(vpufreq_cool_unregister);
 #endif
 
-#ifdef CONFIG_COMMON_CLK
-#include <linux/clk/mmp.h>
+#ifdef CONFIG_PM_DEVFREQ
 struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
 {
 	struct thermal_cooling_device *cool_dev;
@@ -402,7 +401,7 @@ struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
 	int i, descend = -1, index = 0;
 	unsigned int max_level = 0, freq = 0;
 	char cool_name[THERMAL_NAME_LENGTH];
-	unsigned long dev_freqs[THERMAL_MAX_TRIPS] = {0};
+	struct devfreq_frequency_table *table;
 
 	freq_dev = kzalloc(sizeof(struct freq_cool_device),
 			      GFP_KERNEL);
@@ -420,16 +419,18 @@ struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
 	freq_dev->cur_state = 0;
 	/* get frequency number */
 	if (!strcmp("gc3d", gc_name))
-		get_gcu_freqs_table(dev_freqs, &max_level, THERMAL_MAX_TRIPS);
+		table = devfreq_frequency_get_table(DEVFREQ_GPU_3D);
 	else if (!strcmp("gc2d", gc_name))
-		get_gcu2d_freqs_table(dev_freqs, &max_level, THERMAL_MAX_TRIPS);
+		table = devfreq_frequency_get_table(DEVFREQ_GPU_2D);
 	else
-		get_gc_shader_freqs_table(dev_freqs, &max_level, THERMAL_MAX_TRIPS);
+		table = devfreq_frequency_get_table(DEVFREQ_GPU_SH);
 
-	for (i = 0; i < max_level; i++) {
+	/* get frequency number */
+	for (i = 0; table[i].frequency != DEVFREQ_TABLE_END; i++) {
 		if (freq != 0 && descend == -1)
-			descend = !!(freq > dev_freqs[i]);
-		freq = dev_freqs[i];
+			descend = !!(freq > table[i].frequency);
+		freq = table[i].frequency;
+		max_level++;
 	}
 
 	freq_dev->max_state = max_level - 1;
@@ -441,10 +442,9 @@ struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
 		kfree(freq_dev);
 		return ERR_PTR(-ENOMEM);
 	}
-	for (i = 0;  i < max_level; i++) {
+	for (i = 0; table[i].frequency != DEVFREQ_TABLE_END; i++) {
 		index = descend ? i : (max_level - i - 1);
-		/* Hz to kHz */
-		freq_dev->freqs[index] = dev_freqs[i] / 1000;
+		freq_dev->freqs[index] = table[i].frequency;
 	}
 
 	freq_dev->qos_max.name = "req_thermal";
