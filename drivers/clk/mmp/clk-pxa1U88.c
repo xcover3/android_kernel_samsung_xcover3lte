@@ -600,30 +600,30 @@ static struct mmp_clk_mix_config disp_axi_mix_config = {
 	.mux_table = disp_axi_mux_table,
 };
 
-#ifdef CONFIG_VPU_DEVFREQ
-static struct devfreq_frequency_table *vpu_devfreq_tbl;
+#ifdef CONFIG_PM_DEVFREQ
 
-static void __init_vpu_devfreq_table(struct clk *clk)
+static void __init_comp_devfreq_table(struct clk *clk, unsigned int dev_id)
 {
-	unsigned int vpu_freq_num = 0, i = 0;
+	unsigned int freq_num = 0, i = 0;
+	struct devfreq_frequency_table *devfreq_tbl;
 
-	vpu_freq_num = mmp_clk_mix_get_opnum(clk);
-	vpu_devfreq_tbl =
+	freq_num = mmp_clk_mix_get_opnum(clk);
+	devfreq_tbl =
 		kmalloc(sizeof(struct devfreq_frequency_table)
-			* (vpu_freq_num + 1), GFP_KERNEL);
-	if (!vpu_devfreq_tbl)
+			* (freq_num + 1), GFP_KERNEL);
+	if (!devfreq_tbl)
 		return;
 
-	for (i = 0; i < vpu_freq_num; i++) {
-		vpu_devfreq_tbl[i].index = i;
-		vpu_devfreq_tbl[i].frequency =
+	for (i = 0; i < freq_num; i++) {
+		devfreq_tbl[i].index = i;
+		devfreq_tbl[i].frequency =
 			mmp_clk_mix_get_oprate(clk, i) / MHZ_TO_KHZ;
 	}
 
-	vpu_devfreq_tbl[i].index = i;
-	vpu_devfreq_tbl[i].frequency = DEVFREQ_TABLE_END;
+	devfreq_tbl[i].index = i;
+	devfreq_tbl[i].frequency = DEVFREQ_TABLE_END;
 
-	devfreq_frequency_table_register(vpu_devfreq_tbl, DEVFREQ_VPU_BASE);
+	devfreq_frequency_table_register(devfreq_tbl, dev_id);
 }
 #endif
 
@@ -693,6 +693,9 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk", gc3d_parent_names,
 				ARRAY_SIZE(gc3d_parent_names),
 				0, &gc3d_mix_config, &gc_lock);
+#ifdef CONFIG_PM_DEVFREQ
+	__init_comp_devfreq_table(clk, DEVFREQ_GPU_3D);
+#endif
 	clk = mmp_clk_register_gate(NULL, "gc3d_clk", "gc3d_mix_clk",
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC,
@@ -704,6 +707,9 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk", gcsh_parent_names,
 				ARRAY_SIZE(gcsh_parent_names),
 				0, &gcsh_mix_config, &gc_lock);
+#ifdef CONFIG_PM_DEVFREQ
+	__init_comp_devfreq_table(clk, DEVFREQ_GPU_SH);
+#endif
 	clk = mmp_clk_register_gate(NULL, "gcsh_clk", "gcsh_mix_clk",
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC,
@@ -715,6 +721,9 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk", gc2d_parent_names,
 				ARRAY_SIZE(gc2d_parent_names),
 				0, &gc2d_mix_config, &gc2d_lock);
+#ifdef CONFIG_PM_DEVFREQ
+	__init_comp_devfreq_table(clk, DEVFREQ_GPU_2D);
+#endif
 	clk = mmp_clk_register_gate(NULL, "gc2d_clk", "gc2d_mix_clk",
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC2D,
@@ -740,7 +749,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			vpufclk_parent_names, ARRAY_SIZE(vpufclk_parent_names),
 			0, &vpufclk_mix_config, &vpu_lock);
 #ifdef CONFIG_VPU_DEVFREQ
-	__init_vpu_devfreq_table(clk);
+	__init_comp_devfreq_table(clk, DEVFREQ_VPU_BASE);
 #endif
 	clk = mmp_clk_register_gate(NULL, "vpufunc_clk", "vpufunc_mix_clk",
 			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
