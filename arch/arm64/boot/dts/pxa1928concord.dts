@@ -450,6 +450,11 @@
 					MFP_DEFAULT;
 				};
 
+				apds990x_pins: pinmux_apds990x_pins {
+					pinctrl-single,pins = <GPIO(ALS_INT)>;
+					MFP_PULL_UP;
+				};
+
 				dvc_pins: pinmux_dvc_pins {
 					pinctrl-single,pins = <
 						DVC00
@@ -590,6 +595,14 @@
 				pinctrl-1 = <&twsi3_gpio_pins>;
 				i2c-gpio = <&gpio TWSI3_SCL_GPIO 0 &gpio TWSI3_SDA_GPIO 0>;
 				status = "okay";
+
+				lightsensor: apds990x@39 {
+					pinctrl-names = "default"; pinctrl-0 = <&apds990x_pins>;
+					compatible = "avago,apds990x";
+					reg = <0x39>;
+					interrupt-parent = <&gpio>;
+					interrupts = <ALS_INT 0x1>;
+				};
 			};
 
 			twsi4: i2c@d4033800 {
