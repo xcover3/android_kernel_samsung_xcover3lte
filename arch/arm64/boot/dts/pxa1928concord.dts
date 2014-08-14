@@ -567,6 +567,13 @@
 				pinctrl-1 = <&twsi1_gpio_pins>;
 				i2c-gpio = <&gpio TWSI1_SCL_GPIO 0 &gpio TWSI1_SDA_GPIO 0>;
 				status = "okay";
+
+				pressuresensor: lps331ap@5d {
+					compatible = "st,lps331ap";
+					reg = <0x5d>;
+					lps331ap,poll_interval = <1000>;
+					avdd-supply = <&buck2>;
+				};
 			};
 
 			twsi2: i2c@d4032000 {
