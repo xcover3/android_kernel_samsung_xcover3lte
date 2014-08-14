@@ -200,7 +200,7 @@ static const struct i2c_device_id bmp18x_id[] = {
 };
 
 static struct of_device_id bmp18x_dt_ids[] = {
-	{ .compatible = "BOSCH,bmp18x", },
+	{ .compatible = "bosch,bmp18x", },
 	{}
 }
 ;
