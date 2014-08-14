@@ -62,6 +62,15 @@
 		interrupt-parent = <&gic>;
 		ranges;
 
+		ddr@c0100000 {  /* DDR memory controller */
+			compatible = "marvell,devfreq-ddr";
+			reg = <0xc0100000 0x488>;
+			interrupts = <0 43 0x4>;
+			clocks = <&soc_clocks PXA1L88_CLK_DDR>;
+			marvell,qos;
+			status = "disabled";
+		};
+
 		axi@d4200000 {	/* AXI */
 			compatible = "mrvl,axi-bus", "simple-bus";
 			#address-cells = <1>;
