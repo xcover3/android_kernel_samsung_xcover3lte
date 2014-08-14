@@ -1318,7 +1318,7 @@ static int apds990x_resume(struct i2c_client *client)
 #endif /* CONFIG_PM */
 
 static struct of_device_id apds990x_dt_ids[] = {
-	{ .compatible = "avgo,apds990x", },
+	{ .compatible = "avago,apds990x", },
 	{}
 };
 
