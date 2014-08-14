@@ -839,10 +839,10 @@ mv_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 
 	spin_lock_irqsave(&udc->lock, flags);
 
-	if (!udc->active || !ep->ep.desc) {
+	if (udc->stopped || !udc->active || !ep->ep.desc) {
 		spin_unlock_irqrestore(&udc->lock, flags);
 		dev_info(&udc->dev->dev,
-			"%s is already disabled!\n", ep->name);
+			"udc or %s is already disabled!\n", ep->name);
 		retval = -EINVAL;
 		goto err_unmap_dma;
 	}
@@ -1112,7 +1112,8 @@ static void udc_stop(struct mv_udc *udc)
 	/* Disable interrupts */
 	tmp = readl(&udc->op_regs->usbintr);
 	tmp &= ~(USBINTR_INT_EN | USBINTR_ERR_INT_EN |
-		USBINTR_PORT_CHANGE_DETECT_EN | USBINTR_RESET_EN);
+		USBINTR_PORT_CHANGE_DETECT_EN |
+		USBINTR_RESET_EN | USBINTR_DEVICE_SUSPEND);
 	writel(tmp, &udc->op_regs->usbintr);
 
 	udc->stopped = 1;
@@ -1313,11 +1314,16 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		pm_qos_update_request(&udc->qos_idle, udc->lpm_qos);
 
 		spin_lock_irqsave(&udc->lock, flags);
+		/* stop udc before do charger detect */
 		udc_stop(udc);
 		spin_unlock_irqrestore(&udc->lock, flags);
 
-		/* make sure do charger detect after udc_stop */
 		udc->charger_type = usb_phy_charger_detect(udc->phy);
+		/* do it again to debounce */
+		if (udc->charger_type != DCP_CHARGER) {
+			msleep(300);
+			udc->charger_type = usb_phy_charger_detect(udc->phy);
+		}
 	} else {
 		udc->power = 0;
 		udc->charger_type = NULL_CHARGER;
@@ -1352,8 +1358,8 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		}
 
 		/* stop all the transfer in queue*/
-		stop_activity(udc, udc->driver);
 		udc_stop(udc);
+		stop_activity(udc, udc->driver);
 	}
 
 	spin_unlock_irqrestore(&udc->lock, flags);
@@ -1403,8 +1409,8 @@ static int mv_udc_pullup(struct usb_gadget *gadget, int is_on)
 		}
 	} else if (udc->driver && udc->vbus_active) {
 		/* stop all the transfer in queue*/
-		stop_activity(udc, udc->driver);
 		udc_stop(udc);
+		stop_activity(udc, udc->driver);
 		mv_udc_disable(udc);
 	}
 out:
@@ -2331,24 +2337,11 @@ static void call_charger_notifier(struct mv_udc *udc)
 static void do_delayed_charger_work(struct work_struct *work)
 {
 	struct mv_udc *udc = NULL;
-	unsigned long flags;
 	udc = container_of(work, struct mv_udc, delayed_charger_work.work);
 
 	/* if still see DEFAULT_CHARGER, check again */
 	if (udc->charger_type == DEFAULT_CHARGER) {
-		spin_lock_irqsave(&udc->lock, flags);
-		udc_stop(udc);
-		spin_unlock_irqrestore(&udc->lock, flags);
-
-		udc->charger_type = usb_phy_charger_detect(udc->phy);
-
-		spin_lock_irqsave(&udc->lock, flags);
-		udc_start(udc);
-		spin_unlock_irqrestore(&udc->lock, flags);
-
-		/* now confirm it is a none standard charger */
-		if (udc->charger_type == DEFAULT_CHARGER)
-			udc->charger_type = NONE_STANDARD_CHARGER;
+		udc->charger_type = NONE_STANDARD_CHARGER;
 	}
 
 	dev_info(&udc->dev->dev, "final charger type: %s\n",
@@ -2726,10 +2719,9 @@ static int mv_udc_suspend(struct device *dev)
 		return 0;
 
 	if (!udc->clock_gating) {
-		udc_stop(udc);
-
 		spin_lock_irq(&udc->lock);
 		/* stop all usb activities */
+		udc_stop(udc);
 		stop_activity(udc, udc->driver);
 		spin_unlock_irq(&udc->lock);
 
