@@ -196,6 +196,10 @@ enum {
 
 /* RTC Registers */
 #define PM800_RTC_CONTROL		(0xD0)
+#define PM800_RTC_EXPIRE2_1		(0xDD)
+#define PM800_RTC_EXPIRE2_2		(0xDE)
+#define PM800_RTC_EXPIRE2_3		(0xDF)
+#define PM800_RTC_EXPIRE2_4		(0xE0)
 #define PM800_RTC_MISC1			(0xE1)
 #define PM800_RTC_MISC2			(0xE2)
 #define PM800_RTC_MISC3			(0xE3)
@@ -204,6 +208,7 @@ enum {
 #define PM800_POWER_DOWN_LOG2		(0xE6)
 #define PM800_RTC_MISC5			(0xE7)
 #define PM800_RTC_MISC6			(0xE8)
+#define PM800_RTC_MISC7			(0xE9)
 /* user data register, in RTC domain */
 #define PM800_USER_DATA1		(0xEA)
 #define PM800_USER_DATA2		(0xEB)
@@ -380,6 +385,8 @@ enum {
 #define PM800_BIAS_OUT_GP2		(1 << 2)
 #define PM800_BIAS_OUT_GP3		(1 << 3)
 
+#define PM800_VBAT_LOW_TH		0x18
+
 #define PM800_GPADC0_LOW_TH		0x20
 #define PM800_GPADC1_LOW_TH		0x21
 #define PM800_GPADC2_LOW_TH		0x22
@@ -418,6 +425,10 @@ enum {
 #define PM800_GPADC3_MEAS2		0x5B
 #define PM800_GPADC4_MEAS1		0x5C
 #define PM800_GPADC4_MEAS2		0x5D
+#define PM800_VBAT_AVG			0xA0
+#define PM800_VBAT_AVG2			0xA1
+#define PM800_VBAT_SLP			0xB0
+
 
 #define PM800_GPADC4_AVG1		0xA8
 #define PM800_GPADC4_AVG2		0xA9
@@ -507,13 +518,47 @@ struct pm80x_vibrator_pdata {
 	void (*vibrator_power)(int on);
 };
 
+struct pm80x_sw_bat_pdata {
+	bool use_ntc;
+	unsigned int capacity;
+	unsigned int r1;
+	unsigned int r2;
+	unsigned int rs;
+	unsigned int r_off;
+	unsigned int r_init_off;
+
+	unsigned int online_gp_id;
+	unsigned int temp_gp_id;
+
+	int times_in_zero;
+	int offset_in_zero;
+	int times_in_ten;
+	int offset_in_ten;
+
+	unsigned int power_off_th;
+	unsigned int safe_power_off_th;
+
+	int online_gp_bias_curr;
+	int hi_volt_online;
+	int lo_volt_online;
+
+	int hi_volt_temp;
+	int lo_volt_temp;
+
+	unsigned int soc_ramp_up_interval;
+	bool need_offset_trim;
+};
+
 struct pm80x_subchip {
 	struct i2c_client *power_page;	/* chip client for power page */
 	struct i2c_client *gpadc_page;	/* chip client for gpadc page */
+	struct i2c_client *test_page;	/* chip client for test page */
 	struct regmap *regmap_power;
 	struct regmap *regmap_gpadc;
+	struct regmap *regmap_test;
 	unsigned short power_page_addr;	/* power page I2C address */
 	unsigned short gpadc_page_addr;	/* gpadc page I2C address */
+	unsigned short test_page_addr;	/* test page I2C address */
 };
 
 struct pm80x_chip {
@@ -539,6 +584,7 @@ struct pm80x_chip {
 
 struct pm80x_platform_data {
 	struct pm80x_rtc_pdata *rtc;
+	struct pm80x_sw_bat_pdata *bat;
 	struct pm80x_vbus_pdata *usb;
 	struct pm80x_vibrator_pdata *vibrator;
 	struct gpio_switch_platform_data *headset;
@@ -612,4 +658,7 @@ extern void buck1_audio_mode_ctrl(int on);
 extern void set_buck1_audio_mode_vol(int vol);
 extern void extern_set_buck1_slp_volt(int on);
 
+extern int get_gpadc_volt(struct pm80x_chip *chip, int gpadc_id);
+extern int get_gpadc_bias_volt(struct pm80x_chip *chip, int gpadc_id, int bias);
+extern int extern_get_gpadc_bias_volt(int gpadc_id, int bias);
 #endif /* __LINUX_MFD_88PM80X_H */

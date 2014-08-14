@@ -75,6 +75,14 @@ config BATTERY_88PM860X
 	help
 	  Say Y here to enable battery monitor for Marvell 88PM860x chip.
 
+config SW_BATTERY_88PM80X
+	tristate "Marvell 88PM80x software battery driver"
+	depends on MFD_88PM800
+	help
+	  Say Y here to enable software battery monitor for Marvell 88PM80x chip.
+	  This driver uses the ADC function of 88PM80x. The capacity of the
+	  battery is calculated via the voltage.
+
 config BATTERY_DS2760
 	tristate "DS2760 battery driver (HP iPAQ & others)"
 	depends on W1 && W1_SLAVE_DS2760

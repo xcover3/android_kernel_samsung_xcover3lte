@@ -392,3 +392,99 @@ void extern_set_buck1_slp_volt(int on)
 	}
 }
 EXPORT_SYMBOL(extern_set_buck1_slp_volt);
+
+/* return gpadc voltage */
+int get_gpadc_volt(struct pm80x_chip *chip, int gpadc_id)
+{
+	int ret, volt;
+	unsigned char buf[2];
+	int gp_meas;
+
+	switch (gpadc_id) {
+	case PM800_GPADC0:
+		gp_meas = PM800_GPADC0_MEAS1;
+		break;
+	case PM800_GPADC1:
+		gp_meas = PM800_GPADC1_MEAS1;
+		break;
+	case PM800_GPADC2:
+		gp_meas = PM800_GPADC2_MEAS1;
+		break;
+	case PM800_GPADC3:
+		gp_meas = PM800_GPADC3_MEAS1;
+		break;
+	default:
+		dev_err(chip->dev, "get GPADC failed!\n");
+		return -EINVAL;
+
+	}
+	ret = regmap_bulk_read(chip->subchip->regmap_gpadc,
+			       gp_meas, buf, 2);
+	if (ret < 0) {
+		dev_err(chip->dev, "Attention: failed to get volt!\n");
+		return -EINVAL;
+	}
+
+	volt = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
+	dev_dbg(chip->dev, "%s: volt value = 0x%x\n", __func__, volt);
+	/* volt = value * 1.4 * 1000 / (2^12) */
+	volt = ((volt & 0xfff) * 7 * 100) >> 11;
+	dev_dbg(chip->dev, "%s: voltage = %dmV\n", __func__, volt);
+
+	return volt;
+}
+
+/* return voltage via bias current from GPADC */
+int get_gpadc_bias_volt(struct pm80x_chip *chip, int gpadc_id, int bias)
+{
+	int volt, data, gp_bias;
+
+	switch (gpadc_id) {
+	case PM800_GPADC0:
+		gp_bias = PM800_GPADC_BIAS1;
+		break;
+	case PM800_GPADC1:
+		gp_bias = PM800_GPADC_BIAS2;
+		break;
+	case PM800_GPADC2:
+		gp_bias = PM800_GPADC_BIAS3;
+		break;
+	case PM800_GPADC3:
+		gp_bias = PM800_GPADC_BIAS4;
+		break;
+	default:
+		dev_err(chip->dev, "get GPADC failed!\n");
+		return -EINVAL;
+
+	}
+
+	/* get the register value */
+	if (bias > 76)
+		bias = 76;
+	if (bias < 1)
+		bias = 1;
+	bias = (bias - 1) / 5;
+
+	regmap_read(chip->subchip->regmap_gpadc, gp_bias, &data);
+	data &= 0xf0;
+	data |= bias;
+	regmap_write(chip->subchip->regmap_gpadc, gp_bias, data);
+
+	volt = get_gpadc_volt(chip, gpadc_id);
+	if ((volt < 0) || (volt > 1400)) {
+		dev_err(chip->dev, "%s return %dmV\n", __func__, volt);
+		return -EINVAL;
+	}
+
+	return volt;
+}
+
+/*
+ * used by non-pmic driver
+ * TODO: remove later
+ */
+int extern_get_gpadc_bias_volt(int gpadc_id, int bias)
+{
+	return get_gpadc_bias_volt(chip_g, gpadc_id, bias);
+}
+EXPORT_SYMBOL(extern_get_gpadc_bias_volt);

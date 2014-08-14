@@ -189,6 +189,25 @@ static const struct mfd_cell onkey_devs[] = {
 	 },
 };
 
+static struct resource sw_bat_resources[] = {
+	{
+	.name = "88pm80x-sw-fuelgauge",
+	.start = PM800_IRQ_VBAT,
+	.end = PM800_IRQ_VBAT,
+	.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct mfd_cell sw_bat_devs[] = {
+	{
+	.name = "88pm80x-sw-fuelgauge",
+	.of_compatible = "marvell,88pm80x-sw-battery",
+	.num_resources = 1,
+	.resources = &sw_bat_resources[0],
+	.id = -1,
+	},
+};
+
 static const struct mfd_cell regulator_devs[] = {
 	{
 	 .name = "88pm80x-regulator",
@@ -449,6 +468,21 @@ static int device_rtc_init(struct pm80x_chip *chip,
 	return 0;
 }
 
+static int device_sw_battery_init(struct pm80x_chip *chip,
+					   struct pm80x_platform_data *pdata)
+{
+	int ret;
+
+	ret = mfd_add_devices(chip->dev, 0, &sw_bat_devs[0],
+			      ARRAY_SIZE(sw_bat_devs), NULL, 0, NULL);
+	if (ret) {
+		dev_err(chip->dev, "Failed to add sw fuelgauge subdev\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static int device_regulator_init(struct pm80x_chip *chip,
 					   struct pm80x_platform_data *pdata)
 {
@@ -632,6 +666,23 @@ static int pm800_pages_init(struct pm80x_chip *chip)
 	}
 	i2c_set_clientdata(subchip->gpadc_page, chip);
 
+	/* PM800 block TEST: i2c addr 0x37 */
+	subchip->test_page = i2c_new_dummy(client->adapter,
+					    subchip->test_page_addr);
+	if (subchip->test_page == NULL) {
+		ret = -ENODEV;
+		goto out;
+	}
+	subchip->regmap_test = devm_regmap_init_i2c(subchip->test_page,
+						    &pm80x_regmap_config);
+	if (IS_ERR(subchip->regmap_test)) {
+		ret = PTR_ERR(subchip->regmap_test);
+		dev_err(chip->dev,
+			"Failed to allocate regmap_test: %d\n", ret);
+		goto out;
+	}
+	i2c_set_clientdata(subchip->test_page, chip);
+
 out:
 	return ret;
 }
@@ -647,6 +698,9 @@ static void pm800_pages_exit(struct pm80x_chip *chip)
 
 	if (subchip && subchip->gpadc_page)
 		i2c_unregister_device(subchip->gpadc_page);
+
+	if (subchip && subchip->test_page)
+		i2c_unregister_device(subchip->test_page);
 }
 
 static int device_800_init(struct pm80x_chip *chip,
@@ -700,6 +754,12 @@ static int device_800_init(struct pm80x_chip *chip,
 	ret = device_regulator_init(chip, pdata);
 	if (ret) {
 		dev_err(chip->dev, "Failed to add regulators subdev\n");
+		goto out;
+	}
+
+	ret = device_sw_battery_init(chip, pdata);
+	if (ret) {
+		dev_err(chip->dev, "Failed to add sw fuelgauge subdev\n");
 		goto out;
 	}
 
@@ -886,6 +946,7 @@ static int pm800_probe(struct i2c_client *client,
 	/* pm800 has 2 addtional pages to support power and gpadc. */
 	subchip->power_page_addr = client->addr + 1;
 	subchip->gpadc_page_addr = client->addr + 2;
+	subchip->test_page_addr = client->addr + 7;
 	chip->subchip = subchip;
 
 	ret = pm800_pages_init(chip);
