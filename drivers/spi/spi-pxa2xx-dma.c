@@ -381,11 +381,20 @@ int pxa2xx_spi_set_dma_burst_and_threshold(struct chip_data *chip,
 	struct pxa2xx_spi_chip *chip_info = spi->controller_data;
 
 	/*
-	 * If the DMA burst size is given in chip_info we use that,
-	 * otherwise we use the default. Also we use the default FIFO
-	 * thresholds for now.
+	 * If the DMA burst size is given in chip_info we use
+	 * that, otherwise we set it to half of FIFO size; SPI
+	 * FIFO has 16 entry, so FIFO size = 16*bits_per_word/8;
+	 * Also we use the default FIFO thresholds for now.
 	 */
-	*burst_code = chip_info ? chip_info->dma_burst_size : 16;
+	if (chip_info && chip_info->dma_burst_size)
+		*burst_code = chip_info->dma_burst_size;
+	else if (bits_per_word <= 8)
+		*burst_code = 8;
+	else if (bits_per_word <= 16)
+		*burst_code = 16;
+	else
+		*burst_code = 32;
+
 	*threshold = SSCR1_RxTresh(RX_THRESH_DFLT)
 		   | SSCR1_TxTresh(TX_THRESH_DFLT);
 
