@@ -455,6 +455,11 @@
 					MFP_PULL_UP;
 				};
 
+				motion_sensor_pins: pinmux_motion_sensor_pins {
+					pinctrl-single,pins = <GPIO(GSEN_DRDY)>;
+					MFP_PULL_LOW;
+				};
+
 				dvc_pins: pinmux_dvc_pins {
 					pinctrl-single,pins = <
 						DVC00
@@ -578,6 +583,31 @@
 					reg = <0x5d>;
 					lps331ap,poll_interval = <1000>;
 					avdd-supply = <&buck2>;
+				};
+
+				motionsensor: mpu9250@69 {
+					pinctrl-names = "default"; pinctrl-0 = <&motion_sensor_pins>;
+					compatible = "invensense,mpu9250";
+					reg = <0x69>;
+					interrupt-parent = <&gpio>;
+					interrupts = <GSEN_DRDY 0x2>;
+					inven,irq-gpios = <&gpio GSEN_DRDY 0x00>;
+					avdd-supply = <&ldo4>;
+					axis_map_x = <0>;
+					negate_x = <0>;
+					axis_map_y = <4>;
+					negate_y = <0>;
+					axis_map_z = <8>;
+					negate_z = <0>;
+					inven,secondary_axis_map_x = <0>;
+					inven,secondary_negate_x = <0>;
+					inven,secondary_axis_map_y = <4>;
+					inven,secondary_negate_y = <0>;
+					inven,secondary_axis_map_z = <8>;
+					inven,secondary_negate_z = <0>;
+					inven,secondary_type = "compass";
+					inven,secondary_name = "ak8963";
+					inven,secondary_reg = <0xc>;
 				};
 			};
 
