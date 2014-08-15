@@ -399,6 +399,15 @@
 					inven,secondary_name = "ak8963";
 					inven,secondary_reg = <0xc>;
 				};
+
+				sensor4: apds9930@39 {
+					compatible = "avago,apds9930";
+					reg = <0x39>;
+					interrupt-parent = <&gpio>;
+					interrupts = <14 0x1>;
+					irq-gpios = <&gpio 14 0>;
+					avdd-supply = <&ldo10>;
+				};
 			};
 
 			twsi2: i2c@d4037000 {
