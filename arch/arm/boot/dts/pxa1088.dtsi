@@ -92,6 +92,20 @@
 						      39 (1 << 0 | 1 << 1 | 1 << 6)>;
 			};
 
+			devfreq-vpu {
+				compatible = "marvell,devfreq-vpu";
+				marvell,vpu-id = <0>;
+				clocks = <&soc_clocks PXA1L88_CLK_VPU
+					  &soc_clocks PXA1L88_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				marvell,mmp-clk-freq-combine =
+						<156000 156000>,
+						<208000 208000>,
+						<312000 312000>,
+						<416000 416000>,
+						<533000 533000>;
+				marvell,qos;
+			};
 		};
 
 		apb@d4000000 {	/* APB */
