@@ -369,6 +369,12 @@
 					intersil,wakup-gpios = <&gpio 14 0>;
 					avdd-supply = <&ldo10>;
 				};
+
+				sensor2: bmp18x@77 {
+					compatible = "bosch,bmp18x";
+					reg = <0x77>;
+					avdd-supply = <&ldo10>;
+				};
 			};
 
 			twsi2: i2c@d4037000 {
