@@ -26,6 +26,10 @@
 		};
 
 		apb@d4000000 {
+			pdma0: pdma@d4000000 {
+				status = "okay";
+			};
+
 			edgewakeup: edgewakeup@d4019800 {
 				status = "ok";
 			};
@@ -45,6 +49,42 @@
 				compatible = "marvell,keyreset";
 				keys-down = <0x73 0x72>;
 				keyreset-need-panic;
+			};
+
+			ssp_dai1: pxa-ssp-dai@1 {
+				compatible = "mrvl,pxa-ssp-dai";
+				reg = <0x1 0x0>;
+				port = <&ssp1>;
+				pinctrl-names = "default","ssp";
+				pinctrl-0 = <&i2s_gpio>;
+				pinctrl-1 = <&i2s_func>;
+				ssp-gpio = <&gpio 21 0 &gpio 22 0 &gpio 23 0 &gpio 24 0>;
+				asram = <&sram>;
+				platform_driver_name = "tdma_platform";
+				burst_size = <4>;
+				playback_period_bytes = <4096>;
+				playback_buffer_bytes = <20480>;
+				capture_period_bytes = <4096>;
+				capture_buffer_bytes = <20480>;
+			};
+
+			ssp_dai4: pxa-ssp-dai@4 {
+				compatible = "mrvl,pxa-ssp-dai";
+				reg = <0x4 0x0>;
+				port = <&ssp4>;
+				pinctrl-names = "default","ssp";
+				pinctrl-0 = <&gssp_gpio>;
+				pinctrl-1 = <&gssp_func>;
+				ssp-gpio = <&gpio 25 0 &gpio 26 0 &gpio 27 0 &gpio 28 0>;
+				dmas = <&pdma0 6 0
+					&pdma0 7 0>;
+				dma-names = "rx", "tx";
+				platform_driver_name = "pdma_platform";
+				burst_size = <8>;
+				playback_period_bytes = <4096>;
+				playback_buffer_bytes = <131072>;
+				capture_period_bytes = <4096>;
+				capture_buffer_bytes = <131072>;
 			};
 
 			thermal: thermal@d4013200 {
@@ -252,7 +292,42 @@
 					>;
 					MFP_LPM_FLOAT;
 				};
-
+				i2s_func: i2s_func {
+					pinctrl-single,pins = <
+						GPIO21 AF1
+						GPIO22 AF1
+						GPIO23 AF1
+						GPIO24 AF1
+					>;
+					MFP_DEFAULT;
+				};
+				i2s_gpio: i2s_gpio {
+					pinctrl-single,pins = <
+						GPIO21 AF0
+						GPIO22 AF0
+						GPIO23 AF0
+						GPIO24 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+				gssp_func: gssp_func {
+					pinctrl-single,pins = <
+						GPIO25 AF1
+						GPIO26 AF1
+						GPIO27 AF1
+						GPIO28 AF1
+					>;
+					MFP_DEFAULT;
+				};
+				gssp_gpio: gssp_gpio {
+					pinctrl-single,pins = <
+						GPIO25 AF0
+						GPIO26 AF0
+						GPIO27 AF0
+						GPIO28 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
 				gps_pmx_eclk: gps_pmx_eclk {
 					/* eclk */
 					pinctrl-single,pins = <
@@ -477,6 +552,11 @@
 				};
 			};
 		};
+	};
+
+	sound {
+		compatible = "marvell,pxa-88pm805-snd-card";
+		ssp-controllers = <&ssp_dai1 &ssp_dai4>;
 	};
 
 	gps: mmp-gps {

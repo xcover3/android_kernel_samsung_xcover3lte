@@ -78,6 +78,14 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			squ: squ@d42a0800 {
+				compatible = "marvell,pxa910-squ";
+				reg = <0xd42a0800 0x100>;
+				interrupts = <0 46 0x4>;
+				#dma-cells = <1>;
+				asram = <&sram>;
+			};
+
 			intc: wakeupgen@d4282000 {
 				compatible = "mrvl,mmp-intc-wakeupgen";
 				reg = <0xd4282000 0x1000>,
@@ -114,6 +122,17 @@
 			#size-cells = <1>;
 			reg = <0xd4000000 0x00200000>;
 			ranges;
+
+			pdma0: pdma@d4000000 {
+				compatible = "marvell,pdma-1.0";
+				reg = <0xd4000000 0x10000>;
+				interrupts = <0 47 0x4>;
+				#dma-cells= <2>;
+				#dma-channels = <32>;
+				#dma-channels-tz = <30>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
 
 			timer0: timer@d4014000 {
 				compatible = "marvell,mmp-timer";
@@ -320,6 +339,28 @@
 				interrupts = <0 9 0x4>;
 				marvell,keypad-lpm-mod;
 				clocks = <&soc_clocks PXA1L88_CLK_KPC>;
+			};
+
+			ssp1: ssp@d42a0c00 {
+				compatible = "mrvl,pxa910-ssp";
+				reg = <0xd42a0c00 0x90>;
+				ssp-id = <2>;
+				interrupts = <0 2 0x4>;
+				clocks = <&soc_clocks PXA1L88_CLK_SSP>;
+				dmas = <&squ 1
+					&squ 0>;
+				dma-names = "rx", "tx";
+			};
+
+			ssp4: ssp@d4039000 {
+				compatible = "mrvl,pxa910-ssp";
+				reg = <0xd4039000 0x90>;
+				ssp-id = <5>;
+				interrupts = <0 34 0x4>;
+				clocks = <&soc_clocks PXA1L88_CLK_GSSP>;
+				dmas = <&pdma0 6 0
+					&pdma0 7 0>;
+				dma-names = "rx", "tx";
 			};
 
 			pmx: pinmux@d401e000 {
