@@ -181,7 +181,7 @@ static void __clk_get_sscdivrng(enum ssc_mode mode,
 		break;
 	case DOWN_SPREAD:
 		/* VCO_CLK_AVG= REFCLK * (4*N /M)*(1-Desired_SSC_Amplitude/2) */
-		vco_avg = vco - vco * amplitude / 2 / base;
+		vco_avg = vco - (vco >> 1) / base * amplitude;
 		/* SSC_FREQ_DIV = VCO_CLK_AVG /
 		   (4*2 * Desired_Modulation_Frequency) */
 		*div = (vco_avg / rate) >> 3;
