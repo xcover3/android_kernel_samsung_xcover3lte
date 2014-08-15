@@ -30,6 +30,7 @@
 
 #define MPMU_UART_PLL		0x14
 
+#define APMU_SQU_CLK_GATE_CTRL	0x1C
 #define APMU_CLK_GATE_CTRL	0x40
 #define APMU_SDH0		0x54
 #define APMU_SDH1		0x58
@@ -53,6 +54,8 @@
 #define APMU_GC			0xcc
 #define APMU_GC2D		0xf4
 #define APMU_VPU		0xa4
+
+#define CIU_MC_CONF		0x0040
 
 /*
  * peripheral clock source:
@@ -1178,6 +1181,29 @@ static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 			      ARRAY_SIZE(aclk_dclk_relationtbl_1L88));
 }
 
+static void __init pxa1L88_misc_init(struct pxa1L88_clk_unit *pxa_unit)
+{
+	unsigned int regval = 0;
+
+	/* DE suggest:enable SQU MP3 playback sleep mode */
+	regval = readl(pxa_unit->apmu_base + APMU_SQU_CLK_GATE_CTRL);
+	regval |= (1 << 30);
+	writel(regval, pxa_unit->apmu_base + APMU_SQU_CLK_GATE_CTRL);
+
+	/* enable MC4 and AXI fabric dynamic clk gating */
+	regval = readl(pxa_unit->ciu_base + CIU_MC_CONF);
+	/* disable cp fabric clk gating */
+	regval &= ~(1 << 16);
+	/* enable dclk gating */
+	regval &= ~(1 << 19);
+	/* enable 1x2 fabric AXI clock dynamic gating */
+	regval |= (1 << 29) | (1 << 30);
+	regval |= (0xff << 8) |		/* MCK4 P0~P7 */
+		(1 << 17) | (1 << 18) |	/* Fabric 0 */
+		(1 << 20) | (1 << 21) |	/* VPU fabric */
+		(1 << 26) | (1 << 27);	/* Fabric 0/1 */
+	writel(regval, pxa_unit->ciu_base + CIU_MC_CONF);
+}
 
 static void __init pxa1L88_clk_init(struct device_node *np)
 {
@@ -1234,6 +1260,7 @@ static void __init pxa1L88_clk_init(struct device_node *np)
 
 	setup_max_freq();
 
+	pxa1L88_misc_init(pxa_unit);
 	pxa1L88_pll_init(pxa_unit);
 	pxa1L88_acpu_init(pxa_unit);
 
