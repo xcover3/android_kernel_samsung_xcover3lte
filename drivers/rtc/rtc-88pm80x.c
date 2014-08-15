@@ -324,6 +324,8 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 	 tm.tm_year, tm.tm_mon, tm.tm_mday,
 	 tm.tm_hour, tm.tm_min, tm.tm_sec);
 
+	device_init_wakeup(&pdev->dev, 1);
+
 	info->rtc_dev = devm_rtc_device_register(&pdev->dev, "88pm80x-rtc",
 					    &pm80x_rtc_ops, THIS_MODULE);
 	if (IS_ERR(info->rtc_dev)) {
@@ -331,6 +333,7 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to register RTC device: %d\n", ret);
 		goto out;
 	}
+
 	/*
 	 * enable internal XO instead of internal 3.25MHz clock since it can
 	 * free running in PMIC power-down state.
@@ -349,8 +352,6 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	device_init_wakeup(&pdev->dev, 1);
-
 	return 0;
 out:
 	return ret;
@@ -359,6 +360,7 @@ out:
 static int pm80x_rtc_remove(struct platform_device *pdev)
 {
 	struct pm80x_rtc_info *info = platform_get_drvdata(pdev);
+	platform_set_drvdata(pdev, NULL);
 	pm80x_free_irq(info->chip, info->irq, info);
 	return 0;
 }
