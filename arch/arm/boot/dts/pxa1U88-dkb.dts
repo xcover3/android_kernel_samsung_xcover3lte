@@ -897,6 +897,9 @@
 					        status = "okay";
 				        };
 				        battery {
+						marvell,fg-has-external-storage;
+						external-storage = <&pmic0>;
+
 					        /* board design related */
 					        external-resistor = <200>; /* mohm */
 					        /* using scenario */
