@@ -652,10 +652,23 @@ static struct cpu_opt helanLTE_op_array[] = {
 	},
 };
 
-static struct cpu_rtcwtc cpu_rtcwtc_tsmc_1L88[] = {
+static struct cpu_rtcwtc cpu_rtcwtc_tsmc[] = {
 	{.max_pclk = 624, .l1_xtc = 0x02222222, .l2_xtc = 0x00002221,},
 	{.max_pclk = 1066, .l1_xtc = 0x02666666, .l2_xtc = 0x00006265,},
 	{.max_pclk = 1183, .l1_xtc = 0x2AAAAAA, .l2_xtc = 0x0000A2A9,},
+	{.max_pclk = 1482, .l1_xtc = 0x02EEEEEE, .l2_xtc = 0x0000E2ED,},
+};
+
+static struct cpu_rtcwtc cpu_rtcwtc_tsmc_a0c_1p5g_p6top11[] = {
+	{.max_pclk = 624, .l1_xtc = 0x02222222, .l2_xtc = 0x00002221,},
+	{.max_pclk = 1066, .l1_xtc = 0x02666666, .l2_xtc = 0x00006265,},
+	{.max_pclk = 1482, .l1_xtc = 0x02EEEEEE, .l2_xtc = 0x0000E2ED,},
+};
+
+static struct cpu_rtcwtc cpu_rtcwtc_umc_a0c[] = {
+	{.max_pclk = 312, .l1_xtc = 0x02222222, .l2_xtc = 0x00002221,},
+	{.max_pclk = 800, .l1_xtc = 0x02666666, .l2_xtc = 0x00006265,},
+	{.max_pclk = 1248, .l1_xtc = 0x02AAAAAA, .l2_xtc = 0x0000A2A9,},
 	{.max_pclk = 1482, .l1_xtc = 0x02EEEEEE, .l2_xtc = 0x0000E2ED,},
 };
 
@@ -664,8 +677,8 @@ static struct core_params core_params = {
 	.parent_table_size = ARRAY_SIZE(core_parent_table),
 	.cpu_opt = helanLTE_op_array,
 	.cpu_opt_size = ARRAY_SIZE(helanLTE_op_array),
-	.cpu_rtcwtc_table = cpu_rtcwtc_tsmc_1L88,
-	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_tsmc_1L88),
+	.cpu_rtcwtc_table = cpu_rtcwtc_tsmc,
+	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_tsmc),
 	.bridge_cpurate = 1248,
 	.max_cpurate = 1183,
 	.dcstat_support = true,
@@ -852,7 +865,7 @@ static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
-	int size;
+	int size, ui_foundry;
 
 	core_params.apmu_base = pxa_unit->apmu_base;
 	core_params.mpmu_base = pxa_unit->mpmu_base;
@@ -868,6 +881,23 @@ static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 	axi_params.mpmu_base = pxa_unit->mpmu_base;
 	axi_params.axi_opt = axi_oparray[ddr_mode];
 	axi_params.axi_opt_size = ARRAY_SIZE(axi_oparray[ddr_mode]);
+
+	ui_foundry = get_foundry();
+	if (cpu_is_pxa1L88_a0c()) {
+		if (ui_foundry == 2) {
+			core_params.cpu_rtcwtc_table = cpu_rtcwtc_umc_a0c;
+			core_params.cpu_rtcwtc_table_size =
+				ARRAY_SIZE(cpu_rtcwtc_umc_a0c);
+		} else if (is_1p5G_chip &&
+			  ((get_profile_pxa1L88() == 0) ||
+			  ((get_profile_pxa1L88() >= 6) &&
+			  (get_profile_pxa1L88() <= 11)))) {
+			core_params.cpu_rtcwtc_table =
+				cpu_rtcwtc_tsmc_a0c_1p5g_p6top11;
+			core_params.cpu_rtcwtc_table_size =
+				ARRAY_SIZE(cpu_rtcwtc_tsmc_a0c_1p5g_p6top11);
+		}
+	}
 
 	clk = mmp_clk_register_core("cpu", core_parent,
 				    ARRAY_SIZE(core_parent),
