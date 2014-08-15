@@ -83,6 +83,16 @@ config SW_BATTERY_88PM80X
 	  This driver uses the ADC function of 88PM80x. The capacity of the
 	  battery is calculated via the voltage.
 
+config BATTERY_88PM830
+	tristate "Marvell 88PM830 battery"
+	depends on MFD_88PM830
+	help
+	  Say Y here to enable battery monitor for Marvell 88PM830 chip.
+	  This driver uses the ADC and Columb counter to get
+	  voltage and current.
+	  The capacity of the battery is calculated via OCV and Culomb counter.
+
+
 config BATTERY_DS2760
 	tristate "DS2760 battery driver (HP iPAQ & others)"
 	depends on W1 && W1_SLAVE_DS2760

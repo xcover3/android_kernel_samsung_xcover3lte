@@ -241,6 +241,7 @@ struct pm830_usb_pdata {
 };
 
 struct pm830_bat_pdata {
+	int ext_storage;
 	int bat_ntc; /* bat det by GPADC1 */
 	int capacity; /* mAh */
 	int r_int; /* mOhm */
@@ -256,6 +257,7 @@ struct pm830_bat_pdata {
 	int r_tbat_thr[4];
 	unsigned int ntc_table_size;
 	int *ntc_table;
+	struct i2c_client *client;
 
 	unsigned int ocv_table[100];	/* soc-ocv table */
 };
