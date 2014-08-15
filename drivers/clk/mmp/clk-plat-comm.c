@@ -14,6 +14,7 @@
 #include <linux/clk.h>
 #include <linux/clk-private.h>
 #include <linux/clk-provider.h>
+#include <linux/devfreq.h>
 
 #include "clk.h"
 #include "clk-plat.h"
@@ -66,3 +67,29 @@ unsigned long mmp_clk_mix_get_oprate(struct clk *clk,
 	else
 		return mix->table[index].valid ? mix->table[index].rate : 0;
 }
+
+#ifdef CONFIG_PM_DEVFREQ
+void __init_comp_devfreq_table(struct clk *clk, unsigned int dev_id)
+{
+	unsigned int freq_num = 0, i = 0;
+	struct devfreq_frequency_table *devfreq_tbl;
+
+	freq_num = mmp_clk_mix_get_opnum(clk);
+	devfreq_tbl =
+		kmalloc(sizeof(struct devfreq_frequency_table)
+			* (freq_num + 1), GFP_KERNEL);
+	if (!devfreq_tbl)
+		return;
+
+	for (i = 0; i < freq_num; i++) {
+		devfreq_tbl[i].index = i;
+		devfreq_tbl[i].frequency =
+			mmp_clk_mix_get_oprate(clk, i) / MHZ_TO_KHZ;
+	}
+
+	devfreq_tbl[i].index = i;
+	devfreq_tbl[i].frequency = DEVFREQ_TABLE_END;
+
+	devfreq_frequency_table_register(devfreq_tbl, dev_id);
+}
+#endif

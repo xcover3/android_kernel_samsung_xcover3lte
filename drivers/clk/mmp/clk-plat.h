@@ -33,4 +33,8 @@ extern unsigned long mmp_clk_mix_get_oprate(struct clk *clk,
 		unsigned int index);
 extern unsigned int get_foundry(void);
 extern unsigned int get_profile_pxa1L88(void);
+
+#ifdef CONFIG_PM_DEVFREQ
+extern void __init_comp_devfreq_table(struct clk *clk, unsigned int dev_id);
+#endif
 #endif
