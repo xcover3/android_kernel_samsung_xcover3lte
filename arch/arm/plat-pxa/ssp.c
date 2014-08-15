@@ -160,6 +160,8 @@ static int pxa_ssp_probe(struct platform_device *pdev)
 		}
 		ssp->drcmr_tx = dma_spec.args[0];
 		of_node_put(dma_spec.np);
+
+		of_property_read_u32(np, "ssp-id", &ssp->port_id);
 	} else {
 		res = platform_get_resource(pdev, IORESOURCE_DMA, 0);
 		if (res == NULL) {
