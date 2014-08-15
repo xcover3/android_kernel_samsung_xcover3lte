@@ -29,6 +29,7 @@
 #define APBCP_UART2		0x1c
 
 #define MPMU_UART_PLL		0x14
+#define MPMU_VRCR		0x18
 
 #define APMU_SQU_CLK_GATE_CTRL	0x1C
 #define APMU_CLK_GATE_CTRL	0x40
@@ -374,6 +375,18 @@ static void pxa1L88_pll_init(struct pxa1L88_clk_unit *pxa_unit)
 				pxa_unit->apmu_base,
 				ARRAY_SIZE(pll1_gate_clks));
 	pxa1L88_dynpll_init(pxa_unit);
+
+	clk = mmp_clk_register_gate(NULL, "vcxo_gate_share", "vctcxo",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_VRCR,
+				(1 << 8), (1 << 8), 0x0, 0, NULL);
+	clk = clk_register_fixed_rate(NULL, "VCXO_OUT", "vcxo_gate_share",
+				      0, 26000000);
+	mmp_clk_add(unit, PXA1L88_CLK_VCXO_OUT, clk);
+	/* Per AE's request: export VCXO_OUT2 clock node */
+	clk = clk_register_fixed_rate(NULL, "VCXO_OUT2", "vcxo_gate_share",
+				      0, 26000000);
+	mmp_clk_add(unit, PXA1L88_CLK_VCXO_OUT2, clk);
 }
 
 static struct mmp_param_gate_clk apbc_gate_clks[] = {
