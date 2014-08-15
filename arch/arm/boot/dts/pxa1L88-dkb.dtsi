@@ -375,6 +375,30 @@
 					reg = <0x77>;
 					avdd-supply = <&ldo10>;
 				};
+
+				sensor3: mpu9250@69 {
+					compatible = "invensense,mpu9250";
+					reg = <0x69>;
+					interrupt-parent = <&gpio>;
+					interrupts = <92 0x2>;
+					inven,irq-gpios = <&gpio 92 0x00>;
+					avdd-supply = <&ldo10>;
+					axis_map_x = <0>;
+					negate_x = <0>;
+					axis_map_y = <4>;
+					negate_y = <0>;
+					axis_map_z = <8>;
+					negate_z = <0>;
+					inven,secondary_axis_map_x = <0>;
+					inven,secondary_negate_x = <0>;
+					inven,secondary_axis_map_y = <4>;
+					inven,secondary_negate_y = <0>;
+					inven,secondary_axis_map_z = <8>;
+					inven,secondary_negate_z = <0>;
+					inven,secondary_type = "compass";
+					inven,secondary_name = "ak8963";
+					inven,secondary_reg = <0xc>;
+				};
 			};
 
 			twsi2: i2c@d4037000 {
