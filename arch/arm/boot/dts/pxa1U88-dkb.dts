@@ -452,6 +452,13 @@
 					DS_FAST;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
 				};
 
+				m9250_irq_pin: m9250_irq_pin {
+					pinctrl-single,pins = <
+						ND_IO10 AF1
+					>;
+					MFP_LPM_PULL_DW;
+				};
+
 				keypad_in_func: keypad_in_func {
 					pinctrl-single,pins = <
 						GPIO16 AF1	/* GPIO016_KP_DKIN1 */
@@ -824,6 +831,32 @@
 				pinctrl-1 = <&twsi3_pmx_gpio>;
 				i2c-gpio = <&gpio 73 0 &gpio 74 0>;
 				status = "okay";
+
+				sensor3: mpu9250@69 {
+					compatible = "invensense,mpu9250";
+					pinctrl-names = "default";
+					pinctrl-0 = <&m9250_irq_pin>;
+					reg = <0x69>;
+					interrupt-parent = <&gpio>;
+					interrupts = <65 IRQ_TYPE_EDGE_FALLING>;
+					inven,irq-gpios = <&gpio 65 0x00>;
+					avdd-supply = <&ldo10>;
+					axis_map_x = <0>;
+					negate_x = <0>;
+					axis_map_y = <4>;
+					negate_y = <0>;
+					axis_map_z = <8>;
+					negate_z = <0>;
+					inven,secondary_axis_map_x = <0>;
+					inven,secondary_negate_x = <0>;
+					inven,secondary_axis_map_y = <4>;
+					inven,secondary_negate_y = <0>;
+					inven,secondary_axis_map_z = <8>;
+					inven,secondary_negate_z = <0>;
+					inven,secondary_type = "compass";
+					inven,secondary_name = "ak8963";
+					inven,secondary_reg = <0xc>;
+				};
 			};
 
 			/* SSPA port 0 */

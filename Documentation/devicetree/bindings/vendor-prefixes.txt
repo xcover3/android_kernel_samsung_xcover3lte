@@ -48,6 +48,7 @@ ibm	International Business Machines (IBM)
 idt	Integrated Device Technologies, Inc.
 img	Imagination Technologies Ltd.
 intercontrol	Inter Control Group
+invensense	Invensense Technologies
 isl	Intersil
 karo	Ka-Ro electronics GmbH
 lg	LG Corporation
