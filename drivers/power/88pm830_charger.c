@@ -635,7 +635,8 @@ static int pm830_start_charging(struct pm830_charger_info *info)
 	chg_allowed = pm830_is_chg_allowed(info);
 	if (!chg_allowed) {
 		dev_dbg(info->dev, "charging not allowed...!\n");
-		info->pm830_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		if (info->pm830_status != POWER_SUPPLY_STATUS_FULL)
+			info->pm830_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		return 0;
 	}
 
