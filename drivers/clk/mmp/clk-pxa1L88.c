@@ -62,6 +62,9 @@
 #define APMU_VPU		0xa4
 
 #define CIU_MC_CONF		0x0040
+#define CIU_GPU2D_XTC		0x00a0
+#define CIU_GPU_XTC		0x00a4
+#define CIU_VPU_XTC		0x00a8
 
 /*
  * peripheral clock source:
@@ -603,12 +606,26 @@ static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
 	{.rate = 156000000, .parent_index = CLK_PLL1_624, },
 	{.rate = 312000000, .parent_index = CLK_PLL1_624, },
 	{.rate = 416000000, .parent_index = CLK_PLL1_416, },
+	{.rate = 624000000, .parent_index = CLK_PLL1_624, },
 };
 
 static struct mmp_clk_mix_config gc2d_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 2, 6, 15),
 	.table = gc2d_pptbl,
 	.table_size = ARRAY_SIZE(gc2d_pptbl),
+};
+
+static struct mmp_clk_mix_clk_table gc2d_pptbl_umc[] = {
+	{.rate = 156000000, .parent_index = CLK_PLL1_624, .xtc = 0x00055555, },
+	{.rate = 312000000, .parent_index = CLK_PLL1_624, .xtc = 0x00055555, },
+	{.rate = 416000000, .parent_index = CLK_PLL1_416, .xtc = 0x00055555, },
+	{.rate = 624000000, .parent_index = CLK_PLL1_624, .xtc = 0x00066666, },
+};
+
+static struct mmp_clk_mix_config gc2d_mix_config_umc = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 2, 6, 15),
+	.table = gc2d_pptbl_umc,
+	.table_size = ARRAY_SIZE(gc2d_pptbl_umc),
 };
 
 /* GC2d bus */
@@ -640,11 +657,11 @@ static const char const *vpufclk_parent_names[] = {
 };
 
 static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
-	{.rate = 156000000, .parent_index = CLK_PLL1_624, },
-	{.rate = 208000000, .parent_index = CLK_PLL1_416, },
-	{.rate = 312000000, .parent_index = CLK_PLL1_624, },
-	{.rate = 416000000, .parent_index = CLK_PLL1_416, },
-	{.rate = 533000000, .parent_index = CLK_PLL2P, },
+	{.rate = 156000000, .parent_index = CLK_PLL1_624, .xtc = 0x00B04444},
+	{.rate = 208000000, .parent_index = CLK_PLL1_416, .xtc = 0x00B04444},
+	{.rate = 312000000, .parent_index = CLK_PLL1_624, .xtc = 0x00B05555},
+	{.rate = 416000000, .parent_index = CLK_PLL1_416, .xtc = 0x00B06655},
+	{.rate = 533000000, .parent_index = CLK_PLL2P, .xtc = 0x00B07777},
 };
 
 static struct mmp_clk_mix_config vpufclk_mix_config = {
@@ -731,6 +748,8 @@ static void pxa1L88_axi_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 	mmp_clk_add(unit, PXA1L88_CLK_SDH2, clk);
 
 	gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+	gc3d_mix_config.reg_info.reg_clk_xtc =
+				pxa_unit->ciu_base + CIU_GPU_XTC;
 	clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk",
 				(const char **)gc3d_parent_names,
 				ARRAY_SIZE(gc3d_parent_names),
@@ -770,12 +789,28 @@ static void pxa1L88_axi_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 	clk_set_rate(clk, 312000000);
 	mmp_clk_add(unit, PXA1L88_CLK_GC3DBUS, clk);
 
-	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
-	clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk",
-				(const char **)gc2d_parent_names,
-				ARRAY_SIZE(gc2d_parent_names),
-				CLK_SET_RATE_PARENTS_ENABLED,
-				&gc2d_mix_config, &gc2d_lock);
+	if (cpu_is_pxa1L88_a0c()) {
+		if (get_foundry() == 2) {
+			gc2d_mix_config_umc.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
+			gc2d_mix_config_umc.reg_info.reg_clk_xtc =
+						pxa_unit->ciu_base + CIU_GPU2D_XTC;
+			clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk",
+						(const char **)gc2d_parent_names,
+						ARRAY_SIZE(gc2d_parent_names),
+						CLK_SET_RATE_PARENTS_ENABLED,
+						&gc2d_mix_config_umc, &gc2d_lock);
+		}
+	} else {
+		gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
+		gc2d_mix_config.reg_info.reg_clk_xtc =
+					pxa_unit->ciu_base + CIU_GPU2D_XTC;
+		clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk",
+					(const char **)gc2d_parent_names,
+					ARRAY_SIZE(gc2d_parent_names),
+					CLK_SET_RATE_PARENTS_ENABLED,
+					&gc2d_mix_config, &gc2d_lock);
+	}
+
 	clk = mmp_clk_register_gate(NULL, "gc2d", "gc2d_mix_clk",
 				CLK_SET_RATE_PARENT,
 				pxa_unit->apmu_base + APMU_GC2D,
@@ -799,6 +834,8 @@ static void pxa1L88_axi_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 
 	vpufclk_mix_config.reg_info.reg_clk_ctrl =
 			pxa_unit->apmu_base + APMU_VPU;
+	vpufclk_mix_config.reg_info.reg_clk_xtc =
+				pxa_unit->ciu_base + CIU_VPU_XTC;
 	clk = mmp_clk_register_mix(NULL, "vpufunc_mix_clk",
 			(const char **)vpufclk_parent_names,
 			ARRAY_SIZE(vpufclk_parent_names),
@@ -1261,6 +1298,10 @@ static void __init pxa1L88_misc_init(struct pxa1L88_clk_unit *pxa_unit)
 		(1 << 20) | (1 << 21) |	/* VPU fabric */
 		(1 << 26) | (1 << 27);	/* Fabric 0/1 */
 	writel(regval, pxa_unit->ciu_base + CIU_MC_CONF);
+
+	/* init GC rtc/wtc settings */
+	writel(0x00011111, pxa_unit->ciu_base + CIU_GPU_XTC);
+	writel(0x00055555, pxa_unit->ciu_base + CIU_GPU2D_XTC);
 }
 
 static void __init pxa1L88_clk_init(struct device_node *np)
