@@ -37,6 +37,8 @@
 #define APMU_SDH1		0x58
 #define APMU_SDH2		0xe0
 #define APMU_USB		0x5c
+#define APMU_NF			0x60
+#define APMU_AES		0x68
 
 #define APMU_CORE_STATUS 0x090
 
@@ -441,7 +443,7 @@ static void pxa1L88_apb_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 
 	clk = clk_register_divider_table(NULL, "twsi2_div",
 				"pll1_624", CLK_SET_RATE_PARENT,
-				pxa_unit->apbcp_base + APBCP_TWSI2, 4, 3, 0,
+				pxa_unit->apbcp_base + APBCP_TWSI2, 3, 2, 0,
 				clk_twsi_ref_table, &twsi2_lock);
 	clk = mmp_clk_register_gate(NULL, "twsi2_clk", "twsi2_div",
 				CLK_SET_RATE_PARENT,
@@ -644,6 +646,16 @@ static void pxa1L88_axi_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
+
+	/* nand flash clock, no one use it, expect to be disabled */
+	clk = mmp_clk_register_gate(NULL, "nf_clk", NULL, 0,
+				pxa_unit->apmu_base + APMU_NF,
+				0x1db, 0x1db, 0x0, 0, NULL);
+
+	/* GEU/AES clock, security will enable it prior to use it */
+	clk = mmp_clk_register_gate(NULL, "aes_clk", NULL, 0,
+				pxa_unit->apmu_base + APMU_AES,
+				0x9, 0x8, 0x0, 0, NULL);
 
 	clk = mmp_clk_register_gate(NULL, "usb_clk", NULL, 0,
 				pxa_unit->apmu_base + APMU_USB,
