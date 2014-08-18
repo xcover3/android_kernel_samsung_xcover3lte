@@ -614,6 +614,7 @@ static int ddr_get_cur_freq(struct device *dev, unsigned long *freq)
 }
 
 static struct devfreq_dev_profile ddr_devfreq_profile = {
+	.name = "devfreq-ddr",
 	/* Profiler is not enabled by default */
 	.polling_ms = 0,
 	.target = ddr_target,

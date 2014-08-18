@@ -102,6 +102,7 @@ struct devfreq_pm_qos_table {
  * in the ascending order.
  */
 struct devfreq_dev_profile {
+	char *name;
 	unsigned long initial_freq;
 	unsigned int polling_ms;
 	int min_qos_type;

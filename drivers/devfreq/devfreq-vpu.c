@@ -351,6 +351,10 @@ static int vpu_devfreq_probe(struct platform_device *pdev)
 		}
 		data->vpu_freq_tbl_len = i;
 	}
+
+	/* unify the dev name according to the id number */
+	profile->name = kasprintf(GFP_KERNEL, "devfreq-vpu.%u", index);
+
 	profile->initial_freq = clk_get_rate(data->fclk) / KHZ_TO_HZ;
 
 	/* set the frequency table of devfreq profile */
