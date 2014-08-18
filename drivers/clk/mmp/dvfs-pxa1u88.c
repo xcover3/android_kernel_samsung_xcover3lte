@@ -110,6 +110,18 @@ unsigned int get_chipprofile(void)
 }
 EXPORT_SYMBOL(get_chipprofile);
 
+unsigned int get_iddq_105(void)
+{
+	return uiSIDD1_05;
+}
+EXPORT_SYMBOL(get_iddq_105);
+
+unsigned int get_iddq_130(void)
+{
+	return uiSIDD1_30;
+}
+EXPORT_SYMBOL(get_iddq_130);
+
 static int __maybe_unused __init __init_read_droinfo(void)
 {
 	void __iomem *apmu_base, *geu_base;
