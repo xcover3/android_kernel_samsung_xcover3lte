@@ -12,9 +12,7 @@
 #include "clk-pll-helanx.h"
 #include "clk-core-helanx.h"
 #include "clk-plat.h"
-#ifdef CONFIG_CPU_PXA988
-#include <mach/cputype.h>
-#endif
+#include <linux/cputype.h>
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -1133,8 +1131,8 @@ static void __init pxa1L88_acpu_init(struct pxa1L88_clk_unit *pxa_unit)
 	axi_params.axi_opt = axi_oparray[ddr_mode];
 	axi_params.axi_opt_size = ARRAY_SIZE(axi_oparray[ddr_mode]);
 
-	ui_foundry = get_foundry();
 	if (cpu_is_pxa1L88_a0c()) {
+		ui_foundry = get_foundry();
 		if (ui_foundry == 2) {
 			core_params.cpu_rtcwtc_table = cpu_rtcwtc_umc_a0c;
 			core_params.cpu_rtcwtc_table_size =

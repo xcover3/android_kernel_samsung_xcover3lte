@@ -11,7 +11,7 @@
  */
 
 #include <linux/io.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 #include <mach/pxa988_lowpower.h>
 #include <mach/irqs.h>
 #include <mach/pm.h>

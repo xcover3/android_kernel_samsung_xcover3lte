@@ -15,7 +15,7 @@
 #include <linux/clk/dvfs-dvc.h>
 
 #include <mach/addr-map.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 
 /* components that affect the vmin */
 enum dvfs_comp {

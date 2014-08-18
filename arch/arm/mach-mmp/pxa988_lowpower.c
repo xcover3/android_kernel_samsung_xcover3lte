@@ -21,7 +21,7 @@
 #include <asm/mach/map.h>
 #include <asm/mcpm.h>
 #include <mach/addr-map.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 #include <mach/mmp_cpuidle.h>
 #include <mach/pxa988_lowpower.h>
 #include <mach/regs-apbc.h>

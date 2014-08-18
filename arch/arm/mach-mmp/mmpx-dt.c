@@ -20,7 +20,7 @@
 
 #include <asm/mach/arch.h>
 
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 
 #include "common.h"
 #include "regs-addr.h"

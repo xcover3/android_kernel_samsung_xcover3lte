@@ -19,7 +19,7 @@
 
 #include <asm/cacheflush.h>
 #include <mach/hardware.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 #include <linux/irqchip/arm-gic.h>
 #include <asm/mach-types.h>
 #include <asm/mcpm.h>

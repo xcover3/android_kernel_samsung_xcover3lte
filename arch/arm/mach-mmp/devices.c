@@ -14,7 +14,7 @@
 #include <asm/irq.h>
 #include <mach/irqs.h>
 #include <mach/devices.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 #include <mach/regs-usb.h>
 
 int __init pxa_register_device(struct pxa_device_desc *desc,

@@ -41,7 +41,7 @@ extern unsigned int mmp_chip_id;
 static inline int cpu_is_pxa168(void)
 {
 	return (((read_cpuid_id() >> 8) & 0xff) == 0x84) &&
-		((mmp_chip_id & 0xfff) == 0x168);
+	    ((mmp_chip_id & 0xfff) == 0x168);
 }
 #else
 #define cpu_is_pxa168()	(0)
@@ -52,8 +52,8 @@ static inline int cpu_is_pxa168(void)
 static inline int cpu_is_pxa910(void)
 {
 	return (((read_cpuid_id() >> 8) & 0xff) == 0x84) &&
-		(((mmp_chip_id & 0xfff) == 0x910) ||
-		 ((mmp_chip_id & 0xfff) == 0x920));
+	    (((mmp_chip_id & 0xfff) == 0x910) ||
+	     ((mmp_chip_id & 0xfff) == 0x920));
 }
 #else
 #define cpu_is_pxa910()	(0)
@@ -62,7 +62,7 @@ static inline int cpu_is_pxa910(void)
 #ifdef CONFIG_CPU_MMP2
 static inline int cpu_is_mmp2(void)
 {
-	return (((read_cpuid_id() >> 8) & 0xff) == 0x58);
+	return ((read_cpuid_id() >> 8) & 0xff) == 0x58;
 }
 #else
 #define cpu_is_mmp2()	(0)
@@ -71,26 +71,26 @@ static inline int cpu_is_mmp2(void)
 static inline int cpu_is_pxa1U88(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
-		(((mmp_chip_id & 0xffff) == 0x1098));
+	    (((mmp_chip_id & 0xffff) == 0x1098));
 }
 
 #ifdef CONFIG_CPU_PXA988
 static inline int cpu_is_pxa1L88(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
-		(((mmp_chip_id & 0xffff) == 0x1188));
+	    (((mmp_chip_id & 0xffff) == 0x1188));
 }
 
 static inline int cpu_is_pxa1L88_a0(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
-		(((mmp_chip_id & 0xffffff) == 0xa01188));
+	    (((mmp_chip_id & 0xffffff) == 0xa01188));
 }
 
 static inline int cpu_is_pxa1L88_a0c(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc07) &&
-		(((mmp_chip_id & 0xffffff) == 0xb01188));
+	    (((mmp_chip_id & 0xffffff) == 0xb01188));
 }
 #else
 #define cpu_is_pxa1L88()	(0)

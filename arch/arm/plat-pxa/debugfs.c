@@ -18,7 +18,7 @@
 #include <linux/debugfs-pxa.h>
 
 #include <mach/addr-map.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 
 #ifdef CONFIG_ARM_GIC
 #include <linux/irqchip/arm-gic.h>

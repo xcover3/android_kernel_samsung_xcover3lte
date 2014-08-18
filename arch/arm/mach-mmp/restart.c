@@ -12,7 +12,7 @@
 
 #include <linux/mm.h>
 #include <linux/io.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 #include <linux/delay.h>
 #include <asm/mach/arch.h>
 

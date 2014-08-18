@@ -11,7 +11,7 @@
 
 #include <linux/regdump_ops.h>
 #include <linux/irqchip/arm-gic.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 
 #include "regs-addr.h"
 

@@ -13,9 +13,7 @@
 #include "clk-pll-helanx.h"
 #include "clk-core-helanx.h"
 #include "clk-plat.h"
-#ifdef CONFIG_CPU_PXA988
-#include <mach/cputype.h>
-#endif
+#include <linux/cputype.h>
 
 #define APBS_PLL1_CTRL		0x100
 
