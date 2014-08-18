@@ -856,7 +856,7 @@ static int pxa27x_keypad_probe(struct platform_device *pdev)
 		goto failed_free_mem;
 	}
 
-	keypad->clk = clk_get(&pdev->dev, NULL);
+	keypad->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(keypad->clk)) {
 		dev_err(&pdev->dev, "failed to get keypad clock\n");
 		error = PTR_ERR(keypad->clk);
