@@ -19,6 +19,7 @@
 #include <asm/setup.h>
 #include <linux/kmsg_dump.h>
 #include <linux/of.h>
+#include <linux/arm-coresight.h>
 
 #include <marvell/emmd_rsv.h>
 #ifdef CONFIG_REGDUMP
@@ -147,6 +148,9 @@ void panic_flush(struct pt_regs *regs)
 
 	raw_spin_lock(&panic_lock);
 	pr_emerg("EMMD: ready to perform memory dump\n");
+
+	for (i = 0; i < nr_cpu_ids; i++)
+		coresight_dump_pcsr(i);
 
 	set_emmd_indicator();
 	ramtag_setup();
