@@ -142,6 +142,7 @@ struct mv_otg {
 
 	/* base address */
 	void __iomem *cap_regs;
+	void __iomem *apmu_base;
 	struct mv_otg_regs __iomem *op_regs;
 
 	struct platform_device *pdev;

@@ -66,57 +66,10 @@ static char *state_string[] = {
 	"a_vbus_err"
 };
 
-static void __iomem *iomap_register(const char *reg_name)
-{
-	void __iomem *reg_virt_addr;
-	struct device_node *node;
-
-	BUG_ON(!reg_name);
-	node = of_find_compatible_node(NULL, NULL, reg_name);
-	BUG_ON(!node);
-	reg_virt_addr = of_iomap(node, 0);
-	BUG_ON(!reg_virt_addr);
-
-	return reg_virt_addr;
-}
-
-static phys_addr_t get_register_pa(const char *reg_name)
-{
-	phys_addr_t reg_phys_addr;
-	struct device_node *node;
-	u32 reg;
-
-	BUG_ON(!reg_name);
-	node = of_find_compatible_node(NULL, NULL, reg_name);
-	BUG_ON(!node);
-	of_property_read_u32(node, "reg", &reg);
-	reg_phys_addr = reg;
-	BUG_ON(!reg_phys_addr);
-
-	return reg_phys_addr;
-}
-
-phys_addr_t get_apmu_base_pa(void)
-{
-	static phys_addr_t apmu_phys_addr;
-	if (unlikely(!apmu_phys_addr))
-		apmu_phys_addr = get_register_pa("marvell,mmp-pmu-apmu");
-	return apmu_phys_addr;
-}
-
-void __iomem *get_apmu_base_va(void)
-{
-	static void __iomem *apmu_virt_addr;
-	if (unlikely(!apmu_virt_addr))
-		apmu_virt_addr = iomap_register("marvell,mmp-pmu-apmu");
-	return apmu_virt_addr;
-}
-
 /* need to write APMU register to enable USBID wakeup/irq */
-void mv_otg_usbid_wakeup_en(int en)
+void mv_otg_usbid_wakeup_en(int en, void __iomem *apmu_base)
 {
 	u32 tmp32;
-	void __iomem *apmu_base = get_apmu_base_va();
 	tmp32 = __raw_readl(apmu_base + APMU_SD_ROT_WAKE_CLR);
 	if (en)
 		tmp32 |= USB_OTG_ID_WAKEUP_EN;
@@ -127,10 +80,9 @@ void mv_otg_usbid_wakeup_en(int en)
 }
 
 /* need to write APMU register to clear USBID wakeup/irq */
-void mv_otg_usbid_wakeup_clear(void)
+void mv_otg_usbid_wakeup_clear(void __iomem *apmu_base)
 {
 	u32 tmp32;
-	void __iomem *apmu_base = get_apmu_base_va();
 	tmp32 = __raw_readl(apmu_base + APMU_SD_ROT_WAKE_CLR);
 
 	/* to clear APMU USBID wakeup/irq, first wirte 1, then write 0 */
@@ -604,7 +556,7 @@ static irqreturn_t mv_otg_irq(int irq, void *dev)
 	writel(otgsc | mvotg->irq_en, &mvotg->op_regs->otgsc);
 
 	if (!(mvotg->pdata->extern_attr & MV_USB_HAS_IDPIN_DETECTION)) {
-		mv_otg_usbid_wakeup_clear();
+		mv_otg_usbid_wakeup_clear(mvotg->apmu_base);
 		if (mvotg->otg_ctrl.id != (!!(otgsc & OTGSC_STS_USB_ID))) {
 			mv_otg_run_state_machine(mvotg, 0);
 			return IRQ_HANDLED;
@@ -878,6 +830,7 @@ static int mv_otg_probe(struct platform_device *pdev)
 	struct usb_otg *otg;
 	struct resource *r;
 	int retval = 0, i;
+	struct device_node *node;
 
 	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (pdata == NULL) {
@@ -942,6 +895,15 @@ static int mv_otg_probe(struct platform_device *pdev)
 	mvotg->cap_regs = devm_ioremap(&pdev->dev, r->start, resource_size(r));
 	if (mvotg->cap_regs == NULL) {
 		dev_err(&pdev->dev, "failed to map I/O memory\n");
+		retval = -EFAULT;
+		goto err_destroy_workqueue;
+	}
+
+	node = of_find_compatible_node(NULL, NULL, "marvell,mmp-pmu-apmu");
+	BUG_ON(!node);
+	mvotg->apmu_base = of_iomap(node, 0);
+	if (mvotg->apmu_base == NULL) {
+		dev_err(&pdev->dev, "failed to map apmu base memory\n");
 		retval = -EFAULT;
 		goto err_destroy_workqueue;
 	}
@@ -1027,7 +989,7 @@ static int mv_otg_probe(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 1);
 	if (!(pdata->extern_attr & MV_USB_HAS_IDPIN_DETECTION)) {
 		enable_irq_wake(mvotg->irq);
-		mv_otg_usbid_wakeup_en(1);
+		mv_otg_usbid_wakeup_en(1, mvotg->apmu_base);
 	}
 
 	return 0;
