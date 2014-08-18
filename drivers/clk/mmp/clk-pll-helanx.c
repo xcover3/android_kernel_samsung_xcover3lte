@@ -209,7 +209,7 @@ static void config_ssc(struct clk_vco *vco, unsigned long new_rate)
 			    ssc_params->base, new_rate, &div, &rng);
 
 	ssc_conf.v = pll_readl_ssccfg(ssc_params);
-	ssc_conf.b.ssc_freq_div = div;
+	ssc_conf.b.ssc_freq_div = div & 0xfff0;
 	ssc_conf.b.ssc_rnge = rng;
 	pll_writel_ssccfg(ssc_conf.v, ssc_params);
 }
