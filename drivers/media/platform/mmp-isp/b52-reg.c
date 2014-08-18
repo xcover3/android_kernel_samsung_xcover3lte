@@ -2567,7 +2567,7 @@ static int b52_cmd_capture_img(struct b52isp_cmd *cmd)
 	b52_writeb(CMD_REG6, val);
 	val = b52_bit_cnt((u8)cmd->output_map);
 	b52_writeb(CMD_REG7, val);
-	b52_writeb(CMD_REG8, 0);
+	b52_writeb(CMD_REG8, 0x20);
 
 	b52_cfg_input(&cmd->src_fmt, cmd->src_type);
 	b52_cfg_idi(&cmd->src_fmt, &cmd->pre_crop);

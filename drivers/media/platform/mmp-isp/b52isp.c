@@ -467,7 +467,6 @@ cmd_done:
 
 	/* FIXME set flags to 0, keep the sensor init once */
 	cmd->flags &= ~BIT(CMD_FLAG_INIT);
-	cmd->flags |= BIT(CMD_FLAG_LOCK_AEAG);
 
 	d_inf(4, "MCU command apply success: %s", pipe->isd.subdev.name);
 	return 0;
@@ -2590,6 +2589,8 @@ stream_data_off:
 				lpipe->cur_cmd->output[out_id].pix_mp =
 					vnode->format.fmt.pix_mp;
 				laxi->dma_state = B52DMA_IDLE;
+				lpipe->cur_cmd->flags |=
+					BIT(CMD_FLAG_LOCK_AEAG);
 
 				if (lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))
 					ret = 0;
@@ -2662,6 +2663,7 @@ stream_data_off:
 			if (lpipe->path_arg.linear_yuv)
 				lpipe->cur_cmd->flags |=
 					BIT(CMD_FLAG_LINEAR_YUV);
+			lpipe->cur_cmd->flags |= BIT(CMD_FLAG_LOCK_AEAG);
 			ret = b52isp_try_apply_cmd(lpipe);
 			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_LINEAR_YUV);
 			if (WARN_ON(ret < 0))
