@@ -930,6 +930,8 @@
 					   1 0 0 0  /* 1.8G */
 					   2 0 0 0  /* 1.5G */
 					   3 0 0 0>;/* 1.2G */
+				/* 1.2G * 2 core cooling state */
+				thermal_safe-p0 = <3 2>;
 				status = "okay";
 			};
 		};
