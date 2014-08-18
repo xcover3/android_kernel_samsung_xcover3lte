@@ -16,6 +16,8 @@
 #include <linux/delay.h>
 #include <asm/mach/arch.h>
 
+#include "regs-addr.h"
+
 #define CP_TIMERS2_BASE (0xd4080000)
 #define WDT_SIZE       (0xff)
 
@@ -46,13 +48,13 @@ static void do_wdt_restart(const char *cmd)
 	void __iomem *mpmu_vaddr, *rtc_vaddr;
 	void __iomem *watchdog_virt_base;
 
-	mpmu_vaddr = ioremap(MPMU_BASE, MPMU_SIZE);
+	mpmu_vaddr = regs_addr_get_va(REGS_ADDR_MPMU);
 	BUG_ON(!mpmu_vaddr);
 
-	rtc_vaddr = ioremap(RTC_BASE, RTC_SIZE);
+	rtc_vaddr = regs_addr_get_va(REGS_ADDR_RTC);
 	BUG_ON(!rtc_vaddr);
 
-	watchdog_virt_base = ioremap(CP_TIMERS2_BASE, WDT_SIZE);
+	watchdog_virt_base = regs_addr_get_va(REGS_ADDR_WDT);
 	BUG_ON(!watchdog_virt_base);
 
 	/* Hold cp to avoid restart watchdog */
@@ -98,7 +100,7 @@ static void do_wdt_restart(const char *cmd)
 
 void mmp_arch_restart(enum reboot_mode mode, const char *cmd)
 {
-	if (!cpu_is_pxa1L88()) {
+	if (!(cpu_is_pxa1L88() || cpu_is_pxa1U88())) {
 		pr_err("%s: unsupported cpu.\n", __func__);
 		return;
 	}
