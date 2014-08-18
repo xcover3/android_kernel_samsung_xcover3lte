@@ -26,6 +26,7 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/of_address.h>
 
 #include <trace/events/pxa.h>
 
@@ -95,6 +96,28 @@ static struct devfreq_throughput_data devfreq_throughput_data = {
 };
 #endif /* CONFIG_DDR_DEVFREQ_GOV_THROUGHPUT */
 
+static void __iomem *iomap_register(const char *reg_name)
+{
+	void __iomem *reg_virt_addr;
+	struct device_node *node;
+
+	BUG_ON(!reg_name);
+	node = of_find_compatible_node(NULL, NULL, reg_name);
+	BUG_ON(!node);
+	reg_virt_addr = of_iomap(node, 0);
+	BUG_ON(!reg_virt_addr);
+
+	return reg_virt_addr;
+}
+
+static void __iomem *get_apmu_base_va(void)
+{
+	static void __iomem *apmu_virt_addr;
+	if (unlikely(!apmu_virt_addr))
+		apmu_virt_addr = iomap_register("marvell,mmp-pmu-apmu");
+	return apmu_virt_addr;
+}
+
 static int ddr_max;
 
 static int __init ddr_max_setup(char *str)
@@ -128,8 +151,13 @@ static void write_static_register(unsigned int val, unsigned int expected_val,
 {
 	int max_try = 1000;
 	unsigned int temp;
+	unsigned long flags;
+	void __iomem *apmu_base = get_apmu_base_va();
 
 	if (ver == MCK4) {
+		get_fc_spinlock();
+		local_irq_save(flags);
+		get_fc_lock(apmu_base, 1);
 		while (max_try-- > 0) {
 			writel(val, reg);
 			temp = readl(reg);
@@ -138,6 +166,9 @@ static void write_static_register(unsigned int val, unsigned int expected_val,
 		}
 		if (!max_try)
 			pr_err("Can't write register %p with value %X\n", reg, val);
+		put_fc_lock(apmu_base);
+		local_irq_restore(flags);
+		put_fc_spinlock();
 	} else if (ver == MCK5)
 		writel(val, reg);
 	else
@@ -148,9 +179,17 @@ static void write_static_register(unsigned int val, unsigned int expected_val,
 static unsigned int read_static_register(void *reg, unsigned int ver)
 {
 	unsigned int ret;
+	unsigned long flags;
+	void __iomem *apmu_base = get_apmu_base_va();
 
 	if (ver == MCK4) {
+		get_fc_spinlock();
+		local_irq_save(flags);
+		get_fc_lock(apmu_base, 1);
 		ret = readl(reg);
+		put_fc_lock(apmu_base);
+		local_irq_restore(flags);
+		put_fc_spinlock();
 	} else if (ver == MCK5)
 		ret = readl(reg);
 	else

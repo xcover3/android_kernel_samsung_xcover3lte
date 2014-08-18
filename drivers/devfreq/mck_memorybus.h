@@ -152,4 +152,9 @@ struct ddr_devfreq_data {
 	struct timespec start_ts;
 	struct timespec stop_ts;
 };
+
+extern void get_fc_spinlock(void);
+extern void put_fc_spinlock(void);
+extern void put_fc_lock(void __iomem *apmu_base);
+extern int get_fc_lock(void __iomem *apmu_base, int has_hwdfcwr);
 #endif /* __LINUX_MCK_MEMORYBUS_H__ */
