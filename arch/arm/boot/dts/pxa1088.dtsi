@@ -356,6 +356,17 @@
 			compatible = "marvell,mmp-pmu-apbc";
 			reg = <0xd4015000 0x74>;
 		};
+
+		wdtrtc: wdtrtc@d4010000 {
+			compatible = "marvell,mmp-wdt-rtc";
+			reg = <0xd4010000 0x100>;
+		};
+
+		wdt: wdt@d4080000 {
+			compatible = "marvell,mmp-watchdog";
+			reg = <0xd4080000 0xff>;
+		};
+
 	};
 	soc_clocks: clocks{
 		compatible = "marvell,pxa1L88-clock";
