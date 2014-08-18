@@ -279,8 +279,51 @@ static int hotplug_freq_notifier_call(struct notifier_block *nb,
 	return 0;
 }
 
+void hotplug_sync_idle_time(int cpu)
+{
+	struct cpu_time_info *tmp_info;
+	cputime64_t cur_wall_time, cur_idle_time;
+
+	mutex_lock(&hotplug_stat_lock);
+	tmp_info = &per_cpu(hotplug_cpu_time, cpu);
+
+	/* get idle time and wall time */
+	cur_idle_time = get_cpu_idle_time(cpu, &cur_wall_time, 0);
+
+	/* update idle time and wall time */
+	tmp_info->prev_cpu_idle = cur_idle_time;
+	tmp_info->prev_cpu_wall = cur_wall_time;
+	tmp_info->total_wall_time = cur_wall_time;
+
+	tmp_info->load = 0;
+	tmp_info->avg_load = 0;
+
+	mutex_unlock(&hotplug_stat_lock);
+}
+
+static int __cpuinit sthp_cpu_callback(struct notifier_block *nfb,
+					unsigned long action, void *hcpu)
+{
+	unsigned int cpu = (unsigned long)hcpu;
+
+	if (user_lock == 1)
+		return NOTIFY_OK;
+
+	switch (action) {
+	case CPU_UP_PREPARE:
+		hotplug_sync_idle_time(cpu);
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
 static struct notifier_block hotplug_freq_notifier = {
 	.notifier_call = hotplug_freq_notifier_call
+};
+
+static struct notifier_block  __refdata sthp_cpu_notifier = {
+	.notifier_call = sthp_cpu_callback,
 };
 
 static void __ref hotplug_timer(struct work_struct *work)
@@ -665,6 +708,11 @@ static int __init stand_alone_hotplug_init(void)
 	if (ret)
 		goto err_cpufreq_register_notifier;
 
+	/* register cpu hotplug notifier call */
+	ret = register_hotcpu_notifier(&sthp_cpu_notifier);
+	if (ret)
+		goto err_hotplug_register_notifier;
+
 	/* initialize data */
 	init_hotplug_statistics();
 
@@ -732,6 +780,8 @@ err_register_reboot_notifier:
 err_register_pm_notifier:
 err_kobject_init_and_add:
 	cancel_delayed_work(&hotplug_work);
+	unregister_hotcpu_notifier(&sthp_cpu_notifier);
+err_hotplug_register_notifier:
 	cpufreq_unregister_notifier(&hotplug_freq_notifier,
 				    CPUFREQ_POLICY_NOTIFIER);
 err_cpufreq_register_notifier:
