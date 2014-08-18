@@ -762,6 +762,7 @@ static long seh_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				pr_info("CP already in the process"
 				    " of reset on requested\n");
 				up(&seh_dev->read_sem);
+				kfree(msg);
 				return -EFAULT;
 			}
 			bCpResetOnReq = true;

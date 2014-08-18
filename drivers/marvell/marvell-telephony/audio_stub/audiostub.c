@@ -632,7 +632,8 @@ static void audio_data_handler(struct sk_buff *skb)
 			struct pcm_stream_data *pcm_data;
 
 			atomic_inc(&pcm_txcnt);
-			if (skb_queue_empty(&pcm_txq)) {
+			pcm_skb = skb_dequeue(&pcm_txq);
+			if (!pcm_skb) {
 				pr_err_ratelimited("PCM send underrun\n");
 				atomic_inc(&pcm_underrun_cnt);
 				pcm_skb = alloc_empty_data();
@@ -651,7 +652,6 @@ static void audio_data_handler(struct sk_buff *skb)
 				pcm_data->len = pcm_pktsize;
 				audio_tx_rawskb(pcm_skb);
 			} else {
-				pcm_skb = skb_dequeue(&pcm_txq);
 				pcm_data = (struct pcm_stream_data *)
 					(pcm_skb->data +
 					sizeof(struct atc_header));

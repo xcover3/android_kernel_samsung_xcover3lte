@@ -98,6 +98,8 @@ static inline struct sk_buff *rx_dequeue(struct direct_rbctl *dir_ctl)
 {
 	/* delete message from queue */
 	struct sk_buff *skb = skb_dequeue(&dir_ctl->rx_q);
+	if (unlikely(!skb))
+		return NULL;
 	dir_ctl->rx_q_size -= skb->len;
 
 	return skb;
@@ -511,6 +513,7 @@ ssize_t direct_rb_recv(enum direct_rb_type direct_type,
 		       __func__);
 		dir_ctl->stat_rx_fail++;
 		/* push back the packet? */
+		dev_kfree_skb_any(skb);
 		return rc;
 	}
 
