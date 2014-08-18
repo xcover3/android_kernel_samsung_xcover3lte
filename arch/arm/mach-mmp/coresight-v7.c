@@ -467,6 +467,13 @@ static int __init coresight_parse_trace_dt(void)
 	node = of_find_compatible_node(NULL, NULL, "marvell,coresight-letb");
 	if (!node)
 		pr_err("No local ETB found!\n");
+	else {
+		local_etb_base = of_iomap(node, 0);
+		if (!local_etb_base) {
+			pr_err("Failed to map coresight local ETB register\n");
+			return -ENOMEM;
+		}
+	}
 
 	return 0;
 }
