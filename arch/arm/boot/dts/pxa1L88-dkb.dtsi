@@ -231,6 +231,20 @@
 					>;
 					MFP_LPM_FLOAT;
 				};
+
+				pm830_pmx_func1: pm830_pmx_func1 {
+					pinctrl-single,pins = <
+						GPIO29 AF0
+					>;
+					MFP_DEFAULT;
+				};
+				pm830_pmx_func1_sleep: pm830_pmx_func1_sleep {
+					pinctrl-single,pins = <
+						GPIO29 AF0
+					>;
+					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+				};
+
 				touch_pins: touch_pins {
 					pinctrl-single,pins = <
 						GPIO16 AF0
@@ -364,6 +378,47 @@
 						status = "okay";
 					};
 				};
+
+				pmic1: 88pm830@68 {
+					pinctrl-names = "default", "sleep";
+					pinctrl-0 = <&pm830_pmx_func1>;
+					pinctrl-1 = <&pm830_pmx_func1_sleep>;
+					edge-wakeup-gpio = <29>; /* GPIO29: interrupt line */
+
+					reg = <0x68>;
+					interrupt-parent = <&gpio>;
+					interrupts = <29 2>;
+					charger {
+						status = "okay";
+					};
+
+					battery {
+						marvell,fg-has-external-storeage;
+						external-storage = <&pmic0>;
+						/* board design related */
+						external-resistor = <200>; /* mohm */
+						/* using scenario */
+						power-off-threshold = <3350>; /* mV */
+						safe-power-off-threshold = <3000>; /* mV */
+						status = "okay";
+					};
+
+					led {
+						flash-en-gpio = <18>;
+						flash-txmsk-gpio = <19>;
+						status = "okay";
+					};
+
+					vbus {
+						gpadc-number = <1>;
+						status = "okay";
+					};
+
+					debug {
+						status = "okay";
+					};
+				};
+
 			};
 		};
 	};
@@ -432,3 +487,7 @@
 };
 #include "88pm822.dtsi"
 #include "88pm822_pxa1L88_dkb.dtsi"
+
+#include "88pm830.dtsi"
+#include "88pm830_battery_common.dtsi"
+#include "88pm830_sp4555557sa.dtsi"
