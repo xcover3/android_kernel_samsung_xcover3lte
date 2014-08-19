@@ -39,3 +39,10 @@ pd_gc2d: pd_gc2d@d4282800 {
 	reg = <0xd4282800 0x1000>;
 	clocks = <&soc_clocks PXA1U88_CLK_GC2D>;
 };
+
+pd_smmu: pd_smmu@c0010000 {
+	compatible = "marvell,power-domain-smmu-pxa1u88";
+	reg = <0xc0010000 0x10000>;
+	marvell,power-domain-parent = <&pd_vpu>;
+	clocks = <&soc_clocks PXA1U88_CLK_VPU>;
+};

@@ -99,10 +99,17 @@
 				clocks = <&soc_clocks PXA1U88_CLK_VPU>;
 			};
 
+			pd_smmu: pd_smmu@c0010000 {
+				compatible = "marvell,power-domain-smmu-pxa1u88";
+				reg = <0xc0010000 0x10000>;
+				marvell,power-domain-parent = <&pd_vpu>;
+				clocks = <&soc_clocks PXA1U88_CLK_VPU>;
+			};
+
 			coda7542: coda7542@d420d000 {
 				marvell,sram-internal = <1>;
 				marvell,nv21_support = <0>;
-				marvell,power-domain = <&pd_vpu>;
+				marvell,power-domain = <&pd_smmu>;
 				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
 					<&soc_clocks PXA1U88_CLK_VPUBUS>;
 				clock-names = "VPUCLK", "VPUACLK";
