@@ -28,7 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/pxa9xx_amipc.h>
 #include <linux/mfd/88pm80x.h>
-#include <linux/features.h>
+#include <linux/cputype.h>
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
@@ -316,7 +316,7 @@ static int m3_open(struct inode *inode, struct file *filp)
 	spin_unlock(&m3open_lock);
 
 	if (gnss_open == 0 && senhub_open == 0) {
-		buck1_sleepvol_control_for_gps(1);
+		extern_set_buck1_slp_volt(1);
 		if (!IS_ERR(m3_pctrl.pwron))
 			pinctrl_select_state(m3_pctrl.pinctrl,
 					m3_pctrl.pwron);
@@ -393,7 +393,7 @@ static int m3_close(struct inode *inode, struct file *filp)
 		if (!IS_ERR(m3_pctrl.def))
 			pinctrl_select_state(m3_pctrl.pinctrl,
 					m3_pctrl.def);
-		buck1_sleepvol_control_for_gps(0);
+		extern_set_buck1_slp_volt(0);
 	}
 
 	return 0;
@@ -798,7 +798,7 @@ static const struct of_device_id mmp_m3_dt_match[] = {
 #ifdef CONFIG_PM_SLEEP
 static int pxa_m3rm_suspend(struct device *dev)
 {
-	if (has_feat_suspend_dis_gps_func() && !chip_fused) {
+	if (cpu_is_pxa1U88() && !chip_fused) {
 		pr_warn("unfused chip, disable gps MFP\n");
 		if (!IS_ERR(m3_pctrl.en_d2))
 			pinctrl_select_state(m3_pctrl.pinctrl,
@@ -809,7 +809,7 @@ static int pxa_m3rm_suspend(struct device *dev)
 
 static int pxa_m3rm_resume(struct device *dev)
 {
-	if (has_feat_suspend_dis_gps_func() && !chip_fused) {
+	if (cpu_is_pxa1U88() && !chip_fused) {
 		pr_warn("unfused chip, enable gps MFP\n");
 		if (!IS_ERR(m3_pctrl.pwron))
 			pinctrl_select_state(m3_pctrl.pinctrl,
