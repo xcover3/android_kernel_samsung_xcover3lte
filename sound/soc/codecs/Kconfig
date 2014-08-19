@@ -146,6 +146,9 @@ config SND_SOC_ALL_CODECS
 config SND_SOC_88PM860X
 	tristate
 
+config SND_SOC_88PM805
+	tristate
+
 config SND_SOC_ARIZONA
 	tristate
 	default y if SND_SOC_WM5102=y
@@ -563,3 +566,6 @@ config SND_SOC_88PM860
 
 config SND_SOC_88PM800_HS
 	tristate
+
+config DUAL_SPEAKER
+	tristate "Dual Speaker"
