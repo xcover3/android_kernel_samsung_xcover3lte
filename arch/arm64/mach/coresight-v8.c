@@ -475,6 +475,12 @@ static int __init coresight_parse_trace_dt(void)
 	return 0;
 }
 
+static u32 etm_enable_mask;
+static inline int etm_need_save_restore(void)
+{
+	return !!etm_enable_mask;
+}
+
 void arch_enable_trace(u32 enable_mask)
 {
 	int cpu;
@@ -485,13 +491,15 @@ void arch_enable_trace(u32 enable_mask)
 	for_each_possible_cpu(cpu)
 		if (test_bit(cpu, (void *)&enable_mask))
 			coresight_percore_init(cpu);
+
+	etm_enable_mask = enable_mask;
 }
 #endif
 
 void arch_save_coreinfo(void)
 {
 #ifdef CONFIG_CORESIGHT_TRACE_SUPPORT
-	if (etm_need_enabled()) {
+	if (etm_need_save_restore()) {
 		coresight_etm_save();
 		coresight_local_etf_save();
 	}
@@ -501,7 +509,7 @@ void arch_save_coreinfo(void)
 void arch_restore_coreinfo(void)
 {
 #ifdef CONFIG_CORESIGHT_TRACE_SUPPORT
-	if (etm_need_enabled()) {
+	if (etm_need_save_restore()) {
 		coresight_etm_restore();
 		coresight_local_etf_restore();
 		dsb();
