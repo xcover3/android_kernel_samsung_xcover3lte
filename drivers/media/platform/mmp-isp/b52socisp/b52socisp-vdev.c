@@ -54,6 +54,10 @@ static int isp_video_calc_mplane_sizeimage(
 		pitch = isp_format_table[idx].bpp * width >> 3;
 		pix_mp->plane_fmt[0].bytesperline = pitch;
 		pix_mp->plane_fmt[0].sizeimage = pitch * height;
+		if (width & 0x07) {
+			WARN(1, "width need 8 align\n");
+			ret = -EINVAL;
+		}
 		break;
 	case V4L2_PIX_FMT_YUV420M:
 	case V4L2_PIX_FMT_YVU420M:
@@ -67,6 +71,10 @@ static int isp_video_calc_mplane_sizeimage(
 
 		pix_mp->plane_fmt[2].bytesperline = pitch;
 		pix_mp->plane_fmt[2].sizeimage = pitch * height / 2;
+		if (width & 0x1f) {
+			WARN(1, "width need 32 align\n");
+			ret = -EINVAL;
+		}
 		break;
 	case V4L2_PIX_FMT_NV21M:
 	case V4L2_PIX_FMT_NV12M:
@@ -77,6 +85,10 @@ static int isp_video_calc_mplane_sizeimage(
 		pitch = width >> 1;
 		pix_mp->plane_fmt[1].bytesperline = pitch;
 		pix_mp->plane_fmt[1].sizeimage =  pitch * height;
+		if (width & 0x0f) {
+			WARN(1, "width need 16 align\n");
+			ret = -EINVAL;
+		}
 		break;
 	default:
 		ret = -EINVAL;
