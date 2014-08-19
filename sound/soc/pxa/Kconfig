@@ -17,6 +17,16 @@ config SND_MMP_SOC
 	  Say Y if you want to add support for codecs attached to
 	  the MMP SSPA interface.
 
+config SND_PXA_SOC
+	tristate "SoC Audio for MARVELL PXA chips with pdma"
+	depends on ARCH_MMP && MMP_PDMA
+	select SND_SOC_GENERIC_DMAENGINE_PCM if MMP_PDMA
+	help
+	  Say Y or M if you want to add support for ssp
+	  which uses pdma as pcm platform driver. You
+	  will also need to select the audio interfaces
+	  to support below.
+
 config SND_PXA2XX_AC97
 	tristate
 	select SND_AC97_CODEC

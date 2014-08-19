@@ -9,6 +9,7 @@ snd-soc-pxa-objs := pxa-pcm.o
 snd-soc-mmp-sspa-objs := mmp-sspa.o
 snd-soc-mmp-map-be-dai-objs := mmp-map-be-dai.o
 snd-soc-mmp-tdm-objs := mmp-tdm.o
+snd-soc-pxa-objs := pxa-pcm.o
 
 obj-$(CONFIG_SND_PXA2XX_SOC) += snd-soc-pxa2xx.o
 obj-$(CONFIG_SND_PXA2XX_SOC_AC97) += snd-soc-pxa2xx-ac97.o
