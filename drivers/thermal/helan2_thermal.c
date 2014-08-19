@@ -38,6 +38,7 @@
 #include <linux/pm_qos.h>
 #include "helan2_thermal.h"
 
+#define APB_CLK_BASE (0xd4015000)
 #define TSEN_PCTRL (0x0)
 #define TSEN_LCTRL (0x4)
 #define TSEN_PSTATUS (0x8)
@@ -738,19 +739,24 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 
 	tmp = reg_read(TSEN_LSTATUS);
 	if (tmp) {
-		pr_warn("reinit thermal LSTATUS = 0x%x\n", tmp);
-		/* delay 10us for each step to ganrantee reset suc */
-		writel(0x2, (APB_VIRT_BASE + 0x1506C));
-		udelay(10);
-		writel(0x0, (APB_VIRT_BASE + 0x1506C));
-		udelay(10);
-		writel(0x1, (APB_VIRT_BASE + 0x1506C));
-		udelay(10);
-		tmp = reg_read(TSEN_LSTATUS);
-		reg_clr_set(TSEN_LSTATUS, 0, tmp);
-		tmp = reg_read(TSEN_LSTATUS);
-		if (tmp)
-			WARN_ON("reinit thermal failed\n");
+		void *apb_base = ioremap_nocache(APB_CLK_BASE, SZ_4K);
+		if (apb_base) {
+			pr_warn("reinit thermal LSTATUS = 0x%x\n", tmp);
+			/* delay 10us for each step to ganrantee reset suc */
+			writel(0x2, (apb_base + 0x6C));
+			udelay(10);
+			writel(0x0, (apb_base + 0x6C));
+			udelay(10);
+			writel(0x1, (apb_base + 0x6C));
+			udelay(10);
+			iounmap(apb_base);
+
+			tmp = reg_read(TSEN_LSTATUS);
+			reg_clr_set(TSEN_LSTATUS, 0, tmp);
+			tmp = reg_read(TSEN_LSTATUS);
+			if (tmp)
+				WARN_ON("reinit thermal failed\n");
+		}
 	} else
 		pr_info("thermal status fine\n");
 
