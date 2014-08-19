@@ -146,22 +146,29 @@ enum {
 
 #define PM800_GPIO_2_3_CNTRL		(0x31)
 #define PM800_GPIO2_VAL				(1 << 0)
+#define PM800_GPIO2_MODE_MASK		(0x7 << 1)
 #define PM800_GPIO2_GPIO_MODE(x)	(x << 1)
 #define PM800_GPIO3_VAL				(1 << 4)
 #define PM800_GPIO3_GPIO_MODE(x)	(x << 5)
 #define PM800_GPIO3_MODE_MASK		0x1F
 #define PM800_GPIO3_HEADSET_MODE	PM800_GPIO3_GPIO_MODE(6)
 
-#define PM800_GPIO_4_CNTRL			(0x32)
+#define PM800_GPIO_4_5_CNTRL			(0x32)
 #define PM800_GPIO4_VAL				(1 << 0)
 #define PM800_GPIO4_GPIO_MODE(x)	(x << 1)
 
 /*88pm860 gpio control registers*/
+#define PM860_GPIO0_MODE_MASK		(0x7 << 1)
+#define PM860_GPIO1_MODE_MASK		(0x7 << 5)
+#define PM860_GPIO2_MODE_MASK		(0x7 << 1)
+#define PM860_GPIO3_MODE_MASK		(0x7 << 5)
+
 #define PM860_GPIO_2_3_CNTRL		(0x31)
 #define PM860_GPIO3_GPIO_MODE(x)	(x << 5)
 #define PM860_GPIO_4_5_CNTRL		(0x32)
 #define PM860_GPIO4_GPIO_MODE(x)	(x << 1)
 #define PM860_GPIO5_GPIO_MODE(x)	(x << 5)
+#define PM860_GPIO5_MODE_MASK		(0x7 << 5)
 
 #define PM800_HEADSET_CNTRL		(0x38)
 #define PM800_HEADSET_DET_EN		(1 << 7)
