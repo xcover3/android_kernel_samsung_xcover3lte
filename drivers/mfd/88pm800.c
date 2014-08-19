@@ -33,6 +33,10 @@
 #include "88pm8xx-config.h"
 #include "88pm8xx-debugfs.h"
 
+#define PM80X_BASE_REG_NUM		0xf0
+#define PM80X_POWER_REG_NUM		0x9b
+#define PM80X_GPADC_REG_NUM		0xb6
+
 /* Interrupt Registers */
 #define PM800_INT_STATUS1		(0x05)
 #define PM800_ONKEY_INT_STS1		(1 << 0)

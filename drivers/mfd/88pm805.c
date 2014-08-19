@@ -26,6 +26,14 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/of_device.h>
+#include <linux/uaccess.h>
+#include <linux/proc_fs.h>
+#include <linux/fs.h>
+#include <linux/debugfs.h>
+
+#define PM80X_AUDIO_REG_NUM		0x9c
+#define	PM805_PROC_FILE		"driver/pm805_reg"
+static int reg_pm805 = 0xffff;
 
 static const struct i2c_device_id pm80x_id_table[] = {
 	{"88PM805", 0},
@@ -139,6 +147,110 @@ static struct regmap_irq pm805_irqs[] = {
 	},
 };
 
+static ssize_t pm805_dump_read(struct file *file, char __user *user_buf,
+			       size_t count, loff_t *ppos)
+{
+	unsigned int reg_val = 0;
+	struct pm80x_chip *chip = file->private_data;
+	int i;
+	int len = 0;
+	char str[100];
+
+
+	if (reg_pm805 == 0xffff) {
+		len = snprintf(str, sizeof(str) - 1, "%s\n",
+			       "pm805: register dump:");
+		for (i = 0; i < PM80X_AUDIO_REG_NUM; i++) {
+			regmap_read(chip->regmap, i, &reg_val);
+			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
+		}
+	} else {
+		regmap_read(chip->regmap, reg_pm805, &reg_val);
+		len = snprintf(str, sizeof(str), "reg_pm805=0x%x, val=0x%x\n",
+			      reg_pm805, reg_val);
+	}
+	return simple_read_from_buffer(user_buf, count, ppos, str, len);
+
+}
+
+static ssize_t pm805_dump_write(struct file *file,
+				const char __user *user_buf,
+				size_t count, loff_t *ppos)
+{
+	u8 reg_val;
+	struct pm80x_chip *chip = file->private_data;
+	int i = 0;
+	int ret;
+
+	char messages[20];
+	memset(messages, '\0', 20);
+
+	if (copy_from_user(messages, user_buf, count))
+		return -EFAULT;
+
+	if ('+' == messages[0]) {
+		/* enable to get all the reg value */
+		reg_pm805 = 0xffff;
+		pr_info("read all reg enabled!\n");
+	} else {
+		if (messages[1] != 'x') {
+			pr_err("Right format: 0x[addr]\n");
+			return -EINVAL;
+		}
+
+		if (strlen(messages) > 5) {
+			while (messages[i] != ' ')
+				i++;
+			messages[i] = '\0';
+			if (kstrtouint(messages, 16, &reg_pm805) < 0)
+				return -EINVAL;
+			i++;
+			if (kstrtou8(messages + i, 16, &reg_val) < 0)
+				return -EINVAL;
+			ret = regmap_write(chip->regmap, reg_pm805,
+					   reg_val & 0xff);
+			if (ret < 0) {
+				pr_err("write reg error!\n");
+				return -EINVAL;
+			}
+		} else {
+			if (kstrtouint(messages, 16, &reg_pm805) < 0)
+				return -EINVAL;
+		}
+	}
+
+	return count;
+}
+
+static const struct file_operations pm805_dump_ops = {
+	.owner		= THIS_MODULE,
+	.open		= simple_open,
+	.read		= pm805_dump_read,
+	.write		= pm805_dump_write,
+};
+
+static inline int pm805_dump_debugfs_init(struct pm80x_chip *chip)
+{
+	struct dentry *pm805_dump_reg;
+
+	pm805_dump_reg = debugfs_create_file("pm805_reg", S_IRUGO | S_IFREG,
+			    NULL, (void *)chip, &pm805_dump_ops);
+
+	if (pm805_dump_reg == NULL) {
+		pr_err("create pm805 debugfs error!\n");
+		return -ENOENT;
+	} else if (pm805_dump_reg == ERR_PTR(-ENODEV)) {
+		pr_err("CONFIG_DEBUG_FS is not enabled!\n");
+		return -ENOENT;
+	}
+	return 0;
+}
+
+static void pm805_dump_debugfs_remove(struct pm80x_chip *chip)
+{
+	debugfs_remove_recursive(chip->debugfs);
+}
+
 static int device_irq_init_805(struct pm80x_chip *chip)
 {
 	struct regmap *map = chip->regmap;
@@ -229,6 +341,16 @@ out_codec:
 	device_irq_exit_805(chip);
 out_irq_init:
 	return ret;
+}
+
+static int pm805_dt_init(struct device_node *np,
+			 struct device *dev,
+			 struct pm80x_platform_data *pdata)
+{
+	pdata->irq_mode =
+		!of_property_read_bool(np, "marvell,88pm805-irq-write-clear");
+
+	return 0;
 }
 
 static void pm805_register_reset(struct pm80x_chip *chip)
@@ -574,8 +696,22 @@ static int pm805_probe(struct i2c_client *client,
 	int ret = 0;
 	struct pm80x_chip *chip;
 	struct pm80x_platform_data *pdata = dev_get_platdata(&client->dev);
+	struct device_node *node = client->dev.of_node;
 	unsigned char version;
 	unsigned int val;
+
+	if (IS_ENABLED(CONFIG_OF)) {
+		if (!pdata) {
+			pdata = devm_kzalloc(&client->dev,
+					     sizeof(*pdata), GFP_KERNEL);
+			if (!pdata)
+				return -ENOMEM;
+		}
+		ret = pm805_dt_init(node, &client->dev, pdata);
+		if (ret)
+			return ret;
+	} else if (!pdata)
+		return -EINVAL;
 
 	ret = pm80x_init(client);
 	if (ret) {
@@ -605,6 +741,10 @@ static int pm805_probe(struct i2c_client *client,
 
 	pm805_register_reset(chip);
 
+	ret = pm805_dump_debugfs_init(chip);
+	if (!ret)
+		dev_info(chip->dev, "88pm805 debugfs created!\n");
+
 	return 0;
 err_805_init:
 	pm80x_deinit();
@@ -618,6 +758,9 @@ static int pm805_remove(struct i2c_client *client)
 
 	mfd_remove_devices(chip->dev);
 	device_irq_exit_805(chip);
+
+	if (chip->debugfs)
+		pm805_dump_debugfs_remove(chip);
 
 	pm80x_deinit();
 
