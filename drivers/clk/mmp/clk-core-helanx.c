@@ -2307,6 +2307,9 @@ static int __init dfc_create_debug_node(void)
 {
 	struct dentry *dfc_status;
 
+	if (!clk_dclk)
+		return 0;
+
 	dfc_status = debugfs_create_file("dfcstatus", 0444,
 		NULL, NULL, &dfcstatus_fops);
 	if (!dfc_status)
