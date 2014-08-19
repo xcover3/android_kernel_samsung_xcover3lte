@@ -22,7 +22,7 @@
 
 #include <marvell/emmd_rsv.h>
 #ifdef CONFIG_REGDUMP
-#include <mach/cputype.h>
+#include <linux/cputype.h>
 #include <linux/regdump_ops.h>
 #endif
 
