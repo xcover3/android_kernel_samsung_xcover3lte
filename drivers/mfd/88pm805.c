@@ -1,7 +1,7 @@
 /*
  * Base driver for Marvell 88PM805
  *
- * Copyright (C) 2012 Marvell International Ltd.
+ * Copyright (C) 2014 Marvell International Ltd.
  * Haojian Zhuang <haojian.zhuang@marvell.com>
  * Joseph(Yossi) Hanin <yhanin@marvell.com>
  * Qiao Zhou <zhouqiao@marvell.com>
@@ -15,9 +15,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include <linux/kernel.h>
@@ -44,18 +41,19 @@ MODULE_DEVICE_TABLE(of, pm80x_dt_ids);
 
 /* Interrupt Number in 88PM805 */
 enum {
-	PM805_IRQ_LDO_OFF,	/*0 */
-	PM805_IRQ_SRC_DPLL_LOCK,	/*1 */
-	PM805_IRQ_CLIP_FAULT,
-	PM805_IRQ_MIC_CONFLICT,
+	PM805_IRQ_HP1_SHRT,	/* 0 */
 	PM805_IRQ_HP2_SHRT,
-	PM805_IRQ_HP1_SHRT,	/*5 */
-	PM805_IRQ_FINE_PLL_FAULT,
-	PM805_IRQ_RAW_PLL_FAULT,
-	PM805_IRQ_VOLP_BTN_DET,
+	PM805_IRQ_MIC_CONFLICT,
+	PM805_IRQ_CLIP_FAULT,
+	PM805_IRQ_SRC_DPLL_LOCK,
+	PM805_IRQ_LDO_OFF,	/* 5 */
+
+	PM805_IRQ_MIC_DET,	/* 6 */
+	PM805_IRQ_SHRT_BTN_DET,
 	PM805_IRQ_VOLM_BTN_DET,
-	PM805_IRQ_SHRT_BTN_DET,	/*10 */
-	PM805_IRQ_MIC_DET,	/*11 */
+	PM805_IRQ_VOLP_BTN_DET,
+	PM805_IRQ_RAW_PLL_FAULT,
+	PM805_IRQ_FINE_PLL_FAULT, /* 11 */
 
 	PM805_MAX_IRQ,
 };
@@ -95,46 +93,47 @@ static const struct mfd_cell codec_devs[] = {
 
 static struct regmap_irq pm805_irqs[] = {
 	/* INT0 */
-	[PM805_IRQ_LDO_OFF] = {
+	[PM805_IRQ_HP1_SHRT] = {
 		.mask = PM805_INT1_HP1_SHRT,
 	},
-	[PM805_IRQ_SRC_DPLL_LOCK] = {
+	[PM805_IRQ_HP2_SHRT] = {
 		.mask = PM805_INT1_HP2_SHRT,
 	},
-	[PM805_IRQ_CLIP_FAULT] = {
+	[PM805_IRQ_MIC_CONFLICT] = {
 		.mask = PM805_INT1_MIC_CONFLICT,
 	},
-	[PM805_IRQ_MIC_CONFLICT] = {
+	[PM805_IRQ_CLIP_FAULT] = {
 		.mask = PM805_INT1_CLIP_FAULT,
 	},
-	[PM805_IRQ_HP2_SHRT] = {
-		.mask = PM805_INT1_LDO_OFF,
-	},
-	[PM805_IRQ_HP1_SHRT] = {
+	[PM805_IRQ_SRC_DPLL_LOCK] = {
 		.mask = PM805_INT1_SRC_DPLL_LOCK,
 	},
+	[PM805_IRQ_LDO_OFF] = {
+		.mask = PM805_INT1_LDO_OFF,
+	},
+
 	/* INT1 */
-	[PM805_IRQ_FINE_PLL_FAULT] = {
+	[PM805_IRQ_MIC_DET] = {
 		.reg_offset = 1,
 		.mask = PM805_INT2_MIC_DET,
 	},
-	[PM805_IRQ_RAW_PLL_FAULT] = {
+	[PM805_IRQ_SHRT_BTN_DET] = {
 		.reg_offset = 1,
 		.mask = PM805_INT2_SHRT_BTN_DET,
 	},
-	[PM805_IRQ_VOLP_BTN_DET] = {
+	[PM805_IRQ_VOLM_BTN_DET] = {
 		.reg_offset = 1,
 		.mask = PM805_INT2_VOLM_BTN_DET,
 	},
-	[PM805_IRQ_VOLM_BTN_DET] = {
+	[PM805_IRQ_VOLP_BTN_DET] = {
 		.reg_offset = 1,
 		.mask = PM805_INT2_VOLP_BTN_DET,
 	},
-	[PM805_IRQ_SHRT_BTN_DET] = {
+	[PM805_IRQ_RAW_PLL_FAULT] = {
 		.reg_offset = 1,
 		.mask = PM805_INT2_RAW_PLL_FAULT,
 	},
-	[PM805_IRQ_MIC_DET] = {
+	[PM805_IRQ_FINE_PLL_FAULT] = {
 		.reg_offset = 1,
 		.mask = PM805_INT2_FINE_PLL_FAULT,
 	},
@@ -165,7 +164,7 @@ static int device_irq_init_805(struct pm80x_chip *chip)
 	 * PM805_INT_STATUS is under 32K clock domain, so need to
 	 * add proper delay before the next I2C register access.
 	 */
-	msleep(1);
+	usleep_range(1000, 1500);
 
 	if (ret < 0)
 		goto out;
@@ -192,6 +191,8 @@ static struct regmap_irq_chip pm805_irq_chip = {
 	.status_base = PM805_INT_STATUS1,
 	.mask_base = PM805_INT_MASK1,
 	.ack_base = PM805_INT_STATUS1,
+	.init_ack_masked = true,
+	.mask_invert = 1,
 };
 
 static int device_805_init(struct pm80x_chip *chip)
@@ -213,7 +214,8 @@ static int device_805_init(struct pm80x_chip *chip)
 	}
 
 	ret = mfd_add_devices(chip->dev, 0, &codec_devs[0],
-			      ARRAY_SIZE(codec_devs), &codec_resources[0], 0,
+			      ARRAY_SIZE(codec_devs), &codec_resources[0],
+			      regmap_irq_chip_get_base(chip->irq_data),
 			      NULL);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to add codec subdev\n");
@@ -229,12 +231,351 @@ out_irq_init:
 	return ret;
 }
 
+static void pm805_register_reset(struct pm80x_chip *chip)
+{
+	int data;
+	if (!chip->regmap) {
+		dev_err(chip->dev, "Failed to reset pm805 register\n");
+		return;
+	}
+
+	/* power up */
+	regmap_read(chip->regmap, 0x01, &data);
+	data |= 0x3;
+	regmap_write(chip->regmap, 0x01, data);
+	usleep_range(1000, 1500);
+	/* reset 0x30 to 0x0 */
+	regmap_write(chip->regmap, 0x30, 0x00);
+	/* power off */
+	data &= ~0x3;
+	regmap_write(chip->regmap, 0x01, data);
+	usleep_range(1000, 1500);
+	return;
+}
+#ifdef CONFIG_MFD_88PM800
+static int pm805_reconfig(struct pm80x_chip *chip)
+{
+	static  char buf[65];
+	int val;
+	/* 1 */
+	regmap_write(chip->regmap, 0xfa, 0x0);
+	regmap_write(chip->regmap, 0xfb, 0x0);
+	/* 2 */
+	regmap_read(chip->regmap, 0xd0, &val);
+	buf[0] = val;
+	regmap_write(chip->regmap, 0xd0, buf[0] | 0x80);
+	regmap_write(chip->regmap, 0x0d, 0x80);
+	regmap_write(chip->regmap, 0x1d, 0x01);
+	regmap_write(chip->regmap, 0x21, 0x20);
+	regmap_write(chip->regmap, 0xe2, 0x2a);
+
+	/* 3 */
+	regmap_write(chip->regmap, 0xbd, 0x80);
+	regmap_write(chip->regmap, 0xbd, 0x80);
+	regmap_write(chip->regmap, 0xbd, 0x80);
+	regmap_write(chip->regmap, 0xbd, 0x80);
+	regmap_write(chip->regmap, 0xbd, 0x80);
+	usleep_range(10000, 15000);
+	regmap_write(chip->regmap, 0x01, 0x03);
+	regmap_write(chip->regmap, 0x80, 0xad);
+	usleep_range(20000, 25000);
+
+	/* 4 */
+	regmap_write(chip->regmap, 0xc1, 0xe0);
+	regmap_write(chip->regmap, 0xc1, 0xe0);
+	regmap_write(chip->regmap, 0xc1, 0xe0);
+	regmap_write(chip->regmap, 0xc1, 0xe0);
+	regmap_write(chip->regmap, 0xc1, 0xe0);
+	msleep_interruptible(200);
+	regmap_write(chip->regmap, 0x29, 0x08);
+	regmap_write(chip->regmap, 0x26, 0x0);
+	usleep_range(20000, 25000);
+	regmap_write(chip->regmap, 0x01, 0x02);
+	regmap_write(chip->regmap, 0x80, 0x00);
+	regmap_write(chip->regmap, 0x01, 0x03);
+	usleep_range(20000, 25000);
+
+	/* 5 */
+	regmap_write(chip->regmap, 0x07, 0x00);
+	regmap_write(chip->regmap, 0x08, 0x00);
+	regmap_write(chip->regmap, 0x0a, 0x04);
+	regmap_write(chip->regmap, 0x80, 0x00);
+	regmap_write(chip->regmap, 0x82, 0x10);
+	regmap_write(chip->regmap, 0x95, 0x44);
+	regmap_write(chip->regmap, 0x96, 0x71);
+	regmap_write(chip->regmap, 0x97, 0x12);
+	regmap_write(chip->regmap, 0x99, 0xf0);
+	regmap_write(chip->regmap, 0xbd, 0x00);
+	regmap_write(chip->regmap, 0xbf, 0x00);
+	regmap_write(chip->regmap, 0xcc, 0x00);
+	regmap_write(chip->regmap, 0xcd, 0x00);
+	regmap_write(chip->regmap, 0xce, 0x04);
+	regmap_write(chip->regmap, 0xcf, 0x00);
+	regmap_write(chip->regmap, 0xd0, 0x00);
+	regmap_write(chip->regmap, 0xd1, 0x00);
+	regmap_write(chip->regmap, 0xdc, 0x00);
+	regmap_write(chip->regmap, 0xdd, 0x00);
+	regmap_write(chip->regmap, 0xde, 0x00);
+	regmap_write(chip->regmap, 0xe2, 0x00);
+	regmap_write(chip->regmap, 0xe3, 0x58);
+
+	/* 6 */
+	regmap_write(chip->regmap, 0x02, 0x00);
+	regmap_write(chip->regmap, 0x03, 0x00);
+	regmap_write(chip->regmap, 0x04, 0x00);
+	regmap_write(chip->regmap, 0x05, 0x00);
+	regmap_write(chip->regmap, 0x06, 0x00);
+	regmap_write(chip->regmap, 0x10, 0x14);
+	regmap_write(chip->regmap, 0x11, 0x00);
+	regmap_write(chip->regmap, 0x12, 0x00);
+	regmap_write(chip->regmap, 0x13, 0x00);
+	regmap_write(chip->regmap, 0x14, 0x00);
+	regmap_write(chip->regmap, 0x15, 0x00);
+	regmap_write(chip->regmap, 0x16, 0x00);
+	regmap_write(chip->regmap, 0x20, 0x12);
+	regmap_write(chip->regmap, 0x21, 0x38);
+	regmap_write(chip->regmap, 0x22, 0x00);
+	regmap_write(chip->regmap, 0x23, 0x1b);
+	regmap_write(chip->regmap, 0x24, 0x00);
+	regmap_write(chip->regmap, 0x25, 0x00);
+	regmap_write(chip->regmap, 0x26, 0x00);
+	regmap_write(chip->regmap, 0x27, 0x00);
+	regmap_write(chip->regmap, 0x29, 0x08);
+	regmap_write(chip->regmap, 0x2a, 0x00);
+	regmap_write(chip->regmap, 0x30, 0x1f);
+	regmap_write(chip->regmap, 0x31, 0x4c);
+	regmap_write(chip->regmap, 0x32, 0x04);
+	regmap_write(chip->regmap, 0x33, 0x00);
+	regmap_write(chip->regmap, 0x34, 0x00);
+	regmap_write(chip->regmap, 0x35, 0x14);
+	regmap_write(chip->regmap, 0x36, 0x23);
+	regmap_write(chip->regmap, 0x37, 0x04);
+	regmap_write(chip->regmap, 0x38, 0x00);
+	regmap_write(chip->regmap, 0x39, 0x14);
+	regmap_write(chip->regmap, 0x3b, 0x00);
+	regmap_write(chip->regmap, 0x3c, 0x23);
+	regmap_write(chip->regmap, 0x3d, 0x01);
+	regmap_write(chip->regmap, 0x3e, 0x00);
+	regmap_write(chip->regmap, 0x3f, 0x00);
+	regmap_write(chip->regmap, 0x40, 0x00);
+	regmap_write(chip->regmap, 0x41, 0x00);
+	regmap_write(chip->regmap, 0x42, 0x00);
+	regmap_write(chip->regmap, 0x50, 0x00);
+	regmap_write(chip->regmap, 0x51, 0x00);
+	regmap_write(chip->regmap, 0x52, 0x01);
+	regmap_write(chip->regmap, 0x53, 0x01);
+	regmap_write(chip->regmap, 0x54, 0x55);
+	regmap_write(chip->regmap, 0x55, 0x20);
+	regmap_write(chip->regmap, 0x56, 0x00);
+	regmap_write(chip->regmap, 0x57, 0x00);
+	regmap_write(chip->regmap, 0x58, 0x00);
+	regmap_write(chip->regmap, 0x59, 0x00);
+	regmap_write(chip->regmap, 0x5a, 0x00);
+	regmap_write(chip->regmap, 0x5b, 0x01);
+
+	buf[0] = 0x5c;
+	buf[1] = 0x0;
+	buf[2] = 0x0;
+	buf[3] = 0x0;
+	buf[4] = 0x0;
+	buf[5] = 0x0;
+	buf[6] = 0x0;
+	buf[7] = 0x0;
+	buf[8] = 0x0;
+	buf[9] = 0x0;
+	i2c_master_send(chip->client, &buf[0], 10);
+
+	buf[1] = 0x04;
+	i2c_master_send(chip->client, &buf[0], 10);
+
+	buf[1] = 0x08;
+	i2c_master_send(chip->client, &buf[0], 10);
+
+	buf[1] = 0x0c;
+	i2c_master_send(chip->client, &buf[0], 10);
+
+	buf[1] = 0x10;
+	i2c_master_send(chip->client, &buf[0], 10);
+
+	buf[1] = 0x14;
+	i2c_master_send(chip->client, &buf[0], 10);
+
+	buf[1] = 0x18;
+	i2c_master_send(chip->client, &buf[0], 10);
+
+	buf[1] = 0x1c;
+	i2c_master_send(chip->client, &buf[0], 10);
+	regmap_write(chip->regmap, 0x5b, 0x02);
+
+	buf[0] = 0x5c;
+	buf[1] = 0x0;
+	buf[2] = 0x10;
+	buf[3] = 0x00;
+	buf[4] = 0x00;
+	buf[5] = 0x00;
+	buf[6] = 0x00;
+	buf[7] = 0x00;
+	buf[8] = 0x00;
+	buf[9] = 0x00;
+	buf[10] = 0x00;
+	buf[11] = 0x00;
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x03);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x04);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x05);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x06);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x07);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x08);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x09);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x0a);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x0b);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x0c);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x0d);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x0e);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x0f);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x10);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x11);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x12);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x13);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x14);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5b, 0x15);
+	i2c_master_send(chip->client, &buf[0], 12);
+
+	regmap_write(chip->regmap, 0x5d, 0x01);
+	regmap_write(chip->regmap, 0x5d, 0x00);
+	regmap_write(chip->regmap, 0x5b, 0x00);
+	regmap_write(chip->regmap, 0x84, 0x88);
+	regmap_write(chip->regmap, 0x85, 0x16);
+	regmap_write(chip->regmap, 0x86, 0x16);
+	regmap_write(chip->regmap, 0x87, 0x00);
+	regmap_write(chip->regmap, 0x88, 0x40);
+	regmap_write(chip->regmap, 0x8a, 0x08);
+	regmap_write(chip->regmap, 0x8b, 0x05);
+	regmap_write(chip->regmap, 0x8c, 0x00);
+	regmap_write(chip->regmap, 0x8d, 0x00);
+	regmap_write(chip->regmap, 0x8e, 0x09);
+	regmap_write(chip->regmap, 0x8f, 0x00);
+	regmap_write(chip->regmap, 0x90, 0x7e);
+	regmap_write(chip->regmap, 0x91, 0x03);
+	regmap_write(chip->regmap, 0x92, 0x55);
+	regmap_write(chip->regmap, 0x93, 0x04);
+	regmap_write(chip->regmap, 0x94, 0x02);
+	regmap_write(chip->regmap, 0x99, 0xf0);
+	regmap_write(chip->regmap, 0x9a, 0x12);
+
+	regmap_write(chip->regmap, 0xa0, 0x00);
+	regmap_write(chip->regmap, 0xa1, 0x00);
+	regmap_write(chip->regmap, 0xa2, 0x00);
+	regmap_write(chip->regmap, 0xa3, 0x00);
+	regmap_write(chip->regmap, 0xa4, 0x00);
+	regmap_write(chip->regmap, 0xa5, 0x00);
+	regmap_write(chip->regmap, 0xa6, 0x00);
+	regmap_write(chip->regmap, 0xa7, 0x00);
+	regmap_write(chip->regmap, 0xa8, 0x00);
+	regmap_write(chip->regmap, 0xaa, 0x00);
+	regmap_write(chip->regmap, 0xac, 0x00);
+	regmap_write(chip->regmap, 0xae, 0x00);
+
+	regmap_write(chip->regmap, 0xb0, 0x00);
+	regmap_write(chip->regmap, 0xb2, 0x00);
+	regmap_write(chip->regmap, 0xb4, 0x00);
+	regmap_write(chip->regmap, 0xb6, 0x00);
+	regmap_write(chip->regmap, 0xb8, 0x00);
+	regmap_write(chip->regmap, 0xba, 0x00);
+	regmap_write(chip->regmap, 0xbc, 0x00);
+
+	regmap_write(chip->regmap, 0xc1, 0x00);
+	regmap_write(chip->regmap, 0xc2, 0x00);
+	regmap_write(chip->regmap, 0xc3, 0x00);
+	regmap_write(chip->regmap, 0xc4, 0x00);
+	regmap_write(chip->regmap, 0xc9, 0x00);
+	regmap_write(chip->regmap, 0xca, 0x00);
+
+	regmap_write(chip->regmap, 0xd2, 0x00);
+	regmap_write(chip->regmap, 0xd3, 0x00);
+	regmap_write(chip->regmap, 0xd4, 0x00);
+	regmap_write(chip->regmap, 0xd5, 0x00);
+	regmap_write(chip->regmap, 0xd6, 0x00);
+	regmap_write(chip->regmap, 0xd7, 0x00);
+	regmap_write(chip->regmap, 0xd8, 0x00);
+	regmap_write(chip->regmap, 0xd9, 0x00);
+	regmap_write(chip->regmap, 0xda, 0x00);
+	regmap_write(chip->regmap, 0xdb, 0x00);
+	regmap_write(chip->regmap, 0x01, 0x02);
+
+	usleep_range(10000, 15000);
+	regmap_write(chip->regmap, 0xfc, 0x00);
+	regmap_write(chip->regmap, 0xe2, 0x2a);
+	usleep_range(1000, 1500);
+
+	return 0;
+}
+#endif
+
 static int pm805_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
 	int ret = 0;
 	struct pm80x_chip *chip;
 	struct pm80x_platform_data *pdata = dev_get_platdata(&client->dev);
+	unsigned char version;
+	unsigned int val;
 
 	ret = pm80x_init(client);
 	if (ret) {
@@ -254,7 +595,17 @@ static int pm805_probe(struct i2c_client *client,
 
 	if (pdata && pdata->plat_config)
 		pdata->plat_config(chip, pdata);
+#ifdef CONFIG_MFD_88PM800
+	/* reconfig */
+	version = regmap_read(chip->regmap, 0x0, &val);
+	version = val & 0xff;
+	if (!(version == 0x06))
+		pm805_reconfig(chip);
+#endif
 
+	pm805_register_reset(chip);
+
+	return 0;
 err_805_init:
 	pm80x_deinit();
 out_init:
