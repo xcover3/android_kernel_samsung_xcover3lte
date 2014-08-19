@@ -99,6 +99,12 @@ static inline int cpu_is_pxa1L88_a0c(void)
 #define cpu_is_pxa1L88_a0c()	(0)
 #endif
 
+static inline int cpu_is_pxa1908(void)
+{
+	return (((read_cpuid_id() >> 4) & 0xfff) == 0xd03) &&
+	    (((mmp_chip_id & 0xffff) == 0x1908));
+}
+
 static inline int pxa1928_is_a0(void)
 {
 	struct device_node *np;
