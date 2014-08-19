@@ -649,4 +649,13 @@
 		#stream-id-cells = <1>;
 		status = "disabled";
 	};
+
+	smc91x: smc91x@80000300 {
+		compatible = "smsc,lan91c111";
+		reg = <0x80000300 0xffcff>;
+		interrupts = <0 63 0x1>;
+		rst_gpio = <&gpio 3 0>;
+		clksrc = "smc91x";
+		status = "okay";
+	};
 };
