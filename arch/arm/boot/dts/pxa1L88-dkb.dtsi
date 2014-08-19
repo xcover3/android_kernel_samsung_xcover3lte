@@ -359,6 +359,16 @@
 				pinctrl-1 = <&twsi1_pmx_gpio>;
 				i2c-gpio = <&gpio 87 0 &gpio 88 0>;
 				status = "okay";
+
+				sensor1: isl29043@44 {
+					compatible = "intersil,isl29043";
+					reg = <0x44>;
+					interrupt-parent = <&gpio>;
+					interrupts = <14 0x1>;
+					irq-gpios = <&gpio 14 0>;
+					intersil,wakup-gpios = <&gpio 14 0>;
+					avdd-supply = <&ldo10>;
+				};
 			};
 
 			twsi2: i2c@d4037000 {
