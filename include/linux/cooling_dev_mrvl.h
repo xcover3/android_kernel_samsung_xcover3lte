@@ -55,11 +55,11 @@ void ddrfreq_cool_unregister(struct thermal_cooling_device *cdev)
 struct thermal_cooling_device *vpufreq_cool_register(unsigned int dev_id);
 void vpufreq_cool_unregister(struct thermal_cooling_device *cdev);
 #else
-struct thermal_cooling_device *vpufreq_cool_register(unsigned int dev_id)
+static inline struct thermal_cooling_device *vpufreq_cool_register(unsigned int dev_id)
 {
 	return NULL;
 }
-void vpufreq_cool_unregister(struct thermal_cooling_device *cdev)
+static inline void vpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }
@@ -69,11 +69,11 @@ void vpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name);
 void gpufreq_cool_unregister(struct thermal_cooling_device *cdev);
 #else
-struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
+static inline struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
 {
 	return NULL;
 }
-void gpufreq_cool_unregister(struct thermal_cooling_device *cdev)
+static inline void gpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }
@@ -107,19 +107,19 @@ void ddrfreq_cool_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }
-struct thermal_cooling_device *vpufreq_cool_register(unsigned int dev_id)
+static inline struct thermal_cooling_device *vpufreq_cool_register(unsigned int dev_id)
 {
 	return NULL;
 }
-void vpufreq_cool_unregister(struct thermal_cooling_device *cdev)
+static inline void vpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }
-struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
+static inline struct thermal_cooling_device *gpufreq_cool_register(const char *gc_name)
 {
 	return NULL;
 }
-void gpufreq_cool_unregister(struct thermal_cooling_device *cdev)
+static inline void gpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }
