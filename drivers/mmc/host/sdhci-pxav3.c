@@ -1133,9 +1133,9 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 		pdata->lpm_qos = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
 
 	/* property "marvell,sdh-tuning-cnt": <tuning_wd_cnt tuning_tt_cnt> */
-	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-cnt", 1, &tmp))
+	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-cnt", 0, &tmp))
 		host->tuning_wd_cnt = tmp;
-	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-cnt", 2, &tmp))
+	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-cnt", 1, &tmp))
 		host->tuning_tt_cnt = tmp;
 
 	/*
