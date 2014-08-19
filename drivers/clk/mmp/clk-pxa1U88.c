@@ -87,6 +87,10 @@
 #define SC2_DESC	0xD420F000
 #define ISP_XTC		0x84C
 
+#ifdef CONFIG_SMC91X
+#define APMU_SMC	0xd4
+#define SMC_CLK		0xd4283890
+#endif
 
 struct pxa1U88_clk_unit {
 	struct mmp_clk_unit unit;
@@ -597,6 +601,26 @@ static struct mmp_clk_mix_config disp_axi_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(2, 19, 2, 17, 22),
 	.mux_table = disp_axi_mux_table,
 };
+
+#ifdef CONFIG_SMC91X
+static void __init smc91x_clk_init(void __iomem *apmu_base)
+{
+	struct device_node *np = of_find_node_by_name(NULL, "smc91x");
+	const char *str = NULL;
+	void __iomem *reg;
+
+	if (np && !of_property_read_string(np, "clksrc", &str))
+		if (!strcmp(str, "smc91x")) {
+			/* Enable clock to SMC Controller */
+			writel(0x5b, apmu_base + APMU_SMC);
+			/* Configure SMC Controller */
+			/* Set CS0 to A\D type memory */
+			reg = ioremap(SMC_CLK, 4);
+			writel(0x52880008, reg);
+			iounmap(reg);
+	}
+}
+#endif
 
 static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 {
@@ -1209,6 +1233,10 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 	/* For fpga/ulc bring up don't enable dvfs */
 	if (cpu_is_pxa1U88())
 		setup_pxa1u88_dvfs_platinfo();
+#ifdef CONFIG_SMC91X
+	if (board_is_fpga())
+		smc91x_clk_init(pxa_unit->apmu_base);
+#endif
 #endif
 
 #ifdef CONFIG_DEBUG_FS
