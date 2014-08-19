@@ -153,16 +153,6 @@ config THERMAL_EMULATION
 	  because userland can easily disable the thermal policy by simply
 	  flooding this sysfs node with low temperature values.
 
-config PXA1928_THERMAL
-	bool "PXA1928 Thermal interface support"
-	depends on THERMAL && ARCH_MMP && ARM64
-	help
-	  Add thermal management for eden platform.
-	  PXA1928 thermal supports h/w auto test mode, and
-	  it supports 3 thresholds which can be configured as up or down.
-	  There is also a watchdog reset, it will trigger SoC reset when temperature
-	  higher than a defined watchdog threshold.
-
 config IMX_THERMAL
 	tristate "Temperature sensor driver for Freescale i.MX SoCs"
 	depends on CPU_THERMAL
@@ -197,6 +187,16 @@ config KIRKWOOD_THERMAL
 	help
 	  Support for the Kirkwood thermal sensor driver into the Linux thermal
 	  framework. Only kirkwood 88F6282 and 88F6283 have this sensor.
+
+config PXA1928_THERMAL
+	bool "PXA1928 Thermal interface support"
+	depends on CPU_THERMAL && ARCH_MMP && ARM64
+	help
+	  Add thermal management for eden platform.
+	  PXA1928 thermal supports h/w auto test mode, and
+	  it supports 3 thresholds which can be configured as up or down.
+	  There is also a watchdog reset, it will trigger SoC reset when temperature
+	  higher than a defined watchdog threshold.
 
 config PXA_THERMAL
 	bool "PXA1L88 Thermal interface support"

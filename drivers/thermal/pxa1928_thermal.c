@@ -26,10 +26,20 @@
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
 #include <linux/of.h>
+#ifdef CONFIG_CPU_FREQ
+#include <linux/cpufreq.h>
+#include <linux/cpu_cooling.h>
+#endif
+#include <linux/devfreq.h>
+#include <linux/cooling_dev_mrvl.h>
+#include <linux/delay.h>
+#include <linux/cpu.h>
+#include <linux/pm_qos.h>
 
-#define TRIP_POINTS_NUM	4
+#define TRIP_POINTS_NUM	5
+#define TRIP_POINTS_ACTIVE_NUM (TRIP_POINTS_NUM)
+#define TRIP_POINTS_STATE_NUM (TRIP_POINTS_NUM + 1)
 #define THSENS_NUM	3
-#define TRIP_POINTS_ACTIVE_NUM (TRIP_POINTS_NUM - 1)
 #define THSEN_GAIN	3874
 #define THSEN_OFFSET	2821
 #define INVALID_TEMP	40000
@@ -63,6 +73,7 @@
 #define TSEN_DIGITAL_RST (1 << 30)
 #define TSEN_AUTO_READ (1 << 28)
 #define TSEN_DATA_READY (1 << 24)
+#define TSEN_AVG_NUM (1 << 25)
 #define TSEN_WDOG_DIRECTION (1 << 11)
 #define TSEN_WDOG_ENABLE (1 << 10)
 #define TSEN_INT2_STATUS (1 << 9)
@@ -74,10 +85,45 @@
 #define TSEN_INT0_STATUS (1 << 3)
 #define TSEN_INT0_DIRECTION (1 << 2)
 #define TSEN_INT0_ENABLE (1 << 1)
-#define BALANCE 10000
+#define BALANCE 5000
+
+#define TSEN_THD0_OFF (12)
+#define TSEN_THD0_MASK (0xfff000)
+#define TSEN_THD1_OFF (0)
+#define TSEN_THD1_MASK (0xfff)
+
+#define TSEN_THD2_OFF (12)
+#define TSEN_THD2_MASK (0xfff000)
+#define TSEN_REG_OFFSET (0x20)
+#define TSEN_CFG_REG_OFFSET (0x30)
 
 static struct mutex con_lock;
 
+struct cooling_device {
+	struct thermal_cooling_device *combile_cool;
+	int max_state, cur_state;
+	struct thermal_cooling_device *cool_cpufreq;
+	struct thermal_cooling_device *cool_cpuhotplug;
+};
+
+struct pxa1928_thermal_device {
+	struct thermal_zone_device *therm_cpu;
+	struct thermal_zone_device *therm_vpu;
+	struct thermal_zone_device *therm_gc;
+	int trip_range[3];
+	struct resource *mem;
+	void __iomem *base;
+	struct clk *therclk_g, *therclk_vpu;
+	struct clk *therclk_cpu, *therclk_gc;
+	struct cooling_device cdev;
+	struct cooling_device vdev;
+	struct cooling_device gdev;
+	int hit_trip_cnt[TRIP_POINTS_NUM];
+	int irq;
+	int temp_cpu, temp_vpu, temp_gc;
+};
+
+static struct pxa1928_thermal_device thermal_dev;
 /*
  * 80000, bind to active type
  * 95000, bind to active type
@@ -85,16 +131,45 @@ static struct mutex con_lock;
  * 125000,bind to critical type
 */
 static int thsens_trips_temp[THSENS_NUM][TRIP_POINTS_NUM] = {
-	{80000, 95000, 110000, 125000},
-	{80000, 95000, 110000, 125000},
-	{80000, 95000, 110000, 125000},
+	{80000, 90000, 100000, 110000, 115000},
+	{80000, 90000, 100000, 110000, 115000},
+	{80000, 90000, 100000, 110000, 115000},
 };
-static struct thermal_zone_device *thsens_vpu;
-static struct thermal_zone_device *thsens_cpu;
-static struct thermal_zone_device *thsens_gc;
-static struct clk *therclk_g, *therclk_vpu;
-static struct clk *therclk_cpu, *therclk_gc;
-static int pdev_irq;
+
+static int thsens_trips_temp_d[THSENS_NUM][TRIP_POINTS_NUM] = {
+	{75000, 85000, 95000, 105000, 115000},
+	{75000, 85000, 95000, 105000, 115000},
+	{75000, 85000, 95000, 105000, 115000},
+};
+
+/* state 0 is related to eden cpu 1.2G,
+ *  1 -> 1057M
+ *  2 -> 800M
+ *  3 -> 624M
+ *  4 -> 400M
+ *  6 -> 156M
+ */
+static int pxa1928_cpu_freq_state[TRIP_POINTS_STATE_NUM] = {
+	0, 2, 3, 4, 6, 6,
+};
+static int pxa1928_cpu_plug_state[TRIP_POINTS_STATE_NUM] = {
+	0, 2, 2, 3, 3, 0,
+};
+static int pxa1928_vpu_freq_state[TRIP_POINTS_STATE_NUM] = {
+	0, 2, 3, 4, 5, 5,
+};
+static int pxa1928_gpu_freq_state[TRIP_POINTS_STATE_NUM] = {
+	0, 1, 2, 3, 4, 5,
+};
+
+#define reg_read(off) readl(thermal_dev.base + (off))
+#define reg_write(val, off) __raw_writel((val), thermal_dev.base + (off))
+#define reg_clr_set(off, clr, set) \
+	reg_write(((reg_read(off) & ~(clr)) | (set)), off)
+static int ts_get_trip_temp(struct thermal_zone_device *tz, int trip,
+		unsigned long *temp);
+static int pxa1928_set_threshold(int id, int range);
+
 /*
  * 1: don't have read data feature.
  * 2: have the read data feature, but don't have the valid data check
@@ -137,7 +212,7 @@ static void init_wd_int0_threshold(int id, void *reg)
 	__raw_writel((readl(reg) & 0x000FFF) |
 			(celsius_encode(thsens_trips_temp[id][0]) << 12), reg);
 	__raw_writel((readl(reg) & 0xFFF000) |
-			celsius_encode(thsens_trips_temp[id][3]), reg);
+			celsius_encode(thsens_trips_temp[id][4]), reg);
 }
 
 static void init_int1_int2_threshold(int id, void *reg)
@@ -152,8 +227,7 @@ static void init_thsens_irq_dir(void *reg)
 {
 	__raw_writel(readl(reg) | TSEN_WDOG_DIRECTION |
 		TSEN_WDOG_ENABLE | TSEN_INT2_DIRECTION | TSEN_INT2_ENABLE |
-		TSEN_INT1_DIRECTION | TSEN_INT1_ENABLE | TSEN_INT0_DIRECTION |
-			TSEN_INT0_ENABLE , reg);
+		TSEN_INT0_DIRECTION | TSEN_INT0_ENABLE, reg);
 }
 
 static void enable_auto_read(void *reg)
@@ -166,12 +240,31 @@ static void set_auto_read_interval(void *reg)
 	__raw_writel(readl(reg) | PXA1928_THERMAL_POLLING_FREQUENCY_MS , reg);
 }
 
+u32 reg_offset(int id)
+{
+	u32 offset = id * TSEN_REG_OFFSET;
+	return offset;
+}
+
+u32 cfg_reg_offset(int id)
+{
+	u32 offset = 0;
+	if (id == 1)
+		offset = TSEN_CFG_REG_OFFSET;
+	else if (id == 2)
+		offset = TSEN_CFG_REG_OFFSET + TSEN_REG_OFFSET;
+	return offset;
+}
+
 static int thsens_data_read(void *config_reg, void *data_reg)
 {
 	int i, j, data = 0;
 	int temp = 0;
-	int cnt = 10;
-	if (g_flag == 3) {
+	if (g_flag >= 3) {
+		temp = celsius_decode(readl(data_reg)) * 1000;
+		if (temp >= 120000 || temp < 0)
+			temp = 30000;
+/*
 		while (cnt) {
 			if (((readl(config_reg) & TSEN_DATA_READY) >> 24)) {
 				temp = celsius_decode(readl(data_reg)) * 1000;
@@ -181,8 +274,9 @@ static int thsens_data_read(void *config_reg, void *data_reg)
 		}
 		if (cnt == 0) {
 			pr_err("Invalid temperature!\n");
-			temp = 80000;
+			temp = 30000;
 		}
+*/
 	} else if ((g_flag == 2) && thsens_are_enabled(config_reg)) {
 		for (i = 0, j = 0; i < 5; i++) {
 			data = celsius_decode(readl(data_reg)) * 1000;
@@ -232,19 +326,17 @@ static int thermal_temp_debug_set(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct thermal_zone_device *tz_dev = dev_get_drvdata(dev);
+	int ret;
 
 	switch (tz_dev->id - 1) {
 	case 0:
-		if (1 != sscanf(buf, "%d\n", &g_test_temp_vpu))
-			pr_err("set vpu debug temp error\n");
+		ret = sscanf(buf, "%d\n", &g_test_temp_vpu);
 		break;
 	case 1:
-		if (1 != sscanf(buf, "%d\n", &g_test_temp_cpu))
-			pr_err("set vpu debug temp error\n");
+		ret = sscanf(buf, "%d\n", &g_test_temp_cpu);
 		break;
 	case 2:
-		if (1 != sscanf(buf, "%d\n", &g_test_temp_gc))
-			pr_err("set vpu debug temp error\n");
+		ret = sscanf(buf, "%d\n", &g_test_temp_gc);
 		break;
 	default:
 		pr_err("this is invalid device\n");
@@ -269,11 +361,11 @@ static struct attribute_group thermal_attr_grp = {
 	.attrs = thermal_attrs,
 };
 
-
 static int
 ts_sys_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 {
 	*temp = 0;
+	tz->devdata = thermal_dev.base;
 	switch (tz->id - 1) {
 	case 0:
 #ifdef DEBUG_TEMPERATURE
@@ -283,6 +375,7 @@ ts_sys_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 			*temp = thsens_data_read(tz->devdata + TSEN_CFG_REG_0,
 					tz->devdata + TSEN_DATA_REG_0);
 #endif
+		thermal_dev.temp_vpu = *temp;
 		break;
 	case 1:
 #ifdef DEBUG_TEMPERATURE
@@ -292,6 +385,7 @@ ts_sys_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 			*temp = thsens_data_read(tz->devdata + TSEN_CFG_REG_1,
 				tz->devdata + TSEN_DATA_REG_1);
 #endif
+		thermal_dev.temp_cpu = *temp;
 		break;
 	case 2:
 #ifdef DEBUG_TEMPERATURE
@@ -300,6 +394,7 @@ ts_sys_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 		if (tz->devdata)
 			*temp = thsens_data_read(tz->devdata + TSEN_CFG_REG_2,
 				tz->devdata + TSEN_DATA_REG_2);
+		thermal_dev.temp_gc = *temp;
 #endif
 		break;
 	default:
@@ -309,6 +404,47 @@ ts_sys_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 
 	return 0;
 }
+
+void print_reg(void)
+{
+	void __iomem *reg_base = thermal_dev.base;
+	u32 cfg, int0, int1, data, auto_read, temp;
+	unsigned long thld0, thld1, thld2;
+
+	cfg = readl(reg_base + TSEN_CFG_REG_1);
+	int0 = readl(reg_base + TSEN_INT0_WDOG_THLD_REG_1);
+	int1 = readl(reg_base + TSEN_INT1_INT2_THLD_REG_1);
+	data = readl(reg_base + TSEN_DATA_REG_1);
+	auto_read = readl(reg_base + TSEN_AUTO_READ_VALUE_REG_1);
+	temp = celsius_decode(data) * 1000;
+
+	if (thermal_dev.therm_cpu != NULL) {
+		ts_get_trip_temp(thermal_dev.therm_cpu, 0, &thld0);
+		ts_get_trip_temp(thermal_dev.therm_cpu, 1, &thld1);
+		ts_get_trip_temp(thermal_dev.therm_cpu, 2, &thld2);
+	}
+
+	pr_info("thermal_cpu temp %u, cfg 0x%x,int0 0x%x,int1 0x%x, data 0x%x,auto_read 0x%x,thld0 %lu,thld1 %lu,thld2 %lu\n",
+	temp, cfg, int0, int1, data, auto_read, thld0, thld1, thld2);
+
+	cfg = readl(reg_base + TSEN_CFG_REG_0);
+	int0 = readl(reg_base + TSEN_INT0_WDOG_THLD_REG_0);
+	int1 = readl(reg_base + TSEN_INT1_INT2_THLD_REG_0);
+	data = readl(reg_base + TSEN_DATA_REG_0);
+	auto_read = readl(reg_base + TSEN_AUTO_READ_VALUE_REG_0);
+	temp = celsius_decode(data) * 1000;
+
+	if (thermal_dev.therm_vpu != NULL) {
+		ts_get_trip_temp(thermal_dev.therm_vpu, 0, &thld0);
+		ts_get_trip_temp(thermal_dev.therm_vpu, 1, &thld1);
+		ts_get_trip_temp(thermal_dev.therm_vpu, 2, &thld2);
+	}
+
+	pr_info("thermal_vpu temp %u, cfg 0x%x,int0 0x%x,int1 0x%x, data 0x%x,auto_read 0x%x,thld0 %lu,thld1 %lu,thld2 %lu\n",
+	temp, cfg, int0, int1, data, auto_read, thld0, thld1, thld2);
+
+}
+
 
 static int ts_sys_get_mode(struct thermal_zone_device *thermal,
 		enum thermal_device_mode *mode)
@@ -334,24 +470,25 @@ static int ts_get_trip_temp(struct thermal_zone_device *tz, int trip,
 		unsigned long *temp)
 {
 	void *reg = NULL;
+	tz->devdata = thermal_dev.base;
 	switch (tz->id - 1) {
 	case 0:
 		if (0 == trip || 3 == trip)
 			reg = tz->devdata + TSEN_INT0_WDOG_THLD_REG_0;
 		else if (1 == trip || 2 == trip)
-			reg = tz->devdata + TSEN_INT1_INT2_THLD_REG_0;
+			reg = tz->devdata  + TSEN_INT1_INT2_THLD_REG_0;
 		break;
 	case 1:
 		if (0 == trip || 3 == trip)
-			reg = tz->devdata + TSEN_INT0_WDOG_THLD_REG_1;
+			reg = tz->devdata  + TSEN_INT0_WDOG_THLD_REG_1;
 		else if (1 == trip || 2 == trip)
-			reg = tz->devdata + TSEN_INT1_INT2_THLD_REG_1;
+			reg = tz->devdata  + TSEN_INT1_INT2_THLD_REG_1;
 		break;
 	case 2:
 		if (0 == trip || 3 == trip)
-			reg = tz->devdata + TSEN_INT0_WDOG_THLD_REG_2;
+			reg = tz->devdata  + TSEN_INT0_WDOG_THLD_REG_2;
 		else if (1 == trip || 2 == trip)
-			reg = tz->devdata + TSEN_INT1_INT2_THLD_REG_2;
+			reg = tz->devdata  + TSEN_INT1_INT2_THLD_REG_2;
 		break;
 	default:
 		break;
@@ -375,6 +512,7 @@ static int ts_get_trip_temp(struct thermal_zone_device *tz, int trip,
 	return 0;
 }
 
+
 static int ts_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 		unsigned long *temp)
 {
@@ -382,139 +520,157 @@ static int ts_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-void ts_set_trip_temp(void *cfg_reg, void *it1_it2, void *it0_dg,
-		int trip, unsigned long temp)
+static int cpu_sys_get_trip_temp_d(struct thermal_zone_device *thermal,
+		int trip, unsigned long *temp)
 {
-	switch (trip) {
-	case 0:
-		if (!((readl(cfg_reg) & TSEN_INT0_DIRECTION) >> 2))
-			__raw_writel(readl(cfg_reg) ^
-					TSEN_INT0_DIRECTION, cfg_reg);
-		__raw_writel((readl(it0_dg) & 0x000FFF) |
-				(celsius_encode(temp) << 12), it0_dg);
-		break;
-	case 1:
-		if (!((readl(cfg_reg) & TSEN_INT1_DIRECTION) >> 5))
-			__raw_writel(readl(cfg_reg) ^
-					TSEN_INT1_DIRECTION, cfg_reg);
-		__raw_writel((readl(it1_it2) & 0xFFF000) |
-				celsius_encode(temp), it1_it2);
-		break;
-	case 2:
-		if (!((readl(cfg_reg) & TSEN_INT2_DIRECTION) >> 8))
-			__raw_writel(readl(cfg_reg) ^
-					TSEN_INT2_DIRECTION, cfg_reg);
-		__raw_writel((readl(it1_it2) & 0x000FFF) |
-				(celsius_encode(temp) << 12), it1_it2);
-		break;
-	case 3:
-		__raw_writel((readl(it0_dg) & 0xFFF000) |
-				celsius_encode(temp), it0_dg);
-		break;
-	default:
-		break;
-	}
+	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
+		*temp = thsens_trips_temp_d[thermal->id - 1][trip];
+	else
+		*temp = -1;
+	return 0;
 }
 
-static int ts_set_tz_trip_temp(struct thermal_zone_device *tz, int trip,
-		unsigned long temp)
+static int cpu_sys_set_trip_temp_d(struct thermal_zone_device *tz,
+		int trip, unsigned long temp)
 {
-	switch (tz->id - 1) {
-	case 0:
-		ts_set_trip_temp(tz->devdata + TSEN_CFG_REG_0, tz->devdata +
-				TSEN_INT1_INT2_THLD_REG_0, tz->devdata +
-				TSEN_INT0_WDOG_THLD_REG_0, trip, temp);
-		break;
-	case 1:
-		ts_set_trip_temp(tz->devdata + TSEN_CFG_REG_1, tz->devdata +
-				TSEN_INT1_INT2_THLD_REG_1, tz->devdata +
-				TSEN_INT0_WDOG_THLD_REG_1, trip, temp);
-		break;
-	case 2:
-		ts_set_trip_temp(tz->devdata + TSEN_CFG_REG_2, tz->devdata +
-				TSEN_INT1_INT2_THLD_REG_2, tz->devdata +
-				TSEN_INT0_WDOG_THLD_REG_2, trip, temp);
-		break;
-	default:
-		break;
+	int id = tz->id - 1;
+	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
+		thsens_trips_temp_d[id][trip] = temp;
+	if ((TRIP_POINTS_NUM - 1) == trip)
+		pr_warn("critical down doesn't used\n");
+	else
+		pxa1928_set_threshold(id, thermal_dev.trip_range[id]);
+
+	return 0;
+}
+
+static int pxa1928_set_threshold(int id, int range)
+{
+	u32 tmp;
+	u32 off = reg_offset(id);
+	u32 cfg_off = cfg_reg_offset(id);
+	if (range < 0 || range > TRIP_POINTS_ACTIVE_NUM) {
+		pr_err("soc thermal: invalid threshold %d\n", range);
+		return -1;
+	}
+
+	if (0 == range) {
+		tmp = (celsius_encode(thsens_trips_temp[id][0])
+				<< TSEN_THD0_OFF) & TSEN_THD0_MASK;
+		reg_clr_set(off + TSEN_INT0_WDOG_THLD_REG_0,
+				TSEN_THD0_MASK, tmp);
+
+		tmp = (celsius_encode(thsens_trips_temp_d[id][0])
+				<< TSEN_THD1_OFF) & TSEN_THD1_MASK;
+		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
+				TSEN_THD1_MASK, tmp);
+
+		reg_clr_set(cfg_off + TSEN_CFG_REG_0, 0, TSEN_INT0_ENABLE);
+		reg_clr_set(cfg_off + TSEN_CFG_REG_0, TSEN_INT1_ENABLE, 0);
+
+	} else if (TRIP_POINTS_ACTIVE_NUM == range) {
+		tmp = (celsius_encode(thsens_trips_temp[id][range - 1]) <<
+						TSEN_THD0_OFF) & TSEN_THD0_MASK;
+		reg_clr_set(off + TSEN_INT0_WDOG_THLD_REG_0,
+				TSEN_THD0_MASK, tmp);
+		tmp = (celsius_encode(thsens_trips_temp_d[id][range - 1]) <<
+						TSEN_THD1_OFF) & TSEN_THD1_MASK;
+		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
+				TSEN_THD1_MASK, tmp);
+
+		reg_clr_set(cfg_off + TSEN_CFG_REG_0, TSEN_INT0_ENABLE, 0);
+		reg_clr_set(cfg_off + TSEN_CFG_REG_0, 0, TSEN_INT1_ENABLE);
+
+	} else {
+		tmp = (celsius_encode(thsens_trips_temp[id][range]) <<
+						TSEN_THD0_OFF) & TSEN_THD0_MASK;
+		reg_clr_set(off + TSEN_INT0_WDOG_THLD_REG_0,
+				TSEN_THD0_MASK, tmp);
+		tmp = (celsius_encode(thsens_trips_temp_d[id][range - 1]) <<
+						TSEN_THD1_OFF) & TSEN_THD1_MASK;
+		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
+				TSEN_THD1_MASK, tmp);
+		reg_clr_set(cfg_off + TSEN_CFG_REG_0, 0, TSEN_INT0_ENABLE);
+		reg_clr_set(cfg_off + TSEN_CFG_REG_0, 0, TSEN_INT1_ENABLE);
 	}
 	return 0;
 }
+
 static int ts_sys_set_trip_temp(struct thermal_zone_device *tz, int trip,
 		unsigned long temp)
 {
-	ts_set_tz_trip_temp(tz, trip, temp);
-	thsens_trips_temp[tz->id - 1][trip] = temp;
+	int id = tz->id - 1;
+	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
+		thsens_trips_temp[id][trip] = temp;
+	if ((TRIP_POINTS_NUM - 1) == trip) {
+		u32 tmp = (celsius_encode
+		(thsens_trips_temp_d[tz->id - 1][TRIP_POINTS_NUM - 1]) <<
+				TSEN_THD2_OFF) & TSEN_THD2_MASK;
+		u32 off = reg_offset(id);
+		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
+				TSEN_THD2_MASK, tmp);
+	} else
+		pxa1928_set_threshold(id, thermal_dev.trip_range[id]);
 	return 0;
 }
 
 static void auto_read_temp(struct thermal_zone_device *tz, const u32 reg,
 		const u32 datareg)
 {
-	int int0, int1, int2;
+	int int0, int1, int2, id;
 	unsigned long temp = 0;
-	int curt_temp = 0;
-	char *temp_info[3]    = { "TYPE=thsens_cpu", "TEMP=100000", NULL };
+	tz->devdata = thermal_dev.base;
+	id = tz->id - 1;
+
 	mutex_lock(&con_lock);
+
 	int0 = (readl(tz->devdata + reg) & TSEN_INT0_STATUS) >> 3;
 	int1 = (readl(tz->devdata + reg) & TSEN_INT1_STATUS) >> 6;
 	int2 = (readl(tz->devdata + reg) & TSEN_INT2_STATUS) >> 9;
 
 	if (int0 | int1 | int2) {
-		curt_temp = thsens_data_read(tz->devdata + reg,
-				tz->devdata + datareg);
-		sprintf(temp_info[0], "TYPE=%s", tz->type);
-		sprintf(temp_info[1], "TEMP=%d", curt_temp);
-		kobject_uevent_env(&(tz->device.kobj), KOBJ_CHANGE, temp_info);
 		if (int0) {
-			if ((readl(tz->devdata + reg) &
-						TSEN_INT0_DIRECTION) >> 2) {
-				ts_get_trip_temp(tz, 0, &temp);
-				ts_set_tz_trip_temp(tz, 0, temp - BALANCE);
-				__raw_writel(readl(tz->devdata + reg) ^
-					TSEN_INT0_DIRECTION, tz->devdata + reg);
+			__raw_writel(readl(tz->devdata + reg),
+					tz->devdata + reg);
+			thermal_dev.trip_range[id]++;
+			if (thermal_dev.trip_range[id] > TRIP_POINTS_ACTIVE_NUM)
+				thermal_dev.trip_range[id] =
+					TRIP_POINTS_ACTIVE_NUM;
+			pxa1928_set_threshold(id, thermal_dev.trip_range[id]);
 
-			} else {
-				ts_get_trip_temp(tz, 0, &temp);
-				ts_set_tz_trip_temp(tz, 0, temp + BALANCE);
-			}
 		} else if (int1) {
-			if ((readl(tz->devdata + reg) &
-						TSEN_INT1_DIRECTION) >> 5) {
-				ts_get_trip_temp(tz, 1, &temp);
-				ts_set_tz_trip_temp(tz, 1, temp - BALANCE);
-				__raw_writel(readl(tz->devdata + reg) ^
-					TSEN_INT1_DIRECTION, tz->devdata + reg);
+			__raw_writel(readl(tz->devdata + reg),
+					tz->devdata + reg);
+			thermal_dev.trip_range[id]--;
+		if (thermal_dev.trip_range[id] < 0)
+			thermal_dev.trip_range[id] = 0;
+			pxa1928_set_threshold(id, thermal_dev.trip_range[id]);
 
-			} else {
-				ts_get_trip_temp(tz, 1, &temp);
-				ts_set_tz_trip_temp(tz, 1, temp + BALANCE);
-			}
 		} else {
-			if ((readl(tz->devdata + reg) &
-						TSEN_INT2_DIRECTION) >> 8) {
-				ts_get_trip_temp(tz, 2, &temp);
-				ts_set_tz_trip_temp(tz, 2, temp - BALANCE);
-				__raw_writel(readl(tz->devdata + reg) ^
-					TSEN_INT2_DIRECTION, tz->devdata + reg);
-			} else {
-				ts_get_trip_temp(tz, 2, &temp);
-				ts_set_tz_trip_temp(tz, 2, temp + BALANCE);
-			}
+			__raw_writel(readl(tz->devdata + reg),
+					tz->devdata + reg);
+			/* wait framework shutdown */
+			ts_sys_get_temp(thermal_dev.therm_cpu, &temp);
+			pr_info("critical temp = %ld, shutdown\n", temp);
 		}
-	} else
+
 		thermal_zone_device_update(tz);
+	}
+
 	mutex_unlock(&con_lock);
+
 }
 
 static irqreturn_t thermal_threaded_handle_irq(int irq, void *dev_id)
 {
-	auto_read_temp(thsens_vpu, TSEN_CFG_REG_0, TSEN_DATA_REG_0);
-	auto_read_temp(thsens_cpu, TSEN_CFG_REG_1, TSEN_DATA_REG_1);
+	auto_read_temp(thermal_dev.therm_vpu, TSEN_CFG_REG_0, TSEN_DATA_REG_0);
+	auto_read_temp(thermal_dev.therm_cpu, TSEN_CFG_REG_1, TSEN_DATA_REG_1);
 	if (g_flag != 3)
-		auto_read_temp(thsens_gc, TSEN_CFG_REG_2, TSEN_DATA_REG_2);
+		auto_read_temp(thermal_dev.therm_gc,
+				TSEN_CFG_REG_2, TSEN_DATA_REG_2);
 	return IRQ_HANDLED;
 }
+
 
 static int ts_sys_get_crit_temp(struct thermal_zone_device *thermal,
 		unsigned long *temp)
@@ -537,7 +693,9 @@ static struct thermal_zone_device_ops ts_ops = {
 	.get_temp = ts_sys_get_temp,
 	.get_trip_type = ts_sys_get_trip_type,
 	.get_trip_temp = ts_sys_get_trip_temp,
+	.get_trip_temp_d = cpu_sys_get_trip_temp_d,
 	.set_trip_temp = ts_sys_set_trip_temp,
+	.set_trip_temp_d = cpu_sys_set_trip_temp_d,
 	.get_crit_temp = ts_sys_get_crit_temp,
 	.notify = ts_sys_notify,
 };
@@ -545,19 +703,19 @@ static struct thermal_zone_device_ops ts_ops = {
 #ifdef CONFIG_PM
 static int thermal_suspend(struct device *dev)
 {
-	clk_disable_unprepare(therclk_vpu);
-	clk_disable_unprepare(therclk_cpu);
-	clk_disable_unprepare(therclk_gc);
-	clk_disable_unprepare(therclk_g);
+	clk_disable_unprepare(thermal_dev.therclk_vpu);
+	clk_disable_unprepare(thermal_dev.therclk_cpu);
+	clk_disable_unprepare(thermal_dev.therclk_gc);
+	clk_disable_unprepare(thermal_dev.therclk_g);
 	return 0;
 }
 
 static int thermal_resume(struct device *dev)
 {
-	clk_prepare_enable(therclk_g);
-	clk_prepare_enable(therclk_vpu);
-	clk_prepare_enable(therclk_cpu);
-	clk_prepare_enable(therclk_gc);
+	clk_prepare_enable(thermal_dev.therclk_g);
+	clk_prepare_enable(thermal_dev.therclk_vpu);
+	clk_prepare_enable(thermal_dev.therclk_cpu);
+	clk_prepare_enable(thermal_dev.therclk_gc);
 	return 0;
 }
 
@@ -581,10 +739,339 @@ void set_flag(unsigned int flag)
 }
 EXPORT_SYMBOL(set_flag);
 
+
+static int combile_get_max_state(struct thermal_cooling_device *cdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.cdev.max_state;
+	return 0;
+}
+
+static int combile_get_cur_state(struct thermal_cooling_device *cdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.cdev.cur_state;
+	return 0;
+}
+
+static int combile_set_cur_state(struct thermal_cooling_device *cdev,
+		unsigned long state)
+{
+	struct thermal_cooling_device *c_freq = thermal_dev.cdev.cool_cpufreq;
+	struct thermal_cooling_device *c_plug =
+		thermal_dev.cdev.cool_cpuhotplug;
+	unsigned long freq_state = 0, plug_state = 0;
+	static u32 prev_state;
+
+	if (state > thermal_dev.cdev.max_state)
+		return -EINVAL;
+	thermal_dev.cdev.cur_state = state;
+
+	freq_state = pxa1928_cpu_freq_state[state];
+	plug_state = pxa1928_cpu_plug_state[state];
+
+	if (c_freq)
+		c_freq->ops->set_cur_state(c_freq, freq_state);
+	if (c_plug)
+		c_plug->ops->set_cur_state(c_plug, plug_state);
+
+	pr_info("Thermal cpu temp %d, state %lu, cpufreq qos %lu, core_num qos %lu\n",
+	thermal_dev.temp_cpu, state, freq_state, plug_state);
+	if (prev_state < state)
+		pr_info("Thermal cpu frequency limitation, performance impact expected!");
+	prev_state = state;
+
+	return 0;
+}
+
+static struct thermal_cooling_device_ops const cpu_combile_cooling_ops = {
+	.get_max_state = combile_get_max_state,
+	.get_cur_state = combile_get_cur_state,
+	.set_cur_state = combile_set_cur_state,
+};
+
+/* Register with the in-kernel thermal management */
+static int pxa1928_register_cpu_thermal(void)
+{
+	int i, trip_w_mask = 0;
+
+	thermal_dev.cdev.cool_cpufreq = cpufreq_cool_register();
+	thermal_dev.cdev.cool_cpuhotplug = cpuhotplug_cool_register();
+
+	thermal_dev.cdev.combile_cool = thermal_cooling_device_register(
+		"cpu-combile-cool", &thermal_dev, &cpu_combile_cooling_ops);
+	thermal_dev.cdev.max_state = TRIP_POINTS_STATE_NUM;
+	thermal_dev.cdev.cur_state = 0;
+
+	for (i = 0; i < TRIP_POINTS_NUM; i++)
+		trip_w_mask |= (1 << i);
+
+	thermal_dev.therm_cpu = thermal_zone_device_register(
+			"thsens_cpu", TRIP_POINTS_NUM, trip_w_mask,
+			&thermal_dev, &ts_ops, NULL, 0, 0);
+
+	/*
+	 * enable bi_direction state machine, then it didn't care
+	 * whether up/down trip points are crossed or not
+	 */
+	thermal_dev.therm_cpu->tzdctrl.state_ctrl = true;
+	/* bind combile cooling */
+	thermal_zone_bind_cooling_device(thermal_dev.therm_cpu,
+			0, thermal_dev.cdev.combile_cool,
+			THERMAL_NO_LIMIT, THERMAL_NO_LIMIT);
+
+	i = sysfs_create_group(&((thermal_dev.therm_cpu->device).kobj),
+			&thermal_attr_grp);
+	if (i >= 0)
+		pr_info("Pxa: Kernel CPU Thermal interface registered\n");
+
+	return 0;
+
+}
+
+void pxa1928_cpu_thermal_initialize(void)
+{
+	u32 tmp;
+	void __iomem *reg_base = thermal_dev.base;
+	enable_thsens(reg_base + TSEN_CFG_REG_1);
+
+	init_wd_int0_threshold(1, reg_base +
+			TSEN_INT0_WDOG_THLD_REG_1);
+	init_int1_int2_threshold(1, reg_base +
+			TSEN_INT1_INT2_THLD_REG_1);
+
+	tmp = (celsius_encode(thsens_trips_temp_d[1][TRIP_POINTS_NUM - 1]) <<
+			TSEN_THD2_OFF) & TSEN_THD2_MASK;
+	reg_clr_set(TSEN_INT1_INT2_THLD_REG_1, TSEN_THD2_MASK, tmp);
+
+	init_thsens_irq_dir(reg_base + TSEN_CFG_REG_1);
+	enable_auto_read(reg_base + TSEN_CFG_REG_1);
+	reg_clr_set(TSEN_CFG_REG_1, TSEN_INT1_DIRECTION, 0);
+
+	thermal_dev.trip_range[1] = 0;
+	pxa1928_set_threshold(1, thermal_dev.trip_range[1]);
+
+	set_auto_read_interval(reg_base + TSEN_AUTO_READ_VALUE_REG_1);
+
+}
+
+
+static int vpu_get_max_state(struct thermal_cooling_device *vdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.vdev.max_state;
+	return 0;
+}
+
+static int vpu_get_cur_state(struct thermal_cooling_device *vdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.vdev.cur_state;
+	return 0;
+}
+
+static int vpu_set_cur_state(struct thermal_cooling_device *vdev,
+		unsigned long state)
+{
+	struct thermal_cooling_device *c_freq = thermal_dev.vdev.cool_cpufreq;
+
+	unsigned long freq_state = 0;
+
+	if (state > thermal_dev.vdev.max_state)
+		return -EINVAL;
+	thermal_dev.vdev.cur_state = state;
+
+	freq_state = pxa1928_vpu_freq_state[state];
+
+	if (c_freq)
+		c_freq->ops->set_cur_state(c_freq, freq_state);
+
+	pr_info("Thermal vpu temp %d, state %lu, vpufreq qos %lu\n",
+	thermal_dev.temp_vpu, state, freq_state);
+
+	return 0;
+}
+
+static struct thermal_cooling_device_ops const vpu_cooling_ops = {
+	.get_max_state = vpu_get_max_state,
+	.get_cur_state = vpu_get_cur_state,
+	.set_cur_state = vpu_set_cur_state,
+};
+
+/* Register with the in-kernel thermal management */
+static int pxa1928_register_vpu_thermal(unsigned int index)
+{
+	int i, trip_w_mask = 0;
+
+	thermal_dev.vdev.cool_cpufreq = vpufreq_cool_register(index);
+
+	thermal_dev.vdev.combile_cool = thermal_cooling_device_register(
+			"vpu-combile-cool", &thermal_dev, &vpu_cooling_ops);
+	thermal_dev.vdev.max_state = TRIP_POINTS_STATE_NUM;
+	thermal_dev.vdev.cur_state = 0;
+
+	for (i = 0; i < TRIP_POINTS_NUM; i++)
+		trip_w_mask |= (1 << i);
+
+	thermal_dev.therm_vpu = thermal_zone_device_register(
+			"thsens_vpu", TRIP_POINTS_NUM, trip_w_mask,
+			&thermal_dev, &ts_ops, NULL, 0, 0);
+
+	/*
+	 * enable bi_direction state machine, then it didn't care
+	 * whether up/down trip points are crossed or not
+	 */
+	thermal_dev.therm_vpu->tzdctrl.state_ctrl = true;
+	/* bind combile cooling */
+	thermal_zone_bind_cooling_device(thermal_dev.therm_vpu,
+			0, thermal_dev.vdev.combile_cool,
+			THERMAL_NO_LIMIT, THERMAL_NO_LIMIT);
+
+	i = sysfs_create_group(&((thermal_dev.therm_vpu->device).kobj),
+			&thermal_attr_grp);
+	if (i >= 0)
+		pr_info("Pxa: Kernel VPU Thermal interface registered\n");
+
+	return 0;
+}
+
+void pxa1928_vpu_thermal_initialize(void)
+{
+	u32 tmp;
+	void __iomem *reg_base = thermal_dev.base;
+	enable_thsens(reg_base + TSEN_CFG_REG_0);
+
+	init_wd_int0_threshold(1, reg_base +
+			TSEN_INT0_WDOG_THLD_REG_0);
+	init_int1_int2_threshold(1, reg_base +
+			TSEN_INT1_INT2_THLD_REG_0);
+
+	tmp = (celsius_encode(thsens_trips_temp_d[0][TRIP_POINTS_NUM - 1]) <<
+			TSEN_THD2_OFF) & TSEN_THD2_MASK;
+	reg_clr_set(TSEN_INT1_INT2_THLD_REG_0, TSEN_THD2_MASK, tmp);
+
+	thermal_dev.trip_range[0] = 0;
+	pxa1928_set_threshold(0, thermal_dev.trip_range[0]);
+
+	init_thsens_irq_dir(reg_base + TSEN_CFG_REG_0);
+	enable_auto_read(reg_base + TSEN_CFG_REG_0);
+	reg_clr_set(TSEN_CFG_REG_0, TSEN_INT1_DIRECTION, 0);
+
+	set_auto_read_interval(reg_base + TSEN_AUTO_READ_VALUE_REG_0);
+
+}
+
+
+static int gpu_get_max_state(struct thermal_cooling_device *gdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.gdev.max_state;
+	return 0;
+}
+
+static int gpu_get_cur_state(struct thermal_cooling_device *gdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.gdev.cur_state;
+	return 0;
+}
+
+static int gpu_set_cur_state(struct thermal_cooling_device *gdev,
+		unsigned long state)
+{
+	struct thermal_cooling_device *c_freq = thermal_dev.gdev.cool_cpufreq;
+
+	unsigned long freq_state = 0;
+
+	if (state > thermal_dev.gdev.max_state)
+		return -EINVAL;
+	thermal_dev.gdev.cur_state = state;
+
+	freq_state = pxa1928_gpu_freq_state[state];
+
+	if (c_freq)
+		c_freq->ops->set_cur_state(c_freq, freq_state);
+
+	pr_info("Thermal gpu temp %d, state %lu, gpufreq(gc2d) qos %lu\n",
+	thermal_dev.temp_gc, state, freq_state);
+
+	return 0;
+}
+
+static struct thermal_cooling_device_ops const gpu_cooling_ops = {
+	.get_max_state = gpu_get_max_state,
+	.get_cur_state = gpu_get_cur_state,
+	.set_cur_state = gpu_set_cur_state,
+};
+
+
+/* Register with the in-kernel thermal management */
+static int pxa1928_register_gc_thermal(const char *gc_name)
+{
+	int i, trip_w_mask = 0;
+
+	thermal_dev.gdev.cool_cpufreq = gpufreq_cool_register(gc_name);
+
+	thermal_dev.gdev.combile_cool = thermal_cooling_device_register(
+			"gpu-combile-cool", &thermal_dev, &gpu_cooling_ops);
+	thermal_dev.gdev.max_state = TRIP_POINTS_STATE_NUM;
+	thermal_dev.gdev.cur_state = 0;
+
+	for (i = 0; i < TRIP_POINTS_NUM; i++)
+		trip_w_mask |= (1 << i);
+
+	thermal_dev.therm_gc = thermal_zone_device_register(
+			"thsens_gpu", TRIP_POINTS_NUM, trip_w_mask,
+			&thermal_dev, &ts_ops, NULL, 0, 0);
+
+	/*
+	 * enable bi_direction state machine, then it didn't care
+	 * whether up/down trip points are crossed or not
+	 */
+	thermal_dev.therm_gc->tzdctrl.state_ctrl = true;
+	/* bind combile cooling */
+	thermal_zone_bind_cooling_device(thermal_dev.therm_gc,
+			0, thermal_dev.gdev.combile_cool,
+			THERMAL_NO_LIMIT, THERMAL_NO_LIMIT);
+
+	i = sysfs_create_group(&((thermal_dev.therm_gc->device).kobj),
+			&thermal_attr_grp);
+	if (i >= 0)
+		pr_info("Pxa: Kernel GC Thermal interface registered\n");
+
+	return 0;
+}
+
+void pxa1928_gc_thermal_initialize(void)
+{
+	u32 tmp;
+	void __iomem *reg_base = thermal_dev.base;
+	enable_thsens(reg_base + TSEN_CFG_REG_2);
+
+	init_wd_int0_threshold(1, reg_base +
+			TSEN_INT0_WDOG_THLD_REG_2);
+	init_int1_int2_threshold(1, reg_base +
+			TSEN_INT1_INT2_THLD_REG_2);
+
+	tmp = (celsius_encode(thsens_trips_temp_d[2][TRIP_POINTS_NUM - 1]) <<
+			TSEN_THD2_OFF) & TSEN_THD2_MASK;
+	reg_clr_set(TSEN_INT1_INT2_THLD_REG_2, TSEN_THD2_MASK, tmp);
+
+	thermal_dev.trip_range[2] = 0;
+	pxa1928_set_threshold(2, thermal_dev.trip_range[2]);
+
+	init_thsens_irq_dir(reg_base + TSEN_CFG_REG_2);
+	enable_auto_read(reg_base + TSEN_CFG_REG_2);
+	reg_clr_set(TSEN_CFG_REG_2, TSEN_INT1_DIRECTION, 0);
+
+	set_auto_read_interval(reg_base + TSEN_AUTO_READ_VALUE_REG_2);
+
+}
+
+
 static int pxa1928_thermal_probe(struct platform_device *pdev)
 {
 	int ret = 0, irq;
-	int i, trip_w_mask = 0;
 	struct device_node *np = pdev->dev.of_node;
 	struct resource *res;
 	void *reg_base;
@@ -613,53 +1100,56 @@ static int pxa1928_thermal_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto remap_fail;
 	}
+	thermal_dev.base = reg_base;
 
-	therclk_g = clk_get(NULL, "THERMALCLK_G");
-	if (IS_ERR(therclk_g)) {
+	thermal_dev.therclk_g = clk_get(NULL, "THERMALCLK_G");
+	if (IS_ERR(thermal_dev.therclk_g)) {
 		pr_err("Could not get thermal clock global\n");
-		ret = PTR_ERR(therclk_g);
+		ret = PTR_ERR(thermal_dev.therclk_g);
 		goto clk_fail;
 	}
-	clk_prepare_enable(therclk_g);
+	clk_prepare_enable(thermal_dev.therclk_g);
 
-	therclk_vpu = clk_get(NULL, "THERMALCLK_VPU");
-	if (IS_ERR(therclk_vpu)) {
+	thermal_dev.therclk_vpu = clk_get(NULL, "THERMALCLK_VPU");
+	if (IS_ERR(thermal_dev.therclk_vpu)) {
 		pr_err("Could not get thermal vpu clock\n");
-		ret = PTR_ERR(therclk_vpu);
+		ret = PTR_ERR(thermal_dev.therclk_vpu);
 		goto clk_disable_g;
 	}
-	clk_prepare_enable(therclk_vpu);
+	clk_prepare_enable(thermal_dev.therclk_vpu);
 
-	therclk_cpu = clk_get(NULL, "THERMALCLK_CPU");
-	if (IS_ERR(therclk_cpu)) {
+	thermal_dev.therclk_cpu = clk_get(NULL, "THERMALCLK_CPU");
+	if (IS_ERR(thermal_dev.therclk_cpu)) {
 		pr_err("Could not get thermal cpu clock\n");
-		ret = PTR_ERR(therclk_cpu);
+		ret = PTR_ERR(thermal_dev.therclk_cpu);
 		goto clk_disable_0;
 	}
-	clk_prepare_enable(therclk_cpu);
+	clk_prepare_enable(thermal_dev.therclk_cpu);
 
-	therclk_gc = clk_get(NULL, "THERMALCLK_GC");
-	if (IS_ERR(therclk_gc)) {
+	thermal_dev.therclk_gc = clk_get(NULL, "THERMALCLK_GC");
+	if (IS_ERR(thermal_dev.therclk_gc)) {
 		pr_err("Could not get thermal gc clock\n");
-		ret = PTR_ERR(therclk_gc);
+		ret = PTR_ERR(thermal_dev.therclk_gc);
 		goto clk_disable_1;
 	}
-	clk_prepare_enable(therclk_gc);
+	clk_prepare_enable(thermal_dev.therclk_gc);
 
 	irq = platform_get_irq(pdev, 0);
+	thermal_dev.irq = irq;
 	if (irq < 0) {
 		dev_err(&pdev->dev, "no IRQ resource defined\n");
 		ret = -ENXIO;
 		goto clk_disable_2;
 	}
-	pdev_irq = irq;
+
 	ret = request_threaded_irq(irq, NULL, thermal_threaded_handle_irq,
-			IRQF_ONESHOT, pdev->name, NULL);
+		IRQF_ONESHOT, pdev->name, NULL);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to request IRQ\n");
 		ret = -ENXIO;
 		goto clk_disable_2;
 	}
+
 	mutex_init(&con_lock);
 
 	if (IS_ENABLED(CONFIG_OF)) {
@@ -668,108 +1158,29 @@ static int pxa1928_thermal_probe(struct platform_device *pdev)
 					&g_flag);
 	}
 
-	for (i = 0; i < TRIP_POINTS_NUM; i++)
-		trip_w_mask |= (1 << i);
+	pxa1928_vpu_thermal_initialize();
+	pxa1928_register_vpu_thermal(1);
 
-	thsens_vpu = thermal_zone_device_register(
-			"thsens_vpu", TRIP_POINTS_NUM,
-			trip_w_mask, NULL, &ts_ops, NULL, 0, 0);
-	if (IS_ERR(thsens_vpu)) {
-		pr_err("Failed to register VPU thermal zone device\n");
-		ret = -EINVAL;
-		goto free_irq;
-	} else {
-		ret = sysfs_create_group(&((thsens_vpu->device).kobj),
-				&thermal_attr_grp);
-		if (ret < 0) {
-			pr_err("Failed to register private vpu thermal interface\n");
-			goto unregister_tz_vpu;
-		}
-		enable_thsens(reg_base + TSEN_CFG_REG_0);
-		init_wd_int0_threshold(0, reg_base + TSEN_INT0_WDOG_THLD_REG_0);
-		init_int1_int2_threshold(0, reg_base +
-				TSEN_INT1_INT2_THLD_REG_0);
-		init_thsens_irq_dir(reg_base + TSEN_CFG_REG_0);
-		enable_auto_read(reg_base + TSEN_CFG_REG_0);
-		set_auto_read_interval(reg_base + TSEN_AUTO_READ_VALUE_REG_0);
-		thsens_vpu->devdata = reg_base;
-		dev_set_drvdata(&(thsens_vpu->device), thsens_vpu);
-	}
-	thsens_cpu = thermal_zone_device_register(
-			"thsens_cpu", TRIP_POINTS_NUM,
-			trip_w_mask, NULL, &ts_ops, NULL, 0, 0);
-	if (IS_ERR(thsens_cpu)) {
-		pr_err("Failed to register CPU thermal zone device\n");
-		ret = -EINVAL;
-		goto unregister_tz_vpu;
-	} else {
-		ret = sysfs_create_group(&((thsens_cpu->device).kobj),
-				&thermal_attr_grp);
-		if (ret < 0) {
-			pr_err("Failed to register private cpu thermal interface\n");
-			goto unregister_tz_cpu;
-		}
-		enable_thsens(reg_base + TSEN_CFG_REG_1);
-		init_wd_int0_threshold(1, reg_base +
-				TSEN_INT0_WDOG_THLD_REG_1);
-		init_int1_int2_threshold(1, reg_base +
-				TSEN_INT1_INT2_THLD_REG_1);
-		init_thsens_irq_dir(reg_base + TSEN_CFG_REG_1);
-		enable_auto_read(reg_base + TSEN_CFG_REG_1);
-		set_auto_read_interval(reg_base + TSEN_AUTO_READ_VALUE_REG_1);
-		thsens_cpu->devdata = reg_base;
-		dev_set_drvdata(&(thsens_cpu->device), thsens_cpu);
-	}
+	pxa1928_cpu_thermal_initialize();
+	pxa1928_register_cpu_thermal();
+
 	if (g_flag != 3) {
-		thsens_gc = thermal_zone_device_register(
-				"thsens_gc", TRIP_POINTS_NUM,
-				trip_w_mask, NULL, &ts_ops, NULL, 0, 0);
-		if (IS_ERR(thsens_gc)) {
-			pr_err("Failed to register GC thermal zone device\n");
-			ret = -EINVAL;
-			goto unregister_tz_cpu;
-		} else {
-			ret = sysfs_create_group(&((thsens_gc->device).kobj),
-					&thermal_attr_grp);
-			if (ret < 0) {
-				pr_err("Failed to register gc thermal\n");
-				goto unregister_tz_gc;
-			}
-			enable_thsens(reg_base + TSEN_CFG_REG_2);
-			init_wd_int0_threshold(2, reg_base +
-					TSEN_INT0_WDOG_THLD_REG_2);
-			init_int1_int2_threshold(2, reg_base +
-					TSEN_INT1_INT2_THLD_REG_2);
-			init_thsens_irq_dir(reg_base + TSEN_CFG_REG_2);
-			enable_auto_read(reg_base + TSEN_CFG_REG_2);
-			set_auto_read_interval(reg_base +
-					TSEN_AUTO_READ_VALUE_REG_2);
-			thsens_gc->devdata = reg_base;
-			dev_set_drvdata(&(thsens_gc->device), thsens_gc);
-		}
+		pxa1928_gc_thermal_initialize();
+		pxa1928_register_gc_thermal("gc2d");
 	}
+
 	return ret;
-unregister_tz_gc:
-	thermal_zone_device_unregister(thsens_gc);
-	sysfs_remove_group(&((thsens_gc->device).kobj), &thermal_attr_grp);
-unregister_tz_cpu:
-	thermal_zone_device_unregister(thsens_cpu);
-	sysfs_remove_group(&((thsens_cpu->device).kobj), &thermal_attr_grp);
-unregister_tz_vpu:
-	thermal_zone_device_unregister(thsens_vpu);
-	sysfs_remove_group(&((thsens_vpu->device).kobj), &thermal_attr_grp);
-free_irq:
-	free_irq(pdev_irq, NULL);
+
 clk_disable_2:
-	clk_disable_unprepare(therclk_gc);
+	clk_disable_unprepare(thermal_dev.therclk_gc);
 clk_disable_1:
-	clk_disable_unprepare(therclk_cpu);
+	clk_disable_unprepare(thermal_dev.therclk_cpu);
 clk_disable_0:
-	clk_disable_unprepare(therclk_vpu);
+	clk_disable_unprepare(thermal_dev.therclk_vpu);
 clk_disable_g:
-	clk_disable_unprepare(therclk_g);
+	clk_disable_unprepare(thermal_dev.therclk_g);
 clk_fail:
-	devm_iounmap(&pdev->dev, reg_base);
+	devm_iounmap(&pdev->dev, thermal_dev.base);
 remap_fail:
 	devm_release_mem_region(&pdev->dev, res->start, resource_size(res));
 res_fail:
@@ -780,17 +1191,20 @@ res_fail:
 
 static int pxa1928_thermal_remove(struct platform_device *pdev)
 {
-	clk_disable_unprepare(therclk_vpu);
-	clk_disable_unprepare(therclk_cpu);
-	clk_disable_unprepare(therclk_gc);
-	clk_disable_unprepare(therclk_g);
-	thermal_zone_device_unregister(thsens_vpu);
-	sysfs_remove_group(&((thsens_vpu->device).kobj), &thermal_attr_grp);
-	thermal_zone_device_unregister(thsens_cpu);
-	sysfs_remove_group(&((thsens_cpu->device).kobj), &thermal_attr_grp);
-	thermal_zone_device_unregister(thsens_gc);
-	sysfs_remove_group(&((thsens_gc->device).kobj), &thermal_attr_grp);
-	free_irq(pdev_irq, NULL);
+	clk_disable_unprepare(thermal_dev.therclk_vpu);
+	clk_disable_unprepare(thermal_dev.therclk_cpu);
+	clk_disable_unprepare(thermal_dev.therclk_gc);
+	clk_disable_unprepare(thermal_dev.therclk_g);
+
+	cpufreq_cool_unregister(thermal_dev.cdev.cool_cpufreq);
+	cpuhotplug_cool_unregister(thermal_dev.cdev.cool_cpuhotplug);
+	thermal_cooling_device_unregister(thermal_dev.cdev.combile_cool);
+
+	cpufreq_cool_unregister(thermal_dev.vdev.cool_cpufreq);
+	thermal_cooling_device_unregister(thermal_dev.vdev.combile_cool);
+	thermal_zone_device_unregister(thermal_dev.therm_cpu);
+
+	free_irq(thermal_dev.irq, NULL);
 	pr_info("PXA1928: Kernel Thermal management unregistered\n");
 
 	return 0;
