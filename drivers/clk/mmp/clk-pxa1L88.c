@@ -2,6 +2,7 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
+#include <linux/devfreq.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 
@@ -803,6 +804,9 @@ static void pxa1L88_axi_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 			ARRAY_SIZE(vpufclk_parent_names),
 			CLK_SET_RATE_PARENTS_ENABLED,
 			&vpufclk_mix_config, &vpu_lock);
+#ifdef CONFIG_VPU_DEVFREQ
+	__init_comp_devfreq_table(clk, DEVFREQ_VPU_BASE);
+#endif
 	clk = mmp_clk_register_gate(NULL, "vpu", "vpufunc_mix_clk",
 			CLK_SET_RATE_PARENT,
 			pxa_unit->apmu_base + APMU_VPU,
