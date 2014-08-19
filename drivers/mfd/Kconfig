@@ -352,6 +352,17 @@ config MFD_MMP_MAP
 	  like fe dai (i2s1/2/3/4), be dai (TDM, DEI2S, AUX-I2S)
 	  under the corresponding menus.
 
+config MFD_88PM886
+	bool "Marvell 88PM886"
+	depends on I2C=y
+	select REGMAP_I2C
+	select MFD_CORE
+	help
+	  This supports for Marvell 88PM886 Power Management IC.
+	  This includes the I2C driver, the interrupt resource distribution
+	  and the core APIs, for individual components as voltage regulators,
+	  RTC and battery-charger, please select under the corresponding menus.
+
 config MFD_MAX14577
 	bool "Maxim Semiconductor MAX14577 MUIC + Charger Support"
 	depends on I2C=y
