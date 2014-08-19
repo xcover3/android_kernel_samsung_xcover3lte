@@ -450,7 +450,7 @@ static int __init coresight_parse_trace_dt(void)
 
 	node = of_find_compatible_node(NULL, NULL, "marvell,coresight-etm");
 	if (!node) {
-		pr_err("Failed to find DBG node!\n");
+		pr_err("Failed to find coresight etm node!\n");
 		return -ENODEV;
 	}
 
@@ -460,9 +460,9 @@ static int __init coresight_parse_trace_dt(void)
 		return -ENOMEM;
 	}
 
-	node = of_find_compatible_node(NULL, NULL, "marvell,coresight-etf");
+	node = of_find_compatible_node(NULL, NULL, "marvell,coresight-letb");
 	if (!node) {
-		pr_err("Failed to find CTI node!\n");
+		pr_err("Failed to find local etf node!\n");
 		return -ENODEV;
 	}
 
