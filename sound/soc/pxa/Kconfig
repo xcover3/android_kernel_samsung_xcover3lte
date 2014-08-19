@@ -242,3 +242,17 @@ config SND_MMP_MAP
 	  Marvell MAP reference platform. It depend on mmp-pcm,
 	  mmp-sspa, mmp-tdma. It will use the FE, BE and audio
 	  processing.
+
+config SND_SOC_PXA_88PM805
+	bool "SoC Audio support for PXA 88PM805"
+	depends on ARCH_MMP && SND && MFD_88PM805
+	select SND_PCM
+	select PXA_SSP
+	select SND_PXA_SOC_SSP
+	select SND_MMP_SOC
+	select SND_PXA_SOC
+	select SND_SOC_88PM805
+	select SND_SOC_88PM800_HS
+	help
+	  Say Y if you want to add support for SoC audio on the
+	  MARVELL PXA 88PM805 reference platform.
