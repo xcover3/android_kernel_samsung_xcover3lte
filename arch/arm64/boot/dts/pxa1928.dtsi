@@ -626,8 +626,8 @@
 				        reg = <0xd415c000 0x4000>;
 				};
 
-				etf: etf@0xd4190000 {
-					compatible = "marvell,coresight-etf";
+				letb: letb@0xd4190000 {
+					compatible = "marvell,coresight-letb";
 				        reg = <0xd4190000 0x4000>;
 				};
 			};

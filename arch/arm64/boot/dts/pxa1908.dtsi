@@ -575,27 +575,17 @@
 				        reg = <0xd411c000 0x4000>;
 				};
 
-				cstf: cstf@0xd4109000 {
-					compatible = "marvell,coresight-cstf";
-				        reg = <0xd4109000 0x4000>;
-				};
-
-				cetb: cetb@0xd4105000 {
-					compatible = "marvell,coresight-cetb";
-				        reg = <0xd4105000 0x4000>;
-				};
-
 				letb: letb@0xd410a000 {
 					compatible = "marvell,coresight-letb";
 				        reg = <0xd410a000 0x4000>;
 				};
+			};
 
-				watchdog: watchdog@d4080000 {
-					compatible = "marvell,mmp-wdt";
-					reg = <0xd4080000 0xff>,
-					      <0xd4050000 0x1024>;
-					status = "disabled";
-				};
+			watchdog: watchdog@d4080000 {
+				compatible = "marvell,mmp-wdt";
+				reg = <0xd4080000 0xff>,
+				      <0xd4050000 0x1024>;
+				status = "disabled";
 			};
 
 			swjtag: swjtag@d4013100 {
