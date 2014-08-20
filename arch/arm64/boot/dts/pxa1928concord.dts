@@ -268,6 +268,34 @@
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_156M 0 0 0 0 0>;
 				status = "okay";
 			};
+
+			/* sd card */
+			sdh0: sdh@d4280000 {
+				pinctrl-names = "default", "fast";
+				pinctrl-0 = <&sdh0_pins_pullup &sdh0_pins_pulldn>;
+				pinctrl-1 = <&sdh0_pins_pullup_fast &sdh0_pins_pulldn_fast>;
+				bus-width = <4>;
+				vqmmc-supply    = <&ldo17>;
+				vmmc-supply     = <&ldo5>;
+				marvell,sdh-flags = <(
+						PXA_FLAG_ENABLE_CLOCK_GATING |
+						PXA_FLAG_NEW_RX_CFG_REG |
+						PXA_FLAG_TX_SEL_BUS_CLK
+						)>;
+				marvell,sdh-quirks2 = <(
+						SDHCI_QUIRK2_TIMEOUT_SHORT |
+						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
+						SDHCI_QUIRK2_TUNING_BROKEN |
+						SDHCI_QUIRK2_SET_AIB_MMC
+						)>;
+	/* prop "mrvl,dtr_data": <timing preset_rate src_rate tx_delay rx_delay rx_sdclk_sel0 rx_sdclk_sel1 fakeclk_en> */
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_156M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_52M PXA_SDH_DTR_156M 0 0 0 0 1>,
+						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_156M 266 0 0 0 1>,
+						<PXA_MMC_TIMING_UHS_SDR104 PXA_SDH_DTR_156M PXA_SDH_DTR_156M 248 327 3 1 1>,
+						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_156M 0 0 0 0 0>;
+				status = "okay";
+			};
 		};
 
 		axi@f0400000 {
@@ -523,6 +551,46 @@
 				motion_sensor_pins: pinmux_motion_sensor_pins {
 					pinctrl-single,pins = <GPIO(GSEN_DRDY)>;
 					MFP_PULL_LOW;
+				};
+
+				sdh0_pins_pullup: pinmux_sdh0_pins_pullup {
+					pinctrl-single,pins = <
+						MMC1_DAT3
+						MMC1_DAT2
+						MMC1_DAT1
+						MMC1_DAT0
+						MMC1_CMD
+						MMC1_CD_N
+						MMC1_WP
+					>;
+					MFP_PULL_UP;
+				};
+
+				sdh0_pins_pullup_fast: pinmux_sdh0_pins_pullup_fast {
+					pinctrl-single,pins = <
+						MMC1_DAT3
+						MMC1_DAT2
+						MMC1_DAT1
+						MMC1_DAT0
+						MMC1_CMD
+						MMC1_CD_N
+						MMC1_WP
+					>;
+					DS_FAST;PULL_UP;EDGE_NONE;LPM_NONE;
+				};
+
+				sdh0_pins_pulldn: pinmux_sdh0_pins_pulldn {
+					pinctrl-single,pins = <
+						MMC1_CLK
+					>;
+					MFP_PULL_DOWN;
+				};
+
+				sdh0_pins_pulldn_fast: pinmux_sdh0_pins_pulldn_fast {
+					pinctrl-single,pins = <
+						MMC1_CLK
+					>;
+					DS_FAST;PULL_DOWN;EDGE_NONE;LPM_NONE;
 				};
 
 				sdh2_pins_pullup: pinmux_sdh2_pins_pullup {

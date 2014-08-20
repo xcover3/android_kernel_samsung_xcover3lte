@@ -342,6 +342,17 @@
 				status = "disabled";
 			};
 
+			/* sd card */
+			sdh0: sdh@d4280000 {
+				compatible = "marvell,pxav3-mmc-v3";
+				reg = <0xd4280000 0x120>;
+				interrupts = <0 69 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_SDH0>;
+				clock-names = "sdh-base-clk";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
 			devfreq-dec {
 				compatible = "marvell,devfreq-vpu";
 				marvell,vpu-id = <0>;
