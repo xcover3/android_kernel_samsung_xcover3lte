@@ -20,10 +20,6 @@
 #include "regs-addr.h"
 
 static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
-#ifdef CONFIG_DDR_DEVFREQ
-	OF_DEV_AUXDATA("marvell,devfreq-ddr", 0xd0000000,
-			"devfreq-ddr", NULL),
-#endif
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xc0ffdc00, "mmp-sspa-dai.0", NULL),
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xc0ffdd00, "mmp-sspa-dai.1", NULL),
 	{}
