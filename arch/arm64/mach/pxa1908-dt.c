@@ -18,12 +18,10 @@
 #include <linux/delay.h>
 
 #include <asm/mach/arch.h>
+#include <linux/cputype.h>
 
 #include "regs-addr.h"
 #include "mmpx-dt.h"
-
-unsigned int mmp_chip_id;
-EXPORT_SYMBOL(mmp_chip_id);
 
 static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_DDR_DEVFREQ

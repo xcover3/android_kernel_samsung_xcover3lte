@@ -36,7 +36,7 @@ static inline bool cpu_is_ca7(void)
  * MMP2      A0    0x560f5811   0x00A0A610
  */
 
-extern unsigned int mmp_chip_id;
+static unsigned int mmp_chip_id;
 
 #ifdef CONFIG_CPU_PXA168
 static inline int cpu_is_pxa168(void)
@@ -103,6 +103,21 @@ static inline int cpu_is_pxa1908(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xd03) &&
 	    (((mmp_chip_id & 0xffff) == 0x1908));
+}
+
+static inline int cpu_is_pxa1928_b0(void)
+{
+	return (mmp_chip_id & 0xffffff) == 0xb0c198;
+}
+
+static inline int cpu_is_pxa1928_a0(void)
+{
+	return (mmp_chip_id & 0xffffff) == 0xa0c198;
+}
+
+static inline int cpu_is_pxa1928(void)
+{
+	return cpu_is_pxa1928_b0() || cpu_is_pxa1928_a0();
 }
 
 static inline int pxa1928_is_a0(void)

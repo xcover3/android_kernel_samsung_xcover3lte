@@ -15,6 +15,7 @@
 #include <linux/clocksource.h>
 
 #include <asm/mach/arch.h>
+#include <linux/cputype.h>
 
 #include "mmpx-dt.h"
 #include "regs-addr.h"
@@ -88,6 +89,7 @@ static void arch_timer_soc_config(void __iomem *mpmu_base)
 static __init void pxa1928_timer_init(void)
 {
 	void __iomem *mpmu_base;
+	void __iomem *chip_id;
 
 	regs_addr_iomap();
 
@@ -96,6 +98,10 @@ static __init void pxa1928_timer_init(void)
 		pr_err("ioremap mpmu_base failed");
 		return;
 	}
+
+	/* this is early, initialize mmp_chip_id here */
+	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
+	mmp_chip_id = readl_relaxed(chip_id);
 
 #ifdef CONFIG_ARM_ARCH_TIMER
 	arch_timer_soc_config(mpmu_base);
