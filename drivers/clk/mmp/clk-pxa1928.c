@@ -9,6 +9,7 @@
 #include <dt-bindings/clock/marvell-pxa1928.h>
 #include <linux/debugfs-pxa.h>
 #include <linux/clk/mmpdcstat.h>
+#include <linux/cputype.h>
 
 #include "clk.h"
 #include "clk-pll-pxa1928.h"
@@ -1040,7 +1041,6 @@ static void __init pxa1928_clk_init(struct device_node *np)
 
 CLK_OF_DECLARE(pxa1928_clk, "marvell,pxa1928-clock", pxa1928_clk_init);
 
-#ifdef CONFIG_ARM64
 #ifdef CONFIG_DEBUG_FS
 static struct dentry *stat;
 CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1928_CLK_DDR], ddr);
@@ -1050,6 +1050,9 @@ static int __init __init_pxa1928_dcstat_debugfs_node(void)
 {
 	struct dentry *cpu_dc_stat = NULL, *ddr_dc_stat = NULL;
 	struct dentry *axi_dc_stat = NULL;
+
+	if (!cpu_is_pxa1928())
+		return 0;
 
 	stat = debugfs_create_dir("stat", pxa);
 	if (!stat)
@@ -1083,5 +1086,4 @@ err_cpu_dc_stat:
  * use arch_initcall init the pxa1928 dcstat node.
  */
 arch_initcall(__init_pxa1928_dcstat_debugfs_node);
-#endif
 #endif
