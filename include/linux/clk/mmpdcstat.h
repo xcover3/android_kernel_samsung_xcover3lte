@@ -14,9 +14,7 @@
 enum lowpower_mode {
 	LPM_C1,
 	LPM_C2,
-#ifdef CONFIG_ARM64
 	LPM_MP2,
-#endif
 	LPM_D1P,
 	LPM_D1,
 	LPM_D2,
