@@ -20,3 +20,19 @@ Required root node properties:
 PXA1L88 tablet V10 DKB Board
 Required root node properties:
 	- compatible = "marvell,pxa1L88-tablet-v10";
+
+PXA1936 SOC
+Required root node properties:
+	- compatible = "marvell,pxa1936";
+
+PXA1936 QT Emulation
+Required root node properties:
+	- compatible = "marvell,pxa1936-qt";
+
+PXA1936 DKB Board
+Required root node properties:
+	- compatible = "marvell,pxa1936-dkb";
+
+Generic QT Emulation
+Required root node properties:
+	- compatible = "marvell,qt";

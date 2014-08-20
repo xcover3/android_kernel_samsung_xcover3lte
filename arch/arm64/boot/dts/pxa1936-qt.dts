@@ -13,16 +13,16 @@
 /memreserve/ 0x17000000 0x01800000;	/* Frame buffer (24MB) */
 /memreserve/ 0x0a000000 0x00080000;	/* CM3 shared buffer(512KB) */
 /memreserve/ 0x0b000000 0x01000000;	/* CM3 ACQ buffer(16MB) */
-#include "pxa1908.dtsi"
+#include "pxa1936.dtsi"
 #include "pxa1908-pinfunc.h"
 #include "../../../../include/dt-bindings/mmc/pxa_sdhci.h"
 
 / {
-	model = "Marvell PXA1908 DKB Development Board";
-	compatible = "marvell,pxa1U88-dkb", "marvell,pxa1908-fpga", "marvell,pxa1908";
+	model = "Marvell PXA1936 DKB Development Board";
+	compatible = "marvell,pxa1936-dkb", "marvell,pxa1936-qt", "marvell,pxa1936", "marvell,qt";
 
 	chosen {
-		bootargs = "console=ttyS0,115200 root=/dev/nfs nfsroot=192.168.1.100:/nfsroot/ ip=192.168.1.101:192.168.1.100::255.255.255.0::eth0:on";
+		bootargs = "console=ttyS0,460800 root=/dev/nfs nfsroot=192.168.1.100:/nfsroot/ ip=192.168.1.101:192.168.1.100::255.255.255.0::eth0:on";
 	};
 
 	memory {
@@ -161,10 +161,14 @@
 			};
 
 			timer0: timer@d4014000 {
-				status = "disabled";
+				status = "okay";
 			};
 
 			timer1: timer@d4016000 {
+				status = "disabled";
+			};
+
+			timer2: timer@d401f000 {
 				status = "disabled";
 			};
 

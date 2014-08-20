@@ -30,18 +30,63 @@
 	};
 
 	cpus {
+                #address-cells = <2>;
+                #size-cells = <0>;
 		cpu@0 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 0x0>;
+			enable-method = "mcpm";
 		};
 		cpu@1 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 0x1>;
+			enable-method = "mcpm";
 		};
 		cpu@2 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 0x2>;
+			enable-method = "mcpm";
 		};
 		cpu@3 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 0x3>;
+			enable-method = "mcpm";
 		};
+		cpu@4 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 0x100>;
+			enable-method = "mcpm";
+		};
+		cpu@5 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 0x101>;
+			enable-method = "mcpm";
+		};
+		cpu@6 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 0x102>;
+			enable-method = "mcpm";
+		};
+		cpu@7 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 0x103>;
+			enable-method = "mcpm";
+		};
+	};
+
+	mcpm {
+		compatible      = "arm,mcpm";
+		method          = "smc";
+		cpu_off         = <0x85000001>;
+		cpu_on          = <0x85000002>;
 	};
 
 	gic: interrupt-controller@d1dfa000 {
@@ -270,6 +315,7 @@
 				#dma-cells= <2>;
 				#dma-channels = <32>;
 				#dma-channels-tz = <32>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
 
@@ -284,8 +330,10 @@
 					compatible = "marvell,timer-counter-clkevt";
 					interrupts = <0 13 0x4>;
 					marvell,timer-counter-id = <0>;
-					marvell,timer-counter-cpu = <0>;
+					marvell,timer-counter-broadcast;
 					marvell,timer-counter-frequency = <32768>;
+					marvell,timer-counter-nodynirq;
+					marvell,timer-counter-rating = <200>;
 				};
 
 				counter1 {
@@ -353,8 +401,8 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4017000 0x1000>;
 				interrupts = <0 27 0x4>;
-				dmas = <&pdma0 21 1
-					&pdma0 22 1>;
+				dmas = <&pdma0 19 1
+					&pdma0 20 1>;
 				dma-names = "rx", "tx";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_UART0>;
@@ -364,8 +412,8 @@
 				compatible = "mrvl,mmp-uart";
 				reg = <0xd4018000 0x1000>;
 				interrupts = <0 28 0x4>;
-				dmas = <&pdma0 23 1
-					&pdma0 24 1>;
+				dmas = <&pdma0 21 1
+					&pdma0 22 1>;
 				dma-names = "rx", "tx";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_UART1>;
@@ -562,17 +610,20 @@
 
 				dbg: dbg@0xd4110000 {
 					compatible = "marvell,coresight-dbg";
-					reg = <0xd4110000 0x8000>;
+					reg = <0xd4110000 0x8000>,
+						<0xd4130000 0x8000>;
 				};
 
 				cti: cti@0xd4118000 {
 					compatible = "marvell,coresight-cti";
-				        reg = <0xd4118000 0x4000>;
+				        reg = <0xd4118000 0x4000>,
+						<0xd4138000 0x4000>;
 				};
 
 				etm: etm@0xd411c000 {
 					compatible = "marvell,coresight-etm";
-				        reg = <0xd411c000 0x4000>;
+				        reg = <0xd411c000 0x4000>,
+						<0xd413c000 0x4000>;
 				};
 
 				cstf: cstf@0xd4109000 {
@@ -587,7 +638,8 @@
 
 				letb: letb@0xd410a000 {
 					compatible = "marvell,coresight-letb";
-				        reg = <0xd410a000 0x4000>;
+				        reg = <0xd410a000 0x4000>,
+						<0xd412a000 0x4000>;
 				};
 
 				watchdog: watchdog@d4080000 {
@@ -618,7 +670,7 @@
 
 		apmu: pmu@d4282800 {
 			compatible = "marvell,mmp-pmu-apmu";
-			reg = <0xd4282800 0x1c0>;
+			reg = <0xd4282800 0x338>;
 		};
 
 		apbc: pmu@d4015000 {
