@@ -130,8 +130,6 @@ static unsigned long get_combine_freq(struct vpu_devfreq_data *data,
 		return 0;
 
 	for (i = 0; i < len; i++) {
-		pr_info("%u, %u\n", data->vpu_freq_cmb_tbl[i][0],
-				data->vpu_freq_cmb_tbl[i][1]);
 		if (data->vpu_freq_cmb_tbl[i][0] == temp) {
 			return data->vpu_freq_cmb_tbl[i][1];
 		}
@@ -371,8 +369,7 @@ static int vpu_devfreq_probe(struct platform_device *pdev)
 	if (prop) {
 		size = proplen / sizeof(u32);
 		if ((proplen % sizeof(u32)) || size % 2) {
-			pr_err("%s:%s marvell,mmp-clk-freq-combine wrong value\n",
-				__func__, pdev->dev.of_node->name);
+			dev_err(dev, "mmp-clk-freq-combine has wrong value\n");
 			goto out;
 		}
 
