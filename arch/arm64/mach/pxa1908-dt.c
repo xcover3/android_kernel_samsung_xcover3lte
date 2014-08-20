@@ -22,6 +22,9 @@
 #include "regs-addr.h"
 #include "mmpx-dt.h"
 
+unsigned int mmp_chip_id;
+EXPORT_SYMBOL(mmp_chip_id);
+
 static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_DDR_DEVFREQ
 	OF_DEV_AUXDATA("marvell,devfreq-ddr", 0xc0100000,
@@ -161,7 +164,13 @@ static void __init pxa988_sdhc_reset_all(void)
 
 void __init pxa1908_timer_init(void)
 {
+	void __iomem *chip_id;
+
 	regs_addr_iomap();
+
+	/* this is early, initialize mmp_chip_id here */
+	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
+	mmp_chip_id = readl_relaxed(chip_id);
 
 	enable_pxawdt_clock();
 
