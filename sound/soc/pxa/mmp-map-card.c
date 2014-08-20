@@ -646,8 +646,11 @@ static int map_probe_dt(struct platform_device *pdev)
 			}
 		}
 
-		if (of_property_read_bool(dailink_np, "marvell,dai-dynamic"))
+		if (of_property_read_bool(dailink_np, "marvell,dai-dynamic")) {
 			map_dai[i].dynamic = 1;
+			map_dai[i].dpcm_playback = 1;
+			map_dai[i].dpcm_capture = 1;
+		}
 
 		if (of_property_read_bool(dailink_np, "marvell,dai-no-pcm")) {
 			map_dai[i].no_pcm = 1;
