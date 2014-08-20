@@ -225,14 +225,13 @@ struct plat_pll_info {
 	unsigned int vcodiv3dtidx;
 };
 
-struct plat_pll_info pllx_platinfo[] = {
+struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 	{
 		.vco_name = "pll2_vco",
 		.out_name = "pll2",
 		.outp_name = "pll2p",
 		.vco_div3_name = "pll2_div3",
 		.vcoclk_flag = CLK_IS_ROOT,
-		.vco_flag = HELANX_PLL2CR_V1,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
 		.outdtidx = PXA1U88_CLK_PLL2,
@@ -296,6 +295,10 @@ static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 	pllx_pllp_params[PLL2].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL2CR;
 	pllx_pllp_params[PLL3].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL3CR;
 	pllx_pllp_params[PLL4].pll_swcr = pxa_unit->apbs_base + APB_SPARE_PLL4CR;
+
+	/* only 1U88 uses old PLL2 CR register definition */
+	if (cpu_is_pxa1U88())
+		pllx_platinfo[PLL2].vco_flag = HELANX_PLL2CR_V1;
 
 	for (idx = 0; idx < ARRAY_SIZE(pllx_platinfo); idx++) {
 		spin_lock_init(&pllx_platinfo[idx].lock);
