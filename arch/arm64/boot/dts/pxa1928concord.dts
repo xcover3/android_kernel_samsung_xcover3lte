@@ -83,8 +83,8 @@
 			ccic1: ccic@d420a000 {
 				status = "okay";
 				pinctrl-names = "default", "twsi3";
-				pinctrl-0 = <&ccic1_pins &twsi3_isp_gpio_pins>;
-				pinctrl-1 = <&ccic1_pins &twsi3_isp_pins>;
+				pinctrl-0 = <&twsi3_isp_gpio_pins>;
+				pinctrl-1 = <&twsi3_isp_pins>;
 				sc2-i2c-dyn-ctrl;
 			};
 
