@@ -1264,7 +1264,8 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	clk_prepare_enable(clk);
 
 	host->quirks2 = SDHCI_QUIRK2_TIMEOUT_DIVIDE_4
-		| SDHCI_QUIRK2_NO_CURRENT_LIMIT;
+		| SDHCI_QUIRK2_NO_CURRENT_LIMIT
+		| SDHCI_QUIRK2_PRESET_VALUE_BROKEN;
 
 	match = of_match_device(of_match_ptr(sdhci_pxav3_of_match), &pdev->dev);
 	if (match) {
