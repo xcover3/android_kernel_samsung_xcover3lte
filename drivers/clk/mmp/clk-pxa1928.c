@@ -2,6 +2,7 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
+#include <linux/devfreq.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 
@@ -12,6 +13,7 @@
 #include "clk.h"
 #include "clk-pll-pxa1928.h"
 #include "clk-core-pxa1928.h"
+#include "clk-plat.h"
 
 #define APBC_RTC		0x0
 #define APBC_TWSI0		0x4
@@ -928,6 +930,9 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 	clk = mmp_clk_register_mix(NULL, "vpudec_mix_clk", vpudec_parent_names,
 				ARRAY_SIZE(vpudec_parent_names),
 				0, &vpudec_mix_config, &vpu_lock);
+#ifdef CONFIG_VPU_DEVFREQ
+	__init_comp_devfreq_table(clk, DEVFREQ_VPU_0);
+#endif
 	clk = mmp_clk_register_gate2(NULL, "vpudec_clk", "vpudec_mix_clk",
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_VPU_CLKCTRL,
@@ -939,6 +944,9 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 	clk = mmp_clk_register_mix(NULL, "vpuenc_mix_clk", vpuenc_parent_names,
 				ARRAY_SIZE(vpuenc_parent_names),
 				0, &vpuenc_mix_config, &vpu_lock);
+#ifdef CONFIG_VPU_DEVFREQ
+	__init_comp_devfreq_table(clk, DEVFREQ_VPU_1);
+#endif
 	clk = mmp_clk_register_gate2(NULL, "vpuenc_clk", "vpuenc_mix_clk",
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_VPU_CLKCTRL,
