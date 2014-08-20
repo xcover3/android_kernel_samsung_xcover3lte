@@ -160,50 +160,35 @@ enum pll {
 	MAX_PLL_NUM
 };
 
+enum pll_type {
+	VCO,
+	OUT,
+	OUTP,
+	MAX_PLL_TYPE,
+};
 
 static struct mmp_vco_params pllx_vco_params[MAX_PLL_NUM] = {
 	{
 		.vco_min = 1200000000UL,
 		.vco_max = 3000000000UL,
 		.lock_enable_bit = POSR_PLL2_LOCK,
-		.default_rate = 2115 * MHZ,
 	},
 	{
 		.vco_min = 1200000000UL,
 		.vco_max = 3000000000UL,
 		.lock_enable_bit = POSR_PLL3_LOCK,
-		.default_rate = 1526 * MHZ,
 	},
 	{
 		.vco_min = 1200000000UL,
 		.vco_max = 3000000000UL,
 		.lock_enable_bit = POSR_PLL4_LOCK,
-		.default_rate = 1595 * MHZ,
 	}
 };
 
 static struct mmp_pll_params pllx_pll_params[MAX_PLL_NUM] = {
-	{
-		.default_rate = 1057 * MHZ,
-	},
-	{
-		.default_rate = 1526 * MHZ,
-	},
-	{
-		.default_rate = 1595 * MHZ,
-	},
 };
 
 static struct mmp_pll_params pllx_pllp_params[MAX_PLL_NUM] = {
-	{
-		.default_rate = 2115 * MHZ,
-	},
-	{
-		.default_rate = 1526 * MHZ,
-	},
-	{
-		.default_rate = 797 * MHZ,
-	},
 };
 
 struct plat_pll_info {
@@ -265,6 +250,26 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 	}
 };
 
+/* pll default rate determined by ddr_mode */
+unsigned long pll_dfrate[DDR_TYPE_MAX][MAX_PLL_NUM][MAX_PLL_TYPE] = {
+	[DDR_533M] = {
+		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
+		/* for 533M case, reserve pll4 for LCD */
+		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
+	},
+	[DDR_667M] = {
+		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
+		{2670lu * MHZ, 1335 * MHZ, 667 * MHZ},
+	},
+	[DDR_800M] = {
+		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
+		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
+	},
+};
+
 static int board_is_fpga(void)
 {
 	static int rc;
@@ -300,15 +305,19 @@ static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 	if (cpu_is_pxa1U88())
 		pllx_platinfo[PLL2].vco_flag = HELANX_PLL2CR_V1;
 
-	for (idx = 0; idx < ARRAY_SIZE(pllx_platinfo); idx++) {
+	for (idx = 0; idx < MAX_PLL_NUM; idx++) {
 		spin_lock_init(&pllx_platinfo[idx].lock);
 		/* vco */
 		pllx_vco_params[idx].lock_reg = pxa_unit->mpmu_base + MPMU_POSR;
+		pllx_vco_params[idx].default_rate =
+			pll_dfrate[ddr_mode][idx][VCO];
 		clk = helanx_clk_register_vco(pllx_platinfo[idx].vco_name,
 			0, pllx_platinfo[idx].vcoclk_flag, pllx_platinfo[idx].vco_flag,
 			&pllx_platinfo[idx].lock, &pllx_vco_params[idx]);
 		clk_set_rate(clk, pllx_vco_params[idx].default_rate);
 		/* pll */
+		pllx_pll_params[idx].default_rate =
+			pll_dfrate[ddr_mode][idx][OUT];
 		clk = helanx_clk_register_pll(pllx_platinfo[idx].out_name,
 			pllx_platinfo[idx].vco_name,
 			pllx_platinfo[idx].outclk_flag, pllx_platinfo[idx].out_flag,
@@ -316,6 +325,8 @@ static void pxa1U88_dynpll_init(struct pxa1U88_clk_unit *pxa_unit)
 		clk_set_rate(clk, pllx_pll_params[idx].default_rate);
 		mmp_clk_add(unit, pllx_platinfo[idx].outdtidx, clk);
 		/* pllp */
+		pllx_pllp_params[idx].default_rate =
+			pll_dfrate[ddr_mode][idx][OUTP];
 		clk = helanx_clk_register_pll(pllx_platinfo[idx].outp_name,
 			pllx_platinfo[idx].vco_name,
 			pllx_platinfo[idx].outpclk_flag, pllx_platinfo[idx].outp_flag,
@@ -988,7 +999,7 @@ static const char *ddr_parent[] = {
  * 0x1 = PLL1 832 MHz
  * 0x4 = PLL2_CLKOUT
  * 0x5 = PLL4_CLKOUT
- * 0x6 = PLL3_CLKOUTP
+ * 0x6 = PLL3_CLKOUTP(helan2), PLL1_1248(ULC)
  */
 static struct parents_table ddr_parent_table[] = {
 	{
@@ -1007,13 +1018,14 @@ static struct parents_table ddr_parent_table[] = {
 		.parent_name = "pll4",
 		.hw_sel_val = 0x5,
 	},
+	/* only cares ulc, and pll3p dedicate for cpu, ignore it */
 	{
-		.parent_name = "pll3p",
+		.parent_name = "pll1_1248",
 		.hw_sel_val = 0x6,
 	},
 };
 
-
+/* helan2 only support 800M */
 static struct ddr_opt lpddr800_oparray[] = {
 	{
 		.dclk = 156,
@@ -1044,6 +1056,77 @@ static struct ddr_opt lpddr800_oparray[] = {
 
 static unsigned long hwdfc_freq_table[] = {
 	533000, 533000, 800000, 800000
+};
+
+/*
+ * ULC support max to 667M, and has extra 624M PP
+ * FIXME: ULC could assign specific lpm tbl, use 0 for bringup.
+ */
+static struct ddr_opt lpddr533_oparray[] = {
+	{
+		.dclk = 156,
+		.ddr_tbl_index = 2,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 312,
+		.ddr_tbl_index = 4,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 416,
+		.ddr_tbl_index = 6,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x1,
+	},
+	{
+		.dclk = 528,
+		.ddr_tbl_index = 8,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x4,
+	},
+};
+
+static struct ddr_opt lpddr667_oparray[] = {
+	{
+		.dclk = 156,
+		.ddr_tbl_index = 2,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 312,
+		.ddr_tbl_index = 4,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 416,
+		.ddr_tbl_index = 6,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x1,
+	},
+	{
+		.dclk = 528,
+		.ddr_tbl_index = 8,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x4,
+	},
+	/* FIXME: if we really need 624M PP? Here for verification */
+	{
+		.dclk = 624,
+		.ddr_tbl_index = 10,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x6,
+	},
+	{
+		.dclk = 667,
+		.ddr_tbl_index = 12,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x5,
+	},
 };
 
 static struct ddr_params ddr_params = {
@@ -1112,6 +1195,7 @@ static struct ddr_combclk_relation aclk_dclk_relationtbl_1U88[] = {
 	{.dclk_rate = 398000000, .combclk_rate = 208000000},
 	{.dclk_rate = 416000000, .combclk_rate = 208000000},
 	{.dclk_rate = 528000000, .combclk_rate = 208000000},
+	{.dclk_rate = 624000000, .combclk_rate = 312000000},
 	{.dclk_rate = 667000000, .combclk_rate = 312000000},
 	{.dclk_rate = 797000000, .combclk_rate = 312000000},
 };
@@ -1128,8 +1212,15 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	ddr_params.apmu_base = pxa_unit->apmu_base;
 	ddr_params.mpmu_base = pxa_unit->mpmu_base;
-	ddr_params.ddr_opt = lpddr800_oparray;
-	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_oparray);
+	ddr_params.ddr_opt = lpddr533_oparray;
+	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr533_oparray);
+	if (ddr_mode == DDR_667M) {
+		ddr_params.ddr_opt = lpddr667_oparray;
+		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr667_oparray);
+	} else if (ddr_mode == DDR_800M) {
+		ddr_params.ddr_opt = lpddr800_oparray;
+		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_oparray);
+	}
 
 	axi_params.apmu_base = pxa_unit->apmu_base;
 	axi_params.mpmu_base = pxa_unit->mpmu_base;
