@@ -118,6 +118,7 @@ enum {
 
 /* Wakeup Registers */
 #define PM800_WAKEUP1		(0x0D)
+#define PM800_SW_PDOWN	(1 << 5)
 
 #define PM800_WAKEUP2		(0x0E)
 #define PM800_WAKEUP2_INV_INT		(1 << 0)
@@ -207,6 +208,8 @@ enum {
 #define PM800_POWER_DOWN_LOG1		(0xE5)
 #define PM800_POWER_DOWN_LOG2		(0xE6)
 #define PM800_RTC_MISC5			(0xE7)
+#define PM800_FAULT_WAKEUP_EN		(1 << 2)
+#define PM800_FAULT_WAKEUP		(1 << 3)
 #define PM800_RTC_MISC6			(0xE8)
 #define PM800_RTC_MISC7			(0xE9)
 /* user data register, in RTC domain */
@@ -648,6 +651,8 @@ static inline int pm80x_dev_resume(struct device *dev)
 }
 #endif
 
+extern void sw_poweroff(void);
+extern void pmic_reset(void);
 extern struct pm80x_chip *chip_g;
 extern int pm80x_init(struct i2c_client *client);
 extern int pm80x_deinit(void);

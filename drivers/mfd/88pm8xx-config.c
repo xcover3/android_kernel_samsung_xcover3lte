@@ -314,6 +314,88 @@ int pm800_init_config(struct pm80x_chip *chip, struct device_node *np)
 	return 0;
 }
 
+static int pmic_rw_reg(u8 reg, u8 value)
+{
+	int ret;
+	u8 data, buf[2];
+
+	struct i2c_client *client = chip_g->client;
+	struct i2c_msg msgs[] = {
+		{
+			.addr = client->addr,
+			.flags = 0,
+			.len = 1,
+			.buf = buf,
+		},
+		{
+			.addr = client->addr,
+			.flags = I2C_M_RD,
+			.len = 1,
+			.buf = &data,
+		},
+	};
+
+	/*
+	 * I2C pins may be in non-AP pinstate, and __i2c_transfer
+	 * won't change it back to AP pinstate like i2c_transfer,
+	 * so change i2c pins to AP pinstate explicitly here.
+	 */
+	i2c_pxa_set_pinstate(client->adapter, "default");
+
+	/*
+	 * set i2c to pio mode
+	 * for in power off sequence, irq has been disabled
+	 */
+	i2c_set_pio_mode(client->adapter, 1);
+
+	buf[0] = reg;
+	ret = __i2c_transfer(client->adapter, msgs, 2);
+	if (ret < 0) {
+		pr_err("%s read register fails...\n", __func__);
+		WARN_ON(1);
+	}
+	/* issue SW power down */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = 2;
+	msgs[0].buf[0] = reg;
+	msgs[0].buf[1] = data | value;
+	ret = __i2c_transfer(client->adapter, msgs, 1);
+	if (ret < 0) {
+		pr_err("%s write data fails: ret = %d\n", __func__, ret);
+		WARN_ON(1);
+	}
+	return ret;
+
+}
+
+void sw_poweroff(void)
+{
+	int ret;
+
+	pr_info("turning off power....\n");
+	ret = pmic_rw_reg(PM800_WAKEUP1, PM800_SW_PDOWN);
+	if (ret < 0)
+		pr_err("%s, turn off power fail", __func__);
+}
+
+void pmic_reset(void)
+{
+	int ret;
+
+	/* pmic reset contain two parts: fault wake up and sw_powerdown */
+	pr_info("pmic power down/up reset....\n");
+	ret = pmic_rw_reg(PM800_RTC_MISC5, PM800_FAULT_WAKEUP_EN | PM800_FAULT_WAKEUP);
+	if (ret < 0) {
+		pr_err("%s, enbale pmic fault wakeup fail!", __func__);
+		return;
+	}
+	ret = pmic_rw_reg(PM800_WAKEUP1, PM800_SW_PDOWN);
+	if (ret < 0)
+		pr_err("%s, turn off power fail", __func__);
+
+}
+
 static DEFINE_MUTEX(audio_mode_mutex);
 void buck1_audio_mode_ctrl(int on)
 {
