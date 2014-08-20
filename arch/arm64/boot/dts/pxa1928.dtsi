@@ -324,6 +324,34 @@
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
+
+			devfreq-dec {
+				compatible = "marvell,devfreq-vpu";
+				marvell,vpu-id = <0>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUDEC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				marvell,mmp-clk-freq-combine =
+						<104000 104000>,
+						<156000 156000>,
+						<208000 208000>,
+						<312000 312000>,
+						<416000 416000>;
+			};
+
+			devfreq-enc {
+				compatible = "marvell,devfreq-vpu";
+				marvell,vpu-id = <1>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUENC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				marvell,mmp-clk-freq-combine =
+						<156000 156000>,
+						<208000 208000>,
+						<312000 312000>,
+						<416000 416000>,
+						<531555 416000>;
+			};
 		};
 
 		axi@f0400000 {
