@@ -178,6 +178,10 @@ static __init void pxa1U88_timer_init(void)
 
 	regs_addr_iomap();
 
+	/* this is early, initialize mmp_chip_id here */
+	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
+	mmp_chip_id = readl_relaxed(chip_id);
+
 	enable_pxawdt_clock();
 
 #ifdef CONFIG_ARM_ARCH_TIMER
@@ -192,9 +196,6 @@ static __init void pxa1U88_timer_init(void)
 
 	pxa988_sdhc_reset_all();
 
-	/* this is early, initialize mmp_chip_id here */
-	chip_id = regs_addr_get_va(REGS_ADDR_CIU);
-	mmp_chip_id = readl_relaxed(chip_id);
 }
 
 /* For HELANLTE CP memeory reservation, 32MB by default */
