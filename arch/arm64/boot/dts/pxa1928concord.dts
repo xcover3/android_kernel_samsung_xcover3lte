@@ -239,14 +239,35 @@
 			};
 
 			/* emmc */
-			sdh3: sdh@d4217000 {
+			sdh2: sdh@d4217000 {
+				pinctrl-names = "default", "fast";
+				pinctrl-0 = <&sdh2_pins_pullup &sdh2_pins_pulldn>;
+				pinctrl-1 = <&sdh2_pins_pullup_fast &sdh2_pins_pulldn_fast>;
 				bus-width = <8>;
 				non-removable;
+				marvell,sdh-pm-runtime-en;
+				marvell,sdh-flags = <(
+						PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
+						PXA_FLAG_ENABLE_CLOCK_GATING |
+						PXA_FLAG_NEW_RX_CFG_REG |
+						PXA_FLAG_TX_SEL_BUS_CLK
+						)>;
 				marvell,sdh-quirks = <(SDHCI_QUIRK_BROKEN_CARD_DETECTION)>;
-				marvell,sdh-quirks2 = <(SDHCI_QUIRK2_BROKEN_HS200)>;
+				marvell,sdh-quirks2 = <(
+						SDHCI_QUIRK2_TIMEOUT_SHORT |
+						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
+						SDHCI_QUIRK2_TUNING_BROKEN
+						)>;
 				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
+				marvell,sdh-host-caps2 = <(MMC_CAP2_BKOPS_EN)>;
+	/* prop "mrvl,dtr_data": <timing preset_rate src_rate tx_delay rx_delay rx_sdclk_sel0 rx_sdclk_sel1 fakeclk_en> */
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_156M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_MMC_HS PXA_SDH_DTR_52M PXA_SDH_DTR_156M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_156M 298 673 2 1 0>,
+						<PXA_MMC_TIMING_MMC_HS200 PXA_SDH_DTR_156M PXA_SDH_DTR_156M 292 210 3 1 0>,
+						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_156M 0 0 0 0 0>;
 				status = "okay";
-                        };
+			};
 		};
 
 		axi@f0400000 {
@@ -502,6 +523,52 @@
 				motion_sensor_pins: pinmux_motion_sensor_pins {
 					pinctrl-single,pins = <GPIO(GSEN_DRDY)>;
 					MFP_PULL_LOW;
+				};
+
+				sdh2_pins_pullup: pinmux_sdh2_pins_pullup {
+					pinctrl-single,pins = <
+						MMC3_DAT7
+						MMC3_DAT6
+						MMC3_DAT5
+						MMC3_DAT4
+						MMC3_DAT3
+						MMC3_DAT2
+						MMC3_DAT1
+						MMC3_DAT0
+						MMC3_CMD
+						MMC3_RST
+					>;
+					MFP_PULL_UP;
+				};
+
+				sdh2_pins_pullup_fast: pinmux_sdh2_pins_pullup_fast {
+					pinctrl-single,pins = <
+						MMC3_DAT7
+						MMC3_DAT6
+						MMC3_DAT5
+						MMC3_DAT4
+						MMC3_DAT3
+						MMC3_DAT2
+						MMC3_DAT1
+						MMC3_DAT0
+						MMC3_CMD
+						MMC3_RST
+					>;
+					DS_FAST;PULL_UP;EDGE_NONE;LPM_NONE;
+				};
+
+				sdh2_pins_pulldn: pinmux_sdh2_pins_pulldn {
+					pinctrl-single,pins = <
+						MMC3_CLK
+					>;
+					MFP_PULL_DOWN;
+				};
+
+				sdh2_pins_pulldn_fast: pinmux_sdh2_pins_pulldn_fast {
+					pinctrl-single,pins = <
+						MMC3_CLK
+					>;
+					DS_FAST;PULL_DOWN;EDGE_NONE;LPM_NONE;
 				};
 
 				dvc_pins: pinmux_dvc_pins {
