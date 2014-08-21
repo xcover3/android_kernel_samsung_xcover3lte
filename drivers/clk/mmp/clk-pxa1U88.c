@@ -528,8 +528,12 @@ static struct mmp_clk_mix_config gc3d_mix_config = {
 };
 
 /* GC shader */
-static const char *gcsh_parent_names[] = {
+static const char * const gcsh_parent_names_1u88[] = {
 	"pll1_416_gate", "pll1_624_gate",  "pll2p", "pll3p",
+};
+
+static const char * const gcsh_parent_names[] = {
+	"pll1_832_gate", "pll1_624_gate",  "pll2p", "pll3p",
 };
 
 static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
@@ -551,12 +555,20 @@ static const char *gc2d_parent_names[] = {
 	"pll1_416_gate", "pll1_624_gate",  "pll2", "pll2p",
 };
 
-static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
+static struct mmp_clk_mix_clk_table gc2d_pptbl_1u88[] = {
 	{.rate = 78000000, .parent_index = 1,/* pll1_624_gate */},
 	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
 	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
 	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
+};
+
+/* ulc GC2D has no compress feature, adjust the PP */
+static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0,/* pll1_416_gate */},
+	{.rate = 624000000, .parent_index = 1, /* pll1_624_gate */},
 };
 
 static struct mmp_clk_mix_config gc2d_mix_config = {
@@ -570,11 +582,19 @@ static const char *gcbus_parent_names[] = {
 	"pll1_416_gate", "pll1_624_gate", "pll2", "pll4",
 };
 
-static struct mmp_clk_mix_clk_table gcbus_pptbl[] = {
+static struct mmp_clk_mix_clk_table gcbus_pptbl_1u88[] = {
 	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
 	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
 	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
+};
+
+/* ulc GCbus adjusted from 128bit to 64bit, adjust the PP */
+static struct mmp_clk_mix_clk_table gcbus_pptbl[] = {
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
+	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
+	{.rate = 624000000, .parent_index = 1, /* pll1_624_gate */},
 };
 
 static struct mmp_clk_mix_config gcbus_mix_config = {
@@ -660,6 +680,8 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
+	const char **parent_names;
+	u32 parent_num;
 
 	clk = mmp_clk_register_gate(NULL, "usb_clk", NULL, 0,
 				pxa_unit->apmu_base + APMU_USB,
@@ -733,8 +755,14 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	mmp_clk_add(unit, PXA1U88_CLK_GC3D, clk);
 
 	gcsh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
-	clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk", gcsh_parent_names,
-				ARRAY_SIZE(gcsh_parent_names),
+	parent_names = (const char **)gcsh_parent_names;
+	parent_num = ARRAY_SIZE(gcsh_parent_names);
+	if (cpu_is_pxa1U88()) {
+		parent_names = (const char **)gcsh_parent_names_1u88;
+		parent_num = ARRAY_SIZE(gcsh_parent_names_1u88);
+	}
+	clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk", parent_names,
+				parent_num,
 				0, &gcsh_mix_config, &gc_lock);
 #ifdef CONFIG_PM_DEVFREQ
 	__init_comp_devfreq_table(clk, DEVFREQ_GPU_SH);
@@ -747,6 +775,10 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	mmp_clk_add(unit, PXA1U88_CLK_GCSH, clk);
 
 	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
+	if (cpu_is_pxa1U88()) {
+		gc2d_mix_config.table = gc2d_pptbl_1u88;
+		gc2d_mix_config.table_size = ARRAY_SIZE(gc2d_pptbl_1u88);
+	}
 	clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk", gc2d_parent_names,
 				ARRAY_SIZE(gc2d_parent_names),
 				0, &gc2d_mix_config, &gc2d_lock);
@@ -762,6 +794,10 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	gcbus_mix_config.reg_info.reg_clk_ctrl =
 				pxa_unit->apmu_base + APMU_GC2D;
+	if (cpu_is_pxa1U88()) {
+		gcbus_mix_config.table = gcbus_pptbl_1u88;
+		gcbus_mix_config.table_size = ARRAY_SIZE(gcbus_pptbl_1u88);
+	}
 	clk = mmp_clk_register_mix(NULL, "gcbus_mix_clk", gcbus_parent_names,
 				ARRAY_SIZE(gcbus_parent_names),
 				0, &gcbus_mix_config, &gc2d_lock);
