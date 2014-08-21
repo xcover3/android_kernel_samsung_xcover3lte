@@ -557,6 +557,9 @@ struct dma_chan *dma_get_any_slave_channel(struct dma_device *device)
 		}
 	}
 
+	if (chan && dma_has_cap(DMA_PRIVATE, device->cap_mask))
+		device->privatecnt++;
+
 	mutex_unlock(&dma_list_mutex);
 
 	return chan;
