@@ -1044,6 +1044,10 @@
 				thermal_safe-p0 = <3 2>;
 				status = "okay";
 			};
+
+			acipc: acipc@d401d000 {
+				status = "okay";
+			};
 		};
 
                 /*
