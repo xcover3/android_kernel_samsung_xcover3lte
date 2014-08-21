@@ -31,18 +31,40 @@
 	};
 
 	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
 		cpu@0 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 0>;
+			enable-method = "mcpm";
 		};
 		cpu@1 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 1>;
+			enable-method = "mcpm";
 		};
 		cpu@2 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 2>;
+			enable-method = "mcpm";
 		};
 		cpu@3 {
+			device_type = "cpu";
 			compatible = "arm,armv8";
+			reg = <0 3>;
+			enable-method = "mcpm";
 		};
+	};
+
+	mcpm {
+		compatible      = "arm,mcpm";
+		method          = "smc";
+		cpu_off         = <0x85000001>;
+		cpu_on          = <0x85000002>;
 	};
 
 	gic: interrupt-controller@d1dfa000 {
