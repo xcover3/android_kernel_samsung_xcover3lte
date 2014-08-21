@@ -485,7 +485,8 @@ void arch_enable_trace(u32 enable_mask)
 {
 	int cpu;
 
-	coresight_parse_trace_dt();
+	if (coresight_parse_trace_dt())
+		return;
 
 	coresight_mp_init(enable_mask);
 	for_each_possible_cpu(cpu)
