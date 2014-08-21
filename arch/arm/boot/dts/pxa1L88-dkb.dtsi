@@ -551,6 +551,10 @@
 					marvell,88pm805-irq-write-clear;
 				};
 			};
+
+			acipc: acipc@d401d000 {
+				status = "okay";
+			};
 		};
 	};
 

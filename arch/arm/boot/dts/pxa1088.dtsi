@@ -425,6 +425,15 @@
 				status = "disabled";
 			};
 
+			acipc: acipc@d401d000 {
+				compatible = "marvell,mmp-acipc";
+				reg = <0xd401d000 0x100>;
+				interrupts = <0 16 0x4>,<0 17 0x4>,<0 18 0x4>;
+				interrupt-names = "IPC_AP_DATAACK", "IPC_AP_SET_CMD", "IPC_AP_SET_MSG";
+				clocks = <&soc_clocks PXA1L88_CLK_IPC_RST>;
+				status = "disabled";
+			};
+
 		};
 
 		sram: sram@0xd1004000 {
