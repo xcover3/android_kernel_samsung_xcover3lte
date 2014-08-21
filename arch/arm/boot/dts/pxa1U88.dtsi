@@ -323,6 +323,7 @@
 				#dma-cells= <2>;
 				#dma-channels = <32>;
 				#dma-channels-tz = <32>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
 
