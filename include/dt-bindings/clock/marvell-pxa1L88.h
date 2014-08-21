@@ -51,6 +51,8 @@
 #define PXA1L88_CLK_SWJTAG		77
 
 /* axi periphrals */
+#define PXA1L88_CLK_SSP			98
+#define PXA1L88_CLK_GSSP		99
 #define PXA1L88_CLK_USB			100
 #define PXA1L88_CLK_SDH_AXI		101
 #define PXA1L88_CLK_SDH0		102

@@ -23,6 +23,10 @@
 #define APBC_KPC		0x30
 #define APBC_UART0		0x0
 #define APBC_UART1		0x4
+#define APBC_SSP0		0x1c
+#define APBC_SSP1		0x20
+#define APBC_SSP2		0x4c
+
 #define APBC_GPIO		0x8
 #define APBC_PWM0		0xc
 #define APBC_PWM1		0x10
@@ -69,6 +73,15 @@
 #define CIU_GPU2D_XTC		0x00a0
 #define CIU_GPU_XTC		0x00a4
 #define CIU_VPU_XTC		0x00a8
+
+/* For audio */
+#define MPMU_FCCR		0x8
+#define MPMU_ISCCR0		0x40
+#define MPMU_ISCCR1		0x44
+
+/* GBS: clock for GSSP */
+#define APBC_GBS       0xc
+#define APBC_GCER      0x34
 
 /*
  * peripheral clock source:
@@ -359,6 +372,28 @@ static struct mmp_clk_factor_tbl uart_factor_tbl[] = {
 	{.num = 8125, .den = 1536},     /*14.745MHZ */
 };
 
+static struct mmp_clk_factor_masks isccr1_factor_masks = {
+	.factor = 1,
+	.den_mask = 0xfff,
+	.num_mask = 0x7fff,
+	.den_shift = 15,
+	.num_shift = 0,
+};
+
+static struct mmp_clk_factor_tbl isccr1_factor_tbl[] = {
+	{.num = 14906, .den = 440},	/*for 0kHz*/
+	{.num = 1625, .den = 256},	/*8kHz*/
+	{.num = 3042, .den = 1321},	/*44.1kHZ */
+};
+
+static const struct clk_div_table clk_ssp1_ref_table[] = {
+	{ .val = 0, .div = 2 },
+	{ .val = 1, .div = 4 },
+	{ .val = 2, .div = 6 },
+	{ .val = 3, .div = 8 },
+	{ .val = 0, .div = 0 },
+};
+
 static DEFINE_SPINLOCK(pll1_lock);
 static struct mmp_param_general_gate_clk pll1_gate_clks[] = {
 	{PXA1L88_CLK_PLL1_416_GATE, "pll1_416_gate", "pll1_416", 0, APMU_CLK_GATE_CTRL, 27, 0, &pll1_lock},
@@ -419,6 +454,9 @@ static DEFINE_SPINLOCK(uart0_lock);
 static DEFINE_SPINLOCK(uart1_lock);
 static DEFINE_SPINLOCK(uart2_lock);
 static const char *uart_parent_names[] = {"pll1_3_16", "uart_pll"};
+static const char const *ssp1_parent[] = {"vctcxo", "pll1_2"};
+static const char const *gssp_parent[] = {"isccr0_i2sclk", "sys clk",
+					"ext clk", "vctcxo"};
 
 static DEFINE_SPINLOCK(twsi0_lock);
 static DEFINE_SPINLOCK(twsi1_lock);
@@ -451,6 +489,7 @@ static void pxa1L88_coresight_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 static void pxa1L88_apb_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
+	struct clk *i2s_clk;
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
 
 	clk = mmp_clk_register_gate(NULL, "pwm01_apb_share", "pll1_48",
@@ -528,6 +567,63 @@ static void pxa1L88_apb_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 				pxa_unit->apbcp_base + APBCP_UART2,
 				0x7, 0x3, 0x0, 0, &uart2_lock);
 	mmp_clk_add(unit, PXA1L88_CLK_UART2, clk);
+
+	clk = clk_register_mux(NULL, "ssp1_mux", ssp1_parent,
+			ARRAY_SIZE(ssp1_parent), 0,
+			pxa_unit->mpmu_base + MPMU_FCCR, 28, 1, 0, NULL);
+	clk = clk_register_fixed_factor(NULL, "pllclk_2", "ssp1_mux",
+				CLK_SET_RATE_PARENT, 1, 2);
+	clk = clk_register_gate(NULL, "sysclk_en", "pllclk_2", CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR1, 31, 0, NULL);
+	clk =  mmp_clk_register_factor("mn_div", "sysclk_en", CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR1,
+				&isccr1_factor_masks, isccr1_factor_tbl,
+				ARRAY_SIZE(isccr1_factor_tbl), NULL);
+	clk_set_rate(clk, 5644800);
+	clk = clk_register_gate(NULL, "bitclk_en", "mn_div", CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR1, 29, 0, NULL);
+	clk = clk_register_divider_table(NULL, "bitclk_div_468", "bitclk_en", 0,
+			pxa_unit->mpmu_base + MPMU_ISCCR1, 27, 2, 0, clk_ssp1_ref_table,
+			NULL);
+	clk_set_rate(clk, 1411200);
+	clk = clk_register_gate(NULL, "fnclk", "bitclk_div_468", CLK_SET_RATE_PARENT,
+				pxa_unit->apbc_base + APBC_SSP1, 1, 0, NULL);
+	clk = mmp_clk_register_apbc("pxa988-ssp.1", "fnclk",
+				pxa_unit->apbc_base + APBC_SSP1, 10, CLK_SET_RATE_PARENT, NULL);
+	mmp_clk_add(unit, PXA1L88_CLK_SSP, clk);
+
+	clk = clk_register_gate(NULL, "isccr0_i2sclk_base", "pllclk_2",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR0, 30, 0, NULL);
+	clk = clk_register_gate(NULL, "isccr0_sysclk_en", "isccr0_i2sclk_base",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR0, 31, 0, NULL);
+	clk =  mmp_clk_register_factor("isccr0_mn_div", "isccr0_sysclk_en",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR0,
+				&isccr1_factor_masks, isccr1_factor_tbl,
+				ARRAY_SIZE(isccr1_factor_tbl), NULL);
+	clk_set_rate(clk, 2048000);
+	clk = clk_register_gate(NULL, "isccr0_i2sclk_en", "isccr0_mn_div",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR0, 29, 0, NULL);
+	i2s_clk = clk_register_divider_table(NULL, "isccr0_i2sclk",
+				"isccr0_i2sclk_en", CLK_SET_RATE_PARENT,
+				pxa_unit->mpmu_base + MPMU_ISCCR0, 27, 2, 0,
+				clk_ssp1_ref_table,
+				NULL);
+	clk_set_rate(i2s_clk, 256000);
+	clk = clk_register_mux(NULL, "gssp_func_mux", gssp_parent,
+			ARRAY_SIZE(gssp_parent), CLK_SET_RATE_PARENT,
+			pxa_unit->apbcp_base + APBC_GCER, 8, 2, 0, NULL);
+	clk_set_parent(clk, i2s_clk);
+	clk = clk_register_gate(NULL, "gssp_fnclk", "gssp_func_mux",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apbcp_base + APBC_GCER, 1, 0, NULL);
+	clk = mmp_clk_register_apbc("pxa988-ssp.4", "gssp_fnclk",
+				pxa_unit->apbcp_base + APBC_GCER, 10,
+				CLK_SET_RATE_PARENT, NULL);
+	mmp_clk_add(unit, PXA1L88_CLK_GSSP, clk);
 
 	clk = mmp_clk_register_apbc("swjtag", NULL,
 				pxa_unit->apbc_base + APBC_SWJTAG,
