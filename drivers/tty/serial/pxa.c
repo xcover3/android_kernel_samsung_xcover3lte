@@ -116,7 +116,7 @@ static int __init uart_dma_setup(char *__unused)
 {
 /* if CONFIG_MMP_PDMA not enabled, uart will work in non-DMA mode */
 #ifdef CONFIG_MMP_PDMA
-	uart_dma = 0;
+	uart_dma = 1;
 #endif
 	return 1;
 }
