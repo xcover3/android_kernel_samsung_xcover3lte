@@ -188,11 +188,8 @@ struct lcd_regs {
 #define LCD_TCLK_DIV				(0x009C)
 
 /* dither configure */
-#ifdef CONFIG_CPU_PXA988
 #define LCD_DITHER_CTRL				(0x01EC)
-#else
-#define LCD_DITHER_CTRL				(0x00A0)
-#endif
+#define LCD_DITHER_CTRL_GEN4			(0x00A0)
 
 #define DITHER_TBL_INDEX_SEL(s)		((s) << 16)
 #define DITHER_MODE2(m)				((m) << 12)
@@ -207,7 +204,6 @@ struct lcd_regs {
 #define DITHER_EN1					(1)
 
 /* dither table data was fixed by video bpp of input and output*/
-#ifdef CONFIG_CPU_PXA988
 #define DITHER_TB_4X4_INDEX0		(0x6e4ca280)
 #define DITHER_TB_4X4_INDEX1		(0x5d7f91b3)
 #define DITHER_TB_4X8_INDEX0		(0xb391a280)
@@ -215,15 +211,14 @@ struct lcd_regs {
 #define DITHER_TB_4X8_INDEX2		(0x80a291b3)
 #define DITHER_TB_4X8_INDEX3		(0x4c6e5d7f)
 #define LCD_DITHER_TBL_DATA		(0x01F0)
-#else
-#define DITHER_TB_4X4_INDEX0		(0x3b19f7d5)
-#define DITHER_TB_4X4_INDEX1		(0x082ac4e6)
-#define DITHER_TB_4X8_INDEX0		(0xf7d508e6)
-#define DITHER_TB_4X8_INDEX1		(0x3b194c2a)
-#define DITHER_TB_4X8_INDEX2		(0xc4e6d5f7)
-#define DITHER_TB_4X8_INDEX3		(0x082a193b)
-#define LCD_DITHER_TBL_DATA		(0x00A4)
-#endif
+
+#define DITHER_TB_4X4_INDEX0_GEN4	(0x3b19f7d5)
+#define DITHER_TB_4X4_INDEX1_GEN4	(0x082ac4e6)
+#define DITHER_TB_4X8_INDEX0_GEN4	(0xf7d508e6)
+#define DITHER_TB_4X8_INDEX1_GEN4	(0x3b194c2a)
+#define DITHER_TB_4X8_INDEX2_GEN4	(0xc4e6d5f7)
+#define DITHER_TB_4X8_INDEX3_GEN4	(0x082a193b)
+#define LCD_DITHER_TBL_DATA_GEN4	(0x00A4)
 
 /* Video Frame 0&1 start address registers */
 #define	LCD_SPU_DMA_START_ADDR_Y0	0x00C0
@@ -975,16 +970,10 @@ struct lcd_regs {
 #define LCD_SHADOW_CTRL				(0x2c0)
 #define SHADOW_TRIG(id)				(1 << (30 + (id)))
 
-/* pxa988 has different MASTER_CTRL from MMP3/MMP2 */
-#ifdef CONFIG_CPU_PXA988
+/* pxa988/1L88 etc has different MASTER_CTRL from DC4 */
 #define TIMING_MASTER_CONTROL			(0x01F4)
 #define MASTER_ENH(id)				(1 << ((id) + 4))
 #define MASTER_ENV(id)				(1 << ((id) + 6))
-#else
-#define TIMING_MASTER_CONTROL			(0x02F8)
-#define MASTER_ENH(id)				(1 << (id))
-#define MASTER_ENV(id)				(1 << ((id) + 4))
-#endif
 
 #define TIMING_MASTER_CONTROL_GEN4		(0x02F8)
 #define MASTER_ENH_GEN4(id)			(1 << (id))
