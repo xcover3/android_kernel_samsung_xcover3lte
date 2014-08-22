@@ -652,6 +652,17 @@ static int map_probe_dt(struct platform_device *pdev)
 			map_dai[i].dpcm_capture = 1;
 		}
 
+		map_dai[i].dpcm_playback = 1;
+		map_dai[i].dpcm_capture = 1;
+
+		if (of_property_read_bool(dailink_np, "marvell,playback-only")) {
+			map_dai[i].dpcm_capture = 0;
+		}
+
+		if (of_property_read_bool(dailink_np, "marvell,capture-only")) {
+			map_dai[i].dpcm_playback = 0;
+		}
+
 		if (of_property_read_bool(dailink_np, "marvell,dai-no-pcm")) {
 			map_dai[i].no_pcm = 1;
 			map_dai[i].platform_of_node = NULL;
