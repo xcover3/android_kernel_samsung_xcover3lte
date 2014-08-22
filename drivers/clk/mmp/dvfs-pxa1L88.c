@@ -14,7 +14,6 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/clk/dvfs-dvc.h>
 
-#include <mach/addr-map.h>
 #include <linux/cputype.h>
 
 #include "clk-plat.h"
@@ -38,6 +37,10 @@ enum {
 #define VL_MAX	5
 
 #ifndef CONFIG_TZ_HYPERVISOR
+#define APMU_BASE		0xd4282800
+#define GEU_BASE		0xd4201000
+#define HWDVC_BASE		0xd4050000
+
 #define APMU_GEU	0x068
 #define UIMAINFUSE_31_00	0x410
 #define UIMAINFUSE_63_32	0x414
@@ -323,13 +326,13 @@ static int __init __init_read_droinfo(void)
 #endif
 
 #ifndef CONFIG_TZ_HYPERVISOR
-	apmu_base = ioremap(AXI_PHYS_BASE + 0x82800, SZ_4K);
+	apmu_base = ioremap(APMU_BASE, SZ_4K);
 	if (apmu_base == NULL) {
 		pr_err("error to ioremap APMU base\n");
 		return -1;
 	}
 
-	geu_base = ioremap(AXI_PHYS_BASE + 0x1000, SZ_4K);
+	geu_base = ioremap(GEU_BASE, SZ_4K);
 	if (geu_base == NULL) {
 		pr_err("error to ioremap GEU base\n");
 		return -1;
@@ -442,7 +445,7 @@ int __init setup_pxa1L88_dvfs_platinfo(void)
 
 	__init_read_droinfo();
 
-	hwdvc_base = ioremap(APB_PHYS_BASE + 0x50000, SZ_16K);
+	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);
 	if (hwdvc_base == NULL) {
 		pr_err("error to ioremap hwdvc base\n");
 		return -EINVAL;

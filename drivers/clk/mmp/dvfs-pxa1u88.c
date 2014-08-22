@@ -14,7 +14,6 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/clk/dvfs-dvc.h>
 
-#include <mach/addr-map.h>
 #include <linux/cputype.h>
 
 /* components that affect the vmin */
@@ -40,6 +39,10 @@ enum dvfs_comp {
 #define ACTIVE_M2_RAIL_FLAG	(AFFECT_RAIL_ACTIVE | AFFECT_RAIL_M2)
 #define ACTIVE_M2_D1P_RAIL_FLAG \
 	(AFFECT_RAIL_ACTIVE | AFFECT_RAIL_M2 | AFFECT_RAIL_D1P)
+
+#define APMU_BASE		0xd4282800
+#define GEU_BASE		0xd4292800
+#define HWDVC_BASE		0xd4050000
 
 /* Fuse information related register definition */
 #define APMU_GEU		0x068
@@ -128,13 +131,13 @@ static int __maybe_unused __init __init_read_droinfo(void)
 	unsigned int uigeustatus, uiblk431_00;
 
 #ifndef CONFIG_TZ_HYPERVISOR
-	apmu_base = ioremap(AXI_PHYS_BASE + 0x82800, SZ_4K);
+	apmu_base = ioremap(APMU_BASE, SZ_4K);
 	if (apmu_base == NULL) {
 		pr_err("error to ioremap APMU base\n");
 		return -EINVAL;
 	}
 
-	geu_base = ioremap(AXI_PHYS_BASE + 0x92800, SZ_4K);
+	geu_base = ioremap(GEU_BASE, SZ_4K);
 	if (geu_base == NULL) {
 		pr_err("error to ioremap GEU base\n");
 		return -EINVAL;
@@ -285,7 +288,7 @@ int __init setup_pxa1u88_dvfs_platinfo(void)
 	freqs_cmb = freqs_cmb_1u88z1;
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
-	hwdvc_base = ioremap(APB_PHYS_BASE + 0x50000, SZ_16K);
+	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);
 	if (hwdvc_base == NULL) {
 		pr_err("error to ioremap hwdvc base\n");
 		return -EINVAL;
