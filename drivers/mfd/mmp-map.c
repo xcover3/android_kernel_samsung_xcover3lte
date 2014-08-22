@@ -78,7 +78,7 @@ static struct regmap_config mmp_map_regmap_config = {
 	.val_bits = 32,
 	.reg_stride = 4,
 	.max_register = MAP_DAC_ANA_MISC,
-	.cache_type = REGCACHE_RBTREE,
+	.cache_type = REGCACHE_NONE,
 };
 
 #define MAP_FW	"/data/log/audio/firmware"
