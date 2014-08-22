@@ -1133,6 +1133,7 @@
 			stream-name = "codec hs audio";
 			marvell,cpu-dai = <&mmp_map_be_tdm 2>;
 			marvell,codec-dai = <&pm860_codec 3>;
+			marvell,playback-only;
 			marvell,dai-no-pcm;
 			marvell,dai-fixup = <1>;
 		};
@@ -1142,6 +1143,7 @@
 			stream-name = "codec speaker audio";
 			marvell,cpu-dai = <&mmp_map_be_tdm 1>;
 			marvell,codec-dai = <&pm860_codec 4>;
+			marvell,playback-only;
 			marvell,dai-no-pcm;
 			marvell,dai-fixup = <1>;
 		};
@@ -1151,6 +1153,7 @@
 			stream-name = "codec mic1 audio";
 			marvell,cpu-dai = <&mmp_map_be_tdm 3>;
 			marvell,codec-dai = <&pm860_codec 1>;
+			marvell,capture-only;
 			marvell,dai-no-pcm;
 		};
 		be_i2s5: be_i2s5 {
@@ -1159,6 +1162,7 @@
 			stream-name = "codec mic2 audio";
 			marvell,cpu-dai = <&mmp_map_be_tdm 4>;
 			marvell,codec-dai = <&pm860_codec 2>;
+			marvell,capture-only;
 			marvell,dai-no-pcm;
 		};
 	};
