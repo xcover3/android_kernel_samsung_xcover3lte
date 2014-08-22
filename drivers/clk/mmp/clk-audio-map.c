@@ -1096,7 +1096,7 @@ void __init audio_clk_init(struct device_node *np)
 
 	if (apll == APLL_32K) {
 		clk_prepare_enable(clk);
-		clk_set_rate(clk, fvco);
+		clk_set_rate(clk, fvco / 4);
 		mmp_clk_add(unit, AUDIO_CLK_MAP, clk);
 	}
 
@@ -1106,7 +1106,7 @@ void __init audio_clk_init(struct device_node *np)
 	/* enable power for audio island */
 	if (apll == APLL_26M) {
 		clk_prepare_enable(clk);
-		clk_set_rate(clk, fvco);
+		clk_set_rate(clk, fvco / 4);
 		mmp_clk_add(unit, AUDIO_CLK_MAP, clk);
 	}
 
