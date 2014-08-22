@@ -781,4 +781,10 @@
 		#stream-id-cells = <1>;
 		status = "disabled";
 	};
+
+	sd8x-rfkill {
+		compatible = "mrvl,sd8x-rfkill";
+		bus_number = <0>;
+		status = "disabled";
+	};
 };

@@ -1246,6 +1246,15 @@
 		pinctrl-2 = <&gnss_pmx_def2>;
 		status = "okay";
 	};
+
+	sd8x-rfkill {
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio 7 0>;
+		rst-gpio = <&gpio 71 0>;
+		3v3-ldo-gpio = <&gpio 20 0>;
+		edge-wakeup-gpio = <&gpio 39 0>;
+		status = "okay";
+	};
 };
 #include "88pm822.dtsi"
 #include "88pm822_pxa1u88_dkb.dtsi"
