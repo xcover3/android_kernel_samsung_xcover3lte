@@ -18,6 +18,7 @@
 #include <linux/devfreq.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/mck_memorybus.h>
 #include <linux/platform_device.h>
 #include <linux/pm_qos.h>
 #include <linux/of.h>
@@ -29,8 +30,6 @@
 #include <linux/of_address.h>
 
 #include <trace/events/pxa.h>
-
-#include "mck_memorybus.h"
 
 #include <linux/clk/mmpdcstat.h>
 
