@@ -554,6 +554,18 @@ config LEDS_RGB
 	help
 	  This option enables dkb RGB leds.
 
+config SD8XXX_RFKILL
+        tristate "Rfkill power control for Marvell sd8xxx wlan/bt/fm"
+        depends on MMC_SDHCI_PXAV2 || MMC_SDHCI_PXAV3
+        select RFKILL
+        select WIRELESS_EXT
+        select WEXT_PRIV
+        select WEXT_SPY
+        default n
+        ---help---
+         Creates an rfkill entry in sysfs for power control of Marvell
+         sd8xxx wlan/bt/fm chips.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
