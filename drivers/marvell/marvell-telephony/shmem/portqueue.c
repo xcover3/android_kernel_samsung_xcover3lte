@@ -543,8 +543,12 @@ int portq_xmit(struct portq *portq, struct sk_buff *skb, bool block)
 		spin_lock_irqsave(&pgrp->list_lock, flags);
 		spin_lock(&portq->lock);
 
-		/* double confirm PORTQ_STATUS_XMIT_QUEUED is not set */
-		if (!(portq->status & PORTQ_STATUS_XMIT_QUEUED)) {
+		/*
+		 * double confirm PORTQ_STATUS_XMIT_QUEUED is not set
+		 * and the queue is not empty
+		 */
+		if (!(portq->status & PORTQ_STATUS_XMIT_QUEUED) &&
+			skb_queue_len(&portq->tx_q)) {
 			portq->status |= PORTQ_STATUS_XMIT_QUEUED;
 
 			list_for_each(list, &pgrp->tx_head) {
