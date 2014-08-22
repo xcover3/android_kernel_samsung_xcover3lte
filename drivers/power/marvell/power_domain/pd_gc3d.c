@@ -24,6 +24,7 @@ struct mmp_pd_gc3d {
 	struct generic_pm_domain genpd;
 	void __iomem *reg_base;
 	struct device *dev;
+	struct clk *clk;
 	/* latency for us. */
 	u32 power_on_latency;
 	u32 power_off_latency;
@@ -313,6 +314,11 @@ static int mmp_pd_gc3d_probe(struct platform_device *pdev)
 					resource_size(res));
 	if (!pd->reg_base)
 		return -EINVAL;
+
+	/* Some power domain may need clk for power on. */
+	pd->clk = devm_clk_get(&pdev->dev, NULL);
+	if (IS_ERR(pd->clk))
+		pd->clk = NULL;
 
 	latency = MMP_PD_POWER_ON_LATENCY;
 	if (of_find_property(np, "power-on-latency", NULL)) {
