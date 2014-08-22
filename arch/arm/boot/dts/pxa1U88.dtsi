@@ -732,6 +732,11 @@
 			reg = <0xd4282c00 0x1ac>;
 		};
 
+		dmcu: dmcu@c0100000 {
+			compatible = "marvell,mmp-dmcu";
+			reg = <0xc0100000 0x880>;
+		};
+
 		wdtrtc: wdtrtc@d4010000 {
 			compatible = "marvell,mmp-wdt-rtc";
 			reg = <0xd4010000 0x100>;
