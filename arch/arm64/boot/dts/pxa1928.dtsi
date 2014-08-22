@@ -111,7 +111,9 @@
 		reset {
 			compatible = "marvell,pxa-reset";
 			/* RTC Backup Registers 0 that store erasable data */
-			reg = <0xd4014000 0x4>;
+			reg = <0xd4080000 0xc8>,
+			      <0xd4050000 0x1024>,
+			      <0xd4010014 0x4>;
 		};
 
 		devfreq-ddr {  /* DDR memory controller */
