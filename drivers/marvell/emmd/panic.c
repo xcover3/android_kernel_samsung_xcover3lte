@@ -19,7 +19,9 @@
 #include <asm/setup.h>
 #include <linux/kmsg_dump.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/arm-coresight.h>
+#include <linux/mck_memorybus.h>
 
 #include <marvell/emmd_rsv.h>
 #ifdef CONFIG_REGDUMP
@@ -46,6 +48,8 @@ static DEFINE_RAW_SPINLOCK(panic_lock);
 extern void arm_machine_flush_console(void);
 extern void (*arm_pm_restart)(char str, const char *cmd);
 #define PANIC_TIMER_STEP 100
+
+static void __iomem *mc_base;
 
 static void dump_one_task_info(struct task_struct *tsk)
 {
@@ -141,6 +145,36 @@ static void ramtag_setup(void)
 	ram_tag++;
 }
 
+void drain_mc_buffer(void)
+{
+	unsigned int tmp, ver;
+	int timeout;
+
+	if (mc_base == NULL)
+		return;
+
+	tmp = readl(mc_base);
+	ver = (tmp & MCK5_VER_MASK) >> MCK5_VER_SHIFT;
+	if (ver != MCK5) {
+		pr_warn("Unsupported mem controller, cannot flush its buffer!\n");
+		return;
+	}
+
+	pr_info("draining memory controller internal write buffer\n");
+	/* drain the internal write buffer of memory controller */
+	writel(MCK5_WCB_DRAIN_REQ, mc_base + MCK5_USER_CMD0);
+	/* waiting for whether write buffer drain finishes, 20ns is enough */
+	for (timeout = 0; timeout < 20; timeout++) {
+		if (readl(mc_base + MCK5_WP_STATUS) & MCK5_WCB_DRAINING)
+			udelay(1);
+		else
+			return;
+	}
+
+	pr_warn("drain memory controller buffer timeout!!\n");
+	return;
+}
+
 void panic_flush(struct pt_regs *regs)
 {
 	struct pt_regs fixed_regs;
@@ -177,6 +211,7 @@ void panic_flush(struct pt_regs *regs)
 #ifdef CONFIG_ARM
 	outer_flush_all();
 #endif
+	drain_mc_buffer();
 	if (panic_timeout > 0) {
 		/*
 		 * Delay timeout seconds before rebooting the machine.
@@ -279,6 +314,12 @@ static int __init pxa_panic_init(void)
 		set_emmd_indicator();
 		register_reboot_notifier(&_reboot_notifier);
 	}
+
+	np = of_find_compatible_node(NULL, NULL, "marvell,mmp-dmcu");
+	if (np)
+		mc_base = of_iomap(np, 0);
+	else
+		mc_base = NULL;
 
 	return 0;
 }
