@@ -30,6 +30,21 @@
 				status = "okay";
 			};
 
+			uart0: uart@d4017000 {
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&uart0_pmx_func1 &uart0_pmx_func2>;
+				pinctrl-1 = <&uart0_pmx_func1_sleep &uart0_pmx_func2>;
+				edge-wakeup-gpio = <47>; /* GPIO47: UART rx pin */
+				status = "okay";
+			};
+
+			uart1: uart@d4018000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart1_pmx_func>;
+				status = "okay";
+			};
+
+
 			edgewakeup: edgewakeup@d4019800 {
 				status = "ok";
 			};
@@ -283,6 +298,38 @@
 						GPIO29 AF0
 					>;
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+				};
+
+				uart0_pmx_func1: uart0_pmx_func1 {
+					pinctrl-single,pins = <
+						GPIO47 AF6
+					>;
+					MFP_DEFAULT;
+				};
+
+				uart0_pmx_func2: uart0_pmx_func2 {
+					pinctrl-single,pins = <
+						GPIO48 AF6
+					>;
+					MFP_DEFAULT;
+				};
+
+				uart0_pmx_func1_sleep: uart0_pmx_func1_sleep {
+					pinctrl-single,pins = <
+						GPIO47 AF6
+					>;
+					DS_MEDIUM;
+					PULL_NONE;
+					EDGE_BOTH;
+					LPM_NONE;
+				};
+
+				uart1_pmx_func: uart1_pmx_func {
+					pinctrl-single,pins = <
+						GPIO45 AF1
+						GPIO46 AF1
+					>;
+					MFP_DEFAULT;
 				};
 
 				touch_pins: touch_pins {
