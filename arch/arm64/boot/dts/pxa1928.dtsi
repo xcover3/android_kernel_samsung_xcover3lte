@@ -869,6 +869,11 @@
 			compatible = "marvell,mmp-ciu";
 			reg = <0xd4282c00 0xf0>;
 		};
+
+		dmcu: dmcu@c0100000 {
+			compatible = "marvell,mmp-dmcu";
+			reg = <0xc0100000 0x880>;
+		};
 	};
 
 	mcam0: mcam@0 {
