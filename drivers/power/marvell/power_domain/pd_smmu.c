@@ -111,7 +111,7 @@ struct mmp_pd_smmu {
 	/* latency for us. */
 	u32 power_on_latency;
 	u32 power_off_latency;
-	struct mmp_pd_smmu_regs *regs;
+	struct mmp_pd_smmu_regs regs;
 	const struct mmp_pd_smmu_data *data;
 };
 
@@ -202,7 +202,7 @@ static int mmp_pd_smmu_power_on(struct generic_pm_domain *domain)
 	struct mmp_pd_smmu *pd = container_of(domain,
 					struct mmp_pd_smmu, genpd);
 	const struct mmp_pd_smmu_data *data = pd->data;
-	struct mmp_pd_smmu_regs *regs = pd->regs;
+	struct mmp_pd_smmu_regs *regs = &pd->regs;
 	void __iomem *gr0_base = pd->reg_base, *gr1_base, *cb_base;
 	u32 idx = 0, cbndx = 0;
 
@@ -236,7 +236,7 @@ static int mmp_pd_smmu_power_off(struct generic_pm_domain *domain)
 	struct mmp_pd_smmu *pd = container_of(domain,
 					struct mmp_pd_smmu, genpd);
 	const struct mmp_pd_smmu_data *data = pd->data;
-	struct mmp_pd_smmu_regs *regs = pd->regs;
+	struct mmp_pd_smmu_regs *regs = &pd->regs;
 	void __iomem *gr0_base = pd->reg_base, *gr1_base, *cb_base;
 	u32 idx = 0, cbndx = 0;
 
