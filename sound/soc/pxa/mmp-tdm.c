@@ -106,18 +106,23 @@ int tdm_reg_update(struct device *dev, unsigned int reg,
 			unsigned int mask, unsigned int value)
 {
 	struct tdm_dai_private *tdm_dai_priv = dev_get_drvdata(dev);
+	struct tdm_manage_private *tdm_man_priv = tdm_dai_priv->tdm_manage_priv;
+	struct map_private *map_priv = tdm_man_priv->map_priv;
 	int ret = 0;
+	u32 val;
 
-	ret = regmap_update_bits(tdm_dai_priv->regmap, reg, mask, value);
+	val = map_raw_read(map_priv, reg);
+	val &= ~mask;
+	val |= value;
+	map_raw_write(map_priv, reg, val);
+
 	/*
 	 * according to DE: apply change needs ~2 frame clock to ensure
 	 * sucess. here delay 50us to ensure change apply success
 	 */
 	if ((reg == TDM_CTRL_REG1) && (value & TDM_APPLY_TDM_CONF))
 		udelay(50);
-	if (ret < 0)
-		dev_err(tdm_dai_priv->dev, "Failed to update reg 0x%x: %d\n",
-								reg, ret);
+
 	return ret;
 }
 
@@ -1709,6 +1714,7 @@ static int mmp_tdm_dai_probe(struct platform_device *pdev)
 	struct tdm_dai_private *tdm_dai_priv;
 	struct tdm_manage_private *tdm_priv;
 	struct tdm_platform_data *pdata;
+	struct clk *clk;
 	int ret;
 
 	tdm_dai_priv = devm_kzalloc(&pdev->dev,
@@ -1754,7 +1760,14 @@ static int mmp_tdm_dai_probe(struct platform_device *pdev)
 	tdm_priv->slot_size = pdata->slot_size;
 	tdm_priv->slot_space = pdata->slot_space;
 	tdm_priv->start_slot = pdata->start_slot;
-	tdm_priv->clk_src = clk_get_rate(map_priv->map_tdm);
+
+	clk = devm_clk_get(map_priv->dev, NULL);
+	if (IS_ERR(clk)) {
+		dev_err(&pdev->dev, "get map_apll failed\n");
+		return PTR_ERR(clk);
+	}
+
+	tdm_priv->clk_src = clk_get_rate(clk);
 	tdm_priv->fsyn_pulse_width = pdata->fsyn_pulse_width;
 	tdm_priv->use_4_wires = pdata->use_4_wires;
 	ret = snd_soc_register_component(&pdev->dev, &mmp_map_be_tdm_component,
