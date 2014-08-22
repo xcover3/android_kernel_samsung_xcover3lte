@@ -391,6 +391,7 @@
 					     <0 147 0x4>, <0 148 0x4>, <0 149 0x4>, <0 150 0x4>;
 				#dma-cells= <2>;
 				#dma-channels = <16>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
 
@@ -403,6 +404,7 @@
 					     <0 147 0x4>, <0 148 0x4>, <0 149 0x4>, <0 150 0x4>;
 				#dma-cells= <2>;
 				#dma-channels = <16>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
 
