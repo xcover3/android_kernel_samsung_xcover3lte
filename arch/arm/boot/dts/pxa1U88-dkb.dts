@@ -116,6 +116,10 @@
 				status = "okay";
 			};
 
+			devfreq-vpu {
+				marvell,power-domain = <&pd_vpu>;
+			};
+
 			intc: wakeupgen@d4282000 {
 				status = "okay";
 			};

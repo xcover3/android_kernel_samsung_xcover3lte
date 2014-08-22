@@ -22,6 +22,7 @@
 #include <linux/time.h>
 #include <linux/mutex.h>
 #include <linux/pm_qos.h>
+#include <linux/pm_domain.h>
 
 #define VPU_FREQ_MAX	8
 #define KHZ_TO_HZ	1000
@@ -29,8 +30,6 @@
 #define DEFAULT_POLLING_MS	(2000)
 #define VPU_DEVFREQ_UPTHRESHOLD	85
 #define VPU_DEVFREQ_DOWNDIFFERENTIAL	2
-
-DEFINE_MUTEX(vpu_pw_fc_lock);
 
 enum vpu_status_msg {
 	VPU_DC_START = 0,
@@ -66,6 +65,10 @@ struct vpu_devfreq_data {
 	/* used for dc stat for simple ondemand governor */
 	struct vpu_dc_stat_info dc_info;
 	struct timespec last_pts;/* record last polling ts */
+
+#ifdef CONFIG_MMP_PM_DOMAIN_COMMON
+	struct generic_pm_domain *pd_vpu;
+#endif
 };
 
 #ifdef CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND
@@ -151,12 +154,17 @@ static int vpu_target(struct device *dev, unsigned long *freq, u32 flags)
 	find_best_freq(data, freq, flags);
 	cmb_freq = get_combine_freq(data, freq);
 
-	mutex_lock(&vpu_pw_fc_lock);
+#ifdef CONFIG_MMP_PM_DOMAIN_COMMON
+	if (data->pd_vpu)
+		mutex_lock(&data->pd_vpu->lock);
+#endif
 	ret = clk_set_rate(data->fclk, *freq * KHZ_TO_HZ);
 	if (!ret && (cmb_freq != 0))
 		ret = clk_set_rate(data->bclk, cmb_freq * KHZ_TO_HZ);
-	mutex_unlock(&vpu_pw_fc_lock);
-
+#ifdef CONFIG_MMP_PM_DOMAIN_COMMON
+	if (data->pd_vpu)
+		mutex_unlock(&data->pd_vpu->lock);
+#endif
 	if (!ret)
 		*freq = clk_get_rate(data->fclk) / KHZ_TO_HZ;
 
@@ -472,6 +480,11 @@ cont:
 			data->vpu_freq_tbl[data->vpu_freq_tbl_len - 1];
 	}
 
+#ifdef CONFIG_MMP_PM_DOMAIN_COMMON
+	data->pd_vpu = dev_to_genpd(dev);
+	if (IS_ERR(data->pd_vpu))
+		data->pd_vpu = NULL;
+#endif
 	return 0;
 
 out:
