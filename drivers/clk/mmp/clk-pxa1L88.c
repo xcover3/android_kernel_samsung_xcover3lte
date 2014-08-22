@@ -1088,19 +1088,16 @@ static struct ddr_opt ddr_oparray[][3] = {
 		{
 			.dclk = 156,
 			.ddr_tbl_index = 2,
-			.ddr_freq_level = 0,
 			.ddr_clk_sel = 0x1,
 		},
 		{
 			.dclk = 312,
 			.ddr_tbl_index = 3,
-			.ddr_freq_level = 1,
 			.ddr_clk_sel = 0x1,
 		},
 		{
 			.dclk = 398,
 			.ddr_tbl_index = 4,
-			.ddr_freq_level = 2,
 			.ddr_clk_sel = 0x3,
 		},
 	},
@@ -1108,19 +1105,16 @@ static struct ddr_opt ddr_oparray[][3] = {
 		{
 			.dclk = 156,
 			.ddr_tbl_index = 2,
-			.ddr_freq_level = 0,
 			.ddr_clk_sel = 0x1,
 		},
 		{
 			.dclk = 312,
 			.ddr_tbl_index = 3,
-			.ddr_freq_level = 1,
 			.ddr_clk_sel = 0x1,
 		},
 		{
 			.dclk = 533,
 			.ddr_tbl_index = 4,
-			.ddr_freq_level = 2,
 			.ddr_clk_sel = 0x3,
 		},
 	},

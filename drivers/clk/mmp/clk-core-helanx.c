@@ -1533,6 +1533,7 @@ static void clk_ddr_init(struct clk_hw *hw)
 	pr_info("dclk(src:sel,div,tblindex)\n");
 	for (i = 0; i < ddr_opt_size; i++) {
 		cop = &ddr_opt[i];
+		cop->ddr_freq_level = i;
 		parent = hwsel2parent(parent_table, parent_table_size,
 				cop->ddr_clk_sel);
 		BUG_ON(IS_ERR(parent));

@@ -971,31 +971,26 @@ static struct ddr_opt lpddr800_oparray[] = {
 	{
 		.dclk = 156,
 		.ddr_tbl_index = 2,
-		.ddr_freq_level = 0,
 		.ddr_clk_sel = 0x0,
 	},
 	{
 		.dclk = 312,
 		.ddr_tbl_index = 4,
-		.ddr_freq_level = 1,
 		.ddr_clk_sel = 0x0,
 	},
 	{
 		.dclk = 416,
 		.ddr_tbl_index = 6,
-		.ddr_freq_level = 2,
 		.ddr_clk_sel = 0x1,
 	},
 	{
 		.dclk = 528,
 		.ddr_tbl_index = 8,
-		.ddr_freq_level = 3,
 		.ddr_clk_sel = 0x4,
 	},
 	{
 		.dclk = 797,
 		.ddr_tbl_index = 10,
-		.ddr_freq_level = 4,
 		.ddr_clk_sel = 0x5,
 	},
 };
