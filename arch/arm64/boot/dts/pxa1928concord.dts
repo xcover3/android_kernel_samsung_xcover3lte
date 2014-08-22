@@ -8,6 +8,7 @@
  */
 
 /dts-v1/;
+/memreserve/ 0x09000000 0x01000000;	/* GC reserved 16M */
 /memreserve/ 0x08100000 0x00040000;	/* ramoops buffer (256KB) */
 /memreserve/ 0x17000000 0x017f4c00;	/* default fb-mem (size: 256_align(1080*4)*1920*3+pitch_align(256_align(1080*4)*1920/512)*3(for dec header)) */
 #include "pxa1928.dtsi"
@@ -103,6 +104,36 @@
 			ccic2: ccic@d420a800 {
 				status = "okay";
 				pinctrl-names = "default";
+			};
+
+			pd_gc: pd_gc@d4282800 {
+				compatible = "marvell,power-domain-gc3d";
+				reg = <0xd4282800 0x1000>;
+				clocks = <&soc_clocks PXA1928_CLK_GC3D1X>;
+			};
+
+			pd_gc2d: pd_gc2d@d4282800 {
+				compatible = "marvell,power-domain-gc2d";
+				reg = <0xd4282800 0x1000>;
+				clocks = <&soc_clocks PXA1928_CLK_GC2D>;
+			};
+
+			gpu: gpu@d420d000 {
+				marvell,power-domain = <&pd_gc>;
+				marvell,gpu-mem-base = <0x09000000>;
+				marvell,gpu-mem-size = <0x1000000>;
+				clocks = <&soc_clocks PXA1928_CLK_GC3D1X>,
+					<&soc_clocks PXA1928_CLK_GC3DSH>,
+					<&soc_clocks PXA1928_CLK_GC3DBUS>;
+				clock-names = "GC3DFCLK", "GCSHCLK", "GC3DACLK";
+				status = "okay";
+			};
+
+			gpu2d: gpu2d@d420f000 {
+				marvell,power-domain = <&pd_gc2d>;
+				clocks = <&soc_clocks PXA1928_CLK_GC2D>;
+				clock-names = "GC2DFCLK";
+				status = "okay";
 			};
 
 			adma0: adma@c0ffd800 {

@@ -214,6 +214,20 @@
 				status = "disabled";
 			};
 
+			gpu: gpu@d420d000 {
+				compatible = "marvell,gpu";
+				reg = <0xd420d000 0x1000>;
+				interrupts = <0 81 0x4>;
+				status = "disabled";
+			};
+
+			gpu2d: gpu2d@d420f000 {
+				compatible = "marvell,gpu2d";
+				reg = <0xd420f000 0x1000>;
+				interrupts = <0 82 0x4>;
+				status = "disabled";
+			};
+
 			pd_sc2: pd_sc2@d4282800 {
 				compatible = "marvell,power-domain-sc2";
 				reg = <0xd4282800 0x1000>;

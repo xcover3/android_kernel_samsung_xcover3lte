@@ -40,6 +40,18 @@ pd_gc2d: pd_gc2d@d4282800 {
 	clocks = <&soc_clocks PXA1U88_CLK_GC2D>;
 };
 
+pd_gc: pd_gc@d4282800 {
+	compatible = "marvell,power-domain-gc3d";
+	reg = <0xd4282800 0x1000>;
+	clocks = <&soc_clocks PXA1928_CLK_GC3D1X>;
+};
+
+pd_gc2d: pd_gc2d@d4282800 {
+	compatible = "marvell,power-domain-gc2d";
+	reg = <0xd4282800 0x1000>;
+	clocks = <&soc_clocks PXA1928_CLK_GC2D>;
+};
+
 pd_smmu: pd_smmu@c0010000 {
 	compatible = "marvell,power-domain-smmu-pxa1u88";
 	reg = <0xc0010000 0x10000>;
