@@ -1119,8 +1119,13 @@ static int mmp_pdma_probe(struct platform_device *op)
 
 	of_id = of_match_device(mmp_pdma_dt_ids, pdev->dev);
 	if (of_id)
+#ifdef CONFIG_TZ_HYPERVISOR
+		of_property_read_u32(pdev->dev->of_node,
+				"#dma-channels-tz", &dma_channels);
+#else
 		of_property_read_u32(pdev->dev->of_node, "#dma-channels",
 				     &dma_channels);
+#endif
 	else if (pdata && pdata->dma_channels)
 		dma_channels = pdata->dma_channels;
 	else
