@@ -88,6 +88,33 @@ enum pm886_irq_number {
 	PM886_MAX_IRQ,			   /* 28 */
 };
 
+enum {
+	PM886_ID_BUCK1 = 0,
+	PM886_ID_BUCK2,
+	PM886_ID_BUCK3,
+	PM886_ID_BUCK4,
+	PM886_ID_BUCK5,
+
+	PM886_ID_LDO1 = 5,
+	PM886_ID_LDO2,
+	PM886_ID_LDO3,
+	PM886_ID_LDO4,
+	PM886_ID_LDO5,
+	PM886_ID_LDO6,
+	PM886_ID_LDO7,
+	PM886_ID_LDO8,
+	PM886_ID_LDO9,
+	PM886_ID_LDO10,
+	PM886_ID_LDO11,
+	PM886_ID_LDO12,
+	PM886_ID_LDO13,
+	PM886_ID_LDO14 = 18,
+	PM886_ID_LDO15,
+	PM886_ID_LDO16 = 20,
+
+	PM886_ID_RG_MAX = 21,
+};
+
 struct pm886_chip {
 	struct i2c_client *client;
 	struct device *dev;

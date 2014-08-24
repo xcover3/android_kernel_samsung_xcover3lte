@@ -70,6 +70,16 @@ config REGULATOR_88PM8607
 	help
 	  This driver supports 88PM8607 voltage regulator chips.
 
+config REGULATOR_88PM886
+	tristate "Marvell 88PM886 Power regulators"
+	depends on MFD_88PM886
+	depends on I2C
+	help
+	  This driver supports Marvell 88PM886 voltage regulator chips.
+	  It delivers digitally programmable output, the voltage is
+	  programmed via I2C interface.
+	  It has 5 bucks and 16 ldos. Buck1 has DVC feature
+
 config REGULATOR_ACT8865
 	tristate "Active-semi act8865 voltage regulator"
 	depends on I2C
