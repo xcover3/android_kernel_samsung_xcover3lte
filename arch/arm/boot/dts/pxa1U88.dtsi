@@ -165,6 +165,18 @@
 				compatible = "marvell,gpu";
 				reg = <0xC0400000 0x1000>;
 				interrupts = <0 8 0x4>;
+				marvell,3d-clk-freq-combine =
+						 <156000 156000>,
+						 <312000 208000>,
+						 <416000 312000>,
+						 <624000 416000>,
+						 <705000 416000>;
+				marvell,sh-clk-freq-combine =
+						 <156000 156000>,
+						 <312000 208000>,
+						 <416000 312000>,
+						 <624000 416000>,
+						 <705000 416000>;
 				status = "disabled";
 			};
 
@@ -172,6 +184,12 @@
 				compatible = "marvell,gpu2d";
 				reg = <0xd420c000 0x1000>;
 				interrupts = <0 72 0x4>;
+				marvell,2d-clk-freq-combine =
+						 <78000 78000>,
+						 <156000 156000>,
+						 <208000 208000>,
+						 <312000 312000>,
+						 <416000 416000>;
 				status = "disabled";
 			};
 
