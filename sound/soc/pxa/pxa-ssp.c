@@ -24,6 +24,7 @@
 #include <linux/of.h>
 #include <linux/dmaengine.h>
 #include <linux/delay.h>
+#include <linux/platform_data/mmp_audio.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/of_gpio.h>
 
@@ -261,8 +262,6 @@ static int pxa_ssp_startup(struct snd_pcm_substream *substream,
 			__raw_writel(0x0010003F, ssp->mmio_base + SSCR0);
 			__raw_writel(0x00800000, ssp->mmio_base + SSCR1);
 			__raw_writel(0x02100004, ssp->mmio_base + SSPSP);
-			sscr0_hifi = 0x0010003F;
-			sscr1_hifi = 0x00800000;
 		}
 		pxa_ssp_enable(ssp);
 		priv->usr_cnt = 0;
