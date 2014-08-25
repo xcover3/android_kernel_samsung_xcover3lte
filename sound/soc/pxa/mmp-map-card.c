@@ -20,9 +20,7 @@
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
-#ifdef PM800_HS_DEFINED
 #include <linux/mfd/88pm8xxx-headset.h>
-#endif
 #include <linux/of.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -514,7 +512,6 @@ static struct of_device_id dailink_matches[] = {
 /* digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link map_dai[MAX_DAILINK_NUM];
 
-#ifdef PM800_HS_DEFINED
 static struct snd_soc_jack hs_jack, hk_jack;
 
 static int map_late_probe(struct snd_soc_card *card)
@@ -544,15 +541,12 @@ static int map_late_probe(struct snd_soc_card *card)
 
 	return 0;
 }
-#endif
 
 /* audio machine driver */
 static struct snd_soc_card snd_soc_map = {
 	.name = "map asoc",
 	.dai_link = &map_dai[0],
-#ifdef PM800_HS_DEFINED
 	.late_probe = map_late_probe,
-#endif
 };
 
 static int map_probe_dt(struct platform_device *pdev)
