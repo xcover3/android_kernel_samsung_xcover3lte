@@ -1369,6 +1369,7 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 err_add_host:
 	if (pdata && pdata->flags & PXA_FLAG_EN_PM_RUNTIME) {
 		pm_runtime_put_noidle(&pdev->dev);
+		pm_runtime_set_suspended(&pdev->dev);
 		pm_runtime_disable(&pdev->dev);
 	}
 err_init_host:
