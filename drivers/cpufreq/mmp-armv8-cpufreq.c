@@ -36,6 +36,7 @@
 
 static struct clk *cpu_clk;
 static DEFINE_MUTEX(mmp_cpu_lock);
+static bool is_suspended;
 static struct cpufreq_frequency_table *freq_table;
 
 static struct pm_qos_request cpufreq_qos_req_min = {
@@ -104,6 +105,11 @@ static int mmp_target(struct cpufreq_policy *policy,
 
 	mutex_lock(&mmp_cpu_lock);
 
+	if (is_suspended) {
+		ret = -EBUSY;
+		goto out;
+	}
+
 	target_freq = max_t(unsigned int, pm_qos_request(PM_QOS_CPUFREQ_MIN),
 			    target_freq);
 	cpufreq_frequency_table_target(policy, freq_table, target_freq,
@@ -112,10 +118,37 @@ static int mmp_target(struct cpufreq_policy *policy,
 	freq = freq_table[idx].frequency;
 
 	ret = mmp_update_cpu_speed(freq);
-
+out:
 	mutex_unlock(&mmp_cpu_lock);
 	return ret;
 }
+
+static int mmp_pm_notify(struct notifier_block *nb, unsigned long event,
+	void *dummy)
+{
+	static unsigned int saved_cpuclk;
+
+	mutex_lock(&mmp_cpu_lock);
+	if (event == PM_SUSPEND_PREPARE) {
+		/* scaling to the min frequency before entering suspend */
+		saved_cpuclk = mmp_getspeed(0);
+		mmp_update_cpu_speed(freq_table[0].frequency);
+		is_suspended = true;
+		pr_info("%s: disable cpu freq-chg before suspend", __func__);
+		pr_info("cur rate %dKhz\n", mmp_getspeed(0));
+	} else if (event == PM_POST_SUSPEND) {
+		is_suspended = false;
+		mmp_update_cpu_speed(saved_cpuclk);
+		pr_info("%s: enable cpu freq-chg after resume", __func__);
+		pr_info("cur rate %dKhz\n", mmp_getspeed(0));
+	}
+	mutex_unlock(&mmp_cpu_lock);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block mmp_cpu_pm_notifier = {
+	.notifier_call = mmp_pm_notify,
+};
 
 static int cpufreq_min_notify(struct notifier_block *b,
 			      unsigned long min, void *v)
@@ -234,6 +267,7 @@ static struct cpufreq_driver mmp_cpufreq_driver = {
 
 static int __init cpufreq_init(void)
 {
+	register_pm_notifier(&mmp_cpu_pm_notifier);
 	pm_qos_add_notifier(PM_QOS_CPUFREQ_MIN, &cpufreq_min_notifier);
 	pm_qos_add_notifier(PM_QOS_CPUFREQ_MAX, &cpufreq_max_notifier);
 	return cpufreq_register_driver(&mmp_cpufreq_driver);
@@ -244,6 +278,7 @@ static void __exit cpufreq_exit(void)
 	struct cpufreq_frequency_table *cpufreq_tbl;
 	int i;
 
+	unregister_pm_notifier(&mmp_cpu_pm_notifier);
 	for_each_possible_cpu(i) {
 		cpufreq_tbl = cpufreq_frequency_get_table(i);
 		kfree(cpufreq_tbl);
