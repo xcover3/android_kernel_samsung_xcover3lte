@@ -77,7 +77,7 @@ obj-$(CONFIG_ARM_SPEAR_CPUFREQ)		+= spear-cpufreq.o
 obj-$(CONFIG_ARM_TEGRA_CPUFREQ)		+= tegra-cpufreq.o
 obj-$(CONFIG_ARM_VEXPRESS_SPC_CPUFREQ)	+= vexpress-spc-cpufreq.o
 obj-$(CONFIG_ARM_PXA988_CPUFREQ)	+= pxa988-cpufreq.o
-obj-$(CONFIG_ARM_MMP_V8_CPUFREQ)	+= mmp-armv8-cpufreq.o
+obj-$(CONFIG_ARM_MMP_SMP_CPUFREQ)	+= mmp-smp-cpufreq.o
 
 ##################################################################################
 # PowerPC platform drivers
