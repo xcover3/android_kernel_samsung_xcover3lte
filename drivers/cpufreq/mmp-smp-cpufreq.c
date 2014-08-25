@@ -43,30 +43,13 @@ static struct pm_qos_request cpufreq_qos_req_min = {
 	.name = "cpu_freqmin",
 };
 
-int mmp_verify_speed(struct cpufreq_policy *policy)
-{
-	return cpufreq_frequency_table_verify(policy, freq_table);
-}
-
-unsigned int mmp_getspeed(unsigned int cpu)
-{
-	unsigned long rate;
-
-	if (cpu >= num_possible_cpus())
-		return 0;
-
-	/* kHz align */
-	rate = clk_get_rate(cpu_clk) / KHZ_TO_HZ;
-	return rate;
-}
-
 static int mmp_update_cpu_speed(unsigned long rate)
 {
 	int ret = 0;
 	struct cpufreq_freqs freqs;
 	struct cpufreq_policy *policy;
 
-	freqs.old = mmp_getspeed(0);
+	freqs.old = cpufreq_generic_get(0);
 	freqs.new = rate;
 
 	if (freqs.old == freqs.new)
@@ -74,25 +57,18 @@ static int mmp_update_cpu_speed(unsigned long rate)
 
 	policy = cpufreq_cpu_get(0);
 	BUG_ON(!policy);
-#ifdef CONFIG_CPU_FREQ_DEBUG
-	pr_debug(KERN_DEBUG "cpufreq-mmp: transition: %u --> %u\n",
-		 freqs.old, freqs.new);
-#endif
 
-	for_each_online_cpu(freqs.cpu)
-	    cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
-
-	/* Hz align */
+	pr_debug("cpufreq-mmp: transition: %u --> %u\n", freqs.old, freqs.new);
+	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
 	ret = clk_set_rate(cpu_clk, freqs.new * KHZ_TO_HZ);
 	if (ret) {
 		pr_err("cpu-mmp: Failed to set cpu frequency to %d kHz\n",
-		       freqs.new);
+			freqs.new);
 		freqs.new = freqs.old;
 	}
+	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 
-	for_each_online_cpu(freqs.cpu)
-	    cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
-
+	cpufreq_cpu_put(policy);
 	return ret;
 }
 
@@ -131,16 +107,16 @@ static int mmp_pm_notify(struct notifier_block *nb, unsigned long event,
 	mutex_lock(&mmp_cpu_lock);
 	if (event == PM_SUSPEND_PREPARE) {
 		/* scaling to the min frequency before entering suspend */
-		saved_cpuclk = mmp_getspeed(0);
+		saved_cpuclk = cpufreq_generic_get(0);
 		mmp_update_cpu_speed(freq_table[0].frequency);
 		is_suspended = true;
 		pr_info("%s: disable cpu freq-chg before suspend", __func__);
-		pr_info("cur rate %dKhz\n", mmp_getspeed(0));
+		pr_info("cur rate %dKhz\n", cpufreq_generic_get(0));
 	} else if (event == PM_POST_SUSPEND) {
 		is_suspended = false;
 		mmp_update_cpu_speed(saved_cpuclk);
 		pr_info("%s: enable cpu freq-chg after resume", __func__);
-		pr_info("cur rate %dKhz\n", mmp_getspeed(0));
+		pr_info("cur rate %dKhz\n", cpufreq_generic_get(0));
 	}
 	mutex_unlock(&mmp_cpu_lock);
 	return NOTIFY_OK;
@@ -170,7 +146,7 @@ static int cpufreq_min_notify(struct notifier_block *b,
 		return NOTIFY_OK;
 	}
 
-	freq = mmp_getspeed(cpu);
+	freq = cpufreq_generic_get(cpu);
 	if (freq >= val)
 		return NOTIFY_OK;
 
@@ -194,7 +170,7 @@ static int cpufreq_max_notify(struct notifier_block *b,
 	struct cpufreq_policy *policy;
 	int cpu = 0;
 
-	freq = mmp_getspeed(cpu);
+	freq = cpufreq_generic_get(cpu);
 	if (freq <= val)
 		return NOTIFY_OK;
 
@@ -219,22 +195,22 @@ static int mmp_cpufreq_init(struct cpufreq_policy *policy)
 	if (policy->cpu >= num_possible_cpus())
 		return -EINVAL;
 
-	cpu_clk = clk_get_sys(NULL, "cpu");
-	if (IS_ERR(cpu_clk))
-		return PTR_ERR(cpu_clk);
+	if (unlikely(!cpu_clk)) {
+		cpu_clk = __clk_lookup("cpu");
+		if (!cpu_clk)
+			return -EINVAL;
+	}
+	policy->clk = cpu_clk;
 
 	freq_table = cpufreq_frequency_get_table(policy->cpu);
 	BUG_ON(!freq_table);
-	cpufreq_frequency_table_cpuinfo(policy, freq_table);
-	policy->cur = mmp_getspeed(policy->cpu);
-
 	/*
 	 * FIXME: what's the actual transition time?
 	 * use 10ms as sampling rate for bring up
 	 */
-	policy->cpuinfo.transition_latency = 10 * 1000;
+	cpufreq_generic_init(policy, freq_table, 10 * 1000);
 
-	cpumask_setall(policy->cpus);
+	policy->cur = cpufreq_generic_get(policy->cpu);
 
 	if (!pm_qos_request_active(&cpufreq_qos_req_min))
 		pm_qos_add_request(&cpufreq_qos_req_min,
@@ -250,19 +226,14 @@ static int mmp_cpufreq_exit(struct cpufreq_policy *policy)
 	return 0;
 }
 
-static struct freq_attr *mmp_cpufreq_attr[] = {
-	&cpufreq_freq_attr_scaling_available_freqs,
-	NULL,
-};
-
 static struct cpufreq_driver mmp_cpufreq_driver = {
-	.verify = mmp_verify_speed,
+	.verify = cpufreq_generic_frequency_table_verify,
 	.target = mmp_target,
-	.get = mmp_getspeed,
+	.get = cpufreq_generic_get,
 	.init = mmp_cpufreq_init,
 	.exit = mmp_cpufreq_exit,
 	.name = "mmp-cpufreq",
-	.attr = mmp_cpufreq_attr,
+	.attr = cpufreq_generic_attr,
 };
 
 static int __init cpufreq_init(void)
