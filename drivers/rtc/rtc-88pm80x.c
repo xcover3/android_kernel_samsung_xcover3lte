@@ -345,7 +345,7 @@ static int pm80x_rtc_probe(struct platform_device *pdev)
 	info->rtc_dev->dev.platform_data = &pdata->rtc_wakeup;
 
 	ret = pm80x_request_irq(chip, info->irq, rtc_update_handler,
-				IRQF_ONESHOT, "rtc", info);
+				IRQF_ONESHOT | IRQF_NO_SUSPEND, "rtc", info);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
 			info->irq, ret);

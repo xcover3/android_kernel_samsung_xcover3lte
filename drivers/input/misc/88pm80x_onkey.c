@@ -108,7 +108,7 @@ static int pm80x_onkey_probe(struct platform_device *pdev)
 	__set_bit(KEY_POWER, info->idev->keybit);
 
 	err = pm80x_request_irq(info->pm80x, info->irq, pm80x_onkey_handler,
-					    IRQF_ONESHOT, "onkey", info);
+				IRQF_ONESHOT | IRQF_NO_SUSPEND, "onkey", info);
 	if (err < 0) {
 		dev_err(&pdev->dev, "Failed to request IRQ: #%d: %d\n",
 			info->irq, err);

@@ -266,7 +266,7 @@ static int pm80x_vbus_probe(struct platform_device *pdev)
 	}
 
 	ret = request_threaded_irq(vbus->irq, NULL, vbus_irq,
-				IRQF_ONESHOT, "88pm800-vbus", vbus);
+				   IRQF_ONESHOT | IRQF_NO_SUSPEND, "88pm800-vbus", vbus);
 	if (ret) {
 		dev_info(&pdev->dev,
 			"Can not request irq for VBUS, "
