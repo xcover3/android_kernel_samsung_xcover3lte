@@ -766,6 +766,18 @@
 		map = <&map>;
 	};
 
+	mmp_m3_1: apsenhb {
+		compatible = "marvell,mmp-m3";
+		ipver = <1>;
+		status = "disabled";
+	};
+
+	mmp_m3_2: cm3senhb {
+		compatible = "marvell,mmp-m3";
+		ipver = <1>;
+		status = "disabled";
+	};
+
 	amipc {
 		compatible = "marvell,mmp-amipc";
 		interrupts = <0 95 0x4>;
