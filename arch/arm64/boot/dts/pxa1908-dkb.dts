@@ -1,0 +1,88 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Qiming Wu <wuqm@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "pxa1908.dtsi"
+#include "pxa1908-pinfunc.h"
+
+/ {
+	model = "Marvell PXA1908 DKB Development Board";
+	compatible = "marvell,pxa1908-dkb", "marvell,pxa1908";
+
+	chosen {
+		bootargs = "console=ttyS0,115200 root=/dev/nfs nfsroot=192.168.1.100:/nfsroot/ ip=192.168.1.101:192.168.1.100::255.255.255.0::eth0:on";
+	};
+
+	memory {
+		reg = <0x00000000 0x10000000>;
+	};
+
+	soc {
+		apb@d4000000 {
+			pdma0: pdma@d4000000 {
+				status = "okay";
+			};
+
+			timer0: timer@d4014000 {
+				status = "disabled";
+			};
+
+			timer1: timer@d4016000 {
+				status = "disabled";
+			};
+
+			edgewakeup: edgewakeup@d4019800 {
+				status = "okay";
+			};
+
+			uart0: uart@d4017000 {
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&uart0_pmx_func1 &uart0_pmx_func2>;
+				pinctrl-1 = <&uart0_pmx_func1_sleep &uart0_pmx_func2>;
+				edge-wakeup-gpio = <47>; /* GPIO47: UART rx pin */
+			};
+
+			pmx: pinmux@d401e000 {
+				/* pin base, nr pins & gpio function */
+				pinctrl-single,gpio-range = <
+					/*
+					 * GPIO number is hardcoded for range at here.
+					 * In gpio chip, GPIO number is not hardcoded for range.
+					 * Since one gpio pin may be routed to multiple pins,
+					 * define these gpio range in pxa910-dkb.dts not pxa910.dtsi.
+					 */
+					&range 55 55 0	/* GPIO0 ~ GPIO54 */
+					&range 110 32 0 /* GPIO67 ~ GPIO98 */
+					&range 52 1 0	/* GPIO124 */
+				>;
+
+				uart0_pmx_func1: uart0_pmx_func1 {
+					pinctrl-single,pins = <
+						GPIO47 AF6
+					>;
+					MFP_DEFAULT;
+				};
+
+				uart0_pmx_func2: uart0_pmx_func2 {
+					pinctrl-single,pins = <
+						GPIO48 AF6
+					>;
+					MFP_DEFAULT;
+				};
+
+				uart0_pmx_func1_sleep: uart0_pmx_func1_sleep {
+					pinctrl-single,pins = <
+						GPIO47 AF6
+					>;
+					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+				};
+			};
+		};
+	};
+};
