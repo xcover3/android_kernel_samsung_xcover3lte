@@ -27,6 +27,9 @@ struct of_device_id regs_addr_matches[] = {
 		.compatible = "marvell,mmp-ciu",
 		.data = &all_regs_addr[REGS_ADDR_CIU],
 	}, {
+		.compatible = "marvell,mmp-dmcu",
+		.data = &all_regs_addr[REGS_ADDR_DMCU],
+	}, {
 		.compatible = "mrvl,mmp-intc-wakeupgen",
 		.data = &all_regs_addr[REGS_ADDR_ICU],
 	}, {
