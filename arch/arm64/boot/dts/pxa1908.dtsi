@@ -76,11 +76,6 @@
 			status = "disabled";
 		};
 
-		sram: sram@0xd1004000 {
-			compatible = "mmio-sram";
-			reg = <0xd1004000 0xaa00>;
-		};
-
 		smmu {
 			compatible = "arm,mmu-400";
 			reg = <0xc0010000 0x10000>;
@@ -253,6 +248,7 @@
 						<416000 416000>,
 						<528750 528500>;
 				marvell,qos;
+				status = "disabled";
 			};
 		};
 
@@ -423,11 +419,6 @@
 				status = "disabled";
 			};
 
-			mfpr: mfpr@d401e000 {
-				compatible = "marvell,mmp-mfp-leftover";
-				status = "disable";
-			};
-
 			rtc: rtc@d4010000 {
 				compatible = "mrvl,mmp-rtc";
 				reg = <0xd4010000 0x100>;
@@ -555,6 +546,7 @@
 				clocks = <&soc_clocks PXA1U88_CLK_DBGCLK>,
 					 <&soc_clocks PXA1U88_CLK_TRACECLK>;
 				clock-names = "DBGCLK","TRACECLK";
+				status = "disabled";
 				#address-cells = <1>;
 				#size-cells = <1>;
 				reg = <0xd4100000 0x100000>;
@@ -649,7 +641,7 @@
 	amipc {
 		compatible = "marvell,mmp-amipc";
 		interrupts = <0 95 0x4>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	touch: vnc {
@@ -660,14 +652,5 @@
 		compatible = "marvell,pxa-ion";
 		#stream-id-cells = <1>;
 		status = "disabled";
-	};
-
-	smc91x: smc91x@80000300 {
-		compatible = "smsc,lan91c111";
-		reg = <0x80000300 0xffcff>;
-		interrupts = <0 63 0x1>;
-		rst_gpio = <&gpio 3 0>;
-		clksrc = "smc91x";
-		status = "okay";
 	};
 };

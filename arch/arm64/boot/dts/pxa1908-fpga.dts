@@ -19,7 +19,7 @@
 
 / {
 	model = "Marvell PXA1908 DKB Development Board";
-	compatible = "marvell,pxa1U88-dkb", "marvell,pxa1908-fpga", "marvell,pxa1908";
+	compatible = "marvell,pxa1908-fpga", "marvell,pxa1908";
 
 	chosen {
 		bootargs = "console=ttyS0,115200 root=/dev/nfs nfsroot=192.168.1.100:/nfsroot/ ip=192.168.1.101:192.168.1.100::255.255.255.0::eth0:on";
@@ -657,6 +657,15 @@
 		pinctrl-0 = <&gnss_pmx_def1 &gnss_pmx_def2 &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
 		pinctrl-1 = <&gnss_pmx_power_on &twsi3_pmx_senhb>;
 		pinctrl-2 = <&gnss_pmx_def2>;
+		status = "okay";
+	};
+
+	smc91x: smc91x@80000300 {
+		compatible = "smsc,lan91c111";
+		reg = <0x80000300 0xffcff>;
+		interrupts = <0 63 0x1>;
+		rst_gpio = <&gpio 3 0>;
+		clksrc = "smc91x";
 		status = "okay";
 	};
 };
