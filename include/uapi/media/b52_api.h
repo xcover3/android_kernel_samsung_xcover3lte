@@ -1,6 +1,8 @@
 #ifndef _B52_API_H
 #define _B52_API_H
 
+#include <linux/videodev2.h>
+
 #define NR_METERING_WIN_WEIGHT 13
 
 struct b52_regval {
