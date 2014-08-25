@@ -399,13 +399,17 @@ static void pxa1U88_apb_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	mmp_register_gate_clks(unit, apbc_gate_clks, pxa_unit->apbc_base,
 				ARRAY_SIZE(apbc_gate_clks));
 
-	/*
-	 * since ts clk register is different with regular apb_clock register,
-	 * bit 0 is enalbe bit and bit1 is reset bit
-	 */
-	clk = mmp_clk_register_gate(NULL, "ts_clk", NULL, 0,
-			pxa_unit->apbc_base + APBC_TERMAL,
-			0x3, 0x1, 0x0, 0, NULL);
+	if (cpu_is_pxa1U88()) {
+		/*
+		 * since ts clk register on 1U88 is different with regular apb_clock register,
+		 * bit 0 is enalbe bit and bit1 is reset bit
+		 */
+		clk = mmp_clk_register_gate(NULL, "ts_clk", NULL, 0,
+				pxa_unit->apbc_base + APBC_TERMAL,
+				0x3, 0x1, 0x0, 0, NULL);
+	} else
+		clk = mmp_clk_register_gate(NULL, "ts_clk", NULL, 0,
+				pxa_unit->apbc_base + APBC_TERMAL, 0x7, 0x3, 0x0, 0, NULL);
 	mmp_clk_add(unit, PXA1U88_CLK_THERMAL, clk);
 
 	clk = mmp_clk_register_gate(NULL, "twsi2_clk", "pll1_13_1_5",
