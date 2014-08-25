@@ -87,6 +87,7 @@
 #define PM800_GPADC2_INT_ENA3		(1 << 2)
 #define PM800_GPADC3_INT_ENA3		(1 << 3)
 #define PM800_GPADC4_INT_ENA3		(1 << 4)
+#define PM822_IRQ_HS_DET_EN		(1 << 5)
 
 #define PM800_INT_ENA_4		(0x0C)
 #define PM800_GPIO0_INT_ENA4		(1 << 0)
@@ -262,6 +263,21 @@ static struct resource headset_resources_800[] = {
 	},
 };
 
+static struct resource headset_resources_822[] = {
+	{
+		.name = "88pm822-headset",
+		.start = PM822_IRQ_HS_DET,
+		.end = PM822_IRQ_HS_DET,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.name = "gpadc4",
+		.start = PM800_IRQ_GPADC4,
+		.end = PM800_IRQ_GPADC4,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 static struct mfd_cell headset_devs_800[] = {
 	{
 	 .name = "88pm800-headset",
@@ -345,6 +361,10 @@ static const struct regmap_irq pm800_irqs[] = {
 	[PM800_IRQ_GPADC4] = {
 		.reg_offset = 2,
 		.mask = PM800_GPADC4_INT_ENA3,
+	},
+	[PM822_IRQ_HS_DET] = {
+		.reg_offset = 2,
+		.mask = PM822_IRQ_HS_DET_EN,
 	},
 	/* INT3 */
 	[PM800_IRQ_GPIO0] = {
@@ -543,6 +563,24 @@ static int device_headset_init(struct pm80x_chip *chip,
 					   struct pm80x_platform_data *pdata)
 {
 	int ret;
+
+	switch (chip->type) {
+	case CHIP_PM800:
+		headset_devs_800[0].resources =
+			&headset_resources_800[0];
+		headset_devs_800[0].num_resources =
+			ARRAY_SIZE(headset_resources_800);
+		break;
+	case CHIP_PM822:
+	case CHIP_PM86X:
+		headset_devs_800[0].resources =
+			&headset_resources_822[0];
+		headset_devs_800[0].num_resources =
+			ARRAY_SIZE(headset_resources_822);
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	headset_devs_800[0].platform_data = pdata->headset;
 	ret = mfd_add_devices(chip->dev, 0, &headset_devs_800[0],
