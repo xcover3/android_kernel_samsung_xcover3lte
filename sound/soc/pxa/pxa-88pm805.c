@@ -30,6 +30,13 @@
 #include <linux/input.h>
 #include "pxa-ssp.h"
 
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+int ssp_playback_enable;
+int ssp_capture_enable;
+int gssp_playback_enable;
+int gssp_capture_enable;
+#endif
+
 static int ssp_master = 1;
 static int gssp_master = 1;
 
@@ -89,6 +96,13 @@ static ssize_t gssp_master_set(struct device *dev,
 }
 
 static DEVICE_ATTR(gssp_master, 0644, gssp_master_show, gssp_master_set);
+
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+static DEVICE_INT_ATTR(ssp_playback_dump, 0644, ssp_playback_enable);
+static DEVICE_INT_ATTR(ssp_capture_dump, 0644, ssp_capture_enable);
+static DEVICE_INT_ATTR(gssp_playback_dump, 0644, gssp_playback_enable);
+static DEVICE_INT_ATTR(gssp_capture_dump, 0644, gssp_capture_enable);
+#endif
 
 static int pxa_88pm805_hifi_startup(struct snd_pcm_substream *substream)
 {
@@ -447,6 +461,32 @@ static int pxa_88pm805_probe(struct platform_device *pdev)
 			__func__, ret);
 		goto err;
 	}
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	/* add ssp_playback_dump sysfs entries */
+	ret = device_create_file(&pdev->dev, &dev_attr_ssp_playback_dump.attr);
+	if (ret < 0)
+		dev_err(&pdev->dev,
+			"%s: failed to add ssp_playback_dump sysfs files: %d\n",
+			__func__, ret);
+	/* add ssp_capture_dump sysfs entries */
+	ret = device_create_file(&pdev->dev, &dev_attr_ssp_capture_dump.attr);
+	if (ret < 0)
+		dev_err(&pdev->dev,
+			"%s: failed to add ssp_capture_dump sysfs files: %d\n",
+			__func__, ret);
+	/* add gssp_playback_dump sysfs entries */
+	ret = device_create_file(&pdev->dev, &dev_attr_gssp_playback_dump.attr);
+	if (ret < 0)
+		dev_err(&pdev->dev,
+			"%s: failed to add gssp_playback_dump sysfs files: %d\n",
+			__func__, ret);
+	/* add gssp_capture_dump sysfs entries */
+	ret = device_create_file(&pdev->dev, &dev_attr_gssp_capture_dump.attr);
+	if (ret < 0)
+		dev_err(&pdev->dev,
+			"%s: failed to add gssp_capture_dump sysfs files: %d\n",
+			__func__, ret);
+#endif
 	return ret;
 err:
 	snd_soc_unregister_card(card);
@@ -459,6 +499,12 @@ static int pxa_88pm805_remove(struct platform_device *pdev)
 
 	device_remove_file(&pdev->dev, &dev_attr_ssp_master);
 	device_remove_file(&pdev->dev, &dev_attr_gssp_master);
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	device_remove_file(&pdev->dev, &dev_attr_ssp_playback_dump.attr);
+	device_remove_file(&pdev->dev, &dev_attr_ssp_capture_dump.attr);
+	device_remove_file(&pdev->dev, &dev_attr_gssp_playback_dump.attr);
+	device_remove_file(&pdev->dev, &dev_attr_gssp_capture_dump.attr);
+#endif
 	snd_soc_unregister_card(card);
 
 	return 0;

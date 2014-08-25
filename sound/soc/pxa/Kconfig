@@ -253,6 +253,14 @@ config SND_MMP_MAP
 	  mmp-sspa, mmp-tdma. It will use the FE, BE and audio
 	  processing.
 
+config SND_PXA_SSP_DUMP
+	bool "PXA SSP data dump"
+	help
+	  Say Y if you want to enable PXA ssp data dump for SoC
+	  audio on the MARVELL pxa988/1088/1L88 reference
+	  platform. currently it dumps audio data from audio
+	  buffer in sram and save it in file under /data/.
+
 config SND_SOC_PXA_88PM805
 	bool "SoC Audio support for PXA 88PM805"
 	depends on ARCH_MMP && SND && MFD_88PM805

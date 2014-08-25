@@ -38,6 +38,16 @@
 #if defined(CONFIG_MIPS) && defined(CONFIG_DMA_NONCOHERENT)
 #include <dma-coherence.h>
 #endif
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+#include <sound/soc.h>
+extern int ssp_playback_enable;
+extern int ssp_capture_enable;
+extern int gssp_playback_enable;
+extern int gssp_capture_enable;
+
+extern void playback_dump(struct snd_pcm_substream *substream);
+extern void capture_dump(struct snd_pcm_substream *substream);
+#endif
 
 /*
  *  Compatibility
@@ -2507,6 +2517,10 @@ static int snd_pcm_sync_ptr(struct snd_pcm_substream *substream,
 	volatile struct snd_pcm_mmap_status *status;
 	volatile struct snd_pcm_mmap_control *control;
 	int err;
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+#endif
 
 	memset(&sync_ptr, 0, sizeof(sync_ptr));
 	if (get_user(sync_ptr.flags, (unsigned __user *)&(_sync_ptr->flags)))
@@ -2536,6 +2550,23 @@ static int snd_pcm_sync_ptr(struct snd_pcm_substream *substream,
 	snd_pcm_stream_unlock_irq(substream);
 	if (copy_to_user(_sync_ptr, &sync_ptr, sizeof(sync_ptr)))
 		return -EFAULT;
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	if (!(ssp_playback_enable || gssp_playback_enable ||
+			ssp_capture_enable || gssp_capture_enable))
+		return 0;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if ((!strcmp("pxa-ssp-dai.1", cpu_dai->name) && ssp_playback_enable) ||
+			(!strcmp("pxa-ssp-dai.2", cpu_dai->name) && gssp_playback_enable)) {
+			playback_dump(substream);
+		}
+	} else {
+		if ((!strcmp("pxa-ssp-dai.1", cpu_dai->name) && ssp_capture_enable) ||
+			(!strcmp("pxa-ssp-dai.2", cpu_dai->name) && gssp_capture_enable)) {
+			capture_dump(substream);
+		}
+	}
+#endif
 	return 0;
 }
 

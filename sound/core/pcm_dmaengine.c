@@ -28,11 +28,34 @@
 
 #include <sound/dmaengine_pcm.h>
 
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+extern int ssp_playback_enable;
+extern int ssp_capture_enable;
+extern int gssp_playback_enable;
+extern int gssp_capture_enable;
+
+#define SSP_PLAY_DUMP		"/data/log/audio/ssp_playback.dump"
+#define SSP_CAPT_DUMP		"/data/log/audio/ssp_capture.dump"
+#define GSSP_PLAY_DUMP		"/data/log/audio/gssp_playback.dump"
+#define GSSP_CAPT_DUMP		"/data/log/audio/gssp_capture.dump"
+#endif
+
 struct dmaengine_pcm_runtime_data {
 	struct dma_chan *dma_chan;
 	dma_cookie_t cookie;
 
 	unsigned int pos;
+
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	u32 playback_dump_addr;
+	u32 playback_transfer_addr;
+	u32 playback_totsize;
+	struct file *playback_fp;
+	u32 capture_dump_addr;
+	u32 capture_transfer_addr;
+	u32 capture_totsize;
+	struct file *capture_fp;
+#endif
 };
 
 static inline struct dmaengine_pcm_runtime_data *substream_to_prtd(
@@ -175,6 +198,17 @@ static int dmaengine_pcm_prepare_and_submit(struct snd_pcm_substream *substream)
 	desc->callback_param = substream;
 	prtd->cookie = dmaengine_submit(desc);
 
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		prtd->playback_totsize = snd_pcm_lib_buffer_bytes(substream);
+		prtd->playback_transfer_addr = substream->runtime->dma_addr;
+		prtd->playback_dump_addr = substream->runtime->dma_addr;
+	} else {
+		prtd->capture_totsize = snd_pcm_lib_buffer_bytes(substream);
+		prtd->capture_transfer_addr = substream->runtime->dma_addr;
+		prtd->capture_dump_addr = substream->runtime->dma_addr;
+	}
+#endif
 	return 0;
 }
 
@@ -285,6 +319,122 @@ struct dma_chan *snd_dmaengine_pcm_request_channel(dma_filter_fn filter_fn,
 }
 EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_request_channel);
 
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+void playback_dump(struct snd_pcm_substream *substream)
+{
+	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	mm_segment_t old_fs;
+	struct file *f = prtd->playback_fp;
+	u32 transfer_addr, size1, size2;
+	u32 dump_virt = prtd->playback_dump_addr - (u32)runtime->dma_addr
+		+ (u32)runtime->dma_area;
+	ssize_t ret;
+	unsigned long appl_ofs;
+
+	if (!f || !prtd->playback_totsize)
+		return;
+
+	appl_ofs = runtime->control->appl_ptr % runtime->buffer_size;
+	prtd->playback_transfer_addr =
+		runtime->dma_addr + frames_to_bytes(runtime, appl_ofs);
+	if (prtd->playback_dump_addr == prtd->playback_transfer_addr)
+		return;
+
+	transfer_addr = prtd->playback_transfer_addr;
+	if (transfer_addr > prtd->playback_dump_addr) {
+		size1 = transfer_addr - prtd->playback_dump_addr;
+		size2 = 0;
+	} else {
+		size1 = runtime->dma_addr + prtd->playback_totsize
+			-  prtd->playback_dump_addr;
+		size2 = transfer_addr - runtime->dma_addr;
+	}
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = f->f_op->write(f, (const char *)dump_virt, size1, &f->f_pos);
+	if (ret < 0)
+		pr_info("write playback file error %d\n", ret);
+	else if (transfer_addr > prtd->playback_dump_addr)
+		prtd->playback_dump_addr = prtd->playback_dump_addr + size1;
+	else
+		prtd->playback_dump_addr = runtime->dma_addr
+			+ prtd->playback_totsize - 1;
+	if (ret >= 0) {
+		if (size2) {
+			ret = f->f_op->write(f, runtime->dma_area,
+					size2, &f->f_pos);
+			if (ret < 0)
+				pr_info("write playback file error %d\n", ret);
+			else
+				prtd->playback_dump_addr =
+					runtime->dma_addr + size2;
+		} else if (transfer_addr == runtime->dma_addr)
+			prtd->playback_dump_addr = runtime->dma_addr;
+	}
+	set_fs(old_fs);
+}
+
+void capture_dump(struct snd_pcm_substream *substream)
+{
+	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	mm_segment_t old_fs;
+	struct file *f = prtd->capture_fp;
+	u32 transfer_addr, size1, size2;
+	u32 dump_virt = prtd->capture_dump_addr - (u32)runtime->dma_addr
+		+ (u32)runtime->dma_area;
+	ssize_t ret;
+	unsigned long appl_ofs;
+
+	if (!f || !prtd->capture_totsize)
+		return;
+
+	appl_ofs = runtime->control->appl_ptr % runtime->buffer_size;
+	prtd->capture_transfer_addr =
+		runtime->dma_addr + frames_to_bytes(runtime, appl_ofs);
+	if (prtd->capture_dump_addr == prtd->capture_transfer_addr)
+		return;
+
+	transfer_addr = prtd->capture_transfer_addr;
+	if (transfer_addr > prtd->capture_dump_addr) {
+		size1 = transfer_addr - prtd->capture_dump_addr;
+		size2 = 0;
+	} else {
+		size1 = runtime->dma_addr + prtd->capture_totsize
+			-  prtd->capture_dump_addr;
+		size2 = transfer_addr - runtime->dma_addr;
+	}
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	ret = f->f_op->write(f, (const char *)dump_virt, size1, &f->f_pos);
+
+	if (ret < 0)
+		pr_info("write capture file error %d\n", ret);
+	else if (transfer_addr > prtd->capture_dump_addr)
+		prtd->capture_dump_addr = prtd->capture_dump_addr + size1;
+	else
+		prtd->capture_dump_addr = runtime->dma_addr
+			+ prtd->capture_totsize - 1;
+	if (ret >= 0) {
+		if (size2) {
+			ret = f->f_op->write(f, runtime->dma_area,
+					size2, &f->f_pos);
+			if (ret < 0)
+				pr_info("write capture file error %d\n", ret);
+			else
+				prtd->capture_dump_addr =
+					runtime->dma_addr + size2;
+		} else if (transfer_addr == runtime->dma_addr)
+				prtd->capture_dump_addr = runtime->dma_addr;
+	}
+	set_fs(old_fs);
+}
+#endif
+
 /**
  * snd_dmaengine_pcm_open - Open a dmaengine based PCM substream
  * @substream: PCM substream
@@ -302,6 +452,10 @@ int snd_dmaengine_pcm_open(struct snd_pcm_substream *substream,
 	struct dmaengine_pcm_runtime_data *prtd;
 	int ret;
 
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+#endif
 	if (!chan)
 		return -ENXIO;
 
@@ -317,6 +471,46 @@ int snd_dmaengine_pcm_open(struct snd_pcm_substream *substream,
 	prtd->dma_chan = chan;
 
 	substream->runtime->private_data = prtd;
+
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if (!strcmp("pxa-ssp-dai.1", cpu_dai->name)) {
+			prtd->playback_fp = filp_open(SSP_PLAY_DUMP, O_RDWR | O_CREAT
+				| O_LARGEFILE | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+			if (IS_ERR(prtd->playback_fp)) {
+				pr_info("ssp playback dump file create error %d\n",
+					(int)prtd->playback_fp);
+				prtd->playback_fp = 0;
+			}
+		} else if (!strcmp("pxa-ssp-dai.2", cpu_dai->name)) {
+			prtd->playback_fp = filp_open(GSSP_PLAY_DUMP, O_RDWR | O_CREAT
+				| O_LARGEFILE | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+			if (IS_ERR(prtd->playback_fp)) {
+				pr_info("gssp playback dump file create error %d\n",
+					(int)prtd->playback_fp);
+				prtd->playback_fp = 0;
+			}
+		}
+	} else {
+		if (!strcmp("pxa-ssp-dai.1", cpu_dai->name)) {
+			prtd->capture_fp = filp_open(SSP_CAPT_DUMP, O_RDWR | O_CREAT
+				| O_LARGEFILE | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+			if (IS_ERR(prtd->capture_fp)) {
+				pr_info("ssp capture dump file create error %d\n",
+					(int)prtd->capture_fp);
+				prtd->capture_fp = 0;
+			}
+		} else if (!strcmp("pxa-ssp-dai.2", cpu_dai->name)) {
+			prtd->capture_fp = filp_open(GSSP_CAPT_DUMP, O_RDWR | O_CREAT
+				| O_LARGEFILE | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+			if (IS_ERR(prtd->capture_fp)) {
+				pr_info("gssp capture dump file create error %d\n",
+					(int)prtd->capture_fp);
+				prtd->capture_fp = 0;
+			}
+		}
+	}
+#endif
 
 	return 0;
 }
@@ -351,6 +545,12 @@ int snd_dmaengine_pcm_close(struct snd_pcm_substream *substream)
 {
 	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
 
+#ifdef CONFIG_SND_PXA_SSP_DUMP
+	if (prtd->playback_fp)
+		filp_close(prtd->playback_fp, NULL);
+	if (prtd->capture_fp)
+		filp_close(prtd->capture_fp, NULL);
+#endif
 	kfree(prtd);
 
 	return 0;
