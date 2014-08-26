@@ -253,10 +253,21 @@ static int __maybe_unused mcpm_plat_cpu_power_down(u64 entry_point)
 	return invoke_mcpm_fn(id, entry_point, 0, 0);
 }
 
+static int up_mode;
+static int __init __init_up(char *arg)
+{
+	up_mode = 1;
+	return 1;
+}
+__setup("up_mode", __init_up);
+
 static int mcpm_plat_cpu_power_up(unsigned int cpu, unsigned int cluster,
 			     u64 entry_point)
 {
 	u64 id = mcpm_function_id[MCPM_FN_CPU_ON];
+
+	if (up_mode)
+		return -EINVAL;
 
 	if (mcpm_plat_idle->ops->release)
 		mcpm_plat_idle->ops->release(cpu);
