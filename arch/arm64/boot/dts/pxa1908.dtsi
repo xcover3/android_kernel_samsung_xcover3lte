@@ -12,6 +12,7 @@
 #include "pxa1908-pinfunc.h"
 #include "pxa1908-pm.h"
 #include "../../../../include/dt-bindings/clock/marvell-pxa1U88.h"
+#include <dt-bindings/clock/marvell-audio-map.h>
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
 
 / {
@@ -197,6 +198,21 @@
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			 };
+
+			asram: asram@d12a0000 {
+				compatible = "mmio-sram";
+				reg = <0xd12a0000 0x10000>;
+				status = "disabled";
+			};
+
+			adma0: adma@d128d800 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xD128D800 0x100>;
+				interrupts = <0 82 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
 
 			dsi: dsi@d420b800 {
 				compatible = "marvell,mmp-dsi";
@@ -435,6 +451,31 @@
 				clocks = <&soc_clocks PXA1U88_CLK_KPC>;
 			};
 
+			sspa0: sspa@d128dc00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xd128dc00 0x100>;
+				dmas = <&adma0 1
+					&adma0 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA0>;
+				status = "disabled";
+			};
+
+			map: map@d1200000 {
+				compatible = "marvell,mmp-map";
+				reg = <0xd1230000 0x80
+					0xd1200000 0x8000>;
+				audio_reg = <128>;
+				bit_sram = <3>;
+				bit_apb = <2>;
+				pll_sel = <0>;
+				power_ctrl = <0>;
+				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
+				status = "disabled";
+			};
+
 			pmx: pinmux@d401e000 {
 				compatible = "pinconf-single";
 				reg = <0xd401e000 0x330>;
@@ -636,6 +677,17 @@
 		compatible = "marvell,mmp-m3";
 		ipver = <2>;
 		status = "disabled";
+	};
+
+	audio_map_clocks: clock{
+		compatible = "marvell,audio-map-clock";
+		reg = <0xd4282800 0x400>,
+		      <0xd4090000 0x1000>,
+		      <0xd1200000 0x8000>,
+		      <0xd1230000 0x100>;
+		reg-names = "apmu", "apbs", "map", "dspaux";
+		#clock-cells = <1>;
+		map = <&map>;
 	};
 
 	amipc {
