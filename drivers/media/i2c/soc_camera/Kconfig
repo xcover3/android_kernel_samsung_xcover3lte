@@ -85,3 +85,9 @@ config SOC_CAMERA_TW9910
 	depends on SOC_CAMERA && I2C
 	help
 	  This is a tw9910 video driver
+
+config SOC_CAMERA_S5K8AA
+	tristate "S5K8AA camera support"
+	depends on SOC_CAMERA && I2C
+	help
+	  This is a V4L2 camera driver for the s5k8aa sensor
