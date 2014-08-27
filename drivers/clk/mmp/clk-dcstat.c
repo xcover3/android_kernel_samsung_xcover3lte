@@ -135,6 +135,48 @@ static void clk_dutycycle_stats(struct clk *clk,
 	spin_unlock(&clk_dc_stats_lock);
 }
 
+static u32 clk_dcstat_rate2ppindex(struct clk *clk, unsigned long rate)
+{
+	struct clk_dcstat *cdcs;
+	struct clk_dc_stat_info *dcstat;
+	u32 opsize, idx;
+
+	/* search the list of the registation for this clk */
+	list_for_each_entry(cdcs, &clk_dcstat_list, node)
+	    if (cdcs->clk == clk) {
+			dcstat = &cdcs->clk_dcstat;
+			opsize = dcstat->ops_stat_size;
+			for (idx = 0; idx < opsize; idx++)
+				if (dcstat->ops_dcstat[idx].pprate == rate)
+					return dcstat->ops_dcstat[idx].ppindex;
+		}
+	pr_warn("Failed to find rate %lu for %s\n", rate, clk->name);
+	return 0;
+}
+
+static int clk_dcstat_notifier_handler(struct notifier_block *nb,
+		unsigned long msg, void *data)
+{
+	struct clk_notifier_data *cnd = data;
+	struct clk *clk = cnd->clk;
+	unsigned int idx;
+
+	/* enable */
+	if ((msg & PRE_RATE_CHANGE) && !cnd->old_rate && cnd->new_rate)
+		clk_dcstat_event(clk, CLK_STATE_ON, 0);
+	/* disable */
+	else if ((msg & POST_RATE_CHANGE) && cnd->old_rate && !cnd->new_rate)
+		clk_dcstat_event(clk, CLK_STATE_OFF, 0);
+	/* rate change */
+	else if ((msg & POST_RATE_CHANGE) && cnd->old_rate && cnd->new_rate) {
+		idx = clk_dcstat_rate2ppindex(clk, cnd->new_rate);
+		clk_dcstat_event(clk, CLK_RATE_CHANGE, idx);
+	}
+
+	pr_debug("clk %s, %lu->%lu\n", clk->name, cnd->old_rate, cnd->new_rate);
+	return NOTIFY_OK;
+}
+
 int clk_register_dcstat(struct clk *clk,
 			    unsigned long *opt, unsigned int opt_size)
 {
@@ -146,7 +188,7 @@ int clk_register_dcstat(struct clk *clk,
 	/* search the list of the registation for this clk */
 	list_for_each_entry(cdcs, &clk_dcstat_list, node)
 	    if (cdcs->clk == clk)
-		break;
+			break;
 
 	/* if clk wasn't in the list, allocate new dcstat info */
 	if (cdcs->clk != clk) {
@@ -177,6 +219,10 @@ int clk_register_dcstat(struct clk *clk,
 		clk_dcstat->stat_start = false;
 
 		list_add(&cdcs->node, &clk_dcstat_list);
+
+		/* for dc stat to get clk_enable/disable/freq-chg event */
+		cdcs->nb.notifier_call = clk_dcstat_notifier_handler;
+		clk_notifier_register(clk, &cdcs->nb);
 	}
 
 	return 0;

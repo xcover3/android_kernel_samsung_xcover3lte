@@ -15,9 +15,12 @@
 #include <linux/clk-private.h>
 #include <linux/clk-provider.h>
 #include <linux/devfreq.h>
+#include <linux/clk/mmpdcstat.h>
 
 #include "clk.h"
 #include "clk-plat.h"
+
+
 
 /* parameter passed from cmdline to identify DDR mode */
 enum ddr_type ddr_mode = DDR_400M;
@@ -93,3 +96,17 @@ void __init_comp_devfreq_table(struct clk *clk, unsigned int dev_id)
 	devfreq_frequency_table_register(devfreq_tbl, dev_id);
 }
 #endif
+
+#define MAX_PPNUM	10
+void register_mixclk_dcstatinfo(struct clk *clk)
+{
+	unsigned long pptbl[MAX_PPNUM];
+	u32 idx, ppsize;
+
+	/* FIXME: specific for peri clock whose parent is mix, itself is gate */
+	ppsize = mmp_clk_mix_get_opnum(clk->parent);
+	for (idx = 0; idx < ppsize; idx++)
+		pptbl[idx] = mmp_clk_mix_get_oprate(clk->parent, idx);
+
+	clk_register_dcstat(clk, pptbl, ppsize);
+}

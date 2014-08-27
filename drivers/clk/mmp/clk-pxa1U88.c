@@ -753,6 +753,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				(3 << 4), (3 << 4), 0x0, 0, &gc_lock);
 	clk_set_rate(clk, 416000000);
 	mmp_clk_add(unit, PXA1U88_CLK_GC3D, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	gcsh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
 	parent_names = (const char **)gcsh_parent_names;
@@ -773,6 +774,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				(1 << 25), (1 << 25), 0x0, 0, &gc_lock);
 	clk_set_rate(clk, 416000000);
 	mmp_clk_add(unit, PXA1U88_CLK_GCSH, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
 	if (cpu_is_pxa1U88()) {
@@ -791,6 +793,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				(3 << 4), (3 << 4), 0x0, 0, &gc2d_lock);
 	clk_set_rate(clk, 208000000);
 	mmp_clk_add(unit, PXA1U88_CLK_GC2D, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	gcbus_mix_config.reg_info.reg_clk_ctrl =
 				pxa_unit->apmu_base + APMU_GC2D;
@@ -822,6 +825,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			(3 << 4), (3 << 4), 0x0, 0, &vpu_lock);
 	clk_set_rate(clk, 416000000);
 	mmp_clk_add(unit, PXA1U88_CLK_VPU, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	vpubus_mix_config.reg_info.reg_clk_ctrl =
 			pxa_unit->apmu_base + APMU_VPU;
@@ -1398,19 +1402,25 @@ CLK_OF_DECLARE(pxa1U88_clk, "marvell,pxa1U88-clock", pxa1U88_clk_init);
 
 #ifdef CONFIG_DEBUG_FS
 static struct dentry *stat;
+
 CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1U88_CLK_DDR], ddr);
 CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1U88_CLK_AXI], axi);
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1U88_CLK_GC3D], gc);
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1U88_CLK_GC2D], gc2d);
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1U88_CLK_GCSH], gcsh);
+CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1U88_CLK_VPU], vpu);
 
 static int __init __init_pxa1u88_dcstat_debugfs_node(void)
 {
 	struct dentry *cpu_dc_stat = NULL, *ddr_dc_stat = NULL;
 	struct dentry *axi_dc_stat = NULL;
+	struct dentry *gc_dc_stat = NULL, *vpu_dc_stat = NULL;
+	struct dentry *gc2d_dc_stat = NULL, *gcsh_dc_stat = NULL;
 
 	if (!cpu_is_pxa1U88() || !cpu_is_pxa1908())
 		return 0;
 
 	stat = debugfs_create_dir("stat", pxa);
-
 	if (!stat)
 		return -ENOENT;
 
@@ -1428,8 +1438,36 @@ static int __init __init_pxa1u88_dcstat_debugfs_node(void)
 	if (!axi_dc_stat)
 		goto err_axi_dc_stat;
 
+	gc_dc_stat = clk_dcstat_file_create("gc3d_core0_dc_stat",
+		stat, &gc_dc_ops);
+	if (!gc_dc_stat)
+		goto err_gc_dc_stat;
+
+	gc2d_dc_stat = clk_dcstat_file_create("gc2d_core0_dc_stat",
+		stat, &gc2d_dc_ops);
+	if (!gc2d_dc_stat)
+		goto err_gc2d_dc_stat;
+
+	gcsh_dc_stat = clk_dcstat_file_create("gcsh_core0_dc_stat",
+		stat, &gcsh_dc_ops);
+	if (!gcsh_dc_stat)
+		goto err_gcshader_dc_stat;
+
+	vpu_dc_stat = clk_dcstat_file_create("vpu_dc_stat",
+		stat, &vpu_dc_ops);
+	if (!vpu_dc_stat)
+		goto err_vpu_dc_stat;
+
 	return 0;
 
+err_vpu_dc_stat:
+	debugfs_remove(gcsh_dc_stat);
+err_gcshader_dc_stat:
+	debugfs_remove(gc2d_dc_stat);
+err_gc2d_dc_stat:
+	debugfs_remove(gc_dc_stat);
+err_gc_dc_stat:
+	debugfs_remove(axi_dc_stat);
 err_axi_dc_stat:
 	debugfs_remove(ddr_dc_stat);
 err_ddr_dc_stat:

@@ -35,4 +35,7 @@ extern unsigned int get_profile_pxa1L88(void);
 #ifdef CONFIG_PM_DEVFREQ
 extern void __init_comp_devfreq_table(struct clk *clk, unsigned int dev_id);
 #endif
+
+extern void register_mixclk_dcstatinfo(struct clk *clk);
+
 #endif

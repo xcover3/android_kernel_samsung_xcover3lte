@@ -1715,8 +1715,6 @@ static int clk_ddr_setrate(struct clk_hw *hw, unsigned long rate,
 	trigger_bind2ddr_clk_rate(rate * MHZ);
 	__clk_reparent(hw->clk, md_new->ddr_parent);
 
-	if (ddr->params->dcstat_support)
-		clk_dcstat_event(hw->clk, CLK_RATE_CHANGE, index);
 out:
 	return ret;
 }
@@ -2161,9 +2159,6 @@ static int clk_axi_setrate(struct clk_hw *hw, unsigned long rate,
 
 	cur_axi_op = md_new;
 	__clk_reparent(hw->clk, md_new->axi_parent);
-
-	if (axi->params->dcstat_support)
-		clk_dcstat_event(hw->clk, CLK_RATE_CHANGE, index);
 
 out:
 	mutex_unlock(&ddraxi_freqs_mutex);

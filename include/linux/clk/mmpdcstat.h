@@ -77,6 +77,7 @@ struct clk_dcstat {
 	struct clk *clk;
 	struct clk_dc_stat_info clk_dcstat;
 	struct list_head node;
+	struct notifier_block nb;
 };
 
 struct core_dcstat {
