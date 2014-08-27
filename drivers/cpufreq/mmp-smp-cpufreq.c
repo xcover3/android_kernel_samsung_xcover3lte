@@ -229,9 +229,17 @@ static int cpufreq_min_notify(struct notifier_block *b,
 	struct cpufreq_policy *policy;
 	int cpu = 0;
 
+	freq = cpufreq_generic_get(cpu);
+	if (freq >= val)
+		return NOTIFY_OK;
+
 	policy = cpufreq_cpu_get(cpu);
-	if ((!policy) || (!policy->governor))
+	if (!policy)
 		return NOTIFY_BAD;
+	else if (!policy->governor) {
+		cpufreq_cpu_put(policy);
+		return NOTIFY_BAD;
+	}
 
 	/* return directly when the governor needs a fixed frequency */
 	if (!strcmp(policy->governor->name, "userspace") ||
@@ -240,10 +248,6 @@ static int cpufreq_min_notify(struct notifier_block *b,
 		cpufreq_cpu_put(policy);
 		return NOTIFY_OK;
 	}
-
-	freq = cpufreq_generic_get(cpu);
-	if (freq >= val)
-		return NOTIFY_OK;
 
 	ret = mmp_target(policy, val, CPUFREQ_RELATION_L);
 	cpufreq_cpu_put(policy);
