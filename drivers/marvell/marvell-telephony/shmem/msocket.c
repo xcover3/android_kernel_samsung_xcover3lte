@@ -1223,11 +1223,15 @@ static void read_dvc_table(void)
 	unsigned int dvc_num, dvc_tbl[16];
 	int i = 0;
 
+#ifdef CONFIG_PXA_DVFS
 	get_voltage_table_for_cp(dvc_tbl, &dvc_num);
+#else
+	dvc_num = 0;
+#endif
 	skctl_va->dvc_vol_tbl_num = dvc_num;
 
 	pr_info("skctl_va->dvc_vol_tbl_num = %u\n", skctl_va->dvc_vol_tbl_num);
-	for (i = 0; i < skctl_va->dvc_vol_tbl_num; i++) {
+	for (i = 0; i < dvc_num; i++) {
 		skctl_va->dvc_vol_tbl[i] = dvc_tbl[i];
 		pr_info("skctl_va->dvc_vol_tbl[%d] = %u\n",
 			i, skctl_va->dvc_vol_tbl[i]);
