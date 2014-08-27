@@ -1165,7 +1165,6 @@ static void scan_add_host(struct soc_camera_host *ici)
 			/* Ignore errors */
 			soc_camera_probe(ici, icd);
 		}
-
 	mutex_unlock(&list_lock);
 }
 
@@ -1280,12 +1279,6 @@ static int soc_camera_probe_finish(struct soc_camera_device *icd)
 	ret = v4l2_ctrl_add_handler(&icd->ctrl_handler, sd->ctrl_handler, NULL);
 	if (ret < 0)
 		return ret;
-
-	ret = soc_camera_add_device(icd);
-	if (ret < 0) {
-		dev_err(icd->pdev, "Couldn't activate the camera: %d\n", ret);
-		return ret;
-	}
 
 	/* At this point client .probe() should have run already */
 	ret = soc_camera_init_user_formats(icd);
@@ -1585,6 +1578,7 @@ static int soc_camera_probe(struct soc_camera_host *ici,
 {
 	struct soc_camera_desc *sdesc = to_soc_camera_desc(icd);
 	struct soc_camera_host_desc *shd = &sdesc->host_desc;
+	struct soc_camera_subdev_desc *ssdd = &sdesc->subdev_desc;
 	struct device *control = NULL;
 	int ret;
 
@@ -1600,6 +1594,14 @@ static int soc_camera_probe(struct soc_camera_host *ici,
 	ret = v4l2_ctrl_handler_init(&icd->ctrl_handler, 16);
 	if (ret < 0)
 		return ret;
+
+	if (ssdd->reset)
+		ssdd->reset(icd->pdev);
+	ret = soc_camera_add_device(icd);
+	if (ret < 0) {
+		dev_err(icd->pdev, "Couldn't activate the camera: %d\n", ret);
+		goto evdc;
+	}
 
 	/* Must have icd->vdev before registering the device */
 	ret = video_dev_create(icd);
@@ -2077,12 +2079,18 @@ static int soc_camera_pdrv_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id soc_camera_ids[] = {
+	{.compatible = "soc-camera-pdrv", },
+	{},
+};
+
 static struct platform_driver __refdata soc_camera_pdrv = {
 	.probe = soc_camera_pdrv_probe,
 	.remove  = soc_camera_pdrv_remove,
 	.driver  = {
 		.name	= "soc-camera-pdrv",
 		.owner	= THIS_MODULE,
+		.of_match_table = soc_camera_ids,
 	},
 };
 
