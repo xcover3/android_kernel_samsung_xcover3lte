@@ -28,6 +28,7 @@ struct machine_desc {
 	const char *name;
 	const char **dt_compat;
 
+	void (*init_irq)(void);
 	void (*init_time)(void);
 	void (*init_clk)(void);
 	void (*init_machine)(void);
