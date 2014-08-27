@@ -33,6 +33,7 @@ struct soc_camera_device {
 	struct device *pdev;		/* Platform device */
 	struct device *parent;		/* Camera host device */
 	struct device *control;		/* E.g., the i2c client */
+	struct v4l2_pix_format_mplane pix_mp;
 	s32 user_width;
 	s32 user_height;
 	u32 bytesperline;		/* for padding, zero if unused */
