@@ -28,6 +28,7 @@
 #define PM886_GPIO0_MODE_MSK		(0x7 << 1)
 #define PM886_GPIO1_VAL_MSK		(0x1 << 4)
 #define PM886_GPIO1_MODE_MSK		(0x7 << 5)
+#define PM886_GPIO1_SET_DVC		(0x2 << 5)
 
 #define PM886_GPIO_CTRL2		(0x31)
 #define PM886_GPIO2_VAL_MSK		(0x1 << 0)
@@ -54,6 +55,14 @@
 /*-------------------------------------------------------------------------*/
 
 /*--power page:------------------------------------------------------------*/
+#define PM886_BUCK1_VOUT	(0xa5)
+#define PM886_BUCK1_1_VOUT	(0xa6)
+#define PM886_BUCK1_2_VOUT	(0xa7)
+#define PM886_BUCK1_3_VOUT	(0xa8)
+#define PM886_BUCK1_4_VOUT	(0x9a)
+#define PM886_BUCK1_5_VOUT	(0x9b)
+#define PM886_BUCK1_6_VOUT	(0x9c)
+#define PM886_BUCK1_7_VOUT	(0x9d)
 
 /*-------------------------------------------------------------------------*/
 

@@ -53,11 +53,6 @@
 #define PM886_LDO16_VOUT	(0x7a)
 
 /* buck voltage */
-#define PM886_BUCK1_VOUT	(0xa5)
-#define PM886_BUCK1_1_VOUT	(0xa6)
-#define PM886_BUCK1_2_VOUT	(0xa7)
-#define PM886_BUCK1_3_VOUT	(0xa8)
-
 #define PM886_BUCK2_VOUT	(0xb3)
 #define PM886_BUCK3_VOUT	(0xc1)
 #define PM886_BUCK4_VOUT	(0xcf)

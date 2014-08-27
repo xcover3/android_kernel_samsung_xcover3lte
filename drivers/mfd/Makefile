@@ -16,7 +16,7 @@ obj-$(CONFIG_MFD_CROS_EC_SPI)	+= cros_ec_spi.o
 obj-$(CONFIG_MFD_MMP_MAP)	+= mmp-map.o
 obj-$(CONFIG_MFD_88PM860)	+= 88pm860-audio.o
 
-88pm886-objs			:= 88pm886-core.o 88pm886-i2c.o 88pm886-irq.o
+88pm886-objs			:= 88pm886-core.o 88pm886-i2c.o 88pm886-irq.o 88pm886-dvc.o
 obj-$(CONFIG_MFD_88PM886)	+= 88pm886.o
 
 rtsx_pci-objs			:= rtsx_pcr.o rts5209.o rts5229.o rtl8411.o rts5227.o rts5249.o

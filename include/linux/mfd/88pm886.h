@@ -26,6 +26,7 @@
 #define PM886_VBUS_NAME		"88pm886-vbus"
 #define PM886_CFD_NAME		"88pm886-leds"
 #define PM886_REGULATOR_NAME	"88pm886-regulator"
+#define PM886_DVC_NAME		"88pm886-dvc"
 #define PM886_HWMON_NAME	"88pm886-hwmon"
 
 /* TODO: use chip id is better */
@@ -162,5 +163,9 @@ int pm886_apply_bd_patch(struct pm886_chip *chip, struct device_node *np);
 
 extern struct regmap_irq_chip pm886_irq_chip;
 extern const struct of_device_id pm886_of_match[];
+
+/* dvc external interface */
+int pm886_dvc_set_volt(u8 level, int uv);
+int pm886_dvc_get_volt(u8 level);
 
 #endif /* __LINUX_MFD_88PM886_H */
