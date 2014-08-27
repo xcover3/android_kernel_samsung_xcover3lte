@@ -110,12 +110,14 @@ config MRVL_SKMALLOC_WIRELESS_EN
 
 config MRVL_MMP_MODEM
 	tristate "Marvell mmp modem driver"
+	depends on PXA9XX_ACIPC
 	default n
 	help
 	  Marvell MMP modem driver for communication processor
 
 config MRVL_MMP_CM3
 	tristate "Marvell CM3 resource manager driver"
+	depends on MRVL_MMP_MODEM && PXA9XX_AMIPC
 	default n
 	help
 	  Marvell CM3 resource manager driver for PXA1U88
