@@ -15,5 +15,6 @@
 #define ICU_IRQ_CPU0_MASKED	(ICU_INT_CONF_IRQ_FIQ | ICU_INT_CONF_CPU0)
 
 extern struct irq_chip icu_irq_chip;
+extern void __init mmp_of_wakeup_init(void);
 
 #endif	/* __IRQCHIP_MMP_H */

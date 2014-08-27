@@ -12,6 +12,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/irqchip.h>
+#include <linux/irqchip/mmp.h>
 #include <linux/of_platform.h>
 #include <linux/clocksource.h>
 #include <linux/clk-provider.h>
@@ -162,6 +163,13 @@ static void __init pxa988_sdhc_reset_all(void)
 	__raw_writel(reg_tmp | (1), apmu_base + APMU_SDH0);
 }
 
+static void __init pxa1908_irq_init(void)
+{
+	irqchip_init();
+	/* only for wake up */
+	mmp_of_wakeup_init();
+}
+
 void __init pxa1908_timer_init(void)
 {
 	void __iomem *chip_id;
@@ -198,6 +206,7 @@ static const char *pxa1908_dt_board_compat[] __initdata = {
 
 DT_MACHINE_START(PXA1908_DT, "PXA1908")
 	.init_time      = pxa1908_timer_init,
+	.init_irq	= pxa1908_irq_init,
 	.init_machine   = pxa1908_init_machine,
 	.dt_compat      = pxa1908_dt_board_compat,
 MACHINE_END
