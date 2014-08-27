@@ -876,18 +876,28 @@
 		};
 	};
 
+	soc-camera@0 {
+		compatible = "soc-camera-pdrv";
+		status = "disabled";
+		reg = <0x0 0x0>;
+	};
+
 	mcam0: mcam@0 {
 		compatible = "marvell,mv_sc2_camera";
-		status = "disabled";
+		clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
+		clock-names = "SC2AXICLK";
 		marvell,power-domain = <&pd_sc2>;
 		reg = <0x0 0x0>;
+		status = "disabled";
 	};
 
 	mcam1: mcam@1 {
 		compatible = "marvell,mv_sc2_camera";
-		status = "disabled";
+		clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
+		clock-names = "SC2AXICLK";
 		marvell,power-domain = <&pd_sc2>;
 		reg = <0x1 0x0>;
+		status = "disabled";
 	};
 
 	plat_cam {

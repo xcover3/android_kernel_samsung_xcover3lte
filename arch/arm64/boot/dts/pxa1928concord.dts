@@ -780,6 +780,10 @@
 		};
 	};
 
+	soc-camera@0 {
+		status = "okay";
+	};
+
 	mcam0: mcam@0 {
 		avdd_2v8-supply = <&ldo3>;
 		dovdd_1v8-supply = <&ldo6>;
