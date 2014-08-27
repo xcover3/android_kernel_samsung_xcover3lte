@@ -27,13 +27,6 @@ unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
 static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
-#ifdef CONFIG_DDR_DEVFREQ
-	OF_DEV_AUXDATA("marvell,devfreq-ddr", 0xc0100000,
-			"devfreq-ddr", NULL),
-#endif
-#ifdef CONFIG_VPU_DEVFREQ
-	OF_DEV_AUXDATA("marvell,devfreq-vpu", 0, "devfreq-vpu.0", NULL),
-#endif
 	{}
 };
 
