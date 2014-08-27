@@ -515,7 +515,7 @@ static struct thermal_cooling_device_ops const combile_cooling_ops = {
 
 
 /* Operation callback functions for thermal zone */
-static struct thermal_zone_device_ops const pxa_dev_ops = {
+static struct thermal_zone_device_ops pxa_dev_ops = {
 	.get_temp = pxa_get_temp,
 	.get_mode = pxa_get_mode,
 	.set_mode = pxa_set_mode,

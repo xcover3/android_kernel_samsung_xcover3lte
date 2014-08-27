@@ -115,5 +115,6 @@ struct hwdvc_notifier_data {
 };
 extern int hwdvc_notifier_register(struct notifier_block *n);
 extern int hwdvc_notifier_unregister(struct notifier_block *n);
+extern int is_1p5G_chip;
 
 #endif
