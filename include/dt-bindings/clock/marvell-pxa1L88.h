@@ -51,6 +51,7 @@
 #define PXA1L88_CLK_SWJTAG		77
 #define PXA1L88_CLK_IPC_RST		78
 #define PXA1L88_CLK_AICER		79
+#define PXA1L88_CLK_SSP0		80
 
 /* axi periphrals */
 #define PXA1L88_CLK_SSP			98

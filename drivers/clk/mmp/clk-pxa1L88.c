@@ -457,7 +457,9 @@ static struct mmp_param_gate_clk apbc_gate_clks[] = {
 static DEFINE_SPINLOCK(uart0_lock);
 static DEFINE_SPINLOCK(uart1_lock);
 static DEFINE_SPINLOCK(uart2_lock);
+static DEFINE_SPINLOCK(ssp0_lock);
 static const char *uart_parent_names[] = {"pll1_3_16", "uart_pll"};
+static const char const *ssp_parent_names[] = {"pll1_96", "pll1_48", "pll1_24", "pll1_12"};
 static const char const *ssp1_parent[] = {"vctcxo", "pll1_2"};
 static const char const *gssp_parent[] = {"isccr0_i2sclk", "sys clk",
 					"ext clk", "vctcxo"};
@@ -571,6 +573,16 @@ static void pxa1L88_apb_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 				pxa_unit->apbcp_base + APBCP_UART2,
 				0x7, 0x3, 0x0, 0, &uart2_lock);
 	mmp_clk_add(unit, PXA1L88_CLK_UART2, clk);
+
+	clk = clk_register_mux(NULL, "ssp0_mux", (const char **)ssp_parent_names,
+				ARRAY_SIZE(ssp_parent_names), 0,
+				pxa_unit->apbc_base + APBC_SSP0,
+				4, 3, 0, &ssp0_lock);
+	clk = mmp_clk_register_gate(NULL, "ssp0_clk", "ssp0_mux",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apbc_base + APBC_SSP0,
+				0x7, 0x3, 0x0, 0, &ssp0_lock);
+	mmp_clk_add(unit, PXA1L88_CLK_SSP0, clk);
 
 	clk = clk_register_mux(NULL, "ssp1_mux", ssp1_parent,
 			ARRAY_SIZE(ssp1_parent), 0,
