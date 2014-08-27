@@ -24,7 +24,8 @@
 #include <linux/cpu.h>
 #include <linux/pm_qos.h>
 #include <linux/cpunum_qos.h>
-#include <mach/cputype.h>
+#include <linux/cputype.h>
+#include <trace/events/pxa.h>
 
 #define BOOT_DELAY	60
 #define CHECK_DELAY_NOP	(.5 * HZ * 16)
@@ -364,7 +365,7 @@ static void __ref hotplug_timer(struct work_struct *work)
 
 		trace_pxa_hp_single(i, get_cpu_nr_running(i), tmp_info->load,
 				    (tmp_info->avg_load *
-				     max_performance >> 10) / 100));
+				     max_performance >> 10) / 100);
 
 		/* get avg_load of two cores */
 		avg_load += tmp_info->avg_load;
