@@ -92,8 +92,6 @@ static int coda7542_power_on(struct uio_coda7542_dev *cdev)
 	if (cdev->power_status == 1)
 		return 0;
 
-	clk_prepare_enable(cdev->fclk);
-	clk_prepare_enable(cdev->aclk);
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	pm_runtime_get_sync(cdev->dev);
 #endif
@@ -122,8 +120,6 @@ static int coda7542_power_off(struct uio_coda7542_dev *cdev)
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	pm_runtime_put_sync(cdev->dev);
 #endif
-	clk_disable_unprepare(cdev->aclk);
-	clk_disable_unprepare(cdev->fclk);
 	cdev->power_status = 0;
 
 	return 0;
