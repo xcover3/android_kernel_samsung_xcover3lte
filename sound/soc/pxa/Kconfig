@@ -267,6 +267,7 @@ config SND_SOC_PXA_88PM805
 	select SND_PCM
 	select PXA_SSP
 	select SND_PXA_SOC_SSP
+	select SND_PXA_SSP_DUMP
 	select SND_MMP_SOC
 	select SND_PXA_SOC
 	select SND_SOC_88PM805
