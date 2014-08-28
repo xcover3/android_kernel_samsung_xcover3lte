@@ -908,10 +908,10 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_command *cmd)
 		 * 0xE stands for ~10s timeout for 52Mhz TMCLK, which maybe
 		 * too short for some commands like CMD6/CMD38. It will depend
 		 * on sw timeout timer to handle this and the timeout is set
-		 * to 240s.
+		 * to 480s.
 		 */
 		if ((count == 0xE) && (host->quirks2 & SDHCI_QUIRK2_TIMEOUT_SHORT))
-			mod_timer(&host->timer, jiffies + 4 * 60 * HZ);
+			mod_timer(&host->timer, jiffies + 8 * 60 * HZ);
 	}
 
 	if (!data)
