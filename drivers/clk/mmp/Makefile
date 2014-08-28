@@ -13,7 +13,7 @@ obj-$(CONFIG_CPU_PXA910) += clk-pxa910.o
 obj-$(CONFIG_CPU_MMP2) += clk-mmp2.o
 
 ifeq ($(CONFIG_PXA_DVFS), y)
-obj-y += dvfs.o dvfs-dvc.o hwdvc-stat.o dvfs-pxa1u88.o dvfs-pxa1L88.o dvfs-pxa1928.o
+obj-y += dvfs.o dvfs-dvc.o hwdvc-stat.o dvfs-pxa1u88.o dvfs-pxa1L88.o dvfs-pxa1928.o dvfs-pxa1908.o
 endif
 
 obj-$(CONFIG_DEBUG_FS) += clk-dcstat.o
