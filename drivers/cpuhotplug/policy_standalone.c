@@ -25,6 +25,7 @@
 #include <linux/pm_qos.h>
 #include <linux/cpunum_qos.h>
 #include <linux/cputype.h>
+#include <linux/clk-provider.h>
 #include <trace/events/pxa.h>
 
 #define BOOT_DELAY	60
@@ -647,7 +648,7 @@ static int __init stand_alone_hotplug_init(void)
 	}
 
 	if (!cpu_clk) {
-		cpu_clk = clk_get_sys(NULL, "cpu");
+		cpu_clk = __clk_lookup("cpu");
 		if (IS_ERR(cpu_clk)) {
 			ret = PTR_ERR(cpu_clk);
 			goto err_clk_get_sys;
