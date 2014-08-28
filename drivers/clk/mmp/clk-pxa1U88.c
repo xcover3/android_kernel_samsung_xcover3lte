@@ -1383,14 +1383,15 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 
 	pxa1U88_axi_periph_clk_init(pxa_unit);
 
-#if defined(CONFIG_PXA_DVFS)
-	/* For fpga/ulc bring up don't enable dvfs */
-	if (cpu_is_pxa1U88())
-		setup_pxa1u88_dvfs_platinfo();
 #ifdef CONFIG_SMC91X
 	if (board_is_fpga())
 		smc91x_clk_init(pxa_unit->apmu_base);
 #endif
+
+#if defined(CONFIG_PXA_DVFS)
+	/* For fpga/ulc bring up don't enable dvfs */
+	if (cpu_is_pxa1U88())
+		setup_pxa1u88_dvfs_platinfo();
 #endif
 
 #ifdef CONFIG_DEBUG_FS
