@@ -67,11 +67,7 @@
 #define PWM2				P51 0x2
 
 /* MMC1 */
-#ifdef PXA1928_FF
 #define MMC1_CD_N			P100 0x7
-#else
-#define MMC1_CD_N			P65 0x0
-#endif
 
 /* GPIO */
 #define TP_RESET			2
