@@ -46,10 +46,12 @@
 #define MPMU_VRCR		0x18
 
 #define APMU_SQU_CLK_GATE_CTRL	0x1C
+#define APMU_ISPDXO		0x38
 #define APMU_CLK_GATE_CTRL	0x40
 #define APMU_SDH0		0x54
 #define APMU_SDH1		0x58
 #define APMU_SDH2		0xe0
+#define APMU_CCIC0		0x50
 #define APMU_USB		0x5c
 #define APMU_NF			0x60
 #define APMU_AES		0x68
@@ -207,11 +209,11 @@ static struct mmp_vco_params pll_vco_params[][MAX_PLL_NUM] = {
 	}
 };
 
-static struct pxa1L88_clk_unit *globla_pxa_unit;
+static struct pxa1L88_clk_unit *global_pxa_unit;
 int pxa1x88_powermode(u32 cpu)
 {
 	unsigned status_temp = 0;
-	status_temp = ((__raw_readl(globla_pxa_unit->apmu_base +
+	status_temp = ((__raw_readl(global_pxa_unit->apmu_base +
 			APMU_CORE_STATUS)) &
 			((1 << (6 + 3 * cpu)) | (1 << (7 + 3 * cpu))));
 	if (!status_temp)
@@ -1510,22 +1512,412 @@ static void __init pxa1L88_clk_init(struct device_node *np)
 	setup_pxa1L88_dvfs_platinfo();
 #endif
 
-#ifdef CONFIG_DEBUG_FS
-	globla_pxa_unit = pxa_unit;
-#endif
+	global_pxa_unit = pxa_unit;
 }
 CLK_OF_DECLARE(pxa1L88_clk, "marvell,pxa1L88-clock", pxa1L88_clk_init);
 
 #ifdef CONFIG_CPU_PXA988
 #ifdef CONFIG_DEBUG_FS
 static struct dentry *stat;
-CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1L88_CLK_DDR], ddr);
-CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1L88_CLK_AXI], axi);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1L88_CLK_DDR], ddr);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1L88_CLK_AXI], axi);
+
+static ssize_t pxa1L88_clk_stats_read(struct file *filp,
+	char __user *buffer, size_t count, loff_t *ppos)
+{
+	char *buf;
+	int len = 0, ret = -EINVAL;
+	unsigned int reg, size = PAGE_SIZE - 1;
+	void __iomem *apbc_base, *apbcp_base, *mpmu_base, *apmu_base;
+
+	mpmu_base = global_pxa_unit->mpmu_base;
+	if (!mpmu_base) {
+		pr_err("failed to map mpmu registers\n");
+		return ret;
+	}
+
+	apmu_base = global_pxa_unit->apmu_base;
+	if (!apmu_base) {
+		pr_err("failed to map apmu registers\n");
+		return ret;
+	}
+
+	apbc_base = global_pxa_unit->apbc_base;
+	if (!apbc_base) {
+		pr_err("failed to map apbc registers\n");
+		return ret;
+	}
+
+	apbcp_base = global_pxa_unit->apbcp_base;
+	if (!apbcp_base) {
+		pr_err("failed to map apbcp registers\n");
+		return ret;
+	}
+
+	buf = (char *)__get_free_pages(GFP_NOIO, 0);
+	if (!buf)
+		return -ENOMEM;
+
+	len += snprintf(buf + len, size,
+		       "|---------------|-------|\n|%14s\t|%s|\n"
+		       "|---------------|-------|\n", "Clock Name", " Status");
+
+	/* PMU */
+	reg = __raw_readl(mpmu_base + MPMU_PLL2CR);
+	if (((reg & (3 << 8)) >> 8) == 2)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PLL2", "off");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PLL2", "on");
+
+	reg = __raw_readl(mpmu_base + MPMU_PLL3CR);
+	if (((reg & (3 << 18)) >> 18) == 0)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PLL3", "off");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PLL3", "on");
+
+	reg = __raw_readl(apmu_base + APMU_SDH0);
+	if ((((reg & (1 << 3)) >> 3) == 1) && (((reg & (1 << 0)) >> 0) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH ACLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH ACLK", "off");
+
+	if ((((reg & (1 << 4)) >> 4) == 1) && (((reg & (1 << 1)) >> 1) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH0 FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH0 FCLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_SDH1);
+	if ((((reg & (1 << 4)) >> 4) == 1) && (((reg & (1 << 1)) >> 1) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH1 FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH1 FCLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_SDH2);
+	if ((((reg & (1 << 4)) >> 4) == 1) && (((reg & (1 << 1)) >> 1) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH2 FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SDH2 FCLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_VPU);
+	if (((reg & (3 << 4)) >> 4) == 3)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "VPU FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "VPU FCLK", "off");
+	if (((reg & (1 << 3)) >> 3) == 1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "VPU ACLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "VPU ACLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_GC);
+	if (((reg & (3 << 4)) >> 4) == 3)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC FCLK", "off");
+	if (((reg & (1 << 3)) >> 3) == 1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC ACLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC ACLK", "off");
+	if (((reg & (1 << 25)) >> 25) == 1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC SHADERCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC SHADERCLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_GC2D);
+	if (((reg & (3 << 4)) >> 4) == 3)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC2D FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC2D FCLK", "off");
+	if (((reg & (1 << 3)) >> 3) == 1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC2D ACLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GC2D ACLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_DISP1);
+	if ((((reg & (1 << 1)) >> 1) == 1) && (((reg & (1 << 4)) >> 4) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "LCD FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "LCD FCLK", "off");
+	if (((reg & (1 << 3)) >> 3) == 1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "LCD ACLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "LCD ACLK", "off");
+	if ((((reg & (1 << 5)) >> 5) == 1) && (((reg & (1 << 2)) >> 2) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "LCD HCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "LCD HCLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_DSI1);
+	if (((reg & (0xf << 2)) >> 2) == 0xf)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "DSI PHYCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "DSI PHYCLK", "off");
+	reg = __raw_readl(apmu_base + APMU_ISPDXO);
+	if ((reg & 0xf03) == 0xf03)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "ISP_DXO CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "ISP_DXO CLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_USB);
+	if ((reg & 0x9) == 0x9)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "USB ACLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "USB ACLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_CCIC0);
+	if ((((reg & (1 << 4)) >> 4) == 1) && (((reg & (1 << 1)) >> 1) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "CCIC0 FCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "CCIC0 FCLK", "off");
+
+	if ((((reg & (1 << 3)) >> 3) == 1) && (((reg & (1 << 0)) >> 0) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "CCIC0 ACLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "CCIC0 ACLK", "off");
+	if ((((reg & (1 << 5)) >> 5) == 1) && (((reg & (1 << 2)) >> 2) == 1))
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "CCIC0 PHYCLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "CCIC0 PHYCLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_TRACE);
+	if (((reg & (1 << 3)) >> 3) == 1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "DBG CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "DBG CLK", "off");
+	if (((reg & (1 << 4)) >> 4) == 1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "TRACE CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "TRACE CLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_AES);
+	if ((reg & 0x9) == 0x8)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "AES CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "AES CLK", "off");
+
+	reg = __raw_readl(apmu_base + APMU_NF);
+	if ((reg & 0x19b) == 0x19b)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "DFC CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "DFC CLK", "off");
+
+	/* APB */
+	reg = __raw_readl(apbc_base + APBC_TWSI0);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "TWSI0 CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "TWSI0 CLK", "off");
+
+	reg = __raw_readl(apbcp_base + APBCP_TWSI2);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "TWSI2 CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "TWSI2 CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_GPIO);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GPIO CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "GPIO CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_KPC);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "KPC CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "KPC CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_RTC);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "RTC CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "RTC CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_UART0);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "UART0 CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "UART0 CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_UART1);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "UART1 CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "UART1 CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_SSP0);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SSP0 CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SSP0 CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_SSP1);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SSP1 CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SSP1 CLK", "off");
+
+	reg = __raw_readl(apbcp_base + APBC_GCER);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SSP.4 CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "SSP.4 CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_DROTS);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "THERMAL CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "THERMAL CLK", "off");
+
+	reg = __raw_readl(apbc_base + APBC_PWM0);
+	if ((reg & 0x1) == 0x1) {
+		if ((reg & 0x6) == 0x2)
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM0 CLK", "on");
+		else
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM0 CLK", "off");
+		reg = __raw_readl(apbc_base + APBC_PWM1);
+		if ((reg & 0x6) == 0x2)
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM1 CLK", "on");
+		else
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM1 CLK", "off");
+	} else {
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PWM0 CLK", "off");
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PWM1 CLK", "off");
+	}
+
+	reg = __raw_readl(apbc_base + APBC_PWM2);
+	if ((reg & 0x1) == 0x1) {
+		if ((reg & 0x6) == 0x2)
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM2 CLK", "on");
+		else
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM2 CLK", "off");
+		reg = __raw_readl(apbc_base + APBC_PWM3);
+		if ((reg & 0x6) == 0x2)
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM3 CLK", "on");
+		else
+			len += snprintf(buf + len, size,
+					"|%14s\t|%5s\t|\n", "PWM3 CLK", "off");
+	} else {
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PWM2 CLK", "off");
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "PWM3 CLK", "off");
+	}
+
+	reg = __raw_readl(apbc_base + APBC_IPC_CLK_RST);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "IPC CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "IPC CLK", "off");
+
+	reg = __raw_readl(apbcp_base + APBCP_AICER);
+	if ((reg & 0x5) == 0x1)
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "RIPC CLK", "on");
+	else
+		len += snprintf(buf + len, size,
+				"|%14s\t|%5s\t|\n", "RIPC CLK", "off");
+
+	len += snprintf(buf + len, size, "|---------------|-------|\n\n");
+
+	ret = simple_read_from_buffer(buffer, count, ppos, buf, len);
+	free_pages((unsigned long)buf, 0);
+	return ret;
+}
+
+static const struct file_operations pxa1L88_clk_stats_ops = {
+	.owner = THIS_MODULE,
+	.read = pxa1L88_clk_stats_read,
+};
 
 static int __init __init_pxa1L88_dcstat_debugfs_node(void)
 {
 	struct dentry *cpu_dc_stat = NULL, *ddr_dc_stat = NULL;
 	struct dentry *axi_dc_stat = NULL;
+	struct dentry *clock_status = NULL;
 
 	if (!cpu_is_pxa1L88())
 		return 0;
@@ -1548,8 +1940,15 @@ static int __init __init_pxa1L88_dcstat_debugfs_node(void)
 	if (!axi_dc_stat)
 		goto err_axi_dc_stat;
 
+	clock_status = debugfs_create_file("clock_status", 0444,
+			pxa, NULL, &pxa1L88_clk_stats_ops);
+	if (!clock_status)
+		goto err_clk_stats;
+
 	return 0;
 
+err_clk_stats:
+	debugfs_remove(axi_dc_stat);
 err_axi_dc_stat:
 	debugfs_remove(ddr_dc_stat);
 err_ddr_dc_stat:
