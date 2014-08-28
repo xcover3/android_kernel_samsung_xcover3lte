@@ -416,7 +416,7 @@ static u64 get_interval(struct pm80x_sw_bat_info *info)
 	u64 ns;
 
 	if (!info) {
-		dev_err(info->dev, "%s: info is NULL!\n", __func__);
+		pr_info("%s: info is NULL!\n", __func__);
 		return 0;
 	}
 
@@ -1218,6 +1218,11 @@ static int pm80x_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_STATUS:
 		get_batt_status(info);
 		val->intval = info->bat_data.status;
+		if ((info->bat_data.status == POWER_SUPPLY_STATUS_FULL) &&
+				(info->bat_data.percent < 100))
+			val->intval = POWER_SUPPLY_STATUS_CHARGING;
+		else
+			val->intval = info->bat_data.status;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = info->bat_data.present;
