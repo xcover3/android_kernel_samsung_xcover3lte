@@ -26,6 +26,10 @@
 #include "regs-addr.h"
 #include "mmpx-dt.h"
 
+#ifdef CONFIG_SD8XXX_RFKILL
+#include <linux/sd8x_rfkill.h>
+#endif
+
 static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xD128dc00, "mmp-sspa-dai.0", NULL),
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xD128dd00, "mmp-sspa-dai.1", NULL),
@@ -34,6 +38,9 @@ static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 	OF_DEV_AUXDATA("mrvl,pxa-ssp-dai", 1, "pxa-ssp-dai.1", NULL),
 	OF_DEV_AUXDATA("mrvl,pxa-ssp-dai", 4, "pxa-ssp-dai.2", NULL),
 	OF_DEV_AUXDATA("marvell,pxa-88pm805-snd-card", 0, "sound", NULL),
+#ifdef CONFIG_SD8XXX_RFKILL
+	OF_DEV_AUXDATA("mrvl,sd8x-rfkill", 0, "sd8x-rfkill", NULL),
+#endif
 	{}
 };
 
