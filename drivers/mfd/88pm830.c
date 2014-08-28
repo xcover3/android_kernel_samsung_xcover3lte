@@ -513,6 +513,7 @@ static int pm830_probe(struct i2c_client *client,
 	chip->dev = &client->dev;
 	chip->obm_config_bat_det = pdata->obm_config_bat_det;
 	chip->edge_wakeup_gpio = pdata->edge_wakeup_gpio;
+	chip->get_fg_internal_soc = NULL;
 
 	dev_set_drvdata(chip->dev, chip);
 	i2c_set_clientdata(chip->client, chip);

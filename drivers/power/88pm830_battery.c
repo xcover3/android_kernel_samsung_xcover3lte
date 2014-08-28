@@ -100,15 +100,10 @@ static struct buffed extern_data;
 
 /* fake SOC, we use it to make sure SOC jumping step <= 1 for Android */
 static int cap;
-static int batt_mode; /* debug mode - power supply as battery */
 
-int pm830_get_internal_soc(void)
+static int pm830_get_fg_internal_soc(void)
 {
 	return ccnt_data.soc;
-}
-int pm830_get_batt_mode(void)
-{
-	return batt_mode;
 }
 
 static int pm800_battery_update_buffed(struct pm830_battery_info *info,
@@ -832,9 +827,6 @@ static void pm830_bat_update_status(struct pm830_battery_info *info)
 {
 	int ibat, data = 0;
 
-	/* hardcode type[Lion] */
-	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
-
 	if (info->bat_ntc) {
 		pm830_get_batt_temp(info, &data);
 		info->bat_params.temp = data * 10;
@@ -1068,7 +1060,7 @@ static void pm830_init_fg(struct pm830_battery_info *info)
 				PM830_GPADC_CONFIG2, PM830_BD_EN, 0);
 			regmap_update_bits(info->chip->regmap, PM830_BAT_CTRL2,
 				PM830_BAT_PRTY_EN, PM830_BAT_PRTY_EN);
-			batt_mode = 1;
+			info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
 		}
 		return;
 	}
@@ -1259,7 +1251,7 @@ static int pm830_batt_get_prop(struct power_supply *psy,
 		val->intval = info->bat_params.present;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		/* report fake capacity without battery */
+		/* report fake capacity to android layer */
 		if (!info->bat_params.present)
 			info->bat_params.cap = 80;
 		val->intval = info->bat_params.cap;
@@ -1470,6 +1462,7 @@ static int pm830_battery_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	chip->get_fg_internal_soc = pm830_get_fg_internal_soc;
 	info->extern_chip = i2c_get_clientdata(pdata->client);
 
 	info->bat_ntc = pdata->bat_ntc;
@@ -1526,6 +1519,8 @@ static int pm830_battery_probe(struct platform_device *pdev)
 	info->chip = chip;
 	info->dev = &pdev->dev;
 	info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
+	/* default type [Lion] */
+	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
 	platform_set_drvdata(pdev, info);
 

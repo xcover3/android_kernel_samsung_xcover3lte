@@ -303,6 +303,8 @@ struct pm830_chip {
 #endif
 	bool obm_config_bat_det;
 	int edge_wakeup_gpio;
+
+	int (*get_fg_internal_soc)(void);
 };
 
 struct pm830_led_pdata {
@@ -319,10 +321,6 @@ struct pm830_platform_data {
 	bool obm_config_bat_det;
 	int edge_wakeup_gpio;
 };
-
-/* used by charger driver to get internal information */
-int pm830_get_internal_soc(void);
-int pm830_get_batt_mode(void);
 
 #ifdef CONFIG_PM
 static inline int pm830_dev_suspend(struct device *dev)

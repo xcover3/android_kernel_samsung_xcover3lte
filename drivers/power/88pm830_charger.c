@@ -355,24 +355,21 @@ static int pm830_is_chg_allowed(struct pm830_charger_info *info)
 	 * driver status change to FULL
 	 */
 	if (!info->allow_recharge) {
-		ret = psy->get_property(psy, POWER_SUPPLY_PROP_STATUS, &val);
-		if (ret) {
-			dev_err(info->dev, "get battery property failed.\n");
-			return 0;
-		}
-
-		if (val.intval != POWER_SUPPLY_STATUS_FULL) {
-			dev_dbg(info->dev, "battery still not full, can't recharge.\n");
-			return 0;
-		} else {
-			/* does internal SOC lower than recharge threshold? */
-			ret = pm830_get_internal_soc();
+		/*
+		 * does internal SOC lower than recharge threshold?
+		 * if there is no way to get internal soc, need to always start recharge, otherwise
+		 * compare internal soc and the recharge threshold
+		 */
+		if (info->chip->get_fg_internal_soc) {
+			ret = info->chip->get_fg_internal_soc();
 			if (ret <= RECHARGE_THRESHOLD)
 				info->allow_recharge = 1;
 			else
 				return 0;
+		} else {
+			dev_dbg(info->dev, "there is no interface to get internal soc!\n");
+			info->allow_recharge = 1;
 		}
-
 	} else {
 		/*
 		 * handle the special case: internal status if FULL, but pm830 device
@@ -697,10 +694,22 @@ static int pm830_start_charging(struct pm830_charger_info *info)
 static int pm830_stop_charging(struct pm830_charger_info *info)
 {
 	int bat_det, bat_shrt;
+	struct power_supply *psy;
+	union power_supply_propval val;
+	int ret;
 	dev_info(info->dev, "stop charging...!\n");
 
 	/* if it's power supply mode, just return */
-	if (pm830_get_batt_mode())
+	psy = power_supply_get_by_name(info->usb.supplied_to[0]);
+	if (!psy || !psy->get_property) {
+		dev_err(info->dev, "get battery property failed.\n");
+		return 0;
+	}
+
+	ret = psy->get_property(psy, POWER_SUPPLY_PROP_TECHNOLOGY, &val);
+	if (ret)
+		dev_err(info->dev, "get battery property failed\n");
+	else if (val.intval == POWER_SUPPLY_TECHNOLOGY_UNKNOWN)
 		return 0;
 
 	/*
