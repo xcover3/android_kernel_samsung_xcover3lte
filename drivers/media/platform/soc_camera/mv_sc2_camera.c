@@ -1152,10 +1152,21 @@ static int mccic_get_formats(struct soc_camera_device *icd, u32 idx,
 	return formats;
 }
 
+static int mccic_clock_start(struct soc_camera_host *ici)
+{
+	return 0;
+}
+
+static void mccic_clock_stop(struct soc_camera_host *ici)
+{
+}
+
 static struct soc_camera_host_ops mcam_soc_camera_host_ops = {
 	.owner		= THIS_MODULE,
 	.add		= mccic_add_device,
 	.remove		= mccic_remove_device,
+	.clock_start	= mccic_clock_start,
+	.clock_stop	= mccic_clock_stop,
 	.set_fmt	= mccic_set_fmt,
 	.try_fmt	= mccic_try_fmt,
 	.set_parm	= mccic_set_parm,
@@ -1293,7 +1304,6 @@ static int mv_camera_probe(struct platform_device *pdev)
 	mcam_dev->axi_clk = devm_clk_get(&pdev->dev, "SC2AXICLK");
 	if (IS_ERR(mcam_dev->axi_clk))
 		return PTR_ERR(mcam_dev->axi_clk);
-
 	INIT_LIST_HEAD(&mcam_dev->buffers);
 	spin_lock_init(&mcam_dev->mcam_lock);
 	mutex_init(&mcam_dev->s_mutex);

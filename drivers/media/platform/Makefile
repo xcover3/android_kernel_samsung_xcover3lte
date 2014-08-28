@@ -45,10 +45,10 @@ obj-$(CONFIG_VIDEO_SH_VOU)		+= sh_vou.o
 
 obj-$(CONFIG_VIDEO_MV_SC2_MMU)		+= mv_sc2_mmu.o
 obj-$(CONFIG_VIDEO_MV_SC2_CCIC)		+= mv_sc2_ccic.o mv_sc2_twsi_conf.o
-obj-$(CONFIG_VIDEO_MMPISP)		+= mmp-isp/
 
 obj-$(CONFIG_SOC_CAMERA)		+= soc_camera/
 
+obj-$(CONFIG_VIDEO_MMPISP)		+= mmp-isp/
 obj-$(CONFIG_VIDEO_RENESAS_VSP1)	+= vsp1/
 
 obj-y	+= davinci/
