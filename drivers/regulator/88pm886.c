@@ -185,8 +185,18 @@ static const struct regulator_linear_range buck_volt_range2[] = {
 	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x72, 50000),
 };
 
-/* ldo */
+/* ldo1~3 */
 static const unsigned int ldo_volt_table1[] = {
+	1700000, 1800000, 1900000, 2500000, 2800000, 2900000, 3100000, 3300000,
+};
+/* ldo4~15 */
+static const unsigned int ldo_volt_table2[] = {
+	1200000, 1250000, 1700000, 1800000, 1850000, 1900000, 2500000, 2600000,
+	2700000, 2750000, 2800000, 2850000, 2900000, 3000000, 3100000, 3300000,
+};
+/* ldo16 */
+static const unsigned int ldo_volt_table3[] = {
+	1700000, 1800000, 1900000, 2000000, 2100000, 2500000, 2700000, 2800000,
 };
 
 struct pm886_regulator_info {
@@ -340,19 +350,19 @@ static struct pm886_regulator_info pm886_regulator_configs[] = {
 	PM886_LDO(LDO1, EN1, 0, 100000, ldo_volt_table1),
 	PM886_LDO(LDO2, EN1, 1, 100000, ldo_volt_table1),
 	PM886_LDO(LDO3, EN1, 2, 100000, ldo_volt_table1),
-	PM886_LDO(LDO4, EN1, 3, 400000, ldo_volt_table1),
-	PM886_LDO(LDO5, EN1, 4, 400000, ldo_volt_table1),
-	PM886_LDO(LDO6, EN1, 5, 400000, ldo_volt_table1),
-	PM886_LDO(LDO7, EN1, 6, 400000, ldo_volt_table1),
-	PM886_LDO(LDO8, EN1, 7, 400000, ldo_volt_table1),
-	PM886_LDO(LDO9, EN1, 0, 400000, ldo_volt_table1),
-	PM886_LDO(LDO10, EN2, 1, 200000, ldo_volt_table1),
-	PM886_LDO(LDO11, EN2, 2, 200000, ldo_volt_table1),
-	PM886_LDO(LDO12, EN2, 3, 200000, ldo_volt_table1),
-	PM886_LDO(LDO13, EN2, 4, 200000, ldo_volt_table1),
-	PM886_LDO(LDO14, EN2, 5, 200000, ldo_volt_table1),
-	PM886_LDO(LDO15, EN2, 6, 200000, ldo_volt_table1),
-	PM886_LDO(LDO16, EN2, 7, 200000, ldo_volt_table1),
+	PM886_LDO(LDO4, EN1, 3, 400000, ldo_volt_table2),
+	PM886_LDO(LDO5, EN1, 4, 400000, ldo_volt_table2),
+	PM886_LDO(LDO6, EN1, 5, 400000, ldo_volt_table2),
+	PM886_LDO(LDO7, EN1, 6, 400000, ldo_volt_table2),
+	PM886_LDO(LDO8, EN1, 7, 400000, ldo_volt_table2),
+	PM886_LDO(LDO9, EN1, 0, 400000, ldo_volt_table2),
+	PM886_LDO(LDO10, EN2, 1, 200000, ldo_volt_table2),
+	PM886_LDO(LDO11, EN2, 2, 200000, ldo_volt_table2),
+	PM886_LDO(LDO12, EN2, 3, 200000, ldo_volt_table2),
+	PM886_LDO(LDO13, EN2, 4, 200000, ldo_volt_table2),
+	PM886_LDO(LDO14, EN2, 5, 200000, ldo_volt_table2),
+	PM886_LDO(LDO15, EN2, 6, 200000, ldo_volt_table2),
+	PM886_LDO(LDO16, EN2, 7, 200000, ldo_volt_table3),
 };
 
 #define PM886_OF_MATCH(comp, label) \
