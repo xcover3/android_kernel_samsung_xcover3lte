@@ -326,6 +326,18 @@ static int pm830_is_chg_allowed(struct pm830_charger_info *info)
 		return 0;
 	}
 
+	/* check battery driver initialization firstly */
+	ret = psy->get_property(psy, POWER_SUPPLY_PROP_STATUS, &val);
+	if (ret) {
+		dev_err(info->dev, "get battery property failed\n");
+		return 0;
+	}
+
+	if (val.intval == POWER_SUPPLY_STATUS_UNKNOWN) {
+		dev_dbg(info->dev, "battery driver init still not finish\n");
+		return 0;
+	}
+
 	/* check if there is a battery present */
 	ret = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &val);
 	if (ret) {

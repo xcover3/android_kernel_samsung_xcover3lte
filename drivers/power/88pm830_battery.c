@@ -936,6 +936,9 @@ static void pm830_cc_work(struct work_struct *work)
 			   PM830_CC_CTRL1, PM830_CC_EN, PM830_CC_EN);
 
 	atomic_set(&info->cc_done, 1);
+
+	/* notify charger driver to start charging */
+	power_supply_changed(&info->battery);
 }
 
 static void pm830_fg_setup(struct pm830_battery_info *info)
@@ -1245,7 +1248,11 @@ static int pm830_batt_get_prop(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-		val->intval = info->bat_params.status;
+		/* block charging until cc is ready */
+		if (!atomic_read(&info->cc_done))
+			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
+		else
+			val->intval = info->bat_params.status;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = info->bat_params.present;
