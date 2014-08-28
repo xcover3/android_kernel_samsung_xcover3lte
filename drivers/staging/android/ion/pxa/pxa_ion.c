@@ -32,6 +32,7 @@ struct pxa_ion_info {
 	int                     heap_cnt;
 };
 
+u32 use_iommu = 1;
 int num_extra_pages = 1;
 struct page *page_pad;
 struct ion_device *pxa_ion_dev;
@@ -44,7 +45,6 @@ static const struct of_device_id pxa_ion_dt_match[] = {
 };
 #endif
 
-u32 use_iommu;
 #ifdef CONFIG_ARM_SMMU
 struct pxa_ion_iommu_meta {
 	unsigned int iova;
@@ -54,10 +54,10 @@ struct pxa_ion_iommu_meta {
 
 static __init int setup_iommu(char *str)
 {
-	use_iommu = 1;
+	use_iommu = 0;
 	return 0;
 }
-early_param("iommu", setup_iommu);
+early_param("disable_iommu", setup_iommu);
 
 struct dma_iommu_mapping *pxa_ion_iommu_mapping;
 struct device *pxa_ion_platform_dev;
@@ -263,12 +263,12 @@ static int pxa_ion_probe(struct platform_device *pdev)
 
 		if (!np)
 			return -EINVAL;
-		if (use_iommu)
+		if (use_iommu) {
 			of_property_read_u32(np, "marvell,ion-iommu",
 					&use_iommu);
-		if (use_iommu)
 			of_property_read_u32(np, "marvell,ion-extra-pages",
 					&num_extra_pages);
+		}
 
 		if (of_property_read_u32(np, "marvell,ion-nr", &nr))
 			return -EINVAL;
