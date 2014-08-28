@@ -36,7 +36,7 @@ static inline bool cpu_is_ca7(void)
  * MMP2      A0    0x560f5811   0x00A0A610
  */
 
-static unsigned int mmp_chip_id;
+extern unsigned int mmp_chip_id;
 
 #ifdef CONFIG_CPU_PXA168
 static inline int cpu_is_pxa168(void)
