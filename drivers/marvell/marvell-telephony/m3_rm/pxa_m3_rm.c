@@ -29,6 +29,7 @@
 #include <linux/pxa9xx_amipc.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/cputype.h>
+#include <linux/pm_qos.h>
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
@@ -45,6 +46,7 @@
 #define DEBUG_MODE 0
 #define AXI_PHYS_ADDR 0xd4200000
 #define GEU_FUSE_VAL_APCFG3 0x10C
+#define ACQ_MIN_DDR_FREQ (528000)
 
 static int m3_gnss_open_count;
 static int m3_senhub_open_count;
@@ -79,6 +81,7 @@ static spinlock_t m3init_sync_lock;
 static spinlock_t m3open_lock;
 static int m3_init_done;
 static unsigned int m3_ip_ver;
+static struct pm_qos_request ddr_qos_min;
 
 static void ldo_sleep_control(int ua_load, const char *ldo_name)
 {
@@ -404,6 +407,7 @@ static long m3_ioctl(struct file *filp,
 {
 	int flag, status = 0;
 	int len, is_pm2;
+	int cons_on = 0;
 	phys_addr_t ipc_base;
 
 	/*
@@ -520,6 +524,15 @@ static long m3_ioctl(struct file *filp,
 			return -1;
 		else
 			return 0;
+	break;
+	case RM_IOC_M3_SET_ACQ_CONS:
+		if (copy_from_user(&cons_on, (int *)arg, sizeof(int)))
+			return -EFAULT;
+		pr_info("ACQ DDR constraint %s\n", cons_on ? "on" : "off");
+		if (cons_on)
+			pm_qos_update_request(&ddr_qos_min, ACQ_MIN_DDR_FREQ);
+		else
+			pm_qos_update_request(&ddr_qos_min, PM_QOS_DEFAULT_VALUE);
 	break;
 	default:
 	return -EOPNOTSUPP;
@@ -769,8 +782,10 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 	if (of_property_read_u32(np, "ipver", &m3_ip_ver))
 		m3_ip_ver = 1;
 
-	pr_info("crmdev module init finished with status:%d ipver=%d\n",
-		rc, m3_ip_ver);
+	ddr_qos_min.name = "l3000_acq";
+	pm_qos_add_request(&ddr_qos_min, PM_QOS_DDR_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
+
+	pr_info("crmdev module init finished with status:%d ipver=%d\n", rc, m3_ip_ver);
 
 	return rc;
 }
@@ -778,6 +793,7 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 static int pxa_m3rm_remove(struct platform_device *pdev)
 {
 	m3_init_done = 0;
+	pm_qos_remove_request(&ddr_qos_min);
 	if (m3_regulator.reg_vm3)
 		regulator_put(m3_regulator.reg_vm3);
 	if (m3_regulator.reg_sen)
