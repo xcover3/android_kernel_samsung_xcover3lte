@@ -293,7 +293,7 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 	struct clk_dcstat *cdcs;
 	struct clk_dc_stat_info *dc_stat_info = NULL;
 	unsigned int ddr_glob_ratio = 0, ddr_idle_ratio = 0, ddr_busy_ratio = 0,
-	ddr_data_ratio = 0, ddr_util_ratio = 0;
+	ddr_data_ratio = 0, ddr_util_ratio = 0, ddr_pprate = 0;
 	u64 ddr_data = 0, ddr_data_total = 0;
 
 	list_for_each_entry(cdcs, &clk_dcstat_list, node)
@@ -383,12 +383,19 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 		}
 
 		if (!strcmp(clk->name, "ddr")) {
-			ddr_data = ((dc_stat_info->ops_dcstat[i].pprate/1000000) * 8 * dc_int)/100;
+			/* eden ddr pprate is 312000, helanlte ddr pprate is 312000000,
+			 * the ddr clock format is different.
+			 */
+			if (dc_stat_info->ops_dcstat[i].pprate >= 1000000)
+				ddr_pprate = dc_stat_info->ops_dcstat[i].pprate/1000000;
+			else if (dc_stat_info->ops_dcstat[i].pprate >= 1000)
+				ddr_pprate = dc_stat_info->ops_dcstat[i].pprate/1000;
+
+			ddr_data = (ddr_pprate * 8 * dc_int)/100;
 			ddr_data *= ddr_data_ratio;
 			ddr_data_total += ddr_data;
 
-			ddr_data = ((dc_stat_info->ops_dcstat[i].pprate/1000000) * 8 * dc_frac)
-			/10000;
+			ddr_data = (ddr_pprate * 8 * dc_frac)/10000;
 			ddr_data *= ddr_data_ratio;
 			ddr_data_total += ddr_data;
 
