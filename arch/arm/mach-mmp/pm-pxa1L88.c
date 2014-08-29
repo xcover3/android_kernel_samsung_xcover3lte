@@ -24,6 +24,14 @@
 
 #include "regs-addr.h"
 
+#ifdef CONFIG_ARM_ERRATA_802022
+#include <asm/mcpm.h>
+#ifndef CONFIG_TZ_HYPERVISOR
+extern void errata_802022_handler(void);
+#endif
+static void __iomem *ciu_warm_reset_vector;
+static void __iomem *APMU_MP_IDLE_CFG[4];
+#endif
 
 /* FIXME: The following Macro will be refined by DT in future
  * when Most of the Devices is configured in DT way.

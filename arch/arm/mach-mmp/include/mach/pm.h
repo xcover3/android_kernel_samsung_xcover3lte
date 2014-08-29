@@ -42,13 +42,4 @@ struct platform_suspend {
 
 extern int mmp_platform_suspend_register(struct platform_suspend *plt_suspend);
 
-#ifdef CONFIG_ARM_ERRATA_802022
-#include <asm/mcpm.h>
-#ifndef CONFIG_TZ_HYPERVISOR
-extern void errata_802022_handler(void);
-#endif
-static void __iomem *ciu_warm_reset_vector;
-static void __iomem *APMU_MP_IDLE_CFG[4];
-#endif
-
 #endif
