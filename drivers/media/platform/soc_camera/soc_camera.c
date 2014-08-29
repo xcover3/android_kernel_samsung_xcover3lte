@@ -1355,6 +1355,26 @@ static int soc_camera_s_parm(struct file *file, void *fh,
 	return -ENOIOCTLCMD;
 }
 
+#ifdef CONFIG_VIDEO_ADV_DEBUG
+static int soc_camera_g_register(struct file *file, void *fh,
+				 struct v4l2_dbg_register *reg)
+{
+	struct soc_camera_device *icd = file->private_data;
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+
+	return v4l2_subdev_call(sd, core, g_register, reg);
+}
+
+static int soc_camera_s_register(struct file *file, void *fh,
+				 const struct v4l2_dbg_register *reg)
+{
+	struct soc_camera_device *icd = file->private_data;
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+
+	return v4l2_subdev_call(sd, core, s_register, reg);
+}
+#endif
+
 static int soc_camera_probe(struct soc_camera_host *ici,
 			    struct soc_camera_device *icd);
 
