@@ -967,6 +967,13 @@ static int map_clk_src_switch(struct map_private *map_priv, u32 vctcxo)
 	u32 val, bit_sram, bit_apb;
 	void __iomem *reg_addr, *regs_aux, *regs_apmu;
 
+	/*
+	 * map-lite doesn't have SRAM & APB reg in DSPAUX, and apb & sram
+	 * clock run freely if power on is executed
+	 */
+	if (map_priv->map_lite)
+		return 0;
+
 	regs_aux = map_priv->regs_aux;
 	regs_apmu = map_priv->regs_apmu;
 	bit_sram = map_priv->bit_sram;
@@ -1035,10 +1042,6 @@ static int map_save_aux_reg(struct map_private *map_priv)
 	val = readl_relaxed(reg_addr);
 	map_priv->sspa1 = val;
 
-	reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
-	val = readl_relaxed(reg_addr);
-	map_priv->sspa2 = val;
-
 	reg_addr = regs_aux + DSP_AUDIO_WAKEUP_MASK;
 	val = readl_relaxed(reg_addr);
 	map_priv->wakeup = val;
@@ -1047,14 +1050,20 @@ static int map_save_aux_reg(struct map_private *map_priv)
 	val = readl_relaxed(reg_addr);
 	map_priv->conf = val;
 
-	/* save dsp aux register */
-	reg_addr = regs_aux + DSP_AUDIO_SRAM_CLK;
-	val = readl_relaxed(reg_addr);
-	map_priv->sram = val;
+	/* map-lite doesn't have below reg */
+	if (!map_priv->map_lite) {
+		reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
+		val = readl_relaxed(reg_addr);
+		map_priv->sspa2 = val;
 
-	reg_addr = regs_aux + DSP_AUDIO_APB_CLK;
-	val = readl_relaxed(reg_addr);
-	map_priv->apb = val;
+		reg_addr = regs_aux + DSP_AUDIO_SRAM_CLK;
+		val = readl_relaxed(reg_addr);
+		map_priv->sram = val;
+
+		reg_addr = regs_aux + DSP_AUDIO_APB_CLK;
+		val = readl_relaxed(reg_addr);
+		map_priv->apb = val;
+	}
 
 	map_clk_src_switch(map_priv, 1);
 
@@ -1077,9 +1086,12 @@ static int map_restore_aux_reg(struct map_private *map_priv)
 	val = map_priv->sspa1;
 	writel_relaxed(val, reg_addr);
 
-	reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
-	val = map_priv->sspa2;
-	writel_relaxed(val, reg_addr);
+	/* map-lite doesn't have sspa2 reg */
+	if (!map_priv->map_lite) {
+		reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
+		val = map_priv->sspa2;
+		writel_relaxed(val, reg_addr);
+	}
 
 	reg_addr = regs_aux + DSP_AUDIO_WAKEUP_MASK;
 	val = map_priv->wakeup;
@@ -1143,14 +1155,17 @@ static int map_aux_clk_init(struct map_private *map_priv)
 	 *   0x01, 26m-apll slow clock
 	 * clock source: 0x00, 32k-apll slow clock
 	 */
-	reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
-	val = readl_relaxed(reg_addr);
-	val &= ~0x3;
-	if (map_priv->apll == APLL_32K)
-		val |= 0x8000000c;
-	else if (map_priv->apll == APLL_26M)
-		val |= 0x8000000d;
-	writel_relaxed(val, reg_addr);
+	/* map-lite doesn't have below reg */
+	if (!map_priv->map_lite) {
+		reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
+		val = readl_relaxed(reg_addr);
+		val &= ~0x3;
+		if (map_priv->apll == APLL_32K)
+			val |= 0x8000000c;
+		else if (map_priv->apll == APLL_26M)
+			val |= 0x8000000d;
+		writel_relaxed(val, reg_addr);
+	}
 
 	/*
 	 * MAP wake up source
@@ -1622,6 +1637,11 @@ static int mmp_map_parse_dt(struct platform_device *pdev,
 		return ret;
 	}
 	map_priv->pll_sel = pll_sel;
+
+	if (of_property_read_bool(np, "marvell,map-lite"))
+		map_priv->map_lite = true;
+	else
+		map_priv->map_lite = false;
 
 	if (of_property_read_bool(np, "marvell,b0_fix"))
 		map_priv->b0_fix = true;
