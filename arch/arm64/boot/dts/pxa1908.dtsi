@@ -487,6 +487,7 @@
 
 			map: map@d1200000 {
 				compatible = "marvell,mmp-map";
+				marvell,map-lite;
 				reg = <0xd1230000 0x80
 					0xd1200000 0x8000>;
 				audio_reg = <128>;
