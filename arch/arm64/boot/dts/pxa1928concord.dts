@@ -1056,6 +1056,10 @@
 		dump-oops = <0>;
 		status = "okay";
 	};
+
+	tzdd {
+		status = "disable";
+	};
 };
 #include "88pm860.dtsi"
 #include "88pm860_pxa1928_concord.dtsi"

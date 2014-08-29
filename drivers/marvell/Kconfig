@@ -57,6 +57,12 @@ config MRVL_DEBUG
 	---help---
 	  This will enable Marvell debug features.
 
+config MRVL_TZDD
+	tristate "Marvell Trust Zone Device Driver"
+	default n
+	help
+	  Marvell Trust Execution Environment (TEE) Solution in non-trusted world
+
 config MRVL_SW_JTAG
 	tristate "Marvell software jtag driver"
 	default n

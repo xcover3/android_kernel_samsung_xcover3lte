@@ -938,4 +938,10 @@
 	touch: vnc {
 		compatible = "vnc-ts";
 	};
+
+	tzdd {
+		compatible = "pxa-tzdd";
+		status = "disabled";
+		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+	};
 };
