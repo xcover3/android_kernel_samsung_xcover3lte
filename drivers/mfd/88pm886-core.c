@@ -128,9 +128,228 @@ const struct of_device_id pm886_of_match[] = {
 };
 EXPORT_SYMBOL_GPL(pm886_of_match);
 
+static bool pm886_base_readable_reg(struct device *dev, unsigned int reg)
+{
+	bool ret = false;
+
+	switch (reg) {
+	case 0x00:
+	case 0x01:
+	case 0x14:
+	case 0x15:
+	case 0x17:
+	case 0x18:
+	case 0x19:
+	case 0x1d:
+	case 0x25:
+	case 0x36:
+	case 0x6f:
+		ret = true;
+		break;
+	default:
+		break;
+	}
+	if ((reg >= 0x05) && (reg <= 0x08))
+		ret = true;
+	if ((reg >= 0x0a) && (reg <= 0x0d))
+		ret = true;
+	if ((reg >= 0x1f) && (reg <= 0x23))
+		ret = true;
+	if ((reg >= 0x30) && (reg <= 0x33))
+		ret = true;
+	if ((reg >= 0x38) && (reg <= 0x3b))
+		ret = true;
+	if ((reg >= 0x40) && (reg <= 0x48))
+		ret = true;
+	if ((reg >= 0x50) && (reg <= 0x5c))
+		ret = true;
+	if ((reg >= 0x61) && (reg <= 0x6d))
+		ret = true;
+	if ((reg >= 0xce) && (reg <= 0xef))
+		ret = true;
+
+	return ret;
+}
+
+static bool pm886_power_readable_reg(struct device *dev, unsigned int reg)
+{
+	bool ret = false;
+
+	switch (reg) {
+	case 0x00:
+	case 0x06:
+	case 0x16:
+	case 0x19:
+	case 0x1a:
+	case 0x20:
+	case 0x21:
+	case 0x23:
+	case 0x2c:
+	case 0x2d:
+	case 0x2f:
+	case 0x32:
+	case 0x33:
+	case 0x35:
+	case 0x38:
+	case 0x39:
+	case 0x3b:
+	case 0x3e:
+	case 0x3f:
+	case 0x41:
+	case 0x44:
+	case 0x45:
+	case 0x47:
+	case 0x4a:
+	case 0x4b:
+	case 0x4d:
+	case 0x50:
+	case 0x51:
+	case 0x53:
+	case 0x56:
+	case 0x57:
+	case 0x59:
+	case 0x5c:
+	case 0x5d:
+	case 0x5f:
+	case 0x62:
+	case 0x63:
+	case 0x65:
+	case 0x68:
+	case 0x69:
+	case 0x6b:
+	case 0x6e:
+	case 0x6f:
+	case 0x71:
+	case 0x74:
+	case 0x75:
+	case 0x77:
+	case 0x7a:
+	case 0x7b:
+	case 0x7d:
+		ret = true;
+		break;
+	default:
+		break;
+	}
+	if ((reg >= 0x01) && (reg <= 0x03))
+		ret = true;
+	if ((reg >= 0x08) && (reg <= 0x0a))
+		ret = true;
+	if ((reg >= 0x0e) && (reg <= 0x10))
+		ret = true;
+	if ((reg >= 0x0e) && (reg <= 0x10))
+		ret = true;
+	if ((reg >= 0x27) && (reg <= 0x29))
+		ret = true;
+
+	return ret;
+}
+
+static bool pm886_gpadc_readable_reg(struct device *dev, unsigned int reg)
+{
+	bool ret = false;
+
+	switch (reg) {
+	case 0x06:
+	case 0x13:
+	case 0x14:
+	case 0x18:
+	case 0x1a:
+	case 0x1b:
+	case 0x28:
+	case 0x2a:
+	case 0x2b:
+	case 0x38:
+	case 0x3d:
+	case 0x80:
+	case 0x81:
+	case 0x90:
+	case 0x91:
+	case 0xa0:
+	case 0xa1:
+		ret = true;
+		break;
+	default:
+		break;
+	}
+
+	if ((reg >= 0x00) && (reg <= 0x03))
+		ret = true;
+	if ((reg >= 0x05) && (reg <= 0x08))
+		ret = true;
+	if ((reg >= 0x0a) && (reg <= 0x0e))
+		ret = true;
+	if ((reg >= 0x20) && (reg <= 0x26))
+		ret = true;
+	if ((reg >= 0x30) && (reg <= 0x34))
+		ret = true;
+	if ((reg >= 0x40) && (reg <= 0x43))
+		ret = true;
+	if ((reg >= 0x46) && (reg <= 0x5d))
+		ret = true;
+	if ((reg >= 0x84) && (reg <= 0x8b))
+		ret = true;
+	if ((reg >= 0x94) && (reg <= 0x9b))
+		ret = true;
+	if ((reg >= 0xa4) && (reg <= 0xad))
+		ret = true;
+	if ((reg >= 0xb0) && (reg <= 0xb3))
+		ret = true;
+	if ((reg >= 0xc0) && (reg <= 0xc7))
+		ret = true;
+
+	return ret;
+}
+
+static bool pm886_battery_readable_reg(struct device *dev, unsigned int reg)
+{
+	bool ret = false;
+
+	switch (reg) {
+	case 0x47:
+	case 0x53:
+	case 0x54:
+	case 0x58:
+	case 0x5b:
+	case 0x65:
+		ret = true;
+		break;
+	default:
+		break;
+	}
+
+	if ((reg >= 0x00) && (reg <= 0x15))
+		ret = true;
+	if ((reg >= 0x28) && (reg <= 0x31))
+		ret = true;
+	if ((reg >= 0x34) && (reg <= 0x36))
+		ret = true;
+	if ((reg >= 0x38) && (reg <= 0x3b))
+		ret = true;
+	if ((reg >= 0x3e) && (reg <= 0x40))
+		ret = true;
+	if ((reg >= 0x42) && (reg <= 0x45))
+		ret = true;
+	if ((reg >= 0x4a) && (reg <= 0x51))
+		ret = true;
+	if ((reg >= 0x60) && (reg <= 0x63))
+		ret = true;
+	if ((reg >= 0x6b) && (reg <= 0x71))
+		ret = true;
+
+	return ret;
+}
+
+static bool pm886_test_readable_reg(struct device *dev, unsigned int reg)
+{
+	return true;
+}
+
 const struct regmap_config pm886_base_i2c_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
+
+	.readable_reg = pm886_base_readable_reg,
 
 	.max_register = PM886_BASE_PAGE_NUMS,
 };
@@ -140,6 +359,8 @@ const struct regmap_config pm886_power_i2c_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
 
+	.readable_reg = pm886_power_readable_reg,
+
 	.max_register = PM886_POWER_PAGE_NUMS,
 };
 EXPORT_SYMBOL_GPL(pm886_power_i2c_regmap);
@@ -147,6 +368,8 @@ EXPORT_SYMBOL_GPL(pm886_power_i2c_regmap);
 const struct regmap_config pm886_gpadc_i2c_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
+
+	.readable_reg = pm886_gpadc_readable_reg,
 
 	.max_register = PM886_GPADC_PAGE_NUMS,
 };
@@ -156,6 +379,8 @@ const struct regmap_config pm886_battery_i2c_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
 
+	.readable_reg = pm886_battery_readable_reg,
+
 	.max_register = PM886_BATTERY_PAGE_NUMS,
 };
 EXPORT_SYMBOL_GPL(pm886_battery_i2c_regmap);
@@ -163,6 +388,8 @@ EXPORT_SYMBOL_GPL(pm886_battery_i2c_regmap);
 const struct regmap_config pm886_test_i2c_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
+
+	.readable_reg = pm886_test_readable_reg,
 
 	.max_register = PM886_TEST_PAGE_NUMS,
 };
