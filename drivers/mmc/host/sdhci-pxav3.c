@@ -1144,7 +1144,7 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 	 */
 	if (of_property_read_bool(np, "marvell,sdh-dtr-data")) {
 		dtr_data = devm_kzalloc(dev,
-				MMC_TIMING_MAX * sizeof(struct sdhci_pxa_dtr_data),
+				(MMC_TIMING_MAX + 1) * sizeof(struct sdhci_pxa_dtr_data),
 				GFP_KERNEL);
 		if (!dtr_data) {
 			dev_err(dev, "failed to allocate memory for sdh-dtr-data\n");
