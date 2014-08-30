@@ -26,6 +26,12 @@
 #include <linux/regulator/machine.h>
 
 #define PM886_POWER_UP_LOG		(0x17)
+#define PM886_LOWPOWER1			(0x20)
+#define PM886_LOWPOWER2			(0x21)
+#define PM886_LOWPOWER3			(0x22)
+#define PM886_LOWPOWER4			(0x23)
+#define PM886_BK_OSC_CTRL1		(0x50)
+#define PM886_BK_OSC_CTRL6		(0x55)
 #define PM886_POWER_DOWN_LOG1		(0xe5)
 #define PM886_POWER_DOWN_LOG2		(0xe6)
 
@@ -663,12 +669,48 @@ int pm886_init_subdev(struct pm886_chip *chip)
 }
 
 static const struct reg_default pm886_base_patch[] = {
+	/* TODO: need confirmation from design team */
+#if 0
+	{PM886_GPIO_CTRL1, 0x40}, /* gpio1: dvc    , gpio0: input   */
+	{PM886_GPIO_CTRL2, 0x00}, /*               , gpio2: input   */
+	{PM886_GPIO_CTRL3, 0x44}, /* dvc2          , dvc1           */
+	{PM886_GPIO_CTRL4, 0x00}, /* gpio5v_1:input, gpio5v_2: input*/
+	{PM886_RTC_ALARM_CTRL1, 0x80}, /* USE_XO = 1 */
+	{PM886_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
+	{PM886_BK_OSC_CTRL1, 0x0c}, /* OSC_FREERUN = 1, to lock FLL */
+	{PM886_BK_OSC_CTRL6, 0x0c}, /* OSCD_FREERUN = 1, to lock FLL */
+	{PM886_LOWPOWER1, 0x00}, /* set internal VDD for sleep, 1.2V */
+	{PM886_LOWPOWER2, 0x30}, /* XO_LJ = 1, enable low jitter for 32kHZ */
+	{PM886_LOWPOWER3, 0x00},
+	/* enable LPM for internal reference group in sleep */
+	{PM886_LOWPOWER4, 0xc0},
+#endif
 };
 
 static const struct reg_default pm886_power_patch[] = {
+#if 0
+	{PM886_BUCK1_SLP_CTRL, 0x30}, /*TODO: change to use sleep voltage */
+	{PM886_LDO1_SLP_CTRL,  0x00}, /* disable LDO in sleep */
+	{PM886_LDO2_SLP_CTRL,  0x00},
+	{PM886_LDO3_SLP_CTRL,  0x00},
+	{PM886_LDO4_SLP_CTRL,  0x00},
+	{PM886_LDO5_SLP_CTRL,  0x00},
+	{PM886_LDO6_SLP_CTRL,  0x00},
+	{PM886_LDO7_SLP_CTRL,  0x00},
+	{PM886_LDO8_SLP_CTRL,  0x00},
+	{PM886_LDO9_SLP_CTRL,  0x00},
+	{PM886_LDO10_SLP_CTRL, 0x00},
+	{PM886_LDO11_SLP_CTRL, 0x00},
+	{PM886_LDO12_SLP_CTRL, 0x00},
+	{PM886_LDO13_SLP_CTRL, 0x00},
+	{PM886_LDO14_SLP_CTRL, 0x00},
+	{PM886_LDO15_SLP_CTRL, 0x00},
+	{PM886_LDO16_SLP_CTRL, 0x00},
+#endif
 };
 
 static const struct reg_default pm886_gpadc_patch[] = {
+	/* TODO: enable GPADC? */
 };
 
 static const struct reg_default pm886_battery_patch[] = {
