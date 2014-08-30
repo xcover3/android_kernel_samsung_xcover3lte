@@ -144,6 +144,9 @@ struct pm886_chip {
 	struct regmap_irq_chip_data *irq_data;
 
 	bool rtc_wakeup;
+	u8 powerdown1;
+	u8 powerdown2;
+	u8 powerup;
 };
 
 struct pm886_chip *pm886_init_chip(struct i2c_client *client);

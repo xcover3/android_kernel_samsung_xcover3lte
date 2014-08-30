@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Marvell 2010
+ * Copyright (C) Marvell 2014
  *
  * Author: Yi Zhang <yizhang@marvell.com>
  * License Terms: GNU General Public License v2
@@ -343,6 +343,100 @@ static const struct file_operations pm886_whole_page_fops = {
 	.owner = THIS_MODULE,
 };
 
+static ssize_t pm886_read_power_down(struct file *file, char __user *user_buf,
+				     size_t count, loff_t *ppos)
+{
+	struct pm886_chip *chip = file->private_data;
+	unsigned int i;
+	int len = 0;
+	char buf[100];
+	char *powerdown1_name[] = {
+		"OVER_TEMP",
+		"UV_VSYS1",
+		"SW_PDOWN",
+		"FL_ALARM",
+		"WD",
+		"LONG_ONKEY",
+		"OV_VSYS",
+		"RTC_RESET"
+	};
+	char *powerdown2_name[] = {
+		"HYB_DONE",
+		"UV_VSYS2",
+		"HW_RESET",
+		"PGOOD_PDOWN",
+		"LONKEY_RTC"
+	};
+
+	if (!chip)
+		return -EINVAL;
+
+	len += sprintf(&buf[len], "0x%x,0x%x ",
+			chip->powerdown1, chip->powerdown2);
+	if (!chip->powerdown1 && !chip->powerdown2) {
+		len += sprintf(&buf[len], "(NO_PMIC_RESET)\n");
+		return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+	}
+
+	len += sprintf(&buf[len], "(");
+	for (i = 0; i < ARRAY_SIZE(powerdown1_name); i++) {
+		if ((1 << i) & chip->powerdown1)
+			len += sprintf(&buf[len], "%s ", powerdown1_name[i]);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(powerdown2_name); i++) {
+		if ((1 << i) & chip->powerdown2)
+			len += sprintf(&buf[len], "%s ", powerdown2_name[i]);
+	}
+
+	len--;
+	len += sprintf(&buf[len], ")\n");
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static const struct file_operations pm886_power_down_fops = {
+	.open = simple_open,
+	.read = pm886_read_power_down,
+	.owner = THIS_MODULE,
+};
+
+static ssize_t pm886_read_power_up(struct file *file, char __user *user_buf,
+				   size_t count, loff_t *ppos)
+{
+	struct pm886_chip *chip = file->private_data;
+	unsigned int i;
+	int len = 0;
+	char buf[100];
+	char *powerup_name[] = {
+		"ONKEY_WAKEUP",
+		"CHG_WAKEUP",
+		"EXTON_WAKEUP",
+		"SMPL_WAKEUP",
+		"ALARM_WAKEUP",
+		"FAULT_WAKEUP",
+		"BAT_WAKEUP",
+		"RESERVED",
+	};
+
+	if (!chip)
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(powerup_name); i++) {
+		if ((1 << i) & chip->powerup)
+			len += sprintf(&buf[len], "0x%x (%s)\n",
+				       chip->powerup, powerup_name[i]);
+	}
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static const struct file_operations pm886_power_up_fops = {
+	.open = simple_open,
+	.read = pm886_read_power_up,
+	.owner = THIS_MODULE,
+};
+
 static int pm886_debug_probe(struct platform_device *pdev)
 {
 	struct dentry *file;
@@ -377,6 +471,14 @@ static int pm886_debug_probe(struct platform_device *pdev)
 		goto err;
 	file = debugfs_create_file("whole-page", (S_IRUGO | S_IRUSR | S_IRGRP),
 		pm886_dir, chip, &pm886_whole_page_fops);
+	if (!file)
+		goto err;
+	file = debugfs_create_file("power-down-log", (S_IRUGO | S_IRUSR | S_IRGRP),
+		pm886_dir, chip, &pm886_power_down_fops);
+	if (!file)
+		goto err;
+	file = debugfs_create_file("power-up-log", (S_IRUGO | S_IRUSR | S_IRGRP),
+		pm886_dir, chip, &pm886_power_up_fops);
 	if (!file)
 		goto err;
 	return 0;
