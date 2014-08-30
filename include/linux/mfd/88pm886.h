@@ -27,6 +27,7 @@
 #define PM886_CFD_NAME		"88pm886-leds"
 #define PM886_REGULATOR_NAME	"88pm886-regulator"
 #define PM886_DVC_NAME		"88pm886-dvc"
+#define PM886_DEBUGFS_NAME	"88pm886-debugfs"
 #define PM886_HWMON_NAME	"88pm886-hwmon"
 
 /* TODO: use chip id is better */
