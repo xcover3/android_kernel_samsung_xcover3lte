@@ -56,8 +56,8 @@ enum pm886_pages {
 enum pm886_irq_number {
 	PM886_IRQ_ONKEY,	/* EN1b0 *//* 0 */
 	PM886_IRQ_EXTON,	/* EN1b1 */
-	PM886_IRQ_CHG,		/* EN1b2 */
-	PM886_IRQ_BAT,		/* EN1b3 */
+	PM886_IRQ_CHG_GOOD,	/* EN1b2 */
+	PM886_IRQ_BAT_DET,	/* EN1b3 */
 	PM886_IRQ_RTC,		/* EN1b4 */
 	PM886_IRQ_CLASSD,	/* EN1b5 *//* 5 */
 	PM886_IRQ_XO,		/* EN1b6 */

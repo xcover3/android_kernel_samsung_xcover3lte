@@ -75,8 +75,8 @@ static const struct regmap_irq pm886_irqs[] = {
 	/* INT0 */
 	[PM886_IRQ_ONKEY] = {.reg_offset = 0, .mask = PM886_ONKEY_INT_ENA1,},
 	[PM886_IRQ_EXTON] = {.reg_offset = 0, .mask = PM886_EXTON_INT_ENA1,},
-	[PM886_IRQ_CHG] = {.reg_offset = 0, .mask = PM886_CHG_INT_ENA1,},
-	[PM886_IRQ_BAT] = {.reg_offset = 0, .mask = PM886_BAT_INT_ENA1,},
+	[PM886_IRQ_CHG_GOOD] = {.reg_offset = 0, .mask = PM886_CHG_INT_ENA1,},
+	[PM886_IRQ_BAT_DET] = {.reg_offset = 0, .mask = PM886_BAT_INT_ENA1,},
 	[PM886_IRQ_RTC] = {.reg_offset = 0, .mask = PM886_RTC_INT_ENA1,},
 	[PM886_IRQ_CLASSD] = { .reg_offset = 0, .mask = PM886_CLASSD_INT_ENA1,},
 	[PM886_IRQ_XO] = {.reg_offset = 0, .mask = PM886_XO_INT_ENA1,},

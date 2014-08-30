@@ -59,12 +59,13 @@ static const struct resource rtc_resources[] = {
 static const struct resource charger_resources[] = {
 	CELL_IRQ_RESOURCE("88pm886-chg-fail", PM886_IRQ_CHG_FAIL),
 	CELL_IRQ_RESOURCE("88pm886-chg-done", PM886_IRQ_CHG_DONE),
-	CELL_IRQ_RESOURCE("88pm886-chg-ilim", PM886_IRQ_CHG_ILIM),
+	CELL_IRQ_RESOURCE("88pm886-chg-ilimit", PM886_IRQ_CHG_ILIM),
 };
 
 static const struct resource battery_resources[] = {
 	CELL_IRQ_RESOURCE("88pm886-bat-cc", PM886_IRQ_CC),
 	CELL_IRQ_RESOURCE("88pm886-bat-volt", PM886_IRQ_VBAT),
+	CELL_IRQ_RESOURCE("88pm886-bat-detect", PM886_IRQ_BAT_DET),
 };
 
 static const struct resource headset_resources[] = {

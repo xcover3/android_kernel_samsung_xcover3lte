@@ -248,6 +248,12 @@ config CHARGER_88PM860X
 	help
 	  Say Y here to enable charger for Marvell 88PM860x chip.
 
+config CHARGER_88PM886
+	tristate "Marvell 88PM886 Charger driver"
+	depends on MFD_88PM886
+	help
+	  Say Y here to enable charger for Marvell 88PM886 chip.
+
 config CHARGER_PCF50633
 	tristate "NXP PCF50633 MBC"
 	depends on MFD_PCF50633
