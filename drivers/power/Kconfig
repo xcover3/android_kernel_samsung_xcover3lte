@@ -92,6 +92,12 @@ config BATTERY_88PM830
 	  voltage and current.
 	  The capacity of the battery is calculated via OCV and Culomb counter.
 
+config BATTERY_88PM886
+	tristate "Marvell 88PM886 battery driver"
+	depends on MFD_88PM886
+	help
+	  Say Y here to enable fuelgauge for Marvell 88PM886 chip, which uses
+	  the colume counter to calculate the battery capacity.
 
 config BATTERY_DS2760
 	tristate "DS2760 battery driver (HP iPAQ & others)"
