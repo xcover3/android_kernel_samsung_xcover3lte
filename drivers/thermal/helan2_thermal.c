@@ -32,7 +32,6 @@
 #include <linux/cpu_cooling.h>
 #endif
 #include <linux/cooling_dev_mrvl.h>
-#include <mach/addr-map.h>
 #include <linux/delay.h>
 #include <linux/cpu.h>
 #include <linux/pm_qos.h>
@@ -155,8 +154,13 @@ static int trips_temp_d[TRIP_POINTS_NUM] = {
 #define THSEN_OFFSET    2821
 
 static int pxa28nm_set_threshold(int range);
+#ifdef CONFIG_PXA_DVFS
 unsigned int get_chipprofile(void);
 unsigned int get_iddq_105(void);
+#else
+static inline unsigned int get_chipprofile(void) {return 0xff; }
+static inline unsigned int get_iddq_105(void) {return 0x0; }
+#endif
 
 static int millicelsius_decode(u32 tcode)
 {
@@ -173,7 +177,7 @@ static int millicelsius_encode(int mcels)
 	return tcode;
 }
 
-static int hit_trip_status_get(struct device *dev,
+static ssize_t hit_trip_status_get(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int i;
