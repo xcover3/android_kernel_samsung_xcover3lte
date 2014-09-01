@@ -1129,7 +1129,40 @@ static struct ddr_opt lpddr533_oparray[] = {
 	},
 };
 
-static struct ddr_opt lpddr667_oparray[] = {
+static struct ddr_opt lpddr667_oparray_pxa1u88[] = {
+	{
+		.dclk = 156,
+		.ddr_tbl_index = 2,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 312,
+		.ddr_tbl_index = 4,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x0,
+	},
+	{
+		.dclk = 416,
+		.ddr_tbl_index = 6,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x1,
+	},
+	{
+		.dclk = 528,
+		.ddr_tbl_index = 8,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x4,
+	},
+	{
+		.dclk = 667,
+		.ddr_tbl_index = 10,
+		.ddr_lpmtbl_index = 0,
+		.ddr_clk_sel = 0x5,
+	},
+};
+
+static struct ddr_opt lpddr667_oparray_pxa1908[] = {
 	{
 		.dclk = 156,
 		.ddr_tbl_index = 2,
@@ -1255,8 +1288,16 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 	ddr_params.ddr_opt = lpddr533_oparray;
 	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr533_oparray);
 	if (ddr_mode == DDR_667M) {
-		ddr_params.ddr_opt = lpddr667_oparray;
-		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr667_oparray);
+		if (cpu_is_pxa1U88()) {
+			ddr_params.ddr_opt = lpddr667_oparray_pxa1u88;
+			ddr_params.ddr_opt_size =
+				ARRAY_SIZE(lpddr667_oparray_pxa1u88);
+		} else {
+			/* use ulc PP by default */
+			ddr_params.ddr_opt = lpddr667_oparray_pxa1908;
+			ddr_params.ddr_opt_size =
+				ARRAY_SIZE(lpddr667_oparray_pxa1908);
+		}
 	} else if (ddr_mode == DDR_800M) {
 		ddr_params.ddr_opt = lpddr800_oparray;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_oparray);
