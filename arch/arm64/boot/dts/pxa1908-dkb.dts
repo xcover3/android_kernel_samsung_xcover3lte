@@ -50,6 +50,18 @@
 				edge-wakeup-gpio = <47>; /* GPIO47: UART rx pin */
 			};
 
+			thermal: thermal@d4013300 {
+				/* A cooling path is defined with the increased num */
+				/* 4core 3core 2core 1core */
+				core-p0 = <0 0 0 0  /* 2.0G */
+					   1 0 0 0  /* 1.8G */
+					   2 0 0 0  /* 1.5G */
+					   3 0 0 0>;/* 1.2G */
+				/* 1.2G * 2 core cooling state */
+				thermal_safe-p0 = <3 2>;
+				status = "okay";
+			};
+
 			pmx: pinmux@d401e000 {
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <

@@ -602,6 +602,8 @@
 				compatible = "marvell,pxa28nm-thermal";
 				reg = <0xd4013300 0x1C>;
 				interrupts = <0 60 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_THERMAL>;
+				clock-names = "ts_clk";
 				status = "disabled";
 			};
 
