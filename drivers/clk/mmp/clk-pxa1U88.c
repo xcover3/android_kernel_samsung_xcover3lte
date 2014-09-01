@@ -1465,7 +1465,7 @@ static int __init __init_pxa1u88_dcstat_debugfs_node(void)
 	struct dentry *gc_dc_stat = NULL, *vpu_dc_stat = NULL;
 	struct dentry *gc2d_dc_stat = NULL, *gcsh_dc_stat = NULL;
 
-	if (!cpu_is_pxa1U88() || !cpu_is_pxa1908())
+	if ((!cpu_is_pxa1U88()) && (!cpu_is_pxa1908()))
 		return 0;
 
 	stat = debugfs_create_dir("stat", pxa);
