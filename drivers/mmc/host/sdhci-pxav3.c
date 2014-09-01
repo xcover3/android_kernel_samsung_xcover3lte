@@ -168,42 +168,27 @@ static void pxav3_set_rx_cfg(struct sdhci_host *host,
 
 		if (timing != dtr_data->timing)
 			return;
-
-		/* set Rx delay */
-		if (dtr_data->rx_delay) {
-			/*
-			 * Only SEL1 = 0b01, SEL0 is meanful and Rx delay value works
-			 *  SEL0
-			 *   = 0b00: clock from PADd
-			 *   = 0b01: inverted clock from PAD
-			 *   = 0b10: internal clock
-			 *   = 0b11: inverted internal clock
-			 */
-			tmp_reg |= 0x1 << RX_SDCLK_SEL1_SHIFT;
-
-			tmp_reg |= (dtr_data->rx_delay & regdata->RX_SDCLK_DELAY_MASK)
-					<< RX_SDCLK_DELAY_SHIFT;
-			tmp_reg |= (dtr_data->rx_sdclk_sel0 & RX_SDCLK_SEL0_MASK)
-					<< RX_SDCLK_SEL0_SHIFT;
-
-			if ((MMC_TIMING_UHS_SDR104 != timing)
-					&& (MMC_TIMING_MMC_HS200 != timing)) {
-				/*
-				 * Rx delay works for all speed modes,
-				 * but only SDR104 and HS200 need to use it.
-				 */
-				pr_info("suggest only to set Rx delay for HS200 or SDR104\n");
-			}
-		} else if (dtr_data->rx_sdclk_sel1 != 0x1) {
-			/*
-			 * If SEL1 != 0b01, Rx delay value doesn't work and SEL0 is meanless
-			 *  SEL1
-			 *   = 0b00: Select clock from PAD
-			 *   = 0b10/0b11: Select clock from internal clock
-			 */
-			tmp_reg |= (dtr_data->rx_sdclk_sel1 & RX_SDCLK_SEL1_MASK)
-					<< RX_SDCLK_SEL1_SHIFT;
-		}
+		/*
+		 * Only SEL1 = 0b01, SEL0 is meanful and Rx delay value works
+		 *  SEL0
+		 *   = 0b00: clock from PADd
+		 *   = 0b01: inverted clock from PAD
+		 *   = 0b10: internal clock
+		 *   = 0b11: inverted internal clock
+		 *  SEL1
+		 *   = 0b00: Select clock from PAD
+		 *   = 0b01: Select clock from DDLL, whose input selected by SEL0
+		 *   = 0b10/0b11: Select clock from internal clock
+		 */
+		tmp_reg |= (dtr_data->rx_delay & regdata->RX_SDCLK_DELAY_MASK)
+				<< RX_SDCLK_DELAY_SHIFT;
+		tmp_reg |= (dtr_data->rx_sdclk_sel0 & RX_SDCLK_SEL0_MASK) << RX_SDCLK_SEL0_SHIFT;
+		tmp_reg |= (dtr_data->rx_sdclk_sel1 & RX_SDCLK_SEL1_MASK) << RX_SDCLK_SEL1_SHIFT;
+		pr_debug("%s: RX_DELAY = 0x%x, SDCLK_SEL0 = 0x%x, SDCLK_SEL1 = 0x%x\n",
+				mmc_hostname(host->mmc),
+				dtr_data->rx_delay & regdata->RX_SDCLK_DELAY_MASK,
+				dtr_data->rx_sdclk_sel0 & RX_SDCLK_SEL0_MASK,
+				dtr_data->rx_sdclk_sel1 & RX_SDCLK_SEL1_MASK);
 	}
 exit:
 	sdhci_writel(host, tmp_reg, SD_RX_CFG_REG);
