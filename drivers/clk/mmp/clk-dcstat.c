@@ -563,9 +563,8 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 	struct op_dcstat_info *cur;
 	unsigned int cpu_i;
 	bool mark_keytime;
-	u64 ktime_temp;
-	u32 i, temp_time = 0;
-	int j;
+	u64 ktime_temp, temp_time = 0;
+	u32 i, j;
 	struct core_dcstat *op;
 
 	dc_stat_info = &per_cpu(cpu_dc_stat, cpuid);
@@ -793,14 +792,14 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			temp_time = dc_stat_info->breakdown_end -
 						 dc_stat_info->breakdown_start;
 			if (temp_time) {
-				if (temp_time >= 100 * 1000) {
+				if (temp_time >= 100 * NSEC_PER_MSEC) {
 					dc_stat_info->breakdown_time_count
 					    [MAX_BREAKDOWN_TIME - 1]++;
 					dc_stat_info->breakdown_time_total
 					    [MAX_BREAKDOWN_TIME - 1] +=
 					    temp_time;
 				} else {
-					i = (temp_time / (10 * 1000));
+					i = div64_u64(temp_time, (u64)(10 * NSEC_PER_MSEC));
 					dc_stat_info->breakdown_time_count[i]++;
 					dc_stat_info->breakdown_time_total[i]
 					    += temp_time;
