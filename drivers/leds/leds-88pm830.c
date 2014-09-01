@@ -27,6 +27,10 @@
 #include <linux/delay.h>
 
 #define PM830_CAMERA_FLASH1		(0x61)
+#define PM830_FLASH_ISET_OFFSET		(0)
+#define PM830_FLASH_ISET_MASK		(0x1f << PM830_FLASH_ISET_OFFSET)
+#define PM830_TORCH_ISET_OFFSET		(5)
+#define PM830_TORCH_ISET_MASK		(0x7 << PM830_TORCH_ISET_OFFSET)
 #define PM830_CAMERA_FLASH2		(0x62)
 #define PM830_CAMERA_FLASH3		(0x63)
 #define PM830_CAMERA_FLASH4		(0x64)
@@ -42,8 +46,6 @@
 #define PM830_CFD_MASKED		(0<<5)
 
 #define PM830_LED_ISET(x)		(((x) - 50) / 50)
-#define PM830_FLASH_ISET_MASK		(0x1f << 0)
-#define PM830_TORCH_ISET_MASK		(0x7 << 0)
 
 static unsigned gpio_en;
 module_param(gpio_en, uint, 0664);
@@ -127,7 +129,7 @@ static void torch_on(struct pm830_led *led)
 	/* set torch current */
 	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH1,
 			   PM830_TORCH_ISET_MASK,
-			   ((PM830_LED_ISET(led->brightness)) << PM830_TORCH_ISET_MASK));
+			   ((PM830_LED_ISET(led->brightness)) << PM830_TORCH_ISET_OFFSET));
 	if (!led->gpio_en)
 		/* set CFD_PLS_ON to enable */
 		regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH4,
@@ -195,7 +197,7 @@ static void strobe_flash(struct pm830_led *led)
 	/* set flash current */
 	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH1,
 			   PM830_FLASH_ISET_MASK,
-			   ((PM830_LED_ISET(led->brightness)) << PM830_FLASH_ISET_MASK));
+			   ((PM830_LED_ISET(led->brightness)) << PM830_FLASH_ISET_OFFSET));
 	/* trigger flash */
 	if (!led->gpio_en)
 		regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH4,
