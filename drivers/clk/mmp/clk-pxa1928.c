@@ -125,7 +125,7 @@ struct pxa1928_clk_unit {
 	void __iomem *ciu_base;
 };
 
-static struct pxa1928_clk_unit *globla_pxa_unit;
+static struct pxa1928_clk_unit *global_pxa_unit;
 
 static struct mmp_param_fixed_rate_clk fixed_rate_clks[] = {
 	{PXA1928_CLK_CLK32, "clk32", NULL, CLK_IS_ROOT, 32768},
@@ -907,6 +907,7 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_GC3D_CLKCTRL,
 				(0x7 << 8), (0x2 << 8), 0, 0, &gc_lock);
 	mmp_clk_add(unit, PXA1928_CLK_GC3D1X, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	gc3dsh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC3D_RSTCTRL;
 	gc3dsh_mix_config.reg_info.reg_clk_sel = pxa_unit->apmu_base + APMU_GC3D_CLKCTRL;
@@ -918,6 +919,7 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_GC3D_CLKCTRL,
 				(0x7 << 16), (0x2 << 16), 0, 0, &gc_lock);
 	mmp_clk_add(unit, PXA1928_CLK_GC3DSH, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D_RSTCTRL;
 	gc2d_mix_config.reg_info.reg_clk_sel = pxa_unit->apmu_base + APMU_GC2D_CLKCTRL;
@@ -929,6 +931,7 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_GC2D_CLKCTRL,
 				(0x7 << 8), (0x2 << 8), 0, 0, &gc2d_lock);
 	mmp_clk_add(unit, PXA1928_CLK_GC2D, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	vpubus_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_VPU_RSTCTRL;
 	vpubus_mix_config.reg_info.reg_clk_sel = pxa_unit->apmu_base + APMU_VPU_CLKCTRL;
@@ -954,6 +957,7 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_VPU_CLKCTRL,
 				(0x7 << 8), (0x2 << 8), 0, 0, &vpu_lock);
 	mmp_clk_add(unit, PXA1928_CLK_VPUDEC, clk);
+	register_mixclk_dcstatinfo(clk);
 
 	vpuenc_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_VPU_RSTCTRL;
 	vpuenc_mix_config.reg_info.reg_clk_sel = pxa_unit->apmu_base + APMU_VPU_CLKCTRL;
@@ -968,6 +972,7 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_VPU_CLKCTRL,
 				(0x7 << 16), (0x2 << 16), 0, 0, &vpu_lock);
 	mmp_clk_add(unit, PXA1928_CLK_VPUENC, clk);
+	register_mixclk_dcstatinfo(clk);
 }
 
 #ifdef CONFIG_SMC91X
@@ -1035,7 +1040,7 @@ static void __init pxa1928_clk_init(struct device_node *np)
 #endif
 
 #ifdef CONFIG_DEBUG_FS
-	globla_pxa_unit = pxa_unit;
+	global_pxa_unit = pxa_unit;
 #endif
 }
 
@@ -1043,13 +1048,21 @@ CLK_OF_DECLARE(pxa1928_clk, "marvell,pxa1928-clock", pxa1928_clk_init);
 
 #ifdef CONFIG_DEBUG_FS
 static struct dentry *stat;
-CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1928_CLK_DDR], ddr);
-CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1928_CLK_AXI], axi);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1928_CLK_DDR], ddr);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1928_CLK_AXI], axi);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1928_CLK_GC3D1X], gc3d);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1928_CLK_GC2D], gc2d);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1928_CLK_GC3DSH], gcsh);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1928_CLK_VPUDEC], vpu_dec);
+CLK_DCSTAT_OPS(global_pxa_unit->unit.clk_table[PXA1928_CLK_VPUENC], vpu_enc);
 
 static int __init __init_pxa1928_dcstat_debugfs_node(void)
 {
 	struct dentry *cpu_dc_stat = NULL, *ddr_dc_stat = NULL;
 	struct dentry *axi_dc_stat = NULL;
+	struct dentry *gc2d_dc_stat = NULL;
+	struct dentry *vpu_dec_dc_stat = NULL, *vpu_enc_dc_stat = NULL;
+	struct dentry *gc3d_1x_dc_stat = NULL, *gc3d_2x_dc_stat = NULL;
 
 	if (!cpu_is_pxa1928())
 		return 0;
@@ -1072,8 +1085,42 @@ static int __init __init_pxa1928_dcstat_debugfs_node(void)
 	if (!axi_dc_stat)
 		goto err_axi_dc_stat;
 
-	return 0;
+	gc3d_1x_dc_stat = clk_dcstat_file_create("gc3d_core0_dc_stat",
+		stat, &gc3d_dc_ops);
+	if (!gc3d_1x_dc_stat)
+		goto err_gc3d_1x_dc_stat;
 
+	gc3d_2x_dc_stat = clk_dcstat_file_create("gcsh_core0_dc_stat",
+		stat, &gcsh_dc_ops);
+	if (!gc3d_2x_dc_stat)
+		goto err_gc3d_2x_dc_stat;
+
+	gc2d_dc_stat = clk_dcstat_file_create("gc2d_core0_dc_stat",
+		stat, &gc2d_dc_ops);
+	if (!gc2d_dc_stat)
+		goto err_gc2d_dc_stat;
+
+	vpu_dec_dc_stat = clk_dcstat_file_create("vpu_dec_dc_stat",
+		stat, &vpu_dec_dc_ops);
+	if (!vpu_dec_dc_stat)
+		goto err_vpu_dec_dc_stat;
+
+	vpu_enc_dc_stat = clk_dcstat_file_create("vpu_enc_dc_stat",
+		stat, &vpu_enc_dc_ops);
+	if (!vpu_enc_dc_stat)
+		goto err_vpu_enc_dc_stat;
+
+	return 0;
+err_vpu_enc_dc_stat:
+	debugfs_remove(vpu_dec_dc_stat);
+err_vpu_dec_dc_stat:
+	debugfs_remove(gc2d_dc_stat);
+err_gc2d_dc_stat:
+	debugfs_remove(gc3d_2x_dc_stat);
+err_gc3d_2x_dc_stat:
+	debugfs_remove(gc3d_1x_dc_stat);
+err_gc3d_1x_dc_stat:
+	debugfs_remove(axi_dc_stat);
 err_axi_dc_stat:
 	debugfs_remove(ddr_dc_stat);
 err_ddr_dc_stat:
