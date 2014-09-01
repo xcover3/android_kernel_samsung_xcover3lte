@@ -26,12 +26,25 @@
 #include <linux/gpio.h>
 #include <linux/delay.h>
 
+#define PM830_BST_CTRL1			(0x59)
+#define PM830_BST_CTRL2			(0x5b)
+#define PM830_BST_HSOC_OFFSET		(5)
+#define PM830_BST_HSOC_MASK		(0x7 << PM830_BST_HSOC_OFFSET)
+#define PM830_BST_LSOC_OFFSET		(1)
+#define PM830_BST_LSOC_MASK		(0x7 << PM830_BST_LSOC_OFFSET)
+#define PM830_BST_CTRL3			(0x5c)
+#define PM830_BST_HSZC_OFFSET		(5)
+#define PM830_BST_HSZC_MASK		(0x3 << PM830_BST_HSZC_OFFSET)
+#define PM830_BST_CTRL4			(0x5d)
+#define PM830_BST_ILIM_DIS		(0x1 << 7)
+
 #define PM830_CAMERA_FLASH1		(0x61)
 #define PM830_FLASH_ISET_OFFSET		(0)
 #define PM830_FLASH_ISET_MASK		(0x1f << PM830_FLASH_ISET_OFFSET)
 #define PM830_TORCH_ISET_OFFSET		(5)
 #define PM830_TORCH_ISET_MASK		(0x7 << PM830_TORCH_ISET_OFFSET)
 #define PM830_CAMERA_FLASH2		(0x62)
+#define PM830_BOOST_MODE		(0x1 << 7)
 #define PM830_CAMERA_FLASH3		(0x63)
 #define PM830_CAMERA_FLASH4		(0x64)
 #define PM830_CAMERA_FLASH5		(0x65)
@@ -122,9 +135,12 @@ static void torch_on(struct pm830_led *led)
 			PM830_CF_BITMASK_TRCH_RESET,
 			PM830_CF_BITMASK_TRCH_RESET);
 	clear_errors(led);
-	/* set torch mode */
+	/* set torch mode, set booster mode to voltage regulation mode */
 	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH2,
-			PM830_CF_BITMASK_MODE, 0);
+			(PM830_CF_BITMASK_MODE | PM830_BOOST_MODE), (PM830_BOOST_MODE));
+	/* disable booster HS current limit */
+	regmap_update_bits(chip->regmap, PM830_BST_CTRL4,
+			PM830_BST_ILIM_DIS, PM830_BST_ILIM_DIS);
 	/* automatic booster mode */
 	/* set torch current */
 	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH1,
@@ -190,9 +206,25 @@ static void strobe_flash(struct pm830_led *led)
 	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH4,
 			PM830_CF_CFD_PLS_ON, 0);
 	clear_errors(led);
-	/* set flash mode */
-	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH2,
-			PM830_CF_BITMASK_MODE, PM830_CF_BITMASK_MODE);
+	/*
+	 * set flash mode
+	 * if flash current is above 400mA, set booster mode to current regulation mode and enable
+	 * booster HS current limit
+	 * otherwise set booster mode to voltage regualtion mode and disable booster HS current
+	 * limit
+	 */
+	if (led->brightness > 400) {
+		regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH2,
+				(PM830_CF_BITMASK_MODE | PM830_BOOST_MODE), PM830_CF_BITMASK_MODE);
+		regmap_update_bits(chip->regmap, PM830_BST_CTRL4,
+				PM830_BST_ILIM_DIS, 0);
+	} else {
+		regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH2,
+				(PM830_CF_BITMASK_MODE | PM830_BOOST_MODE),
+				(PM830_CF_BITMASK_MODE | PM830_BOOST_MODE));
+		regmap_update_bits(chip->regmap, PM830_BST_CTRL4,
+				PM830_BST_ILIM_DIS, PM830_BST_ILIM_DIS);
+	}
 	/* automatic booster enable mode*/
 	/* set flash current */
 	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH1,
@@ -412,6 +444,15 @@ static int pm830_led_probe(struct platform_device *pdev)
 	/* TODO: hardcode the FLASH_TIMER as 250ms */
 	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH2,
 			   (0xf << 0), (0xa << 0));
+	/* set booster high-side to 3.5A and low-side to 4.5A */
+	regmap_update_bits(chip->regmap, PM830_BST_CTRL2,
+			PM830_BST_HSOC_MASK, PM830_BST_HSOC_MASK);
+	regmap_update_bits(chip->regmap, PM830_BST_CTRL2,
+			PM830_BST_LSOC_MASK, PM830_BST_LSOC_MASK);
+	/* set high-side zero current limit to 130mA */
+	regmap_update_bits(chip->regmap, PM830_BST_CTRL3,
+			PM830_BST_HSZC_MASK, 0);
+
 	mutex_init(&led->lock);
 	INIT_WORK(&led->work, pm830_led_work);
 	INIT_DELAYED_WORK(&led->delayed_work, pm830_led_delayed_work);
