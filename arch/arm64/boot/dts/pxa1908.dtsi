@@ -716,7 +716,7 @@
 	amipc {
 		compatible = "marvell,mmp-amipc";
 		interrupts = <0 95 0x4>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	touch: vnc {
