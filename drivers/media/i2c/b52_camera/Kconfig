@@ -5,15 +5,27 @@ config B52_CAMERA_OV13850
 	depends on VIDEO_MMPISP_B52SENSOR && I2C
 	help
 	  This is a V4L2 camera driver for the ov13850 sensor.
-	  This is a V4L2 camera driver for the ov13850 sensor.
-	  This is a V4L2 camera driver for the ov13850 sensor.
-	  This is a V4L2 camera driver for the ov13850 sensor.
 
 config B52_CAMERA_IMX219
 	tristate "imx219 sensor support"
 	depends on VIDEO_MMPISP_B52SENSOR && I2C
 	help
 	  This is a V4L2 camera driver for the imx219 sensor.
-	  This is a V4L2 camera driver for the imx219 sensor.
-	  This is a V4L2 camera driver for the imx219 sensor.
-	  This is a V4L2 camera driver for the imx219 sensor.
+
+config B52_CAMERA_OV5648
+       tristate "OV5648 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+        This is a V4L2 camera driver for the ov5648 sensor
+
+config B52_CAMERA_OV2680
+       tristate "OV2680 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+        This is a V4L2 camera driver for the ov2680 sensor
+
+config B52_CAMERA_OV8858
+       tristate "OV8858 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+        This is a V4L2 camera driver for the ov8858 sensor
