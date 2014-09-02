@@ -1123,7 +1123,7 @@ ssize_t cctdev_write(struct file *filp, const char __user *buf, size_t count,
 		mutex_unlock(&mutex_lock_tty[minor_num]);
 		return 0;
 	}
-	c = tty->receive_room;
+	c = N_TTY_BUF_SIZE - tty->ldisc->ops->chars_in_buffer(tty) - 1;
 	if (c > count)
 		c = count;
 
