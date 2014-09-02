@@ -49,6 +49,11 @@
 #define CORE2_CA7_GLB_INT_MASK	0x248
 #define CORE3_CA7_GLB_INT_MASK	0x258
 
+/* APBC regs offset */
+#define TIMER0          0x034
+#define TIMER1          0x044
+#define TIMER2          0x068
+
 /* bits definition */
 #define PMUA_CORE_IDLE			(1 << 0)
 #define PMUA_CORE_POWER_DOWN		(1 << 1)
