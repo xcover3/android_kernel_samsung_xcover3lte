@@ -12,6 +12,7 @@
 #ifndef __MMP_MACH_PXA1908_LOWPOWER_H__
 #define __MMP_MACH_PXA1908_LOWPOWER_H__
 
+#include <linux/cpuidle.h>
 /* APMU regs offset */
 /* Core IDLE configuration */
 #define CORE0_IDLE		0x124
