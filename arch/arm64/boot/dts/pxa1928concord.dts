@@ -862,6 +862,57 @@
 				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
 				reset-gpios = <&gpio CAM1_RST_N 1>;
 			};
+			OV8858: sensor@2 {
+				compatible = "ovt,ov8858";
+				status = "okay";
+				reg = <0x36>;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo7>;
+				avdd_2v8-supply = <&ldo3>;
+				dovdd_1v8-supply = <&ldo6>;
+				dvdd_1v2-supply = <&CAMERA_DVDD_SUPPLY>;
+				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
+				reset-gpios = <&gpio CAM1_RST_N 1>;
+			};
+			OV5648: sensor@3 {
+				compatible = "ovt,ov5648";
+				status = "okay";
+				reg = <0x36>;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo7>;
+				avdd_2v8-supply = <&ldo3>;
+				dovdd_1v8-supply = <&ldo6>;
+				dvdd_1v2-supply = <&CAMERA_DVDD_SUPPLY>;
+				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
+				reset-gpios = <&gpio CAM1_RST_N 1>;
+			};
+			OV2680: sensor@4 {
+				compatible = "ovt,ov2680";
+				status = "okay";
+				reg = <0x36>;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo7>;
+				avdd_2v8-supply = <&ldo3>;
+				dovdd_1v8-supply = <&ldo6>;
+				dvdd_1v2-supply = <&CAMERA_DVDD_SUPPLY>;
+				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
+				reset-gpios = <&gpio CAM1_RST_N 1>;
+			};
 		};
 	};
 
