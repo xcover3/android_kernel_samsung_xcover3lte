@@ -43,10 +43,14 @@
 
 #define PM886_RTC_ALARM_CTRL1		(0xd0)
 #define PM886_ALARM_WAKEUP		(1 << 4)
+#define PM886_USE_XO			(1 << 7)
 
 #define PM886_AON_CTRL2			(0xe2)
 #define PM886_AON_CTRL3			(0xe3)
 #define PM886_AON_CTRL4			(0xe4)
+
+/* 0xea, 0xeb, 0xec, 0xed are reserved by RTC */
+#define PM886_RTC_SPARE6		(0xef)
 /*-------------------------------------------------------------------------*/
 
 /*--power page:------------------------------------------------------------*/
