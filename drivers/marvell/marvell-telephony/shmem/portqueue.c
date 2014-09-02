@@ -233,6 +233,7 @@ void portq_m3_peer_sync_cb(struct shm_rbctl *rbctl)
 	amipc_notify_peer_sync();
 	m3_is_synced = true;
 	pr_info("msocket connection sync with M3 O.K.!\n");
+	complete_all(&m3_peer_sync);
 }
 
 struct shm_callback portq_cp_shm_cb = {

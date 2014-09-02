@@ -56,6 +56,7 @@ extern bool cp_is_synced;
 extern struct completion cp_peer_sync;
 
 extern bool m3_is_synced;
+extern struct completion m3_peer_sync;
 
 extern int NVM_wake_lock_num;
 extern int NVM_wake_unlock_num;

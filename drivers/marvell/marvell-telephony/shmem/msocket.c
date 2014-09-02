@@ -38,6 +38,7 @@
 #include <linux/compat.h>
 #endif
 #include "acipcd.h"
+#include "amipcd.h"
 #include "shm.h"
 #include "portqueue.h"
 #include "msocket.h"
@@ -77,6 +78,7 @@ bool cp_recv_up_ioc;
 DECLARE_COMPLETION(cp_peer_sync);
 
 bool m3_is_synced;
+DECLARE_COMPLETION(m3_peer_sync);
 
 static void dump(const unsigned char *data, unsigned int len)
 {
@@ -995,11 +997,22 @@ static long msocket_ioctl(struct file *filp,
 		return 0;
 
 	case MSOCKET_IOC_ERRTO: /* m3 timeout */
+		pr_info("MSOCK: MSOCKET_IOC_ERRTO is received!\n");
+		amipc_dump_debug_info();
 		msocket_disconnect(portq_grp_m3);
+		portq_broadcast_msg(portq_grp_m3, MsocketLinkdownProcId);
 		return 0;
 
 	case MSOCKET_IOC_RECOVERY: /* m3 recovery */
+		reinit_completion(&m3_peer_sync);
 		msocket_connect(portq_grp_m3);
+		pr_info("MSOCK: MSOCKET_IOC_RECOVERY is received!\n");
+		if (wait_for_completion_timeout(&m3_peer_sync, 5 * HZ) ==
+			0) {
+			pr_info("MSOCK: sync with M3 FAIL\n");
+			return -1;
+		}
+		portq_broadcast_msg(portq_grp_m3, MsocketLinkupProcId);
 		return 0;
 
 	default:

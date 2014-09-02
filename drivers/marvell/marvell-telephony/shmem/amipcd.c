@@ -135,5 +135,10 @@ enum amipc_return_code amipc_dataread(enum amipc_events user_event,
 {
 	return AMIPC_RC_OK;
 }
+
+enum amipc_return_code amipc_dump_debug_info(void)
+{
+	return AMIPC_RC_OK;
+}
 #endif
 
