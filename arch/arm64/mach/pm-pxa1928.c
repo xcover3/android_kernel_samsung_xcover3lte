@@ -14,6 +14,7 @@
 #include <linux/gfp.h>
 #include <linux/pm_qos.h>
 #include <linux/irqchip/arm-gic.h>
+#include <linux/of.h>
 
 #include "pxa1928_lowpower.h"
 #include "regs-addr.h"
@@ -328,6 +329,9 @@ static struct platform_suspend pxa1928_suspend = {
 static int __init pxa1928_suspend_init(void)
 {
 	int ret;
+
+	if (!of_machine_is_compatible("marvell,pxa1928"))
+		return -ENODEV;
 	ret = mmp_platform_suspend_register(&pxa1928_suspend);
 	if (ret)
 		WARN_ON("PXA1928 Suspend Register fails!!");
