@@ -67,7 +67,7 @@
 		cpu_on          = <0x85000002>;
 	};
 
-	gic: interrupt-controller@d1dfa000 {
+	gic: interrupt-controller@d1df8000 {
 		compatible = "arm,cortex-a7-gic";
 		interrupt-controller;
 		#interrupt-cells = <3>;
