@@ -97,6 +97,10 @@
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
 			};
+
+			coresight: coresight@d4100000 {
+				status = "okay";
+			};
 		};
 	};
 };
