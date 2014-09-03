@@ -325,6 +325,11 @@
 						<528750 528500>;
 				marvell,qos;
 			};
+
+			debug: debug@d42a0000 {
+				compatible = "marvell,mmp-debug";
+				reg = <0xd42a0000 0x800>;
+			};
 		};
 
 		apb@d4000000 {	/* APB */
