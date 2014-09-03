@@ -41,6 +41,7 @@ static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_SD8XXX_RFKILL
 	OF_DEV_AUXDATA("mrvl,sd8x-rfkill", 0, "sd8x-rfkill", NULL),
 #endif
+	OF_DEV_AUXDATA("marvell,mmp-disp", 0xd420b000, "mmp-disp", NULL),
 	{}
 };
 
