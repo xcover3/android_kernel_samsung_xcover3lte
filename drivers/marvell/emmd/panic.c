@@ -295,15 +295,13 @@ static struct notifier_block _reboot_notifier = {
 
 static int __init pxa_panic_init(void)
 {
-	struct page *page;
 	struct device_node *np;
 #if (defined CONFIG_PM)
 	if (sysfs_create_group(power_kobj, &attr_group))
 		return -1;
 #endif
-	if (crashk_res.end) {
-		page = pfn_to_page(crashk_res.end >> PAGE_SHIFT);
-		emmd_page = (struct emmd_page *)page_address(page);
+	if (crashk_res.end && crashk_res.start) {
+		emmd_page = phys_to_virt(crashk_res.start);
 		memset((void *)emmd_page, 0, sizeof(*emmd_page));
 	}
 
