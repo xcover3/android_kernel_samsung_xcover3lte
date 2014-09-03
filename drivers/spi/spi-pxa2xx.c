@@ -1185,9 +1185,11 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	prop = of_get_property(dev->of_node, "lpm-qos", &proplen);
 	if (!prop) {
 		dev_err(&pdev->dev, "lpm-qos for spi is not defined!\n");
-		return -EINVAL;
+		status = -EINVAL;
+		goto out_error_master_alloc;
 	} else
 		drv_data->qos_idle_value = be32_to_cpup(prop);
+
 	init_dvfm_constraint(drv_data);
 
 	/* the spi->mode bits understood by this driver: */
@@ -1225,7 +1227,7 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 			drv_data);
 	if (status < 0) {
 		dev_err(&pdev->dev, "cannot get IRQ %d\n", ssp->irq);
-		goto out_error_master_alloc;
+		goto out_error_lpm;
 	}
 
 	/* Setup DMA if requested */
@@ -1278,11 +1280,11 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	return status;
 
 out_error_clock_enabled:
-	deinit_dvfm_constraint(drv_data);
 	clk_disable_unprepare(ssp->clk);
 	pxa2xx_spi_dma_release(drv_data);
 	free_irq(ssp->irq, drv_data);
-
+out_error_lpm:
+	deinit_dvfm_constraint(drv_data);
 out_error_master_alloc:
 	kfree(drv_data->alloc_dma_buf);
 out_error_dma_buf:
