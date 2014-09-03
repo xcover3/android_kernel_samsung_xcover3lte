@@ -174,6 +174,8 @@
 #define GPIO96			0x022c
 #define GPIO97			0x0230
 #define GPIO98			0x0234
+#define GPIO110			0x0298
+#define GPIO111			0x029c
 #define GPIO124			0x00d0
 #define DF_IO0			0x0040
 #define DF_IO1			0x003c

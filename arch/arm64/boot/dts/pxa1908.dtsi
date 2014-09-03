@@ -524,7 +524,7 @@
 				compatible = "mrvl,mmp-twsi";
 				#address-cells = <1>;
 				#size-cells = <0>;
-				reg = <0xd4011000 0x60>;
+				reg = <0xd4011000 0x64>;
 				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1U88_CLK_TWSI0>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
@@ -538,7 +538,6 @@
 				marvell,i2c-ilcr = <0x82c469f>;
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
-				marvell,i2c-gpio-bus-rst;
 
 				status = "disabled";
 			};
@@ -547,7 +546,7 @@
 				compatible = "mrvl,mmp-twsi";
 				#address-cells = <1>;
 				#size-cells = <0>;
-				reg = <0xd4010800 0x60>;
+				reg = <0xd4010800 0x64>;
 				interrupts = <0 33 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1U88_CLK_TWSI1>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
@@ -556,7 +555,6 @@
 				marvell,i2c-ilcr = <0x82c469f>;
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
-				marvell,i2c-gpio-bus-rst;
 
 				status = "disabled";
 			};
@@ -570,11 +568,12 @@
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				/* RIPC3 */
-				reg = <0xd4037000 0x60>,
+				reg = <0xd4037000 0x64>,
 				      <0xd403d300 0x4>;
 				mrvl,i2c-fast-mode;
 				marvell,i2c-ilcr = <0x82c469f>;
 				marvell,i2c-iwcr = <0x142a>;
+				marvell,i2c-enable-bus-rst;
 
 				marvell,i2c-always-on;
 				status = "disabled";
@@ -584,7 +583,7 @@
 				compatible = "mrvl,mmp-twsi";
 				#address-cells = <1>;
 				#size-cells = <0>;
-				reg = <0xd4013800 0x60>;
+				reg = <0xd4013800 0x64>;
 				interrupts = <0 93 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1U88_CLK_TWSI3>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
@@ -598,7 +597,6 @@
 				marvell,i2c-ilcr = <0x82c469f>;
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
-				marvell,i2c-gpio-bus-rst;
 
 				status = "disabled";
 			};
