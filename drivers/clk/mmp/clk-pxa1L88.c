@@ -938,17 +938,15 @@ static void pxa1L88_axi_periph_clk_init(struct pxa1L88_clk_unit *pxa_unit)
 	clk_set_rate(clk, 312000000);
 	mmp_clk_add(unit, PXA1L88_CLK_GC3DBUS, clk);
 
-	if (cpu_is_pxa1L88_a0c()) {
-		if (get_foundry() == 2) {
-			gc2d_mix_config_umc.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
-			gc2d_mix_config_umc.reg_info.reg_clk_xtc =
-						pxa_unit->ciu_base + CIU_GPU2D_XTC;
-			clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk",
-						(const char **)gc2d_parent_names,
-						ARRAY_SIZE(gc2d_parent_names),
-						CLK_SET_RATE_PARENTS_ENABLED,
-						&gc2d_mix_config_umc, &gc2d_lock);
-		}
+	if (cpu_is_pxa1L88_a0c() && (get_foundry() == 2)) {
+		gc2d_mix_config_umc.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
+		gc2d_mix_config_umc.reg_info.reg_clk_xtc =
+					pxa_unit->ciu_base + CIU_GPU2D_XTC;
+		clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk",
+					(const char **)gc2d_parent_names,
+					ARRAY_SIZE(gc2d_parent_names),
+					CLK_SET_RATE_PARENTS_ENABLED,
+					&gc2d_mix_config_umc, &gc2d_lock);
 	} else {
 		gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
 		gc2d_mix_config.reg_info.reg_clk_xtc =
