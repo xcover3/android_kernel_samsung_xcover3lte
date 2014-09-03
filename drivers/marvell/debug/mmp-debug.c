@@ -129,7 +129,7 @@ static int __init mmp_debug_init(void)
 	struct device_node *node;
 	u32 tmp;
 
-	node = of_find_compatible_node(NULL, NULL, "mrvl,mmp-debug");
+	node = of_find_compatible_node(NULL, NULL, "marvell,mmp-debug");
 	if (!node) {
 		pr_info("This platform doesn't support debug feature!\n");
 		return -ENODEV;

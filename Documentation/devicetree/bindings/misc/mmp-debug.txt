@@ -1,0 +1,13 @@
+* Marvell AXI timeout debug method
+
+Required Properties:
+
+- Compatibility : "marvell,mmp-debug"
+- reg		: Address of the debug registers in squ domain
+
+Example:
+
+	debug: debug@d42a0000 {
+		compatible = "marvell,mmp-debug";
+		reg = <0xd42a0000 0x800>;
+	};
