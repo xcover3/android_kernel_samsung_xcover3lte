@@ -74,6 +74,7 @@
 #define	SSPA_SP_MSL		(1 << 18)	/* Master Slave Configuration */
 #define	SSPA_SP_CLKP		(1 << 17)	/* CLKP Polarity Clock Edge Select */
 #define	SSPA_SP_FSP		(1 << 16)	/* FSP Polarity Clock Edge Select */
+#define	SSPA_SP_FIX		(1 << 3)	/* SSPA fsync fix */
 #define	SSPA_SP_FFLUSH		(1 << 2)	/* FIFO Flush */
 #define	SSPA_SP_S_RST		(1 << 1)	/* Active High Reset Signal */
 #define	SSPA_SP_S_EN		(1 << 0)	/* Serial Clock Domain Enable */

@@ -72,6 +72,7 @@ static void mmp_sspa_tx_enable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_TXSP);
+	sspa_sp &= ~SSPA_SP_S_RST;
 	sspa_sp |= SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
 	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
@@ -82,6 +83,8 @@ static void mmp_sspa_tx_disable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_TXSP);
+	sspa_sp |= SSPA_SP_FFLUSH;
+	sspa_sp |= SSPA_SP_S_RST;
 	sspa_sp &= ~SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
 	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
@@ -92,6 +95,7 @@ static void mmp_sspa_rx_enable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_RXSP);
+	sspa_sp &= ~SSPA_SP_S_RST;
 	sspa_sp |= SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
 	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
@@ -102,6 +106,8 @@ static void mmp_sspa_rx_disable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_RXSP);
+	sspa_sp |= SSPA_SP_S_RST;
+	sspa_sp |= SSPA_SP_FFLUSH;
 	sspa_sp &= ~SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
 	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
@@ -183,7 +189,7 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	}
 
 	/* reset port settings */
-	sspa_sp   = SSPA_SP_WEN | SSPA_SP_S_RST | SSPA_SP_FFLUSH;
+	sspa_sp = SSPA_SP_WEN | SSPA_SP_S_RST | SSPA_SP_FFLUSH | SSPA_SP_FIX;
 	sspa_ctrl = 0;
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -220,17 +226,6 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
 	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
 
-	sspa_sp &= ~(SSPA_SP_S_RST | SSPA_SP_FFLUSH);
-	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
-	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
-
-	/*
-	 * FIXME: hw issue, for the tx serial port,
-	 * can not config the master/slave mode;
-	 * so must clean this bit.
-	 * The master/slave mode has been set in the
-	 * rx port.
-	 */
 	sspa_sp &= ~SSPA_SP_MSL;
 	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
 
@@ -320,17 +315,10 @@ static int mmp_sspa_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		/*
-		 * whatever playback or capture, must enable rx.
-		 * this is a hw issue, so need check if rx has been
-		 * enabled or not; if has been enabled by another
-		 * stream, do not enable again.
-		 */
-		if (!sspa_priv->running_cnt)
-			mmp_sspa_rx_enable(sspa);
-
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			mmp_sspa_tx_enable(sspa);
+		else
+			mmp_sspa_rx_enable(sspa);
 
 		sspa_priv->running_cnt++;
 		break;
@@ -342,9 +330,7 @@ static int mmp_sspa_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			mmp_sspa_tx_disable(sspa);
-
-		/* have no capture stream, disable rx port */
-		if (!sspa_priv->running_cnt)
+		else
 			mmp_sspa_rx_disable(sspa);
 		break;
 
