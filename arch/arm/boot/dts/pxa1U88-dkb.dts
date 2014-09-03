@@ -234,6 +234,7 @@
 			vdma: vdma@d4209000 {
 				marvell,vdma-num = <2>;
 				marvell,vdma-axi = <1>;
+				marvell,power-domain = <&pd_display>;
 				status = "okay";
 				vdma1 {
 					marvell,vdma-id = <0>;
@@ -255,7 +256,6 @@
 				pinctrl-names = "default";
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
-				marvell,power-domain = <&pd_display>;
 				status = "okay";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
