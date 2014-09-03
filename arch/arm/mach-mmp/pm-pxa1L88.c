@@ -66,14 +66,14 @@ static void pxa1L88_set_wake(int irq, unsigned int on)
 	/* wakeup line 4 */
 	case IRQ_PXA1L88_AP0_TIMER1:
 		if (cpu_is_pxa1U88()) {
-			apbc_timer0 = __raw_readl(apbc + TIMER1);
+			apbc_timer0 = __raw_readl(apbc + TIMER0);
 			__raw_writel(0x1 << 7 | apbc_timer0, apbc + TIMER0);
 		}
 		awucrm = PMUM_WAKEUP4 | PMUM_AP0_2_TIMER_1;
 		break;
 	case IRQ_PXA1L88_AP0_TIMER2_3:
 		if (cpu_is_pxa1U88()) {
-			apbc_timer0 = __raw_readl(apbc + TIMER1);
+			apbc_timer0 = __raw_readl(apbc + TIMER0);
 			__raw_writel(0x1 << 7 | apbc_timer0, apbc  + TIMER0);
 			awucrm = PMUM_WAKEUP4 | PMUM_AP0_2_TIMER_2;
 		} else
@@ -82,7 +82,7 @@ static void pxa1L88_set_wake(int irq, unsigned int on)
 		break;
 	case IRQ_PXA1U88_AP0_TIMER3:
 		if (cpu_is_pxa1U88()) {
-			apbc_timer0 = __raw_readl(apbc + TIMER1);
+			apbc_timer0 = __raw_readl(apbc + TIMER0);
 			__raw_writel(0x1 << 7 | apbc_timer0, apbc + TIMER0);
 			awucrm = PMUM_WAKEUP4 | PMUM_AP0_2_TIMER_3;
 		}
