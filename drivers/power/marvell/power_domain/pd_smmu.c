@@ -106,11 +106,13 @@ struct mmp_pd_smmu {
 	struct generic_pm_domain genpd;
 	void __iomem *reg_base;
 	unsigned long size;
-	struct clk *clk;
+	struct clk *aclk;
+	struct clk *fclk;
 	struct device *dev;
 	/* latency for us. */
 	u32 power_on_latency;
 	u32 power_off_latency;
+	int regs_saved;
 	struct mmp_pd_smmu_regs regs;
 	const struct mmp_pd_smmu_data *data;
 };
@@ -119,6 +121,30 @@ enum {
 	MMP_PD_SMMU_PXA1U88,
 	MMP_PD_SMMU_PXA1928,
 };
+
+extern u32 use_iommu;
+
+static int arm_smmu_clk_enable(struct mmp_pd_smmu *pd)
+{
+	if (pd->aclk)
+		clk_prepare_enable(pd->aclk);
+
+	if (pd->fclk)
+		clk_prepare_enable(pd->fclk);
+
+	return 0;
+}
+
+static int arm_smmu_clk_disable(struct mmp_pd_smmu *pd)
+{
+	if (pd->aclk)
+		clk_disable_unprepare(pd->aclk);
+
+	if (pd->fclk)
+		clk_disable_unprepare(pd->fclk);
+
+	return 0;
+}
 
 /* Wait for any pending TLB invalidations to complete */
 static void arm_smmu_tlb_sync(struct mmp_pd_smmu *pd)
@@ -206,8 +232,17 @@ static int mmp_pd_smmu_power_on(struct generic_pm_domain *domain)
 	void __iomem *gr0_base = pd->reg_base, *gr1_base, *cb_base;
 	u32 idx = 0, cbndx = 0;
 
-	if (pd->clk)
-		clk_prepare_enable(pd->clk);
+	dev_dbg(pd->dev, "%s: enter\n", __func__);
+
+	if (!use_iommu)
+		return 0;
+
+	if (!pd->regs_saved) {
+		dev_dbg(pd->dev, "skip as the registers were not saved!\n");
+		return 0;
+	}
+
+	arm_smmu_clk_enable(pd);
 
 	arm_smmu_device_reset(pd);
 	gr1_base = gr0_base + data->pagesize;
@@ -225,8 +260,7 @@ static int mmp_pd_smmu_power_on(struct generic_pm_domain *domain)
 	writel_relaxed(regs->gr0_smr0, gr0_base + ARM_SMMU_GR0_SMR(idx));
 	writel_relaxed(regs->gr0_s2cr0, gr0_base + ARM_SMMU_GR0_S2CR(idx));
 
-	if (pd->clk)
-		clk_disable_unprepare(pd->clk);
+	arm_smmu_clk_disable(pd);
 
 	return 0;
 }
@@ -240,8 +274,15 @@ static int mmp_pd_smmu_power_off(struct generic_pm_domain *domain)
 	void __iomem *gr0_base = pd->reg_base, *gr1_base, *cb_base;
 	u32 idx = 0, cbndx = 0;
 
-	if (pd->clk)
-		clk_prepare_enable(pd->clk);
+	dev_dbg(pd->dev, "%s: enter\n", __func__);
+
+	if (!use_iommu)
+		return 0;
+	/* currently the register value only need to be saved once */
+	if (pd->regs_saved)
+		return 0;
+
+	arm_smmu_clk_enable(pd);
 
 	gr1_base = gr0_base + data->pagesize;
 	/* FIX ME: just use context bank index 0 */
@@ -257,9 +298,9 @@ static int mmp_pd_smmu_power_off(struct generic_pm_domain *domain)
 	regs->cb_sctlr = readl_relaxed(cb_base + ARM_SMMU_CB_SCTLR);
 	regs->gr0_smr0 = readl_relaxed(gr0_base + ARM_SMMU_GR0_SMR(idx));
 	regs->gr0_s2cr0 = readl_relaxed(gr0_base + ARM_SMMU_GR0_S2CR(idx));
+	pd->regs_saved = 1;
 
-	if (pd->clk)
-		clk_disable_unprepare(pd->clk);
+	arm_smmu_clk_disable(pd);
 
 	return 0;
 }
@@ -276,8 +317,8 @@ static struct mmp_pd_smmu_data smmu_pxa1u88_data = {
 static struct mmp_pd_smmu_data smmu_pxa1928_data = {
 	.id			= MMP_PD_SMMU_PXA1928,
 	.name			= "power-domain-smmu", /* generic power domain name */
-	.num_mapping_groups	= 4,
-	.num_context_banks	= 1,
+	.num_mapping_groups	= 32,
+	.num_context_banks	= 8,
 	.pagesize		= SZ_4K,
 };
 
@@ -327,9 +368,16 @@ static int mmp_pd_smmu_probe(struct platform_device *pdev)
 	pd->size = resource_size(res);
 
 	/* Some power domain may need clk for power on. */
-	pd->clk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(pd->clk))
-		pd->clk = NULL;
+	pd->aclk = devm_clk_get(&pdev->dev, "VPUACLK");
+	if (IS_ERR(pd->aclk)) {
+		dev_err(&pdev->dev, "cannot get pd_smmu axi clock\n");
+		pd->aclk = NULL;
+	}
+	pd->fclk = devm_clk_get(&pdev->dev, "VPUCLK");
+	if (IS_ERR(pd->fclk)) {
+		dev_err(&pdev->dev, "cannot get pd_smmu function clock\n");
+		pd->fclk = NULL;
+	}
 
 	latency = MMP_PD_POWER_ON_LATENCY;
 	if (of_find_property(np, "power-on-latency", NULL)) {
