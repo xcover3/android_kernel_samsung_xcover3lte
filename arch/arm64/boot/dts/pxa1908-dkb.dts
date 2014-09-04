@@ -26,6 +26,66 @@
 	};
 
 	soc {
+		pd_display: pd_display@0xd4282800 {
+			compatible = "marvell,power-domain-display-pxa1u88";
+			reg = <0xd4282800 0x1000>;
+			clocks = <&soc_clocks PXA1U88_CLK_DISP_HCLK>,
+				<&soc_clocks PXA1U88_CLK_DSI_ESC>,
+				<&soc_clocks PXA1U88_CLK_DISP1_EN>;
+			clock-names = "LCDCIHCLK", "esc_clk", "disp1_clk_gate";
+		};
+
+		axi@d4200000 {  /* AXI */
+
+			dsi: dsi@d420b800 {
+				marvell,phy-name = "mmp_dsi1";
+				marvell,plat-path-name = "mmp_pnpath";
+				marvell,dsi-lanes = <4>;
+				marvell,burst-mode = <2>;
+				marvell,hbp-en;
+				status = "okay";
+			};
+
+			vdma: vdma@d4209000 {
+				marvell,vdma-num = <1>;
+				marvell,vdma-axi = <1>;
+				status = "okay";
+				vdma1 {
+					marvell,vdma-id = <0>;
+					marvell,sram-size = <15360>;
+					marvell,is_vid = <0>;
+				};
+			};
+
+			disp: disp@d420b000 {
+				pinctrl-names = "default";
+				marvell,disp-name = "disp_name";
+				marvell,path-num = <1>;
+				marvell,power-domain = <&pd_display>;
+				clocks = <&soc_clocks PXA1U88_CLK_DISP1>;
+				clock-names = "disp1_clk";
+				status = "okay";
+				path1 {
+					marvell,path-name = "mmp_pnpath";
+					marvell,overlay-num = <1>;
+					marvell,overlay-table = <1>;
+					marvell,output-type = <1>;
+					marvell,path-config = <0x10>;
+					marvell,link-config = <0x1>;
+				};
+			};
+
+			fb0: fbbase {
+				marvell,fb-name = "mmp-fb";
+				marvell,path-name = "mmp_pnpath";
+				marvell,overlay-id = <1>;
+				marvell,default-pixfmt = <0x109>;
+				marvell,buffer-num = <3>;
+				marvell,fb-mem = <0x17000000>;
+				status = "okay";
+                        };
+		};
+
 		apb@d4000000 {
 			pdma0: pdma@d4000000 {
 				status = "okay";
@@ -102,5 +162,13 @@
 				status = "okay";
 			};
 		};
+	};
+
+	panel1: hx8394 {
+		compatible = "marvell,mmp-hx8394";
+		marvell,path-name = "mmp_pnpath";
+		panel_esd = <0>;
+		rst_gpio = <&gpio 4 0>;
+		status = "okay";
 	};
 };
