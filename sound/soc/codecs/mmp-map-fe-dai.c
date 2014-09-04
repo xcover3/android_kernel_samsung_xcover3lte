@@ -1399,9 +1399,9 @@ static int map_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	inf &= ~MAP_LRCLK_POL;
 	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
 	case SND_SOC_DAIFMT_NB_NF:
+		inf |= MAP_LRCLK_POL;
 		break;
 	case SND_SOC_DAIFMT_NB_IF:
-		inf |= MAP_LRCLK_POL;
 		break;
 	default:
 		return -EINVAL;
