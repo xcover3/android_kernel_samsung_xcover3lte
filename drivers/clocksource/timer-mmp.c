@@ -657,6 +657,7 @@ int __init mmp_counter_clockevent_init(int tid, int cid, int irq,
 		clkevt->irqa.name = "local-timer";
 		clkevt->ced.cpumask = cpumask_of(cpu);
 		clkevt->nb.notifier_call = mmp_timer_cpu_notify;
+		clkevt->irqa.flags |= IRQF_PERCPU;
 		register_cpu_notifier(&clkevt->nb);
 		setup_irq(clkevt->ced.irq, &(clkevt->irqa));
 		/* Enable clock event device for boot CPU. */
