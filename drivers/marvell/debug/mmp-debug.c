@@ -154,6 +154,8 @@ static int __init mmp_debug_init(void)
 			0, "external abort on translation");
 	hook_fault_code(0xe, mmp_axi_timeout, SIGBUS,
 			0, "external abort on translation");
+	hook_fault_code(0x10, mmp_axi_timeout, SIGBUS,
+			0, "unknown 16");
 	hook_fault_code(0x16, mmp_axi_timeout, SIGBUS,
 			BUS_OBJERR, "imprecise external abort");
 #endif
