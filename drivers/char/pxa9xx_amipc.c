@@ -30,6 +30,8 @@
 #include <linux/io.h>
 #include <linux/pm_wakeup.h>
 #include <linux/vmalloc.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 
 #include <linux/pxa9xx_amipc.h>
 
@@ -42,11 +44,9 @@
 #define OFF_TO_E(v) ((v) + 1)
 
 /* APMU register */
-#define APMU_BASE_PA		(0xd4282800)
 #define GNSS_WAKEUP_CTRL	(0x1B8)
 
 /* CIU register */
-#define CIU_BASE_PA		(0xd4282c00)
 #define GNSS_HANDSHAKE		(0x168)
 
 /* GNSS_WAKEUP_CTRL */
@@ -768,6 +768,20 @@ static SIMPLE_DEV_PM_OPS(pxa9xx_amipc_pm_ops,
 		pxa9xx_amipc_suspend, pxa9xx_amipc_resume);
 #endif
 
+static void __iomem *iomap_register(const char *reg_name)
+{
+	void __iomem *reg_virt_addr;
+	struct device_node *node;
+
+	BUG_ON(!reg_name);
+	node = of_find_compatible_node(NULL, NULL, reg_name);
+	BUG_ON(!node);
+	reg_virt_addr = of_iomap(node, 0);
+	BUG_ON(!reg_virt_addr);
+
+	return reg_virt_addr;
+}
+
 static int pxa9xx_amipc_probe(struct platform_device *pdev)
 {
 	int ret, irq, i;
@@ -778,8 +792,8 @@ static int pxa9xx_amipc_probe(struct platform_device *pdev)
 	if (!amipc)
 		return -ENOMEM;
 
-	amipc->pmu_base = shm_map((phys_addr_t)APMU_BASE_PA, SZ_4K);
-	amipc->ciu_base = shm_map((phys_addr_t)CIU_BASE_PA, SZ_4K);
+	amipc->pmu_base = iomap_register("marvell,mmp-pmu-apmu");
+	amipc->ciu_base = iomap_register("marvell,mmp-ciu");
 	if (NULL == amipc->pmu_base || NULL == amipc->ciu_base) {
 		dev_err(&pdev->dev, "get register base error\n");
 		return -EINVAL;
