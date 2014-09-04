@@ -15,6 +15,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <asm/cacheflush.h>
+#include <linux/pm_runtime.h>
 #ifdef CONFIG_ARM_SMMU
 #include <linux/dma-mapping.h>
 #include <linux/dma-buf.h>
@@ -353,6 +354,7 @@ static int pxa_ion_probe(struct platform_device *pdev)
 	}
 	platform_set_drvdata(pdev, info);
 
+	pm_runtime_enable(&pdev->dev);
 #ifdef CONFIG_ARM_SMMU
 	if (use_iommu)
 		pxa_ion_register_iommu(&pdev->dev);
