@@ -113,7 +113,7 @@
 			coda7542: coda7542@d420d000 {
 				marvell,sram-internal = <1>;
 				marvell,nv21_support = <0>;
-				marvell,power-domain = <&pd_vpu>;
+				marvell,power-domain = <&pd_smmu>;
 				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
 					<&soc_clocks PXA1U88_CLK_VPUBUS>;
 				clock-names = "VPUCLK", "VPUACLK";
@@ -1196,6 +1196,7 @@
 		marvell,ion-nr = <2>;
 		status = "okay";
 		marvell,ion-iommu = <1>;
+		marvell,power-domain = <&pd_smmu>;
 		heap1 {
 			marvell,ion-name = "carveout_heap";
 			marvell,ion-type = <2>;
