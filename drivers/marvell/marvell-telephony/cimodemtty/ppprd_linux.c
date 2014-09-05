@@ -21,6 +21,9 @@
 #include <linux/aio.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
 #include <linux/miscdevice.h>
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -75,6 +78,9 @@ static const struct file_operations ppprd_fops = {
 	.write		= ppprd_write,
 	.release	= ppprd_release,
 	.unlocked_ioctl	= ppprd_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= ppprd_ioctl,
+#endif
 	.poll		= ppprd_poll,
 	.owner		= THIS_MODULE,
 };
