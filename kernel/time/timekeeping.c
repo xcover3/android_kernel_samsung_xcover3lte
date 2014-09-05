@@ -52,6 +52,10 @@ static inline void tk_normalize_xtime(struct timekeeper *tk)
 
 static void tk_set_xtime(struct timekeeper *tk, const struct timespec *ts)
 {
+	pr_info("timekeeping: old time %llds %lldns, new time %llds %lldns\n",
+		tk->xtime_sec, tk->xtime_nsec,
+		(u64)ts->tv_sec, (u64)ts->tv_nsec << tk->shift);
+
 	tk->xtime_sec = ts->tv_sec;
 	tk->xtime_nsec = (u64)ts->tv_nsec << tk->shift;
 }
