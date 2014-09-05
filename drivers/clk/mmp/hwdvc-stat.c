@@ -14,94 +14,57 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/clk/mmpdcstat.h>
-#include <mach/pxa988_lowpower.h>
-#include <linux/clk/dvfs-dvc.h>
+
 #include <linux/debugfs-pxa.h>
 #include <linux/gpio.h>
 #include <linux/miscled-rgb.h>
+#include <linux/slab.h>
 
-struct vol_op_dcstat_info {
-	u64 time;	/*ms*/
+enum vlstat_mode {
+	ACTIVE = 0,
+	/* support max 6 LPM now, could be extended */
+	LPM0,
+	LPM1,
+	LPM2,
+	LPM3,
+	LPM4,
+	LPM5,
+	MODE_MAX,
+};
+
+struct vol_stat_info {
+	u64 time;	/* ms */
 	u32 vol;	/* mV */
 };
 
-struct vol_dc_stat_info {
+struct vol_ts_info {
 	bool stat_start;
-	struct vol_op_dcstat_info ops_dcstat[MAX_PMIC_LEVEL];
-	u32 vc_count[MAX_PMIC_LEVEL][MAX_PMIC_LEVEL];	/* [from][to] */
+	struct vol_stat_info *vlts;
+	u32 vlnum;		/* how many voltage support in this board */
+	u32 *vc_count;	/* [from] * [to] */
 	u32 vc_total_count;
+	u32 cur_lvl;	/* cur voltage vl */
+	u32 mode_curlvl[MODE_MAX];	/* specific vl for different mode */
+
 	ktime_t breakdown_start;
 	ktime_t prev_ts;
-	u32 cur_lvl;
 	u64 total_time;	/* ms */
 };
 
 static DEFINE_SPINLOCK(vol_lock);
-static struct vol_dc_stat_info vol_dcstat;
+static struct vol_ts_info vol_dcstat;
+static bool vol_tsinfo_inited;
+
 static int vol_ledstatus_start;
 
-static u32 voltage_lvl[AP_COMP_MAX];
-
-static void vol_ledstatus_show(u32 lpm)
+static void vol_ledstatus_show(u32 mode)
 {
 	u32 hwlvl;
 
-	switch (lpm) {
-	case POWER_MODE_MAX:
-		/* Active or exit from lpm */
-		hwlvl = voltage_lvl[AP_ACTIVE];
-		break;
-	case POWER_MODE_CORE_POWERDOWN:
-		/* M2 */
-		hwlvl = voltage_lvl[AP_LPM];
-		break;
-	case POWER_MODE_APPS_IDLE:
-		/* D1P */
-		hwlvl = voltage_lvl[APSUB_IDLE];
-		break;
-	case POWER_MODE_SYS_SLEEP:
-		/* D1 */
-		hwlvl = voltage_lvl[APSUB_SLEEP];
-		break;
-	case POWER_MODE_UDR:
-		/* D2 */
-		hwlvl = -1UL;
-	default:
-		hwlvl = voltage_lvl[AP_ACTIVE];
-	}
-
-	switch  (hwlvl) {
-	case VL3:
-		/* VL3 : LED RG */
-		led_rgb_output(LED_R, 1);
-		led_rgb_output(LED_G, 1);
-		led_rgb_output(LED_B, 0);
-		break;
-	case VL2:
-		/* VL2 : LED R */
-		led_rgb_output(LED_R, 1);
-		led_rgb_output(LED_G, 0);
-		led_rgb_output(LED_B, 0);
-		break;
-	case VL1:
-		/* VL1 : LED G */
-		led_rgb_output(LED_R, 0);
-		led_rgb_output(LED_G, 1);
-		led_rgb_output(LED_B, 0);
-		break;
-	case VL0:
-		/* VL0 : LED B */
-		led_rgb_output(LED_R, 0);
-		led_rgb_output(LED_G, 0);
-		led_rgb_output(LED_B, 1);
-		break;
-	case -1UL:
-		/* lpm : LED -- */
-		led_rgb_output(LED_R, 0);
-		led_rgb_output(LED_G, 0);
-		led_rgb_output(LED_B, 0);
-		break;
-	}
+	hwlvl = vol_dcstat.mode_curlvl[mode];
+	led_rgb_output(LED_R, hwlvl & 0x1);
+	led_rgb_output(LED_G, hwlvl & 0x2);
+	led_rgb_output(LED_B, hwlvl & 0x4);
 }
 
 void vol_ledstatus_event(u32 lpm)
@@ -185,56 +148,76 @@ static const struct file_operations vol_led_ops = {
 	.write = vol_led_write,
 };
 
-static void vol_dcstat_update(u32 lpm)
+static void vol_dcstat_update(u32 mode)
 {
 	ktime_t cur_ts;
 	u32 hwlvl;
 	u64 time_us;
 
-	switch (lpm) {
-	case POWER_MODE_MAX:
-		/* Active or exit from lpm */
-		hwlvl = voltage_lvl[AP_ACTIVE];
-		break;
-	case POWER_MODE_CORE_POWERDOWN:
-		/* M2 */
-		hwlvl = voltage_lvl[AP_LPM];
-		break;
-	case POWER_MODE_APPS_IDLE:
-		/* D1P */
-		hwlvl = voltage_lvl[APSUB_IDLE];
-		break;
-	case POWER_MODE_SYS_SLEEP:
-		/* D1 */
-		hwlvl = voltage_lvl[APSUB_SLEEP];
-		break;
-	default:
-		hwlvl = voltage_lvl[AP_ACTIVE];
-		break;
-	}
+	if (!vol_dcstat.stat_start)
+		return;
 
+	hwlvl = vol_dcstat.mode_curlvl[mode];
 	if (vol_dcstat.cur_lvl == hwlvl)
 		return;
 
 	/* update voltage change times */
-	vol_dcstat.vc_count[vol_dcstat.cur_lvl][hwlvl]++;
+	vol_dcstat.vc_count[vol_dcstat.cur_lvl * vol_dcstat.vlnum + hwlvl]++;
+	vol_dcstat.vc_total_count++;
 
 	/* update voltage dc statistics */
 	cur_ts = ktime_get();
 	time_us = ktime_to_us(ktime_sub(cur_ts, vol_dcstat.prev_ts));
-	vol_dcstat.ops_dcstat[vol_dcstat.cur_lvl].time += time_us;
+	vol_dcstat.vlts[vol_dcstat.cur_lvl].time += time_us;
 	vol_dcstat.prev_ts = cur_ts;
 	vol_dcstat.cur_lvl = hwlvl;
 }
 
-void vol_dcstat_event(u32 lpm)
+void vol_dcstat_event(enum vlstat_msg msg, u32 midx, u32 vl)
 {
 	spin_lock(&vol_lock);
-	if (!vol_dcstat.stat_start)
-		goto out;
-	vol_dcstat_update(lpm);
-out:
+	switch (msg) {
+	case VLSTAT_LPM_ENTRY:
+		vol_dcstat_update(LPM0 + midx);
+		break;
+	case VLSTAT_LPM_EXIT:
+		vol_dcstat_update(ACTIVE);
+		break;
+	case VLSTAT_VOL_CHG:
+		vol_dcstat.mode_curlvl[midx] = vl;
+		if (midx == ACTIVE)
+			vol_dcstat_update(ACTIVE);
+		break;
+	default:
+		pr_err("%s invaid event %u\n", __func__, msg);
+		break;
+	}
 	spin_unlock(&vol_lock);
+}
+
+int register_vldcstatinfo(int *vol, u32 vlnum)
+{
+	u32 idx;
+
+	vol_dcstat.vlts = kzalloc(vlnum *
+		sizeof(struct vol_stat_info), GFP_KERNEL);
+	if (!vol_dcstat.vlts) {
+		pr_err("%s vlts info malloc failed!\n", __func__);
+		return -ENOMEM;
+	}
+
+	vol_dcstat.vc_count = kzalloc(vlnum * vlnum, GFP_KERNEL);
+	if (!vol_dcstat.vc_count) {
+		pr_err("%s vc_count info malloc failed!\n", __func__);
+		kfree(vol_dcstat.vlts);
+		return -ENOMEM;
+	}
+	vol_dcstat.vlnum = vlnum;
+	for (idx = 0; idx < vlnum; idx++)
+		vol_dcstat.vlts[idx].vol = vol[idx];
+
+	vol_tsinfo_inited = true;
+	return 0;
 }
 
 static ssize_t vol_dc_read(struct file *filp, char __user *buffer,
@@ -242,7 +225,7 @@ static ssize_t vol_dc_read(struct file *filp, char __user *buffer,
 {
 	char *buf;
 	ssize_t ret, size = 2 * PAGE_SIZE - 1;
-	u32 i, j, dc_int = 0, dc_fra = 0, len = 0;
+	u32 i, j, dc_int = 0, dc_fra = 0, len = 0, vlnum = vol_dcstat.vlnum;
 
 	buf = (char *)__get_free_pages(GFP_NOIO, get_order(size));
 	if (!buf)
@@ -274,13 +257,13 @@ static ssize_t vol_dc_read(struct file *filp, char __user *buffer,
 			div64_u64(vol_dcstat.total_time, (u64)(1000000)));
 	len += snprintf(buf + len, size - len,
 			"|Level|Vol(mV)|Time(ms)|      %%|\n");
-	for (i = VL0; i < MAX_PMIC_LEVEL; i++) {
-		dc_int = calculate_dc(vol_dcstat.ops_dcstat[i].time,
+	for (i = 0; i < vlnum; i++) {
+		dc_int = calculate_dc(vol_dcstat.vlts[i].time,
 				vol_dcstat.total_time, &dc_fra);
 		len += snprintf(buf + len, size - len,
 				"| VL_%1d|%7u|%8llu|%3u.%02u%%|\n",
-				i, vol_dcstat.ops_dcstat[i].vol,
-				div64_u64(vol_dcstat.ops_dcstat[i].time,
+				i, vol_dcstat.vlts[i].vol,
+				div64_u64(vol_dcstat.vlts[i].time,
 					(u64)(1000)),
 				dc_int, dc_fra);
 	}
@@ -290,19 +273,18 @@ static ssize_t vol_dc_read(struct file *filp, char __user *buffer,
 			"\nTotal voltage-change times:%8u",
 			vol_dcstat.vc_total_count);
 	len += snprintf(buf + len, size - len, "\n|from\\to|");
-	for (j = VL0; j < MAX_PMIC_LEVEL; j++)
+	for (j = 0; j < vlnum; j++)
 		len += snprintf(buf + len, size - len, " Level%1d|", j);
-	for (i = VL0; i < MAX_PMIC_LEVEL; i++) {
+	for (i = 0; i < vlnum; i++) {
 		len += snprintf(buf + len, size - len, "\n| Level%1d|", i);
-		for (j = VL0; j < MAX_PMIC_LEVEL; j++)
+		for (j = 0; j < vlnum; j++)
 			if (i == j)
 				len += snprintf(buf + len, size - len,
 						"  ---  |");
 			else
 				/* [from][to] */
-				len += snprintf(buf + len, size - len,
-						"%7u|",
-						vol_dcstat.vc_count[i][j]);
+				len += snprintf(buf + len, size - len, "%7u|",
+					vol_dcstat.vc_count[i * vlnum + j]);
 	}
 	len += snprintf(buf + len, size - len, "\n");
 out:
@@ -314,7 +296,7 @@ out:
 static ssize_t vol_dc_write(struct file *filp, const char __user *buffer,
 			    size_t count, loff_t *ppos)
 {
-	unsigned int start, i, j;
+	unsigned int start, idx, vlnum = vol_dcstat.vlnum;
 	char buf[10] = { 0 };
 	ktime_t cur_ts;
 	u64 time_us;
@@ -335,26 +317,19 @@ static ssize_t vol_dc_write(struct file *filp, const char __user *buffer,
 	spin_lock(&vol_lock);
 	cur_ts = ktime_get();
 	if (vol_dcstat.stat_start) {
-		for (i = VL0; i < MAX_PMIC_LEVEL; i++) {
-			vol_dcstat.ops_dcstat[i].time = 0;
-			for (j = VL0; j < MAX_PMIC_LEVEL; j++)
-				vol_dcstat.vc_count[i][j] = 0;
-		}
-
+		for (idx = 0; idx < vlnum; idx++)
+			vol_dcstat.vlts[idx].time = 0;
+		memset(vol_dcstat.vc_count, 0, sizeof(u32) * vlnum * vlnum);
 		vol_dcstat.prev_ts = cur_ts;
 		vol_dcstat.breakdown_start = cur_ts;
-		vol_dcstat.cur_lvl = voltage_lvl[AP_ACTIVE];
+		vol_dcstat.cur_lvl = vol_dcstat.mode_curlvl[ACTIVE];
 		vol_dcstat.total_time = -1UL;
 		vol_dcstat.vc_total_count = 0;
 	} else {
 		time_us = ktime_to_us(ktime_sub(cur_ts, vol_dcstat.prev_ts));
-		vol_dcstat.ops_dcstat[vol_dcstat.cur_lvl].time += time_us;
+		vol_dcstat.vlts[vol_dcstat.cur_lvl].time += time_us;
 		vol_dcstat.total_time = ktime_to_us(ktime_sub(cur_ts,
 					vol_dcstat.breakdown_start));
-		for (i = VL0; i < MAX_PMIC_LEVEL; i++)
-			for (j = VL0; j < MAX_PMIC_LEVEL; j++)
-				vol_dcstat.vc_total_count +=
-					vol_dcstat.vc_count[i][j];
 	}
 	spin_unlock(&vol_lock);
 	return count;
@@ -366,63 +341,24 @@ static const struct file_operations vol_dc_ops = {
 	.write = vol_dc_write,
 };
 
-static int hwdvc_stat_notifier_handler(struct notifier_block *nb,
-		unsigned long rails, void *data)
-{
-	struct hwdvc_notifier_data *vl;
-
-	if (rails >= AP_COMP_MAX)
-		return NOTIFY_OK;
-
-	spin_lock(&vol_lock);
-	vl = (struct hwdvc_notifier_data *)(data);
-	voltage_lvl[rails] = vl->newlv;
-
-	if (!vol_dcstat.stat_start)
-		goto out_dc;
-	if (rails == AP_ACTIVE)
-		vol_dcstat_update(POWER_MODE_MAX);
-out_dc:
-	if (!vol_ledstatus_start)
-		goto out_led;
-	if (rails == AP_ACTIVE)
-		vol_ledstatus_show(POWER_MODE_MAX);
-out_led:
-	spin_unlock(&vol_lock);
-	return NOTIFY_OK;
-}
-
-static struct notifier_block hwdvc_stat_ntf = {
-	.notifier_call = hwdvc_stat_notifier_handler,
-};
-
 static int __init hwdvc_stat_init(void)
 {
-	struct dentry *dvfs_node, *volt_dc_stat, *volt_led;
-	struct dvc_plat_info platinfo;
-	u32 idx;
+	struct dentry *vlstat_node, *volt_dc_stat, *volt_led;
 
-	/* record voltage lvl when init */
-	if (dvfs_get_dvcplatinfo(&platinfo))
+	if (!vol_tsinfo_inited)
 		return -ENOENT;
 
-	for (idx = VL0; idx < MAX_PMIC_LEVEL; idx++)
-		vol_dcstat.ops_dcstat[idx].vol =
-			platinfo.millivolts[idx];
-
-	hwdvc_notifier_register(&hwdvc_stat_ntf);
-
-	dvfs_node = debugfs_create_dir("vlstat", pxa);
-	if (!dvfs_node)
+	vlstat_node = debugfs_create_dir("vlstat", pxa);
+	if (!vlstat_node)
 		return -ENOENT;
 
 	volt_dc_stat = debugfs_create_file("vol_dc_stat", 0444,
-		dvfs_node, NULL, &vol_dc_ops);
+		vlstat_node, NULL, &vol_dc_ops);
 	if (!volt_dc_stat)
 		goto err_1;
 
 	volt_led = debugfs_create_file("vol_led", 0644,
-		dvfs_node, NULL, &vol_led_ops);
+		vlstat_node, NULL, &vol_led_ops);
 	if (!volt_led)
 		goto err_volt_led;
 
@@ -431,7 +367,7 @@ static int __init hwdvc_stat_init(void)
 err_volt_led:
 	debugfs_remove(volt_dc_stat);
 err_1:
-	debugfs_remove(dvfs_node);
+	debugfs_remove(vlstat_node);
 	return -ENOENT;
 }
-arch_initcall(hwdvc_stat_init);
+late_initcall_sync(hwdvc_stat_init);

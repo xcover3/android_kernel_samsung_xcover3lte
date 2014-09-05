@@ -27,4 +27,11 @@ config PXA_DEBUG_MAX_VOLTAGE
 	  It is only a debug feature. When it is enabled, max voltage
 	  will be set to vcc_main by default.
 
+config VOLDC_STAT
+	tristate "Enable voltage stat feature"
+	depends on ARCH_MMP && PXA_DVFS
+	default y
+	---help---
+	  Enable Dynamic Voltage state feature.
+
 endif

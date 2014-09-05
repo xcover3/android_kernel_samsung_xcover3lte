@@ -220,8 +220,6 @@ extern struct dentry *clk_dcstat_file_create(const char *file_name,
 	struct dentry *parent, const struct file_operations *fops);
 
 extern struct clk *cpu_dcstat_clk;
-extern void vol_dcstat_event(u32);
-extern void vol_ledstatus_event(u32);
 #else
 static inline void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			  enum clk_stat_msg msg, unsigned int tgtop)
@@ -253,8 +251,6 @@ static struct dentry *clk_dcstat_file_create(const char *file_name,
 {
 
 }
-void vol_dcstat_event(u32) {}
-void vol_ledstatus_event(u32) {}
 #endif
 
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
@@ -313,5 +309,31 @@ static inline cputime64_t get_cpu_idle_time_dcstat(unsigned int cpu,
 
 extern int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info);
 extern int ddr_profiling_store(int start);
+
+/* voltage stat related */
+enum vlstat_msg {
+	VLSTAT_LPM_ENTRY,
+	VLSTAT_LPM_EXIT,
+	VLSTAT_VOL_CHG,
+};
+
+#ifdef CONFIG_VOLDC_STAT
+/* interface to register voltage level and val on this board, unit mV */
+extern int register_vldcstatinfo(int *vol, u32 vlnum);
+extern void vol_dcstat_event(enum vlstat_msg msg, u32 midx, u32 vl);
+extern void vol_ledstatus_event(u32 lpm);
+#else
+static inline int register_vldcstatinfo(int *vol, u32 vlnum)
+{
+	return 0;
+}
+static inline void vol_dcstat_event(enum vlstat_msg msg, u32 midx, u32 vl)
+{
+}
+static inline void vol_ledstatus_event(u32 mode)
+{
+}
+
+#endif
 
 #endif /* __MMPDCSTAT_H */

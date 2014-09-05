@@ -125,8 +125,10 @@ static void mmp_pm_down(unsigned long addr)
 
 	if (last_man && (*idx >= mmp_idle->cpudown_state) && (*idx != LPM_D2_UDR)) {
 		cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_M2_OR_DEEPER_ENTER, *idx);
-		vol_dcstat_event(*idx);
+#ifdef CONFIG_VOLDC_STAT
+		vol_dcstat_event(VLSTAT_LPM_ENTRY, *idx, 0);
 		vol_ledstatus_event(*idx);
+#endif
 	}
 
 	trace_pxa_cpu_idle(LPM_ENTRY(*idx), cpu, cluster);
@@ -226,8 +228,10 @@ static void mmp_pm_powered_up(void)
 	BUG_ON(cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER);
 
 	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
-	vol_dcstat_event(MAX_LPM_INDEX);
+#ifdef CONFIG_VOLDC_STAT
+	vol_dcstat_event(VLSTAT_LPM_EXIT, 0, 0);
 	vol_ledstatus_event(MAX_LPM_INDEX);
+#endif
 	trace_pxa_cpu_idle(LPM_EXIT(0), cpu, cluster);
 
 	local_irq_save(flags);

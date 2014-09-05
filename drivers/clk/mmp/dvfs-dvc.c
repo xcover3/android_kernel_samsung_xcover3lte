@@ -17,9 +17,8 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/clk/dvfs-dvc.h>
-
+#include <linux/clk/mmpdcstat.h>
 #include <linux/debugfs-pxa.h>
-
 
 #define KHZ_TO_HZ		1000
 #define MV_TO_UV		1000
@@ -557,6 +556,10 @@ static int hwdvc_set_active_vl(struct dvfs_rail *rail, int lvl)
 	hwdvc_notifier_call_chain(AP_ACTIVE, &data);
 
 	dvc_info->cached_cur_lvl[AP_ACTIVE] = hwlvl;
+
+#ifdef CONFIG_VOLDC_STAT
+	vol_dcstat_event(VLSTAT_VOL_CHG, 0, hwlvl);
+#endif
 	return 0;
 }
 
@@ -582,6 +585,10 @@ static int hwdvc_set_m2_vl(struct dvfs_rail *rail, int lvl)
 	hwdvc_notifier_call_chain(AP_LPM, &data);
 
 	dvc_info->cached_cur_lvl[AP_LPM] = hwlvl;
+
+#ifdef CONFIG_VOLDC_STAT
+	vol_dcstat_event(VLSTAT_VOL_CHG, 1, hwlvl);
+#endif
 	return 0;
 }
 
@@ -607,6 +614,10 @@ static int hwdvc_set_d1p_vl(struct dvfs_rail *rail, int lvl)
 	hwdvc_notifier_call_chain(APSUB_IDLE, &data);
 
 	dvc_info->cached_cur_lvl[APSUB_IDLE] = hwlvl;
+
+#ifdef CONFIG_VOLDC_STAT
+	vol_dcstat_event(VLSTAT_VOL_CHG, 2, hwlvl);
+#endif
 	return 0;
 }
 
@@ -657,6 +668,10 @@ int dvfs_setup_dvcplatinfo(struct dvc_plat_info *platinfo)
 		/* hw dvc is using logic voltage lvl */
 		for (idx = 0; idx < platinfo->num_volts; idx++)
 			dvc_info->dvfs_millivolts[idx] = LEVEL0 + idx;
+
+#ifdef CONFIG_VOLDC_STAT
+		register_vldcstatinfo(platinfo->millivolts, maxvl);
+#endif
 	} else {
 		/*
 		 * For sw dvc feature support,
