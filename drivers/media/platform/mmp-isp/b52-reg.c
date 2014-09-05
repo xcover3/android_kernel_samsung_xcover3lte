@@ -31,9 +31,7 @@ static atomic_t streaming_state = ATOMIC_INIT(0);
 static u32 mac_base[MAX_MAC_NUM] = {
 	MAC1_REG_BASE, MAC2_REG_BASE, MAC3_REG_BASE
 };
-static u32 mac_irq_mask[MAX_MAC_NUM] = {
-	INT_MAC_1, INT_MAC_2, INT_MAC_3
-};
+
 static u32 mac_addr_offset[MAX_PORT_NUM][MAX_MAC_ADDR_NUM] = {
 	{REG_MAC_ADDR0, REG_MAC_ADDR1,  REG_MAC_ADDR2,  REG_MAC_ADDR16},
 	{REG_MAC_ADDR3, REG_MAC_ADDR12, REG_MAC_ADDR13, REG_MAC_ADDR16},
@@ -3264,10 +3262,11 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 		__u8 irq_src, irq0 = 0, irq1 = 0, irqr = 0, rdy;
 
 		event[i] = 0;
-		if ((reg & mac_irq_mask[i]) == 0)
-			continue;
 
 		mac_irq = (b52_readw(mac_base[i] + REG_MAC_INT_STAT1));
+		if (!(mac_irq & 0xFFFF))
+			continue;
+
 		irq_src = b52_readb(mac_base[i] + REG_MAC_INT_SRC);
 		rdy = b52_readb(mac_base[i] + REG_MAC_RDY_ADDR0);
 
