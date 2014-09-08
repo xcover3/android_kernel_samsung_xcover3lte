@@ -52,6 +52,14 @@ enum pm886_pages {
 	PM886_TEST_PAGE = 7,
 };
 
+enum pm886_gpadc {
+	PM886_NO_GPADC = -1,
+	PM886_GPADC0 = 0,
+	PM886_GPADC1,
+	PM886_GPADC2,
+	PM886_GPADC3,
+};
+
 /* Interrupt Number in 88PM886 */
 enum pm886_irq_number {
 	PM886_IRQ_ONKEY,	/* EN1b0 *//* 0 */
@@ -148,6 +156,18 @@ struct pm886_chip {
 	u8 powerdown2;
 	u8 powerup;
 };
+
+/* 1.367 mV/LSB */
+#define PM886_VBAT_2_VALUE(v)		((v << 9) / 700)
+#define PM886_VALUE_2_VBAT(val)		((val * 700) >> 9)
+
+/* 1.709 mV/LSB */
+#define PM886_VCHG_2_VALUE(v)		((v << 9) / 875)
+#define PM886_VALUE_2_VCHG(val)		((val * 875) >> 9)
+
+/* 0.342 mV/LSB */
+#define PM886_GPADC_VOL_2_VALUE(v)	((v << 9) / 175)
+#define PM886_GPADC_VALUE_2_VOL(val)	((val * 175) >> 9)
 
 struct pm886_chip *pm886_init_chip(struct i2c_client *client);
 int pm886_parse_dt(struct device_node *np, struct pm886_chip *chip);

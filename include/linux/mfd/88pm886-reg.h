@@ -18,6 +18,7 @@
 
 /*--base page:--------------------------------------------------------------*/
 #define PM886_STATUS1			(0x1)
+#define PM886_CHG_DET			(1 << 2)
 
 #define PM886_MISC_CONFIG1		(0x14)
 #define PM886_LONKEY_RST		(1 << 3)
@@ -102,6 +103,31 @@
 /*-------------------------------------------------------------------------*/
 
 /*--gpadc page:------------------------------------------------------------*/
+
+#define PM886_GPADC_CONFIG2		(0x2)
+#define PM886_GPADC0_MEAS_EN		(1 << 2)
+#define PM886_GPADC1_MEAS_EN		(1 << 3)
+#define PM886_GPADC2_MEAS_EN		(1 << 4)
+#define PM886_GPADC3_MEAS_EN		(1 << 5)
+
+#define PM886_GPADC0_LOW_TH		(0x20)
+#define PM886_GPADC1_LOW_TH		(0x21)
+#define PM886_GPADC2_LOW_TH		(0x22)
+#define PM886_GPADC3_LOW_TH		(0x23)
+
+#define PM886_GPADC0_UPP_TH		(0x30)
+#define PM886_GPADC1_UPP_TH		(0x31)
+#define PM886_GPADC2_UPP_TH		(0x32)
+#define PM886_GPADC3_UPP_TH		(0x33)
+
+#define PM886_VCHG_MEAS1		(0x4C)
+#define PM886_GPADC0_MEAS1		(0x54)
+#define PM886_GPADC1_MEAS1		(0x56)
+#define PM886_GPADC2_MEAS1		(0x58)
+#define PM886_GPADC3_MEAS1		(0x5A)
+
+
+/*--charger page:------------------------------------------------------------*/
 
 /*-------------------------------------------------------------------------*/
 

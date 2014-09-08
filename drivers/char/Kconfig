@@ -637,6 +637,16 @@ config VBUS_88PM830
 	  This driver can be used by vbus detection and otg booster for usb
 	  subsystem.
 
+config VBUS_88PM886
+	tristate "Marvell VBUS 88PM886 PMIC/charger/fuel-gauge support"
+	depends on MFD_88PM886
+	help
+	  Say Y here if you have a 88PM886 PMIC/charger/fuel-gauge IC to detect
+	  USB Vbus/IDpin event.
+	  If unsure, say N.
+	  This driver can be used by vbus detection and otg booster for usb
+	  subsystem.
+
 config TILE_SROM
 	bool "Character-device access via hypervisor to the Tilera SPI ROM"
 	depends on TILE
