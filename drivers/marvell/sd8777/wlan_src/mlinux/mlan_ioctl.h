@@ -206,7 +206,6 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_WWS = 0x0020000B,
 	MLAN_OID_MISC_ASSOC_RSP = 0x0020000C,
 	MLAN_OID_MISC_INIT_SHUTDOWN = 0x0020000D,
-	MLAN_OID_MISC_COALESCING_STATUS = 0x0020000E,
 	MLAN_OID_MISC_CUSTOM_IE = 0x0020000F,
 	MLAN_OID_MISC_TX_DATAPAUSE = 0x00200012,
 	MLAN_OID_MISC_IP_ADDR = 0x00200013,
@@ -231,6 +230,9 @@ enum _mlan_ioctl_req_id {
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
 	MLAN_OID_MISC_WIFI_DIRECT_CONFIG = 0x00200025,
+#endif
+#ifdef RX_PACKET_COALESCE
+	MLAN_OID_MISC_RX_PACKET_COALESCE = 0x0020002C,
 #endif
 };
 
@@ -1330,6 +1332,20 @@ typedef struct {
 /** Maximum size of IEEE Information Elements */
 #define IEEE_MAX_IE_SIZE      256
 
+/** max ralist num */
+#define MLAN_MAX_RALIST_NUM  8
+/** ralist info */
+typedef struct _ralist_info {
+    /** RA list buffer */
+	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
+    /** total packets in RA list */
+	t_u16 total_pkts;
+    /** tid num */
+	t_u8 tid;
+	/** tx_pause flag */
+	t_u8 tx_pause;
+} ralist_info;
+
 /** mlan_debug_info data structure for MLAN_OID_GET_DEBUG_INFO */
 typedef struct _mlan_debug_info {
 	/* WMM AC_BK count */
@@ -1354,6 +1370,10 @@ typedef struct _mlan_debug_info {
 	t_u32 rx_tbl_num;
     /** Rx reorder table*/
 	rx_reorder_tbl rx_tbl[MLAN_MAX_RX_BASTREAM_SUPPORTED];
+    /** ralist num */
+	t_u32 ralist_num;
+    /** ralist info */
+	ralist_info ralist[MLAN_MAX_RALIST_NUM];
     /** Corresponds to ps_mode member of mlan_adapter */
 	t_u16 ps_mode;
     /** Corresponds to ps_state member of mlan_adapter */
@@ -1400,6 +1420,12 @@ typedef struct _mlan_debug_info {
 	t_u32 num_int_read_failure;
     /** Last interrupt status */
 	t_u32 last_int_status;
+    /** number of interrupt receive */
+	t_u32 num_of_irq;
+    /** FW update port number */
+	t_u32 mp_update[SDIO_MP_AGGR_DEF_PKT_LIMIT * 2];
+	/** Invalid port update count */
+	t_u32 mp_invalid_update;
 #ifdef SDIO_MULTI_PORT_TX_AGGR
     /** Number of packets tx aggr */
 	t_u32 mpa_tx_count[SDIO_MP_AGGR_DEF_PKT_LIMIT];
@@ -1421,6 +1447,10 @@ typedef struct _mlan_debug_info {
 	t_u16 last_mp_wr_info[SDIO_MP_DBG_NUM * SDIO_MP_AGGR_DEF_PKT_LIMIT];
     /** last mp_index */
 	t_u8 last_mp_index;
+    /** buffer for mp debug */
+	t_u8 *mpa_buf;
+    /** length info for mp buf size */
+	t_u32 mpa_buf_size;
 #endif
 #ifdef SDIO_MULTI_PORT_RX_AGGR
     /** Number of packets rx aggr */
@@ -1442,6 +1472,8 @@ typedef struct _mlan_debug_info {
 	t_u32 num_tx_timeout;
     /** Number of command timeouts */
 	t_u32 num_cmd_timeout;
+    /** Number of command timeouts */
+	t_u32 dbg_num_cmd_timeout;
     /** Timeout command ID */
 	t_u16 timeout_cmd_id;
     /** Timeout command action */
@@ -2074,6 +2106,17 @@ typedef struct _mlan_ds_pm_cfg {
 	} param;
 } mlan_ds_pm_cfg, *pmlan_ds_pm_cfg;
 
+#ifdef RX_PACKET_COALESCE
+typedef struct {
+	mlan_cmd_result_e cmd_result; /**< Firmware execution result */
+
+	t_u32 pkt_threshold;
+			 /** Packet threshold */
+	t_u16 delay;
+		  /** Timeout value in milliseconds */
+} wlan_ioctl_rx_pkt_coalesce_config_t;
+#endif
+
 /*-----------------------------------------------------------------*/
 /** WMM Configuration Group */
 /*-----------------------------------------------------------------*/
@@ -2184,7 +2227,7 @@ typedef struct {
 /** Type definition of mlan_ds_wmm_queue_stats
  *  for MLAN_OID_WMM_CFG_QUEUE_STATS
  */
- mlan_ds_wmm_queue_stats, *pmlan_ds_wmm_queue_stats;
+mlan_ds_wmm_queue_stats, *pmlan_ds_wmm_queue_stats;
 
 /**
  *  @brief IOCTL sub structure for a specific WMM AC Status
@@ -2216,7 +2259,7 @@ typedef struct {
 /** Type definition of mlan_ds_wmm_queue_status
  *  for MLAN_OID_WMM_CFG_QUEUE_STATUS
  */
- mlan_ds_wmm_queue_status, *pmlan_ds_wmm_queue_status;
+mlan_ds_wmm_queue_status, *pmlan_ds_wmm_queue_status;
 
 /** Type definition of mlan_ds_wmm_addts for MLAN_OID_WMM_CFG_ADDTS */
 typedef struct _mlan_ds_wmm_addts {
@@ -2676,12 +2719,6 @@ enum _mlan_func_cmd {
 	MLAN_FUNC_SHUTDOWN,
 };
 
-/** Enumeration for Coalescing status */
-enum _mlan_coal_status {
-	MLAN_MISC_COALESCING_ENABLE = 1,
-	MLAN_MISC_COALESCING_DISABLE = 0
-};
-
 /** Type definition of mlan_ds_misc_tx_datapause
  * for MLAN_OID_MISC_TX_DATAPAUSE
  */
@@ -2911,6 +2948,15 @@ typedef struct _mlan_ds_wifi_direct_config {
 } mlan_ds_wifi_direct_config;
 #endif
 
+#ifdef RX_PACKET_COALESCE
+typedef struct _mlan_ds_misc_rx_packet_coalesce {
+	/** packet threshold */
+	t_u32 packet_threshold;
+	/** timeout value */
+	t_u16 delay;
+} mlan_ds_misc_rx_packet_coalesce;
+#endif
+
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
     /** Sub-command */
@@ -2935,8 +2981,6 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_assoc_rsp assoc_resp;
 	/** Function init/shutdown for MLAN_OID_MISC_INIT_SHUTDOWN */
 		t_u32 func_init_shutdown;
-	/** Coalescing status for MLAN_OID_MISC_COALESCING_STATUS */
-		t_u16 coalescing_status;
 	/** Custom IE for MLAN_OID_MISC_CUSTOM_IE */
 		mlan_ds_misc_custom_ie cust_ie;
 	/** Tx data pause for MLAN_OID_MISC_TX_DATAPAUSE */
@@ -2972,7 +3016,16 @@ typedef struct _mlan_ds_misc_cfg {
 #ifdef WIFI_DIRECT_SUPPORT
 		mlan_ds_wifi_direct_config p2p_config;
 #endif
+#ifdef RX_PACKET_COALESCE
+		mlan_ds_misc_rx_packet_coalesce rx_coalesce;
+#endif
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 
+/** Hotspot status enable */
+#define HOTSPOT_ENABLED                 MBIT(0)
+/** Hotspot status disable */
+#define HOTSPOT_DISABLED                MFALSE
+/** Keep Hotspot2.0 compatible in mwu and wpa_supplicant */
+#define HOTSPOT_BY_SUPPLICANT		    MBIT(1)
 #endif /* !_MLAN_IOCTL_H_ */

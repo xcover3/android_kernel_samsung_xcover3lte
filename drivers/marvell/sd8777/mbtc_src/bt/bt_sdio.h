@@ -246,6 +246,10 @@ struct sdio_mmc_card {
 #define ALIGN_ADDR(p, a)	\
 	((((t_ptr)(p)) + (((t_ptr)(a)) - 1)) & ~(((t_ptr)(a)) - 1))
 
+/** This function read cmd52 register */
+int sd_write_reg(bt_private * priv, int reg, u8 val);
+/** This function write cmd52 value to register */
+int sd_read_reg(bt_private * priv, int reg, u8 * data);
 /** This function reads the Cmd52 value in dev structure */
 int sd_read_cmd52_val(bt_private * priv);
 /** This function updates card reg based on the Cmd52 value in dev structure */

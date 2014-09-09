@@ -118,7 +118,7 @@ typedef MLAN_PACK_START struct {
  *  @return            TRUE if found such type of packets, FALSE not found
  */
 static t_u8
-discard_gratuitous_ARP_msg(RxPacketHdr_t * prx_pkt, pmlan_adapter pmadapter)
+discard_gratuitous_ARP_msg(RxPacketHdr_t *prx_pkt, pmlan_adapter pmadapter)
 {
 	t_u8 proto_ARP_type[] = { 0x08, 0x06 };
 	t_u8 proto_ARP_type_v6[] = { 0x86, 0xDD };
@@ -132,7 +132,7 @@ discard_gratuitous_ARP_msg(RxPacketHdr_t * prx_pkt, pmlan_adapter pmadapter)
 	if (memcmp
 	    (pmadapter, proto_ARP_type, &prx_pkt->eth803_hdr.h803_len,
 	     sizeof(proto_ARP_type)) == 0) {
-		parp_hdr = (IPv4_ARP_t *) (&prx_pkt->rfc1042_hdr);
+		parp_hdr = (IPv4_ARP_t *)(&prx_pkt->rfc1042_hdr);
 		/* Graguitous ARP can be ARP request or ARP reply */
 		if ((parp_hdr->op_code == mlan_htons(0x01)) ||
 		    (parp_hdr->op_code == mlan_htons(0x02)))
@@ -147,7 +147,7 @@ discard_gratuitous_ARP_msg(RxPacketHdr_t * prx_pkt, pmlan_adapter pmadapter)
 	if (memcmp
 	    (pmadapter, proto_ARP_type_v6, &prx_pkt->eth803_hdr.h803_len,
 	     sizeof(proto_ARP_type_v6)) == 0) {
-		pNadv_hdr = (IPv6_Nadv_t *) (&prx_pkt->rfc1042_hdr);
+		pNadv_hdr = (IPv6_Nadv_t *)(&prx_pkt->rfc1042_hdr);
 		/* Check Nadv type: next header is ICMPv6 and icmp type is Nadv
 		 */
 		if (pNadv_hdr->next_hdr == 0x3A && pNadv_hdr->icmp_type == 0x88)
@@ -187,8 +187,8 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 
 	ENTER();
 
-	prx_pd = (RxPD *) (pmbuf->pbuf + pmbuf->data_offset);
-	prx_pkt = (RxPacketHdr_t *) ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset);
+	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
+	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 /** Small debug type */
 #define DBG_TYPE_SMALL  2
@@ -196,11 +196,11 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 #define SIZE_OF_DBG_STRUCT 4
 	if (prx_pd->rx_pkt_type == PKT_TYPE_DEBUG) {
 		t_u8 dbg_type;
-		dbg_type = *(t_u8 *) & prx_pkt->eth803_hdr;
+		dbg_type = *(t_u8 *)&prx_pkt->eth803_hdr;
 		if (dbg_type == DBG_TYPE_SMALL) {
 			PRINTM(MFW_D, "\n");
 			DBG_HEXDUMP(MFW_D, "FWDBG",
-				    (char *)((t_u8 *) & prx_pkt->eth803_hdr +
+				    (char *)((t_u8 *)&prx_pkt->eth803_hdr +
 					     SIZE_OF_DBG_STRUCT),
 				    prx_pd->rx_pkt_length);
 			PRINTM(MFW_D, "FWDBG::\n");
@@ -235,7 +235,7 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		 * right before the snap_type.
 		 */
 		peth_hdr = (EthII_Hdr_t *)
-			((t_u8 *) & prx_pkt->eth803_hdr
+			((t_u8 *)&prx_pkt->eth803_hdr
 			 + sizeof(prx_pkt->eth803_hdr) +
 			 sizeof(prx_pkt->rfc1042_hdr)
 			 - sizeof(prx_pkt->eth803_hdr.dest_addr)
@@ -251,10 +251,10 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 
 		/* Chop off the RxPD + the excess memory from the
 		   802.2/llc/snap header that was removed. */
-		hdr_chop = (t_u32) ((t_ptr) peth_hdr - (t_ptr) prx_pd);
+		hdr_chop = (t_u32)((t_ptr)peth_hdr - (t_ptr)prx_pd);
 	} else {
 		HEXDUMP("RX Data: LLC/SNAP",
-			(t_u8 *) & prx_pkt->rfc1042_hdr,
+			(t_u8 *)&prx_pkt->rfc1042_hdr,
 			sizeof(prx_pkt->rfc1042_hdr));
 		if ((priv->hotspot_cfg & HOTSPOT_ENABLED) &&
 		    discard_gratuitous_ARP_msg(prx_pkt, pmadapter)) {
@@ -264,9 +264,7 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 			goto done;
 		}
 		/* Chop off the RxPD */
-		hdr_chop =
-			(t_u32) ((t_ptr) & prx_pkt->eth803_hdr -
-				 (t_ptr) prx_pd);
+		hdr_chop = (t_u32)((t_ptr)&prx_pkt->eth803_hdr - (t_ptr)prx_pd);
 	}
 
 	/* Chop off the leading header bytes so the it points to the start of
@@ -275,10 +273,10 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	pmbuf->data_offset += hdr_chop;
 	pmbuf->pparent = MNULL;
 
-	DBG_HEXDUMP(MDAT_D, "RxPD", (t_u8 *) prx_pd,
+	DBG_HEXDUMP(MDAT_D, "RxPD", (t_u8 *)prx_pd,
 		    MIN(sizeof(RxPD), MAX_DATA_DUMP_LEN));
 	DBG_HEXDUMP(MDAT_D, "Rx Payload",
-		    ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset),
+		    ((t_u8 *)prx_pd + prx_pd->rx_pkt_offset),
 		    MIN(prx_pd->rx_pkt_length, MAX_DATA_DUMP_LEN));
 	priv->rxpd_rate = prx_pd->rx_rate;
 	priv->rxpd_htinfo = prx_pd->ht_info;
@@ -315,9 +313,9 @@ done:
  *   @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-wlan_ops_sta_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
+wlan_ops_sta_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 {
-	pmlan_adapter pmadapter = (pmlan_adapter) adapter;
+	pmlan_adapter pmadapter = (pmlan_adapter)adapter;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	RxPD *prx_pd;
 	RxPacketHdr_t *prx_pkt;
@@ -327,14 +325,14 @@ wlan_ops_sta_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	wlan_mgmt_pkt *pmgmt_pkt_hdr = MNULL;
 	ENTER();
 
-	prx_pd = (RxPD *) (pmbuf->pbuf + pmbuf->data_offset);
+	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
 	rx_pkt_type = prx_pd->rx_pkt_type;
-	prx_pkt = (RxPacketHdr_t *) ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset);
+	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	if ((prx_pd->rx_pkt_offset + prx_pd->rx_pkt_length) >
-	    (t_u16) pmbuf->data_len) {
+	    (t_u16)pmbuf->data_len) {
 		PRINTM(MERROR,
 		       "Wrong rx packet: len=%d,rx_pkt_offset=%d,"
 		       " rx_pkt_length=%d\n", pmbuf->data_len,
@@ -351,8 +349,8 @@ wlan_ops_sta_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 		/* Check if this is mgmt packet and needs to forwarded to app
 		   as an event */
 		pmgmt_pkt_hdr =
-			(wlan_mgmt_pkt *) ((t_u8 *) prx_pd +
-					   prx_pd->rx_pkt_offset);
+			(wlan_mgmt_pkt *)((t_u8 *)prx_pd +
+					  prx_pd->rx_pkt_offset);
 		pmgmt_pkt_hdr->frm_len =
 			wlan_le16_to_cpu(pmgmt_pkt_hdr->frm_len);
 
@@ -360,14 +358,13 @@ wlan_ops_sta_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 		     & IEEE80211_FC_MGMT_FRAME_TYPE_MASK) == 0)
 			wlan_process_802dot11_mgmt_pkt(pmadapter->
 						       priv[pmbuf->bss_index],
-						       (t_u8 *) &
-						       pmgmt_pkt_hdr->
+						       (t_u8 *)&pmgmt_pkt_hdr->
 						       wlan_header,
 						       pmgmt_pkt_hdr->frm_len +
 						       sizeof(wlan_mgmt_pkt)
 						       -
 						       sizeof(pmgmt_pkt_hdr->
-							      frm_len));
+							      frm_len), prx_pd);
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 		goto done;
 	}
@@ -398,8 +395,8 @@ wlan_ops_sta_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	if ((priv->port_ctrl_mode == MTRUE && priv->port_open == MFALSE) &&
 	    (rx_pkt_type != PKT_TYPE_BAR)) {
 		mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num, prx_pd->priority,
-				       ta, (t_u8) prx_pd->rx_pkt_type,
-				       (t_void *) RX_PKT_DROPPED_IN_FW);
+				       ta, (t_u8)prx_pd->rx_pkt_type,
+				       (t_void *)RX_PKT_DROPPED_IN_FW);
 		wlan_process_rx_packet(pmadapter, pmbuf);
 		goto done;
 	}
@@ -407,7 +404,7 @@ wlan_ops_sta_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	/* Reorder and send to OS */
 	ret = mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num,
 				     prx_pd->priority, ta,
-				     (t_u8) prx_pd->rx_pkt_type, (void *)pmbuf);
+				     (t_u8)prx_pd->rx_pkt_type, (void *)pmbuf);
 	if (ret || (rx_pkt_type == PKT_TYPE_BAR)
 		) {
 		wlan_free_mlan_buffer(pmadapter, pmbuf);

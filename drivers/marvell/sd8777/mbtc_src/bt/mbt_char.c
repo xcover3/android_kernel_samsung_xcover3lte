@@ -207,6 +207,7 @@ chardev_write(struct file * filp, const char *buf, size_t count, loff_t * f_pos)
 	struct sk_buff *skb;
 	struct char_dev *dev = (struct char_dev *)filp->private_data;
 	struct m_dev *m_dev = NULL;
+
 	ENTER();
 
 	if (!dev || !dev->m_dev) {
@@ -335,8 +336,61 @@ chardev_read(struct file * filp, char *buf, size_t count, loff_t * f_pos)
 outf:
 	kfree_skb(skb);
 out:
+	if (m_dev->wait_rx_complete && skb_queue_empty(&m_dev->rx_q)) {
+		m_dev->rx_complete_flag = TRUE;
+		wake_up_interruptible(&m_dev->rx_wait_q);
+	}
 	LEAVE();
 	return ret;
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+/**
+ *	@brief ioctl common handler for char dev
+ *
+ *	@param inode	pointer to structure inode
+ *	@param filp	pointer to structure file
+ *	@param cmd		contains the IOCTL
+ *	@param arg		contains the arguement
+ *	@return			0--success otherwise failure
+ */
+int
+char_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, void *arg)
+#else
+/**
+ *	@brief ioctl common handler for char dev
+ *
+ *	@param filp	pointer to structure file
+ *	@param cmd		contains the IOCTL
+ *	@param arg		contains the arguement
+ *	@return			0--success otherwise failure
+ */
+long
+char_ioctl(struct file *filp, unsigned int cmd, void *arg)
+#endif
+{
+	struct char_dev *dev = (struct char_dev *)filp->private_data;
+	struct m_dev *m_dev = NULL;
+
+	ENTER();
+	if (!dev || !dev->m_dev) {
+		LEAVE();
+		return -ENXIO;
+	}
+	m_dev = dev->m_dev;
+	PRINTM(INFO, "IOCTL: cmd=%d\n", cmd);
+	switch (cmd) {
+	case MBTCHAR_IOCTL_RELEASE:
+		m_dev->close(m_dev);
+		break;
+	case MBTCHAR_IOCTL_QUERY_TYPE:
+		m_dev->query(m_dev, arg);
+		break;
+	default:
+		break;
+	}
+	LEAVE();
+	return 0;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
@@ -365,35 +419,47 @@ long
 chardev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 {
-	struct char_dev *dev = (struct char_dev *)filp->private_data;
-	struct m_dev *m_dev = NULL;
-	void *ptr;
-
-	ENTER();
-	if (!dev || !dev->m_dev) {
-		LEAVE();
-		return -ENXIO;
-	}
-#ifdef CONFIG_COMPAT
-	ptr = compat_ptr(arg);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	return char_ioctl(inode, filp, cmd, (void *)arg);
 #else
-	ptr = (void *)arg;
+	return char_ioctl(filp, cmd, (void *)arg);
 #endif
-	m_dev = dev->m_dev;
-	PRINTM(INFO, "IOCTL: cmd=%d\n", cmd);
-	switch (cmd) {
-	case MBTCHAR_IOCTL_RELEASE:
-		m_dev->close(m_dev);
-		break;
-	case MBTCHAR_IOCTL_QUERY_TYPE:
-		m_dev->query(m_dev, ptr);
-		break;
-	default:
-		break;
-	}
-	LEAVE();
-	return 0;
 }
+
+#ifdef CONFIG_COMPAT
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+/**
+ *	@brief compat ioctl handler for char dev
+ *
+ *	@param inode	pointer to structure inode
+ *	@param filp	pointer to structure file
+ *	@param cmd		contains the IOCTL
+ *	@param arg		contains the arguement
+ *	@return			0--success otherwise failure
+ */
+int
+chardev_ioctl_compat(struct inode *inode, struct file *filp,
+		     unsigned int cmd, unsigned long arg)
+#else
+/**
+ *	@brief compat ioctl handler for char dev
+ *
+ *	@param filp	pointer to structure file
+ *	@param cmd		contains the IOCTL
+ *	@param arg		contains the arguement
+ *	@return			0--success otherwise failure
+ */
+long
+chardev_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long arg)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	return char_ioctl(inode, filp, cmd, compat_ptr(arg));
+#else
+	return char_ioctl(filp, cmd, compat_ptr(arg));
+#endif
+}
+#endif /* CONFIG_COMPAT */
 
 /**
  *	@brief open handler for char dev
@@ -519,7 +585,7 @@ const struct file_operations chardev_fops = {
 	.unlocked_ioctl = chardev_ioctl,
 #endif
 #ifdef CONFIG_COMPAT
-	.compat_ioctl = chardev_ioctl,
+	.compat_ioctl = chardev_ioctl_compat,
 #endif
 	.open = chardev_open,
 	.release = chardev_release,

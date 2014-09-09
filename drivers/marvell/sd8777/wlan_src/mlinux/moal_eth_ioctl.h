@@ -181,8 +181,10 @@ Change log:
 #define PRIV_CMD_ASSOCIATE      "associate"
 #define PRIV_CMD_PORT_CTRL      "port_ctrl"
 #define PRIV_CMD_PB_BYPASS      "pb_bypass"
-#define PRIV_CMD_COALESCE_STATUS    "coalesce_status"
 #define PRIV_CMD_SD_CMD53_RW        "sdcmd53rw"
+#ifdef RX_PACKET_COALESCE
+#define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
+#endif
 #if defined(WIFI_DIRECT_SUPPORT)
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
@@ -216,14 +218,26 @@ int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
  * kernel updates "used_len" during copy_to_user
  */
 /** Private command structure from app */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
 typedef struct _android_wifi_priv_cmd {
     /** Buffer pointer */
-	t_u64 *buf;
+	t_u64 buf;
+    /** buffer updated by driver */
+	int used_len;
+    /** buffer sent by application */
+	int total_len;
+} __attribute__ ((packed))
+     android_wifi_priv_cmd;
+#else
+typedef struct _android_wifi_priv_cmd {
+    /** Buffer pointer */
+	char *buf;
     /** buffer updated by driver */
 	int used_len;
     /** buffer sent by application */
 	int total_len;
 } android_wifi_priv_cmd;
+#endif
 
 #ifndef IFNAMSIZ
 #define IFNAMSIZ 16
@@ -338,7 +352,7 @@ typedef struct woal_priv_tx_rate_cfg {
 	t_u32 rate_index;
 } woal_tx_rate_cfg;
 
-mlan_status woal_set_ap_wps_p2p_ie(moal_private * priv, t_u8 * ie, size_t len);
+mlan_status woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len);
 
 int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req);
 

@@ -1970,6 +1970,19 @@ sysclock
 		mlanutl mlanX sysclock 0 0 128   : Set system clock in non-security A-MPDU
 		                                  mode to 128 MHz, no changes for others
 
+tcpackenh
+	This command is used to set/get TCP ACK enhancement mode.
+
+	where
+	[l] is a control to set TCP ACK enhancement mode
+		1   -- Enable TCP ACK enhancement (default)
+		0   -- Disable TCP ACK enhancement
+
+	Examples:
+		mlanutl mlan0 tcpackenh          : Display TCP ACK enhancement
+		mlanutl mlan0 tcpackenh 1        : Enable TCP ACK enhancement
+		mlanutl mlan0 tcpackenh 0        : Disable TCP ACK enhancement
+
 thermal
 	This command is used to get the current thermal reading.
 
@@ -2135,4 +2148,17 @@ wwscfg
 		mlanutl mlan0 wwscfg 1           : Enable WWS mode
 		mlanutl mlan0 wwscfg 0           : Disable WWS mode
 
+
+rxpktcoal_cfg
+	This is used to get/set RX packet coalescing paramters
+	Usage:
+		mlanutl mlanX rxpktcoal_cfg [m] [n]
+
+	where:
+        [m]: pkt_threshold: count after which packets would be sent to host. Valid values 1-7
+        [n]: delay: timeout in ms after which packets would be sent to host. Valid values 1-4
+        Coalescing is disabled if both or either of packet_thershold and delay is zero
+
+        RX packet coalescing parameters can be changed only when device is in
+        idle state i.e. all interfaces are disconnected.
 ===============================================================================

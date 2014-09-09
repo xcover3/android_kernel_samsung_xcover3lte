@@ -66,6 +66,9 @@ struct m_dev {
 	int spec_type;
 	void *driver_data;
 	int read_continue_flag;
+	int wait_rx_complete;
+	int rx_complete_flag;
+	wait_queue_head_t rx_wait_q;
 
 	int (*open) (struct m_dev * m_dev);
 	int (*close) (struct m_dev * m_dev);

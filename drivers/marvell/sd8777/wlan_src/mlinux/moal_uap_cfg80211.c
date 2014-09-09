@@ -52,7 +52,7 @@
  * @return                0 -- success, otherwise fail
  */
 static int
-woal_deauth_station(moal_private * priv, u8 * mac_addr)
+woal_deauth_station(moal_private *priv, u8 *mac_addr)
 {
 	mlan_ioctl_req *ioctl_req = NULL;
 	mlan_ds_bss *bss = NULL;
@@ -66,7 +66,7 @@ woal_deauth_station(moal_private * priv, u8 * mac_addr)
 		ret = -ENOMEM;
 		goto done;
 	}
-	bss = (mlan_ds_bss *) ioctl_req->pbuf;
+	bss = (mlan_ds_bss *)ioctl_req->pbuf;
 	bss->sub_command = MLAN_OID_UAP_DEAUTH_STA;
 	ioctl_req->req_id = MLAN_IOCTL_BSS;
 	ioctl_req->action = MLAN_ACT_SET;
@@ -97,7 +97,7 @@ done:
  * @return                0 -- success, otherwise fail
  */
 static int
-woal_deauth_all_station(moal_private * priv)
+woal_deauth_all_station(moal_private *priv)
 {
 	int ret = -EFAULT;
 	int i = 0;
@@ -121,7 +121,7 @@ woal_deauth_all_station(moal_private * priv)
 		goto done;
 	}
 
-	info = (mlan_ds_get_info *) ioctl_req->pbuf;
+	info = (mlan_ds_get_info *)ioctl_req->pbuf;
 	info->sub_command = MLAN_OID_UAP_STA_LIST;
 	ioctl_req->req_id = MLAN_IOCTL_GET_INFO;
 	ioctl_req->action = MLAN_ACT_GET;
@@ -154,7 +154,7 @@ done:
  * @return                MTRUE/MFALSE
  */
 static t_u8
-woal_check_rsn_ie(IEEEtypes_Rsn_t * rsn_ie, mlan_uap_bss_param * sys_config)
+woal_check_rsn_ie(IEEEtypes_Rsn_t *rsn_ie, mlan_uap_bss_param *sys_config)
 {
 	int left = 0;
 	int count = 0;
@@ -195,9 +195,10 @@ woal_check_rsn_ie(IEEEtypes_Rsn_t * rsn_ie, mlan_uap_bss_param * sys_config)
 	if (left < sizeof(wpa_suite_auth_key_mgmt_t))
 		return MFALSE;
 	key_mgmt =
-		(wpa_suite_auth_key_mgmt_t *) ((u8 *) rsn_ie +
-					       sizeof(IEEEtypes_Rsn_t) +
-					       (count - 1) * sizeof(wpa_suite));
+		(wpa_suite_auth_key_mgmt_t *)((u8 *)rsn_ie +
+					      sizeof(IEEEtypes_Rsn_t) + (count -
+									 1) *
+					      sizeof(wpa_suite));
 	count = le16_to_cpu(key_mgmt->count);
 	if (left <
 	    (sizeof(wpa_suite_auth_key_mgmt_t) +
@@ -228,7 +229,7 @@ woal_check_rsn_ie(IEEEtypes_Rsn_t * rsn_ie, mlan_uap_bss_param * sys_config)
  * @return                MTRUE/MFALSE
  */
 static t_u8
-woal_check_wpa_ie(IEEEtypes_Wpa_t * wpa_ie, mlan_uap_bss_param * sys_config)
+woal_check_wpa_ie(IEEEtypes_Wpa_t *wpa_ie, mlan_uap_bss_param *sys_config)
 {
 	int left = 0;
 	int count = 0;
@@ -267,9 +268,10 @@ woal_check_wpa_ie(IEEEtypes_Wpa_t * wpa_ie, mlan_uap_bss_param * sys_config)
 	if (left < sizeof(wpa_suite_auth_key_mgmt_t))
 		return MFALSE;
 	key_mgmt =
-		(wpa_suite_auth_key_mgmt_t *) ((u8 *) wpa_ie +
-					       sizeof(IEEEtypes_Wpa_t) +
-					       (count - 1) * sizeof(wpa_suite));
+		(wpa_suite_auth_key_mgmt_t *)((u8 *)wpa_ie +
+					      sizeof(IEEEtypes_Wpa_t) + (count -
+									 1) *
+					      sizeof(wpa_suite));
 	count = le16_to_cpu(key_mgmt->count);
 	if (left <
 	    (sizeof(wpa_suite_auth_key_mgmt_t) +
@@ -297,7 +299,7 @@ woal_check_wpa_ie(IEEEtypes_Wpa_t * wpa_ie, mlan_uap_bss_param * sys_config)
  * @return                MTRUE/MFALSE
  */
 static t_u8
-woal_find_wpa_ies(const t_u8 * ie, int len, mlan_uap_bss_param * sys_config)
+woal_find_wpa_ies(const t_u8 *ie, int len, mlan_uap_bss_param *sys_config)
 {
 	int bytes_left = len;
 	const t_u8 *pcurrent_ptr = ie;
@@ -311,8 +313,8 @@ woal_find_wpa_ies(const t_u8 * ie, int len, mlan_uap_bss_param * sys_config)
 	const t_u8 wpa_oui[4] = { 0x00, 0x50, 0xf2, 0x01 };
 
 	while (bytes_left >= 2) {
-		element_id = (IEEEtypes_ElementId_e) (*((t_u8 *) pcurrent_ptr));
-		element_len = *((t_u8 *) pcurrent_ptr + 1);
+		element_id = (IEEEtypes_ElementId_e)(*((t_u8 *)pcurrent_ptr));
+		element_len = *((t_u8 *)pcurrent_ptr + 1);
 		total_ie_len = element_len + sizeof(IEEEtypes_Header_t);
 		if (bytes_left < total_ie_len) {
 			PRINTM(MERROR,
@@ -326,8 +328,7 @@ woal_find_wpa_ies(const t_u8 * ie, int len, mlan_uap_bss_param * sys_config)
 						 pcurrent_ptr, sys_config);
 			break;
 		case VENDOR_SPECIFIC_221:
-			pvendor_ie =
-				(IEEEtypes_VendorSpecific_t *) pcurrent_ptr;
+			pvendor_ie = (IEEEtypes_VendorSpecific_t *)pcurrent_ptr;
 			if (!memcmp
 			    (pvendor_ie->vend_hdr.oui, wpa_oui,
 			     sizeof(pvendor_ie->vend_hdr.oui)) &&
@@ -414,7 +415,7 @@ woal_get_second_channel_offset(int chan)
  * @return                0 -- success, otherwise fail
  */
 static int
-woal_cfg80211_beacon_config(moal_private * priv,
+woal_cfg80211_beacon_config(moal_private *priv,
 			    struct cfg80211_ap_settings *params)
 #else
 /**
@@ -425,7 +426,7 @@ woal_cfg80211_beacon_config(moal_private * priv,
  * @return                0 -- success, otherwise fail
  */
 static int
-woal_cfg80211_beacon_config(moal_private * priv,
+woal_cfg80211_beacon_config(moal_private *priv,
 			    struct beacon_parameters *params)
 #endif
 {
@@ -587,12 +588,12 @@ woal_cfg80211_beacon_config(moal_private * priv,
 				       sizeof(rates_a));
 		}
 		/* Disable GreenField by default */
-		sys_config.ht_cap_info = 0x110c;
+		sys_config.ht_cap_info = 0x10c;
 		if (enable_11n)
 			sys_config.ht_cap_info |= 0x20;
 		if (chan2Offset) {
 			sys_config.band_cfg |= chan2Offset;
-			sys_config.ht_cap_info |= 0x42;
+			sys_config.ht_cap_info |= 0x1042;
 			sys_config.ampdu_param = 3;
 		}
 		PRINTM(MCMND,
@@ -823,7 +824,7 @@ woal_virt_if_setup(struct net_device *dev)
  *  @return          A pointer to the new priv structure
  */
 moal_private *
-woal_alloc_virt_interface(moal_handle * handle, t_u8 bss_index, t_u8 bss_type,
+woal_alloc_virt_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
 			  const
 #endif
@@ -853,7 +854,7 @@ woal_alloc_virt_interface(moal_handle * handle, t_u8 bss_index, t_u8 bss_type,
 		goto error;
 	}
 
-	priv = (moal_private *) netdev_priv(dev);
+	priv = (moal_private *)netdev_priv(dev);
 	/* Save the priv to handle */
 	handle->priv[bss_index] = priv;
 
@@ -903,22 +904,22 @@ woal_cfg80211_add_virt_if(struct wiphy *wiphy,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
 			  const
 #endif
-			  char *name, enum nl80211_iftype type, u32 * flags,
+			  char *name, enum nl80211_iftype type, u32 *flags,
 			  struct vif_params *params,
 			  struct net_device **new_dev)
 {
 	int ret = 0;
 	struct net_device *ndev = NULL;
 	moal_private *priv = NULL, *new_priv = NULL;
-	moal_handle *handle = (moal_handle *) woal_get_wiphy_priv(wiphy);
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	struct wireless_dev *wdev = NULL;
 	moal_private *vir_priv;
 	int i = 0;
 
 	ENTER();
 	ASSERT_RTNL();
-	priv = (moal_private *) woal_get_priv_bss_type(handle,
-						       MLAN_BSS_TYPE_WIFIDIRECT);
+	priv = (moal_private *)woal_get_priv_bss_type(handle,
+						      MLAN_BSS_TYPE_WIFIDIRECT);
 	if (!priv || !priv->phandle) {
 		PRINTM(MERROR, "priv or handle is NULL\n");
 		LEAVE();
@@ -1015,7 +1016,7 @@ done:
  *  @return              MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING -- success, otherwise fail
  */
 mlan_status
-woal_bss_remove(moal_private * priv)
+woal_bss_remove(moal_private *priv)
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_bss *bss = NULL;
@@ -1024,14 +1025,14 @@ woal_bss_remove(moal_private * priv)
 	ENTER();
 
 	/* Allocate an IOCTL request buffer */
-	req = (mlan_ioctl_req *) woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
+	req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
 	if (req == NULL) {
 		status = MLAN_STATUS_FAILURE;
 		goto done;
 	}
 
 	/* Fill request buffer */
-	bss = (mlan_ds_bss *) req->pbuf;
+	bss = (mlan_ds_bss *)req->pbuf;
 	bss->sub_command = MLAN_OID_BSS_REMOVE;
 	req->req_id = MLAN_IOCTL_BSS;
 	req->action = MLAN_ACT_SET;
@@ -1061,11 +1062,11 @@ woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 	moal_private *priv = NULL;
 	moal_private *vir_priv = NULL;
 	moal_private *remain_priv = NULL;
-	moal_handle *handle = (moal_handle *) woal_get_wiphy_priv(wiphy);
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	unsigned long flags;
 
-	priv = (moal_private *) woal_get_priv_bss_type(handle,
-						       MLAN_BSS_TYPE_WIFIDIRECT);
+	priv = (moal_private *)woal_get_priv_bss_type(handle,
+						      MLAN_BSS_TYPE_WIFIDIRECT);
 	for (i = 0; i < priv->phandle->priv_num; i++) {
 		vir_priv = priv->phandle->priv[i];
 		if (vir_priv) {
@@ -1182,7 +1183,7 @@ woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
  *  @return        N/A
  */
 void
-woal_remove_virtual_interface(moal_handle * handle)
+woal_remove_virtual_interface(moal_handle *handle)
 {
 	moal_private *priv = NULL;
 	int vir_intf = 0;
@@ -1233,8 +1234,8 @@ woal_remove_virtual_interface(moal_handle * handle)
  */
 struct net_device *
 woal_cfg80211_add_virtual_intf(struct wiphy *wiphy,
-			       char *name, enum nl80211_iftype type,
-			       u32 * flags, struct vif_params *params)
+			       char *name, enum nl80211_iftype type, u32 *flags,
+			       struct vif_params *params)
 #else
 /**
  * @brief Request the driver to add a virtual interface
@@ -1249,8 +1250,8 @@ woal_cfg80211_add_virtual_intf(struct wiphy *wiphy,
  */
 int
 woal_cfg80211_add_virtual_intf(struct wiphy *wiphy,
-			       char *name, enum nl80211_iftype type,
-			       u32 * flags, struct vif_params *params)
+			       char *name, enum nl80211_iftype type, u32 *flags,
+			       struct vif_params *params)
 #endif
 #else
 /**
@@ -1269,8 +1270,8 @@ woal_cfg80211_add_virtual_intf(struct wiphy *wiphy,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
 			       const
 #endif
-			       char *name, enum nl80211_iftype type,
-			       u32 * flags, struct vif_params *params)
+			       char *name, enum nl80211_iftype type, u32 *flags,
+			       struct vif_params *params)
 #endif
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
@@ -1384,7 +1385,7 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 			 struct beacon_parameters *params)
 #endif
 {
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
 
 	ENTER();
@@ -1518,7 +1519,7 @@ woal_cfg80211_set_beacon(struct wiphy *wiphy,
 			 struct beacon_parameters *params)
 #endif
 {
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
 
 	ENTER();
@@ -1599,7 +1600,7 @@ done:
 int
 woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 {
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
 #ifdef STA_SUPPORT
 	moal_private *pmpriv = NULL;
@@ -1632,7 +1633,7 @@ woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 
 #ifdef STA_SUPPORT
 	if (!woal_is_any_interface_active(priv->phandle)) {
-		pmpriv = woal_get_priv((moal_handle *) priv->phandle,
+		pmpriv = woal_get_priv((moal_handle *)priv->phandle,
 				       MLAN_BSS_ROLE_STA);
 		if (pmpriv)
 			woal_set_scan_time(pmpriv, ACTIVE_SCAN_CHAN_TIME,
@@ -1661,9 +1662,9 @@ done:
  */
 int
 woal_cfg80211_del_station(struct wiphy *wiphy,
-			  struct net_device *dev, u8 * mac_addr)
+			  struct net_device *dev, u8 *mac_addr)
 {
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	ENTER();
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MINFO, "cfg80211: Media not connected!\n");
@@ -1699,9 +1700,9 @@ woal_cfg80211_del_station(struct wiphy *wiphy,
  */
 int
 woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
-			      u8 * mac, struct station_info *stainfo)
+			      u8 *mac, struct station_info *stainfo)
 {
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = -EFAULT;
 	int i = 0;
 	mlan_ds_get_info *info = NULL;
@@ -1724,7 +1725,7 @@ woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 		goto done;
 	}
 
-	info = (mlan_ds_get_info *) ioctl_req->pbuf;
+	info = (mlan_ds_get_info *)ioctl_req->pbuf;
 	info->sub_command = MLAN_OID_UAP_STA_LIST;
 	ioctl_req->req_id = MLAN_IOCTL_GET_INFO;
 	ioctl_req->action = MLAN_ACT_GET;
@@ -1763,10 +1764,10 @@ done:
  * @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-woal_register_uap_cfg80211(struct net_device * dev, t_u8 bss_type)
+woal_register_uap_cfg80211(struct net_device *dev, t_u8 bss_type)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	moal_private *priv = (moal_private *) netdev_priv(dev);
+	moal_private *priv = (moal_private *)netdev_priv(dev);
 	struct wireless_dev *wdev = NULL;
 
 	ENTER();

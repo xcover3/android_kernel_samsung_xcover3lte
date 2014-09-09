@@ -56,9 +56,9 @@ Change log:
  *  @return        headptr or MNULL
  */
 t_void *
-wlan_ops_sta_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
+wlan_ops_sta_process_txpd(IN t_void *priv, IN pmlan_buffer pmbuf)
 {
-	mlan_private *pmpriv = (mlan_private *) priv;
+	mlan_private *pmpriv = (mlan_private *)priv;
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	TxPD *plocal_tx_pd;
 	t_u8 *head_ptr = MNULL;
@@ -97,17 +97,17 @@ wlan_ops_sta_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
 	head_ptr =
 		pmbuf->pbuf + pmbuf->data_offset - sizeof(TxPD) -
 		INTF_HEADER_LEN;
-	head_ptr = (t_u8 *) ((t_ptr) head_ptr & ~((t_ptr) (DMA_ALIGNMENT - 1)));
+	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
 
-	plocal_tx_pd = (TxPD *) (head_ptr + INTF_HEADER_LEN);
+	plocal_tx_pd = (TxPD *)(head_ptr + INTF_HEADER_LEN);
 	memset(pmadapter, plocal_tx_pd, 0, sizeof(TxPD));
 	/* Set the BSS number to TxPD */
 	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
 
-	plocal_tx_pd->tx_pkt_length = (t_u16) pmbuf->data_len;
+	plocal_tx_pd->tx_pkt_length = (t_u16)pmbuf->data_len;
 
-	plocal_tx_pd->priority = (t_u8) pmbuf->priority;
+	plocal_tx_pd->priority = (t_u8)pmbuf->priority;
 	plocal_tx_pd->pkt_delay_2ms =
 		wlan_wmm_compute_driver_packet_delay(pmpriv, pmbuf);
 
@@ -130,8 +130,8 @@ wlan_ops_sta_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
 	}
 	/* Offset of actual data */
 	plocal_tx_pd->tx_pkt_offset =
-		(t_u16) ((t_ptr) pmbuf->pbuf + pmbuf->data_offset -
-			 (t_ptr) plocal_tx_pd);
+		(t_u16)((t_ptr)pmbuf->pbuf + pmbuf->data_offset -
+			(t_ptr)plocal_tx_pd);
 
 	if (!plocal_tx_pd->tx_control) {
 		/* TxCtrl set by user or default */
@@ -139,11 +139,11 @@ wlan_ops_sta_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
 	}
 
 	if (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA) {
-		plocal_tx_pd->tx_pkt_type = (t_u16) pkt_type;
+		plocal_tx_pd->tx_pkt_type = (t_u16)pkt_type;
 		plocal_tx_pd->tx_control = tx_control;
 	}
 	if (pmbuf->flags & MLAN_BUF_FLAG_TX_STATUS) {
-		plocal_tx_pd->tx_token_id = (t_u8) pmbuf->tx_seq_num;
+		plocal_tx_pd->tx_token_id = (t_u8)pmbuf->tx_seq_num;
 		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_TX_PACKET_STATUS;
 	}
 
@@ -151,7 +151,7 @@ wlan_ops_sta_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
 
 	/* Adjust the data offset and length to include TxPD in pmbuf */
 	pmbuf->data_len += pmbuf->data_offset;
-	pmbuf->data_offset = (t_u32) (head_ptr - pmbuf->pbuf);
+	pmbuf->data_offset = (t_u32)(head_ptr - pmbuf->pbuf);
 	pmbuf->data_len -= pmbuf->data_offset;
 
 done:
@@ -210,7 +210,7 @@ wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	pmbuf->buf_type = MLAN_BUF_TYPE_DATA;
 	ptr = pmbuf->pbuf + pmbuf->data_offset;
 	pmbuf->data_len = sizeof(TxPD) + INTF_HEADER_LEN;
-	ptx_pd = (TxPD *) (ptr + INTF_HEADER_LEN);
+	ptx_pd = (TxPD *)(ptr + INTF_HEADER_LEN);
 	ptx_pd->tx_control = priv->pkt_tx_ctrl;
 	ptx_pd->flags = flags;
 	ptx_pd->priority = WMM_HIGHEST_PRIORITY;

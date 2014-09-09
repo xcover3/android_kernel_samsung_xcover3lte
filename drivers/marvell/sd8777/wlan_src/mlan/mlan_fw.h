@@ -880,6 +880,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID : Function shutdown */
 #define HostCmd_CMD_FUNC_SHUTDOWN             0x00aa
 
+#ifdef RX_PACKET_COALESCE
+/** TLV ID for RX pkt coalesce config */
+#define TLV_TYPE_RX_PKT_COAL_CONFIG           (PROPRIETARY_TLV_BASE_ID + 0xC9)
+#endif
+
 /** Host Command ID : Channel report request */
 #define HostCmd_CMD_CHAN_REPORT_REQUEST              0x00dd
 
@@ -916,6 +921,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 
 /** Host Command ID : mgmt IE list */
 #define  HostCmd_CMD_MGMT_IE_LIST             0x00f2
+
+#ifdef RX_PACKET_COALESCE
+/** Host Command ID : Rx packet coalescing configuration */
+#define HostCmd_CMD_RX_PKT_COALESCE_CFG       0x012c
+#endif
 
 /** Host Command ID : Extended scan support */
 #define  HostCmd_CMD_802_11_SCAN_EXT          0x0107
@@ -1071,6 +1081,8 @@ typedef enum _ENH_PS_MODES {
 #define CMD_F_HOSTCMD           (1 << 0)
 /** command cancel flag in command */
 #define CMD_F_CANCELED          (1 << 1)
+/** scan command flag */
+#define CMD_F_SCAN              (1 << 2)
 
 /** Host Command ID bit mask (bit 11:0) */
 #define HostCmd_CMD_ID_MASK             0x0fff
@@ -1452,6 +1464,16 @@ typedef MLAN_PACK_START struct _UapRxPD {
 	t_u16 seq_num;
     /** Packet Priority */
 	t_u8 priority;
+    /** Rx Packet Rate */
+	t_u8 rx_rate;
+    /** SNR */
+	t_s8 snr;
+    /** Noise Floor */
+	t_s8 nf;
+    /** Ht Info [Bit 0] RxRate format: LG=0, HT=1
+     * [Bit 1]  HT Bandwidth: BW20 = 0, BW40 = 1
+     * [Bit 2]  HT Guard Interval: LGI = 0, SGI = 1 */
+	t_u8 ht_info;
     /** Reserved */
 	t_u8 reserved;
 } MLAN_PACK_END UapRxPD, *PUapRxPD;
@@ -2061,7 +2083,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GEN {
 	t_u16 seq_num;
     /** Result */
 	t_u16 result;
-} MLAN_PACK_END HostCmd_DS_GEN;
+} MLAN_PACK_END HostCmd_DS_GEN
+;
 
 /** Size of HostCmd_DS_GEN */
 #define S_DS_GEN        sizeof(HostCmd_DS_GEN)
@@ -2628,6 +2651,7 @@ typedef enum _SNMP_MIB_INDEX {
 	Dot11H_i = 10,
 	WwsMode_i = 17,
 	Thermal_i = 34,
+	NullPktPeriod_i = 37,
 } SNMP_MIB_INDEX;
 
 /** max SNMP buf size */
@@ -3242,8 +3266,7 @@ typedef MLAN_PACK_START struct {
 			      * MAX_AC_QUEUES];
     /** WMM parameter TLV */
 	t_u8 wmm_param_tlv[sizeof(IEEEtypes_WmmParameter_t) + 2];
-}
-MLAN_PACK_END HostCmd_DS_WMM_GET_STATUS;
+} MLAN_PACK_END HostCmd_DS_WMM_GET_STATUS;
 
 /**
  *  @brief Command structure for the HostCmd_CMD_WMM_ADDTS_REQ firmware command
@@ -4229,6 +4252,17 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_wapi_info_t {
 } MLAN_PACK_END MrvlIEtypes_wapi_info_t;
 #endif /* UAP_SUPPORT */
 
+#ifdef RX_PACKET_COALESCE
+typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {
+	/** Action */
+	t_u16 action;
+	/** Packet threshold */
+	t_u32 packet_threshold;
+	/** Timeout */
+	t_u16 delay;
+} MLAN_PACK_END HostCmd_DS_RX_PKT_COAL_CFG;
+#endif
+
 /**
  * @brief 802.11h Local Power Constraint Marvell extended TLV
  */
@@ -4701,6 +4735,9 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG p2p_params_config;
 #endif
 		HostCmd_DS_HS_WAKEUP_REASON hs_wakeup_reason;
+#ifdef RX_PACKET_COALESCE
+		HostCmd_DS_RX_PKT_COAL_CFG rx_pkt_coal_cfg;
+#endif
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND;
 

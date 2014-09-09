@@ -483,7 +483,6 @@ typedef struct _bt_private {
 	u16 card_type;
 	int debug_device_pending;
 	int debug_ocf_ogf[2];
-
 } bt_private, *pbt_private;
 
 /** Disable interrupt */
@@ -673,6 +672,8 @@ int bt_prepare_command(bt_private * priv);
 /** This function frees the structure of adapter */
 void bt_free_adapter(bt_private * priv);
 
+/** clean up m_devs */
+void clean_up_m_devs(bt_private * priv);
 /** bt driver call this function to register to bus driver */
 int *sbi_register(void);
 /** bt driver call this function to unregister to bus driver */

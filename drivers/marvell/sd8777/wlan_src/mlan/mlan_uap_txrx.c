@@ -56,17 +56,17 @@ wlan_upload_uap_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
 	UapRxPD *prx_pd;
 	ENTER();
-	prx_pd = (UapRxPD *) (pmbuf->pbuf + pmbuf->data_offset);
+	prx_pd = (UapRxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 
 	/* Chop off RxPD */
 	pmbuf->data_len -= prx_pd->rx_pkt_offset;
 	pmbuf->data_offset += prx_pd->rx_pkt_offset;
 	pmbuf->pparent = MNULL;
 
-	DBG_HEXDUMP(MDAT_D, "uAP RxPD", (t_u8 *) prx_pd,
+	DBG_HEXDUMP(MDAT_D, "uAP RxPD", (t_u8 *)prx_pd,
 		    MIN(sizeof(UapRxPD), MAX_DATA_DUMP_LEN));
 	DBG_HEXDUMP(MDAT_D, "uAP Rx Payload",
-		    ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset),
+		    ((t_u8 *)prx_pd + prx_pd->rx_pkt_offset),
 		    MIN(prx_pd->rx_pkt_length, MAX_DATA_DUMP_LEN));
 
 	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
@@ -101,7 +101,7 @@ wlan_upload_uap_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
  *  @return	       MLAN_STATUS_FAILURE -- drop packet, otherwise forward to network stack
  */
 static mlan_status
-wlan_check_unicast_packet(mlan_private * priv, t_u8 * mac)
+wlan_check_unicast_packet(mlan_private *priv, t_u8 *mac)
 {
 	int j;
 	sta_node *sta_ptr = MNULL;
@@ -150,9 +150,9 @@ wlan_check_unicast_packet(mlan_private * priv, t_u8 * mac)
  *  @return        headptr or MNULL
  */
 t_void *
-wlan_ops_uap_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
+wlan_ops_uap_process_txpd(IN t_void *priv, IN pmlan_buffer pmbuf)
 {
-	pmlan_private pmpriv = (pmlan_private) priv;
+	pmlan_private pmpriv = (pmlan_private)priv;
 	UapTxPD *plocal_tx_pd;
 	t_u8 *head_ptr = MNULL;
 	t_u32 pkt_type;
@@ -190,18 +190,18 @@ wlan_ops_uap_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
 	head_ptr =
 		pmbuf->pbuf + pmbuf->data_offset - sizeof(UapTxPD) -
 		INTF_HEADER_LEN;
-	head_ptr = (t_u8 *) ((t_ptr) head_ptr & ~((t_ptr) (DMA_ALIGNMENT - 1)));
+	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
 
-	plocal_tx_pd = (UapTxPD *) (head_ptr + INTF_HEADER_LEN);
+	plocal_tx_pd = (UapTxPD *)(head_ptr + INTF_HEADER_LEN);
 	memset(pmpriv->adapter, plocal_tx_pd, 0, sizeof(UapTxPD));
 
 	/* Set the BSS number to TxPD */
 	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
 
-	plocal_tx_pd->tx_pkt_length = (t_u16) pmbuf->data_len;
+	plocal_tx_pd->tx_pkt_length = (t_u16)pmbuf->data_len;
 
-	plocal_tx_pd->priority = (t_u8) pmbuf->priority;
+	plocal_tx_pd->priority = (t_u8)pmbuf->priority;
 	plocal_tx_pd->pkt_delay_2ms =
 		wlan_wmm_compute_driver_packet_delay(pmpriv, pmbuf);
 
@@ -217,14 +217,14 @@ wlan_ops_uap_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
 							 priority];
 
 	if (pmbuf->flags & MLAN_BUF_FLAG_TX_STATUS) {
-		plocal_tx_pd->tx_token_id = (t_u8) pmbuf->tx_seq_num;
+		plocal_tx_pd->tx_token_id = (t_u8)pmbuf->tx_seq_num;
 		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_TX_PACKET_STATUS;
 	}
 
 	/* Offset of actual data */
 	plocal_tx_pd->tx_pkt_offset =
-		(t_u16) ((t_ptr) pmbuf->pbuf + pmbuf->data_offset -
-			 (t_ptr) plocal_tx_pd);
+		(t_u16)((t_ptr)pmbuf->pbuf + pmbuf->data_offset -
+			(t_ptr)plocal_tx_pd);
 
 	if (!plocal_tx_pd->tx_control) {
 		/* TxCtrl set by user or default */
@@ -232,14 +232,14 @@ wlan_ops_uap_process_txpd(IN t_void * priv, IN pmlan_buffer pmbuf)
 	}
 
 	if (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA) {
-		plocal_tx_pd->tx_pkt_type = (t_u16) pkt_type;
+		plocal_tx_pd->tx_pkt_type = (t_u16)pkt_type;
 		plocal_tx_pd->tx_control = tx_control;
 	}
 	uap_endian_convert_TxPD(plocal_tx_pd);
 
 	/* Adjust the data offset and length to include TxPD in pmbuf */
 	pmbuf->data_len += pmbuf->data_offset;
-	pmbuf->data_offset = (t_u32) ((t_ptr) head_ptr - (t_ptr) pmbuf->pbuf);
+	pmbuf->data_offset = (t_u32)((t_ptr)head_ptr - (t_ptr)pmbuf->pbuf);
 	pmbuf->data_len -= pmbuf->data_offset;
 
 done:
@@ -257,9 +257,9 @@ done:
  *  @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-wlan_ops_uap_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
+wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 {
-	pmlan_adapter pmadapter = (pmlan_adapter) adapter;
+	pmlan_adapter pmadapter = (pmlan_adapter)adapter;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	UapRxPD *prx_pd;
 	wlan_mgmt_pkt *puap_pkt_hdr = MNULL;
@@ -269,13 +269,18 @@ wlan_ops_uap_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	t_u8 ta[MLAN_MAC_ADDR_LENGTH];
 	t_u16 rx_pkt_type = 0;
 	sta_node *sta_ptr = MNULL;
+
 	ENTER();
 
-	prx_pd = (UapRxPD *) (pmbuf->pbuf + pmbuf->data_offset);
+	prx_pd = (UapRxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	uap_endian_convert_RxPD(prx_pd);
+	priv->rxpd_rate = prx_pd->rx_rate;
+
+	priv->rxpd_htinfo = prx_pd->ht_info;
+
 	rx_pkt_type = prx_pd->rx_pkt_type;
-	prx_pkt = (RxPacketHdr_t *) ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset);
+	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	PRINTM(MINFO,
 	       "RX Data: data_len - prx_pd->rx_pkt_offset = %d - %d = %d\n",
@@ -283,7 +288,7 @@ wlan_ops_uap_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	       pmbuf->data_len - prx_pd->rx_pkt_offset);
 
 	if ((prx_pd->rx_pkt_offset + prx_pd->rx_pkt_length) >
-	    (t_u16) pmbuf->data_len) {
+	    (t_u16)pmbuf->data_len) {
 		PRINTM(MERROR,
 		       "Wrong rx packet: len=%d,rx_pkt_offset=%d,"
 		       " rx_pkt_length=%d\n", pmbuf->data_len,
@@ -300,19 +305,20 @@ wlan_ops_uap_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 		/* Check if this is mgmt packet and needs to forwarded to app
 		   as an event */
 		puap_pkt_hdr =
-			(wlan_mgmt_pkt *) ((t_u8 *) prx_pd +
-					   prx_pd->rx_pkt_offset);
+			(wlan_mgmt_pkt *)((t_u8 *)prx_pd +
+					  prx_pd->rx_pkt_offset);
 		puap_pkt_hdr->frm_len = wlan_le16_to_cpu(puap_pkt_hdr->frm_len);
 		if ((puap_pkt_hdr->wlan_header.
 		     frm_ctl & IEEE80211_FC_MGMT_FRAME_TYPE_MASK) == 0)
 			wlan_process_802dot11_mgmt_pkt(pmadapter->
 						       priv[pmbuf->bss_index],
-						       (t_u8 *) & puap_pkt_hdr->
+						       (t_u8 *)&puap_pkt_hdr->
 						       wlan_header,
 						       puap_pkt_hdr->frm_len +
 						       sizeof(wlan_mgmt_pkt) -
 						       sizeof(puap_pkt_hdr->
-							      frm_len));
+							      frm_len),
+						       (RxPD *)prx_pd);
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 		goto done;
 	}
@@ -328,7 +334,7 @@ wlan_ops_uap_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	/* check if UAP enable 11n */
 	if (!priv->is_11n_enabled ||
 	    (!wlan_11n_get_rxreorder_tbl
-	     ((mlan_private *) priv, prx_pd->priority, ta)
+	     ((mlan_private *)priv, prx_pd->priority, ta)
 	     && (prx_pd->rx_pkt_type != PKT_TYPE_AMSDU)
 	    )) {
 		if (priv->pkt_fwd)
@@ -340,7 +346,7 @@ wlan_ops_uap_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	/* Reorder and send to OS */
 	ret = mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num,
 				     prx_pd->priority, ta,
-				     (t_u8) prx_pd->rx_pkt_type, (void *)pmbuf);
+				     (t_u8)prx_pd->rx_pkt_type, (void *)pmbuf);
 	if (ret || (rx_pkt_type == PKT_TYPE_BAR)) {
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 	}
@@ -359,7 +365,7 @@ done:
  *  @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-wlan_uap_recv_packet(IN mlan_private * priv, IN pmlan_buffer pmbuf)
+wlan_uap_recv_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 {
 	pmlan_adapter pmadapter = priv->adapter;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -368,7 +374,7 @@ wlan_uap_recv_packet(IN mlan_private * priv, IN pmlan_buffer pmbuf)
 
 	ENTER();
 
-	prx_pkt = (RxPacketHdr_t *) ((t_u8 *) pmbuf->pbuf + pmbuf->data_offset);
+	prx_pkt = (RxPacketHdr_t *)((t_u8 *)pmbuf->pbuf + pmbuf->data_offset);
 
 	DBG_HEXDUMP(MDAT_D, "uap_recv_packet", pmbuf->pbuf + pmbuf->data_offset,
 		    MIN(pmbuf->data_len, MAX_DATA_DUMP_LEN));
@@ -401,7 +407,7 @@ wlan_uap_recv_packet(IN mlan_private * priv, IN pmlan_buffer pmbuf)
 
 				/* copy the data */
 				memcpy(pmadapter,
-				       (t_u8 *) newbuf->pbuf +
+				       (t_u8 *)newbuf->pbuf +
 				       newbuf->data_offset,
 				       pmbuf->pbuf + pmbuf->data_offset,
 				       pmbuf->data_len);
@@ -437,7 +443,7 @@ wlan_uap_recv_packet(IN mlan_private * priv, IN pmlan_buffer pmbuf)
 
 				/* copy the data */
 				memcpy(pmadapter,
-				       (t_u8 *) newbuf->pbuf +
+				       (t_u8 *)newbuf->pbuf +
 				       newbuf->data_offset,
 				       pmbuf->pbuf + pmbuf->data_offset,
 				       pmbuf->data_len);
@@ -480,7 +486,7 @@ done:
  *  @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-wlan_process_uap_rx_packet(IN mlan_private * priv, IN pmlan_buffer pmbuf)
+wlan_process_uap_rx_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 {
 	pmlan_adapter pmadapter = priv->adapter;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -490,13 +496,13 @@ wlan_process_uap_rx_packet(IN mlan_private * priv, IN pmlan_buffer pmbuf)
 
 	ENTER();
 
-	prx_pd = (UapRxPD *) (pmbuf->pbuf + pmbuf->data_offset);
-	prx_pkt = (RxPacketHdr_t *) ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset);
+	prx_pd = (UapRxPD *)(pmbuf->pbuf + pmbuf->data_offset);
+	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	DBG_HEXDUMP(MDAT_D, "uAP RxPD", prx_pd,
 		    MIN(sizeof(UapRxPD), MAX_DATA_DUMP_LEN));
 	DBG_HEXDUMP(MDAT_D, "uAP Rx Payload",
-		    ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset),
+		    ((t_u8 *)prx_pd + prx_pd->rx_pkt_offset),
 		    MIN(prx_pd->rx_pkt_length, MAX_DATA_DUMP_LEN));
 
 	PRINTM(MINFO,
@@ -532,7 +538,7 @@ wlan_process_uap_rx_packet(IN mlan_private * priv, IN pmlan_buffer pmbuf)
 
 				/* copy the data, skip rxpd */
 				memcpy(pmadapter,
-				       (t_u8 *) newbuf->pbuf +
+				       (t_u8 *)newbuf->pbuf +
 				       newbuf->data_offset,
 				       pmbuf->pbuf + pmbuf->data_offset +
 				       prx_pd->rx_pkt_offset,

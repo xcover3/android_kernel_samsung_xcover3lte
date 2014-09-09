@@ -761,12 +761,12 @@ t_u8 SupportedRates_N[N_SUPPORTED_RATES] = { 0x02, 0x04, 0 };
 static void *
 wlan_memchr(pmlan_adapter pmadapter, void *s, int c, int n)
 {
-	const t_u8 *p = (t_u8 *) s;
+	const t_u8 *p = (t_u8 *)s;
 
 	ENTER();
 
 	while (n--) {
-		if ((t_u8) c == *p++) {
+		if ((t_u8)c == *p++) {
 			LEAVE();
 			return (void *)(p - 1);
 		}
@@ -853,8 +853,8 @@ wlan_get_region_cfp_table(pmlan_adapter pmadapter, t_u8 region, t_u8 band,
  */
 static t_void
 wlan_cfp_copy_dynamic(pmlan_adapter pmadapter,
-		      chan_freq_power_t * cfp, t_u8 num_cfp,
-		      chan_freq_power_t * cfp_src, t_u8 num_cfp_src)
+		      chan_freq_power_t *cfp, t_u8 num_cfp,
+		      chan_freq_power_t *cfp_src, t_u8 num_cfp_src)
 {
 	int i, j;
 	ENTER();
@@ -890,8 +890,8 @@ wlan_cfp_copy_dynamic(pmlan_adapter pmadapter,
  *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-wlan_misc_country_2_cfp_table_code(pmlan_adapter pmadapter, t_u8 * country_code,
-				   t_u8 * cfp_bg, t_u8 * cfp_a)
+wlan_misc_country_2_cfp_table_code(pmlan_adapter pmadapter, t_u8 *country_code,
+				   t_u8 *cfp_bg, t_u8 *cfp_a)
 {
 	t_u8 i;
 
@@ -929,13 +929,10 @@ wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index, t_u8 ht_info)
 {
 #define MCS_NUM_SUPP    8
 	t_u16 mcs_num_supp = MCS_NUM_SUPP;
-	t_u16 mcs_rate[4][MCS_NUM_SUPP] =
-		{ {0x1b, 0x36, 0x51, 0x6c, 0xa2, 0xd8, 0xf3, 0x10e}
-	,			/* LG 40M */
-	{0x1e, 0x3c, 0x5a, 0x78, 0xb4, 0xf0, 0x10e, 0x12c}
-	,			/* SG 40M */
-	{0x0d, 0x1a, 0x27, 0x34, 0x4e, 0x68, 0x75, 0x82}
-	,			/* LG 20M */
+	t_u16 mcs_rate[4][MCS_NUM_SUPP] = { {0x1b, 0x36, 0x51, 0x6c, 0xa2, 0xd8, 0xf3, 0x10e},	/* LG
+												   40M */
+	{0x1e, 0x3c, 0x5a, 0x78, 0xb4, 0xf0, 0x10e, 0x12c},	/* SG 40M */
+	{0x0d, 0x1a, 0x27, 0x34, 0x4e, 0x68, 0x75, 0x82},	/* LG 20M */
 	{0x0e, 0x1c, 0x2b, 0x39, 0x56, 0x73, 0x82, 0x90}
 	};			/* SG 20M */
 	t_u32 rate = 0;
@@ -991,11 +988,11 @@ wlan_data_rate_to_index(pmlan_adapter pmadapter, t_u32 rate)
 
 	ENTER();
 	if (rate) {
-		ptr = wlan_memchr(pmadapter, WlanDataRates, (t_u8) rate,
+		ptr = wlan_memchr(pmadapter, WlanDataRates, (t_u8)rate,
 				  sizeof(WlanDataRates));
 		if (ptr) {
 			LEAVE();
-			return (t_u8) (ptr - WlanDataRates);
+			return (t_u8)(ptr - WlanDataRates);
 		}
 	}
 	LEAVE();
@@ -1013,7 +1010,7 @@ wlan_data_rate_to_index(pmlan_adapter pmadapter, t_u32 rate)
  *  @return                 The number of Rates
  */
 t_u32
-wlan_get_active_data_rates(mlan_private * pmpriv, t_u32 bss_mode,
+wlan_get_active_data_rates(mlan_private *pmpriv, t_u32 bss_mode,
 			   t_u8 config_bands, WLAN_802_11_RATES rates)
 {
 	t_u32 k;
@@ -1045,7 +1042,7 @@ wlan_get_active_data_rates(mlan_private * pmpriv, t_u32 bss_mode,
  *  @return             The Tx power
  */
 t_u8
-wlan_get_txpwr_of_chan_from_cfp(mlan_private * pmpriv, t_u8 channel)
+wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u8 channel)
 {
 	t_u8 i = 0;
 	t_u8 j = 0;
@@ -1070,7 +1067,7 @@ wlan_get_txpwr_of_chan_from_cfp(mlan_private * pmpriv, t_u8 channel)
 						    (cfp + j)->max_tx_power);
 				else
 					tx_power =
-						(t_u8) (cfp + j)->max_tx_power;
+						(t_u8)(cfp + j)->max_tx_power;
 				break;
 			}
 		}
@@ -1088,8 +1085,8 @@ wlan_get_txpwr_of_chan_from_cfp(mlan_private * pmpriv, t_u8 channel)
 						    (cfp_a + j)->max_tx_power);
 				else
 					tx_power =
-						(t_u8) ((cfp_a +
-							 j)->max_tx_power);
+						(t_u8)((cfp_a +
+							j)->max_tx_power);
 				break;
 			}
 		}
@@ -1113,7 +1110,7 @@ wlan_get_txpwr_of_chan_from_cfp(mlan_private * pmpriv, t_u8 channel)
 chan_freq_power_t *
 wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter,
 				 t_u8 band,
-				 t_u16 channel, region_chan_t * region_channel)
+				 t_u16 channel, region_chan_t *region_channel)
 {
 	region_chan_t *rc;
 	chan_freq_power_t *cfp = MNULL;
@@ -1186,7 +1183,7 @@ wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter,
  *  @return             A pointer to chan_freq_power_t structure or MNULL if not found.
  */
 chan_freq_power_t *
-wlan_find_cfp_by_band_and_channel(mlan_adapter * pmadapter,
+wlan_find_cfp_by_band_and_channel(mlan_adapter *pmadapter,
 				  t_u8 band, t_u16 channel)
 {
 	chan_freq_power_t *cfp = MNULL;
@@ -1218,7 +1215,7 @@ wlan_find_cfp_by_band_and_channel(mlan_adapter * pmadapter,
  *  @return         Pointer to chan_freq_power_t structure; MNULL if not found
  */
 chan_freq_power_t *
-wlan_find_cfp_by_band_and_freq(mlan_adapter * pmadapter, t_u8 band, t_u32 freq)
+wlan_find_cfp_by_band_and_freq(mlan_adapter *pmadapter, t_u8 band, t_u32 freq)
 {
 	chan_freq_power_t *cfp = MNULL;
 	region_chan_t *rc;
@@ -1291,7 +1288,7 @@ wlan_find_cfp_by_band_and_freq(mlan_adapter * pmadapter, t_u8 band, t_u32 freq)
  *  @return                     MTRUE or MFALSE
  */
 t_u8
-wlan_is_rate_auto(mlan_private * pmpriv)
+wlan_is_rate_auto(mlan_private *pmpriv)
 {
 	t_u32 i;
 	int rate_num = 0;
@@ -1319,7 +1316,7 @@ wlan_is_rate_auto(mlan_private * pmpriv)
  *  @return             Rate index
  */
 int
-wlan_get_rate_index(pmlan_adapter pmadapter, t_u16 * rate_bitmap, int size)
+wlan_get_rate_index(pmlan_adapter pmadapter, t_u16 *rate_bitmap, int size)
 {
 	int i;
 
@@ -1347,7 +1344,7 @@ wlan_get_rate_index(pmlan_adapter pmadapter, t_u16 * rate_bitmap, int size)
  *  @return                 The number of Rates
  */
 t_u32
-wlan_get_supported_rates(mlan_private * pmpriv, t_u32 bss_mode,
+wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 			 t_u8 config_bands, WLAN_802_11_RATES rates)
 {
 	t_u32 k = 0;
@@ -1455,7 +1452,7 @@ wlan_get_supported_rates(mlan_private * pmpriv, t_u32 bss_mode,
  *  @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-wlan_set_regiontable(mlan_private * pmpriv, t_u8 region, t_u8 band)
+wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u8 band)
 {
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	int i = 0, j;
@@ -1475,7 +1472,7 @@ wlan_set_regiontable(mlan_private * pmpriv, t_u8 region, t_u8 band)
 						BAND_G | BAND_B | BAND_GN,
 						&cfp_no);
 		if (cfp) {
-			pmadapter->region_channel[i].num_cfp = (t_u8) cfp_no;
+			pmadapter->region_channel[i].num_cfp = (t_u8)cfp_no;
 			pmadapter->region_channel[i].pcfp = cfp;
 		} else {
 			PRINTM(MERROR, "wrong region code %#x in Band B-G\n",
@@ -1508,7 +1505,7 @@ wlan_set_regiontable(mlan_private * pmpriv, t_u8 region, t_u8 band)
 		cfp = wlan_get_region_cfp_table(pmadapter, region, BAND_A,
 						&cfp_no);
 		if (cfp) {
-			pmadapter->region_channel[i].num_cfp = (t_u8) cfp_no;
+			pmadapter->region_channel[i].num_cfp = (t_u8)cfp_no;
 			pmadapter->region_channel[i].pcfp = cfp;
 		} else {
 			PRINTM(MERROR, "wrong region code %#x in Band A\n",
@@ -1546,7 +1543,7 @@ wlan_set_regiontable(mlan_private * pmpriv, t_u8 region, t_u8 band)
  *    - MFALSE otherwise
  */
 t_bool
-wlan_get_cfp_radar_detect(mlan_private * priv, t_u8 chnl)
+wlan_get_cfp_radar_detect(mlan_private *priv, t_u8 chnl)
 {
 	int i, j;
 	t_bool required = MFALSE;
@@ -1593,7 +1590,7 @@ done:
  */
 
 t_bool
-wlan_bg_scan_type_is_passive(mlan_private * priv, t_u8 chnl)
+wlan_bg_scan_type_is_passive(mlan_private *priv, t_u8 chnl)
 {
 	int i, j;
 	t_bool passive = MFALSE;
@@ -1641,7 +1638,7 @@ done:
  */
 
 t_bool
-wlan_is_chan_blacklisted(mlan_private * priv, t_u8 band, t_u8 chan)
+wlan_is_chan_blacklisted(mlan_private *priv, t_u8 band, t_u8 chan)
 {
 	int i, j;
 	t_bool blacklist = MFALSE;
@@ -1685,7 +1682,7 @@ wlan_is_chan_blacklisted(mlan_private * priv, t_u8 band, t_u8 chan)
  */
 
 t_bool
-wlan_set_chan_blacklist(mlan_private * priv, t_u8 band, t_u8 chan, t_bool bl)
+wlan_set_chan_blacklist(mlan_private *priv, t_u8 band, t_u8 chan, t_bool bl)
 {
 	int i, j;
 	t_bool set_bl = MFALSE;

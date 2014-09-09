@@ -82,6 +82,9 @@ CONFIG_ANDROID_KERNEL=n
 # Use static link for app build
 export CONFIG_STATIC_LINK=y
 
+#32bit app over 64bit kernel support
+CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=y
+
 #############################################################################
 # Select Platform Tools
 #############################################################################
@@ -139,7 +142,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 	EXTRA_CFLAGS += -I$(KERNELDIR)/include
 
-	EXTRA_CFLAGS += -DFPNUM='"68"'
+	EXTRA_CFLAGS += -DFPNUM='"75"'
 
 ifeq ($(CONFIG_DEBUG),1)
 	EXTRA_CFLAGS += -DDEBUG_LEVEL1
@@ -194,6 +197,10 @@ endif
 
 ifeq ($(CONFIG_BIG_ENDIAN),y)
 	EXTRA_CFLAGS += -DBIG_ENDIAN_SUPPORT
+endif
+
+ifeq ($(CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT),y)
+	EXTRA_CFLAGS += -DUSERSPACE_32BIT_OVER_KERNEL_64BIT
 endif
 
 ifeq ($(CONFIG_SDIO_MULTI_PORT_TX_AGGR),y)

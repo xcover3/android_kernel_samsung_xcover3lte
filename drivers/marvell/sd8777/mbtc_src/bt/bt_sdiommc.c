@@ -345,6 +345,49 @@ done:
 }
 
 /**
+ *  @brief This function updates card reg based on the Cmd52 value in dev structure
+ *
+ *  @param priv     A pointer to bt_private structure
+ *  @param reg      register to write
+ *  @param val      value
+ *  @return         BT_STATUS_SUCCESS or other error no.
+ */
+int
+sd_write_reg(bt_private * priv, int reg, u8 val)
+{
+	int ret = BT_STATUS_SUCCESS;
+	struct sdio_mmc_card *card = (struct sdio_mmc_card *)priv->bt_dev.card;
+	ENTER();
+	sdio_claim_host(card->func);
+	sdio_writeb(card->func, val, reg, &ret);
+	sdio_release_host(card->func);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function reads updates the Cmd52 value in dev structure
+ *
+ *  @param priv     A pointer to bt_private structure
+ *  @param reg      register to read
+ *  @return         BT_STATUS_SUCCESS or other error no.
+ */
+int
+sd_read_reg(bt_private * priv, int reg, u8 * data)
+{
+	int ret = BT_STATUS_SUCCESS;
+	u8 val;
+	struct sdio_mmc_card *card = (struct sdio_mmc_card *)priv->bt_dev.card;
+	ENTER();
+	sdio_claim_host(card->func);
+	val = sdio_readb(card->func, reg, &ret);
+	sdio_release_host(card->func);
+	*data = val;
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function probes the card
  *
  *  @param func    A pointer to sdio_func structure.
@@ -720,16 +763,10 @@ done:
 	wake_up_interruptible(&priv->MainThread.waitQ);
 	while (priv->MainThread.pid)
 		os_sched_timeout(1);
-	if (m_dev_bt->dev_pointer) {
-		if (m_dev_bt->spec_type == IANYWHERE_SPEC)
-			free_m_dev(m_dev_bt);
-	}
-	if (m_dev_fm->dev_pointer)
-		free_m_dev(m_dev_fm);
-	if (m_dev_nfc->dev_pointer)
-		free_m_dev(m_dev_nfc);
+	bt_proc_remove(priv);
+	clean_up_m_devs(priv);
 	bt_free_adapter(priv);
-	kfree(priv);
+	bt_priv_put(priv);
 	LEAVE();
 	return ret;
 }
@@ -1243,8 +1280,10 @@ bt_sdio_suspend(struct device *dev)
 			fm_set_intr_mask(priv, FM_DISABLE_INTR_MASK);
 		if (BT_STATUS_SUCCESS != bt_enable_hs(priv)) {
 			PRINTM(CMD, "BT: HS not actived, suspend fail!\n");
-			LEAVE();
-			return -EBUSY;
+			if (BT_STATUS_SUCCESS != bt_enable_hs(priv)) {
+				PRINTM(CMD,
+				       "BT: HS not actived the second time, force to suspend!\n");
+			}
 		}
 	}
 	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
@@ -1643,9 +1682,6 @@ sbi_download_fw(bt_private * priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret = BT_STATUS_SUCCESS;
-	struct m_dev *m_dev_bt = &(priv->bt_dev.m_dev[BT_SEQ]);
-	struct m_dev *m_dev_fm = &(priv->bt_dev.m_dev[FM_SEQ]);
-	struct m_dev *m_dev_nfc = &(priv->bt_dev.m_dev[NFC_SEQ]);
 	u8 winner = 0;
 
 	ENTER();
@@ -1708,14 +1744,6 @@ exit:
 	LEAVE();
 	return ret;
 err_register:
-	if (m_dev_bt->dev_pointer) {
-		if (m_dev_bt->spec_type == IANYWHERE_SPEC)
-			free_m_dev(m_dev_bt);
-	}
-	if (m_dev_fm->dev_pointer)
-		free_m_dev(m_dev_fm);
-	if (m_dev_nfc->dev_pointer)
-		free_m_dev(m_dev_nfc);
 	LEAVE();
 	return ret;
 }
@@ -1866,5 +1894,5 @@ MODULE_PARM_DESC(fw_name, "Firmware name");
 module_param(req_fw_nowait, int, 0);
 MODULE_PARM_DESC(req_fw_nowait,
 		 "0: Use request_firmware API; 1: Use request_firmware_nowait API");
-module_param(multi_fn, int, 4);
+module_param(multi_fn, int, 0);
 MODULE_PARM_DESC(multi_fn, "Bit 2: FN2;");

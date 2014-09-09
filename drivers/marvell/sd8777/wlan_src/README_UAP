@@ -1900,6 +1900,25 @@ txpwrlimit_5g_cfg_set
         ./uaputl.exe hostcmd config/txpwrlimit_cfg.conf txpwrlimit_2g_cfg_set
         ./uaputl.exe hostcmd config/txpwrlimit_cfg.conf txpwrlimit_5g_cfg_set
 
+rxpktcoal_cfg
+-------------
+   "./uaputl.exe rxpktcoal_cfg [PKT-THRESHOLD] [TIMEOUT]"
+
+	This is used to get/set RX packet coalescing paramters
+
+    The supported option are:
+        [PKT-THRESHOLD]: count after which packets would be sent to host. Valid values 1-7
+        [TIMEOUT]: timeout in ms after which packets would be sent to host. Valid values 1-4
+        Coalescing is disabled if both or either of packet_thershold and delay is zero
+
+        RX packet coalescing parameters can be changed only when device is in
+        idle state i.e. all interfaces are disconnected.
+
+    Example:
+    ./uaputl.exe rxpktcoal_cfg      : Display RX packet coalescing settings
+    ./uaputl.exe rxpktcoal_cfg 5 1  : Enable RX packet coalescing: packet count 5, delay 1.
+    ./uaputl.exe rxpktcoal_cfg 0 0  : Disable RX packet coalescing.
+
 tx_data_pause
 -------------
   "./uaputl.exe tx_data_pause [ENABLE][TX_BUF_CNT]"

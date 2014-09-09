@@ -368,16 +368,16 @@ typedef struct _domain_info_param {
 #define MAX_DOMAIN_TLV_LEN      (TLV_HEADER_LEN + COUNTRY_CODE_LEN \
 								+ (SUB_BAND_LEN * MAX_SUB_BANDS))
 
-int woal_set_get_uap_power_mode(moal_private * priv, t_u32 action,
-				mlan_ds_ps_mgmt * ps_mgmt);
+int woal_set_get_uap_power_mode(moal_private *priv, t_u32 action,
+				mlan_ds_ps_mgmt *ps_mgmt);
 void woal_uap_set_multicast_list(struct net_device *dev);
 int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
-int woal_uap_bss_ctrl(moal_private * priv, t_u8 wait_option, int data);
+int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data);
 #ifdef CONFIG_PROC_FS
-void woal_uap_get_version(moal_private * priv, char *version, int max_len);
+void woal_uap_get_version(moal_private *priv, char *version, int max_len);
 #endif
-mlan_status woal_uap_get_stats(moal_private * priv, t_u8 wait_option,
-			       mlan_ds_uap_stats * ustats);
+mlan_status woal_uap_get_stats(moal_private *priv, t_u8 wait_option,
+			       mlan_ds_uap_stats *ustats);
 #if defined(UAP_WEXT) || defined(UAP_CFG80211)
 extern struct iw_handler_def woal_uap_handler_def;
 struct iw_statistics *woal_get_uap_wireless_stats(struct net_device *dev);
@@ -385,16 +385,16 @@ struct iw_statistics *woal_get_uap_wireless_stats(struct net_device *dev);
 int woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 #endif
 /** Set invalid data for each member of mlan_uap_bss_param */
-void woal_set_sys_config_invalid_data(mlan_uap_bss_param * config);
+void woal_set_sys_config_invalid_data(mlan_uap_bss_param *config);
 /** Set/Get system configuration parameters */
-mlan_status woal_set_get_sys_config(moal_private * priv,
+mlan_status woal_set_get_sys_config(moal_private *priv,
 				    t_u16 action, t_u8 wait_option,
-				    mlan_uap_bss_param * sys_cfg);
-int woal_uap_set_ap_cfg(moal_private * priv, t_u8 * data, int len);
-mlan_status woal_uap_set_11n_status(mlan_uap_bss_param * sys_cfg, t_u8 action);
+				    mlan_uap_bss_param *sys_cfg);
+int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
+mlan_status woal_uap_set_11n_status(mlan_uap_bss_param *sys_cfg, t_u8 action);
 #ifdef UAP_WEXT
-void woal_ioctl_get_uap_info_resp(moal_private * priv, mlan_ds_get_info * info);
-int woal_set_get_custom_ie(moal_private * priv, t_u16 mask, t_u8 * ie,
+void woal_ioctl_get_uap_info_resp(moal_private *priv, mlan_ds_get_info *info);
+int woal_set_get_custom_ie(moal_private *priv, t_u16 mask, t_u8 *ie,
 			   int ie_len);
 #endif /* UAP_WEXT */
 #endif /* _MOAL_UAP_H */

@@ -82,10 +82,11 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	POWER_CAPABILITY = 33,
 	TPC_REQUEST = 34,
 	TPC_REPORT = 35,
-	SUPPORTED_CHANNELS = 36,
 	CHANNEL_SWITCH_ANN = 37,
 	QUIET = 40,
 	IBSS_DFS = 41,
+	SUPPORTED_CHANNELS = 36,
+	REGULATORY_CLASS = 59,
 	HT_CAPABILITY = 45,
 	QOS_INFO = 46,
 	HT_OPERATION = 61,
@@ -138,8 +139,7 @@ typedef MLAN_PACK_START struct _IEEEtypes_VendorSpecific_t {
 	IEEEtypes_VendorHeader_t vend_hdr;
     /** IE Max - size of previous fields */
 	t_u8 data[IEEE_MAX_IE_SIZE - sizeof(IEEEtypes_VendorHeader_t)];
-}
-MLAN_PACK_END IEEEtypes_VendorSpecific_t, *pIEEEtypes_VendorSpecific_t;
+} MLAN_PACK_END IEEEtypes_VendorSpecific_t, *pIEEEtypes_VendorSpecific_t;
 
 /** IEEE IE */
 typedef MLAN_PACK_START struct _IEEEtypes_Generic_t {
@@ -147,8 +147,7 @@ typedef MLAN_PACK_START struct _IEEEtypes_Generic_t {
 	IEEEtypes_Header_t ieee_hdr;
     /** IE Max - size of previous fields */
 	t_u8 data[IEEE_MAX_IE_SIZE - sizeof(IEEEtypes_Header_t)];
-}
-MLAN_PACK_END IEEEtypes_Generic_t, *pIEEEtypes_Generic_t;
+} MLAN_PACK_END IEEEtypes_Generic_t, *pIEEEtypes_Generic_t;
 
 /** TLV header */
 typedef MLAN_PACK_START struct _TLV_Generic_t {

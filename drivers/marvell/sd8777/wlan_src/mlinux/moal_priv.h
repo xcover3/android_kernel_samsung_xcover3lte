@@ -154,8 +154,6 @@ Change log:
 #define WOAL_AUTH_TYPE              18
 /** Private command ID to set/get port control */
 #define WOAL_PORT_CTRL              19
-/** Private command ID for coalesced status */
-#define WOAL_COALESCING_STATUS      20
 #if defined(WIFI_DIRECT_SUPPORT)
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 /** Private command ID for set/get BSS role */
@@ -356,11 +354,6 @@ static const struct iw_priv_args woal_private_args[] = {
 	 IW_PRIV_TYPE_INT | 1,
 	 IW_PRIV_TYPE_INT | 1,
 	 "port_ctrl"},
-	{
-	 WOAL_COALESCING_STATUS,
-	 IW_PRIV_TYPE_INT | 1,
-	 IW_PRIV_TYPE_INT | 1,
-	 "coalesce_status"},
 #if defined(WIFI_DIRECT_SUPPORT)
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	{
