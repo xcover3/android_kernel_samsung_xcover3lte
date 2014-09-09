@@ -124,10 +124,6 @@ struct thermal_zone_device_ops {
 			      unsigned long *);
 	int (*set_trip_temp) (struct thermal_zone_device *, int,
 			      unsigned long);
-	int (*get_trip_temp_d)(struct thermal_zone_device *, int,
-			      unsigned long *);
-	int (*set_trip_temp_d)(struct thermal_zone_device *, int,
-			      unsigned long);
 	int (*get_trip_hyst) (struct thermal_zone_device *, int,
 			      unsigned long *);
 	int (*set_trip_hyst) (struct thermal_zone_device *, int,
@@ -173,7 +169,6 @@ struct thermal_zone_device {
 	char type[THERMAL_NAME_LENGTH];
 	struct device device;
 	struct thermal_attr *trip_temp_attrs;
-	struct thermal_attr *trip_temp_d_attrs;
 	struct thermal_attr *trip_type_attrs;
 	struct thermal_attr *trip_hyst_attrs;
 	void *devdata;

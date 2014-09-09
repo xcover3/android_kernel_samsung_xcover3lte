@@ -139,7 +139,7 @@ static int trips_temp[TRIP_POINTS_NUM] = {
 	105000, /* TRIP_POINT_5 */
 };
 
-static int trips_temp_d[TRIP_POINTS_NUM] = {
+static int trips_hyst[TRIP_POINTS_NUM] = {
 	65000, /* TRIP_POINT_0_D */
 	75000, /* TRIP_POINT_1_D */
 	85000, /* TRIP_POINT_2_D */
@@ -261,11 +261,11 @@ static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-static int cpu_sys_get_trip_temp_d(struct thermal_zone_device *thermal,
+static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
 		int trip, unsigned long *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		*temp = trips_temp_d[trip];
+		*temp = trips_hyst[trip];
 	else
 		*temp = -1;
 	return 0;
@@ -287,12 +287,12 @@ static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-static int cpu_sys_set_trip_temp_d(struct thermal_zone_device *thermal,
+static int cpu_sys_set_trip_hyst(struct thermal_zone_device *thermal,
 		int trip, unsigned long temp)
 {
 	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
 	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
-		trips_temp_d[trip] = temp;
+		trips_hyst[trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip)
 		pr_warn("critical down doesn't used\n");
 	else
@@ -310,9 +310,9 @@ static struct thermal_zone_device_ops cpu_thermal_ops = {
 	.get_temp = cpu_sys_get_temp,
 	.get_trip_type = cpu_sys_get_trip_type,
 	.get_trip_temp = cpu_sys_get_trip_temp,
-	.get_trip_temp_d = cpu_sys_get_trip_temp_d,
+	.get_trip_hyst = cpu_sys_get_trip_hyst,
 	.set_trip_temp = cpu_sys_set_trip_temp,
-	.set_trip_temp_d = cpu_sys_set_trip_temp_d,
+	.set_trip_hyst = cpu_sys_set_trip_hyst,
 	.get_crit_temp = cpu_sys_get_crit_temp,
 };
 
@@ -434,7 +434,7 @@ static int pxa28nm_set_threshold(int range)
 		tmp = (millicelsius_encode(trips_temp[0]) << TSEN_THD0_OFF) &
 							TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_temp_d[0]) << TSEN_THD1_OFF) &
+		tmp = (millicelsius_encode(trips_hyst[0]) << TSEN_THD1_OFF) &
 							TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
@@ -444,7 +444,7 @@ static int pxa28nm_set_threshold(int range)
 		tmp = (millicelsius_encode(trips_temp[range - 1]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_temp_d[range - 1]) <<
+		tmp = (millicelsius_encode(trips_hyst[range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, TSEN_INT0_ENABLE, 0);
@@ -453,7 +453,7 @@ static int pxa28nm_set_threshold(int range)
 		tmp = (millicelsius_encode(trips_temp[range]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_temp_d[range - 1]) <<
+		tmp = (millicelsius_encode(trips_hyst[range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
@@ -631,7 +631,7 @@ find_tsen_safe:
 		}
 		/* set to down threshold */
 		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++)
-			trips_temp_d[i] = trips_temp[i] - 10000;
+			trips_hyst[i] = trips_temp[i] - 10000;
 	} else {
 		thermal_dev.cdev.cpufreq_cstate[0] = 0;
 		thermal_dev.cdev.hotplug_cstate[0] = 0;

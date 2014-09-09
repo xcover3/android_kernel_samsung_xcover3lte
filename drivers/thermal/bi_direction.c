@@ -26,8 +26,8 @@ static unsigned long get_target_state(struct thermal_zone_device *tz, int old)
 			cur_state = i;
 	} else if (THERMAL_TREND_DROPPING == trend) {
 		for (i = 0; i < tz->trips; i++) {
-			if (tz->ops->get_trip_temp_d)
-				tz->ops->get_trip_temp_d(tz, i, &trip_temp);
+			if (tz->ops->get_trip_hyst)
+				tz->ops->get_trip_hyst(tz, i, &trip_temp);
 			else
 				tz->ops->get_trip_temp(tz, i, &trip_temp);
 			if (tz->temperature <= trip_temp)
@@ -75,8 +75,8 @@ static int bi_direction_gov_switch(struct thermal_zone_device *tz,
 
 	if (!strnicmp(from->name, "user_space", THERMAL_NAME_LENGTH)) {
 		for (i = 0; i < tz->trips; i++) {
-			if (tz->ops->get_trip_temp_d)
-				tz->ops->get_trip_temp_d(tz, i, &trip_temp);
+			if (tz->ops->get_trip_hyst)
+				tz->ops->get_trip_hyst(tz, i, &trip_temp);
 			else
 				tz->ops->get_trip_temp(tz, i, &trip_temp);
 			if (tz->temperature <= trip_temp)

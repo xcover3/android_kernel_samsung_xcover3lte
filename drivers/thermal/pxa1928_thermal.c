@@ -136,7 +136,7 @@ static int thsens_trips_temp[THSENS_NUM][TRIP_POINTS_NUM] = {
 	{80000, 90000, 100000, 110000, 115000},
 };
 
-static int thsens_trips_temp_d[THSENS_NUM][TRIP_POINTS_NUM] = {
+static int thsens_trips_hyst[THSENS_NUM][TRIP_POINTS_NUM] = {
 	{75000, 85000, 95000, 105000, 115000},
 	{75000, 85000, 95000, 105000, 115000},
 	{75000, 85000, 95000, 105000, 115000},
@@ -520,22 +520,22 @@ static int ts_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-static int cpu_sys_get_trip_temp_d(struct thermal_zone_device *thermal,
+static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
 		int trip, unsigned long *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		*temp = thsens_trips_temp_d[thermal->id - 1][trip];
+		*temp = thsens_trips_hyst[thermal->id - 1][trip];
 	else
 		*temp = -1;
 	return 0;
 }
 
-static int cpu_sys_set_trip_temp_d(struct thermal_zone_device *tz,
+static int cpu_sys_set_trip_hyst(struct thermal_zone_device *tz,
 		int trip, unsigned long temp)
 {
 	int id = tz->id - 1;
 	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
-		thsens_trips_temp_d[id][trip] = temp;
+		thsens_trips_hyst[id][trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip)
 		pr_warn("critical down doesn't used\n");
 	else
@@ -560,7 +560,7 @@ static int pxa1928_set_threshold(int id, int range)
 		reg_clr_set(off + TSEN_INT0_WDOG_THLD_REG_0,
 				TSEN_THD0_MASK, tmp);
 
-		tmp = (celsius_encode(thsens_trips_temp_d[id][0])
+		tmp = (celsius_encode(thsens_trips_hyst[id][0])
 				<< TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
 				TSEN_THD1_MASK, tmp);
@@ -573,7 +573,7 @@ static int pxa1928_set_threshold(int id, int range)
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(off + TSEN_INT0_WDOG_THLD_REG_0,
 				TSEN_THD0_MASK, tmp);
-		tmp = (celsius_encode(thsens_trips_temp_d[id][range - 1]) <<
+		tmp = (celsius_encode(thsens_trips_hyst[id][range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
 				TSEN_THD1_MASK, tmp);
@@ -586,7 +586,7 @@ static int pxa1928_set_threshold(int id, int range)
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(off + TSEN_INT0_WDOG_THLD_REG_0,
 				TSEN_THD0_MASK, tmp);
-		tmp = (celsius_encode(thsens_trips_temp_d[id][range - 1]) <<
+		tmp = (celsius_encode(thsens_trips_hyst[id][range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
 				TSEN_THD1_MASK, tmp);
@@ -604,7 +604,7 @@ static int ts_sys_set_trip_temp(struct thermal_zone_device *tz, int trip,
 		thsens_trips_temp[id][trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip) {
 		u32 tmp = (celsius_encode
-		(thsens_trips_temp_d[tz->id - 1][TRIP_POINTS_NUM - 1]) <<
+		(thsens_trips_hyst[tz->id - 1][TRIP_POINTS_NUM - 1]) <<
 				TSEN_THD2_OFF) & TSEN_THD2_MASK;
 		u32 off = reg_offset(id);
 		reg_clr_set(off + TSEN_INT1_INT2_THLD_REG_0,
@@ -693,9 +693,9 @@ static struct thermal_zone_device_ops ts_ops = {
 	.get_temp = ts_sys_get_temp,
 	.get_trip_type = ts_sys_get_trip_type,
 	.get_trip_temp = ts_sys_get_trip_temp,
-	.get_trip_temp_d = cpu_sys_get_trip_temp_d,
+	.get_trip_hyst = cpu_sys_get_trip_hyst,
 	.set_trip_temp = ts_sys_set_trip_temp,
-	.set_trip_temp_d = cpu_sys_set_trip_temp_d,
+	.set_trip_hyst = cpu_sys_set_trip_hyst,
 	.get_crit_temp = ts_sys_get_crit_temp,
 	.notify = ts_sys_notify,
 };
@@ -840,7 +840,7 @@ void pxa1928_cpu_thermal_initialize(void)
 	init_int1_int2_threshold(1, reg_base +
 			TSEN_INT1_INT2_THLD_REG_1);
 
-	tmp = (celsius_encode(thsens_trips_temp_d[1][TRIP_POINTS_NUM - 1]) <<
+	tmp = (celsius_encode(thsens_trips_hyst[1][TRIP_POINTS_NUM - 1]) <<
 			TSEN_THD2_OFF) & TSEN_THD2_MASK;
 	reg_clr_set(TSEN_INT1_INT2_THLD_REG_1, TSEN_THD2_MASK, tmp);
 
@@ -946,7 +946,7 @@ void pxa1928_vpu_thermal_initialize(void)
 	init_int1_int2_threshold(1, reg_base +
 			TSEN_INT1_INT2_THLD_REG_0);
 
-	tmp = (celsius_encode(thsens_trips_temp_d[0][TRIP_POINTS_NUM - 1]) <<
+	tmp = (celsius_encode(thsens_trips_hyst[0][TRIP_POINTS_NUM - 1]) <<
 			TSEN_THD2_OFF) & TSEN_THD2_MASK;
 	reg_clr_set(TSEN_INT1_INT2_THLD_REG_0, TSEN_THD2_MASK, tmp);
 
@@ -1053,7 +1053,7 @@ void pxa1928_gc_thermal_initialize(void)
 	init_int1_int2_threshold(1, reg_base +
 			TSEN_INT1_INT2_THLD_REG_2);
 
-	tmp = (celsius_encode(thsens_trips_temp_d[2][TRIP_POINTS_NUM - 1]) <<
+	tmp = (celsius_encode(thsens_trips_hyst[2][TRIP_POINTS_NUM - 1]) <<
 			TSEN_THD2_OFF) & TSEN_THD2_MASK;
 	reg_clr_set(TSEN_INT1_INT2_THLD_REG_2, TSEN_THD2_MASK, tmp);
 
