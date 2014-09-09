@@ -136,7 +136,7 @@ bt_atox(const char *a)
  *  @return	N/A
  */
 static void
-bt_mac2u8(u8 * mac_addr, char *buf)
+bt_mac2u8(u8 *mac_addr, char *buf)
 {
 	char *begin = buf, *end;
 	int i;
@@ -200,7 +200,7 @@ bt_atoi(int *data, char *a)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-bt_parse_cal_cfg(const u8 * src, u32 len, u8 * dst, u32 * dst_size)
+bt_parse_cal_cfg(const u8 *src, u32 len, u8 *dst, u32 *dst_size)
 {
 	const u8 *ptr;
 	u8 *dptr;
@@ -250,7 +250,7 @@ done:
  *    @return             -1 or length of the line
  */
 int
-parse_cfg_get_line(u8 * data, u32 size, u8 * line_pos)
+parse_cfg_get_line(u8 *data, u32 size, u8 *line_pos)
 {
 	static s32 pos;
 	u8 *src, *dest;
@@ -285,7 +285,7 @@ parse_cfg_get_line(u8 * data, u32 size, u8 * line_pos)
  *    @return              BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
+bt_process_init_cfg(bt_private *priv, u8 *data, u32 size)
 {
 	u8 *pos;
 	u8 *intf_s, *intf_e;
@@ -370,7 +370,7 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 				strncpy(buf, intf_s + 1, 1);
 				buf[1] = '\0';
 				if (0 == bt_atoi(&setting, buf))
-					type = (u8) setting;
+					type = (u8)setting;
 				else {
 					PRINTM(ERROR,
 					       "BT: Fail to parse reg type\n");
@@ -396,7 +396,7 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 				strncpy(buf, intf_s, intf_e - intf_s);
 				buf[intf_e - intf_s] = '\0';
 				if (0 == bt_atoi(&setting, buf))
-					offset = (u32) setting;
+					offset = (u32)setting;
 				else {
 					PRINTM(ERROR,
 					       "BT: Fail to parse reg offset\n");
@@ -452,7 +452,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_init_config(bt_private * priv, char *cfg_file)
+bt_init_config(bt_private *priv, char *cfg_file)
 {
 	const struct firmware *cfg = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -464,7 +464,7 @@ bt_init_config(bt_private * priv, char *cfg_file)
 		goto done;
 	}
 	if (cfg)
-		ret = bt_process_init_cfg(priv, (u8 *) cfg->data, cfg->size);
+		ret = bt_process_init_cfg(priv, (u8 *)cfg->data, cfg->size);
 	else
 		ret = BT_STATUS_FAILURE;
 done:
@@ -484,7 +484,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_process_cal_cfg(bt_private * priv, u8 * data, u32 size, char *mac)
+bt_process_cal_cfg(bt_private *priv, u8 *data, u32 size, char *mac)
 {
 	u8 bt_mac[ETH_ALEN];
 	u8 cal_data[32];
@@ -526,7 +526,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_process_cal_cfg_ext(bt_private * priv, u8 * data, u32 size)
+bt_process_cal_cfg_ext(bt_private *priv, u8 *data, u32 size)
 {
 	u8 cal_data[128];
 	u32 cal_data_len;
@@ -558,7 +558,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_cal_config(bt_private * priv, char *cal_file, char *mac)
+bt_cal_config(bt_private *priv, char *cal_file, char *mac)
 {
 	const struct firmware *cfg = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -570,8 +570,7 @@ bt_cal_config(bt_private * priv, char *cal_file, char *mac)
 		goto done;
 	}
 	if (cfg)
-		ret = bt_process_cal_cfg(priv, (u8 *) cfg->data, cfg->size,
-					 mac);
+		ret = bt_process_cal_cfg(priv, (u8 *)cfg->data, cfg->size, mac);
 	else
 		ret = BT_STATUS_FAILURE;
 done:
@@ -590,7 +589,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_cal_config_ext(bt_private * priv, char *cal_file)
+bt_cal_config_ext(bt_private *priv, char *cal_file)
 {
 	const struct firmware *cfg = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -602,7 +601,7 @@ bt_cal_config_ext(bt_private * priv, char *cal_file)
 		goto done;
 	}
 	if (cfg)
-		ret = bt_process_cal_cfg_ext(priv, (u8 *) cfg->data, cfg->size);
+		ret = bt_process_cal_cfg_ext(priv, (u8 *)cfg->data, cfg->size);
 	else
 		ret = BT_STATUS_FAILURE;
 done:
@@ -620,7 +619,7 @@ done:
  *    @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_init_mac_address(bt_private * priv, char *mac)
+bt_init_mac_address(bt_private *priv, char *mac)
 {
 	u8 bt_mac[ETH_ALEN];
 	int ret = BT_STATUS_FAILURE;

@@ -160,7 +160,8 @@ enum {
 	MOAL_PROC_WAIT,
 #endif
 	MOAL_WSTATS_WAIT,
-	MOAL_IOCTL_WAIT_TIMEOUT
+	MOAL_IOCTL_WAIT_TIMEOUT,
+	MOAL_CMD_WAIT_TIMEOUT
 };
 
 /** moal_main_state */
@@ -220,7 +221,7 @@ typedef struct _moal_drv_timer {
 static inline void
 woal_timer_handler(unsigned long fcontext)
 {
-	pmoal_drv_timer timer = (pmoal_drv_timer) fcontext;
+	pmoal_drv_timer timer = (pmoal_drv_timer)fcontext;
 
 	timer->timer_function(timer->function_context);
 
@@ -250,7 +251,7 @@ woal_initialize_timer(pmoal_drv_timer timer,
 	/* First, setup the timer to trigger the wlan_timer_handler proxy */
 	init_timer(&timer->tl);
 	timer->tl.function = woal_timer_handler;
-	timer->tl.data = (t_ptr) timer;
+	timer->tl.data = (t_ptr)timer;
 
 	/* Then tell the proxy which function to call and what to pass it */
 	timer->timer_function = TimerFunction;
@@ -284,7 +285,7 @@ woal_mod_timer(pmoal_drv_timer timer, t_u32 millisecondperiod)
  *  @return		N/A
  */
 static inline void
-woal_cancel_timer(moal_drv_timer * timer)
+woal_cancel_timer(moal_drv_timer *timer)
 {
 	if (timer->timer_is_periodic || in_atomic() || irqs_disabled())
 		del_timer(&timer->tl);
@@ -320,7 +321,7 @@ typedef struct _moal_thread {
  *  @return			N/A
  */
 static inline void
-woal_activate_thread(moal_thread * thr)
+woal_activate_thread(moal_thread *thr)
 {
     /** Initialize the wait queue */
 	init_waitqueue_head(&thr->wait_q);
@@ -336,7 +337,7 @@ woal_activate_thread(moal_thread * thr)
  *  @return			N/A
  */
 static inline void
-woal_deactivate_thread(moal_thread * thr)
+woal_deactivate_thread(moal_thread *thr)
 {
 	/* Reset the pid */
 	thr->pid = 0;
@@ -351,7 +352,7 @@ woal_deactivate_thread(moal_thread * thr)
  *  @return			N/A
  */
 static inline void
-woal_create_thread(int (*threadfunc) (void *), moal_thread * thr, char *name)
+woal_create_thread(int (*threadfunc) (void *), moal_thread *thr, char *name)
 {
 	/* Create and run the thread */
 	thr->task = kthread_run(threadfunc, thr, "%s", name);
@@ -429,7 +430,7 @@ xdigit2bin(char c, int delim)
 }
 
 static inline int
-in4_pton(const char *src, int srclen, u8 * dst, int delim, const char **end)
+in4_pton(const char *src, int srclen, u8 *dst, int delim, const char **end)
 {
 	const char *s;
 	u8 *d;
@@ -533,6 +534,9 @@ out:
 
 /* IOCTL Timeout */
 #define MOAL_IOCTL_TIMEOUT                    (20 * HZ)
+
+/** shutdown timeout */
+#define MOAL_SHUTDOWN_TIMEOUT                 (25 * 1000)
 
 /** Threshold value of number of times the Tx timeout happened */
 #define NUM_TX_TIMEOUT_THRESHOLD      5
@@ -853,6 +857,30 @@ struct tdls_peer {
 	t_u8 num_failure;
 };
 
+/** Number of samples in histogram (/proc/mwlan/mlan0/histogram).*/
+#define HIST_MAX_SAMPLES   1048576
+#define RX_RATE_MAX			74
+
+/** SRN MAX  */
+#define SNR_MAX				256
+/** NOISE FLR MAX  */
+#define NOISE_FLR_MAX			256
+/** SIG STRENTGH MAX */
+#define SIG_STRENGTH_MAX		256
+/** historgram data */
+typedef struct _hgm_data {
+    /** rx rate */
+	atomic_t rx_rate[RX_RATE_MAX];
+    /** snr */
+	atomic_t snr[SNR_MAX];
+    /** noise flr */
+	atomic_t noise_flr[NOISE_FLR_MAX];
+    /** sig_str */
+	atomic_t sig_str[SIG_STRENGTH_MAX];
+    /** num sample */
+	atomic_t num_samples;
+} hgm_data;
+
 /** Private structure for MOAL */
 struct _moal_private {
 	/** Handle structure */
@@ -1075,6 +1103,8 @@ struct _moal_private {
     /** cookie */
 	t_u64 last_tx_cookie;
 #endif
+    /** rx hgm data */
+	hgm_data *hist_data;
 };
 /** card info */
 typedef struct _card_info {
@@ -1174,6 +1204,10 @@ struct _moal_handle {
 	/** Bitmap for re-association on/off */
 	t_u8 reassoc_on;
 #endif				/* REASSOCIATION */
+    /** shutdown timer set flag */
+	BOOLEAN is_shutdown_timer_set;
+	/** shutdown timer */
+	moal_drv_timer shutdown_timer __ATTRIB_ALIGN__;
 	/** Driver workqueue */
 	struct workqueue_struct *workqueue;
 	/** main work */
@@ -1339,7 +1373,7 @@ woal_stop_queue(struct net_device *dev)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	unsigned long flags;
-	moal_private *priv = (moal_private *) netdev_priv(dev);
+	moal_private *priv = (moal_private *)netdev_priv(dev);
 	spin_lock_irqsave(&priv->phandle->queue_lock, flags);
 	woal_set_trans_start(dev);
 	if (!netif_queue_stopped(dev))
@@ -1364,7 +1398,7 @@ woal_wake_queue(struct net_device *dev)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	unsigned long flags;
-	moal_private *priv = (moal_private *) netdev_priv(dev);
+	moal_private *priv = (moal_private *)netdev_priv(dev);
 	spin_lock_irqsave(&priv->phandle->queue_lock, flags);
 	if (netif_queue_stopped(dev))
 		netif_tx_wake_all_queues(dev);
@@ -1484,7 +1518,7 @@ do {                                    \
 #define MAX_DUMP_PER_LINE	16
 
 static inline void
-hexdump(t_u32 level, char *prompt, t_u8 * buf, int len)
+hexdump(t_u32 level, char *prompt, t_u8 *buf, int len)
 {
 	int i;
 	char dbgdumpbuf[DBG_DUMP_BUF_LEN];
@@ -1588,7 +1622,7 @@ hexdump(t_u32 level, char *prompt, t_u8 * buf, int len)
  *  @return          Pointer to moal_private
  */
 static inline moal_private *
-woal_get_priv(moal_handle * handle, mlan_bss_role bss_role)
+woal_get_priv(moal_handle *handle, mlan_bss_role bss_role)
 {
 	int i;
 
@@ -1612,7 +1646,7 @@ woal_get_priv(moal_handle * handle, mlan_bss_role bss_role)
  *  @return          Pointer to moal_private
  */
 static inline moal_private *
-woal_get_priv_bss_type(moal_handle * handle, mlan_bss_type bss_type)
+woal_get_priv_bss_type(moal_handle *handle, mlan_bss_type bss_type)
 {
 	int i;
 
@@ -1731,11 +1765,11 @@ typedef struct _HostCmd_DS_802_11_CFG_DATA {
 #define RX_FILTER_IPV6_MULTICAST        8
 
 /**  Convert ASCII string to hex value */
-int woal_ascii2hex(t_u8 * d, char *s, t_u32 dlen);
+int woal_ascii2hex(t_u8 *d, char *s, t_u32 dlen);
 /** parse ie */
-const t_u8 *woal_parse_ie_tlv(const t_u8 * ie, int len, t_u8 id);
+const t_u8 *woal_parse_ie_tlv(const t_u8 *ie, int len, t_u8 id);
 /**  Convert mac address from string to t_u8 buffer */
-void woal_mac2u8(t_u8 * mac_addr, char *buf);
+void woal_mac2u8(t_u8 *mac_addr, char *buf);
 /**  Extract token from string */
 char *woal_strsep(char **s, char delim, char esc);
 /** Return int value of a given ASCII string */
@@ -1743,207 +1777,207 @@ mlan_status woal_atoi(int *data, char *a);
 /** Return hex value of a given ASCII string */
 int woal_atox(char *a);
 /** Allocate buffer */
-pmlan_buffer woal_alloc_mlan_buffer(moal_handle * handle, int size);
+pmlan_buffer woal_alloc_mlan_buffer(moal_handle *handle, int size);
 /** Allocate IOCTL request buffer */
 pmlan_ioctl_req woal_alloc_mlan_ioctl_req(int size);
 /** Free buffer */
-void woal_free_mlan_buffer(moal_handle * handle, pmlan_buffer pmbuf);
+void woal_free_mlan_buffer(moal_handle *handle, pmlan_buffer pmbuf);
 /** Get private structure of a BSS by index */
-moal_private *woal_bss_index_to_priv(moal_handle * handle, t_u8 bss_index);
+moal_private *woal_bss_index_to_priv(moal_handle *handle, t_u8 bss_index);
 /* Functions in interface module */
 /** Add card */
 moal_handle *woal_add_card(void *card);
 /** Remove card */
 mlan_status woal_remove_card(void *card);
 /** broadcast event */
-mlan_status woal_broadcast_event(moal_private * priv, t_u8 * payload,
-				 t_u32 len);
+mlan_status woal_broadcast_event(moal_private *priv, t_u8 *payload, t_u32 len);
 #ifdef CONFIG_PROC_FS
 /** switch driver mode */
-mlan_status woal_switch_drv_mode(moal_handle * handle, t_u32 mode);
+mlan_status woal_switch_drv_mode(moal_handle *handle, t_u32 mode);
 #endif
 
 /** Interrupt handler */
-void woal_interrupt(moal_handle * handle);
+void woal_interrupt(moal_handle *handle);
 
 /** Get version */
-void woal_get_version(moal_handle * handle, char *version, int maxlen);
+void woal_get_version(moal_handle *handle, char *version, int maxlen);
 /** Get Driver Version */
-int woal_get_driver_version(moal_private * priv, struct ifreq *req);
+int woal_get_driver_version(moal_private *priv, struct ifreq *req);
 /** Get extended driver version */
-int woal_get_driver_verext(moal_private * priv, struct ifreq *ireq);
+int woal_get_driver_verext(moal_private *priv, struct ifreq *ireq);
 /** check driver status */
-t_u8 woal_check_driver_status(moal_handle * handle);
+t_u8 woal_check_driver_status(moal_handle *handle);
 /** Mgmt frame forward registration */
-int woal_reg_rx_mgmt_ind(moal_private * priv, t_u16 action,
-			 t_u32 * pmgmt_subtype_mask, t_u8 wait_option);
+int woal_reg_rx_mgmt_ind(moal_private *priv, t_u16 action,
+			 t_u32 *pmgmt_subtype_mask, t_u8 wait_option);
 #ifdef DEBUG_LEVEL1
 /** Set driver debug bit masks */
-int woal_set_drvdbg(moal_private * priv, t_u32 drvdbg);
+int woal_set_drvdbg(moal_private *priv, t_u32 drvdbg);
 #endif
-mlan_status woal_set_get_tx_bf_cap(moal_private * priv, t_u16 action,
-				   t_u32 * tx_bf_cap);
+mlan_status woal_set_get_tx_bf_cap(moal_private *priv, t_u16 action,
+				   t_u32 *tx_bf_cap);
 /** Set/Get TX beamforming configurations */
-mlan_status woal_set_get_tx_bf_cfg(moal_private * priv, t_u16 action,
-				   mlan_ds_11n_tx_bf_cfg * bf_cfg);
+mlan_status woal_set_get_tx_bf_cfg(moal_private *priv, t_u16 action,
+				   mlan_ds_11n_tx_bf_cfg *bf_cfg);
 /** Request MAC address setting */
-mlan_status woal_request_set_mac_address(moal_private * priv);
+mlan_status woal_request_set_mac_address(moal_private *priv);
 /** Request multicast list setting */
-void woal_request_set_multicast_list(moal_private * priv,
+void woal_request_set_multicast_list(moal_private *priv,
 				     struct net_device *dev);
 /** Request IOCTL action */
-mlan_status woal_request_ioctl(moal_private * priv, mlan_ioctl_req * req,
+mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 			       t_u8 wait_option);
 #ifdef CONFIG_PROC_FS
-mlan_status woal_request_soft_reset(moal_handle * handle);
+mlan_status woal_request_soft_reset(moal_handle *handle);
 #endif
 
 #ifdef PROC_DEBUG
 /** Get debug information */
-mlan_status woal_get_debug_info(moal_private * priv, t_u8 wait_option,
-				mlan_debug_info * debug_info);
+mlan_status woal_get_debug_info(moal_private *priv, t_u8 wait_option,
+				mlan_debug_info *debug_info);
 /** Set debug information */
-mlan_status woal_set_debug_info(moal_private * priv, t_u8 wait_option,
-				mlan_debug_info * debug_info);
+mlan_status woal_set_debug_info(moal_private *priv, t_u8 wait_option,
+				mlan_debug_info *debug_info);
 #endif
 /** Disconnect */
-mlan_status woal_disconnect(moal_private * priv, t_u8 wait_option, t_u8 * mac);
+mlan_status woal_disconnect(moal_private *priv, t_u8 wait_option, t_u8 *mac);
 /** associate */
-mlan_status woal_bss_start(moal_private * priv, t_u8 wait_option,
-			   mlan_ssid_bssid * ssid_bssid);
+mlan_status woal_bss_start(moal_private *priv, t_u8 wait_option,
+			   mlan_ssid_bssid *ssid_bssid);
 /** Request firmware information */
-mlan_status woal_request_get_fw_info(moal_private * priv, t_u8 wait_option,
-				     mlan_fw_info * fw_info);
+mlan_status woal_request_get_fw_info(moal_private *priv, t_u8 wait_option,
+				     mlan_fw_info *fw_info);
 /** Set/get Host Sleep parameters */
-mlan_status woal_set_get_hs_params(moal_private * priv, t_u16 action,
-				   t_u8 wait_option, mlan_ds_hs_cfg * hscfg);
+mlan_status woal_set_get_hs_params(moal_private *priv, t_u16 action,
+				   t_u8 wait_option, mlan_ds_hs_cfg *hscfg);
 /** Cancel Host Sleep configuration */
-mlan_status woal_cancel_hs(moal_private * priv, t_u8 wait_option);
+mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option);
 #if defined(SDIO_SUSPEND_RESUME)
 /** Enable Host Sleep configuration */
-int woal_enable_hs(moal_private * priv);
+int woal_enable_hs(moal_private *priv);
 /** hs active timeout 2 second */
 #define HS_ACTIVE_TIMEOUT  (2 * HZ)
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
-void woal_create_dump_dir(moal_handle * phandle, char *dir_buf, int buf_size);
+void woal_create_dump_dir(moal_handle *phandle, char *dir_buf, int buf_size);
 #endif
 mlan_status woal_save_dump_info_to_file(char *dir_name, char *file_name,
-					t_u8 * buf, t_u32 buf_len);
-void woal_dump_drv_info(moal_handle * phandle, t_u8 * dir_name);
+					t_u8 *buf, t_u32 buf_len);
+void woal_dump_drv_info(moal_handle *phandle, t_u8 *dir_name);
 
-void woal_dump_firmware_info(moal_handle * phandle);
-void woal_dump_firmware_info_v2(moal_handle * phandle);
+void woal_dump_firmware_info(moal_handle *phandle);
+void woal_dump_firmware_info_v2(moal_handle *phandle);
 /* Store the FW dumps received from events in a file */
-void woal_store_firmware_dump(moal_private * priv, mlan_event * pmevent);
+void woal_store_firmware_dump(moal_private *priv, mlan_event *pmevent);
 
 /** get deep sleep */
-int woal_get_deep_sleep(moal_private * priv, t_u32 * data);
+int woal_get_deep_sleep(moal_private *priv, t_u32 *data);
 /** set deep sleep */
-int woal_set_deep_sleep(moal_private * priv, t_u8 wait_option,
+int woal_set_deep_sleep(moal_private *priv, t_u8 wait_option,
 			BOOLEAN bdeep_sleep, t_u16 idletime);
 /** process hang */
-void woal_process_hang(moal_handle * handle);
+void woal_process_hang(moal_handle *handle);
 /** Get BSS information */
-mlan_status woal_get_bss_info(moal_private * priv, t_u8 wait_option,
-			      mlan_bss_info * bss_info);
-void woal_process_ioctl_resp(moal_private * priv, mlan_ioctl_req * req);
+mlan_status woal_get_bss_info(moal_private *priv, t_u8 wait_option,
+			      mlan_bss_info *bss_info);
+void woal_process_ioctl_resp(moal_private *priv, mlan_ioctl_req *req);
 #ifdef STA_SUPPORT
-void woal_send_disconnect_to_system(moal_private * priv);
-void woal_send_mic_error_event(moal_private * priv, t_u32 event);
-void woal_ioctl_get_bss_resp(moal_private * priv, mlan_ds_bss * bss);
-void woal_ioctl_get_info_resp(moal_private * priv, mlan_ds_get_info * info);
-mlan_status woal_get_assoc_rsp(moal_private * priv,
-			       mlan_ds_misc_assoc_rsp * assoc_rsp);
+void woal_send_disconnect_to_system(moal_private *priv);
+void woal_send_mic_error_event(moal_private *priv, t_u32 event);
+void woal_ioctl_get_bss_resp(moal_private *priv, mlan_ds_bss *bss);
+void woal_ioctl_get_info_resp(moal_private *priv, mlan_ds_get_info *info);
+mlan_status woal_get_assoc_rsp(moal_private *priv,
+			       mlan_ds_misc_assoc_rsp *assoc_rsp);
 /** Get signal information */
-mlan_status woal_get_signal_info(moal_private * priv, t_u8 wait_option,
-				 mlan_ds_get_signal * signal);
+mlan_status woal_get_signal_info(moal_private *priv, t_u8 wait_option,
+				 mlan_ds_get_signal *signal);
 /** Get mode */
-t_u32 woal_get_mode(moal_private * priv, t_u8 wait_option);
+t_u32 woal_get_mode(moal_private *priv, t_u8 wait_option);
 char *region_code_2_string(t_u8 region_code);
 t_u8 woal_is_valid_alpha2(char *alpha2);
 /** Get statistics information */
-mlan_status woal_get_stats_info(moal_private * priv, t_u8 wait_option,
-				mlan_ds_get_stats * stats);
+mlan_status woal_get_stats_info(moal_private *priv, t_u8 wait_option,
+				mlan_ds_get_stats *stats);
 #ifdef STA_WEXT
 /** Get data rates */
-mlan_status woal_get_data_rates(moal_private * priv, t_u8 wait_option,
-				moal_802_11_rates * m_rates);
-void woal_send_iwevcustom_event(moal_private * priv, char *str);
+mlan_status woal_get_data_rates(moal_private *priv, t_u8 wait_option,
+				moal_802_11_rates *m_rates);
+void woal_send_iwevcustom_event(moal_private *priv, char *str);
 /** Get channel list */
-mlan_status woal_get_channel_list(moal_private * priv, t_u8 wait_option,
-				  mlan_chan_list * chanlist);
+mlan_status woal_get_channel_list(moal_private *priv, t_u8 wait_option,
+				  mlan_chan_list *chanlist);
 #endif
 /** Set/Get retry count */
-mlan_status woal_set_get_retry(moal_private * priv, t_u32 action,
+mlan_status woal_set_get_retry(moal_private *priv, t_u32 action,
 			       t_u8 wait_option, int *value);
 /** Set/Get RTS threshold */
-mlan_status woal_set_get_rts(moal_private * priv, t_u32 action,
-			     t_u8 wait_option, int *value);
+mlan_status woal_set_get_rts(moal_private *priv, t_u32 action, t_u8 wait_option,
+			     int *value);
 /** Set/Get fragment threshold */
-mlan_status woal_set_get_frag(moal_private * priv, t_u32 action,
+mlan_status woal_set_get_frag(moal_private *priv, t_u32 action,
 			      t_u8 wait_option, int *value);
 /** Set/Get generic element */
-mlan_status woal_set_get_gen_ie(moal_private * priv, t_u32 action, t_u8 * ie,
-				int *ie_len);
+mlan_status woal_set_get_gen_ie(moal_private *priv, t_u32 action, t_u8 *ie,
+				int *ie_len, t_u8 wait_option);
 /** Set/Get TX power */
-mlan_status woal_set_get_tx_power(moal_private * priv, t_u32 action,
-				  mlan_power_cfg_t * pwr);
+mlan_status woal_set_get_tx_power(moal_private *priv, t_u32 action,
+				  mlan_power_cfg_t *pwr);
 /** Set/Get power IEEE management */
-mlan_status woal_set_get_power_mgmt(moal_private * priv, t_u32 action,
+mlan_status woal_set_get_power_mgmt(moal_private *priv, t_u32 action,
 				    int *disabled, int type, t_u8 wait_option);
 /** Get data rate */
-mlan_status woal_set_get_data_rate(moal_private * priv, t_u8 action,
-				   mlan_rate_cfg_t * datarate);
+mlan_status woal_set_get_data_rate(moal_private *priv, t_u8 action,
+				   mlan_rate_cfg_t *datarate);
 /** Request a network scan */
-mlan_status woal_request_scan(moal_private * priv, t_u8 wait_option,
-			      mlan_802_11_ssid * req_ssid);
+mlan_status woal_request_scan(moal_private *priv, t_u8 wait_option,
+			      mlan_802_11_ssid *req_ssid);
 /** Set radio on/off */
-int woal_set_radio(moal_private * priv, t_u8 option);
+int woal_set_radio(moal_private *priv, t_u8 option);
 /** Set region code */
-mlan_status woal_set_region_code(moal_private * priv, char *region);
+mlan_status woal_set_region_code(moal_private *priv, char *region);
 /** Set authentication mode */
-mlan_status woal_set_auth_mode(moal_private * priv, t_u8 wait_option,
+mlan_status woal_set_auth_mode(moal_private *priv, t_u8 wait_option,
 			       t_u32 auth_mode);
 /** Set encryption mode */
-mlan_status woal_set_encrypt_mode(moal_private * priv, t_u8 wait_option,
+mlan_status woal_set_encrypt_mode(moal_private *priv, t_u8 wait_option,
 				  t_u32 encrypt_mode);
 /** Enable wep key */
-mlan_status woal_enable_wep_key(moal_private * priv, t_u8 wait_option);
+mlan_status woal_enable_wep_key(moal_private *priv, t_u8 wait_option);
 /** Set WPA enable */
-mlan_status woal_set_wpa_enable(moal_private * priv, t_u8 wait_option,
+mlan_status woal_set_wpa_enable(moal_private *priv, t_u8 wait_option,
 				t_u32 enable);
 
 /** cancel scan command */
-mlan_status woal_cancel_scan(moal_private * priv, t_u8 wait_option);
+mlan_status woal_cancel_scan(moal_private *priv, t_u8 wait_option);
 /** Find best network to connect */
-mlan_status woal_find_best_network(moal_private * priv, t_u8 wait_option,
-				   mlan_ssid_bssid * ssid_bssid);
+mlan_status woal_find_best_network(moal_private *priv, t_u8 wait_option,
+				   mlan_ssid_bssid *ssid_bssid);
 /** Set Ad-Hoc channel */
-mlan_status woal_change_adhoc_chan(moal_private * priv, int channel);
+mlan_status woal_change_adhoc_chan(moal_private *priv, int channel,
+				   t_u8 wait_option);
 
 /** Get scan table */
-mlan_status woal_get_scan_table(moal_private * priv, t_u8 wait_option,
-				mlan_scan_resp * scanresp);
+mlan_status woal_get_scan_table(moal_private *priv, t_u8 wait_option,
+				mlan_scan_resp *scanresp);
 /** Get authentication mode */
-mlan_status woal_get_auth_mode(moal_private * priv, t_u8 wait_option,
-			       t_u32 * auth_mode);
+mlan_status woal_get_auth_mode(moal_private *priv, t_u8 wait_option,
+			       t_u32 *auth_mode);
 /** Get encryption mode */
-mlan_status woal_get_encrypt_mode(moal_private * priv, t_u8 wait_option,
-				  t_u32 * encrypt_mode);
+mlan_status woal_get_encrypt_mode(moal_private *priv, t_u8 wait_option,
+				  t_u32 *encrypt_mode);
 /** Get WPA state */
-mlan_status woal_get_wpa_enable(moal_private * priv, t_u8 wait_option,
-				t_u32 * enable);
+mlan_status woal_get_wpa_enable(moal_private *priv, t_u8 wait_option,
+				t_u32 *enable);
 #endif	/**STA_SUPPORT */
 
-mlan_status woal_set_wapi_enable(moal_private * priv, t_u8 wait_option,
+mlan_status woal_set_wapi_enable(moal_private *priv, t_u8 wait_option,
 				 t_u32 enable);
 
 /** Initialize priv */
-void woal_init_priv(moal_private * priv, t_u8 wait_option);
+void woal_init_priv(moal_private *priv, t_u8 wait_option);
 /** Reset interface(s) */
-int woal_reset_intf(moal_private * priv, t_u8 wait_option, int all_intf);
+int woal_reset_intf(moal_private *priv, t_u8 wait_option, int all_intf);
 /** common ioctl for uap, station */
 int woal_custom_ie_ioctl(struct net_device *dev, struct ifreq *req);
 int woal_send_host_packet(struct net_device *dev, struct ifreq *req);
@@ -1954,16 +1988,16 @@ int woal_tdls_config_ioctl(struct net_device *dev, struct ifreq *req);
 
 int woal_get_bss_type(struct net_device *dev, struct ifreq *req);
 #if defined(STA_WEXT) || defined(UAP_WEXT)
-int woal_host_command(moal_private * priv, struct iwreq *wrq);
+int woal_host_command(moal_private *priv, struct iwreq *wrq);
 #endif
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
-mlan_status woal_bss_role_cfg(moal_private * priv, t_u8 action,
-			      t_u8 wait_option, t_u8 * bss_role);
+mlan_status woal_bss_role_cfg(moal_private *priv, t_u8 action,
+			      t_u8 wait_option, t_u8 *bss_role);
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 void woal_go_timer_func(void *context);
 #endif
 #if defined(STA_WEXT) || defined(UAP_WEXT)
-int woal_set_get_bss_role(moal_private * priv, struct iwreq *wrq);
+int woal_set_get_bss_role(moal_private *priv, struct iwreq *wrq);
 #endif
 #endif
 #if defined(WIFI_DIRECT_SUPPORT) || defined(UAP_SUPPORT)
@@ -1972,123 +2006,134 @@ int woal_hostcmd_ioctl(struct net_device *dev, struct ifreq *req);
 #endif
 
 #if defined(WIFI_DIRECT_SUPPORT)
-mlan_status woal_set_remain_channel_ioctl(moal_private * priv, t_u8 wait_option,
-					  mlan_ds_remain_chan * pchan);
-mlan_status woal_wifi_direct_mode_cfg(moal_private * priv, t_u16 action,
-				      t_u16 * mode);
-mlan_status woal_p2p_config(moal_private * priv, t_u32 action,
-			    mlan_ds_wifi_direct_config * p2p_config);
+mlan_status woal_set_remain_channel_ioctl(moal_private *priv, t_u8 wait_option,
+					  mlan_ds_remain_chan *pchan);
+mlan_status woal_wifi_direct_mode_cfg(moal_private *priv, t_u16 action,
+				      t_u16 *mode);
+mlan_status woal_p2p_config(moal_private *priv, t_u32 action,
+			    mlan_ds_wifi_direct_config *p2p_config);
 void woal_remain_timer_func(void *context);
 #endif /* WIFI_DIRECT_SUPPORT */
 
 #ifdef CONFIG_PROC_FS
 /** Initialize proc fs */
-void woal_proc_init(moal_handle * handle);
+void woal_proc_init(moal_handle *handle);
 /** Clean up proc fs */
-void woal_proc_exit(moal_handle * handle);
+void woal_proc_exit(moal_handle *handle);
 /** Create proc entry */
-void woal_create_proc_entry(moal_private * priv);
+void woal_create_proc_entry(moal_private *priv);
 /** Remove proc entry */
-void woal_proc_remove(moal_private * priv);
+void woal_proc_remove(moal_private *priv);
 /** string to number */
 int woal_string_to_number(char *s);
 #endif
 
 #ifdef PROC_DEBUG
 /** Create debug proc fs */
-void woal_debug_entry(moal_private * priv);
+void woal_debug_entry(moal_private *priv);
 /** Remove debug proc fs */
-void woal_debug_remove(moal_private * priv);
+void woal_debug_remove(moal_private *priv);
 #endif /* PROC_DEBUG */
 
 /** check pm info */
-mlan_status woal_get_pm_info(moal_private * priv, mlan_ds_ps_info * pm_info);
+mlan_status woal_get_pm_info(moal_private *priv, mlan_ds_ps_info *pm_info);
 /** get mlan debug info */
-void woal_mlan_debug_info(moal_private * priv);
+void woal_mlan_debug_info(moal_private *priv);
 
 #ifdef REASSOCIATION
 int woal_reassociation_thread(void *data);
 void woal_reassoc_timer_func(void *context);
 #endif /* REASSOCIATION */
 
+void woal_shutdown_timer_func(void *context);
+
 t_void woal_main_work_queue(struct work_struct *work);
 t_void woal_rx_work_queue(struct work_struct *work);
 
 int woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev);
 #ifdef STA_SUPPORT
-mlan_status woal_init_sta_dev(struct net_device *dev, moal_private * priv);
+mlan_status woal_init_sta_dev(struct net_device *dev, moal_private *priv);
 #endif
 #ifdef UAP_SUPPORT
-mlan_status woal_init_uap_dev(struct net_device *dev, moal_private * priv);
+mlan_status woal_init_uap_dev(struct net_device *dev, moal_private *priv);
 #endif
-moal_private *woal_add_interface(moal_handle * handle, t_u8 bss_num,
+moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_num,
 				 t_u8 bss_type);
-void woal_remove_interface(moal_handle * handle, t_u8 bss_index);
+void woal_remove_interface(moal_handle *handle, t_u8 bss_index);
 void woal_set_multicast_list(struct net_device *dev);
-mlan_status woal_request_fw(moal_handle * handle);
-int woal_11h_channel_check_ioctl(moal_private * priv);
-void woal_cancel_cac_block(moal_private * priv);
-void woal_moal_debug_info(moal_private * priv, moal_handle * handle, u8 flag);
+mlan_status woal_request_fw(moal_handle *handle);
+int woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option);
+void woal_cancel_cac_block(moal_private *priv);
+void woal_moal_debug_info(moal_private *priv, moal_handle *handle, u8 flag);
 
 #ifdef STA_SUPPORT
-mlan_status woal_get_powermode(moal_private * priv, int *powermode);
-mlan_status woal_set_scan_type(moal_private * priv, t_u32 scan_type);
-mlan_status woal_enable_ext_scan(moal_private * priv, t_u8 enable);
-mlan_status woal_set_powermode(moal_private * priv, char *powermode);
-int woal_find_essid(moal_private * priv, mlan_ssid_bssid * ssid_bssid);
-mlan_status woal_request_userscan(moal_private * priv, t_u8 wait_option,
-				  wlan_user_scan_cfg * scan_cfg);
-mlan_status woal_do_scan(moal_private * priv, wlan_user_scan_cfg * scan_cfg);
-int woal_set_combo_scan(moal_private * priv, char *buf, int length);
-mlan_status woal_set_scan_time(moal_private * priv, t_u16 active_scan_time,
+mlan_status woal_get_powermode(moal_private *priv, int *powermode);
+mlan_status woal_set_scan_type(moal_private *priv, t_u32 scan_type);
+mlan_status woal_enable_ext_scan(moal_private *priv, t_u8 enable);
+mlan_status woal_set_powermode(moal_private *priv, char *powermode);
+int woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
+		    t_u8 wait_option);
+mlan_status woal_request_userscan(moal_private *priv, t_u8 wait_option,
+				  wlan_user_scan_cfg *scan_cfg);
+mlan_status woal_do_scan(moal_private *priv, wlan_user_scan_cfg *scan_cfg);
+int woal_set_combo_scan(moal_private *priv, char *buf, int length);
+mlan_status woal_set_scan_time(moal_private *priv, t_u16 active_scan_time,
 			       t_u16 passive_scan_time,
 			       t_u16 specific_scan_time);
-mlan_status woal_get_band(moal_private * priv, int *band);
-mlan_status woal_set_band(moal_private * priv, char *pband);
-mlan_status woal_add_rxfilter(moal_private * priv, char *rxfilter);
-mlan_status woal_remove_rxfilter(moal_private * priv, char *rxfilter);
-mlan_status woal_priv_qos_cfg(moal_private * priv, t_u32 action, char *qos_cfg);
-mlan_status woal_set_sleeppd(moal_private * priv, char *psleeppd);
-int woal_set_scan_cfg(moal_private * priv, char *buf, int length);
+mlan_status woal_get_band(moal_private *priv, int *band);
+mlan_status woal_set_band(moal_private *priv, char *pband);
+mlan_status woal_add_rxfilter(moal_private *priv, char *rxfilter);
+mlan_status woal_remove_rxfilter(moal_private *priv, char *rxfilter);
+mlan_status woal_priv_qos_cfg(moal_private *priv, t_u32 action, char *qos_cfg);
+mlan_status woal_set_sleeppd(moal_private *priv, char *psleeppd);
+int woal_set_scan_cfg(moal_private *priv, char *buf, int length);
 
 /* EVENT: BCN_RSSI_LOW */
 #define EVENT_BCN_RSSI_LOW			0x0001
 /* EVENT: PRE_BCN_LOST */
 #define EVENT_PRE_BCN_LOST			0x0002
-mlan_status woal_set_rssi_low_threshold(moal_private * priv, char *rssi,
+mlan_status woal_set_rssi_low_threshold(moal_private *priv, char *rssi,
 					t_u8 wait_option);
-mlan_status woal_set_rssi_threshold(moal_private * priv, t_u32 event_id,
+mlan_status woal_set_rssi_threshold(moal_private *priv, t_u32 event_id,
 				    t_u8 wait_option);
 /* EVENT: BG_SCAN_REPORT */
 #define EVENT_BG_SCAN_REPORT		0x0004
-mlan_status woal_set_bg_scan(moal_private * priv, char *buf, int length);
-mlan_status woal_stop_bg_scan(moal_private * priv, t_u8 wait_option);
-void woal_reconfig_bgscan(moal_handle * handle);
+mlan_status woal_set_bg_scan(moal_private *priv, char *buf, int length);
+mlan_status woal_stop_bg_scan(moal_private *priv, t_u8 wait_option);
+void woal_reconfig_bgscan(moal_handle *handle);
 #ifdef STA_CFG80211
-void woal_config_bgscan_and_rssi(moal_private * priv, t_u8 set_rssi);
-void woal_start_roaming(moal_private * priv);
+void woal_config_bgscan_and_rssi(moal_private *priv, t_u8 set_rssi);
+void woal_start_roaming(moal_private *priv);
 #endif
 #ifdef STA_CFG80211
-void woal_save_conn_params(moal_private * priv,
+void woal_save_conn_params(moal_private *priv,
 			   struct cfg80211_connect_params *sme);
-void woal_clear_conn_params(moal_private * priv);
+void woal_clear_conn_params(moal_private *priv);
 #endif
-mlan_status woal_request_bgscan(moal_private * priv, t_u8 wait_option,
-				wlan_bgscan_cfg * scan_cfg);
+mlan_status woal_request_bgscan(moal_private *priv, t_u8 wait_option,
+				wlan_bgscan_cfg *scan_cfg);
 #endif
 
-void woal_flush_tcp_sess_queue(moal_private * priv);
-void woal_flush_tdls_list(moal_private * priv);
-void wlan_scan_create_brief_table_entry(t_u8 ** ppbuffer,
-					BSSDescriptor_t * pbss_desc);
-int wlan_get_scan_table_ret_entry(BSSDescriptor_t * pbss_desc, t_u8 ** ppbuffer,
+void woal_flush_tcp_sess_queue(moal_private *priv);
+void woal_flush_tdls_list(moal_private *priv);
+void wlan_scan_create_brief_table_entry(t_u8 **ppbuffer,
+					BSSDescriptor_t *pbss_desc);
+int wlan_get_scan_table_ret_entry(BSSDescriptor_t *pbss_desc, t_u8 **ppbuffer,
 				  int *pspace_left);
-BOOLEAN woal_ssid_valid(mlan_802_11_ssid * pssid);
-int woal_is_connected(moal_private * priv, mlan_ssid_bssid * ssid_bssid);
-int woal_priv_hostcmd(moal_private * priv, t_u8 * respbuf, t_u32 respbuflen);
-void woal_tcp_ack_tx_indication(moal_private * priv, mlan_buffer * pmbuf);
-mlan_status woal_request_country_power_table(moal_private * priv, char *region);
-mlan_status woal_mc_policy_cfg(moal_private * priv, t_u16 * enable,
+BOOLEAN woal_ssid_valid(mlan_802_11_ssid *pssid);
+int woal_is_connected(moal_private *priv, mlan_ssid_bssid *ssid_bssid);
+int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen);
+void woal_tcp_ack_tx_indication(moal_private *priv, mlan_buffer *pmbuf);
+mlan_status woal_request_country_power_table(moal_private *priv, char *region);
+mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
 			       t_u8 wait_option, t_u8 action);
-mlan_status woal_set_low_pwr_mode(moal_handle * handle, t_u8 wait_option);
+#ifdef RX_PACKET_COALESCE
+mlan_status woal_rx_pkt_coalesce_cfg(moal_private *priv, t_u16 *enable,
+				     t_u8 wait_option, t_u8 action);
+#endif
+mlan_status woal_set_low_pwr_mode(moal_handle *handle, t_u8 wait_option);
+void woal_hist_data_reset(moal_private *priv);
+void woal_hist_data_add(moal_private *priv, t_s8 rx_rate, t_s8 snr, t_s8 nflr);
+mlan_status woal_set_hotspotcfg(moal_private *priv, t_u8 wait_option,
+				t_u32 hotspotcfg);
 #endif /* _MOAL_MAIN_H */

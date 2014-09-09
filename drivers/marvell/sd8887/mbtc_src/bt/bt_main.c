@@ -71,8 +71,6 @@ static char fw_version[32] = "0.0.0.p0";
 
 #define AID_BLUETOOTH     1002	/* bluetooth subsystem */
 
-#define AID_NET_BT_STACK	3008	/* bluetooth stack */
-
 /** Define module name */
 #define MODULE_NAME  "bt_fm_nfc"
 
@@ -237,7 +235,7 @@ free_m_dev(struct m_dev *m_dev)
  *  @return    N/A
  */
 void
-clean_up_m_devs(bt_private * priv)
+clean_up_m_devs(bt_private *priv)
 {
 	struct m_dev *m_dev = NULL;
 	int i;
@@ -315,7 +313,7 @@ clean_up_m_devs(bt_private * priv)
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-check_evtpkt(bt_private * priv, struct sk_buff *skb)
+check_evtpkt(bt_private *priv, struct sk_buff *skb)
 {
 	struct hci_event_hdr *hdr = (struct hci_event_hdr *)skb->data;
 	struct hci_ev_cmd_complete *ec;
@@ -415,14 +413,14 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_process_event(bt_private * priv, struct sk_buff *skb)
+bt_process_event(bt_private *priv, struct sk_buff *skb)
 {
 	int ret = BT_STATUS_SUCCESS;
 	struct m_dev *m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
 	BT_EVENT *pevent;
 
 	ENTER();
-	pevent = (BT_EVENT *) skb->data;
+	pevent = (BT_EVENT *)skb->data;
 	if (pevent->EC != 0xff) {
 		PRINTM(CMD, "BT: Not Marvell Event=0x%x\n", pevent->EC);
 		ret = BT_STATUS_FAILURE;
@@ -565,7 +563,7 @@ exit:
  *  @return         N/A
  */
 static void
-bt_cmd_timeout_func(bt_private * priv, u16 cmd)
+bt_cmd_timeout_func(bt_private *priv, u16 cmd)
 {
 	bt_adapter *adapter = priv->adapter;
 	ENTER();
@@ -601,7 +599,7 @@ bt_cmd_timeout_func(bt_private * priv, u16 cmd)
  *  @return	       BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_send_reset_command(bt_private * priv)
+bt_send_reset_command(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -613,7 +611,7 @@ bt_send_reset_command(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_HCI_CMD *) skb->data;
+	pcmd = (BT_HCI_CMD *)skb->data;
 	pcmd->ocf_ogf = (RESET_OGF << 10) | BT_CMD_RESET;
 	pcmd->length = 0x00;
 	pcmd->cmd_type = 0x00;
@@ -655,7 +653,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_send_module_cfg_cmd(bt_private * priv, int subcmd)
+bt_send_module_cfg_cmd(bt_private *priv, int subcmd)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -667,7 +665,7 @@ bt_send_module_cfg_cmd(bt_private * priv, int subcmd)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_MODULE_CFG_REQ;
 	pcmd->length = 1;
 	pcmd->data[0] = subcmd;
@@ -708,7 +706,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_enable_ps(bt_private * priv)
+bt_enable_ps(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -720,7 +718,7 @@ bt_enable_ps(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_AUTO_SLEEP_MODE;
 	if (priv->bt_dev.psmode)
 		pcmd->data[0] = BT_PS_ENABLE;
@@ -728,7 +726,7 @@ bt_enable_ps(bt_private * priv)
 		pcmd->data[0] = BT_PS_DISABLE;
 	if (priv->bt_dev.idle_timeout) {
 		pcmd->length = 3;
-		pcmd->data[1] = (u8) (priv->bt_dev.idle_timeout & 0x00ff);
+		pcmd->data[1] = (u8)(priv->bt_dev.idle_timeout & 0x00ff);
 		pcmd->data[2] = (priv->bt_dev.idle_timeout & 0xff00) >> 8;
 	} else {
 		pcmd->length = 1;
@@ -762,7 +760,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_send_hscfg_cmd(bt_private * priv)
+bt_send_hscfg_cmd(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -774,11 +772,11 @@ bt_send_hscfg_cmd(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_HOST_SLEEP_CONFIG;
 	pcmd->length = 2;
 	pcmd->data[0] = (priv->bt_dev.gpio_gap & 0xff00) >> 8;
-	pcmd->data[1] = (u8) (priv->bt_dev.gpio_gap & 0x00ff);
+	pcmd->data[1] = (u8)(priv->bt_dev.gpio_gap & 0x00ff);
 	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
 	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
 	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
@@ -808,7 +806,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_send_sdio_pull_ctrl_cmd(bt_private * priv)
+bt_send_sdio_pull_ctrl_cmd(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -820,7 +818,7 @@ bt_send_sdio_pull_ctrl_cmd(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_SDIO_PULL_CFG_REQ;
 	pcmd->length = 4;
 	pcmd->data[0] = (priv->bt_dev.sdio_pull_cfg & 0x000000ff);
@@ -862,7 +860,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-fm_set_intr_mask(bt_private * priv, u32 mask)
+fm_set_intr_mask(bt_private *priv, u32 mask)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -875,7 +873,7 @@ fm_set_intr_mask(bt_private * priv, u32 mask)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | FM_CMD;
 	pcmd->length = 0x05;
 	pcmd->data[0] = FM_SET_INTR_MASK;
@@ -909,7 +907,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_enable_hs(bt_private * priv)
+bt_enable_hs(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -922,7 +920,7 @@ bt_enable_hs(bt_private * priv)
 		goto exit;
 	}
 	priv->adapter->suspend_fail = FALSE;
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_HOST_SLEEP_ENABLE;
 	pcmd->length = 0;
 	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
@@ -969,7 +967,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_set_evt_filter(bt_private * priv)
+bt_set_evt_filter(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -981,7 +979,7 @@ bt_set_evt_filter(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (0x03 << 10) | BT_CMD_SET_EVT_FILTER;
 	pcmd->length = 0x03;
 	pcmd->data[0] = 0x02;
@@ -1016,7 +1014,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_enable_write_scan(bt_private * priv)
+bt_enable_write_scan(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1028,7 +1026,7 @@ bt_enable_write_scan(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (0x03 << 10) | BT_CMD_ENABLE_WRITE_SCAN;
 	pcmd->length = 0x01;
 	pcmd->data[0] = 0x03;
@@ -1061,7 +1059,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_enable_device_under_testmode(bt_private * priv)
+bt_enable_device_under_testmode(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1073,7 +1071,7 @@ bt_enable_device_under_testmode(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (0x06 << 10) | BT_CMD_ENABLE_DEVICE_TESTMODE;
 	pcmd->length = 0x00;
 	bt_cb(skb)->pkt_type = HCI_COMMAND_PKT;
@@ -1105,7 +1103,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_enable_test_mode(bt_private * priv)
+bt_enable_test_mode(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 
@@ -1145,7 +1143,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_set_ble_deepsleep(bt_private * priv, int mode)
+bt_set_ble_deepsleep(bt_private *priv, int mode)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1157,7 +1155,7 @@ bt_set_ble_deepsleep(bt_private * priv, int mode)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_BLE_CMD *) skb->data;
+	pcmd = (BT_BLE_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_BLE_DEEP_SLEEP;
 	pcmd->length = 1;
 	pcmd->deepsleep = mode;
@@ -1190,7 +1188,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_get_fw_version(bt_private * priv)
+bt_get_fw_version(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1202,7 +1200,7 @@ bt_get_fw_version(bt_private * priv)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_HCI_CMD *) skb->data;
+	pcmd = (BT_HCI_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_GET_FW_VERSION;
 	pcmd->length = 0x01;
 	pcmd->cmd_type = 0x00;
@@ -1235,7 +1233,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_set_mac_address(bt_private * priv, u8 * mac)
+bt_set_mac_address(bt_private *priv, u8 *mac)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1248,7 +1246,7 @@ bt_set_mac_address(bt_private * priv, u8 * mac)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_HCI_CMD *) skb->data;
+	pcmd = (BT_HCI_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_CONFIG_MAC_ADDR;
 	pcmd->length = 8;
 	pcmd->cmd_type = MRVL_VENDOR_PKT;
@@ -1287,7 +1285,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_load_cal_data(bt_private * priv, u8 * config_data, u8 * mac)
+bt_load_cal_data(bt_private *priv, u8 *config_data, u8 *mac)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1304,7 +1302,7 @@ bt_load_cal_data(bt_private * priv, u8 * config_data, u8 * mac)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_LOAD_CONFIG_DATA;
 	pcmd->length = 0x20;
 	pcmd->data[0] = 0x00;
@@ -1351,7 +1349,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_load_cal_data_ext(bt_private * priv, u8 * config_data, u32 cfg_data_len)
+bt_load_cal_data_ext(bt_private *priv, u8 *config_data, u32 cfg_data_len)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1364,7 +1362,7 @@ bt_load_cal_data_ext(bt_private * priv, u8 * config_data, u32 cfg_data_len)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CMD *) skb->data;
+	pcmd = (BT_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_LOAD_CONFIG_DATA_EXT;
 	pcmd->length = cfg_data_len;
 
@@ -1401,7 +1399,7 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_write_reg(bt_private * priv, u8 type, u32 offset, u16 value)
+bt_write_reg(bt_private *priv, u8 type, u32 offset, u16 value)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -1413,7 +1411,7 @@ bt_write_reg(bt_private * priv, u8 type, u32 offset, u16 value)
 		ret = BT_STATUS_FAILURE;
 		goto exit;
 	}
-	pcmd = (BT_CSU_CMD *) skb->data;
+	pcmd = (BT_CSU_CMD *)skb->data;
 	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_CSU_WRITE_REG;
 	pcmd->length = 7;
 	pcmd->type = type;
@@ -1452,7 +1450,7 @@ exit:
  *  @return        N/A
  */
 void
-bt_restore_tx_queue(bt_private * priv)
+bt_restore_tx_queue(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	while (!skb_queue_empty(&priv->adapter->pending_queue)) {
@@ -1477,7 +1475,7 @@ bt_restore_tx_queue(bt_private * priv)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_prepare_command(bt_private * priv)
+bt_prepare_command(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	ENTER();
@@ -1517,7 +1515,7 @@ bt_prepare_command(bt_private * priv)
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-send_single_packet(bt_private * priv, struct sk_buff *skb)
+send_single_packet(bt_private *priv, struct sk_buff *skb)
 {
 	int ret;
 	int has_realloc = 0;
@@ -1633,7 +1631,7 @@ bt_init_from_dev_tree(void)
  *  @return    N/A
  */
 static void
-bt_init_adapter(bt_private * priv)
+bt_init_adapter(bt_private *priv)
 {
 	ENTER();
 #ifdef CONFIG_OF
@@ -1658,7 +1656,7 @@ bt_init_adapter(bt_private * priv)
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-bt_init_fw(bt_private * priv)
+bt_init_fw(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	ENTER();
@@ -1687,7 +1685,7 @@ done:
  *  @return    N/A
  */
 void
-bt_free_adapter(bt_private * priv)
+bt_free_adapter(bt_private *priv)
 {
 	bt_adapter *adapter = priv->adapter;
 	ENTER();
@@ -1750,7 +1748,7 @@ mdev_send_frame(struct m_dev *m_dev, struct sk_buff *skb)
 		LEAVE();
 		return -ENODEV;
 	}
-	priv = (bt_private *) m_dev->driver_data;
+	priv = (bt_private *)m_dev->driver_data;
 	if (!test_bit(HCI_RUNNING, &m_dev->flags)) {
 		PRINTM(ERROR, "Fail test HCI_RUNNING, flag=0x%lx\n",
 		       m_dev->flags);
@@ -1798,7 +1796,7 @@ mdev_send_frame(struct m_dev *m_dev, struct sk_buff *skb)
 static int
 mdev_flush(struct m_dev *m_dev)
 {
-	bt_private *priv = (bt_private *) m_dev->driver_data;
+	bt_private *priv = (bt_private *)m_dev->driver_data;
 	ENTER();
 	skb_queue_purge(&priv->adapter->tx_queue);
 	skb_queue_purge(&priv->adapter->pending_queue);
@@ -1900,6 +1898,7 @@ init_m_dev(struct m_dev *m_dev)
 	m_dev->spec_type = 0;
 	skb_queue_head_init(&m_dev->rx_q);
 	init_waitqueue_head(&m_dev->req_wait_q);
+	init_waitqueue_head(&m_dev->rx_wait_q);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	init_MUTEX(&m_dev->req_lock);
 #else
@@ -2004,7 +2003,7 @@ bt_service_main_thread(void *data)
 void
 bt_interrupt(struct m_dev *m_dev)
 {
-	bt_private *priv = (bt_private *) m_dev->driver_data;
+	bt_private *priv = (bt_private *)m_dev->driver_data;
 	ENTER();
 	if (!priv || !priv->adapter) {
 		LEAVE();
@@ -2078,14 +2077,14 @@ bt_alloc_priv(void)
 }
 
 struct kobject *
-bt_priv_get(bt_private * priv)
+bt_priv_get(bt_private *priv)
 {
 	PRINTM(INFO, "bt priv get object");
 	return kobject_get(&priv->kobj);
 }
 
 void
-bt_priv_put(bt_private * priv)
+bt_priv_put(bt_private *priv)
 {
 	PRINTM(INFO, "bt priv put object");
 	kobject_put(&priv->kobj);
@@ -2098,7 +2097,7 @@ bt_priv_put(bt_private * priv)
  *  @return      BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sbi_register_conf_dpc(bt_private * priv)
+sbi_register_conf_dpc(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	struct mbt_dev *mbt_dev = NULL;
@@ -2218,7 +2217,7 @@ sbi_register_conf_dpc(bt_private * priv)
 				  mbt_dev->name);
 
 		/** chmod & chown for BT char device */
-		mbtchar_chown(dev_file, AID_SYSTEM, AID_NET_BT_STACK);  /* AID_BLUETOOTH */
+		mbtchar_chown(dev_file, AID_SYSTEM, AID_BLUETOOTH);
 		mbtchar_chmod(dev_file, 0660);
 
 		/** create proc device */
@@ -2482,7 +2481,7 @@ bt_add_card(void *card)
 		goto err_kmalloc;
 	}
 	priv->adapter->hw_regs =
-		(u8 *) ALIGN_ADDR(priv->adapter->hw_regs_buf, DMA_ALIGNMENT);
+		(u8 *)ALIGN_ADDR(priv->adapter->hw_regs_buf, DMA_ALIGNMENT);
 	bt_init_adapter(priv);
 
 	PRINTM(INFO, "Starting kthread...\n");
@@ -2551,6 +2550,50 @@ err_kmalloc:
 }
 
 /**
+ *  @brief This function send hardware remove event
+ *
+ *  @param priv    A pointer to bt_private
+ *  @return        N/A
+ */
+void
+bt_send_hw_remove_event(bt_private *priv)
+{
+	struct sk_buff *skb = NULL;
+	struct mbt_dev *mbt_dev = NULL;
+	struct m_dev *mdev_bt = &(priv->bt_dev.m_dev[BT_SEQ]);
+	ENTER();
+	if (!priv->bt_dev.m_dev[BT_SEQ].dev_pointer) {
+		LEAVE();
+		return;
+	}
+	mbt_dev = (struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].dev_pointer;
+#define HCI_HARDWARE_ERROR_EVT  0x10
+#define HCI_HARDWARE_REMOVE     0x24
+	skb = bt_skb_alloc(3, GFP_ATOMIC);
+	skb->data[0] = HCI_HARDWARE_ERROR_EVT;
+	skb->data[1] = 1;
+	skb->data[2] = HCI_HARDWARE_REMOVE;
+	bt_cb(skb)->pkt_type = HCI_EVENT_PKT;
+	skb_put(skb, 3);
+	if (mbt_dev) {
+		skb->dev = (void *)mdev_bt;
+		PRINTM(MSG, "Send HW ERROR event\n");
+		if (!mdev_recv_frame(skb)) {
+#define RX_WAIT_TIMEOUT				300
+			mdev_bt->wait_rx_complete = TRUE;
+			mdev_bt->rx_complete_flag = FALSE;
+			if (os_wait_interruptible_timeout
+			    (mdev_bt->rx_wait_q, mdev_bt->rx_complete_flag,
+			     RX_WAIT_TIMEOUT))
+				PRINTM(MSG, "BT stack received the event\n");
+			mdev_bt->stat.byte_rx += 3;
+		}
+	}
+	LEAVE();
+	return;
+}
+
+/**
  *  @brief This function removes the card.
  *
  *  @param card    A pointer to card
@@ -2559,7 +2602,7 @@ err_kmalloc:
 int
 bt_remove_card(void *card)
 {
-	bt_private *priv = (bt_private *) card;
+	bt_private *priv = (bt_private *)card;
 	ENTER();
 	if (!priv) {
 		LEAVE();
@@ -2572,6 +2615,7 @@ bt_remove_card(void *card)
 		sd_disable_host_int(priv);
 		priv->adapter->SurpriseRemoved = TRUE;
 	}
+	bt_send_hw_remove_event(priv);
 	wake_up_interruptible(&priv->adapter->cmd_wait_q);
 	priv->adapter->SurpriseRemoved = TRUE;
 	wake_up_interruptible(&priv->MainThread.waitQ);
@@ -2604,9 +2648,7 @@ bt_init_module(void)
 	ENTER();
 	PRINTM(MSG, "BT: Loading driver\n");
 
-	ret = bt_root_proc_init();
-	if (ret < 0)
-		return ret;
+	bt_root_proc_init();
 
 	/** create char device class */
 	chardev_class = class_create(THIS_MODULE, MODULE_NAME);
@@ -2657,12 +2699,12 @@ MODULE_AUTHOR("Marvell International Ltd.");
 MODULE_DESCRIPTION("Marvell Bluetooth Driver Ver. " VERSION);
 MODULE_VERSION(VERSION);
 MODULE_LICENSE("GPL");
-module_param(fw, int, 1);
+module_param(fw, int, 0);
 MODULE_PARM_DESC(fw, "0: Skip firmware download; otherwise: Download firmware");
-module_param(fw_crc_check, int, 1);
+module_param(fw_crc_check, int, 0);
 MODULE_PARM_DESC(fw_crc_check,
 		 "1: Enable FW download CRC check (default); 0: Disable FW download CRC check");
-module_param(psmode, int, 1);
+module_param(psmode, int, 0);
 MODULE_PARM_DESC(psmode, "1: Enable powermode; 0: Disable powermode");
 #ifdef CONFIG_OF
 module_param(dts_enable, int, 0);
@@ -2673,7 +2715,7 @@ module_param(mbt_drvdbg, uint, 0);
 MODULE_PARM_DESC(mbt_drvdbg, "BIT3:DBG_DATA BIT4:DBG_CMD 0xFF:DBG_ALL");
 #endif
 #ifdef SDIO_SUSPEND_RESUME
-module_param(mbt_pm_keep_power, int, 1);
+module_param(mbt_pm_keep_power, int, 0);
 MODULE_PARM_DESC(mbt_pm_keep_power, "1: PM keep power; 0: PM no power");
 #endif
 module_param(init_cfg, charp, 0);
@@ -2692,7 +2734,7 @@ module_param(fm_name, charp, 0);
 MODULE_PARM_DESC(fm_name, "FM interface name");
 module_param(nfc_name, charp, 0);
 MODULE_PARM_DESC(nfc_name, "NFC interface name");
-module_param(debug_intf, int, 1);
+module_param(debug_intf, int, 0);
 MODULE_PARM_DESC(debug_intf,
 		 "1: Enable debug interface; 0: Disable debug interface ");
 module_param(debug_name, charp, 0);

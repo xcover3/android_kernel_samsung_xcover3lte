@@ -90,17 +90,17 @@ Change log:
 		Global Functions
 ********************************************************/
 /** Function to update the SDIO card type */
-t_void woal_sdio_update_card_type(moal_handle * handle, t_void * card);
+t_void woal_sdio_update_card_type(moal_handle *handle, t_void *card);
 
 /** Function to write register */
-mlan_status woal_write_reg(moal_handle * handle, t_u32 reg, t_u32 data);
+mlan_status woal_write_reg(moal_handle *handle, t_u32 reg, t_u32 data);
 /** Function to read register */
-mlan_status woal_read_reg(moal_handle * handle, t_u32 reg, t_u32 * data);
+mlan_status woal_read_reg(moal_handle *handle, t_u32 reg, t_u32 *data);
 /** Function to write data to IO memory */
-mlan_status woal_write_data_sync(moal_handle * handle, mlan_buffer * pmbuf,
+mlan_status woal_write_data_sync(moal_handle *handle, mlan_buffer *pmbuf,
 				 t_u32 port, t_u32 timeout);
 /** Function to read data from IO memory */
-mlan_status woal_read_data_sync(moal_handle * handle, mlan_buffer * pmbuf,
+mlan_status woal_read_data_sync(moal_handle *handle, mlan_buffer *pmbuf,
 				t_u32 port, t_u32 timeout);
 
 /** Register to bus driver function */
@@ -109,16 +109,16 @@ mlan_status woal_bus_register(void);
 void woal_bus_unregister(void);
 
 /** Register device function */
-mlan_status woal_register_dev(moal_handle * handle);
+mlan_status woal_register_dev(moal_handle *handle);
 /** Unregister device function */
-void woal_unregister_dev(moal_handle * handle);
+void woal_unregister_dev(moal_handle *handle);
 
-int woal_sdio_set_bus_clock(moal_handle * handle, t_u8 option);
+int woal_sdio_set_bus_clock(moal_handle *handle, t_u8 option);
 
 #ifdef SDIO_SUSPEND_RESUME
 #ifdef MMC_PM_FUNC_SUSPENDED
 /** Notify SDIO bus driver that WLAN is suspended */
-void woal_wlan_is_suspended(moal_handle * handle);
+void woal_wlan_is_suspended(moal_handle *handle);
 #endif
 /** SDIO Suspend */
 int woal_sdio_suspend(struct device *dev);
@@ -137,7 +137,6 @@ struct sdio_mmc_card {
 };
 
 /** cmd52 read write */
-int woal_sdio_read_write_cmd52(moal_handle * handle, int func, int reg,
-			       int val);
+int woal_sdio_read_write_cmd52(moal_handle *handle, int func, int reg, int val);
 
 #endif /* _MOAL_SDIO_H */

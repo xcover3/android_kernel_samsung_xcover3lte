@@ -205,20 +205,16 @@ chardev_write(struct file * filp, const char *buf, size_t count, loff_t * f_pos)
 {
 	int nwrite = 0;
 	struct sk_buff *skb;
-	struct char_dev *dev = 0;
-	struct m_dev *m_dev = 0;
-
-	if (!filp)
-		return -ENXIO;
-
-	dev = (struct char_dev *)filp->private_data;
-	if (!dev || !dev->m_dev)
-		return -ENXIO;
-
-	m_dev = dev->m_dev;
+	struct char_dev *dev = (struct char_dev *)filp->private_data;
+	struct m_dev *m_dev = NULL;
 
 	ENTER();
 
+	if (!dev || !dev->m_dev) {
+		LEAVE();
+		return -ENXIO;
+	}
+	m_dev = dev->m_dev;
 	if (!test_bit(HCI_UP, &m_dev->flags)) {
 		LEAVE();
 		return -EBUSY;
@@ -270,23 +266,18 @@ exit:
 ssize_t
 chardev_read(struct file * filp, char *buf, size_t count, loff_t * f_pos)
 {
-	struct char_dev *dev = 0;
-	struct m_dev *m_dev = 0;
+	struct char_dev *dev = (struct char_dev *)filp->private_data;
+	struct m_dev *m_dev = NULL;
 	DECLARE_WAITQUEUE(wait, current);
 	ssize_t ret = 0;
 	struct sk_buff *skb = NULL;
 
-	if (!filp)
-		return -ENXIO;
-
-	dev = (struct char_dev *)filp->private_data;
-	if (!dev || !dev->m_dev)
-		return -ENXIO;
-
-	m_dev = dev->m_dev;
-
 	ENTER();
-
+	if (!dev || !dev->m_dev) {
+		LEAVE();
+		return -ENXIO;
+	}
+	m_dev = dev->m_dev;
 	/* Wait for rx data */
 	add_wait_queue(&m_dev->req_wait_q, &wait);
 	while (1) {
@@ -345,6 +336,10 @@ chardev_read(struct file * filp, char *buf, size_t count, loff_t * f_pos)
 outf:
 	kfree_skb(skb);
 out:
+	if (m_dev->wait_rx_complete && skb_queue_empty(&m_dev->rx_q)) {
+		m_dev->rx_complete_flag = TRUE;
+		wake_up_interruptible(&m_dev->rx_wait_q);
+	}
 	LEAVE();
 	return ret;
 }

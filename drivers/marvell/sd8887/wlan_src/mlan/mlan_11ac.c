@@ -39,7 +39,7 @@
 /********************************************************
 			Local Functions
 ********************************************************/
-t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private * priv, t_u8 bands,
+t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands,
 				     t_u16 mcs_map);
 /**
  *  @brief determine the center frquency center index for bandwidth
@@ -54,7 +54,7 @@ t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private * priv, t_u8 bands,
  */
 
 t_u8
-wlan_get_center_freq_idx(IN mlan_private * pmpriv,
+wlan_get_center_freq_idx(IN mlan_private *pmpriv,
 			 IN t_u8 band, IN t_u32 pri_chan, IN t_u8 chan_bw)
 {
 	t_u8 center_freq_idx = 0;
@@ -151,7 +151,7 @@ wlan_get_nss_vht_mcs(t_u16 mcs_map_set)
  *  @return             N/A
  */
 static void
-wlan_fill_cap_info(mlan_private * priv, VHT_capa_t * vht_cap, t_u8 bands)
+wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap, t_u8 bands)
 {
 	mlan_adapter *pmadapter = priv->adapter;
 	t_u32 usr_dot_11ac_dev_cap;
@@ -196,7 +196,7 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
     MBIT(11)|MBIT(12)|MBIT(19)|MBIT(20)| \
     MBIT(21)|MBIT(22)|MBIT(28)|MBIT(29))
 
-	cfg = (mlan_ds_11ac_cfg *) pioctl_req->pbuf;
+	cfg = (mlan_ds_11ac_cfg *)pioctl_req->pbuf;
 
 	if (pioctl_req->action == MLAN_ACT_SET) {
 	/** SET operation */
@@ -401,8 +401,8 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 			       HostCmd_CMD_11AC_CFG,
 			       cmd_action,
 			       0,
-			       (t_void *) pioctl_req,
-			       (t_void *) & cfg->param.vht_cfg);
+			       (t_void *)pioctl_req,
+			       (t_void *)&cfg->param.vht_cfg);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 
@@ -436,9 +436,9 @@ wlan_11ac_ioctl_supported_mcs_set(IN pmlan_adapter pmadapter,
 	}
 	rx_mcs_supp = GET_11ACRXMCSSUPP(pmadapter->usr_dot_11ac_mcs_support);
 	/* Set MCS */
-	memset(pmadapter, (t_u8 *) mcs_set, 0xff, rx_mcs_supp);
+	memset(pmadapter, (t_u8 *)mcs_set, 0xff, rx_mcs_supp);
 	/* Clear all the other values */
-	memset(pmadapter, (t_u8 *) & mcs_set[rx_mcs_supp], 0,
+	memset(pmadapter, (t_u8 *)&mcs_set[rx_mcs_supp], 0,
 	       NUM_MCS_FIELD - rx_mcs_supp);
 	/* Set MCS32 with 40MHz support */
 	if (ISSUPP_CHANWIDTH80(pmadapter->usr_dot_11ac_dev_cap_bg)
@@ -446,7 +446,7 @@ wlan_11ac_ioctl_supported_mcs_set(IN pmlan_adapter pmadapter,
 		)
 		SETHT_MCS32(mcs_set);
 
-	cfg = (mlan_ds_11ac_cfg *) pioctl_req->pbuf;
+	cfg = (mlan_ds_11ac_cfg *)pioctl_req->pbuf;
 	memcpy(pmadapter, cfg->param.supported_mcs_set, mcs_set, NUM_MCS_SUPP);
 
 #endif
@@ -553,7 +553,7 @@ wlan_show_dot11acmcssupport(pmlan_adapter pmadapter, t_u32 support)
  *  @return             the max data rate for long GI
  */
 t_u16
-wlan_convert_mcsmap_to_maxrate(mlan_private * priv, t_u8 bands, t_u16 mcs_map)
+wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands, t_u16 mcs_map)
 {
 	t_u8 i;
 	t_u8 nss;
@@ -565,37 +565,23 @@ wlan_convert_mcsmap_to_maxrate(mlan_private * priv, t_u8 bands, t_u16 mcs_map)
 	/* tables of the MCS map to the highest data rate (in Mbps) supported
 	   for long GI */
 	t_u16 max_rate_lgi_80MHZ[8][3] = {
-		{0x124, 0x15F, 0x186}
-		,		/* NSS = 1 */
-		{0x249, 0x2BE, 0x30C}
-		,		/* NSS = 2 */
-		{0x36D, 0x41D, 0x492}
-		,		/* NSS = 3 */
-		{0x492, 0x57C, 0x618}
-		,		/* NSS = 4 */
-		{0x5B6, 0x6DB, 0x79E}
-		,		/* NSS = 5 */
-		{0x6DB, 0x83A, 0x0}
-		,		/* NSS = 6 */
-		{0x7FF, 0x999, 0xAAA}
-		,		/* NSS = 7 */
+		{0x124, 0x15F, 0x186},	/* NSS = 1 */
+		{0x249, 0x2BE, 0x30C},	/* NSS = 2 */
+		{0x36D, 0x41D, 0x492},	/* NSS = 3 */
+		{0x492, 0x57C, 0x618},	/* NSS = 4 */
+		{0x5B6, 0x6DB, 0x79E},	/* NSS = 5 */
+		{0x6DB, 0x83A, 0x0},	/* NSS = 6 */
+		{0x7FF, 0x999, 0xAAA},	/* NSS = 7 */
 		{0x924, 0xAF8, 0xC30}	/* NSS = 8 */
 	};
 	t_u16 max_rate_lgi_160MHZ[8][3] = {
-		{0x249, 0x2BE, 0x30C}
-		,		/* NSS = 1 */
-		{0x492, 0x57C, 0x618}
-		,		/* NSS = 2 */
-		{0x6DB, 0x83A, 0x0}
-		,		/* NSS = 3 */
-		{0x924, 0xAF8, 0xC30}
-		,		/* NSS = 4 */
-		{0xB6D, 0xDB6, 0xF3C}
-		,		/* NSS = 5 */
-		{0xDB6, 0x1074, 0x1248}
-		,		/* NSS = 6 */
-		{0xFFF, 0x1332, 0x1554}
-		,		/* NSS = 7 */
+		{0x249, 0x2BE, 0x30C},	/* NSS = 1 */
+		{0x492, 0x57C, 0x618},	/* NSS = 2 */
+		{0x6DB, 0x83A, 0x0},	/* NSS = 3 */
+		{0x924, 0xAF8, 0xC30},	/* NSS = 4 */
+		{0xB6D, 0xDB6, 0xF3C},	/* NSS = 5 */
+		{0xDB6, 0x1074, 0x1248},	/* NSS = 6 */
+		{0xFFF, 0x1332, 0x1554},	/* NSS = 7 */
 		{0x1248, 0x15F0, 0x1860}	/* NSS = 8 */
 	};
 
@@ -644,8 +630,8 @@ wlan_convert_mcsmap_to_maxrate(mlan_private * priv, t_u8 bands, t_u16 mcs_map)
  *  @return             N/A
  */
 void
-wlan_fill_vht_cap_tlv(mlan_private * priv,
-		      MrvlIETypes_VHTCap_t * pvht_cap, t_u8 bands)
+wlan_fill_vht_cap_tlv(mlan_private *priv,
+		      MrvlIETypes_VHTCap_t *pvht_cap, t_u8 bands)
 {
 	mlan_adapter *pmadapter = priv->adapter;
 	t_u16 mcs_map_user = 0;
@@ -725,8 +711,8 @@ wlan_fill_vht_cap_tlv(mlan_private * priv,
  *  @return             N/A
  */
 void
-wlan_fill_vht_cap_ie(mlan_private * priv,
-		     IEEEtypes_VHTCap_t * pvht_cap, t_u8 bands)
+wlan_fill_vht_cap_ie(mlan_private *priv,
+		     IEEEtypes_VHTCap_t *pvht_cap, t_u8 bands)
 {
 	mlan_adapter *pmadapter = priv->adapter;
 
@@ -769,7 +755,7 @@ wlan_fill_vht_cap_ie(mlan_private * priv,
  *  @return             MTRUE/MFALSE
  */
 t_u8
-wlan_is_ap_in_11ac_mode(mlan_private * priv)
+wlan_is_ap_in_11ac_mode(mlan_private *priv)
 {
 	BSSDescriptor_t *pbss_desc;
 	IEEEtypes_VHTOprat_t *vht_oprat = MNULL;
@@ -796,9 +782,8 @@ wlan_is_ap_in_11ac_mode(mlan_private * priv)
  *  @return             N/A
  */
 void
-wlan_fill_tdls_vht_oprat_ie(mlan_private * priv,
-			    IEEEtypes_VHTOprat_t * vht_oprat,
-			    sta_node * sta_ptr)
+wlan_fill_tdls_vht_oprat_ie(mlan_private *priv, IEEEtypes_VHTOprat_t *vht_oprat,
+			    sta_node *sta_ptr)
 {
 	mlan_adapter *pmadapter = priv->adapter;
 	t_u8 supp_chwd_set;
@@ -916,8 +901,8 @@ wlan_fill_tdls_vht_oprat_ie(mlan_private * priv,
  *  @return bytes added to the buffer
  */
 int
-wlan_cmd_append_11ac_tlv(mlan_private * pmpriv, BSSDescriptor_t * pbss_desc,
-			 t_u8 ** ppbuffer)
+wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
+			 t_u8 **ppbuffer)
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	MrvlIETypes_VHTCap_t *pvht_cap;
@@ -948,18 +933,18 @@ wlan_cmd_append_11ac_tlv(mlan_private * pmpriv, BSSDescriptor_t * pbss_desc,
 	if (pbss_desc->pvht_cap &&
 	    wlan_get_nss_vht_mcs(pbss_desc->pvht_cap->vht_cap.mcs_sets.
 				 rx_mcs_map)) {
-		pvht_cap = (MrvlIETypes_VHTCap_t *) * ppbuffer;
+		pvht_cap = (MrvlIETypes_VHTCap_t *)*ppbuffer;
 		memset(pmadapter, pvht_cap, 0, sizeof(MrvlIETypes_VHTCap_t));
 		pvht_cap->header.type = wlan_cpu_to_le16(VHT_CAPABILITY);
 		pvht_cap->header.len = sizeof(VHT_capa_t);
 		memcpy(pmadapter,
-		       (t_u8 *) pvht_cap + sizeof(MrvlIEtypesHeader_t),
-		       (t_u8 *) pbss_desc->pvht_cap +
-		       sizeof(IEEEtypes_Header_t), pvht_cap->header.len);
+		       (t_u8 *)pvht_cap + sizeof(MrvlIEtypesHeader_t),
+		       (t_u8 *)pbss_desc->pvht_cap + sizeof(IEEEtypes_Header_t),
+		       pvht_cap->header.len);
 
 		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pbss_desc->bss_band);
 
-		HEXDUMP("VHT_CAPABILITIES IE", (t_u8 *) pvht_cap,
+		HEXDUMP("VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
 			sizeof(MrvlIETypes_VHTCap_t));
 		*ppbuffer += sizeof(MrvlIETypes_VHTCap_t);
 		ret_len += sizeof(MrvlIETypes_VHTCap_t);
@@ -969,15 +954,15 @@ wlan_cmd_append_11ac_tlv(mlan_private * pmpriv, BSSDescriptor_t * pbss_desc,
 	/* VHT Operation IE */
 	if (pbss_desc->pvht_oprat) {
 		if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-			pvht_op = (MrvlIETypes_VHTOprat_t *) * ppbuffer;
+			pvht_op = (MrvlIETypes_VHTOprat_t *)*ppbuffer;
 			memset(pmadapter, pvht_op, 0,
 			       sizeof(MrvlIETypes_VHTOprat_t));
 			pvht_op->header.type = wlan_cpu_to_le16(VHT_OPERATION);
 			pvht_op->header.len = sizeof(MrvlIETypes_VHTOprat_t) -
 				sizeof(MrvlIEtypesHeader_t);
 			memcpy(pmadapter,
-			       (t_u8 *) pvht_op + sizeof(MrvlIEtypesHeader_t),
-			       (t_u8 *) pbss_desc->pvht_oprat +
+			       (t_u8 *)pvht_op + sizeof(MrvlIEtypesHeader_t),
+			       (t_u8 *)pbss_desc->pvht_oprat +
 			       sizeof(IEEEtypes_Header_t), pvht_op->header.len);
 
 			/* negotiate the channel width and central freq */
@@ -1000,7 +985,7 @@ wlan_cmd_append_11ac_tlv(mlan_private * pmpriv, BSSDescriptor_t * pbss_desc,
 			else
 				pvht_op->chan_width = VHT_OPER_CHWD_20_40MHZ;
 
-			HEXDUMP("VHT_OPERATION IE", (t_u8 *) pvht_op,
+			HEXDUMP("VHT_OPERATION IE", (t_u8 *)pvht_op,
 				sizeof(MrvlIETypes_VHTOprat_t));
 			*ppbuffer += sizeof(MrvlIETypes_VHTOprat_t);
 			ret_len += sizeof(MrvlIETypes_VHTOprat_t);
@@ -1011,14 +996,14 @@ wlan_cmd_append_11ac_tlv(mlan_private * pmpriv, BSSDescriptor_t * pbss_desc,
 	/* Operating Mode Notification IE */
 	if (pbss_desc->poper_mode) {
 		pieee_oper_mode = pbss_desc->poper_mode;
-		pmrvl_oper_mode = (MrvlIETypes_OperModeNtf_t *) * ppbuffer;
+		pmrvl_oper_mode = (MrvlIETypes_OperModeNtf_t *)*ppbuffer;
 		memset(pmadapter, pmrvl_oper_mode, 0,
 		       sizeof(MrvlIETypes_OperModeNtf_t));
 		pmrvl_oper_mode->header.type = wlan_cpu_to_le16(OPER_MODE_NTF);
 		pmrvl_oper_mode->header.len = sizeof(t_u8);
 		pmrvl_oper_mode->oper_mode = pieee_oper_mode->oper_mode;
 
-		HEXDUMP("OPER MODE NTF IE", (t_u8 *) pmrvl_oper_mode,
+		HEXDUMP("OPER MODE NTF IE", (t_u8 *)pmrvl_oper_mode,
 			sizeof(MrvlIETypes_OperModeNtf_t));
 		*ppbuffer += sizeof(MrvlIETypes_OperModeNtf_t);
 		ret_len += sizeof(MrvlIETypes_OperModeNtf_t);
@@ -1054,7 +1039,7 @@ wlan_11ac_cfg_ioctl(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	cfg = (mlan_ds_11ac_cfg *) pioctl_req->pbuf;
+	cfg = (mlan_ds_11ac_cfg *)pioctl_req->pbuf;
 	switch (cfg->sub_command) {
 	case MLAN_OID_11AC_VHT_CFG:
 		status = wlan_11ac_ioctl_vhtcfg(pmadapter, pioctl_req);
@@ -1083,12 +1068,12 @@ wlan_11ac_cfg_ioctl(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
  */
 mlan_status
 wlan_cmd_11ac_cfg(IN pmlan_private pmpriv,
-		  IN HostCmd_DS_COMMAND * cmd,
-		  IN t_u16 cmd_action, IN t_void * pdata_buf)
+		  IN HostCmd_DS_COMMAND *cmd,
+		  IN t_u16 cmd_action, IN t_void *pdata_buf)
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	HostCmd_DS_11AC_CFG *vhtcfg = &cmd->params.vhtcfg;
-	mlan_ds_11ac_vht_cfg *vht_cfg = (mlan_ds_11ac_vht_cfg *) pdata_buf;
+	mlan_ds_11ac_vht_cfg *vht_cfg = (mlan_ds_11ac_vht_cfg *)pdata_buf;
 
 	ENTER();
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_11AC_CFG);
@@ -1121,14 +1106,14 @@ wlan_cmd_11ac_cfg(IN pmlan_private pmpriv,
  */
 mlan_status
 wlan_ret_11ac_cfg(IN pmlan_private pmpriv,
-		  IN HostCmd_DS_COMMAND * resp, IN mlan_ioctl_req * pioctl_buf)
+		  IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	mlan_ds_11ac_cfg *cfg = MNULL;
 	HostCmd_DS_11AC_CFG *vhtcfg = &resp->params.vhtcfg;
 
 	ENTER();
-	cfg = (mlan_ds_11ac_cfg *) pioctl_buf->pbuf;
+	cfg = (mlan_ds_11ac_cfg *)pioctl_buf->pbuf;
 	if (pioctl_buf &&
 	    (wlan_le16_to_cpu(vhtcfg->action) == HostCmd_ACT_GEN_GET)) {
 		cfg->param.vht_cfg.band = vhtcfg->band_config;

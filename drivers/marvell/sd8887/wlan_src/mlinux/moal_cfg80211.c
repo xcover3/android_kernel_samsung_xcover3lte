@@ -156,6 +156,162 @@ extern const struct net_device_ops woal_netdev_ops;
 /********************************************************
 				Global Functions
 ********************************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+/**marvell vendor command and event*/
+#define MRVL_VENDOR_ID  0x005043
+/** vendor events */
+const struct nl80211_vendor_cmd_info vendor_events[] = {
+	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_hang,},	/* event_id 0 */
+	/**add vendor event here*/
+};
+
+/**
+ * @brief get the event id of the events array
+ *
+ * @param event     vendor event
+ *
+ * @return    index of events array
+ */
+int
+woal_get_event_id(int event)
+{
+	int i = 0;
+
+	for (i = 0; i < ARRAY_SIZE(vendor_events); i++) {
+		if (vendor_events[i].subcmd == event)
+			return i;
+	}
+
+	return event_max;
+}
+
+/**
+ * @brief send vendor event to kernel
+ *
+ * @param priv       A pointer to moal_private
+ * @param event    vendor event
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  1: fail
+ */
+int
+woal_cfg80211_vendor_event(IN moal_private *priv,
+			   IN int event, IN t_u8 *data, IN int len)
+{
+	struct wiphy *wiphy = priv->wdev->wiphy;
+	struct sk_buff *skb = NULL;
+	int event_id = 0;
+	t_u8 *pos = NULL;
+	int ret = 0;
+
+	ENTER();
+
+	PRINTM(MEVENT, "vendor event :0x%x\n", event);
+	event_id = woal_get_event_id(event);
+	if (event_max == event_id) {
+		PRINTM(MERROR, "Not find this event %d \n", event_id);
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+
+	/**allocate skb*/
+	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, GFP_KERNEL);
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor event\n");
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+	pos = skb_put(skb, len);
+	memcpy(pos, data, len);
+	/**send event*/
+	cfg80211_vendor_event(skb, GFP_KERNEL);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to set drvdbg
+ *
+ * @param wiphy       A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  1: fail
+ */
+static int
+woal_cfg80211_subcmd_set_drvdbg(struct wiphy *wiphy,
+				struct wireless_dev *wdev,
+				const void *data, int data_len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct sk_buff *skb = NULL;
+	t_u8 *pos = NULL;
+	int ret = 0;
+
+	ENTER();
+	/**handle this sub command*/
+	DBG_HEXDUMP(MCMD_D, "Vendor drvdbg", (t_u8 *)data, data_len);
+
+	if (data_len) {
+		/* Get the driver debug bit masks from user */
+		drvdbg = *((t_u32 *)data);
+		PRINTM(MIOCTL, "new drvdbg %x\n", drvdbg);
+		/* Set the driver debug bit masks into mlan */
+		if (woal_set_drvdbg(priv, drvdbg)) {
+			PRINTM(MERROR, "Set drvdbg failed!\n");
+			ret = 1;
+		}
+	}
+	/** Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(drvdbg));
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor cmd\n");
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+	pos = skb_put(skb, sizeof(drvdbg));
+	memcpy(pos, &drvdbg, sizeof(drvdbg));
+	ret = cfg80211_vendor_cmd_reply(skb);
+	LEAVE();
+	return ret;
+}
+
+const struct wiphy_vendor_command vendor_commands[] = {
+	{
+	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd = sub_cmd_set_drvdbg,},
+	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+	 WIPHY_VENDOR_CMD_NEED_NETDEV | WIPHY_VENDOR_CMD_NEED_RUNNING,
+	 .doit = woal_cfg80211_subcmd_set_drvdbg,
+	 },
+
+};
+
+/**
+ * @brief register vendor commands and events
+ *
+ * @param wiphy       A pointer to wiphy struct
+ *
+ * @return
+ */
+void
+woal_register_cfg80211_vendor_command(struct wiphy *wiphy)
+{
+	ENTER();
+	wiphy->vendor_commands = vendor_commands;
+	wiphy->n_vendor_commands = ARRAY_SIZE(vendor_commands);
+	wiphy->vendor_events = vendor_events;
+	wiphy->n_vendor_events = ARRAY_SIZE(vendor_events);
+	LEAVE();
+}
+#endif
+
 /**
  * @brief Get the private structure from wiphy
  *
@@ -191,7 +347,7 @@ woal_get_netdev_priv(struct net_device *dev)
  *  @return              MTRUE/MFALSE;
  */
 t_u8
-woal_is_any_interface_active(moal_handle * handle)
+woal_is_any_interface_active(moal_handle *handle)
 {
 	int i;
 	for (i = 0; i < handle->priv_num; i++) {
@@ -219,7 +375,7 @@ woal_is_any_interface_active(moal_handle * handle)
  *  @return              channel frequency
  */
 int
-woal_get_active_intf_freq(moal_private * priv)
+woal_get_active_intf_freq(moal_private *priv)
 {
 	moal_handle *handle = priv->phandle;
 	int i;
@@ -318,14 +474,15 @@ woal_band_cfg_to_ieee_band(t_u32 band)
  *  @param key_index        Key index
  *  @param addr             Mac for which key is to be set
  *  @param disable          Key disabled or not
+ *  @param wait_option      wait option
  *
  *  @return                 MLAN_STATUS_SUCCESS -- success, otherwise fail
  */
 mlan_status
-woal_cfg80211_set_key(moal_private * priv, t_u8 is_enable_wep,
-		      t_u32 cipher, const t_u8 * key, int key_len,
-		      const t_u8 * seq, int seq_len, t_u8 key_index,
-		      const t_u8 * addr, int disable)
+woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
+		      t_u32 cipher, const t_u8 *key, int key_len,
+		      const t_u8 *seq, int seq_len, t_u8 key_index,
+		      const t_u8 *addr, int disable, t_u8 wait_option)
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_sec_cfg *sec = NULL;
@@ -367,7 +524,7 @@ woal_cfg80211_set_key(moal_private * priv, t_u8 is_enable_wep,
 	}
 
 	/* Fill request buffer */
-	sec = (mlan_ds_sec_cfg *) req->pbuf;
+	sec = (mlan_ds_sec_cfg *)req->pbuf;
 	sec->sub_command = MLAN_OID_SEC_CFG_ENCRYPT_KEY;
 	req->req_id = MLAN_IOCTL_SEC_CFG;
 	req->action = MLAN_ACT_SET;
@@ -406,7 +563,7 @@ woal_cfg80211_set_key(moal_private * priv, t_u8 is_enable_wep,
 			if (0 ==
 			    memcmp(sec->param.encrypt_key.mac_addr, bcast_addr,
 				   ETH_ALEN))
-				sec->param.encrypt_key.key_flags =
+				 sec->param.encrypt_key.key_flags =
 					KEY_FLAG_GROUP_KEY;
 			else
 				sec->param.encrypt_key.key_flags =
@@ -439,7 +596,7 @@ woal_cfg80211_set_key(moal_private * priv, t_u8 is_enable_wep,
 	}
 
 	/* Send IOCTL request to MLAN */
-	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	ret = woal_request_ioctl(priv, req, wait_option);
 
 done:
 	if (ret != MLAN_STATUS_PENDING)
@@ -455,12 +612,13 @@ done:
  * @param key       A pointer to key data
  * @param key_len   Length of the key data
  * @param index     Key index
+ * @param wait_option wait_option
  *
  * @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-woal_cfg80211_set_wep_keys(moal_private * priv, const t_u8 * key, int key_len,
-			   t_u8 index)
+woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key, int key_len,
+			   t_u8 index, t_u8 wait_option)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u32 cipher = 0;
@@ -473,12 +631,12 @@ woal_cfg80211_set_wep_keys(moal_private * priv, const t_u8 * key, int key_len,
 		else
 			cipher = WLAN_CIPHER_SUITE_WEP104;
 		ret = woal_cfg80211_set_key(priv, 0, cipher, key, key_len, NULL,
-					    0, index, NULL, 0);
+					    0, index, NULL, 0, wait_option);
 	} else {
 		/* No key provided so it is enable key. We want to just set the
 		   transmit key index */
 		woal_cfg80211_set_key(priv, 1, cipher, key, key_len, NULL, 0,
-				      index, NULL, 0);
+				      index, NULL, 0, wait_option);
 	}
 
 	LEAVE();
@@ -492,7 +650,7 @@ woal_cfg80211_set_wep_keys(moal_private * priv, const t_u8 * key, int key_len,
  * @return                  N/A
  */
 void
-woal_clear_all_mgmt_ies(moal_private * priv)
+woal_clear_all_mgmt_ies(moal_private *priv)
 {
 	t_u16 mask = 0;
 	/* clear BEACON WPS/P2P IE */
@@ -530,7 +688,7 @@ woal_clear_all_mgmt_ies(moal_private * priv)
  * @return                  0 -- success, otherwise fail
  */
 int
-woal_cfg80211_bss_role_cfg(moal_private * priv, t_u16 action, t_u8 * bss_role)
+woal_cfg80211_bss_role_cfg(moal_private *priv, t_u16 action, t_u8 *bss_role)
 {
 	int ret = 0;
 
@@ -579,7 +737,7 @@ done:
  *  @return          N/A
  */
 void
-woal_cfg80211_display_p2p_actframe(const t_u8 * buf, int len,
+woal_cfg80211_display_p2p_actframe(const t_u8 *buf, int len,
 				   struct ieee80211_channel *chan,
 				   const t_u8 flag)
 {
@@ -673,7 +831,7 @@ woal_cfg80211_display_p2p_actframe(const t_u8 * buf, int len,
  * @return              0 -- success, otherwise fail
  */
 int
-woal_cfg80211_init_p2p_client(moal_private * priv)
+woal_cfg80211_init_p2p_client(moal_private *priv)
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	t_u16 wifi_direct_mode = WIFI_DIRECT_MODE_DISABLE;
@@ -739,7 +897,7 @@ done:
  * @return              0 -- success, otherwise fail
  */
 int
-woal_cfg80211_init_p2p_go(moal_private * priv)
+woal_cfg80211_init_p2p_go(moal_private *priv)
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	t_u16 wifi_direct_mode;
@@ -826,7 +984,7 @@ done:
  * @return              0 -- success, otherwise fail
  */
 int
-woal_cfg80211_deinit_p2p(moal_private * priv)
+woal_cfg80211_deinit_p2p(moal_private *priv)
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	t_u16 wifi_direct_mode;
@@ -936,11 +1094,11 @@ done:
 int
 woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 				  struct net_device *dev,
-				  enum nl80211_iftype type, u32 * flags,
+				  enum nl80211_iftype type, u32 *flags,
 				  struct vif_params *params)
 {
 	int ret = 0;
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	mlan_ds_bss *bss = NULL;
 	mlan_ioctl_req *req = NULL;
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
@@ -1020,7 +1178,7 @@ woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 		goto done;
 	}
 
-	bss = (mlan_ds_bss *) req->pbuf;
+	bss = (mlan_ds_bss *)req->pbuf;
 	bss->sub_command = MLAN_OID_BSS_MODE;
 	req->req_id = MLAN_IOCTL_BSS;
 	req->action = MLAN_ACT_SET;
@@ -1168,7 +1326,7 @@ int
 woal_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 {
 	moal_private *priv = NULL;
-	moal_handle *handle = (moal_handle *) woal_get_wiphy_priv(wiphy);
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 #ifdef UAP_CFG80211
 #ifdef UAP_SUPPORT
 	mlan_uap_bss_param sys_cfg;
@@ -1271,14 +1429,14 @@ woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) || defined(COMPAT_WIRELESS)
 		      bool pairwise,
 #endif
-		      const t_u8 * mac_addr, struct key_params *params)
+		      const t_u8 *mac_addr, struct key_params *params)
 {
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(netdev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(netdev);
 
 	ENTER();
 	if (woal_cfg80211_set_key(priv, 0, params->cipher, params->key,
 				  params->key_len, params->seq, params->seq_len,
-				  key_index, mac_addr, 0)) {
+				  key_index, mac_addr, 0, MOAL_IOCTL_WAIT)) {
 		PRINTM(MERROR, "Error adding the crypto keys\n");
 		LEAVE();
 		return -EFAULT;
@@ -1320,9 +1478,9 @@ woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) || defined(COMPAT_WIRELESS)
 		      bool pairwise,
 #endif
-		      const t_u8 * mac_addr)
+		      const t_u8 *mac_addr)
 {
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(netdev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(netdev);
 
 	ENTER();
 	priv->phandle->driver_state = woal_check_driver_status(priv->phandle);
@@ -1333,8 +1491,9 @@ woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 		return 0;
 	}
 
-	if (woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0, key_index,
-				  mac_addr, 1)) {
+	if (MLAN_STATUS_FAILURE ==
+	    woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0, key_index,
+				  mac_addr, 1, MOAL_NO_WAIT)) {
 		PRINTM(MERROR, "Error deleting the crypto keys\n");
 		LEAVE();
 		return -EFAULT;
@@ -1377,7 +1536,7 @@ woal_cfg80211_set_default_key(struct wiphy *wiphy,
 	)
 {
 	int ret = 0;
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(netdev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(netdev);
 	mlan_bss_info bss_info;
 
 	ENTER();
@@ -1389,7 +1548,8 @@ woal_cfg80211_set_default_key(struct wiphy *wiphy,
 		}
 	}
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_cfg80211_set_wep_keys(priv, NULL, 0, key_index)) {
+	    woal_cfg80211_set_wep_keys(priv, NULL, 0, key_index,
+				       MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 	}
 	LEAVE();
@@ -1450,8 +1610,7 @@ woal_cfg80211_set_channel(struct wiphy *wiphy,
 #endif
 #endif
 	if (!priv) {
-		moal_handle *handle =
-			(moal_handle *) woal_get_wiphy_priv(wiphy);
+		moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 		if (handle)
 			priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 	}
@@ -1466,7 +1625,8 @@ woal_cfg80211_set_channel(struct wiphy *wiphy,
 				LEAVE();
 				return -EINVAL;
 			}
-			ret = woal_set_rf_channel(priv, chan, channel_type);
+			ret = woal_set_rf_channel(priv, chan, channel_type,
+						  MOAL_IOCTL_WAIT);
 		}
 #endif
 #endif
@@ -1493,12 +1653,12 @@ woal_cfg80211_set_channel(struct wiphy *wiphy,
 int
 woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy,
 			       struct net_device *dev,
-			       const u8 * peer,
+			       const u8 *peer,
 			       const struct cfg80211_bitrate_mask *mask)
 {
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	mlan_bss_info bss_info;
 	enum ieee80211_band band;
 	mlan_ioctl_req *req = NULL;
@@ -1523,7 +1683,7 @@ woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy,
 		ret = -ENOMEM;
 		goto done;
 	}
-	rate = (mlan_ds_rate *) req->pbuf;
+	rate = (mlan_ds_rate *)req->pbuf;
 	rate_cfg = &rate->param.rate_cfg;
 	rate->sub_command = MLAN_OID_RATE_CFG;
 	req->req_id = MLAN_IOCTL_RATE;
@@ -1581,7 +1741,7 @@ done:
 int
 woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant)
 {
-	moal_handle *handle = (moal_handle *) woal_get_wiphy_priv(wiphy);
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	moal_private *priv = NULL;
 	mlan_ds_radio_cfg *radio = NULL;
 	mlan_ioctl_req *req = NULL;
@@ -1606,7 +1766,7 @@ woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant)
 		ret = -ENOMEM;
 		goto done;
 	}
-	radio = (mlan_ds_radio_cfg *) req->pbuf;
+	radio = (mlan_ds_radio_cfg *)req->pbuf;
 	radio->sub_command = MLAN_OID_ANT_CFG;
 	req->req_id = MLAN_IOCTL_RADIO_CFG;
 	req->action = MLAN_ACT_SET;
@@ -1665,7 +1825,7 @@ woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 	struct net_device *dev = wdev->netdev;
 #endif
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	t_u32 mgmt_subtype_mask = 0x0;
 	t_u32 last_mgmt_subtype_mask = priv->mgmt_subtype_mask;
@@ -1830,7 +1990,7 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		      enum nl80211_channel_type channel_type,
 		      bool channel_type_valid,
 #endif
-		      unsigned int wait, const u8 * buf, size_t len,
+		      unsigned int wait, const u8 *buf, size_t len,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) || defined(COMPAT_WIRELESS)
 		      bool no_cck,
 #endif
@@ -1851,7 +2011,7 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	const u8 *buf = params->buf;
 	size_t len = params->len;
 #endif
-	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
 	pmlan_buffer pmbuf = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -1894,10 +2054,10 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	}
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-	if ((priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) &&
-	    ieee80211_is_action(((struct ieee80211_mgmt *)buf)->
-				frame_control)) {
-		woal_cfg80211_display_p2p_actframe(buf, len, chan, MTRUE);
+	if (ieee80211_is_action(((struct ieee80211_mgmt *)buf)->frame_control)) {
+		if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
+			woal_cfg80211_display_p2p_actframe(buf, len, chan,
+							   MTRUE);
 		if (priv->phandle->is_go_timer_set) {
 			woal_cancel_timer(&priv->phandle->go_timer);
 			priv->phandle->is_go_timer_set = MFALSE;
@@ -2044,7 +2204,7 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 
 	/* pkt_type + tx_control */
 #define HEADER_SIZE				8
-	packet_len = (t_u16) len + MLAN_MAC_ADDR_LENGTH;
+	packet_len = (t_u16)len + MLAN_MAC_ADDR_LENGTH;
 	pmbuf = woal_alloc_mlan_buffer(priv->phandle,
 				       MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
 				       packet_len + sizeof(packet_len));
@@ -2084,9 +2244,7 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	pmbuf->bss_index = priv->bss_index;
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-	if ((priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) &&
-	    ieee80211_is_action(((struct ieee80211_mgmt *)buf)->
-				frame_control)) {
+	if (ieee80211_is_action(((struct ieee80211_mgmt *)buf)->frame_control)) {
 		pmbuf->flags = MLAN_BUF_FLAG_TX_STATUS;
 		pmbuf->tx_seq_num = ++priv->tx_seq_num;
 		last_tx_buf = kmalloc(len, GFP_KERNEL);
@@ -2115,9 +2273,8 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		   then wpa_supplicant will call cancel_remain_on_channel(),
 		   which may affect the mgmt frame tx. Meanwhile it is only
 		   necessary for P2P action handshake to wait 30ms. */
-		if ((priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) &&
-		    ieee80211_is_action(((struct ieee80211_mgmt *)buf)->
-					frame_control)) {
+		if (ieee80211_is_action
+		    (((struct ieee80211_mgmt *)buf)->frame_control)) {
 			if (priv->last_tx_buf && priv->last_tx_cookie)
 				break;
 			else
@@ -2181,11 +2338,11 @@ done:
  * @return              0 -- success, otherwise fail
  */
 static int
-woal_cfg80211_custom_ie(moal_private * priv,
-			custom_ie * beacon_ies_data, t_u16 * beacon_index,
-			custom_ie * proberesp_ies_data, t_u16 * proberesp_index,
-			custom_ie * assocresp_ies_data, t_u16 * assocresp_index,
-			custom_ie * probereq_ies_data, t_u16 * probereq_index)
+woal_cfg80211_custom_ie(moal_private *priv,
+			custom_ie *beacon_ies_data, t_u16 *beacon_index,
+			custom_ie *proberesp_ies_data, t_u16 *proberesp_index,
+			custom_ie *assocresp_ies_data, t_u16 *assocresp_index,
+			custom_ie *probereq_ies_data, t_u16 *probereq_index)
 {
 	mlan_ioctl_req *ioctl_req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
@@ -2205,7 +2362,7 @@ woal_cfg80211_custom_ie(moal_private * priv,
 
 	custom_ie->type = TLV_TYPE_MGMT_IE;
 
-	pos = (t_u8 *) custom_ie->ie_data_list;
+	pos = (t_u8 *)custom_ie->ie_data_list;
 	if (beacon_ies_data) {
 		len = sizeof(*beacon_ies_data) - MAX_IE_SIZE
 			+ beacon_ies_data->ie_length;
@@ -2242,7 +2399,7 @@ woal_cfg80211_custom_ie(moal_private * priv,
 		goto done;
 	}
 
-	misc = (mlan_ds_misc_cfg *) ioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
 	misc->sub_command = MLAN_OID_MISC_CUSTOM_IE;
 	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
 	ioctl_req->action = MLAN_ACT_SET;
@@ -2256,7 +2413,7 @@ woal_cfg80211_custom_ie(moal_private * priv,
 	}
 
 	/* get the assigned index */
-	pos = (t_u8 *) (&misc->param.cust_ie.ie_data_list[0].ie_index);
+	pos = (t_u8 *)(&misc->param.cust_ie.ie_data_list[0].ie_index);
 	if (beacon_ies_data && beacon_ies_data->ie_length
 	    && beacon_ies_data->ie_index == MLAN_CUSTOM_IE_AUTO_IDX_MASK) {
 		/* save beacon ie index after auto-indexing */
@@ -2269,7 +2426,7 @@ woal_cfg80211_custom_ie(moal_private * priv,
 	if (proberesp_ies_data && proberesp_ies_data->ie_length
 	    && proberesp_ies_data->ie_index == MLAN_CUSTOM_IE_AUTO_IDX_MASK) {
 		/* save probe resp ie index after auto-indexing */
-		*proberesp_index = *((t_u16 *) pos);
+		*proberesp_index = *((t_u16 *)pos);
 		len = sizeof(*proberesp_ies_data) - MAX_IE_SIZE
 			+ proberesp_ies_data->ie_length;
 		pos += len;
@@ -2278,7 +2435,7 @@ woal_cfg80211_custom_ie(moal_private * priv,
 	if (assocresp_ies_data && assocresp_ies_data->ie_length
 	    && assocresp_ies_data->ie_index == MLAN_CUSTOM_IE_AUTO_IDX_MASK) {
 		/* save assoc resp ie index after auto-indexing */
-		*assocresp_index = *((t_u16 *) pos);
+		*assocresp_index = *((t_u16 *)pos);
 		len = sizeof(*assocresp_ies_data) - MAX_IE_SIZE
 			+ assocresp_ies_data->ie_length;
 		pos += len;
@@ -2286,7 +2443,7 @@ woal_cfg80211_custom_ie(moal_private * priv,
 	if (probereq_ies_data && probereq_ies_data->ie_length
 	    && probereq_ies_data->ie_index == MLAN_CUSTOM_IE_AUTO_IDX_MASK) {
 		/* save probe resp ie index after auto-indexing */
-		*probereq_index = *((t_u16 *) pos);
+		*probereq_index = *((t_u16 *)pos);
 		len = sizeof(*probereq_ies_data) - MAX_IE_SIZE
 			+ probereq_ies_data->ie_length;
 		pos += len;
@@ -2313,7 +2470,7 @@ done:
  * @return                out IE length
  */
 static t_u16
-woal_get_first_p2p_ie(const t_u8 * ie, int len, t_u8 * ie_out)
+woal_get_first_p2p_ie(const t_u8 *ie, int len, t_u8 *ie_out)
 {
 	int left_len = len;
 	const t_u8 *pos = ie;
@@ -2329,7 +2486,7 @@ woal_get_first_p2p_ie(const t_u8 * ie, int len, t_u8 * ie_out)
 		if ((length + 2) > left_len)
 			break;
 		if (id == VENDOR_SPECIFIC_221) {
-			pvendor_ie = (IEEEtypes_VendorSpecific_t *) pos;
+			pvendor_ie = (IEEEtypes_VendorSpecific_t *)pos;
 			if (!memcmp
 			    (pvendor_ie->vend_hdr.oui, p2p_oui,
 			     sizeof(pvendor_ie->vend_hdr.oui)) &&
@@ -2356,7 +2513,7 @@ woal_get_first_p2p_ie(const t_u8 * ie, int len, t_u8 * ie_out)
  * @return                out IE length
  */
 static t_u16
-woal_filter_beacon_ies(const t_u8 * ie, int len, t_u8 * ie_out, t_u16 wps_flag)
+woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag)
 {
 	int left_len = len;
 	const t_u8 *pos = ie;
@@ -2387,7 +2544,7 @@ woal_filter_beacon_ies(const t_u8 * ie, int len, t_u8 * ie_out, t_u16 wps_flag)
 			break;
 		case VENDOR_SPECIFIC_221:
 			/* filter out wmm ie */
-			pvendor_ie = (IEEEtypes_VendorSpecific_t *) pos;
+			pvendor_ie = (IEEEtypes_VendorSpecific_t *)pos;
 			if (!memcmp
 			    (pvendor_ie->vend_hdr.oui, wmm_oui,
 			     sizeof(pvendor_ie->vend_hdr.oui)) &&
@@ -2441,12 +2598,12 @@ woal_filter_beacon_ies(const t_u8 * ie, int len, t_u8 * ie_out, t_u16 wps_flag)
  * @return                MTRUE/MFALSE
  */
 t_u8
-is_selected_registrar_on(const t_u8 * ie, int len)
+is_selected_registrar_on(const t_u8 *ie, int len)
 {
 #define WPS_IE_FIX_LEN		6
 #define TLV_ID_SELECTED_REGISTRAR 0x1041
 	int left_len = len - WPS_IE_FIX_LEN;
-	TLV_Generic_t *tlv = (TLV_Generic_t *) (ie + WPS_IE_FIX_LEN);
+	TLV_Generic_t *tlv = (TLV_Generic_t *)(ie + WPS_IE_FIX_LEN);
 	u16 tlv_type, tlv_len;
 	u8 *pos = NULL;
 	while (left_len > sizeof(TLV_Generic_t)) {
@@ -2454,14 +2611,14 @@ is_selected_registrar_on(const t_u8 * ie, int len)
 		tlv_len = ntohs(tlv->len);
 		if (tlv_type == TLV_ID_SELECTED_REGISTRAR) {
 			PRINTM(MIOCTL, "Selected Registrar found !");
-			pos = (u8 *) tlv + sizeof(TLV_Generic_t);
+			pos = (u8 *)tlv + sizeof(TLV_Generic_t);
 			if (*pos == 1)
 				return MTRUE;
 			else
 				return MFALSE;
 		}
-		tlv = (TLV_Generic_t *) ((u8 *) tlv + tlv_len +
-					 sizeof(TLV_Generic_t));
+		tlv = (TLV_Generic_t *)((u8 *)tlv + tlv_len +
+					sizeof(TLV_Generic_t));
 		left_len -= tlv_len + sizeof(TLV_Generic_t);
 	}
 	return MFALSE;
@@ -2477,7 +2634,7 @@ is_selected_registrar_on(const t_u8 * ie, int len)
  * @return                MTRUE/MFALSE
  */
 static t_u16
-woal_is_selected_registrar_on(const t_u8 * ie, int len)
+woal_is_selected_registrar_on(const t_u8 *ie, int len)
 {
 	int left_len = len;
 	const t_u8 *pos = ie;
@@ -2493,7 +2650,7 @@ woal_is_selected_registrar_on(const t_u8 * ie, int len)
 			break;
 		switch (id) {
 		case VENDOR_SPECIFIC_221:
-			pvendor_ie = (IEEEtypes_VendorSpecific_t *) pos;
+			pvendor_ie = (IEEEtypes_VendorSpecific_t *)pos;
 			if (!memcmp
 			    (pvendor_ie->vend_hdr.oui, wps_oui,
 			     sizeof(pvendor_ie->vend_hdr.oui)) &&
@@ -2530,13 +2687,12 @@ woal_is_selected_registrar_on(const t_u8 * ie, int len)
  * @return                      0 -- success, otherwise fail
  */
 int
-woal_cfg80211_mgmt_frame_ie(moal_private * priv,
-			    const t_u8 * beacon_ies, size_t beacon_ies_len,
-			    const t_u8 * proberesp_ies,
-			    size_t proberesp_ies_len,
-			    const t_u8 * assocresp_ies,
-			    size_t assocresp_ies_len, const t_u8 * probereq_ies,
-			    size_t probereq_ies_len, t_u16 mask)
+woal_cfg80211_mgmt_frame_ie(moal_private *priv,
+			    const t_u8 *beacon_ies, size_t beacon_ies_len,
+			    const t_u8 *proberesp_ies, size_t proberesp_ies_len,
+			    const t_u8 *assocresp_ies, size_t assocresp_ies_len,
+			    const t_u8 *probereq_ies, size_t probereq_ies_len,
+			    t_u16 mask)
 {
 	int ret = 0;
 	t_u8 *pos = NULL;
@@ -2852,7 +3008,7 @@ done:
  */
 void
 woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
-			   t_u32 dev_cap, t_u8 * mcs_set)
+			   t_u32 dev_cap, t_u8 *mcs_set)
 {
 	ENTER();
 
@@ -2903,7 +3059,7 @@ woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
  *  @return             N/A
  */
 void
-woal_cfg80211_setup_vht_cap(moal_private * priv,
+woal_cfg80211_setup_vht_cap(moal_private *priv,
 			    struct ieee80211_sta_vht_cap *vht_cap)
 {
 	mlan_ioctl_req *req = NULL;
@@ -2916,7 +3072,7 @@ woal_cfg80211_setup_vht_cap(moal_private * priv,
 		PRINTM(MERROR, "Fail to allocate buf for setup vht_cap\n");
 		goto done;
 	}
-	cfg_11ac = (mlan_ds_11ac_cfg *) req->pbuf;
+	cfg_11ac = (mlan_ds_11ac_cfg *)req->pbuf;
 	cfg_11ac->sub_command = MLAN_OID_11AC_VHT_CFG;
 	req->req_id = MLAN_IOCTL_11AC_CFG;
 	req->action = MLAN_ACT_GET;
@@ -2929,14 +3085,12 @@ woal_cfg80211_setup_vht_cap(moal_private * priv,
 	}
 	vht_cap->vht_supported = true;
 	vht_cap->cap = cfg_11ac->param.vht_cfg.vht_cap_info;
-	vht_cap->vht_mcs.rx_mcs_map =
-		(t_u16) cfg_11ac->param.vht_cfg.vht_rx_mcs;
+	vht_cap->vht_mcs.rx_mcs_map = (t_u16)cfg_11ac->param.vht_cfg.vht_rx_mcs;
 	vht_cap->vht_mcs.rx_highest =
-		(t_u16) cfg_11ac->param.vht_cfg.vht_rx_max_rate;
-	vht_cap->vht_mcs.tx_mcs_map =
-		(t_u16) cfg_11ac->param.vht_cfg.vht_tx_mcs;
+		(t_u16)cfg_11ac->param.vht_cfg.vht_rx_max_rate;
+	vht_cap->vht_mcs.tx_mcs_map = (t_u16)cfg_11ac->param.vht_cfg.vht_tx_mcs;
 	vht_cap->vht_mcs.tx_highest =
-		(t_u16) cfg_11ac->param.vht_cfg.vht_tx_max_rate;
+		(t_u16)cfg_11ac->param.vht_cfg.vht_tx_max_rate;
 	PRINTM(MCMND,
 	       "vht_cap=0x%x rx_mcs_map=0x%x rx_max=0x%x tx_mcs_map=0x%x tx_max=0x%x\n",
 	       vht_cap->cap, vht_cap->vht_mcs.rx_mcs_map,

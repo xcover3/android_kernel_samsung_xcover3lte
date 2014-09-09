@@ -80,6 +80,9 @@
 		Please note that, both wq_sched_prio and wq_sched_policy should be provided
 		as module parameters. If wq_sched_policy is (0, 3 or 5), then wq_sched_prio
 		must be 0. wq_sched_prio should be 1 to 99 otherwise.
+	  low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
+	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
+	  expected PA current is expected to be in the 80-90 mA range for b/g/n modes
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -1621,9 +1624,9 @@ mlanconfig mlanX hostcmd <txpwrlimit_cfg.conf> txpwrlimit_5g_cfg_set
 mlanconfig mlanX hostcmd <pad_cfg.conf> pad_cfg_get
 mlanconfig mlanX hostcmd <pad_cfg.conf> pad_cfg_set
 mlanconfig mlanX hostcmd <11n_2040coex.conf> 2040coex
-mlanconfig mlanX hostcmd <robust_btc.conf> robust_btc_get
-mlanconfig mlanX hostcmd <robust_btc.conf> robust_btc_enable
-mlanconfig mlanX hostcmd <robust_btc.conf> robust_btc_disable
+mlanconfig mlanX hostcmd <robust_btc.conf> mode_get
+mlanconfig mlanX hostcmd <robust_btc.conf> mode_timeshare
+mlanconfig mlanX hostcmd <robust_btc.conf> mode_spatial
 mlanconfig mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_get
 mlanconfig mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_set
 mlanconfig mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_disable
@@ -1759,18 +1762,18 @@ hostcmd 2040coex
 	Usage:
 		mlanconfig mlanX hostcmd config/11n_2040coex.conf 2040coex
 
-hostcmd robust_btc_get
-hostcmd robust_btc_enable
-hostcmd robust_btc_disable
+hostcmd mode_get
+hostcmd mode_timeshare
+hostcmd mode_spatial
 	This command is used to get/set Robust BT Coex.
-	robust_btc_get: get the current configuration
-	robust_btc_enable: enable and set the Robust BT Coex timing
-	robust_btc_disable: disable the Robust BT Coex
+	mode_get:       get the current mode
+	mode_timeshare: set Robust BT Coex to timeshare mode  (default on 1x1 chips)
+	mode_spatial:   set Robust BT Coex to spatial mode    (only for, and default on 2x2 chips)
 
 	Usage:
-		mlanconfig mlanX hostcmd config/robust_btc.conf robust_btc_get
-		mlanconfig mlanX hostcmd config/robust_btc.conf robust_btc_enable
-		mlanconfig mlanX hostcmd config/robust_btc.conf robust_btc_disable
+		mlanconfig mlanX hostcmd config/robust_btc.conf mode_get
+		mlanconfig mlanX hostcmd config/robust_btc.conf mode_timeshare
+		mlanconfig mlanX hostcmd config/robust_btc.conf mode_spatial
 
 hostcmd sdio_pulldown_get
 hostcmd sdio_pulldown_set

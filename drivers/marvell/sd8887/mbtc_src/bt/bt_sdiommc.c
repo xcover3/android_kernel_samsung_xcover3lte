@@ -121,7 +121,7 @@ extern int mbt_pm_keep_power;
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sd_get_rx_unit(bt_private * priv)
+sd_get_rx_unit(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u8 reg;
@@ -146,7 +146,7 @@ sd_get_rx_unit(bt_private * priv)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-sd_read_firmware_status(bt_private * priv, u16 * dat)
+sd_read_firmware_status(bt_private *priv, u16 * dat)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u8 fws0;
@@ -183,7 +183,7 @@ sd_read_firmware_status(bt_private * priv, u16 * dat)
  *  @return        BT_STATUS_SUCCESS or other error no.
  */
 static int
-sd_read_rx_len(bt_private * priv, u16 * dat)
+sd_read_rx_len(bt_private *priv, u16 * dat)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u8 reg;
@@ -208,7 +208,7 @@ sd_read_rx_len(bt_private * priv, u16 * dat)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-sd_enable_host_int_mask(bt_private * priv, u8 mask)
+sd_enable_host_int_mask(bt_private *priv, u8 mask)
 {
 	int ret = BT_STATUS_SUCCESS;
 	struct sdio_mmc_card *card = (struct sdio_mmc_card *)priv->bt_dev.card;
@@ -233,7 +233,7 @@ sd_enable_host_int_mask(bt_private * priv, u8 mask)
  *  @return        BT_STATUS_SUCCESS or other error no.
  */
 static int
-sd_disable_host_int_mask(bt_private * priv, u8 mask)
+sd_disable_host_int_mask(bt_private *priv, u8 mask)
 {
 	int ret = BT_STATUS_FAILURE;
 	u8 host_int_mask;
@@ -268,7 +268,7 @@ done:
  *  @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-sd_poll_card_status(bt_private * priv, u8 bits)
+sd_poll_card_status(bt_private *priv, u8 bits)
 {
 	int tries;
 	int rval;
@@ -303,7 +303,7 @@ sd_poll_card_status(bt_private * priv, u8 bits)
  *  @return         BT_STATUS_SUCCESS or other error no.
  */
 int
-sd_read_cmd52_val(bt_private * priv)
+sd_read_cmd52_val(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u8 func, reg, val;
@@ -340,7 +340,7 @@ sd_read_cmd52_val(bt_private * priv)
  *  @return         BT_STATUS_SUCCESS or other error no.
  */
 int
-sd_write_cmd52_val(bt_private * priv, int func, int reg, int val)
+sd_write_cmd52_val(bt_private *priv, int func, int reg, int val)
 {
 	int ret = BT_STATUS_SUCCESS;
 	struct sdio_mmc_card *card = (struct sdio_mmc_card *)priv->bt_dev.card;
@@ -369,6 +369,49 @@ sd_write_cmd52_val(bt_private * priv, int func, int reg, int val)
 	priv->bt_dev.cmd52_reg = reg;
 
 done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function updates card reg based on the Cmd52 value in dev structure
+ *
+ *  @param priv     A pointer to bt_private structure
+ *  @param reg      register to write
+ *  @param val      value
+ *  @return         BT_STATUS_SUCCESS or other error no.
+ */
+int
+sd_write_reg(bt_private *priv, int reg, u8 val)
+{
+	int ret = BT_STATUS_SUCCESS;
+	struct sdio_mmc_card *card = (struct sdio_mmc_card *)priv->bt_dev.card;
+	ENTER();
+	sdio_claim_host(card->func);
+	sdio_writeb(card->func, val, reg, &ret);
+	sdio_release_host(card->func);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function reads updates the Cmd52 value in dev structure
+ *
+ *  @param priv     A pointer to bt_private structure
+ *  @param reg      register to read
+ *  @return         BT_STATUS_SUCCESS or other error no.
+ */
+int
+sd_read_reg(bt_private *priv, int reg, u8 *data)
+{
+	int ret = BT_STATUS_SUCCESS;
+	u8 val;
+	struct sdio_mmc_card *card = (struct sdio_mmc_card *)priv->bt_dev.card;
+	ENTER();
+	sdio_claim_host(card->func);
+	val = sdio_readb(card->func, reg, &ret);
+	sdio_release_host(card->func);
+	*data = val;
 	LEAVE();
 	return ret;
 }
@@ -435,7 +478,7 @@ done:
  *  @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sd_verify_fw_download(bt_private * priv, int pollnum)
+sd_verify_fw_download(bt_private *priv, int pollnum)
 {
 	int ret = BT_STATUS_FAILURE;
 	u16 firmwarestat = 0;
@@ -471,7 +514,7 @@ sd_verify_fw_download(bt_private * priv, int pollnum)
  *  @return          BT_STATUS_SUCCESS/BT_STATUS_FAILURE or other error no.
  */
 static int
-sd_init_fw_dpc(bt_private * priv, u8 * fw, int fw_len)
+sd_init_fw_dpc(bt_private *priv, u8 *fw, int fw_len)
 {
 	struct sdio_mmc_card *card = (struct sdio_mmc_card *)priv->bt_dev.card;
 	u8 *firmware = fw;
@@ -517,7 +560,7 @@ sd_init_fw_dpc(bt_private * priv, u8 * fw, int fw_len)
 		goto done;
 	}
 	/* Ensure aligned firmware buffer */
-	fwbuf = (u8 *) ALIGN_ADDR(tmpfwbuf, DMA_ALIGNMENT);
+	fwbuf = (u8 *)ALIGN_ADDR(tmpfwbuf, DMA_ALIGNMENT);
 
 	if (!(priv->fw_crc_check)
 	    && ((priv->card_type == CARD_TYPE_SD8787) ||
@@ -670,7 +713,7 @@ static int
 sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 {
 	int ret = BT_STATUS_SUCCESS;
-	bt_private *priv = (bt_private *) context;
+	bt_private *priv = (bt_private *)context;
 	struct sdio_mmc_card *card = NULL;
 	struct m_dev *m_dev_bt = NULL;
 	struct m_dev *m_dev_fm = NULL;
@@ -712,7 +755,7 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 	priv->firmware = fw_firmware;
 
 	if (BT_STATUS_FAILURE ==
-	    sd_init_fw_dpc(priv, (u8 *) priv->firmware->data,
+	    sd_init_fw_dpc(priv, (u8 *)priv->firmware->data,
 			   priv->firmware->size)) {
 		PRINTM(ERROR,
 		       "BT: sd_init_fw_dpc failed (download fw with nowait: %d). Terminating download\n",
@@ -796,7 +839,7 @@ sd_request_fw_callback(const struct firmware *firmware, void *context)
  *  @return         BT_STATUS_SUCCESS/BT_STATUS_FAILURE or other error no.
  */
 int
-sd_download_firmware_w_helper(bt_private * priv)
+sd_download_firmware_w_helper(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	int err;
@@ -867,7 +910,7 @@ sd_download_firmware_w_helper(bt_private * priv)
  *  @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-sd_card_to_host(bt_private * priv)
+sd_card_to_host(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u16 buf_len = 0;
@@ -920,13 +963,13 @@ sd_card_to_host(bt_private * priv)
 		PRINTM(WARN, "BT: No free skb\n");
 		goto exit;
 	}
-	if ((t_ptr) skb->data & (DMA_ALIGNMENT - 1)) {
+	if ((t_ptr)skb->data & (DMA_ALIGNMENT - 1)) {
 		skb_put(skb,
 			DMA_ALIGNMENT -
-			((t_ptr) skb->data & (DMA_ALIGNMENT - 1)));
+			((t_ptr)skb->data & (DMA_ALIGNMENT - 1)));
 		skb_pull(skb,
 			 DMA_ALIGNMENT -
-			 ((t_ptr) skb->data & (DMA_ALIGNMENT - 1)));
+			 ((t_ptr)skb->data & (DMA_ALIGNMENT - 1)));
 	}
 
 	payload = skb->data;
@@ -1136,7 +1179,7 @@ sd_remove_card(struct sdio_func *func)
 		if (card) {
 			if (!unregister && card->priv) {
 				PRINTM(INFO, "BT: card removed from sd slot\n");
-				((bt_private *) (card->priv))->adapter->
+				((bt_private *)(card->priv))->adapter->
 					SurpriseRemoved = TRUE;
 			}
 			bt_remove_card(card->priv);
@@ -1176,7 +1219,8 @@ sd_interrupt(struct sdio_func *func)
 	priv = card->priv;
 	host_intstatus_reg = priv->psdio_device->reg->host_intstatus;
 	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
-	if (priv->card_type == CARD_TYPE_SD8887) {
+	if (priv->card_type == CARD_TYPE_SD8887 ||
+	    priv->card_type == CARD_TYPE_SD8897) {
 		ret = sdio_readsb(card->func, priv->adapter->hw_regs, 0,
 				  SD_BLOCK_SIZE);
 		if (ret) {
@@ -1204,7 +1248,8 @@ sd_interrupt(struct sdio_func *func)
 		PRINTM(INTR, "BT: INT %s: sdio_ireg = 0x%x\n", m_dev->name,
 		       ireg);
 		priv->adapter->irq_recv = ireg;
-		if (priv->card_type != CARD_TYPE_SD8887) {
+		if (priv->card_type != CARD_TYPE_SD8887 &&
+		    priv->card_type != CARD_TYPE_SD8897) {
 			sdio_writeb(card->func,
 				    ~(ireg) & (DN_LD_HOST_INT_STATUS |
 					       UP_LD_HOST_INT_STATUS),
@@ -1235,7 +1280,7 @@ done:
  *  @return       BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sd_check_winner_status(bt_private * priv, u8 * val)
+sd_check_winner_status(bt_private *priv, u8 *val)
 {
 
 	int ret = BT_STATUS_SUCCESS;
@@ -1264,7 +1309,7 @@ sd_check_winner_status(bt_private * priv, u8 * val)
  *  @return        None
  */
 void
-bt_is_suspended(bt_private * priv)
+bt_is_suspended(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	priv->adapter->is_suspended = TRUE;
@@ -1288,28 +1333,22 @@ bt_sdio_suspend(struct device *dev)
 
 	ENTER();
 
-	if (func) {
-		pm_flags = sdio_get_host_pm_caps(func);
-		PRINTM(CMD, "BT: %s: suspend: PM flags = 0x%x\n",
-		       sdio_func_id(func), pm_flags);
-		if (!(pm_flags & MMC_PM_KEEP_POWER)) {
-			PRINTM(ERROR,
-			       "BT: %s: cannot remain alive while host is suspended\n",
-			       sdio_func_id(func));
-			return -ENOSYS;
-		}
-		cardp = sdio_get_drvdata(func);
-		if (!cardp || !cardp->priv) {
-			PRINTM(ERROR,
-			       "BT: Card or priv structure is not valid\n");
-			LEAVE();
-			return BT_STATUS_SUCCESS;
-		}
-	} else {
-		PRINTM(ERROR, "BT: sdio_func is not specified\n");
+	pm_flags = sdio_get_host_pm_caps(func);
+	PRINTM(CMD, "BT: %s: suspend: PM flags = 0x%x\n", sdio_func_id(func),
+	       pm_flags);
+	if (!(pm_flags & MMC_PM_KEEP_POWER)) {
+		PRINTM(ERROR,
+		       "BT: %s: cannot remain alive while host is suspended\n",
+		       sdio_func_id(func));
+		return -ENOSYS;
+	}
+	cardp = sdio_get_drvdata(func);
+	if (!cardp || !cardp->priv) {
+		PRINTM(ERROR, "BT: Card or priv structure is not valid\n");
 		LEAVE();
 		return BT_STATUS_SUCCESS;
 	}
+
 	priv = cardp->priv;
 
 	if ((mbt_pm_keep_power) && (priv->adapter->hs_state != HS_ACTIVATED)) {
@@ -1319,8 +1358,10 @@ bt_sdio_suspend(struct device *dev)
 			fm_set_intr_mask(priv, FM_DISABLE_INTR_MASK);
 		if (BT_STATUS_SUCCESS != bt_enable_hs(priv)) {
 			PRINTM(CMD, "BT: HS not actived, suspend fail!\n");
-			LEAVE();
-			return -EBUSY;
+			if (BT_STATUS_SUCCESS != bt_enable_hs(priv)) {
+				PRINTM(CMD,
+				       "BT: HS not actived the second time, force to suspend!\n");
+			}
 		}
 	}
 	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
@@ -1364,22 +1405,16 @@ bt_sdio_resume(struct device *dev)
 	struct m_dev *m_dev = NULL;
 
 	ENTER();
-	if (func) {
-		pm_flags = sdio_get_host_pm_caps(func);
-		PRINTM(CMD, "BT: %s: resume: PM flags = 0x%x\n",
-		       sdio_func_id(func), pm_flags);
-		cardp = sdio_get_drvdata(func);
-		if (!cardp || !cardp->priv) {
-			PRINTM(ERROR,
-			       "BT: Card or priv structure is not valid\n");
-			LEAVE();
-			return BT_STATUS_SUCCESS;
-		}
-	} else {
-		PRINTM(ERROR, "BT: sdio_func is not specified\n");
+	pm_flags = sdio_get_host_pm_caps(func);
+	PRINTM(CMD, "BT: %s: resume: PM flags = 0x%x\n", sdio_func_id(func),
+	       pm_flags);
+	cardp = sdio_get_drvdata(func);
+	if (!cardp || !cardp->priv) {
+		PRINTM(ERROR, "BT: Card or priv structure is not valid\n");
 		LEAVE();
 		return BT_STATUS_SUCCESS;
 	}
+
 	priv = cardp->priv;
 	priv->adapter->is_suspended = FALSE;
 	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
@@ -1467,7 +1502,7 @@ sbi_unregister(void)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sbi_register_dev(bt_private * priv)
+sbi_register_dev(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u8 reg;
@@ -1548,7 +1583,8 @@ sbi_register_dev(bt_private * priv)
 	PRINTM(INFO, ": SDIO FUNC%d IO port: 0x%x\n", priv->bt_dev.fn,
 	       priv->bt_dev.ioport);
 #define SDIO_INT_MASK       0x3F
-	if (priv->card_type == CARD_TYPE_SD8887) {
+	if (priv->card_type == CARD_TYPE_SD8887 ||
+	    priv->card_type == CARD_TYPE_SD8897) {
 		/* Set Host interrupt reset to read to clear */
 		reg = sdio_readb(func, host_int_rsr_reg, &ret);
 		if (ret < 0)
@@ -1588,7 +1624,7 @@ failed:
  *  @return        BT_STATUS_SUCCESS
  */
 int
-sbi_unregister_dev(bt_private * priv)
+sbi_unregister_dev(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 
@@ -1613,7 +1649,7 @@ sbi_unregister_dev(bt_private * priv)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sd_enable_host_int(bt_private * priv)
+sd_enable_host_int(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret;
@@ -1640,7 +1676,7 @@ sd_enable_host_int(bt_private * priv)
  *  @return        BT_STATUS_SUCCESS/BT_STATUS_FAILURE or other error no.
  */
 int
-sd_disable_host_int(bt_private * priv)
+sd_disable_host_int(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret;
@@ -1668,7 +1704,7 @@ sd_disable_host_int(bt_private * priv)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sbi_host_to_card(bt_private * priv, u8 * payload, u16 nb)
+sbi_host_to_card(bt_private *priv, u8 *payload, u16 nb)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	struct m_dev *m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
@@ -1692,7 +1728,7 @@ sbi_host_to_card(bt_private * priv, u8 * payload, u16 nb)
 	blksz = SD_BLOCK_SIZE;
 	buf_block_len = (nb + blksz - 1) / blksz;
 	/* Allocate buffer and copy payload */
-	if ((t_ptr) payload & (DMA_ALIGNMENT - 1)) {
+	if ((t_ptr)payload & (DMA_ALIGNMENT - 1)) {
 		tmpbufsz = buf_block_len * blksz + DMA_ALIGNMENT;
 		tmpbuf = kzalloc(tmpbufsz, GFP_KERNEL);
 		if (!tmpbuf) {
@@ -1700,7 +1736,7 @@ sbi_host_to_card(bt_private * priv, u8 * payload, u16 nb)
 			return BT_STATUS_FAILURE;
 		}
 		/* Ensure 8-byte aligned CMD buffer */
-		buf = (u8 *) ALIGN_ADDR(tmpbuf, DMA_ALIGNMENT);
+		buf = (u8 *)ALIGN_ADDR(tmpbuf, DMA_ALIGNMENT);
 		memcpy(buf, payload, nb);
 	}
 	sdio_claim_host(card->func);
@@ -1732,8 +1768,7 @@ sbi_host_to_card(bt_private * priv, u8 * payload, u16 nb)
 	priv->bt_dev.tx_dnld_rdy = FALSE;
 exit:
 	sdio_release_host(card->func);
-	if (tmpbuf)
-		kfree(tmpbuf);
+	kfree(tmpbuf);
 	LEAVE();
 	return ret;
 }
@@ -1745,7 +1780,7 @@ exit:
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sbi_download_fw(bt_private * priv)
+sbi_download_fw(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret = BT_STATUS_SUCCESS;
@@ -1822,7 +1857,7 @@ err_register:
  *  @return        BT_STATUS_SUCCESS
  */
 int
-sbi_get_int_status(bt_private * priv)
+sbi_get_int_status(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u8 sdio_ireg = 0;
@@ -1861,7 +1896,7 @@ sbi_get_int_status(bt_private * priv)
  *  @return        BT_STATUS_SUCCESS/BT_STATUS_FAILURE or other error no.
  */
 int
-sbi_wakeup_firmware(bt_private * priv)
+sbi_wakeup_firmware(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret = BT_STATUS_SUCCESS;
@@ -1890,7 +1925,7 @@ sbi_wakeup_firmware(bt_private * priv)
  *  @return         N/A
  */
 void
-sdio_update_card_type(bt_private * priv, void *card)
+sdio_update_card_type(bt_private *priv, void *card)
 {
 	struct sdio_mmc_card *cardp = (struct sdio_mmc_card *)card;
 
@@ -1916,7 +1951,7 @@ sdio_update_card_type(bt_private * priv, void *card)
  *  @return           MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 int
-sdio_get_sdio_device(bt_private * priv)
+sdio_get_sdio_device(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	u16 card_type = priv->card_type;
@@ -1953,7 +1988,7 @@ sdio_get_sdio_device(bt_private * priv)
  *  @return         N/A
  */
 void
-bt_dump_sdio_regs(bt_private * priv)
+bt_dump_sdio_regs(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret = BT_STATUS_SUCCESS;
@@ -2030,5 +2065,5 @@ MODULE_PARM_DESC(fw_name, "Firmware name");
 module_param(req_fw_nowait, int, 0);
 MODULE_PARM_DESC(req_fw_nowait,
 		 "0: Use request_firmware API; 1: Use request_firmware_nowait API");
-module_param(multi_fn, int, 4);
+module_param(multi_fn, int, 0);
 MODULE_PARM_DESC(multi_fn, "Bit 2: FN2;");

@@ -1049,6 +1049,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV ID for multi chan group info */
 #define TLV_TYPE_MULTI_CHAN_GROUP_INFO_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0xb8)
 
+#ifdef RX_PACKET_COALESCE
+/** TLV ID for RX pkt coalesce config */
+#define TLV_TYPE_RX_PKT_COAL_CONFIG           (PROPRIETARY_TLV_BASE_ID + 0xC9)
+#endif
+
 /** Host Command ID : Channel report request */
 #define HostCmd_CMD_CHAN_REPORT_REQUEST              0x00dd
 
@@ -1099,6 +1104,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define  HostCmd_CMD_TDLS_CONFIG              0x0100
 /** Host Command ID : TDLS operation */
 #define HostCmd_CMD_TDLS_OPERATION          0x0122
+
+#ifdef RX_PACKET_COALESCE
+/** Host Command ID : Rx packet coalescing configuration */
+#define HostCmd_CMD_RX_PKT_COALESCE_CFG       0x012c
+#endif
 
 /** Host Command ID : Extended scan support */
 #define  HostCmd_CMD_802_11_SCAN_EXT          0x0107
@@ -1260,6 +1270,8 @@ typedef enum _ENH_PS_MODES {
 #define CMD_F_HOSTCMD           (1 << 0)
 /** command cancel flag in command */
 #define CMD_F_CANCELED          (1 << 1)
+/** scan command flag */
+#define CMD_F_SCAN              (1 << 2)
 
 /** Host Command ID bit mask (bit 11:0) */
 #define HostCmd_CMD_ID_MASK             0x0fff
@@ -2356,7 +2368,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GEN {
 	t_u16 seq_num;
     /** Result */
 	t_u16 result;
-} MLAN_PACK_END HostCmd_DS_GEN;
+} MLAN_PACK_END HostCmd_DS_GEN
+;
 
 /** Size of HostCmd_DS_GEN */
 #define S_DS_GEN        sizeof(HostCmd_DS_GEN)
@@ -3565,8 +3578,7 @@ typedef MLAN_PACK_START struct {
 			      * MAX_AC_QUEUES];
     /** WMM parameter TLV */
 	t_u8 wmm_param_tlv[sizeof(IEEEtypes_WmmParameter_t) + 2];
-}
-MLAN_PACK_END HostCmd_DS_WMM_GET_STATUS;
+} MLAN_PACK_END HostCmd_DS_WMM_GET_STATUS;
 
 /**
  *  @brief Command structure for the HostCmd_CMD_WMM_ADDTS_REQ firmware command
@@ -4858,6 +4870,17 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_wapi_info_t {
 } MLAN_PACK_END MrvlIEtypes_wapi_info_t;
 #endif /* UAP_SUPPORT */
 
+#ifdef RX_PACKET_COALESCE
+typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {
+	/** Action */
+	t_u16 action;
+	/** Packet threshold */
+	t_u32 packet_threshold;
+	/** Timeout */
+	t_u16 delay;
+} MLAN_PACK_END HostCmd_DS_RX_PKT_COAL_CFG;
+#endif
+
 typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_CFG {
 	/** Action */
 	t_u16 action;
@@ -5415,6 +5438,9 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_MULTI_CHAN_CFG multi_chan_cfg;
 		HostCmd_DS_MULTI_CHAN_POLICY multi_chan_policy;
 		HostCmd_CONFIG_LOW_PWR_MODE low_pwr_mode_cfg;
+#ifdef RX_PACKET_COALESCE
+		HostCmd_DS_RX_PKT_COAL_CFG rx_pkt_coal_cfg;
+#endif
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND;
 

@@ -256,6 +256,7 @@ SYNOPSIS
 	mlanutl mlanX assocessid <"[essid]">
 	mlanutl mlanX associate "<bssid> <ssid>"
 	mlanutl mlanX authtype [n]
+	mlanutl mlanX autotdls [n]
 	mlanutl mlanX bandcfg [l] [m] [n] [o]
 	mlanutl mlanX bcninterval [n]
 	mlanutl wfdX bssrole [l]
@@ -293,9 +294,9 @@ SYNOPSIS
 	mlanutl mlanX hostcmd <pad_cfg.conf> pad_cfg_get
 	mlanutl mlanX hostcmd <pad_cfg.conf> pad_cfg_set
 	mlanutl mlanX hostcmd <requesttpc.conf> requesttpc
-	mlanutl mlanX hostcmd <robust_btc.conf> robust_btc_disable
-	mlanutl mlanX hostcmd <robust_btc.conf> robust_btc_enable
-	mlanutl mlanX hostcmd <robust_btc.conf> robust_btc_get
+	mlanutl mlanX hostcmd <robust_btc.conf> mode_get
+	mlanutl mlanX hostcmd <robust_btc.conf> mode_timeshare
+	mlanutl mlanX hostcmd <robust_btc.conf> mode_spatial
 	mlanutl mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_disable
 	mlanutl mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_get
 	mlanutl mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_set
@@ -382,6 +383,7 @@ SYNOPSIS
 	mlanutl mlanX tdls_teardown <tdls.conf>
 	mlanutl mlanX thermal
 	mlanutl mlanX ts_status
+	mlanutl mlanX txaggrctrl [m]
 	mlanutl mlanX txbufcfg
 	mlanutl mlanX txpowercfg [<bw> [<RateIndex> [<pwr> ]]]
 	mlanutl mlanX txratecfg [l] [m] [n]
@@ -687,6 +689,21 @@ authtype
 		mlanutl mlan0 authtype 1         : use shared key authentication
 		mlanutl mlan0 authtype 255       : allow open system or shared key authentication
 		mlanutl mlan0 authtype           : get current setting
+
+autotdls
+	This command is used to enable/disable auto TDLS.
+
+	Usage:
+		mlanutl mlanX autotdls [n]
+
+	where <n>
+		0: Disable auto tdls
+		1: Enable auto tdls
+
+	Examples:
+		mlanutl mlan0 autotdls 1         : enable auto TDLS
+		mlanutl mlan0 autotdls 0         : disable auto TDLS
+		mlanutl mlan0 autotdls           : get current setting
 
 bandcfg
 	This command is used to set/get infra/ad-hoc band.
@@ -1190,18 +1207,18 @@ hostcmd requesttpc
 	Usage:
 		mlanutl mlanX hostcmd config/requesttpc.conf requesttpc
 
-hostcmd robust_btc_get
-hostcmd robust_btc_enable
-hostcmd robust_btc_disable
+hostcmd mode_get
+hostcmd mode_timeshare
+hostcmd mode_spatial
 	This command is used to get/set Robust BT Coex.
-	robust_btc_get: get the current configuration
-	robust_btc_enable: enable and set the Robust BT Coex timing
-	robust_btc_disable: disable the Robust BT Coex
+	mode_get:       get the current mode
+	mode_timeshare: set Robust BT Coex to timeshare mode  (default on 1x1 chips)
+	mode_spatial:   set Robust BT Coex to spatial mode    (only for, and default on 2x2 chips)
 
 	Usage:
-		mlanutl mlanX hostcmd config/robust_btc.conf robust_btc_get
-		mlanutl mlanX hostcmd config/robust_btc.conf robust_btc_enable
-		mlanutl mlanX hostcmd config/robust_btc.conf robust_btc_disable
+		mlanutl mlanX hostcmd config/robust_btc.conf mode_get
+		mlanutl mlanX hostcmd config/robust_btc.conf mode_timeshare
+		mlanutl mlanX hostcmd config/robust_btc.conf mode_spatial
 
 hostcmd sdio_pulldown_get
 hostcmd sdio_pulldown_set
@@ -2003,7 +2020,7 @@ regrdwr
 		mlanutl mlanX regrdwr <type> <offset> [value]
 
 	where the parameters are,
-		<type>:     1:MAC/SOC, 2:BBP, 3:RF, 5:CAU
+		<type>:     1:MAC/SOC, 2:BBP, 3:RF, 5:CAU, 6:PSU
 		<offset>:   offset of register
 		[value]:    value to be written
 		Note:
@@ -2385,6 +2402,23 @@ ts_status
 	Usage:
 		mlanutl mlanX ts_status
 
+txaggrctrl
+	This command is used to enable/disable TX AMPDU on infra link when TDLS link is established
+
+	Usage:
+		mlanutl mlanX txaggrctrl [m]
+
+	Where:
+		[m]: 1 to enable TX AMPDU on infra link; 0 to disable TX AMPDU on infra link
+
+	Examples:
+		mlanutl mlan0 txaggrctrl	: Get current TX AMPDU status on infra link
+		mlanutl mlan0 txaggrctrl 0	: Disable TX AMPDU on infra link
+		mlanutl mlan0 txaggrctrl 1	: Enable TX AMPDU on infra link
+
+	Note:
+		The set command only works when TDLS link is established.
+
 txbufcfg
 	This command can be used to get current buffer size.
 
@@ -2547,8 +2581,8 @@ version
 vhtcfg
 	This command is used to set and get various 11ac specific configuration
 	for transmission and reception. For the SET operation, all paramaters
-	may be applied. For the GET operation, only the first two parameters
-	are applied.
+	may be applied. For the GET operation, only the first two parameters are applied.
+	The 6th argument "rx_mcs_set" can be used to disbale/enable 802.11ac.
 
 	where <j> is <band>
 	<band> - This is the band setting for the vhtcfg
@@ -2583,11 +2617,11 @@ vhtcfg
 
 		Bit 31-30: Reserved and set to 0
 		Bit 29:    TX antenna pattern consistency
-			   1: pattern change
-			   0: no pattern change
+			   1: antenna pattern does not change
+			   0: antenna pattern might change
 		Bit 28:    RX antenna pattern consistency
-			   1: pattern change
-			   0: no pattern change
+			   1: antenna pattern does not change
+			   0: antenna pattern might change
 		Bit 27-26: VHT link adaptation capable
 			   0: no feedback of VHT MFB from the STA
 			   1: unsolicted feedback of VHT MFB from the STA
@@ -2652,6 +2686,8 @@ vhtcfg
 	where [o] is <rx_mcs_map>.
 	<rx_mcs_map> - This parameter specifies the RX MCS map. It may not be used for the STA if <txrx> is 1 (Tx operations).
 		It is a bitmap with the same sructure as for <tx_mcs_map>
+		rx_mcs_map = 0xffff : FW will disable 802.11ac
+                rx_mcs_map = others : FW will enable 802.11ac
 
 	Note: The user setting of vhtcap may be overwritten by the driver
 	      if the setting of those fields is beyond the hardware capabilities.
@@ -2756,8 +2792,9 @@ mc_policy
         where <n> :  Multi-channel policy
 
         Examples:
-                mlanutl mlanX mc_cfg                    : Get multi-channel policy setting.
-                mlanutl mlanX mc_cfg 1			: Set multi-channel policy to 1.
+                mlanutl mlanX mc_policy			: Get multi-channel policy setting.
+                mlanutl mlanX mc_policy 1		: Set multi-channel policy to 1.
+                mlanutl mlanX mc_policy 0		: Disable multi-channel policy
 
 noacfg
 	This is used to get/set P2P NoA (Notice of Absence) parameters only for P2P GO.
@@ -2780,4 +2817,17 @@ noacfg
 		[n] : ct_window  : A period of time in TU after a TBTT during which P2P GO
 				   is present. 0 indicates that there shall be no
 				   CTWindow (Client Traffic Window).
+
+rxpktcoal_cfg
+	This is used to get/set RX packet coalescing paramters
+	Usage:
+		mlanutl mlanX rxpktcoal_cfg [m] [n]
+
+	where:
+        [m]: pkt_threshold: count after which packets would be sent to host. Valid values 1-7
+        [n]: delay: timeout in ms after which packets would be sent to host. Valid values 1-4
+        Coalescing is disabled if both or either of packet_thershold and delay is zero
+
+        RX packet coalescing parameters can be changed only when device is in
+        idle state i.e. all interfaces are disconnected.
 ===============================================================================

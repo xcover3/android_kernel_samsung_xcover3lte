@@ -165,7 +165,7 @@ extern u32 mbt_drvdbg;
 #define MAX_DATA_DUMP_LEN	48
 
 static inline void
-hexdump(char *prompt, u8 * buf, int len)
+hexdump(char *prompt, u8 *buf, int len)
 {
 	int i;
 	char dbgdumpbuf[DBG_DUMP_BUF_LEN];
@@ -260,7 +260,7 @@ typedef struct {
 } bt_thread;
 
 static inline void
-bt_activate_thread(bt_thread * thr)
+bt_activate_thread(bt_thread *thr)
 {
 	/** Initialize the wait queue */
 	init_waitqueue_head(&thr->waitQ);
@@ -270,20 +270,20 @@ bt_activate_thread(bt_thread * thr)
 }
 
 static inline void
-bt_deactivate_thread(bt_thread * thr)
+bt_deactivate_thread(bt_thread *thr)
 {
 	thr->pid = 0;
 	return;
 }
 
 static inline void
-bt_create_thread(int (*btfunc) (void *), bt_thread * thr, char *name)
+bt_create_thread(int (*btfunc) (void *), bt_thread *thr, char *name)
 {
 	thr->task = kthread_run(btfunc, thr, "%s", name);
 }
 
 static inline int
-bt_terminate_thread(bt_thread * thr)
+bt_terminate_thread(bt_thread *thr)
 {
 	/* Check if the thread is active or not */
 	if (!thr->pid)
@@ -489,7 +489,6 @@ typedef struct _bt_private {
 	const struct sdio_device *psdio_device;
 	int debug_device_pending;
 	int debug_ocf_ogf[2];
-
 } bt_private, *pbt_private;
 
 /** Disable interrupt */
@@ -546,7 +545,7 @@ typedef struct _bt_private {
 #define FM_SET_INTR_MASK	0x2E
 /** FM ocf value */
 #define FM_CMD			    0x0280
-int fm_set_intr_mask(bt_private * priv, u32 mask);
+int fm_set_intr_mask(bt_private *priv, u32 mask);
 #endif
 /** Sub Command: Module Bring Up Request */
 #define MODULE_BRINGUP_REQ		0xF1
@@ -647,13 +646,13 @@ typedef struct _BT_EVENT {
 } BT_EVENT;
 
 /** This function verify the received event pkt */
-int check_evtpkt(bt_private * priv, struct sk_buff *skb);
+int check_evtpkt(bt_private *priv, struct sk_buff *skb);
 
 /* Prototype of global function */
 /** This function gets the priv reference */
-struct kobject *bt_priv_get(bt_private * priv);
+struct kobject *bt_priv_get(bt_private *priv);
 /** This function release the priv reference */
-void bt_priv_put(bt_private * priv);
+void bt_priv_put(bt_private *priv);
 /** This function adds the card */
 bt_private *bt_add_card(void *card);
 /** This function removes the card */
@@ -666,48 +665,48 @@ int bt_root_proc_init(void);
 /** This function removes proc interface directory structure */
 int bt_root_proc_remove(void);
 /** This function initializes proc entry */
-int bt_proc_init(bt_private * priv, struct m_dev *m_dev, int seq);
+int bt_proc_init(bt_private *priv, struct m_dev *m_dev, int seq);
 /** This function removes proc interface */
-void bt_proc_remove(bt_private * priv);
+void bt_proc_remove(bt_private *priv);
 
 /** This function process the received event */
-int bt_process_event(bt_private * priv, struct sk_buff *skb);
+int bt_process_event(bt_private *priv, struct sk_buff *skb);
 /** This function enables host sleep */
-int bt_enable_hs(bt_private * priv);
+int bt_enable_hs(bt_private *priv);
 /** This function used to send command to firmware */
-int bt_prepare_command(bt_private * priv);
+int bt_prepare_command(bt_private *priv);
 /** This function frees the structure of adapter */
-void bt_free_adapter(bt_private * priv);
+void bt_free_adapter(bt_private *priv);
 
 /** clean up m_devs */
-void clean_up_m_devs(bt_private * priv);
+void clean_up_m_devs(bt_private *priv);
 /** bt driver call this function to register to bus driver */
 int *sbi_register(void);
 /** bt driver call this function to unregister to bus driver */
 void sbi_unregister(void);
 /** bt driver calls this function to register the device  */
-int sbi_register_dev(bt_private * priv);
+int sbi_register_dev(bt_private *priv);
 /** bt driver calls this function to unregister the device */
-int sbi_unregister_dev(bt_private * priv);
+int sbi_unregister_dev(bt_private *priv);
 /** This function initializes firmware */
-int sbi_download_fw(bt_private * priv);
+int sbi_download_fw(bt_private *priv);
 /** Configures hardware to quit deep sleep state */
-int sbi_wakeup_firmware(bt_private * priv);
+int sbi_wakeup_firmware(bt_private *priv);
 /** Module configuration and register device */
-int sbi_register_conf_dpc(bt_private * priv);
+int sbi_register_conf_dpc(bt_private *priv);
 
 /** This function is used to send the data/cmd to hardware */
-int sbi_host_to_card(bt_private * priv, u8 * payload, u16 nb);
+int sbi_host_to_card(bt_private *priv, u8 *payload, u16 nb);
 /** This function reads the current interrupt status register */
-int sbi_get_int_status(bt_private * priv);
+int sbi_get_int_status(bt_private *priv);
 
 /** This function enables the host interrupts */
-int sd_enable_host_int(bt_private * priv);
+int sd_enable_host_int(bt_private *priv);
 /** This function disables the host interrupts */
-int sd_disable_host_int(bt_private * priv);
+int sd_disable_host_int(bt_private *priv);
 /** This function downloads firmware image to the card */
-int sd_download_firmware_w_helper(bt_private * priv);
-void bt_dump_sdio_regs(bt_private * priv);
+int sd_download_firmware_w_helper(bt_private *priv);
+void bt_dump_sdio_regs(bt_private *priv);
 
 /** Max line length allowed in init config file */
 #define MAX_LINE_LEN        256
@@ -751,20 +750,20 @@ typedef struct _BT_CSU_CMD {
 } __ATTRIB_PACK__ BT_CSU_CMD;
 
 /** This function sets mac address */
-int bt_set_mac_address(bt_private * priv, u8 * mac);
+int bt_set_mac_address(bt_private *priv, u8 *mac);
 /** This function writes value to CSU registers */
-int bt_write_reg(bt_private * priv, u8 type, u32 offset, u16 value);
+int bt_write_reg(bt_private *priv, u8 type, u32 offset, u16 value);
 /** BT set user defined init data and param */
-int bt_init_config(bt_private * priv, char *cfg_file);
+int bt_init_config(bt_private *priv, char *cfg_file);
 /** This function load the calibrate data */
-int bt_load_cal_data(bt_private * priv, u8 * config_data, u8 * mac);
+int bt_load_cal_data(bt_private *priv, u8 *config_data, u8 *mac);
 /** This function load the calibrate ext data */
-int bt_load_cal_data_ext(bt_private * priv, u8 * config_data, u32 cfg_data_len);
+int bt_load_cal_data_ext(bt_private *priv, u8 *config_data, u32 cfg_data_len);
 /** BT set user defined calibration data */
-int bt_cal_config(bt_private * priv, char *cfg_file, char *mac);
+int bt_cal_config(bt_private *priv, char *cfg_file, char *mac);
 /** BT set user defined calibration ext data */
-int bt_cal_config_ext(bt_private * priv, char *cfg_file);
-int bt_init_mac_address(bt_private * priv, char *mac);
+int bt_cal_config_ext(bt_private *priv, char *cfg_file);
+int bt_init_mac_address(bt_private *priv, char *mac);
 
 typedef struct _BT_HCI_CMD {
 	/** OCF OGF */

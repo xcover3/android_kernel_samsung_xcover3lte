@@ -192,6 +192,9 @@ Change log:
 #define PRIV_CMD_PB_BYPASS      "pb_bypass"
 #define PRIV_CMD_COALESCE_STATUS    "coalesce_status"
 #define PRIV_CMD_SD_CMD53_RW        "sdcmd53rw"
+#ifdef RX_PACKET_COALESCE
+#define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
+#endif
 #define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
 #define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
 #if defined(WIFI_DIRECT_SUPPORT)
@@ -246,7 +249,8 @@ typedef struct _android_wifi_priv_cmd {
 	int used_len;
     /** buffer sent by application */
 	int total_len;
-} __attribute__ ((packed)) android_wifi_priv_cmd;
+} __attribute__ ((packed))
+     android_wifi_priv_cmd;
 #else
 typedef struct _android_wifi_priv_cmd {
     /** Buffer pointer */
@@ -384,7 +388,7 @@ typedef struct woal_priv_esuppmode_cfg {
 	t_u8 group_cipher;
 } woal_esuppmode_cfg;
 
-mlan_status woal_set_ap_wps_p2p_ie(moal_private * priv, t_u8 * ie, size_t len);
+mlan_status woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len);
 
 int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req);
 

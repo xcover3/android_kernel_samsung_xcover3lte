@@ -60,15 +60,15 @@ described below:
 
 User can use robust_btc.conf and hostcmd to select different RBC mode:
 
-hostcmd robust_btc_get
-hostcmd robust_btc_enable
-hostcmd robust_btc_disable
+hostcmd mode_get
+hostcmd mode_timeshare
+hostcmd mode_spatial
     This command is used to get/set Robust BT Coex.
-    robust_btc_get: get the current configuration
-    robust_btc_enable: enable and set the Robust BT Coex timing
-    robust_btc_disable: disable the Robust BT Coex
+    mode_get:       get the current mode
+    mode_timeshare: set Robust BT Coex to timeshare mode  (default on 1x1 chips)
+    mode_spatial:   set Robust BT Coex to spatial mode    (only for, and default on 2x2 chips)
 
     Usage:
-        mlanconfig mlanX hostcmd config/robust_btc.conf robust_btc_get
-        mlanconfig mlanX hostcmd config/robust_btc.conf robust_btc_enable
-        mlanconfig mlanX hostcmd config/robust_btc.conf robust_btc_disable
+        mlanconfig mlanX hostcmd config/robust_btc.conf mode_get
+        mlanconfig mlanX hostcmd config/robust_btc.conf mode_timeshare
+        mlanconfig mlanX hostcmd config/robust_btc.conf mode_spatial

@@ -508,6 +508,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8777 = {
 	.driver_supplicant_auth = 0,
 	.v15_update = 0,
 	.v15_fw_api = 0,
+	.ext_scan = 1,
 	.ampdu_info = &ampdu_info_nov15,
 };
 
@@ -531,6 +532,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8787 = {
 	.driver_supplicant_auth = 0,
 	.v15_update = 0,
 	.v15_fw_api = 0,
+	.ext_scan = 1,
 	.ampdu_info = &ampdu_info_nov15,
 };
 
@@ -559,6 +561,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8887 = {
 	.driver_supplicant_auth = 0,
 	.v15_update = 1,
 	.v15_fw_api = 1,
+	.ext_scan = 1,
 	.ampdu_info = &ampdu_info_v15,
 };
 
@@ -582,6 +585,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8801 = {
 	.driver_supplicant_auth = 1,
 	.v15_update = 0,
 	.v15_fw_api = 0,
+	.ext_scan = 0,
 	.ampdu_info = &ampdu_info_nov15,
 };
 
@@ -610,6 +614,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8897 = {
 	.driver_supplicant_auth = 0,
 	.v15_update = 1,
 	.v15_fw_api = 1,
+	.ext_scan = 1,
 	.ampdu_info = &ampdu_info_v15,
 };
 
@@ -619,20 +624,22 @@ mlan_status wlan_enable_host_int(pmlan_adapter pmadapter);
 mlan_status wlan_sdio_probe(pmlan_adapter pmadapter);
 mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter);
 /** multi interface download check */
-mlan_status wlan_check_winner_status(mlan_adapter * pmadapter, t_u32 * val);
+mlan_status wlan_check_winner_status(mlan_adapter *pmadapter, t_u32 *val);
 
+#ifdef SDIO_MULTI_PORT_TX_AGGR
+mlan_status wlan_send_mp_aggr_buf(mlan_adapter *pmadapter);
+#endif
 /** Firmware status check */
-mlan_status wlan_check_fw_status(mlan_adapter * pmadapter, t_u32 pollnum);
+mlan_status wlan_check_fw_status(mlan_adapter *pmadapter, t_u32 pollnum);
 /** Read interrupt status */
 t_void wlan_interrupt(pmlan_adapter pmadapter);
 /** Process Interrupt Status */
-mlan_status wlan_process_int_status(mlan_adapter * pmadapter);
+mlan_status wlan_process_int_status(mlan_adapter *pmadapter);
 /** Transfer data to card */
-mlan_status wlan_sdio_host_to_card(mlan_adapter * pmadapter, t_u8 type,
-				   mlan_buffer * mbuf,
-				   mlan_tx_param * tx_param);
+mlan_status wlan_sdio_host_to_card(mlan_adapter *pmadapter, t_u8 type,
+				   mlan_buffer *mbuf, mlan_tx_param *tx_param);
 mlan_status wlan_set_sdio_gpio_int(IN pmlan_private priv);
 mlan_status wlan_cmd_sdio_gpio_int(pmlan_private pmpriv,
-				   IN HostCmd_DS_COMMAND * cmd,
-				   IN t_u16 cmd_action, IN t_void * pdata_buf);
+				   IN HostCmd_DS_COMMAND *cmd,
+				   IN t_u16 cmd_action, IN t_void *pdata_buf);
 #endif /* _MLAN_SDIO_H */

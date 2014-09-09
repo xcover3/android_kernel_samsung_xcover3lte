@@ -250,6 +250,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_TDLS_OPER = 0x00200026,
 	MLAN_OID_MISC_GET_TDLS_IES = 0x00200027,
 	MLAN_OID_MISC_LOW_PWR_MODE = 0x00200029,
+#ifdef RX_PACKET_COALESCE
+	MLAN_OID_MISC_RX_PACKET_COALESCE = 0x0020002C,
+#endif
 };
 
 /** Sub command size */
@@ -1477,6 +1480,12 @@ typedef struct _mlan_debug_info {
 	t_u32 num_int_read_failure;
     /** Last interrupt status */
 	t_u32 last_int_status;
+    /** number of interrupt receive */
+	t_u32 num_of_irq;
+    /** FW update port number */
+	t_u32 mp_update[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX * 2];
+	/** Invalid port update count */
+	t_u32 mp_invalid_update;
 #ifdef SDIO_MULTI_PORT_TX_AGGR
     /** Number of packets tx aggr */
 	t_u32 mpa_tx_count[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
@@ -1498,6 +1507,10 @@ typedef struct _mlan_debug_info {
 	t_u16 last_mp_wr_info[SDIO_MP_DBG_NUM * SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
     /** last mp_index */
 	t_u8 last_mp_index;
+    /** buffer for mp debug */
+	t_u8 *mpa_buf;
+    /** length info for mp buf size */
+	t_u32 mpa_buf_size;
 #endif
 #ifdef SDIO_MULTI_PORT_RX_AGGR
     /** Number of packets rx aggr */
@@ -2025,7 +2038,7 @@ typedef struct _mlan_ds_power_cfg {
 #define HOST_SLEEP_COND_IPV6_PACKET     MBIT(31)
 
 /** Host sleep config conditions: Default */
-#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT | HOST_SLEEP_COND_IPV6_PACKET)
+#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT)
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO     0xff
 /** Host sleep config gap : Default */
@@ -2257,6 +2270,17 @@ typedef struct _mlan_ds_pm_cfg {
 	} param;
 } mlan_ds_pm_cfg, *pmlan_ds_pm_cfg;
 
+#ifdef RX_PACKET_COALESCE
+typedef struct {
+	mlan_cmd_result_e cmd_result; /**< Firmware execution result */
+
+	t_u32 pkt_threshold;
+			 /** Packet threshold */
+	t_u16 delay;
+		  /** Timeout value in milliseconds */
+} wlan_ioctl_rx_pkt_coalesce_config_t;
+#endif
+
 /*-----------------------------------------------------------------*/
 /** WMM Configuration Group */
 /*-----------------------------------------------------------------*/
@@ -2367,7 +2391,7 @@ typedef struct {
 /** Type definition of mlan_ds_wmm_queue_stats
  *  for MLAN_OID_WMM_CFG_QUEUE_STATS
  */
- mlan_ds_wmm_queue_stats, *pmlan_ds_wmm_queue_stats;
+mlan_ds_wmm_queue_stats, *pmlan_ds_wmm_queue_stats;
 
 /**
  *  @brief IOCTL sub structure for a specific WMM AC Status
@@ -2399,7 +2423,7 @@ typedef struct {
 /** Type definition of mlan_ds_wmm_queue_status
  *  for MLAN_OID_WMM_CFG_QUEUE_STATUS
  */
- mlan_ds_wmm_queue_status, *pmlan_ds_wmm_queue_status;
+mlan_ds_wmm_queue_status, *pmlan_ds_wmm_queue_status;
 
 /** Type definition of mlan_ds_wmm_addts for MLAN_OID_WMM_CFG_ADDTS */
 typedef struct _mlan_ds_wmm_addts {
@@ -3351,6 +3375,15 @@ typedef struct _mlan_ds_misc_tdls_ies {
 	t_u8 aid_info[IEEE_MAX_IE_SIZE];
 } mlan_ds_misc_tdls_ies;
 
+#ifdef RX_PACKET_COALESCE
+typedef struct _mlan_ds_misc_rx_packet_coalesce {
+	/** packet threshold */
+	t_u32 packet_threshold;
+	/** timeout value */
+	t_u16 delay;
+} mlan_ds_misc_rx_packet_coalesce;
+#endif
+
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
     /** Sub-command */
@@ -3426,7 +3459,16 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_wifi_direct_config p2p_config;
 #endif
 		t_u8 low_pwr_mode;
+#ifdef RX_PACKET_COALESCE
+		mlan_ds_misc_rx_packet_coalesce rx_coalesce;
+#endif
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 
+/** Hotspot status enable */
+#define HOTSPOT_ENABLED                 MBIT(0)
+/** Hotspot status disable */
+#define HOTSPOT_DISABLED                MFALSE
+/** Keep Hotspot2.0 compatible in mwu and wpa_supplicant */
+#define HOTSPOT_BY_SUPPLICANT		    MBIT(1)
 #endif /* !_MLAN_IOCTL_H_ */

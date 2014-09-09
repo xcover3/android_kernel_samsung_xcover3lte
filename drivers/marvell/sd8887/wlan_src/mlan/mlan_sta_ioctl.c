@@ -116,7 +116,7 @@ wlan_get_info_signal(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_RSSI_INFO,
 			       HostCmd_ACT_GEN_GET,
-			       0, (t_void *) pioctl_req, MNULL);
+			       0, (t_void *)pioctl_req, MNULL);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -165,7 +165,7 @@ wlan_get_info_stats(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_GET_LOG,
 			       HostCmd_ACT_GEN_GET,
-			       0, (t_void *) pioctl_req, MNULL);
+			       0, (t_void *)pioctl_req, MNULL);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -197,7 +197,7 @@ wlan_get_info_bss_info(IN pmlan_adapter pmadapter,
 
 	/* Get current BSS info */
 	pbss_desc = &pmpriv->curr_bss_params.bss_descriptor;
-	info = (mlan_ds_get_info *) pioctl_req->pbuf;
+	info = (mlan_ds_get_info *)pioctl_req->pbuf;
 
 	/* BSS mode */
 	info->param.bss_info.bss_mode = pmpriv->bss_mode;
@@ -217,7 +217,7 @@ wlan_get_info_bss_info(IN pmlan_adapter pmadapter,
 	info->param.bss_info.beacon_interval = pbss_desc->beacon_period;
 
 	/* Band */
-	info->param.bss_info.bss_band = (t_u8) pbss_desc->bss_band;
+	info->param.bss_info.bss_band = (t_u8)pbss_desc->bss_band;
 
 	/* Region code */
 	info->param.bss_info.region_code = pmadapter->region_code;
@@ -271,8 +271,8 @@ wlan_get_info_bss_info(IN pmlan_adapter pmadapter,
 	/* Association ID */
 	if (pmpriv->assoc_rsp_buf)
 		info->param.bss_info.assoc_id =
-			(t_u16) ((IEEEtypes_AssocRsp_t *) pmpriv->
-				 assoc_rsp_buf)->a_id;
+			(t_u16)((IEEEtypes_AssocRsp_t *)pmpriv->assoc_rsp_buf)->
+			a_id;
 	else
 		info->param.bss_info.assoc_id = 0;
 
@@ -307,7 +307,7 @@ wlan_get_info_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
-	pget_info = (mlan_ds_get_info *) pioctl_req->pbuf;
+	pget_info = (mlan_ds_get_info *)pioctl_req->pbuf;
 
 	switch (pget_info->sub_command) {
 	case MLAN_OID_GET_STATS:
@@ -382,7 +382,7 @@ wlan_snmp_mib_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		goto exit;
 	}
 
-	mib = (mlan_ds_snmp_mib *) pioctl_req->pbuf;
+	mib = (mlan_ds_snmp_mib *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
 	else
@@ -411,7 +411,7 @@ wlan_snmp_mib_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_SNMP_MIB,
 			       cmd_action,
-			       cmd_oid, (t_void *) pioctl_req, &value);
+			       cmd_oid, (t_void *)pioctl_req, &value);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -443,10 +443,10 @@ wlan_radio_ioctl_band_cfg(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	radio_cfg = (mlan_ds_radio_cfg *) pioctl_req->pbuf;
+	radio_cfg = (mlan_ds_radio_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET) {
-		infra_band = (t_u8) radio_cfg->param.band_cfg.config_bands;
-		adhoc_band = (t_u8) radio_cfg->param.band_cfg.adhoc_start_band;
+		infra_band = (t_u8)radio_cfg->param.band_cfg.config_bands;
+		adhoc_band = (t_u8)radio_cfg->param.band_cfg.adhoc_start_band;
 		adhoc_channel = radio_cfg->param.band_cfg.adhoc_channel;
 
 		/* SET Infra band */
@@ -474,7 +474,7 @@ wlan_radio_ioctl_band_cfg(IN pmlan_adapter pmadapter,
 		global_band |= infra_band;
 
 		if (wlan_set_regiontable
-		    (pmpriv, (t_u8) pmadapter->region_code,
+		    (pmpriv, (t_u8)pmadapter->region_code,
 		     global_band | adhoc_band)) {
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_FAIL;
 			LEAVE();
@@ -493,7 +493,7 @@ wlan_radio_ioctl_band_cfg(IN pmlan_adapter pmadapter,
 		pmadapter->adhoc_start_band = adhoc_band;
 		pmpriv->intf_state_11h.adhoc_auto_sel_chan = MFALSE;
 		pmadapter->chan_bandwidth =
-			(t_u8) radio_cfg->param.band_cfg.adhoc_chan_bandwidth;
+			(t_u8)radio_cfg->param.band_cfg.adhoc_chan_bandwidth;
 		/*
 		 * If no adhoc_channel is supplied verify if the existing
 		 * adhoc channel compiles with new adhoc_band
@@ -518,13 +518,13 @@ wlan_radio_ioctl_band_cfg(IN pmlan_adapter pmadapter,
 			   combination is invalid */
 			if (!wlan_find_cfp_by_band_and_channel
 			    (pmadapter, pmadapter->adhoc_start_band,
-			     (t_u16) adhoc_channel)) {
+			     (t_u16)adhoc_channel)) {
 				pioctl_req->status_code =
 					MLAN_ERROR_INVALID_PARAMETER;
 				LEAVE();
 				return MLAN_STATUS_FAILURE;
 			}
-			pmpriv->adhoc_channel = (t_u8) adhoc_channel;
+			pmpriv->adhoc_channel = (t_u8)adhoc_channel;
 		}
 
 		/* validate the channel offset */
@@ -596,7 +596,7 @@ wlan_radio_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	radio_cfg = (mlan_ds_radio_cfg *) pioctl_req->pbuf;
+	radio_cfg = (mlan_ds_radio_cfg *)pioctl_req->pbuf;
 	switch (radio_cfg->sub_command) {
 	case MLAN_OID_RADIO_CTRL:
 		status = wlan_radio_ioctl_radio_ctl(pmadapter, pioctl_req);
@@ -639,7 +639,7 @@ wlan_bss_ioctl_mac_address(IN pmlan_adapter pmadapter,
 	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	ENTER();
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		pioctl_req->data_read_written =
 			MLAN_MAC_ADDR_LENGTH + MLAN_SUB_COMMAND_SIZE;
@@ -656,7 +656,7 @@ wlan_bss_ioctl_mac_address(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_MAC_ADDRESS,
 			       HostCmd_ACT_GEN_SET,
-			       0, (t_void *) pioctl_req, MNULL);
+			       0, (t_void *)pioctl_req, MNULL);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 exit:
@@ -684,7 +684,7 @@ wlan_bss_ioctl_set_multicast_list(IN pmlan_adapter pmadapter,
 	ENTER();
 
 	old_pkt_filter = pmpriv->curr_pkt_filter;
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
 		ret = MLAN_STATUS_FAILURE;
@@ -745,7 +745,7 @@ wlan_bss_ioctl_set_multicast_list(IN pmlan_adapter pmadapter,
 				       HostCmd_CMD_MAC_CONTROL,
 				       HostCmd_ACT_GEN_SET,
 				       0,
-				       (t_void *) pioctl_req,
+				       (t_void *)pioctl_req,
 				       &pmpriv->curr_pkt_filter);
 		if (ret == MLAN_STATUS_SUCCESS)
 			ret = MLAN_STATUS_PENDING;
@@ -776,7 +776,7 @@ wlan_bss_ioctl_get_channel_list(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action != MLAN_ACT_GET) {
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
 		LEAVE();
@@ -806,7 +806,7 @@ wlan_bss_ioctl_get_channel_list(IN pmlan_adapter pmadapter,
 
 		if (wlan_11d_parse_domain_info
 		    (pmadapter, &pbss_desc->country_info,
-		     (t_u8) pbss_desc->bss_band,
+		     (t_u8)pbss_desc->bss_band,
 		     &region_chan) == MLAN_STATUS_SUCCESS) {
 
 			parsed_region_chan = &region_chan;
@@ -824,11 +824,11 @@ wlan_bss_ioctl_get_channel_list(IN pmlan_adapter pmadapter,
 			band = parsed_region_chan->chan_pwr[i].band;
 			PRINTM(MINFO, "band=%d, chan_no=%d\n", band, chan_no);
 			bss->param.chanlist.cf[bss->param.chanlist.num_of_chan].
-				channel = (t_u32) chan_no;
+				channel = (t_u32)chan_no;
 			bss->param.chanlist.cf[bss->param.chanlist.num_of_chan].
 				freq =
-				(t_u32) wlan_11d_chan_2_freq(pmadapter, chan_no,
-							     band);
+				(t_u32)wlan_11d_chan_2_freq(pmadapter, chan_no,
+							    band);
 			bss->param.chanlist.num_of_chan++;
 		}
 	} else {
@@ -843,10 +843,10 @@ wlan_bss_ioctl_get_channel_list(IN pmlan_adapter pmadapter,
 			     (i < pmadapter->region_channel[j].num_cfp); i++) {
 				bss->param.chanlist.cf[bss->param.chanlist.
 						       num_of_chan].channel =
-					(t_u32) cfp->channel;
+					(t_u32)cfp->channel;
 				bss->param.chanlist.cf[bss->param.chanlist.
 						       num_of_chan].freq =
-					(t_u32) cfp->freq;
+					(t_u32)cfp->freq;
 				bss->param.chanlist.num_of_chan++;
 				cfp++;
 			}
@@ -889,12 +889,12 @@ wlan_bss_ioctl_channel(IN pmlan_adapter pmadapter,
 		return MLAN_STATUS_FAILURE;
 	}
 	pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		cfp = wlan_find_cfp_by_band_and_channel(pmadapter,
 							pmpriv->curr_bss_params.
 							band,
-							(t_u16) pmpriv->
+							(t_u16)pmpriv->
 							curr_bss_params.
 							bss_descriptor.channel);
 		if (cfp) {
@@ -922,13 +922,13 @@ wlan_bss_ioctl_channel(IN pmlan_adapter pmadapter,
 		if (bss->param.bss_chan.channel <= MAX_CHANNEL_BAND_B)
 			cfp = wlan_find_cfp_by_band_and_channel(pmadapter,
 								BAND_B,
-								(t_u16) bss->
+								(t_u16)bss->
 								param.bss_chan.
 								channel);
 		if (!cfp) {
 			cfp = wlan_find_cfp_by_band_and_channel(pmadapter,
 								BAND_A,
-								(t_u16) bss->
+								(t_u16)bss->
 								param.bss_chan.
 								channel);
 			if (cfp) {
@@ -965,7 +965,7 @@ wlan_bss_ioctl_channel(IN pmlan_adapter pmadapter,
 		return MLAN_STATUS_FAILURE;
 
 	}
-	pmpriv->adhoc_channel = (t_u8) cfp->channel;
+	pmpriv->adhoc_channel = (t_u8)cfp->channel;
 	pmpriv->intf_state_11h.adhoc_auto_sel_chan = MFALSE;
 	bss->param.bss_chan.channel = cfp->channel;
 	bss->param.bss_chan.freq = cfp->freq;
@@ -988,7 +988,7 @@ wlan_bss_ioctl_mode(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 
 	ENTER();
 
@@ -1025,7 +1025,7 @@ wlan_bss_ioctl_mode(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		ret = wlan_prepare_cmd(pmpriv,
 				       HostCmd_CMD_SET_BSS_MODE,
 				       HostCmd_ACT_GEN_SET,
-				       0, (t_void *) pioctl_req, MNULL);
+				       0, (t_void *)pioctl_req, MNULL);
 		if (ret == MLAN_STATUS_SUCCESS)
 			ret = MLAN_STATUS_PENDING;
 	}
@@ -1047,7 +1047,7 @@ wlan_bss_ioctl_start(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	mlan_ds_bss *bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	t_s32 i = -1;
 	t_u8 zero_mac[] = { 0, 0, 0, 0, 0, 0 };
 
@@ -1074,8 +1074,8 @@ wlan_bss_ioctl_start(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 								   &bss->param.
 								   ssid_bssid.
 								   ssid,
-								   (t_u8 *) &
-								   bss->param.
+								   (t_u8 *)
+								   &bss->param.
 								   ssid_bssid.
 								   bssid,
 								   MLAN_BSS_MODE_INFRA);
@@ -1087,9 +1087,8 @@ wlan_bss_ioctl_start(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 								   MLAN_BSS_MODE_INFRA);
 			} else {
 				i = wlan_find_bssid_in_list(pmpriv,
-							    (t_u8 *) & bss->
-							    param.ssid_bssid.
-							    bssid,
+							    (t_u8 *)&bss->param.
+							    ssid_bssid.bssid,
 							    MLAN_BSS_MODE_INFRA);
 			}
 		} else {
@@ -1103,7 +1102,7 @@ wlan_bss_ioctl_start(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 			/* block if upper-layer tries to reconnect before new
 			   scan */
 			if (wlan_11h_get_csa_closed_channel(pmpriv) ==
-			    (t_u8) pmadapter->pscan_table[i].channel) {
+			    (t_u8)pmadapter->pscan_table[i].channel) {
 				PRINTM(MINFO,
 				       "Attempt to reconnect on csa_closed_chan(%d)\n",
 				       pmadapter->pscan_table[i].channel);
@@ -1162,9 +1161,8 @@ wlan_bss_ioctl_start(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 							   MLAN_BSS_MODE_IBSS);
 			} else {
 				i = wlan_find_bssid_in_list(pmpriv,
-							    (t_u8 *) & bss->
-							    param.ssid_bssid.
-							    bssid,
+							    (t_u8 *)&bss->param.
+							    ssid_bssid.bssid,
 							    MLAN_BSS_MODE_IBSS);
 			}
 		} else {
@@ -1218,7 +1216,7 @@ wlan_bss_ioctl_stop(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	mlan_ds_bss *bss = (mlan_ds_bss *)pioctl_req->pbuf;
 
 	ENTER();
 
@@ -1247,7 +1245,7 @@ wlan_bss_ioctl_ibss_channel(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		if (pmpriv->media_connected == MFALSE) {
 			bss->param.bss_chan.channel = pmpriv->adhoc_channel;
@@ -1256,7 +1254,7 @@ wlan_bss_ioctl_ibss_channel(IN pmlan_adapter pmadapter,
 		cmd_action = HostCmd_ACT_GEN_GET;
 	} else {
 		cmd_action = HostCmd_ACT_GEN_SET;
-		pmpriv->adhoc_channel = (t_u8) bss->param.bss_chan.channel;
+		pmpriv->adhoc_channel = (t_u8)bss->param.bss_chan.channel;
 		pmpriv->intf_state_11h.adhoc_auto_sel_chan = MFALSE;
 	}
 
@@ -1265,7 +1263,7 @@ wlan_bss_ioctl_ibss_channel(IN pmlan_adapter pmadapter,
 			       HostCmd_CMD_802_11_RF_CHANNEL,
 			       cmd_action,
 			       0,
-			       (t_void *) pioctl_req,
+			       (t_void *)pioctl_req,
 			       &bss->param.bss_chan.channel);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -1292,7 +1290,7 @@ wlan_bss_ioctl_listen_interval(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET)
 		bss->param.listen_interval = pmpriv->listen_interval;
 	else
@@ -1318,7 +1316,7 @@ wlan_bss_ioctl_beacon_interval(IN pmlan_adapter pmadapter,
 	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	ENTER();
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		bss->param.bcn_interval = pmpriv->beacon_period;
 		if (pmpriv->media_connected == MTRUE)
@@ -1326,7 +1324,7 @@ wlan_bss_ioctl_beacon_interval(IN pmlan_adapter pmadapter,
 				pmpriv->curr_bss_params.bss_descriptor.
 				beacon_period;
 	} else
-		pmpriv->beacon_period = (t_u16) bss->param.bcn_interval;
+		pmpriv->beacon_period = (t_u16)bss->param.bcn_interval;
 	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
 	LEAVE();
 	return ret;
@@ -1348,7 +1346,7 @@ wlan_bss_ioctl_atim_window(IN pmlan_adapter pmadapter,
 	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	ENTER();
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		bss->param.atim_window = pmpriv->atim_window;
 		if (pmpriv->media_connected == MTRUE)
@@ -1356,7 +1354,7 @@ wlan_bss_ioctl_atim_window(IN pmlan_adapter pmadapter,
 				pmpriv->curr_bss_params.bss_descriptor.
 				atim_window;
 	} else
-		pmpriv->atim_window = (t_u16) bss->param.atim_window;
+		pmpriv->atim_window = (t_u16)bss->param.atim_window;
 
 	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
 	LEAVE();
@@ -1372,7 +1370,7 @@ wlan_bss_ioctl_atim_window(IN pmlan_adapter pmadapter,
  *  @return                     MLAN_STATUS_SUCCESS -- success, otherwise fail
  */
 static mlan_status
-wlan_query_passphrase(mlan_private * priv, pmlan_ioctl_req pioctl_req)
+wlan_query_passphrase(mlan_private *priv, pmlan_ioctl_req pioctl_req)
 {
 	mlan_adapter *pmadapter = priv->adapter;
 	mlan_ds_bss *bss = MNULL;
@@ -1384,13 +1382,13 @@ wlan_query_passphrase(mlan_private * priv, pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	ssid_bssid = &bss->param.ssid_bssid;
 
 	memset(pmadapter, &sec_pp, 0, sizeof(mlan_ds_passphrase));
 	sec_pp.psk_type = MLAN_PSK_QUERY;
 	if (ssid_bssid->ssid.ssid_len == 0) {
-		i = wlan_find_bssid_in_list(priv, (t_u8 *) & ssid_bssid->bssid,
+		i = wlan_find_bssid_in_list(priv, (t_u8 *)&ssid_bssid->bssid,
 					    MLAN_BSS_MODE_AUTO);
 		if (i >= 0) {
 			pbss_desc = &pmadapter->pscan_table[i];
@@ -1408,7 +1406,7 @@ wlan_query_passphrase(mlan_private * priv, pmlan_ioctl_req pioctl_req)
 	ret = wlan_prepare_cmd(priv,
 			       HostCmd_CMD_SUPPLICANT_PMK,
 			       HostCmd_ACT_GEN_GET,
-			       0, (t_void *) pioctl_req, &sec_pp);
+			       0, (t_void *)pioctl_req, &sec_pp);
 
 	LEAVE();
 	return ret;
@@ -1471,7 +1469,7 @@ wlan_bss_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		return MLAN_STATUS_RESOURCE;
 	}
 
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 
 	switch (bss->sub_command) {
 	case MLAN_OID_BSS_START:
@@ -1555,7 +1553,7 @@ wlan_rate_ioctl_get_supported_rate(IN pmlan_adapter pmadapter,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	rate = (mlan_ds_rate *) pioctl_req->pbuf;
+	rate = (mlan_ds_rate *)pioctl_req->pbuf;
 	if (rate->param.rate_band_cfg.config_bands &&
 	    rate->param.rate_band_cfg.bss_mode)
 		wlan_get_active_data_rates(pmpriv,
@@ -1598,7 +1596,7 @@ wlan_rate_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	rate = (mlan_ds_rate *) pioctl_req->pbuf;
+	rate = (mlan_ds_rate *)pioctl_req->pbuf;
 	switch (rate->sub_command) {
 	case MLAN_OID_RATE_CFG:
 		status = wlan_rate_ioctl_cfg(pmadapter, pioctl_req);
@@ -1641,7 +1639,7 @@ wlan_power_ioctl_get_power(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       cmd_no,
 			       HostCmd_ACT_GEN_GET,
-			       0, (t_void *) pioctl_req, MNULL);
+			       0, (t_void *)pioctl_req, MNULL);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -1675,9 +1673,9 @@ wlan_power_ioctl_set_power(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	power = (mlan_ds_power_cfg *) pioctl_req->pbuf;
+	power = (mlan_ds_power_cfg *)pioctl_req->pbuf;
 	if (!power->param.power_cfg.is_power_auto) {
-		dbm = (t_s8) power->param.power_cfg.power_level;
+		dbm = (t_s8)power->param.power_cfg.power_level;
 		if ((dbm < pmpriv->min_tx_power_level) ||
 		    (dbm > pmpriv->max_tx_power_level)) {
 			PRINTM(MERROR,
@@ -1700,40 +1698,40 @@ wlan_power_ioctl_set_power(IN pmlan_adapter pmadapter,
 		goto exit;
 	}
 	memset(pmadapter, buf, 0, MRVDRV_SIZE_OF_CMD_BUFFER);
-	txp_cfg = (HostCmd_DS_TXPWR_CFG *) buf;
+	txp_cfg = (HostCmd_DS_TXPWR_CFG *)buf;
 	txp_cfg->action = HostCmd_ACT_GEN_SET;
 	if (!power->param.power_cfg.is_power_auto) {
 		txp_cfg->mode = 1;
-		pg_tlv = (MrvlTypes_Power_Group_t *) (buf +
-						      sizeof
-						      (HostCmd_DS_TXPWR_CFG));
+		pg_tlv = (MrvlTypes_Power_Group_t *)(buf +
+						     sizeof
+						     (HostCmd_DS_TXPWR_CFG));
 		pg_tlv->type = TLV_TYPE_POWER_GROUP;
 		pg_tlv->length = 4 * sizeof(Power_Group_t);
-		pg = (Power_Group_t *) (buf + sizeof(HostCmd_DS_TXPWR_CFG) +
-					sizeof(MrvlTypes_Power_Group_t));
+		pg = (Power_Group_t *)(buf + sizeof(HostCmd_DS_TXPWR_CFG) +
+				       sizeof(MrvlTypes_Power_Group_t));
 		/* Power group for modulation class HR/DSSS */
 		pg->first_rate_code = 0x00;
 		pg->last_rate_code = 0x03;
 		pg->modulation_class = MOD_CLASS_HR_DSSS;
 		pg->power_step = 0;
-		pg->power_min = (t_s8) dbm;
-		pg->power_max = (t_s8) dbm;
+		pg->power_min = (t_s8)dbm;
+		pg->power_max = (t_s8)dbm;
 		pg++;
 		/* Power group for modulation class OFDM */
 		pg->first_rate_code = 0x00;
 		pg->last_rate_code = 0x07;
 		pg->modulation_class = MOD_CLASS_OFDM;
 		pg->power_step = 0;
-		pg->power_min = (t_s8) dbm;
-		pg->power_max = (t_s8) dbm;
+		pg->power_min = (t_s8)dbm;
+		pg->power_max = (t_s8)dbm;
 		pg++;
 		/* Power group for modulation class HTBW20 */
 		pg->first_rate_code = 0x00;
 		pg->last_rate_code = 0x20;
 		pg->modulation_class = MOD_CLASS_HT;
 		pg->power_step = 0;
-		pg->power_min = (t_s8) dbm;
-		pg->power_max = (t_s8) dbm;
+		pg->power_min = (t_s8)dbm;
+		pg->power_max = (t_s8)dbm;
 		pg->ht_bandwidth = HT_BW_20;
 		pg++;
 		/* Power group for modulation class HTBW40 */
@@ -1741,8 +1739,8 @@ wlan_power_ioctl_set_power(IN pmlan_adapter pmadapter,
 		pg->last_rate_code = 0x20;
 		pg->modulation_class = MOD_CLASS_HT;
 		pg->power_step = 0;
-		pg->power_min = (t_s8) dbm;
-		pg->power_max = (t_s8) dbm;
+		pg->power_min = (t_s8)dbm;
+		pg->power_max = (t_s8)dbm;
 		pg->ht_bandwidth = HT_BW_40;
 	}
 
@@ -1750,7 +1748,7 @@ wlan_power_ioctl_set_power(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_TXPWR_CFG,
 			       HostCmd_ACT_GEN_SET,
-			       0, (t_void *) pioctl_req, buf);
+			       0, (t_void *)pioctl_req, buf);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -1787,7 +1785,7 @@ wlan_power_ioctl_set_power_ext(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	power = (mlan_ds_power_cfg *) pioctl_req->pbuf;
+	power = (mlan_ds_power_cfg *)pioctl_req->pbuf;
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle,
 			       MRVDRV_SIZE_OF_CMD_BUFFER, MLAN_MEM_DEF, &buf);
 	if (ret != MLAN_STATUS_SUCCESS || buf == MNULL) {
@@ -1798,7 +1796,7 @@ wlan_power_ioctl_set_power_ext(IN pmlan_adapter pmadapter,
 		goto exit;
 	}
 	memset(pmadapter, buf, 0, MRVDRV_SIZE_OF_CMD_BUFFER);
-	txp_cfg = (HostCmd_DS_TXPWR_CFG *) buf;
+	txp_cfg = (HostCmd_DS_TXPWR_CFG *)buf;
 	txp_cfg->action = HostCmd_ACT_GEN_SET;
 	pwr_grp = &power->param.power_ext.power_group[0];
 	if (pwr_grp->rate_format == TX_PWR_CFG_AUTO_CTRL_OFF)
@@ -1806,17 +1804,17 @@ wlan_power_ioctl_set_power_ext(IN pmlan_adapter pmadapter,
 	else {
 		txp_cfg->mode = 1;
 
-		pg_tlv = (MrvlTypes_Power_Group_t *) (buf +
-						      sizeof
-						      (HostCmd_DS_TXPWR_CFG));
+		pg_tlv = (MrvlTypes_Power_Group_t *)(buf +
+						     sizeof
+						     (HostCmd_DS_TXPWR_CFG));
 		pg_tlv->type = TLV_TYPE_POWER_GROUP;
 		pg_tlv->length = sizeof(Power_Group_t);
-		pg = (Power_Group_t *) (buf + sizeof(HostCmd_DS_TXPWR_CFG) +
-					sizeof(MrvlTypes_Power_Group_t));
+		pg = (Power_Group_t *)(buf + sizeof(HostCmd_DS_TXPWR_CFG) +
+				       sizeof(MrvlTypes_Power_Group_t));
 		pg->ht_bandwidth = pwr_grp->bandwidth;
-		pg->power_min = (t_s8) pwr_grp->power_min;
-		pg->power_max = (t_s8) pwr_grp->power_max;
-		pg->power_step = (t_s8) pwr_grp->power_step;
+		pg->power_min = (t_s8)pwr_grp->power_min;
+		pg->power_max = (t_s8)pwr_grp->power_max;
+		pg->power_step = (t_s8)pwr_grp->power_step;
 
 		if (pwr_grp->rate_format == MLAN_RATE_FORMAT_LG) {
 			if (pwr_grp->first_rate_ind <= MLAN_RATE_INDEX_HRDSSS3) {
@@ -1827,23 +1825,22 @@ wlan_power_ioctl_set_power_ext(IN pmlan_adapter pmadapter,
 					MLAN_RATE_INDEX_OFDM0;
 				pwr_grp->last_rate_ind -= MLAN_RATE_INDEX_OFDM0;
 			}
-			pg->first_rate_code = (t_u8) pwr_grp->first_rate_ind;
-			pg->last_rate_code = (t_u8) pwr_grp->last_rate_ind;
+			pg->first_rate_code = (t_u8)pwr_grp->first_rate_ind;
+			pg->last_rate_code = (t_u8)pwr_grp->last_rate_ind;
 		} else if (pwr_grp->rate_format == MLAN_RATE_FORMAT_HT) {
 			pg->modulation_class = MOD_CLASS_HT;
-			pg->first_rate_code = (t_u8) pwr_grp->first_rate_ind;
-			pg->last_rate_code = (t_u8) pwr_grp->last_rate_ind;
+			pg->first_rate_code = (t_u8)pwr_grp->first_rate_ind;
+			pg->last_rate_code = (t_u8)pwr_grp->last_rate_ind;
 		} else if (pwr_grp->rate_format == MLAN_RATE_FORMAT_VHT) {
 			pg->modulation_class = MOD_CLASS_VHT;
 			pg->first_rate_code =
-				(t_u8) ((pwr_grp->
-					 first_rate_ind & 0xF) | ((pwr_grp->
-								   nss -
-								   1) << 4));
-			pg->last_rate_code =
-				(t_u8) ((pwr_grp->
-					 last_rate_ind & 0xF) | ((pwr_grp->nss -
+				(t_u8)((pwr_grp->
+					first_rate_ind & 0xF) | ((pwr_grp->nss -
 								  1) << 4));
+			pg->last_rate_code =
+				(t_u8)((pwr_grp->
+					last_rate_ind & 0xF) | ((pwr_grp->nss -
+								 1) << 4));
 		} else {
 			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
 			ret = MLAN_STATUS_FAILURE;
@@ -1859,7 +1856,7 @@ wlan_power_ioctl_set_power_ext(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_TXPWR_CFG,
 			       HostCmd_ACT_GEN_SET,
-			       0, (t_void *) pioctl_req, buf);
+			       0, (t_void *)pioctl_req, buf);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 	if (buf)
@@ -1894,7 +1891,7 @@ wlan_power_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	power = (mlan_ds_power_cfg *) pioctl_req->pbuf;
+	power = (mlan_ds_power_cfg *)pioctl_req->pbuf;
 	switch (power->sub_command) {
 	case MLAN_OID_POWER_CFG:
 		if (pioctl_req->action == MLAN_ACT_GET)
@@ -1948,7 +1945,7 @@ wlan_pm_ioctl_ps_mode(IN pmlan_adapter pmadapter,
 			EN_AUTO_PS : DIS_AUTO_PS;
 		ret = wlan_prepare_cmd(pmpriv,
 				       HostCmd_CMD_802_11_PS_MODE_ENH, sub_cmd,
-				       BITMAP_STA_PS, (t_void *) pioctl_req,
+				       BITMAP_STA_PS, (t_void *)pioctl_req,
 				       MNULL);
 		if ((ret == MLAN_STATUS_SUCCESS) && (sub_cmd == DIS_AUTO_PS)) {
 			ret = wlan_prepare_cmd(pmpriv,
@@ -1958,7 +1955,7 @@ wlan_pm_ioctl_ps_mode(IN pmlan_adapter pmadapter,
 	} else {
 		ret = wlan_prepare_cmd(pmpriv,
 				       HostCmd_CMD_802_11_PS_MODE_ENH, GET_PS,
-				       0, (t_void *) pioctl_req, MNULL);
+				       0, (t_void *)pioctl_req, MNULL);
 	}
 
 	if (ret == MLAN_STATUS_SUCCESS)
@@ -1987,7 +1984,7 @@ wlan_pm_ioctl_inactivity_timeout(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	pmcfg = (mlan_ds_pm_cfg *) pioctl_req->pbuf;
+	pmcfg = (mlan_ds_pm_cfg *)pioctl_req->pbuf;
 	cmd_action = HostCmd_ACT_GEN_GET;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
@@ -1995,8 +1992,8 @@ wlan_pm_ioctl_inactivity_timeout(IN pmlan_adapter pmadapter,
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_INACTIVITY_TIMEOUT_EXT,
-			       cmd_action, 0, (t_void *) pioctl_req,
-			       (t_void *) & pmcfg->param.inactivity_to);
+			       cmd_action, 0, (t_void *)pioctl_req,
+			       (t_void *)&pmcfg->param.inactivity_to);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -2019,13 +2016,13 @@ wlan_set_auto_deep_sleep(IN pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_private pmpriv =
-		(pmlan_private) pmadapter->priv[pioctl_req->bss_index];
+		(pmlan_private)pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_auto_ds auto_ds;
 	t_u32 mode;
 
 	ENTER();
 
-	if (((mlan_ds_pm_cfg *) pioctl_req->pbuf)->param.auto_deep_sleep.
+	if (((mlan_ds_pm_cfg *)pioctl_req->pbuf)->param.auto_deep_sleep.
 	    auto_ds == DEEP_SLEEP_ON) {
 		auto_ds.auto_ds = DEEP_SLEEP_ON;
 		PRINTM(MINFO, "Auto Deep Sleep: on\n");
@@ -2035,10 +2032,10 @@ wlan_set_auto_deep_sleep(IN pmlan_adapter pmadapter,
 		PRINTM(MINFO, "Auto Deep Sleep: off\n");
 		mode = DIS_AUTO_PS;
 	}
-	if (((mlan_ds_pm_cfg *) pioctl_req->pbuf)->param.auto_deep_sleep.
+	if (((mlan_ds_pm_cfg *)pioctl_req->pbuf)->param.auto_deep_sleep.
 	    idletime)
 		auto_ds.idletime =
-			((mlan_ds_pm_cfg *) pioctl_req->pbuf)->param.
+			((mlan_ds_pm_cfg *)pioctl_req->pbuf)->param.
 			auto_deep_sleep.idletime;
 	else
 		auto_ds.idletime = pmadapter->idle_time;
@@ -2046,8 +2043,8 @@ wlan_set_auto_deep_sleep(IN pmlan_adapter pmadapter,
 	   command in progress. */
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_PS_MODE_ENH,
-			       (t_u16) mode,
-			       BITMAP_AUTO_DS, (t_void *) pioctl_req, &auto_ds);
+			       (t_u16)mode,
+			       BITMAP_AUTO_DS, (t_void *)pioctl_req, &auto_ds);
 	if (ret) {
 		LEAVE();
 		return ret;
@@ -2075,15 +2072,15 @@ wlan_set_get_sleep_pd(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
-	pm_cfg = (mlan_ds_pm_cfg *) pioctl_req->pbuf;
+	pm_cfg = (mlan_ds_pm_cfg *)pioctl_req->pbuf;
 	cmd_action = HostCmd_ACT_GEN_GET;
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		cmd_action = HostCmd_ACT_GEN_SET;
-		sleep_pd = (t_u16) pm_cfg->param.sleep_period;
+		sleep_pd = (t_u16)pm_cfg->param.sleep_period;
 	}
 
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_SLEEP_PERIOD,
-			       cmd_action, 0, (t_void *) pioctl_req, &sleep_pd);
+			       cmd_action, 0, (t_void *)pioctl_req, &sleep_pd);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -2107,69 +2104,69 @@ wlan_set_get_ps_cfg(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
-	pm_cfg = (mlan_ds_pm_cfg *) pioctl_req->pbuf;
+	pm_cfg = (mlan_ds_pm_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		pm_cfg->param.ps_cfg.ps_null_interval =
-			(t_u32) pmadapter->null_pkt_interval;
+			(t_u32)pmadapter->null_pkt_interval;
 		pm_cfg->param.ps_cfg.multiple_dtim_interval =
-			(t_u32) pmadapter->multiple_dtim;
+			(t_u32)pmadapter->multiple_dtim;
 		pm_cfg->param.ps_cfg.listen_interval =
-			(t_u32) pmadapter->local_listen_interval;
+			(t_u32)pmadapter->local_listen_interval;
 		pm_cfg->param.ps_cfg.adhoc_awake_period =
-			(t_u32) pmadapter->adhoc_awake_period;
+			(t_u32)pmadapter->adhoc_awake_period;
 		pm_cfg->param.ps_cfg.bcn_miss_timeout =
-			(t_u32) pmadapter->bcn_miss_time_out;
+			(t_u32)pmadapter->bcn_miss_time_out;
 		pm_cfg->param.ps_cfg.delay_to_ps =
-			(t_u32) pmadapter->delay_to_ps;
+			(t_u32)pmadapter->delay_to_ps;
 		pm_cfg->param.ps_cfg.ps_mode =
-			(t_u32) pmadapter->enhanced_ps_mode;
+			(t_u32)pmadapter->enhanced_ps_mode;
 	} else {
 		if (pm_cfg->param.ps_cfg.ps_null_interval)
 			pmadapter->null_pkt_interval =
-				(t_u16) pm_cfg->param.ps_cfg.ps_null_interval;
+				(t_u16)pm_cfg->param.ps_cfg.ps_null_interval;
 		else
 			pm_cfg->param.ps_cfg.ps_null_interval =
-				(t_u32) pmadapter->null_pkt_interval;
+				(t_u32)pmadapter->null_pkt_interval;
 		if (pm_cfg->param.ps_cfg.multiple_dtim_interval)
 			pmadapter->multiple_dtim =
-				(t_u16) pm_cfg->param.ps_cfg.
+				(t_u16)pm_cfg->param.ps_cfg.
 				multiple_dtim_interval;
 		else
 			pm_cfg->param.ps_cfg.multiple_dtim_interval =
-				(t_u32) pmadapter->multiple_dtim;
-		if (((t_s32) pm_cfg->param.ps_cfg.listen_interval) ==
+				(t_u32)pmadapter->multiple_dtim;
+		if (((t_s32)pm_cfg->param.ps_cfg.listen_interval) ==
 		    MRVDRV_LISTEN_INTERVAL_DISABLE)
 			pmadapter->local_listen_interval = 0;
 		else if (pm_cfg->param.ps_cfg.listen_interval)
 			pmadapter->local_listen_interval =
-				(t_u16) pm_cfg->param.ps_cfg.listen_interval;
+				(t_u16)pm_cfg->param.ps_cfg.listen_interval;
 		else
 			pm_cfg->param.ps_cfg.listen_interval =
-				(t_u32) pmadapter->local_listen_interval;
+				(t_u32)pmadapter->local_listen_interval;
 		if (pm_cfg->param.ps_cfg.adhoc_awake_period)
 			pmadapter->adhoc_awake_period =
-				(t_u16) pm_cfg->param.ps_cfg.adhoc_awake_period;
+				(t_u16)pm_cfg->param.ps_cfg.adhoc_awake_period;
 		else
 			pm_cfg->param.ps_cfg.adhoc_awake_period =
-				(t_u32) pmadapter->adhoc_awake_period;
+				(t_u32)pmadapter->adhoc_awake_period;
 		if (pm_cfg->param.ps_cfg.bcn_miss_timeout)
 			pmadapter->bcn_miss_time_out =
-				(t_u16) pm_cfg->param.ps_cfg.bcn_miss_timeout;
+				(t_u16)pm_cfg->param.ps_cfg.bcn_miss_timeout;
 		else
 			pm_cfg->param.ps_cfg.bcn_miss_timeout =
-				(t_u32) pmadapter->bcn_miss_time_out;
+				(t_u32)pmadapter->bcn_miss_time_out;
 		if (pm_cfg->param.ps_cfg.delay_to_ps != DELAY_TO_PS_UNCHANGED)
 			pmadapter->delay_to_ps =
-				(t_u16) pm_cfg->param.ps_cfg.delay_to_ps;
+				(t_u16)pm_cfg->param.ps_cfg.delay_to_ps;
 		else
 			pm_cfg->param.ps_cfg.delay_to_ps =
-				(t_u32) pmadapter->delay_to_ps;
+				(t_u32)pmadapter->delay_to_ps;
 		if (pm_cfg->param.ps_cfg.ps_mode)
 			pmadapter->enhanced_ps_mode =
-				(t_u16) pm_cfg->param.ps_cfg.ps_mode;
+				(t_u16)pm_cfg->param.ps_cfg.ps_mode;
 		else
 			pm_cfg->param.ps_cfg.ps_mode =
-				(t_u32) pmadapter->enhanced_ps_mode;
+				(t_u32)pmadapter->enhanced_ps_mode;
 	}
 	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
 
@@ -2196,14 +2193,14 @@ wlan_set_get_sleep_params(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	pm_cfg = (mlan_ds_pm_cfg *) pioctl_req->pbuf;
+	pm_cfg = (mlan_ds_pm_cfg *)pioctl_req->pbuf;
 	cmd_action = HostCmd_ACT_GEN_GET;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
 
 	/* Send command to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_SLEEP_PARAMS,
-			       cmd_action, 0, (t_void *) pioctl_req,
+			       cmd_action, 0, (t_void *)pioctl_req,
 			       &pm_cfg->param.sleep_params);
 
 	if (ret == MLAN_STATUS_SUCCESS)
@@ -2236,7 +2233,7 @@ wlan_pm_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	pm = (mlan_ds_pm_cfg *) pioctl_req->pbuf;
+	pm = (mlan_ds_pm_cfg *)pioctl_req->pbuf;
 	switch (pm->sub_command) {
 	case MLAN_OID_PM_CFG_IEEE_PS:
 		switch (pioctl_req->action) {
@@ -2336,7 +2333,7 @@ wlan_pm_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
  *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static mlan_status
-wlan_set_wpa_ie_helper(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
+wlan_set_wpa_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr, t_u16 ie_len)
 {
 	ENTER();
 
@@ -2347,7 +2344,7 @@ wlan_set_wpa_ie_helper(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 			return MLAN_STATUS_FAILURE;
 		}
 		memcpy(priv->adapter, priv->wpa_ie, ie_data_ptr, ie_len);
-		priv->wpa_ie_len = (t_u8) ie_len;
+		priv->wpa_ie_len = (t_u8)ie_len;
 		PRINTM(MIOCTL, "Set Wpa_ie_len=%d IE=%#x\n", priv->wpa_ie_len,
 		       priv->wpa_ie[0]);
 		DBG_HEXDUMP(MCMD_D, "Wpa_ie", priv->wpa_ie, priv->wpa_ie_len);
@@ -2382,7 +2379,7 @@ wlan_set_wpa_ie_helper(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
  *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static mlan_status
-wlan_set_osen_ie(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
+wlan_set_osen_ie(mlan_private *priv, t_u8 *ie_data_ptr, t_u16 ie_len)
 {
 	ENTER();
 	if (ie_len) {
@@ -2392,7 +2389,7 @@ wlan_set_osen_ie(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 			return MLAN_STATUS_FAILURE;
 		}
 		memcpy(priv->adapter, priv->osen_ie, ie_data_ptr, ie_len);
-		priv->osen_ie_len = (t_u8) ie_len;
+		priv->osen_ie_len = (t_u8)ie_len;
 		PRINTM(MIOCTL, "Set osen_ie_len=%d IE=%#x\n", priv->osen_ie_len,
 		       priv->osen_ie[0]);
 		DBG_HEXDUMP(MCMD_D, "osen_ie", priv->osen_ie,
@@ -2400,7 +2397,7 @@ wlan_set_osen_ie(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 		priv->sec_info.osen_enabled = MTRUE;
 	} else {
 		memset(priv->adapter, priv->osen_ie, 0, sizeof(priv->osen_ie));
-		priv->osen_ie_len = (t_u8) ie_len;
+		priv->osen_ie_len = (t_u8)ie_len;
 		PRINTM(MINFO, "Reset osen_ie_len=%d IE=%#x\n",
 		       priv->osen_ie_len, priv->osen_ie[0]);
 		priv->sec_info.osen_enabled = MFALSE;
@@ -2419,7 +2416,7 @@ wlan_set_osen_ie(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
  *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static mlan_status
-wlan_set_wapi_ie(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
+wlan_set_wapi_ie(mlan_private *priv, t_u8 *ie_data_ptr, t_u16 ie_len)
 {
 	ENTER();
 	if (ie_len) {
@@ -2429,7 +2426,7 @@ wlan_set_wapi_ie(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 			return MLAN_STATUS_FAILURE;
 		}
 		memcpy(priv->adapter, priv->wapi_ie, ie_data_ptr, ie_len);
-		priv->wapi_ie_len = (t_u8) ie_len;
+		priv->wapi_ie_len = (t_u8)ie_len;
 		PRINTM(MIOCTL, "Set wapi_ie_len=%d IE=%#x\n", priv->wapi_ie_len,
 		       priv->wapi_ie[0]);
 		DBG_HEXDUMP(MCMD_D, "wapi_ie", priv->wapi_ie,
@@ -2438,7 +2435,7 @@ wlan_set_wapi_ie(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 			priv->sec_info.wapi_enabled = MTRUE;
 	} else {
 		memset(priv->adapter, priv->wapi_ie, 0, sizeof(priv->wapi_ie));
-		priv->wapi_ie_len = (t_u8) ie_len;
+		priv->wapi_ie_len = (t_u8)ie_len;
 		PRINTM(MINFO, "Reset wapi_ie_len=%d IE=%#x\n",
 		       priv->wapi_ie_len, priv->wapi_ie[0]);
 		priv->sec_info.wapi_enabled = MFALSE;
@@ -2463,7 +2460,7 @@ wlan_sec_ioctl_wapi_enable(IN pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
 	ENTER();
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		if (pmpriv->wapi_ie_len)
 			sec->param.wapi_enabled = MTRUE;
@@ -2495,12 +2492,12 @@ wlan_sec_ioctl_set_wapi_key(IN pmlan_adapter pmadapter,
 	mlan_ds_sec_cfg *sec = MNULL;
 	ENTER();
 
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_KEY_MATERIAL,
 			       HostCmd_ACT_GEN_SET,
 			       KEY_INFO_ENABLED,
-			       (t_void *) pioctl_req, &sec->param.encrypt_key);
+			       (t_void *)pioctl_req, &sec->param.encrypt_key);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 
@@ -2526,7 +2523,7 @@ wlan_sec_ioctl_port_ctrl_enable(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		if (pmpriv->port_ctrl_mode)
 			sec->param.port_ctrl_enabled = MTRUE;
@@ -2567,7 +2564,7 @@ wlan_sec_ioctl_auth_mode(IN pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
 	ENTER();
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET)
 		sec->param.auth_mode = pmpriv->sec_info.authentication_mode;
 	else
@@ -2594,7 +2591,7 @@ wlan_sec_ioctl_encrypt_mode(IN pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
 	ENTER();
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET)
 		sec->param.encrypt_mode = pmpriv->sec_info.encryption_mode;
 	else
@@ -2645,7 +2642,7 @@ wlan_sec_ioctl_wpa_enable(IN pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
 	ENTER();
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		if (pmpriv->wpa_ie_len)
 			sec->param.wpa_enabled = MTRUE;
@@ -2687,13 +2684,13 @@ wlan_sec_ioctl_set_wep_key(IN pmlan_adapter pmadapter,
 	if (pmpriv->wep_key_curr_index >= MRVL_NUM_WEP_KEY)
 		pmpriv->wep_key_curr_index = 0;
 	pwep_key = &pmpriv->wep_key[pmpriv->wep_key_curr_index];
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (sec->param.encrypt_key.key_index == MLAN_KEY_INDEX_DEFAULT) {
 		index = pmpriv->wep_key_curr_index;
 		sec->param.encrypt_key.key_index = index;
 	} else {
 		if (sec->param.encrypt_key.key_index >= MRVL_NUM_WEP_KEY) {
-			if ((sec->param.encrypt_key.key_remove == MTRUE) &&
+			if ((sec->param.encrypt_key.key_remove == MTRUE)&&
 			    (sec->param.encrypt_key.key_index <= 5)) {
 				/* call firmware remove key */
 				ret = wlan_prepare_cmd(pmpriv,
@@ -2711,7 +2708,7 @@ wlan_sec_ioctl_set_wep_key(IN pmlan_adapter pmadapter,
 		index = sec->param.encrypt_key.key_index;
 	}
 
-	if ((sec->param.encrypt_key.key_disable == MTRUE) ||
+	if ((sec->param.encrypt_key.key_disable == MTRUE)||
 	    (sec->param.encrypt_key.key_remove == MTRUE)) {
 		pmpriv->sec_info.wep_status = Wlan802_11WEPDisabled;
 		/* remove key */
@@ -2729,9 +2726,9 @@ wlan_sec_ioctl_set_wep_key(IN pmlan_adapter pmadapter,
 		}
 	} else {
 		if (sec->param.encrypt_key.key_len) {
-			if ((sec->param.encrypt_key.key_len != WEP_104_BIT_LEN)
-			    && (sec->param.encrypt_key.key_len !=
-				WEP_40_BIT_LEN)) {
+			if ((sec->param.encrypt_key.key_len !=
+			     WEP_104_BIT_LEN)&&(sec->param.encrypt_key.
+						key_len != WEP_40_BIT_LEN)) {
 				PRINTM(MERROR, "Invalid wep key len=%d\n",
 				       sec->param.encrypt_key.key_len);
 				/* We will use random key to clear the key
@@ -2788,12 +2785,24 @@ wlan_sec_ioctl_set_wep_key(IN pmlan_adapter pmadapter,
 				ret = MLAN_STATUS_FAILURE;
 				goto exit;
 			}
-			pmpriv->wep_key_curr_index = (t_u16) index;
+			pmpriv->wep_key_curr_index = (t_u16)index;
 			pmpriv->sec_info.wep_status = Wlan802_11WEPEnabled;
 		}
 		if (sec->param.encrypt_key.key_flags && pwep_key->key_length) {
-			pmpriv->wep_key_curr_index = (t_u16) index;
-			pmpriv->sec_info.wep_status = Wlan802_11WEPEnabled;
+			pmpriv->wep_key_curr_index = (t_u16)index;
+			// Only do this if the key is an xmit key.  If the key
+			// is a group key,
+			// we might be in wpa/wep mixed mode in which case we
+			// don't want to
+			// set wep_status = Wlan802_11WEPEnabled because that
+			// enables WEP
+			// at the MAC controller level and WPA stops working
+			// properly.
+			if (sec->param.encrypt_key.
+			    key_flags & KEY_FLAG_SET_TX_KEY) {
+				pmpriv->sec_info.wep_status =
+					Wlan802_11WEPEnabled;
+			}
 		}
 	}
 	if (pmpriv->sec_info.wep_status == Wlan802_11WEPEnabled)
@@ -2821,7 +2830,7 @@ wlan_sec_ioctl_set_wep_key(IN pmlan_adapter pmadapter,
 				       HostCmd_CMD_802_11_KEY_MATERIAL,
 				       HostCmd_ACT_GEN_SET,
 				       0,
-				       (t_void *) pioctl_req,
+				       (t_void *)pioctl_req,
 				       &sec->param.encrypt_key);
 	} else {
 		if (pwep_key->key_length) {
@@ -2847,7 +2856,7 @@ wlan_sec_ioctl_set_wep_key(IN pmlan_adapter pmadapter,
 				       HostCmd_CMD_MAC_CONTROL,
 				       HostCmd_ACT_GEN_SET,
 				       0,
-				       (t_void *) pioctl_req,
+				       (t_void *)pioctl_req,
 				       &pmpriv->curr_pkt_filter);
 	}
 	if (ret == MLAN_STATUS_SUCCESS)
@@ -2876,7 +2885,7 @@ wlan_sec_ioctl_set_wpa_key(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	/* Current driver only supports key length of up to 32 bytes */
 	if (sec->param.encrypt_key.key_len > MLAN_MAX_KEY_LENGTH) {
 		PRINTM(MERROR, "Key length is incorrect\n");
@@ -2889,8 +2898,8 @@ wlan_sec_ioctl_set_wpa_key(IN pmlan_adapter pmadapter,
 	/** back up adhoc AES key */
 		memset(pmpriv->adapter, &pmpriv->aes_key, 0,
 		       sizeof(pmpriv->aes_key));
-		memcpy(pmpriv->adapter, (t_u8 *) & pmpriv->aes_key,
-		       (t_u8 *) & sec->param.encrypt_key,
+		memcpy(pmpriv->adapter, (t_u8 *)&pmpriv->aes_key,
+		       (t_u8 *)&sec->param.encrypt_key,
 		       sizeof(pmpriv->aes_key));
 	}
 
@@ -2918,7 +2927,7 @@ wlan_sec_ioctl_set_wpa_key(IN pmlan_adapter pmadapter,
 			       HostCmd_CMD_802_11_KEY_MATERIAL,
 			       HostCmd_ACT_GEN_SET,
 			       0,
-			       (t_void *) pioctl_req, &sec->param.encrypt_key);
+			       (t_void *)pioctl_req, &sec->param.encrypt_key);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -2946,9 +2955,9 @@ wlan_sec_ioctl_get_key(IN pmlan_adapter pmadapter,
 	int index;
 	ENTER();
 
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 
-	if ((sec->param.encrypt_key.key_index == MLAN_KEY_INDEX_UNICAST) &&
+	if ((sec->param.encrypt_key.key_index == MLAN_KEY_INDEX_UNICAST)&&
 	    (sec->param.encrypt_key.key_len == WPA_AES_KEY_LEN)) {
 		if (pmpriv->adhoc_aes_enabled == MTRUE &&
 		    (pmpriv->aes_key.key_len == WPA_AES_KEY_LEN)) {
@@ -2979,7 +2988,7 @@ wlan_sec_ioctl_get_key(IN pmlan_adapter pmadapter,
 		sec->param.encrypt_key.key_disable = MTRUE;
 	}
 	if (sec->param.encrypt_key.key_index == MLAN_KEY_INDEX_DEFAULT) {
-		if ((pmpriv->wep_key[pmpriv->wep_key_curr_index].key_length) &&
+		if ((pmpriv->wep_key[pmpriv->wep_key_curr_index].key_length)&&
 		    (pmpriv->sec_info.wep_status == Wlan802_11WEPEnabled)) {
 			index = pmpriv->wep_key_curr_index;
 			sec->param.encrypt_key.key_index =
@@ -3054,7 +3063,7 @@ wlan_sec_ioctl_encrypt_key(IN pmlan_adapter pmadapter,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	mlan_ds_sec_cfg *sec = MNULL;
 	ENTER();
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		if (sec->param.encrypt_key.is_wapi_key)
 			status = wlan_sec_ioctl_set_wapi_key(pmadapter,
@@ -3090,7 +3099,7 @@ wlan_sec_ioctl_query_key(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	/* Current driver only supports get PTK/GTK */
 	if (pmpriv->port_open && (pmpriv->sec_info.wpa_enabled
 				  || pmpriv->sec_info.wpa2_enabled
@@ -3100,7 +3109,7 @@ wlan_sec_ioctl_query_key(IN pmlan_adapter pmadapter,
 				       HostCmd_CMD_802_11_KEY_MATERIAL,
 				       HostCmd_ACT_GEN_GET,
 				       KEY_INFO_ENABLED,
-				       (t_void *) pioctl_req,
+				       (t_void *)pioctl_req,
 				       &sec->param.encrypt_key);
 
 		if (ret == MLAN_STATUS_SUCCESS)
@@ -3130,7 +3139,7 @@ wlan_sec_ioctl_passphrase(IN pmlan_adapter pmadapter,
 	int i = 0;
 	ENTER();
 
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		if (sec->param.passphrase.psk_type == MLAN_PSK_CLEAR)
@@ -3141,9 +3150,8 @@ wlan_sec_ioctl_passphrase(IN pmlan_adapter pmadapter,
 		if (sec->param.passphrase.psk_type == MLAN_PSK_QUERY) {
 			if (sec->param.passphrase.ssid.ssid_len == 0) {
 				i = wlan_find_bssid_in_list(pmpriv,
-							    (t_u8 *) & sec->
-							    param.passphrase.
-							    bssid,
+							    (t_u8 *)&sec->param.
+							    passphrase.bssid,
 							    MLAN_BSS_MODE_AUTO);
 				if (i >= 0) {
 					pbss_desc = &pmadapter->pscan_table[i];
@@ -3169,8 +3177,7 @@ wlan_sec_ioctl_passphrase(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_SUPPLICANT_PMK,
 			       cmd_action,
-			       0,
-			       (t_void *) pioctl_req, &sec->param.passphrase);
+			       0, (t_void *)pioctl_req, &sec->param.passphrase);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 
@@ -3194,11 +3201,11 @@ wlan_sec_ioctl_ewpa_enable(IN pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
 	ENTER();
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		sec->param.ewpa_enabled = pmpriv->sec_info.ewpa_enabled;
 	} else {
-		pmpriv->sec_info.ewpa_enabled = (t_u8) sec->param.ewpa_enabled;
+		pmpriv->sec_info.ewpa_enabled = (t_u8)sec->param.ewpa_enabled;
 		PRINTM(MINFO, "Set: ewpa_enabled = %d\n",
 		       (int)pmpriv->sec_info.ewpa_enabled);
 	}
@@ -3226,7 +3233,7 @@ wlan_sec_ioctl_esupp_mode(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		cmd_action = HostCmd_ACT_GEN_SET;
 		if (pmpriv->media_connected == MTRUE) {
@@ -3272,13 +3279,13 @@ wlan_sec_ioctl_esupp_mode(IN pmlan_adapter pmadapter,
 				       HostCmd_CMD_SUPPLICANT_PROFILE,
 				       cmd_action,
 				       0,
-				       (t_void *) pioctl_req,
+				       (t_void *)pioctl_req,
 				       &sec->param.esupp_mode);
 	} else {
 		ret = wlan_prepare_cmd(pmpriv,
 				       HostCmd_CMD_SUPPLICANT_PROFILE,
 				       cmd_action,
-				       0, (t_void *) pioctl_req, MNULL);
+				       0, (t_void *)pioctl_req, MNULL);
 	}
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -3312,7 +3319,7 @@ wlan_sec_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	sec = (mlan_ds_sec_cfg *) pioctl_req->pbuf;
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	switch (sec->sub_command) {
 	case MLAN_OID_SEC_CFG_AUTH_MODE:
 		status = wlan_sec_ioctl_auth_mode(pmadapter, pioctl_req);
@@ -3373,7 +3380,7 @@ wlan_sec_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
  *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static int
-wlan_set_gen_ie_helper(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
+wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr, t_u16 ie_len)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	IEEEtypes_VendorHeader_t *pvendor_ie;
@@ -3395,7 +3402,7 @@ wlan_set_gen_ie_helper(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 		ret = MLAN_STATUS_FAILURE;
 	} else {
 
-		pvendor_ie = (IEEEtypes_VendorHeader_t *) ie_data_ptr;
+		pvendor_ie = (IEEEtypes_VendorHeader_t *)ie_data_ptr;
 		/* Test to see if it is a WPA IE, if not, then it is a gen IE */
 		if (((pvendor_ie->element_id == WPA_IE)
 		     &&
@@ -3429,16 +3436,14 @@ wlan_set_gen_ie_helper(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 			 * WPS_IE
 			 */
 			if (pvendor_ie->len > 4) {
-				memcpy(priv->adapter,
-				       (t_u8 *) & priv->wps.wps_ie, ie_data_ptr,
-				       ie_len);
-				HEXDUMP("wps_ie", (t_u8 *) & priv->wps.wps_ie,
+				memcpy(priv->adapter, (t_u8 *)&priv->wps.wps_ie,
+				       ie_data_ptr, ie_len);
+				HEXDUMP("wps_ie", (t_u8 *)&priv->wps.wps_ie,
 					priv->wps.wps_ie.vend_hdr.len + 2);
 			} else {
 				/* Only wps oui exist, reset driver wps buffer */
-				memset(priv->adapter,
-				       (t_u8 *) & priv->wps.wps_ie, 0x00,
-				       sizeof(priv->wps.wps_ie));
+				memset(priv->adapter, (t_u8 *)&priv->wps.wps_ie,
+				       0x00, sizeof(priv->wps.wps_ie));
 				PRINTM(MINFO, "wps_ie cleared\n");
 			}
 		} else {
@@ -3452,8 +3457,7 @@ wlan_set_gen_ie_helper(mlan_private * priv, t_u8 * ie_data_ptr, t_u16 ie_len)
 				/* Test to see if it is a WPS IE, if so, enable
 				   wps session flag */
 				pvendor_ie =
-					(IEEEtypes_VendorHeader_t *)
-					ie_data_ptr;
+					(IEEEtypes_VendorHeader_t *)ie_data_ptr;
 				if ((pvendor_ie->element_id == WPS_IE)
 				    &&
 				    (!memcmp
@@ -3514,7 +3518,7 @@ wlan_misc_ioctl_wws_cfg(IN pmlan_adapter pmadapter,
 		goto exit;
 	}
 
-	misc_cfg = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc_cfg = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
 	else
@@ -3526,7 +3530,7 @@ wlan_misc_ioctl_wws_cfg(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_SNMP_MIB,
 			       cmd_action,
-			       WwsMode_i, (t_void *) pioctl_req, &enable);
+			       WwsMode_i, (t_void *)pioctl_req, &enable);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -3555,7 +3559,7 @@ wlan_11d_cfg_ioctl_enable(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	pcfg_11d = (mlan_ds_11d_cfg *) pioctl_req->pbuf;
+	pcfg_11d = (mlan_ds_11d_cfg *)pioctl_req->pbuf;
 
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		if (pmpriv->media_connected == MTRUE) {
@@ -3572,7 +3576,7 @@ wlan_11d_cfg_ioctl_enable(IN pmlan_adapter pmadapter,
 		if (pmpriv->state_11d.user_enable_11d !=
 		    pcfg_11d->param.enable_11d) {
 			ret = wlan_11d_enable(pmpriv, pioctl_req,
-					      (state_11d_t) pcfg_11d->param.
+					      (state_11d_t)pcfg_11d->param.
 					      enable_11d);
 			if (ret == MLAN_STATUS_SUCCESS)
 				ret = MLAN_STATUS_PENDING;
@@ -3582,7 +3586,7 @@ wlan_11d_cfg_ioctl_enable(IN pmlan_adapter pmadapter,
 		}
 	} else {
 		pcfg_11d->param.enable_11d =
-			(t_u32) pmpriv->state_11d.user_enable_11d;
+			(t_u32)pmpriv->state_11d.user_enable_11d;
 		pioctl_req->data_read_written =
 			sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
 		PRINTM(MINFO, "11D: 11dcfg GET=%d\n",
@@ -3649,7 +3653,7 @@ wlan_11d_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		goto exit;
 	}
 
-	pcfg_11d = (mlan_ds_11d_cfg *) pioctl_req->pbuf;
+	pcfg_11d = (mlan_ds_11d_cfg *)pioctl_req->pbuf;
 	switch (pcfg_11d->sub_command) {
 	case MLAN_OID_11D_CFG_ENABLE:
 		status = wlan_11d_cfg_ioctl_enable(pmadapter, pioctl_req);
@@ -3697,7 +3701,7 @@ wlan_wps_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		return MLAN_STATUS_RESOURCE;
 	}
 
-	pwps = (mlan_ds_wps_cfg *) pioctl_req->pbuf;
+	pwps = (mlan_ds_wps_cfg *)pioctl_req->pbuf;
 	switch (pwps->sub_command) {
 	case MLAN_OID_WPS_CFG_SESSION:
 		if (pioctl_req->action == MLAN_ACT_SET) {
@@ -3708,7 +3712,7 @@ wlan_wps_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 				pmpriv->wps.session_enable = MFALSE;
 		} else {
 			pwps->param.wps_session =
-				(t_u32) pmpriv->wps.session_enable;
+				(t_u32)pmpriv->wps.session_enable;
 			pioctl_req->data_read_written = sizeof(t_u32);
 			PRINTM(MINFO, "wpscfg GET=%d\n",
 			       pwps->param.wps_session);
@@ -3748,7 +3752,7 @@ wlan_reg_mem_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	reg_mem = (mlan_ds_reg_mem *) pioctl_req->pbuf;
+	reg_mem = (mlan_ds_reg_mem *)pioctl_req->pbuf;
 	switch (reg_mem->sub_command) {
 	case MLAN_OID_REG_RW:
 		status = wlan_reg_mem_ioctl_reg_rw(pmadapter, pioctl_req);
@@ -3857,7 +3861,7 @@ wlan_11h_ioctl_local_power_constraint(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	ds_11hcfg = (mlan_ds_11h_cfg *) pioctl_req->pbuf;
+	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 
 	if (pioctl_req->action == MLAN_ACT_GET)
 		ds_11hcfg->param.usr_local_power_constraint = *plocalpower;
@@ -3892,7 +3896,7 @@ wlan_11h_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	ds_11hcfg = (mlan_ds_11h_cfg *) pioctl_req->pbuf;
+	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 
 	switch (ds_11hcfg->sub_command) {
 	case MLAN_OID_11H_CHANNEL_CHECK:
@@ -3935,7 +3939,7 @@ wlan_misc_ioctl_gen_ie(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	switch (misc->param.gen_ie.type) {
 	case MLAN_IE_TYPE_GEN_IE:
 		if (pioctl_req->action == MLAN_ACT_GET) {
@@ -3945,7 +3949,7 @@ wlan_misc_ioctl_gen_ie(IN pmlan_adapter pmadapter,
 		} else {
 			wlan_set_gen_ie_helper(pmpriv,
 					       misc->param.gen_ie.ie_data,
-					       (t_u16) misc->param.gen_ie.len);
+					       (t_u16)misc->param.gen_ie.len);
 		}
 		break;
 	case MLAN_IE_TYPE_ARP_FILTER:
@@ -3999,7 +4003,7 @@ wlan_misc_ioctl_region(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		misc->param.region_code = pmadapter->region_code;
 	} else {
@@ -4007,7 +4011,7 @@ wlan_misc_ioctl_region(IN pmlan_adapter pmadapter,
 			/* Use the region code to search for the index */
 			if (misc->param.region_code == region_code_index[i]) {
 				pmadapter->region_code =
-					(t_u16) misc->param.region_code;
+					(t_u16)misc->param.region_code;
 				break;
 			}
 		}
@@ -4020,7 +4024,7 @@ wlan_misc_ioctl_region(IN pmlan_adapter pmadapter,
 		}
 		pmadapter->cfp_code_bg = misc->param.region_code;
 		pmadapter->cfp_code_a = misc->param.region_code;
-		if (wlan_set_regiontable(pmpriv, (t_u8) pmadapter->region_code,
+		if (wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
 					 pmadapter->config_bands | pmadapter->
 					 adhoc_start_band)) {
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_FAIL;
@@ -4057,11 +4061,12 @@ wlan_misc_ioctl_warm_reset(IN pmlan_adapter pmadapter,
 	for (i = 0; i < pmadapter->priv_num; i++)
 		wlan_free_priv(pmadapter->priv[i]);
 
-	while ((pmbuf =
-		(pmlan_buffer) util_dequeue_list(pmadapter->pmoal_handle,
-						 &pmadapter->rx_data_queue,
-						 pcb->moal_spin_lock,
-						 pcb->moal_spin_unlock))) {
+	while ((pmbuf = (pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
+							&pmadapter->
+							rx_data_queue,
+							pcb->moal_spin_lock,
+							pcb->
+							moal_spin_unlock))) {
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 	}
 	util_scalar_write(pmadapter->pmoal_handle, &pmadapter->rx_pkts_queued,
@@ -4111,7 +4116,7 @@ wlan_misc_ioctl_sdio_mpa_ctrl(IN pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	mlan_ds_misc_sdio_mpa_ctrl *mpa_ctrl = MNULL;
 
 	ENTER();
@@ -4185,18 +4190,18 @@ wlan_misc_ioctl_sdio_mpa_ctrl(IN pmlan_adapter pmadapter,
 			pmadapter->mpa_rx.pkt_aggr_limit =
 				mpa_ctrl->rx_max_ports;
 
-		pmadapter->mpa_tx.enabled = (t_u8) mpa_ctrl->tx_enable;
-		pmadapter->mpa_rx.enabled = (t_u8) mpa_ctrl->rx_enable;
+		pmadapter->mpa_tx.enabled = (t_u8)mpa_ctrl->tx_enable;
+		pmadapter->mpa_rx.enabled = (t_u8)mpa_ctrl->rx_enable;
 
 	} else {
-		mpa_ctrl->tx_enable = (t_u16) pmadapter->mpa_tx.enabled;
-		mpa_ctrl->rx_enable = (t_u16) pmadapter->mpa_rx.enabled;
-		mpa_ctrl->tx_buf_size = (t_u16) pmadapter->mpa_tx.buf_size;
-		mpa_ctrl->rx_buf_size = (t_u16) pmadapter->mpa_rx.buf_size;
+		mpa_ctrl->tx_enable = (t_u16)pmadapter->mpa_tx.enabled;
+		mpa_ctrl->rx_enable = (t_u16)pmadapter->mpa_rx.enabled;
+		mpa_ctrl->tx_buf_size = (t_u16)pmadapter->mpa_tx.buf_size;
+		mpa_ctrl->rx_buf_size = (t_u16)pmadapter->mpa_rx.buf_size;
 		mpa_ctrl->tx_max_ports =
-			(t_u16) pmadapter->mpa_tx.pkt_aggr_limit;
+			(t_u16)pmadapter->mpa_tx.pkt_aggr_limit;
 		mpa_ctrl->rx_max_ports =
-			(t_u16) pmadapter->mpa_rx.pkt_aggr_limit;
+			(t_u16)pmadapter->mpa_rx.pkt_aggr_limit;
 	}
 
 exit:
@@ -4224,7 +4229,7 @@ wlan_misc_ioctl_sysclock(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET)
 		cmd_action = HostCmd_ACT_GEN_GET;
 	else
@@ -4235,8 +4240,8 @@ wlan_misc_ioctl_sysclock(IN pmlan_adapter pmadapter,
 			       HostCmd_CMD_ECL_SYSTEM_CLOCK_CONFIG,
 			       cmd_action,
 			       0,
-			       (t_void *) pioctl_req,
-			       (t_void *) & misc->param.sys_clock);
+			       (t_void *)pioctl_req,
+			       (t_void *)&misc->param.sys_clock);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -4263,7 +4268,7 @@ wlan_misc_ioctl_get_assoc_rsp(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if ((pioctl_req->action == MLAN_ACT_GET) && pmpriv->assoc_rsp_size) {
 		memcpy(pmadapter, misc->param.assoc_resp.assoc_resp_buf,
 		       pmpriv->assoc_rsp_buf, MIN(ASSOC_RSP_BUF_SIZE,
@@ -4299,7 +4304,7 @@ wlan_misc_ioctl_soft_reset(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_SOFT_RESET,
 			       HostCmd_ACT_GEN_SET,
-			       0, (t_void *) pioctl_req, MNULL);
+			       0, (t_void *)pioctl_req, MNULL);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -4336,7 +4341,7 @@ wlan_misc_ioctl_thermal(IN pmlan_adapter pmadapter,
 		return MLAN_STATUS_RESOURCE;
 	}
 
-	misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		PRINTM(MERROR, "Thermal reading setting is not allowed!\n");
 		LEAVE();
@@ -4349,7 +4354,7 @@ wlan_misc_ioctl_thermal(IN pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_SNMP_MIB,
 			       cmd_action,
-			       Thermal_i, (t_void *) pioctl_req, MNULL);
+			       Thermal_i, (t_void *)pioctl_req, MNULL);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -4377,7 +4382,7 @@ wlan_misc_ioctl_subscribe_evt(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
 	else
@@ -4388,7 +4393,7 @@ wlan_misc_ioctl_subscribe_evt(IN pmlan_adapter pmadapter,
 			       HostCmd_CMD_802_11_SUBSCRIBE_EVENT,
 			       cmd_action,
 			       0,
-			       (t_void *) pioctl_req,
+			       (t_void *)pioctl_req,
 			       &misc->param.subscribe_event);
 
 	if (ret == MLAN_STATUS_SUCCESS)
@@ -4428,12 +4433,12 @@ wlan_ipaddr_arp_filter(IN pmlan_adapter pmadapter,
 	}
 
 	/* Construct the ARP filter TLV */
-	arpfilter = (arpfilter_header *) buf;
+	arpfilter = (arpfilter_header *)buf;
 	arpfilter->type = wlan_cpu_to_le16(TLV_TYPE_ARP_FILTER);
 
 	if (ipv4_addr) {
 		arpfilter->len = wlan_cpu_to_le16(sizeof(filter_entry) * 3);
-		entry = (filter_entry *) (buf + sizeof(arpfilter_header));
+		entry = (filter_entry *)(buf + sizeof(arpfilter_header));
 		entry->addr_type = wlan_cpu_to_le16(ADDR_TYPE_BROADCAST);
 		entry->eth_type = wlan_cpu_to_le16(ETHER_TYPE_ARP);
 		entry->ipv4_addr = wlan_cpu_to_le32(ipv4_addr);
@@ -4492,7 +4497,7 @@ done:
 mlan_status
 wlan_ipaddr_auto_arp_resp(IN pmlan_adapter pmadapter,
 			  IN pmlan_ioctl_req pioctl_req,
-			  IN t_u32 * ipv4_addr, IN t_u8 num_ipv4)
+			  IN t_u32 *ipv4_addr, IN t_u8 num_ipv4)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -4522,7 +4527,7 @@ wlan_ipaddr_auto_arp_resp(IN pmlan_adapter pmadapter,
 
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle,
 			       sizeof(mlan_ds_misc_cmd),
-			       MLAN_MEM_DEF, (t_u8 **) & hostcmd);
+			       MLAN_MEM_DEF, (t_u8 **)&hostcmd);
 
 	if (ret != MLAN_STATUS_SUCCESS || hostcmd == MNULL) {
 		PRINTM(MERROR, "Failed to allocate hostcmd  buffer\n");
@@ -4535,9 +4540,9 @@ wlan_ipaddr_auto_arp_resp(IN pmlan_adapter pmadapter,
 	buf = hostcmd->cmd;
 
 	/* Prepare hostcmd buffer */
-	hostcmd_hdr = (HostCmd_DS_GEN *) (buf);
+	hostcmd_hdr = (HostCmd_DS_GEN *)(buf);
 	hostcmd_hdr->command = wlan_cpu_to_le16(HostCmd_CMD_MEF_CFG);
-	mefcmd = (HostCmd_DS_MEF_CFG *) (buf + S_DS_GEN);
+	mefcmd = (HostCmd_DS_MEF_CFG *)(buf + S_DS_GEN);
 	buf_len = S_DS_GEN;
 
 	if (!ipv4_addr) {
@@ -4577,11 +4582,11 @@ wlan_ipaddr_auto_arp_resp(IN pmlan_adapter pmadapter,
 	/* Send command to firmware */
 	ret = wlan_prepare_cmd(pmpriv,
 			       0,
-			       0, 0, (t_void *) pioctl_req, (t_void *) hostcmd);
+			       0, 0, (t_void *)pioctl_req, (t_void *)hostcmd);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 
-	pcb->moal_mfree(pmadapter->pmoal_handle, (t_u8 *) hostcmd);
+	pcb->moal_mfree(pmadapter->pmoal_handle, (t_u8 *)hostcmd);
 
 	LEAVE();
 	return ret;
@@ -4602,7 +4607,7 @@ wlan_misc_ioctl_mef_cfg(IN pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_misc_mef_cfg *mef_cfg =
-		&((mlan_ds_misc_cfg *) pioctl_req->pbuf)->param.mef_cfg;
+		&((mlan_ds_misc_cfg *)pioctl_req->pbuf)->param.mef_cfg;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	HostCmd_DS_GEN *hostcmd_hdr;
 	HostCmd_DS_MEF_CFG *mefcmd;
@@ -4628,7 +4633,7 @@ wlan_misc_ioctl_mef_cfg(IN pmlan_adapter pmadapter,
 
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle,
 			       sizeof(mlan_ds_misc_cmd),
-			       MLAN_MEM_DEF, (t_u8 **) & hostcmd);
+			       MLAN_MEM_DEF, (t_u8 **)&hostcmd);
 
 	if (ret != MLAN_STATUS_SUCCESS || hostcmd == MNULL) {
 		PRINTM(MERROR, "Failed to allocate hostcmd  buffer\n");
@@ -4641,9 +4646,9 @@ wlan_misc_ioctl_mef_cfg(IN pmlan_adapter pmadapter,
 	buf = hostcmd->cmd;
 
 	/* Prepare hostcmd buffer */
-	hostcmd_hdr = (HostCmd_DS_GEN *) (buf);
+	hostcmd_hdr = (HostCmd_DS_GEN *)(buf);
 	hostcmd_hdr->command = wlan_cpu_to_le16(HostCmd_CMD_MEF_CFG);
-	mefcmd = (HostCmd_DS_MEF_CFG *) (buf + S_DS_GEN);
+	mefcmd = (HostCmd_DS_MEF_CFG *)(buf + S_DS_GEN);
 	buf_len = S_DS_GEN;
 
 	switch (mef_cfg->sub_id) {
@@ -4686,13 +4691,13 @@ wlan_misc_ioctl_mef_cfg(IN pmlan_adapter pmadapter,
 	/* Send command to firmware */
 	ret = wlan_prepare_cmd(pmpriv,
 			       0,
-			       0, 0, (t_void *) pioctl_req, (t_void *) hostcmd);
+			       0, 0, (t_void *)pioctl_req, (t_void *)hostcmd);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 
 done:
 	if (hostcmd)
-		pcb->moal_mfree(pmadapter->pmoal_handle, (t_u8 *) hostcmd);
+		pcb->moal_mfree(pmadapter->pmoal_handle, (t_u8 *)hostcmd);
 
 	LEAVE();
 	return ret;
@@ -4711,7 +4716,7 @@ wlan_misc_ioctl_ipaddr_cfg(IN pmlan_adapter pmadapter,
 			   IN pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u32 ipv4_addr[MAX_IPADDR];
 	int i = 0;
@@ -4782,7 +4787,7 @@ wlan_misc_ioctl_cfp_code_cfg(IN pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	mlan_ds_misc_cfp_code *cfp_code = MNULL;
 	t_u32 region_bg = 0;
 	t_u32 region_a = 0;
@@ -4826,13 +4831,13 @@ wlan_misc_ioctl_cfp_code_cfg(IN pmlan_adapter pmadapter,
 				goto done;
 			}
 		}
-		pmadapter->cfp_code_bg = (t_u8) cfp_code->cfp_code_bg;
-		pmadapter->cfp_code_a = (t_u8) cfp_code->cfp_code_a;
+		pmadapter->cfp_code_bg = (t_u8)cfp_code->cfp_code_bg;
+		pmadapter->cfp_code_a = (t_u8)cfp_code->cfp_code_a;
 		if (region_bg && region_a && (region_bg == region_a))
 			pmadapter->region_code = pmadapter->cfp_code_a;
 		else
 			pmadapter->region_code = 0;
-		if (wlan_set_regiontable(pmpriv, (t_u8) pmadapter->region_code,
+		if (wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
 					 pmadapter->config_bands | pmadapter->
 					 adhoc_start_band)) {
 			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
@@ -4860,7 +4865,7 @@ done:
  */
 mlan_status
 wlan_misc_ioctl_country_code(IN pmlan_adapter pmadapter,
-			     IN mlan_ioctl_req * pioctl_req)
+			     IN mlan_ioctl_req *pioctl_req)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
@@ -4870,7 +4875,7 @@ wlan_misc_ioctl_country_code(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	cfg_misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	cfg_misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	country_code = &cfg_misc->param.country_code;
 
 	if (pioctl_req->action == MLAN_ACT_SET) {
@@ -4919,14 +4924,14 @@ done:
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-wlan_misc_pmfcfg(IN pmlan_adapter pmadapter, IN mlan_ioctl_req * pioctl_req)
+wlan_misc_pmfcfg(IN pmlan_adapter pmadapter, IN mlan_ioctl_req *pioctl_req)
 {
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_misc_cfg *cfg_misc = MNULL;
 	mlan_ds_misc_pmfcfg *pmfcfg;
 
-	cfg_misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	cfg_misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	pmfcfg = &cfg_misc->param.pmfcfg;
 
 	if (pioctl_req->action == MLAN_ACT_SET) {
@@ -4971,7 +4976,7 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		LEAVE();
 		return MLAN_STATUS_RESOURCE;
 	}
-	misc = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	switch (misc->sub_command) {
 	case MLAN_OID_MISC_GEN_IE:
 		status = wlan_misc_ioctl_gen_ie(pmadapter, pioctl_req);
@@ -5077,6 +5082,12 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		status = wlan_misc_ioctl_multi_chan_policy(pmadapter,
 							   pioctl_req);
 		break;
+#ifdef RX_PACKET_COALESCE
+	case MLAN_OID_MISC_RX_PACKET_COALESCE:
+		status = wlan_misc_ioctl_rx_pkt_coalesce_config(pmadapter,
+								pioctl_req);
+		break;
+#endif
 	case MLAN_OID_MISC_LOW_PWR_MODE:
 		status = wlan_misc_ioctl_low_pwr_mode(pmadapter, pioctl_req);
 		break;
@@ -5107,39 +5118,38 @@ wlan_set_get_scan_cfg(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
-	scan = (mlan_ds_scan *) pioctl_req->pbuf;
+	scan = (mlan_ds_scan *)pioctl_req->pbuf;
 	if (action == MLAN_ACT_GET) {
-		scan->param.scan_cfg.scan_type = (t_u32) pmadapter->scan_type;
+		scan->param.scan_cfg.scan_type = (t_u32)pmadapter->scan_type;
 		scan->param.scan_cfg.scan_mode = pmadapter->scan_mode;
-		scan->param.scan_cfg.scan_probe =
-			(t_u32) pmadapter->scan_probes;
+		scan->param.scan_cfg.scan_probe = (t_u32)pmadapter->scan_probes;
 		scan->param.scan_cfg.scan_time.specific_scan_time =
-			(t_u32) pmadapter->specific_scan_time;
+			(t_u32)pmadapter->specific_scan_time;
 		scan->param.scan_cfg.scan_time.active_scan_time =
-			(t_u32) pmadapter->active_scan_time;
+			(t_u32)pmadapter->active_scan_time;
 		scan->param.scan_cfg.scan_time.passive_scan_time =
-			(t_u32) pmadapter->passive_scan_time;
+			(t_u32)pmadapter->passive_scan_time;
 		scan->param.scan_cfg.ext_scan = pmadapter->ext_scan;
 	} else {
 		if (scan->param.scan_cfg.scan_type)
 			pmadapter->scan_type =
-				(t_u8) scan->param.scan_cfg.scan_type;
+				(t_u8)scan->param.scan_cfg.scan_type;
 		if (scan->param.scan_cfg.scan_mode)
 			pmadapter->scan_mode = scan->param.scan_cfg.scan_mode;
 		if (scan->param.scan_cfg.scan_probe)
 			pmadapter->scan_probes =
-				(t_u16) scan->param.scan_cfg.scan_probe;
+				(t_u16)scan->param.scan_cfg.scan_probe;
 		if (scan->param.scan_cfg.scan_time.specific_scan_time)
 			pmadapter->specific_scan_time =
-				(t_u16) scan->param.scan_cfg.scan_time.
+				(t_u16)scan->param.scan_cfg.scan_time.
 				specific_scan_time;
 		if (scan->param.scan_cfg.scan_time.active_scan_time)
 			pmadapter->active_scan_time =
-				(t_u16) scan->param.scan_cfg.scan_time.
+				(t_u16)scan->param.scan_cfg.scan_time.
 				active_scan_time;
 		if (scan->param.scan_cfg.scan_time.passive_scan_time)
 			pmadapter->passive_scan_time =
-				(t_u16) scan->param.scan_cfg.scan_time.
+				(t_u16)scan->param.scan_cfg.scan_time.
 				passive_scan_time;
 		pmadapter->ext_scan = scan->param.scan_cfg.ext_scan;
 	}
@@ -5166,7 +5176,7 @@ wlan_scan_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
-	pscan = (mlan_ds_scan *) pioctl_req->pbuf;
+	pscan = (mlan_ds_scan *)pioctl_req->pbuf;
 	if (pscan->sub_command == MLAN_OID_SCAN_CONFIG
 	    || pscan->sub_command == MLAN_OID_SCAN_BGSCAN_CONFIG)
 		goto start_config;
@@ -5223,7 +5233,7 @@ start_config:
 						  HostCmd_CMD_802_11_BG_SCAN_CONFIG,
 						  HostCmd_ACT_GEN_SET,
 						  0,
-						  (t_void *) pioctl_req,
+						  (t_void *)pioctl_req,
 						  pscan->param.user_scan.
 						  scan_cfg_buf);
 			break;
@@ -5251,8 +5261,7 @@ start_config:
 			pscan->param.scan_resp.num_in_scan_table =
 				pmadapter->num_in_scan_table;
 			pscan->param.scan_resp.pscan_table =
-				(t_u8 *) & pmpriv->curr_bss_params.
-				bss_descriptor;
+				(t_u8 *)&pmpriv->curr_bss_params.bss_descriptor;
 			pioctl_req->data_read_written =
 				sizeof(mlan_scan_resp) + MLAN_SUB_COMMAND_SIZE;
 		} else {
@@ -5268,7 +5277,7 @@ start_config:
 							  HostCmd_CMD_802_11_BG_SCAN_QUERY,
 							  HostCmd_ACT_GEN_GET,
 							  0,
-							  (t_void *) pioctl_req,
+							  (t_void *)pioctl_req,
 							  MNULL);
 				if (status == MLAN_STATUS_SUCCESS) {
 					PRINTM(MINFO,
@@ -5277,7 +5286,7 @@ start_config:
 				}
 			} else {
 				pscan->param.scan_resp.pscan_table =
-					(t_u8 *) pmadapter->pscan_table;
+					(t_u8 *)pmadapter->pscan_table;
 				pscan->param.scan_resp.num_in_scan_table =
 					pmadapter->num_in_scan_table;
 				pscan->param.scan_resp.age_in_secs =
@@ -5286,7 +5295,7 @@ start_config:
 					sizeof(mlan_scan_resp) +
 					MLAN_SUB_COMMAND_SIZE;
 				pscan->param.scan_resp.pchan_stats =
-					(t_u8 *) pmadapter->pchan_stats;
+					(t_u8 *)pmadapter->pchan_stats;
 				pscan->param.scan_resp.num_in_chan_stats =
 					pmadapter->num_in_chan_stats;
 			}
@@ -5310,7 +5319,7 @@ start_config:
  *  @return                     MLAN_STATUS_SUCCESS
  */
 mlan_status
-wlan_set_ewpa_mode(mlan_private * priv, mlan_ds_passphrase * psec_pp)
+wlan_set_ewpa_mode(mlan_private *priv, mlan_ds_passphrase *psec_pp)
 {
 	ENTER();
 
@@ -5336,7 +5345,7 @@ wlan_set_ewpa_mode(mlan_private * priv, mlan_ds_passphrase * psec_pp)
  *  @return		            MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 mlan_status
-wlan_find_bss(mlan_private * pmpriv, pmlan_ioctl_req pioctl_req)
+wlan_find_bss(mlan_private *pmpriv, pmlan_ioctl_req pioctl_req)
 {
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	mlan_ds_bss *bss = MNULL;
@@ -5348,7 +5357,7 @@ wlan_find_bss(mlan_private * pmpriv, pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
-	bss = (mlan_ds_bss *) pioctl_req->pbuf;
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 
 	if (memcmp
 	    (pmadapter, &bss->param.ssid_bssid.bssid, zero_mac,
@@ -5357,12 +5366,12 @@ wlan_find_bss(mlan_private * pmpriv, pmlan_ioctl_req pioctl_req)
 								 */
 			i = wlan_find_ssid_in_list(pmpriv,
 						   &bss->param.ssid_bssid.ssid,
-						   (t_u8 *) & bss->param.
+						   (t_u8 *)&bss->param.
 						   ssid_bssid.bssid,
 						   pmpriv->bss_mode);
 		else
 			i = wlan_find_bssid_in_list(pmpriv,
-						    (t_u8 *) & bss->param.
+						    (t_u8 *)&bss->param.
 						    ssid_bssid.bssid,
 						    pmpriv->bss_mode);
 		if (i < 0) {
@@ -5391,8 +5400,8 @@ wlan_find_bss(mlan_private * pmpriv, pmlan_ioctl_req pioctl_req)
 			return MLAN_STATUS_FAILURE;
 		}
 		pbss_desc = &pmadapter->pscan_table[i];
-		memcpy(pmadapter, (t_u8 *) & bss->param.ssid_bssid.bssid,
-		       (t_u8 *) & pbss_desc->mac_address, MLAN_MAC_ADDR_LENGTH);
+		memcpy(pmadapter, (t_u8 *)&bss->param.ssid_bssid.bssid,
+		       (t_u8 *)&pbss_desc->mac_address, MLAN_MAC_ADDR_LENGTH);
 		bss->param.ssid_bssid.rssi = pbss_desc->rssi;
 		/* index in bss list, start from 1 */
 		bss->param.ssid_bssid.idx = i + 1;
@@ -5413,9 +5422,9 @@ wlan_find_bss(mlan_private * pmpriv, pmlan_ioctl_req pioctl_req)
  *  @return		MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --success, otherwise fail
  */
 mlan_status
-wlan_ops_sta_ioctl(t_void * adapter, pmlan_ioctl_req pioctl_req)
+wlan_ops_sta_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 {
-	pmlan_adapter pmadapter = (pmlan_adapter) adapter;
+	pmlan_adapter pmadapter = (pmlan_adapter)adapter;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();

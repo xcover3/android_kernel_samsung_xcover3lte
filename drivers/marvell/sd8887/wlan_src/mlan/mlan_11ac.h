@@ -27,30 +27,30 @@
 
 void wlan_show_dot11acdevcap(pmlan_adapter pmadapter, t_u32 cap);
 void wlan_show_dot11acmcssupport(pmlan_adapter pmadapter, t_u32 support);
-t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private * priv, t_u8 bands,
+t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands,
 				     t_u16 mcs_map);
-void wlan_fill_vht_cap_tlv(mlan_private * priv, MrvlIETypes_VHTCap_t * pvht_cap,
+void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 			   t_u8 bands);
-void wlan_fill_vht_cap_ie(mlan_private * priv, IEEEtypes_VHTCap_t * pvht_cap,
+void wlan_fill_vht_cap_ie(mlan_private *priv, IEEEtypes_VHTCap_t *pvht_cap,
 			  t_u8 bands);
-void wlan_fill_tdls_vht_oprat_ie(mlan_private * priv,
-				 IEEEtypes_VHTOprat_t * vht_oprat,
-				 sta_node * sta_ptr);
-t_u8 wlan_is_ap_in_11ac_mode(mlan_private * priv);
-int wlan_cmd_append_11ac_tlv(mlan_private * pmpriv, BSSDescriptor_t * pbss_desc,
-			     t_u8 ** ppbuffer);
+void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
+				 IEEEtypes_VHTOprat_t *vht_oprat,
+				 sta_node *sta_ptr);
+t_u8 wlan_is_ap_in_11ac_mode(mlan_private *priv);
+int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
+			     t_u8 **ppbuffer);
 mlan_status wlan_11ac_cfg_ioctl(pmlan_adapter pmadapter,
 				pmlan_ioctl_req pioctl_req);
 
 mlan_status wlan_cmd_11ac_cfg(IN pmlan_private pmpriv,
-			      IN HostCmd_DS_COMMAND * cmd,
-			      IN t_u16 cmd_action, IN t_void * pdata_buf);
+			      IN HostCmd_DS_COMMAND *cmd,
+			      IN t_u16 cmd_action, IN t_void *pdata_buf);
 
 mlan_status wlan_ret_11ac_cfg(IN pmlan_private pmpriv,
-			      IN HostCmd_DS_COMMAND * resp,
-			      IN mlan_ioctl_req * pioctl_buf);
+			      IN HostCmd_DS_COMMAND *resp,
+			      IN mlan_ioctl_req *pioctl_buf);
 
-t_u8 wlan_get_center_freq_idx(IN mlan_private * pmpriv,
+t_u8 wlan_get_center_freq_idx(IN mlan_private *pmpriv,
 			      IN t_u8 band, IN t_u32 pri_chan, IN t_u8 chan_bw);
 
 #endif /* _MLAN_11AC_H_ */

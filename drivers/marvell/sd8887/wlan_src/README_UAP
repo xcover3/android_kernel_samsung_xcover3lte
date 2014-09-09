@@ -233,6 +233,8 @@ sys_cfg_wep_key [INDEX ISDEFAULT KEY]
 sys_cfg_cipher [PAIRWISE_CIPHER GROUP_CIPHER]
 sys_cfg_pwk_cipher [<PROTOCOL>] [PAIRWISE_CIPHER]
 sys_cfg_gwk_cipher [GROUP_CIPHER]
+sys_cfg_group_rekey_timer [GROUP_REKEY_TIMER]
+sys_cfg_wpa_passphrase [PASSPHRASE]
 sys_cfg_max_sta_num [STA_NUM]
 sys_cfg_retry_limit [RETRY_LIMIT]
 sys_cfg_sticky_tim_config [ENABLE] [<DURATION> <STICKY_BIT_MASK>]
@@ -1076,6 +1078,42 @@ sys_cfg_gwk_cipher
         ./uaputl.exe sys_cfg_gwk_cipher
                 Get AP's group cipher settings.
 
+sys_cfg_group_rekey_timer
+-------------------------
+    "./uaputl.exe sys_cfg_group_rekey_timer [GROUP_REKEY_TIMER]"
+
+    This command is used to set or get the AP group re-key time interval, in seconds.
+
+    The supported options are:
+        GROUP_REKEY_TIMER is represented in seconds. This is only applicable
+        		 if the protocol is WPA or WPA2. Value of 0 will disable group re-key.
+
+        empty - Get current group rekey timer
+
+    Example:
+	./uaputl.exe sys_cfg_group_rekey_timer 1800
+		Set AP's group re-key time interval to 1800 s
+
+	./uaputl.exe sys_cfg_group_rekey_timer
+		Get AP's group re-key time interval.
+
+sys_cfg_wpa_passphrase
+----------------------
+    "./uaputl.exe sys_cfg_wpa_passphrase [PASSPHRASE]"
+
+    This command is used to set or get the WPA or WPA2 passphrase.
+
+    If no arguments are given, this command returns the current WPA or WPA2
+    passphrase.
+    While setting, the maximum length of the passphrase can be 64 characters.
+
+    Example:
+	./uaputl.exe sys_cfg_wpa_passphrase 1234567890
+		Set AP's WPA or WPA2 passphrase to "1234567890"
+
+	./uaputl.exe sys_cfg_wpa_passphrase
+		Get AP's WPA or WPA2 passphrase.
+
 sys_cfg_max_sta_num
 -------------------
     "./uaputl.exe sys_cfg_max_sta_num [STA_NUM]"
@@ -1690,6 +1728,7 @@ sys_cfg_11n
     The supported option are:
         ENABLE: 0 - disable 802.11n in uap
                 1 - enable 802.11n in uap
+		Note: If 802.11n is disabled, 802.11ac MUST be disabled at the same time
         HTCAP: HT Capabilities info (default value is 0x111c)
                Bit 15-13: Reserved set to 0
                Bit 12: DSS/CCK mode in 40MHz enable/disable
@@ -1965,6 +2004,25 @@ txpwrlimit_5g_cfg_set
         ./uaputl.exe hostcmd config/txpwrlimit_cfg.conf txpwrlimit_cfg_get
         ./uaputl.exe hostcmd config/txpwrlimit_cfg.conf txpwrlimit_2g_cfg_set
         ./uaputl.exe hostcmd config/txpwrlimit_cfg.conf txpwrlimit_5g_cfg_set
+
+rxpktcoal_cfg
+-------------
+   "./uaputl.exe rxpktcoal_cfg [PKT-THRESHOLD] [TIMEOUT]"
+
+	This is used to get/set RX packet coalescing paramters
+
+    The supported option are:
+        [PKT-THRESHOLD]: count after which packets would be sent to host. Valid values 1-7
+        [TIMEOUT]: timeout in ms after which packets would be sent to host. Valid values 1-4
+        Coalescing is disabled if both or either of packet_thershold and delay is zero
+
+        RX packet coalescing parameters can be changed only when device is in
+        idle state i.e. all interfaces are disconnected.
+
+    Example:
+    ./uaputl.exe rxpktcoal_cfg      : Display RX packet coalescing settings
+    ./uaputl.exe rxpktcoal_cfg 5 1  : Enable RX packet coalescing: packet count 5, delay 1.
+    ./uaputl.exe rxpktcoal_cfg 0 0  : Disable RX packet coalescing.
 
 tx_data_pause
 -------------
