@@ -11,6 +11,7 @@
  */
 #include <linux/cpuidle.h>
 #include <linux/cpu_pm.h>
+#include <linux/cputype.h>
 #include <linux/clk/dvfs-dvc.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -26,6 +27,7 @@
 #include "pxa1908_lowpower.h"
 
 static void __iomem *apmu_virt_addr;
+static void __iomem *apbc_virt_addr;
 static void __iomem *mpmu_virt_addr;
 static void __iomem *icu_virt_addr;
 /*per cpu regs */
@@ -153,7 +155,7 @@ static void pxa1908_edge_wakeup_disable(void)
 	 PMUM_AP1_TIMER_2 | PMUM_AP1_TIMER_3 | PMUM_WAKEUP7 | PMUM_WAKEUP6 | \
 	 PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 | PMUM_WAKEUP2 | PMUM_AP_GT)
 static u32 s_awucrm;
-
+static u32 apbc_timer0;
 /*
  * Enable AP wakeup sources and ports. To enalbe wakeup
  * ports, it needs both AP side to configure MPMU_APCR
@@ -173,12 +175,20 @@ static void pxa1908_save_wakeup(void)
 
 	s_awucrm = readl_relaxed(mpmu_virt_addr + AWUCRM);
 
+	if (cpu_is_pxa1908()) {
+		apbc_timer0 = readl_relaxed(apbc_virt_addr + TIMER0);
+		writel_relaxed(0x1 << 7 | apbc_timer0, apbc_virt_addr + TIMER0);
+	}
+
 	writel_relaxed(s_awucrm | ENABLE_AP_WAKEUP_SOURCES,
 			mpmu_virt_addr + AWUCRM);
 }
 
 static void pxa1908_restore_wakeup(void)
 {
+	if (cpu_is_pxa1908())
+		writel_relaxed(apbc_timer0, apbc_virt_addr + TIMER0);
+
 	writel_relaxed(s_awucrm, mpmu_virt_addr + AWUCRM);
 }
 
@@ -429,6 +439,7 @@ static struct platform_idle pxa1908_idle = {
 static void __init pxa1908_reg_init(void)
 {
 	apmu_virt_addr = regs_addr_get_va(REGS_ADDR_APMU);
+	apbc_virt_addr = regs_addr_get_va(REGS_ADDR_APBC);
 	mpmu_virt_addr = regs_addr_get_va(REGS_ADDR_MPMU);
 	icu_virt_addr  = regs_addr_get_va(REGS_ADDR_ICU);
 
