@@ -632,6 +632,10 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				dc_stat_info->power_mode = pxa_powermode(cpu_i);
 				dc_stat_info->breakdown_start = 0;
 
+				dc_stat_info->runtime_start = 0;
+				for (i = 0; i < MAX_LPM_INDEX_DC; i++)
+					dc_stat_info->runtime_op_total[i] = 0;
+
 				if (dc_stat_info->power_mode == MAX_LPM_INDEX
 					&& cpu_online(cpu_i)) {
 					dc_stat_info->runtime_start = ktime_temp;
@@ -676,6 +680,8 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			if (cpuid == cpu_i)
 				continue;
 			dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
+			if (!dc_stat_info->online)
+				continue;
 			spin_lock(&c1c2_exit_lock);
 			if ((u64) 0 != dc_stat_info->runtime_start) {
 				dc_stat_info->runtime_end = ktime_temp;
