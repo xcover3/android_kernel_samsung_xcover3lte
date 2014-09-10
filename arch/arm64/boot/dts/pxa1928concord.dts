@@ -1109,7 +1109,7 @@
 	};
 
 	tzdd {
-		status = "disable";
+		status = "okay";
 	};
 };
 #include "88pm860.dtsi"
