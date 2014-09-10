@@ -139,6 +139,20 @@
 				status = "okay";
 			};
 
+			keypad: keypad@d4012000 {
+				marvell,direct-keys;
+				marvell,direct-key-low-active;
+				marvell,keypad-lpm-mod;
+				marvell,direct-key-count = <2>;
+				marvell,direct-key-mask = <0xff>;
+				marvell,direct-key-map = < 0x73
+							   0x72>;
+				marvell,debounce-interval = <30>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&keypad_in_func>;
+				status = "okay";
+			};
+
 			pmx: pinmux@d401e000 {
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <
@@ -172,6 +186,14 @@
 						GPIO47 AF6
 					>;
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+				};
+
+				keypad_in_func: keypad_in_func {
+					pinctrl-single,pins = <
+						GPIO16 AF1	/* GPIO016_KP_DKIN1 */
+						GPIO17 AF1	/* GPIO017_KP_DKIN2 */
+					>;
+					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_DRIVE_HIGH;
 				};
 
 				twsi1_pmx_func: twsi1_pmx_func {
