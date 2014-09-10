@@ -30,6 +30,8 @@
 	};
 
 	soc {
+		bus_number = <2>;
+
 		pd_display: pd_display@0xd4282800 {
 			compatible = "marvell,power-domain-display-pxa1u88";
 			reg = <0xd4282800 0x1000>;
