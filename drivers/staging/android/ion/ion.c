@@ -708,6 +708,8 @@ static void *ion_handle_kmap_get(struct ion_handle *handle)
 
 static void ion_buffer_kmap_put(struct ion_buffer *buffer)
 {
+	if (unlikely(WARN_ON(buffer->kmap_cnt <= 0)))
+		return;
 	buffer->kmap_cnt--;
 	if (!buffer->kmap_cnt) {
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
@@ -719,6 +721,8 @@ static void ion_handle_kmap_put(struct ion_handle *handle)
 {
 	struct ion_buffer *buffer = handle->buffer;
 
+	if (unlikely(WARN_ON(handle->kmap_cnt <= 0)))
+		return;
 	handle->kmap_cnt--;
 	if (!handle->kmap_cnt)
 		ion_buffer_kmap_put(buffer);
