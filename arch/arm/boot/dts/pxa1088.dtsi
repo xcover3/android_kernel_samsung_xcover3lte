@@ -445,7 +445,7 @@
 
 			seh: seh@d4080000 {
 				compatible = "marvell,seh";
-				reg = <0xd4080000 0x100>;
+				reg = <0xd4080000 0x100>, <0xd403d000 0x4>;
 				interrupts = <0 32 0x4>;
 				interrupt-names = "CP_TIMER2_3";
 				clocks = <&soc_clocks PXA1L88_CLK_AICER>;
