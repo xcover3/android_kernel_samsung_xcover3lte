@@ -633,7 +633,7 @@
 				 * please don't touch it under eden. <pxd403d000 0x4> is
 				 * RIPC status register for RIPC lock */
 				reg = <0xffffffff 0xf>, <0xd403d000 0x4>;
-				interrupts = <0 32 0x1>;
+				interrupts = <0 39 0x4>;
 				interrupt-names = "CP_TIMER3";
 				clocks = <&soc_clocks PXA1928_CLK_RIPC_RST>;
 				watchdog-type = <2>; /* cp one-shot timer */
