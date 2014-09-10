@@ -27,6 +27,9 @@ unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
 static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
+#ifdef CONFIG_MMP_MAP
+	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dc00, "mmp-sspa-dai.0", NULL),
+#endif
 	{}
 };
 
