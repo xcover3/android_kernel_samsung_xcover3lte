@@ -221,6 +221,17 @@
 				status = "disabled";
 			 };
 
+			sdh0: sdh@d4280000 {
+				compatible = "marvell,pxav3-mmc-v2";
+				reg = <0xd4280000 0x120>;
+				interrupts = <0 39 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_SDH0
+					  &soc_clocks PXA1U88_CLK_SDH_AXI>;
+				clock-names = "sdh-base-clk", "sdh-axi-clk";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
 			asram: asram@d12a0000 {
 				compatible = "mmio-sram";
 				reg = <0xd12a0000 0x10000>;

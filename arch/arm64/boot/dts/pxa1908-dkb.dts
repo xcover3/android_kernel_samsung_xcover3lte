@@ -158,6 +158,39 @@
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
 				status = "okay";
 			};
+
+			/* SD card */
+			sdh0: sdh@d4280000 {
+				pinctrl-names = "default", "fast";
+				pinctrl-0 = <&sdh0_pmx_func1 &sdh0_pmx_func2 &sdh0_pmx_func3>;
+				pinctrl-1 = <&sdh0_pmx_func1 &sdh0_pmx_func2_fast &sdh0_pmx_func3_fast>;
+				vqmmc-supply	= <&ldo7>;
+				vmmc-supply	= <&ldo14>;
+				cd-gpios = <&gpio 92 0>;
+				cd-inverted;
+				bus-width = <4>;
+				wp-inverted;
+				marvell,sdh-pm-runtime-en;
+				marvell,sdh-host-caps-disable = <(MMC_CAP_UHS_SDR104)>;
+				marvell,sdh-quirks = <(
+						SDHCI_QUIRK_INVERTED_WRITE_PROTECT |
+						SDHCI_QUIRK_BROKEN_CARD_DETECTION
+						)>;
+				marvell,sdh-quirks2 = <(
+						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
+						SDHCI_QUIRK2_TIMEOUT_SHORT
+						)>;
+				marvell,sdh-flags = <(
+						PXA_FLAG_TX_SEL_BUS_CLK |
+						PXA_FLAG_ENABLE_CLOCK_GATING
+						)>;
+		/* prop "sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay sdclk_sel0 sdclk_sel1 fakeclk_en> */
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
+				status = "okay";
+			};
 		};
 
 		apb@d4000000 {
@@ -408,6 +441,60 @@
 					synaptics,sensor_max_y = <2070>;
 					synaptics,sensor_margin_x = <0>;
 					synaptics,sensor_margin_y = <0>;
+				};
+
+				/* MFP_DEFAULT */
+				sdh0_pmx_func1: sdh0_pmx_func1 {
+					pinctrl-single,pins = <
+						MMC1_DAT7 AF1
+						MMC1_DAT6 AF1
+						MMC1_DAT5 AF1
+						MMC1_DAT4 AF1
+						MMC1_WP AF1
+						MMC1_CD AF1 /* Above pins not used by sdh1, configured as GPIO */
+						GPIO92 AF0 /* GPIO92, used for sd card detect */
+					>;
+					MFP_DEFAULT;
+				};
+
+				/* no pull, no LPM */
+				sdh0_pmx_func2: sdh0_pmx_func2 {
+					pinctrl-single,pins = <
+						MMC1_DAT3 AF0
+						MMC1_DAT2 AF0
+						MMC1_DAT1 AF0
+						MMC1_DAT0 AF0
+						MMC1_CMD AF0
+					>;
+					MFP_DEFAULT;
+				};
+
+				/* MFP_LPM_DRIVE_LOW */
+				sdh0_pmx_func3: sdh0_pmx_func3 {
+					pinctrl-single,pins = <
+						MMC1_CLK AF0
+					>;
+					MFP_LPM_DRIVE_LOW;
+				};
+
+				/* ds fast, no pull, no LPM */
+				sdh0_pmx_func2_fast: sdh0_pmx_func2_fast {
+					pinctrl-single,pins = <
+						MMC1_DAT3 AF0
+						MMC1_DAT2 AF0
+						MMC1_DAT1 AF0
+						MMC1_DAT0 AF0
+						MMC1_CMD AF0
+					>;
+					DS_FAST;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+
+				/* ds fast, LPM_DRIVE_LOW */
+				sdh0_pmx_func3_fast: sdh0_pmx_func3_fast {
+					pinctrl-single,pins = <
+						MMC1_CLK AF0
+					>;
+					DS_FAST;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
 				};
 
 				/* no pull, no LPM */
