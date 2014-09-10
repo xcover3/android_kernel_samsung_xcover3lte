@@ -191,6 +191,39 @@
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
 				status = "okay";
 			};
+
+			/* SDIO */
+			sdh1: sdh@d4280800 {
+				pinctrl-names = "default", "fast", "sleep";
+				pinctrl-0 = <&sdh1_pmx_func1 &sdh1_pmx_func2 &sdh1_pmx_func3 &sdh1_pmx_func4>;
+				pinctrl-1 = <&sdh1_pmx_func1_fast &sdh1_pmx_func2_fast &sdh1_pmx_func3 &sdh1_pmx_func4>;
+				pinctrl-2 = <&sdh1_pmx_edge_wakeup>;
+				bus-width = <4>;
+				marvell,sdh-pm-runtime-en;
+				marvell,sdh-host-caps-disable = <(MMC_CAP_UHS_SDR104 | MMC_CAP_UHS_SDR50)>;
+				marvell,sdh-quirks = <(SDHCI_QUIRK_BROKEN_CARD_DETECTION)>;
+				marvell,sdh-quirks2 = <(SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST |
+						SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS |
+						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
+						SDHCI_QUIRK2_TIMEOUT_SHORT
+						)>;
+				marvell,sdh-pm-caps = <(MMC_PM_KEEP_POWER)>;
+				marvell,sdh-host-caps2 = <(MMC_CAP2_NO_VOLTAGE_SWITCH)>;
+				marvell,sdh-flags = <(
+						PXA_FLAG_WAKEUP_HOST |
+						PXA_FLAG_TX_SEL_BUS_CLK |
+						PXA_FLAG_EN_PM_RUNTIME |
+						PXA_FLAG_DISABLE_PROBE_CDSCAN
+						)>;
+		/* prop "sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay sdclk_sel0 sdclk_sel1 fakeclk_en> */
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_45M PXA_SDH_DTR_89M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_UHS_SDR50 PXA_SDH_DTR_104M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_UHS_SDR104 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 600 0 0 0 1>,
+						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_89M 0 0 0 0 0>;
+				status = "okay";
+			};
 		};
 
 		apb@d4000000 {
@@ -495,6 +528,66 @@
 						MMC1_CLK AF0
 					>;
 					DS_FAST;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
+				};
+
+				sdh1_pmx_func1_fast: sdh1_pmx_func1_fast {
+						pinctrl-single,pins = <
+							GPIO37 AF1
+							GPIO38 AF1
+							GPIO39 AF1
+							GPIO40 AF1
+							GPIO41 AF1
+						>;
+						DS_FAST;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+
+				sdh1_pmx_func2_fast: sdh1_pmx_func2_fast {
+						pinctrl-single,pins = <
+							GPIO42 AF1
+						>;
+						DS_FAST;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
+				};
+
+				sdh1_pmx_func1: sdh1_pmx_func1 {
+						pinctrl-single,pins = <
+							GPIO37 AF1
+							GPIO38 AF1
+							GPIO39 AF1
+							GPIO40 AF1
+							GPIO41 AF1
+						>;
+						MFP_DEFAULT;
+				};
+
+				sdh1_pmx_func2: sdh1_pmx_func2 {
+						pinctrl-single,pins = <
+							GPIO42 AF1
+						>;
+						DS_SLOW0;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
+				};
+
+				sdh1_pmx_func3: sdh1_pmx_func3 {
+						pinctrl-single,pins = <
+							GPIO7 AF0
+							GPIO71 AF0
+							GPIO14 AF0 /* WIFI_DCDC_EN */
+						>;
+						DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_NONE;
+				};
+
+				sdh1_pmx_func4: sdh1_pmx_func4 {
+						pinctrl-single,pins = <
+							GPIO8 AF0
+							GPIO5 AF0
+						>;
+						DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_NONE;
+				};
+
+				sdh1_pmx_edge_wakeup: sdh1_pmx_edge_wakeup {
+						pinctrl-single,pins = <
+							GPIO39 AF1
+						>;
+						DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
 
 				/* no pull, no LPM */
