@@ -116,6 +116,7 @@ droidcore: $(KERNEL_IMAGE) vmlinux
 
 dtb_files:= $(foreach n, $(KERNEL_DTB_FILE), $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/dts/$(n))
 local_dtb_files = $(foreach n, $(KERNEL_DTB_FILE), $(PRODUCT_OUT)/$(n))
+local_dtb_files_padded = $(foreach n, $(KERNEL_DTB_FILE), $(ANDROID_PRODUCT_OUT)/$(n).padded)
 
 $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE): FORCE
 
@@ -164,6 +165,8 @@ ifeq ($(ARCH),arm64)
 else
 	$(MAKE) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
 endif
+	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) /dev/zero|head -c `expr \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` + 2048 - \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` % 2048` > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded
+	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded ${local_dtb_files_padded} > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 
 # Configures and runs menuconfig on the kernel based on
 # KERNEL_DEFCONFIG given on commandline or in BoardConfig.mk.
