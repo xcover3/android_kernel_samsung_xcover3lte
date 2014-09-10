@@ -629,6 +629,10 @@
 
 			seh {
 				compatible = "marvell,seh";
+				/* add <0xffffffff 0xf> to coordinate with pxa988/1088/1L88
+				 * please don't touch it under eden. <pxd403d000 0x4> is
+				 * RIPC status register for RIPC lock */
+				reg = <0xffffffff 0xf>, <0xd403d000 0x4>;
 				interrupts = <0 32 0x1>;
 				interrupt-names = "CP_TIMER3";
 				clocks = <&soc_clocks PXA1928_CLK_RIPC_RST>;
