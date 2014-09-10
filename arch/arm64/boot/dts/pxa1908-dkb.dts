@@ -36,6 +36,21 @@
 		};
 
 		axi@d4200000 {  /* AXI */
+			usbphy: usbphy@d4207000 {
+				status = "okay";
+			};
+
+			udc: udc@d4208100 {
+				status = "okay";
+			};
+
+			ehci: ehci@d4208100 {
+				status = "okay";
+			};
+
+			otg: otg@d4208100 {
+				status = "okay";
+			};
 
 			pd_vpu: pd_vpu@d4282800 {
 				compatible = "marvell,power-domain-common-vpu";
