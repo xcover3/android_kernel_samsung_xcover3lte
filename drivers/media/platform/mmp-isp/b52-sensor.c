@@ -1942,6 +1942,12 @@ static int b52_sensor_g_ctrl(struct v4l2_ctrl *ctrl)
 			sensor->drvdata->res[i].width;
 		break;
 
+	case V4L2_CID_VBLANK:
+		i = sensor->cur_res_idx;
+		ctrl->val = sensor->drvdata->res[i].min_vts -
+			sensor->drvdata->res[i].height;
+		break;
+
 	case V4L2_CID_PIXEL_RATE:
 		ctrl->val64 = sensor->pixel_rate;
 		break;
@@ -2098,7 +2104,10 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
 
-	for (i = 0; i < sensor->drvdata->num_res; i++) {
+	if (sensor->drvdata->num_res > 0)
+		min = max = sensor->drvdata->res[0].hts -
+			sensor->drvdata->res[0].width;
+	for (i = 1; i < sensor->drvdata->num_res; i++) {
 		min = min_t(u32, min, sensor->drvdata->res[i].hts
 				- sensor->drvdata->res[i].width);
 		max = max_t(u32, max, sensor->drvdata->res[i].hts
