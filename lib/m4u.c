@@ -100,7 +100,7 @@ static inline int m4u_fill_frame_by_sg(struct m4u_frame *frm,
 		dscr_cpu[j].dma_size += sg_dma_len(sg);
 		new_addr = sg_dma_address(sg) + sg_dma_len(sg);
 	}
-	dsb();
+	dsb(sy);
 
 	{
 		/* make plane 0 to point at Buffer Descriptor Table */
