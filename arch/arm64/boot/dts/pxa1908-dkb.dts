@@ -365,6 +365,15 @@
 			twsi2: i2c@d4037000 {
 				status = "okay";
 
+				pmic0: 88pm886@30 {
+					reg = <0x30>;
+					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-parent = <&gic>;
+
+					onkey {
+						marvell,pm886-onkey-gpio-number = <1>;
+					};
+				};
 				pmic2: 88pm860@38 {
 					compatible = "marvell,88pm860";
 					reg = <0x38>;
@@ -531,3 +540,5 @@
 		status = "okay";
 	};
 };
+
+#include "88pm886.dtsi"
