@@ -52,6 +52,7 @@
 
 static int cp_shm_ch_inited;
 static int m3_shm_ch_inited;
+static int aponly;
 
 int cmsockdev_major;
 int cmsockdev_minor;
@@ -914,6 +915,9 @@ static long msocket_ioctl(struct file *filp,
 	if (_IOC_NR(cmd) > MSOCKET_IOC_MAXNR)
 		return -ENOTTY;
 
+	if (aponly && (MSOCKET_IOC_ERRTO != cmd) && (MSOCKET_IOC_RECOVERY != cmd))
+		return -1;
+
 	switch (cmd) {
 	case MSOCKET_IOC_BIND:
 		port = arg;
@@ -1279,6 +1283,7 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 	if (addr->aponly) {
 		pr_info("%s: aponly version\n",
 			__func__);
+		aponly = 1;
 		return 0;
 	}
 
