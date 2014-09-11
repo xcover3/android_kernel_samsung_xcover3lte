@@ -304,7 +304,10 @@ CONFIG_FORCE_MAX_ZONEORDER=11
 # Boot options
 #
 CONFIG_CMDLINE="rdinit=/busybox/rdinit console=ttyS0,115200 mem=512M earlyprintk uart_dma"
+CONFIG_CMDLINE_FROM_BOOTLOADER=y
+# CONFIG_CMDLINE_EXTEND is not set
 # CONFIG_CMDLINE_FORCE is not set
+# CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE is not set
 
 #
 # Userspace binary formats
@@ -1632,6 +1635,7 @@ CONFIG_MFD_88PM860=y
 CONFIG_MFD_88PM830=y
 # CONFIG_MFD_88PM860X is not set
 CONFIG_MFD_MMP_MAP=y
+# CONFIG_MFD_88PM886 is not set
 # CONFIG_MFD_MAX14577 is not set
 # CONFIG_MFD_MAX77686 is not set
 # CONFIG_MFD_MAX77693 is not set
@@ -2464,6 +2468,8 @@ CONFIG_ION=y
 # CONFIG_ION_TEST is not set
 # CONFIG_ION_DUMMY is not set
 CONFIG_ION_PXA=y
+# CONFIG_FIQ_DEBUGGER is not set
+# CONFIG_FIQ_WATCHDOG is not set
 # CONFIG_USB_WPAN_HCD is not set
 # CONFIG_WIMAX_GDM72XX is not set
 # CONFIG_LTE_GDM724X is not set
