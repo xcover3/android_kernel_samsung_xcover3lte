@@ -152,6 +152,16 @@ int map_bytes_put(struct snd_kcontrol *kcontrol,
 		if (ret != 0)
 			goto out;
 
+		/*
+		 * WA for map fix: no need to mask bit 4, so that mono mode
+		 * can be set freely for dsp1/2/1a
+		 */
+		if (map_priv->b0_fix && (params->mask == 0x13))
+			if ((params->base == MAP_DSP1_DAC_CTRL_REG) ||
+				(params->base == MAP_DSP2_DAC_CTRL_REG) ||
+				(params->base == MAP_ADC_CTRL_REG))
+				params->mask = 0x3;
+
 		val &= params->mask;
 
 		mask = ~params->mask;
