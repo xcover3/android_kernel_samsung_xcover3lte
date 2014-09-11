@@ -190,7 +190,8 @@ static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 		case POWER_MODE_UDR:
 			for_each_possible_cpu(cpu_idx)
 				mp_idle_cfg[cpu_idx] |= PMUA_MP_L2_SRAM_POWER_DOWN;
-			apcr |= PMUM_VCTCXOSD;
+			if (!cpu_is_pxa1U88())
+				apcr |= PMUM_VCTCXOSD;
 			/* fall through */
 		case POWER_MODE_UDR_VCTCXO:
 			apcr |= PMUM_STBYEN;
@@ -199,6 +200,9 @@ static void pxa988_lowpower_config(u32 cpu, u32 power_state,
 			apcr |= PMUM_APBSD;
 			apcr |= PMUM_SLPEN;
 			apcr |= PMUM_DDRCORSD;
+			/* Shut down VCTCXO in D1 to save power consumption */
+			if (cpu_is_pxa1U88())
+				apcr |= PMUM_VCTCXOSD;
 			/* fall through */
 		case POWER_MODE_APPS_IDLE:
 			apcr |= PMUM_AXISD;
