@@ -47,6 +47,12 @@ static LIST_HEAD(clk_dcstat_list);
 
 static powermode pxa_powermode;
 
+
+/*10us,50us,100us,250us,500us,750us,1ms,5ms,25ms,100ms */
+#define MAX_TIME 1000000000000000000
+static u64 cpuidle_breakdown[MAX_BREAKDOWN_TIME+1] = {10000, 50000, 100000,
+250000, 500000, 750000, 1000000, 5000000, 25000000, 100000000, MAX_TIME};
+
 static void clk_dutycycle_stats(struct clk *clk,
 				enum clk_stat_msg msg,
 				struct clk_dc_stat_info *dc_stat_info,
@@ -645,6 +651,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 					dc_stat_info->online = 1;
 				else
 					dc_stat_info->online = 0;
+
 				for (i = 0; i < MAX_BREAKDOWN_TIME; i++) {
 					dc_stat_info->breakdown_time_total[i] = 0;
 					dc_stat_info->breakdown_time_count[i] = 0;
@@ -699,8 +706,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				    [dc_stat_info->C1_op_index] +=
 				    dc_stat_info->C1_idle_end -
 					dc_stat_info->C1_idle_start;
-				dc_stat_info->C1_count[dc_stat_info->
-						       C1_op_index]++;
+				dc_stat_info->C1_count[dc_stat_info->C1_op_index]++;
 				dc_stat_info->C1_idle_start = ktime_temp;
 				dc_stat_info->C1_op_index = tgtop;
 			} else if ((dc_stat_info->idle_flag == LPM_C2) &&
@@ -710,10 +716,22 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				    [dc_stat_info->C2_op_index] +=
 						dc_stat_info->C2_idle_end -
 						 dc_stat_info->C2_idle_start;
-				dc_stat_info->C2_count[dc_stat_info->
-						       C2_op_index]++;
+				dc_stat_info->C2_count[dc_stat_info->C2_op_index]++;
 				dc_stat_info->C2_idle_start = ktime_temp;
 				dc_stat_info->C2_op_index = tgtop;
+			}
+			if ((u64) 0 != dc_stat_info->breakdown_start) {
+				dc_stat_info->breakdown_end = ktime_temp;
+				temp_time = dc_stat_info->breakdown_end -
+							 dc_stat_info->breakdown_start;
+				for (i = 0; i <= MAX_BREAKDOWN_TIME; i++)
+					if (temp_time && temp_time < cpuidle_breakdown[i]) {
+						dc_stat_info->breakdown_time_total[i]
+							+= temp_time;
+						dc_stat_info->breakdown_time_count[i]++;
+						break;
+					}
+				dc_stat_info->breakdown_start = ktime_temp;
 			}
 			spin_unlock(&c1c2_exit_lock);
 		}
@@ -824,22 +842,16 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			dc_stat_info->breakdown_end = ktime_temp;
 			temp_time = dc_stat_info->breakdown_end -
 						 dc_stat_info->breakdown_start;
+			dc_stat_info->breakdown_start = 0;
 			if (temp_time) {
-				if (temp_time >= 100 * NSEC_PER_MSEC) {
-					dc_stat_info->breakdown_time_count
-					    [MAX_BREAKDOWN_TIME - 1]++;
-					dc_stat_info->breakdown_time_total
-					    [MAX_BREAKDOWN_TIME - 1] +=
-					    temp_time;
-				} else {
-					i = div64_u64(temp_time, (u64)(10 * NSEC_PER_MSEC));
-					dc_stat_info->breakdown_time_count[i]++;
-					dc_stat_info->breakdown_time_total[i]
-					    += temp_time;
-				}
+				for (i = 0; i <= MAX_BREAKDOWN_TIME; i++)
+					if (temp_time < cpuidle_breakdown[i]) {
+						dc_stat_info->breakdown_time_total[i] += temp_time;
+						dc_stat_info->breakdown_time_count[i]++;
+						break;
+					}
 			}
 		}
-
 		dc_stat_info->power_mode = tgtop;
 		mark_keytime = true;
 
@@ -948,9 +960,9 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 	u32 av_mips_l, av_mips_h, rt_h, rt_l, idle_h, idle_l, total_all_idle,
 	run_time, idle_time;
 	u32 temp_total_time = 0, temp_total_count = 0;
-	char *lpm_time_string[12] = { "<10 ms", "<20 ms", "<30 ms",
-		"<40 ms", "<50 ms", "<60 ms", "<70 ms", "<80 ms",
-		"<90 ms", "<100 ms", ">100 ms"
+	char *lpm_time_string[12] = { "<10 us", "<50 us", "<100 us",
+		"<250 us", "<500 us", "<750 us", "<1 ms", "<5 ms",
+		"<25 ms", "<100 ms", ">100 ms"
 	};
 
 	percpu_stat = &per_cpu(cpu_dc_stat, 0);
@@ -1089,28 +1101,28 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 
 	for_each_possible_cpu(cpu) {
 		percpu_stat = &per_cpu(cpu_dc_stat, cpu);
-		seq_printf(seq, "| CPU%d idle | %10s | %10s |\n",
-			cpu, "time (ms)", "count");
+		seq_printf(seq, "| CPU%d idle | %15s | %15s |\n",
+					cpu, "time (us)", "count");
 		temp_total_time = temp_total_count = 0;
-		for (i = 0; i < MAX_BREAKDOWN_TIME; i++) {
+		for (i = 0; i <= MAX_BREAKDOWN_TIME; i++) {
 			if (0 != percpu_stat->breakdown_time_total[i] ||
 			    0 != percpu_stat->breakdown_time_count[i]) {
-				seq_printf(seq, "| %9s | %10lld | %10lld |\n",
+				seq_printf(seq, "| %9s | %15lld | %15lld |\n",
 						lpm_time_string[i],
 						div64_u64(percpu_stat->
 							  breakdown_time_total
-							  [i], (u64) NSEC_PER_MSEC),
+							  [i], (u64) NSEC_PER_USEC),
 						percpu_stat->
 						breakdown_time_count[i]);
 				temp_total_time +=
 				    div64_u64(percpu_stat->
 					      breakdown_time_total[i],
-					      (u64) NSEC_PER_MSEC);
+					      (u64) NSEC_PER_USEC);
 				temp_total_count +=
 				    percpu_stat->breakdown_time_count[i];
 			}
 		}
-		seq_printf(seq, "| %9s | %10u | %10u |\n", "SUM",
+		seq_printf(seq, "| %9s | %15u | %15u |\n", "SUM",
 				temp_total_time, temp_total_count);
 	}
 	seq_puts(seq, "\n");
