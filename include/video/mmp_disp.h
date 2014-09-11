@@ -219,6 +219,7 @@ struct mmp_vdma_ops {
 	void (*set_addr)(struct mmp_vdma_info *vdma_info,
 			struct mmp_addr *addr, int overlay_status);
 	void (*trigger)(struct mmp_vdma_info *vdma);
+	void (*runtime_onoff)(int on);
 	void (*set_decompress_en)(struct mmp_vdma_info *vdma_info, int en);
 };
 

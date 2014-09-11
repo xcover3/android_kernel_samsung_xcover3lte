@@ -477,11 +477,40 @@ static void vdma_set_addr(struct mmp_vdma_info *vdma_info,
 	}
 }
 
+static void vdma_runtime_onoff(int on)
+{
+	int i = 0;
+
+	if (!vdma)
+		return;
+
+	if (on) {
+		if (vdma->regs_store)
+			/* recovery registers */
+			while (i < vdma->regs_len) {
+				writel_relaxed(vdma->regs_store[i],
+					vdma->reg_base + i * 4);
+				i++;
+			}
+		vdma->status = MMP_ON;
+	} else {
+		if (vdma->regs_store)
+			/* store registers */
+			while (i < vdma->regs_len) {
+				vdma->regs_store[i] =
+					readl_relaxed(vdma->reg_base + i * 4);
+				i++;
+			}
+		vdma->status = MMP_OFF;
+	}
+}
+
 struct mmp_vdma_ops vdma_ops = {
 	.set_on = vdma_set_on,
 	.set_addr = vdma_set_addr,
 	.set_win = vdma_set_win,
 	.trigger = vdma_hw_trigger,
+	.runtime_onoff = vdma_runtime_onoff,
 	.set_decompress_en = vdma_set_decompress_en,
 };
 
@@ -729,9 +758,6 @@ static int mmp_vdma_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, vdma);
 	vdma_dbg_init(vdma->dev);
 
-	pm_runtime_enable(vdma->dev);
-	pm_runtime_forbid(vdma->dev);
-
 	vdma->regs_store = devm_kzalloc(vdma->dev,
 			vdma->regs_len * sizeof(u32), GFP_KERNEL);
 	if (!vdma->regs_store) {
@@ -785,68 +811,12 @@ static const struct of_device_id mmp_vdma_dt_match[] = {
 };
 #endif
 
-static void mmp_vdma_regs_store(struct mmp_vdma *vdma)
-{
-	int i = 0;
-
-	if (vdma->regs_store)
-		/* store registers */
-		while (i < vdma->regs_len) {
-			vdma->regs_store[i] =
-				readl_relaxed(vdma->reg_base + i * 4);
-			i++;
-		}
-}
-
-static void mmp_vdma_regs_recovery(struct mmp_vdma *vdma)
-{
-	int i = 0;
-
-	if (vdma->regs_store)
-		/* recovery registers */
-		while (i < vdma->regs_len) {
-			writel_relaxed(vdma->regs_store[i],
-				vdma->reg_base + i * 4);
-			i++;
-		}
-}
-
-#if defined(CONFIG_PM_SLEEP) || defined(CONFIG_PM_RUNTIME)
-static int mmp_vdma_runtime_suspend(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct mmp_vdma *vdma = platform_get_drvdata(pdev);
-
-	vdma->status = MMP_OFF;
-	mmp_vdma_regs_store(vdma);
-
-	return 0;
-}
-
-static int mmp_vdma_runtime_resume(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct mmp_vdma *vdma = platform_get_drvdata(pdev);
-
-	mmp_vdma_regs_recovery(vdma);
-	vdma->status = MMP_ON;
-
-	return 0;
-}
-#endif
-
-const struct dev_pm_ops mmp_vdma_pm_ops = {
-	SET_RUNTIME_PM_OPS(mmp_vdma_runtime_suspend,
-		mmp_vdma_runtime_resume, NULL)
-};
-
 static struct platform_driver mmp_vdma_driver = {
 	.probe          = mmp_vdma_probe,
 	.remove         = mmp_vdma_remove,
 	.driver         = {
 		.name   = "mmp-vdma",
 		.owner  = THIS_MODULE,
-		.pm = &mmp_vdma_pm_ops,
 		.of_match_table = of_match_ptr(mmp_vdma_dt_match),
 	},
 };

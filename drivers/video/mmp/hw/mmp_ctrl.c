@@ -1774,9 +1774,14 @@ static int mmphw_runtime_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mmphw_ctrl *ctrl = platform_get_drvdata(pdev);
+	struct mmp_path *path = ctrl->path_plats[0].path;
+	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
 
 	ctrl->status = MMP_OFF;
 	mmphw_regs_store(ctrl);
+
+	if (vdma)
+		vdma->ops->runtime_onoff(0);
 
 	return 0;
 }
@@ -1785,9 +1790,14 @@ static int mmphw_runtime_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mmphw_ctrl *ctrl = platform_get_drvdata(pdev);
+	struct mmp_path *path = ctrl->path_plats[0].path;
+	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
 
 	mmphw_regs_recovery(ctrl);
 	ctrl->status = MMP_ON;
+
+	if (vdma)
+		vdma->ops->runtime_onoff(1);
 
 	return 0;
 }
