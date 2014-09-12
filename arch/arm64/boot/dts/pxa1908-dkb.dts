@@ -816,6 +816,32 @@
 		rst_gpio = <&gpio 4 0>;
 		status = "okay";
 	};
+
+	sd8x-rfkill {
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio 7 0>;
+		rst-gpio = <&gpio 71 0>;
+		3v3-ldo-gpio = <&gpio 14 0>;
+		edge-wakeup-gpio = <&gpio 39 0>;
+		status = "okay";
+	};
+
+	sd8xxx-wlan {
+		drv_mode = <0x5>;
+		cfg80211_wext = <0xc>;
+		sta_name = "wlan";
+		wfd_name = "p2p";
+		max_vir_bss = <1>;
+		drvdbg = <0x80007>;
+		dev_cap_mask = <0xffffcfff>;
+		init_cfg = "mrvl/wifi_init_cfg.conf";
+		reg_alpha2 = "US";
+		p2p_enh = <1>;
+	};
+
+	sd8xxx-bt {
+		init_cfg = "mrvl/bt_init_cfg.conf";
+	};
 };
 
 #include "88pm886.dtsi"
