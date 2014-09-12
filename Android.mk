@@ -26,8 +26,8 @@ KERNEL_DTB_FILE ?= $(TARGET_DEVICE).dtb
 
 
 
-#dtb padded to 256k
-DTB_PADDING_BOOTIMG_SIZE := 262144
+#dtb padded to 128k
+DTB_PADDING_BOOTIMG_SIZE := 131072
 
 # only do this if we are buidling out of tree
 ifneq ($(KERNEL_OUTPUT),)
