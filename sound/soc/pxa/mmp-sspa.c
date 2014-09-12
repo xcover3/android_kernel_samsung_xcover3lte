@@ -512,7 +512,7 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "sleep_vol", &sleep_vol);
 	/* if sleep_vol is not specificed, set to 1v by default */
 	if (ret < 0)
-		sleep_vol = 0x20;
+		sleep_vol = 1000;
 	/* set audio mode voltage */
 	set_buck1_audio_mode_vol(sleep_vol);
 
