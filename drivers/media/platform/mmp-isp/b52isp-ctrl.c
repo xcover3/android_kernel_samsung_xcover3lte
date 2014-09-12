@@ -1079,6 +1079,9 @@ static int b52isp_ctrl_get_gain(struct b52isp_ctrls *ctrls, int id)
 
 static int b52isp_ctrl_set_band(struct v4l2_ctrl *ctrl, int id)
 {
+	int ret;
+	u16 band_50hz = 0;
+	u16 band_60hz = 0;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 	struct b52_sensor *sensor = b52isp_ctrl_to_sensor(ctrl);
 	if (!sensor)
@@ -1090,11 +1093,23 @@ static int b52isp_ctrl_set_band(struct v4l2_ctrl *ctrl, int id)
 				AUTO_BAND_DETECTION_OFF);
 		break;
 	case V4L2_CID_POWER_LINE_FREQUENCY_50HZ:
+		ret = b52_sensor_call(sensor, g_band_step,
+				&band_50hz, &band_60hz);
+		if (ret < 0)
+			return ret;
+		b52_writeb(base + REG_BAND_DET_50HZ, band_50hz);
+
 		b52_writeb(base + REG_FW_AUTO_BAND_DETECTION,
 				AUTO_BAND_DETECTION_OFF);
 		b52_writeb(base + REG_FW_BAND_FILTER_MODE, BAND_FILTER_50HZ);
 		break;
 	case V4L2_CID_POWER_LINE_FREQUENCY_60HZ:
+		ret = b52_sensor_call(sensor, g_band_step,
+				&band_50hz, &band_60hz);
+		if (ret < 0)
+			return ret;
+		b52_writeb(base + REG_BAND_DET_60HZ, band_60hz);
+
 		b52_writeb(base + REG_FW_AUTO_BAND_DETECTION,
 				AUTO_BAND_DETECTION_OFF);
 		b52_writeb(base + REG_FW_BAND_FILTER_MODE, BAND_FILTER_60HZ);
@@ -1115,6 +1130,9 @@ static int b52isp_ctrl_set_band(struct v4l2_ctrl *ctrl, int id)
 
 static int b52isp_ctrl_set_band_filter(struct v4l2_ctrl *ctrl, int id)
 {
+	int ret;
+	u16 band_50hz = 0;
+	u16 band_60hz = 0;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 	struct b52_sensor *sensor;
 
@@ -1123,6 +1141,16 @@ static int b52isp_ctrl_set_band_filter(struct v4l2_ctrl *ctrl, int id)
 		sensor = b52isp_ctrl_to_sensor(ctrl);
 		if (!sensor)
 			return -EINVAL;
+
+		ret = b52_sensor_call(sensor, g_band_step,
+				&band_50hz, &band_60hz);
+		if (ret < 0)
+			return ret;
+
+		b52_writew(base + REG_FW_BAND_50HZ,
+				band_50hz << BAND_VALUE_SHIFT);
+		b52_writew(base + REG_FW_BAND_60HZ,
+				band_60hz << BAND_VALUE_SHIFT);
 
 		b52_writeb(base + REG_FW_BAND_FILTER_EN,
 				BAND_FILTER_ENABLE);
