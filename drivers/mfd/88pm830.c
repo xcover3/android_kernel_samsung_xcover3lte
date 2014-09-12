@@ -26,9 +26,7 @@
 #include <linux/uaccess.h>
 #include <linux/gpio.h>
 #include <linux/debugfs.h>
-#if 0
 #include <linux/edge_wakeup_mmp.h>
-#endif
 
 /* number of INT_ENA & INT_STATUS regs */
 #define PM830_INT_REG_NUM			(2)
@@ -579,7 +577,6 @@ static int pm830_probe(struct i2c_client *client,
 
 	/* use 88pm830 as wakeup source */
 	device_init_wakeup(&client->dev, 1);
-#if 0
 	if (chip->edge_wakeup_gpio >= 0) {
 		ret = request_mfp_edge_wakeup(chip->edge_wakeup_gpio,
 					      NULL, chip, chip->dev);
@@ -588,15 +585,12 @@ static int pm830_probe(struct i2c_client *client,
 			goto err_mfp_wakeup;
 		}
 	}
-#endif
 
 	return 0;
 
-#if 0
 err_mfp_wakeup:
 	if (chip->edge_wakeup_gpio >= 0)
 		remove_mfp_edge_wakeup(chip->edge_wakeup_gpio);
-#endif
 out_dev:
 	mfd_remove_devices(chip->dev);
 err_out:
