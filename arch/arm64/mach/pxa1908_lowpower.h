@@ -49,6 +49,21 @@
 #define CORE2_CA7_GLB_INT_MASK	0x248
 #define CORE3_CA7_GLB_INT_MASK	0x258
 
+/* PMU wakeup timer match and control regs */
+#define PMU_TIMER_CTL0		0x1c0
+#define PMU_TIMER_CTL1		0x1c4
+#define PMU_TIMER_CTL2		0x1c8
+#define PMU_TIMER_CTL3		0x1cc
+
+#define PMU_TIMER_MA0L		0x1d0
+#define PMU_TIMER_MA0H		0x1d4
+#define PMU_TIMER_MA1L		0x1d8
+#define PMU_TIMER_MA1H		0x1dc
+#define PMU_TIMER_MA2L		0x1e0
+#define PMU_TIMER_MA2H		0x1e4
+#define PMU_TIMER_MA3L		0x1e8
+#define PMU_TIMER_MA3H		0x1ec
+
 /* APBC regs offset */
 #define TIMER0          0x034
 #define TIMER1          0x044
@@ -93,6 +108,7 @@
 #define PMUM_SPDTCMSD		(1 << 12)
 #define PMUM_LDMA_MASK		(1 << 3)
 
+#define PMUM_AP_GT		(1 << 30)
 #define PMUM_GSM_WAKEUPWMX	(1 << 29)
 #define PMUM_WCDMA_WAKEUPX	(1 << 28)
 #define PMUM_GSM_WAKEUPWM	(1 << 27)
