@@ -256,6 +256,7 @@ static struct irq_chip mmp_muxed_gpio_chip = {
 	.irq_mask	= mmp_mask_muxed_gpio,
 	.irq_unmask	= mmp_unmask_muxed_gpio,
 	.irq_set_type	= mmp_gpio_irq_type,
+	.flags		= IRQCHIP_SKIP_SET_WAKE,
 };
 
 static struct of_device_id mmp_gpio_dt_ids[] = {
