@@ -1001,7 +1001,7 @@
 				capture_period_bytes = <2048>;
 				capture_buffer_bytes = <4096>;
 				burst_size = <4>;
-				sleep_vol = <0x14>;
+				sleep_vol = <850>;
 				#dailink-cells = <1>;
 				status = "okay";
 			};
@@ -1015,7 +1015,7 @@
 				capture_period_bytes = <2048>;
 				capture_buffer_bytes = <4096>;
 				burst_size = <4>;
-				sleep_vol = <0x14>;
+				sleep_vol = <850>;
 				#dailink-cells = <1>;
 				status = "okay";
 			};
