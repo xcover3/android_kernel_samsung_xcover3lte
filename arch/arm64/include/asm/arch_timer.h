@@ -155,9 +155,41 @@ static inline u64 arch_counter_get_cntvct(void)
 	return cval;
 }
 
+static inline u64 arch_timer_get_cval_virt(void)
+{
+	u64 cval;
+
+	isb();
+	asm volatile("mrs %0, cntv_cval_el0" : "=r" (cval));
+
+	return cval;
+}
+
+static inline u64 arch_timer_get_cval_phys(void)
+{
+	u64 cval;
+
+	isb();
+	asm volatile("mrs %0, cntp_cval_el0" : "=r" (cval));
+
+	return cval;
+}
+
+static inline void arch_timer_set_cval(int access, u64 match)
+{
+	if (access == ARCH_TIMER_PHYS_ACCESS)
+		asm volatile("msr cntp_cval_el0,  %0" : : "r" (match));
+	else
+		asm volatile("msr cntv_cval_el0,  %0" : : "r" (match));
+
+	isb();
+}
+
 static inline int arch_timer_arch_init(void)
 {
 	return 0;
 }
 
+extern u64 (*arch_timer_get_cval)(void);
+extern void (*arch_timer_enable)(u64 match);
 #endif

@@ -218,6 +218,34 @@ static void arch_timer_set_mode_phys_mem(enum clock_event_mode mode,
 	timer_set_mode(ARCH_TIMER_MEM_PHYS_ACCESS, mode, clk);
 }
 
+#ifdef CONFIG_ARM64
+static void arch_timer_enable_phys(u64 match)
+{
+	unsigned long ctrl;
+
+	arch_timer_set_cval(ARCH_TIMER_PHYS_ACCESS, match);
+	ctrl = arch_timer_reg_read_cp15(ARCH_TIMER_PHYS_ACCESS, ARCH_TIMER_REG_CTRL);
+	ctrl |= ARCH_TIMER_CTRL_ENABLE;
+	arch_timer_reg_write_cp15(ARCH_TIMER_PHYS_ACCESS, ARCH_TIMER_REG_CTRL, ctrl);
+}
+
+static void arch_timer_enable_virt(u64 match)
+{
+	unsigned long ctrl;
+
+	arch_timer_set_cval(ARCH_TIMER_VIRT_ACCESS, match);
+	ctrl = arch_timer_reg_read_cp15(ARCH_TIMER_PHYS_ACCESS, ARCH_TIMER_REG_CTRL);
+	ctrl |= ARCH_TIMER_CTRL_ENABLE;
+	arch_timer_reg_write_cp15(ARCH_TIMER_PHYS_ACCESS, ARCH_TIMER_REG_CTRL, ctrl);
+}
+
+static void arch_timer_enable_null(u64 match)
+{
+}
+
+void (*arch_timer_enable)(u64 match) = arch_timer_enable_null;
+#endif
+
 static __always_inline void set_next_event(const int access, unsigned long evt,
 					   struct clock_event_device *clk)
 {
@@ -395,6 +423,7 @@ static u64 arch_timer_read_zero(void)
 }
 
 u64 (*arch_timer_read_counter)(void) = arch_timer_read_zero;
+u64 (*arch_timer_get_cval)(void) = arch_timer_read_zero;
 
 static cycle_t arch_counter_read(struct clocksource *cs)
 {
@@ -667,10 +696,19 @@ static void __init arch_timer_init(struct device_node *np)
 		}
 	}
 
-	if (arch_timer_use_virtual)
+	if (arch_timer_use_virtual) {
 		arch_timer_read_counter = arch_counter_get_cntvct;
-	else
+#ifdef CONFIG_ARM64
+		arch_timer_get_cval = arch_timer_get_cval_virt;
+		arch_timer_enable = arch_timer_enable_virt;
+#endif
+	} else {
 		arch_timer_read_counter = arch_counter_get_cntpct;
+#ifdef CONFIG_ARM64
+		arch_timer_get_cval = arch_timer_get_cval_phys;
+		arch_timer_enable = arch_timer_enable_phys;
+#endif
+	}
 
 	arch_timer_register();
 	arch_timer_common_init();
