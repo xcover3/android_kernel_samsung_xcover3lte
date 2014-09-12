@@ -376,7 +376,7 @@ enum {
 	APLL_NONE,
 };
 
-typedef void (*poweron_cb)(void __iomem*, void __iomem*, int);
+typedef void (*poweron_cb)(void __iomem*, struct clk*, int);
 
 struct map_clk_audio_pll_table {
 	unsigned long input_rate;
@@ -392,6 +392,7 @@ struct map_clk_audio_pll_table {
 
 struct clk_audio {
 	struct clk_hw hw;
+	struct clk *puclk;
 	void __iomem *apmu_base;
 	void __iomem *map_base;
 	void __iomem *dspaux_base;

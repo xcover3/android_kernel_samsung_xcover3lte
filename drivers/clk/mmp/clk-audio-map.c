@@ -78,15 +78,13 @@ struct map_clk_apll1_table {
 };
 
 /* power on/off func of helan2 seires: helan2/ulc/helan3 */
-static void helanx_power_on(void __iomem *apmu_base, void __iomem *apbs_base, int pwr_on)
+static void helanx_power_on(void __iomem *apmu_base, struct clk *puclk, int pwr_on)
 {
-	u32 val, apb_spare9 = 0;
-
-	apb_spare9 = readl_relaxed(apbs_base + APB_SPARE9);
+	u32 val;
 
 	if (pwr_on) {
 		/* power up the ana_grp_w_pecl_limiter */
-		apb_spare9 |= APB_SPARE_PU_LIMIT;
+		clk_prepare_enable(puclk);
 		/* clock enable: by deafult choose vctcxo */
 		val = readl_relaxed(apmu_base + APMU_AUD_CLK);
 		val |= 0xf;
@@ -97,17 +95,15 @@ static void helanx_power_on(void __iomem *apmu_base, void __iomem *apbs_base, in
 		val &= ~0xf;
 		writel_relaxed(val, apmu_base + APMU_AUD_CLK);
 		/* power off the ana_grp_w_pecl_limiter */
-		apb_spare9 &= ~(APB_SPARE_PU_LIMIT);
+		clk_disable_unprepare(puclk);
 	}
-
-	writel_relaxed(apb_spare9, apbs_base + APB_SPARE9);
 }
 
 #define PMUA_AUDIO_PWRCTRL		(0x010c)
 #define PMUA_SRAM_PWRCTRL		(0x0240)
 #define PMUA_ISLD_AUDIO_CTRL		(0x01A8)
 /* power on/off func of eden series: eden etc */
-static void edenx_power_on(void __iomem *apmu_base, void __iomem *not_used, int pwr_on)
+static void edenx_power_on(void __iomem *apmu_base, struct clk *unused, int pwr_on)
 {
 	unsigned int pmua_audio_pwrctrl, pmua_audio_clk_res_ctrl;
 	unsigned int pmua_isld_audio_ctrl, pmua_sram_pwrctrl;
@@ -615,7 +611,7 @@ static int clk_apll_enable(struct clk_hw *hw)
 	struct clk_audio *audio = to_clk_audio(hw);
 
 	/* enable audio power domain */
-	audio->poweron(audio->apmu_base, audio->apbsp_base, 1);
+	audio->poweron(audio->apmu_base, audio->puclk, 1);
 
 	/* enable 32K-apll */
 	audio->apll_enable(audio->dspaux_base, 48000);
@@ -631,7 +627,7 @@ static void clk_apll_disable(struct clk_hw *hw)
 	audio->apll_disable(audio->dspaux_base);
 
 	/* if audio pll is closed, we can close the audio island */
-	audio->poweron(audio->apmu_base, audio->apbsp_base, 0);
+	audio->poweron(audio->apmu_base, audio->puclk, 0);
 }
 
 static long __map_apll1_get_rate_table(struct clk_hw *hw,
@@ -740,6 +736,7 @@ struct clk *mmp_clk_register_apll1(const char *name, const char *parent_name,
 	init.parent_names = (parent_name ? &parent_name : NULL);
 	init.num_parents = (parent_name ? 1 : 0);
 
+	audio->puclk = map_unit->puclk;
 	audio->apmu_base = map_unit->apmu_base;
 	audio->map_base = map_unit->map_base;
 	audio->dspaux_base = map_unit->dspaux_base;
@@ -869,6 +866,7 @@ struct clk *mmp_clk_register_apll2(const char *name, const char *parent_name,
 	init.parent_names = (parent_name ? &parent_name : NULL);
 	init.num_parents = (parent_name ? 1 : 0);
 
+	audio->puclk = map_unit->puclk;
 	audio->apmu_base = map_unit->apmu_base;
 	audio->map_base = map_unit->map_base;
 	audio->dspaux_base = map_unit->dspaux_base;
@@ -1085,6 +1083,13 @@ void __init audio_clk_init(struct device_node *np)
 
 	unit = &map_unit->unit;
 	apll = map_unit->apll;
+
+	/* 32k pu */
+	clk = mmp_clk_register_gate(NULL, "32kpu", NULL, 0,
+				map_unit->apbsp_base + APB_SPARE9,
+				APB_SPARE_PU_LIMIT, APB_SPARE_PU_LIMIT,
+				0x0, 0, NULL);
+	map_unit->puclk = clk;
 
 	/* apll1 */
 	clk = mmp_clk_register_apll1("map_apll1", "clk32", map_unit, &clk_lock);

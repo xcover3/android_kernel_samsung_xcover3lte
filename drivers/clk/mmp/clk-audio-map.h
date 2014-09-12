@@ -14,9 +14,10 @@ struct map_clk_unit {
 	void __iomem *map_base;
 	void __iomem *dspaux_base;
 	void __iomem *apbsp_base;
+	struct clk *puclk;
 	u32 apll;
 	u32 power_ctrl;
-	void (*poweron_cb)(void __iomem*, void __iomem*, int);
+	void (*poweron_cb)(void __iomem*, struct clk*, int);
 };
 
 void __init audio_clk_init(struct device_node *np);
