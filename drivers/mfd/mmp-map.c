@@ -251,7 +251,7 @@ static int map_32k_apll_enable(struct map_private *map_priv)
 	}
 
 	/* power on audio island */
-	map_priv->poweron(map_priv->apmu_base, map_priv->apbsp_base, 1);
+	map_priv->poweron(map_priv->apmu_base, map_priv->puclk, 1);
 	/* below value are fixed */
 	KVCO = 1;
 	ICP = 2;
@@ -388,7 +388,7 @@ static int map_32k_apll_disable(struct map_private *map_priv)
 	writel_relaxed(val, reg_addr);
 
 	/* power off audio island */
-	map_priv->poweron(map_priv->apmu_base, map_priv->apbsp_base, 0);
+	map_priv->poweron(map_priv->apmu_base, map_priv->puclk, 0);
 
 	return 0;
 }
@@ -410,7 +410,7 @@ static int map_26m_apll_enable(struct map_private *map_priv)
 	}
 
 	/* power on audio island */
-	map_priv->poweron(map_priv->apmu_base, map_priv->apbsp_base, 1);
+	map_priv->poweron(map_priv->apmu_base, map_priv->puclk, 1);
 	/* below value are fixed */
 	ICP = 6;
 	FD_SEL = 1;
@@ -549,7 +549,7 @@ static int map_26m_apll_disable(struct map_private *map_priv)
 	writel_relaxed(val, reg_addr);
 
 	/* power off audio island */
-	map_priv->poweron(map_priv->apmu_base, map_priv->apbsp_base, 0);
+	map_priv->poweron(map_priv->apmu_base, map_priv->puclk, 0);
 
 	return 0;
 }
@@ -1744,6 +1744,7 @@ static int mmp_map_probe(struct platform_device *pdev)
 	map_priv->apbsp_base = clk_audio->apbsp_base;
 	map_priv->regs_apmu = clk_audio->apmu_base + map_priv->audio_reg;
 	map_priv->poweron = clk_audio->poweron;
+	map_priv->puclk = clk_audio->puclk;
 
 	map_priv->user_count = 0;
 	map_priv->path_enabled = false;

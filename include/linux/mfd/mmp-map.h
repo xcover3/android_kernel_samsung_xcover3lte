@@ -444,6 +444,7 @@ struct map_private {
 	struct clk *map_tdm;
 	struct clk *map_bclk;
 	struct clk *dsp_clk;
+	struct clk *puclk;
 	poweron_cb poweron;
 
 	/* hardware version */
