@@ -651,6 +651,7 @@ static DEFINE_SPINLOCK(sdh0_lock);
 static const char *sdh_parent_names[] = {"pll1_624", "pll5p", "pll5", "pll1_416"};
 static struct mmp_clk_mix_config sdh_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(4, 10, 2, 8, 32),
+	.div_flags = CLK_DIVIDER_ONE_BASED,
 };
 
 static DEFINE_SPINLOCK(disp_lock);
@@ -841,7 +842,7 @@ static void pxa1928_axi_periph_clk_init(struct pxa1928_clk_unit *pxa_unit)
 	clk = mmp_clk_register_gate(NULL, "sdh0_clk", "sdh_mix_clk",
 				CLK_SET_RATE_PARENT,
 				pxa_unit->apmu_base + APMU_SDH0,
-				0x1b, 0x1b, 0x0, 0, &sdh0_lock);
+				0x1b, 0x1b, 0x3, 0, &sdh0_lock);
 	mmp_clk_add(unit, PXA1928_CLK_SDH0, clk);
 
 	clk = mmp_clk_register_gate(NULL, "sdh1_clk", "sdh_mix_clk",
