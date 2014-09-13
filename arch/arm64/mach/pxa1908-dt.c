@@ -30,6 +30,7 @@ static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_MMP_MAP
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dc00, "mmp-sspa-dai.0", NULL),
 #endif
+	OF_DEV_AUXDATA("marvell,mmp-disp", 0xd420b000, "mmp-disp", NULL),
 	{}
 };
 

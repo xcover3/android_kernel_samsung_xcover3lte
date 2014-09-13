@@ -8,6 +8,7 @@
  */
 
 /dts-v1/;
+/memreserve/ 0x17000000 0x01800000;     /* Frame buffer (24MB) */
 /memreserve/ 0x0a000000 0x00080000;     /* CM3 shared buffer(512KB) */
 /memreserve/ 0x0b000000 0x01000000;     /* CM3 ACQ buffer(16MB) */
 #include "pxa1908.dtsi"
