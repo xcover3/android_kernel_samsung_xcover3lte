@@ -703,6 +703,10 @@
 					onkey {
 						marvell,pm886-onkey-gpio-number = <1>;
 					};
+
+					vbus {
+						gpadc-number = <1>;
+					};
 				};
 				pmic2: 88pm860@38 {
 					compatible = "marvell,88pm860";
