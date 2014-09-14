@@ -78,7 +78,6 @@ static const struct resource rtc_resources[] = {
 static const struct resource charger_resources[] = {
 	CELL_IRQ_RESOURCE("88pm886-chg-fail", PM886_IRQ_CHG_FAIL),
 	CELL_IRQ_RESOURCE("88pm886-chg-done", PM886_IRQ_CHG_DONE),
-	CELL_IRQ_RESOURCE("88pm886-chg-ilimit", PM886_IRQ_CHG_ILIM),
 };
 
 static const struct resource battery_resources[] = {
@@ -569,6 +568,16 @@ int pm886_post_init_chip(struct pm886_chip *chip)
 	if (!chip || !chip->base_regmap || !chip->power_regmap ||
 	    !chip->gpadc_regmap || !chip->battery_regmap)
 		return -EINVAL;
+
+	/* save chip stepping */
+	ret = regmap_read(chip->base_regmap, PM886_ID_REG, &val);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to read chip ID: %d\n", ret);
+		return ret;
+	}
+	chip->chip_id = val;
+
+	dev_info(chip->dev, "PM886 chip ID = 0x%x\n", val);
 
 	/* read before alarm wake up bit before initialize interrupt */
 	ret = regmap_read(chip->base_regmap, PM886_RTC_ALARM_CTRL1, &val);

@@ -17,6 +17,8 @@
  */
 
 /*--base page:--------------------------------------------------------------*/
+#define PM886_ID_REG			(0x0)
+
 #define PM886_STATUS1			(0x1)
 #define PM886_CHG_DET			(1 << 2)
 #define PM886_BAT_DET			(1 << 3)

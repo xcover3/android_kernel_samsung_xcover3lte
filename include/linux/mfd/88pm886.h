@@ -33,6 +33,11 @@
 #define PM886_GPADC_NAME	"88pm886-gpadc"
 #define PM886_HWMON_NAME	"88pm886-hwmon"
 
+enum {
+	PM886_A0 = 0x0,
+	PM886_A1 = 0x1
+};
+
 /* TODO: use chip id is better */
 enum pm88x_type {
 	PM886 = 1,
@@ -155,6 +160,7 @@ struct pm886_chip {
 	unsigned short battery_page_addr;/* battery page I2C address */
 	unsigned short test_page_addr;	/* test page I2C address */
 
+	unsigned int chip_id;
 	long type;
 	int irq;
 
