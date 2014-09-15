@@ -194,7 +194,7 @@ static ssize_t pm886_reg_val_write(struct file *file,
 				const char __user *user_buf,
 				size_t count, loff_t *ppos)
 {
-	struct pm886_chip *chip = file->private_data;
+	struct pm886_chip *chip = ((struct seq_file *)(file->private_data))->private;
 	unsigned long user_val;
 	static struct regmap *map;
 	int err;
@@ -269,7 +269,7 @@ static ssize_t pm886_compact_addr_write(struct file *file,
 	if (err)
 		return err;
 
-	memcpy(index, msg + 5, 3);
+	memcpy(index, msg + 5, 4);
 	err = kstrtou8(index, 16, &debug_reg_addr);
 	if (err)
 		return err;
