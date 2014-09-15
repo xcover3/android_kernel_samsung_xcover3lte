@@ -138,7 +138,7 @@ static const struct mfd_cell pm886_cell_devs[] = {
 };
 
 const struct of_device_id pm886_of_match[] = {
-	{ .compatible = "marverll,88pm886", .data = (void *)PM886 },
+	{ .compatible = "marvell,88pm886", .data = (void *)PM886 },
 	{},
 };
 EXPORT_SYMBOL_GPL(pm886_of_match);
