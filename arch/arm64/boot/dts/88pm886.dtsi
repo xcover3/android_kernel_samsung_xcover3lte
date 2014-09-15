@@ -20,6 +20,10 @@
 		/* marvell,pm886-onkey-gpio-number = <1>; */
 	};
 
+	vbus {
+		compatible = "marvell,88pm886-vbus";
+	};
+
 	rtc {
 		compatible = "marvell,88pm886-rtc";
 	};
