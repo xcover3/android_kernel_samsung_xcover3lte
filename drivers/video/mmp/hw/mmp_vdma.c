@@ -61,7 +61,7 @@ static void vdma_vsync_cb(struct mmp_vdma_info *vdma_info)
 	unsigned long flags;
 	u32 tmp;
 
-	if (DISP_GEN4(vdma->version)) {
+	if (DISP_GEN4(vdma->version) && !DISP_GEN4_LITE(vdma->version)) {
 		spin_lock_irqsave(&vdma_info->status_lock, flags);
 		if (vdma_info->status == VDMA_TO_DISABLE_TRIGGERED) {
 			vdma_info->status = VDMA_DISABLED;
@@ -227,10 +227,12 @@ static void vdma_set_on(struct mmp_vdma_info *vdma_info, int on)
 		spin_lock_irqsave(&vdma_info->status_lock, flags);
 		vdma_info->status = VDMA_ON;
 		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
-		/* enable channel clock firstly */
-		tmp = readl_relaxed(&vdma_reg->clk_ctrl);
-		tmp &= ~VDMA_CLK_DIS(vdma_info->vdma_id);
-		writel_relaxed(tmp, &vdma_reg->clk_ctrl);
+		if (!DISP_GEN4_LITE(vdma->version)) {
+			/* enable channel clock firstly */
+			tmp = readl_relaxed(&vdma_reg->clk_ctrl);
+			tmp &= ~VDMA_CLK_DIS(vdma_info->vdma_id);
+			writel_relaxed(tmp, &vdma_reg->clk_ctrl);
+		}
 		vdma_squ_set(vdma_info->overlay_id, vdma_info->sub_ch_num, 1,
 				1);
 		if (!DISP_GEN4(vdma->version)) {
@@ -261,7 +263,8 @@ static void vdma_set_decompress_en(struct mmp_vdma_info *vdma_info, int en)
 	if (vdma_info->status == VDMA_FREED)
 		return;
 
-	if (!DISP_GEN4(vdma->version))
+	/* DC4_LITE don't support decompress */
+	if (!DISP_GEN4(vdma->version) || DISP_GEN4_LITE(vdma->version))
 		return;
 
 	if (vdma_info->decompress == en)
@@ -673,7 +676,8 @@ struct mmp_vdma_info *mmp_vdma_alloc(int overlay_id, int sram_size)
 			dev_err(vdma->dev, "isram pool not available\n");
 			return NULL;
 		}
-		vdma_clk_ctrl_set_default(vdma);
+		if (!DISP_GEN4_LITE(vdma->version))
+			vdma_clk_ctrl_set_default(vdma);
 	}
 	vdma_info = vdma_is_allocated(overlay_id);
 	if (vdma_info) {

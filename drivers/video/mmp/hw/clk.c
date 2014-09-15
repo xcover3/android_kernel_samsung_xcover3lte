@@ -127,6 +127,9 @@ int mmp_display_clk_init(struct mmphw_ctrl *ctrl)
 		src_sel_mask = 0x3;
 	}
 
+	if (DISP_GEN4_LITE(ctrl->version))
+		src_sel_mask = 0x3;
+
 	pnpath.disp1_clk = devm_clk_get(ctrl->dev, "disp1_clk");
 	if (IS_ERR(pnpath.disp1_clk)) {
 		pr_err("%s, can't get parent disp1 clk\n", __func__);

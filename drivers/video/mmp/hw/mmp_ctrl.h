@@ -576,6 +576,7 @@ struct lcd_regs {
 #define LCD_SCLK_DIV				0x1A8
 #define SCLK_SOURCE_SELECT(src)				((src)<<29)
 #define SCLK_SOURCE_SELECT_MASK			0xe0000000
+#define SCLK_SOURCE_SELECT_DC4_LITE_MASK	0x60000000
 #define SCLK_SOURCE_SELECT_OFFSET			29
 #define DSI1_BITCLK_SOURCE_SELECT(src)		((src)<<12)
 #define DSI1_BITCLK_SROUCE_SELECT_MASK	0x00003000
@@ -656,6 +657,11 @@ struct lcd_regs {
 #define	 CFG_INV_PCLK_MASK			0x00000002
 #define	 CFG_DUMB_ENA(dumb)			(dumb)
 #define	 CFG_DUMB_ENA_MASK			0x00000001
+/* special DUMB_CTRL bits in DC4_LITE */
+#define	 CFG_VSYNC_INV_DC4_LITE(inv)		((inv)<<18)
+#define	 CFG_VSYNC_INV_DC4_LITE_MASK		0x00040000
+#define	 CFG_GATED_ENA_DC4_LITE(gated)		((gated)<<16)
+#define	 CFG_GATED_ENA_DC4_LITE_MASK		0x00010000
 
 /* LCD I/O Pads Control Register */
 #define SPU_IOPAD_CONTROL			0x01BC
@@ -979,6 +985,10 @@ struct lcd_regs {
 #define TIMING_MASTER_CONTROL_GEN4		(0x02F8)
 #define MASTER_ENH_GEN4(id)			(1 << (id))
 #define MASTER_ENV_GEN4(id)			(1 << ((id) + 4))
+
+#define TIMING_MASTER_CONTROL_GEN4_LITE		(0x01BC)
+#define MASTER_ENH_GEN4_LITE(id)		(1 << ((id) + 16))
+#define MASTER_ENV_GEN4_LITE(id)		(1 << ((id) + 17))
 
 #define DSI_START_SEL_SHIFT(id)			(((id) << 1) + 8)
 #define DSI_START_SEL(path_id, dsi_id, act_pn_id)	(((act_pn_id) + \

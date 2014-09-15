@@ -97,7 +97,8 @@ static void path_hw_trigger(struct mmp_path *path)
 						flags);
 				if (vdma->ops && vdma->ops->trigger)
 					vdma->ops->trigger(vdma);
-				if (vsync_enable)
+				if (vsync_enable &&
+						!DISP_GEN4_LITE(path_to_ctrl(path)->version))
 					/* Enable irq that vdma channel clock
 					 * will be disabled in irq handler */
 					mmp_path_set_irq(path, 1);
@@ -220,6 +221,11 @@ static int overlay_set_colorkey_alpha(struct mmp_overlay *overlay,
 	struct lcd_regs *regs = path_regs(overlay->path);
 	struct mmphw_ctrl *ctrl = overlay_to_ctrl(overlay);
 	u32 rb, x, layer, dma0, shift, r, b;
+
+	if (DISP_GEN4_LITE(ctrl->version)) {
+		dev_info(ctrl->dev, "ERROR: DC4_LITE didn't support colorkey alpha\n");
+		return -1;
+	}
 
 	dma0 = readl_relaxed(ctrl_regs(path) + dma_ctrl(0, path->id));
 	shift = path->id ? 20 : 18;
@@ -431,6 +437,14 @@ static int overlay_set_path_alpha(struct mmp_overlay *overlay,
 					struct mmp_alpha *pa)
 {
 	struct mmp_shadow *shadow = overlay->shadow;
+	struct mmp_path *path = overlay->path;
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+
+	if (DISP_GEN4_LITE(ctrl->version)) {
+		pr_err("ERROR: DC4_LITE didn't support path alpha\n");
+		return -1;
+	}
+
 	if (overlay->ops->trigger) {
 		if (shadow && shadow->ops && shadow->ops->set_alpha)
 			shadow->ops->set_alpha(shadow, pa);
@@ -846,38 +860,54 @@ static void path_set_timing(struct mmp_path *path)
 		/* master mode setting of dsi phy */
 		master_mode = dsi->get_sync_val(dsi,
 			DSI_SYNC_MASTER_MODE);
-		tmp = readl_relaxed(ctrl_regs(path) +
-				(DISP_GEN4(ctrl->version) ?
-				TIMING_MASTER_CONTROL_GEN4 :
-				 TIMING_MASTER_CONTROL));
-		if (!DISP_GEN4(ctrl->version))
+		if (DISP_GEN4(ctrl->version)) {
+			/*
+			 * DC4_LITE, DC4 and older version have diffrent offset
+			 * for master_control register.
+			 */
+			if (DISP_GEN4_LITE(ctrl->version)) {
+				mask = MASTER_ENH_GEN4_LITE(path->id) |
+					MASTER_ENV_GEN4_LITE(path->id);
+				tmp = readl_relaxed(ctrl_regs(path) +
+						TIMING_MASTER_CONTROL_GEN4_LITE);
+				tmp &= ~mask;
+				if (master_mode) {
+					tmp |= MASTER_ENH_GEN4_LITE(path->id) |
+						MASTER_ENV_GEN4_LITE(path->id);
+					writel_relaxed(tmp, ctrl_regs(path) +
+							TIMING_MASTER_CONTROL_GEN4_LITE);
+				}
+			} else {
+				mask = MASTER_ENH_GEN4(path->id) |
+					MASTER_ENV_GEN4(path->id) |
+					DSI_START_SEL_MASK_GEN4(path->id);
+				tmp = readl_relaxed(ctrl_regs(path) +
+						TIMING_MASTER_CONTROL_GEN4);
+				tmp &= ~mask;
+				if (master_mode) {
+					tmp |= MASTER_ENH_GEN4(path->id) |
+						MASTER_ENV_GEN4(path->id) |
+						DSI_START_SEL_GEN4(path->id, 0);
+					writel_relaxed(tmp, ctrl_regs(path) +
+							TIMING_MASTER_CONTROL_GEN4);
+				}
+			}
+		} else {
 			mask = MASTER_ENH(path->id) | MASTER_ENV(path->id) |
 				DSI_START_SEL_MASK(path->id);
-		else
-			mask = MASTER_ENH_GEN4(path->id) |
-				MASTER_ENV_GEN4(path->id) |
-				DSI_START_SEL_MASK_GEN4(path->id);
-
-		tmp &= ~mask;
-		if (master_mode) {
-			/*
-			 * FIXME: only support DSI1, need dsi id and
-			 * active panel id if more DSI added
-			 */
-			if (!DISP_GEN4(ctrl->version))
+			tmp = readl_relaxed(ctrl_regs(path) +
+					TIMING_MASTER_CONTROL);
+			tmp &= ~mask;
+			if (master_mode) {
 				tmp |= MASTER_ENH(path->id) |
 					MASTER_ENV(path->id) |
 					DSI_START_SEL(path->id, 0, 0);
-			else
-				tmp |= MASTER_ENH_GEN4(path->id) |
-					MASTER_ENV_GEN4(path->id) |
-					DSI_START_SEL_GEN4(path->id, 0);
+				writel_relaxed(tmp, ctrl_regs(path) +
+						TIMING_MASTER_CONTROL);
+			}
 		}
-		writel_relaxed(tmp, ctrl_regs(path) +
-				(DISP_GEN4(ctrl->version) ?
-				TIMING_MASTER_CONTROL_GEN4 :
-				 TIMING_MASTER_CONTROL));
 	}
+
 	writel_relaxed((mode->yres << 16) | mode->xres, &regs->screen_active);
 	writel_relaxed(h_porch, &regs->screen_h_porch);
 	writel_relaxed((mode->upper_margin << 16) | mode->lower_margin,
@@ -1325,7 +1355,7 @@ static void path_set_default(struct mmp_path *path)
 	path_config = path_to_path_plat(path)->path_config;
 
 	/* Configure IOPAD: should be parallel only */
-	if (PATH_OUT_PARALLEL == path->output_type) {
+	if (PATH_OUT_PARALLEL == path->output_type && !DISP_GEN4(ctrl->version)) {
 		mask = CFG_IOPADMODE_MASK | CFG_BURST_MASK | CFG_BOUNDARY_MASK;
 		tmp = readl_relaxed(ctrl_regs(path) + SPU_IOPAD_CONTROL);
 		tmp &= ~mask;
@@ -1334,20 +1364,32 @@ static void path_set_default(struct mmp_path *path)
 	}
 
 	/*
-	 * Configure default bits: vsync triggers DMA,
-	 * power save enable, configure alpha registers to
-	 * display 100% graphics, and set pixel command.
+	 * For DC4_LITE, GATED_ENABLE and VSYNC_INV bits are in DUMB_CTRL,
+	 * and LCD_PN_CTRL1 is removed in DC4_LITE;
+	 * For DC4 and older version, they are in LCD_PN_CTRL1;
 	 */
-	dma_ctrl1 = 0x2032ff81;
+	if (DISP_GEN4_LITE(path_to_ctrl(path)->version)) {
+		tmp = readl_relaxed(ctrl_regs(path) + intf_ctrl(path->id));
+		tmp |= CFG_VSYNC_INV_DC4_LITE(1) |
+			CFG_GATED_ENA_DC4_LITE(1);
+		writel_relaxed(tmp, ctrl_regs(path) + intf_ctrl(path->id));
+	} else {
+		/*
+		 * Configure default bits: vsync triggers DMA,
+		 * power save enable, configure alpha registers to
+		 * display 100% graphics, and set pixel command.
+		 */
+		dma_ctrl1 = 0x2032ff81;
 
-	/* If TV path as slave, diable interlace mode */
-	if (ctrl->slave_path_name &&
-		(!strcmp(ctrl->slave_path_name, path->name)))
-		/* Fix me, when slave path isn't TV path */
-		dma_ctrl1 &= ~CFG_TV_NIB_MASK;
+		/* If TV path as slave, diable interlace mode */
+		if (ctrl->slave_path_name &&
+			(!strcmp(ctrl->slave_path_name, path->name)))
+			/* Fix me, when slave path isn't TV path */
+			dma_ctrl1 &= ~CFG_TV_NIB_MASK;
 
-	dma_ctrl1 |= CFG_VSYNC_INV_MASK;
-	writel_relaxed(dma_ctrl1, ctrl_regs(path) + dma_ctrl(1, path->id));
+		dma_ctrl1 |= CFG_VSYNC_INV_MASK;
+		writel_relaxed(dma_ctrl1, ctrl_regs(path) + dma_ctrl(1, path->id));
+	}
 
 	/* Configure default register values */
 	writel_relaxed(0x00000000, &regs->blank_color);

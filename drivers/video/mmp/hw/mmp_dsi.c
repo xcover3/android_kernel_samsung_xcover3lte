@@ -1118,7 +1118,10 @@ static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 		*/
 		if (DISP_GEN4(dsi->version)) {
 			tmp = readl_relaxed(ctrl_regs(path) + LCD_SCLK_DIV);
-			value = tmp & SCLK_SOURCE_SELECT_MASK;
+			if (!DISP_GEN4_LITE(dsi->version))
+				value = tmp & SCLK_SOURCE_SELECT_MASK;
+			else
+				value = tmp & SCLK_SOURCE_SELECT_DC4_LITE_MASK;
 			value >>= (SCLK_SOURCE_SELECT_OFFSET - DSI1_BITCLK_SOURCE_SELECT_OFFSET);
 			value &= DSI1_BITCLK_SROUCE_SELECT_MASK;
 			writel_relaxed(tmp | value, ctrl_regs(path) + LCD_SCLK_DIV);
