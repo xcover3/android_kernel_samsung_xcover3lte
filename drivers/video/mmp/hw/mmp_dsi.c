@@ -358,6 +358,8 @@ static int dsi_tx_cmds(struct mmp_dsi_port *dsi_port,
 	int i, j;
 	int ret = 0;
 
+	mutex_lock(&dsi_port->dsi_ok);
+
 	for (loop = 0; loop < count; loop++) {
 		cmd_line = cmds[loop];
 		command = cmd_line.data_type;
@@ -397,7 +399,7 @@ static int dsi_tx_cmds(struct mmp_dsi_port *dsi_port,
 			temp = kzalloc(sizeof(u8) * DSI_MAX_DATA_BYTES * dsi->setting.lanes,
 				GFP_KERNEL);
 			if (temp == NULL)
-				return -1;
+				goto error;
 			for (i = 0; i < len * dsi->setting.lanes; i += dsi->setting.lanes)
 				for (j = 0; j < dsi->setting.lanes; j++)
 					temp[i + j] = parameter[i/dsi->setting.lanes];
@@ -409,13 +411,17 @@ static int dsi_tx_cmds(struct mmp_dsi_port *dsi_port,
 		/* send dsi commands */
 		ret = dsi_send_cmds(dsi, parameter, len, cmd_line.lp);
 		if (ret < 0)
-			return -1;
+			goto error;
 
 		if (cmd_line.delay)
 			mdelay(cmd_line.delay);
 	}
 
+	mutex_unlock(&dsi_port->dsi_ok);
 	return loop;
+error:
+	mutex_unlock(&dsi_port->dsi_ok);
+	return -1;
 }
 
 static void dsi_set_dphy_timing(struct mmp_dsi *dsi)
@@ -817,10 +823,11 @@ static int dsi_rx_cmds(struct mmp_dsi_port *dsi_port, struct mmp_dsi_buf *dbuf,
 	    data_pointer, packet_count, byte_count;
 	int ret = 0;
 
+	mutex_lock(&dsi_port->dsi_ok);
 	memset(dbuf, 0x0, sizeof(struct mmp_dsi_buf));
 	ret = dsi_tx_cmds(dsi_port, cmds, count);
 	if (ret < 0)
-		return -1;
+		goto error;
 
 	tmp = readl_relaxed(&dsi_regs->irq_status);
 	if (tmp & IRQ_RX_TRG2)
@@ -893,10 +900,14 @@ static int dsi_rx_cmds(struct mmp_dsi_port *dsi_port, struct mmp_dsi_buf *dbuf,
 		break;
 	default:
 		dev_err(dsi->dev, "%s: not support\n", __func__);
-		return -1;
+		goto error;
 	}
 
+	mutex_unlock(&dsi_port->dsi_ok);
 	return 0;
+error:
+	mutex_unlock(&dsi_port->dsi_ok);
+	return -1;
 }
 
 static unsigned long clk_calculate(struct mmp_dsi *dsi)
@@ -1193,6 +1204,7 @@ static void mmp_dsi_create_dsi_port(struct mmp_dsi *dsi)
 	dsi->dsi_port.tx_cmds = dsi_tx_cmds;
 	dsi->dsi_port.rx_cmds = dsi_rx_cmds;
 	dsi->dsi_port.ulps_set_on = dsi_ulps_set_on;
+	mutex_init(&dsi->dsi_port.dsi_ok);
 }
 
 #ifdef CONFIG_OF

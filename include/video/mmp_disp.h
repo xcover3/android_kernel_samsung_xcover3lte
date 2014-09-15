@@ -569,6 +569,7 @@ struct mmp_dsi_port {
 	const char *name;
 	/* use node to register to list */
 	struct list_head node;
+	struct mutex dsi_ok;
 	/* functions */
 	int (*tx_cmds)(struct mmp_dsi_port *dsi_port,
 			struct mmp_dsi_cmd_desc cmds[], int count);
