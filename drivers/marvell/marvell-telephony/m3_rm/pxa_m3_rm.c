@@ -29,6 +29,9 @@
 #include <linux/pxa9xx_amipc.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/cputype.h>
+#include <linux/clk.h>
+#include <linux/clk-private.h>
+#include <linux/clk-provider.h>
 #include <linux/pm_qos.h>
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
@@ -82,6 +85,7 @@ static spinlock_t m3open_lock;
 static int m3_init_done;
 static unsigned int m3_ip_ver;
 static struct pm_qos_request ddr_qos_min;
+static struct clk *clk_32k;
 
 static void ldo_sleep_control(int ua_load, const char *ldo_name)
 {
@@ -172,14 +176,13 @@ static void gps_ldo_control(int enable)
 
 void gnss_config(void)
 {
-	u32 apb_reg_v, pmu_reg_v, ciu_reg_v;
+	u32 pmu_reg_v, ciu_reg_v;
 
 	pr_info("%s enters\n", __func__);
 
 	/* force anagrp power always on for GNSS power on */
-	apb_reg_v = REG_READ(APB_SPARE9_REG);
-	apb_reg_v |= (0x1 << APB_ANAGRP_PWR_ON_OFFSET);
-	REG_WRITE(apb_reg_v, APB_SPARE9_REG);
+	if (clk_32k)
+		clk_enable(clk_32k);
 
 	pmu_reg_v = (0x1 << GNSS_PWR_ON1_OFFSET);
 	REG_WRITE(pmu_reg_v, PMUA_GNSS_PWR_CTRL);
@@ -227,14 +230,13 @@ void gnss_config(void)
 
 void gnss_power_off(void)
 {
-	u32 apb_reg_v, pmu_reg_v;
+	u32 pmu_reg_v;
 
 	pr_info("gnss_power_off\n");
 
 	/*clear anagrp power always on for GNSS power off */
-	apb_reg_v = REG_READ(APB_SPARE9_REG);
-	apb_reg_v &= ~(0x1 << APB_ANAGRP_PWR_ON_OFFSET);
-	REG_WRITE(apb_reg_v, APB_SPARE9_REG);
+	if (clk_32k)
+		clk_disable(clk_32k);
 
 	pmu_reg_v = REG_READ(PMUA_GNSS_PWR_CTRL);
 	pmu_reg_v &= ~(0x1 << GNSS_HW_MODE_OFFSET);
@@ -730,6 +732,13 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 		m3_pctrl.en_d2 = pinctrl_lookup_state(m3_pctrl.pinctrl,
 				"unfuse_en_d2");
 	}
+
+	clk_32k = __clk_lookup("32kpu");
+	if (!clk_32k) {
+		pr_err("get 32k clock failed\n");
+		return -EINVAL;
+	}
+	clk_prepare(clk_32k);
 
 	rc = init_gnss_base_addr();
 	if (rc) {
