@@ -26,7 +26,7 @@
 unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
-static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
+static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_MMP_MAP
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dc00, "mmp-sspa-dai.0", NULL),
 #endif
@@ -142,7 +142,7 @@ static __init void enable_soc_timer(void)
 }
 
 #define APMU_SDH0      0x54
-static void __init pxa988_sdhc_reset_all(void)
+static void __init pxa1908_sdhc_reset_all(void)
 {
 	unsigned int reg_tmp;
 	void __iomem *apmu_base;
@@ -160,14 +160,14 @@ static void __init pxa988_sdhc_reset_all(void)
 	__raw_writel(reg_tmp | (1), apmu_base + APMU_SDH0);
 }
 
-static void __init pxa1908_irq_init(void)
+static void __init helanx_irq_init(void)
 {
 	irqchip_init();
 	/* only for wake up */
 	mmp_of_wakeup_init();
 }
 
-void __init pxa1908_timer_init(void)
+void __init helanx_timer_init(void)
 {
 	void __iomem *chip_id;
 
@@ -187,13 +187,13 @@ void __init pxa1908_timer_init(void)
 
 	clocksource_of_init();
 
-	pxa988_sdhc_reset_all();
+	pxa1908_sdhc_reset_all();
 }
 
-void __init pxa1908_init_machine(void)
+void __init helanx_init_machine(void)
 {
 	of_platform_populate(NULL, of_default_bus_match_table,
-			     mmpx_auxdata_lookup, &platform_bus);
+			     helanx_auxdata_lookup, &platform_bus);
 }
 
 static const char * const pxa1908_dt_board_compat[] __initconst = {
@@ -202,8 +202,8 @@ static const char * const pxa1908_dt_board_compat[] __initconst = {
 };
 
 DT_MACHINE_START(PXA1908_DT, "PXA1908")
-	.init_time      = pxa1908_timer_init,
-	.init_irq	= pxa1908_irq_init,
-	.init_machine   = pxa1908_init_machine,
+	.init_time      = helanx_timer_init,
+	.init_irq	= helanx_irq_init,
+	.init_machine   = helanx_init_machine,
 	.dt_compat      = pxa1908_dt_board_compat,
 MACHINE_END
