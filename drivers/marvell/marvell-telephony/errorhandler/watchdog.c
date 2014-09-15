@@ -15,6 +15,9 @@
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
 #include <linux/cputype.h>
+#include <linux/irq.h>
+#include <linux/irqnr.h>
+#include <linux/irqdesc.h>
 #include "watchdog.h"
 #include "common_regs.h"
 
@@ -224,6 +227,32 @@ static void soc_clear_interrupt(void *data)
 	writel(value, st->base + TMR_ICR(st->timer_num));
 }
 
+struct cp_timer {
+	int irq;
+};
+
+static int cp_timer_init(struct cp_watchdog *watchdog)
+{
+	struct cp_timer *cpt = (struct cp_timer *)watchdog->data;
+
+	cpt->irq = watchdog->irq;
+	return 0;
+}
+
+static void cp_timer_disable(void *data)
+{
+	struct cp_timer *cpt = (struct cp_timer *)data;
+
+	struct irq_desc *desc = irq_to_desc(cpt->irq);
+	if (desc->irq_data.chip->irq_mask) {
+		/* mask gic interrupt*/
+		desc->irq_data.chip->irq_mask(&desc->irq_data);
+		desc->irq_data.state_use_accessors |= IRQD_IRQ_MASKED;
+	} else {
+		pr_err("%s : irq_mask is NULL\n", __func__);
+	}
+}
+
 static int cp_timer_suspend(struct cp_watchdog *watchdog)
 {
 	return enable_irq_wake(watchdog->irq);
@@ -261,6 +290,8 @@ static const struct timer_operation soc_timer_ops = {
 };
 
 static const struct timer_operation cp_timer_ops = {
+	.init				= cp_timer_init,
+	.disable			= cp_timer_disable,
 	.suspend			= cp_timer_suspend,
 	.resume				= cp_timer_resume,
 };
@@ -330,6 +361,13 @@ int cp_watchdog_probe(struct platform_device *pdev)
 		break;
 
 	case cp_wdt_type_cp_timer:
+		cp_watchdog->data = devm_kzalloc(&pdev->dev,
+			sizeof(struct cp_timer), GFP_KERNEL);
+		if (!cp_watchdog->data) {
+			ret = -ENOMEM;
+			goto freemem;
+		}
+
 		cp_watchdog->ops = &cp_timer_ops;
 		break;
 
@@ -400,8 +438,7 @@ freememreg:
 			resource_size(res));
 #endif
 freemem:
-	if (cp_wdt_type_cp_timer != type)
-		devm_kfree(&pdev->dev, cp_watchdog->data);
+	devm_kfree(&pdev->dev, cp_watchdog->data);
 	devm_kfree(&pdev->dev, cp_watchdog);
 	cp_watchdog = NULL;
 	return ret;
@@ -424,8 +461,8 @@ int cp_watchdog_remove(struct platform_device *pdev)
 			devm_release_mem_region(&pdev->dev, res->start,
 				resource_size(res));
 #endif
-		devm_kfree(&pdev->dev, cp_watchdog->data);
 	}
+	devm_kfree(&pdev->dev, cp_watchdog->data);
 	devm_kfree(&pdev->dev, cp_watchdog);
 	cp_watchdog = NULL;
 	platform_set_drvdata(pdev, NULL);
