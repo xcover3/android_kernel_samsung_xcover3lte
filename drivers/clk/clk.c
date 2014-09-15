@@ -862,6 +862,7 @@ struct clk *__clk_lookup(const char *name)
 
 	return NULL;
 }
+EXPORT_SYMBOL(__clk_lookup);
 
 /*
  * Helper for finding best parent to provide a given frequency. This can be used
