@@ -26,7 +26,7 @@
 struct machine_desc {
 	unsigned int nr;
 	const char *name;
-	const char **dt_compat;
+	const char * const *dt_compat;
 
 	void (*init_irq)(void);
 	void (*init_time)(void);

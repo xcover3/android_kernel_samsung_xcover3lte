@@ -320,7 +320,7 @@ static void __init pxa1928_init_machine(void)
 			     mmpx_auxdata_lookup, &platform_bus);
 }
 
-static const char *pxa1928_dt_board_compat[] __initdata = {
+static const char * const pxa1928_dt_board_compat[] __initconst = {
 	"marvell,pxa1928",
 	NULL,
 };
