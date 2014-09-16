@@ -1017,10 +1017,10 @@
 			sspa0: sspa@d128dc00 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&sspa0_func>;
-				playback_period_bytes = <2048>;
-				playback_buffer_bytes = <4096>;
-				capture_period_bytes = <2048>;
-				capture_buffer_bytes = <4096>;
+				playback_period_bytes = <4096>;
+				playback_buffer_bytes = <12288>;
+				capture_period_bytes = <4096>;
+				capture_buffer_bytes = <8192>;
 				burst_size = <4>;
 				sleep_vol = <850>;
 				#dailink-cells = <1>;
@@ -1031,10 +1031,10 @@
 			sspa1: sspa@d128dd00 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&sspa1_func>;
-				playback_period_bytes = <24576>;
-				playback_buffer_bytes = <49152>;
-				capture_period_bytes = <2048>;
-				capture_buffer_bytes = <4096>;
+				playback_period_bytes = <16384>;
+				playback_buffer_bytes = <32768>;
+				capture_period_bytes = <4096>;
+				capture_buffer_bytes = <8192>;
 				burst_size = <4>;
 				sleep_vol = <850>;
 				#dailink-cells = <1>;
