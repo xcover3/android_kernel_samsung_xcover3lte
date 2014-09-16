@@ -22,7 +22,7 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 
-#define PM886_ONKEY_STS1		(0 << 1)
+#define PM886_ONKEY_STS1		(0x1 << 0)
 
 #define PM886_GPIO0_HW_RST1_N		(0x6 << 1)
 #define PM886_GPIO0_HW_RST2_N		(0x7 << 1)
