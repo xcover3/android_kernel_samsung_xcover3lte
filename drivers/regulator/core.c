@@ -300,6 +300,25 @@ static int regulator_check_drms(struct regulator_dev *rdev)
 	return 0;
 }
 
+static ssize_t regulator_uV_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct regulator_dev *rdev = dev_get_drvdata(dev);
+	ssize_t err;
+	int target_uV;
+
+	sscanf(buf, "%d", &target_uV);
+
+	mutex_lock(&rdev->mutex);
+	err = _regulator_do_set_voltage(rdev, target_uV, target_uV);
+	if (err < 0)
+		dev_err(dev, "set voltage %duV fails: %zd\n", target_uV, err);
+	mutex_unlock(&rdev->mutex);
+
+	return count;
+}
+
 static ssize_t regulator_uV_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -312,7 +331,7 @@ static ssize_t regulator_uV_show(struct device *dev,
 
 	return ret;
 }
-static DEVICE_ATTR(microvolts, 0444, regulator_uV_show, NULL);
+static DEVICE_ATTR(microvolts, 0644, regulator_uV_show, regulator_uV_store);
 
 static ssize_t regulator_uA_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -378,7 +397,32 @@ static ssize_t regulator_state_show(struct device *dev,
 
 	return ret;
 }
-static DEVICE_ATTR(state, 0444, regulator_state_show, NULL);
+
+static int _regulator_do_enable(struct regulator_dev *rdev);
+static int _regulator_do_disable(struct regulator_dev *rdev);
+
+static ssize_t regulator_state_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct regulator_dev *rdev = dev_get_drvdata(dev);
+	ssize_t err;
+	int enable;
+
+	sscanf(buf, "%d", &enable);
+
+	mutex_lock(&rdev->mutex);
+	if (enable)
+		err = _regulator_do_enable(rdev);
+	else
+		err = _regulator_do_disable(rdev);
+	if (err < 0 && err != -EINVAL)
+		rdev_err(rdev, "failed to enable\n");
+	mutex_unlock(&rdev->mutex);
+
+	return count;
+}
+static DEVICE_ATTR(state, 0644, regulator_state_show, regulator_state_store);
 
 static ssize_t regulator_status_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
@@ -952,8 +996,6 @@ static int machine_constraints_current(struct regulator_dev *rdev,
 
 	return 0;
 }
-
-static int _regulator_do_enable(struct regulator_dev *rdev);
 
 /**
  * set_machine_constraints - sets regulator constraints
