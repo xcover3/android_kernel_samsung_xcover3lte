@@ -966,6 +966,11 @@
 		compatible = "vnc-ts";
 	};
 
+	sd8x-rfkill {
+		compatible = "mrvl,sd8x-rfkill";
+		status = "disabled";
+	};
+
 	tzdd {
 		compatible = "pxa-tzdd";
 		status = "disabled";

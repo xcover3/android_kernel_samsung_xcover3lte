@@ -1320,6 +1320,41 @@
 		status = "okay";
 	};
 
+	/*
+	 * V_WIB_1V8(ldo8/1.8v) and V_WIB_SYS(buck5/3.3v)
+	 * are set to always on temperately.
+	 * V_WIB_SDIO(buck2/1.8v) shared with other components and must keep on.
+	 * The regulator transferred to driver mainly for sleep mode control.
+	 */
+	sd8x-rfkill {
+		pinctrl-names = "off", "on";
+		pinctrl-0 = <&sdh1_pins_pd_rst_off>;
+		pinctrl-1 = <&sdh1_pins_pd_rst_on>;
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio WIFI_PD_N 0>;
+		rst-gpio = <&gpio WIFI_RST_N 0>;
+		wib_3v3-supply = <&buck5>;
+		wib_1v8-supply = <&ldo8>;
+		edge-wakeup-gpio = <&gpio MMC2_DAT1_GPIO 0>;
+		status = "okay";
+	};
+
+	sd8xxx-wlan {
+		drv_mode = <0x5>;
+		cfg80211_wext = <0xc>;
+		sta_name = "wlan";
+		wfd_name = "p2p";
+		max_vir_bss = <1>;
+		drvdbg = <0x80007>;
+		init_cfg = "mrvl/wifi_init_cfg.conf";
+		reg_alpha2 = "US";
+		p2p_enh = <1>;
+	};
+
+	sd8xxx-bt {
+		init_cfg = "mrvl/bt_init_cfg.conf";
+	};
+
 	backlight: pwm-bl {
 		compatible = "pwm-backlight";
 		pwms = <&pwm2 0 100000>;
