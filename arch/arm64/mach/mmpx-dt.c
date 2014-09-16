@@ -26,6 +26,10 @@
 #include "mmpx-dt.h"
 #include "regs-addr.h"
 
+#ifdef CONFIG_SD8XXX_RFKILL
+#include <linux/sd8x_rfkill.h>
+#endif
+
 #ifdef CONFIG_SOC_CAMERA_S5K8AA
 #define CCIC2_PWDN_GPIO 13
 #define CCIC2_RESET_GPIO 111
@@ -221,6 +225,9 @@ static const struct of_dev_auxdata mmpx_auxdata_lookup[] __initconst = {
 #endif
 #ifdef CONFIG_VIDEO_MV_SC2_CAMERA
 	OF_DEV_AUXDATA("marvell,mv_sc2_camera", 1, "mv_sc2_camera.1", NULL),
+#endif
+#ifdef CONFIG_SD8XXX_RFKILL
+	OF_DEV_AUXDATA("mrvl,sd8x-rfkill", 0, "sd8x-rfkill", NULL),
 #endif
 	{}
 };
