@@ -193,7 +193,18 @@ extern struct regmap_irq_chip pm886_irq_chip;
 extern const struct of_device_id pm886_of_match[];
 
 /* dvc external interface */
+#ifdef CONFIG_MFD_88PM886
 int pm886_dvc_set_volt(u8 level, int uv);
 int pm886_dvc_get_volt(u8 level);
+#else
+static inline int pm886_dvc_set_volt(u8 level, int uv)
+{
+	return 0;
+}
+static inline int pm886_dvc_get_volt(u8 level)
+{
+	return 0;
+}
+#endif
 
 #endif /* __LINUX_MFD_88PM886_H */

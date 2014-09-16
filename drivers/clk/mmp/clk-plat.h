@@ -5,6 +5,7 @@
 extern int setup_pxa1u88_dvfs_platinfo(void);
 extern int setup_pxa1L88_dvfs_platinfo(void);
 extern int ddr_get_dvc_level(int rate);
+extern int setup_pxa1908_dvfs_platinfo(void);
 #endif
 
 /* supported DDR chip type */

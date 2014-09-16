@@ -1561,6 +1561,8 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 	/* For fpga/ulc bring up don't enable dvfs */
 	if (cpu_is_pxa1U88())
 		setup_pxa1u88_dvfs_platinfo();
+	else
+		setup_pxa1908_dvfs_platinfo();
 #endif
 
 #ifdef CONFIG_DEBUG_FS
