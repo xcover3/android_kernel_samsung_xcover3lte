@@ -740,7 +740,6 @@
 				playback_buffer_bytes = <16384>;
 				capture_period_bytes = <4096>;
 				capture_buffer_bytes = <12288>;
-				sleep_vol = <0x14>;
 				burst_size = <4>;
 				#dailink-cells = <1>;
 				status = "okay";
