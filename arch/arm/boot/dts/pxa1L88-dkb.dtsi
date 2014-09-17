@@ -548,6 +548,18 @@
 						pinctrl-0 = <&dvc_pmx_func>;
 						status = "okay";
 					};
+
+					headset {
+						compatible = "marvell,88pm80x-headset";
+						marvell,switch-name = "h2w";
+						marvell,headset-flag = <1>;
+						marvell,hook-press-th = <60>;
+						marvell,vol-up-press-th = <250>;
+						marvell,vol-down-press-th = <500>;
+						marvell,mic-det-th = <600>;
+						marvell,press-release-th = <600>;
+						marvell,micbias-supply = <&ldo14>;
+					};
 				};
 
 				pmic1: 88pm830@68 {
