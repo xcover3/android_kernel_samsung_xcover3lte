@@ -36,9 +36,9 @@
 		>;
 
 		/* battery temerature feature parameters */
-		temp-range-num = <1>;
-		switch-thr = <64 64>; /* C */
-		gp0-bias-curr = <16 16 16>; /* uA */
+		temp-range-num = <2>;
+		switch-thr = <15 64>; /* C */
+		gp0-bias-curr = <16 56 56>; /* uA */
 
 		/* choose -20C, 10C, 35C, 60C as threshold */
 		r-tbat-thr = <77523 18410 6881 2981>; /* ohm */
