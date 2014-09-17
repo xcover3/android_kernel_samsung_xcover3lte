@@ -45,7 +45,9 @@
 #define MPMU_UART_PLL		0x14
 
 #define APMU_CLK_GATE_CTRL	0x40
-#define APMU_CCIC0	0x50
+#define APMU_CCIC0		0x50
+#define APMU_CCIC1		0x24
+#define APMU_ISP	    0x38
 #define APMU_SDH0		0x54
 #define APMU_SDH1		0x58
 #define APMU_SDH2		0xe0
@@ -656,6 +658,39 @@ static struct mmp_clk_mix_config disp_axi_mix_config = {
 	.mux_table = disp_axi_mux_table,
 };
 
+/* sc2 clk */
+static DEFINE_SPINLOCK(ccic0_lock);
+static DEFINE_SPINLOCK(ccic1_lock);
+static DEFINE_SPINLOCK(isp_lock);
+static const char *sc2_4x_parent_names[] = {"pll1_832_gate", "pll1_624_gate",
+		"pll2_div3", "pll2p", "pll4_div3"};
+static int sc2_4x_mux_table[] = {0x0, 0x1, 0x02, 0x82, 0x03};
+static struct mmp_clk_mix_config sc2_4x_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 2, 16, 15),
+	.mux_table = sc2_4x_mux_table,
+};
+
+static const char *sc2_csi_parent_names[] = {"pll1_416_gate", "pll1_624_gate",
+		"pll2_div3", "pll2p", "pll4_div3"};
+static int sc2_csi_mux_table[] = {0x0, 0x1, 0x02, 0x22, 0x03};
+static struct mmp_clk_mix_config sc2_csi_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 2, 16, 15),
+	.mux_table = sc2_csi_mux_table,
+};
+
+static const char *sc2_axi_parent_names[] = {"pll1_416_gate", "pll1_624_gate",
+		"pll2", "pll2p"};
+static struct mmp_clk_mix_config sc2_axi_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 2, 21, 23),
+};
+
+static const char *sc2_phy_parent_names[] = {"pll1_6", "pll1_12"};
+
+static const char *isp_pipe_parent_names[] = {"pll1_416_gate", "pll1_624_gate",
+			"pll4_div3", "pll2p",};
+static struct mmp_clk_mix_config isp_pipe_mix_config = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 4, 2, 2, 7),
+};
 #ifdef CONFIG_SMC91X
 static void __init smc91x_clk_init(void __iomem *apmu_base)
 {
@@ -901,6 +936,98 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			pxa_unit->apmu_base + APMU_DISP1,
 			0x16, 0x16, 0x0, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_DISP_HCLK, clk);
+
+	/* SC2 VCLK */
+	clk = clk_register_divider(NULL, "isim_vclk_div", "pll1_312_gate",
+			0, pxa_unit->apmu_base + APMU_CCIC1,
+			22, 4, 0, &ccic1_lock);
+
+	clk = mmp_clk_register_gate(NULL, "isim_vclk_gate", "isim_vclk_div", 0,
+			pxa_unit->apmu_base + APMU_CCIC1,
+			0x4000000, 0x4000000, 0x0, 0, &ccic1_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_SC2_MCLK, clk);
+
+	sc2_4x_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_CCIC0;
+	clk = mmp_clk_register_mix(NULL, "sc2_4x_mix_clk", sc2_4x_parent_names,
+			ARRAY_SIZE(sc2_4x_parent_names), 0,
+			&sc2_4x_mix_config, &ccic0_lock);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_4x_clk", "sc2_4x_mix_clk",
+			 CLK_SET_RATE_PARENT,
+			 pxa_unit->apmu_base + APMU_CCIC0,
+			 0x12, 0x12, 0x0, 0, &ccic0_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_SC2_4X_CLK, clk);
+
+	sc2_csi_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_CCIC1;
+	clk = mmp_clk_register_mix(NULL, "sc2_csi_mix_clk",
+			sc2_csi_parent_names,
+			ARRAY_SIZE(sc2_csi_parent_names), 0,
+			&sc2_csi_mix_config, &ccic1_lock);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_csi_clk", "sc2_csi_mix_clk",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_CCIC1,
+			0x12, 0x12, 0x0, 0, &ccic1_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_SC2_CSI_CLK, clk);
+
+	sc2_axi_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_ISP;
+	clk = mmp_clk_register_mix(NULL, "sc2_axi_mix_clk",
+			sc2_axi_parent_names,
+			ARRAY_SIZE(sc2_axi_parent_names), 0,
+			&sc2_axi_mix_config, &isp_lock);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_axi_clk", "sc2_axi_mix_clk",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_ISP,
+			0x30000, 0x30000, 0x0, 0, &isp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_SC2_AXI_CLK, clk);
+
+	clk = clk_register_mux(NULL, "sc2_phy2ln_mux", sc2_phy_parent_names,
+			ARRAY_SIZE(sc2_phy_parent_names), 0, pxa_unit->apmu_base + APMU_CCIC1,
+			7, 1, 0, &ccic1_lock);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_phy2ln_clk", "sc2_phy2ln_mux",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_CCIC1,
+			0x24, 0x24, 0x0, 0, &ccic1_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_SC2_PHY2LN_CLK_EN, clk);
+
+	clk = clk_register_mux(NULL, "sc2_phy4ln_mux", sc2_phy_parent_names,
+			ARRAY_SIZE(sc2_phy_parent_names), 0, pxa_unit->apmu_base + APMU_CCIC0,
+			7, 1, 0, &ccic0_lock);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_phy4ln_clk", "sc2_phy4ln_mux",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_CCIC0,
+			0x24, 0x24, 0x0, 0, &ccic0_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_SC2_PHY4LN_CLK_EN, clk);
+
+	isp_pipe_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_ISP;
+	clk = mmp_clk_register_mix(NULL, "isp_pipe_mix_clk",
+			isp_pipe_parent_names,
+			ARRAY_SIZE(isp_pipe_parent_names), 0,
+			&isp_pipe_mix_config, &isp_lock);
+
+	clk = mmp_clk_register_gate(NULL, "isp_pipe_clk", "isp_pipe_mix_clk",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_ISP,
+			0x3, 0x3, 0x0, 0, &isp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_ISP_PIPE_CLK, clk);
+
+	clk = clk_register_divider(NULL, "isp_core_div", "pll1_624_gate",
+			0, pxa_unit->apmu_base + APMU_ISP,
+			24, 3, 0, &isp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_ISP_CORE_CLK, clk);
+
+	clk = mmp_clk_register_gate(NULL, "isp_core_gate", "isp_core_div", 0,
+			pxa_unit->apmu_base + APMU_ISP,
+			0x18000000, 0x18000000, 0x0, 0, &isp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_ISP_CORE_CLK_EN, clk);
+
+	clk = mmp_clk_register_gate(NULL, "sc2_ahb_gate", NULL, 0,
+			pxa_unit->apmu_base + APMU_CCIC0,
+			0x600000, 0x600000, 0x0, 0, &ccic0_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_SC2_AHB_CLK, clk);
 }
 
 static DEFINE_SPINLOCK(fc_seq_lock);
