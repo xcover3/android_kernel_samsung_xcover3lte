@@ -281,13 +281,14 @@ static void watchdog_check_hardlockup_other_cpu(void)
 		if (per_cpu(hard_watchdog_warn, next_cpu) == true)
 			return;
 
+		per_cpu(hard_watchdog_warn, next_cpu) = true;
+
 #ifdef CONFIG_CORESIGHT_SUPPORT
 		pr_emerg("BUG: CPU%d detected hard LOCKUP on CPU%d\n"
 			"will trigger panic on CPU%d via coresight\n",
 			smp_processor_id(), next_cpu, next_cpu);
 
 		coresight_trigger_panic(next_cpu);
-		watchdog_disable_all_cpus();
 #else
 
 		if (hardlockup_panic)
@@ -295,7 +296,6 @@ static void watchdog_check_hardlockup_other_cpu(void)
 		else
 			WARN(1, "Watchdog detected hard LOCKUP on cpu %u", next_cpu);
 #endif
-		per_cpu(hard_watchdog_warn, next_cpu) = true;
 	} else {
 		per_cpu(hard_watchdog_warn, next_cpu) = false;
 	}
