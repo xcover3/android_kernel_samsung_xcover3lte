@@ -742,6 +742,21 @@ static const struct file_operations logger_fops = {
 	.release = logger_release,
 };
 
+#ifdef CONFIG_PXA_RAMDUMP
+#include <linux/ramdump.h>
+static void logcat_ramdump_register(struct logger_log *log)
+{
+	/* Name is limited to 8 chars: skip the "log_" prefix and assuming
+	log name will not be over 8 chars then */
+	ramdump_attach_cbuffer(log->misc.name+4,
+		(void **)&log->buffer,
+		(unsigned *)&log->size,
+		(unsigned *)&log->head,
+		sizeof(u8));
+}
+#endif
+
+
 /*
  * Log size must must be a power of two, and greater than
  * (LOGGER_ENTRY_MAX_PAYLOAD + sizeof(struct logger_entry)).
@@ -790,6 +805,10 @@ static int __init create_log(char *log_name, int size)
 				log->misc.name);
 		goto out_free_log;
 	}
+
+#ifdef CONFIG_PXA_RAMDUMP
+	logcat_ramdump_register(log);
+#endif
 
 	pr_info("created %luK log '%s'\n",
 		(unsigned long) log->size >> 10, log->misc.name);
