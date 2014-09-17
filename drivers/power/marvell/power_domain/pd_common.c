@@ -8,6 +8,7 @@
 #include <linux/of_device.h>
 #include <linux/pm_domain.h>
 #include <linux/platform_device.h>
+#include <linux/clk/mmpdcstat.h>
 
 #include "pm_domain.h"
 
@@ -131,6 +132,7 @@ static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 		ret = -EBUSY;
 		goto out;
 	}
+	clk_dcstat_event(pd->clk, PWR_ON, 0);
 
 out:
 	if (pd->clk)
@@ -174,6 +176,7 @@ static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
 		dev_err(pd->dev, "power off timeout\n");
 		return -EBUSY;
 	}
+	clk_dcstat_event(pd->clk, PWR_OFF, 0);
 
 	return 0;
 }
@@ -234,6 +237,7 @@ static int mmp_pd_common_probe(struct platform_device *pdev)
 	if (!pd->reg_base)
 		return -EINVAL;
 
+	pd->tag = PD_TAG;
 	/* Some power domain may need clk for power on. */
 	pd->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(pd->clk))

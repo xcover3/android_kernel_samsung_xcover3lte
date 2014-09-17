@@ -9,6 +9,7 @@
 #include <linux/of_device.h>
 #include <linux/pm_domain.h>
 #include <linux/platform_device.h>
+#include <linux/clk/mmpdcstat.h>
 
 #include "pm_domain.h"
 
@@ -207,6 +208,8 @@ static int  mmp_pd_gc3d_power_on(struct generic_pm_domain *domain)
 	regval &= ~(GC3D_FAB_CKGT_DISABLE | MC_P4_CKGT_DISABLE);
 	writel(regval, apmu_base + APMU_GC3D_CKGT);
 
+	clk_dcstat_event(pd->clk, PWR_ON, 0);
+
 	spin_unlock(&gc3d_pwr_lock);
 
 	return 0;
@@ -254,6 +257,8 @@ static int mmp_pd_gc3d_power_off(struct generic_pm_domain *domain)
 	regval &= ~PWRUP;
 	writel(regval, apmu_base + APMU_ISLD_GC3D_PWRCTRL);
 
+	clk_dcstat_event(pd->clk, PWR_OFF, 0);
+
 	spin_lock(&gc3d_pwr_lock);
 
 	return 0;
@@ -299,6 +304,7 @@ static int mmp_pd_gc3d_probe(struct platform_device *pdev)
 	if (!pd->reg_base)
 		return -EINVAL;
 
+	pd->tag = PD_TAG;
 	/* Some power domain may need clk for power on. */
 	pd->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(pd->clk))

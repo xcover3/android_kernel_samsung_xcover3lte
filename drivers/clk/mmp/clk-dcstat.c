@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/pm_domain.h>
 #include <linux/cputype.h>
+#include <linux/pm_domain.h>
 
 #include <linux/clk/mmpdcstat.h>
 #include "clk.h"
@@ -55,6 +56,7 @@ static void clk_dutycycle_stats(struct clk *clk,
 	u64 time_ns;
 	struct op_dcstat_info *cur, *tgt;
 	bool pwr_is_on = true;
+	struct generic_pm_domain *genpd = NULL;
 
 	/* do nothing if no stat operation is issued */
 	if (!dc_stat_info->stat_start)
@@ -67,6 +69,19 @@ static void clk_dutycycle_stats(struct clk *clk,
 
 	prev_ts = cur->prev_ts;
 	time_ns = ts2ns(cur_ts, prev_ts);
+
+	/* Get power domain info */
+	if (!strcmp(clk->name, "gcsh_clk"))
+		genpd = clk_to_genpd("gc3d_clk");
+	else if (!strcmp(clk->name, "gc3dsh_clk"))
+		genpd = clk_to_genpd("gc3d1x_clk");
+	else
+		genpd = clk_to_genpd(clk->name);
+
+	if (genpd) {
+		if (genpd->status == GPD_STATE_POWER_OFF)
+			pwr_is_on = false;
+	}
 
 	switch (msg) {
 	case CLK_STAT_START:

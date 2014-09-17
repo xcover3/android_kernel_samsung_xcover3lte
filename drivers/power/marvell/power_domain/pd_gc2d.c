@@ -9,6 +9,7 @@
 #include <linux/of_device.h>
 #include <linux/pm_domain.h>
 #include <linux/platform_device.h>
+#include <linux/clk/mmpdcstat.h>
 
 #include "pm_domain.h"
 
@@ -63,7 +64,7 @@ static int mmp_pd_gc2d_power_on(struct generic_pm_domain *domain)
 	struct mmp_pd_common *pd = container_of(domain,
 			struct mmp_pd_common, genpd);
 	unsigned int regval, divval;
-	unsigned int timeout;
+	unsigned int timeout, ret;
 	void __iomem *apmu_base = pd->reg_base;
 
 	spin_lock(&gc2d_pwr_lock);
@@ -103,7 +104,8 @@ static int mmp_pd_gc2d_power_on(struct generic_pm_domain *domain)
 	do {
 		if (--timeout == 0) {
 			WARN(1, "GC2D: active interrupt pending!\n");
-			return -EBUSY;
+			ret = -EBUSY;
+			goto out;
 		}
 		udelay(10);
 		regval = readl(apmu_base + APMU_ISLD_GC2D_PWRCTRL);
@@ -176,8 +178,11 @@ static int mmp_pd_gc2d_power_on(struct generic_pm_domain *domain)
 	regval &= ~(X2H_CKGT_DISABLE);
 	writel(regval, apmu_base + APMU_FABRIC1_CKGT);
 
+	clk_dcstat_event(pd->clk, PWR_ON, 0);
+
 	spin_unlock(&gc2d_pwr_lock);
 
+out:
 	if (pd->clk)
 		clk_disable_unprepare(pd->clk);
 
@@ -220,6 +225,8 @@ static int mmp_pd_gc2d_power_off(struct generic_pm_domain *domain)
 	regval = readl(apmu_base + APMU_ISLD_GC2D_PWRCTRL);
 	regval &= ~PWRUP;
 	writel(regval, apmu_base + APMU_ISLD_GC2D_PWRCTRL);
+
+	clk_dcstat_event(pd->clk, PWR_OFF, 0);
 
 	spin_unlock(&gc2d_pwr_lock);
 
@@ -266,6 +273,7 @@ static int mmp_pd_gc2d_probe(struct platform_device *pdev)
 	if (!pd->reg_base)
 		return -EINVAL;
 
+	pd->tag = PD_TAG;
 	/* Some power domain may need clk for power on. */
 	pd->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(pd->clk))

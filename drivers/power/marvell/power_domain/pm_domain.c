@@ -6,6 +6,8 @@
 #include <linux/platform_device.h>
 #include <linux/of_platform.h>
 #include <linux/pm_domain.h>
+#include <linux/clk.h>
+#include <linux/clk-private.h>
 
 #include "pm_domain.h"
 
@@ -27,6 +29,29 @@ static DEFINE_MUTEX(mmp_pd_dev_list_lock);
 
 static LIST_HEAD(mmp_pd_link_list);
 static DEFINE_MUTEX(mmp_pd_link_list_lock);
+
+struct generic_pm_domain *clk_to_genpd(const char *name)
+{
+	struct generic_pm_domain *genpd = NULL, *gpd;
+	struct mmp_pd_common *pd = NULL;
+
+	if (IS_ERR_OR_NULL(name))
+		return NULL;
+
+	mutex_lock(&gpd_list_lock);
+	list_for_each_entry(gpd, &gpd_list, gpd_list_node) {
+		pd = container_of(gpd, struct mmp_pd_common, genpd);
+		if (pd->tag == PD_TAG) {
+			if (!strcmp(pd->clk->name, name)) {
+				genpd = gpd;
+				break;
+			}
+		}
+	}
+	mutex_unlock(&gpd_list_lock);
+
+	return genpd;
+}
 
 static struct mmp_pd_link *mmp_pd_link_list_find(struct device_node *pd_np)
 {

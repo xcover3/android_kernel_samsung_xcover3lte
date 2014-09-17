@@ -4,6 +4,7 @@
 int mmp_pd_init(struct generic_pm_domain *genpd,
 	struct dev_power_governor *gov, bool is_off);
 
+#define PD_TAG 0x88888888
 struct mmp_pd_common_data {
 	int id;
 	char *name;
@@ -14,6 +15,7 @@ struct mmp_pd_common_data {
 };
 
 struct mmp_pd_common {
+	u32 tag;
 	struct generic_pm_domain genpd;
 	void __iomem *reg_base;
 	struct clk *clk;
@@ -23,5 +25,8 @@ struct mmp_pd_common {
 	u32 power_off_latency;
 	const struct mmp_pd_common_data *data;
 };
+
+extern struct list_head gpd_list;
+extern struct mutex gpd_list_lock;
 
 #endif

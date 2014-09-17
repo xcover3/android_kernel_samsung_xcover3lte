@@ -9,6 +9,7 @@
 #include <linux/of_device.h>
 #include <linux/pm_domain.h>
 #include <linux/platform_device.h>
+#include <linux/clk/mmpdcstat.h>
 
 #include "pm_domain.h"
 
@@ -196,6 +197,8 @@ static int mmp_pd_hantro_power_on(struct generic_pm_domain *domain)
 	regval &= ~(VPU_DCLK_DIV_MASK | VPU_ECLK_DIV_MASK);
 	writel(regval, apmu_base + APMU_VPU_CLKCTRL);
 
+	clk_dcstat_event(pd->clk, PWR_ON, 0);
+
 	spin_unlock(&hantro_pwr_lock);
 
 	return 0;
@@ -227,6 +230,8 @@ static int mmp_pd_hantro_power_off(struct generic_pm_domain *domain)
 	regval = readl(apmu_base + APMU_ISLD_VPU_PWRCTRL);
 	regval &= ~PWRUP;
 	writel(regval, apmu_base + APMU_ISLD_VPU_PWRCTRL);
+
+	clk_dcstat_event(pd->clk, PWR_OFF, 0);
 
 	spin_unlock(&hantro_pwr_lock);
 
@@ -268,6 +273,7 @@ static int mmp_pd_hantro_probe(struct platform_device *pdev)
 	if (!res)
 		return -ENODEV;
 
+	pd->tag = PD_TAG;
 	pd->reg_base = devm_ioremap(&pdev->dev, res->start,
 					resource_size(res));
 	if (!pd->reg_base)

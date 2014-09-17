@@ -50,8 +50,8 @@
 	__retval;								\
 })
 
-static LIST_HEAD(gpd_list);
-static DEFINE_MUTEX(gpd_list_lock);
+LIST_HEAD(gpd_list);
+DEFINE_MUTEX(gpd_list_lock);
 
 static struct generic_pm_domain *pm_genpd_lookup_name(const char *domain_name)
 {

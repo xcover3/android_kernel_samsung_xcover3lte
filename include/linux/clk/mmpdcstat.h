@@ -310,6 +310,8 @@ static inline cputime64_t get_cpu_idle_time_dcstat(unsigned int cpu,
 extern int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info);
 extern int ddr_profiling_store(int start);
 
+extern struct generic_pm_domain *clk_to_genpd(const char *name);
+
 /* voltage stat related */
 enum vlstat_msg {
 	VLSTAT_LPM_ENTRY,
