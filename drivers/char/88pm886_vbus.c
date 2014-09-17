@@ -44,12 +44,12 @@ static int pm886_get_vbus(unsigned int *level)
 	unsigned char buf[2];
 
 	ret = regmap_bulk_read(vbus_info->chip->gpadc_regmap,
-				PM886_VCHG_MEAS1, buf, 2);
+				PM886_VBUS_MEAS1, buf, 2);
 	if (ret)
 		return ret;
 
 	val = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
-	voltage = PM886_VALUE_2_VCHG(val);
+	voltage = PM886_VALUE_2_VBUS(val);
 
 	/* read pm886 status to decide it's cable in or out */
 	regmap_read(vbus_info->chip->base_regmap, PM886_STATUS1, &val);
