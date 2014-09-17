@@ -21,26 +21,6 @@
 #define MMP_PD_POWER_ON_LATENCY		300
 #define MMP_PD_POWER_OFF_LATENCY	20
 
-struct mmp_pd_common_data {
-	int id;
-	char *name;
-	u32 reg_clk_res_ctrl;
-	u32 bit_hw_mode;
-	u32 bit_auto_pwr_on;
-	u32 bit_pwr_stat;
-};
-
-struct mmp_pd_common {
-	struct generic_pm_domain genpd;
-	void __iomem *reg_base;
-	struct clk *clk;
-	struct device *dev;
-	/* latency for us. */
-	u32 power_on_latency;
-	u32 power_off_latency;
-	const struct mmp_pd_common_data *data;
-};
-
 enum {
 	MMP_PD_COMMON_VPU,
 	MMP_PD_COMMON_ISP_V1,

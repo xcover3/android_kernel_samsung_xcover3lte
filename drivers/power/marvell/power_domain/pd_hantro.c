@@ -15,22 +15,7 @@
 #define MMP_PD_POWER_ON_LATENCY	0
 #define MMP_PD_POWER_OFF_LATENCY	0
 
-struct mmp_pd_hantro_data {
-	int id;
-	char *name;
-};
-
-struct mmp_pd_hantro {
-	struct generic_pm_domain genpd;
-	void __iomem *reg_base;
-	struct device *dev;
-	/* latency for us. */
-	u32 power_on_latency;
-	u32 power_off_latency;
-	const struct mmp_pd_hantro_data *data;
-};
-
-static struct mmp_pd_hantro_data hantro_data = {
+static struct mmp_pd_common_data hantro_data = {
 	.id			= 0,
 	.name			= "power-domain-hantro",
 };
@@ -83,8 +68,8 @@ static DEFINE_SPINLOCK(hantro_pwr_lock);
 
 static int mmp_pd_hantro_power_on(struct generic_pm_domain *domain)
 {
-	struct mmp_pd_hantro *pd = container_of(domain,
-			struct mmp_pd_hantro, genpd);
+	struct mmp_pd_common *pd = container_of(domain,
+			struct mmp_pd_common, genpd);
 
 	unsigned int regval, divval;
 	unsigned int timeout;
@@ -218,8 +203,8 @@ static int mmp_pd_hantro_power_on(struct generic_pm_domain *domain)
 
 static int mmp_pd_hantro_power_off(struct generic_pm_domain *domain)
 {
-	struct mmp_pd_hantro *pd = container_of(domain,
-			struct mmp_pd_hantro, genpd);
+	struct mmp_pd_common *pd = container_of(domain,
+			struct mmp_pd_common, genpd);
 	unsigned int regval;
 	void __iomem *apmu_base;
 
@@ -259,7 +244,7 @@ MODULE_DEVICE_TABLE(of, of_mmp_pd_match);
 
 static int mmp_pd_hantro_probe(struct platform_device *pdev)
 {
-	struct mmp_pd_hantro *pd;
+	struct mmp_pd_common *pd;
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *of_id;
 	struct resource *res;
