@@ -74,7 +74,7 @@ static int mmp_hostless_hw_params(struct snd_pcm_substream *substream,
 	substream->hw_no_buffer = 1;
 
 	ret = snd_pcm_lib_malloc_pages(substream, PAGE_SIZE);
-	if (ret) {
+	if (ret < 0) {
 		dev_err(card->dev, "allocate page error");
 		return ret;
 	}
