@@ -40,8 +40,8 @@
 		switch-thr = <15 64>; /* C */
 		gp0-bias-curr = <16 56 56>; /* uA */
 
-		/* choose -20C, 10C, 35C, 60C as threshold */
-		r-tbat-thr = <77523 18410 6881 2981>; /* ohm */
+		/* choose -20C, 0C, 45C, 60C as threshold */
+		r-tbat-thr = <77523 28704 4847 2981>; /* ohm */
 		ntc-table-size = <88>;
 
 		/* -24C, -23C, ..., 62C, 63C */
