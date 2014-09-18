@@ -68,6 +68,11 @@ int cp_set_ops(void)
 		global_cp->release_cp = cp1928_releasecp;
 		global_cp->get_status = cp1928_get_status;
 		break;
+	case cp_type_pxa1908:
+		global_cp->hold_cp = cp1908_holdcp;
+		global_cp->release_cp = cp1908_releasecp;
+		global_cp->get_status = cp1908_get_status;
+		break;
 	default:
 		pr_err("cp_set_ops: error cp type\n");
 		ret = -1;

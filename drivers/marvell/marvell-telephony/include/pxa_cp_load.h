@@ -17,6 +17,7 @@ enum cp_type {
 	cp_type_pxa988,
 	cp_type_pxa1L88,
 	cp_type_pxa1928,
+	cp_type_pxa1908,
 
 	cp_type_cnt
 };
@@ -40,6 +41,10 @@ bool cp1928_get_status(void);
 void cp988_releasecp(void);
 void cp988_holdcp(void);
 bool cp988_get_status(void);
+void __cp988_releasecp(void);
+void cp1908_releasecp(void);
+void cp1908_holdcp(void);
+bool cp1908_get_status(void);
 
 extern struct bus_type cpu_subsys;
 extern void cp_releasecp(void);

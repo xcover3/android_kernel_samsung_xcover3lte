@@ -23,7 +23,7 @@
  * 4. wait until read back zero value after clear bit CPR
  * 5. release fc mutex
  */
-void cp988_releasecp(void)
+void __cp988_releasecp(void)
 {
 	int value;
 	int timeout = 1000000;
@@ -43,8 +43,6 @@ void cp988_releasecp(void)
 	__raw_writeb(apmu_debug, APMU_DEBUG);
 	pr_info("%s: APMU_DEBUG after %02x\n", __func__,
 	       __raw_readb(APMU_DEBUG));
-
-	writel(arbel_bin_phys_addr, CIU_SW_BRANCH_ADDR);
 
 	pr_info("release cp...\n");
 	value = __raw_readl(MPMU_APRR);
@@ -82,6 +80,12 @@ void cp988_releasecp(void)
 
 	release_fc_mutex();
 	pr_info("%s: release fc mutex\n", __func__);
+}
+
+void cp988_releasecp(void)
+{
+	writel(arbel_bin_phys_addr, CIU_SW_BRANCH_ADDR);
+	__cp988_releasecp();
 }
 
 /**
