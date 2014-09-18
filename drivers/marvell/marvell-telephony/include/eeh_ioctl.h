@@ -35,8 +35,6 @@ typedef enum _EehApiId {
 	_EehInsertComm2Reset,
 	_EehChangeResetState,
 	_EehReleaseCommFromReset,
-	_EehDisableCPUFreq,
-	_EehEnableCPUFreq,
 	_EehGetCPLoadAddr,
 } EehApiId;
 

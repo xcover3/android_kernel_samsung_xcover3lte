@@ -352,30 +352,6 @@ int seh_api_ioctl_handler(unsigned long arg)
 
 		break;
 
-	case _EehDisableCPUFreq:
-	{
-		DBGMSG("Kernel Space _EehDisableCPUFreq Params: No params\n");
-
-		if (copy_to_user
-		    (&((EehApiParams *) arg)->status, &status,
-		     sizeof(unsigned int)))
-			return -EFAULT;
-	}
-
-	break;
-
-	case _EehEnableCPUFreq:
-	{
-		DBGMSG("Kernel Space _EehEnableCPUFreq Params: No params\n");
-
-		if (copy_to_user
-		    (&((EehApiParams *) arg)->status, &status,
-		     sizeof(unsigned int)))
-			return -EFAULT;
-	}
-
-	break;
-
 	case _EehGetCPLoadAddr:
 	{
 		EehGetCPLoadAddrParam param;
