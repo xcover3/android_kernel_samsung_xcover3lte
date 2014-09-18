@@ -85,7 +85,10 @@ static void do_pxa_reset(enum reboot_mode mode, const char *cmd)
 	u32 backup;
 	int i;
 
-	if (cmd && !strcmp(cmd, "recovery")) {
+	if (cmd && (!strcmp(cmd, "recovery")
+		|| !strcmp(cmd, "bootloader") || !strcmp(cmd, "boot")
+		|| !strcmp(cmd, "product") || !strcmp(cmd, "prod")
+		|| !strcmp(cmd, "fastboot") || !strcmp(cmd, "fast"))) {
 		for (i = 0, backup = 0; i < 4; i++) {
 			backup <<= 8;
 			backup |= *(cmd + i);
