@@ -16,7 +16,7 @@
 enum cp_type {
 	cp_type_pxa988,
 	cp_type_pxa1L88,
-	cp_tpye_pxa1928,
+	cp_type_pxa1928,
 
 	cp_type_cnt
 };

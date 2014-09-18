@@ -63,7 +63,7 @@ int cp_set_ops(void)
 		global_cp->release_cp = cp988_releasecp;
 		global_cp->get_status = cp988_get_status;
 		break;
-	case cp_tpye_pxa1928:
+	case cp_type_pxa1928:
 		global_cp->hold_cp = cp1928_holdcp;
 		global_cp->release_cp = cp1928_releasecp;
 		global_cp->get_status = cp1928_get_status;
