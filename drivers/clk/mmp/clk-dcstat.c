@@ -292,9 +292,11 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 	u64 total_time = 0, run_total = 0, idle_total = 0, pwr_off_total = 0;
 	struct clk_dcstat *cdcs;
 	struct clk_dc_stat_info *dc_stat_info = NULL;
+#ifdef CONFIG_DDR_DEVFREQ
 	unsigned int ddr_glob_ratio = 0, ddr_idle_ratio = 0, ddr_busy_ratio = 0,
 	ddr_data_ratio = 0, ddr_util_ratio = 0, ddr_pprate = 0;
 	u64 ddr_data = 0, ddr_data_total = 0;
+#endif
 
 	list_for_each_entry(cdcs, &clk_dcstat_list, node)
 	    if (cdcs->clk == clk) {
@@ -344,12 +346,14 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 			clk->name, dc_int, dc_frac, (long)total_time);
 
 	if (!strcmp(clk->name, "ddr")) {
+#ifdef CONFIG_DDR_DEVFREQ
 		ddr_profiling_show(dc_stat_info);
 
 		seq_printf(seq, "|%3s|%10s|%10s|%7s|%7s|%7s|%7s|%7s|%7s|%7s|\n",
 		"OP#", "rate(HZ)", "run (ms)", "rt", "gl",
 		"glob(tick)", "idle(tick)", "busy(tick)",
 		"data(tick)", "util(tick)");
+#endif
 	} else
 		seq_printf(seq, "|%3s|%10s|%10s|%10s|%10s|%7s|%7s|%7s|%7s|\n",
 		"OP#", "rate(HZ)", "run (ms)", "idle (ms)", "pwroff(ms)",
@@ -369,6 +373,7 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 				(u32)dc_stat_info->ops_dcstat[i].pwr_off_time,
 				(u32)total_time, &gr_frac);
 
+#ifdef CONFIG_DDR_DEVFREQ
 		if (!strcmp(clk->name, "ddr")) {
 			ddr_glob_ratio =
 				dc_stat_info->ops_dcstat[i].ddr_glob_ratio;
@@ -381,8 +386,10 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 			ddr_util_ratio =
 				dc_stat_info->ops_dcstat[i].ddr_util_ratio;
 		}
+#endif
 
 		if (!strcmp(clk->name, "ddr")) {
+#ifdef CONFIG_DDR_DEVFREQ
 			/* eden ddr pprate is 312000, helanlte ddr pprate is 312000000,
 			 * the ddr clock format is different.
 			 */
@@ -415,6 +422,7 @@ int show_dc_stat_info(struct clk *clk, struct seq_file *seq, void *data)
 				seq_printf(seq, "Totally ddr data access bandwidth is %lld MB/s\n",
 				div64_u64(ddr_data_total, (u64)100000));
 			}
+#endif
 		} else {
 			seq_printf(seq, "|%3u|%10lu|%10ld|%10ld|%10ld",
 				dc_stat_info->ops_dcstat[i].ppindex,
@@ -468,14 +476,18 @@ int start_stop_dc_stat(struct clk *clk, unsigned int start)
 		dc_stat_info->stat_start = true;
 		clk_dutycycle_stats(clk, CLK_STAT_START, dc_stat_info, 0);
 
+#ifdef CONFIG_DDR_DEVFREQ
 		if (!strcmp(clk->name, "ddr"))
 			ddr_profiling_store(1);
+#endif
 
 	} else {
 		clk_dutycycle_stats(clk, CLK_STAT_STOP, dc_stat_info, 0);
 		dc_stat_info->stat_start = false;
+#ifdef CONFIG_DDR_DEVFREQ
 		if (!strcmp(clk->name, "ddr"))
 			ddr_profiling_store(0);
+#endif
 	}
 	return 0;
 }
