@@ -87,4 +87,34 @@
 		status = "okay";
 	};
 
+	red: led-rgb0 {
+	       led-name = "led0";
+	       led-trigger-name = "timer";
+	       pm886-rgb-breath-mode;
+	       pm886-rgb-breath-speed = <1>;
+
+	       pm886-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm886-rgb-on-percent = /bits/ 8 <50>;
+
+       };
+
+	green: led-rgb1 {
+	       led-name = "led1";
+	       led-trigger-name = "timer";
+	       pm886-rgb-breath-mode;
+	       pm886-rgb-breath-speed = <2>;
+
+	       pm886-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm886-rgb-on-percent = /bits/ 8 <50>;
+       };
+
+	blue: led-rgb2 {
+	       led-name = "led2";
+	       led-trigger-name = "timer";
+	       pm886-rgb-breath-mode;
+	       pm886-rgb-breath-speed = <2>;
+
+	       pm886-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm886-rgb-on-percent = /bits/ 8 <50>;
+       };
 };
