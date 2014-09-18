@@ -35,6 +35,16 @@ config LEDS_88PM830
 	  corresponding to /sys/class/leds/flash/, and torch mode corresponding
 	  to /sys/class/leds/torch/.
 
+config LEDS_88PM886_RGB
+	tristate "RGB LED Support for Marvell 88PM886 PMIC"
+	depends on LEDS_CLASS
+	depends on MFD_88PM886
+	help
+	  This option enables rgb leds driver in Marvell Semiconductor 88PM886
+	  PMIC. The user can control rgb leds via /sys/class fs.
+	  It has two blinking modes: switch mode and fade in/out mode;
+	  the later can be used as breath leds.
+
 config LEDS_88PM860X
 	tristate "LED Support for Marvell 88PM860x PMIC"
 	depends on LEDS_CLASS

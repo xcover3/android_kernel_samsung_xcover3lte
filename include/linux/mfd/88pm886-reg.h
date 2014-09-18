@@ -23,6 +23,11 @@
 #define PM886_MISC_CONFIG1		(0x14)
 #define PM886_LONKEY_RST		(1 << 3)
 
+#define PM886_WDOG			(0x1d)
+
+/* clk control register */
+#define PM886_CLK_CTRL1			(0x25)
+
 /* gpio */
 #define PM886_GPIO_CTRL1		(0x30)
 #define PM886_GPIO0_VAL_MSK		(0x1 << 0)

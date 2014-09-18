@@ -27,12 +27,19 @@
 #define PM886_CFD_NAME		"88pm886-leds"
 #define PM886_REGULATOR_NAME	"88pm886-regulator"
 #define PM886_DVC_NAME		"88pm886-dvc"
+#define PM886_RGB_NAME		"88pm886-rgb"
 #define PM886_DEBUGFS_NAME	"88pm886-debugfs"
 #define PM886_HWMON_NAME	"88pm886-hwmon"
 
 /* TODO: use chip id is better */
 enum pm88x_type {
 	PM886 = 1,
+};
+
+enum {
+	PM886_RGB_LED0,
+	PM886_RGB_LED1,
+	PM886_RGB_LED2,
 };
 
 /* FIXME: change according to spec */

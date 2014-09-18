@@ -117,6 +117,12 @@ static const struct resource dvc_resources[] = {
 	},
 };
 
+static const struct resource rgb_resources[] = {
+	{
+	.name = PM886_RGB_NAME,
+	},
+};
+
 static const struct resource debugfs_resources[] = {
 	{
 	.name = PM886_DEBUGFS_NAME,
@@ -153,6 +159,9 @@ static const struct mfd_cell pm886_cell_devs[] = {
 	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo15", 19),
 	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo16", 20),
 	CELL_DEV(PM886_DVC_NAME, dvc_resources, "marvell,88pm886-dvc", -1),
+	CELL_DEV(PM886_RGB_NAME, rgb_resources, "marvell,88pm886-rgb0", PM886_RGB_LED0),
+	CELL_DEV(PM886_RGB_NAME, rgb_resources, "marvell,88pm886-rgb1", PM886_RGB_LED1),
+	CELL_DEV(PM886_RGB_NAME, rgb_resources, "marvell,88pm886-rgb2", PM886_RGB_LED2),
 	CELL_DEV(PM886_DEBUGFS_NAME, debugfs_resources, "marvell,88pm886-debugfs", -1),
 };
 
