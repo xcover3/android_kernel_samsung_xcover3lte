@@ -259,6 +259,7 @@
 
 			disp: disp@d420b000 {
 				pinctrl-names = "default";
+				pinctrl-0 = <&disp_func>;
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
@@ -728,6 +729,14 @@
 						GPIO28 AF7
 					>;
 					DS_MEDIUM;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+				disp_func: disp_func {
+					pinctrl-single,pins = <
+						GPIO4 AF0
+						GPIO6 AF0
+						GPIO32 AF0
+					>;
+					MFP_LPM_PULL_DW;
 				};
 				gssp_func: gssp_func {
 					pinctrl-single,pins = <
