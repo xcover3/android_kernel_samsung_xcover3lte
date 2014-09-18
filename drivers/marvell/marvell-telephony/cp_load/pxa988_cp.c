@@ -29,9 +29,7 @@ void cp988_releasecp(void)
 	int timeout = 1000000;
 	u8 apmu_debug;
 
-#if defined(CONFIG_CPU_PXA988)
 	acquire_fc_mutex();
-#endif
 	pr_info("%s: acquire fc mutex\n", __func__);
 
 	/*
@@ -82,9 +80,7 @@ void cp988_releasecp(void)
 	} else
 		pr_info("done!\n");
 
-#if defined(CONFIG_CPU_PXA988)
 	release_fc_mutex();
-#endif
 	pr_info("%s: release fc mutex\n", __func__);
 }
 
@@ -104,9 +100,7 @@ void cp988_holdcp(void)
 	int value;
 	u8 apmu_debug;
 
-#if defined(CONFIG_CPU_PXA988)
 	acquire_fc_mutex();
-#endif
 	pr_info("%s: acquire fc mutex\n", __func__);
 
 	if (watchdog_count_stop_fp)
@@ -143,9 +137,7 @@ void cp988_holdcp(void)
 	pr_info("%s: APMU_DEBUG after %02x\n", __func__,
 	       __raw_readb(APMU_DEBUG));
 
-#if defined(CONFIG_CPU_PXA988)
 	release_fc_mutex();
-#endif
 	pr_info("%s: release fc mutex\n", __func__);
 }
 
