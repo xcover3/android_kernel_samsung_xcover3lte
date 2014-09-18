@@ -70,16 +70,12 @@ static int mmp_pd_pxa1u88_power_on(struct generic_pm_domain *domain)
 	struct mmp_pd_display *pd = container_of(domain,
 			struct mmp_pd_display, genpd);
 
-	spin_lock(&mmp_pd_display_lock);
-
 	if (pd->hclk_clk)
 		clk_prepare_enable(pd->hclk_clk);
 	if (pd->esc_clk)
 		clk_prepare_enable(pd->esc_clk);
 	if (pd->disp1_clk)
 		clk_prepare_enable(pd->disp1_clk);
-
-	spin_unlock(&mmp_pd_display_lock);
 
 	return 0;
 }
@@ -89,16 +85,12 @@ static int mmp_pd_pxa1u88_power_off(struct generic_pm_domain *domain)
 	struct mmp_pd_display *pd = container_of(domain,
 			struct mmp_pd_display, genpd);
 
-	spin_lock(&mmp_pd_display_lock);
-
 	if (pd->esc_clk)
 		clk_disable_unprepare(pd->esc_clk);
 	if (pd->disp1_clk)
 		clk_disable_unprepare(pd->disp1_clk);
 	if (pd->hclk_clk)
 		clk_disable_unprepare(pd->hclk_clk);
-
-	spin_unlock(&mmp_pd_display_lock);
 
 	return 0;
 }
@@ -110,8 +102,6 @@ static int mmp_pd_pxa1928_power_on(struct generic_pm_domain *domain)
 	u32 val;
 	int count = 0;
 
-	spin_lock(&mmp_pd_display_lock);
-
 	/* 1. clock enable, in prepare process */
 	if (pd->axi_clk)
 		clk_prepare_enable(pd->axi_clk);
@@ -121,6 +111,8 @@ static int mmp_pd_pxa1928_power_on(struct generic_pm_domain *domain)
 		clk_prepare_enable(pd->disp1_clk);
 	if (pd->vdma_clk)
 		clk_prepare_enable(pd->vdma_clk);
+
+	spin_lock(&mmp_pd_display_lock);
 
 	/* 2. disable fabirc x2h dynamical clock gating */
 	val = readl_relaxed(pd->reg_base + CIU_FABRIC1_CKGT) | X2H_CKGT_DISABLE;
@@ -178,8 +170,6 @@ static int mmp_pd_pxa1928_power_off(struct generic_pm_domain *domain)
 			struct mmp_pd_display, genpd);
 	u32 val;
 
-	spin_lock(&mmp_pd_display_lock);
-
 	/* 1. disable clk */
 	if (pd->axi_clk)
 		clk_disable_unprepare(pd->axi_clk);
@@ -189,6 +179,8 @@ static int mmp_pd_pxa1928_power_off(struct generic_pm_domain *domain)
 		clk_disable_unprepare(pd->disp1_clk);
 	if (pd->vdma_clk)
 		clk_disable_unprepare(pd->vdma_clk);
+
+	spin_lock(&mmp_pd_display_lock);
 
 	/* 2. reset all clks*/
 	val = readl_relaxed(pd->reg_base + PMUA_DISP_RSTCTRL);
