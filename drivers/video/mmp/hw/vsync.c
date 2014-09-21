@@ -25,18 +25,27 @@
 static int path_wait_vsync(struct mmp_path *path)
 {
 	struct mmp_vsync *vsync = &path->vsync;
+
+	mmp_path_set_irq(path, 1);
 	atomic_set(&vsync->ready, 0);
-	return wait_event_interruptible_timeout(vsync->waitqueue,
+	wait_event_interruptible_timeout(vsync->waitqueue,
 		atomic_read(&vsync->ready), HZ / 20);
+	mmp_path_set_irq(path, 0);
+
+	return 0;
 }
 
 static int path_wait_special_vsync(struct mmp_path *path)
 {
 	struct mmp_vsync *vsync = &path->special_vsync;
 
+	mmp_path_set_irq(path, 1);
 	atomic_set(&vsync->ready, 0);
-	return wait_event_interruptible_timeout(vsync->waitqueue,
+	wait_event_interruptible_timeout(vsync->waitqueue,
 		atomic_read(&vsync->ready), HZ / 20);
+	mmp_path_set_irq(path, 0);
+
+	return 0;
 }
 
 static void path_handle_irq(struct mmp_vsync *vsync)

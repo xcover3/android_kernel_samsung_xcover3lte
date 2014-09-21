@@ -1017,9 +1017,7 @@ static int overlay_set_surface(struct mmp_overlay *overlay,
 
 	if (unlikely(atomic_read(&path->commit))) {
 		while (atomic_read(&path->commit) && count < 10) {
-			mmp_path_set_irq(path, 1);
 			mmp_path_wait_vsync(path);
-			mmp_path_set_irq(path, 0);
 			count++;
 		}
 		if (count >= 10)
@@ -1342,10 +1340,8 @@ static int path_set_commit(struct mmp_path *path)
 
 	if (unlikely(atomic_read(&path->commit))) {
 		while (atomic_read(&path->commit)) {
-			mmp_path_set_irq(path, 1);
 			trace_commit(path, 2);
 			mmp_path_wait_vsync(path);
-			mmp_path_set_irq(path, 0);
 		}
 		if (!atomic_read(&path->commit)) {
 			spin_lock_irqsave(&path->commit_lock, flags);
