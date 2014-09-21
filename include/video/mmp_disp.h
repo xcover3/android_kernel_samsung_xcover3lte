@@ -487,6 +487,7 @@ struct mmp_path_ops {
 	void (*set_mode)(struct mmp_path *path, struct mmp_mode *mode);
 	void (*set_onoff)(struct mmp_path *path, int status);
 	int (*wait_vsync)(struct mmp_path *path);
+	int (*wait_special_vsync)(struct mmp_path *path);
 	int (*set_irq)(struct mmp_path *path, int on);
 	int (*ctrl_safe)(struct mmp_path *path);
 	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
@@ -642,6 +643,9 @@ struct mmp_path {
 	struct mmp_mode mode;
 	struct mmp_vsync vsync;
 
+	/* when display done finished, no vsync pending */
+	struct mmp_vsync special_vsync;
+
 	/* commit flag */
 	atomic_t commit;
 	spinlock_t commit_lock;
@@ -691,6 +695,12 @@ static inline int mmp_path_wait_vsync(struct mmp_path *path)
 		return path->ops.wait_vsync(path);
 	return 0;
 }
+static inline int mmp_path_wait_special_vsync(struct mmp_path *path)
+{
+	if (path && path->ops.wait_special_vsync)
+		return path->ops.wait_special_vsync(path);
+	return 0;
+}
 static inline int mmp_path_set_gamma(struct mmp_path *path,
 		int flag, char *table)
 {
@@ -729,6 +739,16 @@ static inline void mmp_path_unregister_vsync_cb(
 		list_del(&notifier_node->node);
 	}
 }
+
+static inline void mmp_path_register_special_vsync_cb(
+		struct mmp_path *path,
+		struct mmp_vsync_notifier_node *notifier_node)
+{
+	if (path)
+		list_add_tail(&notifier_node->node,
+				&path->special_vsync.notifier_list);
+}
+
 static inline struct mmp_overlay *mmp_path_get_overlay(
 		struct mmp_path *path, int overlay_id)
 {

@@ -30,6 +30,15 @@ static int path_wait_vsync(struct mmp_path *path)
 		atomic_read(&vsync->ready), HZ / 20);
 }
 
+static int path_wait_special_vsync(struct mmp_path *path)
+{
+	struct mmp_vsync *vsync = &path->special_vsync;
+
+	atomic_set(&vsync->ready, 0);
+	return wait_event_interruptible_timeout(vsync->waitqueue,
+		atomic_read(&vsync->ready), HZ / 20);
+}
+
 static void path_handle_irq(struct mmp_vsync *vsync)
 {
 	struct mmp_vsync_notifier_node *notifier_node;
@@ -47,16 +56,23 @@ static void path_handle_irq(struct mmp_vsync *vsync)
 void mmp_vsync_init(struct mmp_path *path)
 {
 	struct mmp_vsync *vsync = &path->vsync;
+	struct mmp_vsync *special_vsync = &path->special_vsync;
 
 	init_waitqueue_head(&vsync->waitqueue);
 	path->ops.wait_vsync = path_wait_vsync;
 	vsync->handle_irq = path_handle_irq;
 	INIT_LIST_HEAD(&vsync->notifier_list);
+
+	init_waitqueue_head(&special_vsync->waitqueue);
+	path->ops.wait_special_vsync = path_wait_special_vsync;
+	special_vsync->handle_irq = path_handle_irq;
+	INIT_LIST_HEAD(&special_vsync->notifier_list);
 }
 
 void mmp_vsync_deinit(struct mmp_path *path)
 {
 	struct mmp_vsync *vsync = &path->vsync;
+	struct mmp_vsync *special_vsync = &path->special_vsync;
 	struct mmp_vsync_notifier_node *notifier_node;
 
 	list_for_each_entry(notifier_node, &vsync->notifier_list,
@@ -65,6 +81,14 @@ void mmp_vsync_deinit(struct mmp_path *path)
 			notifier_node);
 	}
 
+	list_for_each_entry(notifier_node, &special_vsync->notifier_list,
+			node) {
+		mmp_path_unregister_vsync_cb(path,
+			notifier_node);
+	}
+
 	path->ops.wait_vsync = NULL;
 	path->vsync.handle_irq = NULL;
+	path->ops.wait_special_vsync = NULL;
+	path->special_vsync.handle_irq = NULL;
 }

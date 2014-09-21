@@ -536,12 +536,7 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 				continue;
 			path = ctrl->path_plats[id].path;
 			slave = path->slave;
-			if (path && path->vsync.handle_irq)
-				path->vsync.handle_irq(&path->vsync);
-			if (slave && slave->vsync.handle_irq)
-				slave->vsync.handle_irq(&slave->vsync);
-			if ((disp_done & display_done_imask(id)) &&
-				(!(vsync_done & vsync_imasks))) {
+			if (!(vsync_done & vsync_imask(id))) {
 				spin_lock(&path->commit_lock);
 				if (path && atomic_read(&path->commit)) {
 					path_trigger(path);
@@ -552,7 +547,16 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 					trace_commit(path, 0);
 				}
 				spin_unlock(&path->commit_lock);
+				/* Some special usage need wait this
+				 * kind of vsync */
+				if (path && path->special_vsync.handle_irq)
+					path->special_vsync.handle_irq(
+					&path->special_vsync);
 			}
+			if (path && path->vsync.handle_irq)
+				path->vsync.handle_irq(&path->vsync);
+			if (slave && slave->vsync.handle_irq)
+				slave->vsync.handle_irq(&slave->vsync);
 		}
 	} while ((isr_en = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR) &
 				readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA)));
