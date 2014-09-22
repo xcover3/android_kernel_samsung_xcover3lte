@@ -428,27 +428,36 @@ static int path_set_irq(struct mmp_path *path, int on)
 	u32 tmp;
 	u32 mask = display_done_imask(path->id) | vsync_imask(path->id);
 	int retry = 0;
+	unsigned long flags;
 
-	/* It is possible to disable/enable irq anytime, enable HCLK for it */
-	if (ctrl->clk)
+	spin_lock_irqsave(&path->irq_lock, flags);
+
+	/*
+	 * It is possible to disable/enable irq anytime, enable HCLK for it.
+	 * If the function is called in irq handler, we need not to enable clk
+	 * because clk_prepare_enable will cal mutex_lock which is forbidden in
+	 * irq handler.
+	 */
+	if (ctrl->clk && !in_irq())
 		clk_prepare_enable(ctrl->clk);
 
 	if (!on) {
-		if (atomic_dec_and_test(&path->irq_en_ref)) {
-			tmp = readl_relaxed(ctrl_regs(path) + SPU_IRQ_ENA);
-			tmp &= ~mask;
-			writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ENA);
-			/* FIXME: irq register write failure */
-			while (tmp != readl(ctrl_regs(path) + SPU_IRQ_ENA)
-				&& retry < 10000) {
-				retry++;
-				writel_relaxed(tmp, ctrl_regs(path)
-					+ SPU_IRQ_ENA);
+		if (atomic_read(&path->irq_en_ref))
+			if (atomic_dec_and_test(&path->irq_en_ref)) {
+				tmp = readl_relaxed(ctrl_regs(path) + SPU_IRQ_ENA);
+				tmp &= ~mask;
+				writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ENA);
+				/* FIXME: irq register write failure */
+				while (tmp != readl(ctrl_regs(path) + SPU_IRQ_ENA)
+					&& retry < 10000) {
+					retry++;
+					writel_relaxed(tmp, ctrl_regs(path)
+						+ SPU_IRQ_ENA);
+				}
+				if (retry == 10000)
+					pr_info("write LCD IRQ failure\n");
+				dev_dbg(path->dev, "%s eof intr off\n", path->name);
 			}
-			if (retry == 10000)
-				pr_info("write LCD IRQ failure\n");
-			dev_dbg(path->dev, "%s eof intr off\n", path->name);
-		}
 	} else {
 		if (!atomic_read(&path->irq_en_ref)) {
 			/*
@@ -479,8 +488,10 @@ static int path_set_irq(struct mmp_path *path, int on)
 		atomic_inc(&path->irq_en_ref);
 	}
 
-	if (ctrl->clk)
+	if (ctrl->clk && !in_irq())
 		clk_disable_unprepare(ctrl->clk);
+
+	spin_unlock_irqrestore(&path->irq_lock, flags);
 
 	return atomic_read(&path->irq_en_ref) > 0;
 }
@@ -552,6 +563,15 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 				if (path && path->special_vsync.handle_irq)
 					path->special_vsync.handle_irq(
 					&path->special_vsync);
+				/* Disable irq if irq is enabled by
+				 * pan_display or path_set_commit.
+				 * Sometimes the irq handler maybe delayed
+				 * (vsync status and display done status were
+				 * both on), this step will be skipped.
+				 * Unless we can find the right
+				 * display done handler (not delayed),
+				 * we wouldn't disable the irq */
+				mmp_path_set_irq(path, 0);
 			}
 			if (path && path->vsync.handle_irq)
 				path->vsync.handle_irq(&path->vsync);

@@ -649,6 +649,7 @@ struct mmp_path {
 	/* commit flag */
 	atomic_t commit;
 	spinlock_t commit_lock;
+	spinlock_t irq_lock;
 
 	/*master/slave path*/
 	struct mmp_path *master;
