@@ -38,7 +38,6 @@ struct ram_tag_info {
 #endif
 };
 
-#define EMMD_ALIGN_SIZE	4096
 struct emmd_page {
 	unsigned int indicator;
 	unsigned int dump_style;
@@ -47,7 +46,7 @@ struct emmd_page {
 	unsigned int held_status[CRASH_PAGE_SIZE_HELDSTATUS];
 	unsigned int pmic_regs[CRASH_PAGE_SIZE_PMIC];
 	unsigned int reset_status[CRASH_PAGE_SIZE_RESET_STATUS];
-} __aligned(EMMD_ALIGN_SIZE);
+};
 extern struct emmd_page *emmd_page;
 
 #endif /* _EMMD_RSV_H_ */
