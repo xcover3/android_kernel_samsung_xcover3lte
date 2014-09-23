@@ -11,7 +11,6 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/module.h>
-#include <linux/cputype.h>
 
 #include "pxa_cp_load.h"
 #include "common_regs.h"
@@ -37,24 +36,6 @@ void cp1928_releasecp(void)
 	value = __raw_readl(MPMU_CPRR);
 	value &= ~MPMU_CPRR_BBR;
 	__raw_writel(value, MPMU_CPRR);
-
-	/* Set CP AXI to 208Mhz
-	 * According to pxa1928 a0 spec, CP AXI shoud be
-	 * set to some value no more than 208Mhz before
-	 * release CP core*/
-	if (pxa1928_is_a0()) {
-		value = __raw_readl(MPMU_CPPMU_REG1);
-		pr_info("the before CPPMU value is 0x%08x\n",
-			value);
-		value = (value & MPMU_CPPMU_AXI_CLEAR)
-			| MPMU_CPPMU_AXI_208M;
-		__raw_writel(value, MPMU_CPPMU_REG1);
-		value = __raw_readl(MPMU_CPPMU_REG1);
-		pr_info("the after CPPMU value is 0x%08x\n",
-			value);
-	}
-	/* Delay to make sure that CP AXI is stable*/
-	msleep(500);
 
 	pr_info("release cp...\n");
 
