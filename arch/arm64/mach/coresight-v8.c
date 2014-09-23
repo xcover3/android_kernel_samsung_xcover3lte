@@ -257,7 +257,7 @@ static inline void etm_enable_access(void)
 	timeout = 10000;
 	do {
 		val = readl_relaxed(p_etm_base + TRC_OSLSR);
-		if (!(val & (0x1 << 0)))
+		if (!(val & (0x1 << 1)))
 			break;
 	} while (--timeout);
 	if (!timeout)
@@ -404,8 +404,8 @@ static void __init coresight_etm_enable(u32 cpu)
 	/*Unlock the OS lock*/
 	writel_relaxed(0x0, p_etm_base + TRC_OSLAR);
 	val = readl_relaxed(p_etm_base + TRC_OSLSR);
-	if (val & (0x1 << 0))
-		pr_err("OS Lock on cpu%d still locked!\n", cpu);
+	if (val & (0x1 << 1))
+		pr_err("OSLock on cpu%d still locked!\n", cpu);
 
 	/*Disable the trace unit*/
 	writel_relaxed(0x0, p_etm_base + TRC_PRGCTLR);
