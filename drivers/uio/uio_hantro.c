@@ -232,9 +232,10 @@ static int vpu_unlock(struct vpu_dev *vdev)
 
 static int vpu_clk_on(struct vpu_dev *vdev)
 {
-	if ((NULL != vdev->clk) &&
+	if ((NULL != vdev->fclk) && (NULL != vdev->bclk) &&
 		!atomic_read(&vdev->clk_on)) {
-		clk_prepare_enable(vdev->clk);
+		clk_prepare_enable(vdev->fclk);
+		clk_prepare_enable(vdev->bclk);
 		atomic_set(&vdev->clk_on, 1);
 	}
 
@@ -245,9 +246,11 @@ static int vpu_clk_on(struct vpu_dev *vdev)
 
 static int vpu_clk_off(struct vpu_dev *vdev)
 {
-	if ((NULL != vdev->clk) &&
-		atomic_cmpxchg(&vdev->clk_on, 1, 0))
-		clk_disable_unprepare(vdev->clk);
+	if ((NULL != vdev->fclk) && (NULL != vdev->bclk) &&
+		atomic_cmpxchg(&vdev->clk_on, 1, 0)) {
+		clk_disable_unprepare(vdev->fclk);
+		clk_disable_unprepare(vdev->bclk);
+	}
 
 	PDEBUG("%s, dev_type = %d\n", __func__, vdev->codec_type);
 
@@ -525,15 +528,18 @@ static int vpu_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	if (codec_type == HANTRO_ENC)
-		vdev->clk = clk_get(&pdev->dev, "VPU_ENC_CLK");
-	else
-		vdev->clk = clk_get(&pdev->dev, "VPU_DEC_CLK");
+	vdev->fclk = devm_clk_get(&pdev->dev, "vpu-fclk");
+	if (IS_ERR(vdev->fclk)) {
+		dev_err(&pdev->dev, "Cannot get fclk ptr.\n");
+		ret = PTR_ERR(vdev->fclk);
+		goto err_clk2;
+	}
 
-	if (IS_ERR(vdev->clk)) {
-		dev_err(&pdev->dev, "cannot get VPU clock!!!\n");
-		ret = PTR_ERR(vdev->clk);
-		goto err_clk;
+	vdev->bclk = devm_clk_get(&pdev->dev, "vpu-bclk");
+	if (IS_ERR(vdev->bclk)) {
+		dev_err(&pdev->dev, "cannot get bclk ptr.\n");
+		ret = PTR_ERR(vdev->bclk);
+		goto err_clk1;
 	}
 
 	vdev->reg_base = (void *)ioremap_nocache(res->start,
@@ -609,8 +615,10 @@ static int vpu_probe(struct platform_device *pdev)
 err_uio_register:
 	iounmap(vdev->uio_info.mem[0].internal_addr);
 err_reg_base:
-	clk_put(vdev->clk);
-err_clk:
+	devm_clk_put(&pdev->dev, vdev->bclk);
+err_clk1:
+	devm_clk_put(&pdev->dev, vdev->fclk);
+err_clk2:
 	kfree(vdev);
 
 	return ret;
@@ -623,7 +631,8 @@ static int vpu_remove(struct platform_device *pdev)
 	uio_unregister_device(&vdev->uio_info);
 	iounmap(vdev->uio_info.mem[0].internal_addr);
 
-	clk_put(vdev->clk);
+	devm_clk_put(&pdev->dev, vdev->fclk);
+	devm_clk_put(&pdev->dev, vdev->bclk);
 
 	pm_runtime_disable(vdev->dev);
 

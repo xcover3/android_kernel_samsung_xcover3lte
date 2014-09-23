@@ -60,7 +60,8 @@ struct vpu_dev {
 	unsigned long flags;
 	unsigned int hw_cap;
 	unsigned int codec_type;
-	struct clk *clk;
+	struct clk *fclk;
+	struct clk *bclk;
 	struct mutex mutex;
 	atomic_t power_on;
 	atomic_t clk_on;
