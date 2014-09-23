@@ -12,7 +12,23 @@
 	 * board specific register configuration
 	 * marvell,pmic-board-cfg = <page reg mask data>;
 	 */
-	marvell,pmic-board-cfg = <>;
+	marvell,pmic-board-cfg = <
+		/*
+		 * Set GPIO0 to 32KHz output
+		 */
+		0
+		0x30
+		((0x7 << 1) | (0x1))
+		((0x4 << 1) | (0x1))
+
+		/*
+		 * Set vcc_main sleep voltage to 0.7v
+		 */
+		1
+		0x30
+		0x7f
+		0x08
+		>;
 
 	regulators {
 		buck1a: BUCK1A {regulator-boot-on;regulator-always-on;};
