@@ -213,10 +213,6 @@ static enum acipc_return_code acipc_data_send(enum acipc_events user_event,
 	 * to indicate the data is ready for read
 	 */
 	acipc_writel_withdummy(IPC_ISRW, user_event);
-	if ((1 == acipc->irq_number) && (ACIPC_SHM_PACKET_NOTIFY == user_event)
-		&& ((0x11 << 8) == data)) {
-		acipc_writel_withdummy(IPC_ISRW, ACIPC_MODEM_DDR_UPDATE_REQ);
-	}
 
 	IPC_LEAVE();
 	return ACIPC_RC_OK;
