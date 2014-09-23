@@ -28,20 +28,12 @@
 #include <linux/devfreq.h>
 #endif
 #include <linux/pm_qos.h>
-#include <linux/interrupt.h>
-#include <linux/of.h>
-#include <linux/of_device.h>
-#include <linux/of_irq.h>
 
 #include "acipcd.h"
 #include "shm.h"
 #include "portqueue.h"
 #include "msocket.h"
 #include "pxa_cp_load.h"
-
-static u32 irq_num;
-typedef irqreturn_t (*assert_handle)(int, void *);
-assert_handle cp_assert_handle;
 
 struct wakeup_source acipc_wakeup; /* used to ensure Workqueue scheduled. */
 /* forward static function prototype, these all are interrupt call-backs */
@@ -120,26 +112,11 @@ static void acipc_modem_ddr_freq_update_handler(struct work_struct *work)
 }
 #endif
 
-static u32 acipc_read_irqs(void)
-{
-	struct device_node *node;
-	u32 nr = 0;
-
-	node = of_find_compatible_node(NULL, NULL, "marvell,mmp-acipc");
-	if (node) {
-		while (of_irq_to_resource(node, nr, NULL))
-			nr++;
-	} else {
-		pr_info("can't find marvell,mmp-acipc dts\n");
-	}
-	return nr;
-}
-
 /* acipc_init is used to register interrupt call-back function */
 int acipc_init(u32 lpm_qos)
 {
 	wakeup_source_init(&acipc_wakeup, "acipc_wakeup");
-	irq_num = acipc_read_irqs();
+
 	/* we do not check any return value */
 	ACIPCEventBind(ACIPC_MUDP_KEY, acipc_cb, ACIPC_CB_NORMAL, NULL);
 	ACIPCEventBind(ACIPC_RINGBUF_TX_STOP, acipc_cb_rb_stop,
@@ -290,29 +267,12 @@ static u32 acipc_cb_reset_cp_confirm(u32 status)
 	return 0;
 }
 
-void acipc_register_assert_handle(assert_handle ptr)
-{
-	cp_assert_handle = ptr;
-}
-EXPORT_SYMBOL(acipc_register_assert_handle);
-
 static u32 acipc_cb_event_notify(u32 status)
 {
-	if (1 == irq_num) {
-		if (shm_rbctl[shm_rb_main].skctl_va->reset_request
-			== RESET_CP_REQUEST_DONE) {
-			acipc_cb_reset_cp_confirm(status);
-		} else {
-			pr_info("cp assert occur!!!\n");
-			if (cp_assert_handle)
-				cp_assert_handle(0, NULL);
-		}
-	} else {
-		acipc_cb_reset_cp_confirm(status);
+	acipc_cb_reset_cp_confirm(status);
 #ifdef CONFIG_DDR_DEVFREQ
-		acipc_cb_modem_ddrfreq_update(status);
+	acipc_cb_modem_ddrfreq_update(status);
 #endif
-	}
 	return 0;
 }
 

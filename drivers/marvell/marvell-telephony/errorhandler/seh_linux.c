@@ -503,7 +503,7 @@ static int seh_probe(struct platform_device *dev)
 		ERRMSG("seh_probe: cannot register the COMM WDT interrupt\n");
 		goto dereg_misc;
 	}
-	acipc_register_assert_handle(seh_int_handler_low);
+
 	watchdog_count_stop_fp = watchdog_count_stop;
 
 	LEAVE();

@@ -13,7 +13,6 @@
 #define _SEH_LINUX_H_
 
 #include "eeh_ioctl.h"
-#include <linux/interrupt.h>
 
 extern spinlock_t lock_for_ripc;
 extern bool mmp_hwlock_get_status(void);
@@ -51,8 +50,4 @@ struct EehErrorInfo32 {
 	compat_uptr_t regs;
 };
 #endif
-
-typedef irqreturn_t (*assert_handle)(int, void *);
-extern void acipc_register_assert_handle(assert_handle ptr);
-
 #endif
