@@ -112,7 +112,7 @@
  * For all the LDOes, there are too many ranges. Using volt_table will be
  * simpler and faster.
  */
-#define PM886_LDO(vreg, ereg, ebit, amax, ldo_volt_table)					\
+#define PM886_LDO(vreg, ereg, ebit, amax, ldo_volt_table)	\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
