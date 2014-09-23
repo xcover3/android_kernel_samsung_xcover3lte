@@ -405,8 +405,8 @@ static int pm886_regulator_probe(struct platform_device *pdev)
 	}
 
 	c = data->rdev->constraints;
-	c->valid_ops_mask |= REGULATOR_CHANGE_DRMS
-		| REGULATOR_CHANGE_MODE;
+	c->valid_ops_mask |= REGULATOR_CHANGE_DRMS | REGULATOR_CHANGE_MODE
+		| REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;
 	c->valid_modes_mask |= REGULATOR_MODE_NORMAL
 		| REGULATOR_MODE_IDLE;
 	c->input_uV = 1000;
