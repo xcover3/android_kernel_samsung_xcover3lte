@@ -114,7 +114,25 @@ static struct i2c_driver pm886_i2c_driver = {
 	.id_table	= pm886_i2c_id,
 };
 
-module_i2c_driver(pm886_i2c_driver);
+static int pm886_i2c_init(void)
+{
+	int ret;
+
+	ret = i2c_add_driver(&pm886_i2c_driver);
+	if (ret != 0) {
+		pr_err("88pm886 I2C registration failed %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+subsys_initcall(pm886_i2c_init);
+
+static void pm886_i2c_exit(void)
+{
+	i2c_del_driver(&pm886_i2c_driver);
+}
+module_exit(pm886_i2c_exit);
 
 MODULE_DESCRIPTION("88pm886 I2C bus interface");
 MODULE_AUTHOR("Yi Zhang<yizhang@marvell.com>");
