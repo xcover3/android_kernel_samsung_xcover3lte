@@ -79,13 +79,14 @@ struct isp_vnode {
 
 	struct mutex		vdev_lock;	/* lock for vdev */
 	struct v4l2_format	format;		/* internal format cache */
-#ifdef CONFIG_MARVELL_MEDIA_MMU
+
 	/*
 	 * FIXME: Maybe it's not a good idea to put
 	 * Marvell specific struct here
 	 */
 	struct mmu_chs_desc	mmu_ch_dsc;
-#endif
+	bool mmu_enabled;
+
 	struct v4l2_ctrl_handler	ctrl_handler;
 };
 

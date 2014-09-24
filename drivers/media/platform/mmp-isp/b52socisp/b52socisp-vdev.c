@@ -3,11 +3,10 @@
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
 #ifdef CONFIG_MARVELL_MEDIA_MMU
-#include <media/videobuf2-dma-sg.h>
 #include <linux/m4u.h>
-#else
-#include <media/videobuf2-dma-contig.h>
 #endif
+#include <media/videobuf2-dma-sg.h>
+#include <media/videobuf2-dma-contig.h>
 
 #include <media/b52socisp/b52socisp-mdev.h>
 #include <media/b52socisp/b52socisp-vdev.h>
@@ -308,6 +307,16 @@ static int isp_vbq_setup(struct vb2_queue *vq, const struct v4l2_format *fmt,
 	struct v4l2_pix_format_mplane *pix_mp = &vnode->format.fmt.pix_mp;
 	int i;
 
+	if (vnode->mmu_enabled && vq->memory != V4L2_MEMORY_DMABUF) {
+		d_inf(1, "error MMU only support DMABUF\n");
+		return -EINVAL;
+	}
+
+	if (vnode->mmu_enabled)
+		vq->mem_ops	= &vb2_dma_sg_memops;
+	else
+		vq->mem_ops	= &vb2_dma_contig_memops;
+
 	if (*num_buffers < vnode->min_buf_cnt)
 		*num_buffers = vnode->min_buf_cnt;
 
@@ -336,13 +345,15 @@ static int isp_vb_finish(struct vb2_buffer *vb)
 
 	/* For each image plane, cleanup before expose buffer */
 	for (i = 0; i < vnode->format.fmt.pix_mp.num_planes; i++) {
+		if (vnode->mmu_enabled) {
 #ifdef CONFIG_MARVELL_MEDIA_MMU
-		struct msc2_ch_info *info = &isp_vb->ch_info[i];
-		if (info->bdt) {
-			m4u_put_bdt(info->bdt);
-			info->bdt = NULL;
-		}
+			struct msc2_ch_info *info = &isp_vb->ch_info[i];
+			if (info->bdt) {
+				m4u_put_bdt(info->bdt);
+				info->bdt = NULL;
+		    }
 #endif
+		}
 	}
 
 	/* For each data plane, clean kernel mapping of buffer addr */
@@ -373,6 +384,7 @@ static int isp_vb_prepare(struct vb2_buffer *vb)
 					struct isp_vnode, vq);
 	struct isp_videobuf *isp_vb = container_of(vb, struct isp_videobuf, vb);
 	struct v4l2_pix_format_mplane *pix_mp = &vnode->format.fmt.pix_mp;
+	dma_addr_t dma_handle;
 	unsigned long size;
 	int i, ret = 0;
 
@@ -380,44 +392,40 @@ static int isp_vb_prepare(struct vb2_buffer *vb)
 		return -EINVAL;
 	for (i = 0; i < vnode->format.fmt.pix_mp.num_planes; i++) {
 		struct msc2_ch_info *info = &isp_vb->ch_info[i];
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-		struct vb2_dma_sg_desc *sgd;
-		/* if use MMU, dma_address is just a translation reference */
 		/*
+		 * if use MMU, dma_address is just a translation reference
 		 * DE said bit[11:0] for PA and VA better be the same, maybe
 		 * try that?
 		 */
-		dma_addr_t dma_handle = (i + 1) << 28;
-#else
-		dma_addr_t dma_handle = vb2_dma_contig_plane_dma_addr(
-			&isp_vb->vb, i) + vb->v4l2_planes[i].data_offset;
+		if (vnode->mmu_enabled)
+			dma_handle = (i + 1) << 28;
+		else
+			dma_handle = vb2_dma_contig_plane_dma_addr(&isp_vb->vb, i) +
+				vb->v4l2_planes[i].data_offset;
 		BUG_ON(!dma_handle);
-#endif
+
 		size = vb2_plane_size(vb, i);
 		vb2_set_plane_payload(vb, i, size);
 		info->daddr = dma_handle;
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-		/* if Descriptor Chain had been setup, skip */
-		if (info->bdt && info->bdt->dscr_cnt)
-			continue;
 
-		sgd = vb2_dma_sg_plane_desc(vb, i);
-		/*
-		 * For test with contiguous memory
-		ret = m4u_fill_table_by_pa(info->bdt, dma_handle, size);
-		 */
-		info->bdt = m4u_get_bdt(vb->planes[i].dbuf, sgd->sgt,
-			vb->v4l2_planes[i].data_offset, size, 0x3f, PAGE_MASK);
-		if (info->bdt == NULL) {
-			ret = -EAGAIN;
-			goto err_dc;
-		}
-		info->daddr = dma_handle;
-#endif
-	}
+		if (vnode->mmu_enabled) {
 #ifdef CONFIG_MARVELL_MEDIA_MMU
-	dsb();
+			/* if Descriptor Chain had been setup, skip */
+			if (info->bdt && info->bdt->dscr_cnt)
+				continue;
+
+			info->bdt = m4u_get_bdt(vb->planes[i].dbuf,
+						vb2_dma_sg_plane_desc(vb, i),
+						vb->v4l2_planes[i].data_offset,
+						size, 0x3f, PAGE_SIZE - 1);
+			if (info->bdt == NULL) {
+				ret = -EAGAIN;
+				goto err_meta;
+			}
 #endif
+		}
+	}
+
 	for (i = vnode->format.fmt.pix_mp.num_planes; i < vb->num_planes; i++) {
 		size = vb2_plane_size(vb, i);
 		vb2_set_plane_payload(vb, i, size);
@@ -436,9 +444,6 @@ static int isp_vb_prepare(struct vb2_buffer *vb)
 	return 0;
 
 err_meta:
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-err_dc:
-#endif
 	return ret;
 }
 
@@ -502,11 +507,7 @@ static int isp_vnode_vb2_init(struct vb2_queue *vq, struct isp_vnode *vnode)
 	vq->io_modes	= VB2_USERPTR | VB2_DMABUF;
 	vq->drv_priv	= vnode;
 	vq->ops		= &isp_vnode_vb2_ops;
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-	vq->mem_ops	= &vb2_dma_sg_memops;
-#else
 	vq->mem_ops	= &vb2_dma_contig_memops;
-#endif
 	vq->buf_struct_size	= sizeof(struct isp_videobuf);
 	vq->timestamp_type	= V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 
@@ -950,11 +951,11 @@ int isp_vnode_add(struct isp_vnode *vnode, struct v4l2_device *vdev,
 	ret = video_register_device(&vnode->vdev, VFL_TYPE_GRABBER, vdev_nr);
 	/* FIXME: hard coding, not all DMA device needs contig mem, try pass
 	 * alloc_ctx handle, and call */
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-	vnode->alloc_ctx = vb2_dma_sg_init_ctx(&vnode->vdev.dev);
-#else
-	vnode->alloc_ctx = vb2_dma_contig_init_ctx(&vnode->vdev.dev);
-#endif
+	if (vnode->mmu_enabled)
+		vnode->alloc_ctx = vb2_dma_sg_init_ctx(&vnode->vdev.dev);
+	else
+		vnode->alloc_ctx = vb2_dma_contig_init_ctx(&vnode->vdev.dev);
+
 	if (IS_ERR(vnode->alloc_ctx)) {
 		ret = PTR_ERR(vnode->alloc_ctx);
 		goto exit;
@@ -975,11 +976,11 @@ EXPORT_SYMBOL(isp_vnode_add);
 void isp_vnode_remove(struct isp_vnode *vnode)
 {
 	if (video_is_registered(&vnode->vdev)) {
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-		vb2_dma_sg_cleanup_ctx(&vnode->alloc_ctx);
-#else
-		vb2_dma_contig_cleanup_ctx(&vnode->alloc_ctx);
-#endif
+		if (vnode->mmu_enabled)
+			vb2_dma_sg_cleanup_ctx(&vnode->alloc_ctx);
+		else
+			vb2_dma_contig_cleanup_ctx(&vnode->alloc_ctx);
+
 		media_entity_cleanup(&vnode->vdev.entity);
 		video_unregister_device(&vnode->vdev);
 		v4l2_ctrl_handler_free(&vnode->ctrl_handler);
