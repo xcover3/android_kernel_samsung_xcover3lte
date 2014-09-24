@@ -1123,11 +1123,8 @@ ssize_t cctdev_write(struct file *filp, const char __user *buf, size_t count,
 		mutex_unlock(&mutex_lock_tty[minor_num]);
 		return 0;
 	}
-	c = N_TTY_BUF_SIZE - tty->ldisc->ops->chars_in_buffer(tty) - 1;
-	if (c > count)
-		c = count;
 
-	tbuf = memdup_user(buf, c);
+	tbuf = memdup_user(buf, count);
 	if (IS_ERR(tbuf)) {
 		pr_warn("%s: memdup_user returned error[%ld]\n",
 			__func__, PTR_ERR(tbuf));
@@ -1135,7 +1132,7 @@ ssize_t cctdev_write(struct file *filp, const char __user *buf, size_t count,
 		return PTR_ERR(tbuf);
 	}
 
-	tty->ldisc->ops->receive_buf(tty, tbuf, NULL, c);
+	c = tty->ldisc->ops->receive_buf2(tty, tbuf, NULL, count);
 	kfree(tbuf);
 	mutex_unlock(&mutex_lock_tty[minor_num]);
 	return c;
