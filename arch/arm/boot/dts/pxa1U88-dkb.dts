@@ -150,6 +150,7 @@
 				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
 				marvell,sdh-host-caps2 = <(MMC_CAP2_DISABLE_BLK_ASYNC)>;
 				marvell,sdh-flags = <(
+						PXA_FLAG_NEW_RX_CFG_REG |
 						PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
 						PXA_FLAG_ENABLE_CLOCK_GATING |
 						PXA_FLAG_TX_SEL_BUS_CLK
@@ -184,6 +185,7 @@
 						SDHCI_QUIRK2_TIMEOUT_SHORT
 						)>;
 				marvell,sdh-flags = <(
+						PXA_FLAG_NEW_RX_CFG_REG |
 						PXA_FLAG_TX_SEL_BUS_CLK |
 						PXA_FLAG_ENABLE_CLOCK_GATING
 						)>;
@@ -213,6 +215,7 @@
 				marvell,sdh-pm-caps = <(MMC_PM_KEEP_POWER)>;
 				marvell,sdh-host-caps2 = <(MMC_CAP2_NO_VOLTAGE_SWITCH)>;
 				marvell,sdh-flags = <(
+						PXA_FLAG_NEW_RX_CFG_REG |
 						PXA_FLAG_WAKEUP_HOST |
 						PXA_FLAG_TX_SEL_BUS_CLK |
 						PXA_FLAG_EN_PM_RUNTIME |
