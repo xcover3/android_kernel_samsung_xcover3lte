@@ -44,6 +44,11 @@ enum msc2_dma_desc_status {
 	MSC2_DESC_ALLOCATED,
 };
 
+enum msc2_ch_status {
+	MSC2_CH_DISABLE = 0,
+	MSC2_CH_ENABLE,
+};
+
 struct msc2_dma_desc {
 	u32 dma_addr;
 	u32 segment_len;
@@ -76,6 +81,7 @@ struct msc2_buffer {
 struct msc2_mmu_dev {
 	unsigned long channel_map;
 	u32 ch_matrix[SC2_CH_NUM];
+	u32 ch_status[SC2_CH_NUM];
 	int free_chs;
 	unsigned int irq;
 	/*
@@ -116,6 +122,8 @@ struct msc2_mmu_ops {
 	void (*free_desc)(struct vb2_buffer *vb);
 	int (*setup_sglist)(struct vb2_buffer *vb);
 	int (*unmap_sglist)(struct vb2_buffer *vb);
+	int (*map_dmabuf)(struct vb2_buffer *vb);
+	int (*unmap_dmabuf)(struct vb2_buffer *vb);
 };
 
 struct ccic_dma_dev {

@@ -135,8 +135,7 @@ static int mccic_queue_setup(struct vb2_queue *vq,
 	*num_planes = mcam_dev->mp.num_planes;
 	for (i = 0; i < mcam_dev->mp.num_planes; i++) {
 		sizes[i] = mcam_dev->mp.plane_fmt[i].sizeimage;
-		if (mcam_dev->buffer_mode == B_DMA_CONTIG)
-			alloc_ctxs[i] = mcam_dev->vb_alloc_ctx;
+		alloc_ctxs[i] = mcam_dev->vb_alloc_ctx;
 	}
 
 	return 0;
@@ -150,7 +149,7 @@ static int mccic_vb2_init(struct vb2_buffer *vb)
 	struct mv_camera_dev *mcam_dev = ici->priv;
 	struct msc2_buffer *mbuf =
 		container_of(vb, struct msc2_buffer, vb2_buf);
-	int ret, i;
+	int ret = 0, i;
 
 	INIT_LIST_HEAD(&mbuf->queue);
 	mbuf->list_init_flag = 1;
@@ -158,10 +157,12 @@ static int mccic_vb2_init(struct vb2_buffer *vb)
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG) {
 		ret = 0;
 	} else if (mcam_dev->buffer_mode == B_DMA_SG) {
-		for (i = 0; i < vb->num_planes; i++)
-			mbuf->ch_info[i].sizeimage =
-				mcam_dev->mp.plane_fmt[i].sizeimage;
-		ret = mcam_dev->sc2_mmu->ops->alloc_desc(vb);
+		if (vb->v4l2_buf.memory == V4L2_MEMORY_USERPTR) {
+			for (i = 0; i < vb->num_planes; i++)
+				mbuf->ch_info[i].sizeimage =
+					mcam_dev->mp.plane_fmt[i].sizeimage;
+			ret = mcam_dev->sc2_mmu->ops->alloc_desc(vb);
+		}
 	} else
 		return -EINVAL;
 
@@ -177,7 +178,7 @@ static int mccic_vb2_prepare(struct vb2_buffer *vb)
 	struct msc2_buffer *mbuf =
 		container_of(vb, struct msc2_buffer, vb2_buf);
 	unsigned long size;
-	int ret;
+	int ret = 0;
 
 	WARN(!list_empty(&mbuf->queue), "Buffer %p on queue!\n", vb);
 
@@ -189,7 +190,10 @@ static int mccic_vb2_prepare(struct vb2_buffer *vb)
 		vb2_set_plane_payload(vb, 0, size);
 		ret = 0;
 	} else if (mcam_dev->buffer_mode == B_DMA_SG) {
-		ret = mcam_dev->sc2_mmu->ops->setup_sglist(vb);
+		if (vb->v4l2_buf.memory == V4L2_MEMORY_USERPTR)
+			ret = mcam_dev->sc2_mmu->ops->setup_sglist(vb);
+		else if (vb->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+			ret = mcam_dev->sc2_mmu->ops->map_dmabuf(vb);
 	} else
 		return -EINVAL;
 
@@ -217,13 +221,16 @@ static int mccic_vb2_finish(struct vb2_buffer *vb)
 			struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct mv_camera_dev *mcam_dev = ici->priv;
-	int ret;
+	int ret = 0;
 
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG)
 		ret = 0;
-	else if (mcam_dev->buffer_mode == B_DMA_SG)
-		ret = mcam_dev->sc2_mmu->ops->unmap_sglist(vb);
-	else
+	else if (mcam_dev->buffer_mode == B_DMA_SG) {
+		if (vb->v4l2_buf.memory == V4L2_MEMORY_USERPTR)
+			ret = mcam_dev->sc2_mmu->ops->unmap_sglist(vb);
+		else if (vb->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+			ret = mcam_dev->sc2_mmu->ops->unmap_dmabuf(vb);
+	} else
 		return -EINVAL;
 
 	return ret;
@@ -238,8 +245,12 @@ static void mccic_vb2_cleanup(struct vb2_buffer *vb)
 	struct msc2_buffer *mbuf =
 		container_of(vb, struct msc2_buffer, vb2_buf);
 
-	if (mcam_dev->buffer_mode == B_DMA_SG)
-		mcam_dev->sc2_mmu->ops->free_desc(vb);
+	if (mcam_dev->buffer_mode == B_DMA_SG) {
+		if (vb->v4l2_buf.memory == V4L2_MEMORY_USERPTR)
+			mcam_dev->sc2_mmu->ops->free_desc(vb);
+		else if (vb->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+			mcam_dev->sc2_mmu->ops->unmap_dmabuf(vb);
+	}
 
 	if (mbuf->list_init_flag)
 		list_del_init(&mbuf->queue);
@@ -263,7 +274,7 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 		 */
 		set_bit(CF_SINGLE_BUF, &mcam_dev->flags);
 		mcam_dev->frame_state.singles++;
-		if (mcam_dev->mbuf_shadow == NULL) {
+		if (!mcam_dev->mbuf_shadow && !mcam_dev->mbuf) {
 			/*
 			 * Really single buffer
 			 * This should never happen
@@ -282,13 +293,18 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			 * buffer to the done_list. And then the
 			 * below code should be OK.
 			 */
-			mbuf = mcam_dev->mbuf_shadow;
+			if (mcam_dev->mbuf_shadow)
+				mbuf = mcam_dev->mbuf_shadow;
+			else
+				mbuf = mcam_dev->mbuf;
 		}
 	} else {
 		mbuf = list_first_entry(&mcam_dev->buffers, struct msc2_buffer,
 							   queue);
 		list_del_init(&mbuf->queue);
 		clear_bit(CF_SINGLE_BUF, &mcam_dev->flags);
+		if (mcam_dev->mbuf_shadow)
+			list_add_tail(&mcam_dev->mbuf_shadow->queue, &mcam_dev->buffers);
 		mcam_dev->mbuf_shadow = mcam_dev->mbuf;
 		mcam_dev->mbuf = mbuf;
 	}
@@ -340,47 +356,76 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 		switch (mcam_dev->mp.pixelformat) {
 		case V4L2_PIX_FMT_YUV422P:
 		case V4L2_PIX_FMT_YUV420:
-			baddr = vbuf->v4l2_planes[0].m.userptr;
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 1 << 28;
+			else
+				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[0].tid =
 				(pid << 16) | ((0 + pid * 4) << 3);
 			mbuf->ch_info[0].daddr = baddr;
-			baddr = vbuf->v4l2_planes[1].m.userptr;
+
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 2 << 28;
+			else
+				baddr = vbuf->v4l2_planes[1].m.userptr;
 			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[1].tid =
 				(pid << 16) | ((1 + pid * 4) << 3);
 			mbuf->ch_info[1].daddr = baddr;
-			baddr = vbuf->v4l2_planes[2].m.userptr;
+
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 3 << 28;
+			else
+				baddr = vbuf->v4l2_planes[2].m.userptr;
 			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[2].tid =
 				(pid << 16) | ((2 + pid * 4) << 3);
 			mbuf->ch_info[2].daddr = baddr;
 			break;
 		case V4L2_PIX_FMT_YVU420:
-			baddr = vbuf->v4l2_planes[0].m.userptr;
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 1 << 28;
+			else
+				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[0].tid =
 				(pid << 16) | ((0 + pid * 4) << 3);
 			mbuf->ch_info[0].daddr = baddr;
-			baddr = vbuf->v4l2_planes[2].m.userptr;
+
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 2 << 28;
+			else
+				baddr = vbuf->v4l2_planes[2].m.userptr;
 			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[1].tid =
-				(pid << 16) | ((1 + pid * 4) << 3);
+				(pid << 16) | ((2 + pid * 4) << 3);
 			mbuf->ch_info[1].daddr = baddr;
-			baddr = vbuf->v4l2_planes[1].m.userptr;
+
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 3 << 28;
+			else
+				baddr = vbuf->v4l2_planes[1].m.userptr;
 			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[2].tid =
-				(pid << 16) | ((2 + pid * 4) << 3);
+				(pid << 16) | ((1 + pid * 4) << 3);
 			mbuf->ch_info[2].daddr = baddr;
 			break;
 		case V4L2_PIX_FMT_NV12:
 		case V4L2_PIX_FMT_NV21:
-			baddr = vbuf->v4l2_planes[0].m.userptr;
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 1 << 28;
+			else
+				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[0].tid =
 				(pid << 16) | ((0 + pid * 4) << 3);
 			mbuf->ch_info[0].daddr = baddr;
-			baddr = vbuf->v4l2_planes[1].m.userptr;
+
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 2 << 28;
+			else
+				baddr = vbuf->v4l2_planes[1].m.userptr;
 			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
 			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[1].tid =
@@ -388,7 +433,10 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			mbuf->ch_info[1].daddr = baddr;
 			break;
 		default:
-			baddr = vbuf->v4l2_planes[0].m.userptr;
+			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
+				baddr = 1 << 28;
+			else
+				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[0].tid =
 				(pid << 16) | ((0 + pid * 4) << 3);
@@ -534,6 +582,9 @@ static int mccic_vb2_stop_streaming(struct vb2_queue *vq)
 	ctrl_dev->ops->config_mbus(ctrl_dev, mcam_dev->bus_type,
 					mcam_dev->mbus_flags, 0);
 	INIT_LIST_HEAD(&mcam_dev->buffers);
+	mcam_dev->mbuf = NULL;
+	mcam_dev->mbuf_shadow = NULL;
+
 	/* reset the ccic ??? */
 	dev_dbg(icd->parent, "Release %d frames, %d singles, %d delivered\n",
 		mcam_dev->frame_state.frames, mcam_dev->frame_state.singles,
@@ -610,12 +661,14 @@ static int mccic_add_device(struct soc_camera_device *icd)
 
 	/* 1, initial the mcam_dev */
 	/* alloc ctx, need reconsider */
-	if (mcam_dev->buffer_mode == B_DMA_CONTIG) {
+	if (mcam_dev->buffer_mode == B_DMA_CONTIG)
 		mcam_dev->vb_alloc_ctx = (struct vb2_alloc_ctx *)
 			vb2_dma_contig_init_ctx(&mcam_dev->pdev->dev);
-		if (IS_ERR(mcam_dev->vb_alloc_ctx))
-			return PTR_ERR(mcam_dev->vb_alloc_ctx);
-	}
+	else
+		mcam_dev->vb_alloc_ctx = (struct vb2_alloc_ctx *)
+			vb2_dma_sg_init_ctx(&mcam_dev->pdev->dev);
+	if (IS_ERR(mcam_dev->vb_alloc_ctx))
+		return PTR_ERR(mcam_dev->vb_alloc_ctx);
 
 	/* 3.4 is not necessary soc_camera_power_on*/
 	/* GPIO and regulator related for sensor */
@@ -767,10 +820,11 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 
 	ctrl_dev->ops->clk_disable(ctrl_dev);
 	/* 5. free ctx, need reconsider */
-	if (mcam_dev->buffer_mode == B_DMA_CONTIG) {
+	if (mcam_dev->buffer_mode == B_DMA_CONTIG)
 		vb2_dma_contig_cleanup_ctx(mcam_dev->vb_alloc_ctx);
-		mcam_dev->vb_alloc_ctx = NULL;
-	}
+	else
+		vb2_dma_sg_cleanup_ctx(mcam_dev->vb_alloc_ctx);
+	mcam_dev->vb_alloc_ctx = NULL;
 }
 
 /* try_fmt should not return error, TBD */
@@ -1212,9 +1266,10 @@ static inline void mccic_frame_complete(struct mv_camera_dev *mcam_dev)
 	mcam_dev->frame_state.frames++;
 
 	mbuf = mcam_dev->mbuf_shadow;
-	if (!test_bit(CF_SINGLE_BUF, &mcam_dev->flags)) {
+	if (!test_bit(CF_SINGLE_BUF, &mcam_dev->flags) && mbuf) {
 		mcam_dev->frame_state.delivered++;
 		mccic_buffer_done(mcam_dev, &mbuf->vb2_buf);
+		mcam_dev->mbuf_shadow = NULL;
 	}
 }
 
@@ -1265,17 +1320,26 @@ static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
 			 */
 			dev_warn(dev, "miss EOF\n");
 		}
-		dma_dev->ops->shadow_ready(dma_dev);
+
+		if (!test_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags)) {
+			msc2_setup_buffer(mcam_dev);
+			dma_dev->ops->shadow_ready(dma_dev);
+		}
 		set_bit(CF_FRAME_SOF0, &mcam_dev->flags);
 	}
+
 	if (irqs & IRQ_EOF0 &&
 		test_bit(CF_FRAME_SOF0, &mcam_dev->flags)) {
 		if (!test_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags)) {
-			msc2_setup_buffer(mcam_dev);
 			mccic_frame_complete(mcam_dev);
 		} else
 			clear_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags);
 		clear_bit(CF_FRAME_SOF0, &mcam_dev->flags);
+	}
+
+	if (irqs & IRQ_SHADOW_NOT_RDY) {
+		msc2_setup_buffer(mcam_dev);
+		dma_dev->ops->shadow_ready(dma_dev);
 	}
 
 	spin_unlock(&mcam_dev->mcam_lock);

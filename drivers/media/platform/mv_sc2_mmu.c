@@ -190,7 +190,12 @@ static int msc2_ch_enable(struct msc2_mmu_dev *sc2_dev, u32 tid)
 			"No such channel: %d to enable\n", tid);
 		return -ENODEV;
 	}
+
+	if (sc2_dev->ch_status[ch] == MSC2_CH_ENABLE)
+		return 0;
+
 	msc2_mmu_enable_ch(sc2_dev, ch);
+	sc2_dev->ch_status[ch] = MSC2_CH_ENABLE;
 
 	return 0;
 }
@@ -205,7 +210,12 @@ static int msc2_ch_disable(struct msc2_mmu_dev *sc2_dev, u32 tid)
 			"No such channel: %d to disable\n", tid);
 		return -ENODEV;
 	}
+
+	if (sc2_dev->ch_status[ch] == MSC2_CH_DISABLE)
+		return 0;
+
 	msc2_mmu_disable_ch(sc2_dev, ch);
+	sc2_dev->ch_status[ch] = MSC2_CH_DISABLE;
 
 	return 0;
 }
@@ -257,6 +267,8 @@ static int msc2_ch_config(struct msc2_mmu_dev *sc2_dev,
 	int i, ch;
 	int ret = 0;
 	unsigned long flags = 0;
+	dma_addr_t addr;
+	int size;
 
 	spin_lock_irqsave(&sc2_dev->msc2_lock, flags);
 	for (i = 0; i < nr_chs; i++) {
@@ -272,31 +284,29 @@ static int msc2_ch_config(struct msc2_mmu_dev *sc2_dev,
 		msc2_mmu_reg_write(sc2_dev, REG_SC2_CTRL(ch),
 					CCTRL_CH_ID(info[i].tid));
 		msc2_mmu_ch_set_sva(sc2_dev, ch, (void *)info[i].daddr);
+
 #ifdef CONFIG_MARVELL_MEDIA_MMU
 		if (unlikely(WARN_ON(info[i].bdt == NULL)
 			|| WARN_ON(!info[i].bdt->dscr_dma)
 			|| WARN_ON(!info[i].bdt->dscr_cnt))) {
-			spin_unlock_irqrestore(&sc2_dev->msc2_lock, flags);
-			continue;
+			ret = -EINVAL;
+			goto out;
 		}
-
-		msc2_mmu_ch_set_daddr(sc2_dev, ch,
-					info[i].bdt->dscr_dma);
-		msc2_mmu_ch_set_dsize(sc2_dev, ch,
-			info[i].bdt->dscr_cnt * info[i].bdt->bpd);
+		addr = info[i].bdt->dscr_dma;
+		size = info[i].bdt->dscr_cnt * info[i].bdt->bpd;
 #else
 		if (unlikely(!msc2_daddr_valid(info[i].dma_desc_pa,
 					(info[i].dma_desc_nent) << 3))) {
-			spin_unlock_irqrestore(&sc2_dev->msc2_lock, flags);
 			dev_err(sc2_dev->dev,
 				"descriptor phys addr is not valid");
 			ret = -EINVAL;
 			goto out;
 		}
-		msc2_mmu_ch_set_daddr(sc2_dev, ch, info[i].dma_desc_pa);
-		msc2_mmu_ch_set_dsize(sc2_dev, ch,
-					(info[i].dma_desc_nent) << 3);
+		addr = info[i].dma_desc_pa;
+		size = info[i].dma_desc_nent << 3;
 #endif
+		msc2_mmu_ch_set_daddr(sc2_dev, ch, addr);
+		msc2_mmu_ch_set_dsize(sc2_dev, ch, size);
 		msc2_mmu_ch_enable_irq(sc2_dev, ch);
 	}
 	msc2_mmu_enable_irq(sc2_dev);
@@ -479,6 +489,73 @@ static int msc2_unmap_sglist(struct vb2_buffer *vb)
 	return 0;
 }
 
+static int msc2_map_dmabuf(struct vb2_buffer *vb)
+{
+	int i;
+	int ret;
+	unsigned long size;
+	struct msc2_buffer *mbuf =
+		container_of(vb, struct msc2_buffer, vb2_buf);
+	struct msc2_ch_info *info;
+
+	for (i = 0; i < vb->num_planes; i++) {
+		info = &mbuf->ch_info[i];
+		size = vb2_plane_size(vb, i);
+		vb2_set_plane_payload(vb, i, size);
+
+#ifdef CONFIG_MARVELL_MEDIA_MMU
+		/* if Descriptor Chain had been setup, skip */
+		if (info->bdt && info->bdt->dscr_cnt)
+			continue;
+
+		info->bdt = m4u_get_bdt(vb->planes[i].dbuf,
+			vb2_dma_sg_plane_desc(vb, i),
+			vb->v4l2_planes[i].data_offset,
+			size, 0x3f, PAGE_SIZE - 1);
+		if (info->bdt == NULL) {
+			ret = -EAGAIN;
+			goto err;
+		}
+#endif
+	}
+
+	return 0;
+
+#ifdef CONFIG_MARVELL_MEDIA_MMU
+err:
+#endif
+	while (--i >= 0) {
+		info = &mbuf->ch_info[i];
+#ifdef CONFIG_MARVELL_MEDIA_MMU
+		if (info->bdt) {
+			m4u_put_bdt(info->bdt);
+			info->bdt = NULL;
+		}
+#endif
+	}
+	return ret;
+}
+
+static int msc2_unmap_dmabuf(struct vb2_buffer *vb)
+{
+	int i;
+	struct msc2_ch_info *info;
+	struct msc2_buffer *mbuf =
+		container_of(vb, struct msc2_buffer, vb2_buf);
+
+	for (i = 0; i < vb->num_planes; i++) {
+		info = &mbuf->ch_info[i];
+#ifdef CONFIG_MARVELL_MEDIA_MMU
+		if (info->bdt) {
+			m4u_put_bdt(info->bdt);
+			info->bdt = NULL;
+		}
+#endif
+	}
+
+	return 0;
+}
+
 int msc2_get_sc2(struct msc2_mmu_dev **sc2_host, int id)
 {
 	struct msc2_mmu_dev *sc2_dev = NULL;
@@ -546,6 +623,8 @@ static struct msc2_mmu_ops mmu_ops = {
 	.free_desc = msc2_free_dma_desc,
 	.setup_sglist = msc2_setup_sglist,
 	.unmap_sglist = msc2_unmap_sglist,
+	.map_dmabuf = msc2_map_dmabuf,
+	.unmap_dmabuf = msc2_unmap_dmabuf,
 };
 
 static void msc2_irq_ch_handler(struct msc2_mmu_dev *sc2_dev, int ch)
@@ -563,7 +642,7 @@ static void msc2_irq_ch_handler(struct msc2_mmu_dev *sc2_dev, int ch)
 
 	for (i = 0; i < CIRQ_ERR_HIGH; i++)
 		if (irqs & (1 << i))
-			dev_dbg(sc2_dev->dev, "MMU ch%d: %s\n", ch, err_msg[i]);
+			dev_err(sc2_dev->dev, "MMU ch%d: %s\n", ch, err_msg[i]);
 
 	msc2_mmu_reg_write(sc2_dev, REG_SC2_IRQSTAT(ch), irqs);
 }
