@@ -34,7 +34,7 @@ struct plat_cam {
 	/* platform HW resources */
 	struct isp_build	*isb;
 	struct msc2_mmu_dev	*mmu_dev;
-	int			mmu_ref;
+	atomic_t		mmu_ref;
 	struct list_head	vnode_pool;
 	struct list_head	host_pool;
 };

@@ -1756,8 +1756,8 @@ static int b52_cfg_zoom(struct v4l2_rect *src,
 
 	ratio = dst->width / src->width;
 	if (ratio > ZOOM_RATIO_MAX || ratio < ZOOM_RATIO_MIN) {
-		pr_err("b52: zoom ratio error %x\n", ratio);
-		return -EINVAL;
+		pr_err("b52: zoom ratio error %x, use default value\n", ratio);
+		ratio = 0x100;
 	}
 	b52_set_zoom_in_ratio(ratio);
 
@@ -3221,7 +3221,7 @@ static int b52_config_mac(u8 mac_id, u8 port_id, int enable)
 	}
 
 	if (port_id == MAC_PORT_R) {
-		/* read axi id can be same with write axi id*/
+		/* read axi id can not be same with write axi id */
 		b52_writeb(mac_base[mac_id] + REG_MAC_RD_ID0, 0x66);
 
 		b52_writeb(mac_base[mac_id] + REG_MAC_INT_EN_CTRL1,
@@ -3234,7 +3234,8 @@ static int b52_config_mac(u8 mac_id, u8 port_id, int enable)
 	b52_writeb(mac_base[mac_id] + REG_MAC_WR_ID0, 0x10);
 	b52_writeb(mac_base[mac_id] + REG_MAC_WR_ID1, 0x32);
 	b52_writeb(mac_base[mac_id] + REG_MAC_WR_ID2, 0x54);
-	b52_writeb(mac_base[mac_id] + REG_MAC_WR_ID3, 0x76);
+	/* meta data not use mmu, and not same with read ID */
+	b52_writeb(mac_base[mac_id] + REG_MAC_WR_ID3, 0x77);
 
 	/* Enable MAC Module Interrupt */
 	b52_writeb(mac_base[mac_id] + REG_MAC_INT_EN_CTRL0, 0xFF);
@@ -3266,14 +3267,17 @@ static int b52_config_mac(u8 mac_id, u8 port_id, int enable)
 
 	return 0;
 }
-int b52_ctrl_mac_irq(int select_bit, int enable)
+int b52_ctrl_mac_irq(u8 mac_id, u8 port_id, int enable)
 {
 	int *refcnt;
 	int ret = 0;
-	u8 mac_id = select_bit / MAX_MAC_NUM;
-	u8 port_id = select_bit % MAX_PORT_NUM;
 	static int mac_w_cnt[MAX_MAC_NUM];
 	static int mac_r_cnt[MAX_MAC_NUM];
+
+	if (mac_id >= MAX_MAC_NUM || port_id >= MAX_PORT_NUM) {
+		pr_err("%s, %d, param error\n", __func__, __LINE__);
+		return -EINVAL;
+	}
 
 	if (port_id == MAC_PORT_R)
 		refcnt = mac_r_cnt;

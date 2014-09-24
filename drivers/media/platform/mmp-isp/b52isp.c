@@ -2241,26 +2241,21 @@ static struct notifier_block b52isp_mac_irq_nb = {
  * Select a physc port for a logic dev
  */
 static int b52_map_axi_port(struct b52isp_laxi *laxi, int map,
-			struct isp_vnode *vnode, struct plat_pipeline *ppl)
+			struct plat_pipeline *ppl)
 {
 	struct b52isp *b52 = laxi->parent;
 	struct isp_block *blk;
 	struct b52isp_paxi *paxi = NULL;
 	int ret = 0, fit_bit, ok_bit;
 	__u32 idle_map, tag;
-	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
-					struct isp_build, media_dev);
-	struct plat_cam *pcam = build->plat_priv;
-	struct plat_vnode *pvnode = container_of(vnode,
-						struct plat_vnode, vnode);
 
-	WARN_ON(atomic_read(&laxi->ref_cnt) < 0);
+	WARN_ON(atomic_read(&laxi->map_cnt) < 0);
 
 	if (map == 0)
 		goto unmap;
 
 	/* already mappend? */
-	if (atomic_inc_return(&laxi->ref_cnt) > 1)
+	if (atomic_inc_return(&laxi->map_cnt) > 1)
 		return 0;
 
 	/* Actually map logic dev to physc dev */
@@ -2320,49 +2315,22 @@ static int b52_map_axi_port(struct b52isp_laxi *laxi, int map,
 
 	mutex_unlock(&b52->mac_map_lock);
 
-	ret = isp_block_tune_power(&paxi->blk, 1);
-	if (unlikely(ret < 0))
-		goto fail;
-
-	ret = b52_ctrl_mac_irq(fit_bit, 1);
-	if (unlikely(ret < 0))
-		goto power_off;
-
-	/* MMU related */
-	if (pvnode->alloc_mmu_chnl) {
-		ret = pvnode->alloc_mmu_chnl(pcam,
-					paxi->blk.id.mod_id, laxi->port,
-					vnode->format.fmt.pix_mp.num_planes,
-					&pvnode->mmu_ch_dsc);
-		if (unlikely(ret < 0))
-			goto unmap;
-	}
-
 	d_inf(3, "%s couple to MAC%d, port%d", laxi->isd.subdev.name,
 		laxi->mac + 1, laxi->port + 1);
 	return 0;
 
-power_off:
-	isp_block_tune_power(&paxi->blk, 0);
 fail:
 	/* failed to map to physical dev, abort */
 	mutex_unlock(&b52->mac_map_lock);
+	atomic_dec(&laxi->map_cnt);
 	return ret;
 
 unmap:
-	if (atomic_dec_return(&laxi->ref_cnt) > 0)
+	if (atomic_dec_return(&laxi->map_cnt) > 0)
 		return 0;
 	paxi = container_of(isp_sd2blk(&laxi->isd), struct b52isp_paxi, blk);
-
-	if (pvnode->free_mmu_chnl)
-		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
-
 	fit_bit = laxi->mac * B52AXI_PORT_CNT + laxi->port;
-	b52_ctrl_mac_irq(fit_bit, 0);
-	isp_block_tune_power(&paxi->blk, 0);
 
-	d_inf(3, "%s decouple from MAC%d, port%d", laxi->isd.subdev.name,
-		laxi->mac + 1, laxi->port + 1);
 	mutex_lock(&b52->mac_map_lock);
 	paxi->isd[laxi->port] = NULL;
 	paxi->src_tag[laxi->port] = 0;
@@ -2373,6 +2341,73 @@ unmap:
 	b52isp_detach_blk_isd(&laxi->isd, &paxi->blk);
 	clear_bit(fit_bit, &b52->mac_map);
 	mutex_unlock(&b52->mac_map_lock);
+
+	d_inf(3, "%s decouple from MAC%d, port%d", laxi->isd.subdev.name,
+		laxi->mac + 1, laxi->port + 1);
+	return 0;
+}
+
+static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
+			struct isp_vnode *vnode)
+{
+	int ret;
+	struct plat_vnode *pvnode = container_of(vnode, struct plat_vnode, vnode);
+	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
+						 struct isp_build, media_dev);
+	struct plat_cam *pcam = build->plat_priv;
+	struct b52isp_paxi *paxi = container_of(isp_sd2blk(&laxi->isd),
+						 struct b52isp_paxi, blk);
+
+	WARN_ON(atomic_read(&laxi->en_cnt) < 0);
+
+	if (!pvnode || !pcam || !paxi) {
+		d_inf(1, "%s %d, parameter error\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
+	if (enable == 0)
+		goto disable;
+
+	if (atomic_inc_return(&laxi->en_cnt) > 1)
+		return 0;
+
+	ret = isp_block_tune_power(&paxi->blk, 1);
+	if (unlikely(ret < 0))
+		goto pwr_err;
+
+	ret = b52_ctrl_mac_irq(laxi->mac, laxi->port, 1);
+	if (unlikely(ret < 0))
+		goto mac_err;
+
+	if (pvnode->alloc_mmu_chnl) {
+		ret = pvnode->alloc_mmu_chnl(pcam,
+					paxi->blk.id.mod_id, laxi->port,
+					vnode->format.fmt.pix_mp.num_planes,
+					&pvnode->mmu_ch_dsc);
+		if (unlikely(ret < 0))
+			goto mmu_err;
+	}
+
+	return 0;
+
+mmu_err:
+	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
+mac_err:
+	isp_block_tune_power(&paxi->blk, 0);
+pwr_err:
+	atomic_dec(&laxi->en_cnt);
+	return ret;
+
+disable:
+	if (atomic_dec_return(&laxi->en_cnt) > 0)
+		return 0;
+
+	if (pvnode->free_mmu_chnl)
+		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
+
+	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
+	isp_block_tune_power(&paxi->blk, 0);
+
 	return 0;
 }
 
@@ -2431,6 +2466,11 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 	d_inf(3, "%s: handling the stream %d event from %s",
 		laxi->isd.subdev.name, stream, vnode->vdev.name);
 
+	if (laxi->stream == stream) {
+		d_inf(3, "%s: already stream %d\n", vnode->vdev.name, stream);
+		return 0;
+	}
+
 	ret = plat_vdev_get_pipeline(vnode, &ppl);
 	if (WARN_ON(ret < 0))
 		return ret;
@@ -2460,7 +2500,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		case CMD_IMG_CAPTURE:
 		case CMD_RAW_PROCESS:
 		case CMD_HDR_STILL:
-			return 0;
+			goto after_chain_unregister;
 		default:
 			break;
 		}
@@ -2486,6 +2526,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			WARN_ON(1);
 		}
 
+after_chain_unregister:
 		switch (lpipe->cur_cmd->cmd_name) {
 		case CMD_TEST:
 		case CMD_RAW_DUMP:
@@ -2516,18 +2557,20 @@ stream_data_off:
 				lpipe->cur_cmd->cmd_name);
 			break;
 		}
+
+		b52_enable_axi_port(laxi, laxi->stream, vnode);
 	}
 
 	/* Map / Unmap Logical AXI and Physical AXI */
 	if (laxi == ppl.scalar_a->drv_priv) {
-		ret = b52_map_axi_port(laxi, laxi->stream, vnode, &ppl);
+		ret = b52_map_axi_port(laxi, laxi->stream, &ppl);
 		if (unlikely(WARN_ON(ret < 0)))
 			return ret;
 	} else {
 		int sid = 0;
 		while (ppl.scalar_b[sid]) {
 			ret = b52_map_axi_port(ppl.scalar_b[sid]->drv_priv,
-						laxi->stream, vnode, &ppl);
+						laxi->stream, &ppl);
 			if (unlikely(WARN_ON(ret < 0)))
 				return ret;
 			sid++;
@@ -2544,8 +2587,12 @@ stream_data_off:
 		paxi = container_of(blk, struct b52isp_paxi, blk);
 		mac_id = laxi->mac;
 		port = laxi->port;
-		mutex_lock(&lpipe->state_lock);
 
+		ret = b52_enable_axi_port(laxi, laxi->stream, vnode);
+		if (unlikely(WARN_ON(ret < 0)))
+			return ret;
+
+		mutex_lock(&lpipe->state_lock);
 		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 			set_bit(out_id, &lpipe->cur_cmd->enable_map);
 
@@ -2749,14 +2796,6 @@ stream_data_off:
 				sizeof(lpipe->cur_cmd->output));
 			lpipe->cur_cmd->output_map = 0;
 
-		ret = b52_map_axi_port(ppl.scalar_a->drv_priv, 0,
-					ppl.src.vnode, &ppl);
-		WARN_ON(ret < 0);
-		for (i = 0; ppl.scalar_b[i]; i++) {
-			ret = b52_map_axi_port(ppl.scalar_b[i]->drv_priv,
-						laxi->stream, vnode, &ppl);
-			WARN_ON(ret < 0);
-		}
 			goto unlock;
 		default:
 			d_inf(1, "TODO: add stream on support of %s in command %d",
@@ -2791,6 +2830,7 @@ stream_data_off:
 unlock:
 		mutex_unlock(&lpipe->state_lock);
 	}
+
 	return ret;
 }
 

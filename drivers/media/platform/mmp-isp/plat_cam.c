@@ -108,10 +108,9 @@ static inline void plat_put_mmu_dev(struct plat_cam *pcam)
 	if (unlikely(WARN_ON(pcam == NULL)))
 		return;
 
-	pcam->mmu_ref--;
-	if (unlikely(WARN_ON(pcam->mmu_ref < 0)))
+	if (unlikely(WARN_ON(atomic_read(&pcam->mmu_ref) <= 0)))
 		return;
-	if (pcam->mmu_ref == 0) {
+	if (atomic_dec_return(&pcam->mmu_ref) == 0) {
 		msc2_put_sc2(&pcam->mmu_dev);
 		pcam->mmu_dev = NULL;
 	}
@@ -125,8 +124,7 @@ static inline int plat_get_mmu_dev(struct plat_cam *pcam)
 	if (unlikely(pcam == NULL))
 		return -EINVAL;
 
-	if (pcam->mmu_dev == NULL) {
-		BUG_ON(pcam->mmu_ref);
+	if (atomic_inc_return(&pcam->mmu_ref) == 1) {
 		ret = msc2_get_sc2(&pcam->mmu_dev, 0);
 		if (ret) {
 			d_inf(1, "no mmu device found");
@@ -145,7 +143,6 @@ static inline int plat_get_mmu_dev(struct plat_cam *pcam)
 			goto put_mmu;
 		}
 	}
-	pcam->mmu_ref++;
 	return 0;
 
 put_mmu:
@@ -180,15 +177,10 @@ static int plat_mmu_alloc_channel(struct plat_cam *pcam,
 			goto err_alloc_mmu;
 		}
 	}
-	ret = mmu->ops->enable_ch(mmu, chs_desc.tid, chs_desc.nr_chs);
-	if (ret) {
-		d_inf(1, "failed to enable MMU channel for ISP");
-		goto err_enable_mmu;
-	}
+
 	*ch_dsc = chs_desc;
 	return 0;
 
-err_enable_mmu:
 err_alloc_mmu:
 	for (i--; i >= 0; i--)
 		mmu->ops->release_ch(mmu, chs_desc.tid[i]);
@@ -224,6 +216,7 @@ static int plat_mmu_fill_channel(struct plat_cam *pcam,
 	struct plat_vnode *pvnode = container_of(vnode,
 						struct plat_vnode, vnode);
 	int ch;
+	int ret;
 
 	if (unlikely((!pcam->mmu_dev || !vb || !buf))) {
 		pr_err("%s: paramter error\n", __func__);
@@ -234,8 +227,13 @@ static int plat_mmu_fill_channel(struct plat_cam *pcam,
 		struct msc2_ch_info *info = &buf->ch_info[ch];
 		info->tid = pvnode->mmu_ch_dsc.tid[ch];
 	}
-	return pcam->mmu_dev->ops->config_ch(pcam->mmu_dev, buf->ch_info,
+	ret = pcam->mmu_dev->ops->config_ch(pcam->mmu_dev, buf->ch_info,
 						num_planes);
+	if (ret < 0)
+		return ret;
+
+	return pcam->mmu_dev->ops->enable_ch(pcam->mmu_dev,
+		pvnode->mmu_ch_dsc.tid, num_planes);
 }
 
 __u32 plat_get_src_tag(struct plat_pipeline *ppl)
@@ -701,11 +699,15 @@ static void plat_set_vdev_mmu(struct isp_vnode *vnode, int enable)
 		pvnode->free_mmu_chnl = &plat_mmu_free_channel;
 		pvnode->fill_mmu_chnl = &plat_mmu_fill_channel;
 		pvnode->get_axi_id = &plat_axi_id;
+		vnode->mmu_enabled = true;
+		d_inf(3, "%s: enable MMU", pvnode->vnode.vdev.name);
 	} else {
 		pvnode->alloc_mmu_chnl = NULL;
 		pvnode->free_mmu_chnl = NULL;
 		pvnode->fill_mmu_chnl = NULL;
 		pvnode->get_axi_id = NULL;
+		vnode->mmu_enabled = false;
+		d_inf(3, "%s: disable MMU", pvnode->vnode.vdev.name);
 	}
 }
 
@@ -715,8 +717,6 @@ static int pvnode_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_VDEV_BUFFER_LAYOUT:
-		d_inf(3, "%s: set buffer layout as %d",
-			pvnode->vnode.vdev.name, ctrl->val);
 		if (ctrl->val == VDEV_BUFFER_LAYOUT_PA_CONTIG)
 			plat_set_vdev_mmu(&pvnode->vnode, 0);
 		else
