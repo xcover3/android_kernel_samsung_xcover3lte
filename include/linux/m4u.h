@@ -22,8 +22,8 @@ struct m4u_dscr {
 struct m4u_bdt {
 	size_t		dscr_cnt;	/* descriptor table entry counter*/
 	size_t		bpd;		/* byte per descriptor*/
-	dma_addr_t	dscr_dma;	/* descriptor table start address,
-					   Used by controller */
+	dma_addr_t	dscr_dma;	/* descriptor table start address, Used by controller */
+	struct m4u_dscr	*dscr_cpu;	/* descriptor table address*/
 };
 
 /*

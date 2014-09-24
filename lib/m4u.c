@@ -18,11 +18,18 @@ struct m4u_plane {
 	struct m4u_bdt	bdt;
 };
 
+struct m4u_whole {
+	size_t	size;
+	struct m4u_dscr	*dscr_cpu;
+	size_t dscr_cnt;
+};
+
 struct m4u_frame {
 	/* internal use */
 	spinlock_t	lock;	/* MUST hold this lock when access any member */
 	long		ref_map;
 	struct m4u_plane	plane[MAX_PLANE_PER_FRAME];
+	struct m4u_whole	whole;
 };
 
 static inline struct m4u_frame *m4u_alloc_frame(void)
@@ -49,10 +56,19 @@ static inline void m4u_free_frame(struct m4u_frame *frm)
 		plane->offset = 0;
 		plane->size = 0;
 		plane->frame = NULL;
-		if (plane->bdt.dscr_dma)
+		if (plane->dscr_cpu) {
 			dma_free_coherent(NULL,	plane->capacity,
 				plane->dscr_cpu, plane->bdt.dscr_dma);
+			plane->bdt.dscr_cpu = NULL;
+			plane->bdt.dscr_dma = 0;
+			plane->bdt.dscr_cnt = 0;
+		}
 	}
+
+	kfree(frm->whole.dscr_cpu);
+	frm->whole.dscr_cpu = NULL;
+	frm->whole.dscr_cnt = 0;
+
 	kfree(frm);
 }
 
@@ -62,8 +78,9 @@ static inline int m4u_fill_frame_by_sg(struct m4u_frame *frm,
 {
 	struct scatterlist *sg;
 	struct m4u_dscr	*dscr_cpu;
-	dma_addr_t new_addr, dscr_dma;
+	dma_addr_t new_addr;
 	int nr_dscr = 0, size = 0, i, j;
+	unsigned long flag;
 
 	/* Find out the buffer size and dis-contiguous segments */
 	sg = sgt->sgl;
@@ -75,7 +92,7 @@ static inline int m4u_fill_frame_by_sg(struct m4u_frame *frm,
 #endif
 		if ((sg_dma_len(sg) & align_mask_size) ||
 			(sg_dma_address(sg) & align_mask_addr)) {
-			pr_err("the length or address of sg is not aligned\n");
+			pr_err("m4u: the length or address of sg is not aligned\n");
 			return -EINVAL;
 		}
 		if (sg_dma_address(sg) != new_addr)
@@ -85,11 +102,10 @@ static inline int m4u_fill_frame_by_sg(struct m4u_frame *frm,
 	}
 
 	/* setup buffer descriptor table */
-	dscr_cpu = dma_alloc_coherent(NULL, nr_dscr * sizeof(struct m4u_dscr),
-					&dscr_dma, GFP_KERNEL);
+	dscr_cpu = kzalloc(nr_dscr * sizeof(struct m4u_dscr), GFP_KERNEL);
 	if (unlikely(WARN_ON(dscr_cpu == NULL)))
 		return -ENOMEM;
-	memset(dscr_cpu, 0, nr_dscr * sizeof(struct m4u_dscr));
+
 	sg = sgt->sgl;
 	new_addr = sg_dma_address(sg) - 1;
 	for (i = 0, j = -1; i < sgt->nents; i++, sg = sg_next(sg)) {
@@ -100,23 +116,13 @@ static inline int m4u_fill_frame_by_sg(struct m4u_frame *frm,
 		dscr_cpu[j].dma_size += sg_dma_len(sg);
 		new_addr = sg_dma_address(sg) + sg_dma_len(sg);
 	}
-	dsb(sy);
 
-	{
-		/* make plane 0 to point at Buffer Descriptor Table */
-		unsigned long flag;
-		struct m4u_plane *plane = &frm->plane[0];
-		spin_lock_irqsave(&frm->lock, flag);
-		plane->offset = 0;
-		plane->size = size;
-		plane->capacity = nr_dscr * sizeof(struct m4u_dscr);
-		plane->dscr_cpu = dscr_cpu;
-		plane->bdt.dscr_dma = dscr_dma;
-		plane->bdt.dscr_cnt = nr_dscr;
-		plane->bdt.bpd = sizeof(struct m4u_dscr);
+	spin_lock_irqsave(&frm->lock, flag);
+	frm->whole.size = size;
+	frm->whole.dscr_cpu = dscr_cpu;
+	frm->whole.dscr_cnt = nr_dscr;
+	spin_unlock_irqrestore(&frm->lock, flag);
 
-		spin_unlock_irqrestore(&frm->lock, flag);
-	}
 	return 0;
 }
 
@@ -128,7 +134,9 @@ static inline struct m4u_bdt *m4u_frame_to_bdt(struct m4u_frame *frame,
 	struct m4u_dscr	*entry;
 	size_t cnt;
 	int i, p;
+	size_t dma_size;
 	size_t __offset = offset;
+	size_t __size = size;
 
 	/*
 	 * By this point, the Buffer Descriptor Table had already been setup in
@@ -136,7 +144,7 @@ static inline struct m4u_bdt *m4u_frame_to_bdt(struct m4u_frame *frame,
 	 */
 	for (i = 0; i < MAX_PLANE_PER_FRAME; i++) {
 		plane = &frame->plane[i];
-		if ((plane->offset == offset) && (plane->size >= size)) {
+		if ((plane->offset == offset) && (plane->size == size)) {
 			p = i;
 			goto plane_ready;
 		}
@@ -155,20 +163,34 @@ static inline struct m4u_bdt *m4u_frame_to_bdt(struct m4u_frame *frame,
 	return NULL;
 
 empty_plane:
-	entry = frame->plane[0].dscr_cpu; /* plane 0 holds the entire BDT */
-	cnt = frame->plane[0].bdt.dscr_cnt;
-	for (i = 0; i < frame->plane[0].size; i++) {
+	entry = frame->whole.dscr_cpu;
+	for (i = 0; i < frame->whole.dscr_cnt; i++) {
 		if (offset < entry->dma_size)
-			goto head_find;
+			goto offset_find;
 		offset -= entry->dma_size;
 		entry++;
-		cnt--;
 	}
 	/* offset is out of the buffer */
 	WARN_ON(1);
 	return NULL;
 
-head_find:
+offset_find:
+	cnt = 1;
+	dma_size = frame->whole.dscr_cpu[i].dma_size - offset;
+	while (i < frame->whole.dscr_cnt) {
+		if (size <= dma_size)
+			goto size_find;
+
+		size -= dma_size;
+		cnt++;
+		i++;
+		dma_size = frame->whole.dscr_cpu[i].dma_size;
+	}
+	/* size is out of the buffer */
+	WARN_ON(1);
+	return NULL;
+
+size_find:
 	/*
 	 * TODO: this plane actually point to the end of the buffer, better
 	 * reduce the size to the required size
@@ -179,11 +201,12 @@ head_find:
 		return NULL;
 	memset(plane->dscr_cpu, 0, cnt * sizeof(struct m4u_dscr));
 	plane->offset = __offset;
-	plane->size = frame->plane[0].size - __offset;
+	plane->size = __size;
 	plane->capacity = cnt * sizeof(struct m4u_dscr);
 	memcpy(plane->dscr_cpu, entry, cnt * sizeof(struct m4u_dscr));
 	plane->dscr_cpu[0].dma_addr += offset;
 	plane->dscr_cpu[0].dma_size -= offset;
+	plane->bdt.dscr_cpu = plane->dscr_cpu;
 	plane->bdt.dscr_cnt = cnt;
 	plane->bdt.bpd = sizeof(struct m4u_dscr);
 
@@ -255,9 +278,14 @@ struct m4u_bdt *m4u_get_bdt(struct dma_buf *dbuf, struct sg_table *sgt,
 	}
 
 get_bdt:
-	if (offset + size > frame->plane[0].size) {
-		pr_err("size error: offset %x, sz %x, plane sz %x\n",
-			(u32)offset, (u32)size, (u32)frame->plane[0].size);
+	if (offset + size > frame->whole.size) {
+		pr_err("m4u: size error: offset %x, sz %x, plane sz %x\n",
+			(u32)offset, (u32)size, (u32)frame->whole.size);
+		return NULL;
+	}
+
+	if (offset & align_mask_addr) {
+		pr_err("m4u: the offset is not aligned\n");
 		return NULL;
 	}
 
