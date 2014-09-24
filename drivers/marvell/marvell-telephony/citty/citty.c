@@ -208,26 +208,13 @@ size_t read_citty_buffer(char __user *buf,
 		if (wait_event_interruptible
 		    (cittyBuf->gInq, (cittyBuf->iBufIn != cittyBuf->iBufOut))) {
 			/* waken up by signal, get the lock and process it */
-			if (mutex_lock_interruptible(ttylock))
-				return -ERESTARTSYS;
-			break;
-			/* coment out: to avoid crash, signal is waken up? */
-			/* signal: tell the fs layer to handle it */
-			/* return -ERESTARTSYS; */
-
+			return -ERESTARTSYS;
 		}
 		/* otherwise loop, but first reacquire the lock */
 		if (mutex_lock_interruptible(ttylock))
 			return -ERESTARTSYS;
-
 	}
 
-	/* Double check */
-	if (cittyBuf->iBufIn == cittyBuf->iBufOut) {
-		mutex_unlock(ttylock);	/* release the lock */
-		/* return -ERESTARTSYS; */
-		return 0;
-	}
 	PDEBUG("There is something to read!");
 
 	curBufIndex = cittyBuf->iBufOut++;
@@ -302,8 +289,6 @@ size_t write_citty_buffer(struct buf_struct *cittyBuf,
 	struct mutex *ttylock;
 	int curBufIndex;
 
-	DEFINE_WAIT(wait);
-
 	F_ENTER();
 
 	/* make it a non-blocking write */
@@ -327,20 +312,12 @@ size_t write_citty_buffer(struct buf_struct *cittyBuf,
 		/*      return -EAGAIN; */
 
 		PDEBUG("\"%s\" writing: going to sleep", current->comm);
-		prepare_to_wait(&cittyBuf->gOutq, &wait, TASK_INTERRUPTIBLE);
-
-		if (spacefree(cittyBuf) == 0) {
-			/* seem like it is bad: scheduling while atomic */
-			schedule();
-		}
-		finish_wait(&cittyBuf->gOutq, &wait);
-		if (signal_pending(current)) {
-			pr_err(
-			       "\"%s\" Error: Unable to signal_pending.\n",
-			       current->comm);
-			/* signal: tell the fs layer to handle it */
+		if (wait_event_interruptible
+		    (cittyBuf->gOutq, spacefree(cittyBuf))) {
+			/* waken up by signal, get the lock and process it */
 			return -ERESTARTSYS;
 		}
+
 		if (mutex_lock_interruptible(ttylock))
 			return -ERESTARTSYS;
 	}
@@ -497,10 +474,8 @@ static int citty_write(struct tty_struct *tty, const unsigned char *buffer,
 		return 0;
 	}
 
-	mutex_lock(&mutex_lock_tty[index]);
 	citty = citty_table[index];
 	if (!citty) {
-		mutex_unlock(&mutex_lock_tty[index]);
 		PDEBUG("Warning: citty_write: citty is NULL\n");
 		return -ENODEV;
 	}
@@ -528,8 +503,6 @@ static int citty_write(struct tty_struct *tty, const unsigned char *buffer,
 			       COPY_FROM_CITTY);
 
 exit:
-	mutex_unlock(&mutex_lock_tty[index]);
-
 	F_LEAVE();
 
 	return retval;
