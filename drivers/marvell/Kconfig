@@ -122,4 +122,12 @@ config MRVL_MMP_CM3
 	help
 	  Marvell CM3 resource manager driver for PXA1U88
 
+config MRVL_RSV_PAGE
+	tristate "Marvell emmc reserve page"
+	default y
+	---help---
+	Reserve some range both in eMMC and DDR memory.
+	With the help of bootloader, Driver or module can use
+	the data before eMMC is ready. It is something like DTB.
+
 endif
