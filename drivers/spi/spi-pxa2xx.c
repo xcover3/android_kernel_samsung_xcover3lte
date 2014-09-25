@@ -27,6 +27,7 @@
 #include <linux/platform_device.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/spi.h>
+#include <linux/of_device.h>
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -555,7 +556,7 @@ static irqreturn_t interrupt_transfer(struct driver_data *drv_data)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t ssp_int(int irq, void *dev_id)
+static irqreturn_t pxa2xx_spi_int(int irq, void *dev_id)
 {
 	struct driver_data *drv_data = dev_id;
 	void __iomem *reg = drv_data->ioaddr;
@@ -612,11 +613,10 @@ static irqreturn_t ssp_int(int irq, void *dev_id)
 static unsigned int ssp_get_clk_div(struct driver_data *drv_data, int rate)
 {
 	unsigned long ssp_clk = drv_data->max_clk_rate;
-	const struct ssp_device *ssp = drv_data->ssp;
-
+	enum pxa_ssp_type ssp_type = drv_data->ssp_type;
 	rate = min_t(int, ssp_clk, rate);
 
-	if (ssp->type == PXA25x_SSP || ssp->type == CE4100_SSP)
+	if (ssp_type == PXA25x_SSP || ssp_type == CE4100_SSP)
 		return ((ssp_clk / (2 * rate) - 1) & 0xff) << 8;
 	else
 		return ((ssp_clk / rate - 1) & 0xfff) << 8;
@@ -950,21 +950,14 @@ static int setup(struct spi_device *spi)
 			tx_hi_thres = chip_info->tx_hi_threshold;
 		if (chip_info->rx_threshold)
 			rx_thres = chip_info->rx_threshold;
-		chip->enable_dma = drv_data->master_info->enable_dma;
 		chip->dma_threshold = 0;
 		if (chip_info->using_gpio_cs == 0 && chip_info->gpio_cs == 0)
 			chip_info->gpio_cs = -1;
 		if (chip_info->enable_loopback)
 			chip->cr1 = SSCR1_LBM;
-	} else if (ACPI_HANDLE(&spi->dev)) {
-		/*
-		 * Slave devices enumerated from ACPI namespace don't
-		 * usually have chip_info but we still might want to use
-		 * DMA with them.
-		 */
-		chip->enable_dma = drv_data->master_info->enable_dma;
 	}
 
+	chip->enable_dma = drv_data->master_info->enable_dma;
 	chip->threshold = (SSCR1_RxTresh(rx_thres) & SSCR1_RFT) |
 			(SSCR1_TxTresh(tx_thres) & SSCR1_TFT);
 
@@ -986,6 +979,7 @@ static int setup(struct spi_device *spi)
 		}
 	}
 
+	/* clk_div represent to Bit17-8 bits of CS0 */
 	clk_div = ssp_get_clk_div(drv_data, spi->max_speed_hz);
 	chip->speed_hz = spi->max_speed_hz;
 
@@ -1118,42 +1112,79 @@ pxa2xx_spi_acpi_get_pdata(struct platform_device *pdev)
 }
 #endif
 
+static struct of_device_id spi_pxa2xx_dt_ids[] = {
+	{ .compatible = "marvell,pxa2xx-spi", .data = (void *) LPSS_SSP },
+	{ .compatible = "marvell,pxa910-spi", .data = (void *) PXA910_SSP},
+	{}
+};
+MODULE_DEVICE_TABLE(of, spi_pxa2xx_dt_ids);
+
 static int pxa2xx_spi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct pxa2xx_spi_master *platform_info;
-	struct spi_master *master;
-	struct driver_data *drv_data;
-	struct ssp_device *ssp;
+	struct spi_master *master = NULL;
+	struct driver_data *drv_data = NULL;
+#ifdef CONFIG_OF
+	struct device_node *np = dev->of_node;
+	const struct of_device_id *id =
+		of_match_device(of_match_ptr(spi_pxa2xx_dt_ids), dev);
+	struct resource *iores;
+	u32 bus_num;
+#else
+	struct ssp_device *ssp = NULL;
+#endif
 	int status;
 	const __be32 *prop;
 	unsigned int proplen;
 	platform_info = dev_get_platdata(dev);
+
 	if (!platform_info) {
 		platform_info = pxa2xx_spi_acpi_get_pdata(pdev);
 		if (!platform_info) {
-			dev_err(&pdev->dev, "missing platform data\n");
-			return -ENODEV;
+			platform_info = kzalloc(sizeof(*platform_info),
+					GFP_KERNEL);
+			if (!platform_info) {
+				dev_err(dev, "failed to alloc platform_info\n");
+				return -ENOMEM;
+			}
+			platform_info->num_chipselect = 1;
+			platform_info->enable_dma = 1;
 		}
-	}
-
-	ssp = pxa_ssp_request(pdev->id, pdev->name);
-	if (!ssp)
-		ssp = &platform_info->ssp;
-
-	if (!ssp->mmio_base) {
-		dev_err(&pdev->dev, "failed to get ssp\n");
-		return -ENODEV;
 	}
 
 	/* Allocate master with space for drv_data and null dma buffer */
 	master = spi_alloc_master(dev, sizeof(struct driver_data));
 	if (!master) {
 		dev_err(&pdev->dev, "cannot alloc spi_master\n");
-		pxa_ssp_free(ssp);
 		return -ENOMEM;
 	}
+
 	drv_data = spi_master_get_devdata(master);
+
+#ifdef CONFIG_OF
+	iores = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (iores == NULL) {
+		dev_err(dev, "no memory resource defined\n");
+		status = -ENODEV;
+		goto out_error_dma_buf;
+	}
+
+	drv_data->ioaddr = devm_ioremap_resource(dev, iores);
+	if (drv_data->ioaddr == NULL) {
+		dev_err(dev, "failed to ioremap() registers\n");
+		status = -ENODEV;
+		goto out_error_dma_buf;
+
+	}
+
+	drv_data->irq = platform_get_irq(pdev, 0);
+	if (drv_data->irq < 0) {
+		dev_err(dev, "no IRQ resource defined\n");
+		status = -ENODEV;
+		goto out_error_dma_buf;
+	}
+
 	/*
 	 * the null DMA buf should malloc form DMA_ZONE
 	 * and align of DMA_ALIGNMENT
@@ -1174,13 +1205,8 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		goto out_error_dma_buf;
 	}
 
-	drv_data->master = master;
-	drv_data->master_info = platform_info;
-	drv_data->pdev = pdev;
-	drv_data->ssp = ssp;
-
-	master->dev.parent = &pdev->dev;
-	master->dev.of_node = pdev->dev.of_node;
+	drv_data->null_dma_buf =
+		(u32 *)ALIGN((uintptr_t)drv_data->alloc_dma_buf, DMA_ALIGNMENT);
 
 	prop = of_get_property(dev->of_node, "lpm-qos", &proplen);
 	if (!prop) {
@@ -1192,10 +1218,33 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 
 	init_dvfm_constraint(drv_data);
 
+	master->dev.of_node = dev->of_node;
+	drv_data->ssp_type = (uintptr_t) id->data;
+	if (!of_property_read_u32(np, "ssp-id", &bus_num))
+		master->bus_num = bus_num;
+	drv_data->ssdr_physical = iores->start + SSDR;
+	drv_data->clk = devm_clk_get(dev, NULL);
+
+#else
+	ssp = pxa_ssp_request(pdev->id, pdev->name);
+	if (!ssp)
+		ssp = &platform_info->ssp;
+	drv_data->ssp = ssp;
+	drv_data->ssp_type = ssp->type;
+	drv_data->ioaddr = ssp->mmio_base;
+	drv_data->ssdr_physical = ssp->phys_base + SSDR;
+	drv_data->clk = ssp->clk;
+	drv_data->irq = ssp->irq;
+	master->bus_num = ssp->port_id;
+#endif
+
+	drv_data->master = master;
+	drv_data->master_info = platform_info;
+	drv_data->pdev = pdev;
+	master->dev.parent = &pdev->dev;
 	/* the spi->mode bits understood by this driver: */
 	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH | SPI_LOOP;
 
-	master->bus_num = ssp->port_id;
 	master->num_chipselect = platform_info->num_chipselect;
 	master->dma_alignment = DMA_ALIGNMENT;
 	master->cleanup = cleanup;
@@ -1204,11 +1253,6 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	master->unprepare_transfer_hardware = pxa2xx_spi_unprepare_transfer;
 	master->auto_runtime_pm = true;
 
-	drv_data->ssp_type = ssp->type;
-	drv_data->null_dma_buf =
-		(u32 *)ALIGN((u32)drv_data->alloc_dma_buf, DMA_ALIGNMENT);
-	drv_data->ioaddr = ssp->mmio_base;
-	drv_data->ssdr_physical = ssp->phys_base + SSDR;
 	if (pxa25x_ssp_comp(drv_data)) {
 		master->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 16);
 		drv_data->int_cr1 = SSCR1_TIE | SSCR1_RIE;
@@ -1223,10 +1267,11 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		drv_data->mask_sr = SSSR_TINT | SSSR_RFS | SSSR_TFS | SSSR_ROR;
 	}
 
-	status = request_irq(ssp->irq, ssp_int, IRQF_SHARED, dev_name(dev),
-			drv_data);
+	status = request_irq(drv_data->irq, pxa2xx_spi_int, IRQF_SHARED,
+						dev_name(dev), drv_data);
+
 	if (status < 0) {
-		dev_err(&pdev->dev, "cannot get IRQ %d\n", ssp->irq);
+		dev_err(&pdev->dev, "cannot get IRQ %d\n", drv_data->irq);
 		goto out_error_lpm;
 	}
 
@@ -1242,9 +1287,9 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	}
 
 	/* Enable SOC clock */
-	clk_prepare_enable(ssp->clk);
+	clk_prepare_enable(drv_data->clk);
 
-	drv_data->max_clk_rate = clk_get_rate(ssp->clk);
+	drv_data->max_clk_rate = clk_get_rate(drv_data->clk);
 
 	/* Load default SSP configuration */
 	write_SSCR0(0, drv_data->ioaddr);
@@ -1280,33 +1325,37 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	return status;
 
 out_error_clock_enabled:
-	clk_disable_unprepare(ssp->clk);
+	clk_disable_unprepare(drv_data->clk);
 	pxa2xx_spi_dma_release(drv_data);
-	free_irq(ssp->irq, drv_data);
+	free_irq(drv_data->irq, drv_data);
 out_error_lpm:
 	deinit_dvfm_constraint(drv_data);
 out_error_master_alloc:
 	kfree(drv_data->alloc_dma_buf);
 out_error_dma_buf:
 	spi_master_put(master);
-	pxa_ssp_free(ssp);
+#ifndef CONFIG_OF
+	if (ssp)
+		pxa_ssp_free(ssp);
+#endif
 	return status;
 }
 
 static int pxa2xx_spi_remove(struct platform_device *pdev)
 {
 	struct driver_data *drv_data = platform_get_drvdata(pdev);
+#ifndef CONFIG_OF
 	struct ssp_device *ssp;
+#endif
 
 	if (!drv_data)
 		return 0;
-	ssp = drv_data->ssp;
 
 	pm_runtime_get_sync(&pdev->dev);
 
 	/* Disable the SSP at the peripheral and SOC level */
 	write_SSCR0(0, drv_data->ioaddr);
-	clk_disable_unprepare(ssp->clk);
+	clk_disable_unprepare(drv_data->clk);
 
 	/* Release DMA */
 	if (drv_data->master_info->enable_dma)
@@ -1316,12 +1365,16 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 
 	/* Release IRQ */
-	free_irq(ssp->irq, drv_data);
+	free_irq(drv_data->irq, drv_data);
 
+#ifndef CONFIG_OF
 	/* Release SSP */
+	ssp = drv_data->ssp;
 	pxa_ssp_free(ssp);
-	deinit_dvfm_constraint(drv_data);
+#else
 	kfree(drv_data->alloc_dma_buf);
+#endif
+	deinit_dvfm_constraint(drv_data);
 	return 0;
 }
 
@@ -1337,7 +1390,6 @@ static void pxa2xx_spi_shutdown(struct platform_device *pdev)
 static int pxa2xx_spi_suspend(struct device *dev)
 {
 	struct driver_data *drv_data = dev_get_drvdata(dev);
-	struct ssp_device *ssp = drv_data->ssp;
 	int status = 0;
 
 	pm_runtime_get_sync(dev);
@@ -1345,7 +1397,7 @@ static int pxa2xx_spi_suspend(struct device *dev)
 	if (status != 0)
 		return status;
 	write_SSCR0(0, drv_data->ioaddr);
-	clk_disable_unprepare(ssp->clk);
+	clk_disable_unprepare(drv_data->clk);
 
 	return 0;
 }
@@ -1353,13 +1405,12 @@ static int pxa2xx_spi_suspend(struct device *dev)
 static int pxa2xx_spi_resume(struct device *dev)
 {
 	struct driver_data *drv_data = dev_get_drvdata(dev);
-	struct ssp_device *ssp = drv_data->ssp;
 	int status = 0;
 
 	pxa2xx_spi_dma_resume(drv_data);
 
 	/* Enable the SSP clock */
-	clk_prepare_enable(ssp->clk);
+	clk_prepare_enable(drv_data->clk);
 
 	/* Restore LPSS private register bits */
 	lpss_ssp_setup(drv_data);
@@ -1381,7 +1432,7 @@ static int pxa2xx_spi_runtime_suspend(struct device *dev)
 {
 	struct driver_data *drv_data = dev_get_drvdata(dev);
 
-	clk_disable_unprepare(drv_data->ssp->clk);
+	clk_disable_unprepare(drv_data->clk);
 	return 0;
 }
 
@@ -1389,7 +1440,7 @@ static int pxa2xx_spi_runtime_resume(struct device *dev)
 {
 	struct driver_data *drv_data = dev_get_drvdata(dev);
 
-	clk_prepare_enable(drv_data->ssp->clk);
+	clk_prepare_enable(drv_data->clk);
 	return 0;
 }
 #endif
@@ -1405,6 +1456,7 @@ static struct platform_driver driver = {
 		.name	= "pxa2xx-spi",
 		.owner	= THIS_MODULE,
 		.pm	= &pxa2xx_spi_pm_ops,
+		.of_match_table = spi_pxa2xx_dt_ids,
 		.acpi_match_table = ACPI_PTR(pxa2xx_spi_acpi_match),
 	},
 	.probe = pxa2xx_spi_probe,
@@ -1416,7 +1468,7 @@ static int __init pxa2xx_spi_init(void)
 {
 	return platform_driver_register(&driver);
 }
-subsys_initcall(pxa2xx_spi_init);
+module_init(pxa2xx_spi_init);
 
 static void __exit pxa2xx_spi_exit(void)
 {

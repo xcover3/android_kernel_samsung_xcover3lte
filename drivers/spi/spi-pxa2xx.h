@@ -92,6 +92,10 @@ struct driver_data {
 	int qos_idle_value;
 	void __iomem *lpss_base;
 	bool spi_inc_mode;
+#ifdef CONFIG_OF
+	struct clk      *clk;
+	int irq;
+#endif
 };
 
 struct chip_data {
