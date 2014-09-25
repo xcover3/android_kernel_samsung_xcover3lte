@@ -212,6 +212,13 @@ static int enable_commit(struct fb_info *info, unsigned long arg)
 	mmp_path_set_commit(fbi->overlay->path);
 
 	mmpfb_fence_store_commit_id(fbi);
+
+	/*
+	 * Enable irq once in after flip buffer
+	 * IRQ will be disabled in irq handler.
+	 */
+	mmp_path_set_irq(fbi->path, 1);
+
 	return 0;
 }
 
