@@ -1193,6 +1193,16 @@ static ssize_t cpu_dc_write(struct file *filp,
 					CLK_STAT_START, 0);
 			}
 		} else {
+			/*we stop runtime and idle time stat, before cpu_dc_stat stop */
+			for (j = 0; j < op->cpu_num; j++) {
+				cpu = op->cpu_id[j];
+				percpu_stat = &per_cpu(cpu_dc_stat, cpu);
+				if ((u64) 0 != percpu_stat->runtime_start)
+					cpu_dcstat_event(cpu_clk, cpu, CPU_IDLE_ENTER, LPM_C2);
+				else
+					cpu_dcstat_event(cpu_clk, cpu, CPU_IDLE_EXIT,
+						MAX_LPM_INDEX);
+			}
 			for (j = 0; j < op->cpu_num; j++) {
 				cpu = op->cpu_id[j];
 				percpu_stat = &per_cpu(cpu_dc_stat, cpu);
