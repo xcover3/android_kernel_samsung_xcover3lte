@@ -70,8 +70,9 @@ static void path_hw_trigger(struct mmp_path *path)
 {
 	struct mmp_overlay *overlay;
 	struct mmp_vdma_info *vdma;
-	int i;
+	int i, vsync_enable = 0;
 	u32 tmp;
+	unsigned long flags;
 
 	if (DISP_GEN4(path_to_ctrl(path)->version)) {
 		tmp = readl_relaxed(ctrl_regs(path) + LCD_SHADOW_CTRL) |
@@ -82,8 +83,25 @@ static void path_hw_trigger(struct mmp_path *path)
 		for (i = 0; i < path->overlay_num; i++) {
 			overlay = &path->overlays[i];
 			vdma = overlay->vdma;
-			if (vdma && vdma->ops && vdma->ops->trigger)
-				vdma->ops->trigger(vdma);
+			if (vdma) {
+				spin_lock_irqsave(&vdma->status_lock, flags);
+				if (vdma->status == VDMA_TO_DISABLE)
+					/* For this status, vdma channel
+					 * was disabled, but shadow registers
+					 * not triggered, it will be triggered
+					 * later and then vdma channel clock
+					 * will be disabled in following
+					 * display done irq handler */
+					vsync_enable = 1;
+				spin_unlock_irqrestore(&vdma->status_lock,
+						flags);
+				if (vdma->ops && vdma->ops->trigger)
+					vdma->ops->trigger(vdma);
+				if (vsync_enable)
+					/* Enable irq that vdma channel clock
+					 * will be disabled in irq handler */
+					mmp_path_set_irq(path, 1);
+			}
 		}
 	}
 }

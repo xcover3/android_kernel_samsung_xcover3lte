@@ -22,6 +22,26 @@
 
 #include <video/mmp_disp.h>
 
+static void mmp_overlay_vsync_cb(void *data)
+{
+	struct mmp_overlay *overlay = (struct mmp_overlay *)data;
+	struct mmp_vdma_info *vdma;
+
+	vdma = overlay->vdma;
+	if (vdma && vdma->ops && vdma->ops->vsync_cb)
+		vdma->ops->vsync_cb(vdma);
+}
+
+static void mmp_overlay_vsync_notify_init(struct mmp_overlay *overlay)
+{
+	struct mmp_vsync_notifier_node *notifier_node;
+
+	notifier_node = &overlay->notifier_node;
+	notifier_node->cb_notify = mmp_overlay_vsync_cb;
+	notifier_node->cb_data = (void *)overlay;
+	mmp_path_register_special_vsync_cb(overlay->path, notifier_node);
+}
+
 static int path_wait_vsync(struct mmp_path *path)
 {
 	struct mmp_vsync *vsync = &path->vsync;
@@ -66,6 +86,7 @@ void mmp_vsync_init(struct mmp_path *path)
 {
 	struct mmp_vsync *vsync = &path->vsync;
 	struct mmp_vsync *special_vsync = &path->special_vsync;
+	int i;
 
 	init_waitqueue_head(&vsync->waitqueue);
 	path->ops.wait_vsync = path_wait_vsync;
@@ -76,6 +97,9 @@ void mmp_vsync_init(struct mmp_path *path)
 	path->ops.wait_special_vsync = path_wait_special_vsync;
 	special_vsync->handle_irq = path_handle_irq;
 	INIT_LIST_HEAD(&special_vsync->notifier_list);
+
+	for (i = 0; i < path->overlay_num; i++)
+		mmp_overlay_vsync_notify_init(&path->overlays[i]);
 }
 
 void mmp_vsync_deinit(struct mmp_path *path)

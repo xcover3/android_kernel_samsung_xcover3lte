@@ -205,10 +205,32 @@ struct mmp_overlay;
 struct mmp_panel;
 
 enum {
+	/* For old version of display IP (before DC4),
+	 * vdma channel could be dynamically switched, so
+	 * add status to manage them */
 	VDMA_FREED = 0,
 	VDMA_REQUESTED,
 	VDMA_ALLOCATED,
 	VDMA_RELEASED,
+	/*
+	 * For DC4, vdma channel clock need to dynamical control
+	 * for power saving. And vdma channel clock can only be
+	 * turned off when vdma channel was disabled, which need
+	 * to be sychronized with display done irq, so add status
+	 * to identify vdma channel clock disabling steps.
+	 * VDMA_ON: vdma channel clock on and vdma channel enabled.
+	 * VDMA_TO_DISABLE: vdma channel clock on and vdma channel disabled but
+	 *                  shadowed register was not triggered.
+	 * VDMA_TO_DISABLE_TRIGGERED: vdma channel clock on and
+	 *                  vdma channel disabled and shadowed register
+	 *                  was triggered.
+	 * VDMA_DISABLED: vdma channel clock was off and vdma channel disabled
+	 *                and shadowed register was effective.
+	 */
+	VDMA_ON,
+	VDMA_TO_DISABLE,
+	VDMA_TO_DISABLE_TRIGGERED,
+	VDMA_DISABLED,
 };
 
 struct mmp_vdma_info;
@@ -221,6 +243,7 @@ struct mmp_vdma_ops {
 	void (*trigger)(struct mmp_vdma_info *vdma);
 	void (*runtime_onoff)(int on);
 	void (*set_decompress_en)(struct mmp_vdma_info *vdma_info, int en);
+	void (*vsync_cb)(struct mmp_vdma_info *vdma_info);
 };
 
 struct mmp_vdma_info {
@@ -240,6 +263,7 @@ struct mmp_vdma_info {
 	 */
 	u8 overlay_id;
 	u8 status;
+	spinlock_t status_lock;
 
 	/* SQU start address(SQULN_SA) */
 	unsigned int sram_paddr;
@@ -405,6 +429,13 @@ struct mmp_overlay_ops {
 	void (*set_decompress_en)(struct mmp_overlay *overlay, int en);
 };
 
+struct mmp_vsync_notifier_node {
+	/* use node to register to list */
+	struct list_head node;
+	void (*cb_notify)(void *);
+	void *cb_data;
+};
+
 /* overlay describes a z-order indexed slot in each path. */
 struct mmp_overlay {
 	int id;
@@ -424,6 +455,7 @@ struct mmp_overlay {
 	struct mmp_vdma_info *vdma;
 	struct mmp_shadow *shadow;
 	struct mmp_overlay_ops *ops;
+	struct mmp_vsync_notifier_node notifier_node;
 };
 
 /* panel type */
@@ -600,13 +632,6 @@ struct mmp_dsi {
 
 	/* output dsi port */
 	struct mmp_dsi_port dsi_port;
-};
-
-struct mmp_vsync_notifier_node {
-	/* use node to register to list */
-	struct list_head node;
-	void (*cb_notify)(void *);
-	void *cb_data;
 };
 
 struct mmp_vsync {

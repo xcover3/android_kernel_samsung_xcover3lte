@@ -54,16 +54,42 @@
 
 static struct mmp_vdma *vdma;
 
+static void vdma_vsync_cb(struct mmp_vdma_info *vdma_info)
+{
+	struct mmp_vdma_reg *vdma_reg =
+		(struct mmp_vdma_reg *)(vdma->reg_base);
+	unsigned long flags;
+	u32 tmp;
+
+	if (DISP_GEN4(vdma->version)) {
+		spin_lock_irqsave(&vdma_info->status_lock, flags);
+		if (vdma_info->status == VDMA_TO_DISABLE_TRIGGERED) {
+			vdma_info->status = VDMA_DISABLED;
+			/* disable channel clock after the
+			 * channel was off indeed */
+			tmp = readl_relaxed(&vdma_reg->clk_ctrl);
+			tmp |= VDMA_CLK_DIS(vdma_info->vdma_id);
+			writel_relaxed(tmp, &vdma_reg->clk_ctrl);
+		}
+		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
+	}
+}
+
 static void vdma_hw_trigger(struct mmp_vdma_info *vdma_info)
 {
 	struct mmp_vdma_reg *vdma_reg =
 		(struct mmp_vdma_reg *)(vdma->reg_base);
 	u32 tmp;
+	unsigned long flags;
 
 	if (DISP_GEN4(vdma->version)) {
 		tmp = readl_relaxed(&vdma_reg->main_ctrl) |
 			SETTING_READY(vdma_info->vdma_id);
 		writel_relaxed(tmp, &vdma_reg->main_ctrl);
+		spin_lock_irqsave(&vdma_info->status_lock, flags);
+		if (vdma_info->status == VDMA_TO_DISABLE)
+			vdma_info->status = VDMA_TO_DISABLE_TRIGGERED;
+		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
 	}
 }
 
@@ -178,8 +204,11 @@ static void vdma_set_ctrl(int vdma_id, int channel_num, u32 mask, u32 set)
 
 static void vdma_set_on(struct mmp_vdma_info *vdma_info, int on)
 {
+	struct mmp_vdma_reg *vdma_reg =
+		(struct mmp_vdma_reg *)(vdma->reg_base);
 	int channel_num;
-	u32 mask, enable;
+	u32 mask, enable, tmp;
+	unsigned long flags;
 
 	if (vdma_info->status == VDMA_FREED)
 		return;
@@ -191,7 +220,17 @@ static void vdma_set_on(struct mmp_vdma_info *vdma_info, int on)
 		vdma_squ_set(vdma_info->overlay_id, channel_num, 1, 0);
 		vdma_set_ctrl(vdma_info->vdma_id,
 				channel_num, CH_ENA(1) | DC_ENA, 0);
+		spin_lock_irqsave(&vdma_info->status_lock, flags);
+		vdma_info->status = VDMA_TO_DISABLE;
+		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
 	} else {
+		spin_lock_irqsave(&vdma_info->status_lock, flags);
+		vdma_info->status = VDMA_ON;
+		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
+		/* enable channel clock firstly */
+		tmp = readl_relaxed(&vdma_reg->clk_ctrl);
+		tmp &= ~VDMA_CLK_DIS(vdma_info->vdma_id);
+		writel_relaxed(tmp, &vdma_reg->clk_ctrl);
 		vdma_squ_set(vdma_info->overlay_id, vdma_info->sub_ch_num, 1,
 				1);
 		if (!DISP_GEN4(vdma->version)) {
@@ -516,6 +555,7 @@ struct mmp_vdma_ops vdma_ops = {
 	.trigger = vdma_hw_trigger,
 	.runtime_onoff = vdma_runtime_onoff,
 	.set_decompress_en = vdma_set_decompress_en,
+	.vsync_cb = vdma_vsync_cb,
 };
 
 static int vdma_sram_alloc(struct mmp_vdma_info *vdma_info)
@@ -586,6 +626,26 @@ void mmp_vdma_free(int overlay_id)
 	vdma_info->status = VDMA_RELEASED;
 }
 
+static void vdma_clk_ctrl_set_default(struct mmp_vdma *vdma)
+{
+	struct mmp_vdma_reg *vdma_reg =
+		(struct mmp_vdma_reg *)(vdma->reg_base);
+	struct mmp_vdma_info *vdma_info;
+	u32 tmp;
+	int i;
+
+	if (DISP_GEN4(vdma->version)) {
+		tmp = readl_relaxed(&vdma_reg->clk_ctrl);
+		/* By default only enable vdma channel 0 clock */
+		for (i = 0; i < vdma->vdma_channel_num; i++) {
+			vdma_info = &vdma->vdma_info[i];
+			if (vdma_info->vdma_id)
+				tmp |= VDMA_CLK_DIS(vdma_info->vdma_id);
+		}
+		writel_relaxed(tmp, &vdma_reg->clk_ctrl);
+	}
+}
+
 /*
  * allocate one VDMA channel
  *  called in lcd probe process, ioctl, and sysfs.
@@ -613,6 +673,7 @@ struct mmp_vdma_info *mmp_vdma_alloc(int overlay_id, int sram_size)
 			dev_err(vdma->dev, "isram pool not available\n");
 			return NULL;
 		}
+		vdma_clk_ctrl_set_default(vdma);
 	}
 	vdma_info = vdma_is_allocated(overlay_id);
 	if (vdma_info) {
@@ -655,6 +716,7 @@ static void vdma_init(struct mmp_mach_vdma_info *mi)
 		vdma_info->ops = &vdma_ops;
 		vdma_info->sub_ch_num = 1;
 		mutex_init(&vdma_info->access_ok);
+		spin_lock_init(&vdma_info->status_lock);
 		vdma_info->status = VDMA_FREED;
 	}
 }

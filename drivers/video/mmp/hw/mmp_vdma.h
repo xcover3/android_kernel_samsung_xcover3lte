@@ -72,6 +72,8 @@
 } while (0)
 
 #define SETTING_READY(id) (1 << (24 + (id)))
+#define VDMA_CLK_DIS(id)       (((id) < 2) ? (1 << (id)) : \
+	(7 << (2 + ((id) - 2) * 3)))
 
 #define VDMA_SRAM_ALIGN(x)	ALIGN(x, 256)
 
