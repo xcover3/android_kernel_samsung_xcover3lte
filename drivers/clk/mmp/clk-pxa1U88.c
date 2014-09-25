@@ -1157,7 +1157,7 @@ static int pxa1u88_powermode(u32 cpu)
 
 /* DDR */
 static const char *ddr_parent[] = {
-	"pll1_624", "pll1_832", "pll2", "pll4", "pll3p",
+	"pll1_624", "pll1_832", "pll1_1248", "pll2", "pll4", "pll3p",
 };
 
 /*
