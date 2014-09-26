@@ -530,11 +530,14 @@ static void dapm_set_path_status(struct snd_soc_dapm_widget *w,
 	break;
 	case snd_soc_dapm_virt_switch: {
 		int val;
-		struct soc_mixer_control *mc = (struct soc_mixer_control *)
-			w->kcontrol_news[i].private_value;
-		int reg = mc->reg;
+		struct snd_kcontrol *kcontrol;
+		if (w->kcontrols && *w->kcontrols) {
+			kcontrol = *w->kcontrols;
+			val = dapm_kcontrol_get_value(kcontrol);
+		} else {
+			val = 0;
+		}
 
-		soc_widget_read(w, reg, &val);
 		p->connect = !!val;
 	}
 	break;
