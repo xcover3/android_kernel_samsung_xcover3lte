@@ -29,6 +29,7 @@
 #include <linux/platform_data/mv_usb.h>
 #include <linux/usb/phy.h>
 #include <linux/usb/mv_usb2_phy.h>
+#include <linux/cputype.h>
 
 /* phy regs */
 /* for pxa910 and mmp2, there is no revision register */
@@ -776,11 +777,19 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 		base + PHY_28NM_DIG_REG0);
 
 
-	writel(readl(base + PHY_28NM_DIG_REG0) |
-		(0x7 << PHY_28NM_DIG_SQ_FILT_SHIFT
-		| 0x4 << PHY_28NM_DIG_SQ_BLK_SHIFT
-		| 0x2 << PHY_28NM_DIG_SYNC_NUM_SHIFT),
-		base + PHY_28NM_DIG_REG0);
+	if (cpu_is_pxa1928_b0() || cpu_is_pxa1908()) {
+		writel(readl(base + PHY_28NM_DIG_REG0) |
+			(0x0 << PHY_28NM_DIG_SQ_FILT_SHIFT
+			| 0x0 << PHY_28NM_DIG_SQ_BLK_SHIFT
+			| 0x1 << PHY_28NM_DIG_SYNC_NUM_SHIFT),
+			base + PHY_28NM_DIG_REG0);
+	} else {
+		writel(readl(base + PHY_28NM_DIG_REG0) |
+			(0x7 << PHY_28NM_DIG_SQ_FILT_SHIFT
+			| 0x4 << PHY_28NM_DIG_SQ_BLK_SHIFT
+			| 0x2 << PHY_28NM_DIG_SYNC_NUM_SHIFT),
+			base + PHY_28NM_DIG_REG0);
+	}
 
 	if (mv_phy->drv_data.phy_flag & MV_PHY_FLAG_PLL_LOCK_BYPASS)
 		writel(readl(base + PHY_28NM_DIG_REG0)
