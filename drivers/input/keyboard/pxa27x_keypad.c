@@ -32,9 +32,12 @@
 #include <linux/of.h>
 
 #include <asm/mach/arch.h>
-#include <asm/mach/map.h>
 
+#ifndef CONFIG_ARM64
+#include <asm/mach/map.h>
 #include <mach/hardware.h>
+#endif
+
 #include <linux/platform_data/keypad-pxa27x.h>
 #include <linux/edge_wakeup_mmp.h>
 /*
