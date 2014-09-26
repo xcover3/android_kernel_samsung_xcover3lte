@@ -488,12 +488,14 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 			return -EBADMSG;
 	} else {
 		if (status & 0xFDFFA000)
-			pr_warning("%s: unexpected status %#x after "
+			pr_warn("%s: unexpected status %#x after "
 			       "switch", mmc_hostname(card->host), status);
 		if (status & R1_SWITCH_ERROR)
 			return -EBADMSG;
+		if (status & R1_EXCEPTION_EVENT)
+			pr_warn("%s: exception event triggered\n",
+				mmc_hostname(card->host));
 	}
-
 	return 0;
 }
 EXPORT_SYMBOL_GPL(__mmc_switch);
