@@ -274,14 +274,8 @@ static int board_is_fpga(void)
 {
 	static int rc;
 
-	/*
-	 * FIXME: used for pxa1908 bringup preparation
-	 * Then we could use pxa1908-dkb.dts on FPGA for verification,
-	 * will remove this part when running on real silicon
-	 */
 	if (!rc)
-		rc = of_machine_is_compatible("marvell,pxa1908-fpga")
-			|| cpu_is_pxa1908();
+		rc = of_machine_is_compatible("marvell,pxa1908-fpga");
 
 	return rc;
 }
