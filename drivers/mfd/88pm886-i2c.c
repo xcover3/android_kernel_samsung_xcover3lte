@@ -78,6 +78,10 @@ static int pm886_i2c_probe(struct i2c_client *client,
 		goto err_apply_patch;
 	}
 
+	/* get private chip handler */
+	pm886_set_chip(chip);
+	pm_power_off = pm886_power_off;
+
 	return 0;
 
 err_apply_patch:

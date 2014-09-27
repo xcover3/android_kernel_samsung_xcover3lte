@@ -34,6 +34,7 @@
 #define PM886_BK_OSC_CTRL6		(0x55)
 #define PM886_POWER_DOWN_LOG1		(0xe5)
 #define PM886_POWER_DOWN_LOG2		(0xe6)
+#define PM886_SW_PDOWN			(1 << 5)
 
 #define CELL_IRQ_RESOURCE(_name, _irq) { \
 	.name = _name, \
@@ -47,6 +48,9 @@
 	.resources = _r, \
 	.id = _id, \
 	}
+
+/* don't export it at present */
+static struct pm886_chip *pm886_chip_priv;
 
 extern struct regmap *get_88pm860_codec_regmap(void);
 struct regmap *companion_base_page;
@@ -859,4 +863,88 @@ void pm886_dev_exit(struct pm886_chip *chip)
 {
 	mfd_remove_devices(chip->dev);
 	pm886_irq_exit(chip);
+}
+
+void pm886_set_chip(struct pm886_chip *chip)
+{
+	pm886_chip_priv = chip;
+}
+
+struct pm886_chip *pm886_get_chip(void)
+{
+	return pm886_chip_priv;
+}
+
+static int i2c_raw_update_bits(u8 reg, u8 value)
+{
+	int ret;
+	u8 data, buf[2];
+
+	/* only for base page */
+	struct i2c_client *client = pm886_get_chip()->client;
+	struct i2c_msg msgs[] = {
+		{
+			.addr = client->addr,
+			.flags = 0,
+			.len = 1,
+			.buf = buf,
+		},
+		{
+			.addr = client->addr,
+			.flags = I2C_M_RD,
+			.len = 1,
+			.buf = &data,
+		},
+	};
+
+	/*
+	 * I2C pins may be in non-AP pinstate, and __i2c_transfer
+	 * won't change it back to AP pinstate like i2c_transfer,
+	 * so change i2c pins to AP pinstate explicitly here.
+	 */
+	i2c_pxa_set_pinstate(client->adapter, "default");
+
+	/*
+	 * set i2c to pio mode
+	 * for in power off sequence, irq has been disabled
+	 */
+	i2c_set_pio_mode(client->adapter, 1);
+
+	/* 1. read the original value */
+	buf[0] = reg;
+	ret = __i2c_transfer(client->adapter, msgs, 2);
+	if (ret < 0) {
+		pr_err("%s read register fails...\n", __func__);
+		WARN_ON(1);
+		goto out;
+	}
+
+	/* 2. update value */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = 2;
+	msgs[0].buf[0] = reg;
+	msgs[0].buf[1] = data | value;
+	ret = __i2c_transfer(client->adapter, msgs, 1);
+	if (ret < 0) {
+		pr_err("%s write data fails: ret = %d\n", __func__, ret);
+		WARN_ON(1);
+	}
+out:
+	return ret;
+}
+
+void pm886_power_off(void)
+{
+	int ret;
+
+	pr_info("begin to power off system.");
+	ret = i2c_raw_update_bits(PM886_MISC_CONFIG1, PM886_SW_PDOWN);
+	if (ret < 0)
+		pr_err("%s power off fails", __func__);
+	pr_info("finish powering off system: this line shouldn't appear.");
+
+	/* wait for power off */
+	for (;;)
+		cpu_relax();
 }

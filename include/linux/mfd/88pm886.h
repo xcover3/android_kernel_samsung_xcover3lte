@@ -210,4 +210,8 @@ static inline int pm886_dvc_get_volt(u8 level)
 }
 #endif
 
+struct pm886_chip *pm886_get_chip(void);
+void pm886_set_chip(struct pm886_chip *chip);
+void  pm886_power_off(void);
+
 #endif /* __LINUX_MFD_88PM886_H */
