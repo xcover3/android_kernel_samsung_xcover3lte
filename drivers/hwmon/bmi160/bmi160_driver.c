@@ -244,6 +244,7 @@ struct bmi160_type_mapping_type {
 static const struct bmi160_type_mapping_type sensor_type_map[] = {
 
 	{SENSOR_CHIP_ID_BMI, SENSOR_CHIP_REV_ID_BMI, "BMI160/162AB"},
+	{SENSOR_CHIP_ID_BMI_D1, SENSOR_CHIP_REV_ID_BMI, "BMI160/162AB"},
 
 };
 
@@ -1309,18 +1310,26 @@ static ssize_t bmi160_enable_store(struct device *dev,
 	mutex_lock(&client_data->mutex_enable);
 	if (data != client_data->wkqueue_en) {
 		if (data) {
+			if (regulator_enable(client_data->avdd)) {
+				dev_err(dev, "bosch sensor avdd power supply enable failed\n");
+				goto out;
+			}
 			schedule_delayed_work(
 					&client_data->work,
 					msecs_to_jiffies(atomic_read(
 							&client_data->delay)));
-		} else
+		} else {
 			cancel_delayed_work_sync(&client_data->work);
+			regulator_disable(client_data->avdd);
+		}
 
 		client_data->wkqueue_en = data;
 	}
 	mutex_unlock(&client_data->mutex_enable);
 
 	return count;
+out:
+	return 0;
 }
 
 /* accel sensor part */
@@ -2609,7 +2618,7 @@ bmi160_gyro_offset_x_show, bmi160_gyro_offset_x_store);
 static DEVICE_ATTR(gyro_offset_y, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 bmi160_gyro_offset_y_show, bmi160_gyro_offset_y_store);
 static DEVICE_ATTR(gyro_offset_z, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
-bmi160_gyro_offset_y_show, bmi160_gyro_offset_y_store);
+bmi160_gyro_offset_z_show, bmi160_gyro_offset_z_store);
 
 
 
@@ -2747,26 +2756,36 @@ static void bmi_slope_interrupt_handle(struct bmi_client_data *client_data)
 static void bmi_fifo_watermark_interrupt_handle
 					(struct bmi_client_data *client_data)
 {
-	static int i;
 	int err = 0;
-	unsigned char fifo_data[1024] = {0};
-	unsigned char fifo_out_data[1024] = {0};
-	u16 fifo_len0 = 0;
-	u16 fifo_len1 = 0;
+	unsigned char *fifo_data;
+	unsigned char *fifo_out_data;
+	unsigned int fifo_len0 = 0;
 
 	if (client_data->pw.acc_pm == 2 && client_data->pw.gyro_pm == 2
 					&& client_data->pw.mag_pm == 2)
-		printk(KERN_INFO "pw_acc: %d, pw_gyro: %d\n",
+		pr_info("pw_acc: %d, pw_gyro: %d\n",
 			client_data->pw.acc_pm, client_data->pw.gyro_pm);
 	if (!client_data->fifo_data_sel)
-		printk(KERN_INFO "no selsect sensor fifo, fifo_data_sel:%d\n",
+		pr_info("no selsect sensor fifo, fifo_data_sel:%d\n",
 						client_data->fifo_data_sel);
+
+	fifo_data = kzalloc(1024 * sizeof(unsigned char), GFP_KERNEL);
+	if (!fifo_data) {
+		pr_info("failed to allocate memory for fifo_data\n");
+		return;
+	}
+
+	fifo_out_data = kzalloc(1024 * sizeof(unsigned char), GFP_KERNEL);
+	if (!fifo_out_data) {
+		pr_info("failed to allocate memory for fifo_out_data\n");
+		goto exit_fifo_data;
+	}
 
 	err = BMI_CALL_API(fifo_length)(&fifo_len0);
 	client_data->fifo_bytecount = fifo_len0;
 
 	if (client_data->fifo_bytecount == 0 || err)
-		return ;
+		goto exit_fifo_out_data;
 
 	/* need give attention for the time of burst read*/
 	if (!err) {
@@ -2781,6 +2800,11 @@ static void bmi_fifo_watermark_interrupt_handle
 	err = bmi_fifo_analysis_handle(client_data, fifo_data,
 			client_data->fifo_bytecount + 20, fifo_out_data);
 	/* TO DO*/
+exit_fifo_out_data:
+	kfree(fifo_out_data);
+exit_fifo_data:
+	kfree(fifo_data);
+	return;
 }
 
 
@@ -2957,6 +2981,7 @@ int bmi_probe(struct bmi_client_data *client_data, struct device *dev)
 	}
 
 	dev_notice(dev, "sensor %s probed successfully", SENSOR_NAME);
+	regulator_disable(client_data->avdd);
 
 	return 0;
 
@@ -2975,7 +3000,7 @@ exit_err_clean:
 			client_data = NULL;
 		}
 	}
-
+	regulator_disable(client_data->avdd);
 	return err;
 }
 EXPORT_SYMBOL(bmi_probe);

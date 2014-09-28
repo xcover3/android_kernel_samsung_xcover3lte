@@ -20,6 +20,7 @@
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #include "bmi160_driver.h"
+#include <linux/of_gpio.h>
 
 /*! @defgroup bmi160_i2c_src
  *  @brief bmi160 i2c driver module
@@ -246,11 +247,18 @@ EXPORT_SYMBOL(bmi_burst_read_wrapper);
  * @retval zero success
  * @retval non-zero failed
 */
+
+static struct bosch_sensor_specific bss_bmi160 = {
+	.name = "bmi160_d1",
+	.place = 3,
+};
 static int bmi_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 		int err = 0;
 		struct bmi_client_data *client_data = NULL;
+		struct device_node *np = client->dev.of_node;
+		struct regulator *avdd;
 
 		dev_info(&client->dev, "i2c function entrance");
 
@@ -279,9 +287,31 @@ static int bmi_i2c_probe(struct i2c_client *client,
 
 		client_data->device.bus_read = bmi_i2c_read_wrapper;
 		client_data->device.bus_write = bmi_i2c_write_wrapper;
+		client_data->bst_pd = &bss_bmi160;
+
+		bss_bmi160.irq = of_get_named_gpio(np, "irq-gpios", 0);
+
+		avdd = regulator_get(&client->dev, "avdd");
+		err = IS_ERR(avdd);
+		if (err) {
+			dev_err(&client->dev, "sensor avdd power supply get failed\n");
+			goto exit_err_clean;
+		}
+
+		regulator_set_voltage(avdd, 2800000, 2800000);
+		err = regulator_enable(avdd);
+		if (err) {
+			dev_err(&client->dev, "avago sensors regulator enable failed\n");
+			goto avdd_err;
+		}
+
+		client_data->avdd = avdd;
+
+		of_property_read_u32(np, "bmi160-place", &bss_bmi160.place);
 
 		return bmi_probe(client_data, &client->dev);
-
+avdd_err:
+		regulator_put(avdd);
 exit_err_clean:
 		if (err)
 			bmi_client = NULL;

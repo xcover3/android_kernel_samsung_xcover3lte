@@ -41,6 +41,7 @@
 
 #include <linux/time.h>
 #include <linux/ktime.h>
+#include <linux/regulator/consumer.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -52,6 +53,7 @@
 #define SENSOR_NAME "bmi160"
 
 #define SENSOR_CHIP_ID_BMI (0xD0)
+#define SENSOR_CHIP_ID_BMI_D1 (0xD1)
 #define SENSOR_CHIP_REV_ID_BMI (0x00)
 
 #define CHECK_CHIP_ID_TIME_MAX  5
@@ -155,7 +157,7 @@
 struct bosch_sensor_specific {
 	char *name;
 	/* 0 to 7 */
-	unsigned int place:3;
+	unsigned int place;
 	int irq;
 	int (*irq_gpio_cfg)(void);
 };
@@ -219,6 +221,7 @@ struct bmi_client_data {
 	struct input_dev *input;
 	struct delayed_work work;
 	struct work_struct irq_work;
+	struct regulator *avdd;
 
 	u8 chip_id;
 
