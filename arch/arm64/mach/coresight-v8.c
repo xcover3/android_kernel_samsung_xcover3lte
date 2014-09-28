@@ -294,13 +294,13 @@ static void coresight_etm_restore(void)
 
 	etm_enable_access();
 
-	if (readl_relaxed(p_etm_base + TRC_PRGCTLR))
+	if (readl(p_etm_base + TRC_PRGCTLR))
 		return;
 
 	/* Check the programmers' model is stable */
 	timeout = 10000;
 	do {
-		val = readl_relaxed(p_etm_base + TRC_STATR);
+		val = readl(p_etm_base + TRC_STATR);
 		if (val & (0x1 << 1))
 			break;
 	} while (--timeout);
