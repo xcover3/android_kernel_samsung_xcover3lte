@@ -202,6 +202,8 @@ struct mmc_supply {
 	struct regulator *vqmmc;	/* Optional Vccq supply */
 };
 
+#define FLAG_NO_SUSPEND_IF_BUSBUSY	(0x1)
+
 struct mmc_host {
 	struct device		*parent;
 	struct device		class_dev;
@@ -400,6 +402,15 @@ struct mmc_host {
 		int				num_funcs;
 	} embedded_sdio_data;
 #endif
+
+	/*
+	 * New feature: prevent suspend if bus is keepping busy
+	 * enabled by "FLAG_NO_SUSPEND_IF_BUSBUSY" in busbusy_flags
+	 */
+	unsigned int busbusy_flags;
+	struct wake_lock busbusy_wakelock;
+	unsigned int busbusy_wakelock_en;
+	int busbusy_timeout;
 
 	unsigned long		private[0] ____cacheline_aligned;
 };

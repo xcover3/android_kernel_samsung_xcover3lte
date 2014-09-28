@@ -216,13 +216,6 @@ struct sdhci_host {
 	struct timer_list	tuning_timer;	/* Timer for tuning */
 	int	constrain_ref;
 
-	/*
-	* New feature: prevent suspend if bus is keepping busy
-	* enabled by "SDHCI_QUIRK_HOLDSUSPEND_AFTER_REQUEST" in the quirks2
-	*/
-	struct wake_lock busbusy_wakelock;
-	int	busbusy_wakelock_en;
-	int	busbusy_timeout;
 	bool sdio_irq_enabled;
 
 	unsigned long private[0] ____cacheline_aligned;

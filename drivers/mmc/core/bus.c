@@ -150,6 +150,16 @@ static int mmc_bus_suspend(struct device *dev)
 	struct mmc_host *host = card->host;
 	int ret;
 
+	if (host->busbusy_flags & FLAG_NO_SUSPEND_IF_BUSBUSY) {
+		/*
+		* If system has entered suspend, do not hold wakelock,
+		* or the system may have no chance to enter suspend for ever.
+		*/
+		host->busbusy_wakelock_en = 0;
+		if (wake_lock_active(&host->busbusy_wakelock))
+			wake_unlock(&host->busbusy_wakelock);
+	}
+
 	if (dev->driver && drv->suspend) {
 		ret = drv->suspend(card);
 		if (ret)
@@ -166,6 +176,11 @@ static int mmc_bus_resume(struct device *dev)
 	struct mmc_card *card = mmc_dev_to_card(dev);
 	struct mmc_host *host = card->host;
 	int ret;
+
+	if (host->busbusy_flags & FLAG_NO_SUSPEND_IF_BUSBUSY) {
+		/* if system starts to resume, enable busbusy wakelock again */
+		host->busbusy_wakelock_en = 1;
+	}
 
 	ret = host->bus_ops->resume(host);
 	if (ret)

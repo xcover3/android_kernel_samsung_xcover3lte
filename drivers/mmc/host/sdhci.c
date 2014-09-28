@@ -2502,9 +2502,9 @@ static void sdhci_tasklet_finish(unsigned long param)
 	sdhci_access_constrain(host, 0);
 
 	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
-		if (host->busbusy_wakelock_en)
-			wake_lock_timeout(&host->busbusy_wakelock,
-				host->busbusy_timeout);
+		if (host->mmc->busbusy_wakelock_en)
+			wake_lock_timeout(&host->mmc->busbusy_wakelock,
+				host->mmc->busbusy_timeout);
 	}
 }
 
@@ -2899,16 +2899,6 @@ out:
 #ifdef CONFIG_PM
 int sdhci_suspend_host(struct sdhci_host *host)
 {
-	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
-		/*
-		 * If system has entered suspend, do not hold wakelock,
-		 * or the system may have no chance to enter suspend for ever.
-		 */
-		host->busbusy_wakelock_en = 0;
-		if (wake_lock_active(&host->busbusy_wakelock))
-			wake_unlock(&host->busbusy_wakelock);
-	}
-
 	sdhci_runtime_pm_get(host);
 	if (host->ops->platform_suspend)
 		host->ops->platform_suspend(host);
@@ -2938,11 +2928,6 @@ EXPORT_SYMBOL_GPL(sdhci_suspend_host);
 int sdhci_resume_host(struct sdhci_host *host)
 {
 	int ret = 0;
-
-	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
-		/* if system starts to resume, enable busbusy wakelock again */
-		host->busbusy_wakelock_en = 1;
-	}
 
 	sdhci_runtime_pm_get(host);
 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
@@ -3579,11 +3564,12 @@ int sdhci_add_host(struct sdhci_host *host)
 		goto untasklet;
 	}
 
-	wake_lock_init(&host->busbusy_wakelock, WAKE_LOCK_SUSPEND,
+	wake_lock_init(&mmc->busbusy_wakelock, WAKE_LOCK_SUSPEND,
 			(const char *)mmc_hostname(host->mmc));
 	if (host->quirks2 & SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST) {
-		host->busbusy_wakelock_en = 1;
-		host->busbusy_timeout = 0.5*HZ; /* 0.5S by default */
+		mmc->busbusy_flags |= FLAG_NO_SUSPEND_IF_BUSBUSY;
+		mmc->busbusy_wakelock_en = 1;
+		mmc->busbusy_timeout = 0.5*HZ; /* 0.5S by default */
 	}
 
 #ifdef CONFIG_MMC_DEBUG
@@ -3621,6 +3607,7 @@ int sdhci_add_host(struct sdhci_host *host)
 
 #ifdef CONFIG_SDHCI_USE_LEDS_CLASS
 reset:
+	wake_lock_destory(&mmc->busbusy_wakelock);
 	sdhci_reset(host, SDHCI_RESET_ALL);
 	sdhci_mask_irqs(host, SDHCI_INT_ALL_MASK);
 	free_irq(host->irq, host);
