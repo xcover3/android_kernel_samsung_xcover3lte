@@ -527,3 +527,34 @@ prefixed with the string "marvell,", for Marvell Technology Group Ltd.
 		antpwr-supply = <&ldo8>;
 	};
 
+   u) Using rfkill to power control for marvell sd8xxx device
+
+   Required properties:
+     - compatible : "mrvl, sd8x-rfkill"
+     - sd-host: the sdio host
+	 - status: "okay" or "disabled"
+   Opition properties:
+     - pd-gpio: the gpio for Power Down
+     - rst-gpio: the gpio for reset
+     - 1v8-ldo-gpio: the gpio to control 1v8-ldo
+     - 3v3-ldo-gpio: the gpio to control 3v3-ldo
+	 - edge-wakeup-gpio: the gpio for edge wake up
+	 - wib_3v3: 3V3 ldo for WIB card
+	 - wib_1v8: 1V8 lod for WIB card
+	 - wib_sdio_1v8: 1V8 sdio ldo for WIB card
+
+   Example :
+	sd8x-rfkill {
+		compatible = "mrvl,sd8x-rfkill";
+		bus_number = <0>;
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio 7 0>;
+		rst-gpio = <&gpio 71 0>;
+		1v8-ldo-gpio = <&gpio 19 0>;
+		3v3-ldo-gpio = <&gpio 20 0>;
+		edge-wakeup-gpio = <&gpio 39 0>;
+		wib_3v3 = <&ldo1>;
+		wib_1v8 = <&ldo2>;
+		wib_sdio_1v8 = <&ldo3>/
+		status = "okay";
+	};
