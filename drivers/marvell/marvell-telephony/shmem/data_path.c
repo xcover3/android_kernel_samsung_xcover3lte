@@ -259,7 +259,7 @@ static void data_path_tx_func(unsigned long arg)
 						SHM_PACKET_PTR(rbctl->tx_va,
 							pending_slot,
 							rbctl->tx_skbuf_size),
-						used_bytes);
+						used_bytes + sizeof(struct shm_psd_skhdr));
 				skctl->ap_wptr = pending_slot;
 				pending_slot = -1;
 				consumed_slot++;
@@ -332,7 +332,8 @@ static void data_path_tx_func(unsigned long arg)
 	if (pending_slot != -1) {
 		shm_flush_dcache(rbctl, SHM_PACKET_PTR(rbctl->tx_va,
 				pending_slot,
-				rbctl->tx_skbuf_size), used_bytes);
+				rbctl->tx_skbuf_size),
+			used_bytes + sizeof(struct shm_psd_skhdr));
 		skctl->ap_wptr = pending_slot;
 		pending_slot = -1;
 		consumed_slot++;
