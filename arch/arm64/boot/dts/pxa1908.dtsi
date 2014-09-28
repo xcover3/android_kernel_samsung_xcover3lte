@@ -123,6 +123,7 @@
 			interrupts = <0 78 4>,
 				     <0 78 4>;
 			mmu-masters = <&ion 0x0>;
+			calxeda,smmu-secure-config-access;
 			status = "disabled";
 		};
 
