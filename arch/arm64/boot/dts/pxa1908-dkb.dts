@@ -1057,6 +1057,7 @@
 		marvell,path-name = "mmp_pnpath";
 		panel_esd = <0>;
 		rst_gpio = <&gpio 4 0>;
+		avdd-supply = <&ldo11>;
 		status = "okay";
 	};
 
