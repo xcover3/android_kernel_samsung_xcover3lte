@@ -393,7 +393,7 @@ static DEFINE_SPINLOCK(uart0_lock);
 static DEFINE_SPINLOCK(uart1_lock);
 static DEFINE_SPINLOCK(uart2_lock);
 static const char *uart_parent_names[] = {"pll1_3_16", "uart_pll"};
-
+static const char *ssp_parent_names[] = {"pll1_96", "pll1_48", "pll1_24", "pll1_12"};
 #ifdef CONFIG_CORESIGHT_SUPPORT
 static void pxa1U88_coresight_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 {
@@ -494,6 +494,24 @@ static void pxa1U88_apb_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			0x7, 0x2, 0x0, 0, NULL);
 	mmp_clk_add(unit, PXA1U88_CLK_AICER, clk);
 	clk_prepare_enable(clk);
+
+	clk = clk_register_mux(NULL, "ssp0_mux", ssp_parent_names,
+		ARRAY_SIZE(ssp_parent_names), 0,
+		pxa_unit->apbc_base + APBC_SSP0, 4, 3, 0, NULL);
+	clk = mmp_clk_register_gate(NULL, "ssp0_clk", "ssp0_mux",
+				0,
+				pxa_unit->apbc_base + APBC_SSP0,
+				0x7, 0x3, 0x0, 0, NULL);
+	mmp_clk_add(unit, PXA1U88_CLK_SSP0, clk);
+
+	clk = clk_register_mux(NULL, "ssp2_mux", ssp_parent_names,
+		ARRAY_SIZE(ssp_parent_names), 0,
+		pxa_unit->apbc_base + APBC_SSP2, 4, 3, 0, NULL);
+	clk = mmp_clk_register_gate(NULL, "ssp2_clk", "ssp2_mux",
+				0,
+				pxa_unit->apbc_base + APBC_SSP2,
+				0x7, 0x3, 0x0, 0, NULL);
+	mmp_clk_add(unit, PXA1U88_CLK_SSP2, clk);
 
 #ifdef CONFIG_CORESIGHT_SUPPORT
 	pxa1U88_coresight_clk_init(pxa_unit);
