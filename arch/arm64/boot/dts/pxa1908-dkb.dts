@@ -758,10 +758,12 @@
 
 				ccic2_pmx_func2: ccic2_pmx_func2 {
 					pinctrl-single,pins = <
+						/*
 						GPIO51 AF7
 						GPIO52 AF7
-						GPIO69 AF5
-						GPIO70 AF5
+						*/
+						GPIO69 AF0
+						GPIO70 AF0
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -1166,37 +1168,26 @@
 				dovdd_1v8-supply = <&voutsw>;
 				dvdd_1v2-supply = <&ldo12>;
 				*/
-				sensor_power {
-					pwdn-gpios = <&gpio 68 0>;
-					reset-gpios = <&gpio 67 0>;
-					pwdn-validvalue = <0>;
-					reset-validvalue = <0>;
-				};
+				pwdn-gpios = <&gpio 68 0>;
+				reset-gpios = <&gpio 67 0>;
 			};
 			OV13850: sensor@1 {
-				 compatible = "ovt,ov13850";
-				 sensor-name = "ovt,ov13850";
-				 reg = <0x10>;
-				 adapter = <0x1>;
-				 status = "okay";
-				 sensor-pos = <1>;
-				 mclk = <26000000>;
-				 dphy3 = <0x1500>;
-				 dphy5 = <0xff>;
-				 dphy6 = <0x1001>;
-
-				 af_2v8-supply = <&ldo11>;
-				 avdd_2v8-supply = <&ldo10>;
-				 dovdd_1v8-supply = <&buck2>;
-				 dvdd_1v2-supply = <&ldo8>;
-
-				 sensor_power {
-					 pwdn-gpios = <&gpio 68 0>;
-					 reset-gpios = <&gpio 67 0>;
-					 pwdn-validvalue = <0>;
-					 reset-validvalue = <0>;
-				 };
-			 };
+				compatible = "ovt,ov13850";
+				status = "okay";
+				reg = <0x10>;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
 		};
 	};
 
