@@ -124,6 +124,8 @@
 #define PMUM_WAKEUP1		(1 << 1)
 #define PMUM_WAKEUP0		(1 << 0)
 #define PMUM_AP_WAKEUP_MASK     (0xFFFFFFFF & ~(PMUM_GSM_WAKEUPWM | PMUM_WCDMA_WAKEUPWM))
+/* Slow clock control */
+#define SCCR			0x038
 
 extern void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
 

@@ -474,6 +474,7 @@ void pxa1908_gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 static int __init pxa1908_lowpower_init(void)
 {
 	u32 apcr;
+	u32 sccr;
 
 	if (!of_machine_is_compatible("marvell,pxa1908"))
 		return -ENODEV;
@@ -495,6 +496,18 @@ static int __init pxa1908_lowpower_init(void)
 	/* TODO: Is 10us still valid for CA53? */
 	/* set the power stable timer as 10us */
 	writel_relaxed(0x28207, apmu_virt_addr + STBL_TIMER);
+	/*
+	 * NOTE: bit0 and bit2 should always be set in SCCR.
+	 * 1. bit2: Force the modem into sleep mode. system can't
+	 * enter d1 in case it's not set;
+	 * 2. bit0: Select 32k clk source.
+	 *      0: 32k clk comes from 26M VCTCXO division;
+	 *      1: 32k clk comes from PMIC
+	 * If not set, System can't be woken up when vctcxo is shut
+	 * down.
+	 */
+	sccr = readl_relaxed(mpmu_virt_addr + SCCR);
+	writel_relaxed(sccr | 0x5, mpmu_virt_addr + SCCR);
 
 	return 0;
 }
