@@ -19,7 +19,6 @@
 #include <linux/edge_wakeup_mmp.h>
 #include <linux/io.h>
 #include <linux/of.h>
-#include <asm/arch_timer.h>
 #include <asm/mcpm.h>
 #include <asm/mcpm_plat.h>
 
@@ -35,11 +34,6 @@ static void __iomem *APMU_CORE_IDLE_CFG[4];
 static void __iomem *APMU_CORE_RSTCTRL[4];
 static void __iomem *APMU_MP_IDLE_CFG[4];
 static void __iomem *ICU_GBL_INT_MSK[4];
-/* percpu pmu wakeup timer */
-static void __iomem *APMU_GT_WAKEUP_MA_L[4];
-static void __iomem *APMU_GT_WAKEUP_MA_H[4];
-/* saved percpu generic timer compare value */
-static u64 cval[4];
 
 static struct cpuidle_state pxa1908_modes[] = {
 	[0] = {
@@ -54,33 +48,36 @@ static struct cpuidle_state pxa1908_modes[] = {
 		.exit_latency		= 350,
 		.target_residency	= 700,
 		/*
-		 * Since ULC/Helan3 adds PMU timer in always on domain to
-		 * wakeup core/MP/AP sub/chip, there's no need to use
-		 * CPUIDLE_FLAG_TIMER_STOP flag to notify cpu pm to switch
-		 * to boardcast timer when cpu is power off.
+		 * Use CPUIDLE_FLAG_TIMER_STOP flag to let the cpuidle
+		 * framework handle the CLOCK_EVENT_NOTIFY_BROADCAST_
+		 * ENTER/EXIT when entering idle states.
 		 */
-		.flags			= CPUIDLE_FLAG_TIME_VALID,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
 		.name			= "C2",
 		.desc			= "C2: Core power down",
 	},
 	[2] = {
 		.exit_latency		= 450,
 		.target_residency	= 900,
-		.flags			= CPUIDLE_FLAG_TIME_VALID,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
 		.name			= "MP2",
 		.desc			= "MP2: Core subsystem power down",
 	},
 	[3] = {
 		.exit_latency		= 500,
 		.target_residency	= 1000,
-		.flags			= CPUIDLE_FLAG_TIME_VALID,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
 		.name			= "D1p",
 		.desc			= "D1p: AP idle state",
 	},
 	[4] = {
 		.exit_latency		= 600,
 		.target_residency	= 1200,
-		.flags			= CPUIDLE_FLAG_TIME_VALID,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
 		.name			= "D1",
 		.desc			= "D1: Chip idle state",
 	},
@@ -153,7 +150,7 @@ static void pxa1908_edge_wakeup_disable(void)
 	 PMUM_KEYPRESS | PMUM_WDT | PMUM_RTC_ALARM | PMUM_AP0_2_TIMER_1 | \
 	 PMUM_AP0_2_TIMER_2 | PMUM_AP0_2_TIMER_3 | PMUM_AP1_TIMER_1 | \
 	 PMUM_AP1_TIMER_2 | PMUM_AP1_TIMER_3 | PMUM_WAKEUP7 | PMUM_WAKEUP6 | \
-	 PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 | PMUM_WAKEUP2 | PMUM_AP_GT)
+	 PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 | PMUM_WAKEUP2)
 static u32 s_awucrm;
 static u32 apbc_timer0;
 /*
@@ -368,23 +365,10 @@ static void pxa1908_set_pmu(u32 cpu, u32 calc_state, u32 vote_state)
 	 */
 	pxa1908_gic_global_mask(cpu, 1);
 	pxa1908_icu_global_mask(cpu, 1);
-	/*
-	 * Set PMU timer to wakeup cpu:
-	 * 1. Get current generic timer's compare value;
-	 * 2. Set the value to PMU timer's match reg;
-	 */
-	cval[cpu] = arch_timer_get_cval();
-	writel_relaxed(cval[cpu] & 0xFFFFFFFF, APMU_GT_WAKEUP_MA_L[cpu]);
-	writel_relaxed((cval[cpu] >> 32) & 0xFFFFFFFF, APMU_GT_WAKEUP_MA_H[cpu]);
 }
 
 static void pxa1908_clr_pmu(u32 cpu)
 {
-	/*
-	 * Must re-enable generic timer and set saved cval to its
-	 * compare value reg to trigger timer intrrupt.
-	 */
-	arch_timer_enable(cval[cpu]);
 	/*
 	 * Only GIC is used in normal cases. For ICU, after enters
 	 * lpm it's auto enabled by hardware. So mask it here.
@@ -462,15 +446,6 @@ static void __init pxa1908_reg_init(void)
 	ICU_GBL_INT_MSK[1] = icu_virt_addr  + CORE1_CA7_GLB_INT_MASK;
 	ICU_GBL_INT_MSK[2] = icu_virt_addr  + CORE2_CA7_GLB_INT_MASK;
 	ICU_GBL_INT_MSK[3] = icu_virt_addr  + CORE3_CA7_GLB_INT_MASK;
-
-	APMU_GT_WAKEUP_MA_L[0] = apmu_virt_addr + PMU_TIMER_MA0L;
-	APMU_GT_WAKEUP_MA_L[1] = apmu_virt_addr + PMU_TIMER_MA1L;
-	APMU_GT_WAKEUP_MA_L[2] = apmu_virt_addr + PMU_TIMER_MA2L;
-	APMU_GT_WAKEUP_MA_L[3] = apmu_virt_addr + PMU_TIMER_MA3L;
-	APMU_GT_WAKEUP_MA_H[0] = apmu_virt_addr + PMU_TIMER_MA0H;
-	APMU_GT_WAKEUP_MA_H[1] = apmu_virt_addr + PMU_TIMER_MA1H;
-	APMU_GT_WAKEUP_MA_H[2] = apmu_virt_addr + PMU_TIMER_MA2H;
-	APMU_GT_WAKEUP_MA_H[3] = apmu_virt_addr + PMU_TIMER_MA3H;
 }
 
 #define APMU_WAKEUP_CORE(n)		(1 << (n & 0x3))
@@ -517,11 +492,6 @@ static int __init pxa1908_lowpower_init(void)
 	apcr |= PMUM_DTCMSD | PMUM_BBSD | PMUM_MSASLPEN;
 	apcr &= ~(PMUM_STBYEN | DISABLE_ALL_WAKEUP_PORTS);
 	writel_relaxed(apcr, mpmu_virt_addr + APCR);
-	/* Enable PMU wakeup timer for four cores */
-	writel_relaxed(1, apmu_virt_addr + PMU_TIMER_CTL0);
-	writel_relaxed(1, apmu_virt_addr + PMU_TIMER_CTL1);
-	writel_relaxed(1, apmu_virt_addr + PMU_TIMER_CTL2);
-	writel_relaxed(1, apmu_virt_addr + PMU_TIMER_CTL3);
 	/* TODO: Is 10us still valid for CA53? */
 	/* set the power stable timer as 10us */
 	writel_relaxed(0x28207, apmu_virt_addr + STBL_TIMER);
