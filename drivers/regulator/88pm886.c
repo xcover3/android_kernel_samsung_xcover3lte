@@ -315,7 +315,7 @@ static struct pm886_regulator_info pm886_regulator_configs[] = {
 	PM886_LDO(LDO6, EN1, 5, 400000, ldo_volt_table2),
 	PM886_LDO(LDO7, EN1, 6, 400000, ldo_volt_table2),
 	PM886_LDO(LDO8, EN1, 7, 400000, ldo_volt_table2),
-	PM886_LDO(LDO9, EN1, 0, 400000, ldo_volt_table2),
+	PM886_LDO(LDO9, EN2, 0, 400000, ldo_volt_table2),
 	PM886_LDO(LDO10, EN2, 1, 200000, ldo_volt_table2),
 	PM886_LDO(LDO11, EN2, 2, 200000, ldo_volt_table2),
 	PM886_LDO(LDO12, EN2, 3, 200000, ldo_volt_table2),
