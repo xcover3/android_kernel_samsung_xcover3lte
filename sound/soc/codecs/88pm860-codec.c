@@ -449,6 +449,11 @@ static int pm860_set_dai_startup(struct snd_pcm_substream *substream,
 
 			}
 		}
+
+		/* enable pll_compat_mode */
+		tmp = snd_soc_read(codec, PM860_TDM_PLL_DIV);
+		tmp |= (1 << 5);
+		snd_soc_write(codec, PM860_TDM_PLL_DIV, tmp);
 		/* align the tdm slot space with MAP */
 		snd_soc_write(codec, PM860_TDM_SETTING15, 0x10);
 		/* align fsyn pulse width with MAP */
