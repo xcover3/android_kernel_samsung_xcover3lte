@@ -31,11 +31,8 @@
 		regulator-boot-on;
 	};
 	ldo3: regulator-ldo3 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo4: regulator-ldo4 {
-		regulator-always-on;
 		regulator-boot-on;
 	};
 	ldo5: regulator-ldo5 {
@@ -43,58 +40,31 @@
 		regulator-boot-on;
 	};
 	ldo6: regulator-ldo6 {
-		regulator-always-on;
 		regulator-boot-on;
 	};
 	ldo7: regulator-ldo7 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo8: regulator-ldo8 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo9: regulator-ldo9 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo10: regulator-ldo10 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
-	ldo11: regulator-ldo11 {
-		regulator-always-on;
-		regulator-boot-on;
+	ldo11: regulator-ldo11 { /* ldo11 is enabled in uboot for LCD */
+	        regulator-boot-on;
 	};
 	ldo12: regulator-ldo12 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo13: regulator-ldo13 {
 		regulator-always-on;
 		regulator-boot-on;
 	};
 	ldo14: regulator-ldo14 {
-		regulator-always-on;
 		regulator-boot-on;
 	};
 	ldo15: regulator-ldo15 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo16: regulator-ldo16 {
-		regulator-always-on;
-		regulator-boot-on;
-	};
-	headset {
-		marvell,headset-flag = <1>;
-		marvell,hook-press-th = <60>;
-		marvell,vol-up-press-th = <250>;
-		marvell,vol-down-press-th = <500>;
-		marvell,mic-det-th = <600>;
-		marvell,press-release-th = <600>;
-		marvell,micbias-supply = <&ldo16>;
-		status = "okay";
 	};
 
 	headset {

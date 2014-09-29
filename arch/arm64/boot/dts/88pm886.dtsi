@@ -155,9 +155,8 @@
 		compatible = "marvell,88pm886-battery";
 	};
 
-	headset {
-		  compatible = "marvell,88pm80x-headset";
-		  status = "disabled";
+	dvc {
+		  compatible = "marvell,88pm886-dvc";
 	};
 
 	headset {
