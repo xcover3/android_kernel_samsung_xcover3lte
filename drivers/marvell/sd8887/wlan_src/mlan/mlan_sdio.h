@@ -228,12 +228,15 @@ Change log:
 #define CARD_TYPE_SD8801   0x04
 /** SD8897 card type */
 #define CARD_TYPE_SD8897   0x05
+/** SD8797 card type */
+#define CARD_TYPE_SD8797   0x06
 
 #define IS_SD8777(ct) (CARD_TYPE_SD8777 == (ct))
 #define IS_SD8787(ct) (CARD_TYPE_SD8787 == (ct))
 #define IS_SD8887(ct) (CARD_TYPE_SD8887 == (ct))
 #define IS_SD8801(ct) (CARD_TYPE_SD8801 == (ct))
 #define IS_SD8897(ct) (CARD_TYPE_SD8897 == (ct))
+#define IS_SD8797(ct) (CARD_TYPE_SD8797 == (ct))
 /** Event header Len*/
 #define MLAN_EVENT_HEADER_LEN           8
 
@@ -536,6 +539,30 @@ static const struct _mlan_sdio_device mlan_sdio_sd8787 = {
 	.ampdu_info = &ampdu_info_nov15,
 };
 
+static const struct _mlan_sdio_device mlan_sdio_sd8797 = {
+	.reg = &mlan_reg_sd87xx,
+	.max_ports = 16,
+	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_8,
+	.supports_sdio_new_mode = MFALSE,
+	.has_control_mask = MTRUE,
+	.io_port_0_reg = 0x78,
+	.io_port_1_reg = 0x79,
+	.io_port_2_reg = 0x7A,
+	.host_int_rsr_reg = 0x01,
+	.card_rx_len_reg = 0x62,
+	.card_rx_unit_reg = 0x63,
+	.host_int_mask_reg = 0x02,
+	.host_int_status_reg = 0x03,
+	.mp_tx_aggr_buf_size = 16384,
+	.mp_rx_aggr_buf_size = 16384,
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+	.driver_supplicant_auth = 0,
+	.v15_update = 0,
+	.v15_fw_api = 0,
+	.ext_scan = 1,
+	.ampdu_info = &ampdu_info_nov15,
+};
+
 static const struct _mlan_sdio_device mlan_sdio_sd8887 = {
 	.reg = &mlan_reg_sd8887,
 	.max_ports = 32,
@@ -585,7 +612,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8801 = {
 	.driver_supplicant_auth = 1,
 	.v15_update = 0,
 	.v15_fw_api = 0,
-	.ext_scan = 0,
+	.ext_scan = 1,
 	.ampdu_info = &ampdu_info_nov15,
 };
 

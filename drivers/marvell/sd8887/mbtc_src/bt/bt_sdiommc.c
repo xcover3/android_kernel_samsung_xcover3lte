@@ -32,6 +32,8 @@
 #define MAX_WRITE_IOMEM_RETRY	2
 /** Firmware name */
 static char *fw_name;
+/** fw serial download flag */
+static int bt_fw_serial = 1;
 /** request firmware nowait */
 static int req_fw_nowait;
 static int multi_fn = BIT(2);
@@ -60,6 +62,7 @@ static u8 fw_crc_header_rb_1[FW_CRC_HEADER_RB] = {
 /** Default firmware name */
 #define DEFAULT_FW_NAME_8777 "mrvl/sd8777_uapsta.bin"
 #define DEFAULT_FW_NAME_8787 "mrvl/sd8787_uapsta.bin"
+#define DEFAULT_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
 #define DEFAULT_FW_NAME_8887 "mrvl/sd8887_uapsta.bin"
 #define DEFAULT_FW_NAME_8897 "mrvl/sd8897_uapsta.bin"
 
@@ -67,9 +70,27 @@ static u8 fw_crc_header_rb_1[FW_CRC_HEADER_RB] = {
 #define SD8787_W0      0x30
 #define SD8787_W1      0x31
 #define SD8787_A0_A1   0x40
+/** SD8797 chip revision ID */
+#define SD8797_A0       0x00
+#define SD8797_B0       0x10
+/** SD8897 chip revision ID */
+#define SD8897_A0       0x10
+#define SD8897_B0       0x20
+
+/** SD8887 chip revision ID */
+#define SD8887_A0       0x0
+#define SD8887_A2       0x2
+#define SD8887_A0_FW_NAME "mrvl/sd8887_uapsta.bin"
+#define SD8887_A2_FW_NAME "mrvl/sd8887_uapsta_a2.bin"
+#define SD8887_A2_BT_FW_NAME "mrvl/sd8887_bt_a2.bin"
+
+#define SD8897_A0_FW_NAME "mrvl/sd8897_uapsta_a0.bin"
+#define SD8897_B0_FW_NAME "mrvl/sd8897_uapsta.bin"
 
 #define SD8787_W1_FW_NAME "mrvl/sd8787_uapsta_w1.bin"
 #define SD8787_AX_FW_NAME "mrvl/sd8787_uapsta.bin"
+#define SD8797_A0_FW_NAME "mrvl/sd8797_uapsta_a0.bin"
+#define SD8797_B0_FW_NAME "mrvl/sd8797_uapsta.bin"
 /** Function number 2 */
 #define FN2			2
 /** Device ID for SD8787 FN2 */
@@ -88,6 +109,10 @@ static u8 fw_crc_header_rb_1[FW_CRC_HEADER_RB] = {
 #define SD_DEVICE_ID_8897_BT_FN2    0x912E
 /** Device ID for SD8897 FN3 */
 #define SD_DEVICE_ID_8897_BT_FN3    0x912F
+/** Device ID for SD8797 FN2 */
+#define SD_DEVICE_ID_8797_BT_FN2    0x912A
+/** Device ID for SD8797 FN3 */
+#define SD_DEVICE_ID_8797_BT_FN3    0x912B
 
 /** Array of SDIO device ids when multi_fn=0x12 */
 static const struct sdio_device_id bt_ids[] = {
@@ -95,6 +120,7 @@ static const struct sdio_device_id bt_ids[] = {
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8777_BT_FN2)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8887_BT_FN2)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8897_BT_FN2)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8797_BT_FN2)},
 	{}
 };
 
@@ -584,10 +610,7 @@ sd_init_fw_dpc(bt_private *priv, u8 *fw, int fw_len)
 			       offset);
 			goto done;
 		}
-		if (!crc_buffer
-		    && ((priv->card_type == CARD_TYPE_SD8787) ||
-			(priv->card_type == CARD_TYPE_SD8777))
-			)
+		if (!crc_buffer)
 			/* More data? */
 			if (offset >= firmwarelen)
 				break;
@@ -849,27 +872,30 @@ sd_download_firmware_w_helper(bt_private *priv)
 
 	cur_fw_name = fw_name;
 	if (fw_name == NULL) {
-		/* Check revision ID */
-		switch (priv->adapter->chip_rev) {
-		case SD8787_W0:
-		case SD8787_W1:
-			cur_fw_name = SD8787_W1_FW_NAME;
-			break;
-		case SD8787_A0_A1:
-			cur_fw_name = SD8787_AX_FW_NAME;
-			break;
-		default:
-			cur_fw_name = DEFAULT_FW_NAME;
-			break;
-		}
 		if (priv->card_type == CARD_TYPE_SD8787)
 			cur_fw_name = DEFAULT_FW_NAME_8787;
 		else if (priv->card_type == CARD_TYPE_SD8777)
 			cur_fw_name = DEFAULT_FW_NAME_8777;
-		else if (priv->card_type == CARD_TYPE_SD8887)
-			cur_fw_name = DEFAULT_FW_NAME_8887;
-		else if (priv->card_type == CARD_TYPE_SD8897)
+		else if (priv->card_type == CARD_TYPE_SD8887) {
+			/* Check revision ID */
+			switch (priv->adapter->chip_rev) {
+			case SD8887_A0:
+				cur_fw_name = SD8887_A0_FW_NAME;
+				break;
+			case SD8887_A2:
+				if (bt_fw_serial == 1)
+					cur_fw_name = SD8887_A2_FW_NAME;
+				else
+					cur_fw_name = SD8887_A2_BT_FW_NAME;
+				break;
+			default:
+				cur_fw_name = DEFAULT_FW_NAME_8887;
+				break;
+			}
+		} else if (priv->card_type == CARD_TYPE_SD8897)
 			cur_fw_name = DEFAULT_FW_NAME_8897;
+		else if (priv->card_type == CARD_TYPE_SD8797)
+			cur_fw_name = DEFAULT_FW_NAME_8797;
 	}
 
 	if (req_fw_nowait) {
@@ -1249,7 +1275,8 @@ sd_interrupt(struct sdio_func *func)
 		       ireg);
 		priv->adapter->irq_recv = ireg;
 		if (priv->card_type != CARD_TYPE_SD8887 &&
-		    priv->card_type != CARD_TYPE_SD8897) {
+		    priv->card_type != CARD_TYPE_SD8897 &&
+		    priv->card_type != CARD_TYPE_SD8797) {
 			sdio_writeb(card->func,
 				    ~(ireg) & (DN_LD_HOST_INT_STATUS |
 					       UP_LD_HOST_INT_STATUS),
@@ -1584,7 +1611,8 @@ sbi_register_dev(bt_private *priv)
 	       priv->bt_dev.ioport);
 #define SDIO_INT_MASK       0x3F
 	if (priv->card_type == CARD_TYPE_SD8887 ||
-	    priv->card_type == CARD_TYPE_SD8897) {
+	    priv->card_type == CARD_TYPE_SD8897 ||
+	    priv->card_type == CARD_TYPE_SD8797) {
 		/* Set Host interrupt reset to read to clear */
 		reg = sdio_readb(func, host_int_rsr_reg, &ret);
 		if (ret < 0)
@@ -1942,6 +1970,9 @@ sdio_update_card_type(bt_private *priv, void *card)
 	else if (cardp->func->device == SD_DEVICE_ID_8897_BT_FN2 ||
 		 cardp->func->device == SD_DEVICE_ID_8897_BT_FN3)
 		priv->card_type = CARD_TYPE_SD8897;
+	else if (cardp->func->device == SD_DEVICE_ID_8797_BT_FN2 ||
+		 cardp->func->device == SD_DEVICE_ID_8797_BT_FN3)
+		priv->card_type = CARD_TYPE_SD8797;
 }
 
 /**
@@ -1970,6 +2001,9 @@ sdio_get_sdio_device(bt_private *priv)
 		break;
 	case CARD_TYPE_SD8897:
 		priv->psdio_device = &bt_sdio_sd8897;
+		break;
+	case CARD_TYPE_SD8797:
+		priv->psdio_device = &bt_sdio_sd8797;
 		break;
 	default:
 		PRINTM(ERROR, "BT can't get right card type \n");
@@ -2067,3 +2101,6 @@ MODULE_PARM_DESC(req_fw_nowait,
 		 "0: Use request_firmware API; 1: Use request_firmware_nowait API");
 module_param(multi_fn, int, 0);
 MODULE_PARM_DESC(multi_fn, "Bit 2: FN2;");
+module_param(bt_fw_serial, int, 0);
+MODULE_PARM_DESC(bt_fw_serial,
+		 "0: Support parallel download FW; 1: Support serial download FW");

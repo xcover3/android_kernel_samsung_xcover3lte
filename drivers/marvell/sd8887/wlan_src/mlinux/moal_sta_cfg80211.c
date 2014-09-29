@@ -174,6 +174,10 @@ static int
 #endif
 			      struct station_parameters *params);
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
+				struct cfg80211_update_ft_ies_params *ftie);
+#endif
 /** cfg80211 operations */
 static struct cfg80211_ops woal_cfg80211_ops = {
 	.change_virtual_intf = woal_cfg80211_change_virtual_intf,
@@ -217,6 +221,9 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 	.tdls_mgmt = woal_cfg80211_tdls_mgmt,
 	.add_station = woal_cfg80211_add_station,
 	.change_station = woal_cfg80211_change_station,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	.update_ft_ies = woal_cfg80211_update_ft_ies,
 #endif
 #ifdef UAP_CFG80211
 	.add_virtual_intf = woal_cfg80211_add_virtual_intf,
@@ -723,6 +730,35 @@ woal_cfg80211_assoc_ies_cfg(moal_private *priv, t_u8 *ie, int ie_len,
 			       pvendor_ie->vend_hdr.oui[1],
 			       pvendor_ie->vend_hdr.oui[2],
 			       pvendor_ie->vend_hdr.oui_type);
+			break;
+		case MOBILITY_DOMAIN:
+			break;
+		case FAST_BSS_TRANSITION:
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_set_get_gen_ie(priv, MLAN_ACT_SET,
+						pcurrent_ptr, &total_ie_len,
+						wait_option)) {
+				PRINTM(MERROR,
+				       "Fail to set"
+				       "FAST_BSS_TRANSITION IE\n");
+				ret = -EFAULT;
+				goto done;
+			}
+			PRINTM(MIOCTL, "Set FAST_BSS_TRANSITION IE\n");
+			break;
+		case RIC:
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_set_get_gen_ie(priv, MLAN_ACT_SET,
+						pcurrent_ptr, &total_ie_len,
+						wait_option)) {
+				PRINTM(MERROR,
+				       "Fail to set"
+				       "RESOURCE INFORMATION CONTAINER IE\n");
+				ret = -EFAULT;
+				goto done;
+			}
+			PRINTM(MIOCTL,
+			       "Set RESOURCE INFORMATION CONTAINER IE\n");
 			break;
 		default:
 			if (MLAN_STATUS_SUCCESS !=
@@ -1624,6 +1660,13 @@ woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option)
 		ret = -EFAULT;
 		goto done;
 	}
+	if ((priv->ft_pre_connect ||
+	     conn_param->auth_type == NL80211_AUTHTYPE_FT)
+	    && priv->ft_ie_len) {
+		ie = priv->ft_ie;
+		ie_len = priv->ft_ie_len;
+		priv->ft_ie_len = 0;
+	}
 	if (ie && ie_len) {	/* Set the IE */
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_assoc_ies_cfg(priv, ie, ie_len,
@@ -1641,8 +1684,12 @@ woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option)
 			auth_type = MLAN_AUTH_MODE_SHARED;
 		else if (conn_param->auth_type == NL80211_AUTHTYPE_NETWORK_EAP)
 			auth_type = MLAN_AUTH_MODE_NETWORKEAP;
+		else if (conn_param->auth_type == NL80211_AUTHTYPE_FT)
+			auth_type = MLAN_AUTH_MODE_FT;
 		else
 			auth_type = MLAN_AUTH_MODE_AUTO;
+		if (priv->ft_pre_connect)
+			auth_type = MLAN_AUTH_MODE_FT;
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_set_auth_mode(priv, wait_option, auth_type)) {
 			ret = -EFAULT;
@@ -2064,6 +2111,21 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 		return;
 #endif
 	}
+	if ((handle->country_code[0] != request->alpha2[0]) ||
+	    (handle->country_code[1] != request->alpha2[1])) {
+		t_u8 country_code[COUNTRY_CODE_LEN];
+		memset(country_code, 0, sizeof(country_code));
+		country_code[0] = request->alpha2[0];
+		country_code[1] = request->alpha2[1];
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_request_country_power_table(priv, country_code)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
+			return -EFAULT;
+#else
+			return;
+#endif
+		}
+	}
 	handle->country_code[0] = request->alpha2[0];
 	handle->country_code[1] = request->alpha2[1];
 	handle->country_code[2] = ' ';
@@ -2347,7 +2409,8 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 						NULL, 0, NULL, 0,
 						(t_u8 *)priv->scan_request->ie,
 						priv->scan_request->ie_len,
-						MGMT_MASK_PROBE_REQ)) {
+						MGMT_MASK_PROBE_REQ,
+						MOAL_IOCTL_WAIT)) {
 			PRINTM(MERROR, "Fail to set scan request IE\n");
 			ret = -EFAULT;
 			goto done;
@@ -2357,7 +2420,8 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 		if (priv->probereq_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK)
 			woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0,
 						    NULL, 0, NULL, 0,
-						    MGMT_MASK_PROBE_REQ);
+						    MGMT_MASK_PROBE_REQ,
+						    MOAL_IOCTL_WAIT);
 	}
 #ifdef UAP_CFG80211
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
@@ -2385,6 +2449,382 @@ done:
 		spin_unlock_irqrestore(&priv->scan_req_lock, flags);
 	} else
 		PRINTM(MMSG, "wlan: %s START SCAN\n", dev->name);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief construct and send ft action request
+ *
+*  @param priv     A pointer to moal_private structure
+ * @param ie       A pointer to ft ie
+ * @param le       Value of ie len
+ * @param bssid    A pointer to target ap bssid
+ * @
+ * @return         0 -- success, otherwise fail
+ */
+static int
+woal_send_ft_action_requst(moal_private *priv, t_u8 *ie, t_u8 len, t_u8 *bssid,
+			   t_u8 *target_ap)
+{
+	IEEE80211_MGMT *mgmt = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	pmlan_buffer pmbuf = NULL;
+	t_u32 pkt_type;
+	t_u32 tx_control;
+	t_u16 packet_len = 0;
+	t_u8 addr[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+	int ret = 0;
+
+	ENTER();
+
+	/* pkt_type + tx_control */
+#define HEADER_SIZE				8
+	/* frmctl + durationid + addr1 + addr2 + addr3 + seqctl + addr4 */
+#define MGMT_HEADER_LEN		(2 + 2 + 6 + 6 + 6 + 2 +6)
+	/* 14 = category + action + sta addr + target ap */
+#define FT_REQUEST_LEN 14
+	packet_len = (t_u16)len + MGMT_HEADER_LEN + FT_REQUEST_LEN;
+	pmbuf = woal_alloc_mlan_buffer(priv->phandle,
+				       MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
+				       packet_len + sizeof(packet_len));
+	if (!pmbuf) {
+		PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
+	pkt_type = MRVL_PKT_TYPE_MGMT_FRAME;
+	tx_control = 0;
+	/* Add pkt_type and tx_control */
+	memcpy(pmbuf->pbuf + pmbuf->data_offset, &pkt_type, sizeof(pkt_type));
+	memcpy(pmbuf->pbuf + pmbuf->data_offset + sizeof(pkt_type), &tx_control,
+	       sizeof(tx_control));
+	/* Add packet len */
+	memcpy(pmbuf->pbuf + pmbuf->data_offset + HEADER_SIZE, &packet_len,
+	       sizeof(packet_len));
+
+	mgmt = (IEEE80211_MGMT *)(pmbuf->pbuf + pmbuf->data_offset +
+				  HEADER_SIZE + sizeof(packet_len));
+	memset(mgmt, 0, MGMT_HEADER_LEN);
+	mgmt->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT |
+					  IEEE80211_STYPE_ACTION);
+	memcpy(mgmt->da, bssid, ETH_ALEN);
+	memcpy(mgmt->sa, priv->current_addr, ETH_ALEN);
+	memcpy(mgmt->bssid, bssid, ETH_ALEN);
+	memcpy(mgmt->addr4, addr, ETH_ALEN);
+
+	mgmt->u.ft_req.category = 0x06;	/**ft action code 0x6*/
+	mgmt->u.ft_req.action = 0x1; /**ft action request*/
+	memcpy(mgmt->u.ft_req.sta_addr, priv->current_addr, ETH_ALEN);
+	memcpy(mgmt->u.ft_req.target_ap_addr, target_ap, ETH_ALEN);
+
+	if (ie && len)
+		memcpy((t_u8 *)(&mgmt->u.ft_req.variable), ie, len);
+
+	pmbuf->data_len = HEADER_SIZE + packet_len + sizeof(packet_len);
+	pmbuf->buf_type = MLAN_BUF_TYPE_RAW_DATA;
+	pmbuf->bss_index = priv->bss_index;
+	pmbuf->priority = 7;
+
+	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
+
+	switch (status) {
+	case MLAN_STATUS_PENDING:
+		atomic_inc(&priv->phandle->tx_pending);
+		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);
+		break;
+	case MLAN_STATUS_SUCCESS:
+		woal_free_mlan_buffer(priv->phandle, pmbuf);
+		break;
+	case MLAN_STATUS_FAILURE:
+	default:
+		woal_free_mlan_buffer(priv->phandle, pmbuf);
+		ret = -EFAULT;
+		break;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief construct and send ft auth request
+ *
+*  @param priv     A pointer to moal_private structure
+ * @param ie       A pointer to ft ie
+ * @param le       Value of ie len
+ * @param bssid    A pointer to target ap bssid
+ * @
+ * @return         0 -- success, otherwise fail
+ */
+static int
+woal_send_ft_auth_requst(moal_private *priv, t_u8 *ie, t_u8 len, t_u8 *bssid)
+{
+	IEEE80211_MGMT *mgmt = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	pmlan_buffer pmbuf = NULL;
+	t_u32 pkt_type;
+	t_u32 tx_control;
+	t_u16 packet_len = 0;
+	t_u8 addr[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+	int ret = 0;
+
+	ENTER();
+	/* pkt_type + tx_control */
+#define HEADER_SIZE				8
+	/* frmctl + durationid + addr1 + addr2 + addr3 + seqctl + addr4 */
+#define MGMT_HEADER_LEN		(2 + 2 + 6 + 6 + 6 + 2 +6)
+	/* 6 = auth_alg + auth_transaction +auth_status */
+#define AUTH_BODY_LEN 6
+	packet_len = (t_u16)len + MGMT_HEADER_LEN + AUTH_BODY_LEN;
+	pmbuf = woal_alloc_mlan_buffer(priv->phandle,
+				       MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
+				       packet_len + sizeof(packet_len));
+	if (!pmbuf) {
+		PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
+	pkt_type = MRVL_PKT_TYPE_MGMT_FRAME;
+	tx_control = 0;
+	/* Add pkt_type and tx_control */
+	memcpy(pmbuf->pbuf + pmbuf->data_offset, &pkt_type, sizeof(pkt_type));
+	memcpy(pmbuf->pbuf + pmbuf->data_offset + sizeof(pkt_type), &tx_control,
+	       sizeof(tx_control));
+	/* Add packet len */
+	memcpy(pmbuf->pbuf + pmbuf->data_offset + HEADER_SIZE, &packet_len,
+	       sizeof(packet_len));
+
+	mgmt = (IEEE80211_MGMT *)(pmbuf->pbuf + pmbuf->data_offset +
+				  HEADER_SIZE + sizeof(packet_len));
+	memset(mgmt, 0, MGMT_HEADER_LEN);
+	mgmt->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT |
+					  IEEE80211_STYPE_AUTH);
+	memcpy(mgmt->da, bssid, ETH_ALEN);
+	memcpy(mgmt->sa, priv->current_addr, ETH_ALEN);
+	memcpy(mgmt->bssid, bssid, ETH_ALEN);
+	memcpy(mgmt->addr4, addr, ETH_ALEN);
+
+	mgmt->u.auth.auth_alg = cpu_to_le16(WLAN_AUTH_FT);
+	mgmt->u.auth.auth_transaction = cpu_to_le16(1);
+	mgmt->u.auth.status_code = cpu_to_le16(0);
+	if (ie && len)
+		memcpy((t_u8 *)(&mgmt->u.auth.variable), ie, len);
+
+	pmbuf->data_len = HEADER_SIZE + packet_len + sizeof(packet_len);
+	pmbuf->buf_type = MLAN_BUF_TYPE_RAW_DATA;
+	pmbuf->bss_index = priv->bss_index;
+	pmbuf->priority = 7;
+
+	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
+
+	switch (status) {
+	case MLAN_STATUS_PENDING:
+		atomic_inc(&priv->phandle->tx_pending);
+		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);
+		break;
+	case MLAN_STATUS_SUCCESS:
+		woal_free_mlan_buffer(priv->phandle, pmbuf);
+		break;
+	case MLAN_STATUS_FAILURE:
+	default:
+		woal_free_mlan_buffer(priv->phandle, pmbuf);
+		ret = -EFAULT;
+		break;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief connect the AP through ft over air.
+ *
+ * @param priv            A pointer to moal_private structure
+ * @param bssid           A pointer to bssid
+ * @param chan            struct ieee80211_channel
+ *
+ * @return                0 -- success, otherwise fail
+ */
+static int
+woal_connect_ft_over_air(moal_private *priv, t_u8 *bssid,
+			 struct ieee80211_channel *chan)
+{
+	struct wiphy *wiphy = priv->wdev->wiphy;
+	mlan_bss_info bss_info;
+	t_u8 status = 0, wait_option = MOAL_CMD_WAIT;
+	int ret = 0;
+	long timeout = 0;
+
+	ENTER();
+
+	if (!priv->ft_roaming_triggered_by_driver) {
+		wait_option = MOAL_IOCTL_WAIT;
+		memset(&bss_info, 0, sizeof(bss_info));
+		woal_get_bss_info(priv, wait_option, &bss_info);
+	}
+
+	if (priv->ft_roaming_triggered_by_driver || (priv->media_connected &&
+						     bss_info.mdid ==
+						     priv->ft_md &&
+						     bss_info.ft_cap ==
+						     priv->ft_cap)) {
+		ret = MTRUE;
+
+		/* enable auth register frame */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
+		woal_cfg80211_mgmt_frame_register(wiphy, priv->netdev,
+						  IEEE80211_STYPE_AUTH, MTRUE);
+#else
+		woal_cfg80211_mgmt_frame_register(wiphy, priv->wdev,
+						  IEEE80211_STYPE_AUTH, MTRUE);
+#endif
+#define AUTH_TX_DEFAULT_WAIT_TIME  1200
+		woal_cfg80211_remain_on_channel_cfg(priv, wait_option, MFALSE,
+						    &status, chan, 0,
+						    AUTH_TX_DEFAULT_WAIT_TIME);
+		/* construct auth request and send out */
+		woal_send_ft_auth_requst(priv, priv->ft_ie, priv->ft_ie_len,
+					 bssid);
+		PRINTM(MMSG, "wlan: send out FT auth,wait for auth response\n");
+		/* wait until received auth response */
+		priv->ft_wait_condition = MFALSE;
+		timeout =
+			wait_event_timeout(priv->ft_wait_q,
+					   priv->ft_wait_condition, 1 * HZ);
+		if (!timeout) {
+			/* connet fail */
+			if (!priv->ft_roaming_triggered_by_driver) {
+				woal_inform_bss_from_scan_result(priv, NULL,
+								 wait_option);
+				cfg80211_connect_result(priv->netdev,
+							priv->cfg_bssid, NULL,
+							0, NULL, 0,
+							WLAN_STATUS_SUCCESS,
+							GFP_KERNEL);
+			}
+			priv->ft_roaming_triggered_by_driver = MFALSE;
+			PRINTM(MMSG,
+			       "wlan: keep connected to bssid " MACSTR "\n",
+			       MAC2STR(priv->cfg_bssid));
+		} else {
+			PRINTM(MMSG, "wlan: FT auth received \n");
+			memcpy(priv->target_ap_bssid, bssid, ETH_ALEN);
+		}
+		woal_cfg80211_remain_on_channel_cfg(priv, wait_option, MTRUE,
+						    &status, NULL, 0, 0);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
+		woal_cfg80211_mgmt_frame_register(wiphy, priv->netdev,
+						  IEEE80211_STYPE_AUTH, MFALSE);
+#else
+		woal_cfg80211_mgmt_frame_register(wiphy, priv->wdev,
+						  IEEE80211_STYPE_AUTH, MFALSE);
+#endif
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief connect the AP through ft over DS.
+ *
+ * @param priv            A pointer to moal_private structure
+ * @param bssid           A pointer to bssid
+ * @param chan            struct ieee80211_channel
+ *
+ * @return                0 -- success, otherwise fail
+ */
+static int
+woal_connect_ft_over_ds(moal_private *priv, t_u8 *bssid)
+{
+	t_u8 status = 0, wait_option = MOAL_CMD_WAIT;
+	struct ieee80211_channel chan;
+	mlan_bss_info bss_info;
+	int ret = 0;
+	long timeout = 0;
+
+	ENTER();
+
+	if (!priv->ft_roaming_triggered_by_driver)
+		wait_option = MOAL_IOCTL_WAIT;
+
+	memset(&bss_info, 0, sizeof(bss_info));
+	woal_get_bss_info(priv, wait_option, &bss_info);
+	chan.band = (bss_info.bss_chan < 36) ?
+		IEEE80211_BAND_2GHZ : IEEE80211_BAND_5GHZ;
+	chan.center_freq =
+		ieee80211_channel_to_frequency(bss_info.bss_chan, chan.band);
+
+	if (priv->media_connected) {
+		woal_cfg80211_remain_on_channel_cfg(priv, wait_option, MFALSE,
+						    &status, &chan, 0, 1200);
+		/* construct ft action request and send out */
+		woal_send_ft_action_requst(priv, priv->ft_ie, priv->ft_ie_len,
+					   (t_u8 *)priv->cfg_bssid, bssid);
+		PRINTM(MMSG,
+		       "wlan: send out FT request,wait for FT response\n");
+		/* wait until received auth response */
+		priv->ft_wait_condition = MFALSE;
+		timeout =
+			wait_event_timeout(priv->ft_wait_q,
+					   priv->ft_wait_condition, 1 * HZ);
+		if (!timeout) {
+			/* connet fail */
+			priv->ft_roaming_triggered_by_driver = MFALSE;
+			PRINTM(MMSG,
+			       "wlan: keep connected to bssid " MACSTR "\n",
+			       MAC2STR(priv->cfg_bssid));
+		} else {
+			PRINTM(MMSG, "wlan: received FT response\n");
+			memcpy(priv->target_ap_bssid, bssid, ETH_ALEN);
+		}
+		woal_cfg80211_remain_on_channel_cfg(priv, wait_option, MTRUE,
+						    &status, NULL, 0, 0);
+
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief start FT Roaming.
+ *
+ * @param priv               A pointer to moal_private structure
+ * @param ssid_bssid         A pointer to mlan_ssid_bssid structure
+ *
+ *
+ * @return                   0 -- success, otherwise fail
+ */
+static int
+woal_start_ft_roaming(moal_private *priv, mlan_ssid_bssid *ssid_bssid)
+{
+	struct ieee80211_channel chan;
+	int ret = 0;
+
+	ENTER();
+	PRINTM(MEVENT, "Try to start FT roaming......\n");
+
+	priv->ft_roaming_triggered_by_driver = MTRUE;
+	if (ssid_bssid->ft_cap & MBIT(0)) {
+		woal_connect_ft_over_ds(priv, (t_u8 *)&ssid_bssid->bssid);
+	} else {
+		chan.band = (ssid_bssid->channel < 36) ?
+			IEEE80211_BAND_2GHZ : IEEE80211_BAND_5GHZ;
+		chan.center_freq =
+			ieee80211_channel_to_frequency(ssid_bssid->channel,
+						       chan.band);
+		woal_connect_ft_over_air(priv, (t_u8 *)&ssid_bssid->bssid,
+					 &chan);
+	}
+
 	LEAVE();
 	return ret;
 }
@@ -2481,6 +2921,16 @@ woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	}
 #endif
 #endif
+	/* Fast BSS Transition use ft-over-air */
+	if (priv->media_connected && priv->ft_ie_len &&
+	    !(priv->ft_cap & MBIT(0))) {
+		ret = woal_connect_ft_over_air(priv, (t_u8 *)sme->bssid,
+					       sme->channel);
+		if (ret == MTRUE) {
+			LEAVE();
+			return 0;
+		}
+	}
 	priv->cfg_connect = MTRUE;
 	if (priv->scan_type == MLAN_SCAN_TYPE_PASSIVE)
 		woal_set_scan_type(priv, MLAN_SCAN_TYPE_ACTIVE);
@@ -2516,6 +2966,8 @@ woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		PRINTM(MINFO, "wlan: Failed to connect to bssid " MACSTR "\n",
 		       MAC2STR(priv->cfg_bssid));
 		memset(priv->cfg_bssid, 0, ETH_ALEN);
+		priv->ft_ie_len = 0;
+		priv->ft_pre_connect = MFALSE;
 		spin_unlock_irqrestore(&priv->connect_lock, flags);
 		cfg80211_connect_result(priv->netdev, priv->cfg_bssid, NULL, 0,
 					NULL, 0, woal_get_assoc_status(priv),
@@ -3442,7 +3894,8 @@ woal_cfg80211_sched_scan_start(struct wiphy *wiphy,
 						NULL, 0, NULL, 0,
 						(t_u8 *)request->ie,
 						request->ie_len,
-						MGMT_MASK_PROBE_REQ)) {
+						MGMT_MASK_PROBE_REQ,
+						MOAL_IOCTL_WAIT)) {
 			PRINTM(MERROR, "Fail to set sched scan IE\n");
 			ret = -EFAULT;
 			goto done;
@@ -3452,7 +3905,8 @@ woal_cfg80211_sched_scan_start(struct wiphy *wiphy,
 		if (priv->probereq_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK)
 			woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0,
 						    NULL, 0, NULL, 0,
-						    MGMT_MASK_PROBE_REQ);
+						    MGMT_MASK_PROBE_REQ,
+						    MOAL_IOCTL_WAIT);
 	}
 
 	/* Interval between scan cycles in milliseconds,supplicant set to 10
@@ -4827,6 +5281,148 @@ done:
 	return ret;
 }
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+/**
+ * @brief Update ft ie for Fast BSS Transition
+ *
+ * @param wiphy           A pointer to wiphy structure
+ * @param dev             A pointer to net_device structure
+ * @param ftie           A pointer to cfg80211_update_ft_ies_params structure
+ *
+ * @return                0 success , other failure
+ */
+int
+woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
+			    struct cfg80211_update_ft_ies_params *ftie)
+{
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	IEEEtypes_MobilityDomain_t *md_ie = NULL;
+	int ret = 0;
+	mlan_ds_misc_assoc_rsp assoc_rsp;
+	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
+	mlan_bss_info bss_info;
+
+	ENTER();
+
+#ifdef MLAN_64BIT
+	PRINTM(MINFO, "==>woal_cfg80211_update_ft_ies %lx \n", ftie->ie_len);
+#else
+	PRINTM(MINFO, "==>woal_cfg80211_update_ft_ies %x \n", ftie->ie_len);
+#endif
+	if (!ftie) {
+		LEAVE();
+		return ret;
+	}
+	md_ie = (IEEEtypes_MobilityDomain_t *)woal_parse_ie_tlv(ftie->ie,
+								ftie->ie_len,
+								MOBILITY_DOMAIN);
+	if (!md_ie) {
+		PRINTM(MERROR, "No Mobility domain IE\n");
+		LEAVE();
+		return ret;
+	}
+	priv->ft_cap = md_ie->ft_cap;
+	memset(priv->ft_ie, 0, MAX_IE_SIZE);
+	memcpy(priv->ft_ie, ftie->ie, MIN(ftie->ie_len, MAX_IE_SIZE));
+	priv->ft_ie_len = ftie->ie_len;
+	priv->ft_md = ftie->md;
+
+	if (!priv->ft_pre_connect) {
+		LEAVE();
+		return ret;
+	}
+	/* check if is different AP */
+	if (!memcmp
+	    (&priv->target_ap_bssid, priv->cfg_bssid, MLAN_MAC_ADDR_LENGTH)) {
+		PRINTM(MMSG, "This is the same AP, no Fast bss transition\n");
+		priv->ft_pre_connect = MFALSE;
+		priv->ft_ie_len = 0;
+		LEAVE();
+		return 0;
+	}
+
+	/* start fast BSS transition to target AP */
+	priv->assoc_status = 0;
+	priv->sme_current.bssid = priv->conn_bssid;
+	memcpy((void *)priv->sme_current.bssid, &priv->target_ap_bssid,
+	       MLAN_MAC_ADDR_LENGTH);
+	ret = woal_cfg80211_assoc(priv, (void *)&priv->sme_current,
+				  MOAL_IOCTL_WAIT);
+
+	if ((priv->ft_cap & MBIT(0)) || priv->ft_roaming_triggered_by_driver) {
+		if (!ret) {
+			woal_inform_bss_from_scan_result(priv, NULL,
+							 MOAL_IOCTL_WAIT);
+			memset(&assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
+			woal_get_assoc_rsp(priv, &assoc_rsp);
+			passoc_rsp =
+				(IEEEtypes_AssocRsp_t *)assoc_rsp.
+				assoc_resp_buf;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) || defined(COMPAT_WIRELESS)
+			cfg80211_roamed(priv->netdev, NULL, priv->cfg_bssid,
+					priv->sme_current.ie,
+					priv->sme_current.ie_len,
+					passoc_rsp->ie_buffer,
+					assoc_rsp.assoc_resp_len -
+					ASSOC_RESP_FIXED_SIZE, GFP_KERNEL);
+#else
+			cfg80211_roamed(priv->netdev, priv->cfg_bssid,
+					priv->sme_current.ie,
+					priv->sme_current.ie_len,
+					passoc_rsp->ie_buffer,
+					assoc_rsp.assoc_resp_len -
+					ASSOC_RESP_FIXED_SIZE, GFP_KERNEL);
+#endif
+			PRINTM(MMSG,
+			       "Fast BSS transition to bssid " MACSTR
+			       " successfully\n", MAC2STR(priv->cfg_bssid));
+		} else {
+			PRINTM(MMSG,
+			       "Fast BSS transition failed, keep connect to "
+			       MACSTR " \n", MAC2STR(priv->cfg_bssid));
+			priv->ft_ie_len = 0;
+		}
+		priv->ft_roaming_triggered_by_driver = MFALSE;
+
+	} else {
+		PRINTM(MMSG, "Fast BSS Transition use ft-over-air\n");
+		if (!ret) {
+			memset(&assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
+			woal_get_assoc_rsp(priv, &assoc_rsp);
+			passoc_rsp =
+				(IEEEtypes_AssocRsp_t *)assoc_rsp.
+				assoc_resp_buf;
+			cfg80211_connect_result(priv->netdev, priv->cfg_bssid,
+						NULL, 0, passoc_rsp->ie_buffer,
+						assoc_rsp.assoc_resp_len -
+						ASSOC_RESP_FIXED_SIZE,
+						WLAN_STATUS_SUCCESS,
+						GFP_KERNEL);
+			PRINTM(MMSG,
+			       "wlan: Fast Bss transition to bssid " MACSTR
+			       " successfully\n", MAC2STR(priv->cfg_bssid));
+
+			memset(&bss_info, 0, sizeof(bss_info));
+			woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
+			priv->channel = bss_info.bss_chan;
+		} else {
+			PRINTM(MMSG,
+			       "wlan: Failed to connect to bssid " MACSTR "\n",
+			       MAC2STR(priv->cfg_bssid));
+			cfg80211_connect_result(priv->netdev, priv->cfg_bssid,
+						NULL, 0, NULL, 0,
+						woal_get_assoc_status(priv),
+						GFP_KERNEL);
+			memset(priv->cfg_bssid, 0, ETH_ALEN);
+			priv->ft_ie_len = 0;
+		}
+	}
+
+	priv->ft_pre_connect = MFALSE;
+	LEAVE();
+	return 0;
+}
+#endif
 
 /**
  * @brief Save connect parameters for roaming
@@ -4900,6 +5496,12 @@ woal_start_roaming(moal_private *priv)
 	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
 
 	ENTER();
+	if (priv->ft_roaming_triggered_by_driver) {
+		PRINTM(MIOCTL, "FT roaming is in processing ...... \n");
+		LEAVE();
+		return;
+	}
+
 	if (priv->last_event & EVENT_BG_SCAN_REPORT) {
 		woal_inform_bss_from_scan_result(priv, NULL, MOAL_CMD_WAIT);
 		PRINTM(MIOCTL, "Report bgscan result\n");
@@ -4923,7 +5525,7 @@ woal_start_roaming(moal_private *priv)
 	memcpy(ssid_bssid.ssid.ssid, priv->sme_current.ssid,
 	       priv->sme_current.ssid_len);
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_find_best_network(priv, MOAL_IOCTL_WAIT, &ssid_bssid)) {
+	    woal_find_best_network(priv, MOAL_CMD_WAIT, &ssid_bssid)) {
 		PRINTM(MIOCTL, "Can not find better network\n");
 		ret = -EFAULT;
 		goto done;
@@ -4944,6 +5546,12 @@ woal_start_roaming(moal_private *priv)
 			ret = -EFAULT;
 			goto done;
 		}
+	}
+/**check if need start FT Roaming*/
+	if (priv->ft_ie_len && (priv->ft_md == ssid_bssid.ft_md) &&
+	    (priv->ft_cap == ssid_bssid.ft_cap)) {
+		woal_start_ft_roaming(priv, &ssid_bssid);
+		goto done;
 	}
 	/* start roaming to new AP */
 	priv->sme_current.bssid = priv->conn_bssid;
@@ -5252,10 +5860,7 @@ woal_register_cfg80211(moal_private *priv)
 		woal_set_scan_time(priv, ACTIVE_SCAN_CHAN_TIME,
 				   PASSIVE_SCAN_CHAN_TIME,
 				   SPECIFIC_SCAN_CHAN_TIME);
-	if (priv->phandle->card_type == CARD_TYPE_SD8801)
-		woal_enable_ext_scan(priv, MFALSE);
-	else
-		woal_enable_ext_scan(priv, MTRUE);
+
 	priv->phandle->band = IEEE80211_BAND_2GHZ;
 
 	/* Initialize cipher suits */

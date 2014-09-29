@@ -1396,6 +1396,10 @@ wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 						ampdu_info->ampdu_uap_rxwinsize;
 #endif
 			}
+			if (pmadapter->coex_win_size &&
+			    pmadapter->coex_rx_win_size)
+				priv->add_ba_param.rx_win_size =
+					pmadapter->coex_rx_win_size;
 			if (rx_win_size != priv->add_ba_param.rx_win_size) {
 				if (priv->media_connected == MTRUE) {
 					for (i = 0; i < MAX_NUM_TID; i++)

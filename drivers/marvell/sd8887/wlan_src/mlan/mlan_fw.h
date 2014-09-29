@@ -438,6 +438,25 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV type : RXBA_SYNC */
 #define TLV_TYPE_RXBA_SYNC           (PROPRIETARY_TLV_BASE_ID + 0x99)	/* 0x0199
 									 */
+
+#ifdef WIFI_DIRECT_SUPPORT
+/** TLV type : AP PSK */
+#define TLV_TYPE_UAP_PSK   (PROPRIETARY_TLV_BASE_ID + 0xa8)	/* 0x01a8 */
+/** TLV type : p2p NOA */
+#define TLV_TYPE_WIFI_DIRECT_NOA            (PROPRIETARY_TLV_BASE_ID + 0x83)
+/** TLV type : p2p opp ps */
+#define TLV_TYPE_WIFI_DIRECT_OPP_PS         (PROPRIETARY_TLV_BASE_ID + 0x84)
+#endif /* WIFI_DIRECT_SUPPORT */
+
+/** TLV : 20/40 coex config */
+#define TLV_TYPE_2040_BSS_COEX_CONTROL\
+		(PROPRIETARY_TLV_BASE_ID + 0x98)	/* 0x0198 */
+
+/** TLV type :  aggr win size */
+#define TLV_BTCOEX_WL_AGGR_WINSIZE					(PROPRIETARY_TLV_BASE_ID + 0xca)
+/** TLV type :  scan time */
+#define TLV_BTCOEX_WL_SCANTIME    					(PROPRIETARY_TLV_BASE_ID + 0Xcb)
+
 /** ADDBA TID mask */
 #define ADDBA_TID_MASK   (MBIT(2) | MBIT(3) | MBIT(4) | MBIT(5))
 /** DELBA TID mask */
@@ -1455,6 +1474,8 @@ typedef enum _ENH_PS_MODES {
 
 /** Event ID: Tx status */
 #define EVENT_TX_STATUS_REPORT               0x00000074
+
+#define EVENT_BT_COEX_WLAN_PARA_CHANGE	 0x00000076
 
 #define EVENT_FW_DUMP_INFO      0x0000FFFE
 /** Event ID mask */
@@ -4375,14 +4396,11 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_MacAddr_t {
 /** TLV ID : Management Frame */
 #define TLV_TYPE_UAP_MGMT_FRAME\
 		(PROPRIETARY_TLV_BASE_ID + 0x68)	/* 0x0168 */
-#ifdef UAP_SUPPORT
+
 /**TLV type: AP mgmt IE passthru mask */
 #define TLV_TYPE_UAP_MGMT_IE_PASSTHRU_MASK\
 		(PROPRIETARY_TLV_BASE_ID + 0x70)	/* 0x0170 */
-#endif
-/** TLV : 20/40 coex config */
-#define TLV_TYPE_2040_BSS_COEX_CONTROL\
-		(PROPRIETARY_TLV_BASE_ID + 0x98)	/* 0x0198 */
+
 /**TLV type: AP pairwise handshake timeout */
 #define TLV_TYPE_UAP_EAPOL_PWK_HSK_TIMEOUT\
 		(PROPRIETARY_TLV_BASE_ID + 0x75)	/* 0x0175 */
@@ -4407,15 +4425,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_MacAddr_t {
 /** TLV type : BSS Status */
 #define TLV_TYPE_BSS_STATUS\
 		(PROPRIETARY_TLV_BASE_ID + 0x93)	/* 0x0193 */
-
-#ifdef WIFI_DIRECT_SUPPORT
-/** TLV type : AP PSK */
-#define TLV_TYPE_UAP_PSK   (PROPRIETARY_TLV_BASE_ID + 0xa8)	/* 0x01a8 */
-/** TLV type : p2p NOA */
-#define TLV_TYPE_WIFI_DIRECT_NOA            (PROPRIETARY_TLV_BASE_ID + 0x83)
-/** TLV type : p2p opp ps */
-#define TLV_TYPE_WIFI_DIRECT_OPP_PS         (PROPRIETARY_TLV_BASE_ID + 0x84)
-#endif /* WIFI_DIRECT_SUPPORT */
 
 /** MrvlIEtypes_beacon_period_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_beacon_period_t {
@@ -4555,7 +4564,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_eapol_gwk_hsk_retries_t {
 	t_u32 gwk_retries;
 } MLAN_PACK_END MrvlIEtypes_eapol_gwk_hsk_retries_t;
 
-#ifdef UAP_SUPPORT
 /** MrvlIEtypes_mgmt_ie_passthru_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_mgmt_ie_passthru_t {
     /** Header */
@@ -4563,15 +4571,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_mgmt_ie_passthru_t {
     /** mgmt IE mask value */
 	t_u32 mgmt_ie_mask;
 } MLAN_PACK_END MrvlIEtypes_mgmt_ie_passthru_t;
-#endif
-
-/** TLV buffer : 2040 coex config */
-typedef MLAN_PACK_START struct _MrvlIEtypes_2040_coex_enable_t {
-    /** Header */
-	MrvlIEtypesHeader_t header;
-    /** Enable */
-	t_u8 enable_2040coex;
-} MLAN_PACK_END MrvlIEtypes_2040_coex_enable_t;
 
 /** MrvlIEtypes_mac_filter_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_mac_filter_t {
@@ -4869,6 +4868,42 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_wapi_info_t {
 	t_u8 multicast_PN[16];
 } MLAN_PACK_END MrvlIEtypes_wapi_info_t;
 #endif /* UAP_SUPPORT */
+
+/** TLV buffer : 2040 coex config */
+typedef MLAN_PACK_START struct _MrvlIEtypes_2040_coex_enable_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Enable */
+	t_u8 enable_2040coex;
+} MLAN_PACK_END MrvlIEtypes_2040_coex_enable_t;
+
+/**BT coexit scan time setting*/
+typedef MLAN_PACK_START struct _MrvlIEtypes_BtCoexScanTime_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /**coex scan state  0: disable 1: enable*/
+	t_u8 coex_scan;
+    /**reserved*/
+	t_u8 reserved;
+    /**min scan time*/
+	t_u16 min_scan_time;
+    /**max scan time*/
+	t_u16 max_scan_time;
+} MLAN_PACK_END MrvlIEtypes_BtCoexScanTime_t;
+
+/**BT coexit aggr win size */
+typedef MLAN_PACK_START struct _MrvlIETypes_BtCoexAggrWinSize_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /**winsize  0: restore default winsize, 1: use below winsize */
+	t_u8 coex_win_size;
+    /**tx win size*/
+	t_u8 tx_win_size;
+    /**rx win size*/
+	t_u8 rx_win_size;
+    /**reserved*/
+	t_u8 reserved;
+} MLAN_PACK_END MrvlIETypes_BtCoexAggrWinSize_t;
 
 #ifdef RX_PACKET_COALESCE
 typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {

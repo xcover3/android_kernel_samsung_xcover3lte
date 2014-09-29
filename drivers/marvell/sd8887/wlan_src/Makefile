@@ -103,7 +103,7 @@ EXTRA_CFLAGS += -DLINUX
 # Alternatively KERNELDIR can be set in the environment.
 # Default value for KERNELDIR is set below.
 CROSS_COMPILE ?= /usr/local/arm-eabi-4.6/bin/arm-eabi-
-KERNELDIR ?= /usr/src/arm/linux-3.10.0-pxa1088-kk44
+KERNELDIR ?= /usr/src/arm/linux-3.10.33-pxa1088-kk44
 
 # CROSS_COMPILE specify the prefix used for all executables used
 # during compilation. Only gcc and related bin-utils executables

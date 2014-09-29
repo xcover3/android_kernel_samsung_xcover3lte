@@ -57,6 +57,10 @@ Change log:
 #define DEFAULT_FW_NAME_8887 "mrvl/sd8887_uapsta.bin"
 #define DEFAULT_FW_NAME_8801 "mrvl/sd8801_uapsta.bin"
 #define DEFAULT_FW_NAME_8897 "mrvl/sd8897_uapsta.bin"
+#define DEFAULT_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
+#define SD8887_A0_FW_NAME    "mrvl/sd8887_uapsta.bin"
+#define SD8887_A2_FW_NAME    "mrvl/sd8887_uapsta_a2.bin"
+#define SD8887_WLAN_A2_FW_NAME "mrvl/sd8887_wlan_a2.bin"
 #ifndef DEFAULT_FW_NAME
 #define DEFAULT_FW_NAME ""
 #endif
@@ -70,6 +74,7 @@ Change log:
 #define DEFAULT_AP_FW_NAME_8887 "mrvl/sd8887_uapsta.bin"
 #define DEFAULT_AP_FW_NAME_8801 "mrvl/sd8801_uapsta.bin"
 #define DEFAULT_AP_FW_NAME_8897 "mrvl/sd8897_uapsta.bin"
+#define DEFAULT_AP_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
 #ifndef DEFAULT_AP_FW_NAME
 #define DEFAULT_AP_FW_NAME ""
 #endif
@@ -82,6 +87,7 @@ Change log:
 #define DEFAULT_AP_STA_FW_NAME_8887 "mrvl/sd8887_uapsta.bin"
 #define DEFAULT_AP_STA_FW_NAME_8801 "mrvl/sd8801_uapsta.bin"
 #define DEFAULT_AP_STA_FW_NAME_8897 "mrvl/sd8897_uapsta.bin"
+#define DEFAULT_AP_STA_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
 #ifndef DEFAULT_AP_STA_FW_NAME
 #define DEFAULT_AP_STA_FW_NAME ""
 #endif

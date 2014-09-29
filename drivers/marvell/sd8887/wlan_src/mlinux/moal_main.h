@@ -535,9 +535,6 @@ out:
 /* IOCTL Timeout */
 #define MOAL_IOCTL_TIMEOUT                    (20 * HZ)
 
-/** shutdown timeout */
-#define MOAL_SHUTDOWN_TIMEOUT                 (25 * 1000)
-
 /** Threshold value of number of times the Tx timeout happened */
 #define NUM_TX_TIMEOUT_THRESHOLD      5
 
@@ -1005,6 +1002,24 @@ struct _moal_private {
 	u32 last_event;
 	/** fake scan flag */
 	u8 fake_scan_complete;
+	/**ft ie*/
+	t_u8 ft_ie[MAX_IE_SIZE];
+    /**ft ie len*/
+	t_u8 ft_ie_len;
+    /**mobility domain value*/
+	t_u16 ft_md;
+    /**ft capability*/
+	t_u8 ft_cap;
+    /**set true during ft connection*/
+	t_bool ft_pre_connect;
+    /**ft roaming triggered by driver or not*/
+	t_bool ft_roaming_triggered_by_driver;
+    /**target ap mac address for Fast Transition*/
+	t_u8 target_ap_bssid[ETH_ALEN];
+    /** IOCTL wait queue for FT*/
+	wait_queue_head_t ft_wait_q __ATTRIB_ALIGN__;
+	/** ft wait condition */
+	t_bool ft_wait_condition;
 #endif				/* STA_SUPPORT */
 #endif				/* STA_CFG80211 */
 	/** IOCTL wait queue */
@@ -1142,6 +1157,10 @@ struct _moal_handle {
 	struct timeval req_fw_time;
 	/** Init config file */
 	const struct firmware *user_data;
+	/** Init user configure wait queue token */
+	t_u16 init_user_conf_wait_flag;
+	/** Init user configure file wait queue */
+	wait_queue_head_t init_user_conf_wait_q __ATTRIB_ALIGN__;
 	/** Hotplug device */
 	struct device *hotplug_device;
     /** STATUS variables */
@@ -1204,10 +1223,6 @@ struct _moal_handle {
 	/** Bitmap for re-association on/off */
 	t_u8 reassoc_on;
 #endif				/* REASSOCIATION */
-    /** shutdown timer set flag */
-	BOOLEAN is_shutdown_timer_set;
-	/** shutdown timer */
-	moal_drv_timer shutdown_timer __ATTRIB_ALIGN__;
 	/** Driver workqueue */
 	struct workqueue_struct *workqueue;
 	/** main work */
@@ -1301,6 +1316,8 @@ struct _moal_handle {
 	t_u8 main_state;
     /** driver state */
 	t_u8 driver_state;
+    /** ioctl timeout */
+	t_u8 ioctl_timeout;
     /** FW dump state */
 	t_u8 fw_dump;
 	/** cmd52 function */
@@ -1702,6 +1719,8 @@ typedef struct _HostCmd_DS_802_11_CFG_DATA {
 #define CARD_TYPE_SD8801   0x04
 /** SD8897 card type */
 #define CARD_TYPE_SD8897   0x05
+/** SD8797 card type */
+#define CARD_TYPE_SD8797   0x06
 
 /** combo scan header */
 #define WEXT_CSCAN_HEADER		"CSCAN S\x01\x00\x00S\x00"
@@ -2044,8 +2063,6 @@ void woal_mlan_debug_info(moal_private *priv);
 int woal_reassociation_thread(void *data);
 void woal_reassoc_timer_func(void *context);
 #endif /* REASSOCIATION */
-
-void woal_shutdown_timer_func(void *context);
 
 t_void woal_main_work_queue(struct work_struct *work);
 t_void woal_rx_work_queue(struct work_struct *work);

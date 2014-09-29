@@ -318,7 +318,7 @@ int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 			      u8 *mac_addr);
 #endif
 #endif
-void woal_clear_all_mgmt_ies(moal_private *priv);
+void woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option);
 int woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 				const t_u8 *beacon_ies, size_t beacon_ies_len,
 				const t_u8 *proberesp_ies,
@@ -326,7 +326,8 @@ int woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 				const t_u8 *assocresp_ies,
 				size_t assocresp_ies_len,
 				const t_u8 *probereq_ies,
-				size_t probereq_ies_len, t_u16 mask);
+				size_t probereq_ies_len, t_u16 mask,
+				t_u8 wait_option);
 
 t_u8 woal_is_any_interface_active(moal_handle *handle);
 

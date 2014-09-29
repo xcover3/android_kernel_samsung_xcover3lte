@@ -1059,7 +1059,7 @@ wlan_uap_callback_11h_channel_check_req(IN t_void *priv)
 		/* No command sent with the ioctl, need manually signal
 		   completion */
 		pcb->moal_ioctl_complete(pmpriv->adapter->pmoal_handle,
-					 pioctl, MLAN_STATUS_FAILURE);
+					 pioctl, MLAN_STATUS_COMPLETE);
 	}
 
 	LEAVE();

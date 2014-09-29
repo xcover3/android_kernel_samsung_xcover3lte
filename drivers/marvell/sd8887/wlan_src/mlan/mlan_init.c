@@ -1246,7 +1246,6 @@ wlan_init_fw_complete(IN pmlan_adapter pmadapter)
 	/* Check if hardware is ready */
 	if (pmadapter->hw_status != WlanHardwareStatusReady)
 		status = MLAN_STATUS_FAILURE;
-
 	/* Invoke callback */
 	ret = pcb->moal_init_fw_complete(pmadapter->pmoal_handle, status);
 	LEAVE();

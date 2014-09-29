@@ -2231,7 +2231,7 @@ wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv, int resp_len)
 	while (resp_len >= sizeof(ptlv_hdr->header)) {
 		ptlv_hdr = (MrvlIEtypes_Data_t *)pcurrent;
 		tlv_len = wlan_le16_to_cpu(ptlv_hdr->header.len);
-		if ((tlv_len + sizeof(MrvlIEtypes_Data_t)) > resp_len) {
+		if ((tlv_len + sizeof(ptlv_hdr->header)) > resp_len) {
 			PRINTM(MERROR,
 			       "WMM get status: Error in processing  TLV buffer\n");
 			resp_len = 0;

@@ -94,6 +94,11 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	OVERLAPBSSSCANPARAM = 74,
 	EXT_CAPABILITY = 127,
 	LINK_ID = 101,
+	/* IEEE802.11r */
+	MOBILITY_DOMAIN = 54,
+	FAST_BSS_TRANSITION = 55,
+	TIMEOUT_INTERVAL = 56,
+	RIC = 57,
 	VHT_CAPABILITY = 191,
 	VHT_OPERATION = 192,
 	EXT_BSS_LOAD = 193,
@@ -158,6 +163,134 @@ typedef MLAN_PACK_START struct _IEEEtypes_Generic_t {
     /** IE Max - size of previous fields */
 	t_u8 data[IEEE_MAX_IE_SIZE - sizeof(IEEEtypes_Header_t)];
 } MLAN_PACK_END IEEEtypes_Generic_t, *pIEEEtypes_Generic_t;
+
+/**ft capability policy*/
+typedef MLAN_PACK_START struct _IEEEtypes_FtCapPolicy_t {
+#ifdef BIG_ENDIAN_SUPPORT
+    /** Reserved */
+	t_u8 reserved:6;
+    /** RIC support */
+	t_u8 ric:1;
+    /** FT over the DS capable */
+	t_u8 ft_over_ds:1;
+#else
+    /** FT over the DS capable */
+	t_u8 ft_over_ds:1;
+    /** RIC support */
+	t_u8 ric:1;
+    /** Reserved */
+	t_u8 reserved:6;
+#endif
+} MLAN_PACK_END IEEEtypes_FtCapPolicy_t;
+
+/** Mobility domain IE */
+typedef MLAN_PACK_START struct _IEEEtypes_MobilityDomain_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+    /** Mobility Domain ID */
+	t_u16 mdid;
+    /** FT Capability policy */
+	t_u8 ft_cap;
+} MLAN_PACK_END IEEEtypes_MobilityDomain_t;
+
+/**FT MIC Control*/
+typedef MLAN_PACK_START struct _IEEEtypes_FT_MICControl_t {
+	/** reserved */
+	t_u8 reserved;
+	/** element count */
+	t_u8 element_count;
+} MLAN_PACK_END IEEEtypes_FT_MICControl_t;
+
+/** FTIE MIC LEN */
+#define FTIE_MIC_LEN  16
+
+/**FT IE*/
+typedef MLAN_PACK_START struct _IEEEtypes_FastBssTransElement_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	/** mic control */
+	IEEEtypes_FT_MICControl_t mic_control;
+	/** mic */
+	t_u8 mic[FTIE_MIC_LEN];
+	/** ANonce */
+	t_u8 a_nonce[32];
+	/** SNonce */
+	t_u8 s_nonce[32];
+	/** sub element */
+	t_u8 sub_element[1];
+} MLAN_PACK_END IEEEtypes_FastBssTransElement_t;
+
+/** auth frame body*/
+typedef MLAN_PACK_START struct {
+    /** auth alg */
+	t_u16 auth_alg;
+    /** auth transaction */
+	t_u16 auth_transaction;
+    /** status code */
+	t_u16 status_code;
+    /** variable */
+	t_u8 variable[0];
+} MLAN_PACK_END IEEEtypes_Auth_framebody;
+
+/*Category for FT*/
+#define FT_CATEGORY 6
+/** FT ACTION request */
+#define FT_ACTION_REQUEST 1
+/** FT ACTION response */
+#define FT_ACTION_RESPONSE 2
+
+/*FT response and FT ack*/
+typedef MLAN_PACK_START struct {
+    /** category */
+	t_u8 category;
+    /** action */
+	t_u8 action;
+    /** sta address */
+	t_u8 sta_addr[MLAN_MAC_ADDR_LENGTH];
+    /** target ap address */
+	t_u8 target_ap_addr[MLAN_MAC_ADDR_LENGTH];
+    /** status code */
+	t_u16 status_code;
+    /** varible */
+	t_u8 variable[0];
+} MLAN_PACK_END IEEEtypes_Ft_action_response;
+
+/**FT request */
+typedef MLAN_PACK_START struct {
+    /** category */
+	t_u8 category;
+    /** action */
+	t_u8 action;
+    /** sta address */
+	t_u8 sta_addr[MLAN_MAC_ADDR_LENGTH];
+    /** target ap address */
+	t_u8 target_ap_addr[MLAN_MAC_ADDR_LENGTH];
+    /** varible */
+	t_u8 variable[0];
+} MLAN_PACK_END IEEEtypes_Ft_action_request;
+
+/*Mgmt frame*/
+typedef MLAN_PACK_START struct {
+    /** frame control */
+	t_u16 frame_control;
+    /** duration */
+	t_u16 duration;
+    /** dest address */
+	t_u8 da[MLAN_MAC_ADDR_LENGTH];
+    /** source address */
+	t_u8 sa[MLAN_MAC_ADDR_LENGTH];
+    /** bssid */
+	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
+    /** seq control */
+	t_u16 seq_ctrl;
+    /** address 4 */
+	t_u8 addr4[MLAN_MAC_ADDR_LENGTH];
+	union {
+		IEEEtypes_Auth_framebody auth;
+		IEEEtypes_Ft_action_response ft_resp;
+		IEEEtypes_Ft_action_request ft_req;
+	} u;
+} MLAN_PACK_END IEEE80211_MGMT;
 
 /** TLV header */
 typedef MLAN_PACK_START struct _TLV_Generic_t {
@@ -1725,6 +1858,10 @@ typedef struct _BSSDescriptor_t {
 	IEEEtypes_Generic_t *posen_ie;
     /** osen IE offset in the beacon buffer */
 	t_u16 osen_offset;
+	/* Mobility domain IE */
+	IEEEtypes_MobilityDomain_t *pmd_ie;
+	/** Mobility domain IE offset in the beacon buffer */
+	t_u16 md_offset;
 
     /** Pointer to the returned scan response */
 	t_u8 *pbeacon_buf;

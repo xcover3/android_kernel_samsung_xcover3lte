@@ -63,6 +63,8 @@ static char mbt_driver_version[] = "SD8XXX-%s-" VERSION "-(" "FP" FPNUM ")"
 #define CARD_SD8887     "SD8887"
 /** SD8897 Card */
 #define CARD_SD8897     "SD8897"
+/** SD8797 Card */
+#define CARD_SD8797     "SD8797"
 
 /** Declare and initialize fw_version */
 static char fw_version[32] = "0.0.0.p0";
@@ -2505,6 +2507,8 @@ bt_add_card(void *card)
 		memcpy(mbt_driver_version, CARD_SD8887, strlen(CARD_SD8887));
 	else if (priv->card_type == CARD_TYPE_SD8897)
 		memcpy(mbt_driver_version, CARD_SD8897, strlen(CARD_SD8897));
+	else if (priv->card_type == CARD_TYPE_SD8797)
+		memcpy(mbt_driver_version, CARD_SD8797, strlen(CARD_SD8797));
 
 	if (BT_STATUS_SUCCESS != sdio_get_sdio_device(priv))
 		goto err_kmalloc;

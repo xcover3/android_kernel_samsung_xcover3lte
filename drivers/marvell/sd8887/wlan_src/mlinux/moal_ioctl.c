@@ -333,6 +333,8 @@ woal_wait_ioctl_complete(moal_private *priv, mlan_ioctl_req *req,
 
 	ENTER();
 
+	priv->phandle->ioctl_timeout = MFALSE;
+
 	switch (wait_option) {
 	case MOAL_NO_WAIT:
 		break;
@@ -369,16 +371,18 @@ woal_wait_ioctl_complete(moal_private *priv, mlan_ioctl_req *req,
 	spin_lock_irqsave(&priv->phandle->driver_lock, flags);
 	if (wait->condition == MFALSE) {
 		if ((wait_option == MOAL_IOCTL_WAIT_TIMEOUT) ||
-		    (wait_option == MOAL_CMD_WAIT_TIMEOUT))
+		    (wait_option == MOAL_CMD_WAIT_TIMEOUT)) {
+			priv->phandle->ioctl_timeout = MTRUE;
 			PRINTM(MMSG,
 			       "wlan: IOCTL timeout %p id=0x%x, sub_id=0x%x, wait_option=%d, action=%d\n",
 			       req, req->req_id, (*(t_u32 *)req->pbuf),
 			       wait_option, (int)req->action);
-		else
+		} else {
 			PRINTM(MMSG,
 			       "wlan: IOCTL by signal %p id=0x%x, sub_id=0x%x, wait_option=%d, action=%d\n",
 			       req, req->req_id, (*(t_u32 *)req->pbuf),
 			       wait_option, (int)req->action);
+		}
 		req->reserved_1 = 0;
 		status = MLAN_STATUS_PENDING;
 	} else {
@@ -2209,7 +2213,7 @@ woal_set_get_bss_role(moal_private *priv, struct iwreq *wrq)
 	} else {
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
-			woal_clear_all_mgmt_ies(priv);
+			woal_clear_all_mgmt_ies(priv, MOAL_IOCTL_WAIT);
 #endif
 		/* Initialize private structures */
 		woal_init_priv(priv, MOAL_IOCTL_WAIT);
@@ -4219,6 +4223,14 @@ woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
+#ifdef STA_CFG80211
+	if (priv->ft_pre_connect) {
+	/** skip check the scan age out */
+		ret = woal_find_best_network(priv, wait_option, ssid_bssid);
+		LEAVE();
+		return ret;
+	}
+#endif
 	do_gettimeofday(&t);
 /** scan result timeout value */
 #define SCAN_RESULT_AGEOUT      10

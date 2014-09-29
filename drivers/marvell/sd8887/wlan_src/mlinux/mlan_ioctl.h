@@ -549,6 +549,12 @@ typedef struct _mlan_ssid_bssid {
 	t_u32 idx;
     /** Receive signal strength in dBm */
 	t_s32 rssi;
+    /**mobility domain value*/
+	t_u16 ft_md;
+    /**ft capability*/
+	t_u8 ft_cap;
+    /**channel*/
+	t_u16 channel;
 } mlan_ssid_bssid;
 
 #ifdef UAP_SUPPORT
@@ -1325,6 +1331,10 @@ typedef struct _mlan_bss_info {
     /** AP/Peer supported rates */
 	t_u8 peer_supp_rates[MLAN_SUPPORTED_RATES];
 #endif				/* STA_SUPPORT */
+    /** Mobility Domain ID */
+	t_u16 mdid;
+    /** FT Capability policy */
+	t_u8 ft_cap;
 } mlan_bss_info, *pmlan_bss_info;
 
 /** MAXIMUM number of TID */

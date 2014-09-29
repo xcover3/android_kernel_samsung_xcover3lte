@@ -1216,7 +1216,7 @@ woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 			}
 		}
 
-		woal_clear_all_mgmt_ies(vir_priv);
+		woal_clear_all_mgmt_ies(vir_priv, MOAL_IOCTL_WAIT);
 		woal_cfg80211_deinit_p2p(vir_priv);
 		woal_bss_remove(vir_priv);
 #ifdef CONFIG_PROC_FS
@@ -1511,7 +1511,7 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 						  MGMT_MASK_PROBE_RESP |
 						  MGMT_MASK_ASSOC_RESP
 #endif
-			);
+						  , MOAL_IOCTL_WAIT);
 		if (ret)
 			goto done;
 	}
@@ -1522,7 +1522,8 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 						  params->beacon.beacon_ies,
 						  params->beacon.beacon_ies_len,
 						  NULL, 0, NULL, 0, NULL, 0,
-						  MGMT_MASK_BEACON_WPS_P2P);
+						  MGMT_MASK_BEACON_WPS_P2P,
+						  MOAL_IOCTL_WAIT);
 		if (ret) {
 			PRINTM(MERROR, "Failed to set beacon wps/p2p ie\n");
 			goto done;
@@ -1534,7 +1535,8 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 						  params->beacon_ies,
 						  params->beacon_ies_len, NULL,
 						  0, NULL, 0, NULL, 0,
-						  MGMT_MASK_BEACON_WPS_P2P);
+						  MGMT_MASK_BEACON_WPS_P2P,
+						  MOAL_IOCTL_WAIT);
 		if (ret) {
 			PRINTM(MERROR, "Failed to set beacon wps/p2p ie\n");
 			goto done;
@@ -1610,7 +1612,8 @@ woal_cfg80211_set_beacon(struct wiphy *wiphy,
 							  params->tail_len,
 							  NULL, 0, NULL, 0,
 							  NULL, 0,
-							  MGMT_MASK_BEACON);
+							  MGMT_MASK_BEACON,
+							  MOAL_IOCTL_WAIT);
 			if (ret)
 				goto done;
 		}
@@ -1620,7 +1623,8 @@ woal_cfg80211_set_beacon(struct wiphy *wiphy,
 							  params->
 							  beacon_ies_len, NULL,
 							  0, NULL, 0, NULL, 0,
-							  MGMT_MASK_BEACON_WPS_P2P);
+							  MGMT_MASK_BEACON_WPS_P2P,
+							  MOAL_IOCTL_WAIT);
 			if (ret) {
 				PRINTM(MERROR,
 				       "Failed to set beacon wps/p2p ie\n");
@@ -1633,7 +1637,8 @@ woal_cfg80211_set_beacon(struct wiphy *wiphy,
 							  params->
 							  proberesp_ies_len,
 							  NULL, 0, NULL, 0,
-							  MGMT_MASK_PROBE_RESP);
+							  MGMT_MASK_PROBE_RESP,
+							  MOAL_IOCTL_WAIT);
 			if (ret)
 				goto done;
 		}
@@ -1644,7 +1649,8 @@ woal_cfg80211_set_beacon(struct wiphy *wiphy,
 							  params->
 							  assocresp_ies_len,
 							  NULL, 0,
-							  MGMT_MASK_ASSOC_RESP);
+							  MGMT_MASK_ASSOC_RESP,
+							  MOAL_IOCTL_WAIT);
 			if (ret)
 				goto done;
 		}
@@ -1696,7 +1702,7 @@ woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 			goto done;
 		}
 	}
-	woal_clear_all_mgmt_ies(priv);
+	woal_clear_all_mgmt_ies(priv, MOAL_IOCTL_WAIT);
 
 #ifdef STA_SUPPORT
 	if (!woal_is_any_interface_active(priv->phandle)) {

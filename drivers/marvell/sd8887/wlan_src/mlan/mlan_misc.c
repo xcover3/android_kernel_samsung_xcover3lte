@@ -2184,6 +2184,7 @@ wlan_process_802dot11_mgmt_pkt(IN mlan_private *priv,
 	t_u8 *event_buf = MNULL;
 	mlan_event *pevent = MNULL;
 	t_u8 unicast = 0;
+	IEEE80211_MGMT *mgmt = MNULL;
 	t_u8 category;
 	t_u8 action_code;
 
@@ -2252,13 +2253,46 @@ wlan_process_802dot11_mgmt_pkt(IN mlan_private *priv,
 	}
 	pevent = (pmlan_event)event_buf;
 	pevent->bss_index = priv->bss_index;
-	pevent->event_id = MLAN_EVENT_ID_DRV_MGMT_FRAME;
-	pevent->event_len = payload_len + sizeof(pevent->event_id);
-	memcpy(pmadapter, (t_u8 *)pevent->event_buf,
-	       (t_u8 *)&pevent->event_id, sizeof(pevent->event_id));
-	memcpy(pmadapter,
-	       (t_u8 *)(pevent->event_buf + sizeof(pevent->event_id)), payload,
-	       payload_len);
+	mgmt = (IEEE80211_MGMT *)payload;
+	if (sub_type == SUBTYPE_ACTION &&
+	    mgmt->u.ft_resp.category == FT_CATEGORY &&
+	    mgmt->u.ft_resp.action == FT_ACTION_RESPONSE &&
+	    mgmt->u.ft_resp.status_code == 0) {
+		PRINTM(MCMND, "FT Action response received\n");
+#define FT_ACTION_HEAD_LEN (24 + 6 +16)
+		pevent->event_id = MLAN_EVENT_ID_DRV_FT_RESPONSE;
+		pevent->event_len =
+			payload_len + MLAN_MAC_ADDR_LENGTH - FT_ACTION_HEAD_LEN;
+		memcpy(pmadapter, (t_u8 *)pevent->event_buf,
+		       &mgmt->u.ft_resp.target_ap_addr, MLAN_MAC_ADDR_LENGTH);
+		memcpy(pmadapter,
+		       (t_u8 *)(pevent->event_buf + MLAN_MAC_ADDR_LENGTH),
+		       payload + FT_ACTION_HEAD_LEN,
+		       payload_len - FT_ACTION_HEAD_LEN);
+	} else if (sub_type == SUBTYPE_AUTH &&
+		   mgmt->u.auth.auth_alg == MLAN_AUTH_MODE_FT &&
+		   mgmt->u.auth.auth_transaction == 2 &&
+		   mgmt->u.auth.status_code == 0) {
+		PRINTM(MCMND, "FT auth response received \n");
+#define AUTH_PACKET_LEN (24 + 6 +6)
+		pevent->event_id = MLAN_EVENT_ID_DRV_FT_RESPONSE;
+		pevent->event_len =
+			payload_len + MLAN_MAC_ADDR_LENGTH - AUTH_PACKET_LEN;
+		memcpy(pmadapter, (t_u8 *)pevent->event_buf, mgmt->sa,
+		       MLAN_MAC_ADDR_LENGTH);
+		memcpy(pmadapter,
+		       (t_u8 *)(pevent->event_buf + MLAN_MAC_ADDR_LENGTH),
+		       payload + AUTH_PACKET_LEN,
+		       payload_len - AUTH_PACKET_LEN);
+	} else {
+		pevent->event_id = MLAN_EVENT_ID_DRV_MGMT_FRAME;
+		pevent->event_len = payload_len + sizeof(pevent->event_id);
+		memcpy(pmadapter, (t_u8 *)pevent->event_buf,
+		       (t_u8 *)&pevent->event_id, sizeof(pevent->event_id));
+		memcpy(pmadapter,
+		       (t_u8 *)(pevent->event_buf + sizeof(pevent->event_id)),
+		       payload, payload_len);
+	}
 	wlan_recv_event(priv, pevent->event_id, pevent);
 	if (event_buf)
 		pcb->moal_mfree(pmadapter->pmoal_handle, event_buf);
@@ -2678,17 +2712,16 @@ wlan_radio_ioctl_ant_cfg(IN pmlan_adapter pmadapter,
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		/* User input validation */
 		if (!ant_cfg->tx_antenna ||
-		    ant_cfg->tx_antenna & ~RF_ANTENNA_MASK(pmadapter->
-							   number_of_antenna)) {
+		    bitcount(ant_cfg->tx_antenna & 0xFFFF) >
+		    pmadapter->number_of_antenna) {
 			PRINTM(MERROR, "Invalid antenna setting\n");
 			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
 			ret = MLAN_STATUS_FAILURE;
 			goto exit;
 		}
 		if (ant_cfg->rx_antenna) {
-			if (ant_cfg->
-			    rx_antenna & ~RF_ANTENNA_MASK(pmadapter->
-							  number_of_antenna)) {
+			if (bitcount(ant_cfg->rx_antenna & 0xFFFF) >
+			    pmadapter->number_of_antenna) {
 				PRINTM(MERROR, "Invalid antenna setting\n");
 				pioctl_req->status_code =
 					MLAN_ERROR_INVALID_PARAMETER;

@@ -3784,6 +3784,11 @@ wlan_ops_uap_process_event(IN t_void *priv)
 		PRINTM(MINFO, "EVENT: TX_STATUS\n");
 		pevent->event_id = MLAN_EVENT_ID_FW_TX_STATUS;
 		break;
+	case EVENT_BT_COEX_WLAN_PARA_CHANGE:
+		PRINTM(MEVENT, "EVENT: BT coex wlan param update\n");
+		wlan_bt_coex_wlan_param_update_event(pmpriv, pmbuf);
+		break;
+
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		break;

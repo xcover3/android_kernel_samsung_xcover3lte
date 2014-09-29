@@ -56,6 +56,8 @@ extern int shutdown_hs;
 #define SD_DEVICE_ID_8801   (0x9139)
 /** Device ID for SD8897 */
 #define SD_DEVICE_ID_8897   (0x912d)
+/** Device ID for SD8797 */
+#define SD_DEVICE_ID_8797   (0x9129)
 
 /** WLAN IDs */
 static const struct sdio_device_id wlan_ids[] = {
@@ -64,6 +66,7 @@ static const struct sdio_device_id wlan_ids[] = {
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8887)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8801)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8897)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8797)},
 	{},
 };
 
@@ -181,6 +184,8 @@ woal_sdio_update_card_type(moal_handle *handle, t_void *card)
 		handle->card_type = CARD_TYPE_SD8801;
 	else if (cardp->func->device == SD_DEVICE_ID_8897)
 		handle->card_type = CARD_TYPE_SD8897;
+	else if (cardp->func->device == SD_DEVICE_ID_8797)
+		handle->card_type = CARD_TYPE_SD8797;
 }
 
 /**

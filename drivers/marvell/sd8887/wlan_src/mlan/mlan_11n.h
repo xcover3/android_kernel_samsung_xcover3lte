@@ -106,6 +106,8 @@ int wlan_get_rxreorder_tbl(mlan_private *priv, rx_reorder_tbl *buf);
 int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf);
 /** send delba */
 void wlan_11n_delba(mlan_private *priv, int tid);
+/** update amdpdu tx win size */
+void wlan_update_ampdu_txwinsize(pmlan_adapter pmadapter);
 /** Minimum number of AMSDU */
 #define MIN_NUM_AMSDU 2
 /** AMSDU Aggr control cmd resp */

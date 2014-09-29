@@ -567,7 +567,7 @@ moal_ioctl_complete(IN t_void *pmoal_handle,
 		return MLAN_STATUS_SUCCESS;
 	}
 
-	if (status != MLAN_STATUS_SUCCESS)
+	if (status != MLAN_STATUS_SUCCESS && status != MLAN_STATUS_COMPLETE)
 		PRINTM(MERROR,
 		       "IOCTL failed: %p id=0x%x, sub_id=0x%x action=%d, status_code=0x%x\n",
 		       pioctl_req, pioctl_req->req_id,
@@ -1349,9 +1349,11 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
 				     strlen(CUS_EVT_DRIVER_HANG));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#ifdef STA_CFG80211
 		woal_cfg80211_vendor_event(priv, event_hang,
 					   CUS_EVT_DRIVER_HANG,
 					   strlen(CUS_EVT_DRIVER_HANG));
+#endif
 #endif
 		woal_process_hang(priv->phandle);
 		break;
@@ -1927,6 +1929,45 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 			}
 			spin_unlock_irqrestore(&priv->tx_stat_lock, flag);
 		}
+#endif
+		break;
+	case MLAN_EVENT_ID_DRV_FT_RESPONSE:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#ifdef STA_CFG80211
+		if (IS_STA_CFG80211(cfg80211_wext)) {
+			struct cfg80211_ft_event_params ft_event;
+			if (priv->ft_pre_connect)
+				break;
+			memset(&ft_event, 0,
+			       sizeof(struct cfg80211_ft_event_params));
+			PRINTM(MMSG,
+			       "wlan : FT response  target AP " MACSTR "\n",
+			       MAC2STR((t_u8 *)pmevent->event_buf));
+			DBG_HEXDUMP(MDAT_D, "FT-event ", pmevent->event_buf,
+				    pmevent->event_len);
+			memcpy(priv->target_ap_bssid, pmevent->event_buf,
+			       ETH_ALEN);
+			ft_event.target_ap = priv->target_ap_bssid;
+			ft_event.ies = pmevent->event_buf + ETH_ALEN;
+			ft_event.ies_len = pmevent->event_len - ETH_ALEN;
+			/* TSPEC info is needed by RIC, However the TS
+			   operation is configured by mlanutl */
+			/* So do not add RIC temporally */
+			/* when add RIC, 1. query TS status, 2. copy tspec from
+			   addts command */
+			ft_event.ric_ies = NULL;
+			ft_event.ric_ies_len = 0;
+
+			cfg80211_ft_event(priv->netdev, &ft_event);
+			priv->ft_pre_connect = MTRUE;
+
+			if (priv->ft_roaming_triggered_by_driver ||
+			    !(priv->ft_cap & MBIT(0))) {
+				priv->ft_wait_condition = MTRUE;
+				wake_up(&priv->ft_wait_q);
+			}
+		}
+#endif
 #endif
 		break;
 	case MLAN_EVENT_ID_FW_DUMP_INFO:

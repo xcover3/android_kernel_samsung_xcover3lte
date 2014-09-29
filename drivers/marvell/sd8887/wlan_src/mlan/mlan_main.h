@@ -1883,7 +1883,18 @@ typedef struct _mlan_adapter {
 	mlan_list_head scan_pending_q;
     /** mlan_processing */
 	t_u32 scan_processing;
-
+    /** coex scan flag */
+	t_u8 coex_scan;
+    /** coex min scan time */
+	t_u8 coex_min_scan_time;
+    /** coex max scan time */
+	t_u8 coex_max_scan_time;
+    /** coex win size flag */
+	t_u8 coex_win_size;
+    /** coex amdpdu tx win size */
+	t_u8 coex_tx_win_size;
+    /** coex ampdu rx win size */
+	t_u8 coex_rx_win_size;
     /** Region code */
 	t_u16 region_code;
     /** Region Channel data */
@@ -2935,6 +2946,9 @@ mlan_status wlan_cmd_multi_chan_policy(IN pmlan_private pmpriv,
 mlan_status wlan_ret_multi_chan_policy(IN pmlan_private pmpriv,
 				       const IN HostCmd_DS_COMMAND *resp,
 				       OUT mlan_ioctl_req *pioctl_buf);
+
+void wlan_bt_coex_wlan_param_update_event(pmlan_private priv,
+					  pmlan_buffer pevent);
 
 mlan_status wlan_misc_ioctl_low_pwr_mode(IN pmlan_adapter pmadapter,
 					 IN pmlan_ioctl_req pioctl_req);

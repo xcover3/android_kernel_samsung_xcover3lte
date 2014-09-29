@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		"C059"
+#define MLAN_RELEASE_VERSION		"C067"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -342,6 +342,7 @@ typedef enum _mlan_status {
 	MLAN_STATUS_SUCCESS = 0,
 	MLAN_STATUS_PENDING,
 	MLAN_STATUS_RESOURCE,
+	MLAN_STATUS_COMPLETE,
 } mlan_status;
 
 /** mlan_error_code */
@@ -475,6 +476,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_FLUSH_RX_WORK = 0x80000015,
 	MLAN_EVENT_ID_DRV_DEFER_RX_WORK = 0x80000016,
 	MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ = 0x80000017,
+	MLAN_EVENT_ID_DRV_FT_RESPONSE = 0x80000018,
 } mlan_event_id;
 
 /** Data Structures */

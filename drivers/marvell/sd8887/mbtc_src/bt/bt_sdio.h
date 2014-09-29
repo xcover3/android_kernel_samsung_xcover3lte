@@ -32,6 +32,8 @@
 #define CARD_TYPE_SD8887   0x03
 /** SD8897 card type */
 #define CARD_TYPE_SD8897   0x04
+/** SD8797 card type */
+#define CARD_TYPE_SD8797   0x05
 
 /** IRQ return type */
 typedef irqreturn_t IRQ_RET_TYPE;
@@ -334,6 +336,10 @@ static const struct sdio_device bt_sdio_sd8887 = {
 
 static const struct sdio_device bt_sdio_sd8897 = {
 	.reg = &bt_reg_8897,
+};
+
+static const struct sdio_device bt_sdio_sd8797 = {
+	.reg = &bt_reg_87xx,
 };
 
 /** DMA alignment value */
