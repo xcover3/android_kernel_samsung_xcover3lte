@@ -8,6 +8,7 @@
  */
 
 /dts-v1/;
+/memreserve/ 0x08100000 0x00040000;     /* ramoops buffer (256KB) */
 /memreserve/ 0x09000000 0x01000000;	/* GPU Reserved mem (16MB) */
 /memreserve/ 0x17000000 0x01800000;     /* Frame buffer (24MB) */
 /memreserve/ 0x0a000000 0x00080000;     /* CM3 shared buffer(512KB) */
@@ -911,6 +912,23 @@
 			cp-load {
 				status = "okay";
 			};
+		};
+
+		/*
+		 * ramoops:
+		 * 256 KB memory starts at 0x8100000
+		 * pstore dump: 2 chunks, total 64 KB, 32 KB each
+		 * console size: 192 KB
+		 * no dump_oops
+		 */
+		ramoops {
+			compatible = "pstore,ramoops";
+			mem-size = <0x40000>;
+			mem-address = <0x8100000>;
+			record-size = <0x8000>;
+			console-size = <0x30000>;
+			dump-oops = <0>;
+			status = "okay";
 		};
 	};
 
