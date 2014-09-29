@@ -37,7 +37,6 @@ struct pm886_dvc {
 
 static struct pm886_dvc *g_dvc;
 
-
 static inline int volt_to_reg(int uv)
 {
 	return (uv - BUCK_MIN_VOLT) / BUCK_STEP;
@@ -55,9 +54,15 @@ static inline int reg_to_volt(int regval)
  */
 int pm886_dvc_set_volt(u8 level, int uv)
 {
-	struct regmap *regmap = g_dvc->chip->power_regmap;
 	u8 buck1_volt_reg;
 	int ret = 0;
+	struct regmap *regmap;
+
+	if (!g_dvc || !g_dvc->chip || !g_dvc->chip->power_regmap) {
+		pr_err("%s: NULL pointer!\n", __func__);
+		return -EINVAL;
+	}
+	regmap = g_dvc->chip->power_regmap;
 
 	if (uv < BUCK_MIN_VOLT || uv > BUCK_MAX_VOLT) {
 		dev_err(g_dvc->chip->dev, "the expected voltage is out of range!\n");
@@ -76,17 +81,25 @@ int pm886_dvc_set_volt(u8 level, int uv)
 		level -= 4;
 	}
 
-	ret = regmap_write(regmap, buck1_volt_reg + level, volt_to_reg(uv));
+	/* pay attention to only change the voltage value */
+	ret = regmap_update_bits(regmap, buck1_volt_reg + level,
+				 0x7f, volt_to_reg(uv));
 	return ret;
 };
 EXPORT_SYMBOL(pm886_dvc_set_volt);
 
 int pm886_dvc_get_volt(u8 level)
 {
-	struct regmap *regmap = g_dvc->chip->power_regmap;
+	struct regmap *regmap;
 	int ret = 0, regval = 0;
 	u8 buck1_volt_reg;
 
+	if (!g_dvc || !g_dvc->chip || !g_dvc->chip->power_regmap) {
+		pr_err("%s: NULL pointer!\n", __func__);
+		return -EINVAL;
+	}
+
+	regmap = g_dvc->chip->power_regmap;
 	if (level >= BUCK_MAX_DVC_LEVEL) {
 		dev_err(g_dvc->chip->dev, "%s: DVC level out of range\n", __func__);
 		return -EINVAL;
@@ -105,6 +118,8 @@ int pm886_dvc_get_volt(u8 level)
 			"fail to read reg: 0x%x\n", buck1_volt_reg + level);
 		return ret;
 	}
+
+	regval &= 0x7f;
 
 	return reg_to_volt(regval);
 }
@@ -125,6 +140,7 @@ static int pm886_dvc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dvcdata);
 	/* get global handler */
 	g_dvc = dvcdata;
+	g_dvc->chip = chip;
 
 	/* config gpio1 as DVC3 pin */
 	ret = regmap_update_bits(chip->base_regmap, PM886_GPIO_CTRL1,
