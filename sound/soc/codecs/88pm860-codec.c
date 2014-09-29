@@ -34,6 +34,7 @@
 #include <linux/input.h>
 #include <linux/proc_fs.h>
 #include <linux/mfd/88pm80x.h>
+#include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 
 #include "88pm860-codec.h"
@@ -164,8 +165,11 @@ static int caps_charge = 2000;
 module_param(caps_charge, int, 0);
 MODULE_PARM_DESC(caps_charge, "88PM860 caps charge time (msecs)");
 
-static struct pm80x_chip *pm80x_get_companion(struct pm80x_chip *chip)
+static struct regmap *pm80x_get_companion(struct pm80x_chip *chip)
 {
+#ifdef CONFIG_MFD_88PM886
+	return get_companion();
+#else
 	struct pm80x_chip *chip_comp;
 
 	if (!chip->companion) {
@@ -175,14 +179,14 @@ static struct pm80x_chip *pm80x_get_companion(struct pm80x_chip *chip)
 
 	chip_comp = i2c_get_clientdata(chip->companion);
 
-	return chip_comp;
+	return chip_comp->regmap;
+#endif
 }
 
 static unsigned int pm860_read(struct snd_soc_codec *codec,
 				unsigned int reg)
 {
 	struct pm860_private *pm860_priv = snd_soc_codec_get_drvdata(codec);
-	struct pm80x_chip *companion;
 	struct pm80x_chip *chip = pm860_priv->chip;
 	unsigned int value, ret;
 	struct regmap *map;
@@ -190,11 +194,9 @@ static unsigned int pm860_read(struct snd_soc_codec *codec,
 	map = chip->regmap;
 
 	if (reg >= PMIC_INDEX) {
-		companion = pm80x_get_companion(chip);
-		if (!companion)
+		map = pm80x_get_companion(chip);
+		if (!map)
 			return -EINVAL;
-
-		map = companion->regmap;
 
 		if (reg == PM822_CLASS_D_1)
 			reg = PM822_CLASS_D_REG_BASE;
@@ -217,7 +219,6 @@ static int pm860_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
 	struct pm860_private *pm860_priv = snd_soc_codec_get_drvdata(codec);
-	struct pm80x_chip *companion;
 	struct pm80x_chip *chip = pm860_priv->chip;
 	struct regmap *map, *map_comp;
 	int ret = 0;
@@ -234,8 +235,7 @@ static int pm860_write(struct snd_soc_codec *codec, unsigned int reg,
 	map = chip->regmap;
 
 	/* Enable pm800 audio mode */
-	companion = pm80x_get_companion(chip);
-	map_comp = companion->regmap;
+	map_comp = pm80x_get_companion(chip);
 
 	if (map_comp) {
 		if (reg >= PMIC_INDEX) {
