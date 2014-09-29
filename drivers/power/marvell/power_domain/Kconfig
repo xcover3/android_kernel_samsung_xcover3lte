@@ -15,6 +15,11 @@ config MMP_PM_DOMAIN_COMMON
         help
           Say Y here to enable related power domain for pxa1088/pxa1L88
 
+config MMP_PM_DOMAIN_ISP_V3
+	   bool "power domain for b52isp V3"
+	   help
+          Say Y here to enable related power domain for pxa1908
+
 config MMP_PM_DOMAIN_SC2_ISP
 	   bool "power domain for b52isp"
 	   help

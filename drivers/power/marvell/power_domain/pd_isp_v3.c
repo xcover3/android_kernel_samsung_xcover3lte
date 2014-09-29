@@ -15,13 +15,25 @@
 #define APMU_PWR_BLK_TMR_REG	0xdc
 #define APMU_PWR_STATUS_REG	0xf0
 #define APMU_CCIC_DBG       0x088
+#define APMU_CCIC_CLK_RES_CTRL     0x50
+#define APMU_PWR_STBL_TMR_REG   0x084
+#define APMU_ISP_CLK_RES_CTRL   0x038
+#define APMU_CSI_CCIC2_CLK_RES_CTRL	0x24
+
+#define read(r)		readl(apmu_base + (r))
+#define write(v, r)	writel((v), apmu_base + (r))
+
+
+#define ISP_AHB_EN ((1 << 21) | (1 << 22))
 
 #define MAX_TIMEOUT	5000
 
 #define MMP_PD_POWER_ON_LATENCY		300
 #define MMP_PD_POWER_OFF_LATENCY	20
 
-struct mmp_pd_common_data {
+static void __iomem *apmu_base;
+
+struct mmp_pd_isp_data {
 	int id;
 	char *name;
 	u32 reg_clk_res_ctrl;
@@ -30,7 +42,7 @@ struct mmp_pd_common_data {
 	u32 bit_pwr_stat;
 };
 
-struct mmp_pd_common {
+struct mmp_pd_isp {
 	struct generic_pm_domain genpd;
 	void __iomem *reg_base;
 	struct clk *clk;
@@ -38,79 +50,43 @@ struct mmp_pd_common {
 	/* latency for us. */
 	u32 power_on_latency;
 	u32 power_off_latency;
-	const struct mmp_pd_common_data *data;
+	const struct mmp_pd_isp_data *data;
 };
 
 enum {
-	MMP_PD_COMMON_VPU,
-	MMP_PD_COMMON_ISP_V1,
-	MMP_PD_COMMON_ISP_V2,
-	MMP_PD_COMMON_GC,
-	MMP_PD_COMMON_GC2D,
+	MMP_PD_COMMON_ISP_V3,
 };
 
 static DEFINE_SPINLOCK(mmp_pd_apmu_lock);
 
-static struct mmp_pd_common_data vpu_data = {
-	.id			= MMP_PD_COMMON_VPU,
-	.name			= "power-domain-common-vpu",
-	.reg_clk_res_ctrl	= 0xa4,
-	.bit_hw_mode		= 19,
-	.bit_auto_pwr_on	= 2,
-	.bit_pwr_stat		= 2,
-};
-
-/* Area51 ISP */
-static struct mmp_pd_common_data isp_v1_data = {
-	.id			= MMP_PD_COMMON_ISP_V1,
-	.name			= "power-domain-common-isp-v1",
-	.reg_clk_res_ctrl	= 0x38,
-	.bit_hw_mode		= 15,
-	.bit_auto_pwr_on	= 4,
-	.bit_pwr_stat		= 4,
-};
-/* B52 ISP */
-static struct mmp_pd_common_data isp_v2_data = {
-	.id			= MMP_PD_COMMON_ISP_V2,
-	.name			= "power-domain-common-isp-v2",
+static struct mmp_pd_isp_data isp_v3_data = {
+	.id			= MMP_PD_COMMON_ISP_V3,
+	.name			= "power-domain-common-isp-v3",
 	.reg_clk_res_ctrl	= 0x38,
 	.bit_hw_mode		= 15,
 	.bit_auto_pwr_on	= 4,
 	.bit_pwr_stat		= 4,
 };
 
-static struct mmp_pd_common_data gc_data = {
-	.id			= MMP_PD_COMMON_GC,
-	.name			= "power-domain-common-gc",
-	.reg_clk_res_ctrl	= 0xcc,
-	.bit_hw_mode		= 11,
-	.bit_auto_pwr_on	= 0,
-	.bit_pwr_stat		= 0,
-};
-
-static struct mmp_pd_common_data gc2d_data = {
-	.id			= MMP_PD_COMMON_GC2D,
-	.name			= "power-domain-common-gc2d",
-	.reg_clk_res_ctrl	= 0xf4,
-	.bit_hw_mode		= 11,
-	.bit_auto_pwr_on	= 6,
-	.bit_pwr_stat		= 6,
-};
-
-
-static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
+static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 {
-	struct mmp_pd_common *pd = container_of(domain,
-					struct mmp_pd_common, genpd);
-	const struct mmp_pd_common_data *data = pd->data;
+	struct mmp_pd_isp *pd = container_of(domain,
+					struct mmp_pd_isp, genpd);
+	const struct mmp_pd_isp_data *data = pd->data;
 	void __iomem *base = pd->reg_base;
 	u32 val;
 	int ret = 0, loop = MAX_TIMEOUT;
+	unsigned int reg;
 
 	if (pd->clk)
 		clk_prepare_enable(pd->clk);
+	apmu_base = ioremap(0xd4282800, SZ_4K);
 
-	/* set GPU HW on/off mode  */
+	val = __raw_readl(base + APMU_CCIC_CLK_RES_CTRL);
+	val |= ISP_AHB_EN;
+	__raw_writel(val, base + APMU_CCIC_CLK_RES_CTRL);
+
+	/* set ISP HW on/off mode  */
 	val = __raw_readl(base + data->reg_clk_res_ctrl);
 	val |= (1 << data->bit_hw_mode);
 	__raw_writel(val, base + data->reg_clk_res_ctrl);
@@ -119,18 +95,14 @@ static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 	/* on1, on2, off timer */
 	__raw_writel(0x20001fff, base + APMU_PWR_BLK_TMR_REG);
 
+	__raw_writel(0xf0f0f0, base + APMU_PWR_STBL_TMR_REG);
+
 	/* auto power on */
 	val = __raw_readl(base + APMU_PWR_CTRL_REG);
 	val |= (1 << data->bit_auto_pwr_on);
 	__raw_writel(val, base + APMU_PWR_CTRL_REG);
 
 	spin_unlock(&mmp_pd_apmu_lock);
-
-	if (data->id == MMP_PD_COMMON_ISP_V1) {
-		val =  __raw_readl(base + APMU_CCIC_DBG);
-		val |= 0x06000000;
-		__raw_writel(val, base + APMU_CCIC_DBG);
-	}
 
 	/*
 	 * power on takes 316us, usleep_range(280,290) takes about
@@ -152,6 +124,67 @@ static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 		goto out;
 	}
 
+	reg = read(APMU_ISP_CLK_RES_CTRL);
+	write(reg | 1<<17 | 1<<23, APMU_ISP_CLK_RES_CTRL);
+	do reg = read(APMU_ISP_CLK_RES_CTRL);
+	while (reg & (1<<23));
+
+	reg = read(APMU_ISP_CLK_RES_CTRL);
+	write(reg | 1<<2 | 1<<4 | 1<<7 | 1<<1, APMU_ISP_CLK_RES_CTRL);
+	do reg = read(APMU_ISP_CLK_RES_CTRL);
+	while (reg & (1<<7));
+
+	reg = read(APMU_ISP_CLK_RES_CTRL);
+	reg |= (0x3 << 24 | 1<<28);
+	write(reg, APMU_ISP_CLK_RES_CTRL);
+
+	reg = read(APMU_CSI_CCIC2_CLK_RES_CTRL);
+	reg &= ~(0xf<<22);
+	reg |= 0xb<<22;
+	reg |= 0x1<<26;
+	reg |= (0x1<<4);
+	/*CSI clock*/
+	reg &= ~(0x3<<16);
+	reg |=  (0x1<<16);
+	reg &= ~(0x7<<18);
+	reg |=  (0x0<<18);
+	reg |= (0x1<<1);
+	reg |= (1<<7);
+	reg |= (0x1<<15);
+	write(reg, APMU_CSI_CCIC2_CLK_RES_CTRL);
+	do reg = read(APMU_CSI_CCIC2_CLK_RES_CTRL);
+	while (reg & (1<<15));
+
+	/*reg = read(APMU_CCIC_CLK_RES_CTRL);*/
+	reg = 0x0;
+	reg |= (0x3<<21);
+	/*clk4x*/
+	reg |= 0x1<<4;
+	reg &= ~(0x3<<16);
+	reg |= (0x1<<16);
+	reg &= ~(0x7<<18);
+	reg |= (0x1<<1);
+	reg |= (0x1<<15);
+	reg |= (1<<7);
+	write(reg, APMU_CCIC_CLK_RES_CTRL);
+	do reg = read(APMU_CCIC_CLK_RES_CTRL);
+	while (reg & (1<<15));
+
+	/* set phy */
+	reg = read(APMU_CSI_CCIC2_CLK_RES_CTRL);
+	reg |= (0x1<<5);
+	reg |= (0x1<<7);
+	reg |= (0x1<<2);
+	reg |= (0x1<<1);
+	write(reg, APMU_CSI_CCIC2_CLK_RES_CTRL);
+
+	reg = read(APMU_CCIC_CLK_RES_CTRL);
+	reg |= (0x1<<5);
+	reg |= (0x1<<7);
+	reg |= (0x1<<2);
+	reg |= (0x1<<1);
+	write(reg, APMU_CCIC_CLK_RES_CTRL);
+
 out:
 	if (pd->clk)
 		clk_disable_unprepare(pd->clk);
@@ -159,14 +192,15 @@ out:
 	return ret;
 }
 
-static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
+static int mmp_pd_isp_v3_power_off(struct generic_pm_domain *domain)
 {
-	struct mmp_pd_common *pd = container_of(domain,
-					struct mmp_pd_common, genpd);
-	const struct mmp_pd_common_data *data = pd->data;
+	struct mmp_pd_isp *pd = container_of(domain,
+					struct mmp_pd_isp, genpd);
+	const struct mmp_pd_isp_data *data = pd->data;
 	void __iomem *base = pd->reg_base;
 	u32 val;
 	int loop;
+	unsigned int reg;
 
 	spin_lock(&mmp_pd_apmu_lock);
 
@@ -195,37 +229,60 @@ static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
 		return -EBUSY;
 	}
 
+	/*reset and disable ahb clock*/
+	reg = read(APMU_CCIC_CLK_RES_CTRL);
+	reg &= ~(0x3<<21);
+	write(reg, APMU_CCIC_CLK_RES_CTRL);
+	/*reset and clk4x clock*/
+	reg = read(APMU_CCIC_CLK_RES_CTRL);
+	reg &= ~(0x1<<1 | 0x1<<4);
+	write(reg, APMU_CCIC_CLK_RES_CTRL);
+	/*reset and dphy4x clock*/
+	reg = read(APMU_CCIC_CLK_RES_CTRL);
+	reg &= ~(0x1<<2 | 0x1<<5);
+	write(reg, APMU_CCIC_CLK_RES_CTRL);
+
+	/*reset and disable mcu clock*/
+	reg = read(APMU_ISP_CLK_RES_CTRL);
+	reg &= ~(0x3<<27);
+	write(reg, APMU_ISP_CLK_RES_CTRL);
+	/*reset and disable bus clock*/
+	reg = read(APMU_ISP_CLK_RES_CTRL);
+	reg &= ~(0x3<<16);
+	write(reg, APMU_ISP_CLK_RES_CTRL);
+	/*reset and disable isp clock*/
+	reg = read(APMU_ISP_CLK_RES_CTRL);
+	reg &= ~(0x3<<0);
+	write(reg, APMU_ISP_CLK_RES_CTRL);
+
+	/*reset and disable phy clock*/
+	reg = read(APMU_CSI_CCIC2_CLK_RES_CTRL);
+	reg &= ~(0x1<<2 | 0x1<<5);
+	write(reg, APMU_CSI_CCIC2_CLK_RES_CTRL);
+	/*reset and disable csi clock*/
+	reg = read(APMU_CSI_CCIC2_CLK_RES_CTRL);
+	reg &= ~(0x1<<1 | 0x1<<4);
+	write(reg, APMU_CSI_CCIC2_CLK_RES_CTRL);
+	/*disable vclk clock*/
+	reg = read(APMU_CSI_CCIC2_CLK_RES_CTRL);
+	reg &= ~(0x1<<26);
+	write(reg, APMU_CSI_CCIC2_CLK_RES_CTRL);
+
 	return 0;
 }
 
 static const struct of_device_id of_mmp_pd_match[] = {
 	{
-		.compatible = "marvell,power-domain-common-vpu",
-		.data = (void *)&vpu_data,
-	},
-	{
-		.compatible = "marvell,power-domain-common-isp-v1",
-		.data = (void *)&isp_v1_data,
-	},
-	{
-		.compatible = "marvell,power-domain-common-isp-v2",
-		.data = (void *)&isp_v2_data,
-	},
-	{
-		.compatible = "marvell,power-domain-common-gc",
-		.data = (void *)&gc_data,
-	},
-	{
-		.compatible = "marvell,power-domain-common-gc2d",
-		.data = (void *)&gc2d_data,
+		.compatible = "marvell,power-domain-common-isp-v3",
+		.data = (void *)&isp_v3_data,
 	},
 	{ },
 };
 MODULE_DEVICE_TABLE(of, of_mmp_pd_match);
 
-static int mmp_pd_common_probe(struct platform_device *pdev)
+static int mmp_pd_isp_v3_probe(struct platform_device *pdev)
 {
-	struct mmp_pd_common *pd;
+	struct mmp_pd_isp *pd;
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *of_id;
 	struct resource *res;
@@ -281,9 +338,9 @@ static int mmp_pd_common_probe(struct platform_device *pdev)
 
 	pd->genpd.of_node = np;
 	pd->genpd.name = pd->data->name;
-	pd->genpd.power_on = mmp_pd_common_power_on;
+	pd->genpd.power_on = mmp_pd_isp_v3_power_on;
 	pd->genpd.power_on_latency_ns = pd->power_on_latency * 1000;
-	pd->genpd.power_off = mmp_pd_common_power_off;
+	pd->genpd.power_off = mmp_pd_isp_v3_power_off;
 	pd->genpd.power_off_latency_ns = pd->power_off_latency * 1000;
 
 	ret = mmp_pd_init(&pd->genpd, NULL, true);
@@ -295,25 +352,25 @@ static int mmp_pd_common_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int mmp_pd_common_remove(struct platform_device *pdev)
+static int mmp_pd_isp_v3_remove(struct platform_device *pdev)
 {
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;
 }
 
-static struct platform_driver mmp_pd_common_driver = {
-	.probe		= mmp_pd_common_probe,
-	.remove		= mmp_pd_common_remove,
+static struct platform_driver mmp_pd_isp_v3_driver = {
+	.probe		= mmp_pd_isp_v3_probe,
+	.remove		= mmp_pd_isp_v3_remove,
 	.driver		= {
-		.name	= "mmp-pd-common",
+		.name	= "mmp-pd-isp-v3",
 		.owner	= THIS_MODULE,
 		.of_match_table = of_mmp_pd_match,
 	},
 };
 
-static int __init mmp_pd_common_init(void)
+static int __init mmp_pd_isp_v3_init(void)
 {
-	return platform_driver_register(&mmp_pd_common_driver);
+	return platform_driver_register(&mmp_pd_isp_v3_driver);
 }
-subsys_initcall(mmp_pd_common_init);
+subsys_initcall(mmp_pd_isp_v3_init);
