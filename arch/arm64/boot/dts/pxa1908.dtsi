@@ -839,6 +839,11 @@
 			compatible = "marvell,mmp-watchdog";
 			reg = <0xd4080000 0xff>;
 		};
+
+		apbs: apbs@d4090000 {
+			compatible = "marvell,mmp-apb-spare";
+			reg = <0xd4090000 0x154>;
+		};
 	};
 
 	soc_clocks: clocks{
