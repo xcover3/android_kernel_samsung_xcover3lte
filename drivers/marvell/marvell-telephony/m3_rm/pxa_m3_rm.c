@@ -185,6 +185,7 @@ void gnss_config(void)
 		clk_enable(clk_32k);
 
 	pmu_reg_v = (0x1 << GNSS_PWR_ON1_OFFSET);
+	pmu_reg_v |= (0x1 << GNSS_AXI_CLOCK_ENABLE);
 	REG_WRITE(pmu_reg_v, PMUA_GNSS_PWR_CTRL);
 
 	udelay(10); /*wait 10us for power stable */
@@ -747,19 +748,23 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 	}
 
 #ifndef CONFIG_TZ_HYPERVISOR
-	geu_base = ioremap(AXI_PHYS_ADDR + 0x92800, SZ_4K);
-	if (NULL == geu_base) {
-		pr_err("error to ioremap GEU base\n");
-		chip_fused = true;
-	} else {
-		fuse_info = __raw_readl(geu_base + GEU_FUSE_VAL_APCFG3);
-		pr_info("fuse info = 0x%x\n", fuse_info);
-		if (fuse_info & 0x00008000)
+	/* only pxa1u88 need this fuse check */
+	if (cpu_is_pxa1U88()) {
+		geu_base = ioremap(AXI_PHYS_ADDR + 0x92800, SZ_4K);
+		if (NULL == geu_base) {
+			pr_err("error to ioremap GEU base\n");
 			chip_fused = true;
-		else
-			chip_fused = false;
-		iounmap(geu_base);
-	}
+		} else {
+			fuse_info = __raw_readl(geu_base + GEU_FUSE_VAL_APCFG3);
+			pr_info("fuse info = 0x%x\n", fuse_info);
+			if (fuse_info & 0x00008000)
+				chip_fused = true;
+			else
+				chip_fused = false;
+			iounmap(geu_base);
+		}
+	} else
+		chip_fused = true;
 
 #else
 	/* FIXME: add TZ support here */

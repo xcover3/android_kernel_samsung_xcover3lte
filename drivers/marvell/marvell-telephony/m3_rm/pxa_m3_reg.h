@@ -81,6 +81,7 @@ static void deinit_gnss_base_addr(void)
 #define GNSS_PWR_ON2_OFFSET                           4
 #define GNSS_FUSE_LOAD_START_OFFSET                   5
 #define GNSS_FUSE_LOAD_DONE_MASK_OFFSET               6
+#define GNSS_AXI_CLOCK_ENABLE			      7
 
 #define GNSS_AUTO_PWR_ON_OFFSET                       8
 #define GNSS_PWR_STAT_OFFSET                          8
