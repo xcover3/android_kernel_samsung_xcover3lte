@@ -246,11 +246,13 @@ static noinline int __invoke_mcpm_fn_smc(u64 function_id, u64 arg0, u64 arg1,
 	return function_id;
 }
 
-static int __maybe_unused mcpm_plat_cpu_power_down(u64 entry_point)
+static int __maybe_unused
+mcpm_plat_cpu_power_down(u64 entry_point,
+			bool l2ram_shutdown)
 {
 	u64 id = mcpm_function_id[MCPM_FN_CPU_OFF];
 
-	return invoke_mcpm_fn(id, entry_point, 0, 0);
+	return invoke_mcpm_fn(id, entry_point, l2ram_shutdown, 0);
 }
 
 static int up_mode;
@@ -360,7 +362,7 @@ static void mcpm_plat_pm_down(void *arg)
 	__mcpm_cpu_down(cpu, cluster);
 
 	if (!skip_wfi)
-		mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point));
+		mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point), false);
 }
 
 static int mcpm_plat_pm_power_up(unsigned int cpu, unsigned int cluster)
