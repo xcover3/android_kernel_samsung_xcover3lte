@@ -647,20 +647,6 @@
 					>;
 					MFP_LPM_FLOAT;
 				};
-				twsi3_pmx_senhb: twsi3_pmx_senhb {
-					pinctrl-single,pins = <
-						GPIO73 AF7
-						GPIO74 AF7
-					>;
-					MFP_DEFAULT;
-				};
-				twsi3_pmx_senhb_def: twsi3_pmx_senhb_def {
-					pinctrl-single,pins = <
-						GPIO73 AF7
-						GPIO74 AF7
-					>;
-					MFP_LPM_FLOAT;
-				};
 
 				touch_pins: touch_pins {
 					pinctrl-single,pins = <
@@ -670,30 +656,24 @@
 					MFP_LPM_FLOAT;
 				};
 
-				gnss_pmx_def1: gnss_pmx_def1 {
+				gnss_pmx_def: gnss_pmx_def {
 					pinctrl-single,pins = <
-						ND_IO11 AF1
-						ND_IO12 AF1
-						ND_IO13 AF1
-						ND_IO15 AF1
+						GPIO81 AF0
+						GPIO82 AF0
+						GPIO83 AF0
+						GPIO84 AF0
+						GPIO85 AF0
 					>;
 					MFP_LPM_PULL_DW;
 				};
 
-				gnss_pmx_def2: gnss_pmx_def2 {
-					pinctrl-single,pins = <
-						ND_IO14 AF0
-					>;
-					MFP_LPM_FLOAT;
-				};
-
 				gnss_pmx_power_on: gnss_pmx_power_on {
 					pinctrl-single,pins = <
-						ND_IO11 AF5
-						ND_IO12 AF5
-						ND_IO13 AF5
-						ND_IO14 AF5
-						ND_IO15 AF5
+						GPIO81 AF6
+						GPIO82 AF6
+						GPIO83 AF6
+						GPIO84 AF6
+						GPIO85 AF6
 					>;
 					MFP_DEFAULT;
 				};
@@ -1097,7 +1077,7 @@
 		antpwr-supply = <&ldo4>;
 
 		pinctrl-names = "default", "poweron";
-		pinctrl-0 = <&gnss_pmx_def1 &gnss_pmx_def2>;
+		pinctrl-0 = <&gnss_pmx_def>;
 		pinctrl-1 = <&gnss_pmx_power_on>;
 		status = "okay";
 	};
@@ -1109,7 +1089,7 @@
 		senpwr-supply = <&ldo4>;
 
 		pinctrl-names = "default", "poweron";
-		pinctrl-0 = <&gnss_pmx_def1 &gnss_pmx_def2 &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
+		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
 		pinctrl-1 = <&gnss_pmx_power_on &twsi3_pmx_senhb>;
 		status = "okay";
 	};
