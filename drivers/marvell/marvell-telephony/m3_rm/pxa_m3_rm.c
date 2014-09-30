@@ -83,7 +83,8 @@ static struct rm_m3_addr m3_addr;
 static spinlock_t m3init_sync_lock;
 static spinlock_t m3open_lock;
 static int m3_init_done;
-static unsigned int m3_ip_ver;
+static u32 m3_ip_ver;
+static u32 pmic_ver;
 static struct pm_qos_request ddr_qos_min;
 static struct clk *clk_32k;
 
@@ -322,7 +323,11 @@ static int m3_open(struct inode *inode, struct file *filp)
 	spin_unlock(&m3open_lock);
 
 	if (gnss_open == 0 && senhub_open == 0) {
-		extern_set_buck1_slp_volt(1);
+		if (1 == pmic_ver)
+			extern_set_buck1_slp_volt(1);
+		else
+			/*TODO: will add it when PMIC side ready */
+			;
 		if (!IS_ERR(m3_pctrl.pwron))
 			pinctrl_select_state(m3_pctrl.pinctrl,
 					m3_pctrl.pwron);
@@ -399,7 +404,11 @@ static int m3_close(struct inode *inode, struct file *filp)
 		if (!IS_ERR(m3_pctrl.def))
 			pinctrl_select_state(m3_pctrl.pinctrl,
 					m3_pctrl.def);
-		extern_set_buck1_slp_volt(0);
+		if (1 == pmic_ver)
+			extern_set_buck1_slp_volt(0);
+		else
+			/*TODO: will add it when pmic side ready*/
+			;
 	}
 
 	return 0;
@@ -795,6 +804,8 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 
 	if (of_property_read_u32(np, "ipver", &m3_ip_ver))
 		m3_ip_ver = 1;
+	if (of_property_read_u32(np, "pmicver", &pmic_ver))
+		pmic_ver = 1;
 
 	ddr_qos_min.name = "l3000_acq";
 	pm_qos_add_request(&ddr_qos_min, PM_QOS_DDR_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
