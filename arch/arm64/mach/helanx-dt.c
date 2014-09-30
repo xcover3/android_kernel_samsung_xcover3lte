@@ -23,6 +23,10 @@
 #include "regs-addr.h"
 #include "mmpx-dt.h"
 
+#ifdef CONFIG_SD8XXX_RFKILL
+#include <linux/sd8x_rfkill.h>
+#endif
+
 unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
@@ -46,6 +50,9 @@ static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
 	OF_DEV_AUXDATA("soc-camera-pdrv", 2, "soc-camera-pdrv.2", &soc_camera_desc_2),
 #endif
 	OF_DEV_AUXDATA("marvell,mmp-disp", 0xd420b000, "mmp-disp", NULL),
+#ifdef CONFIG_SD8XXX_RFKILL
+	OF_DEV_AUXDATA("mrvl,sd8x-rfkill", 0, "sd8x-rfkill", NULL),
+#endif
 	{}
 };
 
