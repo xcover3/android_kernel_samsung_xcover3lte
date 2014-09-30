@@ -259,10 +259,7 @@
 						SDHCI_QUIRK_INVERTED_WRITE_PROTECT |
 						SDHCI_QUIRK_BROKEN_CARD_DETECTION
 						)>;
-
-				/* as HW design, only SD Card's host has AIB_MMC register */
 				marvell,sdh-quirks2 = <(
-						SDHCI_QUIRK2_SET_AIB_MMC |
 						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
 						SDHCI_QUIRK2_TIMEOUT_SHORT
 						)>;
