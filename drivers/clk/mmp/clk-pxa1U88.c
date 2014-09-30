@@ -977,7 +977,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			&sc2_axi_mix_config, &isp_lock);
 
 	clk = mmp_clk_register_gate(NULL, "sc2_axi_clk", "sc2_axi_mix_clk",
-			CLK_SET_RATE_PARENT,
+			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 			pxa_unit->apmu_base + APMU_ISP,
 			0x30000, 0x30000, 0x0, 0, &isp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SC2_AXI_CLK, clk);
@@ -1008,18 +1008,19 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			ARRAY_SIZE(isp_pipe_parent_names), 0,
 			&isp_pipe_mix_config, &isp_lock);
 
+	/* add isp ahb and isp axi reset to pipe clk enable */
 	clk = mmp_clk_register_gate(NULL, "isp_pipe_clk", "isp_pipe_mix_clk",
-			CLK_SET_RATE_PARENT,
+			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 			pxa_unit->apmu_base + APMU_ISP,
-			0x3, 0x3, 0x0, 0, &isp_lock);
+			0x503, 0x503, 0x0, 0, &isp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_ISP_PIPE_CLK, clk);
 
 	clk = clk_register_divider(NULL, "isp_core_div", "pll1_624_gate",
 			0, pxa_unit->apmu_base + APMU_ISP,
 			24, 3, 0, &isp_lock);
-	mmp_clk_add(unit, PXA1U88_CLK_ISP_CORE_CLK, clk);
 
-	clk = mmp_clk_register_gate(NULL, "isp_core_gate", "isp_core_div", 0,
+	clk = mmp_clk_register_gate(NULL, "isp_core_gate", "isp_core_div",
+			CLK_SET_RATE_PARENT,
 			pxa_unit->apmu_base + APMU_ISP,
 			0x18000000, 0x18000000, 0x0, 0, &isp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_ISP_CORE_CLK_EN, clk);
