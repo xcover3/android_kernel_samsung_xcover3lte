@@ -1,6 +1,7 @@
 snd-soc-88pm860x-objs := 88pm860x-codec.o
 snd-soc-88pm860-objs := 88pm860-codec.o
 snd-soc-88pm800-objs := 88pm800-headset.o
+snd-soc-88pm886-objs := 88pm886-headset.o
 snd-soc-88pm805-objs := 88pm805-codec.o
 snd-soc-ab8500-codec-objs := ab8500-codec.o
 snd-soc-ac97-objs := ac97.o
@@ -137,6 +138,7 @@ obj-$(CONFIG_SND_MMP_MAP_FE_DAI) += snd-soc-mmp-map-fe-dai.o
 obj-$(CONFIG_SND_SOC_88PM860X)	+= snd-soc-88pm860x.o
 obj-$(CONFIG_SND_SOC_88PM860)     += snd-soc-88pm860.o
 obj-$(CONFIG_SND_SOC_88PM800_HS)	+= snd-soc-88pm800.o
+obj-$(CONFIG_SND_SOC_88PM886_HS)	+= snd-soc-88pm886.o
 obj-$(CONFIG_SND_SOC_88PM805)	+= snd-soc-88pm805.o
 obj-$(CONFIG_SND_SOC_AB8500_CODEC)	+= snd-soc-ab8500-codec.o
 obj-$(CONFIG_SND_SOC_AC97_CODEC)	+= snd-soc-ac97.o

@@ -567,5 +567,8 @@ config SND_SOC_88PM860
 config SND_SOC_88PM800_HS
 	tristate
 
+config SND_SOC_88PM886_HS
+	tristate
+
 config DUAL_SPEAKER
 	tristate "Dual Speaker"
