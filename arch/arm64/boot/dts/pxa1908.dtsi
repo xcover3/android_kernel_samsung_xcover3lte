@@ -426,8 +426,8 @@
 				reg = <0xd4000000 0x10000>;
 				interrupts = <0 47 0x4>;
 				#dma-cells= <2>;
-				#dma-channels = <32>;
-				#dma-channels-tz = <32>;
+				#dma-channels = <30>;
+				#dma-channels-tz = <30>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
