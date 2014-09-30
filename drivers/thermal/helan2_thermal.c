@@ -35,6 +35,7 @@
 #include <linux/delay.h>
 #include <linux/cpu.h>
 #include <linux/pm_qos.h>
+#include <linux/cputype.h>
 #include "helan2_thermal.h"
 
 #define APB_CLK_BASE (0xd4015000)
@@ -747,12 +748,23 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 		if (apb_base) {
 			pr_warn("reinit thermal LSTATUS = 0x%x\n", tmp);
 			/* delay 10us for each step to ganrantee reset suc */
-			writel(0x2, (apb_base + 0x6C));
-			udelay(10);
-			writel(0x0, (apb_base + 0x6C));
-			udelay(10);
-			writel(0x1, (apb_base + 0x6C));
-			udelay(10);
+			if (cpu_is_pxa1U88()) {
+				/* bit1 ctl reset, and bit0 ctl enable */
+				writel(0x2, (apb_base + 0x6C));
+				udelay(10);
+				writel(0x0, (apb_base + 0x6C));
+				udelay(10);
+				writel(0x1, (apb_base + 0x6C));
+				udelay(10);
+			} else {
+				/* bit2 ctl reset, bit1&0 ctl enable */
+				writel(0x4, (apb_base + 0x6C));
+				udelay(10);
+				writel(0x0, (apb_base + 0x6C));
+				udelay(10);
+				writel(0x3, (apb_base + 0x6C));
+				udelay(10);
+			}
 			iounmap(apb_base);
 
 			tmp = reg_read(TSEN_LSTATUS);
