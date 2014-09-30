@@ -953,4 +953,9 @@
 		compatible = "mrvl,sd8x-rfkill";
 		status = "disabled";
 	};
+
+	sd8x-rfkill {
+		compatible = "mrvl,sd8x-rfkill";
+		status = "disabled";
+	};
 };
