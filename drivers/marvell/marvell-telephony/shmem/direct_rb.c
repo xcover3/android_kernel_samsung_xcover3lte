@@ -158,8 +158,7 @@ static ssize_t msocketDirectDump_write(struct file *filp,
 			drbctl = &direct_rbctl[i];
 
 			if (direct_rb_schedule_rx(drbctl)) {
-				pr_info(
-					"%s: i = %d, cp_wptr=%d, ap_rptr=%d\n",
+				pr_info("%s: i = %d, cp_wptr=%d, ap_rptr=%d\n",
 					__func__, i,
 					drbctl->rbctl->skctl_va->cp_wptr,
 					drbctl->rbctl->skctl_va->ap_rptr);
@@ -250,10 +249,8 @@ static void direct_rb_rx_worker(struct work_struct *work)
 		count = hdr->length + sizeof(*hdr);
 
 		if (count > rbctl->rx_skbuf_size) {
-			pr_emerg(
-				"direct_rb: %s: invalid packet slot = %d, count = %d\n",
-				__func__, slot,
-				count);
+			pr_emerg("%s: invalid packet slot = %d, count = %d\n",
+				__func__, slot, count);
 			dir_ctl->stat_rx_fail++;
 			goto error_length;
 		}
@@ -261,8 +258,7 @@ static void direct_rb_rx_worker(struct work_struct *work)
 		skb = alloc_skb(hdr->length, GFP_ATOMIC);
 		if (!skb) {
 			/* don't known how to do better, just return */
-			pr_err("direct_rb: %s: out of memory.\n",
-				__func__);
+			pr_err_ratelimited("%s: out of memory.\n", __func__);
 			break;
 		}
 
@@ -438,8 +434,7 @@ int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
 	skctl = rbctl->skctl_va;
 
 	if (len > rbctl->tx_skbuf_size - sizeof(*hdr)) {
-		pr_err(
-		       "DIAG_RB: %s: len is %d larger than tx_skbuf_size\n",
+		pr_err("%s: len is %d larger than tx_skbuf_size\n",
 		       __func__, len);
 		dir_ctl->stat_tx_drop++;
 		return -1;
@@ -459,8 +454,7 @@ int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
 						     rbctl->tx_skbuf_size);
 	hdr->length = len;
 	if (copy_from_user((char *)hdr + sizeof(*hdr), buf, len)) {
-		pr_err("MSOCK: %s: copy_from_user failed.\n",
-		       __func__);
+		pr_err("MSOCK: %s: copy_from_user failed.\n", __func__);
 		dir_ctl->stat_tx_drop++;
 		return -EFAULT;
 	}
@@ -509,8 +503,7 @@ ssize_t direct_rb_recv(enum direct_rb_type direct_type,
 	spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
 
 	if (copy_to_user(buf, skb->data, skb->len)) {
-		pr_err("direct_rb: %s: copy_to_user failed.\n",
-		       __func__);
+		pr_err("%s: copy_to_user failed.\n", __func__);
 		dir_ctl->stat_rx_fail++;
 		/* push back the packet? */
 		dev_kfree_skb_any(skb);
@@ -555,8 +548,7 @@ void direct_rb_broadcast_msg(int proc)
 		skb = alloc_skb(msg_size, GFP_ATOMIC);
 
 		if (!skb) {
-			pr_err(
-				"direct_rb: %s: alloc_skb error\n", __func__);
+			pr_err("%s: alloc_skb error\n", __func__);
 			spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
 			return;
 		}
@@ -615,8 +607,7 @@ void msocket_dump_direct_rb(void)
 	const struct direct_rbctl *dir_ctl_end =
 	    direct_rbctl + direct_rb_type_total_cnt;
 	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
-		pr_err(
-		       "tx_sent: %lu, tx_drop: %lu, rx_fail: %lu, rx_got: %lu,"
+		pr_err("tx_sent: %lu, tx_drop: %lu, rx_fail: %lu, rx_got: %lu,"
 		       "rx_drop: %lu interrupt: %lu, broadcast_msg: %lu\n",
 		       dir_ctl->stat_tx_sent, dir_ctl->stat_tx_drop,
 		       dir_ctl->stat_rx_fail, dir_ctl->stat_rx_got,

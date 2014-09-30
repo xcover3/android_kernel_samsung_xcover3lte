@@ -1073,7 +1073,7 @@ static void portq_rx_worker(struct work_struct *work)
 			pgrp->is_rx_work_running = false;
 			spin_unlock(&pgrp->rx_work_lock);
 			spin_unlock_irq(&pgrp->list_lock);
-			pr_err(
+			pr_err_ratelimited(
 			     "%s: invalid skb for receiving packet\n",
 			     __func__);
 			return;
