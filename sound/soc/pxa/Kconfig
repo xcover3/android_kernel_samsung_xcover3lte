@@ -245,6 +245,7 @@ config SND_MMP_MAP
 	select SND_MMP_MAP_FE_DAI
 	select SND_MMP_PCM_HOSTLESS
 	select SND_SOC_88PM860
+	select SND_SOC_88PM886_HS
 	select SND_SOC_88PM800_HS
 	help
 	  Say Y if you want to add support for SoC audio on the
