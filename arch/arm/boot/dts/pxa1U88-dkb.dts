@@ -1288,6 +1288,7 @@
 
 	mmp_m3_1: apsenhb {
 		compatible = "marvell,mmp-m3";
+		pmicver = <1>;
 		vm3pwr-supply = <&ldo13>;
 		antpwr-supply = <&ldo8>;
 
@@ -1300,6 +1301,7 @@
 
 	mmp_m3_2: cm3senhb {
 		compatible = "marvell,mmp-m3";
+		pmicver = <1>;
 		vm3pwr-supply = <&ldo13>;
 		senpwr-supply = <&ldo10>;
 		antpwr-supply = <&ldo8>;
