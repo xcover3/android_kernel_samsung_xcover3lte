@@ -96,4 +96,15 @@
 		marvell,micbias-supply = <&ldo16>;
 		status = "okay";
 	};
+
+	headset {
+		marvell,headset-flag = <1>;
+		marvell,hook-press-th = <60>;
+		marvell,vol-up-press-th = <250>;
+		marvell,vol-down-press-th = <500>;
+		marvell,mic-det-th = <600>;
+		marvell,press-release-th = <600>;
+		marvell,micbias-supply = <&ldo16>;
+		status = "okay";
+	};
 };

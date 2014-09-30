@@ -160,4 +160,8 @@
 		  status = "disabled";
 	};
 
+	headset {
+		  compatible = "marvell,88pm886-headset";
+		  status = "disabled";
+	};
 };

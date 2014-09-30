@@ -1198,6 +1198,7 @@
 
 	sound {
 		compatible = "marvell,map-card";
+		marvell,headset-type = <0>;
 		map,dapm-route =
 			"ADC input1", "TDM_MIC1_CAP",
 			"ADC input2", "TDM_MIC2_CAP",
