@@ -48,6 +48,21 @@
 	.id = _id, \
 	}
 
+extern struct regmap *get_88pm860_codec_regmap(void);
+struct regmap *companion_base_page;
+
+struct regmap *get_companion(void)
+{
+	return companion_base_page;
+}
+EXPORT_SYMBOL(get_companion);
+
+struct regmap *get_codec_companion(void)
+{
+	return get_88pm860_codec_regmap();
+}
+EXPORT_SYMBOL(get_codec_companion);
+
 static const struct resource onkey_resources[] = {
 	CELL_IRQ_RESOURCE(PM886_ONKEY_NAME, PM886_IRQ_ONKEY),
 };
@@ -583,6 +598,7 @@ int pm886_init_pages(struct pm886_chip *chip)
 		goto out;
 	}
 
+	companion_base_page = chip->base_regmap;
 	/* power page */
 	chip->power_page = i2c_new_dummy(client->adapter, chip->power_page_addr);
 	if (!chip->power_page) {

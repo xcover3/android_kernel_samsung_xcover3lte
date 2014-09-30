@@ -66,4 +66,7 @@ struct PM8XXX_HS_IOCTL {
 
 int pm800_headset_detect(struct snd_soc_jack *jack);
 int pm800_hook_detect(struct snd_soc_jack *jack);
+int pm886_headset_detect(struct snd_soc_jack *jack);
+int pm886_hook_detect(struct snd_soc_jack *jack);
+
 #endif /* __LINUX_MFD_88PM8XXX_HEADSET_H */

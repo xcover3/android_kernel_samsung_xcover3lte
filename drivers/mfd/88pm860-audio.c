@@ -20,6 +20,13 @@
 
 #define	PM860_AUDIO_REG_NUM		0xc5
 static int reg_pm860 = 0xffff;
+struct regmap *codec_regmap;
+
+struct regmap *get_88pm860_codec_regmap(void)
+{
+	return codec_regmap;
+}
+EXPORT_SYMBOL(get_88pm860_codec_regmap);
 
 struct regmap_config pm860_base_regmap_config = {
 	.reg_bits = 8,
@@ -187,6 +194,8 @@ static int pm860_audio_probe(struct i2c_client *client,
 		return ret;
 	}
 
+	/* add this for headset short detection */
+	codec_regmap = pm860->regmap;
 	return pm860_dev_init(pm860, client->irq);
 }
 

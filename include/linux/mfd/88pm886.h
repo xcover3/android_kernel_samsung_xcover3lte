@@ -139,6 +139,7 @@ struct pm886_chip {
 	struct regmap *gpadc_regmap;
 	struct regmap *battery_regmap;
 	struct regmap *test_regmap;
+	struct regmap *codec_regmap;
 
 	unsigned short power_page_addr;	/* power page I2C address */
 	unsigned short gpadc_page_addr;	/* gpadc page I2C address */
@@ -156,6 +157,9 @@ struct pm886_chip {
 	u8 powerdown2;
 	u8 powerup;
 };
+
+struct regmap *get_companion(void);
+struct regmap *get_codec_companion(void);
 
 /* 1.367 mV/LSB */
 #define PM886_VBAT_2_VALUE(v)		((v << 9) / 700)
