@@ -67,6 +67,8 @@ MODULE_PARM_DESC(trace,
 		<< (B52AXI_PORT_CNT * n))
 #define mac_rport_mask(n)	\
 	((1 << B52AXI_PORT_R1) << (B52AXI_PORT_CNT * n))
+static uint output_mask[9];
+#if 0
 static uint output_mask[9] = {
 	mac_wport_mask(0) | mac_wport_mask(1) | mac_wport_mask(2),
 	mac_wport_mask(0) | mac_wport_mask(1) | mac_wport_mask(2),
@@ -78,6 +80,7 @@ static uint output_mask[9] = {
 	mac_wport_mask(0) | mac_wport_mask(1) | mac_wport_mask(2),
 	mac_rport_mask(0) | mac_rport_mask(1) | mac_rport_mask(2),
 };
+#endif
 module_param_array(output_mask, uint, NULL, 0644);
 MODULE_PARM_DESC(output_mask,
 		"Each of the array element is a mask used to specify which "
@@ -88,7 +91,7 @@ MODULE_PARM_DESC(output_mask,
 struct b52isp_hw_desc b52isp_hw_table[] = {
 	[B52ISP_SINGLE] = {
 		.nr_pipe	= 1,
-		.nr_axi		= 2,
+		.nr_axi		= 1,
 	},
 	[B52ISP_V3_2_4] = {
 		.nr_pipe	= 2,
@@ -388,7 +391,7 @@ static int b52isp_idi_set_clock(struct isp_block *block, int rate)
 
 	if (rate) {
 		clk_set_rate(axi_clk, 312000000);
-		clk_set_rate(core_clk, 156000000);
+		clk_set_rate(core_clk, 208000000);
 		clk_set_rate(pipe_clk, 312000000);
 	}
 
@@ -630,7 +633,7 @@ static int b52isp_path_hw_open(struct isp_block *block)
 	ret = b52_load_fw(block->dev, block->reg_base, 1, b52isp_pwr_enable);
 	if (ret < 0)
 		return ret;
-	d_inf(4, "MCU Initialization done");
+	d_inf(2, "MCU Initialization done");
 
 	b52isp_pwr_enable = 0;
 	return 0;
@@ -2498,7 +2501,7 @@ after_notifier_unregister:
 					d_inf(1, "can't match sensor\n");
 					d_inf(1, "OV13850 as default sensor\n");
 					lpipe->cur_cmd->memory_sensor_data =
-					memory_sensor_match("marvell,ov13850");
+					memory_sensor_match("ovt,ov13850");
 				}
 				if (lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS)) {
 					paxi->r_type = B52AXI_REVENT_MEMSENSOR;
@@ -2967,25 +2970,34 @@ static int b52isp_setup(struct b52isp *b52isp)
 		goto exit_err;
 
 	/* First, the single pipeline links */
+	/* for one axi links */
 	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_PIPE1,
 			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
+	b52_add_link(b52isp, B52ISP_ISD_A1R1, B52PAD_AXI_OUT,
+			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
+	b52_add_link(b52isp, B52ISP_ISD_PIPE1, B52PAD_PIPE_OUT,
+			B52ISP_ISD_A1W1, B52PAD_AXI_IN);
+	b52_add_link(b52isp, B52ISP_ISD_PIPE1, B52PAD_PIPE_OUT,
+			B52ISP_ISD_A1W2, B52PAD_AXI_IN);
+	b52_add_link(b52isp, B52ISP_ISD_A1R1, B52PAD_AXI_OUT,
+			B52ISP_ISD_MS1, B52PAD_MS_IN);
+	b52_add_link(b52isp, B52ISP_ISD_MS1, B52PAD_MS_OUT,
+			B52ISP_ISD_A1W1, B52PAD_AXI_IN);
+	b52_add_link(b52isp, B52ISP_ISD_MS1, B52PAD_MS_OUT,
+			B52ISP_ISD_A1W2, B52PAD_AXI_IN);
+
+	if (b52isp->hw_desc->nr_axi < 2)
+		return 0;
+
+	/* for two axi links */
 	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_DUMP1,
 			B52ISP_ISD_DUMP1, B52PAD_PIPE_IN);
-
-	b52_add_link(b52isp, B52ISP_ISD_A1R1, B52PAD_AXI_OUT,
-			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
 	b52_add_link(b52isp, B52ISP_ISD_A2R1, B52PAD_AXI_OUT,
 			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
-
-	b52_add_link(b52isp, B52ISP_ISD_PIPE1, B52PAD_PIPE_OUT,
-			B52ISP_ISD_A1W1, B52PAD_AXI_IN);
-	b52_add_link(b52isp, B52ISP_ISD_PIPE1, B52PAD_PIPE_OUT,
-			B52ISP_ISD_A1W2, B52PAD_AXI_IN);
 	b52_add_link(b52isp, B52ISP_ISD_PIPE1, B52PAD_PIPE_OUT,
 			B52ISP_ISD_A2W1, B52PAD_AXI_IN);
 	b52_add_link(b52isp, B52ISP_ISD_PIPE1, B52PAD_PIPE_OUT,
 			B52ISP_ISD_A2W2, B52PAD_AXI_IN);
-
 	b52_add_link(b52isp, B52ISP_ISD_DUMP1, B52PAD_PIPE_OUT,
 			B52ISP_ISD_A1W1, B52PAD_AXI_IN);
 	b52_add_link(b52isp, B52ISP_ISD_DUMP1, B52PAD_PIPE_OUT,
@@ -2994,16 +3006,8 @@ static int b52isp_setup(struct b52isp *b52isp)
 			B52ISP_ISD_A2W1, B52PAD_AXI_IN);
 	b52_add_link(b52isp, B52ISP_ISD_DUMP1, B52PAD_PIPE_OUT,
 			B52ISP_ISD_A2W2, B52PAD_AXI_IN);
-
-	b52_add_link(b52isp, B52ISP_ISD_A1R1, B52PAD_AXI_OUT,
-			B52ISP_ISD_MS1, B52PAD_MS_IN);
 	b52_add_link(b52isp, B52ISP_ISD_A2R1, B52PAD_AXI_OUT,
 			B52ISP_ISD_MS1, B52PAD_MS_IN);
-
-	b52_add_link(b52isp, B52ISP_ISD_MS1, B52PAD_MS_OUT,
-			B52ISP_ISD_A1W1, B52PAD_AXI_IN);
-	b52_add_link(b52isp, B52ISP_ISD_MS1, B52PAD_MS_OUT,
-			B52ISP_ISD_A1W2, B52PAD_AXI_IN);
 	b52_add_link(b52isp, B52ISP_ISD_MS1, B52PAD_MS_OUT,
 			B52ISP_ISD_A2W1, B52PAD_AXI_IN);
 	b52_add_link(b52isp, B52ISP_ISD_MS1, B52PAD_MS_OUT,
@@ -3216,7 +3220,7 @@ static irqreturn_t b52isp_irq_handler(int irq, void *data)
 	struct b52isp *b52isp = data;
 	struct b52isp_paxi *paxi;
 
-	b52_ack_xlate_irq(event);
+	b52_ack_xlate_irq(event, b52isp->hw_desc->nr_axi);
 
 	for (i = 0; i < b52isp->hw_desc->nr_axi; i++) {
 		if (event[i] == 0)
@@ -3265,7 +3269,7 @@ static int b52isp_probe(struct platform_device *pdev)
 		.mod_type = 0xFF,
 		.mod_id = 0xFF,
 	};
-	int ret, i;
+	int ret, i, nr_axi;
 
 	b52isp = devm_kzalloc(&pdev->dev, sizeof(struct b52isp),
 				GFP_KERNEL);
@@ -3281,6 +3285,14 @@ static int b52isp_probe(struct platform_device *pdev)
 	b52isp->hw_desc = of_id->data;
 	dev_info(&pdev->dev, "Probe OVT ISP with %d pipeline, %d AXI Master\n",
 		b52isp->hw_desc->nr_pipe, b52isp->hw_desc->nr_axi);
+
+	for (i = 0; i < b52isp->hw_desc->nr_axi * 3; i += 3) {
+		for (nr_axi = 0; nr_axi < b52isp->hw_desc->nr_axi; nr_axi++) {
+			output_mask[i + 0] |= mac_wport_mask(nr_axi);
+			output_mask[i + 1] |= mac_wport_mask(nr_axi);
+			output_mask[i + 2] |= mac_rport_mask(nr_axi);
+		}
+	}
 
 	platform_set_drvdata(pdev, b52isp);
 	b52isp->dev = &pdev->dev;

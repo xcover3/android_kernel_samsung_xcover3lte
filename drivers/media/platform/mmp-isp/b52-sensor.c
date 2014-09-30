@@ -1300,7 +1300,7 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			dev_warn(&client->dev, "Failed to get gpio reset\n");
 			power->rst = NULL;
 		} else {
-			ret = gpiod_direction_output(power->rst, 0);
+			ret = gpiod_direction_output(power->rst, 1);
 			if (ret < 0) {
 				dev_err(&client->dev, "Failed to set gpio rst\n");
 				goto rst_err;

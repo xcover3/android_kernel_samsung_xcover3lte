@@ -95,6 +95,13 @@ static void twsi_do_work(struct work_struct *data)
 		b52_sensor_call(psensor, s_focus, val);
 	}
 }
+void b52_init_workqueue(void *data)
+{
+	sensor = data;
+	INIT_WORK(&twsi_work, twsi_do_work);
+}
+EXPORT_SYMBOL_GPL(b52_init_workqueue);
+#endif
 static void rdy_do_work(struct work_struct *data)
 {
 	/*FIXME only MAC1 is support*/
@@ -105,13 +112,6 @@ static void rdy_do_work(struct work_struct *data)
 }
 static DECLARE_DELAYED_WORK(rdy_work, rdy_do_work);
 
-void b52_init_workqueue(void *data)
-{
-	sensor = data;
-	INIT_WORK(&twsi_work, twsi_do_work);
-}
-EXPORT_SYMBOL_GPL(b52_init_workqueue);
-#endif
 #if 1
 inline u8 b52_readb(const u32 addr)
 {
@@ -1755,7 +1755,6 @@ static int b52_cfg_zoom(struct v4l2_rect *src,
 		pr_err("b52: zoom ratio error %x\n", ratio);
 		return -EINVAL;
 	}
-
 	b52_set_zoom_in_ratio(ratio);
 
 	return 0;
@@ -3238,7 +3237,7 @@ EXPORT_SYMBOL(b52_ctrl_mac_irq);
 /*
  * Acknowledge IRQ, and translate them into bits
  */
-void b52_ack_xlate_irq(__u32 *event)
+void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 {
 	__u32 reg = b52_readl(REG_ISP_INT_STAT);
 	__u32 cmd_reg = b52_readb(REG_FW_CPU_CMD_ID);
@@ -3260,7 +3259,7 @@ void b52_ack_xlate_irq(__u32 *event)
 #endif
 	}
 
-	for (i = 0; i < MAX_MAC_NUM; i++) {
+	for (i = 0; i < max_mac_num; i++) {
 		__u16 mac_irq;
 		__u8 irq_src, irq0 = 0, irq1 = 0, irqr = 0, rdy;
 

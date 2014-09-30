@@ -7,7 +7,7 @@
 
 #include "b52isp.h"
 
-#define FW_FILE_NAME          "ispfw_v324.bin"
+#define FW_FILE_NAME          "ispfw_v325.bin"
 
 enum mcu_cmd_name {
 	CMD_TEST = 0,
@@ -107,7 +107,7 @@ int b52_hdl_cmd(struct b52isp_cmd *cmd);
 int b52_ctrl_mac_irq(int select_bit, int enable);
 int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta,
 			u8 plane, u8 mac, u8 port);
-void b52_ack_xlate_irq(__u32 *events);
+void b52_ack_xlate_irq(__u32 *events, int max_mac_num);
 int b52_read_pipeline_info(int pipe_id, u8 *buffer);
 int b52_read_debug_info(u8 *buffer);
 int b52_cmd_anti_shake(u16 block_size, int enable);
