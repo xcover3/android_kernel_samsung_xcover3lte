@@ -140,12 +140,18 @@ static __init void enable_arch_timer(void)
 /* Functional Clock Selection Mask */
 #define APBC_FNCLKSEL(x)	(((x) & 0xf) << 4)
 
-static u32 timer_clkreg[] = {0x34, 0x44, 0x68, 0x0};
+#define APBC_TIMER0		0x34
+#define APBC_TIMER1		0x44
+#define APBC_TIMER2		0x68
+static u32 timer_clkreg[] = {
+	APBC_TIMER0, APBC_TIMER1, APBC_TIMER2
+};
 
 static __init void enable_soc_timer(void)
 {
 	void __iomem *apbc_base;
-	int i;
+	struct device_node *np;
+	int tid;
 
 	apbc_base = ioremap(APBC_PHY_BASE, SZ_4K);
 	if (!apbc_base) {
@@ -153,11 +159,17 @@ static __init void enable_soc_timer(void)
 		return;
 	}
 
-	for (i = 0; timer_clkreg[i]; i++) {
-		/* Select the configurable clock rate to be 3.25MHz */
-		writel(APBC_APBCLK | APBC_RST, apbc_base + timer_clkreg[i]);
-		writel(APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(3),
-			apbc_base + timer_clkreg[i]);
+	/* timer APMU clock initialization */
+	for_each_compatible_node(np, NULL, "marvell,mmp-timer") {
+		if (of_device_is_available(np) &&
+			!of_property_read_u32(np, "marvell,timer-id", &tid)) {
+			if (tid >= ARRAY_SIZE(timer_clkreg))
+				continue;
+			/* Select the configurable clock rate to be 3.25MHz */
+			writel(APBC_APBCLK | APBC_RST, apbc_base + timer_clkreg[tid]);
+			writel(APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(3),
+				apbc_base + timer_clkreg[tid]);
+		}
 	}
 
 	iounmap(apbc_base);
