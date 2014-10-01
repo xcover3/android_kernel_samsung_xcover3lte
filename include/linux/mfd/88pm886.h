@@ -139,6 +139,23 @@ enum {
 	PM886_ID_RG_MAX = 21,
 };
 
+enum {
+	PM886_NO_LED = -1,
+	PM886_FLASH_LED = 0,
+	PM886_TORCH_LED,
+};
+
+struct pm886_led_pdata {
+	unsigned int cf_en;
+	unsigned int cf_txmsk;
+	int gpio_en;
+	unsigned int flash_timer;
+	unsigned int cls_ov_set;
+	unsigned int cls_uv_set;
+	unsigned int cfd_bst_vset;
+	unsigned int bst_uvvbat_set;
+};
+
 struct pm886_chip {
 	struct i2c_client *client;
 	struct device *dev;

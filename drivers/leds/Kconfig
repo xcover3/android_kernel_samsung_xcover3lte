@@ -45,6 +45,17 @@ config LEDS_88PM886_RGB
 	  It has two blinking modes: switch mode and fade in/out mode;
 	  the later can be used as breath leds.
 
+config LEDS_88PM886_CFD
+	tristate "LED Support for Marvell 88PM886 PMIC"
+	depends on LEDS_CLASS
+	depends on MFD_88PM886
+	help
+	  This option enables camera torch/flash driver found on Marvell
+	  Semiconductor 88PM886 PMIC.
+	  It enables both torch and flash mode via /sys/class fs. Flash mode
+	  corresponding to /sys/class/leds/flash/, and torch mode corresponding
+	  to /sys/class/leds/torch/.
+
 config LEDS_88PM860X
 	tristate "LED Support for Marvell 88PM860x PMIC"
 	depends on LEDS_CLASS
