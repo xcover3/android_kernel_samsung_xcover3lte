@@ -739,7 +739,7 @@ static const struct reg_default pm886_power_patch[] = {
 };
 
 static const struct reg_default pm886_gpadc_patch[] = {
-	/* TODO: enable GPADC? */
+	{PM886_GPADC_CONFIG6, 0x03}, /* enable non-stop mode */
 };
 
 static const struct reg_default pm886_battery_patch[] = {

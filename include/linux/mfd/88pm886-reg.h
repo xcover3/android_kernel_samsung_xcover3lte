@@ -19,6 +19,7 @@
 /*--base page:--------------------------------------------------------------*/
 #define PM886_STATUS1			(0x1)
 #define PM886_CHG_DET			(1 << 2)
+#define PM886_BAT_DET			(1 << 3)
 
 #define PM886_MISC_CONFIG1		(0x14)
 #define PM886_LONKEY_RST		(1 << 3)
@@ -109,11 +110,16 @@
 
 /*--gpadc page:------------------------------------------------------------*/
 
+#define PM886_GPADC_CONFIG1		(0x1)
+
 #define PM886_GPADC_CONFIG2		(0x2)
 #define PM886_GPADC0_MEAS_EN		(1 << 2)
 #define PM886_GPADC1_MEAS_EN		(1 << 3)
 #define PM886_GPADC2_MEAS_EN		(1 << 4)
 #define PM886_GPADC3_MEAS_EN		(1 << 5)
+
+#define PM886_GPADC_CONFIG6		(0x6)
+#define PM886_GPADC_CONFIG8		(0x8)
 
 #define PM886_GPADC0_LOW_TH		(0x20)
 #define PM886_GPADC1_LOW_TH		(0x21)

@@ -21,8 +21,53 @@
 #include <linux/math64.h>
 #include <linux/of_device.h>
 
-#define MONITOR_INTERVAL		(HZ * 60)
-#define LOW_BAT_INTERVAL		(HZ * 10)
+#define PM886_VBAT_MEAS_EN		(1 << 1)
+#define PM886_GPADC_BD_PREBIAS		(1 << 4)
+#define PM886_GPADC_BD_EN		(1 << 5)
+#define PM886_BD_GP_SEL			(1 << 6)
+
+#define PM886_CC_CONFIG1		(0x01)
+#define PM886_CC_EN			(1 << 0)
+#define PM886_CC_CLR_ON_RD		(1 << 2)
+#define PM886_SD_PWRUP			(1 << 3)
+
+#define PM886_CC_CONFIG2		(0x02)
+#define PM886_CC_READ_REQ		(1 << 0)
+#define PM886_OFFCOMP_EN		(1 << 1)
+
+#define PM886_CC_VAL1			(0x03)
+#define PM886_CC_VAL2			(0x04)
+#define PM886_CC_VAL3			(0x05)
+#define PM886_CC_VAL4			(0x06)
+#define PM886_CC_VAL5			(0x07)
+
+#define PM886_IBAT_VAL1			(0x08)		/* LSB */
+#define PM886_IBAT_VAL2			(0x09)
+#define PM886_IBAT_VAL3			(0x0a)
+
+#define PM886_IBAT_EOC_CONFIG		(0x0f)
+#define PM886_IBAT_MEAS_EN		(1 << 0)
+
+#define PM886_IBAT_EOC_MEAS1		(0x10)		/* bit [7 : 0] */
+#define PM886_IBAT_EOC_MEAS2		(0x11)		/* bit [15: 8] */
+
+#define PM886_CC_LOW_TH1		(0x12)		/* bit [7 : 0] */
+#define PM886_CC_LOW_TH2		(0x13)		/* bit [15 : 8] */
+
+#define PM886_VBAT_AVG_MSB		(0xa0)
+#define PM886_VBAT_AVG_LSB		(0xa1)
+
+#define PM886_VBAT_SLP_MSB		(0xb0)
+#define PM886_VBAT_SLP_LSB		(0xb1)
+
+#define PM886_SLP_CNT1			(0xce)
+
+#define PM886_SLP_CNT2			(0xcf)
+#define PM886_SLP_CNT_HOLD		(1 << 6)
+#define PM886_SLP_CNT_RST		(1 << 7)
+
+#define MONITOR_INTERVAL		(HZ * 30)
+#define LOW_BAT_INTERVAL		(HZ * 5)
 #define LOW_BAT_CAP			(15)
 enum {
 	ALL_SAVED_DATA,
@@ -50,20 +95,18 @@ struct pm886_battery_info {
 	struct delayed_work	charged_work;
 	struct delayed_work	cc_work; /* sigma-delta offset compensation */
 	struct workqueue_struct *bat_wqueue;
-	atomic_t		cc_done;
 
 	int			total_capacity;
 
-	int			r_int;
-	unsigned int		bat_ntc;
+	bool			use_ntc;
+	int			gpadc_no;
 
-	int			ocv_is_realiable;
+	bool			ocv_is_realiable;
 	int			range_low_th;
 	int			range_high_th;
 	int			sleep_counter_th;
 
-	int			power_off_threshold;
-	int			safe_power_off_threshold;
+	int			alart_percent;
 
 	int			irq_nums;
 	int			irq[7];
@@ -81,7 +124,7 @@ struct ccnt {
 	int max_cc;
 	int last_cc;
 	int cc_offs;
-	int cc_int;
+	int alart_cc;
 };
 static struct ccnt ccnt_data;
 
@@ -92,6 +135,7 @@ struct save_buffer {
 };
 static struct save_buffer extern_data;
 
+static int pm886_get_batt_vol(struct pm886_battery_info *info, int active);
 /*
  * - saved SoC
  * - ocv_is_realiable flag
@@ -100,8 +144,7 @@ static int get_extern_data(struct pm886_battery_info *info, int flag)
 {
 	return 0;
 }
-static void set_extern_data(struct pm886_battery_info *info,
-			    int flag, int data)
+static void set_extern_data(struct pm886_battery_info *info, int flag, int data)
 {
 	return;
 }
@@ -138,7 +181,7 @@ static int pm886_battery_read_buffer(struct pm886_battery_info *info,
 	 * it may be casused by backup battery totally discharged
 	 */
 	if (data == 0) {
-		pr_err("attention: saved value is not realiable!\n");
+		dev_err(info->dev, "attention: saved value isn't realiable!\n");
 		return -EINVAL;
 	}
 
@@ -196,25 +239,86 @@ static int pm886_battery_get_charger_status(struct pm886_battery_info *info)
 	return status;
 }
 
+static int pm886_enable_bat_detect(struct pm886_battery_info *info, bool enable)
+{
+	int data, mask, ret = 0;
+
+	/*
+	 * 0. gpadc is in non-stop mode
+	 *    enable at least another measurement
+	 *    done in the mfd driver
+	 */
+
+	/* 1. choose gpadc 1/3 to detect battery */
+	switch (info->gpadc_no) {
+	case 1:
+		data = 0;
+		mask = PM886_BD_GP_SEL;
+		break;
+	case 3:
+		data = mask = PM886_BD_GP_SEL;
+		break;
+	default:
+		dev_err(info->dev,
+			"wrong gpadc number: %d\n", info->gpadc_no);
+		return -EINVAL;
+	}
+
+	if (enable) {
+		data |= (PM886_GPADC_BD_EN | PM886_GPADC_BD_PREBIAS);
+		mask |= (PM886_GPADC_BD_EN | PM886_GPADC_BD_PREBIAS);
+	} else {
+		data = 0;
+		mask = PM886_GPADC_BD_EN | PM886_GPADC_BD_PREBIAS;
+	}
+
+	ret = regmap_update_bits(info->chip->gpadc_regmap,
+				 PM886_GPADC_CONFIG8, mask, data);
+	return ret;
+}
+
 static bool pm886_check_battery_present(struct pm886_battery_info *info)
 {
 	static bool present;
+	int data, ret = 0;
+
 	if (!info) {
 		pr_err("%s: empty battery info.\n", __func__);
 		return true;
 	}
 
-	if (info->bat_ntc)
+	if (info->use_ntc) {
+		ret = pm886_enable_bat_detect(info, true);
+		if (ret < 0) {
+			present = true;
+			goto out;
+		}
+		regmap_read(info->chip->base_regmap, PM886_STATUS1, &data);
+		present = !!(data & PM886_BAT_DET);
+	} else {
 		present = true;
-	else
-		present = true;
+	}
+
 	/*
 	 * if the battery is not present and the "battery" voltage is good
-	 * suppose the external power supply is used, then
-	 * - disable battery detection feature
+	 * suppose the external power supply is used, then disable detection
 	 */
-	return present;
+	if (info->use_ntc && !present) {
+#if 0
+		/* this part is for the "power supply mode" */
+		data = pm886_get_batt_vol(info, 1);
+		if (data > 3400)
+			present = true;
+		else
+			present = false;
+#endif
+		pm886_enable_bat_detect(info, false);
+	}
+out:
+	if (ret < 0)
+		present = true;
 
+	return present;
 }
 
 static bool system_is_reboot(struct pm886_battery_info *info)
@@ -251,7 +355,10 @@ static bool check_battery_change(struct pm886_battery_info *info,
 		remove_th = 60;
 		break;
 	}
-	return !(abs(new_soc - saved_soc) > remove_th);
+	dev_info(info->dev, "new_soc = %d, saved_soc = %d, remove = %d\n",
+		 new_soc, saved_soc, remove_th);
+
+	return !!(abs(new_soc - saved_soc) > remove_th);
 }
 
 static bool check_soc_range(struct pm886_battery_info *info, int soc)
@@ -273,15 +380,26 @@ static bool check_soc_range(struct pm886_battery_info *info, int soc)
  */
 static int pm886_get_batt_vol(struct pm886_battery_info *info, int active)
 {
-	int data;
+	int data, buf[2], ret = 0;
+	unsigned int reg;
 
 	if (active)
-		data = 4000;
+		reg = PM886_VBAT_AVG_MSB;
 	else
-		data = 4000;
+		reg = PM886_VBAT_SLP_MSB;
+
+	ret = regmap_bulk_read(info->chip->gpadc_regmap, reg, buf, 2);
+	if (ret < 0)
+		goto out;
+
+	data = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
+	data = ((data & 0xfff) * 700) >> 9;
 
 	dev_dbg(info->dev, "%s--> %s: vbat: %dmV\n", __func__,
 		active ? "active" : "sleep", data);
+out:
+	if (ret < 0)
+		data = 4000;
 
 	return data;
 }
@@ -310,11 +428,32 @@ out:
 
 static int pm886_get_ibat_cc(struct pm886_battery_info *info)
 {
-	int data = 100;
+	int ret, data;
+	unsigned char buf[3];
+
+	ret = regmap_bulk_read(info->chip->battery_regmap, PM886_IBAT_VAL1,
+			       buf, 3);
+	if (ret < 0)
+		goto out;
+
+	data = ((buf[2] & 0x3) << 16) | ((buf[1] & 0xff) << 8) | buf[0];
+
+	/* discharging, ibat < 0; charging, ibat > 0 */
+	if (data & (1 << 17))
+		data = (0xff << 24) | (0x3f << 18) | data;
+
+	/* the current LSB is 0.04578mA */
+	data = (data * 458) / 10;
+	dev_dbg(info->dev, "%s--> ibat_cc = %duA, %dmA\n", __func__,
+		data, data / 1000);
+
+out:
+	if (ret < 0)
+		data = 100;
+
 	return data;
 }
 
-/* read gpadc0 to get temperature */
 static int pm886_get_batt_temp(struct pm886_battery_info *info)
 {
 	int temp = 20;
@@ -323,7 +462,24 @@ static int pm886_get_batt_temp(struct pm886_battery_info *info)
 
 static int pm886_battery_get_slp_cnt(struct pm886_battery_info *info)
 {
-	return 0;
+	int buf[2], ret, cnt;
+	unsigned int mask, data;
+
+	ret = regmap_bulk_read(info->chip->base_regmap, PM886_SLP_CNT1, buf, 2);
+	if (ret) {
+		cnt = 0;
+		goto out;
+	}
+
+	cnt = ((buf[1] & 0x07) << 8) | buf[0];
+	cnt &= 0x7ff;
+out:
+	/* reset the sleep counter by setting SLP_CNT_RST */
+	data = mask = PM886_SLP_CNT_RST;
+	ret = regmap_update_bits(info->chip->base_regmap,
+				 PM886_SLP_CNT2, mask, data);
+
+	return cnt;
 }
 
 /*
@@ -347,14 +503,14 @@ static void check_set_ocv_flag(struct pm886_battery_info *info,
 
 	/* check if battery is relaxed enough */
 	slp_cnt = pm886_battery_get_slp_cnt(info);
-	dev_dbg(info->dev, "pmic slp_cnt = %d seconds\n", slp_cnt);
+	dev_dbg(info->dev, "%s: slp_cnt = %d seconds\n", __func__, slp_cnt);
 
 	if (slp_cnt < info->sleep_counter_th) {
 		dev_dbg(info->dev, "battery is not relaxed.\n");
 		return;
 	}
 
-	dev_info(info->dev, "battery has slept %d second.\n", slp_cnt);
+	dev_dbg(info->dev, "battery has slept %d second.\n", slp_cnt);
 
 	/* read last sleep voltage and calc new SOC */
 	vol = pm886_get_batt_vol(info, 0);
@@ -379,8 +535,48 @@ static void check_set_ocv_flag(struct pm886_battery_info *info,
 static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 				   struct ccnt *ccnt_val)
 {
+	int data, ret, factor;
+	u8 buf[5];
+	s64 ccnt_uc = 0, ccnt_mc = 0;
+
 	/* 1. read columb counter to get the original SoC value */
-	/* 2. clap battery SoC for sanity check */
+	regmap_read(info->chip->battery_regmap, PM886_CC_CONFIG2, &data);
+	/*
+	 * set PM886_CC_READ_REQ to read Qbat_cc,
+	 * if it has been set, then it means the data not ready
+	 */
+	if (!(data & PM886_CC_READ_REQ))
+		regmap_update_bits(info->chip->battery_regmap, PM886_CC_CONFIG2,
+				   PM886_CC_READ_REQ, PM886_CC_READ_REQ);
+	/* wait until Qbat_cc is ready */
+	do {
+		regmap_read(info->chip->battery_regmap, PM886_CC_CONFIG2,
+			    &data);
+	} while ((data & PM886_CC_READ_REQ));
+
+	ret = regmap_bulk_read(info->chip->battery_regmap, PM886_CC_VAL1,
+			       buf, 5);
+	if (ret < 0)
+		return ret;
+
+	ccnt_uc = (s64) (((s64)(buf[4]) << 32)
+			 | (u64)(buf[3] << 24) | (u64)(buf[2] << 16)
+			 | (u64)(buf[1] << 8) | (u64)buf[0]);
+
+	dev_dbg(info->dev, "buf[0 ~ 4] = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
+		 buf[0], buf[1], buf[2], buf[3], buf[4]);
+	/* Factor is nC */
+	factor = 715;
+	ccnt_uc = ccnt_uc * factor;
+	ccnt_uc = div_s64(ccnt_uc, 1000);
+	ccnt_mc = div_s64(ccnt_uc, 1000);
+	dev_dbg(info->dev, "%s--> ccnt_uc: %lld uC, ccnt_mc: %lld mC\n",
+		__func__, ccnt_uc, ccnt_mc);
+
+	/* 2. add the value */
+	ccnt_val->last_cc += ccnt_mc;
+
+	/* 3. clap battery SoC for sanity check */
 	if (ccnt_val->last_cc > ccnt_val->max_cc) {
 		ccnt_val->soc = 100;
 		ccnt_val->last_cc = ccnt_val->max_cc;
@@ -391,6 +587,11 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 	}
 
 	ccnt_val->soc = ccnt_val->last_cc * 100 / ccnt_val->max_cc;
+
+	dev_dbg(info->dev,
+		 "%s<-- ccnt_val->soc: %d, ccnt_val->last_cc: %d mC\n",
+		 __func__, ccnt_val->soc, ccnt_val->last_cc);
+
 	return 0;
 }
 
@@ -411,13 +612,10 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 	/* hardcode type[Lion] */
 	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
-	if (info->bat_ntc)
+	if (info->use_ntc)
 		info->bat_params.temp = pm886_get_batt_temp(info) * 10;
 	else
 		info->bat_params.temp = 260;
-
-	if (!atomic_read(&info->cc_done))
-		return;
 
 	info->bat_params.volt = pm886_get_batt_vol(info, 1);
 
@@ -440,18 +638,21 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 static void pm886_battery_monitor_work(struct work_struct *work)
 {
 	struct pm886_battery_info *info;
-	static int prev_cap, prev_volt, prev_status;
+	static int prev_cap = -1;
+	static int prev_volt = -1;
+	static int prev_status = -1;;
 
 	info = container_of(work, struct pm886_battery_info, monitor_work.work);
 
 	pm886_bat_update_status(info);
+	dev_dbg(info->dev, "%s is called, status update finished.\n", __func__);
 
 	/* notify when parameters are changed */
 	if ((prev_cap != info->bat_params.soc)
 	    || (abs(prev_volt - info->bat_params.volt) > 100)
 	    || (prev_status != info->bat_params.status)) {
-		power_supply_changed(&info->battery);
 
+		power_supply_changed(&info->battery);
 		prev_cap = info->bat_params.soc;
 		prev_volt = info->bat_params.volt;
 		prev_status = info->bat_params.status;
@@ -467,15 +668,12 @@ static void pm886_battery_monitor_work(struct work_struct *work)
 	extern_data.ocv_is_realiable = info->ocv_is_realiable;
 	pm886_battery_write_buffer(info, &extern_data);
 
-	if (info->bat_params.soc <= LOW_BAT_CAP) {
+	if (info->bat_params.soc <= LOW_BAT_CAP)
 		queue_delayed_work(info->bat_wqueue, &info->monitor_work,
 				   LOW_BAT_INTERVAL);
-		ccnt_data.cc_int = 10;
-	} else {
+	else
 		queue_delayed_work(info->bat_wqueue, &info->monitor_work,
 				   MONITOR_INTERVAL);
-		ccnt_data.cc_int = 60;
-	}
 }
 
 static void pm886_charged_work(struct work_struct *work)
@@ -489,31 +687,58 @@ static void pm886_charged_work(struct work_struct *work)
 	return;
 }
 
-/* need about 5s to finish offset compensation */
-static void pm886_battery_cc_work(struct work_struct *work)
-{
-	struct pm886_battery_info *info;
-	info = container_of(work, struct pm886_battery_info, cc_work.work);
-	if (!info) {
-		pr_err("%s: empty battery info!\n", __func__);
-		return;
-	}
-	atomic_set(&info->cc_done, 1);
-}
-
 static int pm886_setup_fuelgauge(struct pm886_battery_info *info)
 {
-	int ret = 0;
+	int ret = 0, data, mask, tmp;
+	u8 buf[2];
+
 	if (!info) {
 		pr_err("%s: empty battery info.\n", __func__);
 		return true;
 	}
 
-	/* 0. set FGC_CLK_EN in 0x10, to enable system clock */
-	/*    set SD_PWRUP in 0x24, to enable 32kHZ and sigma-delta converter */
-	/*    set IBAT_EOC_EN in 0x32, to decide EOC */
-	/* 1. set OFFCOMP_EN in 0x25 to compensate Ibat */
-	/* 2. set VBAT_SMPL_NUM in 0x32 to configure sample for VBAT */
+	/* 0. set the CCNT_LOW_TH before the CC_EN is set 23.43mC/LSB */
+	tmp = ccnt_data.alart_cc * 100 / 2343;
+	buf[0] = (u8)(tmp & 0xff);
+	buf[1] = (u8)((tmp & 0xff00) >> 8);
+	regmap_bulk_write(info->chip->battery_regmap, PM886_CC_LOW_TH1, buf, 2);
+
+	/* 1. set PM886_OFFCOMP_EN to compensate Ibat, SWOFF_EN = 0 */
+	data = mask = PM886_OFFCOMP_EN;
+	ret = regmap_update_bits(info->chip->battery_regmap, PM886_CC_CONFIG2,
+				 mask, data);
+	if (ret < 0)
+		goto out;
+
+	/* 2. set the EOC battery current as 100mA, done in charger driver */
+
+	/* 3. use battery current to decide the EOC */
+	data = mask = PM886_IBAT_MEAS_EN;
+	ret = regmap_update_bits(info->chip->battery_regmap,
+				PM886_IBAT_EOC_CONFIG, mask, data);
+	/*
+	 * 4. set SD_PWRUP to enable sigma-delta
+	 *    set CC_CLR_ON_RD to clear coulomb counter on read
+	 *    set CC_EN to enable coulomb counter
+	 */
+	data = mask = PM886_SD_PWRUP | PM886_CC_CLR_ON_RD | PM886_CC_EN;
+	ret = regmap_update_bits(info->chip->battery_regmap, PM886_CC_CONFIG1,
+				 mask, data);
+	if (ret < 0)
+		goto out;
+
+	/* 5. enable VBAT measurement */
+	data = mask = PM886_VBAT_MEAS_EN;
+	ret = regmap_update_bits(info->chip->gpadc_regmap, PM886_GPADC_CONFIG1,
+				 mask, data);
+	if (ret < 0)
+		goto out;
+
+	/* 6. hold the sleep counter until this bit is released or be reset */
+	data = mask = PM886_SLP_CNT_HOLD;
+	ret = regmap_update_bits(info->chip->base_regmap,
+				 PM886_SLP_CNT2, mask, data);
+out:
 	return ret;
 }
 
@@ -521,34 +746,46 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info)
 {
 	int initial_soc = 80;
 	int ret, slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
-	bool battery_is_changed, soc_in_good_range;
+	bool battery_is_changed, soc_in_good_range, realiable_from_saved;
 
-	struct save_buffer value;
 	/*---------------- the following gets the initial_soc --------------*/
 	/*
 	 * 1. read vbat_sleep:
 	 * - then use the vbat_sleep to calculate SoC: soc_from_vbat_slp
 	 */
 	slp_volt = pm886_get_batt_vol(info, 0);
+	dev_info(info->dev, "---> %s: slp_volt = %dmV\n", __func__, slp_volt);
 	soc_from_vbat_slp = pm886_get_soc_from_ocv(slp_volt);
+	dev_info(info->dev, "---> %s: soc_from_vbat_slp = %d\n",
+		 __func__, soc_from_vbat_slp);
 
 	/* 2. read saved SoC: soc_from_saved */
 	/*
-	 * - if the system comes here becasue of software reboot, or
-	 *   soc_from_saved is not realiable, use soc_from_vbat_slp
-	 *   IOW, initial_soc = soc_from_vbat_slp; return;
+	 *  if system comes here because of software reboot
+	 *  and
+	 *  soc_from_saved is not realiable, use soc_from_vbat_slp
 	 */
-	if (system_is_reboot(info)) {
-		initial_soc = soc_from_vbat_slp;
-		goto out;
-	}
 
-	ret = pm886_battery_read_buffer(info, &value);
-	if (ret < 0) {
-		initial_soc = soc_from_vbat_slp;
-		goto out;
+	ret = pm886_battery_read_buffer(info, &extern_data);
+	soc_from_saved = extern_data.soc;
+	realiable_from_saved = extern_data.ocv_is_realiable;
+	dev_info(info->dev,
+		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n", \
+		 __func__, soc_from_saved, realiable_from_saved);
+
+	if (system_is_reboot(info)) {
+		dev_info(info->dev,
+			 "---> %s: arrive here from reboot.\n", __func__);
+		if (ret < 0) {
+			initial_soc = soc_from_vbat_slp;
+			info->ocv_is_realiable = false;
+		} else {
+			initial_soc = soc_from_saved;
+			info->ocv_is_realiable = realiable_from_saved;
+		}
+		goto end;
 	}
-	soc_from_saved = value.soc;
+	dev_info(info->dev, "---> %s: arrive here from power on.\n", __func__);
 
 	/*
 	 * 3. compare the soc_from_vbat_slp and the soc_from_saved
@@ -565,29 +802,55 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info)
 	 */
 	battery_is_changed = check_battery_change(info, soc_from_vbat_slp,
 						  soc_from_saved);
+	dev_info(info->dev, "battery_is_changed = %d\n", battery_is_changed);
 	if (battery_is_changed) {
+		dev_info(info->dev, "----> %s: battery is changed\n", __func__);
 		initial_soc = soc_from_vbat_slp;
-		goto out;
+		info->ocv_is_realiable = false;
+		goto end;
 	}
 
 	/* battery unchanged */
 	slp_cnt = pm886_battery_get_slp_cnt(info);
+	dev_info(info->dev, "----> %s: battery is unchanged: \n", __func__);
+	dev_info(info->dev, "\t\t slp_cnt = %d\n", slp_cnt);
+
 	if (slp_cnt < info->sleep_counter_th) {
 		initial_soc = soc_from_saved;
-		goto out;
+		info->ocv_is_realiable = realiable_from_saved;
+		dev_info(info->dev,
+			 "---> %s: battery is unchanged, and not relaxed:\n",
+			 __func__);
+		dev_info(info->dev,
+			 "\t\t use soc_from_saved and realiable_from_saved.\n");
+		goto end;
 	}
 
+	dev_info(info->dev,
+		 "---> %s: battery is unchanged and relaxed\n", __func__);
+
 	soc_in_good_range = check_soc_range(info, soc_from_vbat_slp);
+	dev_info(info->dev, "soc_in_good_range = %d\n", soc_in_good_range);
 	if (soc_in_good_range) {
 		initial_soc = soc_from_vbat_slp;
-		goto out;
+		info->ocv_is_realiable = true;
+		dev_info(info->dev,
+			 "OCV is in good range, use soc_from_vbat_slp.\n");
+	} else {
+		initial_soc = soc_from_saved;
+		info->ocv_is_realiable = realiable_from_saved;
+		dev_info(info->dev,
+			 "OCV is in bad range, use soc_from_saved.\n");
 	}
-	initial_soc = soc_from_saved;
-out:
+
+end:
 	/* update ccnt_data timely */
 	ccnt_data.soc = initial_soc;
 	ccnt_data.last_cc =
 		(ccnt_data.max_cc / 1000) * (ccnt_data.soc * 10 + 5);
+
+	dev_info(info->dev,
+		 "<---- %s: initial soc = %d\n", __func__, initial_soc);
 
 	return initial_soc;
 }
@@ -646,6 +909,8 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
+		info->bat_params.status =
+			pm886_battery_get_charger_status(info);
 		val->intval = info->bat_params.status;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -661,6 +926,7 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 		val->intval = info->bat_params.tech;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		info->bat_params.volt = pm886_get_batt_vol(info, 1);
 		val->intval = info->bat_params.volt;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
@@ -674,6 +940,7 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 		val->intval = info->bat_params.temp;
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
+		info->bat_params.health = POWER_SUPPLY_HEALTH_GOOD;
 		val->intval = info->bat_params.health;
 		break;
 	default:
@@ -682,7 +949,6 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 	return 0;
 }
 
-/* this interrupt may not need to be handled */
 static irqreturn_t pm886_battery_cc_handler(int irq, void *data)
 {
 	struct pm886_battery_info *info = data;
@@ -692,6 +958,8 @@ static irqreturn_t pm886_battery_cc_handler(int irq, void *data)
 	}
 	dev_info(info->dev, "battery columb counter interrupt is served\n");
 
+	/* update the battery status when this interrupt is triggered. */
+	pm886_bat_update_status(info);
 	power_supply_changed(&info->battery);
 
 	return IRQ_HANDLED;
@@ -699,18 +967,10 @@ static irqreturn_t pm886_battery_cc_handler(int irq, void *data)
 
 static irqreturn_t pm886_battery_vbat_handler(int irq, void *data)
 {
-	struct pm886_battery_info *info = data;
-	if (!info) {
-		pr_err("%s: empty battery info.\n", __func__);
-		return IRQ_NONE;
-	}
-	dev_info(info->dev, "battery voltage interrupt is served\n");
-
-	power_supply_changed(&info->battery);
-
 	return IRQ_HANDLED;
 }
 
+/* this interrupt may not need to be handled */
 static irqreturn_t pm886_battery_detect_handler(int irq, void *data)
 {
 	struct pm886_battery_info *info = data;
@@ -737,36 +997,33 @@ static struct pm886_irq_desc {
 };
 
 static int pm886_battery_dt_init(struct device_node *np,
-			    struct pm886_battery_info *info)
+				 struct pm886_battery_info *info)
 {
 	int ret;
 
-	ret = of_property_read_u32(np, "bat-ntc-support", &info->bat_ntc);
-	if (ret)
-		return ret;
+	if (of_get_property(np, "bat-ntc-support", NULL))
+		info->use_ntc = true;
+	else
+		info->use_ntc = false;
+
+	if (info->use_ntc) {
+		ret = of_property_read_u32(np, "bd-gpadc-no", &info->gpadc_no);
+		if (ret)
+			return ret;
+	}
 	ret = of_property_read_u32(np, "bat-capacity", &info->total_capacity);
-	if (ret)
-		return ret;
-	ret = of_property_read_u32(np, "external-resistor", &info->r_int);
 	if (ret)
 		return ret;
 	ret = of_property_read_u32(np, "sleep-period", &info->sleep_counter_th);
 	if (ret)
 		return ret;
-
 	ret = of_property_read_u32(np, "low-threshold", &info->range_low_th);
 	if (ret)
 		return ret;
 	ret = of_property_read_u32(np, "high-threshold", &info->range_high_th);
 	if (ret)
 		return ret;
-
-	ret = of_property_read_u32(np, "power-off-threshold",
-				   &info->power_off_threshold);
-	if (ret)
-		return ret;
-	ret = of_property_read_u32(np, "safe-power-off-threshold",
-			&info->safe_power_off_threshold);
+	ret = of_property_read_u32(np, "alart-percent", &info->alart_percent);
 	if (ret)
 		return ret;
 
@@ -803,7 +1060,15 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	else
 		ccnt_data.max_cc = 1500 * 3600;
 
-	atomic_set(&info->cc_done, 0);
+	if (info->alart_percent > 100 || info->alart_percent < 0)
+		info->alart_percent = 5;
+	ccnt_data.alart_cc = ccnt_data.max_cc * info->alart_percent / 100;
+
+	if (info->use_ntc) {
+		if (info->gpadc_no != 1 && info->gpadc_no != 3)
+			return -EINVAL;
+	}
+
 	info->chip = chip;
 	info->dev = &pdev->dev;
 	info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
@@ -857,16 +1122,15 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	}
 
 	INIT_DELAYED_WORK(&info->charged_work, pm886_charged_work);
+	INIT_DEFERRABLE_WORK(&info->monitor_work, pm886_battery_monitor_work);
 
-	INIT_DEFERRABLE_WORK(&info->monitor_work,
-			     pm886_battery_monitor_work);
-	INIT_DELAYED_WORK(&info->cc_work, pm886_battery_cc_work);
-	queue_delayed_work(info->bat_wqueue, &info->cc_work, 5 * HZ);
-	queue_delayed_work(info->bat_wqueue, &info->monitor_work, HZ);
+	/* update the status timely */
+	queue_delayed_work(info->bat_wqueue, &info->monitor_work, 0);
 
 	device_init_wakeup(&pdev->dev, 1);
 
 	return 0;
+
 out_irq:
 	while (--i >= 0)
 		devm_free_irq(info->dev, info->irq[i], info);
