@@ -87,6 +87,13 @@
 		status = "okay";
 	};
 
+	battery {
+		/* bat-ntc-support; */
+		/* bd-gpadc-no = <3>; */
+		bat-ntc-support;
+		bd-gpadc-no = <3>;
+	};
+
 	red: led-rgb0 {
 	       led-name = "led0";
 	       led-trigger-name = "timer";

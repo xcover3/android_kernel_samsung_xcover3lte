@@ -1,0 +1,22 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * 88pm886 parameters for most Li-ion batteries
+ */
+
+&pmic0 {
+	charger {
+	};
+
+	battery {
+		sleep-period = <1000>;		/* second */
+		low-threshold = <30>;		/* % */
+		high-threshold = <50>;		/* % */
+		alart-percent = <5>;		/* % */
+	};
+};
+
