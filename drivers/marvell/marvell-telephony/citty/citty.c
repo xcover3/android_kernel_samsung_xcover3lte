@@ -1087,14 +1087,14 @@ ssize_t cctdev_write(struct file *filp, const char __user *buf, size_t count,
 	if (!citty) {
 		PDEBUG("Warning: citty is NULL.\n");
 		mutex_unlock(&mutex_lock_tty[minor_num]);
-		return 0;
+		return -ENODEV;
 	}
 
 	tty = citty->port->tty;
 
 	if (!tty) {
 		mutex_unlock(&mutex_lock_tty[minor_num]);
-		return 0;
+		return -ENODEV;
 	}
 
 	tbuf = memdup_user(buf, count);
