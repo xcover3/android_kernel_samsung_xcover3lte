@@ -703,22 +703,17 @@ int pm886_init_subdev(struct pm886_chip *chip)
 }
 
 static const struct reg_default pm886_base_patch[] = {
-	/* TODO: need confirmation from design team */
-#if 0
+	{PM886_WDOG, 0x1},	 /* disable watchdog */
 	{PM886_GPIO_CTRL1, 0x40}, /* gpio1: dvc    , gpio0: input   */
 	{PM886_GPIO_CTRL2, 0x00}, /*               , gpio2: input   */
 	{PM886_GPIO_CTRL3, 0x44}, /* dvc2          , dvc1           */
 	{PM886_GPIO_CTRL4, 0x00}, /* gpio5v_1:input, gpio5v_2: input*/
 	{PM886_RTC_ALARM_CTRL1, 0x80}, /* USE_XO = 1 */
 	{PM886_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
-	{PM886_BK_OSC_CTRL1, 0x0c}, /* OSC_FREERUN = 1, to lock FLL */
-	{PM886_BK_OSC_CTRL6, 0x0c}, /* OSCD_FREERUN = 1, to lock FLL */
-	{PM886_LOWPOWER1, 0x00}, /* set internal VDD for sleep, 1.2V */
-	{PM886_LOWPOWER2, 0x30}, /* XO_LJ = 1, enable low jitter for 32kHZ */
-	{PM886_LOWPOWER3, 0x00},
+	{PM886_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
+	{PM886_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
 	/* enable LPM for internal reference group in sleep */
 	{PM886_LOWPOWER4, 0xc0},
-#endif
 };
 
 static const struct reg_default pm886_power_patch[] = {
