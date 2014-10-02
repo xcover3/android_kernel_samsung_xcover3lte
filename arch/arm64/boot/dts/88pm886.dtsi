@@ -163,6 +163,11 @@
 		  compatible = "marvell,88pm886-headset";
 		  status = "disabled";
 	};
+
+	led {
+		compatible = "marvell,88pm886-leds";
+	};
+
 	red: led-rgb0 {
 		compatible = "marvell,88pm886-rgb0";
 	};
