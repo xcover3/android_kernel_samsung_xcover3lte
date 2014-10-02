@@ -90,11 +90,9 @@ static void clear_errors(struct pm830_led *led)
 	/*!!! mutex must be locked upon entering this function */
 
 	chip = led->chip;
-	regmap_read(chip->regmap,
-			 PM830_CAMERA_FLASH5, &reg);
+	regmap_read(chip->regmap, PM830_CAMERA_FLASH5, &reg);
 	/* clear all errors, write 1 to clear */
-	regmap_update_bits(chip->regmap, PM830_CAMERA_FLASH5,
-			reg, reg);
+	regmap_write(chip->regmap, PM830_CAMERA_FLASH5, reg);
 }
 
 static void pm830_led_delayed_work(struct work_struct *work)
