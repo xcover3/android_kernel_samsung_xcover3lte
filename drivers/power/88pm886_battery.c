@@ -128,10 +128,17 @@ struct ccnt {
 };
 static struct ccnt ccnt_data;
 
+/*
+ * the save_buffer mapping:
+ *
+ * | o o o o   o o | o o ||         o      | o o o   o o o o |
+ * |<--- temp ---> |     ||ocv_is_realiable|      SoC        |
+ * |---RTC_SPARE6(0xef)--||-----------RTC_SPARE5(0xee)-------|
+ */
 struct save_buffer {
 	int soc;
+	bool ocv_is_realiable;
 	int temp;
-	int ocv_is_realiable;
 };
 static struct save_buffer extern_data;
 
@@ -142,10 +149,68 @@ static int pm886_get_batt_vol(struct pm886_battery_info *info, int active);
  */
 static int get_extern_data(struct pm886_battery_info *info, int flag)
 {
-	return 0;
+	u8 buf[2];
+	unsigned int val;
+	int ret;
+
+	if (!info) {
+		pr_err("%s: 88pm886 device info is empty!\n", __func__);
+		return 0;
+	}
+
+	switch (flag) {
+	case ALL_SAVED_DATA:
+		ret = regmap_bulk_read(info->chip->base_regmap,
+				       PM886_RTC_SPARE5, buf, 2);
+		if (ret < 0) {
+			val = 0;
+			break;
+		}
+
+		val = (buf[0] & 0xff) | ((buf[1] & 0xff) << 8);
+		break;
+	default:
+		val = 0;
+		dev_err(info->dev, "%s: unexpected case %d.\n", __func__, flag);
+		break;
+	}
+
+	dev_dbg(info->dev, "%s: val = 0x%x\n", __func__, val);
+	return val;
 }
 static void set_extern_data(struct pm886_battery_info *info, int flag, int data)
 {
+	u8 buf[2];
+	unsigned int val;
+	int ret;
+
+	if (!info) {
+		pr_err("88pm886 device info is empty!\n");
+		return;
+	}
+
+	switch (flag) {
+	case ALL_SAVED_DATA:
+		buf[0] = data & 0xff;
+		ret = regmap_read(info->chip->base_regmap,
+				  PM886_RTC_SPARE6, &val);
+		if (ret < 0)
+			return;
+		dev_dbg(info->dev, "%s: buf[0] = 0x%x\n", __func__, buf[0]);
+
+		buf[1] = ((data >> 8) & 0xfc) | (val & 0x3);
+		ret = regmap_bulk_write(info->chip->base_regmap,
+					PM886_RTC_SPARE5, buf, 2);
+		if (ret < 0)
+			return;
+		dev_dbg(info->dev, "%s: buf[1] = 0x%x\n", __func__, buf[1]);
+
+		break;
+	default:
+		dev_err(info->dev, "%s: unexpected case %d.\n", __func__, flag);
+		break;
+	}
+
 	return;
 }
 

@@ -58,6 +58,7 @@
 #define PM886_AON_CTRL4			(0xe4)
 
 /* 0xea, 0xeb, 0xec, 0xed are reserved by RTC */
+#define PM886_RTC_SPARE5		(0xee)
 #define PM886_RTC_SPARE6		(0xef)
 /*-------------------------------------------------------------------------*/
 
