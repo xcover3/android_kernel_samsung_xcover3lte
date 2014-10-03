@@ -204,4 +204,14 @@ config VIPERBOARD_ADC
 	  Say yes here to access the ADC part of the Nano River
 	  Technologies Viperboard.
 
+config 88PM886_GPADC
+	tristate "88pm886 GPADC (General Purpose A/D Converter) Support"
+	depends on MFD_88PM886
+	default n
+	help
+	  Say yes here if you want support for the 88pm886 General
+	  Purpose A/D Converter. This will add support for battery voltage
+	  and temperature measurement, die temperature measurement,
+	  system supply voltage, audio accessory, USB ID detection.
+
 endmenu
