@@ -76,7 +76,7 @@ source "drivers/staging/vt6656/Kconfig"
 
 source "drivers/staging/sep/Kconfig"
 
-source "drivers/staging/iio/Kconfig"
+#source "drivers/staging/iio/Kconfig"
 
 source "drivers/staging/wlags49_h2/Kconfig"
 
