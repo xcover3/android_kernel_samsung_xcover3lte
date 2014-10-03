@@ -20,6 +20,8 @@
 #include <linux/delay.h>
 #include <linux/math64.h>
 #include <linux/of_device.h>
+#include <linux/iio/iio.h>
+#include <linux/iio/consumer.h>
 
 #define PM886_VBAT_MEAS_EN		(1 << 1)
 #define PM886_GPADC_BD_PREBIAS		(1 << 4)
@@ -74,6 +76,13 @@ enum {
 	SLEEP_COUNT,
 };
 
+enum {
+	VBATT_CHAN,
+	VBATT_SLP_CHAN,
+	TEMP_CHAN,
+	MAX_CHAN = 3,
+};
+
 struct pm886_battery_params {
 	int status;
 	int present;
@@ -110,6 +119,8 @@ struct pm886_battery_info {
 
 	int			irq_nums;
 	int			irq[7];
+
+	struct iio_channel	*chan[MAX_CHAN];
 };
 
 static int ocv_table[100];
@@ -445,28 +456,33 @@ static bool check_soc_range(struct pm886_battery_info *info, int soc)
  */
 static int pm886_get_batt_vol(struct pm886_battery_info *info, int active)
 {
-	int data, buf[2], ret = 0;
-	unsigned int reg;
+	struct iio_channel *channel;
+	int vol, ret;
 
 	if (active)
-		reg = PM886_VBAT_AVG_MSB;
+		channel = info->chan[VBATT_CHAN];
 	else
-		reg = PM886_VBAT_SLP_MSB;
+		channel = info->chan[VBATT_SLP_CHAN];
 
-	ret = regmap_bulk_read(info->chip->gpadc_regmap, reg, buf, 2);
-	if (ret < 0)
-		goto out;
+	if (!channel) {
+		dev_err(info->dev, "cannot get the useable channel!\n");
+		return -EINVAL;
+	}
 
-	data = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
-	data = ((data & 0xfff) * 700) >> 9;
+	ret = iio_read_channel_processed(channel, &vol);
+	if (ret < 0) {
+		dev_err(info->dev, "read %s channel fails!\n",
+			channel->channel->datasheet_name);
+		return ret;
+	}
 
-	dev_dbg(info->dev, "%s--> %s: vbat: %dmV\n", __func__,
-		active ? "active" : "sleep", data);
-out:
-	if (ret < 0)
-		data = 4000;
+	/* change to micro-voltage */
+	vol /= 1000;
 
-	return data;
+	dev_dbg(info->dev, "%s: active = %d, voltage = %dmV\n",
+		__func__, active, vol);
+
+	return vol;
 }
 
 /* get soc from ocv: lookup table */
@@ -1100,6 +1116,43 @@ static int pm886_battery_dt_init(struct device_node *np,
 	return 0;
 }
 
+static int pm886_battery_setup_adc(struct pm886_battery_info *info)
+{
+	struct iio_channel *chan;
+
+	/* active vbat voltage channel */
+	chan = iio_channel_get(info->dev, "vbat");
+	if (PTR_ERR(chan) == -EPROBE_DEFER) {
+		dev_err(info->dev, "get vbat iio channel defers.\n");
+		return -EPROBE_DEFER;
+	}
+	info->chan[VBATT_CHAN] = IS_ERR(chan) ? NULL : chan;
+
+	/* sleep vbat voltage channel */
+	chan = iio_channel_get(info->dev, "vbat_slp");
+	if (PTR_ERR(chan) == -EPROBE_DEFER) {
+		dev_err(info->dev, "get vbat_slp iio channel defers.\n");
+		return -EPROBE_DEFER;
+	}
+	info->chan[VBATT_SLP_CHAN] = IS_ERR(chan) ? NULL : chan;
+
+	/* TODO: temperature channel */
+
+	return 0;
+}
+
+static void pm886_battery_release_adc(struct pm886_battery_info *info)
+{
+	int i;
+	for (i = 0; i < MAX_CHAN; i++) {
+		if (!info->chan[i])
+			continue;
+
+		iio_channel_release(info->chan[i]);
+		info->chan[i] = NULL;
+	}
+}
+
 static int pm886_battery_probe(struct platform_device *pdev)
 {
 	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -1148,6 +1201,10 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	}
 	info->irq_nums = j;
 
+	ret = pm886_battery_setup_adc(info);
+	if (ret < 0)
+		return ret;
+
 	ret = pm886_init_fuelgauge(info);
 	if (ret < 0)
 		return ret;
@@ -1193,6 +1250,7 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	queue_delayed_work(info->bat_wqueue, &info->monitor_work, 0);
 
 	device_init_wakeup(&pdev->dev, 1);
+	dev_info(info->dev, "%s is successful to be probed.\n", __func__);
 
 	return 0;
 
@@ -1222,6 +1280,7 @@ static int pm886_battery_remove(struct platform_device *pdev)
 	flush_workqueue(info->bat_wqueue);
 
 	power_supply_unregister(&info->battery);
+	pm886_battery_release_adc(info);
 
 	platform_set_drvdata(pdev, NULL);
 	return 0;
