@@ -119,6 +119,8 @@
 #define PM886_GPADC2_MEAS_EN		(1 << 4)
 #define PM886_GPADC3_MEAS_EN		(1 << 5)
 
+#define PM886_GPADC_CONFIG3		(0x3)
+
 #define PM886_GPADC_CONFIG6		(0x6)
 #define PM886_GPADC_CONFIG8		(0x8)
 

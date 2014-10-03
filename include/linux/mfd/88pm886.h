@@ -30,6 +30,7 @@
 #define PM886_DVC_NAME		"88pm886-dvc"
 #define PM886_RGB_NAME		"88pm886-rgb"
 #define PM886_DEBUGFS_NAME	"88pm886-debugfs"
+#define PM886_GPADC_NAME	"88pm886-gpadc"
 #define PM886_HWMON_NAME	"88pm886-hwmon"
 
 /* TODO: use chip id is better */

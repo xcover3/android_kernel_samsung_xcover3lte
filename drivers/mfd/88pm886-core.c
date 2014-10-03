@@ -129,6 +129,12 @@ static const struct resource debugfs_resources[] = {
 	},
 };
 
+static const struct resource gpadc_resources[] = {
+	{
+	.name = PM886_GPADC_NAME,
+	},
+};
+
 static const struct mfd_cell pm886_cell_devs[] = {
 	CELL_DEV(PM886_RTC_NAME, rtc_resources, "marvell,88pm886-rtc", -1),
 	CELL_DEV(PM886_ONKEY_NAME, onkey_resources, "marvell,88pm886-onkey", -1),
@@ -163,6 +169,7 @@ static const struct mfd_cell pm886_cell_devs[] = {
 	CELL_DEV(PM886_RGB_NAME, rgb_resources, "marvell,88pm886-rgb1", PM886_RGB_LED1),
 	CELL_DEV(PM886_RGB_NAME, rgb_resources, "marvell,88pm886-rgb2", PM886_RGB_LED2),
 	CELL_DEV(PM886_DEBUGFS_NAME, debugfs_resources, "marvell,88pm886-debugfs", -1),
+	CELL_DEV(PM886_GPADC_NAME, gpadc_resources, "marvell,88pm886-gpadc", -1),
 };
 
 const struct of_device_id pm886_of_match[] = {
