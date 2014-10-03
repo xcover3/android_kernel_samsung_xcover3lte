@@ -172,4 +172,10 @@
 	blue: led-rgb2 {
 	        compatible = "marvell,88pm886-rgb2";
 	};
+
+	gpadc: gpadc{
+	        compatible = "marvell,88pm886-gpadc";
+		#io-channel-cells = <1>;
+		io-channel-ranges;
+	};
 };

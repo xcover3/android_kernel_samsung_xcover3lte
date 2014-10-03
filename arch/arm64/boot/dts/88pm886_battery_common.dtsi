@@ -17,6 +17,11 @@
 		low-threshold = <30>;		/* % */
 		high-threshold = <50>;		/* % */
 		alart-percent = <5>;		/* % */
+
+		io-channels 	 = <&gpadc 7>,
+			           <&gpadc 13>;
+		io-channel-names = "vbat",
+				   "vbat_slp";
 	};
 };
 
