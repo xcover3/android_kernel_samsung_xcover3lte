@@ -242,11 +242,7 @@ static void vdma_set_on(struct mmp_vdma_info *vdma_info, int on)
 				CH_ENA(1);
 		} else {
 			mask = AXI_RD_CNT_MAX(0x1f) | CH_ENA(1) | DC_ENA;
-			enable = CH_ENA(1);
-			if (DISP_GEN4_LITE(vdma->version))
-				enable |= AXI_RD_CNT_MAX(0x17);
-			else
-				enable |= AXI_RD_CNT_MAX(0x10);
+			enable = AXI_RD_CNT_MAX(0x10) | CH_ENA(1);
 		}
 		vdma_set_ctrl(vdma_info->vdma_id, vdma_info->sub_ch_num,
 			mask, enable);

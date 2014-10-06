@@ -52,7 +52,8 @@
 	((voverlay_id) << 2))
 #define ALL_LAYER_ALPHA_SEL			(0x02F4)
 
-#define AXI_RD_CNT_MAX_SHIFT			(20)
+/* DC4 lites defines the AXI_RD_CNT_MAX_SHIF as 16 while on DC4 it's 20 */
+#define AXI_RD_CNT_MAX_SHIFT			((vdma->version == 0x14) ? (16) : (20))
 #define AXI_RD_CNT_MAX(cnt)			((cnt) << AXI_RD_CNT_MAX_SHIFT)
 #define RD_BURST_SIZE_SHIFT			(4)
 #define RD_BURST_SIZE(rbs)			((rbs) << RD_BURST_SIZE_SHIFT)
