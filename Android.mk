@@ -7,6 +7,7 @@
 .PHONY: build-kernel clean-kernel
 
 KERNEL_OUTPUT := $(abspath $(PRODUCT_OUT)/obj/kernel)
+UBOOT_OUTPUT ?=  $(abspath $(PRODUCT_OUT)/obj/uboot)
 
 #TODO: remove ARCH definition in pxa1928 device BoardConfig.mk and use TARGET_ARCH
 #TODO: when android support arm64
