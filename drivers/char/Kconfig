@@ -683,5 +683,6 @@ config PXA9XX_ACIPC
 	  Communication Intel-Processor Communication on PXA988,
 	  PXA1088, PXA1U88 and PXA1928.
 
+source "drivers/char/maxscend/Kconfig"
 endmenu
 
