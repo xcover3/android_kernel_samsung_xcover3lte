@@ -442,7 +442,7 @@ static void mmpfb_set_win(struct fb_info *info)
 	mmp_overlay_set_win(fbi->overlay, &win);
 }
 
-static void mmpfb_set_adress(struct fb_var_screeninfo *var,
+static void mmpfb_set_address(struct fb_var_screeninfo *var,
 		struct mmpfb_info *fb_info)
 {
 	struct mmp_addr addr;
@@ -500,7 +500,7 @@ static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 		mmp_overlay_decompress_en(fbi->overlay, decompress_en);
 		mmpfb_set_win(info);
 	}
-	mmpfb_set_adress(var, fbi);
+	mmpfb_set_address(var, fbi);
 	mmp_path_set_trigger(fbi->path);
 
 	mmpfb_wait_vsync(fbi);
@@ -573,7 +573,7 @@ static int mmpfb_set_par(struct fb_info *info)
 	mmpfb_set_win(info);
 
 	/* set address always */
-	mmpfb_set_adress(var, fbi);
+	mmpfb_set_address(var, fbi);
 	mmp_path_set_commit(fbi->path);
 
 	return 0;
@@ -581,20 +581,9 @@ static int mmpfb_set_par(struct fb_info *info)
 
 static void mmpfb_power(struct mmpfb_info *fbi, int power)
 {
-	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-
 	if (!mmp_path_ctrl_safe(fbi->path))
 		return;
 
-	/* for power on, always set address/window again */
-	if (status_is_on(power)) {
-		/* set window related info */
-		if (power != MMP_ON_REDUCED)
-			mmpfb_set_win(fbi->fb_info);
-
-		/* set address always */
-		mmpfb_set_adress(var, fbi);
-	}
 	mmp_overlay_set_status(fbi->overlay, power);
 }
 
@@ -899,11 +888,14 @@ static int mmpfb_probe(struct platform_device *pdev)
 				__va(disp_start_addr), fbi->fb_size / fbi->buffer_num);
 			info->var.yoffset = MMP_YALIGN(info->var.yres);
 		}
-	}
+	} else
+		mmpfb_set_win(info);
+
 	dev_info(fbi->dev, "fb phys_addr 0x%lx, virt_addr 0x%p, size %dk\n",
 		(unsigned long)fbi->fb_start_dma,
 		fbi->fb_start, (fbi->fb_size >> 10));
 
+	mmpfb_set_address(&info->var, fbi);
 #ifndef CONFIG_PM_RUNTIME
 	/* fb power on */
 	if (modes_num > 0)
