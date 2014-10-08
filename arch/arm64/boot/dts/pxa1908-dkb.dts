@@ -126,6 +126,11 @@
 				status = "okay";
 			};
 
+			devfreq-vpu {
+				marvell,power-domain = <&pd_vpu>;
+				status = "okay";
+			};
+
 			dsi: dsi@d420b800 {
 				marvell,phy-name = "mmp_dsi1";
 				marvell,plat-path-name = "mmp_pnpath";
