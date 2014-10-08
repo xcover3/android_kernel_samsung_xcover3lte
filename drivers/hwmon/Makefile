@@ -151,6 +151,7 @@ obj-$(CONFIG_SENSORS_GRIP)	+= grip_sensor.o
 obj-$(CONFIG_SENSORS_STK3X1X)	+= stk3x1x.o
 
 obj-$(CONFIG_PMBUS)		+= pmbus/
+obj-y				+= bmi160/
 
 ccflags-$(CONFIG_HWMON_DEBUG_CHIP) := -DDEBUG
 
