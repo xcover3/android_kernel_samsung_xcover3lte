@@ -15,6 +15,14 @@
 #define MHZ_TO_KHZ (1000)
 #define MHZ (1000000)
 
+/* Clock type "dummy" */
+#define DUMMY_VL_TO_KHZ(level) (((level)+1)*1000)
+#define DUMMY_VL_TO_HZ(level) (((level)+1)*1000000)
+
+struct clk *mmp_clk_register_dvfs_dummy(const char *name,
+		const char *parent_name, unsigned long flags,
+		unsigned long init_rate);
+
 /* Clock type "factor" */
 struct mmp_clk_factor_masks {
 	unsigned int factor;
