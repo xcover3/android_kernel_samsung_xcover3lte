@@ -909,6 +909,16 @@
 						 irq-gpios = <&gpio 20 0>;
 						 avdd-supply = <&ldo4>;
 				};
+
+				sensor2: bmi160@68 {
+						 compatible = "bosch-sensortec,bmi160";
+						 reg = <0x68>;
+						 interrupt-parent = <&gpio>;
+						 interrupts = <91 0x1>;
+						 irq-gpios = <&gpio 91 0>;
+						 avdd-supply = <&ldo4>;
+						 bmi160-place = <2>;
+				};
 			};
 
 			/* SSPA port 0 */
