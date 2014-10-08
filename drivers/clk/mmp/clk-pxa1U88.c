@@ -516,11 +516,11 @@ static const char *gc3d_parent_names[] = {
 };
 
 static struct mmp_clk_mix_clk_table gc3d_pptbl[] = {
-	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 416000000, .parent_index = 0,/* pll1_832_gate */},
-	{.rate = 624000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 705000000, .parent_index = 3, /* pll2_div3 */},
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
+	{.rate = 416000000, .parent_index = 0,/* pll1_832_gate */ .xtc = 0x00055544},
+	{.rate = 624000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x000AAA55},
+	{.rate = 705000000, .parent_index = 3, /* pll2_div3 */ .xtc = 0x000BBB55},
 };
 
 static struct mmp_clk_mix_config gc3d_mix_config = {
@@ -567,10 +567,10 @@ static struct mmp_clk_mix_clk_table gc2d_pptbl_1u88[] = {
 
 /* ulc GC2D has no compress feature, adjust the PP */
 static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
-	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 416000000, .parent_index = 0,/* pll1_416_gate */},
-	{.rate = 624000000, .parent_index = 1, /* pll1_624_gate */},
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
+	{.rate = 416000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x000AAA44},
+	{.rate = 624000000, .parent_index = 1, /* pll1_624_gate */ .xtc = 0x000BBB44},
 };
 
 static struct mmp_clk_mix_config gc2d_mix_config = {
@@ -614,11 +614,11 @@ static const char *vpufclk_parent_names[] = {
 };
 
 static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
-	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
-	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
-	{.rate = 528750000, .parent_index = 3, /* pll2p */},
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00B85454},
+	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x00B85454},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00B85454},
+	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */ .xtc = 0x00B85454},
+	{.rate = 528750000, .parent_index = 3, /* pll2p */ .xtc = 0x00B85454},
 };
 
 static struct mmp_clk_mix_config vpufclk_mix_config = {
@@ -776,6 +776,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk_prepare_enable(clk);
 
 	gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+	gc3d_mix_config.reg_info.reg_clk_xtc = pxa_unit->apmu_base + GPU_XTC;
 	clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk", gc3d_parent_names,
 				ARRAY_SIZE(gc3d_parent_names),
 				0, &gc3d_mix_config, &gc_lock);
@@ -812,6 +813,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	register_mixclk_dcstatinfo(clk);
 
 	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
+	gc2d_mix_config.reg_info.reg_clk_xtc = pxa_unit->apmu_base + GPU2D_XTC;
 	if (cpu_is_pxa1U88()) {
 		gc2d_mix_config.table = gc2d_pptbl_1u88;
 		gc2d_mix_config.table_size = ARRAY_SIZE(gc2d_pptbl_1u88);
@@ -848,6 +850,8 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	vpufclk_mix_config.reg_info.reg_clk_ctrl =
 			pxa_unit->apmu_base + APMU_VPU;
+	vpufclk_mix_config.reg_info.reg_clk_xtc =
+			pxa_unit->apmu_base + VPU_XTC;
 	clk = mmp_clk_register_mix(NULL, "vpufunc_mix_clk",
 			vpufclk_parent_names, ARRAY_SIZE(vpufclk_parent_names),
 			0, &vpufclk_mix_config, &vpu_lock);
@@ -1122,10 +1126,11 @@ static struct cpu_opt helan2_op_array[] = {
 	}
 };
 
-static struct cpu_rtcwtc cpu_rtcwtc_1u88[] = {
-	{.max_pclk = 624, .l1_xtc = 0x02222222, .l2_xtc = 0x00002221,},
-	{.max_pclk = 1526, .l1_xtc = 0x02666666, .l2_xtc = 0x00006265,},
-	{.max_pclk = 1803, .l1_xtc = 0x02AAAAAA, .l2_xtc = 0x0000A2A9,},
+static struct cpu_rtcwtc cpu_rtcwtc_1908umc[] = {
+	{.max_pclk = 312, .l1_xtc = 0x11111111, .l2_xtc = 0x00001111,},
+	{.max_pclk = 832, .l1_xtc = 0x55555555, .l2_xtc = 0x00005555,},
+	{.max_pclk = 1057, .l1_xtc = 0x66666666, .l2_xtc = 0x0000666A,},
+	{.max_pclk = 1526, .l1_xtc = 0xAAAAAAAA, .l2_xtc = 0x0000AAAA,},
 };
 
 static struct core_params core_params = {
@@ -1133,8 +1138,8 @@ static struct core_params core_params = {
 	.parent_table_size = ARRAY_SIZE(core_parent_table),
 	.cpu_opt = helan2_op_array,
 	.cpu_opt_size = ARRAY_SIZE(helan2_op_array),
-	.cpu_rtcwtc_table = cpu_rtcwtc_1u88,
-	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_1u88),
+	.cpu_rtcwtc_table = cpu_rtcwtc_1908umc,
+	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_1908umc),
 	.bridge_cpurate = 1248,
 	.max_cpurate = 1248,
 	.dcstat_support = true,
@@ -1477,13 +1482,6 @@ static void __init pxa1U88_misc_init(struct pxa1U88_clk_unit *pxa_unit)
 		(1 << 26) | (1 << 27) | /* Fabric 0/1 */
 		(1 << 29) | (1 << 30);	/* CA7 2x1 fabric */
 	__raw_writel(val, pxa_unit->ciu_base + CIU_MC_CONF);
-
-	/* init GC related RTC register here */
-	__raw_writel(0x00066666, pxa_unit->ciu_base + GPU_XTC);
-	__raw_writel(0x00044444, pxa_unit->ciu_base + GPU2D_XTC);
-
-	/* init VPU related RTC register here */
-	__raw_writel(0x00B06655, pxa_unit->ciu_base + VPU_XTC);
 
 	/* init ISP related RTC register here */
 	sc2_base = ioremap(SC2_DESC, SZ_4K);
