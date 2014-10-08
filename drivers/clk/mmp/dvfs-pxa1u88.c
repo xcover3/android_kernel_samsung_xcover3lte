@@ -9,12 +9,15 @@
  *  published by the Free Software Foundation.
  */
 
+#include <linux/clk/mmp_sdh_tuning.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/clk/dvfs-dvc.h>
 
 #include <linux/cputype.h>
+
+#include "clk.h"
 
 /* components that affect the vmin */
 enum dvfs_comp {
@@ -190,9 +193,15 @@ static unsigned long freqs_cmb_1u88z1[VM_RAIL_MAX][VL_MAX] = {
 	{ 0, 416000, 416000, 416000 },		/* GC ACLK */
 	{ 416000, 533000, 533000, 533000 },	/* VPU */
 	{ 0, 312000, 416000, 416000 },		/* ISP */
-	{ 104000, 104000, 104000, 208000 },	/* SDH0 */
-	{ 104000, 104000, 104000, 208000 },	/* SDH1 */
-	{ 104000, 104000, 104000, 208000 },	/* SDH2 */
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1),
+	  DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3)
+	}, /* SDH0 */
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1),
+	  DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3)
+	}, /* SDH1 */
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1),
+	  DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3)
+	}, /* SDH2 */
 };
 
 /* 1u88 z1 SVC table, CP/MSA votes VL0 by default */
@@ -235,9 +244,9 @@ static struct dvfs_rail_component vm_rail_comp_tbl_dvc[VM_RAIL_MAX] = {
 	INIT_DVFS("gcbus_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 	INIT_DVFS("vpufunc_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 	INIT_DVFS("isp_pipe_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
-	INIT_DVFS("sdh0_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
-	INIT_DVFS("sdh1_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
-	INIT_DVFS("sdh2_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
+	INIT_DVFS("sdh0_dummy", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
+	INIT_DVFS("sdh1_dummy", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
+	INIT_DVFS("sdh2_dummy", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 };
 
 static int set_pmic_volt(unsigned int lvl, unsigned int mv)
@@ -286,6 +295,8 @@ int __init setup_pxa1u88_dvfs_platinfo(void)
 	dvc_pxa1u88_info.millivolts =
 		vm_millivolts_1u88z1_svc[uiprofile];
 	freqs_cmb = freqs_cmb_1u88z1;
+	plat_set_vl_min(0);
+	plat_set_vl_max(dvc_pxa1u88_info.num_volts);
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
 	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);

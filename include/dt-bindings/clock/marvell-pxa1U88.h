@@ -99,6 +99,11 @@
 #define PXA1U88_CLK_ISP_CORE_CLK_EN	130
 #define PXA1U88_CLK_SC2_AHB_CLK		131
 
+/* dummy clks */
+#define PXA1U88_CLK_SDH0_DUMMY		160
+#define PXA1U88_CLK_SDH1_DUMMY		161
+#define PXA1U88_CLK_SDH2_DUMMY		162
+
 #define PXA1U88_NR_CLKS			200
 #endif
 

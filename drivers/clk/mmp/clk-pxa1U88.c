@@ -744,6 +744,10 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				0x12, 0x12, 0x0, 0, &sdh0_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SDH0, clk);
 
+	clk = mmp_clk_register_dvfs_dummy("sdh0_dummy", NULL,
+			0, DUMMY_VL_TO_KHZ(0));
+	mmp_clk_add(unit, PXA1U88_CLK_SDH0_DUMMY, clk);
+
 	sdh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_SDH1;
 	clk = mmp_clk_register_mix(NULL, "sdh1_mix_clk", sdh_parent_names,
 				ARRAY_SIZE(sdh_parent_names),
@@ -755,6 +759,10 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				0x12, 0x12, 0x0, 0, &sdh1_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SDH1, clk);
 
+	clk = mmp_clk_register_dvfs_dummy("sdh1_dummy", NULL,
+			0, DUMMY_VL_TO_KHZ(0));
+	mmp_clk_add(unit, PXA1U88_CLK_SDH1_DUMMY, clk);
+
 	sdh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_SDH2;
 	clk = mmp_clk_register_mix(NULL, "sdh2_mix_clk", sdh_parent_names,
 				ARRAY_SIZE(sdh_parent_names),
@@ -765,6 +773,10 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				pxa_unit->apmu_base + APMU_SDH2,
 				0x12, 0x12, 0x0, 0, &sdh2_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SDH2, clk);
+
+	clk = mmp_clk_register_dvfs_dummy("sdh2_dummy", NULL,
+			0, DUMMY_VL_TO_KHZ(0));
+	mmp_clk_add(unit, PXA1U88_CLK_SDH2_DUMMY, clk);
 
 	/*
 	 * DE suggest SW to release GC_2D_3D_AXI_Reset
