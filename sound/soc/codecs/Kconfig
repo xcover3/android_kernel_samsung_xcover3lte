@@ -565,10 +565,20 @@ config SND_SOC_88PM860
 	tristate
 
 config SND_SOC_88PM800_HS
-	tristate
+	tristate "88pm800 Headset"
+	depends on MFD_88PM800
+	help
+	  Say Y if you what use 88pm800 chip
+	  for the headset detect
+	  function.
 
 config SND_SOC_88PM886_HS
-	tristate
+	tristate "88pm886 Headset"
+	depends on MFD_88PM886
+	help
+	  Say Y if you what use 88pm886 chip
+	  for the headset detect
+	  function.
 
 config DUAL_SPEAKER
 	tristate "Dual Speaker"

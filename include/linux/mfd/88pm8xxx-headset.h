@@ -69,4 +69,7 @@ int pm800_hook_detect(struct snd_soc_jack *jack);
 int pm886_headset_detect(struct snd_soc_jack *jack);
 int pm886_hook_detect(struct snd_soc_jack *jack);
 
+extern int (*headset_detect)(struct snd_soc_jack *);
+extern int (*hook_detect)(struct snd_soc_jack *);
+
 #endif /* __LINUX_MFD_88PM8XXX_HEADSET_H */

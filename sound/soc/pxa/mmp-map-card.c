@@ -513,7 +513,8 @@ static struct of_device_id dailink_matches[] = {
 static struct snd_soc_dai_link map_dai[MAX_DAILINK_NUM];
 
 static struct snd_soc_jack hs_jack, hk_jack;
-static int headset_type;
+int (*headset_detect)(struct snd_soc_jack *);
+int (*hook_detect)(struct snd_soc_jack *);
 
 static int map_late_probe(struct snd_soc_card *card)
 {
@@ -524,19 +525,11 @@ static int map_late_probe(struct snd_soc_card *card)
 	if (ret)
 		return ret;
 
-	switch (headset_type) {
-	case 0:
-		ret = pm800_headset_detect(&hs_jack);
-		break;
-	case 1:
-		ret = pm886_headset_detect(&hs_jack);
-		break;
-	default:
-		return ret;
+	if (headset_detect) {
+		ret = headset_detect(&hs_jack);
+		if (ret)
+			return ret;
 	}
-
-	if (ret)
-		return ret;
 
 	ret = snd_soc_jack_new(codec, "Hook", SND_JACK_HEADSET, &hk_jack);
 	if (ret)
@@ -546,19 +539,11 @@ static int map_late_probe(struct snd_soc_card *card)
 	snd_jack_set_key(hk_jack.jack, SND_JACK_BTN_1, KEY_VOLUMEUP);
 	snd_jack_set_key(hk_jack.jack, SND_JACK_BTN_2, KEY_VOLUMEDOWN);
 
-	switch (headset_type) {
-	case 0:
-		ret = pm800_hook_detect(&hk_jack);
-		break;
-	case 1:
-		ret = pm886_hook_detect(&hk_jack);
-		break;
-	default:
-		return ret;
+	if (hook_detect) {
+		ret = hook_detect(&hk_jack);
+		if (ret)
+			return ret;
 	}
-
-	if (ret)
-		return ret;
 
 	return 0;
 }
@@ -581,10 +566,6 @@ static int map_probe_dt(struct platform_device *pdev)
 
 	if (!np)
 		return 1;	/* no device tree */
-
-	if (of_property_read_u32(pdev->dev.of_node,
-			"marvell,headset-type", &headset_type))
-		dev_err(&pdev->dev, "DTS do not have headset-type\n");
 
 	ret = snd_soc_of_parse_audio_routing(&snd_soc_map, "map,dapm-route");
 	if (ret) {

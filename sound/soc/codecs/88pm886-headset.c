@@ -673,6 +673,9 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	headset_detect = pm886_headset_detect;
+	hook_detect = pm886_hook_detect;
+
 	return 0;
 
 err_out:

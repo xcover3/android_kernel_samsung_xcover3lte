@@ -751,6 +751,8 @@ static int pm800_headset_probe(struct platform_device *pdev)
 
 	if (ret < 0)
 		return ret;
+	headset_detect = pm800_headset_detect;
+	hook_detect = pm800_hook_detect;
 
 	return 0;
 
