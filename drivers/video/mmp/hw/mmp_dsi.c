@@ -348,7 +348,7 @@ static int dsi_send_cmds(struct mmp_dsi *dsi, u8 *parameter,
 	return 0;
 }
 
-static int dsi_tx_cmds(struct mmp_dsi_port *dsi_port,
+static int dsi_tx_cmds_common(struct mmp_dsi_port *dsi_port,
 		struct mmp_dsi_cmd_desc cmds[], int count)
 {
 	struct mmp_dsi *dsi = mmp_dsi_port_to_dsi(dsi_port);
@@ -357,8 +357,6 @@ static int dsi_tx_cmds(struct mmp_dsi_port *dsi_port,
 	u32 crc, loop;
 	int i, j;
 	int ret = 0;
-
-	mutex_lock(&dsi_port->dsi_ok);
 
 	for (loop = 0; loop < count; loop++) {
 		cmd_line = cmds[loop];
@@ -417,10 +415,8 @@ static int dsi_tx_cmds(struct mmp_dsi_port *dsi_port,
 			mdelay(cmd_line.delay);
 	}
 
-	mutex_unlock(&dsi_port->dsi_ok);
 	return loop;
 error:
-	mutex_unlock(&dsi_port->dsi_ok);
 	return -1;
 }
 
@@ -813,6 +809,22 @@ static void print_ack_errors(u32 packet)
 	}
 }
 
+static int dsi_tx_cmds(struct mmp_dsi_port *dsi_port,
+		struct mmp_dsi_cmd_desc cmds[], int count)
+{
+	int ret;
+
+	mutex_lock(&dsi_port->dsi_ok);
+	ret = dsi_tx_cmds_common(dsi_port, cmds, count);
+	if (ret < 0)
+		goto error;
+	mutex_unlock(&dsi_port->dsi_ok);
+	return 0;
+error:
+	mutex_unlock(&dsi_port->dsi_ok);
+	return -1;
+}
+
 static int dsi_rx_cmds(struct mmp_dsi_port *dsi_port, struct mmp_dsi_buf *dbuf,
 		struct mmp_dsi_cmd_desc cmds[], int count)
 {
@@ -825,7 +837,7 @@ static int dsi_rx_cmds(struct mmp_dsi_port *dsi_port, struct mmp_dsi_buf *dbuf,
 
 	mutex_lock(&dsi_port->dsi_ok);
 	memset(dbuf, 0x0, sizeof(struct mmp_dsi_buf));
-	ret = dsi_tx_cmds(dsi_port, cmds, count);
+	ret = dsi_tx_cmds_common(dsi_port, cmds, count);
 	if (ret < 0)
 		goto error;
 
