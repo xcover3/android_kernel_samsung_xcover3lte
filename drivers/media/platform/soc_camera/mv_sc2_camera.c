@@ -34,6 +34,7 @@
 
 #include <media/mrvl-camera.h> /* TBD refined */
 #include <media/mv_sc2.h>
+#include <media/mv_sc2_twsi_conf.h>
 
 #include "mv_sc2_camera.h"
 
@@ -681,6 +682,16 @@ static int mccic_add_device(struct soc_camera_device *icd)
 	ctrl_dev = mcam_dev->ctrl_dev;
 	ctrl_dev->priv = mcam_dev;
 
+	if (of_get_property(np, "sc2-i2c-dyn-ctrl", NULL))
+		mcam_dev->i2c_dyn_ctrl = 1;
+
+	if (mcam_dev->i2c_dyn_ctrl) {
+		ret = sc2_select_pins_state(ctrl_dev->ccic_dev->id,
+				SC2_PIN_ST_TWSI, SC2_MOD_CCIC);
+		if (ret < 0)
+			return ret;
+	}
+
 	ret = of_property_read_u32_array(np, "dphy_val",
 			ctrl_dev->csi.dphy, ARRAY_SIZE(ctrl_dev->csi.dphy));
 	if (ret)
@@ -705,6 +716,9 @@ static int mccic_add_device(struct soc_camera_device *icd)
 	mcam_dev->icd = icd;
 	return 0;
 pwd:
+	if (mcam_dev->i2c_dyn_ctrl)
+		sc2_select_pins_state(ctrl_dev->ccic_dev->id,
+				SC2_PIN_ST_GPIO, SC2_MOD_CCIC);
 	ctrl_dev->ops->power_down(ctrl_dev);
 	msc2_put_ccic_ctrl(&mcam_dev->ctrl_dev);
 put_dma:
@@ -740,6 +754,9 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	/* 3.4 is not necessary */
 	soc_camera_power_off(&mcam_dev->pdev->dev, ssdd, NULL);
 
+	if (mcam_dev->i2c_dyn_ctrl)
+		sc2_select_pins_state(ctrl_dev->ccic_dev->id,
+				SC2_PIN_ST_GPIO, SC2_MOD_CCIC);
 	/* 3. put ccic_dma_dev and ccic_ctrl_dev */
 	msc2_put_ccic_dma(&mcam_dev->dma_dev);
 	mcam_dev->dma_dev = NULL;

@@ -24,6 +24,7 @@
 #include <linux/platform_device.h>
 #include <media/videobuf2-core.h>
 #include <media/v4l2-mediabus.h>
+#include <linux/interrupt.h>
 #include <media/mrvl-camera.h>
 #ifdef CONFIG_MARVELL_MEDIA_MMU
 #include <linux/m4u.h>
@@ -190,7 +191,7 @@ struct msc2_ccic_dev {
 	int lane_num;
 	unsigned int mbus_flags;
 	int ahb_enable;
-	int i2c_dyn_ctrl;
+	int sync_ccic1_pin;
 };
 
 int msc2_get_sc2(struct msc2_mmu_dev **sc2_host, int id);
@@ -202,5 +203,6 @@ int msc2_get_ccic_ctrl(struct ccic_ctrl_dev **ctrl_host, int id,
 		irqreturn_t (*handler)(struct ccic_ctrl_dev *, u32));
 void msc2_put_ccic_ctrl(struct ccic_ctrl_dev **ctrl_dev);
 void msc2_dump_regs(struct msc2_ccic_dev *ccic_dev);
+int msc2_get_ccic_dev(struct msc2_ccic_dev **host_ccic, int id);
 
 #endif

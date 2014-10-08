@@ -22,6 +22,8 @@
 #include <linux/leds.h>
 #include <linux/math64.h>
 
+#include <media/mv_sc2_twsi_conf.h>
+
 #ifdef CONFIG_ISP_USE_TWSI3
 #include <linux/i2c.h>
 int twsi_read_i2c_bb(u16 addr, u8 reg, u8 *val)
@@ -1277,11 +1279,21 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 	struct sensor_power *power;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
+
 	power = (struct sensor_power *) &(sensor->power);
 
 	if (on) {
 		if (power->ref_cnt++ > 0)
 			return 0;
+
+		if (sensor->i2c_dyn_ctrl) {
+			ret = sc2_select_pins_state(sensor->pos - 1,
+					SC2_PIN_ST_SCCB, SC2_MOD_B52ISP);
+			if (ret < 0) {
+				pr_err("b52 sensor i2c pin is not configured\n");
+				return ret;
+			}
+		}
 
 		power->pwdn = devm_gpiod_get(&client->dev, "pwdn");
 		if (IS_ERR(power->pwdn)) {
@@ -1370,6 +1382,13 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			devm_gpiod_put(&client->dev, sensor->power.rst);
 		if (sensor->power.pwdn)
 			devm_gpiod_put(&client->dev, sensor->power.pwdn);
+
+		if (sensor->i2c_dyn_ctrl) {
+			ret = sc2_select_pins_state(sensor->pos - 1,
+					SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);
+			if (ret < 0)
+				pr_err("b52 sensor gpio pin is not configured\n");
+		}
 	}
 
 	return ret;
@@ -1389,6 +1408,10 @@ avdd_err:
 rst_err:
 	if (sensor->power.pwdn)
 		devm_gpiod_put(&client->dev, sensor->power.pwdn);
+
+	if (sensor->i2c_dyn_ctrl)
+		ret = sc2_select_pins_state(sensor->pos - 1,
+				SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);
 
 	return ret;
 }
@@ -2074,6 +2097,9 @@ static int b52_sensor_probe(struct i2c_client *client,
 
 	sensor->drvdata = of_id->data;
 	sensor->dev = dev;
+
+	if (of_get_property(np, "sc2-i2c-dyn-ctrl", NULL))
+		sensor->i2c_dyn_ctrl = 1;
 
 	ret = of_property_read_u32(np, "sensor-pos", (u32 *)&sensor->pos);
 	if (ret < 0) {

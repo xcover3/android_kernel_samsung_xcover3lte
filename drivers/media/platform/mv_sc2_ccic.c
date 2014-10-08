@@ -32,7 +32,6 @@
 #include <linux/clk.h>
 
 #include <media/mrvl-camera.h> /* TBD refined */
-#include <media/mv_sc2_twsi_conf.h>
 
 #include "mv_sc2_ccic.h"
 
@@ -805,10 +804,6 @@ static void ccic_clk_enable(struct ccic_ctrl_dev *ctrl_dev)
 	clk_prepare_enable(ctrl_dev->clk4x);
 	if (ccic_dev->ahb_enable)
 		clk_prepare_enable(ctrl_dev->ahb_clk);
-
-	if (ccic_dev->i2c_dyn_ctrl)
-		sc2_select_pins_state(&ccic_dev->pdev->dev,
-				SC2_PIN_ST_TWSI, SC2_MOD_CCIC);
 }
 
 static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
@@ -820,10 +815,6 @@ static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
 	clk_disable_unprepare(ctrl_dev->clk4x);
 	if (ccic_dev->ahb_enable)
 		clk_disable_unprepare(ctrl_dev->ahb_clk);
-
-	if (ccic_dev->i2c_dyn_ctrl)
-		sc2_select_pins_state(&ccic_dev->pdev->dev,
-			SC2_PIN_ST_GPIO, SC2_MOD_CCIC);
 }
 
 static struct ccic_ctrl_ops ccic_ctrl_ops = {
@@ -920,6 +911,30 @@ void msc2_put_ccic_dma(struct ccic_dma_dev **dma_dev)
 	(*dma_dev)->priv = NULL;
 }
 EXPORT_SYMBOL(msc2_put_ccic_dma);
+
+int msc2_get_ccic_dev(struct msc2_ccic_dev **ccic_host, int id)
+{
+	struct msc2_ccic_dev *ccic_dev = NULL;
+
+	/*Here solve ccic2 share ccic1 pin */
+	list_for_each_entry(ccic_dev, &ccic_devices, list) {
+		if (ccic_dev->sync_ccic1_pin)
+			id = 0;
+	}
+
+	list_for_each_entry(ccic_dev, &ccic_devices, list) {
+		if (ccic_dev->id == id)
+			break;
+	}
+
+	if (ccic_dev == NULL)
+		return -ENODEV;
+
+	*ccic_host = ccic_dev;
+	d_inf(4, "acquire ccic dev succeed\n");
+	return 0;
+}
+EXPORT_SYMBOL(msc2_get_ccic_dev);
 
 int msc2_get_ccic_ctrl(struct ccic_ctrl_dev **ctrl_host, int id,
 		irqreturn_t (*handler)(struct ccic_ctrl_dev *, u32))
@@ -1048,9 +1063,6 @@ static int msc2_ccic_probe(struct platform_device *pdev)
 	if (!of_property_read_u32(np, "ahb_enable", &ahb_enable))
 		ccic_dev->ahb_enable = ahb_enable;
 
-	if (of_get_property(np, "sc2-i2c-dyn-ctrl", NULL))
-		ccic_dev->i2c_dyn_ctrl = 1;
-
 	ret = ccic_init_clk(ctrl_dev);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to init clk\n");
@@ -1062,6 +1074,10 @@ static int msc2_ccic_probe(struct platform_device *pdev)
 		ccic_dev->dma_burst = 256;	/* set the default value */
 	else
 		ccic_dev->dma_burst = be32_to_cpup(tmp);
+
+	ccic_dev->sync_ccic1_pin = 0;
+	if (of_get_property(np, "sync_ccic1_pin", NULL))
+		ccic_dev->sync_ccic1_pin = 1;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);
