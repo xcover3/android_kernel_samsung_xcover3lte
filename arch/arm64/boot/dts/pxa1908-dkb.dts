@@ -144,17 +144,21 @@
 			};
 
 			ccic1: ccic@d420a000 {
-				pinctrl-names = "default","sccb";
+				pinctrl-names = "default","twsi","sccb";
 				pinctrl-0 = <&ccic1_pmx_func1>;
 				pinctrl-1 = <&ccic1_pmx_func2>;
+				pinctrl-2 = <&ccic1_pmx_func3>;
 				interrupts = <0 42 0x4>;
 				status = "okay";
 			};
 
 			ccic2: ccic@d420a800 {
-				pinctrl-names = "default","sccb";
+				pinctrl-names = "default","twsi","sccb";
 				pinctrl-0 = <&ccic2_pmx_func1>;
 				pinctrl-1 = <&ccic2_pmx_func2>;
+				pinctrl-2 = <&ccic2_pmx_func3>;
+				/*ccic2 use ccic1 I2C pin on pxa1908dkb */
+				sync_ccic1_pin;
 				interrupts = <0 77 0x4>;
 				status = "okay";
 			};
@@ -589,17 +593,17 @@
 				};
 
 				twsi0_pmx_func: twsi0_pmx_func {
-					/* gpio79/80: AF1 */
+					/* gpio53/54: AF1 */
 					pinctrl-single,pins = <
-						GPIO79 AF1
-						GPIO80 AF1
+						GPIO53 AF1
+						GPIO54 AF1
 					>;
 					MFP_LPM_FLOAT;
 				};
 				twsi0_pmx_gpio: twsi0_pmx_gpio {
 					pinctrl-single,pins = <
-						GPIO79 AF0
-						GPIO80 AF0
+						GPIO53 AF0
+						GPIO54 AF0
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -721,12 +725,24 @@
 					MFP_DEFAULT;
 				};
 
-				ccic1_pmx_func2: ccic1_pmx_func2 {
+				ccic1_pmx_func3: ccic1_pmx_func3 {
 					pinctrl-single,pins = <
+						GPIO77 AF1
 						GPIO53 AF7
 						GPIO54 AF7
-						GPIO67 AF5
-						GPIO68 AF5
+					/*	GPIO67 AF5
+						GPIO68 AF5 */
+					>;
+					MFP_LPM_FLOAT;
+				};
+
+				ccic1_pmx_func2: ccic1_pmx_func2 {
+					pinctrl-single,pins = <
+						GPIO77 AF1
+						GPIO53 AF2
+						GPIO54 AF2
+						GPIO67 AF0
+						GPIO68 AF0
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -751,6 +767,14 @@
 					MFP_LPM_FLOAT;
 				};
 
+				ccic2_pmx_func3: cic2_pmx_func3 {
+					pinctrl-single,pins = <
+						GPIO69 AF0
+						GPIO70 AF0
+					>;
+					MFP_DEFAULT;
+				};
+
 			};
 
 			coresight: coresight@d4100000 {
@@ -758,10 +782,12 @@
 			};
 
 			twsi0: i2c@d4011000 {
+			/*
 				pinctrl-names = "default","gpio";
 				pinctrl-0 = <&twsi0_pmx_func>;
 				pinctrl-1 = <&twsi0_pmx_gpio>;
-				i2c-gpio = <&gpio 79 0 &gpio 80 0>;
+				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
+			*/
 				status = "okay";
 		        };
 
@@ -1098,6 +1124,7 @@
 	};
 
 	mcam0:mcam@0 {
+		sc2-i2c-dyn-ctrl;
 		pwdn-gpios = <&gpio 68 0>;
 		reset-gpios = <&gpio 67 0>;
 		/*
@@ -1107,10 +1134,11 @@
 		dvdd_1v2-supply = <&ldo12>;
 		*/
 		dphy_val = <0xff1d00 0x00024733 0x04001001>;
-		status = "okay";
+		status = "disable";
 	};
 
 	mcam1:mcam@1 {
+		sc2-i2c-dyn-ctrl;
 		pwdn-gpios = <&gpio 70 0>;
 		reset-gpios = <&gpio 69 0>;
 
@@ -1128,7 +1156,7 @@
 	};
 
 	soc-camera@1 {
-		status = "okay";
+		status = "disable";
 	};
 
 	plat_cam {
@@ -1156,13 +1184,14 @@
 				dovdd_1v8-supply = <&voutsw>;
 				dvdd_1v2-supply = <&ldo12>;
 				*/
-				pwdn-gpios = <&gpio 68 0>;
-				reset-gpios = <&gpio 67 0>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
 			};
 			OV13850: sensor@1 {
 				compatible = "ovt,ov13850";
 				status = "okay";
 				reg = <0x10>;
+				sc2-i2c-dyn-ctrl;
 				adapter = <0x1>;
 				sensor-pos = <1>;
 				mclk = <26000000>;
