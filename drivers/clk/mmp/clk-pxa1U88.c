@@ -1223,7 +1223,7 @@ static struct ddr_opt lpddr800_oparray[] = {
 };
 
 static unsigned long hwdfc_freq_table[] = {
-	533000, 533000, 800000, 800000
+	312000, 312000, 416000, 528000, 528000, 624000, 667000, 667000
 };
 
 /*
@@ -1393,9 +1393,8 @@ static struct axi_params axi_params = {
 static struct ddr_combclk_relation aclk_dclk_relationtbl_1U88[] = {
 	{.dclk_rate = 156000000, .combclk_rate = 156000000},
 	{.dclk_rate = 312000000, .combclk_rate = 156000000},
-	{.dclk_rate = 398000000, .combclk_rate = 208000000},
 	{.dclk_rate = 416000000, .combclk_rate = 208000000},
-	{.dclk_rate = 528000000, .combclk_rate = 208000000},
+	{.dclk_rate = 528000000, .combclk_rate = 312000000},
 	{.dclk_rate = 624000000, .combclk_rate = 312000000},
 	{.dclk_rate = 667000000, .combclk_rate = 312000000},
 	{.dclk_rate = 797000000, .combclk_rate = 312000000},
