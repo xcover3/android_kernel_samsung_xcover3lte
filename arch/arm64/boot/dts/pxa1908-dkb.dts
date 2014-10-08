@@ -1049,6 +1049,7 @@
 		sd-host = <&sdh1>;
 		pd-gpio = <&gpio 7 0>;
 		rst-gpio = <&gpio 71 0>;
+		wib_3v3-supply = <&ldo15>;
 		3v3-ldo-gpio = <&gpio 14 0>;
 		edge-wakeup-gpio = <&gpio 39 0>;
 		status = "okay";
