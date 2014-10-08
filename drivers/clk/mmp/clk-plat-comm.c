@@ -110,3 +110,72 @@ void register_mixclk_dcstatinfo(struct clk *clk)
 
 	clk_register_dcstat(clk, pptbl, ppsize);
 }
+
+enum comp {
+	CORE,
+	DDR,
+	AXI,
+	BOOT_DVFS_MAX,
+};
+
+static unsigned long minfreq[BOOT_DVFS_MAX] = {
+	156 * MHZ, 156 * MHZ, 78 * MHZ
+};
+static unsigned long bootfreq[BOOT_DVFS_MAX];
+static struct clk *clk[BOOT_DVFS_MAX];
+static char *clk_name[BOOT_DVFS_MAX] = {"cpu", "ddr", "axi"};
+
+int sdh_tunning_scaling2minfreq(void)
+{
+	int i;
+
+	for (i = 0; i < BOOT_DVFS_MAX; i++) {
+		if (unlikely(!clk[i])) {
+			clk[i] = __clk_lookup(clk_name[i]);
+			if (!clk[i]) {
+				pr_err("failed to get clk %s\n", clk_name[i]);
+				return -1;
+			}
+		}
+
+		if (!bootfreq[i])
+			bootfreq[i] = clk_get_rate(clk[i]);
+
+		clk_set_rate(clk[i], minfreq[i]);
+	}
+
+	return 0;
+}
+
+int sdh_tunning_restorefreq(void)
+{
+	int i;
+
+	for (i = 0; i < BOOT_DVFS_MAX; i++) {
+		if (!clk[i])
+			continue;
+		clk_set_rate(clk[i], bootfreq[i]);
+	}
+	return 0;
+}
+
+static unsigned int platvl_min, platvl_max;
+
+void plat_set_vl_min(unsigned int vl_num)
+{
+	platvl_min = vl_num;
+}
+
+unsigned int plat_get_vl_min(void)
+{
+	return platvl_min;
+}
+void plat_set_vl_max(unsigned int vl_num)
+{
+	platvl_max = vl_num;
+}
+
+unsigned int plat_get_vl_max(void)
+{
+	return platvl_max;
+}

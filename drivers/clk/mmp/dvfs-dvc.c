@@ -330,7 +330,7 @@ static void __init hwdvc_enable_ap_dvc(void)
 }
 
 /* vote active and LPM voltage level request for CP */
-static void __init hwdvc_enable_cpdp_dvc(void)
+static int __init hwdvc_enable_cpdp_dvc(void)
 {
 	unsigned int cp_pmudvc_lvl =
 		dvc_info->dvcplatinfo->cp_pmudvc_lvl;
@@ -378,7 +378,7 @@ static void __init hwdvc_enable_cpdp_dvc(void)
 	if (!max_delay) {
 		pr_err("%s cp/dp dvc failed! DVC_ISR:%x\n", __func__,
 			DVC_REG_READ(DVC_ISR));
-		return;
+		return -EINVAL;
 	}
 	pmudvc_imsr.v = DVC_REG_READ(DVC_ISR);
 	pmudvc_imsr.b.ap_vc_done = 1;
@@ -392,7 +392,10 @@ static void __init hwdvc_enable_cpdp_dvc(void)
 	pmudvc_xp.v = DVC_REG_READ(DVC_DP);
 	DVC_PRINT("Default dp active: %d, lpm: %d\n",
 		pmudvc_xp.b.act_vl, pmudvc_xp.b.lpm_vl);
+	return 0;
 }
+/* enable cp dvc at late stage for sdh tunning */
+late_initcall(hwdvc_enable_cpdp_dvc);
 
 /* set stable timer of VLi and VLi+1 */
 static void hwdvc_set_stable_timer(unsigned int lvl)
@@ -959,9 +962,6 @@ static int __init hwdvc_init_level_volt(void)
 		hwdvc_set_stable_timer(idx);
 	dvc_info->stb_timer_inited = true;
 
-	/* enable cp dvc for safety after 4 vl is filled */
-	hwdvc_enable_cpdp_dvc();
-
 	/* Get current PMIC setting */
 	for (idx = 0; idx < dvc_info->cur_level_num; idx++) {
 		val = get_voltage_value(idx);
@@ -989,6 +989,7 @@ static int __init hwdvc_init_level_volt(void)
  * must after dvfs init (fs_initcall)
  */
 device_initcall(hwdvc_init_level_volt);
+
 
 #ifdef CONFIG_DEBUG_FS
 static ssize_t voltage_read(struct file *filp,
