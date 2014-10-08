@@ -90,6 +90,8 @@ struct sdhci_pxa_platdata {
 	struct pinctrl_state *pin_slow;
 	struct pinctrl_state *pin_fast;
 	const struct sdhci_regdata *regdata;
+	struct clk	*fakeclk_tuned;
+	struct clk	*fakeclk_fixed;
 };
 
 struct sdhci_pxa {
