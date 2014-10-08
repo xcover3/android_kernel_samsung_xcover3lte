@@ -897,7 +897,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 		} else {
 			memcpy(fbi->fb_start + fbi->fb_size / fbi->buffer_num,
 				__va(disp_start_addr), fbi->fb_size / fbi->buffer_num);
-			info->var.yoffset = info->var.yres;
+			info->var.yoffset = MMP_YALIGN(info->var.yres);
 		}
 	}
 	dev_info(fbi->dev, "fb phys_addr 0x%lx, virt_addr 0x%p, size %dk\n",
