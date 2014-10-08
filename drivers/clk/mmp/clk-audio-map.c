@@ -84,7 +84,8 @@ static void helanx_power_on(void __iomem *apmu_base, struct clk *puclk, int pwr_
 
 	if (pwr_on) {
 		/* power up the ana_grp_w_pecl_limiter */
-		clk_prepare_enable(puclk);
+		if (puclk)
+			clk_prepare_enable(puclk);
 		/* clock enable: by deafult choose vctcxo */
 		val = readl_relaxed(apmu_base + APMU_AUD_CLK);
 		val |= 0xf;
@@ -95,7 +96,8 @@ static void helanx_power_on(void __iomem *apmu_base, struct clk *puclk, int pwr_
 		val &= ~0xf;
 		writel_relaxed(val, apmu_base + APMU_AUD_CLK);
 		/* power off the ana_grp_w_pecl_limiter */
-		clk_disable_unprepare(puclk);
+		if (puclk)
+			clk_disable_unprepare(puclk);
 	}
 }
 
@@ -1085,11 +1087,23 @@ void __init audio_clk_init(struct device_node *np)
 	apll = map_unit->apll;
 
 	/* 32k pu */
-	clk = mmp_clk_register_gate(NULL, "32kpu", NULL, 0,
-				map_unit->apbsp_base + APB_SPARE9,
-				APB_SPARE_PU_LIMIT, APB_SPARE_PU_LIMIT,
-				0x0, 0, NULL);
-	map_unit->puclk = clk;
+	if (apll == APLL_32K) {
+		clk = mmp_clk_register_gate(NULL, "32kpu", NULL, 0,
+					map_unit->apbsp_base + APB_SPARE9,
+					APB_SPARE_PU_LIMIT, APB_SPARE_PU_LIMIT,
+					0x0, 0, NULL);
+		map_unit->puclk = clk;
+	} else if (apll == APLL_26M) {
+		/*
+		 * no need to touch puclk(apb_spare9 bit 0 & 1) if using 26m
+		 * audio pll, due to that vctcxo will be always on in case
+		 * audio needs to work.
+		 */
+		map_unit->puclk = NULL;
+	} else {
+		pr_err("%s: wrong audio pll settings!\n", __func__);
+		return;
+	}
 
 	/* apll1 */
 	clk = mmp_clk_register_apll1("map_apll1", "clk32", map_unit, &clk_lock);
