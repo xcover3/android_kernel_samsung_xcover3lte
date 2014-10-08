@@ -1190,6 +1190,10 @@
 	b52isp_sc2_dma1 {
 	        status = "okay";
 	};
+
+	tzdd {
+		status = "okay";
+	};
 };
 
 #include "88pm886.dtsi"
