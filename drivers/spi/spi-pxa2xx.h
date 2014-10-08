@@ -92,15 +92,19 @@ struct driver_data {
 	int qos_idle_value;
 	void __iomem *lpss_base;
 	bool spi_inc_mode;
+
 #ifdef CONFIG_OF
 	struct clk      *clk;
 	int irq;
+	/* Support RX FIFO auto full control and endian swap */
+	unsigned int ssp_enhancement;
 #endif
 };
 
 struct chip_data {
 	u32 cr0;
 	u32 cr1;
+	u32 cr2;
 	u32 psp;
 	u32 timeout;
 	u8 n_bytes;
@@ -136,6 +140,7 @@ DEFINE_SSP_REG(SSITR, 0x0c)
 DEFINE_SSP_REG(SSDR, 0x10)
 DEFINE_SSP_REG(SSTO, 0x28)
 DEFINE_SSP_REG(SSPSP, 0x2c)
+DEFINE_SSP_REG(SSCR2, 0x44)
 DEFINE_SSP_REG(SSITF, SSITF)
 DEFINE_SSP_REG(SSIRF, SSIRF)
 

@@ -43,6 +43,7 @@
 #define SSTSS		(0x38)  /* SSP Timeslot Status */
 #define SSACD		(0x3C)  /* SSP Audio Clock Divider */
 #define SSACDD		(0x40)	/* SSP Audio Clock Dither Divider */
+#define SSCR2	(0x44)	/* SSP Control Register 2 */
 
 /* Common PXA2xx bits first */
 #define SSCR0_DSS	(0x0000000f)	/* Data Size Select (mask) */
@@ -156,6 +157,13 @@
 #define SSACD_ACPS(x)		((x) << 4)	/* Audio clock PLL select */
 #define SSACD_ACDS(x)		((x) << 0)	/* Audio clock divider select */
 #define SSACD_SCDX8		(1 << 7)	/* SYSCLK division ratio select */
+
+/* PXA1928 B0 Stepping, ULC */
+#define SSCR2_RX_FULL_CTRL (1 << 8)	/* Receive FIFO auto full control */
+#define SSCR2_WR_ENDIAN_16BITS (1 << 0)	/* Swap first 16 bits and last 16 bits */
+#define SSCR2_WR_ENDIAN_8BITS (2 << 0)	/* Swap all 4 bytes */
+#define SSCR2_RD_ENDIAN_16BITS (1 << 2)	/* Swap first 16 bits and last 16 bits */
+#define SSCR2_RD_ENDIAN_8BITS (2 << 2)	/* Swap all 4 bytes */
 
 /* LPSS SSP */
 #define SSITF			0x44		/* TX FIFO trigger level */

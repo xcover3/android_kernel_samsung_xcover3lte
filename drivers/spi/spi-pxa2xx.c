@@ -635,6 +635,7 @@ static void pump_transfers(unsigned long data)
 	u32 speed = 0;
 	u32 cr0;
 	u32 cr1;
+	u32 cr2;
 	u32 dma_thresh = drv_data->cur_chip->dma_threshold;
 	u32 dma_burst = drv_data->cur_chip->dma_burst_size;
 
@@ -760,6 +761,39 @@ static void pump_transfers(unsigned long data)
 			| SSCR0_DataSize(bits > 16 ? bits - 16 : bits)
 			| SSCR0_SSE
 			| (bits > 16 ? SSCR0_EDSS : 0);
+	}
+
+	if (drv_data->ssp_enhancement) {
+		cr2 = chip->cr2;
+
+		/* If transfer length is times of 4, then use
+		 * 32 bit fifo width with endian swap support */
+		if (drv_data->len % 4 == 0 && chip->bits_per_word <= 16) {
+			if (chip->bits_per_word <= 8)
+				cr2 |=  SSCR2_WR_ENDIAN_8BITS |
+					    SSCR2_RD_ENDIAN_8BITS;
+			else if (chip->bits_per_word <= 16)
+				cr2 |= SSCR2_WR_ENDIAN_16BITS |
+					    SSCR2_RD_ENDIAN_16BITS;
+			bits = 32;
+			drv_data->n_bytes = 4;
+			drv_data->read = u32_reader;
+			drv_data->write = u32_writer;
+
+			if (chip->enable_dma) {
+				if (pxa2xx_spi_set_dma_burst_and_threshold(chip,
+							message->spi,
+							bits, &dma_burst,
+							&dma_thresh))
+					dev_warn_ratelimited(&message->spi->dev,
+							"pump_transfers:"
+							"DMA burst size reduced to"
+							"match bits_per_word\n");
+			}
+
+			cr0 |= SSCR0_EDSS | 0xf;
+		}
+		write_SSCR2(cr2, reg);
 	}
 
 	message->state = RUNNING_STATE;
@@ -1008,6 +1042,11 @@ static int setup(struct spi_device *spi)
 				/ (1 + ((chip->cr0 & SSCR0_SCR(0x0ff)) >> 8)),
 			chip->enable_dma ? "DMA" : "PIO");
 
+
+	/* Enable rx fifo auto full control */
+	if (drv_data->ssp_enhancement)
+		chip->cr2 = SSCR2_RX_FULL_CTRL;
+
 	if (spi->bits_per_word <= 8) {
 		chip->n_bytes = 1;
 		chip->read = u8_reader;
@@ -1185,6 +1224,9 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		goto out_error_dma_buf;
 	}
 
+	/* Receive FIFO auto full ctrl enable */
+	if (of_get_property(np, "marvell,ssp-enhancement", NULL))
+		drv_data->ssp_enhancement = 1;
 	/*
 	 * the null DMA buf should malloc form DMA_ZONE
 	 * and align of DMA_ALIGNMENT
