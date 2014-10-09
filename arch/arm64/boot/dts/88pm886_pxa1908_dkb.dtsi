@@ -33,6 +33,7 @@
 	ldo3: regulator-ldo3 {
 	};
 	ldo4: regulator-ldo4 {
+		regulator-always-on;
 		regulator-boot-on;
 	};
 	ldo5: regulator-ldo5 {
