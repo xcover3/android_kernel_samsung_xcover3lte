@@ -250,19 +250,23 @@
 				reg = <0xd4281000 0x120>;
 				interrupts = <0 39 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_SDH2
-					  &soc_clocks PXA1U88_CLK_SDH_AXI>;
-				clock-names = "sdh-base-clk", "sdh-axi-clk";
+					  &soc_clocks PXA1U88_CLK_SDH_AXI
+					  &soc_clocks PXA1U88_CLK_SDH2_DUMMY
+					  >;
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
-			 };
+			};
 
 			sdh0: sdh@d4280000 {
 				compatible = "marvell,pxav3-mmc-v2";
 				reg = <0xd4280000 0x120>;
 				interrupts = <0 39 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_SDH0
-					  &soc_clocks PXA1U88_CLK_SDH_AXI>;
-				clock-names = "sdh-base-clk", "sdh-axi-clk";
+					  &soc_clocks PXA1U88_CLK_SDH_AXI
+					  &soc_clocks PXA1U88_CLK_SDH0_DUMMY
+					  >;
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
@@ -272,8 +276,10 @@
 				reg = <0xd4280800 0x120>;
 				interrupts = <0 39 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_SDH1
-					  &soc_clocks PXA1U88_CLK_SDH_AXI>;
-				clock-names = "sdh-base-clk", "sdh-axi-clk";
+					  &soc_clocks PXA1U88_CLK_SDH_AXI
+					  &soc_clocks PXA1U88_CLK_SDH1_DUMMY
+					  >;
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
