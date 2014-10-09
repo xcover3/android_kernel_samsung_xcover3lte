@@ -1027,6 +1027,7 @@ config SENSORS_PCF8591
 
 source drivers/hwmon/pmbus/Kconfig
 source drivers/hwmon/bmi160/Kconfig
+source drivers/hwmon/bme280/Kconfig
 
 config SENSORS_SHT15
 	tristate "Sensiron humidity and temperature sensors. SHT15 and compat."
