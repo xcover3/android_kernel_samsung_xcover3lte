@@ -835,7 +835,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, fbi);
 	fbi->dev = &pdev->dev;
 	pixfmt_to_var(&info->var, fbi->pix_fmt);
-	fbi->buffer_num = mi->buffer_num ? mi->buffer_num : 2;
+	fbi->buffer_num = buf_num ? buf_num : 2;
 	mutex_init(&fbi->access_ok);
 	mutex_init(&fbi->fence_mutex);
 
