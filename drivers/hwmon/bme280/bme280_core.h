@@ -18,6 +18,7 @@
 
 #include "bme280.h"
 #include "bs_log.h"
+#include <linux/regulator/consumer.h>
 
 /*! @defgroup bme280_core_inc
  *  @brief The head file of BME280 device driver core code
@@ -52,6 +53,7 @@ struct bme_data_bus {
 	const struct bme_bus_ops *bops;
 	/*!bme client */
 	void *client;
+	struct regulator *avdd;
 };
 
 int bme_probe(struct device *dev, struct bme_data_bus *data_bus);

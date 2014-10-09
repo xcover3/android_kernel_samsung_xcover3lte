@@ -19,6 +19,7 @@
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #include "bme280_core.h"
+#include <linux/of_gpio.h>
 
 static struct i2c_client *bme_i2c_client;
 
@@ -209,6 +210,9 @@ static const struct bme_bus_ops bme_i2c_bus_ops = {
 static int bme_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
+	struct regulator *avdd;
+	int err = 0;
+
 	struct bme_data_bus data_bus = {
 		.bops = &bme_i2c_bus_ops,
 		.client = client
@@ -226,7 +230,29 @@ static int bme_i2c_probe(struct i2c_client *client,
 		return -EINVAL;
 	}
 
+	avdd = regulator_get(&client->dev, "avdd");
+	err = IS_ERR(avdd);
+	if (err) {
+		dev_err(&client->dev, "sensor avdd power supply get failed\n");
+		goto avdd_err;
+	}
+
+	regulator_set_voltage(avdd, 2800000, 2800000);
+	err = regulator_enable(avdd);
+	if (err) {
+		dev_err(&client->dev, "avago sensors regulator enable failed\n");
+		goto avdd_err;
+	}
+
+	data_bus.avdd = avdd;
+
 	return bme_probe(&client->dev, &data_bus);
+
+avdd_err:
+	regulator_put(avdd);
+	if (err)
+		bme_i2c_client = NULL;
+	return err;
 }
 
 /*!
@@ -303,6 +329,11 @@ static const struct i2c_device_id bme_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, bme_id);
 
+static const struct of_device_id bme280_of_match[] = {
+	{ .compatible = "bosch-sensortec,bme280", },
+	{}
+};
+MODULE_DEVICE_TABLE(of, bme280_of_match);
 /*!
  * @brief register i2c driver hooks
 */
@@ -310,6 +341,7 @@ static struct i2c_driver bme_i2c_driver = {
 	.driver = {
 		.owner	= THIS_MODULE,
 		.name	= BME_NAME,
+		.of_match_table = bme280_of_match,
 #ifdef CONFIG_PM
 		.pm	= &bme_i2c_pm_ops,
 #endif

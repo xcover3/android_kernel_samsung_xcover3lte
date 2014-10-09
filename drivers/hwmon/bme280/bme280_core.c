@@ -1348,6 +1348,10 @@ static ssize_t store_enable(struct device *dev,
 		mutex_lock(&data->lock);
 		if (data->enable != enable) {
 			if (enable) {
+				if (regulator_enable(data->data_bus.avdd)) {
+					dev_err(dev, "bosch sensor avdd power supply enable failed\n");
+					goto out;
+				}
 				#ifdef CONFIG_PM
 				bme_enable(dev);
 				#endif
@@ -1362,6 +1366,7 @@ static ssize_t store_enable(struct device *dev,
 				#ifdef CONFIG_PM
 				bme_disable(dev);
 				#endif
+				regulator_disable(data->data_bus.avdd);
 			}
 			data->enable = enable;
 		}
@@ -1369,6 +1374,8 @@ static ssize_t store_enable(struct device *dev,
 		return count;
 	}
 	return status;
+out:
+	return 0;
 }
 
 /*!
@@ -1771,11 +1778,13 @@ int bme_probe(struct device *dev, struct bme_data_bus *data_bus)
 #endif
 
 	PINFO("Succesfully probe sensor %s\n", BME_NAME);
+	regulator_disable(data->data_bus.avdd);
 	return 0;
 
 error_sysfs:
 	bme_input_delete(data);
 exit_free:
+	regulator_disable(data->data_bus.avdd);
 	kfree(data);
 exit:
 	return err;
