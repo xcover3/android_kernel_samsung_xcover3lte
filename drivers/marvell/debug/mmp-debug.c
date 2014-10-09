@@ -46,7 +46,7 @@ void __attribute__((weak)) set_emmd_indicator(void) { }
 
 static void __iomem *squ_base;
 
-static u32 fab_timeout_write_addr, fab_timeout_read_addr;
+static u32 timeout_write_addr, timeout_read_addr;
 static u32 finish_save_cpu_ctx;
 static u32 err_fsr;
 static u32 err_addr;
@@ -57,18 +57,13 @@ static int mmp_axi_timeout(unsigned long addr, unsigned int fsr,
 				struct pt_regs *regs)
 {
 	struct pt_regs fixed_regs;
-	u32 tmp;
 
-	tmp = readl_relaxed(squ_base + FAB_TIMEOUT_STATUS0);
-	fab_timeout_write_addr = tmp & 0xfffffffc;
-	tmp = readl_relaxed(squ_base + FAB_TIMEOUT_STATUS1);
-	fab_timeout_read_addr = tmp & 0xfffffffc;
+	timeout_write_addr = readl_relaxed(squ_base + FAB_TIMEOUT_STATUS0);
+	timeout_read_addr = readl_relaxed(squ_base + FAB_TIMEOUT_STATUS1);
 
 	/* Return For those not caused by AXI timeout */
-	if (!fab_timeout_write_addr && !fab_timeout_read_addr) {
-		pr_info("AXI timeout not recorded!\n");
+	if (!(timeout_write_addr & 0x1)	&& !(timeout_read_addr & 0x1))
 		return 1;
-	}
 
 	err_fsr = fsr;
 	err_addr = addr;
@@ -108,10 +103,11 @@ static int __init mmp_dump_heldstatus(void __iomem *squ_base)
 	pr_info("*************************************\n");
 	pr_info("Fabric/LPM/DFC/DVC held status dump:\n");
 
-	if (recorded_helds.fabws)
+	if (recorded_helds.fabws & 0x1)
 		pr_info("AXI time out occurred when write address 0x%x!!!\n",
 			recorded_helds.fabws & 0xfffffffc);
-	else if (recorded_helds.fabrs)
+
+	if (recorded_helds.fabrs & 0x1)
 		pr_info("AXI time out occurred when read address 0x%x!!!\n",
 			recorded_helds.fabrs & 0xfffffffc);
 
