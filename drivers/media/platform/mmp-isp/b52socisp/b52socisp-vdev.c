@@ -404,7 +404,8 @@ static int isp_vb_prepare(struct vb2_buffer *vb)
 				0, size, DMA_FROM_DEVICE);
 			if (ret < 0)
 				goto err_meta;
-			isp_vb->va[i] = dma_buf_kmap(vb->planes[i].dbuf, 0);
+			isp_vb->va[i] = dma_buf_kmap(vb->planes[i].dbuf, 0) +
+				vb->v4l2_planes[i].data_offset;
 		}
 	}
 

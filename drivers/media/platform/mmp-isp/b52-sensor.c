@@ -1072,8 +1072,15 @@ static int b52_sensor_s_flip(struct v4l2_subdev *sd,
 
 	val &= ~(reg->tab->mask);
 
+	/*
+	 * reg->mask: the bit controls the flip. Like 0x2, bit1 controls.
+	 * reg->tab->val:original value to get the correct orientation.
+	 * Set the related bit to inverse value when flip. For example:
+	 * original value is 0x4(bit2), change bit2 to 0 when flip.
+	 */
+
 	if (on)
-		val &= ~(reg->tab->val);
+		val |= ((~(reg->tab->val)) & (reg->tab->mask));
 	else
 		val |= reg->tab->val;
 

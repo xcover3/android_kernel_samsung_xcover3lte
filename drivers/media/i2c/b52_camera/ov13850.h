@@ -404,7 +404,7 @@ struct regval_tab ov13850_vflip[] = {
 	{0x3820, 0x00, 0x4},
 };
 struct regval_tab ov13850_hflip[] = {
-	{0x3821, 0x00, 0x4},
+	{0x3821, 0x04, 0x4},
 };
 #define N_OV13850_INIT ARRAY_SIZE(ov13850_res_init)
 #define N_OV13850_ID ARRAY_SIZE(ov13850_id)

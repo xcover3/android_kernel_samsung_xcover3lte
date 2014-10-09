@@ -906,7 +906,7 @@ int b52_rw_pipe_ctdata(int pipe_id, int write,
 
 	for (i = 0; i < nr_entry; i++, entry++) {
 		for (j = 0; j < tab_sz; j++) {
-			offset = entry->reg - table[j].start;
+			offset = (long)entry->reg - (long)table[j].start;
 			if ((offset >= 0) && (entry->reg < table[j].end))
 				goto addr_match;
 		}
