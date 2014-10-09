@@ -431,7 +431,7 @@ static int map_26m_apll_enable(struct map_private *map_priv)
 		freq_off = 0x1b5;
 		/* over-sample rate = 192 */
 		post_div = 0x6;
-		vco_div = 1;
+		vco_div = 4;
 		fvco = 589824000 / vco_div;
 	} else if ((srate % 11025) == 0) {
 		/* 8k famliy */
@@ -439,7 +439,7 @@ static int map_26m_apll_enable(struct map_private *map_priv)
 		freq_off = 0x1169;
 		/* over-sample rate = 192 */
 		post_div = 0x6;
-		vco_div = 1;
+		vco_div = 4;
 		fvco = 541900800 / vco_div;
 	} else {
 		pr_err("error: no pll setting for such clock!\n");
