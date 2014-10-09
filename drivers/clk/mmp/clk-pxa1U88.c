@@ -1136,7 +1136,7 @@ static struct core_params core_params = {
 	.cpu_rtcwtc_table = cpu_rtcwtc_1u88,
 	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_1u88),
 	.bridge_cpurate = 1248,
-	.max_cpurate = 1526,
+	.max_cpurate = 1248,
 	.dcstat_support = true,
 };
 
@@ -1409,6 +1409,9 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 	core_params.apmu_base = pxa_unit->apmu_base;
 	core_params.mpmu_base = pxa_unit->mpmu_base;
 	core_params.ciu_base = pxa_unit->ciu_base;
+	/* for debug purpose, pass max cpu frequency from uboot cmdline */
+	if (max_freq)
+		core_params.max_cpurate = max_freq;
 	core_params.pxa_powermode = pxa1u88_powermode;
 
 	ddr_params.apmu_base = pxa_unit->apmu_base;
