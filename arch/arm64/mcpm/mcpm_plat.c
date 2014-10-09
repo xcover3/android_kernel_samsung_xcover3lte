@@ -361,8 +361,12 @@ static void mcpm_plat_pm_down(void *arg)
 
 	__mcpm_cpu_down(cpu, cluster);
 
-	if (!skip_wfi)
-		mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point), false);
+	if (!skip_wfi) {
+		if (unlikely(calc_state >= mcpm_plat_idle->l2_flush_state))
+			mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point), 1);
+		else
+			mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point), 0);
+	}
 }
 
 static int mcpm_plat_pm_power_up(unsigned int cpu, unsigned int cluster)
