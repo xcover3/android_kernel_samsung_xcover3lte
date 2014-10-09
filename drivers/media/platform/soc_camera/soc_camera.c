@@ -1834,7 +1834,7 @@ static int soc_camera_probe(struct soc_camera_host *ici,
 	ret = soc_camera_add_device(icd);
 	if (ret < 0) {
 		dev_err(icd->pdev, "Couldn't activate the camera: %d\n", ret);
-		goto evdc;
+		goto vadd;
 	}
 
 	/* Must have icd->vdev before registering the device */
@@ -1911,6 +1911,8 @@ eadd:
 		icd->vdev = NULL;
 	}
 evdc:
+	soc_camera_remove_device(icd);
+vadd:
 	v4l2_ctrl_handler_free(&icd->ctrl_handler);
 	return ret;
 }
