@@ -144,8 +144,8 @@
 						)>;
 				marvell,sdh-quirks2 = <(
 						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
-						SDHCI_QUIRK2_TIMEOUT_SHORT |
-						SDHCI_QUIRK2_BROKEN_HS200
+						/* SDHCI_QUIRK2_BROKEN_HS200 | */
+						SDHCI_QUIRK2_TIMEOUT_SHORT
 						)>;
 				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
 				marvell,sdh-host-caps2 = <(MMC_CAP2_DISABLE_BLK_ASYNC)>;
@@ -159,7 +159,11 @@
 				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_MMC_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_MMC_HS200 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 0 0 3 0 0>,
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
+				marvell,sdh-tuning-win-limit = <150>;
+				marvell,sdh-dvfs-levels = <0 3>; /* tuning from dvfs level 0 to 3  */
+				marvell,sdh-tuning-mode = <PXA_SDH_TUNING_DVFS>;
 				status = "okay";
 			 };
 
@@ -193,7 +197,11 @@
 				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_UHS_SDR104 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 0 0 3 0 0>,
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
+				marvell,sdh-tuning-win-limit = <150>;
+				marvell,sdh-dvfs-levels = <0 3>; /* tuning from dvfs level 0 to 3  */
+				marvell,sdh-tuning-mode = <PXA_SDH_TUNING_DVFS>;
 				status = "okay";
 			};
 
@@ -226,8 +234,11 @@
 						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_45M PXA_SDH_DTR_89M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_SDR50 PXA_SDH_DTR_104M PXA_SDH_DTR_104M 0 0 0 0 0>,
-						<PXA_MMC_TIMING_UHS_SDR104 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 600 0 0 0 1>,
+						<PXA_MMC_TIMING_UHS_SDR104 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 600 0 3 0 0>,
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_89M 0 0 0 0 0>;
+				marvell,sdh-tuning-win-limit = <150>;
+				marvell,sdh-dvfs-levels = <0 3>; /* tuning from dvfs level 0 to 3  */
+				marvell,sdh-tuning-mode = <PXA_SDH_TUNING_DVFS>;
 				status = "okay";
 			};
 
