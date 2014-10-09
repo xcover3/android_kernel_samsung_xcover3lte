@@ -919,6 +919,12 @@
 						 avdd-supply = <&ldo4>;
 						 bmi160-place = <2>;
 				};
+
+				sensor3: bme280@76 {
+						 compatible = "bosch-sensortec,bme280";
+						 reg = <0x76>;
+						 avdd-supply = <&ldo4>;
+				};
 			};
 
 			/* SSPA port 0 */
