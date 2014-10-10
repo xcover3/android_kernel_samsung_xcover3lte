@@ -810,11 +810,12 @@ static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
 
-	clk_disable_unprepare(ctrl_dev->dphy_clk);
-	clk_disable_unprepare(ctrl_dev->csi_clk);
-	clk_disable_unprepare(ctrl_dev->clk4x);
 	if (ccic_dev->ahb_enable)
 		clk_disable_unprepare(ctrl_dev->ahb_clk);
+	clk_disable_unprepare(ctrl_dev->clk4x);
+	clk_disable_unprepare(ctrl_dev->csi_clk);
+	clk_disable_unprepare(ctrl_dev->dphy_clk);
+	clk_disable_unprepare(ctrl_dev->mclk);
 }
 
 static struct ccic_ctrl_ops ccic_ctrl_ops = {
