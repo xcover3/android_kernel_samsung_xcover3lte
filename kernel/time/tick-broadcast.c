@@ -34,6 +34,7 @@ static cpumask_var_t tick_broadcast_on;
 static cpumask_var_t tmpmask;
 static DEFINE_RAW_SPINLOCK(tick_broadcast_lock);
 static int tick_broadcast_force;
+static int bc_cpu_owner = -1;
 
 #ifdef CONFIG_TICK_ONESHOT
 static void tick_broadcast_clear_oneshot(int cpu);
@@ -522,6 +523,7 @@ static int tick_broadcast_set_event(struct clock_event_device *bc, int cpu,
 	if (bc->mode != CLOCK_EVT_MODE_ONESHOT)
 		clockevents_set_mode(bc, CLOCK_EVT_MODE_ONESHOT);
 
+	bc_cpu_owner = cpu;
 	ret = clockevents_program_event(bc, expires, force);
 	if (!ret)
 		tick_broadcast_set_affinity(bc, cpumask_of(cpu));
@@ -628,6 +630,31 @@ again:
 			goto again;
 	}
 	raw_spin_unlock(&tick_broadcast_lock);
+}
+
+static void tick_broadcast_oneshot_get_earlier_event(void)
+{
+	struct clock_event_device *bc;
+	struct tick_device *td;
+	ktime_t next_event;
+	int cpu, next_cpu = 0;
+
+	next_event.tv64 = KTIME_MAX;
+
+	/* iterate all expired events */
+	for_each_cpu(cpu, tick_broadcast_oneshot_mask) {
+
+		td = &per_cpu(tick_cpu_device, cpu);
+		if (td->evtdev->next_event.tv64 < next_event.tv64) {
+			next_event.tv64 = td->evtdev->next_event.tv64;
+			next_cpu = cpu;
+		}
+	}
+
+	bc = tick_broadcast_device.evtdev;
+	if (next_event.tv64 != KTIME_MAX &&
+		next_event.tv64 != bc->next_event.tv64)
+		tick_broadcast_set_event(bc, next_cpu, next_event, 1);
 }
 
 /*
@@ -742,6 +769,8 @@ void tick_broadcast_oneshot_control(unsigned long reason)
 			 * the cpu local timer device.
 			 */
 			tick_program_event(dev->next_event, 1);
+			if (cpu == bc_cpu_owner)
+				tick_broadcast_oneshot_get_earlier_event();
 		}
 	}
 out:
