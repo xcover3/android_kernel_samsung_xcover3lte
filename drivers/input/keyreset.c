@@ -184,20 +184,19 @@ MODULE_DEVICE_TABLE(input, keyreset_ids);
 
 static int keyreset_probe(struct platform_device *pdev)
 {
-	int ret;
-	int key, *keyp;
 	struct keyreset_state *state;
 	struct keyreset_platform_data *pdata = pdev->dev.platform_data;
 	struct device_node *np = pdev->dev.of_node;
 	const struct property *prop;
 	const __be32 *val;
 	int count, i;
+	int ret, key;
+#ifndef CONFIG_OF
+	int *keyp;
+#endif
 
 	if (!pdata && !np)
 		return -EINVAL;
-
-	if (pdata)
-		keyp = pdata->keys_down;
 
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)
@@ -205,6 +204,9 @@ static int keyreset_probe(struct platform_device *pdev)
 
 	spin_lock_init(&state->lock);
 #ifndef CONFIG_OF
+	if (pdata)
+		keyp = pdata->keys_down;
+
 	while ((key = *keyp++)) {
 		if (key >= KEY_MAX)
 			continue;
