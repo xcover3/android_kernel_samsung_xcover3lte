@@ -132,8 +132,9 @@ static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 		ret = -EBUSY;
 		goto out;
 	}
-	clk_dcstat_event(pd->clk, PWR_ON, 0);
+	clk_dcstat_event_check(pd->clk, PWR_ON, 0);
 
+	return 0;
 out:
 	if (pd->clk)
 		clk_disable_unprepare(pd->clk);
@@ -176,7 +177,7 @@ static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
 		dev_err(pd->dev, "power off timeout\n");
 		return -EBUSY;
 	}
-	clk_dcstat_event(pd->clk, PWR_OFF, 0);
+	clk_dcstat_event_check(pd->clk, PWR_OFF, 0);
 
 	return 0;
 }

@@ -278,31 +278,18 @@ EXPORT_SYMBOL(clk_dcstat_event);
 void clk_dcstat_event_check(struct clk *clk,
 			  enum clk_stat_msg msg, unsigned int tgtstate)
 {
-	struct clk_dcstat *cdcs;
-	struct clk_dc_stat_info *dcstat_info;
 	static struct clk *gcsh_clk;
 
-	if (clk)
+	if (!clk)
 		return;
 
-	list_for_each_entry(cdcs, &clk_dcstat_list, node)
-	    if (cdcs->clk == clk) {
-		dcstat_info = &cdcs->clk_dcstat;
-		clk_dutycycle_stats(clk, msg, dcstat_info, tgtstate);
-
-		/* get GC SHADER clock */
+	if (!strcmp(clk->name, "gc3d_clk")) {
+		clk_dcstat_event(clk, msg, tgtstate);
 		if (!gcsh_clk)
-			gcsh_clk = clk_get(NULL, "GC_SHADER_CLK");
-
-		/*
-		 * GC SHADER does not register power domain. For GC power domain
-		 * on/off, also inform GC SHADER clock.
-		 */
-		if (gcsh_clk && !strcmp(clk->name, "gc"))
-			clk_dutycycle_stats(gcsh_clk, msg, dcstat_info, tgtstate);
-		break;
-	}
-
+			gcsh_clk = __clk_lookup("gcsh_clk");
+		clk_dcstat_event(gcsh_clk, msg, tgtstate);
+	} else
+		clk_dcstat_event(clk, msg, tgtstate);
 }
 EXPORT_SYMBOL(clk_dcstat_event_check);
 
