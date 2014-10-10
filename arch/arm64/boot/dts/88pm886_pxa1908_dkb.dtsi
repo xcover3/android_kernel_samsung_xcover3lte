@@ -9,6 +9,13 @@
  */
 
 &pmic0 {
+	/*
+	 * board specific configuration
+	 * use value directly, not use macro
+	 * <page reg-addr mask value>
+	 */
+	marvell,pmic-bd-cfg = <0x1 0xa3 0x7f 0x8>;
+
 	/* ---buck--- */
 	vccmain: regulator-buck1 {
 	};
@@ -78,4 +85,5 @@
 		marvell,micbias-supply = <&ldo16>;
 		status = "okay";
 	};
+
 };
