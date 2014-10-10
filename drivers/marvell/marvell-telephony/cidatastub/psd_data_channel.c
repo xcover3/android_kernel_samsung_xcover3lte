@@ -95,14 +95,14 @@ int sendPSDData(int cid, struct sk_buff *skb)
 
 	/*
 	 * tx_q is full or link is down
-	 * always allow ack
+	 * allow ack when queue is full
 	 */
-	if (prio != dp_priority_high &&
-		(data_path_is_tx_q_full(psd_dp) ||
+	if (unlikely((prio != dp_priority_high &&
+		data_path_is_tx_q_full(psd_dp)) ||
 		 !data_path_is_link_up())) {
 		DP_PRINT("%s: tx_q is full or link is down\n", __func__);
 		/* tx q is full, should schedule tx immediately */
-		if (data_path_is_tx_q_full(psd_dp))
+		if (data_path_is_link_up())
 			data_path_schedule_tx(psd_dp);
 
 		if (data_drop) {

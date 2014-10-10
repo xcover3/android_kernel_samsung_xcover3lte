@@ -571,7 +571,17 @@ void data_path_broadcast_msg(int proc)
 	for (dp = data_path; dp != dp_end; ++dp) {
 		if (atomic_read(&dp->state) == dp_state_opened) {
 			if (proc == MsocketLinkdownProcId) {
-				tasklet_schedule(&dp->tx_tl);
+				/* make sure tx/rx tasklet is stopped */
+				tasklet_disable(&dp->tx_tl);
+				/*
+				 * tx tasklet is completely stopped
+				 * purge the skb list
+				 */
+				tx_q_clean(dp);
+				tasklet_enable(&dp->tx_tl);
+
+				tasklet_disable(&dp->rx_tl);
+				tasklet_enable(&dp->rx_tl);
 
 				if (dp->cbs && dp->cbs->link_down)
 					dp->cbs->link_down();
