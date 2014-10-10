@@ -58,22 +58,19 @@ TRACE_EVENT(psd_xmit,
 
 TRACE_EVENT(psd_xmit_irq,
 
-	TP_PROTO(int start, int cnt),
+	TP_PROTO(int cnt),
 
-	TP_ARGS(start, cnt),
+	TP_ARGS(cnt),
 
 	TP_STRUCT__entry(
-		__field(int, start)
 		__field(int, cnt)
 	),
 
 	TP_fast_assign(
-		__entry->start = start;
 		__entry->cnt = cnt;
 	),
 
-	TP_printk("start_slot=%d cnt=%d",
-		__entry->start, __entry->cnt)
+	TP_printk("cnt=%d", __entry->cnt)
 );
 
 TRACE_EVENT(psd_recv_irq,

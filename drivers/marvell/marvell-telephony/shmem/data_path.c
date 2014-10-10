@@ -168,7 +168,6 @@ static void data_path_tx_func(unsigned long arg)
 	int prio;
 	int remain_bytes;
 	int used_bytes;
-	int start_slot = skctl->ap_wptr;
 	int consumed_slot = 0;
 	int consumed_packets = 0;
 	int start_q_len;
@@ -343,7 +342,7 @@ static void data_path_tx_func(unsigned long arg)
 	}
 
 	if (consumed_slot > 0) {
-		trace_psd_xmit_irq(start_slot, consumed_slot);
+		trace_psd_xmit_irq(consumed_slot);
 		shm_notify_packet_sent(rbctl);
 		dp->stat.tx_interrupts++;
 		dp->stat.tx_sched_q_len += start_q_len;
