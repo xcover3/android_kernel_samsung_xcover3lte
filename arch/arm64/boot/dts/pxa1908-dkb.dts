@@ -373,6 +373,13 @@
 				status = "okay";
 			};
 
+			keyreset {
+				compatible = "marvell,keyreset";
+				keys-down = <0x73 0x72>;
+				keyreset-need-panic;
+				status = "okay";
+			};
+
 			pmx: pinmux@d401e000 {
 				/* pin base, nr pins & gpio function */
 				pinctrl-single,gpio-range = <
