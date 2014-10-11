@@ -597,6 +597,16 @@
 					DS_MEDIUM;PULL_NONE;EDGE_NONE;LPM_NONE;
 				};
 
+				sspa1_func: sspa1_func {
+					pinctrl-single,pins = <
+						GPIO25 AF7
+						GPIO26 AF7
+						GPIO27 AF7
+						GPIO28 AF7
+					>;
+					DS_MEDIUM;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+
 				twsi0_pmx_func: twsi0_pmx_func {
 					/* gpio53/54: AF1 */
 					pinctrl-single,pins = <
@@ -908,6 +918,8 @@
 				};
 				mmp_map_be: mmp_map_be {
 					compatible = "marvell,mmp-map-be";
+					pinctrl-names = "default";
+					pinctrl-0 = <&sspa1_func>;
 					#dailink-cells = <1>;
 				};
 				mmp_map_be_tdm: mmp_map_be_tdm {
