@@ -12,11 +12,13 @@
 #include "pm_domain.h"
 
 #define APMU_PWR_CTRL_REG	0xd8
+/*
 #define APMU_PWR_BLK_TMR_REG	0xdc
+#define APMU_PWR_STBL_TMR_REG   0x084
+*/
 #define APMU_PWR_STATUS_REG	0xf0
 #define APMU_CCIC_DBG       0x088
 #define APMU_CCIC_CLK_RES_CTRL     0x50
-#define APMU_PWR_STBL_TMR_REG   0x084
 #define APMU_ISP_CLK_RES_CTRL   0x038
 #define APMU_CSI_CCIC2_CLK_RES_CTRL	0x24
 
@@ -93,10 +95,12 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 
 	spin_lock(&mmp_pd_apmu_lock);
 	/* on1, on2, off timer */
-	__raw_writel(0x20001fff, base + APMU_PWR_BLK_TMR_REG);
-
-	__raw_writel(0xf0f0f0, base + APMU_PWR_STBL_TMR_REG);
-
+	/*
+	 * keep this, ISP need wait HW stable
+	 * the reg val is recommended
+	 * __raw_writel(0x20001fff, base + APMU_PWR_BLK_TMR_REG);
+	 * __raw_writel(0x28207, base + APMU_PWR_STBL_TMR_REG);
+	 */
 	/* auto power on */
 	val = __raw_readl(base + APMU_PWR_CTRL_REG);
 	val |= (1 << data->bit_auto_pwr_on);
