@@ -44,6 +44,7 @@
 #include <linux/personality.h>
 #include <linux/notifier.h>
 #include <linux/debug_locks.h>
+#include <linux/console.h>
 
 #include <asm/compat.h>
 #include <asm/cacheflush.h>
