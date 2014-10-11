@@ -720,7 +720,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	clk = mmp_clk_register_gate(NULL, "usb_clk", NULL, 0,
 				pxa_unit->apmu_base + APMU_USB,
-				0x9, 0x9, 0x1, 0, NULL);
+				0x9, 0x9, 0x0, 0, NULL);
 	mmp_clk_add(unit, PXA1U88_CLK_USB, clk);
 
 	/* nand flash clock, no one use it, expect to be disabled */
