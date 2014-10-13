@@ -918,12 +918,8 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			idle_dcstat_info.all_active_start = ktime_temp;
 		break;
 	case CPU_M2_OR_DEEPER_ENTER:
-		if (!cpu_is_pxa1928() && tgtop >= LPM_MP2)
-			tgtop += 1;
 		ktime_temp = ktime_to_ns(ktime_get());
-		if (LPM_C2 == tgtop)
-			idle_dcstat_info.M2_idle_start = ktime_temp;
-		else if (LPM_MP2 == tgtop && cpu_is_pxa1928())
+		if (LPM_MP2 == tgtop)
 			idle_dcstat_info.M2_idle_start = ktime_temp;
 		else if (LPM_D1P == tgtop)
 			idle_dcstat_info.D1P_idle_start = ktime_temp;
