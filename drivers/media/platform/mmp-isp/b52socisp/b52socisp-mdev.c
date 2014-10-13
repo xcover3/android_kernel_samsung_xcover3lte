@@ -25,6 +25,66 @@ struct isp_subdev *isp_subdev_find(struct isp_build *build, int sd_code)
 	return NULL;
 };
 
+int isp_subdev_add_guest(struct isp_subdev *isd,
+				void *guest, enum isp_gdev_type type)
+{
+	struct isp_dev_ptr *desc = devm_kzalloc(isd->build->dev,
+						sizeof(*desc), GFP_KERNEL);
+	if (desc == NULL)
+		return -ENOMEM;
+	desc->ptr = guest;
+	desc->type = type;
+	INIT_LIST_HEAD(&desc->hook);
+	list_add_tail(&desc->hook, &isd->gdev_list);
+	return 0;
+}
+
+int isp_subdev_add_host(struct isp_subdev *isd,
+				void *host, enum isp_gdev_type type)
+{
+	struct isp_dev_ptr *desc = devm_kzalloc(isd->build->dev,
+						sizeof(*desc), GFP_KERNEL);
+	if (desc == NULL)
+		return -ENOMEM;
+	desc->ptr = host;
+	desc->type = type;
+	INIT_LIST_HEAD(&desc->hook);
+	list_add_tail(&desc->hook, &isd->hdev_list);
+	return 0;
+}
+
+int isp_subdev_remove_guest(struct isp_subdev *isd, void *guest)
+{
+	struct isp_dev_ptr *desc;
+
+	list_for_each_entry(desc, &isd->gdev_list, hook) {
+		if (guest == desc->ptr)
+			goto find;
+	}
+	return -ENODEV;
+
+find:
+	list_del(&desc->hook);
+	devm_kfree(isd->build->dev, desc);
+	return 0;
+}
+
+int isp_subdev_remove_host(struct isp_subdev *isd, void *host)
+{
+	struct isp_dev_ptr *desc;
+
+	list_for_each_entry(desc, &isd->hdev_list, hook) {
+		if (host == desc->ptr)
+			goto find;
+	}
+	return -ENODEV;
+
+find:
+	list_del(&desc->hook);
+	devm_kfree(isd->build->dev, desc);
+	return 0;
+}
+
 void isp_subdev_unregister(struct isp_subdev *ispsd)
 {
 	ispsd->build = NULL;
@@ -65,6 +125,7 @@ int isp_subdev_register(struct isp_subdev *ispsd, struct isp_build *build)
 	/* ispsd member init */
 	ispsd->build = build;
 	INIT_LIST_HEAD(&ispsd->hook);
+	INIT_LIST_HEAD(&ispsd->hdev_list);
 	list_add_tail(&ispsd->hook, &build->ispsd_list);
 	d_log("module '%s' registered to '%s'", me->name, build->name);
 	return ret;

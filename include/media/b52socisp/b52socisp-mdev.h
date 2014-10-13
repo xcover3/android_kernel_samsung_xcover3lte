@@ -14,8 +14,8 @@
 enum isp_gdev_type {
 	ISP_GDEV_NONE	= 0,
 	ISP_GDEV_BLOCK,
-	ISP_GDEV_I2C,
 	ISP_GDEV_SUBDEV,	/* Means this device is a host subdev */
+	DEV_V4L2_SUBDEV,
 };
 
 enum isp_subdev_type {
@@ -35,7 +35,7 @@ struct isp_subdev {
 	__u8			sd_type;	/* NORMAL / DMA_IN / DMA_OUT */
 	__u8			sd_code;	/* unique id code */
 	struct list_head	gdev_list;	/* guest device list */
-	struct list_head	hdev;
+	struct list_head	hdev_list;
 
 	struct v4l2_mbus_framefmt	fmt_pad[ISPSD_PAD_MAX];
 	struct v4l2_rect		crop_pad[ISPSD_PAD_MAX];
@@ -67,6 +67,11 @@ struct isp_dev_ptr {
 
 int isp_subdev_add_guest(struct isp_subdev *ispsd,
 				void *guest, enum isp_gdev_type type);
+int isp_subdev_add_host(struct isp_subdev *isd,
+				void *host, enum isp_gdev_type type);
+int isp_subdev_remove_guest(struct isp_subdev *isd, void *guest);
+int isp_subdev_remove_host(struct isp_subdev *isd, void *host);
+
 static inline struct isp_block *isp_sd2blk(struct isp_subdev *sd)
 {
 	struct isp_dev_ptr *desc;
