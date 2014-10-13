@@ -12,10 +12,11 @@ struct ccic_csi {
 	struct isp_subdev	ispsd;
 	struct isp_block	block;
 	struct isp_dev_ptr	desc;
-
 	char name[V4L2_SUBDEV_NAME_SIZE];
 	struct b52_sensor *sensor;
 	struct ccic_ctrl_dev *ccic_ctrl;
+
+	atomic_t		stream_cnt;
 };
 
 struct ccic_dma {
@@ -25,6 +26,10 @@ struct ccic_dma {
 	struct isp_dev_ptr	desc;
 	char name[V4L2_SUBDEV_NAME_SIZE];
 	struct ccic_dma_dev *ccic_dma;
+
+	int			nr_chnl;
+	atomic_t		stream_cnt;
+	struct isp_vnode	*vnode;
 };
 
 enum ccic_pad_id {

@@ -60,8 +60,65 @@ static irqreturn_t csi_irq_handler(struct ccic_ctrl_dev *ccic_ctrl, u32 irq)
 {
 	return IRQ_HANDLED;
 }
-static irqreturn_t dma_irq_handler(struct ccic_dma_dev *ccic_dmal, u32 irq)
+
+static inline int ccic_dma_fill_buf(struct ccic_dma *ccic_dma,
+				struct isp_videobuf *ispvb)
 {
+	int i;
+	int ret = 0;
+
+	if (ispvb == NULL) {
+		d_inf(4, "%s: buffer is NULL", __func__);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < ccic_dma->nr_chnl; i++)
+		ccic_dma->ccic_dma->ops->set_addr(ccic_dma->ccic_dma, (u8)i,
+			(u32)ispvb->ch_info[i].daddr);
+
+	/* TODO: add MMU channel setup code here */
+
+	return ret;
+}
+
+#define	  IRQ_EOF0		0x00000001	/* End of frame 0 */
+#define	  IRQ_SOF0		0x00000008	/* Start of frame 0 */
+#define	  IRQ_DMA_NOT_DONE	0x00000010
+#define	  IRQ_SHADOW_NOT_RDY	0x00000020
+#define	  IRQ_OVERFLOW		0x00000040	/* FIFO overflow */
+
+static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
+{
+	struct ccic_dma *ccic_dma = dma_dev->priv;
+	struct isp_vnode *vnode = ccic_dma->vnode;
+	struct isp_videobuf *ispvb = NULL;
+
+	if (irqs & IRQ_OVERFLOW) {
+		ispvb = isp_vnode_find_busy_buffer(vnode, 0);
+		ccic_dma_fill_buf(ccic_dma, ispvb);
+		d_inf(3, "CCIC DMA FIFO overflow");
+	}
+
+	/* need reconsider and careful review */
+	if (irqs & IRQ_EOF0) {
+		struct isp_videobuf *new_vb;
+		/* Retrieve done buffer */
+		ispvb = isp_vnode_get_busy_buffer(vnode);
+		if (!ispvb)
+			d_inf(3, "busy buffer is NULL in EOF?? strange");
+
+		new_vb = isp_vnode_get_idle_buffer(vnode);
+		if (!new_vb)
+			d_inf(3, "no buffer in idle queue, expect frame drop");
+		else {
+			ccic_dma_fill_buf(ccic_dma, new_vb);
+			isp_vnode_put_busy_buffer(vnode, new_vb);
+			ccic_dma->ccic_dma->ops->shadow_ready(dma_dev);
+		}
+		if (isp_vnode_export_buffer(ispvb) < 0)
+			d_inf(1, "%s: export buffer failed", vnode->vdev.name);
+	}
+
 	return IRQ_HANDLED;
 }
 
@@ -128,20 +185,33 @@ static int ccic_csi_set_stream(struct v4l2_subdev *sd, int enable)
 	struct ccic_csi *ccic_csi = isd->drv_priv;
 	int ret = 0;
 
-	if (enable) {
-		ret = b52_sensor_call(ccic_csi->sensor, g_csi,
+	if (!enable)
+		goto stream_off;
+
+	if (atomic_inc_return(&ccic_csi->stream_cnt) > 1)
+		return 0;
+
+	d_inf(3, "csi stream on");
+	ret = b52_sensor_call(ccic_csi->sensor, g_csi,
 				&ccic_csi->ccic_ctrl->csi);
-		if (ret < 0)
-			return ret;
+	if (ret < 0)
+		return ret;
 
-		ccic_csi->ccic_ctrl->ops->config_idi(ccic_csi->ccic_ctrl,
-				SC2_IDI_SEL_REPACK);
-		ccic_csi->ccic_ctrl->ops->config_mbus(ccic_csi->ccic_ctrl,
-				V4L2_MBUS_CSI2,	0, 1);
-	} else
-		ccic_csi->ccic_ctrl->ops->config_mbus(ccic_csi->ccic_ctrl,
+	ccic_csi->ccic_ctrl->ops->config_idi(ccic_csi->ccic_ctrl,
+			SC2_IDI_SEL_REPACK);
+	ccic_csi->ccic_ctrl->ops->config_mbus(ccic_csi->ccic_ctrl,
+			V4L2_MBUS_CSI2,	0, 1);
+	ccic_csi->ccic_ctrl->ops->irq_mask(ccic_csi->ccic_ctrl, 1);
+	return 0;
+
+stream_off:
+	if (atomic_dec_return(&ccic_csi->stream_cnt) > 0)
+		return 0;
+
+	d_inf(3, "csi stream off");
+	ccic_csi->ccic_ctrl->ops->irq_mask(ccic_csi->ccic_ctrl, 0);
+	ccic_csi->ccic_ctrl->ops->config_mbus(ccic_csi->ccic_ctrl,
 				V4L2_MBUS_CSI2,	0, 0);
-
 	return 0;
 }
 
@@ -189,11 +259,27 @@ static int ccic_csi_set_format(struct v4l2_subdev *sd,
 	return ret;
 }
 
+static int ccic_csi_get_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_fh *fh,
+				struct v4l2_subdev_selection *sel)
+{
+	return 0;
+}
+
+static int ccic_csi_set_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_fh *fh,
+				struct v4l2_subdev_selection *sel)
+{
+	return 0;
+}
+
 static const struct v4l2_subdev_pad_ops ccic_csi_pad_ops = {
 	.enum_mbus_code		= ccic_csi_enum_mbus_code,
 	.enum_frame_size	= ccic_csi_enum_frame_size,
 	.get_fmt		= ccic_csi_get_format,
 	.set_fmt		= ccic_csi_set_format,
+	.get_selection		= ccic_csi_get_selection,
+	.set_selection		= ccic_csi_set_selection,
 };
 
 static const struct v4l2_subdev_ops ccic_csi_subdev_ops = {
@@ -376,6 +462,66 @@ static const struct v4l2_ctrl_ops ccic_dma_ctrl_ops = {
 
 static int ccic_dma_set_stream(struct v4l2_subdev *sd, int enable)
 {
+	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
+	struct ccic_dma *ccic_dma = isd->drv_priv;
+	struct ccic_dma_dev *dma_dev = ccic_dma->ccic_dma;
+	struct media_pad *vpad = media_entity_remote_pad(
+					isd->pads + CCIC_DMA_PAD_OUT);
+	struct isp_vnode *vnode = me_to_vnode(vpad->entity);
+	struct isp_videobuf *ispvb = NULL;
+	int ret = 0;
+
+	if (!enable)
+		goto stream_off;
+
+	if (atomic_inc_return(&ccic_dma->stream_cnt) > 1)
+		return 0;
+
+	switch (vnode->format.fmt.pix_mp.pixelformat) {
+	case V4L2_PIX_FMT_YUV422P:
+	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YVU420:
+		ccic_dma->nr_chnl = 3;
+		break;
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV21:
+		ccic_dma->nr_chnl = 2;
+		break;
+	default:
+		ccic_dma->nr_chnl = 1;
+	}
+
+	dma_dev->pixfmt		= vnode->format.fmt.pix_mp.pixelformat;
+	dma_dev->width		= isd->fmt_pad[CCIC_DMA_PAD_IN].width;
+	dma_dev->height		= isd->fmt_pad[CCIC_DMA_PAD_IN].height;
+	/* bytesperline is only used in jpeg mode, using plane[0]'s value */
+	dma_dev->bytesperline	= vnode->format.fmt.pix_mp.
+					plane_fmt[0].bytesperline;
+	dma_dev->code		= isd->fmt_pad[CCIC_DMA_PAD_IN].code;
+	dma_dev->priv		= ccic_dma;
+
+	ret = dma_dev->ops->setup_image(dma_dev);
+	if (ret < 0)
+		return ret;
+
+	ispvb = isp_vnode_get_idle_buffer(vnode);
+	BUG_ON(ispvb == NULL);
+	ret = ccic_dma_fill_buf(ccic_dma, ispvb);
+	if (ret < 0)
+		return ret;
+	ret = isp_vnode_put_busy_buffer(vnode, ispvb);
+	if (ret < 0)
+		return ret;
+	ccic_dma->vnode = vnode;
+
+	dma_dev->ops->ccic_enable(dma_dev);
+	dma_dev->ops->shadow_ready(dma_dev);
+	return 0;
+
+stream_off:
+	if (atomic_dec_return(&ccic_dma->stream_cnt) > 0)
+		return 0;
+	dma_dev->ops->ccic_disable(dma_dev);
 	return 0;
 }
 
@@ -403,15 +549,61 @@ static int ccic_dma_get_format(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
 				struct v4l2_subdev_format *fmt)
 {
+	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
 	int ret = 0;
+
+	/* Get format is allowed only on the input pad */
+	if (fmt->pad != CCIC_DMA_PAD_IN)
+		return -EINVAL;
+	fmt->format = isd->fmt_pad[CCIC_DMA_PAD_IN];
 	return ret;
 }
 
 static int ccic_dma_set_format(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
-				struct v4l2_subdev_format *fmt)
+				struct v4l2_subdev_format *sd_fmt)
 {
+	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
 	int ret = 0;
+
+	/* set input mbus format as while */
+	isd->fmt_pad[CCIC_DMA_PAD_IN] = sd_fmt->format;
+	return ret;
+}
+
+static int ccic_dma_get_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_fh *fh,
+				struct v4l2_subdev_selection *sel)
+{
+	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
+	struct v4l2_rect *rect;
+
+	if (sel->pad >= isd->pads_cnt)
+		return -EINVAL;
+	rect = isd->crop_pad + sel->pad;
+	sel->r = *rect;
+	return 0;
+}
+
+static int ccic_dma_set_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_fh *fh,
+				struct v4l2_subdev_selection *sel)
+{
+	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
+	struct v4l2_rect *rect;
+	int ret = 0;
+
+	if (sel->pad >= isd->pads_cnt)
+		return -EINVAL;
+	rect = isd->crop_pad + sel->pad;
+
+	if (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE)
+		goto exit;
+	/* Really apply here if not using MCU */
+	d_inf(3, "%s:pad[%d] crop(%d, %d)<>(%d, %d)", sd->name, sel->pad,
+		sel->r.left, sel->r.top, sel->r.width, sel->r.height);
+	*rect = sel->r;
+exit:
 	return ret;
 }
 
@@ -420,6 +612,8 @@ static const struct v4l2_subdev_pad_ops ccic_dma_pad_ops = {
 	.enum_frame_size	= ccic_dma_enum_frame_size,
 	.get_fmt		= ccic_dma_get_format,
 	.set_fmt		= ccic_dma_set_format,
+	.get_selection		= ccic_dma_get_selection,
+	.set_selection		= ccic_dma_set_selection,
 };
 
 static const struct v4l2_subdev_ops ccic_dma_subdev_ops = {
@@ -448,12 +642,23 @@ static int ccic_dma_link_setup(struct media_entity *entity,
 			      const struct media_pad *local,
 			      const struct media_pad *remote, u32 flags)
 {
+	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
 	switch (local->index) {
 	case CCIC_DMA_PAD_IN:
-		d_inf(2, "TODO: add code to connect to ccic-dma input");
+		if (flags & MEDIA_LNK_FL_ENABLED)
+			d_inf(2, "%s: TODO: add code to connect ccic-csi",
+				sd->name);
+		else
+			d_inf(2, "%s: TODO: add code to disconnect ccic-csi",
+				sd->name);
 		break;
 	case CCIC_DMA_PAD_OUT:
-		d_inf(2, "TODO: add code to connect to dma video port");
+		if (flags & MEDIA_LNK_FL_ENABLED)
+			d_inf(2, "%s: TODO: add code to connect video port",
+				sd->name);
+		else
+			d_inf(2, "%s: TODO: add code to disconnect video port",
+				sd->name);
 		break;
 	default:
 		break;
