@@ -87,8 +87,8 @@ static int isp_video_calc_mplane_sizeimage(
 	return ret;
 }
 
-static int isp_video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
-					struct v4l2_pix_format_mplane *pix_mp)
+int isp_video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
+				struct v4l2_pix_format_mplane *pix_mp)
 {
 	unsigned int i;
 
@@ -111,8 +111,8 @@ static int isp_video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
 	return isp_video_calc_mplane_sizeimage(pix_mp, i);
 }
 
-static int isp_video_pix_to_mbus(struct v4l2_pix_format_mplane *pix_mp,
-				  struct v4l2_mbus_framefmt *mbus)
+int isp_video_pix_to_mbus(struct v4l2_pix_format_mplane *pix_mp,
+			  struct v4l2_mbus_framefmt *mbus)
 {
 	unsigned int i;
 
@@ -547,11 +547,16 @@ static int isp_vnode_set_format(struct file *file, void *fh,
 	if (ret)
 		goto out;
 
+	ret = blocking_notifier_call_chain(&vnode->notifier.head,
+		VDEV_NOTIFY_S_FMT, &sd_fmt.format);
+	if (ret < 0)
+		goto out;
+
 	ret = isp_video_mbus_to_pix(&sd_fmt.format, &format->fmt.pix_mp);
 	if (ret)
 		goto out;
-
 	vnode->format = *format;
+
 out:
 	return ret;
 }
@@ -655,9 +660,11 @@ static int isp_vnode_streamon(struct file *file, void *fh,
 	return ret;
 
 err_notifier:
+#if 0
 	blocking_notifier_call_chain(&vnode->notifier.head,
 			VDEV_NOTIFY_STM_OFF, vnode);
 	v4l2_subdev_call(sd, video, s_stream, 0);
+#endif
 err_stream:
 	vb2_streamoff(&vnode->vq, vnode->buf_type);
 err_exit:

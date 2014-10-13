@@ -11,6 +11,7 @@
 
 enum isp_vnode_notify_id {
 	VDEV_NOTIFY_QBUF = 1,
+	VDEV_NOTIFY_S_FMT,
 	VDEV_NOTIFY_STM_ON,
 	VDEV_NOTIFY_STM_OFF,
 	VDEV_NOTIFY_OPEN,
@@ -64,7 +65,8 @@ struct isp_vnode {
 
 	/* H/W and MC */
 	struct media_pad	pad;
-	struct isp_notifier notifier;
+	struct isp_notifier	notifier;
+	struct notifier_block	nb;
 
 	/* state and pipeline-video coherency */
 	struct mutex		st_lock;
@@ -119,4 +121,8 @@ struct isp_videobuf *isp_vnode_find_busy_buffer(struct isp_vnode *vnode,
 int isp_vnode_put_busy_buffer(struct isp_vnode *vnode,
 				struct isp_videobuf *buf);
 int isp_vnode_export_buffer(struct isp_videobuf *buf);
+int isp_video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
+				struct v4l2_pix_format_mplane *pix_mp);
+int isp_video_pix_to_mbus(struct v4l2_pix_format_mplane *pix_mp,
+			  struct v4l2_mbus_framefmt *mbus);
 #endif
