@@ -318,6 +318,7 @@ struct b52_sensor {
 	u8 cur_mbus_idx;
 
 	int i2c_dyn_ctrl;
+	atomic_t	stream_cnt;
 };
 
 extern struct b52_sensor *b52_get_sensor(struct media_entity *entity);

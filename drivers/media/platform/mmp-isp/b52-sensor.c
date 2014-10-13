@@ -1434,10 +1434,15 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 	const struct b52_sensor_regs *regs;
 	struct b52_sensor *sensor = to_b52_sensor(sd)
 
-	if (enable)
+	if (enable) {
+		if (atomic_inc_return(&sensor->stream_cnt) > 1)
+			return 0;
 		regs = &sensor->drvdata->streamon;
-	else
+	} else {
+		if (atomic_dec_return(&sensor->stream_cnt) > 0)
+			return 0;
 		regs = &sensor->drvdata->streamoff;
+	}
 
 	return __b52_sensor_cmd_write(
 			&sensor->drvdata->i2c_attr,
