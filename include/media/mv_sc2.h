@@ -140,6 +140,7 @@ struct ccic_dma_ops {
 	void (*set_yaddr)(struct ccic_dma_dev *dma_dev, u32 addr);
 	void (*set_uaddr)(struct ccic_dma_dev *dma_dev, u32 addr);
 	void (*set_vaddr)(struct ccic_dma_dev *dma_dev, u32 addr);
+	void (*set_addr)(struct ccic_dma_dev *dma_dev, u8 chnl, u32 addr);
 	int (*mbus_fmt_rating)(u32 fourcc, enum v4l2_mbus_pixelcode code);
 	void (*ccic_enable)(struct ccic_dma_dev *dma_dev);
 	void (*ccic_disable)(struct ccic_dma_dev *dma_dev);

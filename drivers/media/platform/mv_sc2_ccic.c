@@ -431,6 +431,15 @@ static int ccic_hw_setup_image(struct ccic_dma_dev *dma_dev)
 		widthy = width;
 		widthuv = width / 2;
 		break;
+	case V4L2_PIX_FMT_SBGGR8:
+		widthy = width;
+		widthuv = 0;
+		break;
+	case V4L2_PIX_FMT_SBGGR10:
+		widthy = width * 10 / 8;
+		widthuv = 0;
+		imgsz_w = widthy;
+		break;
 	default:
 		break;
 	}
@@ -481,6 +490,11 @@ static int ccic_hw_setup_image(struct ccic_dma_dev *dma_dev)
 			C0_DF_YUV | C0_YUV_PLANAR | yuvendfmt | C0_YUV420SP,
 			C0_DF_MASK);
 		break;
+	case V4L2_PIX_FMT_SBGGR8:
+	case V4L2_PIX_FMT_SBGGR10:
+		ccic_reg_write_mask(ccic_dev, REG_CTRL0,
+			C0_DF_BAYER, C0_DF_MASK);
+		break;
 	default:
 		dev_err(dev, "unknown format: %c\n", pixfmt);
 		break;
@@ -518,7 +532,7 @@ static void ccic_shadow_ready(struct ccic_dma_dev *dma_dev)
 {
 	unsigned long flags = 0;
 	spin_lock_irqsave(&dma_dev->ccic_dev->ccic_lock, flags);
-	ccic_reg_set_bit(dma_dev->ccic_dev, REG_CTRL1, C1_SHADOW_RDY);
+	ccic_reg_set_bit(dma_dev->ccic_dev, REG_CTRL1, 0x8000000 | C1_SHADOW_RDY);
 	spin_unlock_irqrestore(&dma_dev->ccic_dev->ccic_lock, flags);
 }
 
@@ -541,6 +555,25 @@ static void ccic_set_vaddr(struct ccic_dma_dev *dma_dev, u32 addr)
 	struct msc2_ccic_dev *ccic_dev = dma_dev->ccic_dev;
 
 	ccic_reg_write(ccic_dev, REG_V0BAR, addr);
+}
+
+static void ccic_set_addr(struct ccic_dma_dev *dma_dev, u8 chnl, u32 addr)
+{
+	struct msc2_ccic_dev *ccic_dev = dma_dev->ccic_dev;
+
+	switch (chnl) {
+	case 0:
+		ccic_reg_write(ccic_dev, REG_Y0BAR, addr);
+		return;
+	case 1:
+		ccic_reg_write(ccic_dev, REG_U0BAR, addr);
+		return;
+	case 2:
+		ccic_reg_write(ccic_dev, REG_V0BAR, addr);
+		return;
+	default:
+		WARN_ON(1);
+	}
 }
 
 /*
@@ -572,10 +605,10 @@ static struct ccic_dma_ops ccic_dma_ops = {
 	.set_yaddr = ccic_set_yaddr,
 	.set_uaddr = ccic_set_uaddr,
 	.set_vaddr = ccic_set_vaddr,
+	.set_addr = ccic_set_addr,
 	.mbus_fmt_rating = ccic_mbus_fmt_score,
 	.ccic_enable = ccic_enable,
 	.ccic_disable = ccic_disable,
-
 };
 
 
