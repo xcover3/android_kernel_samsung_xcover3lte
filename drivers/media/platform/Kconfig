@@ -200,6 +200,16 @@ config VIDEO_MV_SC2_CCIC
 	  To compile this driver as a module, choose M here: the module will
 	  be called mv_sc2_ccic.
 
+config HOST_SUBDEV
+	bool "host v4l2 subdev support"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  Host v4l2 subdev provide a container of v4l2 subdevs, it's a way to
+	  map a group of v4l2_subdevs to one v4l2 subdev. This is very usefull
+	  if driver choose to expose a unified interface to user space for
+	  a raw camera sensor and its accessories(like VCM, OTP, etc).
+
 source "drivers/media/platform/soc_camera/Kconfig"
 source "drivers/media/platform/exynos4-is/Kconfig"
 source "drivers/media/platform/s5p-tv/Kconfig"
