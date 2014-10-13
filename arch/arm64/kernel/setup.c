@@ -374,9 +374,17 @@ static void __init reserve_crashkernel(void)
 				&crash_size, &crash_base);
 	if (ret)
 		return;
-	pr_info("Reserving %ldMB of memory at %ldMB or crashkernel\n",
-	       (unsigned long)(crash_size >> 20),
-	       (unsigned long)(crash_base >> 20));
+
+	ret = memblock_reserve(crash_base, crash_size);
+	if (ret < 0) {
+		pr_warn("crashkernel reservation failed - memory is in use (0x%lx)\n",
+			(unsigned long)crash_base);
+		return;
+	}
+
+	pr_info("Reserving %ldKB of memory at 0x%lx for crashkernel\n",
+	       (unsigned long)(crash_size >> 10),
+	       (unsigned long)(crash_base));
 
 	crashk_res.start = crash_base;
 	crashk_res.end = crash_base + crash_size - 1;
