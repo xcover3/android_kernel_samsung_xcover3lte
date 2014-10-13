@@ -2510,8 +2510,16 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	if (ret < 0)
 		return ret;
 
-	if (flags & BIT(CMD_FLAG_STREAM_OFF))
+	if (!(flags & BIT(CMD_FLAG_MS)) &&
+		(flags & BIT(CMD_FLAG_STREAM_OFF))) {
+		struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
+		struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
+
+		v4l2_subdev_call(sd, video, s_stream, 0);
+		v4l2_subdev_call(csi_sd, video, s_stream, 0);
+		sensor_init = 1;
 		return ret;
+	}
 
 	atomic_set(&streaming_state, 1);
 	if (flags & BIT(CMD_FLAG_MS))

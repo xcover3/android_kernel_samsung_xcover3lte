@@ -2719,7 +2719,7 @@ static int b52isp_video_event(struct notifier_block *nb,
 {
 	struct isp_vnode *vnode = data;
 	struct isp_subdev *isd = vnode->notifier.priv;
-	int ret;
+	int ret = 0;
 
 	switch (event) {
 	case VDEV_NOTIFY_STM_ON:
@@ -2735,7 +2735,6 @@ static int b52isp_video_event(struct notifier_block *nb,
 		ret = b52isp_vdev_close_handler(isd, vnode);
 		break;
 	default:
-		ret = -EINVAL;
 		break;
 	}
 
