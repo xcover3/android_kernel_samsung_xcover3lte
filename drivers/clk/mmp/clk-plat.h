@@ -39,4 +39,11 @@ extern void __init_comp_devfreq_table(struct clk *clk, unsigned int dev_id);
 
 extern void register_mixclk_dcstatinfo(struct clk *clk);
 
+#ifdef CONFIG_ARM64
+extern int smc_get_fuse_info(u64 function_id, void *arg);
+#else
+static int smc_get_fuse_info(u64 function_id, void *arg)
+{ return 0; }
+#endif
+
 #endif

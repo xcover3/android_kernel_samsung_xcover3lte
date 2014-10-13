@@ -15,7 +15,7 @@
 #include <linux/clk/dvfs-dvc.h>
 
 #include <linux/cputype.h>
-
+#include "clk-plat.h"
 /* components that affect the vmin */
 enum dvfs_comp {
 	CORE = 0,
@@ -52,14 +52,19 @@ enum dvfs_comp {
 #define UID_H_32			0x48C
 #define UID_L_32			0x4A8
 /* For chip DRO and profile */
-#define NUM_PROFILES	13
+#define NUM_PROFILES	16
 /* used to save fuse parameter */
 static unsigned int uimanupara_31_00;
 static unsigned int uimanupara_63_32;
 static unsigned int uimanupara_95_64;
-static unsigned int uifuses;
+static unsigned int uiblock0_rsv1;
+static unsigned int uiblock7_rsv2;
+
+static unsigned int uiprofilefuses;
+static unsigned int uisvcver;
 static unsigned int uiprofile;
-static unsigned int uidro;
+static unsigned int uisvtdro;
+static unsigned int uilvtdro;
 
 struct svtrng {
 	unsigned int min;
@@ -82,7 +87,7 @@ static struct svtrng svtrngtb_z0[] = {
 	/* NOTE: rsved profile 1/10/12/14, by default use profile 0 */
 };
 
-static u32 __maybe_unused convert_svtdro2profile(unsigned int uisvtdro)
+static u32 convert_svtdro2profile(unsigned int uisvtdro)
 {
 	unsigned int uiprofile = 0, idx;
 
@@ -94,20 +99,95 @@ static u32 __maybe_unused convert_svtdro2profile(unsigned int uisvtdro)
 		}
 	}
 
+	pr_info("%s uisvtdro[%d]->profile[%d]\n", __func__, uisvtdro, uiprofile);
 	return uiprofile;
 }
 
+static u32 convert_fuse2profile(unsigned int uiprofilefuses)
+{
+	unsigned int uitemp = 1, uitemp2 = 1, uiprofile = 0;
+	int i;
+
+	for (i = 1; i < NUM_PROFILES; i++) {
+		if (uitemp == uiprofilefuses)
+			uiprofile = i;
+		uitemp |= uitemp2 << (i);
+	}
+
+	pr_info("%s fuse[%d]->profile[%d]\n", __func__, uiprofilefuses, uiprofile);
+	return uiprofile;
+}
+
+struct fuse_info {
+	u32 arg0;
+	u32 arg1;
+	u32 arg2;
+	u32 arg3;
+	u32 arg4;
+};
+
 static int __init __init_read_droinfo(void)
 {
+	struct fuse_info arg;
+	unsigned int uiallocrev = 0;
+	unsigned int uifab = 0;
+	unsigned int uirun = 0;
+	unsigned int uiwafer = 0;
+	unsigned int uix = 0;
+	unsigned int uiy = 0;
+	unsigned int uiparity = 0;
 
-	/* FIXME: how to read fuse on ULC? */
-	uimanupara_31_00 = 0;
-	uimanupara_63_32 = 0;
-	uidro		= (uimanupara_95_64 >>  4) & 0x3ff;
+	smc_get_fuse_info(0xC3002000, (void *)&arg);
+
+	uimanupara_31_00 = arg.arg0;
+	uimanupara_63_32 = arg.arg1;
+	uimanupara_95_64 = arg.arg2;
+	uiblock0_rsv1 = arg.arg3;
+	uiblock7_rsv2 = arg.arg4;
+	pr_info("FUSE %x %x %x %x %x\n",
+		uimanupara_31_00, uimanupara_63_32, uimanupara_95_64,
+		uiblock0_rsv1, uiblock7_rsv2);
+
+	uiallocrev	= uimanupara_31_00 & 0x7;
+	uifab		= (uimanupara_31_00 >>  3) & 0x1f;
+	uirun		= ((uimanupara_63_32 & 0x3) << 24)
+			| ((uimanupara_31_00 >> 8) & 0xffffff);
+	uiwafer		= (uimanupara_63_32 >>  2) & 0x1f;
+	uix		= (uimanupara_63_32 >>  7) & 0xff;
+	uiy		= (uimanupara_63_32 >> 15) & 0xff;
+	uiparity	= (uimanupara_63_32 >> 23) & 0x1;
+	uilvtdro = (uimanupara_95_64 >>  4) & 0x3ff;
+	uisvtdro = (uiblock7_rsv2 >> 22) & 0x3ff;
 	/* bit 240 ~ 255 for Profile information */
-	uifuses = (uifuses >> 16) & 0x0000FFFF;
 
-	pr_info("uiprofile = %d, DRO = %d\n", uiprofile, uidro);
+	uisvcver =  (uiblock0_rsv1 >> 13) & 0x7;
+	uiprofilefuses = (uiblock0_rsv1 >> 16) & 0x0000FFFF;
+	if (uiprofilefuses)
+		uiprofile = convert_fuse2profile(uiprofilefuses);
+	else
+		uiprofile = convert_svtdro2profile(uisvtdro);
+
+	pr_info(" ");
+	pr_info("	*********************************\n");
+	pr_info("	*	ULT: %08X%08X	*\n",
+	       uimanupara_63_32, uimanupara_31_00);
+	pr_info("	*********************************\n");
+	pr_info("	 ULT decoded below\n");
+	pr_info("		alloc_rev[2:0]	= %d\n", uiallocrev);
+	pr_info("		fab [ 7: 3]	= %d\n", uifab);
+	pr_info("		run [33: 8]	= %d (0x%X)\n", uirun, uirun);
+	pr_info("		wafer [38:34]	= %d\n", uiwafer);
+	pr_info("		x [46:39]	= %d\n", uix);
+	pr_info("		y [54:47]	= %d\n", uiy);
+	pr_info("		parity [55:55]	= %d\n", uiparity);
+	pr_info("	*********************************\n");
+	pr_info("	*********************************\n");
+	pr_info("		LVTDRO [77:68]	= %d\n", uilvtdro);
+	pr_info("		SVTDRO [9:0]	= %d\n", uisvtdro);
+	pr_info("		Profile	= %d\n", uiprofile);
+	pr_info("		SVCver	= %d\n", uisvcver);
+	pr_info("	*********************************\n");
+	pr_info("\n");
 
 	return 0;
 }
