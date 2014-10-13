@@ -26,6 +26,7 @@
 #include <media/v4l2-device.h>
 #include <linux/pm_qos.h>
 #include <linux/i2c.h>
+#include <media/b52socisp/host_isd.h>
 
 #include "plat_cam.h"
 #include "b52isp.h"
@@ -463,10 +464,239 @@ unlock:
 	return ret;
 }
 
+#ifdef CONFIG_HOST_SUBDEV
+/* recursive look for the link from end to start */
+/* end is never NULL, start can be NULL */
+/* FIXME: use stack to optimize later*/
+static int plat_find_link(struct media_entity *start,
+		struct media_entity *end, struct media_link **link,
+		int max_pads, int flag_set, int flag_clr)
+{
+	struct media_entity *last;
+	int i, ret = 0;
+
+	if (max_pads < 1)
+		return -ENOMEM;
+
+	/* search for all possible source entity */
+	for (i = 0; i < end->num_links; i++) {
+		/* if the link is outbound or not satisfy flag, ignore */
+		if ((end->links[i].sink->entity != end)
+		|| (flag_set && ((end->links[i].flags & flag_set) == 0))
+		|| (flag_clr && ((end->links[i].flags & flag_clr) != 0)))
+			continue;
+		/* The use count of each subdev is not considered here, because
+		 * this function only find the link, but not guarantee the
+		 * nodes on the link is idle */
+		last = end->links[i].source->entity;
+		if (last == start)
+			goto output_link;
+		else {
+			int tmp = plat_find_link(start, last, link + 1,
+					max_pads - 1, flag_set, flag_clr);
+			if (tmp < 0) {
+				continue;
+			} else {
+				ret = tmp;
+				goto output_link;
+			}
+		}
+	}
+
+	/* if pipeline input not specified, but current subdev is a sensor,
+	 * we can assume that it can act as a pipeline source */
+	if ((start == NULL) && (i >= end->num_links)) {
+		struct v4l2_subdev *sd = NULL;
+		if (end->type == MEDIA_ENT_T_V4L2_SUBDEV_SENSOR)
+			sd = media_entity_to_v4l2_subdev(end);
+		if (subdev_has_fn(sd, pad, set_fmt))
+			return 0;
+	}
+	return -ENODEV;
+
+output_link:
+	*link = &end->links[i];
+	return ret + 1;
+}
+
+#define PLAT_PIPELINE_LEN_MAX	10
+
+static int plat_hsd_link(struct plat_hsd *phsd, u32 link,
+				struct media_entity *start,
+				struct media_entity *end)
+{
+	if (!link)
+		goto unlink;
+	/* Mainly to figure out default pipeline and setup media link */
+	return 0;
+
+unlink:
+	return 0;
+}
+
+static int plat_hsd_init(struct plat_hsd *phsd, u32 init,
+				struct media_entity *start,
+				struct media_entity *end)
+{
+	struct isp_host_subdev *host = phsd->hsd;
+	struct v4l2_subdev *guest;
+	struct media_link *link[PLAT_PIPELINE_LEN_MAX];
+	int ret = 0, nr_link, i;
+
+	if (!init)
+		goto de_init;
+
+	nr_link = ret = plat_find_link(start, end, link, PLAT_PIPELINE_LEN_MAX,
+					MEDIA_LNK_FL_ENABLED, 0);
+	if (ret < 0)
+		return ret;
+	for (i = 0; i < nr_link; i++)
+		d_inf(3, "link %d: '%s' => '%s'", i,
+		link[i]->source->entity->name, link[i]->sink->entity->name);
+
+	if (media_entity_type(link[nr_link - 1]->source->entity) ==
+		MEDIA_ENT_T_V4L2_SUBDEV) {
+		guest = media_entity_to_v4l2_subdev(
+			link[nr_link - 1]->source->entity);
+		ret = host_subdev_add_guest(host, guest);
+		if (ret < 0) {
+			d_inf(1, "%s: failed to add guest %s",
+				host->isd.subdev.name, guest->name);
+			return ret;
+		}
+		d_inf(3, "%s: add guest <%s> to list",
+			host->isd.subdev.name, guest->name);
+	}
+	for (i = nr_link - 1; i >= 0; i--) {
+		if (WARN_ON(media_entity_type(link[i]->sink->entity) !=
+			MEDIA_ENT_T_V4L2_SUBDEV))
+			continue;
+		guest = media_entity_to_v4l2_subdev(link[i]->sink->entity);
+		ret = host_subdev_add_guest(host, guest);
+		if (ret < 0) {
+			d_inf(1, "%s: failed to add guest %s",
+				host->isd.subdev.name, guest->name);
+			return ret;
+		}
+		d_inf(3, "%s: add guest <%s> to list",
+			host->isd.subdev.name, guest->name);
+	}
+	return 0;
+
+de_init:
+	while (!list_empty(&host->isd.gdev_list)) {
+		struct isp_dev_ptr *dscr =
+			list_first_entry(&host->isd.gdev_list,
+			struct isp_dev_ptr, hook);
+		switch (dscr->type) {
+		case ISP_GDEV_SUBDEV:
+			{
+				struct isp_subdev *isd = dscr->ptr;
+				host_subdev_remove_guest(host, &isd->subdev);
+			}
+			break;
+		case DEV_V4L2_SUBDEV:
+			host_subdev_remove_guest(host, dscr->ptr);
+			break;
+		default:
+			WARN_ON(1);
+		}
+	}
+	return ret;
+}
+
+static int plat_hsd_notify_handler(struct notifier_block *nb,
+		unsigned long event, void *data)
+{
+	struct isp_vnode *vnode = container_of(nb, struct isp_vnode, nb);
+	struct plat_hsd *phsd = vnode->notifier.priv;
+	struct media_pad *pad = media_entity_remote_pad(&vnode->pad);
+	int ret = 0;
+
+	switch (event) {
+	case VDEV_NOTIFY_STM_ON:
+		ret = v4l2_subdev_call(&phsd->hsd->isd.subdev,
+					video, s_stream, 1);
+		break;
+	case VDEV_NOTIFY_STM_OFF:
+		ret = v4l2_subdev_call(&phsd->hsd->isd.subdev,
+					video, s_stream, 0);
+		break;
+	case VDEV_NOTIFY_S_FMT:
+		if (!phsd->drv_own)
+			break;
+
+		/*
+		 * This is a specific implementation: the v4l2_format
+		 * can't be passed to subdev directly, and convert it to
+		 * mbus_framefmt is neither an option. So just don't
+		 * pass it to subdev, let the last subdev find vnode by
+		 * media link and fetch v4l2_format from vnode directly.
+		 */
+		ret = v4l2_subdev_call(&phsd->hsd->isd.subdev,
+					video, s_mbus_fmt, data);
+		break;
+	case VDEV_NOTIFY_OPEN:
+		ret = phsd->init(phsd, 1, NULL, pad->entity);
+		if (ret < 0) {
+			if (!phsd->link || !phsd->drv_own)
+				return ret;
+			ret = phsd->link(phsd, 1, NULL, pad->entity);
+			if (ret < 0)
+				return ret;
+			ret = phsd->init(phsd, 1, NULL, pad->entity);
+		}
+		ret = phsd->hsd->group(phsd->hsd, 1);
+		break;
+	case VDEV_NOTIFY_CLOSE:
+		ret = phsd->hsd->group(phsd->hsd, 0);
+		ret |= phsd->init(phsd, 0, NULL, NULL);
+		if (phsd->link && phsd->drv_own)
+			ret |= phsd->link(phsd, 0, NULL, NULL);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+	return ret;
+}
+
+static int __maybe_unused plat_hsd_connect_video(struct plat_hsd *phsd,
+					struct isp_vnode *vnode)
+{
+	int ret;
+
+	vnode->nb.notifier_call = &plat_hsd_notify_handler;
+	ret = blocking_notifier_chain_register(&vnode->notifier.head,
+			&vnode->nb);
+	if (ret < 0)
+		return ret;
+	vnode->notifier.priv = phsd;
+	return 0;
+}
+
+static int __maybe_unused plat_hsd_disconnect_video(struct plat_hsd *phsd,
+					struct isp_vnode *vnode)
+{
+	int ret;
+
+	ret = blocking_notifier_chain_unregister(&vnode->notifier.head,
+			&vnode->nb);
+	if (ret < 0)
+		return ret;
+	return 0;
+}
+
+static int host_subdev_cnt;
+#endif
+
 static int plat_add_vdev(struct isp_build *build, struct isp_subdev *ispsd)
 {
 	struct plat_vnode *pvnode;
 	struct plat_cam *pcam = build->plat_priv;
+#ifdef CONFIG_HOST_SUBDEV
+	struct plat_hsd *phsd;
+#endif
 	int i, ret = 0;
 
 	if (ispsd->single == 0)
@@ -499,6 +729,48 @@ attach_output:
 			&pvnode->vnode.vdev.entity, 0, 0);
 		if (ret < 0)
 			return ret;
+#ifdef CONFIG_HOST_SUBDEV
+		/* Create pipeline and connect to vnode */
+		switch (ispsd->sd_code) {
+		case SDCODE_CCICV2_DMA0:
+		case SDCODE_CCICV2_DMA1:
+			phsd = devm_kzalloc(build->dev, sizeof(*phsd),
+						GFP_KERNEL);
+			if (phsd == NULL)
+				return -ENOMEM;
+			INIT_LIST_HEAD(&phsd->hook);
+			sprintf(phsd->name, "plat_host<%s>", ispsd->subdev.name);
+			phsd->hsd = host_subdev_create(build->dev, phsd->name,
+					host_subdev_cnt, &hsd_cascade_behaviors);
+			if (IS_ERR_OR_NULL(phsd->hsd))
+				return PTR_ERR(phsd->hsd);
+			{
+				struct isp_subdev *isd = &phsd->hsd->isd;
+				isd->drv_priv = phsd->hsd;
+				isd->pads_cnt = 0;
+				isd->single = 0;
+				INIT_LIST_HEAD(&isd->gdev_list);
+				isd->sd_code = SDCODE_HOST_SUBDEV_BASE +
+						host_subdev_cnt;
+				ret = plat_ispsd_register(isd);
+				if (ret < 0)
+					return ret;
+				host_subdev_cnt++;
+			}
+			phsd->init = plat_hsd_init;
+			phsd->link = plat_hsd_link;
+			/* If app don't setup media-link, driver will own it */
+			/* FIXME: phsd->drv_own = 1; */
+			phsd->drv_own = 0;
+			list_add_tail(&phsd->hook, &pcam->host_pool);
+			ret = plat_hsd_connect_video(phsd, &pvnode->vnode);
+			if (ret < 0) {
+				d_inf(1, "failed to connect %s and %s",
+					phsd->name, pvnode->vnode.vdev.name);
+				return ret;
+			}
+		}
+#endif
 		break;
 
 	case ISD_TYPE_DMA_IN:
@@ -795,12 +1067,7 @@ static int plat_cam_probe(struct platform_device *pdev)
 	cam->isb->add_vdev = plat_add_vdev;
 	cam->isb->close_vdev = plat_close_vdev;
 	INIT_LIST_HEAD(&cam->vnode_pool);
-#ifdef CONFIG_MARVELL_MEDIA_MMU
-	cam->alloc_mmu_chnl = &plat_mmu_alloc_channel;
-	cam->free_mmu_chnl = &plat_mmu_free_channel;
-	cam->fill_mmu_chnl = &plat_mmu_fill_channel;
-	cam->get_axi_id = &plat_axi_id;
-#endif
+	INIT_LIST_HEAD(&cam->host_pool);
 	ret = isp_build_init(cam->isb);
 	if (ret < 0)
 		return ret;

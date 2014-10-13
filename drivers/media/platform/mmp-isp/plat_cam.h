@@ -44,6 +44,7 @@ struct plat_cam {
 					struct vb2_buffer *vb, int num_planes);
 	__u16 (*get_axi_id)(__u8 port_id, __u8 yuv_id);
 	struct list_head	vnode_pool;
+	struct list_head	host_pool;
 };
 
 struct plat_vnode {
@@ -58,8 +59,7 @@ enum plat_src_type {
 	PLAT_SRC_T_VDEV,
 };
 struct plat_pipeline {
-	/* struct isp_stream	stream; */
-	struct media_pipeline	*mpipe;
+	struct media_pipeline	mpipe;
 	enum plat_src_type	src_type;
 	union {
 		struct v4l2_subdev	*sensor;
@@ -74,6 +74,21 @@ struct plat_pipeline {
 	int			dst_map;
 };
 
+#ifdef CONFIG_HOST_SUBDEV
+struct plat_hsd {
+	struct isp_host_subdev	*hsd;
+	struct list_head	hook;
+	char	name[64];
+	int	drv_own;
+	int	(*link)(struct plat_hsd *hsd, u32 link,
+			struct media_entity *start,
+			struct media_entity *end);
+	int	(*init)(struct plat_hsd *hsd, u32 init,
+			struct media_entity *start,
+			struct media_entity *end);
+};
+#endif
+
 enum {
 	PCAM_IP_B52ISP	= 0,
 	PCAM_IP_CCICV2,
@@ -81,7 +96,7 @@ enum {
 };
 
 enum plat_subdev_code {
-	SDCODE_B52ISP_IDI	= 0,
+	SDCODE_B52ISP_IDI	= 1,
 	SDCODE_B52ISP_PIPE1,
 	SDCODE_B52ISP_DUMP1,
 	SDCODE_B52ISP_MS1,
@@ -104,6 +119,8 @@ enum plat_subdev_code {
 	SDCODE_CCICV2_CSI1,
 	SDCODE_CCICV2_DMA0,
 	SDCODE_CCICV2_DMA1,
+	SDCODE_HOST_SUBDEV_BASE,
+	SDCODE_HOST_SUBDEV_END	= SDCODE_HOST_SUBDEV_BASE + 5,
 	SDCODE_CNT,
 };
 
