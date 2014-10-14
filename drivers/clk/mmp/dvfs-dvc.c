@@ -336,7 +336,7 @@ static void __init hwdvc_enable_cpdp_dvc(void)
 		dvc_info->dvcplatinfo->cp_pmudvc_lvl;
 	unsigned int dp_pmudvc_lvl =
 		dvc_info->dvcplatinfo->dp_pmudvc_lvl;
-	int max_delay = DIV_ROUND_UP(0xFFFF * 3, 26);
+	int max_delay = DIV_ROUND_UP(0xFFFF * 8, 26);
 	union pmudvc_xp pmudvc_xp;
 	union pmudvc_imsr pmudvc_imsr;
 
@@ -509,7 +509,8 @@ static int hwdvc_set_active_vl(struct dvfs_rail *rail, int lvl)
 	/*
 	 * Max delay time, unit is us. (1.5v - 1v) / 0.125v = 40
 	 * Also PMIC needs 10us to launch and sync dvc pins
-	 * default delay should be 0xFFFF * 3 ticks(L0-->L3 or L3-->L0)
+	 * default delay should be 0xFFFF * 8 ticks
+	 * (LV0-->LV7 or LV7-->L0) + extra timer
 	 */
 	int max_delay, hwlvl = lvl;
 	union pmudvc_xp pmudvc_ap;
@@ -517,9 +518,9 @@ static int hwdvc_set_active_vl(struct dvfs_rail *rail, int lvl)
 	struct hwdvc_notifier_data data;
 
 	if (dvc_info->stb_timer_inited)
-		max_delay = 40 + 10 * 3;
+		max_delay = 40 + dvc_info->dvcplatinfo->extra_timer_dlyus;
 	else
-		max_delay = DIV_ROUND_UP(0xFFFF * 3, 26);
+		max_delay = DIV_ROUND_UP(0xFFFF * 8, 26);
 
 	hwdvc_fill_pmic_volt();
 	hwdvc_replace_lvl_voltage(&hwlvl);
