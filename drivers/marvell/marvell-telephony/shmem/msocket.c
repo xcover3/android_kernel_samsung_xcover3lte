@@ -1296,7 +1296,8 @@ static int reboot_notifier_func(struct notifier_block *this,
 	pr_info("reboot notifier, notify CP\n");
 	pr_info("%s: APMU_DEBUG byte3 %02x\n", __func__,
 	       __raw_readb(APMU_DEBUG + 3));
-	acipc_reset_cp_request();
+	if (cp_is_synced)
+		acipc_reset_cp_request();
 	return 0;
 }
 
