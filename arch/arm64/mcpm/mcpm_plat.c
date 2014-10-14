@@ -349,6 +349,9 @@ static void mcpm_plat_pm_down(void *arg)
 				 CPU_M2_OR_DEEPER_ENTER, *idx);
 
 	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, *idx);
+#ifdef CONFIG_VOLDC_STAT
+	vol_dcstat_event(VLSTAT_LPM_ENTRY, *idx, 0);
+#endif
 
 	if (last_man && __mcpm_outbound_enter_critical(cpu, cluster)) {
 		arch_spin_unlock(&mcpm_plat_lpm_lock);
@@ -435,6 +438,9 @@ static void mcpm_plat_pm_powered_up(void)
 	arch_spin_lock(&mcpm_plat_lpm_lock);
 
 	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
+#ifdef CONFIG_VOLDC_STAT
+	vol_dcstat_event(VLSTAT_LPM_EXIT, 0, 0);
+#endif
 
 	calc_state = _calc_coupled_state(cpu, cluster, &cluster_off, NULL);
 	if (cluster_off)
