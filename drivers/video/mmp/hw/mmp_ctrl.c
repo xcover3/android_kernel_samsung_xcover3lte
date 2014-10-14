@@ -1048,7 +1048,7 @@ static int overlay_set_addr(struct mmp_overlay *overlay, struct mmp_addr *addr)
 
 	vdma = overlay->vdma;
 	if (vdma && vdma->ops && vdma->ops->set_addr)
-		vdma->ops->set_addr(vdma, addr, overlay->status);
+		vdma->ops->set_addr(vdma, addr, -1, overlay->status);
 
 	return overlay->addr.phys[0];
 }
@@ -1082,6 +1082,7 @@ static int overlay_set_surface(struct mmp_overlay *overlay,
 	struct mmp_addr *addr = &surface->addr;
 	struct mmp_path *path = overlay->path;
 	int overlay_id = overlay->id, count = 0;
+	int fd = surface->fd;
 
 	if (unlikely(atomic_read(&path->commit))) {
 		while (atomic_read(&path->commit) && count < 10) {
@@ -1103,6 +1104,10 @@ static int overlay_set_surface(struct mmp_overlay *overlay,
 		if (shadow && shadow->ops && shadow->ops->set_surface)
 			shadow->ops->set_surface(shadow, surface);
 	} else {
+		if (vdma && vdma->ops && vdma->ops->set_descriptor_chain)
+			vdma->ops->set_descriptor_chain(vdma,
+				(fd >= 0 && fd < 1024) ? 1 : 0);
+
 		pr_debug("%s: decompress_en : %d\n", __func__,
 				!!(surface->flag & DECOMPRESS_MODE));
 		if (vdma && vdma->ops && vdma->ops->set_decompress_en)
@@ -1113,7 +1118,7 @@ static int overlay_set_surface(struct mmp_overlay *overlay,
 			vdma->ops->set_win(vdma, win, overlay->status);
 
 		if (vdma && vdma->ops && vdma->ops->set_addr)
-			vdma->ops->set_addr(vdma, addr, overlay->status);
+			vdma->ops->set_addr(vdma, addr, fd, overlay->status);
 
 		if (overlay_is_vid(overlay_id)) {
 			writel_relaxed(addr->phys[0], &regs->v_y0);
@@ -1180,7 +1185,8 @@ static void overlay_trigger(struct mmp_overlay *overlay)
 			addr = &buffer->addr;
 			trace_addr(overlay->id, addr, 0);
 			if (vdma && vdma->ops && vdma->ops->set_addr)
-				vdma->ops->set_addr(vdma, addr, overlay->status);
+				vdma->ops->set_addr(vdma, addr, buffer->fd,
+						overlay->status);
 			if (overlay_is_vid(overlay_id)) {
 				writel_relaxed(addr->phys[0], &regs->v_y0);
 				writel_relaxed(addr->phys[1], &regs->v_u0);

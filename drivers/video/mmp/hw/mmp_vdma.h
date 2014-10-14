@@ -59,7 +59,7 @@
 #define RD_BURST_SIZE(rbs)			((rbs) << RD_BURST_SIZE_SHIFT)
 #define WR_BURST_SIZE_SHIFT			(6)
 #define WR_BURST_SIZE(wbs)			((wbs) << WR_BURST_SIZE_SHIFT)
-#define DC_ENA					(2)
+#define DC_ENA(en)				((en) ? 2 : 0)
 #define CH_ENA(en)				(en)
 #define HDR_ENA(en)				((en) << 3)
 #define DEC_HAS_COMP(vdma_id)			(1 << (vdma_id))

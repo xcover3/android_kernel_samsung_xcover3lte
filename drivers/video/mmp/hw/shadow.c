@@ -117,6 +117,11 @@ static int shadow_set_surface(struct mmp_shadow *shadow,
 		if (surface->flag & DECOMPRESS_MODE)
 			buffer->flags |= BUFFER_DEC;
 
+		if (surface->fd > 0 && surface->fd <= 1024)
+			buffer->fd = surface->fd;
+		else
+			buffer->fd = -1;
+
 		if (is_win_changed(&shadow->buffer_list.current_buffer.win,
 			win)) {
 			trace_win(shadow->overlay->id, win, 1);

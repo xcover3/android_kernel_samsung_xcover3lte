@@ -31,6 +31,7 @@
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
 #include <linux/pm_runtime.h>
+#include <linux/m4u.h>
 #include "mmp_ctrl.h"
 #include "mmp_vdma.h"
 
@@ -219,7 +220,7 @@ static void vdma_set_on(struct mmp_vdma_info *vdma_info, int on)
 		/* clear enable bit */
 		vdma_squ_set(vdma_info->overlay_id, channel_num, 1, 0);
 		vdma_set_ctrl(vdma_info->vdma_id,
-				channel_num, CH_ENA(1) | DC_ENA, 0);
+				channel_num, CH_ENA(1) | DC_ENA(1), 0);
 		spin_lock_irqsave(&vdma_info->status_lock, flags);
 		vdma_info->status = VDMA_TO_DISABLE;
 		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
@@ -237,12 +238,13 @@ static void vdma_set_on(struct mmp_vdma_info *vdma_info, int on)
 				1);
 		if (!DISP_GEN4(vdma->version)) {
 			mask = RD_BURST_SIZE(3) | WR_BURST_SIZE(3) |
-				CH_ENA(1) | DC_ENA;
+				CH_ENA(1) | DC_ENA(1);
 			enable = RD_BURST_SIZE(2) | WR_BURST_SIZE(2) |
-				CH_ENA(1);
+				CH_ENA(1) | DC_ENA(vdma_info->descriptor_chain);
 		} else {
-			mask = AXI_RD_CNT_MAX(0x1f) | CH_ENA(1) | DC_ENA;
-			enable = AXI_RD_CNT_MAX(0x10) | CH_ENA(1);
+			mask = AXI_RD_CNT_MAX(0x1f) | CH_ENA(1) | DC_ENA(1);
+			enable = AXI_RD_CNT_MAX(0x10) | CH_ENA(1) |
+				DC_ENA(vdma_info->descriptor_chain);
 		}
 		vdma_set_ctrl(vdma_info->vdma_id, vdma_info->sub_ch_num,
 			mask, enable);
@@ -284,6 +286,26 @@ static void vdma_set_decompress_en(struct mmp_vdma_info *vdma_info, int en)
 		 * stepping */
 		vdma_set_ctrl(vdma_info->vdma_id, channel_num, HDR_ENA(1), 0);
 	}
+}
+
+static void vdma_descriptor_chain_en(struct mmp_vdma_info *vdma_info, int en)
+{
+	int channel_num;
+	if (vdma_info->status == VDMA_FREED)
+		return;
+
+	if (!DISP_GEN4(vdma->version))
+		return;
+	if (vdma_info->descriptor_chain == en)
+		return;
+	vdma_info->descriptor_chain = en;
+	channel_num = overlay_is_vid(vdma_info->overlay_id) ?
+		SUB_CHNNL_NUM_VID : SUB_CHNNL_NUM_GFA;
+	if (en)
+		vdma_set_ctrl(vdma_info->vdma_id, vdma_info->sub_ch_num,
+				0, DC_ENA(vdma_info->descriptor_chain));
+	else
+		vdma_set_ctrl(vdma_info->vdma_id, channel_num, DC_ENA(1), 0);
 }
 
 static u8 vdma_get_sub_ch_num(int pix_fmt)
@@ -489,8 +511,57 @@ static void vdma_set_win(struct mmp_vdma_info *vdma_info,
 	memcpy(&vdma_info->win_bakup, win, sizeof(struct mmp_win));
 }
 
+static int vdma_get_dc_saddr(struct mmp_vdma_info *vdma_info,
+		int fd, int sub_id)
+{
+
+	struct dma_buf *dbuf = dma_buf_get(fd);
+	struct dma_buf_attachment *dba;
+	struct sg_table *sgt;
+	struct mmp_win *win = &vdma_info->win_bakup;
+	u32 height = win->ysrc, source_size = 0, source_offset = 0;
+#ifdef CONFIG_MARVELL_MEDIA_MMU
+	struct m4u_bdt *bdt;
+#endif
+	int i;
+
+	/* create attachment for the dmabuf with the user device */
+	dba = dma_buf_attach(dbuf, vdma->dev);
+
+	if (IS_ERR(dba)) {
+		pr_err("failed to attach dmabuf\n");
+		return -EINVAL;
+	}
+
+	/* get the associated scatterlist for this buffer */
+	sgt = dma_buf_map_attachment(dba, DMA_BIDIRECTIONAL);
+	if (IS_ERR_OR_NULL(sgt)) {
+		pr_err("Error getting dmabuf scatterlist\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < sub_id; i++) {
+		if ((i) && is_yuv420_fmt(win->pix_fmt))
+			height = height >> 1;
+		source_offset += win->pitch[i] * height;
+	}
+	if ((sub_id) && is_yuv420_fmt(win->pix_fmt))
+		height = ((win->ysrc) >> 1);
+	source_size = win->pitch[sub_id] * height;
+#ifdef CONFIG_MARVELL_MEDIA_MMU
+	bdt = m4u_get_bdt(dbuf, sgt, source_offset, source_size, 1, 1);
+	if (bdt != NULL) {
+		vdma_info->desc_paddr = bdt->dscr_dma;
+		vdma_info->desc_size = bdt->dscr_cnt * bdt->bpd;
+	} else {
+		return -EINVAL;
+	}
+#endif
+	return 0;
+}
+
 static void vdma_set_addr(struct mmp_vdma_info *vdma_info,
-		struct mmp_addr *addr, int overlay_status)
+		struct mmp_addr *addr, int fd, int overlay_status)
 {
 	struct mmp_vdma_reg *vdma_reg =
 		(struct mmp_vdma_reg *)(vdma->reg_base);
@@ -513,9 +584,16 @@ static void vdma_set_addr(struct mmp_vdma_info *vdma_info,
 	sub_ch_id = get_sub_ch_id(vdma_info->vdma_id);
 	for (i = 0; i < vdma_info->sub_ch_num; i++, sub_ch_id++) {
 		ch_reg = &vdma_reg->ch_reg[sub_ch_id];
-		writel_relaxed(addr->phys[i], &ch_reg->src_addr);
-		writel_relaxed(addr->hdr_addr[i], &ch_reg->hdr_addr);
-		writel_relaxed(addr->hdr_size[i], &ch_reg->hdr_size);
+		if (vdma_info->descriptor_chain && (fd >= 0 && fd < 1024)) {
+			vdma_get_dc_saddr(vdma_info, fd, i);
+			writel_relaxed(vdma_info->desc_size, &ch_reg->dc_size);
+			writel_relaxed(vdma_info->desc_paddr,
+						&ch_reg->dc_saddr);
+		} else {
+			writel_relaxed(addr->phys[i], &ch_reg->src_addr);
+			writel_relaxed(addr->hdr_addr[i], &ch_reg->hdr_addr);
+			writel_relaxed(addr->hdr_size[i], &ch_reg->hdr_size);
+		}
 	}
 }
 
@@ -554,6 +632,7 @@ struct mmp_vdma_ops vdma_ops = {
 	.trigger = vdma_hw_trigger,
 	.runtime_onoff = vdma_runtime_onoff,
 	.set_decompress_en = vdma_set_decompress_en,
+	.set_descriptor_chain = vdma_descriptor_chain_en,
 	.vsync_cb = vdma_vsync_cb,
 };
 

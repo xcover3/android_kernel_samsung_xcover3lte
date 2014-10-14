@@ -136,6 +136,8 @@ struct mmp_surface {
 #define	DECOMPRESS_MODE	(1 << 1)
 	unsigned int flag;
 	int fence_fd;
+	/* used by descriptor chain */
+	int fd;
 };
 
 #define PITCH_ALIGN_FOR_DECOMP(x) ALIGN(x, 256)
@@ -239,10 +241,11 @@ struct mmp_vdma_ops {
 	void (*set_win)(struct mmp_vdma_info *vdma_info,
 			struct mmp_win *win, int overlay_status);
 	void (*set_addr)(struct mmp_vdma_info *vdma_info,
-			struct mmp_addr *addr, int overlay_status);
+			struct mmp_addr *addr, int fd, int overlay_status);
 	void (*trigger)(struct mmp_vdma_info *vdma);
 	void (*runtime_onoff)(int on);
 	void (*set_decompress_en)(struct mmp_vdma_info *vdma_info, int en);
+	void (*set_descriptor_chain)(struct mmp_vdma_info *vdma_info, int en);
 	void (*vsync_cb)(struct mmp_vdma_info *vdma_info);
 };
 
@@ -272,6 +275,11 @@ struct mmp_vdma_info {
 	unsigned long sram_vaddr;
 	size_t sram_size;
 	int decompress;
+
+	/* support descriptor chain */
+	int descriptor_chain;
+	dma_addr_t desc_paddr;
+	u32 desc_size;
 
 	/* used to free/alloca vdma dynamically */
 	struct mmp_win win_bakup;
@@ -356,6 +364,7 @@ struct mmp_shadow_buffer {
 	/*shadow buffer for addr info*/
 	struct mmp_addr addr;
 	struct list_head queue;
+	int fd;
 };
 
 struct mmp_shadow_dma {
