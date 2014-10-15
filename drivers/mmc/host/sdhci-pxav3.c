@@ -724,16 +724,27 @@ static void pxav3_prepare_tuning(struct sdhci_host *host, u32 val)
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
 	const struct sdhci_regdata *regdata = pdata->regdata;
+	unsigned char timing = host->mmc->ios.timing;
+	struct sdhci_pxa_dtr_data *dtr_data;
 	u32 reg;
-
-	/* delay 1ms for card to be ready for next tuning */
-	mdelay(1);
 
 	reg = sdhci_readl(host, SD_RX_CFG_REG);
 	reg &= ~(regdata->RX_SDCLK_DELAY_MASK << RX_SDCLK_DELAY_SHIFT);
 	reg |= (val & regdata->RX_SDCLK_DELAY_MASK) << RX_SDCLK_DELAY_SHIFT;
 	reg &= ~(RX_SDCLK_SEL1_MASK << RX_SDCLK_SEL1_SHIFT);
 	reg |= (1 << RX_SDCLK_SEL1_SHIFT);
+
+	if (pdata && pdata->dtr_data) {
+		if (timing < MMC_TIMING_MAX) {
+			dtr_data = &pdata->dtr_data[timing];
+			if (timing == dtr_data->timing) {
+				reg &= ~(RX_SDCLK_SEL0_MASK << RX_SDCLK_SEL0_SHIFT);
+				reg |= (dtr_data->rx_sdclk_sel0 & RX_SDCLK_SEL0_MASK)
+						<< RX_SDCLK_SEL0_SHIFT;
+			}
+		}
+	}
+
 	sdhci_writel(host, reg, SD_RX_CFG_REG);
 
 	dev_dbg(mmc_dev(host->mmc), "tunning with delay 0x%x\n", val);
