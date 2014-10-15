@@ -432,6 +432,7 @@ enum mmp_map_be_port {
 	IN1,
 	IN2,
 	AUX,
+	OUT1_DUP,
 };
 
 struct map_private {

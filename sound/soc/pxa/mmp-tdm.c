@@ -1562,6 +1562,29 @@ static int mmp_map_out1_mute(struct snd_soc_dai *dai, int mute, int direction)
 	return 0;
 }
 
+static int mmp_map_out1_dup_mute(struct snd_soc_dai *dai, int mute, int direction)
+{
+	struct tdm_dai_private *tdm_dai_priv = snd_soc_dai_get_drvdata(dai);
+	struct map_private *map_priv = tdm_dai_priv->map_priv;
+	unsigned int reg, val;
+
+	reg = MAP_DATAPATH_FLOW_CTRL_REG_1;
+	val = map_raw_read(map_priv, reg);
+	val = (val >> 19) & 0x7;
+
+	/* check if dsp bypass mode */
+	if ((val == 0) || (val == 7))
+		mmp_map_dsp1_mute(map_priv, mute, OUT1_DUP);
+	else if (val == 5)
+		mmp_map_dsp2_mute(map_priv, mute, OUT1_DUP);
+	else if (val == 6) {
+		mmp_map_dsp1_mute(map_priv, mute, OUT1_DUP);
+		mmp_map_dsp2_mute(map_priv, mute, OUT1_DUP);
+	}
+
+	return 0;
+}
+
 static int mmp_map_out2_mute(struct snd_soc_dai *dai, int mute, int direction)
 {
 	struct tdm_dai_private *tdm_dai_priv = snd_soc_dai_get_drvdata(dai);
@@ -1627,6 +1650,15 @@ static struct snd_soc_dai_ops mmp_tdm_out1_ops = {
 	.set_sysclk	= mmp_set_tdm_dai_sysclk,
 	.set_channel_map = mmp_tdm_set_out1_channel_map,
 	.mute_stream	= mmp_map_out1_mute,
+};
+
+static struct snd_soc_dai_ops mmp_tdm_out1_dup_ops = {
+	.startup	= mmp_tdm_startup,
+	.shutdown	= mmp_tdm_shutdown,
+	.hw_params	= mmp_tdm_hw_params,
+	.set_sysclk	= mmp_set_tdm_dai_sysclk,
+	.set_channel_map = mmp_tdm_set_out1_channel_map,
+	.mute_stream	= mmp_map_out1_dup_mute,
 };
 
 static struct snd_soc_dai_ops mmp_tdm_out2_ops = {
@@ -1741,7 +1773,7 @@ static int mmp_tdm_dai_probe(struct platform_device *pdev)
 	tdm_priv->single_out = false;
 	if (np) {
 		if (of_property_read_bool(np, "marvell,single-out")) {
-			mmp_tdm_dais[1].ops = &mmp_tdm_out1_ops;
+			mmp_tdm_dais[1].ops = &mmp_tdm_out1_dup_ops;
 			tdm_priv->single_out = true;
 		}
 	}
