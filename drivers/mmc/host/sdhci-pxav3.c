@@ -1086,6 +1086,7 @@ static void pxav3_print_bitmap(unsigned long *bitmap, int length)
 
 /* global variable to record current dvfs level */
 atomic_t cur_dvfs_level = ATOMIC_INIT(-1);
+int is_dvfs_request_ok;
 /* global lock for tuning of different SDHs */
 DEFINE_MUTEX(dvfs_tuning_lock);
 
@@ -1098,6 +1099,9 @@ static int hwdvc_stat_notifier_handler(struct notifier_block *nb,
 
 	if (vl->newlv != atomic_read(&cur_dvfs_level))
 		BUG();
+	else
+		is_dvfs_request_ok = 1;
+
 	pr_info("~~~~~~~now dvfs level is %d\n", atomic_read(&cur_dvfs_level));
 	return NOTIFY_OK;
 }
@@ -1249,8 +1253,15 @@ static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
 
 		atomic_set(&cur_dvfs_level, dvfs_level);
 		hwdvc_notifier_register(&dvfs_notifier); /* debug use */
-
+		is_dvfs_request_ok = 0;
 		pxa_sdh_request_dvfs_level(host, dvfs_level);
+		if (is_dvfs_request_ok != 1) {
+			pr_err("%s: drequest dvfs level %d fail and tuning stop\n",
+				mmc_hostname(host->mmc), dvfs_level);
+			hwdvc_notifier_unregister(&dvfs_notifier);
+			break;
+		}
+
 		pxav3_execute_tuning_cycle(host, opcode, bitmap);
 
 		hwdvc_notifier_unregister(&dvfs_notifier);
