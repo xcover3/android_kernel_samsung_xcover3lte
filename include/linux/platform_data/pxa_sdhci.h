@@ -63,6 +63,9 @@ struct sdhci_pretuned_data {
 	unsigned long	src_rate;	/* the scr_rate */
 	int	rx_delay;	/* -1 for invalid */
 	int	dvfs_level;	/* -1 for invalid */
+	u32	card_cid[4];
+	u32	card_csd[4];
+	u32	card_scr[2];
 	int	magic2;		/* magic number */
 	u8	reserved[28];	/* not used */
 };

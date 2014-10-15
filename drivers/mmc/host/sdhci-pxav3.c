@@ -1164,6 +1164,54 @@ static void pxav3_execute_tuning_cycle(struct sdhci_host *host,
 	}
 }
 
+static int pxav3_pretuned_save_card(struct sdhci_host *host,
+	struct sdhci_pretuned_data *pretuned)
+{
+	struct mmc_card *card;
+	if (host->mmc && host->mmc->card) {
+		card = host->mmc->card;
+
+		 pretuned->card_cid[0] = card->raw_cid[0];
+		 pretuned->card_cid[1] = card->raw_cid[1];
+		 pretuned->card_cid[2] = card->raw_cid[2];
+		 pretuned->card_cid[3] = card->raw_cid[3];
+		 pretuned->card_csd[0] = card->raw_csd[0];
+		 pretuned->card_csd[1] = card->raw_csd[1];
+		 pretuned->card_csd[2] = card->raw_csd[2];
+		 pretuned->card_csd[3] = card->raw_csd[3];
+		 pretuned->card_scr[0] = card->raw_scr[0];
+		 pretuned->card_scr[1] = card->raw_scr[1];
+	}
+
+	return 1;
+}
+
+static int pxav3_pretuned_check_card(struct sdhci_host *host,
+	struct sdhci_pretuned_data *pretuned)
+{
+	struct mmc_card *card;
+	if (host->mmc && host->mmc->card) {
+		card = host->mmc->card;
+
+		if ((card->raw_cid[0] == pretuned->card_cid[0]) &&
+			(card->raw_cid[1] == pretuned->card_cid[1]) &&
+			(card->raw_cid[2] == pretuned->card_cid[2]) &&
+			(card->raw_cid[3] == pretuned->card_cid[3]) &&
+			(card->raw_csd[0] == pretuned->card_csd[0]) &&
+			(card->raw_csd[1] == pretuned->card_csd[1]) &&
+			(card->raw_csd[2] == pretuned->card_csd[2]) &&
+			(card->raw_csd[3] == pretuned->card_csd[3]) &&
+			(card->raw_scr[0] == pretuned->card_scr[0]) &&
+			(card->raw_scr[1] == pretuned->card_scr[1])
+		) {
+			/* it may be the same card */
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
 static int pxav3_check_pretuned(struct sdhci_host *host,
 	struct sdhci_pretuned_data *pretuned)
 {
@@ -1189,8 +1237,14 @@ static int pxav3_check_pretuned(struct sdhci_host *host,
 		(pretuned->magic2 != SDHCI_PRETUNED_MAGIC2)) {
 		/* fail or invalid */
 		return 1;
-	} else
-		return 0;
+	}
+
+	if (pxav3_pretuned_check_card(host, pretuned)) {
+		/* if card changes, need to execute tuning again */
+		return 1;
+	}
+
+	return 0;
 }
 
 static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
@@ -1306,6 +1360,8 @@ static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
 	} else {
 		dvfs_level++;
 		if (pretuned) {
+			pxav3_pretuned_save_card(host, pretuned);
+
 			/* save tuning_value and dvfs_level */
 			pretuned->magic1 = SDHCI_PRETUNED_MAGIC1;
 			pretuned->rx_delay = tuning_value;
