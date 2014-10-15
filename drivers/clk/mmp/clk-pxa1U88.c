@@ -618,7 +618,7 @@ static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
 	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x00B85454},
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00B85454},
 	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */ .xtc = 0x00B85454},
-	{.rate = 528750000, .parent_index = 3, /* pll2p */ .xtc = 0x00B85454},
+	{.rate = 528750000, .parent_index = 3, /* pll2p */ .xtc = 0x00B8A5A4},
 };
 
 static struct mmp_clk_mix_config vpufclk_mix_config = {
@@ -776,7 +776,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	clk_prepare_enable(clk);
 
 	gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
-	gc3d_mix_config.reg_info.reg_clk_xtc = pxa_unit->apmu_base + GPU_XTC;
+	gc3d_mix_config.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU_XTC;
 	clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk", gc3d_parent_names,
 				ARRAY_SIZE(gc3d_parent_names),
 				0, &gc3d_mix_config, &gc_lock);
@@ -813,7 +813,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	register_mixclk_dcstatinfo(clk);
 
 	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
-	gc2d_mix_config.reg_info.reg_clk_xtc = pxa_unit->apmu_base + GPU2D_XTC;
+	gc2d_mix_config.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU2D_XTC;
 	if (cpu_is_pxa1U88()) {
 		gc2d_mix_config.table = gc2d_pptbl_1u88;
 		gc2d_mix_config.table_size = ARRAY_SIZE(gc2d_pptbl_1u88);
@@ -851,7 +851,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	vpufclk_mix_config.reg_info.reg_clk_ctrl =
 			pxa_unit->apmu_base + APMU_VPU;
 	vpufclk_mix_config.reg_info.reg_clk_xtc =
-			pxa_unit->apmu_base + VPU_XTC;
+			pxa_unit->ciu_base + VPU_XTC;
 	clk = mmp_clk_register_mix(NULL, "vpufunc_mix_clk",
 			vpufclk_parent_names, ARRAY_SIZE(vpufclk_parent_names),
 			0, &vpufclk_mix_config, &vpu_lock);
