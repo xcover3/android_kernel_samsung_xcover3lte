@@ -1361,6 +1361,27 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 	map_set_port_freq(map_priv, dai->id, params_rate(params));
 	map_fe_dai_priv->i2s_config[dai->id - 1] = true;
 
+	switch (dai->id) {
+	case 1:
+		/* reset i2s1 interface(audio) */
+		map_reset_port(map_priv, I2S1);
+		break;
+	case 2:
+		/* reset i2s2 interface(audio) */
+		map_reset_port(map_priv, I2S2);
+		break;
+	case 3:
+		/* reset i2s3 interface(audio) */
+		map_reset_port(map_priv, I2S3);
+		break;
+	case 4:
+		/* reset i2s4 interface (hifi) */
+		map_reset_port(map_priv, I2S4);
+		break;
+	default:
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -1459,27 +1480,6 @@ static int mmp_map_startup(struct snd_pcm_substream *substream,
 	map_priv = map_fe_dai_priv->map_priv;
 
 	map_be_active(map_priv);
-
-	switch (codec_dai->id) {
-	case 1:
-		/* reset i2s1 interface(audio) */
-		map_reset_port(map_priv, I2S1);
-		break;
-	case 2:
-		/* reset i2s2 interface(audio) */
-		map_reset_port(map_priv, I2S2);
-		break;
-	case 3:
-		/* reset i2s3 interface(audio) */
-		map_reset_port(map_priv, I2S3);
-		break;
-	case 4:
-		/* reset i2s4 interface (hifi) */
-		map_reset_port(map_priv, I2S4);
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	/* means FM opened */
 	if (codec_dai->id == 3)

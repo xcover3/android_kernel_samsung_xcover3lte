@@ -314,6 +314,18 @@ static int mmp_map_be_hw_params(struct snd_pcm_substream *substream,
 	map_be_dai_priv->i2s_config[dai->id - 1] = true;
 	map_set_port_freq(map_priv, I2S_OUT, 48000);
 
+	switch (dai->id) {
+	case 1:
+		map_reset_port(map_priv, I2S3);
+		break;
+	case 2:
+	case 3:
+		map_reset_port(map_priv, I2S_OUT);
+		break;
+	default:
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -335,18 +347,6 @@ static int mmp_map_be_startup(struct snd_pcm_substream *substream,
 
 	map_be_active(map_priv);
 	map_raw_write(map_priv, 0x8c, 0x10010030);
-
-	switch (dai->id) {
-	case 1:
-		map_reset_port(map_priv, I2S3);
-		break;
-	case 2:
-	case 3:
-		map_reset_port(map_priv, I2S_OUT);
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	return 0;
 }
