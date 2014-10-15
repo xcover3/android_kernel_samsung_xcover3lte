@@ -82,6 +82,9 @@ static int pm886_i2c_probe(struct i2c_client *client,
 	pm886_set_chip(chip);
 	pm_power_off = pm886_power_off;
 
+	chip->reboot_notifier.notifier_call = pm886_reboot_notifier_callback;
+	register_reboot_notifier(&(chip->reboot_notifier));
+
 	return 0;
 
 err_apply_patch:

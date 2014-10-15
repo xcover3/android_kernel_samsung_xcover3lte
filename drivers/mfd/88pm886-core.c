@@ -952,3 +952,28 @@ void pm886_power_off(void)
 	for (;;)
 		cpu_relax();
 }
+
+int pm886_reboot_notifier_callback(struct notifier_block *this,
+				   unsigned long code, void *cmd)
+{
+	struct pm886_chip *chip;
+
+	pr_info("%s: code = %ld, cmd = '%s'\n", __func__, code, (char *)cmd);
+
+	chip = container_of(this, struct pm886_chip, reboot_notifier);
+	if (cmd && (0 == strncmp(cmd, "recovery", 8))) {
+		pr_info("%s: --> handle recovery mode\n", __func__);
+		regmap_update_bits(chip->base_regmap, PM886_RTC_SPARE6,
+				   1 << 0, 1 << 0);
+
+	} else {
+		/* clear the recovery indication bit */
+		regmap_update_bits(chip->base_regmap,
+				   PM886_RTC_SPARE6, 1 << 0, 0);
+	}
+	/*
+	 * the uboot recognize the "reboot" case via power down log,
+	 * which is 0 in this case
+	 */
+	return 0;
+}

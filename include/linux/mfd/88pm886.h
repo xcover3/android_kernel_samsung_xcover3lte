@@ -16,6 +16,7 @@
 #include <linux/interrupt.h>
 #include <linux/regmap.h>
 #include <linux/atomic.h>
+#include <linux/reboot.h>
 #include "88pm886-reg.h"
 
 #define PM886_RTC_NAME		"88pm886-rtc"
@@ -163,6 +164,8 @@ struct pm886_chip {
 	u8 powerdown1;
 	u8 powerdown2;
 	u8 powerup;
+
+	struct notifier_block reboot_notifier;
 };
 
 struct regmap *get_companion(void);
@@ -220,5 +223,7 @@ static inline int pm886_dvc_get_volt(u8 level)
 struct pm886_chip *pm886_get_chip(void);
 void pm886_set_chip(struct pm886_chip *chip);
 void  pm886_power_off(void);
+int pm886_reboot_notifier_callback(struct notifier_block *nb,
+				   unsigned long code, void *cmd);
 
 #endif /* __LINUX_MFD_88PM886_H */
