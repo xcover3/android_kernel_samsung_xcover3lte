@@ -14,7 +14,8 @@
 	 * use value directly, not use macro
 	 * <page reg-addr mask value>
 	 */
-	marvell,pmic-bd-cfg = <0x1 0xa3 0x7f 0x8>;
+	marvell,pmic-bd-cfg = <0x1 0xa3 0x7f 0x8>,
+			      <0x1 0xa2 0x30 0x20>;
 
 	/* ---buck--- */
 	vccmain: regulator-buck1 {
