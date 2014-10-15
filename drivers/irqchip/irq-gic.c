@@ -62,6 +62,7 @@ struct gic_chip_data {
 	u32 saved_spi_target[DIV_ROUND_UP(1020, 4)];
 	u32 __percpu *saved_ppi_enable;
 	u32 __percpu *saved_ppi_conf;
+	bool always_on;
 #endif
 	struct irq_domain *domain;
 	unsigned int gic_irqs;
@@ -481,7 +482,8 @@ static void gic_dist_save(unsigned int gic_nr)
 	gic_irqs = gic_data[gic_nr].gic_irqs;
 	dist_base = gic_data_dist_base(&gic_data[gic_nr]);
 
-	if (!dist_base)
+	/* No need to save/restore gic dist regs if dist power is always on*/
+	if (!dist_base || gic_data[gic_nr].always_on)
 		return;
 
 	for (i = 0; i < DIV_ROUND_UP(gic_irqs, 16); i++)
@@ -516,7 +518,7 @@ static void gic_dist_restore(unsigned int gic_nr)
 	gic_irqs = gic_data[gic_nr].gic_irqs;
 	dist_base = gic_data_dist_base(&gic_data[gic_nr]);
 
-	if (!dist_base)
+	if (!dist_base || gic_data[gic_nr].always_on)
 		return;
 
 	writel_relaxed(0, dist_base + GIC_DIST_CTRL);
@@ -552,8 +554,8 @@ static void gic_cpu_save(unsigned int gic_nr)
 
 	dist_base = gic_data_dist_base(&gic_data[gic_nr]);
 	cpu_base = gic_data_cpu_base(&gic_data[gic_nr]);
-
-	if (!dist_base || !cpu_base)
+	/* No need to save/restore gic cpu regs if dist power is always on*/
+	if (!dist_base || !cpu_base || gic_data[gic_nr].always_on)
 		return;
 
 	ptr = __this_cpu_ptr(gic_data[gic_nr].saved_ppi_enable);
@@ -563,7 +565,6 @@ static void gic_cpu_save(unsigned int gic_nr)
 	ptr = __this_cpu_ptr(gic_data[gic_nr].saved_ppi_conf);
 	for (i = 0; i < DIV_ROUND_UP(32, 16); i++)
 		ptr[i] = readl_relaxed(dist_base + GIC_DIST_CONFIG + i * 4);
-
 }
 
 static void gic_cpu_restore(unsigned int gic_nr)
@@ -579,7 +580,7 @@ static void gic_cpu_restore(unsigned int gic_nr)
 	dist_base = gic_data_dist_base(&gic_data[gic_nr]);
 	cpu_base = gic_data_cpu_base(&gic_data[gic_nr]);
 
-	if (!dist_base || !cpu_base)
+	if (!dist_base || !cpu_base || gic_data[gic_nr].always_on)
 		return;
 
 	ptr = __this_cpu_ptr(gic_data[gic_nr].saved_ppi_enable);
@@ -995,6 +996,7 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 	void __iomem *dist_base;
 	u32 percpu_offset, reg;
 	int irq;
+	const char *power_domain;
 
 	if (WARN_ON(!node))
 		return -ENODEV;
@@ -1021,6 +1023,14 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 	gic_init_bases(gic_cnt, -1, dist_base, cpu_base, percpu_offset, node);
 	if (!gic_cnt)
 		gic_init_physaddr(node);
+
+#ifdef CONFIG_CPU_PM
+	power_domain = of_get_property(node, "power-domain", NULL);
+	if (power_domain && !strcmp(power_domain, "always-on"))
+		gic_data[gic_cnt].always_on = true;
+	else
+		gic_data[gic_cnt].always_on = false;
+#endif
 
 	if (parent) {
 		irq = irq_of_parse_and_map(node, 0);
