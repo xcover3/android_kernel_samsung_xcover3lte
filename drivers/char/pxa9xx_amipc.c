@@ -95,6 +95,7 @@ struct amipc_acq_infor {
 
 struct amipc_dbg_info {
 	int irq_num;
+	int rst_bit1_num;
 };
 
 struct pxa9xx_amipc {
@@ -117,6 +118,7 @@ struct pxa9xx_amipc {
 };
 static struct pxa9xx_amipc *amipc;
 static DEFINE_SPINLOCK(amipc_lock);
+static DEFINE_SPINLOCK(transfer_lock);
 static void amipc_ping_worker(struct work_struct *work);
 static void *shm_map(phys_addr_t start, size_t size);
 static DECLARE_WORK(ping_work, amipc_ping_worker);
@@ -227,6 +229,9 @@ static void amipc_notify_peer(void)
 	u32 ciu_reg;
 
 	IPC_ENTER();
+	/* read three times for clock gate off problem */
+	ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+	ciu_reg = ciu_readl(GNSS_HANDSHAKE);
 	ciu_reg = ciu_readl(GNSS_HANDSHAKE);
 	ciu_reg |= AP_GNSS_WAKEUP;
 	ciu_writel(GNSS_HANDSHAKE, ciu_reg);
@@ -237,6 +242,9 @@ static enum amipc_return_code amipc_event_set(enum amipc_events user_event,
 						int timeout_ms)
 {
 	unsigned long end_time;
+	u32 ciu_reg;
+	static int busy_cnt;
+	unsigned long flags;
 
 	IPC_ENTER();
 	if (amipc_txaddr_inval())
@@ -256,13 +264,36 @@ static enum amipc_return_code amipc_event_set(enum amipc_events user_event,
 		}
 	}
 	if (!(amipc->ipc_tx[E_TO_OFF(user_event)].ack)) {
+		busy_cnt = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].event = user_event;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data1 = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data2 = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].ack = 1;
 		amipc->amipc_db[E_TO_OFF(user_event)].tx_cnt++;
+		spin_lock_irqsave(&transfer_lock, flags);
 		amipc_notify_peer();
+		spin_unlock_irqrestore(&transfer_lock, flags);
 	} else {
+		busy_cnt++;
+		if (busy_cnt >= 3) {
+			/* read three times for clock gate off problem */
+			spin_lock_irqsave(&transfer_lock, flags);
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg &= ~AP_GNSS_WAKEUP;
+			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+			/* add 1ms delay for sync signal to CM3 */
+			mdelay(1);
+			pr_info("cm3:reset handshake bit1\n");
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg |= AP_GNSS_WAKEUP;
+			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+			/* add 1ms delay for sync signal to CM3 */
+			mdelay(1);
+			amipc->dbg_info.rst_bit1_num++;
+			spin_unlock_irqrestore(&transfer_lock, flags);
+		}
 		IPC_LEAVE();
 		return AMIPC_RC_AGAIN;
 	}
@@ -277,6 +308,10 @@ static enum amipc_return_code amipc_data_send(enum amipc_events user_event,
 					u32 data1, u32 data2, int timeout_ms)
 {
 	unsigned long end_time;
+	u32 ciu_reg;
+	static int busy_cnt;
+	unsigned long flags;
+
 	IPC_ENTER();
 	if (amipc_txaddr_inval()) {
 		IPC_LEAVE();
@@ -297,13 +332,36 @@ static enum amipc_return_code amipc_data_send(enum amipc_events user_event,
 		}
 	}
 	if (!(amipc->ipc_tx[E_TO_OFF(user_event)].ack)) {
+		busy_cnt = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].event = user_event;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data1 = data1;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data2 = data2;
 		amipc->ipc_tx[E_TO_OFF(user_event)].ack = 1;
 		amipc->amipc_db[E_TO_OFF(user_event)].tx_cnt++;
+		spin_lock_irqsave(&transfer_lock, flags);
 		amipc_notify_peer();
+		spin_unlock_irqrestore(&transfer_lock, flags);
 	} else {
+		busy_cnt++;
+		if (busy_cnt >= 3) {
+			/* read three times for clock gate off problem */
+			spin_lock_irqsave(&transfer_lock, flags);
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg &= ~AP_GNSS_WAKEUP;
+			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+			/* add 1ms delay for sync signal to CM3 */
+			mdelay(1);
+			pr_info("cm3:reset handshake bit1\n");
+			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+			ciu_reg |= AP_GNSS_WAKEUP;
+			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+			/* add 1ms delay for sync signal to CM3 */
+			mdelay(1);
+			amipc->dbg_info.rst_bit1_num++;
+			spin_unlock_irqrestore(&transfer_lock, flags);
+		}
 		IPC_LEAVE();
 		return AMIPC_RC_AGAIN;
 	}
@@ -392,10 +450,17 @@ static irqreturn_t amipc_interrupt_handler(int irq, void *dev_id)
 	IPC_ENTER();
 
 	amipc->dbg_info.irq_num++;
-	/* clr interrupt */
+	/*
+	 * clr interrupt
+	 * read three times for clock gate off problem
+	 */
+	spin_lock(&transfer_lock);
+	ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+	ciu_reg = ciu_readl(GNSS_HANDSHAKE);
 	ciu_reg = ciu_readl(GNSS_HANDSHAKE);
 	ciu_reg |= GNSS_IRQ_CLR;
 	ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+	spin_unlock(&transfer_lock);
 	/* clr wakeup */
 	pmu_reg = pmu_readl(GNSS_WAKEUP_CTRL);
 	if (pmu_reg & GNSS_WAKEUP_STATUS) {
@@ -682,6 +747,7 @@ static int pkgstat_block_show(struct seq_file *m, void *unused)
 	seq_printf(m, "reg handshake 0x%x, wakeup 0x%x\n",
 			ciu_readl(GNSS_HANDSHAKE), pmu_readl(GNSS_WAKEUP_CTRL));
 	seq_printf(m, "hw irq %d\n", amipc->dbg_info.irq_num);
+	seq_printf(m, "reset handshake bit1 %d\n", amipc->dbg_info.rst_bit1_num);
 	rcu_read_unlock();
 	return 0;
 }
@@ -1030,6 +1096,7 @@ enum amipc_return_code amipc_dump_debug_info(void)
 	pr_info("reg handshake 0x%x, wakeup 0x%x\n",
 			ciu_readl(GNSS_HANDSHAKE), pmu_readl(GNSS_WAKEUP_CTRL));
 	pr_info("hw irq %d\n", amipc->dbg_info.irq_num);
+	pr_info("reset handshake bit1 %d\n", amipc->dbg_info.rst_bit1_num);
 	return AMIPC_RC_OK;
 }
 EXPORT_SYMBOL(amipc_dump_debug_info);
