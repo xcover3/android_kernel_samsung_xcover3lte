@@ -592,6 +592,7 @@ static int mv_ep_enable(struct usb_ep *_ep,
 		break;
 	case USB_ENDPOINT_XFER_CONTROL:
 		ios = 1;
+		break;
 	case USB_ENDPOINT_XFER_INT:
 		mult = 0;
 		break;
@@ -2378,7 +2379,7 @@ static int mv_udc_vbus_notifier_call(struct notifier_block *nb,
 static void mv_udc_vbus_work(struct work_struct *work)
 {
 	struct mv_udc *udc;
-	unsigned int vbus;
+	unsigned int vbus = 0;
 	int ret;
 
 	udc = container_of(work, struct mv_udc, vbus_work);
