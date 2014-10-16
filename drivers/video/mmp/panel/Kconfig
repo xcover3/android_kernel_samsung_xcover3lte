@@ -46,3 +46,15 @@ config MMP_PANEL_HX8394
 	default n
 	help
 		MIPI panel hx8394 support
+
+config MMP_PANEL_JD9365
+	bool "MIPI Fiti panel JD9365 support"
+	default n
+	help
+		MIPI panel JD9365 support
+
+config MMP_PANEL_JD9161_HSD5
+	bool "MIPI Fiti JD9161_HSD5 support"
+	default n
+	help
+		MIPI panel JD9161_HSD5 support

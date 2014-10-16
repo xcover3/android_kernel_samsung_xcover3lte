@@ -45,6 +45,18 @@
 #define CREATE_TRACE_POINTS
 #include <video/mmp_trace.h>
 
+static BLOCKING_NOTIFIER_HEAD(mmp_panel_notifier_list);
+
+int mmp_notifier(unsigned long state, void *val)
+{
+	return blocking_notifier_call_chain(&mmp_panel_notifier_list, state, val);
+}
+
+int mmp_register_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&mmp_panel_notifier_list, nb);
+}
+
 static void path_vsync_sync(struct mmp_path *path)
 {
 	struct mmp_path *slave = path->slave;

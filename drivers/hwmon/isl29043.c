@@ -36,6 +36,7 @@
 #include <linux/of_gpio.h>
 #include <linux/version.h>
 #include <linux/pm.h>
+#include <video/mmp_disp.h>
 
 #include "isl29043.h"
 
@@ -510,6 +511,9 @@ static void isl29043_report_als_value(struct work_struct *work)
 	isl29043_dev.als_data = data;
 	input_report_abs(isl29043_dev.input_dev_als, ABS_PRESSURE, data);
 	input_sync(isl29043_dev.input_dev_als);
+
+	mmp_notifier(0, (u32 *)&data);
+
 	schedule_delayed_work(&als_input_work,
 			      msecs_to_jiffies(isl29043_dev.als_interval));
 }

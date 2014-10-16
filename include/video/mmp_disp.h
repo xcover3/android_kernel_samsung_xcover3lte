@@ -982,6 +982,8 @@ extern void mmp_register_panel(struct mmp_panel *panel);
 extern void mmp_unregister_panel(struct mmp_panel *panel);
 extern void mmp_reserve_fbmem(void);
 extern char *mmp_get_paneltype(void);
+extern int mmp_notifier(unsigned long state, void *val);
+extern int mmp_register_notifier(struct notifier_block *nb);
 
 enum {
 	PN_VID = 0,
