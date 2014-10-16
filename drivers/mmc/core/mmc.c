@@ -1158,6 +1158,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		 */
 		if ((host->caps2 & MMC_CAP2_HS200) &&
 		    card->host->ops->execute_tuning) {
+			if (card->host->card == NULL)
+				card->host->card = card;
 			mmc_host_clk_hold(card->host);
 			err = card->host->ops->execute_tuning(card->host,
 				MMC_SEND_TUNING_BLOCK_HS200);

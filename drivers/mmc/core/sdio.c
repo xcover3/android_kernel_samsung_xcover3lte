@@ -575,6 +575,8 @@ static int mmc_sdio_init_uhs_card(struct mmc_card *card)
 	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning &&
 			((card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR50) ||
 			 (card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR104))) {
+		if (card->host->card == NULL)
+			card->host->card = card;
 		mmc_host_clk_hold(card->host);
 		err = card->host->ops->execute_tuning(card->host,
 						      MMC_SEND_TUNING_BLOCK);
