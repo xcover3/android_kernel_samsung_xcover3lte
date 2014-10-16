@@ -9,6 +9,7 @@
  *  published by the Free Software Foundation.
  */
 
+#include <linux/clk/mmp_sdh_tuning.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/mfd/88pm886.h>
@@ -16,6 +17,8 @@
 
 #include <linux/cputype.h>
 #include "clk-plat.h"
+#include "clk.h"
+
 /* components that affect the vmin */
 enum dvfs_comp {
 	CORE = 0,
@@ -27,7 +30,9 @@ enum dvfs_comp {
 	GCACLK,
 	VPU,
 	ISP,
-	/* add fake sdh later */
+	SDH0,
+	SDH1,
+	SDH2,
 	VM_RAIL_MAX,
 };
 
@@ -213,6 +218,18 @@ static unsigned long freqs_cmb_1908[VM_RAIL_MAX][VL_MAX] = {
 	{ 156000, 312000, 416000, 533000, 533000, 533000, 533000, 533000 },
 	/* ISP */
 	{ 0, 0, 208000, 312000, 312000, 312000, 312000, 312000 },
+	/* SDH0 dummy dvfs clk*/
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1), DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3),
+	  DUMMY_VL_TO_KHZ(4), DUMMY_VL_TO_KHZ(5), DUMMY_VL_TO_KHZ(6), DUMMY_VL_TO_KHZ(7)
+	},
+	/* SDH1 dummy dvfs clk*/
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1), DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3),
+	  DUMMY_VL_TO_KHZ(4), DUMMY_VL_TO_KHZ(5), DUMMY_VL_TO_KHZ(6), DUMMY_VL_TO_KHZ(7)
+	},
+	/* SDH2 dummy dvfs clk*/
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1), DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3),
+	  DUMMY_VL_TO_KHZ(4), DUMMY_VL_TO_KHZ(5), DUMMY_VL_TO_KHZ(6), DUMMY_VL_TO_KHZ(7)
+	},
 };
 
 /* 8 VLs PMIC setting */
@@ -252,6 +269,9 @@ static struct dvfs_rail_component vm_rail_comp_tbl_dvc[VM_RAIL_MAX] = {
 	INIT_DVFS("gcbus_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 	INIT_DVFS("vpufunc_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 	INIT_DVFS("isp_pipe_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
+	INIT_DVFS("sdh0_dummy", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
+	INIT_DVFS("sdh1_dummy", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
+	INIT_DVFS("sdh2_dummy", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 };
 
 static int set_pmic_volt(unsigned int lvl, unsigned int mv)
@@ -299,6 +319,8 @@ int __init setup_pxa1908_dvfs_platinfo(void)
 	dvc_pxa1908_info.millivolts =
 		vm_millivolts_1908_svcumc[uiprofile];
 	freqs_cmb = freqs_cmb_1908;
+	plat_set_vl_min(0);
+	plat_set_vl_max(dvc_pxa1908_info.num_volts);
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
 	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);
