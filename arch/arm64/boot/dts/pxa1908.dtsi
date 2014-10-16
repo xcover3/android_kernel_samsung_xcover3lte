@@ -79,6 +79,7 @@
 		#interrupt-cells = <3>;
 		reg = <0xd1df9000 0x1000>,
 		      <0xd1dfa000 0x2000>;
+		power-domain = "always-on";
 	};
 
 	generic-timer {

@@ -50,6 +50,10 @@ Optional
   regions, used when the GIC doesn't have banked registers. The offset is
   cpu-offset * cpu-nr.
 
+- power-domain	: Indicate whether the gic is in always on power domain.
+  For this type of SOC, gic regs will keep its value thus there's no
+  need to save/restore its regs. The value should be "always-on".
+
 Example:
 
 	intc: interrupt-controller@fff11000 {
