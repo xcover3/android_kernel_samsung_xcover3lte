@@ -317,6 +317,32 @@ static long cp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
+#ifdef CONFIG_ARM64
+/* invoke smc command */
+noinline int cp_invoke_smc(u64 function_id, u64 arg0, u64 arg1,
+	u64 arg2)
+{
+	asm volatile(
+		__asmeq("%0", "x0")
+		__asmeq("%1", "x1")
+		__asmeq("%2", "x2")
+		__asmeq("%3", "x3")
+		"smc	#0\n"
+		: "+r" (function_id)
+		: "r" (arg0), "r" (arg1), "r" (arg2));
+
+	return function_id;
+}
+#else
+int cp_invoke_smc(u64 function_id, u64 arg0, u64 arg1,
+	u64 arg2)
+{
+	(void)function_id; (void)arg0; (void)arg1; (void)arg2;
+
+	return -1;
+}
+#endif
+
 static const struct file_operations cp_fops = {
 	.owner		= THIS_MODULE,
 	.mmap		= cp_mmap,

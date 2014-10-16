@@ -59,7 +59,6 @@ extern void unmap_apbs_base_va(void);
 #define CIU_FABRIC_CKGT_CTRL0   CIU_REG(0x0064)
 #define CIU_FABRIC_CKGT_CTRL1   CIU_REG(0x0068)
 #define CIU_SW_BRANCH_ADDR	CIU_REG(0x0024)
-#define CIU_SEAGULL_REMAP	CIU_REG(0x0094)
 
 /* APB SPARE regs */
 #define APBS_VIR_BASE		(get_apbs_base_va())

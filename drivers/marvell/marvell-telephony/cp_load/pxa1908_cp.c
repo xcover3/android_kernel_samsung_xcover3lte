@@ -8,7 +8,6 @@
  * All Rights Reserved
  */
 #include <linux/kernel.h>
-#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include "pxa_cp_load.h"
@@ -24,7 +23,7 @@ void cp1908_releasecp(void)
 {
 	/* the load address must be 64k aligned */
 	BUG_ON(arbel_bin_phys_addr & 0xFFFF);
-	writel(arbel_bin_phys_addr | 0x01, CIU_SEAGULL_REMAP);
+	cp_set_seagull_remap_reg(arbel_bin_phys_addr | 0x01);
 	__cp988_releasecp();
 }
 

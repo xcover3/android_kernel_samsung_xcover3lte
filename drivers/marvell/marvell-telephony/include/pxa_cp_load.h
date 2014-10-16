@@ -61,4 +61,21 @@ extern void (*watchdog_count_stop_fp)(void);
 extern void acquire_fc_mutex(void);
 extern void release_fc_mutex(void);
 
+int cp_invoke_smc(u64 function_id, u64 arg0, u64 arg1,
+	u64 arg2);
+
+#define SMC_FUNC_SEAGULL_REMAP 0xC3002001
+
+static inline int cp_set_seagull_remap_reg(u64 val)
+{
+	int ret;
+
+	ret = cp_invoke_smc(SMC_FUNC_SEAGULL_REMAP, val, 0, 0);
+
+	pr_info("%s: function_id: 0x%llx, arg0: 0x%llx, ret 0x%x\n",
+		__func__, (u64)SMC_FUNC_SEAGULL_REMAP, val, ret);
+
+	return ret;
+}
+
 #endif /* _PXA_CP_LOAD_H_ */
