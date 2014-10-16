@@ -634,12 +634,8 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 					dc_stat_info->runtime_start = ktime_temp;
 					dc_stat_info->runtime_op_index = dc_stat_info->curopindex;
 				}
-				if (cpu_online(cpu_i))
-					dc_stat_info->online = 1;
-				else
-					dc_stat_info->online = 0;
 
-				for (i = 0; i < MAX_BREAKDOWN_TIME; i++) {
+				for (i = 0; i <= MAX_BREAKDOWN_TIME; i++) {
 					dc_stat_info->breakdown_time_total[i] = 0;
 					dc_stat_info->breakdown_time_count[i] = 0;
 				}
@@ -674,8 +670,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			if (cpuid == cpu_i)
 				continue;
 			dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
-			if (!dc_stat_info->online)
-				continue;
+
 			spin_lock(&c1c2_exit_lock);
 			if ((u64) 0 != dc_stat_info->runtime_start) {
 				dc_stat_info->runtime_end = ktime_temp;
@@ -724,8 +719,6 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 		break;
 	case CPU_IDLE_ENTER:
-		if (!dc_stat_info->online)
-			break;
 		ktime_temp = ktime_to_ns(ktime_get());
 		spin_lock(&c1c2_enter_lock);
 
@@ -798,8 +791,6 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 		break;
 	case CPU_IDLE_EXIT:
-		if (!dc_stat_info->online)
-			break;
 		ktime_temp = ktime_to_ns(ktime_get());
 		spin_lock(&c1c2_exit_lock);
 
