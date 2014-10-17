@@ -48,6 +48,25 @@ struct sdhci_regdata {
 	u32 APBC_ASFAR;
 };
 
+/* Tuning mode define */
+#define PXA_SDH_TUNING_DEFAULT 0
+#define PXA_SDH_TUNING_DVFS 1
+
+/*
+ * sdhci_pretuned_data: tuning data that is stored in emmc
+ */
+#define SDHCI_PRETUNED_MAGIC1	0x53444800 /* "SDH\0" */
+#define SDHCI_PRETUNED_MAGIC2	0x44664653 /* "DVFS" */
+struct sdhci_pretuned_data {
+	u32	crc32;		/* checksum */
+	int	magic1;		/* magic number */
+	unsigned long	src_rate;	/* the scr_rate */
+	int	rx_delay;	/* -1 for invalid */
+	int	dvfs_level;	/* -1 for invalid */
+	int	magic2;		/* magic number */
+	u8	reserved[28];	/* not used */
+};
+
 #include <linux/pm_qos.h>
 
 /*
@@ -92,6 +111,12 @@ struct sdhci_pxa_platdata {
 	const struct sdhci_regdata *regdata;
 	struct clk	*fakeclk_tuned;
 	struct clk	*fakeclk_fixed;
+
+	int tuning_mode;
+	u32 tuning_win_limit; /* min requirement for tuning window size */
+	int dvfs_level_min;
+	int dvfs_level_max;
+	struct sdhci_pretuned_data *pretuned;
 };
 
 struct sdhci_pxa {

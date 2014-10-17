@@ -20,12 +20,17 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/clk/mmp_sdh_tuning.h>
+#include <linux/clk/dvfs-dvc.h>
+#include <linux/crc32.h>
 #include <linux/io.h>
+#include <linux/gpio.h>
 #include <linux/gpio.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/slot-gpio.h>
+#include <linux/mmc/pxa_dvfs.h>
 #include <linux/platform_data/pxa_sdhci.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
@@ -39,6 +44,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/pinctrl/consumer.h>
 #include <dt-bindings/mmc/pxa_sdhci.h>
+#include <marvell/emmc_rsv.h>
 
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
@@ -408,6 +414,8 @@ static unsigned long pxav3_clk_prepare(struct sdhci_host *host,
 	unsigned char timing = host->mmc->ios.timing;
 
 	unsigned long preset_rate = 0, src_rate = 0;
+
+	pxa_sdh_dvfs_timing_prepare(host, timing);
 
 	if (pdata && pdata->dtr_data) {
 		if (timing >= MMC_TIMING_MAX) {
@@ -944,7 +952,7 @@ static int pxav3_send_tuning_cmd(struct sdhci_host *host, u32 opcode,
 		return pxav3_send_tuning_cmd_adma(host, opcode, point, flags);
 }
 
-static int pxav3_executing_tuning(struct sdhci_host *host, u32 opcode)
+static int pxav3_execute_tuning_nodvfs(struct sdhci_host *host, u32 opcode)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
@@ -1016,6 +1024,327 @@ static int pxav3_executing_tuning(struct sdhci_host *host, u32 opcode)
 }
 
 /*
+ * Scan the bitmap to:
+ * 1. Find the max tuning window
+ * 2. Remove windows that are smaller than min_window_size
+ *
+ * Returns mid-value of the max window or -1 if no valid window
+ */
+static int pxav3_bitmap_scan(unsigned long *bitmap,
+	int length, int min_window_size, int *scanned_win_len)
+{
+	int p = 0, max_window_start = 0, max_window_len = 0, next_zero_bit;
+
+	while (p < length) {
+		p = find_next_bit(bitmap, length, p);
+		next_zero_bit = find_next_zero_bit(bitmap, length, p);
+		if (next_zero_bit - p > max_window_len) {
+			max_window_start = p;
+			max_window_len = next_zero_bit - p;
+		}
+
+		/* remove small windows */
+		if (next_zero_bit - p < min_window_size)
+			bitmap_clear(bitmap, p, next_zero_bit - p);
+
+		p = next_zero_bit;
+	}
+
+	pr_info(">>>> bitmap max_window start = %d, size = %d\n",
+		max_window_start,
+		max_window_len);
+
+	if (scanned_win_len)
+		*scanned_win_len = max_window_len;
+
+	if (max_window_len > 0)
+		return max_window_start + max_window_len / 2;
+	else
+		return -1;
+}
+
+static void pxav3_print_bitmap(unsigned long *bitmap, int length)
+{
+	/*
+	 * print the bitmap for debug use, format:
+	 * [0, 0] [2, 100] [300, 1023]
+	 */
+	int p = 0, next_zero_bit;
+
+	pr_info("==== dump bitmap of length %d ====\n", length);
+	while (p < length) {
+		p = find_next_bit(bitmap, length, p);
+		next_zero_bit = find_next_zero_bit(bitmap, length, p);
+		if (p < length)
+			pr_info("[%d, %d]\n",
+				p, next_zero_bit - 1);
+		p = next_zero_bit;
+	}
+	pr_info("==== dump bitmap end ====\n");
+
+}
+
+/* global variable to record current dvfs level */
+atomic_t cur_dvfs_level = ATOMIC_INIT(-1);
+/* global lock for tuning of different SDHs */
+DEFINE_MUTEX(dvfs_tuning_lock);
+
+static int hwdvc_stat_notifier_handler(struct notifier_block *nb,
+		unsigned long rails, void *data)
+{
+	struct hwdvc_notifier_data *vl = (struct hwdvc_notifier_data *)(data);
+	if (rails != AP_ACTIVE)
+		return NOTIFY_OK;
+
+	if (vl->newlv != atomic_read(&cur_dvfs_level))
+		BUG();
+	pr_info("~~~~~~~now dvfs level is %d\n", atomic_read(&cur_dvfs_level));
+	return NOTIFY_OK;
+}
+
+static struct notifier_block dvfs_notifier = {
+	.notifier_call = hwdvc_stat_notifier_handler,
+};
+
+static int pxav3_get_pretuned_data(struct sdhci_host *host,
+		struct device *dev, struct sdhci_pxa_platdata *pdata)
+{
+	struct sdhci_pretuned_data *pretuned;
+
+	pretuned = rsv_page_get_kaddr(host->mmc->index,
+			sizeof(*pretuned));
+	if (IS_ERR_OR_NULL(pretuned))
+		pr_err("%s: error when requesting pretune data\n",
+			mmc_hostname(host->mmc));
+	else
+		pdata->pretuned = pretuned;
+
+	return 0;
+}
+
+static void pxav3_execute_tuning_cycle(struct sdhci_host *host,
+			u32 opcode, unsigned long *bitmap)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	int tune_value;
+	unsigned long flags = 0;
+	u32 ier = 0;
+
+	if (host->quirks2 & SDHCI_QUIRK2_TUNING_ADMA_BROKEN) {
+		spin_lock_irqsave(&host->lock, flags);
+		ier = sdhci_readl(host, SDHCI_INT_ENABLE);
+		sdhci_clear_set_irqs(host, ier, SDHCI_INT_DATA_AVAIL);
+	}
+
+	/*
+	 * We only test the points that are set in tuning bitmap.
+	 * If send tuning command fails, clear that bit.
+	 */
+
+	for (tune_value = SD_RX_TUNE_MIN;
+			tune_value <= regdata->SD_RX_TUNE_MAX;
+				tune_value += SD_RX_TUNE_STEP) {
+		if (!test_bit(tune_value, bitmap))
+			continue;
+
+		pxav3_prepare_tuning(host, tune_value);
+		if (pxav3_send_tuning_cmd(host, opcode, tune_value, flags))
+			bitmap_clear(bitmap, tune_value, SD_RX_TUNE_STEP);
+	}
+
+	if (host->quirks2 & SDHCI_QUIRK2_TUNING_ADMA_BROKEN) {
+		sdhci_clear_set_irqs(host, SDHCI_INT_DATA_AVAIL, ier);
+		spin_unlock_irqrestore(&host->lock, flags);
+	}
+}
+
+static int pxav3_check_pretuned(struct sdhci_host *host,
+	struct sdhci_pretuned_data *pretuned)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	u32 checksum;
+
+	if (!pretuned)
+		return 1;
+
+	checksum = crc32(~0, (void *)pretuned + 4,
+		(sizeof(struct sdhci_pretuned_data) - 4));
+
+	if ((pretuned->crc32 != checksum) ||
+		(pretuned->magic1 != SDHCI_PRETUNED_MAGIC1) ||
+		(pretuned->src_rate != clk_get_rate(pltfm_host->clk)) ||
+		(pretuned->dvfs_level > pdata->dvfs_level_max) ||
+		(pretuned->dvfs_level < pdata->dvfs_level_min) ||
+		(pretuned->rx_delay < 0) ||
+		(pretuned->rx_delay > regdata->SD_RX_TUNE_MAX) ||
+		(pretuned->magic2 != SDHCI_PRETUNED_MAGIC2)) {
+		/* fail or invalid */
+		return 1;
+	} else
+		return 0;
+}
+
+static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	struct sdhci_pretuned_data *pretuned = pdata->pretuned;
+	const struct sdhci_regdata *regdata = pdata->regdata;
+	int tuning_range = regdata->SD_RX_TUNE_MAX + 1;
+	int tuning_value = -1, tmp_tuning_value = 0, tmp_win_len = 0;
+	unsigned long *bitmap;
+	int bitmap_size = sizeof(*bitmap) * BITS_TO_LONGS(tuning_range);
+	int dvfs_level = pdata->dvfs_level_max;
+	int dvfs_level_min;
+
+	/*
+	 * 1.Check whether there is pre-tuned data and whether it is valid
+	 *  if Yes: tuning is not need, Set rx delay and dvfs level directly.
+	 *  if No: go to tuning under different dvfs level
+	 */
+	if (pxav3_check_pretuned(host, pretuned)) {
+		pr_warn("%s: no valid pretuned data, start real tuning\n",
+			mmc_hostname(host->mmc));
+	} else {
+		tuning_value = pretuned->rx_delay;
+		dvfs_level = pretuned->dvfs_level;
+#if (PXAV3_TUNING_DEBUG > 0)
+		pr_info("%s: pretuned rx_delay = %d, dvfs_level = %d\n",
+			mmc_hostname(host->mmc),
+			pretuned->rx_delay, pretuned->dvfs_level);
+#endif
+		goto prep_tuning;
+	}
+
+	/* 2. Init bitmap */
+	bitmap = kmalloc(bitmap_size, GFP_KERNEL);
+	if (IS_ERR_OR_NULL(bitmap)) {
+		pr_err("%s: can't alloc tuning bitmap!\n",
+			mmc_hostname(host->mmc));
+		goto out;
+	}
+
+	/* set all bits to 1 */
+	bitmap_set(bitmap, 0, tuning_range);
+
+	mutex_lock(&dvfs_tuning_lock);
+
+	/* scale to min freq before requesting dvfs levels */
+	sdh_tunning_scaling2minfreq();
+
+	dvfs_level_min = max(pdata->dvfs_level_min, pxa_sdh_get_lowest_dvfs_level(host));
+	do {
+		/*
+		 * 3. Set dvfs level, execute tuning, clear failed point to 0
+		 * Multiple SDH (EMMC, SDIO) may be tuning at the same time.
+		 * So tuning for each dvfs level should be protected by a global
+		 * lock to prevent race condition.
+		 */
+
+		atomic_set(&cur_dvfs_level, dvfs_level);
+		hwdvc_notifier_register(&dvfs_notifier); /* debug use */
+
+		pxa_sdh_request_dvfs_level(host, dvfs_level);
+		pxav3_execute_tuning_cycle(host, opcode, bitmap);
+
+		hwdvc_notifier_unregister(&dvfs_notifier);
+
+		/*4. Scan the bitmap after tuning for 1 round */
+		tmp_tuning_value = pxav3_bitmap_scan(bitmap, tuning_range,
+					pdata->tuning_win_limit, &tmp_win_len);
+#if (PXAV3_TUNING_DEBUG > 0)
+		pxav3_print_bitmap(bitmap, tuning_range);
+#endif
+
+		if (tmp_win_len < pdata->tuning_win_limit) {
+			if (tmp_win_len > 0 && tuning_value < 0) {
+				pr_warn("%s: rx window found, len = %d, less than tuning_win_limit %d\n",
+					mmc_hostname(host->mmc),
+					tmp_win_len,
+					pdata->tuning_win_limit);
+				dvfs_level--;
+				tuning_value = tmp_tuning_value;
+			}
+			break;
+		} else {
+			dvfs_level--;
+			tuning_value = tmp_tuning_value;
+		}
+
+		/* 5. If need to tune for other dvfs levels, goto 3 */
+	} while (dvfs_level >= dvfs_level_min);
+
+	/* restore freq settings after tuning finished */
+	sdh_tunning_restorefreq();
+
+	mutex_unlock(&dvfs_tuning_lock);
+
+	/* 6. Free bitmap */
+	kfree(bitmap);
+
+	/* 7. Set tuning rx value to hardware */
+	if (tuning_value < 0) {
+		panic("%s: failed to find any valid rx window\n",
+			mmc_hostname(host->mmc));
+	} else {
+		dvfs_level++;
+		if (pretuned) {
+			/* save tuning_value and dvfs_level */
+			pretuned->magic1 = SDHCI_PRETUNED_MAGIC1;
+			pretuned->rx_delay = tuning_value;
+			pretuned->dvfs_level = dvfs_level;
+			pretuned->src_rate = clk_get_rate(pltfm_host->clk);
+			pretuned->magic2 = SDHCI_PRETUNED_MAGIC2;
+			pretuned->crc32	= crc32(~0, (void *)pretuned + 4,
+				(sizeof(struct sdhci_pretuned_data) - 4));
+			rsv_page_update();
+		}
+
+	}
+
+#if (PXAV3_TUNING_DEBUG > 0)
+	pr_info("%s: final tuning value = %d, dvfs level = %d\n",
+		mmc_hostname(host->mmc), tuning_value, dvfs_level);
+#endif
+	/* FIXME: wait until all other SDHs finish tuning */
+prep_tuning:
+	pxav3_prepare_tuning(host, tuning_value);
+	pxa_sdh_request_dvfs_level(host, dvfs_level);
+
+out:
+	return 0;
+}
+
+static int pxav3_execute_tuning(struct sdhci_host *host, u32 opcode)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int dvfs_level;
+
+	if (pdata->tuning_mode == PXA_SDH_TUNING_DVFS) {
+		/* go through all the DVFS levels and get a final result */
+		return pxav3_execute_tuning_dvfs(host, opcode);
+	} else {
+		/*
+		 * (pdata->tuning_mode == PXA_SDH_TUNING_DEFAULT) or else
+		 *
+		 * plat_get_vl can pass the DVFS levels, like pxa1U88/1L88 is 4
+		 * pxa1908 is 8, and pxa1926 is 16
+		 */
+		dvfs_level = pxa_sdh_get_highest_dvfs_level(host);
+		pxa_sdh_request_dvfs_level(host, dvfs_level);
+
+		return pxav3_execute_tuning_nodvfs(host, opcode);
+	}
+}
+
+/*
  * remove the caps that supported by the controller but not available
  * for certain platforms.
  */
@@ -1041,7 +1370,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.clk_gate_auto  = pxav3_clk_gate_auto,
 	.set_clock = pxav3_set_clock,
 	.access_constrain = pxav3_access_constrain,
-	.platform_execute_tuning = pxav3_executing_tuning,
+	.platform_execute_tuning = pxav3_execute_tuning,
 	.platform_hw_tuning_prepare = pxav3_hw_tuning_prepare,
 	.host_caps_disable = pxav3_host_caps_disable,
 };
@@ -1142,6 +1471,38 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 		pdata->lpm_qos = tmp;
 	else
 		pdata->lpm_qos = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
+
+	if (!of_property_read_u32(np, "marvell,sdh-tuning-win-limit", &tmp))
+		pdata->tuning_win_limit = tmp;
+	else
+		pdata->tuning_win_limit = 100; /* default limit value */
+
+	/*
+	 * property "marvell,sdh-dvfs-levels":
+	 * <dvfs_level_min dvfs_level_max dvfs_level_tuned>
+	 */
+	if (!of_property_read_u32_index(np, "marvell,sdh-dvfs-levels", 0, &tmp))
+		pdata->dvfs_level_min = tmp;
+	else
+		pdata->dvfs_level_min = 0; /* default min dvfs level */
+
+	if (!of_property_read_u32_index(np, "marvell,sdh-dvfs-levels", 1, &tmp))
+		pdata->dvfs_level_max = tmp;
+	else {
+		/* default max dvfs value */
+		pdata->dvfs_level_max = pxa_sdh_get_highest_dvfs_level(host);
+	}
+
+	if (pdata->dvfs_level_min > pdata->dvfs_level_max)
+		dev_warn(dev, "wrong values might be set to sdh-dvfs-levels: <%d %d>\n",
+			 pdata->dvfs_level_min, pdata->dvfs_level_max);
+
+	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-mode", 0, &tmp))
+		pdata->tuning_mode = tmp;
+	else {
+		/* if not set in dts, use default mode = old method */
+		pdata->tuning_mode = PXA_SDH_TUNING_DEFAULT;
+	}
 
 	/* property "marvell,sdh-tuning-cnt": <tuning_wd_cnt tuning_tt_cnt> */
 	if (!of_property_read_u32_index(np, "marvell,sdh-tuning-cnt", 0, &tmp))
@@ -1292,6 +1653,7 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 			pdev->dev.platform_data = pdata;
 		}
 		pxav3_get_of_perperty(host, dev, pdata);
+		pxav3_get_pretuned_data(host, dev, pdata);
 		pdata->regdata = match->data;
 	}
 	if (pdata) {
@@ -1313,6 +1675,16 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 		}
 		pm_qos_add_request(&pdata->qos_idle, PM_QOS_CPUIDLE_BLOCK,
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
+		/*
+		 * as RPM will set as active just below, so here enable dvfs too
+		 * And there is not dvfs requst by default, the driver needs to
+		 * call pxa_sdh_request_dvfs_level when need.
+		 */
+		pxa_sdh_create_dvfs(host);
+		pxa_sdh_request_dvfs_level(host, 0);
+		pxa_sdh_enable_dvfs(host);
+
 		if (pdata->flags & PXA_FLAG_EN_PM_RUNTIME) {
 			pm_runtime_get_noresume(&pdev->dev);
 			pm_runtime_set_active(&pdev->dev);
@@ -1359,7 +1731,6 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	pxa->rx_delay.attr.mode = S_IRUGO | S_IWUSR;
 	ret = device_create_file(&host->mmc->class_dev, &pxa->rx_delay);
 
-
 	return 0;
 
 err_add_host:
@@ -1368,6 +1739,7 @@ err_add_host:
 		pm_runtime_set_suspended(&pdev->dev);
 		pm_runtime_disable(&pdev->dev);
 	}
+	pxa_sdh_destory_dvfs(host);
 err_init_host:
 err_of_parse:
 	clk_disable_unprepare(pxa->clk);
@@ -1396,6 +1768,7 @@ static int sdhci_pxav3_remove(struct platform_device *pdev)
 	if (pdata)
 		pm_qos_remove_request(&pdata->qos_idle);
 
+	pxa_sdh_destory_dvfs(host);
 	clk_disable_unprepare(pxa->clk);
 	clk_disable_unprepare(pxa->axi_clk);
 
@@ -1452,6 +1825,8 @@ static int sdhci_pxav3_runtime_suspend(struct device *dev)
 		clk_disable_unprepare(pxa->axi_clk);
 	}
 
+	pxa_sdh_disable_dvfs(host);
+
 	return 0;
 }
 
@@ -1461,6 +1836,8 @@ static int sdhci_pxav3_runtime_resume(struct device *dev)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 	unsigned long flags;
+
+	pxa_sdh_enable_dvfs(host);
 
 	if (pxa->clk) {
 		/* If axi_clk == NULL, do nothing */

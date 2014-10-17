@@ -96,4 +96,8 @@
 /* HS200/SDR104 tuning broken and must use predefined fixed delay */
 #define SDHCI_QUIRK2_TUNING_BROKEN                      (1<<20)
 
+/* Tuning mode define */
+#define PXA_SDH_TUNING_DEFAULT 0
+#define PXA_SDH_TUNING_DVFS 1
+
 #endif
