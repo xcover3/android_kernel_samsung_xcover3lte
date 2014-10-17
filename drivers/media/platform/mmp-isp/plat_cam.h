@@ -49,6 +49,8 @@ struct plat_vnode {
 					struct mmu_chs_desc *ch_dsc);
 	int			(*fill_mmu_chnl)(struct plat_cam *pcam,
 					struct vb2_buffer *vb, int num_planes);
+	int (*reset_mmu_chnl)(struct plat_cam *pcam,
+					struct isp_vnode *vnode, int num_planes);
 	__u16			(*get_axi_id)(__u8 port_id, __u8 yuv_id);
 	struct isp_vnode	vnode;
 };

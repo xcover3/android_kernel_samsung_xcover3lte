@@ -220,6 +220,51 @@ static int msc2_ch_disable(struct msc2_mmu_dev *sc2_dev, u32 tid)
 	return 0;
 }
 
+#define MSC2_CH_WAIT_CNT 1000
+static int msc2_ch_reset(struct msc2_mmu_dev *sc2_dev, u32 tid)
+{
+	int ch;
+	int i = 0;
+
+	ch = tid_to_ch(sc2_dev, tid);
+	if (ch == -1) {
+		dev_warn(sc2_dev->dev, "No such channel: %d to reset\n", tid);
+		return -ENODEV;
+	}
+
+	msc2_mmu_disable_ch(sc2_dev, ch);
+
+	while (!msc2_mmu_disable_done(sc2_dev, ch)) {
+		if (i++ > MSC2_CH_WAIT_CNT) {
+			dev_warn(sc2_dev->dev, "unable to disable %d\n", tid);
+			return -EAGAIN;
+		}
+		ndelay(10);
+	}
+
+	sc2_dev->ch_status[ch] = MSC2_CH_DISABLE;
+
+	return 0;
+}
+
+static int msc2_chs_reset(struct msc2_mmu_dev *sc2_dev,
+				const u32 *tid, int nr_chs)
+{
+	int i, ret;
+	unsigned long flags = 0;
+
+	spin_lock_irqsave(&sc2_dev->msc2_lock, flags);
+	for (i = 0; i < nr_chs; i++) {
+		ret = msc2_ch_reset(sc2_dev, tid[i]);
+		if (ret < 0) {
+			spin_unlock_irqrestore(&sc2_dev->msc2_lock, flags);
+			return ret;
+		}
+	}
+	spin_unlock_irqrestore(&sc2_dev->msc2_lock, flags);
+	return 0;
+}
+
 static int msc2_chs_enable(struct msc2_mmu_dev *sc2_dev,
 				const u32 *tid, int nr_chs)
 {
@@ -618,6 +663,7 @@ static struct msc2_mmu_ops mmu_ops = {
 	.release_ch = msc2_release_channel,
 	.enable_ch = msc2_chs_enable,
 	.disable_ch = msc2_chs_disable,
+	.reset_ch = msc2_chs_reset,
 	.config_ch = msc2_ch_config,
 	.alloc_desc = msc2_alloc_dma_desc,
 	.free_desc = msc2_free_dma_desc,
@@ -642,7 +688,7 @@ static void msc2_irq_ch_handler(struct msc2_mmu_dev *sc2_dev, int ch)
 
 	for (i = 0; i < CIRQ_ERR_HIGH; i++)
 		if (irqs & (1 << i))
-			dev_err(sc2_dev->dev, "MMU ch%d: %s\n", ch, err_msg[i]);
+			dev_dbg(sc2_dev->dev, "MMU ch%d: %s\n", ch, err_msg[i]);
 
 	msc2_mmu_reg_write(sc2_dev, REG_SC2_IRQSTAT(ch), irqs);
 }

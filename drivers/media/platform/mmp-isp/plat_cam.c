@@ -218,7 +218,7 @@ static int plat_mmu_fill_channel(struct plat_cam *pcam,
 	int ch;
 	int ret;
 
-	if (unlikely((!pcam->mmu_dev || !vb || !buf))) {
+	if (unlikely(!pcam->mmu_dev || !vb || !buf)) {
 		pr_err("%s: paramter error\n", __func__);
 		return -ENODEV;
 	}
@@ -234,6 +234,21 @@ static int plat_mmu_fill_channel(struct plat_cam *pcam,
 
 	return pcam->mmu_dev->ops->enable_ch(pcam->mmu_dev,
 		pvnode->mmu_ch_dsc.tid, num_planes);
+}
+
+static int plat_mmu_reset_channel(struct plat_cam *pcam,
+				struct isp_vnode *vnode, int num_planes)
+{
+	struct plat_vnode *pvnode;
+
+	if (unlikely(!pcam || !pcam->mmu_dev || !vnode)) {
+		pr_err("%s: paramter error\n", __func__);
+		return -EINVAL;
+	}
+
+	pvnode = container_of(vnode, struct plat_vnode, vnode);
+	return pcam->mmu_dev->ops->reset_ch(pcam->mmu_dev,
+			pvnode->mmu_ch_dsc.tid, num_planes);
 }
 
 __u32 plat_get_src_tag(struct plat_pipeline *ppl)
@@ -698,6 +713,7 @@ static void plat_set_vdev_mmu(struct isp_vnode *vnode, int enable)
 		pvnode->alloc_mmu_chnl = &plat_mmu_alloc_channel;
 		pvnode->free_mmu_chnl = &plat_mmu_free_channel;
 		pvnode->fill_mmu_chnl = &plat_mmu_fill_channel;
+		pvnode->reset_mmu_chnl = &plat_mmu_reset_channel;
 		pvnode->get_axi_id = &plat_axi_id;
 		vnode->mmu_enabled = true;
 		d_inf(3, "%s: enable MMU", pvnode->vnode.vdev.name);
@@ -705,6 +721,7 @@ static void plat_set_vdev_mmu(struct isp_vnode *vnode, int enable)
 		pvnode->alloc_mmu_chnl = NULL;
 		pvnode->free_mmu_chnl = NULL;
 		pvnode->fill_mmu_chnl = NULL;
+		pvnode->reset_mmu_chnl = NULL;
 		pvnode->get_axi_id = NULL;
 		vnode->mmu_enabled = false;
 		d_inf(3, "%s: disable MMU", pvnode->vnode.vdev.name);

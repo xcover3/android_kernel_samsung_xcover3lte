@@ -168,6 +168,7 @@
 #define REG_SC2_GIRQ_ENA	0x0814
 #define REG_SC2_GIRQ_STAT	0x0818
 #define REG_SC2_GMISC_CTRL	0x081c
+#define REG_SC2_CHDIS_DONE	0x0820
 /* bit defination in registers */
 /* REG_SC2_CTRLx */
 #define CCTRL_CH_ID(x)			(x & 0x000703FF)
@@ -289,6 +290,14 @@ static inline void msc2_mmu_enable_ch(struct msc2_mmu_dev *sc2_dev, int ch)
 static inline void msc2_mmu_disable_ch(struct msc2_mmu_dev *sc2_dev, int ch)
 {
 	msc2_mmu_reg_clear_bit(sc2_dev, REG_SC2_GCTRL, GCTRL_CH_ENA(ch));
+}
+
+static inline int msc2_mmu_disable_done(struct msc2_mmu_dev *sc2_dev, int ch)
+{
+	u32 val;
+
+	val = msc2_mmu_reg_read(sc2_dev, REG_SC2_CHDIS_DONE);
+	return val & GCTRL_CH_ENA(ch);
 }
 
 static inline int msc2_ch_invalid(struct msc2_mmu_dev *sc2_dev, unsigned int ch)

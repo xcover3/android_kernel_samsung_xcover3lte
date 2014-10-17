@@ -2184,8 +2184,18 @@ check_sof_irq:
 
 check_eof_irq:
 	if (irqstatus & VIRT_IRQ_FIFO) {
+		struct plat_vnode *pvnode = container_of(vnode, struct plat_vnode, vnode);
 		laxi->dma_state = B52DMA_IDLE;
-		irqstatus &= ~VIRT_IRQ_FIFO;
+		/* Not need to handle drop during FIFO */
+		irqstatus &= ~(VIRT_IRQ_FIFO | VIRT_IRQ_DROP);
+
+		if (irqstatus & VIRT_IRQ_START) {
+			irqstatus &= ~VIRT_IRQ_START;
+			d_inf(3, "%s: Start_FIFO at same time\n", isd->subdev.name);
+		}
+
+		if (pvnode->reset_mmu_chnl)
+			pvnode->reset_mmu_chnl(pcam, vnode, num_planes);
 
 		buffer = isp_vnode_find_busy_buffer(vnode, 0);
 		b52_fill_buf(buffer, pcam, num_planes, mac_id, port);

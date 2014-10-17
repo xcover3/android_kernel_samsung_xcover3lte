@@ -116,6 +116,8 @@ struct msc2_mmu_ops {
 				const u32 *tid, int nr_chs);
 	int (*disable_ch)(struct msc2_mmu_dev *sc2_dev,
 				const u32 *tid, int nr_chs);
+	int (*reset_ch)(struct msc2_mmu_dev *sc2_dev,
+				const u32 *tid, int nr_chs);
 	int (*config_ch)(struct msc2_mmu_dev *sc2_dev,
 				const struct msc2_ch_info *info, int nr_chs);
 	int (*alloc_desc)(struct vb2_buffer *vb);

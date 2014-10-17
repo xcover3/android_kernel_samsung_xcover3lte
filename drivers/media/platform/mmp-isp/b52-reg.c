@@ -3437,6 +3437,9 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 		if (mac_irq & W_INT_OVERFLOW0) {
 			irq0 |= VIRT_IRQ_FIFO;
 			irq1 |= VIRT_IRQ_FIFO;
+			/* stop ouputting data, untill handle overflow */
+			if (rdy)
+				b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
 		}
 
 		/* build up read port virtual IRQs */
