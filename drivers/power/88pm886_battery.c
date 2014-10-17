@@ -94,6 +94,11 @@ struct pm886_battery_params {
 	int temp;
 };
 
+struct temp_vs_ohm {
+	unsigned int ohm;
+	int temp;
+};
+
 struct pm886_battery_info {
 	struct pm886_chip	*chip;
 	struct device	*dev;
@@ -121,6 +126,9 @@ struct pm886_battery_info {
 	int			irq[7];
 
 	struct iio_channel	*chan[MAX_CHAN];
+	struct temp_vs_ohm	*temp_ohm_table;
+	int			temp_ohm_table_size;
+	int			zero_degree_ohm;
 };
 
 static int ocv_table[100];
@@ -388,11 +396,13 @@ static bool pm886_check_battery_present(struct pm886_battery_info *info)
 		else
 			present = false;
 #endif
-		pm886_enable_bat_detect(info, false);
 	}
 out:
 	if (ret < 0)
 		present = true;
+
+	/* disable the battery detection to measure the battery temperature*/
+	pm886_enable_bat_detect(info, false);
 
 	return present;
 }
@@ -465,7 +475,8 @@ static int pm886_get_batt_vol(struct pm886_battery_info *info, int active)
 		channel = info->chan[VBATT_SLP_CHAN];
 
 	if (!channel) {
-		dev_err(info->dev, "cannot get the useable channel!\n");
+		dev_err(info->dev, "cannot get the useable channel: %s\n",
+			channel->channel->datasheet_name);
 		return -EINVAL;
 	}
 
@@ -535,9 +546,79 @@ out:
 	return data;
 }
 
+static void find_match(struct pm886_battery_info *info,
+		       unsigned int ohm, int *low, int *high)
+{
+	int start, end, mid;
+	int size = info->temp_ohm_table_size;
+
+	/* the resistor value decends as the temperature increases */
+	if (ohm >= info->temp_ohm_table[0].ohm) {
+		*low = 0;
+		*high = 0;
+		return;
+	}
+
+	if (ohm <= info->temp_ohm_table[size - 1].ohm) {
+		*low = size - 1;
+		*high = size -1;
+		return;
+	}
+
+	start = 0;
+	end = size;
+	while (start < end) {
+		mid = start + (end - start) / 2;
+		if (ohm > info->temp_ohm_table[mid].ohm) {
+			end = mid;
+		} else {
+			start = mid + 1;
+			if (ohm >= info->temp_ohm_table[start].ohm)
+				end = start;
+		}
+	}
+
+	*low = end;
+	if (ohm == info->temp_ohm_table[end].ohm)
+		*high = end;
+	else
+		*high = end -1;
+}
+
 static int pm886_get_batt_temp(struct pm886_battery_info *info)
 {
-	int temp = 20;
+	struct iio_channel *channel= info->chan[TEMP_CHAN];
+	int ohm, ret;
+	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
+
+	if (!channel) {
+		dev_err(info->dev, "cannot get the useable channel: %s\n",
+			channel->channel->datasheet_name);
+		return -EINVAL;
+	}
+
+	ret = iio_read_channel_scale(channel, &ohm, NULL);
+	if (ret < 0) {
+		dev_err(info->dev, "read %s channel fails!\n",
+			channel->channel->datasheet_name);
+		return ret;
+	}
+
+	find_match(info, ohm, &low, &high);
+	if (low == high) {
+		temp = info->temp_ohm_table[low].temp;
+	} else {
+		low_temp = info->temp_ohm_table[low].temp;
+		low_ohm = info->temp_ohm_table[low].ohm;
+
+		high_temp = info->temp_ohm_table[high].temp;
+		high_ohm = info->temp_ohm_table[high].ohm;
+
+		temp = (ohm - low_ohm) * (high_temp - low_temp) / (high_ohm - low_ohm);
+	}
+	dev_dbg(info->dev, "ohm = %d, low = %d, high = %d, temp = %d\n",
+		ohm, low, high, temp);
+
 	return temp;
 }
 
@@ -693,21 +774,19 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 	/* hardcode type[Lion] */
 	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
-	if (info->use_ntc)
-		info->bat_params.temp = pm886_get_batt_temp(info) * 10;
-	else
-		info->bat_params.temp = 260;
-
 	info->bat_params.volt = pm886_get_batt_vol(info, 1);
 
 	ibat = pm886_get_ibat_cc(info);
 	info->bat_params.ibat = ibat / 1000; /* change to mA */
 
-	/* charging status */
 	if (info->bat_params.present == 0) {
 		info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
+		info->bat_params.temp = 250;
 		return;
 	}
+
+	/* measure temperature if the battery is present */
+	info->bat_params.temp = pm886_get_batt_temp(info) * 10;
 
 	pm886_battery_calc_ccnt(info, &ccnt_data);
 	pm886_battery_correct_soc(info, &ccnt_data);
@@ -1017,7 +1096,9 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		if (!info->bat_params.present)
-			info->bat_params.temp = 240;
+			info->bat_params.temp = 250;
+		else
+			info->bat_params.temp = pm886_get_batt_temp(info) * 10;
 		val->intval = info->bat_params.temp;
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
@@ -1080,7 +1161,8 @@ static struct pm886_irq_desc {
 static int pm886_battery_dt_init(struct device_node *np,
 				 struct pm886_battery_info *info)
 {
-	int ret;
+	int ret, size, rows, i, ohm, temp,  index = 0;
+	const __be32 *values;
 
 	if (of_get_property(np, "bat-ntc-support", NULL))
 		info->use_ntc = true;
@@ -1113,12 +1195,44 @@ static int pm886_battery_dt_init(struct device_node *np,
 	if (ret)
 		return ret;
 
+	ret = of_property_read_u32(np, "zero-degree-ohm",
+				   &info->zero_degree_ohm);
+	if (ret)
+		return ret;
+
+	values = of_get_property(np, "ntc-table", &size);
+	if (!values) {
+		pr_warn("No NTC table for %s\n", np->name);
+		return 0;
+	}
+
+	size /= sizeof(*values);
+	/* <ohm, temp>*/
+	rows = size / 4;
+	info->temp_ohm_table = kzalloc(sizeof(struct temp_vs_ohm) * rows,
+				       GFP_KERNEL);
+	if (!info->temp_ohm_table)
+		return -ENOMEM;
+	info->temp_ohm_table_size = rows;
+
+	for (i = 0; i < rows; i++) {
+		ohm = be32_to_cpup(values + index++);
+		info->temp_ohm_table[i].ohm = ohm;
+
+		temp = be32_to_cpup(values + index++);
+		if (ohm > info->zero_degree_ohm)
+			info->temp_ohm_table[i].temp = 0 - temp;
+		else
+			info->temp_ohm_table[i].temp = temp;
+	}
+
 	return 0;
 }
 
 static int pm886_battery_setup_adc(struct pm886_battery_info *info)
 {
 	struct iio_channel *chan;
+	char s[20];
 
 	/* active vbat voltage channel */
 	chan = iio_channel_get(info->dev, "vbat");
@@ -1136,7 +1250,15 @@ static int pm886_battery_setup_adc(struct pm886_battery_info *info)
 	}
 	info->chan[VBATT_SLP_CHAN] = IS_ERR(chan) ? NULL : chan;
 
-	/* TODO: temperature channel */
+	/* temperature channel */
+
+	sprintf(s, "gpadc%d_res", info->gpadc_no);
+	chan = iio_channel_get(info->dev, s);
+	if (PTR_ERR(chan) == -EPROBE_DEFER) {
+		dev_err(info->dev, "get %s iio channel defers.\n", s);
+		return -EPROBE_DEFER;
+	}
+	info->chan[TEMP_CHAN] = IS_ERR(chan) ? NULL : chan;
 
 	return 0;
 }
