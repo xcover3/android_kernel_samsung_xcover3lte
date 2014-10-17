@@ -115,6 +115,13 @@ config MRVL_MMP_MODEM
 	help
 	  Marvell MMP modem driver for communication processor
 
+config SSIPC_SUPPORT
+	bool "SSIPC feature"
+	depends on MRVL_MMP_MODEM
+	default n
+	help
+	  support SSIPC feature
+
 config MRVL_MMP_CM3
 	tristate "Marvell CM3 resource manager driver"
 	depends on MRVL_MMP_MODEM && PXA9XX_AMIPC
