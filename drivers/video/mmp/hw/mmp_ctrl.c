@@ -1285,6 +1285,11 @@ static void path_set_mode(struct mmp_path *path, struct mmp_mode *mode)
 
 	/* FIXME: assert mode supported */
 	memcpy(&path->mode, mode, sizeof(struct mmp_mode));
+	if (path->mode.xres != path->mode.real_xres)
+		path->mode.xres = path->mode.real_xres;
+	if (path->mode.yres != path->mode.real_yres)
+		path->mode.yres = path->mode.real_yres;
+
 	if (path->status) {
 		path_onoff(path, 0);
 		if (dsi && dsi->set_mode)

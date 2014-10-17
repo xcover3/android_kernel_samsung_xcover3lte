@@ -81,7 +81,7 @@ static unsigned long virtual_x;
 static unsigned long virtual_y;
 static unsigned int	is_virtual_display;
 
-static inline void mmpfb_check_virtural_mode(struct mmp_mode *mode)
+static inline void mmpfb_check_virtual_mode(struct mmp_mode *mode)
 {
 	if (!mode)
 		return;

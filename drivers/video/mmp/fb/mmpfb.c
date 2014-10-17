@@ -658,7 +658,7 @@ static int modes_setup(struct mmpfb_info *fbi)
 		dev_warn(fbi->dev, "can't get videomode num\n");
 		return 0;
 	}
-	mmpfb_check_virtural_mode(mmp_modes);
+	mmpfb_check_virtual_mode(mmp_modes);
 	/* put videomode list to info structure */
 	videomodes = kzalloc(sizeof(struct fb_videomode) * videomode_num,
 			GFP_KERNEL);

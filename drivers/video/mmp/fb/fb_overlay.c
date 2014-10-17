@@ -72,7 +72,7 @@ static int mmpfb_overlay_path_init(struct mmpfb_info *fbi)
 		dev_warn(fbi->dev, "can't get videomode num\n");
 		return 0;
 	}
-	mmpfb_check_virtural_mode(video_mode);
+	mmpfb_check_virtual_mode(video_mode);
 	path->encoder = path_master->encoder;
 	mmp_path_set_mode(path, &video_mode[0]);
 	path->encoder = NULL;
