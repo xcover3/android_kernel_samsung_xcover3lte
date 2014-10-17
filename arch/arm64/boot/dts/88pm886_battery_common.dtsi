@@ -19,9 +19,11 @@
 		alart-percent = <5>;		/* % */
 
 		io-channels 	 = <&gpadc 7>,
-			           <&gpadc 13>;
+			           <&gpadc 13>,
+				   <&gpadc 17>;
 		io-channel-names = "vbat",
-				   "vbat_slp";
+				   "vbat_slp",
+				   "gpadc3_res";
 	};
 };
 

@@ -88,8 +88,6 @@
 	};
 
 	battery {
-		/* bat-ntc-support; */
-		/* bd-gpadc-no = <3>; */
 		bat-ntc-support;
 		bd-gpadc-no = <3>;
 	};
