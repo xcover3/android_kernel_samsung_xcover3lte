@@ -177,13 +177,18 @@ static void gps_ldo_control(int enable)
 
 void gnss_config(void)
 {
-	u32 pmu_reg_v, ciu_reg_v;
+	u32 pmu_reg_v, ciu_reg_v, apb_reg_v;
 
 	pr_info("%s enters\n", __func__);
 
 	/* force anagrp power always on for GNSS power on */
 	if (clk_32k)
 		clk_enable(clk_32k);
+	else {
+		apb_reg_v = REG_READ(APB_SPARE9_REG);
+		apb_reg_v |= (0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+		REG_WRITE(apb_reg_v, APB_SPARE9_REG);
+	}
 
 	pmu_reg_v = (0x1 << GNSS_PWR_ON1_OFFSET);
 	pmu_reg_v |= (0x1 << GNSS_AXI_CLOCK_ENABLE);
@@ -232,13 +237,18 @@ void gnss_config(void)
 
 void gnss_power_off(void)
 {
-	u32 pmu_reg_v;
+	u32 pmu_reg_v, apb_reg_v;
 
 	pr_info("gnss_power_off\n");
 
 	/*clear anagrp power always on for GNSS power off */
 	if (clk_32k)
 		clk_disable(clk_32k);
+	else {
+		apb_reg_v = REG_READ(APB_SPARE9_REG);
+		apb_reg_v &= ~(0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+		REG_WRITE(apb_reg_v, APB_SPARE9_REG);
+	}
 
 	pmu_reg_v = REG_READ(PMUA_GNSS_PWR_CTRL);
 	pmu_reg_v &= ~(0x1 << GNSS_HW_MODE_OFFSET);
@@ -744,11 +754,10 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 	}
 
 	clk_32k = __clk_lookup("32kpu");
-	if (!clk_32k) {
-		pr_err("get 32k clock failed\n");
-		return -EINVAL;
-	}
-	clk_prepare(clk_32k);
+	if (!clk_32k)
+		pr_info("get 32k clock failed, will direct control it\n");
+	else
+		clk_prepare(clk_32k);
 
 	rc = init_gnss_base_addr();
 	if (rc) {
