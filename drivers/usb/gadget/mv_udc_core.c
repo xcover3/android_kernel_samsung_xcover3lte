@@ -588,13 +588,11 @@ static int mv_ep_enable(struct usb_ep *_ep,
 	switch (desc->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) {
 	case USB_ENDPOINT_XFER_BULK:
 		zlt = 1;
-		mult = 0;
 		break;
 	case USB_ENDPOINT_XFER_CONTROL:
 		ios = 1;
 		break;
 	case USB_ENDPOINT_XFER_INT:
-		mult = 0;
 		break;
 	case USB_ENDPOINT_XFER_ISOC:
 		/* Calculate transactions needed for high bandwidth iso */
