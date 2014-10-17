@@ -24,6 +24,10 @@
 #include <linux/init.h>
 #include <linux/nmi.h>
 
+#ifdef CONFIG_PXA_RAMDUMP
+#include <linux/ramdump.h>
+#endif
+
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
@@ -110,6 +114,14 @@ void panic(const char *fmt, ...)
 	 */
 	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
 		dump_stack();
+#endif
+
+#ifdef CONFIG_PXA_RAMDUMP
+	/*
+	 * Panic text is not available otherwise, at least
+	 * not via kexec, so save it now.
+	 */
+	ramdump_save_panic_text(buf);
 #endif
 
 	/*
