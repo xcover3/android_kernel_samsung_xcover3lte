@@ -142,7 +142,7 @@ static int __init __init_read_droinfo(void)
 	unsigned int uiy = 0;
 	unsigned int uiparity = 0;
 
-	smc_get_fuse_info(0xC3002000, (void *)&arg);
+	smc_get_fuse_info(0xD0002000, (void *)&arg);
 
 	uimanupara_31_00 = arg.arg0;
 	uimanupara_63_32 = arg.arg1;
