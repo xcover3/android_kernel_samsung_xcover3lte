@@ -24,7 +24,7 @@
  *  @brief The head file of BME280 device driver core code
  @{*/
 /*! define BME device name */
-#define BME_NAME "bme280"
+#define BME_NAME "BME_pressure_sensor"
 
 /*! define BME register name according to API */
 #define BME_REG_NAME(name) BME280_##name

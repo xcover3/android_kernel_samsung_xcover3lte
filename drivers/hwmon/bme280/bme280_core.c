@@ -1518,7 +1518,7 @@ static DEVICE_ATTR(standbydur, S_IWUSR | S_IRUGO,
 static DEVICE_ATTR(workmode, S_IWUSR | S_IRUGO,
 			show_workmode, store_workmode);
 #endif
-static DEVICE_ATTR(enable, S_IWUSR | S_IRUGO,
+static DEVICE_ATTR(active, S_IWUSR | S_IRUGO,
 			show_enable, store_enable);
 static DEVICE_ATTR(selftest, S_IWUSR | S_IRUGO,
 			show_selftest, store_selftest);
@@ -1557,7 +1557,7 @@ static struct attribute *bme_attributes[] = {
 	&dev_attr_workmode.attr,
 #endif
 	/**< enable/disable attribute */
-	&dev_attr_enable.attr,
+	&dev_attr_active.attr,
 	/**< selftest attribute */
 	&dev_attr_selftest.attr,
 	/**< dump registers attribute */
