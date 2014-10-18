@@ -18,6 +18,9 @@
 		high-threshold = <50>;		/* % */
 		alart-percent = <5>;		/* % */
 
+		power-off-th = <3350>;		/* mv */
+		safe-power-off-th = <3000>;	/* mv */
+
 		io-channels 	 = <&gpadc 7>,
 			           <&gpadc 13>,
 				   <&gpadc 17>;
