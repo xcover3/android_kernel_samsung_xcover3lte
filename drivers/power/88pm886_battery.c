@@ -136,6 +136,12 @@ struct pm886_battery_info {
 	struct temp_vs_ohm	*temp_ohm_table;
 	int			temp_ohm_table_size;
 	int			zero_degree_ohm;
+
+	int			abs_lowest_temp;
+	int			t1;
+	int			t2;
+	int			t3;
+	int			t4;
 };
 
 static int ocv_table[100];
@@ -614,6 +620,80 @@ static int pm886_get_batt_temp(struct pm886_battery_info *info)
 	return temp;
 }
 
+/*	Temperature ranges:
+ *
+ * ----------|---------------|---------------|---------------|----------
+ *           |               |               |               |
+ *  Shutdown |   Charging    |   Charging    |   Charging    | Shutdown
+ *           |  not allowed  |    allowed    |  not allowed  |
+ * ----------|---------------|---------------|---------------|----------
+ *       too_cold(t1)	    cold(t2)	    hot(t3)	   too_hot(t4)
+ *
+ */
+enum {
+	COLD_NO_CHARGING,
+	LOW_TEMP_RANGE,
+	STD_TEMP_RANGE,
+	HIGH_TEMP_RANGE,
+	HOT_NO_CHARGING,
+
+	MAX_RANGE,
+};
+
+static int pm886_get_batt_health(struct pm886_battery_info *info)
+{
+	int temp, health, range, old_range = MAX_RANGE;
+	if (!info->bat_params.present) {
+		info->bat_params.health = POWER_SUPPLY_HEALTH_UNKNOWN;
+		return 0;
+	}
+
+	temp = pm886_get_batt_temp(info);
+	if (temp < 0) {
+		return POWER_SUPPLY_HEALTH_GOOD;
+	}
+
+	if (temp < info->t1)
+		range = COLD_NO_CHARGING;
+	else if (temp < info->t2)
+		range = LOW_TEMP_RANGE;
+	else if (temp < info->t3)
+		range = STD_TEMP_RANGE;
+	else if (temp < info->t4)
+		range = HIGH_TEMP_RANGE;
+	else
+		range = HOT_NO_CHARGING;
+
+	switch (range) {
+	case COLD_NO_CHARGING:
+		health = POWER_SUPPLY_HEALTH_DEAD;
+		break;
+	case LOW_TEMP_RANGE:
+		health = POWER_SUPPLY_HEALTH_COLD;
+		break;
+	case STD_TEMP_RANGE:
+		health = POWER_SUPPLY_HEALTH_GOOD;
+		break;
+	case HIGH_TEMP_RANGE:
+		health = POWER_SUPPLY_HEALTH_OVERHEAT;
+		break;
+	case HOT_NO_CHARGING:
+		health = POWER_SUPPLY_HEALTH_DEAD;
+		break;
+	default:
+		health = POWER_SUPPLY_HEALTH_GOOD;
+		break;
+	}
+	if ((old_range != range) && (old_range != MAX_RANGE)) {
+		/* TODO: notify charger */
+		dev_dbg(info->dev, "temperature changes: %d --> %d\n",
+			old_range, range);
+	}
+	old_range = range;
+
+	return health;
+}
+
 static int pm886_battery_get_slp_cnt(struct pm886_battery_info *info)
 {
 	int buf[2], ret, cnt;
@@ -855,6 +935,7 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 
 	/* measure temperature if the battery is present */
 	info->bat_params.temp = pm886_get_batt_temp(info) * 10;
+	info->bat_params.health = pm886_get_batt_health(info);
 
 	pm886_battery_calc_ccnt(info, &ccnt_data);
 	pm886_battery_correct_soc(info, &ccnt_data);
@@ -1181,7 +1262,7 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 		val->intval = info->bat_params.temp;
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
-		info->bat_params.health = POWER_SUPPLY_HEALTH_GOOD;
+		info->bat_params.health = pm886_get_batt_health(info);
 		val->intval = info->bat_params.health;
 		break;
 	default:
@@ -1312,6 +1393,18 @@ static int pm886_battery_dt_init(struct device_node *np,
 		else
 			info->temp_ohm_table[i].temp = temp;
 	}
+
+	/* ignore if fails */
+	of_property_read_u32(np, "abs-lowest-temp", &info->abs_lowest_temp);
+	of_property_read_u32(np, "t1-degree", &info->t1);
+	of_property_read_u32(np, "t2-degree", &info->t2);
+	of_property_read_u32(np, "t3-degree", &info->t3);
+	of_property_read_u32(np, "t4-degree", &info->t4);
+
+	info->t1 -= info->abs_lowest_temp;
+	info->t2 -= info->abs_lowest_temp;
+	info->t3 -= info->abs_lowest_temp;
+	info->t4 -= info->abs_lowest_temp;
 
 	return 0;
 }
