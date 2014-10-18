@@ -124,6 +124,9 @@ struct pm886_battery_info {
 	int			range_high_th;
 	int			sleep_counter_th;
 
+	int			power_off_th;
+	int			safe_power_off_th;
+
 	int			alart_percent;
 
 	int			irq_nums;
@@ -746,22 +749,95 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 	return 0;
 }
 
-/*
- * correct SoC according to user scenario:
- * for example, boost the SoC if the charger status has changed to FULL
- */
+/* correct SoC according to user scenario */
 static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
+	static int chg_status;
+
+	info->bat_params.volt = pm886_get_batt_vol(info, 1);
+	if (info->bat_params.status == POWER_SUPPLY_STATUS_UNKNOWN) {
+		dev_dbg(info->dev, "battery status unknown, dont update\n");
+		return;
+	}
+
+	/*
+	 * use ccnt_val, which is the real capacity,
+	 * not use the info->bat_parmas.soc
+	 */
+	chg_status = pm886_battery_get_charger_status(info);
+	switch (chg_status) {
+	case POWER_SUPPLY_STATUS_CHARGING:
+		/* TODO: add protection here? */
+		dev_dbg(info->dev, "%s: before: charging-->capacity: %d%%\n",
+			__func__, ccnt_val->soc);
+		info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
+		dev_dbg(info->dev, "%s: after: charging-->capacity: %d%%\n",
+			__func__, ccnt_val->soc);
+		break;
+	case POWER_SUPPLY_STATUS_FULL:
+		dev_dbg(info->dev, "%s: before: full-->capacity: %d\n",
+			__func__, ccnt_val->soc);
+
+		if (ccnt_val->soc < 100) {
+			dev_info(info->dev,
+				 "%s: %d: capacity %d%% < 100%%, ramp up..\n",
+				 __func__, __LINE__, ccnt_val->soc);
+			ccnt_val->soc++;
+			info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
+		}
+
+		if (ccnt_val->soc >= 100) {
+			ccnt_val->soc = 100;
+			info->bat_params.status = POWER_SUPPLY_STATUS_FULL;
+		}
+		dev_dbg(info->dev, "%s: after: full-->capacity: %d%%\n",
+			__func__, ccnt_val->soc);
+		break;
+	case POWER_SUPPLY_STATUS_DISCHARGING:
+	case POWER_SUPPLY_STATUS_UNKNOWN:
+	default:
+		dev_dbg(info->dev, "%s: before: discharging-->capacity: %d%%\n",
+			__func__, ccnt_val->soc);
+		/*
+		 * power_off_th      ===> capacity is no less than 1%
+		 *	|
+		 *	|
+		 *	v
+		 * safe_power_off_th ===> capacity is 0%
+		 *	|
+		 *	|
+		 *	v
+		 * system is dead
+		 */
+		if (info->bat_params.volt <= info->power_off_th) {
+			if (ccnt_val->soc > 0)
+				ccnt_val->soc--;
+			else if (ccnt_val->soc == 0)
+				ccnt_val->soc = 1;
+		} else if (info->bat_params.volt < info->safe_power_off_th) {
+			dev_info(info->dev, "%s: for safe: voltage = %d\n",
+				 __func__, info->bat_params.volt);
+			if (ccnt_val->soc >= 1)
+				ccnt_val->soc--;
+		}
+		if (ccnt_val->soc <= 0)
+			ccnt_val->soc = 0;
+
+		dev_dbg(info->dev, "%s: after: discharging-->capacity: %d%%\n",
+			__func__, ccnt_val->soc);
+		break;
+	}
+
+	ccnt_val->last_cc =
+		(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
+
 	return;
 }
 
 static void pm886_bat_update_status(struct pm886_battery_info *info)
 {
 	int ibat;
-
-	/* hardcode type[Lion] */
-	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
 	info->bat_params.volt = pm886_get_batt_vol(info, 1);
 
@@ -773,6 +849,9 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 		info->bat_params.temp = 250;
 		return;
 	}
+
+	/* use charger status if the battery is present */
+	info->bat_params.status = pm886_battery_get_charger_status(info);
 
 	/* measure temperature if the battery is present */
 	info->bat_params.temp = pm886_get_batt_temp(info) * 10;
@@ -894,7 +973,8 @@ out:
 	return ret;
 }
 
-static int pm886_calc_init_soc(struct pm886_battery_info *info)
+static int pm886_calc_init_soc(struct pm886_battery_info *info,
+			       struct ccnt *ccnt_val)
 {
 	int initial_soc = 80;
 	int ret, slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
@@ -997,9 +1077,9 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info)
 
 end:
 	/* update ccnt_data timely */
-	ccnt_data.soc = initial_soc;
-	ccnt_data.last_cc =
-		(ccnt_data.max_cc / 1000) * (ccnt_data.soc * 10 + 5);
+	ccnt_val->soc = initial_soc;
+	ccnt_val->last_cc =
+		(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
 
 	dev_info(info->dev,
 		 "<---- %s: initial soc = %d\n", __func__, initial_soc);
@@ -1026,9 +1106,16 @@ static int pm886_init_fuelgauge(struct pm886_battery_info *info)
 	/* 1. check whether the battery is present */
 	info->bat_params.present = pm886_check_battery_present(info);
 	/* 2. get initial_soc */
-	info->bat_params.soc = pm886_calc_init_soc(info);
+	info->bat_params.soc = pm886_calc_init_soc(info, &ccnt_data);
 	/* 3. the following initial the software status */
+	if (info->bat_params.present == 0) {
+		info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
+		info->bat_params.temp = 250;
+		return 0;
+	}
 	info->bat_params.status = pm886_battery_get_charger_status(info);
+	/* 4. hardcode type[Lion] */
+	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
 	return 0;
 }
@@ -1179,6 +1266,14 @@ static int pm886_battery_dt_init(struct device_node *np,
 	if (ret)
 		return ret;
 	ret = of_property_read_u32(np, "alart-percent", &info->alart_percent);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(np, "power-off-th", &info->power_off_th);
+	if (ret)
+		return ret;
+	ret = of_property_read_u32(np, "safe-power-off-th",
+				   &info->safe_power_off_th);
 	if (ret)
 		return ret;
 
