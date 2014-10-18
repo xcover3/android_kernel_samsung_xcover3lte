@@ -382,21 +382,6 @@ static bool pm886_check_battery_present(struct pm886_battery_info *info)
 	} else {
 		present = true;
 	}
-
-	/*
-	 * if the battery is not present and the "battery" voltage is good
-	 * suppose the external power supply is used, then disable detection
-	 */
-	if (info->use_ntc && !present) {
-#if 0
-		/* this part is for the "power supply mode" */
-		data = pm886_get_batt_vol(info, 1);
-		if (data > 3400)
-			present = true;
-		else
-			present = false;
-#endif
-	}
 out:
 	if (ret < 0)
 		present = true;
