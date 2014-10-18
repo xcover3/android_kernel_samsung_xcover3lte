@@ -167,6 +167,7 @@ struct pm886_chip {
 	u8 powerup;
 
 	struct notifier_block reboot_notifier;
+	struct notifier_block cb_nb;
 };
 
 struct regmap *get_companion(void);

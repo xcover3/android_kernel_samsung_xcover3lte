@@ -685,9 +685,9 @@ static int pm886_get_batt_health(struct pm886_battery_info *info)
 		break;
 	}
 	if ((old_range != range) && (old_range != MAX_RANGE)) {
-		/* TODO: notify charger */
 		dev_dbg(info->dev, "temperature changes: %d --> %d\n",
 			old_range, range);
+		power_supply_changed(&info->battery);
 	}
 	old_range = range;
 
