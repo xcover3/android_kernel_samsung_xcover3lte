@@ -7,7 +7,7 @@ Required properties:
 
 sensor node
 ------------
-- compatible	: "sony,imx219", "ovt,ov13850", "ovt,ov8858",
+- compatible	: "sony,imx219", "ovt,ov13850", "ovt,ov8858", "samsung,sr544",
 			"ovt,ov5648", "ovt,ov2680";
 - reg			: I2C slave address of the sensor;
 - adapter		: I2C adapter number;

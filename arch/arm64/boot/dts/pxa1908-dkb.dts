@@ -1263,6 +1263,24 @@
 				pwdn-gpios = <&gpio 68 1>;
 				reset-gpios = <&gpio 67 1>;
 			};
+			SR544: sensor@2 {
+				compatible = "samsung,sr544";
+				status = "okay";
+				reg = <0x28>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
 		};
 	};
 
