@@ -71,6 +71,10 @@
 #define MONITOR_INTERVAL		(HZ * 30)
 #define LOW_BAT_INTERVAL		(HZ * 5)
 #define LOW_BAT_CAP			(15)
+
+/* this flag is used to decide whether the ocv_flag needs update */
+static atomic_t in_resume = ATOMIC_INIT(0);
+
 enum {
 	ALL_SAVED_DATA,
 	SLEEP_COUNT,
@@ -776,8 +780,6 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 	pm886_battery_calc_ccnt(info, &ccnt_data);
 	pm886_battery_correct_soc(info, &ccnt_data);
 	info->bat_params.soc = ccnt_data.soc;
-
-	check_set_ocv_flag(info, &ccnt_data);
 }
 
 static void pm886_battery_monitor_work(struct work_struct *work)
@@ -791,6 +793,11 @@ static void pm886_battery_monitor_work(struct work_struct *work)
 
 	pm886_bat_update_status(info);
 	dev_dbg(info->dev, "%s is called, status update finished.\n", __func__);
+
+	if (atomic_read(&in_resume) == 1) {
+		check_set_ocv_flag(info, &ccnt_data);
+		atomic_set(&in_resume, 0);
+	}
 
 	/* notify when parameters are changed */
 	if ((prev_cap != info->bat_params.soc)
@@ -1410,6 +1417,7 @@ static int pm886_battery_resume(struct device *dev)
 	 * avoid to reading in short sleep case
 	 * to update ocv_is_realiable flag effectively
 	 */
+	atomic_set(&in_resume, 1);
 	queue_delayed_work(info->bat_wqueue,
 			   &info->monitor_work, 300 * HZ / 1000);
 	return 0;
