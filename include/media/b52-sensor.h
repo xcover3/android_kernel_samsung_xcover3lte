@@ -331,6 +331,7 @@ extern struct b52_sensor_data b52_imx219;
 extern struct b52_sensor_data b52_ov8858;
 extern struct b52_sensor_data b52_ov5648;
 extern struct b52_sensor_data b52_ov2680;
+extern struct b52_sensor_data b52_sr544;
 extern const struct b52_sensor_data *memory_sensor_match(char *sensor_name);
 extern void b52_init_workqueue(void *data);
 #endif

@@ -1361,7 +1361,10 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 
 		if (power->rst) {
 			gpiod_set_value_cansleep(power->rst, 1);
-			usleep_range(100, 120);
+			/* according to SR544 power sequence
+			driver have to delay > 10ms
+			*/
+			usleep_range(10000, 11000);
 			gpiod_set_value_cansleep(power->rst, 0);
 		}
 
@@ -2363,6 +2366,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 	{
 		.compatible = "ovt,ov2680",
 		.data = &b52_ov2680,
+	},
+#endif
+#ifdef CONFIG_B52_CAMERA_SR544
+	{
+		.compatible = "samsung,sr544",
+		.data = &b52_sr544,
 	},
 #endif
 	{  }
