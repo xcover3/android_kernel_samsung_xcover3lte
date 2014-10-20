@@ -42,7 +42,8 @@
 
 #define PORTQ_CP_NUM_MAX		16
 #define PORTQ_M3_NUM_MAX		5
-#define PORTQ_NUM_MAX			(PORTQ_CP_NUM_MAX + PORTQ_M3_NUM_MAX)
+#define PORTQ_M3_PORT_OFFSET	64
+#define PORTQ_NUM_MAX			(PORTQ_M3_PORT_OFFSET + PORTQ_M3_NUM_MAX)
 
 struct portq {
 	struct list_head tx_list;	/* portq tx list */

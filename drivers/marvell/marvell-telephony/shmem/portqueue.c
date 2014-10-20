@@ -79,7 +79,7 @@ struct portq_group portq_grp[portq_grp_cnt] = {
 	[portq_grp_m3] = {
 		.name = "m3",
 		.port_cnt = PORTQ_M3_NUM_MAX,
-		.port_offset = PORTQ_CP_NUM_MAX,
+		.port_offset = PORTQ_M3_PORT_OFFSET,
 		.priority = portq_m3_priority,
 	},
 };
@@ -347,7 +347,8 @@ static inline struct portq_group *__portq_get_group(int port)
 	struct portq_group *pgrp_end = portq_grp + portq_grp_cnt;
 
 	for (; pgrp != pgrp_end; pgrp++)
-		if (port < pgrp->port_offset + pgrp->port_cnt)
+		if (port < pgrp->port_offset + pgrp->port_cnt &&
+			port >= pgrp->port_offset)
 			return pgrp;
 
 	return NULL;
