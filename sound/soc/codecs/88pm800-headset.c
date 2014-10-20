@@ -69,6 +69,7 @@ struct pm800_hs_info {
 	struct regmap *map;
 	struct regmap *map_gpadc;
 	struct regmap *map_codec;
+	int chip_id;
 	int irq_headset;
 	int irq_hook;
 	struct work_struct work_release, work_init;
@@ -578,6 +579,12 @@ static int pm800_headset_suspend(struct platform_device *pdev,
 			enable_irq_wake(info->irq_hook);
 	}
 
+	/* enable sleep detect mode, z3's chip do not support */
+	if (info->chip_id != CHIP_PM86X_ID_Z3)
+		regmap_update_bits(hs_info->map, PM800_HEADSET_CNTRL,
+				PM800_HSDET_SLP,
+				PM800_HSDET_SLP);
+
 	return 0;
 }
 
@@ -590,6 +597,12 @@ static int pm800_headset_resume(struct platform_device *pdev)
 		if (info->hs_status == SND_JACK_HEADSET)
 			disable_irq_wake(info->irq_hook);
 	}
+
+	/* disable sleep detect mode, z3's chip do not support */
+	if (info->chip_id != CHIP_PM86X_ID_Z3)
+		regmap_update_bits(hs_info->map, PM800_HEADSET_CNTRL,
+				PM800_HSDET_SLP,
+				0);
 
 	return 0;
 }
@@ -685,6 +698,7 @@ static int pm800_headset_probe(struct platform_device *pdev)
 	}
 
 	hs_info->map = chip->regmap;
+	hs_info->chip_id = chip->chip_id;
 	hs_info->map_gpadc = chip->subchip->regmap_gpadc;
 	hs_info->map_codec = pm80x_get_companion(chip);
 	hs_info->dev = &pdev->dev;
