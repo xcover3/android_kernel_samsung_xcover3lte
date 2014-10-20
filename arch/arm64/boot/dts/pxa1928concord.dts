@@ -831,6 +831,14 @@
 						marvell,press-release-th = <600>;
 						marvell,micbias-supply = <&ldo14>;
 					};
+					onkey {
+						compatible = "marvell,88pm80x-onkey";
+						onkey-gpio-number = <1>;
+						/* hardware reset: just reset */
+						hw-rst-type = <1>;
+						/* long onkey: power down */
+						long-onkey-type = <1>;
+					};
 				};
 
 				pmic1: 88pm830@68 {

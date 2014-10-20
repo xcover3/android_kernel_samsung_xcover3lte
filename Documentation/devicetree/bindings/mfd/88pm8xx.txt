@@ -2,6 +2,7 @@
 
 Required parent device properties:
 - compatible : "marvell,88pm800"
+- compatible : "marvell,88pm80x-onkey"
 - reg : the I2C slave address for the 88pm8xx chip
 - interrupts : IRQ line for the 88pm8xx chip
 - interrupt-controller: describes the 88pm8xx as an interrupt controller
@@ -18,6 +19,7 @@ Device			 Description
 88pm80x-regulator	: regulator
 88pm80x-headset		: headset
 88pm80x-dvc		: dvc
+88pm80x-onkey		: onkey
 
 Example:
 
@@ -43,4 +45,9 @@ pmic: 88pm800@30 {
 	dvc {
 		  compatible = "marvell,88pm8xx-dvc";
 	};
+
+	onkey {
+		  compatible = "marvell,88pm80x-88pm80x-onkey";
+	};
+
       };
