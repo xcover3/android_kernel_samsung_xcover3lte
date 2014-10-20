@@ -58,13 +58,13 @@ static int get_vibrator_platdata(struct device_node *np,
 	int ret;
 	ret = of_property_read_u32(np, "min_timeout", &value);
 	if (ret < 0)
-		dev_err(info->dev, "vibrator min time out is not set\n");
+		dev_dbg(info->dev, "vibrator min time out is not set\n");
 	else
 		info->min_timeout = (int)value;
 
 	ret = of_property_read_u32(np, "duty_cycle", &value);
 	if (ret < 0)
-		dev_err(info->dev, "vibrator duty cycle is not set\n");
+		dev_dbg(info->dev, "vibrator duty cycle is not set\n");
 	else
 		info->duty_cycle = value;
 
@@ -118,7 +118,7 @@ static void vibrator_enable_set_timeout(struct timed_output_dev *sdev,
 	struct pwm_vibrator_info *info;
 	info = container_of(sdev, struct pwm_vibrator_info,
 				vibrator_timed_dev);
-	dev_err(info->dev, "Vibrator: Set duration: %dms\n", timeout);
+	dev_dbg(info->dev, "Vibrator: Set duration: %dms\n", timeout);
 
 	if (timeout <= 0) {
 		pwm_control_vibrator(info, VIBRA_OFF_VALUE);
@@ -188,7 +188,6 @@ static int vibrator_probe(struct platform_device *pdev)
 	init_timer(&info->vibrate_timer);
 	info->vibrate_timer.function = on_vibrate_timer_expired;
 	info->vibrate_timer.data = (unsigned long)info;
-
 	platform_set_drvdata(pdev, info);
 	return 0;
 }
@@ -201,11 +200,19 @@ static int vibrator_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id vibrator_dt_match[] = {
+	{ .compatible = "marvell,pwm-vibrator" },
+	{},
+};
+#endif
+
 static struct platform_driver vibrator_driver = {
 	.probe = vibrator_probe,
 	.remove = vibrator_remove,
 	.driver = {
 		   .name = "pwm-vibrator",
+		   .of_match_table = of_match_ptr(vibrator_dt_match),
 		   .owner = THIS_MODULE,
 		   },
 };
