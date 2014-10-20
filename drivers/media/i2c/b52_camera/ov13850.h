@@ -565,6 +565,7 @@ struct b52_sensor_data b52_ov13850 = {
 
 	.module = &ov13850_SUNNY,
 	.num_module =  1,
+	.reset_delay = 100,
 };
 
 #endif

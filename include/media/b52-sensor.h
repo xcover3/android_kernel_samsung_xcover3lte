@@ -221,6 +221,7 @@ struct b52_sensor_data {
 	struct b52_sensor_regs hflip;
 	struct b52_sensor_regs vflip;
 	int flip_change_phase;
+	int reset_delay;
 };
 
 struct b52_sensor_ops {

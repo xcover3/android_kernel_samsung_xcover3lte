@@ -2267,6 +2267,7 @@ struct b52_sensor_data b52_sr544 = {
 
 	.module = &sr544_SSG,
 	.num_module =  1,
+	.reset_delay = 10000,
 };
 
 #endif
