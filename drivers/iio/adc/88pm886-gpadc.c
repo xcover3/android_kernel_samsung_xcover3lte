@@ -19,6 +19,22 @@
 #include <linux/iio/driver.h>
 #include <linux/iio/machine.h>
 #include <linux/mfd/88pm886.h>
+#include <linux/delay.h>
+
+#define PM886_GAPDC_CONFIG11		(0x0b) /* perbias and bias for gpadc0 */
+#define PM886_GAPDC_CONFIG12		(0x0c) /* perbias and bias for gpadc1 */
+#define PM886_GAPDC_CONFIG13		(0x0d) /* perbias and bias for gpadc2 */
+#define PM886_GAPDC_CONFIG14		(0x0e) /* perbias and bias for gpadc3 */
+
+#define PM886_GPADC_CONFIG20		(0x14) /* gp_bias_out and gp_bias_en */
+
+enum {
+	GPADC_0_RES,
+	GPADC_1_RES,
+	GPADC_2_RES,
+	GPADC_3_RES,
+	GPADC_MAX,
+};
 
 enum {
 	VSC_VOLT_CHAN,
@@ -37,12 +53,18 @@ enum {
 	GPADC3_VOLT_CHAN,
 	MIC_DET_VOLT_CHAN,
 	VBAT_SLP_VOLT_CHAN = 13,
+
+	GPADC0_RES_CHAN = 14,
+	GPADC1_RES_CHAN = 15,
+	GPADC2_RES_CHAN = 16,
+	GPADC3_RES_CHAN = 17,
 };
 
 struct pm886_gpadc_info {
 	struct pm886_chip *chip;
 	struct mutex	lock;
 	u8 (*channel_to_reg)(int channel);
+	u8 (*channel_to_gpadc_num)(int channel);
 	struct iio_map *map;
 };
 
@@ -59,31 +81,82 @@ static u8 pm886_channel_to_reg(int channel)
 		/* gapdc 0/1/2 */
 		reg = 0x54 + (channel - 0x4) * 2;
 		break;
+
 	case VBAT_VOLT_CHAN:
 		reg = 0xa0;
 		break;
+
 	case GNDDET1_VOLT_CHAN:
 	case GNDDET2_VOLT_CHAN:
 	case VBUS_VOLT_CHAN:
 	case GPADC3_VOLT_CHAN:
 	case MIC_DET_VOLT_CHAN:
-		reg = 0xa5 + (channel - 0x8) * 2;
+		reg = 0xa4 + (channel - 0x8) * 2;
 		break;
 	case VBAT_SLP_VOLT_CHAN:
 		reg = 0xb0;
 		break;
+	case GPADC0_RES_CHAN:
+	case GPADC1_RES_CHAN:
+	case GPADC2_RES_CHAN:
+		/* gapdc 0/1/2 -- resistor */
+		reg = 0x54 + (channel - 0x14) * 2;
+		break;
+
+	case GPADC3_RES_CHAN:
+		/* gapdc 3 -- resistor */
+		reg = 0xa4 + (channel - 0xe) * 2;
+		break;
+
 	default:
 		reg = 0xb0;
 		break;
 	}
-	pr_info("%s: reg = 0x%x\n", __func__, reg);
+	pr_debug("%s: reg = 0x%x\n", __func__, reg);
 
 	return reg;
 }
 
+static u8 pm886_channel_to_gpadc_num(int channel)
+{
+	return (channel - GPADC0_RES_CHAN);
+}
+
+/*
+ * enable/disable bias current
+ * - there are 4 GPADC channels
+ * - the workable range for the GPADC is [0, 1400mV],
+ *   we choos [300mV, 1200mV] to get a more accurate value
+ */
+static int pm886_gpadc_set_current_generator(struct pm886_gpadc_info *info,
+					     int gpadc_number, int on)
+{
+	int ret;
+	u8 gp_bias_out, gp_bias_en, mask1, mask2;
+
+	if (gpadc_number > GPADC_3_RES || gpadc_number < GPADC_0_RES)
+		return -EINVAL;
+
+	mask1 = BIT(gpadc_number) << 4;
+	mask2 = BIT(gpadc_number);
+	if (on) {
+		gp_bias_out = mask1;
+		gp_bias_en = mask2;
+	} else {
+		gp_bias_out = 0;
+		gp_bias_en = 0;
+	}
+
+	ret = regmap_update_bits(info->chip->gpadc_regmap,
+				 PM886_GPADC_CONFIG20, mask1 | mask2,
+				 gp_bias_out | gp_bias_en);
+
+	return ret;
+}
+
 static int pm886_gpadc_get_raw(struct pm886_gpadc_info *gpadc, int channel, int *res)
 {
-	unsigned int buf[2];
+	u8 buf[2];
 	int raw, ret;
 	u8 reg = gpadc->channel_to_reg(channel);
 
@@ -93,11 +166,13 @@ static int pm886_gpadc_get_raw(struct pm886_gpadc_info *gpadc, int channel, int 
 		return ret;
 	}
 
-	raw = (buf[0] << 4) | (buf[1] & 0xf);
+	raw = ((buf[0] & 0xff)  << 4) | (buf[1] & 0xf);
 	raw &= 0xfff;
 	*res = raw;
 
-	dev_dbg(gpadc->chip->dev, "%s: reg_val = 0x%x\n", __func__, *res);
+	dev_dbg(gpadc->chip->dev,
+		"%s: reg = 0x%x, buf[0] = 0x%x, buf[1] = 0x%x, raw_val = %d\n",
+		 __func__, reg, buf[0], buf[1], *res);
 
 	return ret;
 }
@@ -116,10 +191,88 @@ static int pm886_gpadc_get_processed(struct pm886_gpadc_info *gpadc,
 
 	*res = val * ((iio->channels[channel]).address);
 
-	dev_dbg(gpadc->chip->dev, "%s: reg_val: 0x%x, result: %d, step: %ld\n",
-		 __func__, val, *res, (iio->channels[channel]).address);
+	dev_dbg(gpadc->chip->dev,
+		"%s: raw_val = 0x%x, step_val = %ld, processed_val = %d\n",
+		 __func__, val, (iio->channels[channel]).address, *res);
 
 	return ret;
+}
+
+static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
+					   int gpadc_number,
+					   int *bias_current, int *bias_voltage)
+{
+	int ret, i, channel;
+	u8 reg;
+	switch (gpadc_number) {
+	case GPADC_0_RES:
+		reg = PM886_GAPDC_CONFIG11;
+		channel = GPADC0_RES_CHAN;
+		break;
+	case GPADC_1_RES:
+		reg = PM886_GAPDC_CONFIG12;
+		channel = GPADC1_RES_CHAN;
+		break;
+	case GPADC_2_RES:
+		reg = PM886_GAPDC_CONFIG13;
+		channel = GPADC2_RES_CHAN;
+		break;
+	case GPADC_3_RES:
+		reg = PM886_GAPDC_CONFIG14;
+		channel = GPADC3_RES_CHAN;
+		break;
+	default:
+		dev_err(info->chip->dev, "unsupported gpadc!\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < 16; i++) {
+		/* uA */
+		*bias_current = 1 + i * 5;
+		ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, i);
+		if (ret < 0)
+			return ret;
+
+		ret = pm886_gpadc_get_processed(info, channel, bias_voltage);
+		if (ret < 0)
+			return ret;
+		if (*bias_voltage > 300000 && *bias_voltage < 1200000) {
+			dev_dbg(info->chip->dev,
+				"hit: current = %d, voltage = %d\n",
+				*bias_current, *bias_voltage);
+			break;
+		}
+	}
+
+	if (i == 16) {
+		dev_err(info->chip->dev, "cannot get right bias current!\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int pm886_gpadc_get_resistor(struct pm886_gpadc_info *gpadc,
+				    int channel, int *res)
+{
+	int ret, bias_current, bias_voltage ;
+
+	u8 gpadc_number = gpadc->channel_to_gpadc_num(channel);
+
+	/* enable bias current */
+	ret = pm886_gpadc_set_current_generator(gpadc, gpadc_number, 1);
+	if (ret < 0)
+		return ret;
+
+	ret = pm886_gpadc_choose_bias_current(gpadc, gpadc_number,
+					      &bias_current, &bias_voltage);
+	if (ret < 0)
+		return ret;
+
+	/* mv / uA */
+	*res = bias_voltage / bias_current;
+
+	return 0;
 }
 
 static int pm886_gpadc_read_raw(struct iio_dev *iio,
@@ -131,7 +284,9 @@ static int pm886_gpadc_read_raw(struct iio_dev *iio,
 
 	mutex_lock(&gpadc->lock);
 
-	dev_info(gpadc->chip->dev, "name: %s\n", chan->datasheet_name);
+	dev_dbg(gpadc->chip->dev, "%s: channel name = %s\n",
+		__func__, chan->datasheet_name);
+
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		err = pm886_gpadc_get_raw(gpadc, chan->channel, val);
@@ -140,6 +295,11 @@ static int pm886_gpadc_read_raw(struct iio_dev *iio,
 
 	case IIO_CHAN_INFO_PROCESSED:
 		err = pm886_gpadc_get_processed(gpadc, chan->channel, val);
+		err = err ? -EIO : IIO_VAL_INT;
+		break;
+
+	case IIO_CHAN_INFO_SCALE:
+		err = pm886_gpadc_get_resistor(gpadc, chan->channel, val);
 		err = err ? -EIO : IIO_VAL_INT;
 		break;
 
@@ -185,6 +345,12 @@ static const struct iio_chan_spec pm886_gpadc_channels[] = {
 	/* FIXME */
 	ADC_CHANNEL(MIC_DET_VOLT_CHAN, 1367, IIO_VOLTAGE, "mic_det", IIO_CHAN_INFO_RAW),
 	ADC_CHANNEL(VBAT_SLP_VOLT_CHAN, 1367, IIO_VOLTAGE, "vbat_slp", IIO_CHAN_INFO_PROCESSED),
+
+	/* the following are virtual channels used to measure the resistor */
+	ADC_CHANNEL(GPADC0_RES_CHAN, 342, IIO_TEMP, "gpadc0_res", IIO_CHAN_INFO_SCALE),
+	ADC_CHANNEL(GPADC1_RES_CHAN, 342, IIO_TEMP, "gpadc1_res", IIO_CHAN_INFO_SCALE),
+	ADC_CHANNEL(GPADC2_RES_CHAN, 342, IIO_TEMP, "gpadc2_res", IIO_CHAN_INFO_SCALE),
+	ADC_CHANNEL(GPADC3_RES_CHAN, 342, IIO_TEMP, "gpadc3_res", IIO_CHAN_INFO_SCALE),
 };
 
 
@@ -232,6 +398,11 @@ static struct iio_map pm886_default_iio_maps[] = {
 		.consumer_channel = "vbat_slp",
 		.adc_channel_label = "vbat_slp",
 	},
+	{
+		.consumer_dev_name = "88pm886-battery",
+		.consumer_channel = "gpadc3_res",
+		.adc_channel_label = "gpadc3_res",
+	},
 	{ }
 };
 
@@ -273,6 +444,7 @@ static int pm886_gpadc_probe(struct platform_device *pdev)
 	gpadc = iio_priv(iio);
 	gpadc->chip = chip;
 	gpadc->channel_to_reg = pm886_channel_to_reg;
+	gpadc->channel_to_gpadc_num = pm886_channel_to_gpadc_num;
 
 	mutex_init(&gpadc->lock);
 
