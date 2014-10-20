@@ -30,7 +30,9 @@
 #include <linux/of_address.h>
 
 #include <trace/events/pxa.h>
-
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+#include <linux/platform_data/gpu4dev.h>
+#endif
 #include <linux/clk/mmpdcstat.h>
 
 
@@ -40,37 +42,15 @@
 #define KHZ_TO_HZ   1000
 
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-/* notifier to change the devfreq govoner's upthreshold */
-static int upthreshold_freq_notifer_call(struct notifier_block *nb,
-	       unsigned long val, void *data)
+static struct ddr_devfreq_data *ddrfreq_driver_data;
+
+static inline void __update_dev_upthreshold(unsigned int upthrd,
+		struct devfreq_throughput_data *gov_data)
 {
-	struct cpufreq_freqs *freq = data;
-	struct ddr_devfreq_data *cur_data =
-		container_of(nb, struct ddr_devfreq_data, freq_transition);
-	struct devfreq *devfreq = cur_data->devfreq;
-	struct devfreq_throughput_data *gov_data;
 	int i;
 
-	if (val != CPUFREQ_POSTCHANGE)
-		return NOTIFY_OK;
-
-	mutex_lock(&devfreq->lock);
-	gov_data = devfreq->data;
-	if ((freq->new >= cur_data->high_upthrd_swp) &&
-			(freq->old < cur_data->high_upthrd_swp)) {
-		gov_data->upthreshold = cur_data->high_upthrd;
-		for (i = 0; i < gov_data->table_len; i++) {
-			gov_data->throughput_table[i].up =
-				gov_data->upthreshold *
-				gov_data->freq_table[i] / 100;
-			gov_data->throughput_table[i].down =
-				(gov_data->upthreshold -
-				gov_data->downdifferential) *
-				gov_data->freq_table[i] / 100;
-		}
-	} else if ((freq->new < cur_data->high_upthrd_swp) &&
-			(freq->old >= cur_data->high_upthrd_swp)) {
-		gov_data->upthreshold = DDR_DEVFREQ_UPTHRESHOLD;
+	if (gov_data->upthreshold != upthrd) {
+		gov_data->upthreshold = upthrd;
 		for (i = 0; i < gov_data->table_len; i++) {
 			gov_data->throughput_table[i].up =
 				gov_data->upthreshold *
@@ -81,12 +61,58 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 				gov_data->freq_table[i] / 100;
 		}
 	}
+}
+
+/* notifier to change the devfreq govoner's upthreshold */
+static int upthreshold_freq_notifer_call(struct notifier_block *nb,
+		unsigned long val, void *data)
+{
+	struct cpufreq_freqs *freq = data;
+	struct ddr_devfreq_data *cur_data =
+		container_of(nb, struct ddr_devfreq_data, freq_transition);
+	struct devfreq *devfreq = cur_data->devfreq;
+	struct devfreq_throughput_data *gov_data;
+	int evoc = 0;
+	unsigned int upthrd;
+
+	if (val != CPUFREQ_POSTCHANGE &&
+	    val != GPUFREQ_POSTCHANGE_UP &&
+	    val != GPUFREQ_POSTCHANGE_DOWN)
+		return NOTIFY_OK;
+
+	mutex_lock(&devfreq->lock);
+	gov_data = devfreq->data;
+
+	if (val == GPUFREQ_POSTCHANGE_UP)
+		cur_data->gpu_up = 1;
+	else if (val == GPUFREQ_POSTCHANGE_DOWN)
+		cur_data->gpu_up = 0;
+	else if (freq->new >= cur_data->high_upthrd_swp)
+		cur_data->cpu_up = 1;
+	else
+		cur_data->cpu_up = 0;
+
+	evoc = generate_evoc(cur_data->gpu_up, cur_data->cpu_up);
+
+	if (evoc)
+		upthrd = cur_data->high_upthrd;
+	else
+		upthrd = DDR_DEVFREQ_UPTHRESHOLD;
+
+	__update_dev_upthreshold(upthrd, gov_data);
 	mutex_unlock(&devfreq->lock);
 
 	trace_pxa_ddr_upthreshold(gov_data->upthreshold);
 
 	return NOTIFY_OK;
 }
+
+int gpufeq_register_dev_notifier(struct srcu_notifier_head *gpu_notifier_chain)
+{
+	return srcu_notifier_chain_register(gpu_notifier_chain,
+					&ddrfreq_driver_data->freq_transition);
+}
+EXPORT_SYMBOL(gpufeq_register_dev_notifier);
 
 /* default using 65% as upthreshold and 5% as downdifferential */
 static struct devfreq_throughput_data devfreq_throughput_data = {
@@ -1266,8 +1292,11 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 
 	data->high_upthrd_swp = 800000;
 	data->high_upthrd = 30;
+	data->cpu_up = 0;
+	data->gpu_up = 0;
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 	data->freq_transition.notifier_call = upthreshold_freq_notifer_call;
+	ddrfreq_driver_data = data;
 #endif /* CONFIG_DEVFREQ_GOV_THROUGHPUT */
 	ddrfreq_data = data;
 
