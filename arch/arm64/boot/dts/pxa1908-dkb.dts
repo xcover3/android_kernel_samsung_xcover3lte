@@ -1120,6 +1120,14 @@
 		};
 	};
 
+	vibrator {
+		compatible = "marvell,pwm-vibrator";
+		pwms = <&pwm4 0 1000>;
+		min_timeout = <0>;
+		duty_cycle = <800>;
+		vibrator-supply = <&ldo9>;
+	};
+
 	panel1: hx8394 {
 		compatible = "marvell,mmp-hx8394";
 		marvell,path-name = "mmp_pnpath";

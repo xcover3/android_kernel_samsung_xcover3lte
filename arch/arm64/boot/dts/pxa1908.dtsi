@@ -551,6 +551,14 @@
 				clocks = <&soc_clocks PXA1U88_CLK_UART2>;
 			};
 
+			pwm4: pwm@d401ac00 {
+				compatible = "marvell,pxa25x-pwm";
+				reg = <0xd401ac00 0x10>;
+				#pwm-cells = <2>;
+				clocks = <&soc_clocks PXA1U88_CLK_PWM3>;
+				status = "okay";
+			};
+
 			gpio: gpio@d4019000 {
 				compatible = "marvell,mmp-gpio";
 				#address-cells = <1>;
