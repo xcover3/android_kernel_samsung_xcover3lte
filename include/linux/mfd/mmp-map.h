@@ -506,6 +506,8 @@ struct map_private {
 
 	/* map is used by cp and fm */
 	bool map_i2s2_i2s3_active;
+	int playback_count;
+	int capture_count;
 };
 
 enum mmp_map_port {

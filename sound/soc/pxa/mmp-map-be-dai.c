@@ -413,10 +413,15 @@ static int mmp_map_be_trigger(struct snd_pcm_substream *substream, int cmd,
 			 * So I2S_REC_EN should be set. Playback is
 			 * similar. This is opposite to fe dai.
 			 */
-			if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-				inf |= I2S_GEN_EN;
-			else
-				inf |= I2S_REC_EN;
+			if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				map_priv->playback_count++;
+				if (map_priv->playback_count == 1)
+					inf |= I2S_GEN_EN;
+			} else {
+				map_priv->capture_count++;
+				if (map_priv->capture_count == 1)
+					inf |= I2S_REC_EN;
+			}
 			map_raw_write(map_priv, addr, inf);
 		} else if (dai->id == 2) {
 			inf = map_raw_read(map_priv, addr);
@@ -458,10 +463,15 @@ static int mmp_map_be_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		if (dai->id == 1) {
 			inf = map_raw_read(map_priv, addr);
-			if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-				inf &= ~I2S_GEN_EN;
-			else
-				inf &= ~I2S_REC_EN;
+			if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				map_priv->playback_count--;
+				if (map_priv->playback_count == 0)
+					inf &= ~I2S_GEN_EN;
+			} else {
+				map_priv->capture_count--;
+				if (map_priv->capture_count == 0)
+					inf &= ~I2S_REC_EN;
+			}
 			map_raw_write(map_priv, addr, inf);
 		} else if (dai->id == 2) {
 			inf = map_raw_read(map_priv, addr);
