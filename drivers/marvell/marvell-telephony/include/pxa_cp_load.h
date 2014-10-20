@@ -64,7 +64,7 @@ extern void release_fc_mutex(void);
 int cp_invoke_smc(u64 function_id, u64 arg0, u64 arg1,
 	u64 arg2);
 
-#define SMC_FUNC_SEAGULL_REMAP 0xC3002001
+#define SMC_FUNC_SEAGULL_REMAP 0xD0002001
 
 static inline int cp_set_seagull_remap_reg(u64 val)
 {
