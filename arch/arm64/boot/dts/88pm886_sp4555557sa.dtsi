@@ -15,6 +15,14 @@
 
 &pmic0 {
 	charger {
+		prechg-current = <450>;
+		prechg-voltage = <3000>;
+		fastchg-voltage = <4200>;
+		fastchg-cur = <1000>;
+		fastchg-eoc = <20>;
+		fastchg-tout = <8>;
+		recharge-thr = <50>;
+		status = "okay";
 	};
 
 	battery {
