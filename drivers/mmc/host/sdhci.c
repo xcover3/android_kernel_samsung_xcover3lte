@@ -1388,7 +1388,7 @@ static int sdhci_set_power(struct sdhci_host *host, unsigned short power)
 		if (host->quirks2 & SDHCI_QUIRK2_CARD_ON_NEEDS_BUS_ON)
 			sdhci_runtime_pm_bus_off(host);
 		if (host->mmc->card && mmc_card_sd(host->mmc->card) &&
-				!(host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION))
+				(host->quirks2 & SDHCI_QUIRK2_VQMMC_ALWAYS_ON))
 			return -1;
 		else
 			return 0;
@@ -2052,10 +2052,11 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		}
 		return 0;
 	case MMC_SIGNAL_VOLTAGE_OFF:
-		if (host->vqmmc && (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) &&
-			host->mmc->regulator_vqmmc_enabled)
+		if (host->vqmmc && !(host->quirks2 & SDHCI_QUIRK2_VQMMC_ALWAYS_ON) &&
+			host->mmc->regulator_vqmmc_enabled) {
 			if (!regulator_disable(host->vqmmc))
 				host->mmc->regulator_vqmmc_enabled = false;
+		}
 		return 0;
 	default:
 		/* No signal voltage switch required */

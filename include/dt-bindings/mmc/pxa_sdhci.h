@@ -95,6 +95,8 @@
 #define SDHCI_QUIRK2_TIMEOUT_SHORT			(1<<18)
 /* HS200/SDR104 tuning broken and must use predefined fixed delay */
 #define SDHCI_QUIRK2_TUNING_BROKEN                      (1<<20)
+/* Vqmmc needs always on to keep host power on for card detection */
+#define SDHCI_QUIRK2_VQMMC_ALWAYS_ON			(1<<21)
 
 /* Tuning mode define */
 #define PXA_SDH_TUNING_DEFAULT 0

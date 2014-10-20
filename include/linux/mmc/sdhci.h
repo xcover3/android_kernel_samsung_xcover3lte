@@ -124,6 +124,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS		(1<<19)
 /* HS200/SDR104 tuning broken and must use predefined fixed delay */
 #define SDHCI_QUIRK2_TUNING_BROKEN			(1<<20)
+/* Vqmmc needs always on to keep host power on for card detection */
+#define SDHCI_QUIRK2_VQMMC_ALWAYS_ON			(1<<21)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
