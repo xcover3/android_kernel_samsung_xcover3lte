@@ -927,6 +927,7 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 	if (info->bat_params.present == 0) {
 		info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
 		info->bat_params.temp = 250;
+		info->bat_params.soc = 80;
 		return;
 	}
 
@@ -1192,6 +1193,7 @@ static int pm886_init_fuelgauge(struct pm886_battery_info *info)
 	if (info->bat_params.present == 0) {
 		info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
 		info->bat_params.temp = 250;
+		info->bat_params.soc = 80;
 		return 0;
 	}
 	info->bat_params.status = pm886_battery_get_charger_status(info);
