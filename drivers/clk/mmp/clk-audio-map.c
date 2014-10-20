@@ -77,7 +77,25 @@ struct map_clk_apll1_table {
 	unsigned long vco_div;
 };
 
-/* power on/off func of helan2 seires: helan2/ulc/helan3 */
+/* power on/off func of ulcx seires: ulc1 etc */
+static void ulcx_power_on(void __iomem *apmu_base, struct clk *puclk, int pwr_on)
+{
+	u32 val;
+
+	if (pwr_on) {
+		/* clock enable: by deafult choose vctcxo */
+		val = readl_relaxed(apmu_base + APMU_AUD_CLK);
+		val |= 0xd;
+		writel_relaxed(val, apmu_base + APMU_AUD_CLK);
+	} else {
+		/* clock disable */
+		val = readl_relaxed(apmu_base + APMU_AUD_CLK);
+		val &= ~0xd;
+		writel_relaxed(val, apmu_base + APMU_AUD_CLK);
+	}
+}
+
+/* power on/off func of helan2 seires: helan2/helan3 */
 static void helanx_power_on(void __iomem *apmu_base, struct clk *puclk, int pwr_on)
 {
 	u32 val;
@@ -1049,6 +1067,8 @@ static int clk_parse_map_dt(struct device_node *np, struct map_clk_unit *map_uni
 		map_unit->poweron_cb = helanx_power_on;
 	else if (power_ctrl == EDENX_POWER_CTRL)
 		map_unit->poweron_cb = edenx_power_on;
+	else if (power_ctrl == ULCX_POWER_CTRL)
+		map_unit->poweron_cb = ulcx_power_on;
 	else {
 		pr_err("wrong power ctrl for audio map\n");
 		return -EINVAL;
