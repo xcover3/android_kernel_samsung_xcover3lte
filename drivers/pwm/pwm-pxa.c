@@ -136,7 +136,7 @@ static struct pwm_ops pxa_pwm_ops = {
  * supported identically.
  */
 static struct of_device_id pwm_of_match[] = {
-	{ .compatible = "marvell,pxa250-pwm", .data = &pwm_id_table[0]},
+	{ .compatible = "marvell,pxa25x-pwm", .data = &pwm_id_table[0]},
 	{ .compatible = "marvell,pxa270-pwm", .data = &pwm_id_table[0]},
 	{ .compatible = "marvell,pxa168-pwm", .data = &pwm_id_table[0]},
 	{ .compatible = "marvell,pxa910-pwm", .data = &pwm_id_table[0]},
@@ -154,7 +154,7 @@ static const struct platform_device_id *pxa_pwm_get_id_dt(struct device *dev)
 	return id ? id->data : NULL;
 }
 
-static struct pwm_device *
+static __maybe_unused struct pwm_device *
 pxa_pwm_of_xlate(struct pwm_chip *pc, const struct of_phandle_args *args)
 {
 	struct pwm_device *pwm;
@@ -195,11 +195,6 @@ static int pwm_probe(struct platform_device *pdev)
 	pwm->chip.ops = &pxa_pwm_ops;
 	pwm->chip.base = -1;
 	pwm->chip.npwm = (id->driver_data & HAS_SECONDARY_PWM) ? 2 : 1;
-
-	if (IS_ENABLED(CONFIG_OF)) {
-		pwm->chip.of_xlate = pxa_pwm_of_xlate;
-		pwm->chip.of_pwm_n_cells = 1;
-	}
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pwm->mmio_base = devm_ioremap_resource(&pdev->dev, r);
