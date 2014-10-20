@@ -629,7 +629,7 @@
 				bit_sram = <3>;
 				bit_apb = <2>;
 				pll_sel = <0>;
-				power_ctrl = <0>;
+				power_ctrl = <2>;
 				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
 				status = "disabled";
 			};
