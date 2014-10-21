@@ -802,8 +802,9 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 	ccnt_uc = ccnt_uc * factor;
 	ccnt_uc = div_s64(ccnt_uc, 1000);
 	ccnt_mc = div_s64(ccnt_uc, 1000);
-	dev_dbg(info->dev, "%s--> ccnt_uc: %lld uC, ccnt_mc: %lld mC\n",
-		__func__, ccnt_uc, ccnt_mc);
+	dev_dbg(info->dev,
+		"%s--> ccnt_uc: %lld uC, ccnt_mc: %lld mC, old->last_cc: %d%%\n",
+		__func__, ccnt_uc, ccnt_mc, ccnt_val->last_cc);
 
 	/* 2. add the value */
 	ccnt_val->last_cc += ccnt_mc;
@@ -821,7 +822,7 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 	ccnt_val->soc = ccnt_val->last_cc * 100 / ccnt_val->max_cc;
 
 	dev_dbg(info->dev,
-		 "%s<-- ccnt_val->soc: %d, ccnt_val->last_cc: %d mC\n",
+		 "%s<-- ccnt_val->soc: %d%%, new->last_cc: %d mC\n",
 		 __func__, ccnt_val->soc, ccnt_val->last_cc);
 
 	return 0;
@@ -831,7 +832,7 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
-	static int chg_status;
+	static int chg_status, old_soc;
 
 	info->bat_params.volt = pm886_get_batt_vol(info, 1);
 	if (info->bat_params.status == POWER_SUPPLY_STATUS_UNKNOWN) {
@@ -844,6 +845,7 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 	 * not use the info->bat_parmas.soc
 	 */
 	chg_status = pm886_battery_get_charger_status(info);
+	old_soc = ccnt_val->soc;
 	switch (chg_status) {
 	case POWER_SUPPLY_STATUS_CHARGING:
 		/* TODO: add protection here? */
@@ -907,8 +909,12 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		break;
 	}
 
-	ccnt_val->last_cc =
-		(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
+	if (old_soc != ccnt_val->soc) {
+		dev_info(info->dev, "%s: needs update: %d%% -> %d%%\n",
+			 __func__, old_soc, ccnt_val->soc);
+		ccnt_val->last_cc =
+			(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
+	}
 
 	return;
 }
