@@ -119,7 +119,7 @@ struct pm886_battery_info {
 	bool			use_ntc;
 	int			gpadc_no;
 
-	bool			ocv_is_realiable;
+	int			ocv_is_realiable;
 	int			range_low_th;
 	int			range_high_th;
 	int			sleep_counter_th;
@@ -473,8 +473,7 @@ static int pm886_get_batt_vol(struct pm886_battery_info *info, int active)
 		channel = info->chan[VBATT_SLP_CHAN];
 
 	if (!channel) {
-		dev_err(info->dev, "cannot get the useable channel: %s\n",
-			channel->channel->datasheet_name);
+		pr_err("%s: cannot get useable channel\n", __func__);
 		return -EINVAL;
 	}
 
@@ -590,8 +589,7 @@ static int pm886_get_batt_temp(struct pm886_battery_info *info)
 	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
 
 	if (!channel) {
-		dev_err(info->dev, "cannot get the useable channel: %s\n",
-			channel->channel->datasheet_name);
+		pr_err("%s: cannot get useable channel.\n", __func__);
 		return -EINVAL;
 	}
 
