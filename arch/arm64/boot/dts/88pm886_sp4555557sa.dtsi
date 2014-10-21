@@ -21,7 +21,7 @@
 		fastchg-cur = <1000>;
 		fastchg-eoc = <20>;
 		fastchg-tout = <8>;
-		recharge-thr = <50>;
+		recharge-thr = <200>;
 		status = "okay";
 	};
 
