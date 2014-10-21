@@ -51,7 +51,7 @@
 
 #define PM886_TIMER_CONFIG		(0x31)
 #define PM886_FASTCHG_TOUT_OFFSET	(0)
-#define PM886_RECHG_THR_SET_OFFSET	(4)
+#define PM886_RECHG_THR_SET_50MV	(0x0 << 4)
 #define PM886_CHG_ILIM_EXTD_1X5		(0x3 << 6)
 
 #define PM886_EXT_ILIM_CONFIG		(0x34)
@@ -304,7 +304,7 @@ static int pm886_config_charger(struct pm886_charger_info *info)
 
 	/* config fast charge timeout, rechare vol and ilim exted */
 	data =  (get_fastchg_timeout(info) << PM886_FASTCHG_TOUT_OFFSET)
-		| (get_recharge_vol(info) << PM886_RECHG_THR_SET_OFFSET);
+		| PM886_RECHG_THR_SET_50MV;
 	if (limit_cur > 1600) {
 		limit_cur *= 2;
 		limit_cur /= 3;
