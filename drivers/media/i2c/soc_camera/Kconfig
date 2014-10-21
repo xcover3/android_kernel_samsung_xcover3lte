@@ -91,3 +91,9 @@ config SOC_CAMERA_S5K8AA
 	depends on SOC_CAMERA && I2C
 	help
 	  This is a V4L2 camera driver for the s5k8aa sensor
+
+config SOC_CAMERA_SR200
+	tristate "SR200 camera support"
+	depends on SOC_CAMERA && I2C
+	help
+	  This is a V4L2 camera driver for the sr200 sensor
