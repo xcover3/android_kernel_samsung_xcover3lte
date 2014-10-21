@@ -29,25 +29,19 @@ extern struct soc_camera_desc soc_camera_desc_0;
 #define OV5640_CCIC_PORT 0
 #define GPIO_TORCH_EN 12 /* For pxa1L88 */
 #define GPIO_FLASH_EN 18 /* For pxa1L88 */
-extern struct soc_camera_desc soc_camera_desc_1;
+extern struct soc_camera_desc soc_camera_desc_3;
 #endif
 
-#if defined(CONFIG_SOC_CAMERA_SP0A20_ECS) && !defined(CONFIG_MACH_SOC_CAMERA_L7)
+#ifdef CONFIG_SOC_CAMERA_SP0A20_ECS
 #define SP0A20_PWDN_PIN 68
 #define SP0A20_RESET_PIN 69
 #define SP0A20_CCIC_PORT 1
 extern struct soc_camera_desc soc_camera_desc_2;
 #endif
 
-#endif /* End of CONFIG_MACH_SOC_CAMERA_DKB */
-
-/* this camera can support on L7, we recommend AE move this in the future */
-
-#ifdef CONFIG_SOC_CAMERA_SP1628
-#define SP1628_PWDN_PIN 68
-#define SP1628_RESET_PIN 69
-#define SP1628_CCIC_PORT 1
-extern struct soc_camera_desc soc_camera_desc_2;
+#ifdef CONFIG_SOC_CAMERA_SR200
+#define SR200_CCIC_PORT 1
+extern struct soc_camera_desc soc_camera_desc_1;
 #endif
 
-
+#endif
