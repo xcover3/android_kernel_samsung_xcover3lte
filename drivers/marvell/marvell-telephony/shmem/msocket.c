@@ -433,7 +433,8 @@ static void msocket_disconnect(enum portq_grp_type grp_type)
 
 enum seq_dump_item {
 	/* 0 ~ portq_grp_cnt - 1 */
-	seq_dump_diag = portq_grp_cnt,
+	seq_dump_dummy = portq_grp_cnt,
+	seq_dump_diag,
 	seq_dump_end,
 };
 
@@ -441,15 +442,23 @@ static inline int pos2seq(int pos)
 {
 	struct portq_group *pgrp = portq_grp;
 	struct portq_group *pgrp_end = portq_grp + portq_grp_cnt;
-	int sum = 0;
+	int max_port = (pgrp_end - 1)->port_offset +
+		(pgrp_end - 1)->port_cnt;
 
 	for (; pgrp != pgrp_end; pgrp++) {
-		if (pos < pgrp->port_offset + pgrp->port_cnt)
+		if (pos < pgrp->port_offset + pgrp->port_cnt &&
+			pos >= pgrp->port_offset)
 			return pgrp - portq_grp;
-		sum += pgrp->port_cnt;
 	}
+	/*
+	 * ugly workaround
+	 * TODO: rewrite them
+	 */
 
-	return pos - sum + portq_grp_cnt;
+	if (pos < max_port)
+		return seq_dump_dummy;
+
+	return pos - max_port + 1 + seq_dump_dummy;
 }
 
 #define PROC_FILE_NAME		"driver/msocket"
@@ -520,13 +529,12 @@ static int msocket_seq_show(struct seq_file *s, void *v)
 	long pos = (long)v - (long)SEQ_START_TOKEN;
 	int seq = pos2seq(pos);
 
-	/* diag */
 	if (seq < portq_grp_cnt) {
 		struct portq_group *pgrp = &portq_grp[seq];
 		int idx = pos - pgrp->port_offset;
 		struct portq *portq;
 
-		if (!pgrp->is_inited)
+		if (!pgrp->is_inited || idx > pgrp->port_cnt)
 			return 0;
 
 		portq = pgrp->port_list[idx];
@@ -595,6 +603,7 @@ static int msocket_seq_show(struct seq_file *s, void *v)
 			spin_unlock(&portq->lock);
 		}
 	} else if (seq == seq_dump_diag) {
+		/* diag */
 		struct direct_rbctl *dir_ctl;
 		const struct direct_rbctl *dir_ctl_end =
 			direct_rbctl + direct_rb_type_total_cnt;
