@@ -1214,7 +1214,7 @@
 	};
 
 	soc-camera@1 {
-		status = "disable";
+		status = "okay";
 	};
 
 	plat_cam {
