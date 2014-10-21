@@ -361,7 +361,7 @@
 				   compatible = "marvell,mmp-sc2ccic";
 				   reg = <0xd420a000 0x2ff>;
 				   reg-names = "ccic-regs";
-				   dma-burst = <64>;
+				   dma-burst = <256>;
 				   mclk-src = <3>;
 				   mclk-div = <13>;
 				   interrupts = <0 42 0x4>;
