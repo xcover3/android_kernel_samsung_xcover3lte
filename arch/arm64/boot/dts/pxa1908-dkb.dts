@@ -1308,6 +1308,10 @@
 	tzdd {
 		status = "okay";
 	};
+
+	dip {
+		compatible = "marvell,simple-dip";
+	};
 };
 
 #include "88pm886.dtsi"
