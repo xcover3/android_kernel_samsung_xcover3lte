@@ -14,6 +14,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/pm_qos.h>
 #include <linux/notifier.h>
 #include <linux/devfreq.h>
@@ -153,8 +154,8 @@ static int simple_dip_probe(struct platform_device *dev)
 	dip_info->misc_dev.name = DRV_NAME;
 	dip_info->misc_dev.fops = &simple_dip_fops;
 	dip_info->comp_info_array.comp_info = comp_info_temp;
-	dip_info->cpu = clk_get(NULL, CLK_CPU);
-	if (IS_ERR(dip_info->cpu)) {
+	dip_info->cpu = __clk_lookup(CLK_CPU);
+	if (!dip_info->cpu) {
 		pr_err("cannot get clk(cpu)\n");
 		goto err_free_dip;
 	}
@@ -166,8 +167,8 @@ static int simple_dip_probe(struct platform_device *dev)
 	dip_info->cpu_max_qos.name = "dip_cpu_max";
 	pm_qos_add_request(&dip_info->cpu_max_qos, PM_QOS_CPUFREQ_MAX, INT_MAX);
 
-	dip_info->ddr = clk_get(NULL, CLK_DDR);
-	if (IS_ERR(dip_info->ddr)) {
+	dip_info->ddr = __clk_lookup(CLK_DDR);
+	if (!dip_info->ddr) {
 		pr_err("cannot get clk(ddr)\n");
 		goto err_free_dip;
 	}
