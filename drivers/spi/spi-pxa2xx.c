@@ -1279,6 +1279,10 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	drv_data->irq = ssp->irq;
 	master->bus_num = ssp->port_id;
 #endif
+	if (IS_ERR_OR_NULL(drv_data->clk)) {
+		dev_err(&pdev->dev, "cannot get clk\n");
+		goto out_error_clk_check;
+	}
 
 	drv_data->master = master;
 	drv_data->master_info = platform_info;
@@ -1371,6 +1375,7 @@ out_error_clock_enabled:
 	pxa2xx_spi_dma_release(drv_data);
 	free_irq(drv_data->irq, drv_data);
 out_error_lpm:
+out_error_clk_check:
 	deinit_dvfm_constraint(drv_data);
 out_error_master_alloc:
 	kfree(drv_data->alloc_dma_buf);
