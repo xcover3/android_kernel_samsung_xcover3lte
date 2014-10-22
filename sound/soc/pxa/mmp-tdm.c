@@ -396,7 +396,7 @@ int mmp_tdm_slot_inc(struct tdm_manage_private *tdm_man_priv,
 		if (slot < 0)
 			return slot;
 	} else
-		dev_info(tdm_man_priv->dev, "doesn't need increase slot\n");
+		dev_dbg(tdm_man_priv->dev, "doesn't need increase slot\n");
 
 	if (!tdm_man_priv->use_4_wires) {
 		for (i = 0; i < tx_num; i++)
@@ -446,7 +446,7 @@ int mmp_tdm_slot_dec(struct tdm_manage_private *tdm_man_priv)
 	}
 
 	if (slot == tdm_man_priv->slot_tol) {
-		dev_info(tdm_man_priv->dev, "doesn't need decrease slot\n");
+		dev_dbg(tdm_man_priv->dev, "doesn't need decrease slot\n");
 		return slot;
 	}
 
@@ -614,7 +614,7 @@ int mmp_tdm_static_slot_alloc(struct snd_pcm_substream *substream,
 				slot = rx[i];
 		}
 		if (slot == tdm_man_priv->slot_tol) {
-			dev_info(tdm_man_priv->dev,
+			dev_dbg(tdm_man_priv->dev,
 					"tdm slot has been allocated\n");
 			mutex_unlock(&tdm_man_priv->mutex);
 			return slot;
@@ -655,7 +655,7 @@ int mmp_tdm_static_slot_alloc(struct snd_pcm_substream *substream,
 		tdm_man_priv->rx_unused_slot_tol = (slot - rx_slot_tol);
 
 		if (slot == tdm_man_priv->slot_tol) {
-			dev_info(tdm_man_priv->dev,
+			dev_dbg(tdm_man_priv->dev,
 					"tdm slot has been allocated\n");
 			mutex_unlock(&tdm_man_priv->mutex);
 			return slot;
