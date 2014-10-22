@@ -168,7 +168,12 @@ wlan_dump_info(mlan_adapter * pmadapter, t_u8 reason)
 	default:
 		break;
 	}
-	if (pmadapter->dbg.num_no_cmd_node > 1) {
+	if ((reason == REASON_CODE_NO_CMD_NODE) &&
+	    (pmadapter->dbg.num_no_cmd_node > 1)) {
+		if (pmadapter->dbg.num_no_cmd_node >= 5)
+			wlan_recv_event(wlan_get_priv
+					(pmadapter, MLAN_BSS_ROLE_ANY),
+					MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
 		LEAVE();
 		return;
 	}
@@ -304,6 +309,10 @@ wlan_dump_info(mlan_adapter * pmadapter, t_u8 reason)
 		PRINTM(MERROR, "\n");
 	}
 #endif
+	for (i = 0; i < pmadapter->priv_num; ++i) {
+		if (pmadapter->priv[i])
+			wlan_dump_ralist(pmadapter->priv[i]);
+	}
 	if (reason != REASON_CODE_CMD_TIMEOUT) {
 		if ((pmadapter->dbg.num_no_cmd_node >= 5)
 		    || (pmadapter->pm_wakeup_card_req &&
@@ -524,18 +533,16 @@ wlan_clean_cmd_node(pmlan_adapter pmadapter, cmd_ctrl_node * pcmd_node)
 #ifdef STA_SUPPORT
 /**
  *  @brief This function will return the pointer to the first entry in
- *          pending cmd which matches the given req_id
+ *          pending cmd which is scan command
  *
  *  @param pmadapter    A pointer to mlan_adapter
- *  @param req_id       ioctl req_id.
  *
  *  @return             A pointer to first entry match pioctl_req
  */
 static cmd_ctrl_node *
-wlan_get_pending_ioctl_by_id(pmlan_adapter pmadapter, t_u32 req_id)
+wlan_get_pending_scan_cmd(pmlan_adapter pmadapter)
 {
 	cmd_ctrl_node *pcmd_node = MNULL;
-	mlan_ioctl_req *pioctl_buf = MNULL;
 
 	ENTER();
 
@@ -551,12 +558,9 @@ wlan_get_pending_ioctl_by_id(pmlan_adapter pmadapter, t_u32 req_id)
 		return MNULL;
 	}
 	while (pcmd_node != (cmd_ctrl_node *) & pmadapter->cmd_pending_q) {
-		if (pcmd_node->pioctl_buf) {
-			pioctl_buf = (mlan_ioctl_req *) pcmd_node->pioctl_buf;
-			if (pioctl_buf->req_id == req_id) {
-				LEAVE();
-				return pcmd_node;
-			}
+		if (pcmd_node->cmd_flag & CMD_F_SCAN) {
+			LEAVE();
+			return pcmd_node;
 		}
 		pcmd_node = pcmd_node->pnext;
 	}
@@ -1240,6 +1244,8 @@ wlan_prepare_cmd(IN mlan_private * pmpriv,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+    /** reset num no cmd node */
+	pmadapter->dbg.num_no_cmd_node = 0;
 
 	/* Initialize the command node */
 	wlan_init_cmd_node(pmpriv, pcmd_node, cmd_oid, pioctl_buf, pdata_buf);
@@ -1852,9 +1858,7 @@ wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter)
 						 MLAN_STATUS_FAILURE);
 		}
 	}
-	while ((pcmd_node =
-		wlan_get_pending_ioctl_by_id(pmadapter,
-					     MLAN_IOCTL_SCAN)) != MNULL) {
+	while ((pcmd_node = wlan_get_pending_scan_cmd(pmadapter)) != MNULL) {
 		PRINTM(MIOCTL,
 		       "wlan_cancel_scan: find scan command in cmd_pending_q\n");
 		util_unlink_list(pmadapter->pmoal_handle,
@@ -1862,11 +1866,6 @@ wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter)
 				 (pmlan_linked_list) pcmd_node,
 				 pmadapter->callbacks.moal_spin_lock,
 				 pmadapter->callbacks.moal_spin_unlock);
-		pioctl_buf = (mlan_ioctl_req *) pcmd_node->pioctl_buf;
-		pcmd_node->pioctl_buf = MNULL;
-		pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
-		pcb->moal_ioctl_complete(pmadapter->pmoal_handle, pioctl_buf,
-					 MLAN_STATUS_FAILURE);
 		wlan_release_cmd_lock(pmadapter);
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 		wlan_request_cmd_lock(pmadapter);
@@ -3232,6 +3231,80 @@ done:
 	return ret;
 }
 
+#ifdef RX_PACKET_COALESCE
+mlan_status
+wlan_cmd_rx_pkt_coalesce_cfg(IN pmlan_private pmpriv,
+			     IN HostCmd_DS_COMMAND * cmd,
+			     IN t_u16 cmd_action, IN t_void * pdata_buf)
+{
+
+	mlan_ds_misc_rx_packet_coalesce *rx_pkt_cfg =
+		(mlan_ds_misc_rx_packet_coalesce *) pdata_buf;
+	HostCmd_DS_RX_PKT_COAL_CFG *prx_coal_cfg =
+		(HostCmd_DS_RX_PKT_COAL_CFG *) & cmd->params.rx_pkt_coal_cfg;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_RX_PKT_COALESCE_CFG);
+	prx_coal_cfg->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		prx_coal_cfg->packet_threshold =
+			wlan_cpu_to_le32(rx_pkt_cfg->packet_threshold);
+		prx_coal_cfg->delay = wlan_cpu_to_le16(rx_pkt_cfg->delay);
+		PRINTM(MCMND,
+		       "Set RX coal config: packet threshold=%d delay=%d\n",
+		       prx_coal_cfg->packet_threshold, prx_coal_cfg->delay);
+		cmd->size =
+			wlan_cpu_to_le16(S_DS_GEN +
+					 sizeof(HostCmd_DS_RX_PKT_COAL_CFG));
+	} else {
+		cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(cmd_action));
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+
+}
+
+/**
+ *  @brief This function handles the command response of RX_PACKET_COAL_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_rx_pkt_coalesce_cfg(IN pmlan_private pmpriv,
+			     const IN HostCmd_DS_COMMAND * resp,
+			     OUT mlan_ioctl_req * pioctl_buf)
+{
+	mlan_ds_misc_cfg *pcfg = MNULL;
+	const HostCmd_DS_RX_PKT_COAL_CFG *presp_cfg =
+		&resp->params.rx_pkt_coal_cfg;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		pcfg = (mlan_ds_misc_cfg *) pioctl_buf->pbuf;
+		pcfg->param.rx_coalesce.packet_threshold =
+			wlan_le32_to_cpu(presp_cfg->packet_threshold);
+		pcfg->param.rx_coalesce.delay =
+			wlan_le16_to_cpu(presp_cfg->delay);
+		PRINTM(MCMND,
+		       "Get rx pkt coalesce info: packet threshold=%d delay=%d\n",
+		       pcfg->param.rx_coalesce.packet_threshold,
+		       pcfg->param.rx_coalesce.delay);
+		pioctl_buf->buf_len = sizeof(mlan_ds_misc_rx_packet_coalesce);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+#endif
 /**
  *  @brief This function handle the multi_chan info event
  *

@@ -280,7 +280,8 @@ woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_change_adhoc_chan(priv, bss->param.bss_chan.channel))
+	    woal_change_adhoc_chan(priv, bss->param.bss_chan.channel,
+				   MOAL_IOCTL_WAIT))
 		ret = -EFAULT;
 
 done:
@@ -1308,7 +1309,8 @@ woal_get_gen_ie(struct net_device *dev, struct iw_request_info *info,
 	ENTER();
 
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_gen_ie(priv, MLAN_ACT_GET, ie, &ie_len)) {
+	    woal_set_get_gen_ie(priv, MLAN_ACT_GET, ie, &ie_len,
+				MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -1372,7 +1374,8 @@ woal_set_gen_ie(struct net_device *dev, struct iw_request_info *info,
 	}
 
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_gen_ie(priv, MLAN_ACT_SET, (t_u8 *) extra, &ie_len)) {
+	    woal_set_get_gen_ie(priv, MLAN_ACT_SET, (t_u8 *) extra, &ie_len,
+				MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -2426,7 +2429,8 @@ woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 
 		if (dwrq->flags != 0xFFFF) {
 			if (MLAN_STATUS_SUCCESS !=
-			    woal_find_essid(priv, &ssid_bssid)) {
+			    woal_find_essid(priv, &ssid_bssid,
+					    MOAL_IOCTL_WAIT)) {
 				/* Do specific SSID scanning */
 				if (MLAN_STATUS_SUCCESS !=
 				    woal_request_scan(priv, MOAL_IOCTL_WAIT,
@@ -2454,7 +2458,7 @@ woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 	} else if (MLAN_STATUS_SUCCESS !=
 		   woal_find_best_network(priv, MOAL_IOCTL_WAIT, &ssid_bssid))
 		/* Adhoc start, Check the channel command */
-		woal_11h_channel_check_ioctl(priv);
+		woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);
 
 	/* Connect to BSS by ESSID */
 	memset(&ssid_bssid.bssid, 0, MLAN_MAC_ADDR_LENGTH);

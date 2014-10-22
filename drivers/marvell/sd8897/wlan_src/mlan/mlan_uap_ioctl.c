@@ -107,6 +107,22 @@ wlan_uap_callback_bss_ioctl_start(IN t_void * priv)
 	if ((puap_state_chan_cb->band_config & BAND_CONFIG_5GHZ) &&
 	    wlan_11h_radar_detect_required(pmpriv,
 					   puap_state_chan_cb->channel)) {
+		/* If DFS repeater mode is on then before starting the uAP make
+		   sure that mlan0 is connected to some external AP for DFS
+		   channel operations. */
+		if (pmpriv->adapter->dfs_repeater) {
+			pmlan_private tmpriv = MNULL;
+			tmpriv = wlan_get_priv(pmpriv->adapter,
+					       MLAN_BSS_ROLE_STA);
+
+			if (tmpriv && !tmpriv->media_connected) {
+				PRINTM(MINFO,
+				       "BSS start is blocked when DFS-repeater\n"
+				       "mode is on and STA is not connected\n");
+				LEAVE();
+				return MLAN_STATUS_FAILURE;
+			}
+		}
 
 		/* first check if channel is under NOP */
 		if (wlan_11h_is_channel_under_nop(pmpriv->adapter,
@@ -1469,10 +1485,27 @@ wlan_ops_uap_ioctl(t_void * adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_MULTI_CHAN_POLICY)
 			status = wlan_misc_ioctl_multi_chan_policy(pmadapter,
 								   pioctl_req);
+#ifdef RX_PACKET_COALESCE
+		if (misc->sub_command == MLAN_OID_MISC_RX_PACKET_COALESCE)
+			status = wlan_misc_ioctl_rx_pkt_coalesce_config
+				(pmadapter, pioctl_req);
+#endif
 #ifdef WIFI_DIRECT_SUPPORT
 		if (misc->sub_command == MLAN_OID_MISC_WIFI_DIRECT_CONFIG)
 			status = wlan_misc_p2p_config(pmadapter, pioctl_req);
 #endif
+
+		if (misc->sub_command == MLAN_OID_MISC_DFS_REAPTER_MODE) {
+			mlan_ds_misc_cfg *misc_cfg = MNULL;
+
+			misc_cfg = (mlan_ds_misc_cfg *) pioctl_req->pbuf;
+			misc_cfg->param.dfs_repeater.mode =
+				pmadapter->dfs_repeater;
+			pioctl_req->data_read_written =
+				sizeof(mlan_ds_misc_dfs_repeater);
+
+			status = MLAN_STATUS_SUCCESS;
+		}
 		break;
 	case MLAN_IOCTL_PM_CFG:
 		pm = (mlan_ds_pm_cfg *) pioctl_req->pbuf;

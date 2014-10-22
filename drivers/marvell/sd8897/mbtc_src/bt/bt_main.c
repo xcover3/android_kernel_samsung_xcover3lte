@@ -34,7 +34,10 @@
   */
 
 #include <linux/module.h>
+#include <linux/platform_device.h>
+#include <linux/wlan_plat.h>
 
+#include <linux/interrupt.h>
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #endif
@@ -130,6 +133,19 @@ int mbt_pm_keep_power = 1;
 #endif
 
 static int debug_intf = 1;
+
+/** Enable minicard power-up/down */
+static int minicard_pwrup = 1;
+/** Pointer to struct with control hooks */
+static struct wifi_platform_data *bt_control_data;
+
+#define IORESOURCE_NAME "mrvl_bt_irq"
+#define DRIVER_NAME     "bt hostwake"
+
+void mdev_poweroff(struct m_dev *m_dev);
+static struct resource *bt_irqres;
+static int irq_registered;
+static void bt_register_hostwake_irq(void *handle);
 
 /**
  *  @brief Alloc bt device
@@ -1898,6 +1914,7 @@ init_m_dev(struct m_dev *m_dev)
 	m_dev->spec_type = 0;
 	skb_queue_head_init(&m_dev->rx_q);
 	init_waitqueue_head(&m_dev->req_wait_q);
+	init_waitqueue_head(&m_dev->rx_wait_q);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	init_MUTEX(&m_dev->req_lock);
 #else
@@ -1912,6 +1929,7 @@ init_m_dev(struct m_dev *m_dev)
 	m_dev->ioctl = mdev_ioctl;
 	m_dev->query = mdev_query;
 	m_dev->owner = THIS_MODULE;
+	m_dev->poweroff = mdev_poweroff;
 
 }
 
@@ -2152,7 +2170,7 @@ sbi_register_conf_dpc(bt_private * priv)
 		}
 	}
 #ifdef SDIO_SUSPEND_RESUME
-	priv->bt_dev.gpio_gap = 0xffff;
+	priv->bt_dev.gpio_gap = 0x0864;
 	ret = bt_send_hscfg_cmd(priv);
 	if (ret < 0) {
 		PRINTM(FATAL, "Send HSCFG failed!\n");
@@ -2432,6 +2450,8 @@ sbi_register_conf_dpc(bt_private * priv)
 		bt_restore_tx_queue(priv);
 	}
 
+	bt_register_hostwake_irq(NULL);
+
 	/* Get FW version */
 	bt_get_fw_version(priv);
 	snprintf(priv->adapter->drv_ver, MAX_VER_STR_LEN,
@@ -2486,6 +2506,7 @@ bt_add_card(void *card)
 	PRINTM(INFO, "Starting kthread...\n");
 	priv->MainThread.priv = priv;
 	spin_lock_init(&priv->driver_lock);
+	wake_lock_init(&priv->wake_lock, WAKE_LOCK_SUSPEND, "mbt");
 
 	bt_create_thread(bt_service_main_thread, &priv->MainThread,
 			 "bt_main_service");
@@ -2534,6 +2555,7 @@ err_init_fw:
 	PRINTM(INFO, "Unregister device\n");
 	sbi_unregister_dev(priv);
 err_registerdev:
+	wake_lock_destroy(&priv->wake_lock);
 	((struct sdio_mmc_card *)card)->priv = NULL;
 	/* Stop the thread servicing the interrupts */
 	priv->adapter->SurpriseRemoved = TRUE;
@@ -2546,6 +2568,50 @@ err_kmalloc:
 	bt_priv_put(priv);
 	LEAVE();
 	return NULL;
+}
+
+/**
+ *  @brief This function send hardware remove event
+ *
+ *  @param priv    A pointer to bt_private
+ *  @return        N/A
+ */
+void
+bt_send_hw_remove_event(bt_private * priv)
+{
+	struct sk_buff *skb = NULL;
+	struct mbt_dev *mbt_dev = NULL;
+	struct m_dev *mdev_bt = &(priv->bt_dev.m_dev[BT_SEQ]);
+	ENTER();
+	if (!priv->bt_dev.m_dev[BT_SEQ].dev_pointer) {
+		LEAVE();
+		return;
+	}
+	mbt_dev = (struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].dev_pointer;
+#define HCI_HARDWARE_ERROR_EVT  0x10
+#define HCI_HARDWARE_REMOVE     0x24
+	skb = bt_skb_alloc(3, GFP_ATOMIC);
+	skb->data[0] = HCI_HARDWARE_ERROR_EVT;
+	skb->data[1] = 1;
+	skb->data[2] = HCI_HARDWARE_REMOVE;
+	bt_cb(skb)->pkt_type = HCI_EVENT_PKT;
+	skb_put(skb, 3);
+	if (mbt_dev) {
+		skb->dev = (void *)mdev_bt;
+		PRINTM(MSG, "Send HW ERROR event\n");
+		if (!mdev_recv_frame(skb)) {
+#define RX_WAIT_TIMEOUT				300
+			mdev_bt->wait_rx_complete = TRUE;
+			mdev_bt->rx_complete_flag = FALSE;
+			if (os_wait_interruptible_timeout
+			    (mdev_bt->rx_wait_q, mdev_bt->rx_complete_flag,
+			     RX_WAIT_TIMEOUT))
+				PRINTM(MSG, "BT stack received the event\n");
+			mdev_bt->stat.byte_rx += 3;
+		}
+	}
+	LEAVE();
+	return;
 }
 
 /**
@@ -2563,6 +2629,7 @@ bt_remove_card(void *card)
 		LEAVE();
 		return BT_STATUS_SUCCESS;
 	}
+	wake_lock_destroy(&priv->wake_lock);
 	if (!priv->adapter->SurpriseRemoved) {
 		if (BT_STATUS_SUCCESS == bt_send_reset_command(priv))
 			bt_send_module_cfg_cmd(priv, MODULE_SHUTDOWN_REQ);
@@ -2570,6 +2637,7 @@ bt_remove_card(void *card)
 		sd_disable_host_int(priv);
 		priv->adapter->SurpriseRemoved = TRUE;
 	}
+	bt_send_hw_remove_event(priv);
 	wake_up_interruptible(&priv->adapter->cmd_wait_q);
 	priv->adapter->SurpriseRemoved = TRUE;
 	wake_up_interruptible(&priv->MainThread.waitQ);
@@ -2588,6 +2656,189 @@ bt_remove_card(void *card)
 
 	LEAVE();
 	return BT_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function sets card detect
+ *
+ *  @param on      card detect status
+ *  @return        0
+ */
+static int
+bt_set_carddetect(int on)
+{
+	PRINTM(MSG, "%s = %d\n", __func__, on);
+	if (bt_control_data && bt_control_data->set_carddetect)
+		bt_control_data->set_carddetect(on);
+
+	return 0;
+}
+
+/**
+ *  @brief This function sets power
+ *
+ *  @param on      power status
+ *  @return        0
+ */
+static int
+bt_set_power(int on, unsigned long msec)
+{
+	PRINTM(MSG, "%s = %d\n", __func__, on);
+	if (bt_control_data && bt_control_data->set_power)
+		bt_control_data->set_power(on);
+
+	if (msec)
+		mdelay(msec);
+	return 0;
+}
+
+static irqreturn_t
+bt_hostwake_isr(int irq, void *dev_id)
+{
+	PRINTM(INTR, "Recv hostwake isr\n");
+	return IRQ_HANDLED;
+}
+
+void
+bt_enable_hostwake_irq(int flag)
+{
+	if (bt_irqres && irq_registered) {
+		PRINTM(INTR, "enable_hostwake_irq=%d\n", flag);
+		if (flag) {
+			enable_irq(bt_irqres->start);
+			enable_irq_wake(bt_irqres->start);
+		} else {
+			disable_irq_wake(bt_irqres->start);
+			disable_irq(bt_irqres->start);
+		}
+	}
+}
+
+static void
+bt_register_hostwake_irq(void *handle)
+{
+	if (bt_irqres && !irq_registered) {
+		irq_registered =
+			request_irq(bt_irqres->start, bt_hostwake_isr,
+				    bt_irqres->flags, DRIVER_NAME, handle);
+		if (irq_registered < 0)
+			PRINTM(ERROR, "Couldn't acquire BT_HOST_WAKE IRQ\n");
+		else {
+			irq_registered = 1;
+			enable_irq_wake(bt_irqres->start);
+			bt_enable_hostwake_irq(FALSE);
+		}
+	}
+}
+
+void
+mdev_poweroff(struct m_dev *m_dev)
+{
+	ENTER();
+
+	if (minicard_pwrup) {
+		bt_set_power(0, 0);
+		bt_set_carddetect(0);
+	}
+
+	LEAVE();
+}
+
+/**
+ *  @brief This function probes the platform-level device
+ *
+ *  @param pdev    pointer to struct platform_device
+ *  @return        0
+ */
+static int
+bt_probe(struct platform_device *pdev)
+{
+	struct wifi_platform_data *bt_ctrl =
+		(struct wifi_platform_data *)(pdev->dev.platform_data);
+
+	ENTER();
+
+	bt_irqres = platform_get_resource_byname(pdev,
+						 IORESOURCE_IRQ,
+						 IORESOURCE_NAME);
+	if (minicard_pwrup) {
+		bt_control_data = bt_ctrl;
+		bt_set_power(1, 0);	/* Power On */
+		bt_set_carddetect(1);	/* CardDetect (0->1) */
+	}
+
+	LEAVE();
+	return 0;
+}
+
+/**
+ *  @brief This function removes the platform-level device
+ *
+ *  @param pdev    pointer to struct platform_device
+ *  @return        0
+ */
+static int
+bt_remove(struct platform_device *pdev)
+{
+	struct wifi_platform_data *bt_ctrl =
+		(struct wifi_platform_data *)(pdev->dev.platform_data);
+
+	ENTER();
+
+	if (bt_irqres && irq_registered) {
+		PRINTM(MSG, "Free hostwake IRQ wakeup\n");
+		free_irq(bt_irqres->start, NULL);
+		irq_registered = 0;
+	}
+	if (minicard_pwrup) {
+		bt_control_data = bt_ctrl;
+		bt_set_power(0, 0);	/* Power Off */
+		bt_set_carddetect(0);	/* CardDetect (1->0) */
+	}
+
+	LEAVE();
+	return 0;
+}
+
+static struct platform_driver bt_device = {
+	.probe = bt_probe,
+	.remove = bt_remove,
+	.driver = {
+		   .name = "mrvl_bt",
+		   }
+};
+
+/**
+ *  @brief This function registers the platform-level device to the bus driver
+ *
+ *  @return        0--success, failure otherwise
+ */
+static int
+bt_add_dev(void)
+{
+	int ret = 0;
+
+	ENTER();
+
+	ret = platform_driver_register(&bt_device);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function deregisters the platform-level device
+ *
+ *  @return        N/A
+ */
+static void
+bt_del_dev(void)
+{
+	ENTER();
+
+	platform_driver_unregister(&bt_device);
+
+	LEAVE();
 }
 
 /**
@@ -2613,6 +2864,7 @@ bt_init_module(void)
 		goto done;
 	}
 
+	bt_add_dev();
 	if (sbi_register() == NULL) {
 		bt_root_proc_remove();
 		ret = BT_STATUS_FAILURE;
@@ -2641,6 +2893,7 @@ bt_exit_module(void)
 	sbi_unregister();
 
 	bt_root_proc_remove();
+	bt_del_dev();
 	class_destroy(chardev_class);
 	PRINTM(MSG, "BT: Driver unloaded\n");
 	LEAVE();
@@ -2653,12 +2906,12 @@ MODULE_AUTHOR("Marvell International Ltd.");
 MODULE_DESCRIPTION("Marvell Bluetooth Driver Ver. " VERSION);
 MODULE_VERSION(VERSION);
 MODULE_LICENSE("GPL");
-module_param(fw, int, 1);
+module_param(fw, int, 0);
 MODULE_PARM_DESC(fw, "0: Skip firmware download; otherwise: Download firmware");
-module_param(fw_crc_check, int, 1);
+module_param(fw_crc_check, int, 0);
 MODULE_PARM_DESC(fw_crc_check,
 		 "1: Enable FW download CRC check (default); 0: Disable FW download CRC check");
-module_param(psmode, int, 1);
+module_param(psmode, int, 0);
 MODULE_PARM_DESC(psmode, "1: Enable powermode; 0: Disable powermode");
 #ifdef CONFIG_OF
 module_param(dts_enable, int, 0);
@@ -2669,7 +2922,7 @@ module_param(mbt_drvdbg, uint, 0);
 MODULE_PARM_DESC(mbt_drvdbg, "BIT3:DBG_DATA BIT4:DBG_CMD 0xFF:DBG_ALL");
 #endif
 #ifdef SDIO_SUSPEND_RESUME
-module_param(mbt_pm_keep_power, int, 1);
+module_param(mbt_pm_keep_power, int, 0);
 MODULE_PARM_DESC(mbt_pm_keep_power, "1: PM keep power; 0: PM no power");
 #endif
 module_param(init_cfg, charp, 0);
@@ -2680,6 +2933,9 @@ module_param(cal_cfg_ext, charp, 0);
 MODULE_PARM_DESC(cal_cfg_ext, "BT calibrate ext file name");
 module_param(bt_mac, charp, 0);
 MODULE_PARM_DESC(bt_mac, "BT init mac address");
+module_param(minicard_pwrup, int, 0);
+MODULE_PARM_DESC(minicard_pwrup,
+		 "1: Driver load clears PDn/Rst, unload sets (default); 0: Don't do this.");
 module_param(drv_mode, int, 0);
 MODULE_PARM_DESC(drv_mode, "Bit 0: BT/AMP/BLE; Bit 1: FM; Bit 2: NFC");
 module_param(bt_name, charp, 0);
@@ -2688,7 +2944,7 @@ module_param(fm_name, charp, 0);
 MODULE_PARM_DESC(fm_name, "FM interface name");
 module_param(nfc_name, charp, 0);
 MODULE_PARM_DESC(nfc_name, "NFC interface name");
-module_param(debug_intf, int, 1);
+module_param(debug_intf, int, 0);
 MODULE_PARM_DESC(debug_intf,
 		 "1: Enable debug interface; 0: Disable debug interface ");
 module_param(debug_name, charp, 0);

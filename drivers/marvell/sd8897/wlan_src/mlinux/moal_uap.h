@@ -69,6 +69,8 @@ Change log:
 /** Subcommand ID to set/get antenna configuration */
 #define UAP_ANTENNA_CFG         15
 
+#define UAP_DFS_REPEATER_MODE	16
+
 /** Private command ID to Power Mode */
 #define	UAP_POWER_MODE			(SIOCDEVPRIVATE + 3)
 
@@ -127,6 +129,16 @@ typedef struct _ant_cfg_t {
    /** RX mode configured */
 	int rx_mode;
 } ant_cfg_t;
+
+/* dfs repeater mode */
+typedef struct _dfs_repeater_mode {
+	/** subcmd */
+	t_u32 subcmd;
+	/** set/get */
+	t_u32 action;
+	/** mode */
+	t_u32 mode;
+} dfs_repeater_mode;
 
 /** Private command ID to set wapi info */
 #define	UAP_WAPI_MSG		(SIOCDEVPRIVATE + 10)

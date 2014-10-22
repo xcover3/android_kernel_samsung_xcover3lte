@@ -509,6 +509,15 @@ wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 		tlv += sizeof(MrvlIEtypes_MacAddr_t);
 	}
 
+	if (bss->param.bss_config.band_cfg & BAND_CONFIG_ACS_MODE) {
+		/* ACS is not allowed when DFS repeater mode is on */
+		if (pmpriv->adapter->dfs_repeater) {
+			PRINTM(MERROR, "ACS is not allowed when"
+			       "DFS repeater mode is on.\n");
+			return MLAN_STATUS_FAILURE;
+		}
+	}
+
 	if (bss->param.bss_config.ssid.ssid_len) {
 		tlv_ssid = (MrvlIEtypes_SsIdParamSet_t *) tlv;
 		tlv_ssid->header.type = wlan_cpu_to_le16(TLV_TYPE_SSID);
@@ -1998,7 +2007,8 @@ wlan_uap_ret_sys_config(IN pmlan_private pmpriv,
 							cust_ie->len +
 							sizeof
 							(MrvlIEtypesHeader_t));
-			if ((pioctl_buf->action == MLAN_ACT_GET) &&
+			if ((pioctl_buf->action == MLAN_ACT_GET ||
+			     pioctl_buf->action == MLAN_ACT_SET) &&
 			    (misc->sub_command == MLAN_OID_MISC_CUSTOM_IE)) {
 
 				cust_ie->type = wlan_le16_to_cpu(cust_ie->type);
@@ -3280,6 +3290,12 @@ wlan_ops_uap_prepare_cmd(IN t_void * priv,
 		ret = wlan_cmd_multi_chan_policy(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
 		break;
+#ifdef RX_PACKET_COALESCE
+	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
+		ret = wlan_cmd_rx_pkt_coalesce_cfg(pmpriv, cmd_ptr, cmd_action,
+						   pdata_buf);
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -3336,6 +3352,11 @@ wlan_ops_uap_process_cmdresp(IN t_void * priv,
 	case HOST_CMD_APCMD_BSS_START:
 		if (pmpriv->adapter->state_rdh.stage == RDH_RESTART_INTFS)
 			wlan_11h_radar_detected_callback((t_void *) pmpriv);
+		/* Stop pps_uapsd_mode once bss_start */
+		pmpriv->adapter->tx_lock_flag = MFALSE;
+		pmpriv->adapter->pps_uapsd_mode = MFALSE;
+		pmpriv->adapter->delay_null_pkt = MFALSE;
+
 		break;
 	case HOST_CMD_APCMD_SYS_RESET:
 		pmpriv->uap_bss_started = MFALSE;
@@ -3500,6 +3521,11 @@ wlan_ops_uap_process_cmdresp(IN t_void * priv,
 	case HostCmd_CMD_MULTI_CHAN_POLICY:
 		ret = wlan_ret_multi_chan_policy(pmpriv, resp, pioctl_buf);
 		break;
+#ifdef RX_PACKET_COALESCE
+	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
+		ret = wlan_ret_rx_pkt_coalesce_cfg(pmpriv, resp, pioctl_buf);
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);

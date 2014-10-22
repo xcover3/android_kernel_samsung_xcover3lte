@@ -1291,6 +1291,68 @@ done:
 }
 
 /**
+ * @brief Get DFS_REPEATER mode
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *
+ * @return           0 --success, otherwise fail
+ */
+static int
+woal_uap_dfs_repeater(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *) netdev_priv(dev);
+	int ret = 0;
+	dfs_repeater_mode param;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ioctl_req *mreq = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "uap_antenna_cfg() corrupt data\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	memset(&param, 0, sizeof(dfs_repeater_mode));
+	/* Get user data */
+	if (copy_from_user(&param, req->ifr_data, sizeof(dfs_repeater_mode))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	mreq = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (mreq == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	misc = (mlan_ds_misc_cfg *) mreq->pbuf;
+	misc->sub_command = MLAN_OID_MISC_DFS_REAPTER_MODE;
+	mreq->req_id = MLAN_IOCTL_MISC_CFG;
+	mreq->action = MLAN_ACT_GET;
+
+	status = woal_request_ioctl(priv, mreq, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+	param.mode = misc->param.dfs_repeater.mode;
+
+	if (copy_to_user(req->ifr_data, &param, sizeof(dfs_repeater_mode))) {
+		PRINTM(MERROR, "Copy to user failed\n");
+		ret = -EFAULT;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(mreq);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief uap ioctl handler
  *
  *  @param dev      A pointer to net_device structure
@@ -1366,6 +1428,9 @@ woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 		break;
 	case UAP_ANTENNA_CFG:
 		ret = woal_uap_antenna_cfg(dev, req);
+		break;
+	case UAP_DFS_REPEATER_MODE:
+		ret = woal_uap_dfs_repeater(dev, req);
 		break;
 	default:
 		break;
@@ -2733,7 +2798,7 @@ woal_uap_bss_ctrl(moal_private * priv, t_u8 wait_option, int data)
 			/* goto done; */
 		} else {
 			/* about to start bss: issue channel check */
-			woal_11h_channel_check_ioctl(priv);
+			woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);
 		}
 		bss->sub_command = MLAN_OID_BSS_START;
 		break;

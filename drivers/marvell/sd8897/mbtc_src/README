@@ -48,6 +48,7 @@
 		e.g. copy bt_cal_data.conf to firmware directory, cal_cfg=mrvl/bt_cal_data.conf
       cal_cfg_ext=<CAL data config file name>
 		e.g. copy cal_data.conf to firmware directory, cal_cfg_ext=mrvl/cal_data.conf
+	  minicard_pwrup=1|0 <power up/down on driver load/unload (default) | don't power up/down>
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.

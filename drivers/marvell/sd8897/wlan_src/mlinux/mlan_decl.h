@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		"C038"
+#define MLAN_RELEASE_VERSION		"C044"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -317,6 +317,7 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define MINTR       MBIT(6)
 #define MIOCTL      MBIT(7)
 
+#define MMPA_D      MBIT(15)
 #define MDAT_D      MBIT(16)
 #define MCMD_D      MBIT(17)
 #define MEVT_D      MBIT(18)
@@ -474,6 +475,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_FLUSH_RX_WORK = 0x80000015,
 	MLAN_EVENT_ID_DRV_DEFER_RX_WORK = 0x80000016,
 	MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ = 0x80000017,
+	MLAN_EVENT_ID_DRV_FT_RESPONSE = 0x80000018,
 } mlan_event_id;
 
 /** Data Structures */
@@ -748,6 +750,8 @@ typedef MLAN_PACK_START struct _tlvbuf_custom_ie {
 #define WLAN_TDLS_CS_DISABLE           0x09
 /** Action ID for TDLS link status */
 #define WLAN_TDLS_LINK_STATUS          0x0A
+/** Action ID for Host TDLS config uapsd and CS */
+#define WLAN_HOST_TDLS_CONFIG               0x0D
 /** Action ID for TDLS CS immediate return */
 #define WLAN_TDLS_DEBUG_CS_RET_IM          0xFFF7
 /** Action ID for TDLS Stop RX */
@@ -819,6 +823,17 @@ typedef MLAN_PACK_START struct _tdls_all_config {
 	    /** enable or disable */
 			t_u16 enable;
 		} MLAN_PACK_END tdls_config;
+		/** Host tdls config */
+		MLAN_PACK_START struct _host_tdls_cfg {
+	/** support uapsd */
+			t_u8 uapsd_support;
+	/** channel_switch */
+			t_u8 cs_support;
+	/** TLV  length */
+			t_u16 tlv_len;
+	/** tdls info */
+			t_u8 tlv_buffer[0];
+		} MLAN_PACK_END host_tdls_cfg;
 	/** TDLS set info */
 		MLAN_PACK_START struct _tdls_set_data {
 	    /** (tlv + capInfo) length */
@@ -1076,6 +1091,10 @@ typedef struct _mlan_callbacks {
     /** moal_tcp_ack_tx_ind */
 	 t_void(*moal_tcp_ack_tx_ind) (IN t_void * pmoal_handle,
 				       IN pmlan_buffer pmbuf);
+	 t_void(*moal_updata_peer_signal) (IN t_void * pmoal_handle,
+					   IN t_u32 bss_index,
+					   IN t_u8 * peer_addr,
+					   IN t_s8 snr, IN t_s8 nflr);
 } mlan_callbacks, *pmlan_callbacks;
 
 /** Interrupt Mode SDIO */

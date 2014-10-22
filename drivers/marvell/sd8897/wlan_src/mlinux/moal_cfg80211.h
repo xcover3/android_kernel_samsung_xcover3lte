@@ -102,7 +102,8 @@ int woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant);
 #ifdef STA_SUPPORT
 int woal_set_rf_channel(moal_private * priv,
 			struct ieee80211_channel *chan,
-			enum nl80211_channel_type channel_type);
+			enum nl80211_channel_type channel_type,
+			t_u8 wait_option);
 mlan_status woal_inform_bss_from_scan_result(moal_private * priv,
 					     mlan_ssid_bssid * ssid_bssid,
 					     t_u8 wait_option);
@@ -147,6 +148,9 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #else
 			  struct net_device *dev,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			  struct cfg80211_mgmt_tx_params *params,
+#else
 			  struct ieee80211_channel *chan, bool offchan,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 			  enum nl80211_channel_type channel_type,
@@ -158,6 +162,7 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
 			  bool dont_wait_for_ack,
+#endif
 #endif
 			  u64 * cookie);
 
@@ -308,6 +313,6 @@ void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
 void woal_cfg80211_setup_vht_cap(moal_private * priv,
 				 struct ieee80211_sta_vht_cap *vht_cap);
 #endif
-int woal_cfg80211_assoc(moal_private * priv, void *sme);
+int woal_cfg80211_assoc(moal_private * priv, void *sme, t_u8 wait_option);
 
 #endif /* _MOAL_CFG80211_H_ */

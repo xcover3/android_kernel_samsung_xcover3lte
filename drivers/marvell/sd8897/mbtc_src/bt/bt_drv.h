@@ -25,6 +25,7 @@
 #include <linux/version.h>
 #include <linux/kthread.h>
 #include <linux/skbuff.h>
+#include <linux/wakelock.h>
 
 #include "hci_wrapper.h"
 
@@ -489,6 +490,7 @@ typedef struct _bt_private {
 	const struct sdio_device *psdio_device;
 	int debug_device_pending;
 	int debug_ocf_ogf[2];
+	struct wake_lock wake_lock;
 } bt_private, *pbt_private;
 
 /** Disable interrupt */

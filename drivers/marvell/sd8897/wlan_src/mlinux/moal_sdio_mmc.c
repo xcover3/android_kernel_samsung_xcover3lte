@@ -440,23 +440,6 @@ woal_sdio_suspend(struct device *dev)
 		ret = -EBUSY;
 		goto done;
 	}
-	if (woal_check_driver_status(handle)) {
-		PRINTM(MERROR, "Allow suspend when device is in hang state\n");
-#ifdef MMC_PM_SKIP_RESUME_PROBE
-		PRINTM(MCMND,
-		       "suspend with MMC_PM_KEEP_POWER and MMC_PM_SKIP_RESUME_PROBE\n");
-		ret = sdio_set_host_pm_flags(func,
-					     MMC_PM_KEEP_POWER |
-					     MMC_PM_SKIP_RESUME_PROBE);
-#else
-		PRINTM(MCMND, "suspend with MMC_PM_KEEP_POWER\n");
-		ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
-#endif
-		handle->hs_force_count++;
-		handle->is_suspended = MTRUE;
-		LEAVE();
-		return MLAN_STATUS_SUCCESS;
-	}
 	handle->suspend_fail = MFALSE;
 	memset(&pm_info, 0, sizeof(pm_info));
 	if (MLAN_STATUS_SUCCESS ==
@@ -504,6 +487,7 @@ woal_sdio_suspend(struct device *dev)
 
 	/* Indicate device suspended */
 	handle->is_suspended = MTRUE;
+	wifi_enable_hostwake_irq(MTRUE);
 done:
 	PRINTM(MCMND, "<--- Leave woal_sdio_suspend --->\n");
 	LEAVE();
@@ -526,6 +510,7 @@ woal_sdio_resume(struct device *dev)
 
 	ENTER();
 	PRINTM(MCMND, "<--- Enter woal_sdio_resume --->\n");
+	wifi_enable_hostwake_irq(MFALSE);
 	pm_flags = sdio_get_host_pm_caps(func);
 	PRINTM(MCMND, "%s: resume: PM flags = 0x%x\n", sdio_func_id(func),
 	       pm_flags);

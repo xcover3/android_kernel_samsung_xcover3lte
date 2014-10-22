@@ -93,6 +93,8 @@ Change log:
 
 #include	<linux/firmware.h>
 
+#include <linux/wakelock.h>
+
 #include        "mlan.h"
 #include        "moal_shim.h"
 /* Wireless header */
@@ -158,7 +160,8 @@ enum {
 	MOAL_PROC_WAIT,
 #endif
 	MOAL_WSTATS_WAIT,
-	MOAL_IOCTL_WAIT_TIMEOUT
+	MOAL_IOCTL_WAIT_TIMEOUT,
+	MOAL_CMD_WAIT_TIMEOUT
 };
 
 /** moal_main_state */
@@ -813,6 +816,44 @@ struct tcp_sess {
 	void *ack_skb;
 };
 
+/** default rssi low threshold */
+#define TDLS_RSSI_LOW_THRESHOLD 55
+/** default rssi high threshold */
+#define TDLS_RSSI_HIGH_THRESHOLD 50
+/** TDLS idle time */
+#define TDLS_IDLE_TIME			(10*HZ)
+/** TDLS max failure count */
+#define TDLS_MAX_FAILURE_COUNT	 4
+/** TDLS tear down reason */
+#define TDLS_TEARN_DOWN_REASON_UNSPECIFIC	26
+
+/** TDLS status */
+typedef enum _tdlsStatus_e {
+	TDLS_NOT_SETUP = 0,
+	TDLS_SETUP_INPROGRESS,
+	TDLS_SETUP_COMPLETE,
+	TDLS_SETUP_FAILURE,
+	TDLS_TEAR_DOWN,
+	TDLS_SWITCHING_CHANNEL,
+	TDLS_IN_BASE_CHANNEL,
+	TDLS_IN_OFF_CHANNEL,
+} tdlsStatus_e;
+
+/** tdls peer_info */
+struct tdls_peer {
+	struct list_head link;
+	/** MAC address information */
+	t_u8 peer_addr[ETH_ALEN];
+	/** rssi */
+	int rssi;
+    /** jiffies with rssi */
+	long rssi_jiffies;
+    /** link status */
+	tdlsStatus_e link_status;
+    /** num of set up failure */
+	t_u8 num_failure;
+};
+
 /** Private structure for MOAL */
 struct _moal_private {
 	/** Handle structure */
@@ -937,6 +978,22 @@ struct _moal_private {
 	u32 last_event;
 	/** fake scan flag */
 	u8 fake_scan_complete;
+	/**ft ie*/
+	t_u8 ft_ie[MAX_IE_SIZE];
+    /**ft ie len*/
+	t_u8 ft_ie_len;
+    /**mobility domain value*/
+	t_u16 ft_md;
+    /**ft capability*/
+	t_u8 ft_cap;
+    /**set true during ft connection*/
+	t_bool ft_pre_connect;
+	/**target ap mac address for Fast Transition*/
+	t_u8 target_ap_bssid[ETH_ALEN];
+    /** IOCTL wait queue for FT*/
+	wait_queue_head_t ft_wait_q __ATTRIB_ALIGN__;
+	/** ft wait condition */
+	t_bool ft_wait_condition;
 #endif				/* STA_SUPPORT */
 #endif				/* STA_CFG80211 */
 	/** IOCTL wait queue */
@@ -1010,7 +1067,14 @@ struct _moal_private {
 	t_u8 enable_tcp_ack_enh;
     /** TCP session spin lock */
 	spinlock_t tcp_sess_lock;
-
+    /** tcp list */
+	struct list_head tdls_list;
+	/** tdls spin lock */
+	spinlock_t tdls_lock;
+	/** auto tdls  flag */
+	t_u8 enable_auto_tdls;
+    /** check tx packet for tdls peer */
+	t_u8 tdls_check_tx;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	atomic_t wmm_tx_pending[4];
 #endif
@@ -1243,6 +1307,7 @@ struct _moal_handle {
 	/** Card specific driver version */
 	t_s8 driver_version[MLAN_MAX_VER_STR_LEN];
 	char *fwdump_fname;
+	struct wake_lock wake_lock;
 };
 /**
  *  @brief set trans_start for each TX queue.
@@ -1795,7 +1860,8 @@ int woal_get_deep_sleep(moal_private * priv, t_u32 * data);
 /** set deep sleep */
 int woal_set_deep_sleep(moal_private * priv, t_u8 wait_option,
 			BOOLEAN bdeep_sleep, t_u16 idletime);
-
+/** process hang */
+void woal_process_hang(moal_handle * handle);
 /** Get BSS information */
 mlan_status woal_get_bss_info(moal_private * priv, t_u8 wait_option,
 			      mlan_bss_info * bss_info);
@@ -1837,7 +1903,7 @@ mlan_status woal_set_get_frag(moal_private * priv, t_u32 action,
 			      t_u8 wait_option, int *value);
 /** Set/Get generic element */
 mlan_status woal_set_get_gen_ie(moal_private * priv, t_u32 action, t_u8 * ie,
-				int *ie_len);
+				int *ie_len, t_u8 wait_option);
 /** Set/Get TX power */
 mlan_status woal_set_get_tx_power(moal_private * priv, t_u32 action,
 				  mlan_power_cfg_t * pwr);
@@ -1872,7 +1938,8 @@ mlan_status woal_cancel_scan(moal_private * priv, t_u8 wait_option);
 mlan_status woal_find_best_network(moal_private * priv, t_u8 wait_option,
 				   mlan_ssid_bssid * ssid_bssid);
 /** Set Ad-Hoc channel */
-mlan_status woal_change_adhoc_chan(moal_private * priv, int channel);
+mlan_status woal_change_adhoc_chan(moal_private * priv, int channel,
+				   t_u8 wait_option);
 
 /** Get scan table */
 mlan_status woal_get_scan_table(moal_private * priv, t_u8 wait_option,
@@ -1977,7 +2044,7 @@ moal_private *woal_add_interface(moal_handle * handle, t_u8 bss_num,
 void woal_remove_interface(moal_handle * handle, t_u8 bss_index);
 void woal_set_multicast_list(struct net_device *dev);
 mlan_status woal_request_fw(moal_handle * handle);
-int woal_11h_channel_check_ioctl(moal_private * priv);
+int woal_11h_channel_check_ioctl(moal_private * priv, t_u8 wait_option);
 void woal_cancel_cac_block(moal_private * priv);
 void woal_moal_debug_info(moal_private * priv, moal_handle * handle, u8 flag);
 
@@ -1986,7 +2053,8 @@ mlan_status woal_get_powermode(moal_private * priv, int *powermode);
 mlan_status woal_set_scan_type(moal_private * priv, t_u32 scan_type);
 mlan_status woal_enable_ext_scan(moal_private * priv, t_u8 enable);
 mlan_status woal_set_powermode(moal_private * priv, char *powermode);
-int woal_find_essid(moal_private * priv, mlan_ssid_bssid * ssid_bssid);
+int woal_find_essid(moal_private * priv, mlan_ssid_bssid * ssid_bssid,
+		    t_u8 wait_option);
 mlan_status woal_request_userscan(moal_private * priv, t_u8 wait_option,
 				  wlan_user_scan_cfg * scan_cfg);
 mlan_status woal_do_scan(moal_private * priv, wlan_user_scan_cfg * scan_cfg);
@@ -2029,16 +2097,22 @@ mlan_status woal_request_bgscan(moal_private * priv, t_u8 wait_option,
 #endif
 
 void woal_flush_tcp_sess_queue(moal_private * priv);
+void woal_flush_tdls_list(moal_private * priv);
 void wlan_scan_create_brief_table_entry(t_u8 ** ppbuffer,
 					BSSDescriptor_t * pbss_desc);
 int wlan_get_scan_table_ret_entry(BSSDescriptor_t * pbss_desc, t_u8 ** ppbuffer,
 				  int *pspace_left);
 BOOLEAN woal_ssid_valid(mlan_802_11_ssid * pssid);
 int woal_is_connected(moal_private * priv, mlan_ssid_bssid * ssid_bssid);
+void wifi_enable_hostwake_irq(int flag);
 int woal_priv_hostcmd(moal_private * priv, t_u8 * respbuf, t_u32 respbuflen);
 void woal_tcp_ack_tx_indication(moal_private * priv, mlan_buffer * pmbuf);
 mlan_status woal_request_country_power_table(moal_private * priv, char *region);
 mlan_status woal_mc_policy_cfg(moal_private * priv, t_u16 * enable,
 			       t_u8 wait_option, t_u8 action);
+#ifdef RX_PACKET_COALESCE
+mlan_status woal_rx_pkt_coalesce_cfg(moal_private * priv, t_u16 * enable,
+				     t_u8 wait_option, t_u8 action);
+#endif
 mlan_status woal_set_low_pwr_mode(moal_handle * handle, t_u8 wait_option);
 #endif /* _MOAL_MAIN_H */

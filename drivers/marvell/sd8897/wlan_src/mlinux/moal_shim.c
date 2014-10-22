@@ -32,6 +32,8 @@ Change log:
 #ifdef STA_CFG80211
 #include "moal_cfg80211.h"
 #endif
+/** Wake lock timeout in msec */
+#define WAKE_LOCK_TIMEOUT 3000
 
 /********************************************************
 		Local Variables
@@ -863,6 +865,8 @@ moal_recv_packet(IN t_void * pmoal_handle, IN pmlan_buffer pmbuf)
 
 			priv->stats.rx_bytes += skb->len;
 			priv->stats.rx_packets++;
+			wake_lock_timeout(&handle->wake_lock,
+					  WAKE_LOCK_TIMEOUT);
 			if (in_interrupt())
 				netif_rx(skb);
 			else {
@@ -1349,6 +1353,7 @@ moal_recv_event(IN t_void * pmoal_handle, IN pmlan_event pmevent)
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
 				     strlen(CUS_EVT_DRIVER_HANG));
+		woal_process_hang(priv->phandle);
 		break;
 	case MLAN_EVENT_ID_FW_BG_SCAN:
 		if (priv->media_connected == MTRUE)
@@ -1374,7 +1379,8 @@ moal_recv_event(IN t_void * pmoal_handle, IN pmlan_event pmevent)
 				       "Trigger mlan get bgscan result\n");
 			}
 #endif
-			if (!hw_test && priv->roaming_enabled) {
+			if (!hw_test && priv->roaming_enabled
+			    && !priv->ft_ie_len) {
 				priv->roaming_required = MTRUE;
 				wake_up_interruptible(&priv->phandle->
 						      reassoc_thread.wait_q);
@@ -1925,6 +1931,42 @@ moal_recv_event(IN t_void * pmoal_handle, IN pmlan_event pmevent)
 		}
 #endif
 		break;
+	case MLAN_EVENT_ID_DRV_FT_RESPONSE:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#ifdef STA_CFG80211
+		if (IS_STA_CFG80211(cfg80211_wext)) {
+			struct cfg80211_ft_event_params ft_event;
+			memset(&ft_event, 0,
+			       sizeof(struct cfg80211_ft_event_params));
+			PRINTM(MMSG,
+			       "wlan : FT response  target AP " MACSTR "\n",
+			       MAC2STR((t_u8 *) pmevent->event_buf));
+			DBG_HEXDUMP(MDAT_D, "FT-event ", pmevent->event_buf,
+				    pmevent->event_len);
+			memcpy(priv->target_ap_bssid, pmevent->event_buf,
+			       ETH_ALEN);
+			ft_event.target_ap = priv->target_ap_bssid;
+			ft_event.ies = pmevent->event_buf + ETH_ALEN;
+			ft_event.ies_len = pmevent->event_len - ETH_ALEN;
+			/* TSPEC info is needed by RIC, However the TS
+			   operation is configured by mlanutl */
+			/* So do not add RIC temporally */
+			/* when add RIC, 1. query TS status, 2. copy tspec from
+			   addts command */
+			ft_event.ric_ies = NULL;
+			ft_event.ric_ies_len = 0;
+
+			cfg80211_ft_event(priv->netdev, &ft_event);
+			priv->ft_pre_connect = MTRUE;
+	    /** ft over air */
+			if (priv->ft_ie_len && !(priv->ft_cap & MBIT(0))) {
+				priv->ft_wait_condition = MTRUE;
+				wake_up(&priv->ft_wait_q);
+			}
+		}
+#endif
+#endif
+		break;
 	case MLAN_EVENT_ID_FW_DUMP_INFO:
 		woal_store_firmware_dump(priv, pmevent);
 		break;
@@ -2045,4 +2087,35 @@ moal_tcp_ack_tx_ind(IN t_void * pmoal_handle, IN pmlan_buffer pmbuf)
 	moal_handle *phandle = (moal_handle *) pmoal_handle;
 	pmbuf->flags &= ~MLAN_BUF_FLAG_TCP_ACK;
 	woal_tcp_ack_tx_indication(phandle->priv[pmbuf->bss_index], pmbuf);
+}
+
+/**
+ *  @brief This function update the peer signal
+ *
+ *  @param pmoal_handle     A pointer to moal_private structure
+ *  @param bss_index        BSS index
+ *  @param snr              snr
+ *  @param nflr             noise floor
+ *
+ *  @return                 N/A
+ */
+t_void
+moal_updata_peer_signal(IN t_void * pmoal_handle, IN t_u32 bss_index,
+			IN t_u8 * peer_addr, IN t_s8 snr, IN t_s8 nflr)
+{
+	moal_private *priv = NULL;
+	struct tdls_peer *peer = NULL;
+	unsigned long flags;
+	priv = woal_bss_index_to_priv(pmoal_handle, bss_index);
+	if (priv && priv->enable_auto_tdls) {
+		spin_lock_irqsave(&priv->tdls_lock, flags);
+		list_for_each_entry(peer, &priv->tdls_list, link) {
+			if (!memcmp(peer->peer_addr, peer_addr, ETH_ALEN)) {
+				peer->rssi = nflr - snr;
+				peer->rssi_jiffies = jiffies;
+				break;
+			}
+		}
+		spin_unlock_irqrestore(&priv->tdls_lock, flags);
+	}
 }

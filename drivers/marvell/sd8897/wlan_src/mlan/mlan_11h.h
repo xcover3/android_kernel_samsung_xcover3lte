@@ -157,6 +157,12 @@ extern t_bool wlan_11h_radar_detected_tx_blocked(mlan_adapter * pmadapter);
 /** Callback for RADAR_DETECTED (for UAP cmdresp) */
 extern mlan_status wlan_11h_radar_detected_callback(t_void * priv);
 
+/** BW_change event Handler for dfs_repeater */
+void wlan_dfs_rep_bw_change(mlan_adapter * pmadapter);
+
+/** disconnect event Handler for dfs_repeater */
+void wlan_dfs_rep_disconnect(mlan_adapter * pmadapter);
+
 /** Handler for RADAR_DETECTED */
 extern mlan_status wlan_11h_radar_detected_handling(mlan_adapter * pmadapter);
 /** DFS Event pre-processing */

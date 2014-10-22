@@ -69,6 +69,7 @@
 		e.g. copy txpwrlimit_cfg_set.conf to firmware directory, txpwrlimit_cfg=mrvl/txpwrlimit_cfg_set.conf
 	  init_hostcmd_cfg=<init hostcmd config file name>
 		e.g. copy init_hostcmd_cfg.conf to firmware directory, init_hostcmd_cfg=mrvl/init_hostcmd_cfg.conf
+	  minicard_pwrup=1|0 <power up/down on driver load/unload (default) | don't power up/down>
 	  cfg80211_wext=<bit mask of CFG80211 and WEXT control>
 		Bit 0: STA WEXT
 		Bit 1: uAP WEXT

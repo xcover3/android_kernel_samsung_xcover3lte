@@ -3547,6 +3547,8 @@ woal_priv_set_get_drvdbg(moal_private * priv, t_u8 * respbuf, t_u32 respbuflen)
 	printk(KERN_ALERT "MENTRY (%08x) %s\n", MENTRY,
 	       (drvdbg & MENTRY) ? "X" : "");
 #endif
+	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
+	       (drvdbg & MMPA_D) ? "X" : "");
 	printk(KERN_ALERT "MIF_D  (%08x) %s\n", MIF_D,
 	       (drvdbg & MIF_D) ? "X" : "");
 	printk(KERN_ALERT "MFW_D  (%08x) %s\n", MFW_D,
@@ -4155,7 +4157,8 @@ woal_priv_set_essid(moal_private * priv, t_u8 * respbuf, t_u32 respbuflen)
 
 		if (mwr->u.essid.flags != 0xFFFF) {
 			if (MLAN_STATUS_SUCCESS !=
-			    woal_find_essid(priv, &ssid_bssid)) {
+			    woal_find_essid(priv, &ssid_bssid,
+					    MOAL_IOCTL_WAIT)) {
 				/* Do specific SSID scanning */
 				if (MLAN_STATUS_SUCCESS !=
 				    woal_request_scan(priv, MOAL_IOCTL_WAIT,
@@ -4180,7 +4183,7 @@ woal_priv_set_essid(moal_private * priv, t_u8 * respbuf, t_u32 respbuflen)
 	} else if (MLAN_STATUS_SUCCESS !=
 		   woal_find_best_network(priv, MOAL_IOCTL_WAIT, &ssid_bssid))
 		/* Adhoc start, Check the channel command */
-		woal_11h_channel_check_ioctl(priv);
+		woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);
 
 	/* Connect to BSS by ESSID */
 	memset(&ssid_bssid.bssid, 0, MLAN_MAC_ADDR_LENGTH);
@@ -6282,6 +6285,87 @@ done:
 	return ret;
 }
 
+#ifdef RX_PACKET_COALESCE
+/**
+ *  @brief Set/Get RX packet coalesceing setting
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+int
+woal_priv_rx_pkt_coalesce_cfg(moal_private * priv, t_u8 * respbuf,
+			      t_u32 respbuflen)
+{
+	int ret = 0;
+	t_u32 data[2];
+	int user_data_len = 0, header_len = 0;
+	mlan_ds_misc_cfg *cfg = NULL;
+	t_u8 *data_ptr;
+	mlan_ioctl_req *req = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	data_ptr = respbuf + strlen(CMD_MARVELL) + strlen(PRIV_CMD_RX_COAL_CFG);
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_RX_COAL_CFG);
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+	}
+
+	if (sizeof(int) * user_data_len > sizeof(data)) {
+		PRINTM(MERROR, "Too many arguments\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	if ((user_data_len != 0) && (user_data_len != 2)) {
+		PRINTM(MERROR, "Invalid arguments\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	cfg = (mlan_ds_misc_cfg *) req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_RX_PACKET_COALESCE;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if (user_data_len == 0) {
+		req->action = MLAN_ACT_GET;
+	} else {
+		req->action = MLAN_ACT_SET;
+		cfg->param.rx_coalesce.packet_threshold = data[0];
+		cfg->param.rx_coalesce.delay = data[1];
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	memcpy(respbuf,
+	       (mlan_ds_misc_rx_packet_coalesce *) & cfg->param.rx_coalesce,
+	       req->buf_len);
+	ret = req->buf_len;
+
+done:
+	LEAVE();
+	return ret;
+}
+#endif
 /**
  *  @brief Set/Get FW side mac address
  *
@@ -6559,65 +6643,6 @@ done:
 	LEAVE();
 	return ret;
 }
-
-#if defined(STA_SUPPORT)
-/**
- *  @brief SET/Get radio
- *
- *  @param priv         A pointer to moal_private structure
- *  @param respbuf      A pointer to response buffer
- *  @param respbuflen   Available length of response buffer
- *
- *  @return             Number of bytes written, negative for failure.
- */
-static int
-woal_priv_radio_ctrl(moal_private * priv, t_u8 * respbuf, t_u32 respbuflen)
-{
-	int ret = 0, option = 0;
-	int user_data_len = 0, header_len = 0;
-	mlan_bss_info bss_info;
-
-	ENTER();
-
-	memset(&bss_info, 0, sizeof(bss_info));
-
-	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_RADIO_CTRL);
-
-	if (strlen(respbuf) == header_len) {
-		/* GET operation */
-		user_data_len = 0;
-	} else {
-		/* SET operation */
-		parse_arguments(respbuf + header_len, &option, 1,
-				&user_data_len);
-	}
-
-	if (user_data_len > 1) {
-		PRINTM(MERROR, "Too many arguments\n");
-		ret = -EINVAL;
-		goto done;
-	}
-	if (user_data_len == 1) {
-		/* Set radio */
-		if (option < 0 || option > 1) {
-			PRINTM(MERROR, "Invalid arguments!\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		if (MLAN_STATUS_SUCCESS != woal_set_radio(priv, (t_u8) option))
-			ret = -EFAULT;
-		goto done;
-	} else {
-		/* Get radio status */
-		woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
-		memcpy(respbuf, &bss_info.radio_on, sizeof(bss_info.radio_on));
-		ret = sizeof(bss_info.radio_on);
-	}
-done:
-	LEAVE();
-	return ret;
-}
-#endif
 
 /**
  *  @brief Implement WMM enable command
@@ -9629,6 +9654,90 @@ done:
 }
 #endif
 
+/**
+ * @brief               Set/Get DFS repeater mode
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_dfs_repeater_cfg(moal_private * priv, t_u8 * respbuf,
+			   t_u32 respbuflen)
+{
+	int ret = 0;
+	int user_data_len = 0, header_len = 0, data[1];
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc_cfg = NULL;
+	mlan_ds_misc_dfs_repeater *dfs_repeater = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_DFS_REPEATER_CFG);
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	misc_cfg = (mlan_ds_misc_cfg *) req->pbuf;
+	misc_cfg->sub_command = MLAN_OID_MISC_DFS_REAPTER_MODE;
+	dfs_repeater =
+		(mlan_ds_misc_dfs_repeater *) & misc_cfg->param.dfs_repeater;
+
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((data[0] != MTRUE) && (data[0] != MFALSE)) {
+			PRINTM(MERROR, "Invalid DFS repeater mode %d\n",
+			       data[0]);
+			ret = -EINVAL;
+			goto done;
+		}
+		dfs_repeater->mode = (t_u16) data[0];
+
+		req->action = MLAN_ACT_SET;
+	}
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (!user_data_len) {
+		memcpy(respbuf, (t_u8 *) dfs_repeater,
+		       sizeof(mlan_ds_misc_dfs_repeater));
+		ret = sizeof(mlan_ds_misc_dfs_repeater);
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 /**
@@ -9905,6 +10014,59 @@ done:
 }
 
 /**
+ * @brief               Set/Get control to enable/disable auto TDLS
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_auto_tdls(moal_private * priv, t_u8 * respbuf, t_u32 respbuflen)
+{
+	int ret = 0;
+	int user_data_len = 0, header_len = 0, data;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_AUTO_TDLS);
+
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		data = priv->enable_auto_tdls;
+		memcpy(respbuf, (t_u8 *) & data, sizeof(data));
+		ret = sizeof(data);
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, &data,
+				sizeof(data) / sizeof(int), &user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((data != MTRUE) && (data != MFALSE)) {
+			PRINTM(MERROR, "Invalid autotdls parameter %d\n", data);
+			ret = -EINVAL;
+			goto done;
+		}
+		priv->enable_auto_tdls = (t_u8) data;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
  *  @param req          A pointer to ifreq structure
@@ -9931,6 +10093,7 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 #endif
 	int len = 0;
 	gfp_t flag;
+	char *cmd_buf = NULL;
 
 	ENTER();
 	if (!priv || !priv->phandle) {
@@ -9962,7 +10125,12 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 		ret = -ENOMEM;
 		goto done;
 	}
-	if (copy_from_user(buf, priv_cmd.buf, priv_cmd.total_len)) {
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memcpy(&cmd_buf, &priv_cmd.buf, sizeof(cmd_buf));
+#else
+	cmd_buf = priv_cmd.buf;
+#endif
+	if (copy_from_user(buf, cmd_buf, priv_cmd.total_len)) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -10520,15 +10688,6 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_get_driver_verext(priv, buf,
 							  priv_cmd.total_len);
 			goto handled;
-#if defined(STA_SUPPORT)
-		} else if (strnicmp
-			   (buf + strlen(CMD_MARVELL), PRIV_CMD_RADIO_CTRL,
-			    strlen(PRIV_CMD_RADIO_CTRL)) == 0) {
-			/* Set/Get radio */
-			len = woal_priv_radio_ctrl(priv, buf,
-						   priv_cmd.total_len);
-			goto handled;
-#endif
 		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_WMM_CFG,
 			    strlen(PRIV_CMD_WMM_CFG)) == 0) {
@@ -10770,6 +10929,14 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 #endif
 #endif
 #endif
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL),
+			    PRIV_CMD_DFS_REPEATER_CFG,
+			    strlen(PRIV_CMD_DFS_REPEATER_CFG)) == 0) {
+			/* Set/Get DFS_REPEATER mode */
+			len = woal_priv_dfs_repeater_cfg(priv, buf,
+							 priv_cmd.total_len);
+			goto handled;
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		} else if (strnicmp
@@ -10794,6 +10961,13 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get control to TX AMPDU on infra link */
 			len = woal_priv_txaggrctrl(priv, buf,
 						   priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_AUTO_TDLS,
+			    strlen(PRIV_CMD_AUTO_TDLS)) == 0) {
+			/* Set/Get control to enable/disable auto TDLS */
+			len = woal_priv_auto_tdls(priv, buf,
+						  priv_cmd.total_len);
 			goto handled;
 		} else {
 			/* Fall through, after stripping off the custom header */
@@ -11222,10 +11396,10 @@ handled:
 	if (len > 0) {
 		priv_cmd.used_len = len;
 		if (priv_cmd.used_len <= priv_cmd.total_len) {
-			memset(priv_cmd.buf + priv_cmd.used_len, 0,
+			memset(cmd_buf + priv_cmd.used_len, 0,
 			       (size_t) (priv_cmd.total_len -
 					 priv_cmd.used_len));
-			if (copy_to_user(priv_cmd.buf, buf, priv_cmd.used_len)) {
+			if (copy_to_user(cmd_buf, buf, priv_cmd.used_len)) {
 				PRINTM(MERROR,
 				       "%s: failed to copy data to user buffer\n",
 				       __FUNCTION__);

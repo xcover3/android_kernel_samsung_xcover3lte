@@ -126,6 +126,66 @@ wlan_cmd_append_generic_ie(mlan_private * priv, t_u8 ** ppbuffer)
 }
 
 /**
+ *  @brief Append  IE as a pass through TLV to a TLV buffer.
+ *
+ *  This routine appends IE as a pass through TLV type to the request.
+ *
+ *  @param priv     A pointer to mlan_private structure
+ *  @param ie       A pointer to IE buffer
+ *  @param ppbuffer pointer to command buffer pointer
+ *
+ *  @return         bytes added to the buffer
+ */
+static int
+wlan_cmd_append_pass_through_ie(mlan_private * priv, IEEEtypes_Generic_t * ie,
+				t_u8 ** ppbuffer)
+{
+	int ret_len = 0;
+	MrvlIEtypesHeader_t ie_header;
+
+	ENTER();
+
+	/* Null Checks */
+	if (ppbuffer == MNULL) {
+		LEAVE();
+		return 0;
+	}
+	if (*ppbuffer == MNULL) {
+		LEAVE();
+		return 0;
+	}
+	if (ie->ieee_hdr.len) {
+		PRINTM(MINFO, "append generic IE %d to %p\n", ie->ieee_hdr.len,
+		       *ppbuffer);
+
+		/* Wrap the generic IE buffer with a pass through TLV type */
+		ie_header.type = wlan_cpu_to_le16(TLV_TYPE_PASSTHROUGH);
+		ie_header.len =
+			wlan_cpu_to_le16(ie->ieee_hdr.len +
+					 sizeof(MrvlIEtypesHeader_t));
+		memcpy(priv->adapter, *ppbuffer, &ie_header, sizeof(ie_header));
+
+		/* Increment the return size and the return buffer pointer
+		   param */
+		*ppbuffer += sizeof(ie_header);
+		ret_len += sizeof(ie_header);
+
+		/* Copy the generic IE buffer to the output buffer, advance
+		   pointer */
+		memcpy(priv->adapter, *ppbuffer, ie,
+		       ie->ieee_hdr.len + sizeof(MrvlIEtypesHeader_t));
+
+		/* Increment the return size and the return buffer pointer
+		   param */
+		*ppbuffer += ie->ieee_hdr.len + sizeof(MrvlIEtypesHeader_t);
+		ret_len += ie->ieee_hdr.len + sizeof(MrvlIEtypesHeader_t);
+	}
+	/* return the length appended to the buffer */
+	LEAVE();
+	return ret_len;
+}
+
+/**
   *  @brief Append TSF tracking info from the scan table for the target AP
   *
   *  This function is called from the network join command prep. routine.
@@ -707,6 +767,10 @@ wlan_cmd_802_11_associate(IN mlan_private * pmpriv,
 			pauth_tlv->auth_type =
 				wlan_cpu_to_le16((t_u16) pmpriv->sec_info.
 						 authentication_mode);
+		else if (pmpriv->sec_info.authentication_mode ==
+			 MLAN_AUTH_MODE_FT)
+			pauth_tlv->auth_type =
+				wlan_cpu_to_le16(AssocAgentAuth_FastBss_Skip);
 		else
 			pauth_tlv->auth_type =
 				wlan_cpu_to_le16(MLAN_AUTH_MODE_OPEN);
@@ -878,6 +942,10 @@ wlan_cmd_802_11_associate(IN mlan_private * pmpriv,
 
 	wlan_cmd_append_generic_ie(pmpriv, &pos);
 
+	if (pbss_desc->pmd_ie)
+		wlan_cmd_append_pass_through_ie(pmpriv,
+						(IEEEtypes_Generic_t *)
+						pbss_desc->pmd_ie, &pos);
 	wlan_cmd_append_tsf_tlv(pmpriv, &pos, pbss_desc);
 
 	if (wlan_11d_create_dnld_countryinfo
@@ -1078,6 +1146,12 @@ wlan_ret_802_11_associate(IN mlan_private * pmpriv,
 		= pbss_desc->phy_param_set.ds_param_set.current_chan;
 
 	pmpriv->curr_bss_params.band = (t_u8) pbss_desc->bss_band;
+
+	/* Store current channel for further reference. This would save one
+	   extra call to get current channel when disconnect/bw_ch event is
+	   raised. */
+	pmpriv->adapter->dfsr_channel =
+		pmpriv->curr_bss_params.bss_descriptor.channel;
 
 	/*
 	 * Adjust the timestamps in the scan table to be relative to the newly

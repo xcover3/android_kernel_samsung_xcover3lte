@@ -144,9 +144,6 @@ Change log:
 #endif
 /** Private command: Verext */
 #define PRIV_CMD_VEREXT         "verext"
-#if defined(STA_SUPPORT)
-#define PRIV_CMD_RADIO_CTRL     "radioctrl"
-#endif
 #define PRIV_CMD_WMM_CFG        "wmmcfg"
 #if defined(STA_SUPPORT)
 #define PRIV_CMD_11D_CFG        "11dcfg"
@@ -192,6 +189,9 @@ Change log:
 #define PRIV_CMD_PB_BYPASS      "pb_bypass"
 #define PRIV_CMD_COALESCE_STATUS    "coalesce_status"
 #define PRIV_CMD_SD_CMD53_RW        "sdcmd53rw"
+#ifdef RX_PACKET_COALESCE
+#define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
+#endif
 #define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
 #define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
 #if defined(WIFI_DIRECT_SUPPORT)
@@ -201,6 +201,7 @@ Change log:
 #endif
 #endif
 #endif
+#define PRIV_CMD_DFS_REPEATER_CFG       "dfs_repeater"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #define PRIV_CMD_MIRACAST_CFG       "miracastcfg"
@@ -208,6 +209,7 @@ Change log:
 #endif
 #define PRIV_CMD_COEX_RX_WINSIZE    "coex_rx_winsize"
 #define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
+#define PRIV_CMD_AUTO_TDLS          "autotdls"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD        (SIOCDEVPRIVATE + 1)
@@ -237,6 +239,16 @@ int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
  * kernel updates "used_len" during copy_to_user
  */
 /** Private command structure from app */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+typedef struct _android_wifi_priv_cmd {
+    /** Buffer pointer */
+	t_u64 buf;
+    /** buffer updated by driver */
+	int used_len;
+    /** buffer sent by application */
+	int total_len;
+} __attribute__ ((packed)) android_wifi_priv_cmd;
+#else
 typedef struct _android_wifi_priv_cmd {
     /** Buffer pointer */
 	char *buf;
@@ -245,6 +257,7 @@ typedef struct _android_wifi_priv_cmd {
     /** buffer sent by application */
 	int total_len;
 } android_wifi_priv_cmd;
+#endif
 
 #ifndef IFNAMSIZ
 #define IFNAMSIZ 16

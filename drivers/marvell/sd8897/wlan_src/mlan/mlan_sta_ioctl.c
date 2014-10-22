@@ -289,6 +289,10 @@ wlan_get_info_bss_info(IN pmlan_adapter pmadapter,
 	       pbss_desc->supported_rates,
 	       MIN(sizeof(info->param.bss_info.peer_supp_rates),
 		   sizeof(pbss_desc->supported_rates)));
+	if (pbss_desc->pmd_ie) {
+		info->param.bss_info.mdid = pbss_desc->pmd_ie->mdid;
+		info->param.bss_info.ft_cap = pbss_desc->pmd_ie->ft_cap;
+	}
 	pioctl_req->data_read_written =
 		sizeof(mlan_bss_info) + MLAN_SUB_COMMAND_SIZE;
 
@@ -5083,8 +5087,18 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		status = wlan_misc_ioctl_multi_chan_policy(pmadapter,
 							   pioctl_req);
 		break;
+#ifdef RX_PACKET_COALESCE
+	case MLAN_OID_MISC_RX_PACKET_COALESCE:
+		status = wlan_misc_ioctl_rx_pkt_coalesce_config(pmadapter,
+								pioctl_req);
+		break;
+#endif
 	case MLAN_OID_MISC_LOW_PWR_MODE:
 		status = wlan_misc_ioctl_low_pwr_mode(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_DFS_REAPTER_MODE:
+		status = wlan_misc_ioctl_dfs_repeater_cfg(pmadapter,
+							  pioctl_req);
 		break;
 	default:
 		if (pioctl_req)

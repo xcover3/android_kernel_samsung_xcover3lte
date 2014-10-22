@@ -65,6 +65,7 @@
 		e.g. copy init_cfg.conf to firmware directory, init_cfg=mrvl/init_cfg.conf
 	  cal_data_cfg=<CAL data config file name>
 		e.g. copy cal_data.conf to firmware directory, cal_data_cfg=mrvl/cal_data.conf
+	  minicard_pwrup=1|0 <power up/down on driver load/unload (default) | don't power up/down>
 	  cfg80211_wext=<bit mask of CFG80211 and WEXT control>
 		Bit 0: STA WEXT
 		Bit 1: uAP WEXT
@@ -256,6 +257,7 @@ SYNOPSIS
 	mlanutl mlanX assocessid <"[essid]">
 	mlanutl mlanX associate "<bssid> <ssid>"
 	mlanutl mlanX authtype [n]
+	mlanutl mlanX autotdls [n]
 	mlanutl mlanX bandcfg [l] [m] [n] [o]
 	mlanutl mlanX bcninterval [n]
 	mlanutl wfdX bssrole [l]
@@ -271,6 +273,7 @@ SYNOPSIS
 	mlanutl uapX delba <l> [<m> <n>]
 	mlanutl mlanX delts <filename.conf> <section# of tspec>
 	mlanutl mlanX dfstesting [<user_cac_pd> <user_nop_pd> <no_chan_change> <fixed_chan_num>]
+	mlanutl mlanX dfs_repeater [n]
 	mlanutl mlanX drvdbg [n]
 	mlanutl mlanX esuppmode [l] [m] [n]
 	mlanutl mlanX extcapcfg [<ext_cap>]
@@ -344,7 +347,6 @@ SYNOPSIS
 	mlanutl mlanX qconfig set msdu <lifetime in TUs> [Queue Id: 0-3]
 	mlanutl mlanX qoscfg
 	mlanutl mlanX qstatus
-	mlanutl mlanX radioctrl [n]
 	mlanutl mlanX rdeeprom <offset> <length>
 	mlanutl mlanX reassoctrl [n]
 	mlanutl mlanX regioncode [n]
@@ -689,6 +691,21 @@ authtype
 		mlanutl mlan0 authtype 255       : allow open system or shared key authentication
 		mlanutl mlan0 authtype           : get current setting
 
+autotdls
+	This command is used to enable/disable auto TDLS.
+
+	Usage:
+		mlanutl mlanX autotdls [n]
+
+	where <n>
+		0: Disable auto tdls
+		1: Enable auto tdls
+
+	Examples:
+		mlanutl mlan0 autotdls 1         : enable auto TDLS
+		mlanutl mlan0 autotdls 0         : disable auto TDLS
+		mlanutl mlan0 autotdls           : get current setting
+
 bandcfg
 	This command is used to set/get infra/ad-hoc band.
 	Note: This command is only available in disconnected state.
@@ -942,6 +959,22 @@ dfstesting
 		mlanutl mlan0 dfstesting 2000 0 0 0  : user_cac=2sec, others disabled/default
 		mlanutl mlan0 dfstesting 0 0 1 0     : only no_chan_change enabled
 		mlanutl mlan0 dfstesting 0 120 0 64  : user_nop=2min, force chan 64 on radar
+
+dfs_repeater
+	This command is used to get/set DFS Repeater mode.
+
+	Usage:
+		mlanutl mlan0 dfs_repeater <n>
+
+	where the parameter is <n> :
+		null:	to get current setting
+		1:	to enable dfs_repeater mode
+		0:	to disable dfs_repeater mode
+
+	eg.,
+		mlanutl mlan0 dfs_repeater        :get current setting
+		mlanutl mlan0 dfs_repeater 1	  :enable dfs repeater mode
+		mlanutl mlan0 dfs_repeater 0	  :disable dfs repeater mode
 
 drvdbg
 	This command is used to set/get the bit masks of driver debug message control.
@@ -1945,18 +1978,6 @@ qstatus
 	Usage:
 		mlanutl mlanX qstatus
 
-radioctrl
-	This command is used to turn on/off the radio.
-	Note: The radio can be disabled only in disconnected state.
-
-	where value of n is:
-		0   -- Disable
-		1   -- Enable
-
-	Examples:
-		mlanutl mlan0 radioctrl 1        : Turn the radio on
-		mlanutl mlan0 radioctrl          : Get radio status
-
 rdeeprom
 	This command is used to read the EEPROM contents of the card.
 
@@ -2224,6 +2245,19 @@ sysclock
 		mlanutl mlanX sysclock 0 0 128   : Set system clock in non-security A-MPDU
 		                                  mode to 128 MHz, no changes for others
 
+host_tdls_config
+	This command is used to support channel switch and uapsd for host based tdls
+
+	Usage:
+		mlanutl mlanX host_tdls_config <host_tdls.conf>
+
+
+	Where the parameter is:
+		host_tdls.conf: The configuration file specifying to enable/disable uapsd/cs and related parameters.
+
+	Examples:
+		mlanutl mlan0 host_tdls_config config/host_tdls.conf
+			: enable or disable uapsd/cs, config the channel related ie, based on the configuration file.
 tdls_channel_switch
 	This command is used to send TDLS channel switch request.
 
@@ -2799,4 +2833,15 @@ noacfg
 		[n] : ct_window  : A period of time in TU after a TBTT during which P2P GO
 				   is present. 0 indicates that there shall be no
 				   CTWindow (Client Traffic Window).
+
+rxpktcoal_cfg
+	This is used to get/set RX packet coalescing paramters
+	Usage:
+		mlanutl mlanX rxpktcoal_cfg [m] [n]
+
+	where:
+        [m]: pkt_threshold: count after which packets would be sent to host. Valid values 1-7
+        [n]: delay: timeout in ms after which packets would be sent to host. Valid values 1-4
+        Coalescing is disabled if both or either of packet_thershold and delay is zero
+
 ===============================================================================

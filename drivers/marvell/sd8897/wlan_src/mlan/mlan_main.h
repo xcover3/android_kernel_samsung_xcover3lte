@@ -1112,6 +1112,18 @@ typedef struct _mlan_private {
 	t_u8 wmm_qosinfo;
     /** saved WMM qos info */
 	t_u8 saved_wmm_qosinfo;
+    /**host tdls uapsd support*/
+	t_u8 host_tdls_uapsd_support;
+    /**host tdls channel switch support*/
+	t_u8 host_tdls_cs_support;
+    /**supported channel IE len*/
+	t_u8 chan_supp_len;
+    /**save channel support IE*/
+	t_u8 chan_supp[MAX_IE_SIZE];
+    /**supported regulatory classl IE len*/
+	t_u8 supp_regulatory_class_len;
+    /**save support channel regulatory class IE*/
+	t_u8 supp_regulatory_class[MAX_IE_SIZE];
     /** WMM related variable*/
 	wmm_desc_t wmm;
 
@@ -1806,6 +1818,12 @@ typedef struct _mlan_adapter {
 	t_u16 last_mp_wr_info[SDIO_MP_DBG_NUM * SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
     /** last curr_wr_port */
 	t_u8 last_curr_wr_port[SDIO_MP_DBG_NUM];
+
+    /** buffer for mp debug */
+	t_u8 *mpa_buf;
+    /** length info for mp buf size */
+	t_u32 mpa_buf_size;
+
     /** last mp_index */
 	t_u8 last_mp_index;
 #endif				/* SDIO_MULTI_PORT_TX_AGGR */
@@ -2103,6 +2121,8 @@ typedef struct _mlan_adapter {
 
     /** Control coex RX window size configuration */
 	t_u8 coex_rx_winsize;
+	t_bool dfs_repeater;
+	t_u32 dfsr_channel;
 	t_bool mc_policy;
 } mlan_adapter, *pmlan_adapter;
 
@@ -2336,6 +2356,8 @@ mlan_status wlan_misc_p2p_config(IN pmlan_adapter pmadapter,
 #endif
 /** get ralist info */
 int wlan_get_ralist_info(mlan_private * priv, ralist_info * buf);
+/** dump ralist */
+void wlan_dump_ralist(mlan_private * priv);
 
 /** get pm info */
 mlan_status wlan_get_pm_info(IN pmlan_adapter pmadapter,
@@ -2388,6 +2410,15 @@ t_void wlan_host_sleep_wakeup_event(pmlan_private priv);
 /** send adapter specific init cmd to firmware */
 mlan_status wlan_adapter_init_cmd(IN pmlan_adapter pmadapter);
 
+#ifdef RX_PACKET_COALESCE
+mlan_status wlan_cmd_rx_pkt_coalesce_cfg(IN pmlan_private pmpriv,
+					 IN HostCmd_DS_COMMAND * cmd,
+					 IN t_u16 cmd_action,
+					 IN t_void * pdata_buf);
+mlan_status wlan_ret_rx_pkt_coalesce_cfg(IN pmlan_private pmpriv,
+					 const IN HostCmd_DS_COMMAND * resp,
+					 OUT mlan_ioctl_req * pioctl_buf);
+#endif
 mlan_status wlan_handle_event_multi_chan_info(IN pmlan_private pmpriv,
 					      pmlan_buffer pevent);
 
@@ -2900,6 +2931,12 @@ mlan_status wlan_misc_otp_user_data(IN pmlan_adapter pmadapter,
 mlan_status wlan_misc_ioctl_txcontrol(IN pmlan_adapter pmadapter,
 				      IN pmlan_ioctl_req pioctl_req);
 
+#ifdef RX_PACKET_COALESCE
+mlan_status
+wlan_misc_ioctl_rx_pkt_coalesce_config(IN pmlan_adapter pmadapter,
+				       IN pmlan_ioctl_req pioctl_req);
+#endif
+
 mlan_status wlan_misc_ioctl_multi_chan_config(IN pmlan_adapter pmadapter,
 					      IN pmlan_ioctl_req pioctl_req);
 
@@ -2922,6 +2959,9 @@ mlan_status wlan_cmd_multi_chan_policy(IN pmlan_private pmpriv,
 mlan_status wlan_ret_multi_chan_policy(IN pmlan_private pmpriv,
 				       const IN HostCmd_DS_COMMAND * resp,
 				       OUT mlan_ioctl_req * pioctl_buf);
+
+mlan_status wlan_misc_ioctl_dfs_repeater_cfg(IN pmlan_adapter pmadapter,
+					     IN pmlan_ioctl_req pioctl_req);
 
 mlan_status wlan_misc_ioctl_low_pwr_mode(IN pmlan_adapter pmadapter,
 					 IN pmlan_ioctl_req pioctl_req);

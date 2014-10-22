@@ -1994,6 +1994,18 @@ wlan_interpret_bss_desc_with_ie(IN pmlan_adapter pmadapter,
 				(*(pbss_entry->poper_mode)).ieee_hdr.len +
 				sizeof(IEEEtypes_Header_t));
 			break;
+		case MOBILITY_DOMAIN:
+			PRINTM(MCMND, "Mobility Domain IE received in Scan\n");
+			pbss_entry->pmd_ie =
+				(IEEEtypes_MobilityDomain_t *) pcurrent_ptr;
+			pbss_entry->md_offset =
+				(t_u16) (pcurrent_ptr -
+					 pbss_entry->pbeacon_buf);
+			HEXDUMP("InterpretIE: Resp Mobility Domain IE",
+				(t_u8 *) pbss_entry->pmd_ie,
+				(*(pbss_entry->pmd_ie)).ieee_hdr.len +
+				sizeof(IEEEtypes_Header_t));
+			break;
 		default:
 			break;
 		}
@@ -2042,6 +2054,11 @@ wlan_adjust_ie_in_bss_entry(IN mlan_private * pmpriv,
 			pbss_entry->posen_ie = (IEEEtypes_Generic_t *)
 				(pbss_entry->pbeacon_buf +
 				 pbss_entry->osen_offset);
+		}
+		if (pbss_entry->pmd_ie) {
+			pbss_entry->pmd_ie = (IEEEtypes_MobilityDomain_t *)
+				(pbss_entry->pbeacon_buf +
+				 pbss_entry->md_offset);
 		}
 		if (pbss_entry->pht_cap) {
 			pbss_entry->pht_cap = (IEEEtypes_HTCap_t *)
@@ -2113,6 +2130,8 @@ wlan_adjust_ie_in_bss_entry(IN mlan_private * pmpriv,
 		pbss_entry->wapi_offset = 0;
 		pbss_entry->posen_ie = MNULL;
 		pbss_entry->osen_offset = 0;
+		pbss_entry->pmd_ie = MNULL;
+		pbss_entry->md_offset = 0;
 		pbss_entry->pht_cap = MNULL;
 		pbss_entry->ht_cap_offset = 0;
 		pbss_entry->pht_info = MNULL;
@@ -2374,6 +2393,10 @@ wlan_ret_802_11_scan_store_beacon(IN mlan_private * pmpriv,
 				pnew_beacon->osen_offset =
 					pmadapter->pscan_table[beacon_idx].
 					osen_offset;
+			if (pnew_beacon->pmd_ie)
+				pnew_beacon->md_offset =
+					pmadapter->pscan_table[beacon_idx].
+					md_offset;
 			if (pnew_beacon->pht_cap)
 				pnew_beacon->ht_cap_offset =
 					pmadapter->pscan_table[beacon_idx].
@@ -2737,6 +2760,8 @@ wlan_scan_process_results(IN mlan_private * pmpriv)
 			pmpriv->curr_bss_params.bss_descriptor.wapi_offset = 0;
 			pmpriv->curr_bss_params.bss_descriptor.posen_ie = MNULL;
 			pmpriv->curr_bss_params.bss_descriptor.osen_offset = 0;
+			pmpriv->curr_bss_params.bss_descriptor.pmd_ie = MNULL;
+			pmpriv->curr_bss_params.bss_descriptor.md_offset = 0;
 			pmpriv->curr_bss_params.bss_descriptor.pht_cap = MNULL;
 			pmpriv->curr_bss_params.bss_descriptor.ht_cap_offset =
 				0;
@@ -2961,6 +2986,14 @@ wlan_scan_delete_table_entry(IN mlan_private * pmpriv, IN t_s32 table_idx)
 					 pbeacon_buf +
 					 pmadapter->pscan_table[del_idx].
 					 osen_offset);
+			}
+			if (pmadapter->pscan_table[del_idx].pmd_ie) {
+				pmadapter->pscan_table[del_idx].pmd_ie =
+					(IEEEtypes_MobilityDomain_t *)
+					(pmadapter->pscan_table[del_idx].
+					 pbeacon_buf +
+					 pmadapter->pscan_table[del_idx].
+					 md_offset);
 			}
 			if (pmadapter->pscan_table[del_idx].pht_cap) {
 				pmadapter->pscan_table[del_idx].pht_cap =
@@ -5334,6 +5367,7 @@ wlan_queue_scan_cmd(IN mlan_private * pmpriv, IN cmd_ctrl_node * pcmd_node)
 
 	if (pcmd_node == MNULL)
 		goto done;
+	pcmd_node->cmd_flag |= CMD_F_SCAN;
 	util_enqueue_list_tail(pmadapter->pmoal_handle,
 			       &pmadapter->scan_pending_q,
 			       (pmlan_linked_list) pcmd_node,

@@ -275,15 +275,19 @@ wlan_ops_uap_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 	t_u8 ta[MLAN_MAC_ADDR_LENGTH];
 	t_u16 rx_pkt_type = 0;
 	sta_node *sta_ptr = MNULL;
+
 	ENTER();
 
 	prx_pd = (UapRxPD *) (pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	uap_endian_convert_RxPD(prx_pd);
-	if (priv->adapter->psdio_device->v15_fw_api) {
-		priv->rxpd_rate = prx_pd->rx_rate;
-		priv->rxpd_rate_info = prx_pd->rate_info;
-	}
+	priv->rxpd_rate = prx_pd->rx_rate;
+
+	priv->rxpd_rate_info = prx_pd->rate_info;
+	if (!priv->adapter->psdio_device->v15_fw_api)
+		priv->rxpd_rate_info =
+			wlan_convert_v14_rate_ht_info(priv->rxpd_rate_info);
+
 	rx_pkt_type = prx_pd->rx_pkt_type;
 	prx_pkt = (RxPacketHdr_t *) ((t_u8 *) prx_pd + prx_pd->rx_pkt_offset);
 

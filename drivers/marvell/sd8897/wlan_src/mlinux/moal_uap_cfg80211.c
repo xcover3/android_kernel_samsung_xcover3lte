@@ -646,12 +646,12 @@ woal_cfg80211_beacon_config(moal_private * priv,
 				       sizeof(rates_a));
 		}
 		/* Disable GreenField by default */
-		sys_config.ht_cap_info = 0x110c;
+		sys_config.ht_cap_info = 0x10c;
 		if (enable_11n)
 			sys_config.ht_cap_info |= 0x20;
 		if (chan2Offset) {
 			sys_config.band_cfg |= chan2Offset;
-			sys_config.ht_cap_info |= 0x42;
+			sys_config.ht_cap_info |= 0x1042;
 			sys_config.ampdu_param = 3;
 		}
 		PRINTM(MCMND,

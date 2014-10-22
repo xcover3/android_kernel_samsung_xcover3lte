@@ -369,6 +369,11 @@ wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 
 	PRINTM(MINFO, "Handles disconnect event.\n");
 
+	/* If DFS repeater mode is enabled and station interface disconnects
+	   then make sure that all uAPs are stopped. */
+	if (pmadapter->dfs_repeater)
+		wlan_dfs_rep_disconnect(pmadapter);
+
 	if (drv_disconnect) {
 		priv->media_connected = MFALSE;
 		wlan_11h_check_update_radar_det_state(priv);
@@ -1001,6 +1006,8 @@ wlan_ops_sta_process_event(IN t_void * priv)
 		/* Copy event body from the event buffer */
 		memcpy(pmadapter, (t_u8 *) pevent->event_buf,
 		       pmadapter->event_body, pevent->event_len);
+		if (pmadapter->dfs_repeater)
+			wlan_dfs_rep_bw_change(pmadapter);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_BW_CHANGED, pevent);
 		break;
 

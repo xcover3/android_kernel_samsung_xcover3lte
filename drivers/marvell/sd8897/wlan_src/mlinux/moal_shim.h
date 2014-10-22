@@ -88,6 +88,9 @@ t_void moal_print_netintf(IN t_void * pmoal_handle, IN t_u32 bss_index,
 t_void moal_assert(IN t_void * pmoal_handle, IN t_u32 cond);
 t_void moal_tcp_ack_tx_ind(IN t_void * pmoal_handle, IN pmlan_buffer pmbuf);
 
+t_void moal_updata_peer_signal(IN t_void * pmoal_handle, IN t_u32 bss_index,
+			       IN t_u8 * peer_addr, IN t_s8 snr, IN t_s8 nflr);
+
 mlan_status moal_init_timer(IN t_void * pmoal_handle,
 			    OUT t_void ** pptimer,
 			    IN t_void(*callback) (t_void * pcontext),

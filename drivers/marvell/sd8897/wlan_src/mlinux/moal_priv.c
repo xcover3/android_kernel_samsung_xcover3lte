@@ -2618,6 +2618,8 @@ woal_drv_dbg(moal_private * priv, struct iwreq *wrq)
 	printk(KERN_ALERT "MENTRY (%08x) %s\n", MENTRY,
 	       (drvdbg & MENTRY) ? "X" : "");
 #endif
+	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
+	       (drvdbg & MMPA_D) ? "X" : "");
 	printk(KERN_ALERT "MIF_D  (%08x) %s\n", MIF_D,
 	       (drvdbg & MIF_D) ? "X" : "");
 	printk(KERN_ALERT "MFW_D  (%08x) %s\n", MFW_D,

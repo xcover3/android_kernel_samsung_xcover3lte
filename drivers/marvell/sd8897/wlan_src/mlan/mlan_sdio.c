@@ -1405,6 +1405,13 @@ wlan_host_to_card_mp_aggr(mlan_adapter * pmadapter, mlan_buffer * mbuf,
 
 	if (f_precopy_cur_buf) {
 		PRINTM(MINFO, "host_2_card_mp_aggr: Precopy current buffer\n");
+		if (pmadapter->mpa_buf)
+			memcpy(pmadapter, pmadapter->mpa_buf +
+			       (pmadapter->last_mp_index * mp_aggr_pkt_limit +
+				pmadapter->mpa_tx.pkt_cnt) *
+			       MLAN_SDIO_BLOCK_SIZE,
+			       mbuf->pbuf + mbuf->data_offset,
+			       MLAN_SDIO_BLOCK_SIZE);
 		if (pmadapter->max_segs >= mp_aggr_pkt_limit) {
 			if (pmadapter->psdio_device->supports_sdio_new_mode)
 				MP_TX_AGGR_BUF_PUT_SG_NEWMODE(pmadapter, mbuf,
@@ -1471,6 +1478,13 @@ tx_curr_single:
 			*(t_u16 *) (mbuf->pbuf + mbuf->data_offset);
 		pmadapter->last_curr_wr_port[pmadapter->last_mp_index] =
 			pmadapter->curr_wr_port;
+		if (pmadapter->mpa_buf)
+			memcpy(pmadapter,
+			       pmadapter->mpa_buf +
+			       (pmadapter->last_mp_index * mp_aggr_pkt_limit *
+				MLAN_SDIO_BLOCK_SIZE),
+			       mbuf->pbuf + mbuf->data_offset,
+			       MLAN_SDIO_BLOCK_SIZE);
 		pmadapter->last_mp_index++;
 		if (pmadapter->last_mp_index >= SDIO_MP_DBG_NUM)
 			pmadapter->last_mp_index = 0;
@@ -1478,6 +1492,13 @@ tx_curr_single:
 	}
 	if (f_postcopy_cur_buf) {
 		PRINTM(MINFO, "host_2_card_mp_aggr: Postcopy current buffer\n");
+		if (pmadapter->mpa_buf)
+			memcpy(pmadapter, pmadapter->mpa_buf +
+			       (pmadapter->last_mp_index * mp_aggr_pkt_limit +
+				pmadapter->mpa_tx.pkt_cnt) *
+			       MLAN_SDIO_BLOCK_SIZE,
+			       mbuf->pbuf + mbuf->data_offset,
+			       MLAN_SDIO_BLOCK_SIZE);
 		if (pmadapter->max_segs >= mp_aggr_pkt_limit) {
 			if (pmadapter->psdio_device->supports_sdio_new_mode)
 				MP_TX_AGGR_BUF_PUT_SG_NEWMODE(pmadapter, mbuf,

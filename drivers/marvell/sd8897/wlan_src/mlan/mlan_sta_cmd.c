@@ -1555,16 +1555,6 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 					wlan_cpu_to_le16(sta_ptr->capability);
 			travel_len += sizeof(sta_ptr->capability);
 
-			/* qos_info */
-			qos_info = (MrvlIETypes_qosinfo_t *) (pos + travel_len);
-			qos_info->header.type = wlan_cpu_to_le16(QOS_INFO);
-			qos_info->header.len = wlan_cpu_to_le16(sizeof(t_u8));
-			if (tdls_oper->qos_info)
-				qos_info->qos_info = tdls_oper->qos_info;
-			else
-				qos_info->qos_info = sta_ptr->qos_info;
-			travel_len += sizeof(MrvlIETypes_qosinfo_t);
-
 			/* supported rate */
 			Rate_tlv =
 				(MrvlIEtypes_RatesParamSet_t *) (pos +
@@ -1631,6 +1621,36 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 					sizeof(MrvlIEtypesHeader_t);
 
 			}
+			if (ExCap) {
+				if (pmpriv->host_tdls_uapsd_support &&
+				    ISSUPP_EXTCAP_TDLS_UAPSD(ExCap->ext_cap)) {
+					/* qos_info */
+					qos_info =
+						(MrvlIETypes_qosinfo_t *) (pos +
+									   travel_len);
+					qos_info->header.type =
+						wlan_cpu_to_le16(QOS_INFO);
+					qos_info->header.len =
+						wlan_cpu_to_le16(sizeof(t_u8));
+					if (tdls_oper->qos_info)
+						qos_info->qos_info =
+							tdls_oper->qos_info;
+					else
+						qos_info->qos_info =
+							sta_ptr->qos_info;
+					travel_len +=
+						sizeof(MrvlIETypes_qosinfo_t);
+				} else {
+					RESET_EXTCAP_TDLS_UAPSD(ExCap->ext_cap);
+				}
+
+				if (!
+				    (pmpriv->host_tdls_cs_support &&
+				     ISSUPP_EXTCAP_TDLS_CHAN_SWITCH(ExCap->
+								    ext_cap)))
+					RESET_EXTCAP_TDLS_CHAN_SWITCH(ExCap->
+								      ext_cap);
+			}
 
 			/* RSN ie */
 			if (sta_ptr->rsn_ie.ieee_hdr.element_id == RSN_IE) {
@@ -1695,8 +1715,14 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 					sizeof(MrvlIEtypesHeader_t);
 			}
 			if (HTcap_tlv) {
-				wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
-						     pbss_desc->bss_band);
+				if (pmpriv->host_tdls_cs_support &&
+				    (pmpriv->adapter->fw_bands & BAND_A))
+					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
+							     BAND_A);
+				else
+					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
+							     pbss_desc->
+							     bss_band);
 				DBG_HEXDUMP(MCMD_D, "FW htcap",
 					    (t_u8 *) HTcap_tlv,
 					    sizeof(MrvlIETypes_HTCap_t));
@@ -2207,6 +2233,41 @@ wlan_cmd_low_pwr_mode(IN pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
+/**
+ *  @brief This function prepares DFS repeater mode configuration
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status
+wlan_cmd_dfs_repeater_cfg(IN pmlan_private pmpriv,
+			  IN HostCmd_DS_COMMAND * cmd,
+			  IN t_u16 cmd_action, IN t_void * pdata_buf)
+{
+	mlan_ds_misc_dfs_repeater *dfs_repeater = MNULL;
+	HostCmd_DS_DFS_REPEATER_MODE *cmd_dfs_repeater =
+		&cmd->params.dfs_repeater;
+
+	ENTER();
+
+	cmd->size = S_DS_GEN + sizeof(HostCmd_DS_DFS_REPEATER_MODE);
+
+	dfs_repeater = (mlan_ds_misc_dfs_repeater *) pdata_buf;
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+	cmd->command = wlan_cpu_to_le16(cmd->command);
+	cmd_dfs_repeater->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET)
+		cmd_dfs_repeater->mode = wlan_cpu_to_le16(dfs_repeater->mode);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -2547,6 +2608,12 @@ wlan_ops_sta_prepare_cmd(IN t_void * priv,
 		ret = wlan_cmd_reject_addba_req(pmpriv, cmd_ptr, cmd_action,
 						pdata_buf);
 		break;
+#ifdef RX_PACKET_COALESCE
+	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
+		ret = wlan_cmd_rx_pkt_coalesce_cfg(pmpriv, cmd_ptr, cmd_action,
+						   pdata_buf);
+		break;
+#endif
 	case HostCmd_CMD_MULTI_CHAN_CONFIG:
 		ret = wlan_cmd_multi_chan_cfg(pmpriv, cmd_ptr, cmd_action,
 					      pdata_buf);
@@ -2557,6 +2624,10 @@ wlan_ops_sta_prepare_cmd(IN t_void * priv,
 		break;
 	case HostCMD_CONFIG_LOW_POWER_MODE:
 		ret = wlan_cmd_low_pwr_mode(pmpriv, cmd_ptr, pdata_buf);
+		break;
+	case HostCmd_DFS_REPEATER_MODE:
+		ret = wlan_cmd_dfs_repeater_cfg(pmpriv, cmd_ptr,
+						cmd_action, pdata_buf);
 		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);

@@ -296,6 +296,35 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
+	if (mlan_drvdbg & MMPA_D) {
+		pmadapter->mpa_buf_size =
+			SDIO_MP_DBG_NUM *
+			pmadapter->psdio_device->mp_aggr_pkt_limit *
+			MLAN_SDIO_BLOCK_SIZE;
+		if (pmadapter->callbacks.moal_vmalloc &&
+		    pmadapter->callbacks.moal_vfree)
+			ret = pmadapter->callbacks.moal_vmalloc(pmadapter->
+								pmoal_handle,
+								pmadapter->
+								mpa_buf_size,
+								(t_u8 **) &
+								pmadapter->
+								mpa_buf);
+		else
+			ret = pmadapter->callbacks.moal_malloc(pmadapter->
+							       pmoal_handle,
+							       pmadapter->
+							       mpa_buf_size,
+							       MLAN_MEM_DEF,
+							       (t_u8 **) &
+							       pmadapter->
+							       mpa_buf);
+		if (ret != MLAN_STATUS_SUCCESS || !pmadapter->mpa_buf) {
+			PRINTM(MERROR, "Failed to allocate mpa buf\n");
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+	}
 #endif
 
 	pmadapter->psleep_cfm =
@@ -417,6 +446,10 @@ wlan_init_priv(pmlan_private priv)
 	priv->wmm_enabled = MFALSE;
 	priv->wmm_qosinfo = 0;
 	priv->saved_wmm_qosinfo = 0;
+	priv->host_tdls_cs_support = MFALSE;
+	priv->host_tdls_uapsd_support = MFALSE;
+	priv->supp_regulatory_class_len = 0;
+	priv->chan_supp_len = 0;
 	priv->txaggrctrl = MTRUE;
 #ifdef STA_SUPPORT
 	priv->pcurr_bcn_buf = MNULL;

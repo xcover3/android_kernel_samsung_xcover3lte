@@ -354,6 +354,7 @@ int sd_read_reg(bt_private * priv, int reg, u8 * data);
 int sd_read_cmd52_val(bt_private * priv);
 /** This function updates card reg based on the Cmd52 value in dev structure */
 int sd_write_cmd52_val(bt_private * priv, int func, int reg, int val);
+void bt_enable_hostwake_irq(int flag);
 
 void sdio_update_card_type(bt_private * priv, void *card);
 int sdio_get_sdio_device(bt_private * priv);

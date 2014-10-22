@@ -1219,7 +1219,8 @@ sd_interrupt(struct sdio_func *func)
 	priv = card->priv;
 	host_intstatus_reg = priv->psdio_device->reg->host_intstatus;
 	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
-	if (priv->card_type == CARD_TYPE_SD8887) {
+	if (priv->card_type == CARD_TYPE_SD8887 ||
+	    priv->card_type == CARD_TYPE_SD8897) {
 		ret = sdio_readsb(card->func, priv->adapter->hw_regs, 0,
 				  SD_BLOCK_SIZE);
 		if (ret) {
@@ -1247,7 +1248,8 @@ sd_interrupt(struct sdio_func *func)
 		PRINTM(INTR, "BT: INT %s: sdio_ireg = 0x%x\n", m_dev->name,
 		       ireg);
 		priv->adapter->irq_recv = ireg;
-		if (priv->card_type != CARD_TYPE_SD8887) {
+		if (priv->card_type != CARD_TYPE_SD8887 &&
+		    priv->card_type != CARD_TYPE_SD8897) {
 			sdio_writeb(card->func,
 				    ~(ireg) & (DN_LD_HOST_INT_STATUS |
 					       UP_LD_HOST_INT_STATUS),
@@ -1369,6 +1371,8 @@ bt_sdio_suspend(struct device *dev)
 
 	priv->adapter->is_suspended = TRUE;
 
+	bt_enable_hostwake_irq(TRUE);
+
 	LEAVE();
 	/* We will keep the power when hs enabled successfully */
 	if ((mbt_pm_keep_power) && (priv->adapter->hs_state == HS_ACTIVATED)) {
@@ -1403,6 +1407,7 @@ bt_sdio_resume(struct device *dev)
 	struct m_dev *m_dev = NULL;
 
 	ENTER();
+	bt_enable_hostwake_irq(FALSE);
 	pm_flags = sdio_get_host_pm_caps(func);
 	PRINTM(CMD, "BT: %s: resume: PM flags = 0x%x\n", sdio_func_id(func),
 	       pm_flags);
@@ -1581,7 +1586,8 @@ sbi_register_dev(bt_private * priv)
 	PRINTM(INFO, ": SDIO FUNC%d IO port: 0x%x\n", priv->bt_dev.fn,
 	       priv->bt_dev.ioport);
 #define SDIO_INT_MASK       0x3F
-	if (priv->card_type == CARD_TYPE_SD8887) {
+	if (priv->card_type == CARD_TYPE_SD8887 ||
+	    priv->card_type == CARD_TYPE_SD8897) {
 		/* Set Host interrupt reset to read to clear */
 		reg = sdio_readb(func, host_int_rsr_reg, &ret);
 		if (ret < 0)
@@ -2062,5 +2068,5 @@ MODULE_PARM_DESC(fw_name, "Firmware name");
 module_param(req_fw_nowait, int, 0);
 MODULE_PARM_DESC(req_fw_nowait,
 		 "0: Use request_firmware API; 1: Use request_firmware_nowait API");
-module_param(multi_fn, int, 4);
+module_param(multi_fn, int, 0);
 MODULE_PARM_DESC(multi_fn, "Bit 2: FN2;");

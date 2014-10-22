@@ -84,6 +84,9 @@ CONFIG_ANDROID_KERNEL=n
 # Use static link for app build
 export CONFIG_STATIC_LINK=y
 
+#32bit app over 64bit kernel support
+CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
+
 #############################################################################
 # Select Platform Tools
 #############################################################################
@@ -99,8 +102,8 @@ EXTRA_CFLAGS += -DLINUX
 # make KERNELDIR=/usr/src/arm/<arch-bsp-path>
 # Alternatively KERNELDIR can be set in the environment.
 # Default value for KERNELDIR is set below.
+KERNELDIR ?= /usr/src/arm/linux-3.10.17-JB-T50
 CROSS_COMPILE ?= /usr/local/arm-eabi-4.6/bin/arm-eabi-
-KERNELDIR ?= /usr/src/arm/linux-3.4.39-pxa1088
 
 # CROSS_COMPILE specify the prefix used for all executables used
 # during compilation. Only gcc and related bin-utils executables
@@ -108,11 +111,7 @@ KERNELDIR ?= /usr/src/arm/linux-3.4.39-pxa1088
 # make CROSS_COMPILE=</usr/local/arm/4.1.1/bin/>arm-linux-
 # Alternatively CROSS_COMPILE can be set in the environment.
 # Default value for CROSS_COMPILE is set below.
-#if defined(BG2CT)
-CROSS_COMPILE ?= /usr/local/arm-eabi-4.6/bin/arm-eabi-
-#else
-CROSS_COMPILE ?= /usr/local/arm/4.1.1/bin/arm-linux-
-#endif
+CROSS_COMPILE ?= /usr/local/arm-eabi-4.4.3/bin/arm-eabi-
 
 # INSTALLDIR specify the path to install the kernel module after
 # succesful compilation.
@@ -170,7 +169,6 @@ endif
 else
 CONFIG_WIFI_DIRECT_SUPPORT=n
 CONFIG_WIFI_DISPLAY_SUPPORT=n
-CONFIG_STA_WEXT=n
 CONFIG_STA_CFG80211=n
 endif
 
@@ -179,7 +177,6 @@ ifeq ($(CONFIG_UAP_SUPPORT),y)
 else
 CONFIG_WIFI_DIRECT_SUPPORT=n
 CONFIG_WIFI_DISPLAY_SUPPORT=n
-CONFIG_UAP_WEXT=n
 CONFIG_UAP_CFG80211=n
 endif
 
@@ -196,6 +193,10 @@ endif
 
 ifeq ($(CONFIG_BIG_ENDIAN),y)
 	EXTRA_CFLAGS += -DBIG_ENDIAN_SUPPORT
+endif
+
+ifeq ($(CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT),y)
+	EXTRA_CFLAGS += -DUSERSPACE_32BIT_OVER_KERNEL_64BIT
 endif
 
 ifeq ($(CONFIG_SDIO_MULTI_PORT_TX_AGGR),y)
@@ -231,15 +232,7 @@ ifneq ($(KERNELRELEASE),)
 
 ifeq ($(CONFIG_WIRELESS_EXT),y)
 ifeq ($(CONFIG_WEXT_PRIV),y)
-	# Enable WEXT for STA
-	CONFIG_STA_WEXT=y
-	# Enable WEXT for uAP
-	CONFIG_UAP_WEXT=y
 else
-# Disable WEXT for STA
-	CONFIG_STA_WEXT=n
-# Disable WEXT for uAP
-	CONFIG_UAP_WEXT=n
 endif
 endif
 
@@ -268,29 +261,21 @@ endif
 ifneq ($(CONFIG_STA_SUPPORT),y)
 	CONFIG_WIFI_DIRECT_SUPPORT=n
 	CONFIG_WIFI_DISPLAY_SUPPORT=n
-	CONFIG_STA_WEXT=n
 	CONFIG_STA_CFG80211=n
 endif
 
 ifneq ($(CONFIG_UAP_SUPPORT),y)
 	CONFIG_WIFI_DIRECT_SUPPORT=n
 	CONFIG_WIFI_DISPLAY_SUPPORT=n
-	CONFIG_UAP_WEXT=n
 	CONFIG_UAP_CFG80211=n
 endif
 
 ifeq ($(CONFIG_STA_SUPPORT),y)
-ifeq ($(CONFIG_STA_WEXT),y)
-	EXTRA_CFLAGS += -DSTA_WEXT
-endif
 ifeq ($(CONFIG_STA_CFG80211),y)
 	EXTRA_CFLAGS += -DSTA_CFG80211
 endif
 endif
 ifeq ($(CONFIG_UAP_SUPPORT),y)
-ifeq ($(CONFIG_UAP_WEXT),y)
-	EXTRA_CFLAGS += -DUAP_WEXT
-endif
 ifeq ($(CONFIG_UAP_CFG80211),y)
 	EXTRA_CFLAGS += -DUAP_CFG80211
 endif
@@ -298,19 +283,15 @@ endif
 
 print:
 ifeq ($(CONFIG_STA_SUPPORT),y)
-ifeq ($(CONFIG_STA_WEXT),n)
 ifeq ($(CONFIG_STA_CFG80211),n)
 	@echo "Can not build STA without WEXT or CFG80211"
 	exit 2
 endif
 endif
-endif
 ifeq ($(CONFIG_UAP_SUPPORT),y)
-ifeq ($(CONFIG_UAP_WEXT),n)
 ifeq ($(CONFIG_UAP_CFG80211),n)
 	@echo "Can not build UAP without WEXT or CFG80211"
 	exit 2
-endif
 endif
 endif
 
@@ -347,20 +328,12 @@ MLANOBJS += mlan/mlan_scan.o \
 			mlan/mlan_sta_cmd.o \
 			mlan/mlan_sta_cmdresp.o \
 			mlan/mlan_join.o
-ifeq ($(CONFIG_STA_WEXT),y)
-MOALOBJS += mlinux/moal_priv.o \
-            mlinux/moal_wext.o
-endif
 endif
 ifeq ($(CONFIG_UAP_SUPPORT),y)
 MLANOBJS += mlan/mlan_uap_ioctl.o
 MLANOBJS += mlan/mlan_uap_cmdevent.o
 MLANOBJS += mlan/mlan_uap_txrx.o
 MOALOBJS += mlinux/moal_uap.o
-ifeq ($(CONFIG_UAP_WEXT),y)
-MOALOBJS += mlinux/moal_uap_priv.o
-MOALOBJS += mlinux/moal_uap_wext.o
-endif
 endif
 ifeq ($(CONFIG_STA_CFG80211),y)
 MOALOBJS += mlinux/moal_cfg80211.o

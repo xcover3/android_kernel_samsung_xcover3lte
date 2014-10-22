@@ -2250,7 +2250,8 @@ wlan_cmd_append_11n_tlv(IN mlan_private * pmpriv,
 			wlan_band_to_radio_type((t_u8) pbss_desc->bss_band);
 		/* support the VHT if the network to be join has the VHT
 		   operation */
-		if (pbss_desc->pvht_oprat &&
+		if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info) &&
+		    pbss_desc->pvht_oprat &&
 		    pbss_desc->pvht_oprat->chan_width == VHT_OPER_CHWD_80MHZ) {
 			if ((pbss_desc->bss_band & BAND_GAC)
 			    || (pbss_desc->bss_band & BAND_AAC)

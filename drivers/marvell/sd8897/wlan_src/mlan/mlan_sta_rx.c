@@ -584,6 +584,13 @@ wlan_ops_sta_process_rx_packet(IN t_void * adapter, IN pmlan_buffer pmbuf)
 					prx_pd->seq_num;
 				sta_ptr->snr = prx_pd->snr;
 				sta_ptr->nf = prx_pd->nf;
+				pmadapter->callbacks.
+					moal_updata_peer_signal(pmadapter->
+								pmoal_handle,
+								pmbuf->
+								bss_index, ta,
+								prx_pd->snr,
+								prx_pd->nf);
 			}
 		}
 	} else {

@@ -266,7 +266,7 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void ** ppmlan_adapter)
 	MASSERT(pcb->moal_spin_lock);
 	MASSERT(pcb->moal_spin_unlock);
 	MASSERT(pcb->moal_tcp_ack_tx_ind);
-
+	MASSERT(pcb->moal_updata_peer_signal);
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 

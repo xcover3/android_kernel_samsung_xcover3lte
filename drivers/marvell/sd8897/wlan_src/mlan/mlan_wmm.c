@@ -1277,7 +1277,8 @@ wlan_update_non_tdls_ralist(mlan_private * priv, t_u8 * mac, t_u8 tx_pause)
 			(raListTbl *) & priv->wmm.tid_tbl_ptr[i].ra_list)) {
 			if (memcmp
 			    (priv->adapter, ra_list->ra, mac,
-			     MLAN_MAC_ADDR_LENGTH)) {
+			     MLAN_MAC_ADDR_LENGTH) &&
+			    ra_list->tx_pause != tx_pause) {
 				pkt_cnt += ra_list->total_pkts;
 				ra_list->tx_pause = tx_pause;
 				if (tx_pause)
@@ -3571,4 +3572,49 @@ wlan_get_ralist_info(mlan_private * priv, ralist_info * buf)
 	}
 	LEAVE();
 	return count;
+}
+
+/**
+ *  @brief dump ralist info
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *
+ *  @return             N/A
+ *
+ */
+void
+wlan_dump_ralist(mlan_private * priv)
+{
+	mlan_list_head *ra_list_head = MNULL;
+	raListTbl *ra_list;
+	mlan_adapter *pmadapter = priv->adapter;
+	int i;
+	t_u32 tx_pkts_queued;
+
+	tx_pkts_queued =
+		util_scalar_read(pmadapter->pmoal_handle,
+				 &priv->wmm.tx_pkts_queued, MNULL, MNULL);
+	PRINTM(MERROR, "bss_index = %d, tx_pkts_queued = %d\n", priv->bss_index,
+	       tx_pkts_queued);
+	if (!tx_pkts_queued)
+		return;
+	for (i = 0; i < MAX_NUM_TID; i++) {
+		ra_list_head = &priv->wmm.tid_tbl_ptr[i].ra_list;
+		ra_list =
+			(raListTbl *) util_peek_list(priv->adapter->
+						     pmoal_handle, ra_list_head,
+						     MNULL, MNULL);
+		while (ra_list && ra_list != (raListTbl *) ra_list_head) {
+			if (ra_list->total_pkts) {
+				PRINTM(MERROR,
+				       "ralist ra: %02x:%02x:%02x:%02x:%02x:%02x tid=%d pkts=%d pause=%d\n",
+				       ra_list->ra[0], ra_list->ra[1],
+				       ra_list->ra[2], ra_list->ra[3],
+				       ra_list->ra[4], ra_list->ra[5], i,
+				       ra_list->total_pkts, ra_list->tx_pause);
+			}
+			ra_list = ra_list->pnext;
+		}
+	}
+	return;
 }

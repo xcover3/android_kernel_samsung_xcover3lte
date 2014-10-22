@@ -318,6 +318,7 @@ woal_band_cfg_to_ieee_band(t_u32 band)
  *  @param key_index        Key index
  *  @param addr             Mac for which key is to be set
  *  @param disable          Key disabled or not
+ *  @param wait_option      wait option
  *
  *  @return                 MLAN_STATUS_SUCCESS -- success, otherwise fail
  */
@@ -325,7 +326,7 @@ mlan_status
 woal_cfg80211_set_key(moal_private * priv, t_u8 is_enable_wep,
 		      t_u32 cipher, const t_u8 * key, int key_len,
 		      const t_u8 * seq, int seq_len, t_u8 key_index,
-		      const t_u8 * addr, int disable)
+		      const t_u8 * addr, int disable, t_u8 wait_option)
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_sec_cfg *sec = NULL;
@@ -439,7 +440,7 @@ woal_cfg80211_set_key(moal_private * priv, t_u8 is_enable_wep,
 	}
 
 	/* Send IOCTL request to MLAN */
-	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	ret = woal_request_ioctl(priv, req, wait_option);
 
 done:
 	if (ret != MLAN_STATUS_PENDING)
@@ -455,12 +456,13 @@ done:
  * @param key       A pointer to key data
  * @param key_len   Length of the key data
  * @param index     Key index
+ * @param wait_option wait_option
  *
  * @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
 woal_cfg80211_set_wep_keys(moal_private * priv, const t_u8 * key, int key_len,
-			   t_u8 index)
+			   t_u8 index, t_u8 wait_option)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u32 cipher = 0;
@@ -473,12 +475,12 @@ woal_cfg80211_set_wep_keys(moal_private * priv, const t_u8 * key, int key_len,
 		else
 			cipher = WLAN_CIPHER_SUITE_WEP104;
 		ret = woal_cfg80211_set_key(priv, 0, cipher, key, key_len, NULL,
-					    0, index, NULL, 0);
+					    0, index, NULL, 0, wait_option);
 	} else {
 		/* No key provided so it is enable key. We want to just set the
 		   transmit key index */
 		woal_cfg80211_set_key(priv, 1, cipher, key, key_len, NULL, 0,
-				      index, NULL, 0);
+				      index, NULL, 0, wait_option);
 	}
 
 	LEAVE();
@@ -1276,9 +1278,13 @@ woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
 	moal_private *priv = (moal_private *) woal_get_netdev_priv(netdev);
 
 	ENTER();
+	if (priv->ft_pre_connect) {
+		PRINTM(MINFO, "Skip set keys during ft connecting\n");
+		return -EFAULT;
+	}
 	if (woal_cfg80211_set_key(priv, 0, params->cipher, params->key,
 				  params->key_len, params->seq, params->seq_len,
-				  key_index, mac_addr, 0)) {
+				  key_index, mac_addr, 0, MOAL_IOCTL_WAIT)) {
 		PRINTM(MERROR, "Error adding the crypto keys\n");
 		LEAVE();
 		return -EFAULT;
@@ -1333,8 +1339,9 @@ woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 		return 0;
 	}
 
-	if (woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0, key_index,
-				  mac_addr, 1)) {
+	if (MLAN_STATUS_FAILURE ==
+	    woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0, key_index,
+				  mac_addr, 1, MOAL_NO_WAIT)) {
 		PRINTM(MERROR, "Error deleting the crypto keys\n");
 		LEAVE();
 		return -EFAULT;
@@ -1389,7 +1396,8 @@ woal_cfg80211_set_default_key(struct wiphy *wiphy,
 		}
 	}
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_cfg80211_set_wep_keys(priv, NULL, 0, key_index)) {
+	    woal_cfg80211_set_wep_keys(priv, NULL, 0, key_index,
+				       MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 	}
 	LEAVE();
@@ -1466,7 +1474,8 @@ woal_cfg80211_set_channel(struct wiphy *wiphy,
 				LEAVE();
 				return -EINVAL;
 			}
-			ret = woal_set_rf_channel(priv, chan, channel_type);
+			ret = woal_set_rf_channel(priv, chan, channel_type,
+						  MOAL_IOCTL_WAIT);
 		}
 #endif
 #endif
@@ -1709,6 +1718,18 @@ woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+/**
+ * @brief tx mgmt frame
+ *
+ * @param wiphy                 A pointer to wiphy structure
+ * @param wdev                  A pointer to wireless_dev structure
+ * @param params                A pointer to cfg80211_mgmt_tx_params structure
+ * @param cookie                A pointer to frame cookie
+ *
+ * @return                0 -- success, otherwise fail
+ */
+#else
 /**
  * @brief tx mgmt frame
  *
@@ -1725,6 +1746,7 @@ woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
  *
  * @return                0 -- success, otherwise fail
  */
+#endif
 #else
 /**
  * @brief tx mgmt frame
@@ -1809,6 +1831,9 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #else
 		      struct wireless_dev *wdev,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		      struct cfg80211_mgmt_tx_params *params,
+#else
 		      struct ieee80211_channel *chan, bool offchan,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 		      enum nl80211_channel_type channel_type,
@@ -1821,10 +1846,19 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
 		      bool dont_wait_for_ack,
 #endif
+#endif
 		      u64 * cookie)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 	struct net_device *dev = wdev->netdev;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#if defined(WIFI_DIRECT_SUPPORT)
+	struct ieee80211_channel *chan = params->chan;
+	unsigned int wait = params->wait;
+#endif
+	const u8 *buf = params->buf;
+	size_t len = params->len;
 #endif
 	moal_private *priv = (moal_private *) woal_get_netdev_priv(dev);
 	int ret = 0;

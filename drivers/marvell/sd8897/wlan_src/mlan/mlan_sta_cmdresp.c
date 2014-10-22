@@ -2031,6 +2031,49 @@ wlan_ret_otp_user_data(IN pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
+/**
+ *  @brief This function handles the command response of
+ *  DFS Repeater mode configuration
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status
+wlan_ret_dfs_repeater_cfg(IN pmlan_private pmpriv,
+			  IN HostCmd_DS_COMMAND * resp,
+			  IN mlan_ioctl_req * pioctl_buf)
+{
+	HostCmd_DS_DFS_REPEATER_MODE *cmd_dfs_repeater =
+		&resp->params.dfs_repeater;
+	mlan_ds_misc_cfg *misc = MNULL;
+	mlan_ds_misc_dfs_repeater *dfs_cfg = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf && (pioctl_buf->action == MLAN_ACT_GET)) {
+		misc = (mlan_ds_misc_cfg *) pioctl_buf->pbuf;
+		dfs_cfg =
+			(mlan_ds_misc_dfs_repeater *) & misc->param.
+			dfs_repeater;
+		dfs_cfg->mode = wlan_le16_to_cpu(cmd_dfs_repeater->mode);
+	}
+	if (pioctl_buf && (pioctl_buf->action == MLAN_ACT_SET)) {
+		if (wlan_le16_to_cpu(cmd_dfs_repeater->mode) == 1) {
+			/* Set dfs_repeater mode to true/enabled for futher
+			   references. */
+			pmpriv->adapter->dfs_repeater = MTRUE;
+		} else {
+			pmpriv->adapter->dfs_repeater = MFALSE;
+		}
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -2329,6 +2372,11 @@ wlan_ops_sta_process_cmdresp(IN t_void * priv,
 	case HostCmd_CMD_REJECT_ADDBA_REQ:
 		ret = wlan_ret_reject_addba_req(pmpriv, resp, pioctl_buf);
 		break;
+#ifdef RX_PACKET_COALESCE
+	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
+		ret = wlan_ret_rx_pkt_coalesce_cfg(pmpriv, resp, pioctl_buf);
+		break;
+#endif
 	case HostCmd_CMD_MULTI_CHAN_CONFIG:
 		ret = wlan_ret_multi_chan_cfg(pmpriv, resp, pioctl_buf);
 		break;
@@ -2336,6 +2384,9 @@ wlan_ops_sta_process_cmdresp(IN t_void * priv,
 		ret = wlan_ret_multi_chan_policy(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCMD_CONFIG_LOW_POWER_MODE:
+		break;
+	case HostCmd_DFS_REPEATER_MODE:
+		ret = wlan_ret_dfs_repeater_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
