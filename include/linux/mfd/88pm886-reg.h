@@ -28,6 +28,8 @@
 
 #define PM886_WDOG			(0x1d)
 
+#define PM886_LOWPOWER4			(0x23)
+
 /* clk control register */
 #define PM886_CLK_CTRL1			(0x25)
 

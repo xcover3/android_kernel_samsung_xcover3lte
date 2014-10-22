@@ -29,7 +29,6 @@
 #define PM886_LOWPOWER1			(0x20)
 #define PM886_LOWPOWER2			(0x21)
 #define PM886_LOWPOWER3			(0x22)
-#define PM886_LOWPOWER4			(0x23)
 #define PM886_BK_OSC_CTRL1		(0x50)
 #define PM886_BK_OSC_CTRL6		(0x55)
 #define PM886_POWER_DOWN_LOG1		(0xe5)
