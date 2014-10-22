@@ -96,7 +96,56 @@ static struct v4l2_ctrl_config b52isp_ctrl_af_5x5_win_cfg = {
 	.step = 1,
 	.def = CID_AF_5X5_WIN_ENABLE,
 };
-
+static struct v4l2_ctrl_config b52isp_ctrl_aec_manual_mode_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_AEC_MANUAL_MODE,
+	.name = "gain expoure work mode",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = CID_AEC_AUTO_THRESHOLD,
+	.max = CID_AEC_MANUAL,
+	.step = 1,
+	.def = CID_AEC_AUTO_THRESHOLD,
+};
+static struct v4l2_ctrl_config b52isp_ctrl_target_y_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_TARGET_Y,
+	.name = "target y low and y high",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 0xffff,
+	.step = 1,
+	.def = 0,
+};
+static struct v4l2_ctrl_config b52isp_ctrl_mean_y_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_MEAN_Y,
+	.name = "mean y",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 0xff,
+	.step = 1,
+	.def = 0,
+};
+static struct v4l2_ctrl_config b52isp_ctrl_aec_stable_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_AEC_STABLE,
+	.name = "aec stable",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min =  CID_AEC_NO_STABLE,
+	.max = CID_AEC_STABLE,
+	.step = 1,
+	.def = CID_AEC_NO_STABLE,
+};
+static struct v4l2_ctrl_config b52isp_ctrl_afr_max_gain_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_AFR_MAX_GAIN,
+	.name = "max gain for AFR",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = CID_AFR_MAX_GAIN_MIN,
+	.max = CID_AFR_MAX_GAIN_MAX,
+	.step = 1,
+	.def = CID_AFR_MAX_GAIN_MAX,
+};
 struct b52isp_ctrl_colorfx_reg {
 	u32 reg;
 	u32 val;
@@ -711,7 +760,6 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 		pr_err("%s: error: the expo is locked\n", __func__);
 		return -EINVAL;
 	}
-
 	switch (value) {
 	case V4L2_EXPOSURE_AUTO:
 		if (ctrls->auto_expo->is_new) {
@@ -730,9 +778,15 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 		break;
 
 	case V4L2_EXPOSURE_MANUAL:
-		if (ctrls->auto_expo->is_new)
-			b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
-
+		if (ctrls->auto_expo->is_new) {
+			if (ctrls->aec_manual_mode ==
+					CID_AEC_AUTO_THRESHOLD)
+				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
+								AEC_AUTO);
+			else
+				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
+								AEC_MANUAL);
+		}
 		if (ctrls->exposure->is_new) {
 			if (!sensor)
 				return -EINVAL;
@@ -741,13 +795,23 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 			ret = b52_sensor_call(sensor, to_expo_line, expo, &lines);
 			if (ret < 0)
 				return ret;
-
-			b52_writel(base + REG_FW_MAX_CAM_EXP, lines);
-			b52_writel(base + REG_FW_MIN_CAM_EXP, lines);
+			if (ctrls->aec_manual_mode->val ==
+						CID_AEC_AUTO_THRESHOLD) {
+				b52_writel(base + REG_FW_MAX_CAM_EXP, lines);
+				b52_writel(base + REG_FW_MIN_CAM_EXP, lines);
+			} else
+				b52_writel(base + REG_FW_AEC_MAN_EXP, lines);
 		} else if (ctrls->expo_line->is_new) {
 			expo = ctrls->expo_line->val;
-			b52_writel(base + REG_FW_MAX_CAM_EXP, expo >> 4);
-			b52_writel(base + REG_FW_MIN_CAM_EXP, expo >> 4);
+			if (ctrls->aec_manual_mode->val ==
+						CID_AEC_AUTO_THRESHOLD) {
+				b52_writel(base + REG_FW_MAX_CAM_EXP,
+								expo >> 4);
+				b52_writel(base + REG_FW_MIN_CAM_EXP,
+								expo >> 4);
+			} else
+				b52_writel(base + REG_FW_AEC_MAN_EXP,
+								expo);
 		}
 		break;
 
@@ -765,14 +829,14 @@ static int b52isp_ctrl_get_expo(struct b52isp_ctrls *ctrls, int id)
 	u32 time;
 	u32 lines;
 	int ret = 0;
-	u32 reg = id ? REG_FW_AEC_RD_EXP2 : REG_FW_AEC_RD_EXP1;
+	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 	struct b52_sensor *sensor = b52isp_ctrl_to_sensor(ctrls->auto_expo);
-
-	lines = b52_readl(reg);
+	lines = b52_readl(base + REG_FW_AEC_MAN_EXP);
+	ctrls->expo_line->val = lines;
 	if (!sensor)
 		ctrls->exposure->val = lines;
 	else {
-		ret = b52_sensor_call(sensor, to_expo_time, &time, lines);
+		ret = b52_sensor_call(sensor, to_expo_time, &time, lines >> 4);
 		ctrls->exposure->val = time;
 	}
 	return ret;
@@ -981,12 +1045,22 @@ static int b52isp_ctrl_set_gain(struct b52isp_ctrls *ctrls, int id)
 		b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
 		break;
 	case 0:
-		if (ctrls->auto_gain->is_new)
-			b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
-
+		if (ctrls->auto_gain->is_new) {
+			if (ctrls->aec_manual_mode ==
+					CID_AEC_AUTO_THRESHOLD)
+				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
+								AEC_AUTO);
+			else
+				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
+								AEC_MANUAL);
+		}
 		if (ctrls->gain->is_new) {
-			b52_writew(base + REG_FW_MAX_CAM_GAIN, gain);
-			b52_writew(base + REG_FW_MIN_CAM_GAIN, gain);
+			if (ctrls->aec_manual_mode->val ==
+						CID_AEC_AUTO_THRESHOLD) {
+				b52_writew(base + REG_FW_MAX_CAM_GAIN, gain);
+				b52_writew(base + REG_FW_MIN_CAM_GAIN, gain);
+			} else
+				b52_writew(base + REG_FW_AEC_MAN_GAIN, gain);
 		}
 		break;
 	default:
@@ -998,10 +1072,8 @@ static int b52isp_ctrl_set_gain(struct b52isp_ctrls *ctrls, int id)
 
 static int b52isp_ctrl_get_gain(struct b52isp_ctrls *ctrls, int id)
 {
-	u32 reg = id ? REG_FW_AEC_RD_GAIN2 : REG_FW_AEC_RD_GAIN1;
-
-	ctrls->gain->val = b52_readw(reg) << GAIN_CONVERT;
-
+	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
+	ctrls->gain->val = b52_readw(base + REG_FW_AEC_MAN_GAIN);
 	return 0;
 }
 
@@ -1249,6 +1321,33 @@ static int b52isp_ctrl_get_focus(struct b52isp_ctrls *ctrls, int id)
 
 	return 0;
 }
+static int b52isp_ctrl_get_target_y(struct b52isp_ctrls *ctrls, int id)
+{
+	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
+
+	ctrls->target_y->val = b52_readw(base + REG_FW_AEC_TARGET_LOW);
+	return 0;
+}
+
+static int b52isp_ctrl_get_mean_y(struct b52isp_ctrls *ctrls, int id)
+{
+	ctrls->mean_y->val = b52_readb(REG_FW_MEAN_Y);
+	return 0;
+}
+
+static int b52isp_ctrl_get_aec_stable(struct b52isp_ctrls *ctrls, int id)
+{
+	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
+	u8 status = b52_readb(REG_FW_AEC_RD_STATE1);
+	if (status == AEC_STATE_STABLE)
+		ctrls->aec_stable->val = AEC_STATE_STABLE;
+	else if (b52_readw(base + REG_FW_AEC_MAN_GAIN) ==
+					b52_readw(base + REG_FW_MAX_CAM_GAIN))
+		ctrls->aec_stable->val = AEC_STATE_STABLE;
+	else
+		ctrls->aec_stable->val = AEC_STATE_UNSTABLE;
+	return 0;
+}
 
 static int b52isp_ctrl_set_zoom(int zoom, int id)
 {
@@ -1273,12 +1372,14 @@ static int b52isp_ctrl_set_zoom(int zoom, int id)
 static int b52isp_ctrl_afr_sr_min_fps(int sr, int id)
 {
 	static u8 min_fps[B52_NR_PIPELINE_MAX][3];
+	static u16 max_gain[B52_NR_PIPELINE_MAX];
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 
 	if (sr == CID_AFR_SAVE_MIN_FPS) {
 		min_fps[id][0] = b52_readb(base + REG_FW_AFR_MIN_FPS1);
 		min_fps[id][1] = b52_readb(base + REG_FW_AFR_MIN_FPS2);
 		min_fps[id][2] = b52_readb(base + REG_FW_AFR_MIN_FPS3);
+		max_gain[id] = b52_readw(base + REG_FW_MAX_CAM_GAIN);
 	} else if (sr == CID_AFR_RESTORE_MIN_FPS) {
 		if (!min_fps[id][0]) {
 			pr_err("%s: min fps val is 0\n", __func__);
@@ -1288,6 +1389,7 @@ static int b52isp_ctrl_afr_sr_min_fps(int sr, int id)
 		b52_writeb(base + REG_FW_AFR_MIN_FPS1, min_fps[id][0]);
 		b52_writeb(base + REG_FW_AFR_MIN_FPS2, min_fps[id][1]);
 		b52_writeb(base + REG_FW_AFR_MIN_FPS3, min_fps[id][2]);
+		b52_writew(base + REG_FW_MAX_CAM_GAIN, max_gain[id]);
 	}
 
 	return 0;
@@ -1296,7 +1398,10 @@ static int b52isp_ctrl_afr_sr_min_fps(int sr, int id)
 static int b52isp_ctrl_set_afr(struct b52isp_ctrls *ctrls, int id)
 {
 	int ret = 0;
-	u8 min_fps_val;
+	u8 min_fps;
+	u16 max_gain;
+	u16 max_sensor_gain, min_sensor_gain;
+	struct b52_sensor *sensor;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 
 	switch (ctrls->auto_frame_rate->val) {
@@ -1304,13 +1409,28 @@ static int b52isp_ctrl_set_afr(struct b52isp_ctrls *ctrls, int id)
 		if (ctrls->auto_frame_rate->is_new)
 			b52_writeb(base + REG_FW_AUTO_FRAME_RATE, AFR_ENABLE);
 
-		if (!ctrls->afr_min_fps->is_new)
-			break;
-
-		min_fps_val = AFR_DEF_VAL_FOR_30FPS / ctrls->afr_min_fps->val;
-		b52_writeb(base + REG_FW_AFR_MIN_FPS1, min_fps_val);
-		b52_writeb(base + REG_FW_AFR_MIN_FPS2, min_fps_val);
-		b52_writeb(base + REG_FW_AFR_MIN_FPS3, min_fps_val);
+		if (ctrls->afr_min_fps->is_new) {
+			min_fps = AFR_DEF_VAL_30FPS / ctrls->afr_min_fps->val;
+			min_fps = min_fps + 1;
+			b52_writeb(base + REG_FW_AFR_MIN_FPS1, min_fps);
+			b52_writeb(base + REG_FW_AFR_MIN_FPS2, min_fps);
+			b52_writeb(base + REG_FW_AFR_MIN_FPS3, min_fps);
+		}
+		if (ctrls->afr_max_gain->is_new) {
+			sensor = b52isp_ctrl_to_sensor(ctrls->afr_max_gain);
+			if (!sensor)
+				return -EINVAL;
+			b52_sensor_call(sensor, g_param_range, B52_SENSOR_GAIN,
+					&min_sensor_gain, &max_sensor_gain);
+			max_gain = (ctrls->afr_max_gain->val) *
+							0x20 / max_sensor_gain;
+			b52_writew(base + REG_FW_AFR_MAX_GAIN1,
+						max_gain);
+			b52_writew(base + REG_FW_AFR_MAX_GAIN2,
+						max_gain);
+			b52_writew(base + REG_FW_AFR_MAX_GAIN3,
+						max_gain);
+		}
 		break;
 
 	case CID_AUTO_FRAME_RATE_DISABLE:
@@ -1332,6 +1452,7 @@ static int b52isp_ctrl_set_afr(struct b52isp_ctrls *ctrls, int id)
 
 	return ret;
 }
+
 
 int b52isp_rw_awb_gain(struct b52isp_awb_gain *awb_gain, int id)
 {
@@ -1373,6 +1494,7 @@ static int b52isp_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		id = 1;
 	else
 		return -EINVAL;
+
 	switch (ctrl->id) {
 	case V4L2_CID_FOCUS_AUTO:
 		ret = b52isp_ctrl_get_focus(ctrls, id);
@@ -1385,6 +1507,17 @@ static int b52isp_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_AUTOGAIN:
 		ret = b52isp_ctrl_get_gain(ctrls, id);
+		break;
+	case V4L2_CID_PRIVATE_TARGET_Y:
+		ret = b52isp_ctrl_get_target_y(ctrls, id);
+		break;
+
+	case V4L2_CID_PRIVATE_MEAN_Y:
+		ret = b52isp_ctrl_get_mean_y(ctrls, id);
+		break;
+
+	case V4L2_CID_PRIVATE_AEC_STABLE:
+		ret = b52isp_ctrl_get_aec_stable(ctrls, id);
 		break;
 	default:
 		return -EINVAL;
@@ -1478,7 +1611,11 @@ static int b52isp_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = b52isp_ctrl_set_afr(ctrls, id);
 		break;
 
+	case V4L2_CID_PRIVATE_AEC_MANUAL_MODE:
+		break;
+
 	default:
+		pr_err("no to s_ctrl: %s (%d)\n", ctrl->name, ctrl->val);
 		ret = -EINVAL;
 		break;
 	}
@@ -1500,7 +1637,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	struct v4l2_ctrl_handler *handler = &ctrls->ctrl_handler;
 	const struct v4l2_ctrl_ops *ops = &b52isp_ctrl_ops;
 
-	v4l2_ctrl_handler_init(handler, 30);
+	v4l2_ctrl_handler_init(handler, 35);
 
 	ctrls->saturation = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_SATURATION, 0, 0xFF, 1, 0);
@@ -1522,6 +1659,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 			V4L2_CID_EXPOSURE_AUTO, 1, 0, V4L2_EXPOSURE_AUTO);
 	ctrls->expo_line = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_EXPOSURE, 0, 0xFFFFFF, 1, 0);
+	ctrls->expo_line->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	ctrls->exposure = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_EXPOSURE_ABSOLUTE, 0, 0xFFFFFF, 1, 0);
 	ctrls->exposure->flags |= V4L2_CTRL_FLAG_VOLATILE;
@@ -1580,6 +1718,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	/* GAIN: 0x100 for 1x gain */
 	ctrls->auto_gain = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_AUTOGAIN, 0, 1, 1, 1);
+	ctrls->auto_gain->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	ctrls->gain = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_GAIN, 0, 0xFFFFFFF, 1, 0x100);
 
@@ -1590,6 +1729,8 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 			&b52isp_ctrl_afr_min_fps_cfg, NULL);
 	ctrls->afr_sr_min_fps = v4l2_ctrl_new_custom(handler,
 			&b52isp_ctrl_afr_sr_min_fps_cfg, NULL);
+	ctrls->afr_max_gain = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_afr_max_gain_cfg, NULL);
 
 	ctrls->aaa_lock = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_3A_LOCK, 0, 0x7, 0, 0);
@@ -1599,7 +1740,17 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 
 	ctrls->colorfx = v4l2_ctrl_new_custom(handler,
 			&b52isp_ctrl_colorfx_cfg, NULL);
-
+	ctrls->aec_manual_mode = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_aec_manual_mode_cfg, NULL);
+	ctrls->target_y = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_target_y_cfg, NULL);
+	ctrls->target_y->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	ctrls->mean_y = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_mean_y_cfg, NULL);
+	ctrls->mean_y->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	ctrls->aec_stable = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_aec_stable_cfg, NULL);
+	ctrls->aec_stable->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	if (handler->error) {
 		pr_err("%s: failed to init all ctrls", __func__);
 		return handler->error;

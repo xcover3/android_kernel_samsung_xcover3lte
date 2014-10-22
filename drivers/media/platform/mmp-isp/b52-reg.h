@@ -1,3 +1,18 @@
+/*
+ * Copyright (C) 2013 Marvell International Ltd.
+ *				 Jianle Wang <wanjl@marvell.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ */
 
 #ifndef __MMP_B52_REG_H__
 #define __MMP_B52_REG_H__
@@ -691,6 +706,7 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 #define REG_FW_AEC_RD_STATE2        (0x30035)
 	#define AEC_STATE_STABLE   (0x1)
 	#define AEC_STATE_UNSTABLE (0x0)
+#define  REG_FW_MEAN_Y				(0x30206)
 
 #define FW_P1_REG_BASE              (0x33000)
 #define FW_P2_REG_BASE              (0x33600)
@@ -775,7 +791,7 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 #define REG_FW_AWB_TYPE             (0x088)
 	#define AWB_AUTO		(0x2)
 	#define AWB_CUSTOMIZED_BASE	(0x3)
-
+#define REG_FW_CURRENT_GAIN		(0x204)
 #define REG_FW_CMX_PREGAIN0         (0x3b1)
 #define REG_FW_CMX_PREGAIN1         (0x3b2)
 #define REG_FW_CMX_PREGAIN2         (0x3b3)
@@ -790,13 +806,16 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 	#define AFR_ENABLE      (0x1)
 	#define AFR_DISABLE     (0x0)
 
+#define REG_FW_AFR_MAX_GAIN1         (0x5ee)
+#define REG_FW_AFR_MAX_GAIN2         (0x5f0)
+#define REG_FW_AFR_MAX_GAIN3         (0x5f2)
 #define REG_FW_AFR_MIN_FPS1         (0x5f4)
 #define REG_FW_AFR_MIN_FPS2         (0x5f5)
 #define REG_FW_AFR_MIN_FPS3         (0x5f6)
-	#define AFR_DEF_VAL_FOR_30FPS   (30 * 0x20)
+	#define AFR_DEF_VAL_30FPS   (30 * 0x20)
 
 #define REG_FW_CPU_CMD_ID	(0x33591)
-
+#define REG_CURRENT_EXPOSURE	(0x34200)
 
 #define FW_P1_REG_AF_BASE           (0x33c00)
 #define FW_P2_REG_AF_BASE           (0x33e00)

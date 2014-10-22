@@ -978,10 +978,10 @@ static int b52_sensor_to_expo_time(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	line_time = sensor->drvdata->res[i].hts * 10000 /
-		(sensor->pixel_rate / 1000);
-
-	*time = lines * line_time / 10;
+	line_time = sensor->drvdata->res[i].hts * 100000 /
+		(sensor->pixel_rate / 10000);
+	/*line_time unit: 1ns*/
+	*time = lines * line_time / 100000;
 
 	pr_debug("%s: %d 100us, %d line\n", __func__, *time, lines);
 	return 0;

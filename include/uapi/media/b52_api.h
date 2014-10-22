@@ -1,3 +1,18 @@
+/*
+ * Copyright (C) 2013 Marvell International Ltd.
+ *				 Jianle Wang <wanjl@marvell.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
+
 #ifndef _B52_API_H
 #define _B52_API_H
 
@@ -133,6 +148,25 @@ enum v4l2_priv_colorfx {
 #define CID_AF_5X5_WIN_DISABLE    0
 #define CID_AF_5X5_WIN_ENABLE     1
 
+/*
+ * If 3A work on threshold, the gain or exposure value will be
+ * decided by max and min value, otherwise the value is setted value.
+ */
+#define CID_AEC_AUTO_THRESHOLD	0
+#define CID_AEC_MANUAL		1
+
+#define CID_AEC_NO_STABLE		0
+#define CID_AEC_STABLE		1
+
+#define CID_AFR_MAX_GAIN_MIN   0
+#define CID_AFR_MAX_GAIN_MAX   0xffff
+/*
+ * The OTP control variant
+ */
+#define V4L2_CID_SENSOR_OTP_CONTROL_NONE	0x00
+#define V4L2_CID_SENSOR_OTP_CONTROL_WB	0x01
+#define V4L2_CID_SENSOR_OTP_CONTROL_LENC	0x02
+
 #define B52_IDI_NAME		"b52isd-IDI"
 #define B52_PATH_YUV_1_NAME	"b52isd-Pipeline#1"
 #define B52_PATH_YUV_2_NAME	"b52isd-Pipeline#2"
@@ -167,7 +201,18 @@ enum v4l2_priv_colorfx {
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x1004)
 #define V4L2_CID_PRIVATE_AF_5X5_WIN \
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x1005)
-
+#define V4L2_CID_PRIVATE_SENSOR_OTP_CONTROL	\
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1006)
+#define V4L2_CID_PRIVATE_AEC_MANUAL_MODE\
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1007)
+#define V4L2_CID_PRIVATE_TARGET_Y\
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1008)
+#define V4L2_CID_PRIVATE_MEAN_Y\
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1009)
+#define V4L2_CID_PRIVATE_AEC_STABLE\
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x100a)
+#define V4L2_CID_PRIVATE_AFR_MAX_GAIN \
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x100B)
 
 #define V4L2_PLANE_SIGNATURE_PIPELINE_META	\
 	v4l2_fourcc('M', 'E', 'T', 'A')

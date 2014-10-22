@@ -72,12 +72,13 @@ struct b52isp_ctrls {
 		struct v4l2_ctrl *auto_gain;
 		struct v4l2_ctrl *gain;
 	};
-
+	struct v4l2_ctrl *aec_manual_mode;
 	struct {
 		/* Auto frame rate cluster */
 		struct v4l2_ctrl *auto_frame_rate;
 		struct v4l2_ctrl *afr_min_fps;
 		struct v4l2_ctrl *afr_sr_min_fps;
+		struct v4l2_ctrl *afr_max_gain;
 	};
 
 	/* AE/AWB/AF lock/unlock */
@@ -88,7 +89,12 @@ struct b52isp_ctrls {
 	struct v4l2_ctrl *zoom;
 	/* ISP image effect */
 	struct v4l2_ctrl *colorfx;
-
+	/* ISP target Y */
+	struct v4l2_ctrl *target_y;
+	/* ISP mean Y */
+	struct v4l2_ctrl *mean_y;
+	/* ISP AEC stable */
+	struct v4l2_ctrl *aec_stable;
 	/* user config data*/
 	struct v4l2_rect af_win;
 	struct b52isp_win metering_roi;
