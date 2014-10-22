@@ -558,6 +558,12 @@ static irqreturn_t pm886_chg_fail_handler(int irq, void *data)
 
 	regmap_read(info->chip->battery_regmap, PM886_CHG_LOG1, &value);
 
+	if (value & PM886_BATT_REMOVAL)
+		dev_info(info->chip->dev, "battery is plugged out.\n");
+
+	if (value & PM886_CHG_REMOVAL)
+		dev_info(info->chip->dev, "charger cable is plugged out.\n");
+
 	if (value & PM886_BATT_TEMP_NOK) {
 		dev_err(info->chip->dev, "battery temperature is abnormal.\n");
 		/* handled in battery driver */
@@ -599,7 +605,6 @@ static irqreturn_t pm886_chg_fail_handler(int irq, void *data)
 
 static irqreturn_t pm886_chg_done_handler(int irq, void *data)
 {
-	static int value;
 	struct pm886_charger_info *info = data;
 
 	if (!info) {
@@ -607,28 +612,15 @@ static irqreturn_t pm886_chg_done_handler(int irq, void *data)
 		return IRQ_NONE;
 	}
 
+	dev_info(info->chip->dev, "charging done, battery full.\n");
+
 	/* charging is stopped by HW */
+	info->full = 1;
 	info->charging = 0;
+	info->allow_recharge = 0;
 
-	dev_info(info->dev, "charge done interrupt is served\n");
-
-	regmap_read(info->chip->battery_regmap, PM886_CHG_LOG1, &value);
-	if (value & PM886_BATT_REMOVAL) {
-		dev_info(info->chip->dev, "battery is plugged out.\n");
-
-	} else if (value & PM886_CHG_REMOVAL) {
-		dev_info(info->chip->dev, "charger cable is plugged out.\n");
-
-	} else {
-		dev_info(info->chip->dev, "charging done, battery full.\n");
-		info->full = 1;
-		info->allow_recharge = 0;
-		/* disable auto-recharge */
-		pm886_stop_charging(info);
-	}
-
-	/* write to clear */
-	regmap_write(info->chip->battery_regmap, PM886_CHG_LOG1, value);
+	/* disable auto-recharge */
+	pm886_stop_charging(info);
 
 	pm886_chg_state_machine(info);
 
