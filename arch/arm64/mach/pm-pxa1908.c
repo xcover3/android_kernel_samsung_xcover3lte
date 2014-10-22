@@ -486,22 +486,22 @@ static u32 wakeup_source_check(void)
 	if (len_s != len) {
 		snprintf(buf + (len - 1), size - len + 1, "\n");
 		pr_info("%s", buf);
+	}
+
+	if (real_wus & PMUM_AP_ASYNC_INT) {
+		pr_info("AP is woken up by AP_INT_ASYNC\n");
+		if (icu_async_further_check())
+			pr_err("Cannot interpretate the detailed wakeup reason!\n");
 	} else {
-		if (real_wus & PMUM_AP_ASYNC_INT) {
-			pr_info("AP is woken up by AP_INT_ASYNC\n");
-			if (icu_async_further_check())
-				pr_err("Cannot interpretate the detailed wakeup reason!\n");
-		} else {
-			void __iomem *gic_dist_base = regs_addr_get_va(REGS_ADDR_GIC_DIST);
-			u32 reg = readl_relaxed(gic_dist_base + GIC_DIST_PENDING_SET);
-			if (reg) {
-				pr_info("!!!!!! GIC got Pending PPI/IPI Before Suspend !!!!!!\n");
-				pr_info("           PPI/IPI isPending Reg value: 0x%x\n", reg);
-				pr_info("!!!!!!    This cause suspend entry failure  !!!!!!\n");
-				WARN_ON(1);
-			} else
-				pr_err("Unexpected Events Wakeup AP!\n");
-		}
+		void __iomem *gic_dist_base = regs_addr_get_va(REGS_ADDR_GIC_DIST);
+		u32 reg = readl_relaxed(gic_dist_base + GIC_DIST_PENDING_SET);
+		if (reg) {
+			pr_info("!!!!!! GIC got Pending PPI/IPI Before Suspend !!!!!!\n");
+			pr_info("           PPI/IPI isPending Reg value: 0x%x\n", reg);
+			pr_info("!!!!!!    This cause suspend entry failure  !!!!!!\n");
+			WARN_ON(1);
+		} else
+			pr_err("Unexpected Events Wakeup AP!\n");
 	}
 
 	free_pages((unsigned long)buf, 0);
