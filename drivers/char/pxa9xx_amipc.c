@@ -32,6 +32,7 @@
 #include <linux/vmalloc.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/dma-buf.h>
 
 #include <linux/pxa9xx_amipc.h>
 
@@ -39,6 +40,7 @@
 #define pmu_writel(off, v)	__raw_writel((v), amipc->pmu_base + (off))
 #define ciu_readl(off)	__raw_readl(amipc->ciu_base + (off))
 #define ciu_writel(off, v)	__raw_writel((v), amipc->ciu_base + (off))
+#define dmachain_writel(off, v)	__raw_writel((v), amipc->dmachain_base + (off))
 
 #define E_TO_OFF(v) ((v) - 1)
 #define OFF_TO_E(v) ((v) + 1)
@@ -102,6 +104,7 @@ struct pxa9xx_amipc {
 	int irq;
 	void __iomem *pmu_base;
 	void __iomem *ciu_base;
+	void __iomem *dmachain_base;
 	struct ipc_event_type *ipc_tx, *ipc_rx;
 	struct amipc_database_cell amipc_db[AMIPC_EVENT_LAST];
 	struct ipc_event_type user_bakup;
@@ -506,6 +509,8 @@ static u32 user_callback(u32 event)
 }
 
 #define RESERVED_PHY_ADD (0x0b000000)
+/* kernel may use 64k page later, but our dma chain always 4k */
+#define PAGE_LEN_4K (0x1000)
 static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct amipc_ioctl_arg amipc_arg;
@@ -551,8 +556,58 @@ static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			else if (AMIPC_ACQ_CACHE_FLUSH == amipc_arg.data1) {
 				dma_sync_single_range_for_cpu(amipc->this_dev, RESERVED_PHY_ADD,
 					amipc_arg.data2, amipc_arg.more_msgs, DMA_FROM_DEVICE);
-			}
+			} else if (AMIPC_ACQ_SET_TO_DMACHAIN == amipc_arg.data1) {
+				struct dma_buf *dbuf;
+				struct dma_buf_attachment *dba;
+				struct sg_table *sgt;
+				struct scatterlist *sg;
+				int i, j, index = 0;
+				/*
+				 *	Layout:
+				 *	0~205: reserved for ACQ sequential mode
+				 *	206~2805: GNSS ACQ, 2600 words
+				 *	2806~4095: GPS ACQ, 1290 words
+				 */
+				index = 206;
 
+				pr_info("set to cm3 dma chain...\n");
+				dbuf = dma_buf_get(amipc_arg.data2);
+				dba = dma_buf_attach(dbuf, amipc->this_dev);
+				sgt = dma_buf_map_attachment(dba, DMA_FROM_DEVICE);
+				if (IS_ERR_OR_NULL(sgt)) {
+					dma_buf_detach(dbuf, dba);
+					dma_buf_put(dbuf);
+					pr_err("dma_buf_map_attachment error\n");
+					break;
+				}
+				sg = sgt->sgl;
+				for (i = 0; i < sgt->nents; i++, sg = sg_next(sg)) {
+#ifdef CONFIG_NEED_SG_DMA_LENGTH
+					sg->dma_length = sg->length;
+#endif
+				}
+				sg = sgt->sgl;
+				for (i = 0; i < sgt->nents; i++, sg = sg_next(sg)) {
+					for (j = 0; j < sg_dma_len(sg) / PAGE_LEN_4K; j++) {
+						dmachain_writel(index * 4, sg_dma_address(sg) +
+								j * PAGE_LEN_4K);
+						index++;
+						if (index >= 0x1000)
+							goto finish;
+					}
+				}
+finish:
+				dma_buf_unmap_attachment(dba, sgt, DMA_FROM_DEVICE);
+				dma_buf_detach(dbuf, dba);
+				dma_buf_put(dbuf);
+				pr_info("set dma chain done\n");
+			} else if (AMIPC_ACQ_CLR_DMACHAIN == amipc_arg.data1) {
+				int index = 0;
+				pr_info("clear cm3 dma chain...\n");
+				for (index = 206; index < 0x1000; index++)
+					dmachain_writel(index * 4, 0);
+				pr_info("clear dma chain done\n");
+			}
 		}
 		break;
 	case AMIPC_IPC_MSG_GET:
@@ -852,6 +907,8 @@ static int pxa9xx_amipc_probe(struct platform_device *pdev)
 {
 	int ret, irq, i;
 	u32 pmu_reg;
+	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
 
 	amipc =
 	    devm_kzalloc(&pdev->dev, sizeof(struct pxa9xx_amipc), GFP_KERNEL);
@@ -862,6 +919,11 @@ static int pxa9xx_amipc_probe(struct platform_device *pdev)
 	amipc->ciu_base = iomap_register("marvell,mmp-ciu");
 	if (NULL == amipc->pmu_base || NULL == amipc->ciu_base) {
 		dev_err(&pdev->dev, "get register base error\n");
+		return -EINVAL;
+	}
+	amipc->dmachain_base = of_iomap(np, 0);
+	if (!amipc->dmachain_base) {
+		dev_err(&pdev->dev, "get dmachain base error\n");
 		return -EINVAL;
 	}
 

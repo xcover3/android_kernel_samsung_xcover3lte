@@ -32,6 +32,8 @@
 #define AMIPC_ACQ_GET_MEM	(0xF0000000)
 #define AMIPC_ACQ_REL_MEM	(0xF0000001)
 #define AMIPC_ACQ_CACHE_FLUSH	(0xF0000002)
+#define AMIPC_ACQ_SET_TO_DMACHAIN      (0xF0000003)
+#define AMIPC_ACQ_CLR_DMACHAIN      (0xF0000004)
 
 typedef u32(*amipc_rec_event_callback) (u32 events_status);
 
