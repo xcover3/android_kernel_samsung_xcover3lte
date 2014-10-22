@@ -92,6 +92,7 @@
 #define GPU_XTC		0x00a4
 #define SC2_DESC	0xD420F000
 #define ISP_XTC		0x84C
+#define TOP_MEM_RTC_WTC_SPD 0x44
 
 #ifdef CONFIG_SMC91X
 #define APMU_SMC	0xd4
@@ -520,7 +521,7 @@ static struct mmp_clk_mix_clk_table gc3d_pptbl[] = {
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
 	{.rate = 416000000, .parent_index = 0,/* pll1_832_gate */ .xtc = 0x00055544},
 	{.rate = 624000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x000AAA55},
-	{.rate = 705000000, .parent_index = 3, /* pll2_div3 */ .xtc = 0x000BBB55},
+	{.rate = 705000000, .parent_index = 3, /* pll2_div3 */ .xtc = 0x000AAA55},
 };
 
 static struct mmp_clk_mix_config gc3d_mix_config = {
@@ -567,10 +568,10 @@ static struct mmp_clk_mix_clk_table gc2d_pptbl_1u88[] = {
 
 /* ulc GC2D has no compress feature, adjust the PP */
 static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
-	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00000044},
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
 	{.rate = 416000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x000AAA44},
-	{.rate = 624000000, .parent_index = 1, /* pll1_624_gate */ .xtc = 0x000BBB44},
+	{.rate = 624000000, .parent_index = 1, /* pll1_624_gate */ .xtc = 0x000AAA55},
 };
 
 static struct mmp_clk_mix_config gc2d_mix_config = {
@@ -614,9 +615,9 @@ static const char *vpufclk_parent_names[] = {
 };
 
 static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
-	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00B85454},
-	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x00B85454},
-	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00B85454},
+	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00380404},
+	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x00385454},
+	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00385454},
 	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */ .xtc = 0x00B85454},
 	{.rate = 528750000, .parent_index = 3, /* pll2p */ .xtc = 0x00B8A5A4},
 };
@@ -1154,10 +1155,10 @@ static struct cpu_opt helan2_op_array[] = {
 	}
 };
 
-static struct cpu_rtcwtc cpu_rtcwtc_1908umc[] = {
+static struct cpu_rtcwtc cpu_rtcwtc_1908sec[] = {
 	{.max_pclk = 312, .l1_xtc = 0x11111111, .l2_xtc = 0x00001111,},
 	{.max_pclk = 832, .l1_xtc = 0x55555555, .l2_xtc = 0x00005555,},
-	{.max_pclk = 1057, .l1_xtc = 0x66666666, .l2_xtc = 0x0000666A,},
+	{.max_pclk = 1057, .l1_xtc = 0x55555555, .l2_xtc = 0x0000555A,},
 	{.max_pclk = 1526, .l1_xtc = 0xAAAAAAAA, .l2_xtc = 0x0000AAAA,},
 };
 
@@ -1166,8 +1167,8 @@ static struct core_params core_params = {
 	.parent_table_size = ARRAY_SIZE(core_parent_table),
 	.cpu_opt = helan2_op_array,
 	.cpu_opt_size = ARRAY_SIZE(helan2_op_array),
-	.cpu_rtcwtc_table = cpu_rtcwtc_1908umc,
-	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_1908umc),
+	.cpu_rtcwtc_table = cpu_rtcwtc_1908sec,
+	.cpu_rtcwtc_table_size = ARRAY_SIZE(cpu_rtcwtc_1908sec),
 	.bridge_cpurate = 1248,
 	.max_cpurate = 1248,
 	.dcstat_support = true,
@@ -1495,7 +1496,6 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 
 static void __init pxa1U88_misc_init(struct pxa1U88_clk_unit *pxa_unit)
 {
-	void __iomem *sc2_base;
 	unsigned int val;
 
 	/* enable all MCK and AXI fabric dynamic clk gating */
@@ -1511,17 +1511,8 @@ static void __init pxa1U88_misc_init(struct pxa1U88_clk_unit *pxa_unit)
 		(1 << 29) | (1 << 30);	/* CA7 2x1 fabric */
 	__raw_writel(val, pxa_unit->ciu_base + CIU_MC_CONF);
 
-	/* init ISP related RTC register here */
-	sc2_base = ioremap(SC2_DESC, SZ_4K);
-	if (sc2_base == NULL) {
-		pr_err("error to ioremap SC2_DESCRIPTOR base\n");
-		return;
-	}
-	val = __raw_readl(pxa_unit->apmu_base + APMU_CCIC0);
-	__raw_writel(val | (3 << 21), pxa_unit->apmu_base + APMU_CCIC0);
-	__raw_writel(0x00555555, sc2_base + ISP_XTC);
-	__raw_writel(val, pxa_unit->apmu_base + APMU_CCIC0);
-	iounmap(sc2_base);
+	/* TOP_MEM_RTC_WTC_SPD = 0xEE006656 */
+	__raw_writel(0xEE006656, pxa_unit->ciu_base + TOP_MEM_RTC_WTC_SPD);
 }
 
 static void __init pxa1U88_clk_init(struct device_node *np)
