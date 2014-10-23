@@ -72,6 +72,7 @@ static int SR544_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 	Pll_vt_syst_clk_div = Pll_vt_syst_clk_div_map[temp2];
 
 	*rate = mclk / (Pll_prediv + 1) *  Pll_multiplier / Pll_vt_syst_clk_div;
+	*rate = *rate * 2;
 	return 0;
 }
 static int SR544_update_otp(struct v4l2_subdev *sd,

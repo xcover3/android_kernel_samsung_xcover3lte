@@ -2015,7 +2015,7 @@ struct regval_tab sr544_res_init[] = {
 	{0x0A02, 0x0100},
 	{0x0C12, 0x0100},
 	{0x0116, 0x0024},
-	{0x003A, 0x7000},
+	{0x003A, 0x0000},
 	{0x0508, 0x0100},
 	{0x050a, 0x0100},
 	{0x050c, 0x0100},
@@ -2106,7 +2106,8 @@ struct regval_tab sr544_id[] = {
 	{0x0f16, 0x4405, 0xffff},
 };
 struct regval_tab sr544_vts[] = {
-	{0x0006, 0xc807, 0x7fff},
+	{0x0006, 0x06, 0x7f},
+	{0x0007, 0xc8, 0xff},
 };
 struct regval_tab sr544_stream_on[] = {
 	{0x0118, 0x0100, 0xffff},
@@ -2115,10 +2116,12 @@ struct regval_tab sr544_stream_off[] = {
 	{0x0118, 0x0000, 0xffff},
 };
 struct regval_tab sr544_expo[] = {
-	{0x0002, 0x00, 0xffff},
+	{0x0004, 0x00, 0xff},
+	{0x0005, 0x00, 0xff},
 };
 struct regval_tab sr544_ag[] = {
-	{0x003a, 0x7000, 0xff00},
+	{0x003a, 0x00, 0xff},
+	{0x003b, 0x00, 0xff},
 };
 struct regval_tab sr544_vflip[] = {
 	{0x0000, 0x00, 0x0001},
@@ -2151,7 +2154,7 @@ struct b52_sensor_resolution sr544_res[] = {
 		 .width = 2592,
 		 .height = 1944,
 		 .hts = 0x0B40,
-		 .min_vts = 0x0d60,
+		 .min_vts = 0x07c8,
 		 .prop = SENSOR_RES_BINING1,
 		 .regs = {
 			.tab = sr544_res_5M,
@@ -2171,7 +2174,7 @@ struct b52_sensor_resolution sr544_res[] = {
 	},
 };
 static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_16BIT,
+	.reg_len = I2C_8BIT,
 	.val_len = I2C_8BIT,
 	.addr = 0x0c,
 };
@@ -2196,7 +2199,7 @@ struct b52_sensor_spec_ops sr544_ops = {
 };
 struct b52_sensor_data b52_sr544 = {
 	.name = "samsung.sr544",
-	.type = SAMSUNG_SENSOR,
+	.type = HYNIX_SENSOR,
 	.i2c_attr = {
 		.reg_len = I2C_16BIT,
 		.val_len = I2C_16BIT,
@@ -2228,7 +2231,7 @@ struct b52_sensor_data b52_sr544 = {
 	},
 	.vts_range = {0x07c8, 0x7fff},
 	.gain_range = {
-		[B52_SENSOR_AG] = {0x0010, 0x007c},
+		[B52_SENSOR_AG] = {0x0010, 0x00f0},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
 	.expo_range = {0x00010, 0xb90},
@@ -2260,7 +2263,8 @@ struct b52_sensor_data b52_sr544 = {
 		.num = N_SR544_VFLIP,
 	},
 
-	.gain_shift = 1,
+	.gain_shift = 0x08,
+	.expo_shift = 0x00,
 /*	.calc_dphy = 1, */
 	.nr_lane = 2,
 	.ops = &sr544_ops,

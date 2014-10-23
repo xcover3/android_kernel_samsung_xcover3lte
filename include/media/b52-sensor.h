@@ -38,6 +38,7 @@ enum b52_sensor_type {
 	OVT_SENSOR = 0,
 	SONY_SENSOR,
 	SAMSUNG_SENSOR,
+	HYNIX_SENSOR,
 };
 
 enum b52_sensor_vcm_type {
@@ -213,6 +214,7 @@ struct b52_sensor_data {
 	struct b52_sensor_regs af_reg;
 
 	u8 gain_shift;
+	u8 expo_shift;
 	int calc_dphy;
 	int nr_lane;
 	/*optional*/

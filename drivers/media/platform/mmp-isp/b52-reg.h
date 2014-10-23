@@ -767,6 +767,7 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 
 #define REG_FW_VTS                  (0x04c)
 #define REG_FW_CURR_VTS             (0x050)
+#define REG_FW_AEC_GAIN_SHIFT		(0x053)
 
 #define REG_FW_SSOR_DEV_ID          (0x056)
 #define REG_FW_SSOR_I2C_OPT         (0x057)

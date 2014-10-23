@@ -2505,7 +2505,6 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 		b52_write_pipeline_info(cmd->path, cmd->mem.buf[0]);
 	} else
 		b52_cfg_isp(sd);
-
 	ret = wait_cmd_done(CMD_SET_FMT);
 	if (ret < 0)
 		return ret;
@@ -3010,15 +3009,16 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	struct b52_sensor_i2c_attr attr;
 	u8 type;
 	u8 val;
+	u8 gain_shift, expo_shift;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
-
 	if (p_num > 1) {
 		pr_err("%s: parameter error %d\n", __func__, p_num);
 		return -EINVAL;
 	}
 	base = FW_P1_REG_BASE + p_num * FW_P1_P2_OFFSET;
 	type = sensor->drvdata->type;
-
+	gain_shift = sensor->drvdata->gain_shift;
+	expo_shift = sensor->drvdata->expo_shift;
 	/*
 	 * vendor recommands to use Q4,
 	 * ISP also uses it to calculate stretch gain.
@@ -3050,16 +3050,14 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_EXPO, &reg);
 	switch (reg.num) {
 	case 2:
-		b52_writeb(base + REG_FW_AEC_EXP_SHIFT, 0x04);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_0, 0);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_1, reg.tab->reg);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_2, reg.tab->reg + 1);
-		b52_writeb(base + REG_FW_SSOR_AEC_MSK_0, 0);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_0, 0x00);
 		b52_writeb(base + REG_FW_SSOR_AEC_MSK_1, 0xff);
 		b52_writeb(base + REG_FW_SSOR_AEC_MSK_2, 0xff);
 		break;
 	case 3:
-		b52_writeb(base + REG_FW_AEC_EXP_SHIFT, 0x08);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_0, reg.tab->reg);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_1, reg.tab->reg + 1);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_2, reg.tab->reg + 2);
@@ -3071,12 +3069,14 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 		pr_err("%s: no expo reg", __func__);
 		break;
 	}
+	b52_writeb(base + REG_FW_AEC_EXP_SHIFT, expo_shift);
 
 	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_VTS, &reg);
 	b52_writew(base + REG_FW_SSOR_AEC_ADDR_4, reg.tab->reg);
 	b52_writew(base + REG_FW_SSOR_AEC_ADDR_5, reg.tab->reg + 1);
 	b52_writeb(base + REG_FW_SSOR_AEC_MSK_4, 0xff);
 	b52_writeb(base + REG_FW_SSOR_AEC_MSK_5, 0xff);
+	b52_writeb(base + REG_FW_AEC_GAIN_SHIFT, gain_shift);
 
 	/*
 	 * TODO: NEED vendor add DG support
