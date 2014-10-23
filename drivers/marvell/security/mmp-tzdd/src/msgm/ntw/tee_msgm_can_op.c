@@ -29,9 +29,9 @@ tee_stat_t set_cmd_can_op(tee_msgm_t msgm, void *arg)
 	src = (tee_set_cmd_can_op_arg_t *) arg;
 	ntw_handle = (tee_msgm_ntw_struct *) msgm;
 	ptr = (can_op_body *) ntw_handle->body;
-	ptr->ss_tw = NULL;
+	ptr->ss_tw = src->ss;
 
-	_teec_mrvl_operation = (_TEEC_MRVL_Operation *) (src->imp);
+	_teec_mrvl_operation = (_TEEC_MRVL_Operation *) (src->operation->imp);
 	ptr->tee_msg_ntw = _teec_mrvl_operation->tee_msg_ntw;
 	return TEEC_SUCCESS;
 }

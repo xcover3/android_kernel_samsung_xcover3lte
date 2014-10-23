@@ -25,6 +25,7 @@
 #define IS_TYPE_MEMREF(_m)  ((_m) >= 0xc && (_m) <= 0xf)
 
 #define CLEAN_HIGH_32BIT    (0xFFFFFFFF)
+#define _HIGH_MEM_TRSLATION(_a) ((((_a) >> 8) & 0x000000ff) | 0xffffff00)
 
 struct compat_teec_init_context_args {
 	compat_int_t name;
@@ -93,6 +94,11 @@ struct compat_teec_open_ss_args {
 
 struct compat_teec_close_ss_args {
 	compat_u64 tee_ss_ntw;
+	compat_uint_t ret;
+};
+
+struct compat_teec_request_cancel_args {
+	compat_u64 tee_op_ntw;
 	compat_uint_t ret;
 };
 
@@ -170,6 +176,14 @@ static int _tzdd_compat_get_map_shared_mem_data(
 	err |= put_user(s, &data->size);
 	err |= get_user(u, &data32->flags);
 	err |= put_user(u, &data->flags);
+
+	if ((data->flags >> 16) == _HIGH_MEM_MAGIC) {
+		data->buffer = (void *) ((_HIGH_MEM_TRSLATION((unsigned long long)data->flags) << 32) |
+			(unsigned long long) data->buffer);
+	}
+
+	/* clean the flag */
+	data->flags = data->flags & 0x000000ff;
 
 	return err;
 }
@@ -329,6 +343,28 @@ static int _tzdd_compat_get_close_ss_data(
 static int _tzdd_compat_put_close_ss_data(
 			struct compat_teec_close_ss_args __user *data32,
 			teec_close_ss_args __user *data)
+{
+	compat_uint_t u;
+	int err = 0;
+
+	err |= get_user(u, &data->ret);
+	err |= put_user(u, &data32->ret);
+
+	return err;
+}
+
+static int _tzdd_compat_get_request_cancel_data(
+			struct compat_teec_request_cancel_args __user *data32,
+			teec_request_cancel_args __user *data)
+{
+	data->tee_op_ntw = (tee_impl)(data32->tee_op_ntw);
+
+	return 0;
+}
+
+static int _tzdd_compat_put_request_cancel_data(
+			struct compat_teec_request_cancel_args __user *data32,
+			teec_request_cancel_args __user *data)
 {
 	compat_uint_t u;
 	int err = 0;
@@ -612,6 +648,30 @@ long tzdd_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return ret;
 
 		ret = _tzdd_compat_put_invoke_cmd_data(data32, data);
+		if (ret)
+			return ret;
+	}
+	break;
+	case TEEC_REQUEST_CANCEL:
+	{
+		struct compat_teec_request_cancel_args __user *data32;
+		teec_request_cancel_args __user *data;
+
+		data32 = compat_ptr(arg);
+		data = compat_alloc_user_space(sizeof(*data));
+		if (data == NULL)
+			return -EFAULT;
+
+		ret = _tzdd_compat_get_request_cancel_data(data32, data);
+		if (ret)
+			return ret;
+
+		ret = filp->f_op->unlocked_ioctl(filp, cmd,
+					(unsigned long)data);
+		if (ret)
+			return ret;
+
+		ret = _tzdd_compat_put_request_cancel_data(data32, data);
 		if (ret)
 			return ret;
 	}

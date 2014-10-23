@@ -148,6 +148,7 @@ static tee_msg_head_t *_init_msg_head(uint8_t *tee_msg_buf, uint32_t buf_size)
 	tee_msg_head->msg_sz = buf_size;
 	tee_msg_head->msg_prop.value = 0;
 	tee_msg_head->msg_prop.bp.stat = TEE_MSG_STAT_REQ;
+	tee_msg_head->caller_uuid = 0xFFFFFFFF;
 	tee_msg_head->tee_msg = (void *)tee_msg_buf;
 	tee_msg_head->comp = osa_create_sem(0);
 	tee_msg_head->reserved = NULL;
@@ -232,7 +233,6 @@ static TEEC_Result _teec_map_memory(
 	return tee_msg_stat;
 }
 
-#include <linux/version.h>
 static uid_t _get_current_uid(void)
 {
 	kuid_t uid;
@@ -806,6 +806,8 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 		}
 		_teec_mrvl_operation =
 			(_TEEC_MRVL_Operation *) (operation->imp);
+		INIT_MAGIC(_teec_mrvl_operation->magic);
+		_teec_mrvl_operation->tee_ss_ntw = &(session->imp);
 
 		_teec_mrvl_operation->tee_msg_ntw = (void *)tee_msg_buf;
 	}
@@ -1084,7 +1086,8 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 
 		_teec_mrvl_operation =
 			(_TEEC_MRVL_Operation *) (operation->imp);
-
+		INIT_MAGIC(_teec_mrvl_operation->magic);
+		_teec_mrvl_operation->tee_ss_ntw = &(session->imp);
 		_teec_mrvl_operation->tee_msg_ntw = (void *)tee_msg_buf;
 	}
 
@@ -1172,12 +1175,14 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 
 	tee_msgm_t tee_msgm_handle;
 	tee_cmd_t tee_msg_cmd;
-	tee_set_cmd_can_op_arg_t *tee_msg_set_cmd_can_op_arg;
+	tee_set_cmd_can_op_arg_t tee_msg_set_cmd_can_op_arg;
 	tee_stat_t tee_msg_stat;
 	uint32_t buf_size;
 	tee_msgm_msg_info_t tee_msg_info;
 
 	uint8_t *tee_msg_buf;
+	TEEC_Session *teec_session;
+	_TEEC_MRVL_Session *_teec_mrvl_session;
 	_TEEC_MRVL_Operation *_teec_mrvl_operation;
 
 	if (!operation)
@@ -1227,14 +1232,18 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 		/* init head_t */
 		tee_msg_head = _init_msg_head(tee_msg_buf, buf_size);
 
-		_teec_mrvl_operation->tee_msg_ntw = (void *)tee_msg_buf;
-
 		/* set cmd body */
+		teec_session =
+		container_of(_teec_mrvl_operation->tee_ss_ntw, TEEC_Session, imp);
+		_teec_mrvl_session = (_TEEC_MRVL_Session *) (teec_session->imp);
+
 		tee_msg_cmd = TEE_CMD_CAN_OP;
-		tee_msg_set_cmd_can_op_arg = operation;
+
+		tee_msg_set_cmd_can_op_arg.ss = _teec_mrvl_session->tee_ss_tw;
+		tee_msg_set_cmd_can_op_arg.operation = operation;
 		tee_msg_stat =
 			tee_msgm_set_cmd(tee_msgm_handle, tee_msg_cmd,
-					tee_msg_set_cmd_can_op_arg);
+					&tee_msg_set_cmd_can_op_arg);
 		if (tee_msg_stat != TEEC_SUCCESS)
 			OSA_ASSERT(0);
 

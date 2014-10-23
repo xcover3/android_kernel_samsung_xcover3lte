@@ -62,6 +62,7 @@
  */
 #define DEVICE_NAME         "tzdd"
 #define DEVICE_NAME_SIZE    4
+#define _HIGH_MEM_MAGIC     0x4558
 
 typedef struct {
 	struct cdev cdev;

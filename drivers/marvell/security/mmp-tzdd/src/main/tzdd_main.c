@@ -18,6 +18,7 @@
  */
 
 #include "tzdd_internal.h"
+#include "asm/pgtable.h"
 
 MODULE_LICENSE("GPL");
 
@@ -25,7 +26,11 @@ MODULE_LICENSE("GPL");
  * Parameters which can be set at load time.
  */
 
-#define TZDD_VERSION    "TEEC Drvier Version 1.0.7, kernel_3_10"
+#ifdef TEE_RES_CFG_16M
+#define TZDD_VERSION    "TEEC Drvier Version 1.1.0 16MB, kernel_3_10/3_14"
+#else
+#define TZDD_VERSION    "TEEC Drvier Version 1.1.0, kernel_3_10/3_14"
+#endif
 #define TZDD_DRV_NAME   "tzdd"
 
 int tzdd_major;
@@ -260,18 +265,25 @@ static long tzdd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
-		memm_handle = tee_memm_create_ss();
-		tee_memm_get_user_mem(memm_handle,
-					teec_map_shared_mem.buffer,
-					teec_map_shared_mem.size,
-					&buf_local_virt);
-		if (!buf_local_virt) {
-			TZDD_DBG("Error in tee_memm_get_user_mem\n");
-			return -EFAULT;
+		if (((unsigned long long) teec_map_shared_mem.buffer) < VMALLOC_START
+			&& ((unsigned long long) teec_map_shared_mem.buffer) < MODULES_VADDR) {
+			memm_handle = tee_memm_create_ss();
+			tee_memm_get_user_mem(memm_handle,
+				teec_map_shared_mem.buffer,
+				teec_map_shared_mem.size,
+				&buf_local_virt);
+			if (!buf_local_virt) {
+				teec_map_shared_mem.ret = TEEC_ERROR_GENERIC;
+				if (copy_to_user((void __user *)arg, &teec_map_shared_mem,
+					sizeof(teec_map_shared_mem_args))) {
+					return -EFAULT;
+				}
+				TZDD_DBG("Error in tee_memm_get_user_mem\n");
+				return -EFAULT;
+			}
+			tee_memm_destroy_ss(memm_handle);
+			teec_map_shared_mem.buffer = buf_local_virt;
 		}
-		tee_memm_destroy_ss(memm_handle);
-
-		teec_map_shared_mem.buffer = buf_local_virt;
 
 		OSA_ASSERT(teec_map_shared_mem.tee_ctx_ntw);
 		result =
@@ -642,21 +654,21 @@ static long tzdd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	break;
 	case TEEC_REQUEST_CANCEL:
 	{
-		teec_requeset_cancel_args teec_requeset_cancel;
+		teec_request_cancel_args teec_request_cancel;
 		if (copy_from_user
-			(&teec_requeset_cancel, (void __user *)arg,
-			sizeof(teec_requeset_cancel_args)))
+			(&teec_request_cancel, (void __user *)arg,
+			sizeof(teec_request_cancel_args)))
 			return -EFAULT;
 
-		OSA_ASSERT(teec_requeset_cancel.tee_op_ntw);
+		OSA_ASSERT(teec_request_cancel.tee_op_ntw);
 
 		result =
-			_teec_request_cancellation(teec_requeset_cancel.tee_op_ntw);
-		teec_requeset_cancel.ret = result;
+			_teec_request_cancellation(teec_request_cancel.tee_op_ntw);
+		teec_request_cancel.ret = result;
 
 		if (copy_to_user
-			((void __user *)arg, &teec_requeset_cancel,
-			sizeof(teec_requeset_cancel_args))) {
+			((void __user *)arg, &teec_request_cancel,
+			sizeof(teec_request_cancel_args))) {
 			return -EFAULT;
 		}
 	}

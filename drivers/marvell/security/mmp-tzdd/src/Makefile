@@ -82,6 +82,12 @@ else
 tzdd-objs += comm/tee_cm_smi.32b.o
 endif
 
+ifeq ($(CONFIG_TEE_RES_CFG_16M), y)
+ccflags-y += -DTEE_RES_CFG_16M
+else
+ccflags-y += -DTEE_RES_CFG_8M
+endif
+
 ccflags-y += -Wall -O2 \
 				-I$(src)/osa/ \
 				-I$(src)/osa/include \

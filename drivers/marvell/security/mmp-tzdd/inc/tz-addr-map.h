@@ -22,11 +22,27 @@
 #define RA_PHYS_ADDR    (0x00000000)
 #define RA_SIZE         (0x00600000)
 
+#ifdef TEE_RES_CFG_8M
+
 #define RB_PHYS_ADDR    (0x00600000)
 #define RB_SIZE         (0x00100000)
 
 #define RC_PHYS_ADDR    (0x00700000)
 #define RC_SIZE         (0x00100000)
+
+#elif defined(TEE_RES_CFG_16M)
+
+#define RB_PHYS_ADDR    (0x00E00000)
+#define RB_SIZE         (0x00100000)
+
+#define RC_PHYS_ADDR    (0x00F00000)
+#define RC_SIZE         (0x00100000)
+
+#else
+
+#error "ERROR - Invalid TEE_RES_CFG Setting."
+
+#endif
 
 #ifdef TEE_PERF_MEASURE
 #define PERF_BUF_ADDR   (0x00800000)

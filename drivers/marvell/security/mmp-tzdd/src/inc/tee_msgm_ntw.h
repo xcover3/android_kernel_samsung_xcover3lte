@@ -74,19 +74,35 @@ typedef union _tee_msg_prop_t {
 	uint32_t value;
 } tee_msg_prop_t;
 
+#ifdef CONFIG_64BIT
 /* open msg-head for updating msg-ntw according to msg-in-rb by pt-ntw */
 typedef struct _tee_msg_head_t {
 	uint8_t magic[4];
 	uint32_t msg_sz;
 	osa_list_t node;
 	tee_msg_prop_t msg_prop;
-	uint32_t rsvd;
+	uint32_t caller_uuid; /* used by TA to TA */
 	tee_msg_handle_t tee_msg;
 	osa_sem_t comp;
 	void *reserved;
 } tee_msg_head_t;
+#else
+typedef struct _tee_msg_head_t {
+	uint8_t magic[4];
+	uint32_t msg_sz;
+	osa_list_t node;
+	uint32_t pad[2];
+	tee_msg_prop_t msg_prop;
+	uint32_t caller_uuid; /* used by TA to TA */
+	tee_msg_handle_t tee_msg;
+	uint32_t pad1;
+	osa_sem_t comp;
+	uint32_t pad2;
+	void *reserved;
+	uint32_t pad3;
+} tee_msg_head_t;
+#endif
 
-typedef tee_msg_head_t tee_msg_64b_head_t;
 typedef TEEC_SharedMemory tee_msg_map_shm_info_t;
 typedef TEEC_Operation tee_msg_op_info_t;
 
@@ -126,7 +142,13 @@ typedef struct _tee_set_cmd_inv_op_arg_t {
 	void *ss;
 	uint32_t srv_cmd;
 } tee_set_cmd_inv_op_arg_t;
-typedef TEEC_Operation tee_set_cmd_can_op_arg_t;
+
+//typedef TEEC_Operation tee_set_cmd_can_op_arg_t;
+typedef struct tee_set_cmd_can_op_arg_t
+{
+	void *ss;
+	TEEC_Operation *operation;
+} tee_set_cmd_can_op_arg_t;
 /* ^^^ set_cmd_arg ^^^ */
 
 /* vvv get_cmd_arg vvv */

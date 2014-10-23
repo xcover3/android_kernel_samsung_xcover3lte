@@ -398,7 +398,7 @@ TEEC_Result _teec_open_session(tee_impl tee_ctx_ntw,
 		/* Add copy_to_user here, for cancellation */
 		if (copy_to_user
 			((void __user *)(tee_op_ntw_for_cancel), &tmp_for_cancel,
-			4)) {
+			sizeof(tmp_for_cancel))) {
 			osa_kmem_free(teec_operation);
 			osa_kmem_free(teec_session);
 			return -EFAULT;
@@ -517,7 +517,7 @@ TEEC_Result _teec_invoke_command(tee_impl tee_ss_ntw,
 		/* Add copy_to_user here, for cancellation */
 		if (copy_to_user
 			((void __user *)(tee_op_ntw_for_cancel), &tmp_for_cancel,
-			4)) {
+			sizeof(tmp_for_cancel))) {
 			osa_kmem_free(teec_operation);
 			return -EFAULT;
 		}

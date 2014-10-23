@@ -95,7 +95,7 @@ typedef struct {
 typedef struct {
 	tee_impl tee_op_ntw;
 	uint32_t ret;
-} teec_requeset_cancel_args;
+} teec_request_cancel_args;
 
 #define TEEC_IOCTL_MAGIC        't'
 

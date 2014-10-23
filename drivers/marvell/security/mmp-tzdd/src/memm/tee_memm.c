@@ -20,6 +20,7 @@
 #include "tee_memm_internal.h"
 #else
 #include "mt_memm_internal.h"
+#define MMU_ENABLE_BIT	(1)
 #endif
 
 #define MAGIC_NUM   (4)
@@ -53,10 +54,102 @@ typedef struct _tee_memm_handle_t {
 	uint32_t reserve;
 } tee_memm_handle_t;
 
+#ifdef CONFIG_MINI_TZDD
+
+#ifdef CONFIG_64BIT
+/* The value of __PAGE_SIZE should be aligned with the one in OBM
+ * Loader/Platforms/EDEN/mmu.c
+ */
+#define __PAGE_SIZE		(0x200000)
+typedef union {
+	struct {
+		ulong_t  rsvd:56;
+		uint32_t inner:4;
+		uint32_t outer:4;
+	} bits;
+	ulong_t all;
+} phy_addr_reg;
+#else
+typedef union {
+	struct {
+		ulong_t  rsvd:2;
+		uint32_t outer:2;
+		uint32_t inner:3;
+	} bits;
+	uint32_t all;
+} phy_addr_reg;
+#endif
+
+#define PHYS_ADDR_BITS (0xFFFFFFFFFFFF)
+static void *_osa_virt_to_phys_by_cp15_ex(ulong_t virt, bool *cacheable)
+{
+#ifdef CONFIG_64BIT
+	volatile ulong_t ret;
+	phy_addr_reg par;
+
+	__asm__ __volatile__("at s1e2r, %0" : : "r"(virt));
+	__asm__ __volatile__("mrs %0, par_el1" : "=r"(ret) : );
+
+	par.all = ret;
+	if (par.bits.outer == 0x4 &&
+		par.bits.inner == 0x4)
+		*cacheable = false;
+	else
+		*cacheable = true;
+
+	ret &= ~(__PAGE_SIZE - 1);
+	ret |= (virt & (__PAGE_SIZE - 1));
+	ret &= PHYS_ADDR_BITS;
+
+	return (void *)ret;
+#else
+	volatile ulong_t ret;
+	phy_addr_reg par;
+
+	/* fail to get the phys_addr when using 0, c7, c8, 1 */
+	__asm__ __volatile__("mcr p15, 0, %1, c7, c8, 0\n\t"
+		"mrc p15, 0, %0, c7, c4, 0\n\t" : "=r"(ret) : "r"
+		(virt));
+
+	par.all = ret;
+	if (par.bits.outer == 0x0 &&
+	   (par.bits.inner & 0x4) == 0x0)
+		*cacheable = false;
+	else if (par.bits.outer > 0x0 &&
+			(par.bits.inner & 0x4) == 0x4)
+		*cacheable = true;
+	else
+		OSA_ASSERT(0);
+	ret &= ~(PAGE_SIZE - 1);
+	ret |= (virt & (PAGE_SIZE - 1));
+
+	return (void *)ret;
+#endif
+}
+
+#endif /* CONFIG_MINI_TZDD */
+
 static inline void *osa_ext_virt_to_phys(void *virt_addr, bool *cacheable_cur)
 {
 #ifdef CONFIG_MINI_TZDD
-	return virt_addr;
+	volatile ulong_t ret;
+
+#ifdef CONFIG_64BIT
+	__asm__ __volatile__("mrs %0, SCTLR_EL2" : "=r"(ret) : );
+#else
+	__asm__ __volatile__("MRC p15, 0, %0, c1, c0, 0" : "=r"(ret) : );
+#endif
+
+	if (ret & MMU_ENABLE_BIT) {
+		/* MMU enabled in EL2 */
+		void *phys_addr;
+		phys_addr = _osa_virt_to_phys_by_cp15_ex(
+			(ulong_t)virt_addr, cacheable_cur);
+		return phys_addr;
+	} else {
+		return virt_addr;
+	}
+
 #else
 	return osa_virt_to_phys_ex((void *)virt_addr, cacheable_cur);
 #endif
