@@ -47,8 +47,8 @@ MODULE_PARM_DESC(trace,
 /*
  * Get the AXI_ID that is written into MMU channel control register
  */
-static inline __u32 plat_mmu_channel_id(__u8 dev_id, __u8 block_id,
-				__u8 port_id, __u8 yuv_id)
+static inline __u32 plat_mmu_channel_id(struct msc2_mmu_dev *mmu,
+		__u8 dev_id, __u8 block_id, __u8 port_id, __u8 yuv_id)
 {
 	__u8 grp_id;
 	__u8 sel_id = 0;
@@ -78,7 +78,8 @@ static inline __u32 plat_mmu_channel_id(__u8 dev_id, __u8 block_id,
 	default:
 		BUG_ON(1);
 	}
-	return (sel_id << 16) | (yuv_id << 3) | grp_id;
+
+	return mmu->ops->get_tid(mmu, sel_id, yuv_id, grp_id);
 }
 
 /*
@@ -170,7 +171,7 @@ static int plat_mmu_alloc_channel(struct plat_cam *pcam,
 
 	mmu = pcam->mmu_dev;
 	for (i = 0; i < nr_chnl; i++) {
-		chs_desc.tid[i] = plat_mmu_channel_id(0, blk_id, port_id, i);
+		chs_desc.tid[i] = plat_mmu_channel_id(mmu, 0, blk_id, port_id, i);
 		ret = mmu->ops->acquire_ch(mmu, chs_desc.tid[i]);
 		if (ret) {
 			d_inf(1, "failed to alloc MMU channel for ISP");

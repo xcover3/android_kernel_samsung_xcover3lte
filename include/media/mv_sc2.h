@@ -54,6 +54,11 @@ struct msc2_dma_desc {
 	u32 segment_len;
 };
 
+enum msc2_mmu_version {
+	MSC2_MMU_VERSION_0 = 0,
+	MSC2_MMU_VERSION_1,
+};
+
 struct msc2_ch_info {
 	u32		tid;	/* translation id */
 	dma_addr_t	daddr;
@@ -83,6 +88,7 @@ struct msc2_mmu_dev {
 	u32 ch_matrix[SC2_CH_NUM];
 	u32 ch_status[SC2_CH_NUM];
 	int free_chs;
+	int version;
 	unsigned int irq;
 	/*
 	 * bit0: 1: write bypass sc2 mmu
@@ -110,6 +116,8 @@ struct msc2_mmu_ops {
 	int (*rbypass)(struct msc2_mmu_dev *sc2_dev, int bypass);
 	int (*wbypass)(struct msc2_mmu_dev *sc2_dev, int bypass);
 	int (*bypass_status)(struct msc2_mmu_dev *sc2_dev);
+	int (*get_tid)(struct msc2_mmu_dev *sc2_dev, u16 frame_st,
+				u16 aid, u16 grp_id);
 	int (*acquire_ch)(struct msc2_mmu_dev *sc2_dev, u32 tid);
 	int (*release_ch)(struct msc2_mmu_dev *sc2_dev, u32 tid);
 	int (*enable_ch)(struct msc2_mmu_dev *sc2_dev,

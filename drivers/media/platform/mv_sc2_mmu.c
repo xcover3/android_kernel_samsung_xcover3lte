@@ -50,6 +50,24 @@ static inline unsigned long msc2_find_free_channel(struct msc2_mmu_dev *sc2_dev)
 	return ffz(sc2_dev->channel_map);
 }
 
+static int msc2_get_tid(struct msc2_mmu_dev *sc2_dev, u16 frame_st,
+						u16 aid, u16 grp_id)
+{
+	u8 aid_shift;
+
+	if (sc2_dev->version == MSC2_MMU_VERSION_1) {
+		aid_shift = 2;
+		/* version 1 has one MAC. CCIC is 0. MAC is 1. */
+		if (grp_id > 2) {
+			WARN_ON(1);
+			return -EINVAL;
+		}
+	} else
+		aid_shift = 3;
+
+	return (frame_st << 16) | (aid << aid_shift) | grp_id;
+}
+
 static int msc2_acquire_channel(struct msc2_mmu_dev *sc2_dev, u32 tid)
 {
 	int ch;
@@ -659,6 +677,7 @@ static struct msc2_mmu_ops mmu_ops = {
 	.rbypass = msc2_rbypass,
 	.wbypass = msc2_wbypass,
 	.bypass_status = msc2_bypass_status,
+	.get_tid = msc2_get_tid,
 	.acquire_ch = msc2_acquire_channel,
 	.release_ch = msc2_release_channel,
 	.enable_ch = msc2_chs_enable,
@@ -725,6 +744,7 @@ static int msc2_mmu_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct device *dev = &pdev->dev;
 	void __iomem *base;
+	int version;
 	int irq;
 	int ret;
 
@@ -751,6 +771,13 @@ static int msc2_mmu_probe(struct platform_device *pdev)
 	sc2_dev->ops = &mmu_ops;
 	spin_lock_init(&sc2_dev->msc2_lock);
 	dev_set_drvdata(dev, sc2_dev);
+
+	ret = of_property_read_u32(np, "version", &version);
+	if (ret < 0) {
+		dev_err(dev, "get version failed, use version 1\n");
+		version = MSC2_MMU_VERSION_1;
+	}
+	sc2_dev->version = version;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);

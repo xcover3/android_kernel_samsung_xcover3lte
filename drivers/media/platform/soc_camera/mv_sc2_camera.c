@@ -458,7 +458,7 @@ static int mccic_acquire_sc2_chs(struct mv_camera_dev *mcam_dev, int num)
 
 	for (ch = 0; ch < num; ch++) {
 		/* calc the magic number for ccic */
-		fid = (pid << 16) | ((ch + pid * 4) << 3);
+		fid = msc2_mmu->ops->get_tid(msc2_mmu, pid, ch + pid * 4, 0);
 		ret = msc2_mmu->ops->acquire_ch(msc2_mmu, fid);
 		if (ret)
 			goto failed;
@@ -466,7 +466,7 @@ static int mccic_acquire_sc2_chs(struct mv_camera_dev *mcam_dev, int num)
 	return 0;
 failed:
 	while ((--ch) >= 0) {
-		fid = (pid << 16) | ((ch + pid * 4) << 3);
+		fid = msc2_mmu->ops->get_tid(msc2_mmu, pid, ch + pid * 4, 0);
 		msc2_mmu->ops->release_ch(msc2_mmu, fid);
 	}
 	return ret;
@@ -481,7 +481,7 @@ static void mccic_release_sc2_chs(struct mv_camera_dev *mcam_dev, int num)
 
 	for (ch = 0; ch < num; ch++) {
 		/* calc the magic number for ccic */
-		fid = (pid << 16) | ((ch + pid * 4) << 3);
+		fid = msc2_mmu->ops->get_tid(msc2_mmu, pid, ch + pid * 4, 0);
 		msc2_mmu->ops->release_ch(msc2_mmu, fid);
 	}
 	return;
