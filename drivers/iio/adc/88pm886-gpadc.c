@@ -232,16 +232,19 @@ static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
 		ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, i);
 		if (ret < 0)
 			return ret;
+		msleep(20);
 
 		ret = pm886_gpadc_get_processed(info, channel, bias_voltage);
 		if (ret < 0)
 			return ret;
-		if (*bias_voltage > 300000 && *bias_voltage < 1200000) {
+		if (*bias_voltage > 50000 && *bias_voltage < 1350000) {
 			dev_dbg(info->chip->dev,
 				"hit: current = %d, voltage = %d\n",
 				*bias_current, *bias_voltage);
 			break;
 		}
+		dev_dbg(info->chip->dev,
+			"%s: bias_current index: %d\n", __func__, i);
 	}
 
 	if (i == 16) {
