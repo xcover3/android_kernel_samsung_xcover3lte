@@ -248,8 +248,11 @@ static int sr200_s_fmt(struct v4l2_subdev *sd,
 {
 	int ret = 0;
 
-	ret = sr200_write_raw_array(sd, regs_start_setting);
-	/* ret |= sr200_write_raw_array(sd, regs_resolution);*/
+	/*
+	 * for sr200 sensor output uyvy, if change, pls open this
+	 * ret |= sr200_write_raw_array(sd, regs_display_setting);
+	 */
+	ret = sr200_write_raw_array(sd, regs_resolution);
 
 	return ret;
 }
@@ -299,6 +302,17 @@ static int sr200_set_brightness(struct i2c_client *client, int value)
 	return 0;
 }
 
+static int sr200_set_video_mode(struct i2c_client *client, int value)
+{
+	if (value == NARMAL_TO_VIDEO)
+		regs_resolution = regs_res_vga_cam;
+	else if (value == VIDEO_TO_NARMAL)
+		regs_resolution = regs_res_auto_fps;
+	else if (value == VIDEO_TO_CALL)
+		regs_resolution = regs_res_vga_vt;
+	return 0;
+}
+
 static int sr200_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -308,6 +322,9 @@ static int sr200_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	case V4L2_CID_BRIGHTNESS:
 		ret = sr200_set_brightness(client, ctrl->value);
 		break;
+	case VIDIOC_PRIVATE_SR200_VIDEO_MODE:
+		ret = sr200_set_video_mode(client, ctrl->value);
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -316,7 +333,9 @@ static int sr200_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 
 static int sr200_init(struct v4l2_subdev *sd, u32 plat)
 {
-	return 0;
+	int ret;
+	ret = sr200_write_raw_array(sd, regs_start_setting);
+	return ret;
 }
 
 static int sr200_g_mbus_config(struct v4l2_subdev *sd,

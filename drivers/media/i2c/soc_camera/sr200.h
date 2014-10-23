@@ -14,7 +14,6 @@
 #define SR200_WIN_WIDTH_MIN		8
 #define SR200_WIN_HEIGHT_MIN		8
 
-
 struct sr200_regval {
 	u8 addr;
 	u8 val;
@@ -1191,7 +1190,7 @@ static struct sr200_regval regs_start_stream[] = {
 	{SR200_TERM, 0},
 };
 
-static __maybe_unused struct sr200_regval regs_res_auto_fps[] = {
+static struct sr200_regval regs_res_auto_fps[] = {
 	{0x01, 0x31}, /* sleep on */
 	{0x01, 0x33}, /* sleep on */
 	{0x01, 0x31}, /* sleep on */
@@ -2404,7 +2403,7 @@ static __maybe_unused struct sr200_regval regs_res_auto_fps[] = {
 	/* 400ms */
 };
 
-static __maybe_unused struct sr200_regval regs_res_vga_cam[] = {
+static struct sr200_regval regs_res_vga_cam[] = {
 	/* Recording 24fps Anti-Flicker 50Hz END of Initial */
 	/* CAMERA INITIAL for Self Recording 24 Fixed Frame */
 
@@ -3869,7 +3868,7 @@ static struct sr200_regval regs_res_2m[] = {
 	{SR200_TERM, 0},
 };
 
-static __maybe_unused struct sr200_regval regs_res_vga_vt[] = {
+static struct sr200_regval regs_res_vga_vt[] = {
 	/* SKT-VT - continuous */
 	{0x01, 0x31}, /* sleep on */
 	{0x01, 0x33}, /* sleep on */
@@ -4972,4 +4971,13 @@ struct sr200_resolution_table sr200_resolutions[] = {
 	{1600,  1200, SR200_FMT_2M},	/* 2M */
 };
 
+/*
+ * this define for normal preview and camcorder different setting
+ * but same resolution
+ */
+#define VIDEO_TO_NARMAL 1
+#define NARMAL_TO_VIDEO 2
+#define VIDEO_TO_CALL 3
+#define VIDIOC_PRIVATE_SR200_VIDEO_MODE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 50, unsigned int)
 #endif
