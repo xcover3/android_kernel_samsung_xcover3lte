@@ -2819,7 +2819,7 @@ static int b52isp_laxi_open_handler(struct b52isp_laxi *laxi,
 	/* setup MCU command for vdev part */
 	if (pipe->isd.sd_code < B52ISP_ISD_HS) {
 		item = &b52_scmd_table[ppl.src_type][pipe->path_arg.aeag]
-				[pipe->isd.sd_code - B52ISP_ISD_PIPE1];
+				[pipe->isd.sd_code - SDCODE_B52ISP_PIPE1];
 		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 			/* output vdev */
 			if (item->cmd_name == CMD_IMG_CAPTURE)
