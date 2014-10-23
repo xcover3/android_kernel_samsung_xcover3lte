@@ -1281,6 +1281,17 @@ static int b52isp_af_5x5_win_ctrl(int enable, int id)
 	return 0;
 }
 
+static int b52isp_set_focus_infinity(int id)
+{
+	u16 distance;
+	u32 base = FW_P1_REG_AF_BASE + id * FW_P1_P2_AF_OFFSET;
+
+	b52_writeb(base + REG_FW_AF_ACIVE, AF_STOP);
+	distance = b52_readw(base + FW_REG_AF_OFFSET);
+
+	return b52isp_set_focus_distance(distance, id);
+}
+
 static int b52isp_ctrl_set_focus(struct b52isp_ctrls *ctrls, int id)
 {
 	bool af_lock  = ctrls->aaa_lock->cur.val & V4L2_LOCK_FOCUS;
@@ -1299,6 +1310,7 @@ static int b52isp_ctrl_set_focus(struct b52isp_ctrls *ctrls, int id)
 		case V4L2_AUTO_FOCUS_RANGE_MACRO:
 			break;
 		case V4L2_AUTO_FOCUS_RANGE_INFINITY:
+			b52isp_set_focus_infinity(id);
 			break;
 		default:
 			return -EINVAL;
@@ -1728,7 +1740,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	ctrls->af_range = v4l2_ctrl_new_std_menu(handler, ops,
 			V4L2_CID_AUTO_FOCUS_RANGE, 3,
 			~(1 << V4L2_AUTO_FOCUS_RANGE_NORMAL |
-			  1 << V4L2_AUTO_FOCUS_RANGE_MACRO),
+			  1 << V4L2_AUTO_FOCUS_RANGE_INFINITY),
 			V4L2_AUTO_FOCUS_RANGE_NORMAL);
 	ctrls->af_mode = v4l2_ctrl_new_custom(handler,
 			&b52isp_ctrl_af_mode_cfg, NULL);
