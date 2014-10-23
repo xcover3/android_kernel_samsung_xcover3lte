@@ -55,9 +55,7 @@
 #define PM886_CHG_ILIM_EXTD_1X5		(0x3 << 6)
 
 #define PM886_EXT_ILIM_CONFIG		(0x34)
-#define PM886_CHG_ILIM_RAW_MASK		(0xF << 0)
-#define PM886_CHG_ILIM_FINE_OFFSET	(4)
-#define PM886_CHG_ILIM_FINE_10		(0x4 << PM886_CHG_ILIM_FINE_OFFSET)
+#define PM886_CHG_ILIM_FINE_10		(0x4 << 4)
 
 #define PM886_CHG_LOG1			(0x45)
 #define PM886_BATT_REMOVAL		(1 << 0)
@@ -314,8 +312,7 @@ static int pm886_config_charger(struct pm886_charger_info *info)
 
 	/* config current limit raw and fine */
 	regmap_write(info->chip->battery_regmap, PM886_EXT_ILIM_CONFIG,
-		     (PM886_CHG_ILIM_FINE_10 << PM886_CHG_ILIM_FINE_OFFSET)
-		     | get_ilim_cur(info, limit_cur));
+		     PM886_CHG_ILIM_FINE_10 | get_ilim_cur(info, limit_cur));
 
 	return 0;
 }
