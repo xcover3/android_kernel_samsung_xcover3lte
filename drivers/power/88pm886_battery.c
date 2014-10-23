@@ -1390,7 +1390,7 @@ static int pm886_battery_dt_init(struct device_node *np,
 
 	size /= sizeof(*values);
 	/* <ohm, temp>*/
-	rows = size / 4;
+	rows = size / 2;
 	info->temp_ohm_table = kzalloc(sizeof(struct temp_vs_ohm) * rows,
 				       GFP_KERNEL);
 	if (!info->temp_ohm_table)
