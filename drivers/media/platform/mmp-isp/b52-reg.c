@@ -999,6 +999,70 @@ static int wait_cmd_done(int cmd)
 	return 0;
 }
 
+static int wait_cmd_capture_img_done(struct b52isp_cmd *cmd)
+{
+	u8 i;
+	u8 val;
+	int ret = 0;
+	struct b52isp_output *output = cmd->output;
+	int num_planes = output[0].pix_mp.num_planes;
+
+	b52_writeb(CMD_REG0, CMD_CAPTURE_IMG);
+
+	ret = wait_for_completion_timeout(
+		&b52isp_cmd_done, WAIT_CMD_TIMEOUT);
+	if (!ret) {
+		pr_err("wait CMD_CAPTURE_IMG failed, L%d\n", __LINE__);
+		return -ETIMEDOUT;
+	}
+
+	/*
+	 * Frame1: the address is set before send command
+	 * Frame2: FW set 0x3359f with 1, wait host to clear the 0x3359f
+	 * Frame3: FW set 0x3359f with 2, wait host to clear the 0x3359f
+	 */
+	for (i = 1; i < output[0].nr_buffer; i++) {
+		if (b52isp_cmd_id != CMD_UPDATE_ADDR) {
+			pr_err("%s: cmd not match(%d:%d)\n", __func__,
+				   CMD_UPDATE_ADDR, b52isp_cmd_id);
+			return -EINVAL;
+		}
+
+		val = b52_readb(REG_FW_IMG_ADDR_ID);
+		if (i != val) {
+			pr_err("%s: image address id error %d\n", __func__, val);
+			return -EINVAL;
+		}
+
+		ret = b52_fill_mmu_chnl(cmd->priv, output[0].buf[i], num_planes);
+		if (ret < 0)
+			return ret;
+		b52_writeb(REG_FW_IMG_ADDR_ID, 0);
+
+		ret = wait_for_completion_timeout(
+			&b52isp_cmd_done, WAIT_CMD_TIMEOUT);
+		if (!ret) {
+			pr_err("wait CMD_CAPTURE_IMG failed, L%d\n", __LINE__);
+			return -ETIMEDOUT;
+		}
+	}
+
+	if (b52isp_cmd_id != CMD_CAPTURE_IMG) {
+		pr_err("%s:%d cmd not match(%d:%d)\n", __func__, __LINE__,
+			CMD_CAPTURE_IMG, b52isp_cmd_id);
+		return -EINVAL;
+	}
+
+	val = b52_readb(CMD_RESULT);
+	if (val != CMD_SET_SUCCESS) {
+		pr_err("CMD_CAPTURE_IMG result failed\n");
+		return -EINVAL;
+	}
+
+	pr_debug("CMD_CAPTURE_IMG success\n");
+	return 0;
+}
+
 void b52_set_base_addr(void __iomem *base)
 {
 	static int init;
@@ -2576,7 +2640,13 @@ static int b52_cmd_capture_img(struct b52isp_cmd *cmd)
 	b52_cfg_capture(cmd->output, 1);
 
 	atomic_set(&streaming_state, 1);
-	ret = wait_cmd_done(CMD_CAPTURE_IMG);
+	if (!cmd->priv) {
+		b52_writeb(REG_FW_MMU_CTRL, MMU_DISABLE);
+		ret = wait_cmd_done(CMD_CAPTURE_IMG);
+	} else {
+		b52_writeb(REG_FW_MMU_CTRL, MMU_ENABLE);
+		ret = wait_cmd_capture_img_done(cmd);
+	}
 	atomic_set(&streaming_state, 0);
 	return ret;
 }

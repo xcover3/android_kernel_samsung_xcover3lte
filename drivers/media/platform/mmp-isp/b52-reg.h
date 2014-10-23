@@ -111,6 +111,7 @@ struct b52isp_cmd {
 	__u16			b_ratio_1;
 	__u16			b_ratio_2;
 	struct b52_adv_dns	adv_dns;
+	void *priv;
 };
 
 int b52_rw_pipe_ctdata(int pipe_id, int write,
@@ -127,6 +128,9 @@ int b52_read_pipeline_info(int pipe_id, u8 *buffer);
 int b52_read_debug_info(u8 *buffer);
 int b52_cmd_anti_shake(u16 block_size, int enable);
 int b52_set_focus_win(struct v4l2_rect *win, int id);
+struct plat_cam;
+extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
+			struct isp_videobuf *buf, int num_planes);
 
 /* isp MCU memory layout */
 /* 1. PROGREM BUFFER(136KB):0x0    ~ 0x021FFF */
@@ -208,6 +212,7 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 #define CMD_WB_EXPO             (0xf2)
 #define CMD_WB_GAIN             (0xf3)
 #define CMD_WB_FOCUS            (0xf4)
+#define CMD_UPDATE_ADDR         (0xfe)
 #define CMD_DOWNLOAD_FW         (0xff)
 
 /* capture image */
@@ -815,7 +820,11 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 #define REG_FW_AFR_MIN_FPS3         (0x5f6)
 	#define AFR_DEF_VAL_30FPS   (30 * 0x20)
 
+#define REG_FW_MMU_CTRL	(0x33569)
+	#define MMU_ENABLE      (0x1)
+	#define MMU_DISABLE     (0x0)
 #define REG_FW_CPU_CMD_ID	(0x33591)
+#define REG_FW_IMG_ADDR_ID	(0x3359f)
 #define REG_CURRENT_EXPOSURE	(0x34200)
 
 #define FW_P1_REG_AF_BASE           (0x33c00)

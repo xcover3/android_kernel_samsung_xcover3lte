@@ -2008,13 +2008,26 @@ static const struct v4l2_subdev_ops b52isp_axi_subdev_ops = {
 	.pad	= &b52isp_axi_pad_ops,
 };
 
+int b52_fill_mmu_chnl(struct plat_cam *pcam,
+		struct isp_videobuf *buf, int num_planes)
+{
+	int ret = 0;
+	struct plat_vnode *pvnode = NULL;
+
+	pvnode = container_of(buf->vb.vb2_queue, struct plat_vnode, vnode.vq);
+	if (pvnode->fill_mmu_chnl)
+		ret = pvnode->fill_mmu_chnl(pcam, &buf->vb, num_planes);
+
+	return ret;
+}
+EXPORT_SYMBOL(b52_fill_mmu_chnl);
+
 static inline int b52_fill_buf(struct isp_videobuf *buf,
 		struct plat_cam *pcam, int num_planes, int mac_id, int port)
 {
 	int i;
 	int ret = 0;
 	dma_addr_t dmad[VIDEO_MAX_PLANES];
-	struct plat_vnode *pvnode = NULL;
 
 	if (buf == NULL) {
 		d_inf(4, "%s: buffer is NULL", __func__);
@@ -2030,11 +2043,7 @@ static inline int b52_fill_buf(struct isp_videobuf *buf,
 		return ret;
 	}
 
-	pvnode = container_of(buf->vb.vb2_queue, struct plat_vnode, vnode.vq);
-	if (pvnode->fill_mmu_chnl)
-		ret = pvnode->fill_mmu_chnl(pcam, &buf->vb, num_planes);
-
-	return ret;
+	return b52_fill_mmu_chnl(pcam, buf, num_planes);
 }
 
 static inline int b52isp_update_metadata(struct isp_subdev *isd,
@@ -2335,7 +2344,6 @@ unmap:
 	paxi->isd[laxi->port] = NULL;
 	paxi->src_tag[laxi->port] = 0;
 	paxi->event = 0;
-	tasklet_kill(&paxi->tasklet);
 	laxi->mac = -1;
 	laxi->port = -1;
 	b52isp_detach_blk_isd(&laxi->isd, &paxi->blk);
@@ -2693,16 +2701,20 @@ stream_data_off:
 				lpipe->cur_cmd->output[out_id].pix_mp =
 					vnode->format.fmt.pix_mp;
 				lpipe->cur_cmd->output[out_id].buf[i] = isp_vb;
-				if (!pvnode->fill_mmu_chnl)
-					continue;
-				ret = pvnode->fill_mmu_chnl(pcam, &isp_vb->vb,
-					num_planes);
+			}
+
+			if (pvnode->fill_mmu_chnl) {
+				lpipe->cur_cmd->priv = (void *)pcam;
+				isp_vb = lpipe->cur_cmd->output[out_id].buf[0];
+				ret = pvnode->fill_mmu_chnl(pcam, &isp_vb->vb, num_planes);
 				if (ret < 0) {
 					d_inf(1, "%s: failed to config MMU channel",
-						vnode->vdev.name);
+						  vnode->vdev.name);
 					goto unlock;
 				}
-			}
+			} else
+				lpipe->cur_cmd->priv = NULL;
+
 			lpipe->cur_cmd->output[out_id].nr_buffer =
 							lpipe->path_arg.nr_frame;
 			lpipe->cur_cmd->b_ratio_1 = lpipe->path_arg.ratio_1_2;
