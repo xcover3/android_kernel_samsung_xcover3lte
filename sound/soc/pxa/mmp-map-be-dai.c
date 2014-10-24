@@ -340,12 +340,12 @@ static int mmp_map_be_startup(struct snd_pcm_substream *substream,
 
 	map_be_dai_priv = snd_soc_dai_get_drvdata(dai);
 	map_priv = map_be_dai_priv->map_priv;
+	map_be_active(map_priv);
 
 	/* if FM opened, we shouldn't let bt open */
 	if (dai->id == 1 && map_priv->bt_fm_sel)
 		return 0;
 
-	map_be_active(map_priv);
 	map_raw_write(map_priv, 0x8c, 0x10010030);
 
 	return 0;
@@ -361,12 +361,12 @@ static void mmp_map_be_shutdown(struct snd_pcm_substream *substream,
 		return;
 	map_be_dai_priv = snd_soc_dai_get_drvdata(dai);
 	map_priv = map_be_dai_priv->map_priv;
+	map_be_reset(map_priv);
 
 	/* if FM opened, we shouldn't let bt open */
 	if (dai->id == 1 && map_priv->bt_fm_sel)
 		return;
 
-	map_be_reset(map_priv);
 	map_be_dai_priv->i2s_config[dai->id - 1] = false;
 
 	return;
