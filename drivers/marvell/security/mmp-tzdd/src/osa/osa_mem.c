@@ -697,7 +697,7 @@ void __kernel *osa_ioremap_cached(void *phy_addr, uint32_t size)
 #ifdef CONFIG_64BIT
     return ioremap_cache((ulong_t) phy_addr, size);
 #else
-	return ioremap_cached((ulong_t) phy_addr, size);
+	return ioremap_cache((ulong_t) phy_addr, size);
 #endif
 }
 OSA_EXPORT_SYMBOL(osa_ioremap_cached);
