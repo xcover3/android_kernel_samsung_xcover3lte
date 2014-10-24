@@ -205,6 +205,13 @@
 					marvell,output-type = <1>;
 					marvell,path-config = <0x10>;
 					marvell,link-config = <0x1>;
+					disp_apmu {
+						plat = <4>;
+						apmu-reg = <0xd428284c>;
+						clksrc-bit = <9>;
+						parent1-clk-tbl = "disp1_sel_clk", "dsi_pll";
+						parent2-clk-tbl = "pll1_624", "pll1_832", "pll1_499", "pll4", "pll4_div3";
+					};
 				};
 			};
 
