@@ -1829,6 +1829,10 @@ static int mmphw_probe(struct platform_device *pdev)
 	}
 
 	ctrl_dbg_init(&pdev->dev);
+
+#ifdef CONFIG_MMP_DISP_DFC
+	ctrl_dfc_init(&pdev->dev);
+#endif
 	dev_info(ctrl->dev, "device init done\n");
 
 	return 0;

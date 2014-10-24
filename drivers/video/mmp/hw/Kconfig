@@ -10,6 +10,15 @@ config MMP_DISP_CONTROLLER
 		will register vdma, ctrl, dsi, panel for
 		display
 
+config MMP_DISP_DFC
+	bool "mmp display controller dfc support"
+	depends on MMP_DISP_CONTROLLER
+	default n
+	help
+		Marvell MMP display freqency change feature support
+		change between pll1 and dedicated PLL for LCD, this
+		config shoud used with DIP channel solution together
+
 config MMP_DISP_SPI
 	bool "mmp display controller spi port"
 	depends on MMP_DISP_CONTROLLER && SPI_MASTER

@@ -27,6 +27,7 @@
 
 #include <video/mmp_disp.h>
 #include <linux/pm_qos.h>
+#include "dfc.h"
 
 /* ------------< LCD register >------------ */
 struct lcd_regs {
@@ -1224,6 +1225,9 @@ struct mmphw_ctrl {
 	int status;
 	struct mutex access_ok;
 
+	struct mmp_dfc dfc;
+	struct mmp_dfc_list dfc_list;
+
 	/* If whole path as other path's overlay, define master/slave path */
 	const char *master_path_name;
 	const char *slave_path_name;
@@ -1282,6 +1286,7 @@ static inline struct lcd_regs *path_regs(struct mmp_path *path)
 extern int lcd_spi_register(struct mmphw_ctrl *ctrl);
 #endif
 
+extern int dip_register_notifier(struct notifier_block *nb, unsigned int list);
 extern int mmp_vsync_init(struct mmp_path *path);
 extern void mmp_vsync_deinit(struct mmp_path *path);
 extern void ctrl_dbg_init(struct device *dev);
