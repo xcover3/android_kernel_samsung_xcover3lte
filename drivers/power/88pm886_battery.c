@@ -117,7 +117,8 @@ struct pm886_battery_info {
 	int			total_capacity;
 
 	bool			use_ntc;
-	int			gpadc_no;
+	int			gpadc_det_no;
+	int			gpadc_temp_no;
 
 	int			ocv_is_realiable;
 	int			range_low_th;
@@ -347,7 +348,7 @@ static int pm886_enable_bat_detect(struct pm886_battery_info *info, bool enable)
 	 */
 
 	/* 1. choose gpadc 1/3 to detect battery */
-	switch (info->gpadc_no) {
+	switch (info->gpadc_det_no) {
 	case 1:
 		data = 0;
 		mask = PM886_BD_GP_SEL;
@@ -357,7 +358,7 @@ static int pm886_enable_bat_detect(struct pm886_battery_info *info, bool enable)
 		break;
 	default:
 		dev_err(info->dev,
-			"wrong gpadc number: %d\n", info->gpadc_no);
+			"wrong gpadc number: %d\n", info->gpadc_det_no);
 		return -EINVAL;
 	}
 
@@ -1336,10 +1337,13 @@ static int pm886_battery_dt_init(struct device_node *np,
 		info->use_ntc = false;
 
 	if (info->use_ntc) {
-		ret = of_property_read_u32(np, "bd-gpadc-no", &info->gpadc_no);
+		ret = of_property_read_u32(np, "gpadc-det-no", &info->gpadc_det_no);
 		if (ret)
 			return ret;
 	}
+	ret = of_property_read_u32(np, "gpadc-temp-no", &info->gpadc_temp_no);
+	if (ret)
+		return ret;
 	ret = of_property_read_u32(np, "bat-capacity", &info->total_capacity);
 	if (ret)
 		return ret;
@@ -1437,8 +1441,7 @@ static int pm886_battery_setup_adc(struct pm886_battery_info *info)
 	info->chan[VBATT_SLP_CHAN] = IS_ERR(chan) ? NULL : chan;
 
 	/* temperature channel */
-
-	sprintf(s, "gpadc%d_res", info->gpadc_no);
+	sprintf(s, "gpadc%d_res", info->gpadc_temp_no);
 	chan = iio_channel_get(info->dev, s);
 	if (PTR_ERR(chan) == -EPROBE_DEFER) {
 		dev_err(info->dev, "get %s iio channel defers.\n", s);
@@ -1491,7 +1494,7 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	ccnt_data.alart_cc = ccnt_data.max_cc * info->alart_percent / 100;
 
 	if (info->use_ntc) {
-		if (info->gpadc_no != 1 && info->gpadc_no != 3)
+		if (info->gpadc_det_no != 1 && info->gpadc_det_no != 3)
 			return -EINVAL;
 	}
 
