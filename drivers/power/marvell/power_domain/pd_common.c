@@ -134,7 +134,6 @@ static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 	}
 	clk_dcstat_event_check(pd->clk, PWR_ON, 0);
 
-	return 0;
 out:
 	if (pd->clk)
 		clk_disable_unprepare(pd->clk);
