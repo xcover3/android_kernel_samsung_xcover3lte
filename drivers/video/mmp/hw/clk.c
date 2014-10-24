@@ -25,7 +25,7 @@
 static int src_sel_offset = 29;
 static int src_sel_mask = 0x7;
 static const char *dsi_parent[] = {"dsi_sclk"};
-static u32 dsi_mux_tbl[] = {1, 3};
+static u32 dsi_mux_tbl[] = {0, 3};
 static const char *dsisclk_parent[8];
 static struct clk *parent_clks[8];
 static int parent_count;

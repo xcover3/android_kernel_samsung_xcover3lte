@@ -650,6 +650,7 @@ static DEFINE_SPINLOCK(disp_lock);
 static const char *disp1_parent_names[] = {"pll1_624", "pll1_832", "pll1_499"};
 static const char *disp2_parent_names[] = {"pll2", "pll2p", "pll2_div3"};
 static const char *disp3_parent_names[] = {"pll3p", "pll3_div3"};
+static const char *disp4_parent_names[] = {"pll4", "pll4_div3"};
 
 static const char *disp_axi_parent_names[] = {"pll1_416", "pll1_624", "pll2", "pll2p"};
 static int disp_axi_mux_table[] = {0x0, 0x1, 0x2, 0x3};
@@ -901,6 +902,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			pxa_unit->apmu_base + APMU_DISP1,
 			9, 2, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_DISP1, clk);
+	clk_register_clkdev(clk, "disp1_sel_clk", NULL);
 
 	clk = mmp_clk_register_gate(NULL, "dsip1_clk", "disp1_sel_clk",
 			CLK_SET_RATE_PARENT,
@@ -933,6 +935,20 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			pxa_unit->apmu_base + APMU_DISP1,
 			0x80, 0x80, 0x0, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_DISP3_EN, clk);
+
+	clk = clk_register_mux(NULL, "dsi_pll", disp4_parent_names,
+			ARRAY_SIZE(disp4_parent_names),
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			14, 1, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP4, clk);
+	clk_register_clkdev(clk, "dsi_pll", NULL);
+
+	clk = mmp_clk_register_gate(NULL, "dsip4_en_clk", "dsi_pll",
+			CLK_SET_RATE_PARENT,
+			pxa_unit->apmu_base + APMU_DISP1,
+			0x100, 0x100, 0x0, 0, &disp_lock);
+	mmp_clk_add(unit, PXA1U88_CLK_DISP4_EN, clk);
 
 	disp_axi_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_DISP1;
 	clk = mmp_clk_register_mix(NULL, "disp_axi_sel_clk", disp_axi_parent_names,
