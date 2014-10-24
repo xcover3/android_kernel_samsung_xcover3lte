@@ -1237,8 +1237,11 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-		info->bat_params.status =
-			pm886_battery_get_charger_status(info);
+		if (!info->bat_params.present)
+			info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
+		else
+			info->bat_params.status =
+				pm886_battery_get_charger_status(info);
 		val->intval = info->bat_params.status;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
