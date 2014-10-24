@@ -156,7 +156,8 @@ static inline unsigned long slot_to_phy(int slot_index)
 
 static inline int phy_to_slot(unsigned long addr)
 {
-	int slot, start_addr = p_share_mem->start_addr;
+	unsigned long start_addr = p_share_mem->start_addr;
+	int slot;
 
 	if (unlikely(addr < start_addr))
 		return -1;
