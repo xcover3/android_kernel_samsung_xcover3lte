@@ -544,6 +544,7 @@ out:
 	return data;
 }
 
+#if 0
 static void find_match(struct pm886_battery_info *info,
 		       unsigned int ohm, int *low, int *high)
 {
@@ -582,9 +583,11 @@ static void find_match(struct pm886_battery_info *info,
 	else
 		*high = end -1;
 }
+#endif
 
 static int pm886_get_batt_temp(struct pm886_battery_info *info)
 {
+#if 0
 	struct iio_channel *channel= info->chan[TEMP_CHAN];
 	int ohm, ret;
 	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
@@ -615,8 +618,9 @@ static int pm886_get_batt_temp(struct pm886_battery_info *info)
 	}
 	dev_dbg(info->dev, "ohm = %d, low = %d, high = %d, temp = %d\n",
 		ohm, low, high, temp);
+#endif
 
-	return temp;
+	return 25;
 }
 
 /*	Temperature ranges:
