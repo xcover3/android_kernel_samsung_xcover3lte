@@ -1546,12 +1546,12 @@ static int map_i2s2_i2s3_active(struct map_private *map_priv)
 
 	reg = MAP_I2S2_CTRL_REG;
 	regmap_read(regmap, reg, &val);
-	if (val & I2S_GEN_EN)
+	if ((val & I2S_GEN_EN) || (val & I2S_REC_EN))
 		return 1;
 
 	reg = MAP_I2S3_CTRL_REG;
 	regmap_read(regmap, reg, &val);
-	if (val & I2S_GEN_EN)
+	if ((val & I2S_GEN_EN) || (val & I2S_REC_EN))
 		return 1;
 
 	return 0;
