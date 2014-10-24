@@ -1312,6 +1312,10 @@
 	dip {
 		compatible = "marvell,simple-dip";
 	};
+
+	iml: iml@7ffffe0{
+		status = "okay";
+	};
 };
 
 #include "88pm886.dtsi"

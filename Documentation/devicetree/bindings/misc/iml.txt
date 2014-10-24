@@ -1,0 +1,21 @@
+* IML driver.
+
+Required properties:
+- compatible: "marvell,mmp-iml"
+- reg: the share memory address, RIPC lock address, RIPC clock address
+- interrupts: the RIPC interrupt
+- interrupt-names: name of the interrupt
+- dmas: dma channel for rx
+- dma-names: dma name
+
+Examples:
+
+iml: iml@7ffffe0{
+	compatible = "marvell,mmp-iml";
+	reg = <0x07ffffe0 0x10>, <0xd403d200 0x10>, <0xd403b038 0x10>;
+	interrupts = <0 56 0x4>;
+	interrupt-names = "IPC_MSA_DATA";
+	dmas = <&pdma0 0xFF 0>;
+	dma-names =  "iml-dma";
+	status = "disabled";
+};
