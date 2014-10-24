@@ -287,7 +287,7 @@ static int mmp_pd_sc2_isp_power_on(struct generic_pm_domain *domain)
 	regval &= ~(CMEM_DMMYCLK_EN);
 	writel(regval, apmu_base + PMUA_ISLD_ISP_CTRL);
 
-	udelay(5000);
+	mdelay(5);
 	/* 17. Disable Frequency Change */
 	regval = readl(apmu_base + PMUA_ISP_RSTCTRL);
 	regval &= ~(FC_EN);
