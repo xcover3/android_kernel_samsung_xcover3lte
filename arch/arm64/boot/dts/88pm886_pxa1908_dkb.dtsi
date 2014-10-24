@@ -90,7 +90,8 @@
 
 	battery {
 		bat-ntc-support;
-		bd-gpadc-no = <3>;
+		gpadc-det-no = <3>;
+		gpadc-temp-no = <3>;
 	};
 
 	red: led-rgb0 {
