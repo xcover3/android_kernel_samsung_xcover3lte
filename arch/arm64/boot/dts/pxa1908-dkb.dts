@@ -1145,6 +1145,15 @@
 		status = "okay";
 	};
 
+	panel2: otm8018b {
+		compatible = "marvell,mmp-otm8018b";
+		marvell,path-name = "mmp_pnpath";
+		panel_esd = <0>;
+		rst_gpio = <&gpio 4 0>;
+		avdd-supply = <&ldo11>;
+		status = "okay";
+	};
+
 	sd8x-rfkill {
 		sd-host = <&sdh1>;
 		pd-gpio = <&gpio 7 0>;
