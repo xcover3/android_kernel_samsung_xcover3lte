@@ -589,19 +589,19 @@ static int pm886_get_batt_temp(struct pm886_battery_info *info)
 {
 #if 0
 	struct iio_channel *channel= info->chan[TEMP_CHAN];
-	int ohm, ret;
+	int ohm, ret, default_temp = 25;
 	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
 
 	if (!channel) {
 		pr_err("%s: cannot get useable channel.\n", __func__);
-		return -EINVAL;
+		return default_temp;
 	}
 
 	ret = iio_read_channel_scale(channel, &ohm, NULL);
 	if (ret < 0) {
 		dev_err(info->dev, "read %s channel fails!\n",
 			channel->channel->datasheet_name);
-		return ret;
+		return default_temp;
 	}
 
 	find_match(info, ohm, &low, &high);
@@ -614,9 +614,9 @@ static int pm886_get_batt_temp(struct pm886_battery_info *info)
 		high_temp = info->temp_ohm_table[high].temp;
 		high_ohm = info->temp_ohm_table[high].ohm;
 
-		temp = (ohm - low_ohm) * (high_temp - low_temp) / (high_ohm - low_ohm);
+		temp = (ohm - low_ohm) * (high_temp - low_temp) / (high_ohm - low_ohm) + low_temp;
 	}
-	dev_dbg(info->dev, "ohm = %d, low = %d, high = %d, temp = %d\n",
+	dev_dbg(info->dev, "ohm = %d, low_index = %d, high_index = %d, temp = %d\n",
 		ohm, low, high, temp);
 #endif
 
@@ -652,9 +652,6 @@ static int pm886_get_batt_health(struct pm886_battery_info *info)
 	}
 
 	temp = pm886_get_batt_temp(info);
-	if (temp < 0) {
-		return POWER_SUPPLY_HEALTH_GOOD;
-	}
 
 	if (temp < info->t1)
 		range = COLD_NO_CHARGING;
