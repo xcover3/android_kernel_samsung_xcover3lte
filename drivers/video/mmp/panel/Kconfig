@@ -35,6 +35,12 @@ config MMP_PANEL_OTM1281A
 	help
 		MIPI panel OTM1281A support
 
+config MMP_PANEL_OTM8018B
+	bool "MIPI panel OTM8018B support"
+	default n
+	help
+		MIPI panel OTM8018B support
+
 config MMP_PANEL_TD043MGEA1
 	bool "parallel panel TD043MGEA1 support"
 	default n

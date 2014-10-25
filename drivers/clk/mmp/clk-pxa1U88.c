@@ -893,7 +893,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	clk = mmp_clk_register_gate(NULL, "dsi_esc_clk", NULL, 0,
 			pxa_unit->apmu_base + APMU_DSI1,
-			0xf, 0xc, 0x0, 0, &disp_lock);
+			0xf, 0xe, 0x0, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_DSI_ESC, clk);
 
 	clk = clk_register_mux(NULL, "disp1_sel_clk", disp1_parent_names,
