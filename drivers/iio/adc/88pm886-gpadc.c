@@ -91,7 +91,7 @@ static u8 pm886_channel_to_reg(int channel)
 	case VBUS_VOLT_CHAN:
 	case GPADC3_VOLT_CHAN:
 	case MIC_DET_VOLT_CHAN:
-		reg = 0xa4 + (channel - 0x8) * 2;
+		reg = 0xa4 + (channel - GNDDET1_VOLT_CHAN) * 2;
 		break;
 	case VBAT_SLP_VOLT_CHAN:
 		reg = 0xb0;
@@ -100,12 +100,12 @@ static u8 pm886_channel_to_reg(int channel)
 	case GPADC1_RES_CHAN:
 	case GPADC2_RES_CHAN:
 		/* gapdc 0/1/2 -- resistor */
-		reg = 0x54 + (channel - 0x14) * 2;
+		reg = 0x54 + (channel - GPADC0_RES_CHAN) * 2;
 		break;
 
 	case GPADC3_RES_CHAN:
 		/* gapdc 3 -- resistor */
-		reg = 0xa4 + (channel - 0xe) * 2;
+		reg = 0xaa;
 		break;
 
 	default:
@@ -126,7 +126,6 @@ static u8 pm886_channel_to_gpadc_num(int channel)
  * enable/disable bias current
  * - there are 4 GPADC channels
  * - the workable range for the GPADC is [0, 1400mV],
- *   we choos [300mV, 1200mV] to get a more accurate value
  */
 static int pm886_gpadc_set_current_generator(struct pm886_gpadc_info *info,
 					     int gpadc_number, int on)
@@ -239,7 +238,7 @@ static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
 			return ret;
 		if (*bias_voltage > 50000 && *bias_voltage < 1350000) {
 			dev_dbg(info->chip->dev,
-				"hit: current = %d, voltage = %d\n",
+				"hit: current = %duA, voltage = %duV\n",
 				*bias_current, *bias_voltage);
 			break;
 		}
@@ -272,7 +271,7 @@ static int pm886_gpadc_get_resistor(struct pm886_gpadc_info *gpadc,
 	if (ret < 0)
 		return ret;
 
-	/* mv / uA */
+	/* uv / uA == ohm */
 	*res = bias_voltage / bias_current;
 
 	return 0;
