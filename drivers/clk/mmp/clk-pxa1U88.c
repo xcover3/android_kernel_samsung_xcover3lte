@@ -986,7 +986,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			&sc2_4x_mix_config, &ccic0_lock);
 
 	clk = mmp_clk_register_gate(NULL, "sc2_4x_clk", "sc2_4x_mix_clk",
-			 CLK_SET_RATE_PARENT,
+			 CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 			 pxa_unit->apmu_base + APMU_CCIC0,
 			 0x12, 0x12, 0x0, 0, &ccic0_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SC2_4X_CLK, clk);
@@ -998,7 +998,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 			&sc2_csi_mix_config, &ccic1_lock);
 
 	clk = mmp_clk_register_gate(NULL, "sc2_csi_clk", "sc2_csi_mix_clk",
-			CLK_SET_RATE_PARENT,
+			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 			pxa_unit->apmu_base + APMU_CCIC1,
 			0x12, 0x12, 0x0, 0, &ccic1_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SC2_CSI_CLK, clk);
