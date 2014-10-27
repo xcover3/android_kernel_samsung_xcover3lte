@@ -224,19 +224,19 @@ static ssize_t firmware_update_set(struct device *dev,
 static DEVICE_ATTR(firmware_update, 0644,
 	firmware_update_show, firmware_update_set);
 
-static void create_update_firmware_file(struct platform_device *pdev)
+static int create_update_firmware_file(struct platform_device *pdev)
 {
 	int ret;
 
 	/* add firmware_update sysfs entries */
 	ret = device_create_file(&pdev->dev,
 		&dev_attr_firmware_update);
-	if (ret < 0) {
+	if (ret < 0)
 		dev_err(&pdev->dev,
 			"%s: failed to add firmware_update sysfs files: %d\n",
 			__func__, ret);
-		return;
-	}
+
+	return ret;
 }
 
 
@@ -1504,6 +1504,10 @@ void map_be_active(struct map_private *map_priv)
 
 	spin_lock(&map_priv->map_lock);
 	if (!map_priv->user_count) {
+		/* get constaint to block LPM if needed */
+		if (map_priv->lpm_qos >= 0)
+			pm_qos_update_request(&map_priv->qos_idle, map_priv->lpm_qos);
+
 		/* put map into active state */
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0x3;
@@ -1542,6 +1546,11 @@ void map_be_reset(struct map_private *map_priv)
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0x1;
 		regmap_write(regmap, reg, val);
+
+		/* release constaint to allow LPM if needed */
+		if (map_priv->lpm_qos >= 0)
+			pm_qos_update_request(&map_priv->qos_idle,
+				    PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	}
 	spin_unlock(&map_priv->map_lock);
 
@@ -1670,6 +1679,7 @@ static int mmp_map_probe(struct platform_device *pdev)
 	struct clk *clk;
 	struct clk_audio *clk_audio;
 	int ret = 0;
+	s32 lpm_qos;
 
 	map_priv = devm_kzalloc(&pdev->dev,
 		sizeof(struct map_private), GFP_KERNEL);
@@ -1773,6 +1783,17 @@ static int mmp_map_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	ret = of_property_read_u32(np, "lpm-qos", &lpm_qos);
+	if (ret == 0) {
+		map_priv->lpm_qos = lpm_qos;
+		map_priv->qos_idle.name = pdev->name;
+		pm_qos_add_request(&map_priv->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+	} else {
+		map_priv->lpm_qos = -1;
+		dev_dbg(&pdev->dev, "no lpm_qos required in dt\n");
+	}
+
 	/* add debug interface */
 	regmap_map = map_priv->regmap;
 	regmap_aux = map_priv->regs_aux;
@@ -1782,7 +1803,7 @@ static int mmp_map_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev,
 			"%s: failed to add map_reg sysfs files: %d\n",
 			__func__, ret);
-		return ret;
+		goto create_map_file_err;
 	}
 
 	/* add dspaux_reg sysfs entries */
@@ -1791,10 +1812,22 @@ static int mmp_map_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev,
 			"%s: failed to add map_reg sysfs files: %d\n",
 			__func__, ret);
-		return ret;
+		goto create_dspaux_file_err;
 	}
 
-	create_update_firmware_file(pdev);
+	ret = create_update_firmware_file(pdev);
+	if (ret < 0)
+		goto create_firmware_err;
+
+	return 0;
+
+create_firmware_err:
+	device_remove_file(&pdev->dev, &dev_attr_dspaux_reg);
+create_dspaux_file_err:
+	device_remove_file(&pdev->dev, &dev_attr_map_reg);
+create_map_file_err:
+	mfd_remove_devices(map_priv->dev);
+	pm_qos_remove_request(&map_priv->qos_idle);
 
 	return ret;
 }
@@ -1808,6 +1841,9 @@ static int mmp_map_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_firmware_update);
 
 	map_priv = platform_get_drvdata(pdev);
+	if (map_priv->lpm_qos >= 0)
+		pm_qos_remove_request(&map_priv->qos_idle);
+	mfd_remove_devices(map_priv->dev);
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;

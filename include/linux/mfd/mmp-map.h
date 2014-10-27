@@ -21,6 +21,7 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clk-private.h>
+#include <linux/pm_qos.h>
 
 /* dspaux base is defined in mach/addr-map.h */
 #define DSP_AUDIO_SRAM_CLK		0
@@ -447,6 +448,8 @@ struct map_private {
 	struct clk *dsp_clk;
 	struct clk *puclk;
 	poweron_cb poweron;
+	struct pm_qos_request qos_idle;
+	s32 lpm_qos;
 
 	/* hardware version */
 	unsigned int id;
