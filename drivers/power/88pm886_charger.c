@@ -319,6 +319,7 @@ static int pm886_config_charger(struct pm886_charger_info *info)
 
 static int pm886_start_charging(struct pm886_charger_info *info)
 {
+	dev_info(info->dev, "%s\n", __func__);
 	info->charging = 1;
 	/* enable charging */
 	regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG1,
@@ -329,6 +330,7 @@ static int pm886_start_charging(struct pm886_charger_info *info)
 
 static int pm886_stop_charging(struct pm886_charger_info *info)
 {
+	dev_info(info->dev, "%s\n", __func__);
 	/* disable charging */
 	info->charging = 0;
 	return regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG1,
@@ -627,6 +629,13 @@ static irqreturn_t pm886_chg_done_handler(int irq, void *data)
 static void pm886_chg_state_machine(struct pm886_charger_info *info)
 {
 	int chg_allowed, chg_online, prev_status;
+	char *charger_status[] = {
+		"UNKNOWN",
+		"CHARGING",
+		"DISCHARGING",
+		"NOT_CHARGING",
+		"FULL",
+	};
 
 	prev_status = info->pm886_charger_status;
 	chg_online = info->ac_chg_online || info->usb_chg_online;
@@ -689,6 +698,8 @@ static void pm886_chg_state_machine(struct pm886_charger_info *info)
 
 	/* notify when status is changed */
 	if (prev_status != info->pm886_charger_status) {
+		dev_dbg(info->chip->dev, "charger status changed from %s to %s\n",
+			charger_status[prev_status], charger_status[info->pm886_charger_status]);
 		power_supply_changed(&info->ac_chg);
 		power_supply_changed(&info->usb_chg);
 	}
