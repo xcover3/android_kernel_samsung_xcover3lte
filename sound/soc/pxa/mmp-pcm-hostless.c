@@ -96,20 +96,55 @@ static int mmp_hostless_open(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static struct snd_soc_dai_driver mmp_dummy_dai = {
-	.name = "mmp-dummy-dai",
-	.playback = {
-		.channels_min	= 1,
-		.channels_max	= 384,
-		.rates		= STUB_RATES,
-		.formats	= STUB_FORMATS,
+static struct snd_soc_dai_driver mmp_dummy_dais[] = {
+	{
+		.name = "mmp-dummy-dai-0",
+		.id = 0,
+		.playback = {
+			.channels_min	= 1,
+			.channels_max	= 384,
+			.rates		= STUB_RATES,
+			.formats	= STUB_FORMATS,
+		},
+		.capture = {
+			.channels_min	= 1,
+			.channels_max	= 384,
+			.rates = STUB_RATES,
+			.formats = STUB_FORMATS,
+		 },
 	},
-	.capture = {
-		.channels_min	= 1,
-		.channels_max	= 384,
-		.rates = STUB_RATES,
-		.formats = STUB_FORMATS,
-	 },
+	{
+		.name = "mmp-dummy-dai-1",
+		.id = 1,
+		.playback = {
+			.channels_min	= 1,
+			.channels_max	= 384,
+			.rates		= STUB_RATES,
+			.formats	= STUB_FORMATS,
+		},
+		.capture = {
+			.channels_min	= 1,
+			.channels_max	= 384,
+			.rates = STUB_RATES,
+			.formats = STUB_FORMATS,
+		 },
+	},
+	{
+		.name = "mmp-dummy-dai-2",
+		.id = 2,
+		.playback = {
+			.channels_min	= 1,
+			.channels_max	= 384,
+			.rates		= STUB_RATES,
+			.formats	= STUB_FORMATS,
+		},
+		.capture = {
+			.channels_min	= 1,
+			.channels_max	= 384,
+			.rates = STUB_RATES,
+			.formats = STUB_FORMATS,
+		 },
+	},
 };
 
 static const struct snd_soc_component_driver mmp_dummy_component = {
@@ -132,7 +167,7 @@ static int mmp_pcm_hostless_probe(struct platform_device *pdev)
 
 	pr_debug("%s: dev name %s\n", __func__, dev_name(&pdev->dev));
 	ret = snd_soc_register_component(&pdev->dev, &mmp_dummy_component,
-					  &mmp_dummy_dai, 1);
+					  mmp_dummy_dais, ARRAY_SIZE(mmp_dummy_dais));
 	if (ret != 0) {
 		dev_err(&pdev->dev, "Failed to register DAI\n");
 		return ret;
