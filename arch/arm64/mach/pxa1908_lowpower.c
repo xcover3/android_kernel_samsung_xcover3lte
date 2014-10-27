@@ -81,6 +81,28 @@ static struct cpuidle_state pxa1908_modes[] = {
 		.name			= "D1",
 		.desc			= "D1: Chip idle state",
 	},
+	/*
+	 * Below modes won't be used in cpuidle framework. They're only for
+	 * suspend related states. We define them here because in ulc FM
+	 * playback needs vctcxo on while suspend, thus it has to hold a
+	 * D2 constraint.
+	 */
+	[5] = {
+		.exit_latency		= MAX_LATENCY,
+		.target_residency	= MAX_LATENCY,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
+		.name			= "D2_VCTCXO",
+		.desc			= "D2_VCTCXO: UDR with VCTCXO ON",
+	},
+	[6] = {
+		.exit_latency		= MAX_LATENCY,
+		.target_residency	= MAX_LATENCY,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
+		.name			= "D2",
+		.desc			= "D2: UDR(VCTCXO and L2 OFF)",
+	},
 };
 
 /* ========================= edge wakeup configuration======================= */
@@ -414,7 +436,7 @@ static struct platform_idle pxa1908_idle = {
 	.clusterdown_state	= POWER_MODE_MP_POWERDOWN,
 	.wakeup_state		= POWER_MODE_SYS_SLEEP,
 	.hotplug_state		= POWER_MODE_UDR,
-	.l2_flush_state		= POWER_MODE_UDR,
+	.l2_flush_state		= POWER_MODE_UDR_VCTCXO,
 	.ops			= &pxa1908_power_ops,
 	.states			= pxa1908_modes,
 	.state_count		= ARRAY_SIZE(pxa1908_modes),

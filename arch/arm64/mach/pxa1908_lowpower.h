@@ -131,6 +131,8 @@ extern void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
 
 #ifndef __ASSEMBLER__
 
+#define MAX_LATENCY	0xFFFFFFFF
+
 enum pxa1908_lowpower_state {
 	POWER_MODE_CORE_INTIDLE,	/* used for C1 */
 	POWER_MODE_CORE_POWERDOWN,	/* used for C2 */
