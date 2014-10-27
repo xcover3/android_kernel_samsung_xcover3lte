@@ -18,7 +18,7 @@ obj-$(CONFIG_CPU_PXA910) += clk-pxa910.o
 obj-$(CONFIG_CPU_MMP2) += clk-mmp2.o
 
 ifeq ($(CONFIG_PXA_DVFS), y)
-obj-y += dvfs.o dvfs-dvc.o dvfs-pxa1u88.o dvfs-pxa1L88.o dvfs-pxa1928.o dvfs-pxa1908.o fuseinfo.o
+obj-y += dvfs.o dvfs-dvc.o dvfs-pxa1u88.o dvfs-pxa1L88.o dvfs-pxa1928.o dvfs-pxa1908.o dvfs-pxa1936.o fuseinfo.o
 endif
 obj-$(CONFIG_VOLDC_STAT) += hwdvc-stat.o
 
