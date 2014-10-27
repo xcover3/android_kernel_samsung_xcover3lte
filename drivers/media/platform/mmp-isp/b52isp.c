@@ -2034,6 +2034,12 @@ static inline int b52_fill_buf(struct isp_videobuf *buf,
 		return -EINVAL;
 	}
 
+	ret = b52_fill_mmu_chnl(pcam, buf, num_planes);
+	if (ret < 0) {
+		d_inf(1, "Failed to fill mmu addr");
+		return ret;
+	}
+
 	for (i = 0; i < num_planes; i++)
 		dmad[i] = (dma_addr_t)(buf->ch_info[i].daddr);
 
@@ -2043,7 +2049,7 @@ static inline int b52_fill_buf(struct isp_videobuf *buf,
 		return ret;
 	}
 
-	return b52_fill_mmu_chnl(pcam, buf, num_planes);
+	return ret;
 }
 
 static inline int b52isp_update_metadata(struct isp_subdev *isd,
@@ -2398,7 +2404,7 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 		goto mac_err;
 
 	if (pvnode->alloc_mmu_chnl) {
-		ret = pvnode->alloc_mmu_chnl(pcam,
+		ret = pvnode->alloc_mmu_chnl(pcam, PCAM_IP_B52ISP,
 					paxi->blk.id.mod_id, laxi->port,
 					vnode->format.fmt.pix_mp.num_planes,
 					&pvnode->mmu_ch_dsc);

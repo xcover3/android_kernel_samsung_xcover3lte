@@ -42,7 +42,7 @@ struct plat_cam {
 struct plat_vnode {
 	struct list_head	hook;
 	struct mmu_chs_desc	mmu_ch_dsc;
-	int	(*alloc_mmu_chnl)(struct plat_cam *pcam,
+	int	(*alloc_mmu_chnl)(struct plat_cam *pcam, __u8 ip_id,
 					__u8 blk_id, __u8 port_id, __u8 nr_chnl,
 					struct mmu_chs_desc *ch_dsc);
 	void			(*free_mmu_chnl)(struct plat_cam *pcam,

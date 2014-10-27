@@ -48,33 +48,43 @@ MODULE_PARM_DESC(trace,
  * Get the AXI_ID that is written into MMU channel control register
  */
 static inline __u32 plat_mmu_channel_id(struct msc2_mmu_dev *mmu,
-		__u8 dev_id, __u8 block_id, __u8 port_id, __u8 yuv_id)
+		__u8 ip_id, __u8 block_id, __u8 port_id, __u8 yuv_id)
 {
 	__u8 grp_id;
 	__u8 sel_id = 0;
-	switch (block_id) {
-	case B52ISP_BLK_AXI1:
-	case B52ISP_BLK_AXI2:
-	case B52ISP_BLK_AXI3:
-		grp_id = (block_id - B52ISP_BLK_AXI1 + 1);
-		switch (port_id) {
-		case B52AXI_PORT_W1:
-			BUG_ON(yuv_id >= 3);
-			sel_id = grp_id * 2;
+	switch (ip_id) {
+	case PCAM_IP_CCICV2:
+		sel_id = block_id;
+		yuv_id += block_id * 4;
+		grp_id = 0;
+		break;
+	case PCAM_IP_B52ISP:
+		switch (block_id) {
+		case B52ISP_BLK_AXI1:
+		case B52ISP_BLK_AXI2:
+		case B52ISP_BLK_AXI3:
+			grp_id = (block_id - B52ISP_BLK_AXI1 + 1);
+			switch (port_id) {
+			case B52AXI_PORT_W1:
+				BUG_ON(yuv_id >= 3);
+				sel_id = grp_id * 2;
+				break;
+			case B52AXI_PORT_W2:
+				BUG_ON(yuv_id >= 3);
+				yuv_id += 3;
+				sel_id = grp_id * 2;
+				break;
+			case B52AXI_PORT_R1:
+				BUG_ON(yuv_id >= 2);
+				yuv_id += 6;
+				sel_id = grp_id * 2 + 1;
+				break;
+			}
 			break;
-		case B52AXI_PORT_W2:
-			BUG_ON(yuv_id >= 3);
-			yuv_id += 3;
-			sel_id = grp_id * 2;
-			break;
-		case B52AXI_PORT_R1:
-			BUG_ON(yuv_id >= 2);
-			yuv_id += 6;
-			sel_id = grp_id * 2 + 1;
-			break;
+		default:
+			BUG_ON(1);
 		}
 		break;
-		/* TODO; Add support for CCIC */
 	default:
 		BUG_ON(1);
 	}
@@ -152,8 +162,8 @@ put_mmu:
 }
 
 static int plat_mmu_alloc_channel(struct plat_cam *pcam,
-				__u8 blk_id, __u8 port_id, __u8 nr_chnl,
-				struct mmu_chs_desc *ch_dsc)
+			__u8 ip_id, __u8 blk_id, __u8 port_id, __u8 nr_chnl,
+			struct mmu_chs_desc *ch_dsc)
 {
 	struct mmu_chs_desc chs_desc;
 	struct msc2_mmu_dev *mmu;
@@ -171,7 +181,7 @@ static int plat_mmu_alloc_channel(struct plat_cam *pcam,
 
 	mmu = pcam->mmu_dev;
 	for (i = 0; i < nr_chnl; i++) {
-		chs_desc.tid[i] = plat_mmu_channel_id(mmu, 0, blk_id, port_id, i);
+		chs_desc.tid[i] = plat_mmu_channel_id(mmu, ip_id, blk_id, port_id, i);
 		ret = mmu->ops->acquire_ch(mmu, chs_desc.tid[i]);
 		if (ret) {
 			d_inf(1, "failed to alloc MMU channel for ISP");

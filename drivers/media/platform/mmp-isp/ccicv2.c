@@ -66,17 +66,29 @@ static inline int ccic_dma_fill_buf(struct ccic_dma *ccic_dma,
 {
 	int i;
 	int ret = 0;
+	struct ccic_dma_dev *dma_dev = ccic_dma->ccic_dma;
+	struct plat_cam *pcam = ccic_dma->priv;
+	struct plat_vnode *pvnode = NULL;
 
 	if (ispvb == NULL) {
 		d_inf(4, "%s: buffer is NULL", __func__);
 		return -EINVAL;
 	}
 
+	pvnode = container_of(ispvb->vb.vb2_queue, struct plat_vnode, vnode.vq);
+	if (pvnode->fill_mmu_chnl) {
+		ret = pvnode->fill_mmu_chnl(pcam, &ispvb->vb, ccic_dma->nr_chnl);
+		if (ret < 0) {
+			d_inf(1, "ccic failed to fill mmu addr");
+			return ret;
+		}
+	}
+
 	for (i = 0; i < ccic_dma->nr_chnl; i++)
 		ccic_dma->ccic_dma->ops->set_addr(ccic_dma->ccic_dma, (u8)i,
 			(u32)ispvb->ch_info[i].daddr);
 
-	/* TODO: add MMU channel setup code here */
+	dma_dev->ops->shadow_ready(dma_dev);
 
 	return ret;
 }
@@ -86,6 +98,7 @@ static inline int ccic_dma_fill_buf(struct ccic_dma *ccic_dma,
 #define	  IRQ_DMA_NOT_DONE	0x00000010
 #define	  IRQ_SHADOW_NOT_RDY	0x00000020
 #define	  IRQ_OVERFLOW		0x00000040	/* FIFO overflow */
+#define	  FLAG_FRAME_SOF0 1
 
 static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
 {
@@ -96,27 +109,52 @@ static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
 	if (irqs & IRQ_OVERFLOW) {
 		ispvb = isp_vnode_find_busy_buffer(vnode, 0);
 		ccic_dma_fill_buf(ccic_dma, ispvb);
+
+		clear_bit(FLAG_FRAME_SOF0, &ccic_dma->flags);
 		d_inf(3, "CCIC DMA FIFO overflow");
 	}
 
-	/* need reconsider and careful review */
-	if (irqs & IRQ_EOF0) {
-		struct isp_videobuf *new_vb;
-		/* Retrieve done buffer */
+	if (irqs & IRQ_SOF0) {
+		if (test_bit(FLAG_FRAME_SOF0, &ccic_dma->flags))
+			d_inf(2, "miss EOF\n");
+
+		ispvb = isp_vnode_find_busy_buffer(vnode, 1);
+		if (!ispvb)
+			ispvb = isp_vnode_get_idle_buffer(vnode);
+
+		if (!ispvb)
+			d_inf(3, "no buffer in idle queue, expect frame drop");
+		else {
+			ccic_dma_fill_buf(ccic_dma, ispvb);
+			isp_vnode_put_busy_buffer(vnode, ispvb);
+		}
+
+		set_bit(FLAG_FRAME_SOF0, &ccic_dma->flags);
+	}
+
+	if ((irqs & IRQ_EOF0) &&
+		test_bit(FLAG_FRAME_SOF0, &ccic_dma->flags)) {
 		ispvb = isp_vnode_get_busy_buffer(vnode);
 		if (!ispvb)
 			d_inf(3, "busy buffer is NULL in EOF?? strange");
 
-		new_vb = isp_vnode_get_idle_buffer(vnode);
-		if (!new_vb)
-			d_inf(3, "no buffer in idle queue, expect frame drop");
-		else {
-			ccic_dma_fill_buf(ccic_dma, new_vb);
-			isp_vnode_put_busy_buffer(vnode, new_vb);
-			ccic_dma->ccic_dma->ops->shadow_ready(dma_dev);
-		}
 		if (isp_vnode_export_buffer(ispvb) < 0)
 			d_inf(1, "%s: export buffer failed", vnode->vdev.name);
+
+		clear_bit(FLAG_FRAME_SOF0, &ccic_dma->flags);
+	}
+
+	if (irqs & IRQ_SHADOW_NOT_RDY) {
+		ispvb = isp_vnode_get_idle_buffer(vnode);
+		if (!ispvb)
+			d_inf(3, "no buffer in idle queue, expect frame drop");
+		else {
+			ccic_dma_fill_buf(ccic_dma, ispvb);
+			isp_vnode_put_busy_buffer(vnode, ispvb);
+		}
+
+		clear_bit(FLAG_FRAME_SOF0, &ccic_dma->flags);
+		d_inf(3, "CCIC DMA NOT RDY");
 	}
 
 	return IRQ_HANDLED;
@@ -468,6 +506,10 @@ static int ccic_dma_set_stream(struct v4l2_subdev *sd, int enable)
 	struct media_pad *vpad = media_entity_remote_pad(
 					isd->pads + CCIC_DMA_PAD_OUT);
 	struct isp_vnode *vnode = me_to_vnode(vpad->entity);
+	struct plat_vnode *pvnode = container_of(vnode, struct plat_vnode, vnode);
+	struct isp_build *build = container_of(isd->subdev.entity.parent,
+						 struct isp_build, media_dev);
+	struct plat_cam *pcam = build->plat_priv;
 	struct isp_videobuf *ispvb = NULL;
 	int ret = 0;
 
@@ -499,29 +541,41 @@ static int ccic_dma_set_stream(struct v4l2_subdev *sd, int enable)
 					plane_fmt[0].bytesperline;
 	dma_dev->code		= isd->fmt_pad[CCIC_DMA_PAD_IN].code;
 	dma_dev->priv		= ccic_dma;
+	ccic_dma->priv		= pcam;
+
+	if (pvnode->alloc_mmu_chnl) {
+		ret = pvnode->alloc_mmu_chnl(pcam, PCAM_IP_CCICV2,
+				ccic_dma->dev->id, 0, ccic_dma->nr_chnl,
+				&pvnode->mmu_ch_dsc);
+		if (unlikely(ret < 0))
+			return ret;
+	}
 
 	ret = dma_dev->ops->setup_image(dma_dev);
 	if (ret < 0)
-		return ret;
+		goto free_mmu;
 
 	ispvb = isp_vnode_get_idle_buffer(vnode);
 	BUG_ON(ispvb == NULL);
 	ret = ccic_dma_fill_buf(ccic_dma, ispvb);
 	if (ret < 0)
-		return ret;
+		goto free_mmu;
 	ret = isp_vnode_put_busy_buffer(vnode, ispvb);
 	if (ret < 0)
-		return ret;
+		goto free_mmu;
 	ccic_dma->vnode = vnode;
 
 	dma_dev->ops->ccic_enable(dma_dev);
-	dma_dev->ops->shadow_ready(dma_dev);
 	return 0;
 
 stream_off:
 	if (atomic_dec_return(&ccic_dma->stream_cnt) > 0)
 		return 0;
 	dma_dev->ops->ccic_disable(dma_dev);
+free_mmu:
+	if (pvnode->free_mmu_chnl)
+		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
+
 	return 0;
 }
 

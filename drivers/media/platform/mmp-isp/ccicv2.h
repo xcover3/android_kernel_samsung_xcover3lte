@@ -28,8 +28,10 @@ struct ccic_dma {
 	struct ccic_dma_dev *ccic_dma;
 
 	int			nr_chnl;
+	unsigned long		flags;
 	atomic_t		stream_cnt;
 	struct isp_vnode	*vnode;
+	void *priv;
 };
 
 enum ccic_pad_id {

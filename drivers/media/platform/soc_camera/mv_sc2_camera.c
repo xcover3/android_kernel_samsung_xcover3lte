@@ -361,8 +361,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[0].tid =
-				(pid << 16) | ((0 + pid * 4) << 3);
+			mbuf->ch_info[0].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 0 + pid * 4, 0);
 			mbuf->ch_info[0].daddr = baddr;
 
 			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
@@ -370,8 +370,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[1].m.userptr;
 			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[1].tid =
-				(pid << 16) | ((1 + pid * 4) << 3);
+			mbuf->ch_info[1].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 1 + pid * 4, 0);
 			mbuf->ch_info[1].daddr = baddr;
 
 			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
@@ -379,8 +379,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[2].m.userptr;
 			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[2].tid =
-				(pid << 16) | ((2 + pid * 4) << 3);
+			mbuf->ch_info[2].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 2 + pid * 4, 0);
 			mbuf->ch_info[2].daddr = baddr;
 			break;
 		case V4L2_PIX_FMT_YVU420:
@@ -389,8 +389,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[0].tid =
-				(pid << 16) | ((0 + pid * 4) << 3);
+			mbuf->ch_info[0].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 0 + pid * 4, 0);
 			mbuf->ch_info[0].daddr = baddr;
 
 			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
@@ -398,8 +398,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[2].m.userptr;
 			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[1].tid =
-				(pid << 16) | ((2 + pid * 4) << 3);
+			mbuf->ch_info[1].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 2 + pid * 4, 0);
 			mbuf->ch_info[1].daddr = baddr;
 
 			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
@@ -407,8 +407,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[1].m.userptr;
 			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[2].tid =
-				(pid << 16) | ((1 + pid * 4) << 3);
+			mbuf->ch_info[2].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 1 + pid * 4, 0);
 			mbuf->ch_info[2].daddr = baddr;
 			break;
 		case V4L2_PIX_FMT_NV12:
@@ -418,8 +418,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[0].tid =
-				(pid << 16) | ((0 + pid * 4) << 3);
+			mbuf->ch_info[0].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 0 + pid * 4, 0);
 			mbuf->ch_info[0].daddr = baddr;
 
 			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
@@ -428,8 +428,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 				baddr = vbuf->v4l2_planes[1].m.userptr;
 			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
 			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[1].tid =
-				(pid << 16) | ((1 + pid * 4) << 3);
+			mbuf->ch_info[1].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 1 + pid * 4, 0);
 			mbuf->ch_info[1].daddr = baddr;
 			break;
 		default:
@@ -438,8 +438,8 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 			else
 				baddr = vbuf->v4l2_planes[0].m.userptr;
 			dma_dev->ops->set_yaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[0].tid =
-				(pid << 16) | ((0 + pid * 4) << 3);
+			mbuf->ch_info[0].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
+				pid, 0 + pid * 4, 0);
 			mbuf->ch_info[0].daddr = baddr;
 			break;
 		}
