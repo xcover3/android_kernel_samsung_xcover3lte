@@ -320,6 +320,7 @@ struct b52_sensor {
 	u8 cur_mbus_idx;
 
 	int i2c_dyn_ctrl;
+	int sensor_init;
 	atomic_t	stream_cnt;
 };
 

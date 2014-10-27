@@ -704,7 +704,8 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 		pr_err("%s, error param\n", __func__);
 		return -EINVAL;
 	}
-
+	if (sensor->sensor_init)
+		return 0;
 	attr = &sensor->drvdata->i2c_attr;
 	regs.tab = sensor->drvdata->global_setting.tab;
 
@@ -766,6 +767,7 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 	ret = v4l2_ctrl_handler_setup(&sensor->ctrls.ctrl_hdl);
 	if (ret < 0)
 		pr_err("%s: setup hadnler failed\n", __func__);
+	sensor->sensor_init = 1;
 	return ret;
 }
 #if 0
@@ -1402,6 +1404,7 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				pr_err("b52 sensor gpio pin is not configured\n");
 		}
+		sensor->sensor_init = 0;
 	}
 
 	return ret;
