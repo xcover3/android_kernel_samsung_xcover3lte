@@ -166,7 +166,11 @@ static inline unsigned int get_iddq_105(void) {return 0x0; }
 static int millicelsius_decode(u32 tcode)
 {
 	int cels;
-	cels = (tcode * THSEN_GAIN - THSEN_OFFSET * 1000) / 10000 + 1;
+	cels = (int)(tcode * THSEN_GAIN - THSEN_OFFSET * 1000) / 10000;
+	if (cels < 0)
+		cels--;
+	else
+		cels++;
 	return cels * 1000;
 }
 
@@ -224,7 +228,7 @@ static struct attribute_group thermal_attr_grp = {
 };
 
 static int cpu_sys_get_temp(struct thermal_zone_device *thermal,
-		unsigned long *temp)
+		int *temp)
 {
 	u32 tmp;
 	if (!(reg_read(TSEN_PCTRL) & TSEN_RESET)) {
@@ -232,7 +236,7 @@ static int cpu_sys_get_temp(struct thermal_zone_device *thermal,
 		*temp = millicelsius_decode((tmp & TSEN_DATA_LATCHED_MASK) >>
 				TSEN_DATA_LATCHED_OFF);
 		/* unreasonable temperature */
-		if (*temp > 120000)
+		if (*temp > 120000 || *temp < -40000)
 			*temp = 0;
 	} else
 		*temp = 0;
@@ -253,7 +257,7 @@ static int cpu_sys_get_trip_type(struct thermal_zone_device *thermal, int trip,
 }
 
 static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
-		unsigned long *temp)
+		int *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
 		*temp = trips_temp[trip];
@@ -263,7 +267,7 @@ static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 }
 
 static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
-		int trip, unsigned long *temp)
+		int trip, int *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
 		*temp = trips_hyst[trip];
@@ -273,7 +277,7 @@ static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
 }
 
 static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
-		unsigned long temp)
+		int temp)
 {
 	u32 tmp;
 	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
@@ -289,7 +293,7 @@ static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
 }
 
 static int cpu_sys_set_trip_hyst(struct thermal_zone_device *thermal,
-		int trip, unsigned long temp)
+		int trip, int temp)
 {
 	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
 	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
@@ -302,7 +306,7 @@ static int cpu_sys_set_trip_hyst(struct thermal_zone_device *thermal,
 }
 
 static int cpu_sys_get_crit_temp(struct thermal_zone_device *thermal,
-		unsigned long *temp)
+		int *temp)
 {
 	return trips_temp[TRIP_POINTS_NUM - 1];
 }
@@ -362,7 +366,7 @@ static int combile_set_cur_state(struct thermal_cooling_device *cdev,
 	struct thermal_cooling_device *c_plug =
 		cpu_thermal->cdev.cool_cpuhotplug;
 	unsigned long freq_state = 0, plug_state = 0;
-	unsigned long temp = 0;
+	int temp = 0;
 
 	if (state > cpu_thermal->cdev.max_state)
 		return -EINVAL;
@@ -372,7 +376,7 @@ static int combile_set_cur_state(struct thermal_cooling_device *cdev,
 	plug_state = thermal_dev.cdev.hotplug_cstate[state];
 
 	cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
-	pr_info("Thermal cpu temp %ldC, state %lu, cpufreq qos %lu, core_num qos %lu\n",
+	pr_info("Thermal cpu temp %dC, state %lu, cpufreq qos %lu, core_num qos %lu\n",
 		temp / 1000, state, freq_state, plug_state);
 
 	if (c_freq)
@@ -667,14 +671,14 @@ static irqreturn_t pxa28nm_thread_irq(int irq, void *devid)
 static irqreturn_t pxa28nm_irq(int irq, void *devid)
 {
 	u32 tmp, tmp_lc;
-	unsigned long temp;
+	int temp;
 	tmp = reg_read(TSEN_LSTATUS);
 	reg_clr_set(TSEN_LSTATUS, 0, tmp);
 
 	tmp_lc = reg_read(TSEN_LCTRL);
 	if ((tmp_lc & TSEN_RDY_INT_ENABLE) && (tmp & TSEN_RDY_INT)) {
 		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
-		pr_info("in irq temp = %ld\n", temp);
+		pr_info("in irq temp = %d\n", temp);
 	}
 	if ((tmp_lc & TSEN_INT0_ENABLE) && (tmp & TSEN_INT0)) {
 		thermal_dev.hit_trip_cnt[thermal_dev.trip_range]++;
@@ -693,7 +697,7 @@ static irqreturn_t pxa28nm_irq(int irq, void *devid)
 	if ((tmp_lc & TSEN_INT2_ENABLE) && (tmp & TSEN_INT2)) {
 		/* wait framework shutdown */
 		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
-		pr_info("critical temp = %ld\n", temp);
+		pr_info("critical temp = %d\n", temp);
 	}
 	return IRQ_WAKE_THREAD;
 }

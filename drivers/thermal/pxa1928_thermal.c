@@ -167,7 +167,7 @@ static int pxa1928_gpu_freq_state[TRIP_POINTS_STATE_NUM] = {
 #define reg_clr_set(off, clr, set) \
 	reg_write(((reg_read(off) & ~(clr)) | (set)), off)
 static int ts_get_trip_temp(struct thermal_zone_device *tz, int trip,
-		unsigned long *temp);
+		int *temp);
 static int pxa1928_set_threshold(int id, int range);
 
 /*
@@ -362,7 +362,7 @@ static struct attribute_group thermal_attr_grp = {
 };
 
 static int
-ts_sys_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
+ts_sys_get_temp(struct thermal_zone_device *tz, int *temp)
 {
 	*temp = 0;
 	tz->devdata = thermal_dev.base;
@@ -409,7 +409,7 @@ void print_reg(void)
 {
 	void __iomem *reg_base = thermal_dev.base;
 	u32 cfg, int0, int1, data, auto_read, temp;
-	unsigned long thld0, thld1, thld2;
+	int thld0, thld1, thld2;
 
 	cfg = readl(reg_base + TSEN_CFG_REG_1);
 	int0 = readl(reg_base + TSEN_INT0_WDOG_THLD_REG_1);
@@ -424,7 +424,7 @@ void print_reg(void)
 		ts_get_trip_temp(thermal_dev.therm_cpu, 2, &thld2);
 	}
 
-	pr_info("thermal_cpu temp %u, cfg 0x%x,int0 0x%x,int1 0x%x, data 0x%x,auto_read 0x%x,thld0 %lu,thld1 %lu,thld2 %lu\n",
+	pr_info("thermal_cpu temp %u, cfg 0x%x,int0 0x%x,int1 0x%x, data 0x%x,auto_read 0x%x,thld0 %d,thld1 %d,thld2 %d\n",
 	temp, cfg, int0, int1, data, auto_read, thld0, thld1, thld2);
 
 	cfg = readl(reg_base + TSEN_CFG_REG_0);
@@ -440,7 +440,7 @@ void print_reg(void)
 		ts_get_trip_temp(thermal_dev.therm_vpu, 2, &thld2);
 	}
 
-	pr_info("thermal_vpu temp %u, cfg 0x%x,int0 0x%x,int1 0x%x, data 0x%x,auto_read 0x%x,thld0 %lu,thld1 %lu,thld2 %lu\n",
+	pr_info("thermal_vpu temp %u, cfg 0x%x,int0 0x%x,int1 0x%x, data 0x%x,auto_read 0x%x,thld0 %d,thld1 %d,thld2 %d\n",
 	temp, cfg, int0, int1, data, auto_read, thld0, thld1, thld2);
 
 }
@@ -467,7 +467,7 @@ static int ts_sys_get_trip_type(struct thermal_zone_device *thermal, int trip,
 }
 
 static int ts_get_trip_temp(struct thermal_zone_device *tz, int trip,
-		unsigned long *temp)
+		int *temp)
 {
 	void *reg = NULL;
 	tz->devdata = thermal_dev.base;
@@ -514,14 +514,14 @@ static int ts_get_trip_temp(struct thermal_zone_device *tz, int trip,
 
 
 static int ts_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
-		unsigned long *temp)
+		int *temp)
 {
 	*temp = thsens_trips_temp[thermal->id - 1][trip];
 	return 0;
 }
 
 static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
-		int trip, unsigned long *temp)
+		int trip, int *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
 		*temp = thsens_trips_hyst[thermal->id - 1][trip];
@@ -531,7 +531,7 @@ static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
 }
 
 static int cpu_sys_set_trip_hyst(struct thermal_zone_device *tz,
-		int trip, unsigned long temp)
+		int trip, int temp)
 {
 	int id = tz->id - 1;
 	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
@@ -597,7 +597,7 @@ static int pxa1928_set_threshold(int id, int range)
 }
 
 static int ts_sys_set_trip_temp(struct thermal_zone_device *tz, int trip,
-		unsigned long temp)
+		int temp)
 {
 	int id = tz->id - 1;
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
@@ -618,7 +618,7 @@ static void auto_read_temp(struct thermal_zone_device *tz, const u32 reg,
 		const u32 datareg)
 {
 	int int0, int1, int2, id;
-	unsigned long temp = 0;
+	int temp = 0;
 	tz->devdata = thermal_dev.base;
 	id = tz->id - 1;
 
@@ -651,7 +651,7 @@ static void auto_read_temp(struct thermal_zone_device *tz, const u32 reg,
 					tz->devdata + reg);
 			/* wait framework shutdown */
 			ts_sys_get_temp(thermal_dev.therm_cpu, &temp);
-			pr_info("critical temp = %ld, shutdown\n", temp);
+			pr_info("critical temp = %d, shutdown\n", temp);
 		}
 
 		thermal_zone_device_update(tz);
@@ -673,7 +673,7 @@ static irqreturn_t thermal_threaded_handle_irq(int irq, void *dev_id)
 
 
 static int ts_sys_get_crit_temp(struct thermal_zone_device *thermal,
-		unsigned long *temp)
+		int *temp)
 {
 	return thsens_trips_temp[thermal->id - 1][TRIP_POINTS_NUM - 1];
 }

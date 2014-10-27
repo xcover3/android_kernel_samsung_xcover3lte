@@ -7,7 +7,7 @@ static unsigned long get_target_state(struct thermal_zone_device *tz, int old)
 	int i;
 	unsigned long cur_state = 0, tmp_state = 0;
 	enum thermal_trend trend;
-	long trip_temp;
+	int trip_temp;
 	trend = get_tz_trend(tz, THERMAL_TRIPS_NONE);
 	if (THERMAL_TREND_RAISING == trend) {
 		for (i = 0; i < tz->trips; i++) {
@@ -71,7 +71,7 @@ static int bi_direction_gov_switch(struct thermal_zone_device *tz,
 {
 	int i;
 	struct thermal_instance *ins;
-	long trip_temp;
+	int trip_temp;
 
 	if (!strnicmp(from->name, "user_space", THERMAL_NAME_LENGTH)) {
 		for (i = 0; i < tz->trips; i++) {
