@@ -1007,6 +1007,7 @@
 			map: map@d1200000 {
 				marvell,b0_fix;
 				marvell,apll = <1>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_UDR>;
 				status = "okay";
 				mmp_map_codec: mmp_map_codec {
 					compatible = "marvell,mmp-map-codec";
