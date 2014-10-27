@@ -261,6 +261,24 @@ static int pm886_vbus_dt_init(struct device_node *np, struct pm886_vbus_info *us
 	return of_property_read_u32(np, "gpadc-number", &usb->id_gpadc);
 }
 
+static void pm886_vbus_fixup(struct pm886_vbus_info *info)
+{
+	if (!info || !info->chip) {
+		pr_err("%s: empty device information.\n", __func__);
+		return;
+	}
+
+	if (info->chip->chip_id == PM886_A0) {
+		pr_info("%s: fix up for the vbus driver.\n", __func__);
+		/* 1. base page 0x1f.0 = 1 --> unlock test page */
+		regmap_write(info->chip->base_regmap, 0x1f, 0x1);
+		/* 2. test page 0x90.[4:0] = 0, reset trimming to mid point 0 */
+		regmap_update_bits(info->chip->test_regmap, 0x90, 0x1f << 0, 0);
+		/* 3. base page 0x1f.0 = 0 --> lock the test page */
+		regmap_write(info->chip->base_regmap, 0x1f, 0x0);
+	}
+}
+
 static int pm886_vbus_probe(struct platform_device *pdev)
 {
 	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -278,6 +296,9 @@ static int pm886_vbus_probe(struct platform_device *pdev)
 		usb->id_gpadc = PM886_NO_GPADC;
 
 	usb->chip = chip;
+
+	/* do it before enable interrupt */
+	pm886_vbus_fixup(usb);
 
 	usb->vbus_irq = platform_get_irq(pdev, 0);
 	if (usb->vbus_irq < 0) {
