@@ -224,6 +224,8 @@ ifeq ($(ARCH),arm64)
 else
 	$(MAKE) -j$(MAKE_JOBS) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
 endif
+	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) /dev/zero|head -c `expr \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` + 2048 - \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` % 2048` > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded
+	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded ${local_dtb_files_padded} > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 	cp $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) $(PRODUCT_OUT)/$(KERNEL_IMAGE)_debug
 	cp -u $(KERNEL_OUTPUT)/vmlinux $(PRODUCT_OUT)/vmlinux_debug
 	cp -u $(KERNEL_OUTPUT)/System.map $(PRODUCT_OUT)/System_debug.map
