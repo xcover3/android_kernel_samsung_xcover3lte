@@ -1103,7 +1103,7 @@
 			compatible = "marvell,map-dailink-1";
 			dai-name = "MAP I2S3 audio";
 			stream-name = "map i2s3";
-			marvell,cpu-dai = <&mmp_pcm_hostless 0>;
+			marvell,cpu-dai = <&mmp_pcm_hostless 1>;
 			marvell,codec-dai = <&mmp_map_codec 3>;
 			marvell,dai-dynamic;
 			marvell,dai-no-host-mode;
