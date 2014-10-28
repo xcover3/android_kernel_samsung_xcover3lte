@@ -237,9 +237,9 @@ static unsigned long freqs_cmb_1908[VM_RAIL_MAX][VL_MAX] = {
 static int vm_millivolts_1908_svcumc[][VL_MAX] = {
 	{1000, 1013, 1100, 1150, 1175, 1225, 1238, 1300},
 	{1000, 1013, 1100, 1150, 1175, 1225, 1238, 1300},
-	{925, 975, 963, 1025, 1025, 1075, 1100, 1125},/* Profile2 */
-	{925, 975, 975, 1025, 1025, 1088, 1113, 1138},
-	{938, 975, 975, 1025, 1038, 1088, 1125, 1163},
+	{925, 975, 988, 1025, 1025, 1075, 1100, 1125},/* Profile2 */
+	{925, 975, 988, 1025, 1025, 1088, 1113, 1138},
+	{938, 975, 988, 1025, 1038, 1088, 1125, 1163},
 	{938, 975, 988, 1025, 1050, 1100, 1138, 1175},
 
 	{938, 975, 1000, 1025, 1050, 1100, 1138, 1200}, /* Profile6 */
@@ -294,7 +294,7 @@ static struct dvc_plat_info dvc_pxa1908_info = {
 	.num_comps = ARRAY_SIZE(vm_rail_comp_tbl_dvc),
 	.num_volts = VL_MAX,
 	.cp_pmudvc_lvl = VL1,
-	.dp_pmudvc_lvl = VL3,
+	.dp_pmudvc_lvl = VL2,
 	.set_vccmain_volt = set_pmic_volt,
 	.get_vccmain_volt = get_pmic_volt,
 	.pmic_maxvl = 8,
