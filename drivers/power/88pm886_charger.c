@@ -57,6 +57,9 @@
 #define PM886_EXT_ILIM_CONFIG		(0x34)
 #define PM886_CHG_ILIM_FINE_10		(0x4 << 4)
 
+#define PM886_MPPT_CONFIG3		(0x40)
+#define PM886_WA_TH_SET_3V9		(0x3 << 0)
+
 #define PM886_CHG_LOG1			(0x45)
 #define PM886_BATT_REMOVAL		(1 << 0)
 #define PM886_CHG_REMOVAL		(1 << 1)
@@ -86,7 +89,7 @@ struct pm886_charger_info {
 	unsigned int fastchg_tout;	/* fastcharge voltage */
 
 	unsigned int recharge_thr;	/* gap between VBAT_FAST_SET and VBAT */
-
+	unsigned int dcp_limit;		/* current limit for DCP charger */
 	unsigned int limit_cur;
 
 	unsigned int allow_basic_charge;
@@ -481,6 +484,10 @@ static int pm886_charger_init(struct pm886_charger_info *info)
 	regmap_update_bits(info->chip->battery_regmap, PM886_FAST_CONFIG3,
 			   PM886_IBAT_EOC_TH, get_fastchg_eoc(info));
 
+	/* set wall-adaptor threshold to 3.9V */
+	regmap_update_bits(info->chip->battery_regmap, PM886_MPPT_CONFIG3,
+			   PM886_WA_TH_SET_3V9, PM886_WA_TH_SET_3V9);
+
 	return 0;
 }
 
@@ -528,8 +535,7 @@ static int pm886_charger_notifier_call(struct notifier_block *nb,
 	case DCP_CHARGER:
 		info->ac_chg_online = 1;
 		info->usb_chg_online = 0;
-		/* the max value ac_chgcording to spec */
-		info->limit_cur = 2400;
+		info->limit_cur = info->dcp_limit;
 		break;
 	default:
 		info->ac_chg_online = 0;
@@ -766,6 +772,10 @@ static int pm886_charger_dt_init(struct device_node *np,
 		return ret;
 
 	ret = of_property_read_u32(np, "recharge-thr", &info->recharge_thr);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(np, "dcp-limit", &info->dcp_limit);
 	if (ret)
 		return ret;
 
