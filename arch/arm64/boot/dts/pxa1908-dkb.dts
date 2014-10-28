@@ -410,6 +410,52 @@
 					&range 110 32 0 /* GPIO67 ~ GPIO98 */
 					&range 52 1 0	/* GPIO124 */
 				>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1>;
+
+				/*
+				 * these unused pins have been pulled down external
+				 * We can set them as PULL_FLOAT
+				 *
+				 * But in fact, these registers can be removed in the
+				 * future, considering the cost down
+				 *
+				 * So we just set them as PULL_DOWN here
+				 * (Suitable for external PULL_DOWN and FLOATING)
+				 *
+				 * after remove external registers, no change is need
+				 */
+				mfp_pins_group_0: mfp_pins_group_0 {
+					pinctrl-single,pins = <
+						DF_IO8 AF0
+						DF_IO9 AF0
+						DF_IO10 AF0
+						DF_IO11 AF0
+						DF_IO12 AF0
+						DF_IO13 AF0
+						DF_IO15 AF0
+					>;
+					DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_NONE;
+				};
+
+				/*
+				 * these unused pins have been pulled up external
+				 * We can set them as PULL_FLOAT
+				 *
+				 * But in fact, these registers can be removed in the
+				 * future, considering the cost down			 *
+				 *
+				 * So we just set them as PULL_UP here
+				 * (Suitable for external PULL_UP and FLOATING)
+				 *
+				 * after remove external registers, no change is need
+				 */
+				mfp_pins_group_1: mfp_pins_group_1 {
+					pinctrl-single,pins = <
+						DF_IO14 AF0
+					>;
+					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_NONE;
+				};
 
 				uart0_pmx_func1: uart0_pmx_func1 {
 					pinctrl-single,pins = <
