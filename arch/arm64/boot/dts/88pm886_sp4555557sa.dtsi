@@ -22,6 +22,7 @@
 		fastchg-eoc = <20>;
 		fastchg-tout = <8>;
 		recharge-thr = <200>;
+		dcp-limit = <2400>;
 		status = "okay";
 	};
 
