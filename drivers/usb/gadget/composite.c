@@ -1140,6 +1140,12 @@ struct usb_string *usb_gstrings_attach(struct usb_composite_dev *cdev,
 	if (!n_gstrings)
 		return ERR_PTR(-EINVAL);
 
+	list_for_each_entry(uc, &cdev->gstrings, list) {
+		n_gs = get_containers_gs(uc);
+		if (!strcmp(n_gs[0]->strings[0].s, sp[0]->strings[0].s))
+			return n_gs[0]->strings;
+	}
+
 	uc = copy_gadget_strings(sp, n_gstrings, n_strings);
 	if (IS_ERR(uc))
 		return ERR_PTR(PTR_ERR(uc));
