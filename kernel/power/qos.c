@@ -168,7 +168,7 @@ static BLOCKING_NOTIFIER_HEAD(ddr_devfreq_min_notifier);
 static struct pm_qos_constraints ddr_devfreq_min_constraints = {
 	.list = PLIST_HEAD_INIT(ddr_devfreq_min_constraints.list),
 	.target_value = PM_QOS_DEFAULT_VALUE,
-	.default_value = PM_QOS_DEFAULT_VALUE,
+	.default_value = 0,
 	.type = PM_QOS_MAX,
 	.notifiers = &ddr_devfreq_min_notifier,
 };
