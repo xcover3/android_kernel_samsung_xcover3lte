@@ -89,7 +89,7 @@
 				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
 					<&soc_clocks PXA1U88_CLK_VPUBUS>;
 				clock-names = "VPUCLK", "VPUACLK";
-				status = "okay";
+				status = "disabled";
 			};
 
 			intc: wakeupgen@d4282000 {
@@ -103,7 +103,7 @@
 				marvell,sdh-quirks2 = <(SDHCI_QUIRK2_BROKEN_HS200)>;
 				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
 				marvell,sdh-host-caps2 = <(MMC_CAP2_DISABLE_BLK_ASYNC)>;
-				status = "okay";
+				status = "disabled";
 			 };
 
 			dsi: dsi@d420b800 {
@@ -134,6 +134,7 @@
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
+				status = "disabled";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
 					marvell,overlay-num = <2>;
@@ -468,7 +469,7 @@
 				pinctrl-0 = <&twsi1_pmx_func>;
 				pinctrl-1 = <&twsi1_pmx_gpio>;
 				i2c-gpio = <&gpio 87 0 &gpio 88 0>;
-				status = "okay";
+				status = "disabled";
 
                                 touch1: s3202@720p {
                                         compatible = "synaptics,s3202-touch";
@@ -576,7 +577,7 @@
 					   1 0 0 0  /* 1.8G */
 					   2 0 0 0  /* 1.5G */
 					   3 0 0 0>;/* 1.2G */
-				status = "okay";
+				status = "disabled";
 			};
 		};
 
