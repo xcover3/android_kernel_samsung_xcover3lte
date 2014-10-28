@@ -29,6 +29,10 @@ PXA1936 QT Emulation
 Required root node properties:
 	- compatible = "marvell,pxa1936-qt";
 
+PXA1936 FPGA Emulation
+Required root node properties:
+	- compatible = "marvell,pxa1936-fpga";
+
 PXA1936 DKB Board
 Required root node properties:
 	- compatible = "marvell,pxa1936-dkb";
