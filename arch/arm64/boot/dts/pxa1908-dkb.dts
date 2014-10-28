@@ -411,6 +411,56 @@
 					&range 110 32 0 /* GPIO67 ~ GPIO98 */
 					&range 52 1 0	/* GPIO124 */
 				>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1 &mfp_pins_group_2>;
+
+				/*
+				 * the unused pins which have been pulled up or down external
+				 * do nothing internal
+				 */
+				mfp_pins_group_0: mfp_pins_group_1 {
+					pinctrl-single,pins = <
+						DF_IO8 AF0
+						DF_IO9 AF0
+						DF_IO10 AF0
+						DF_IO11 AF0
+						DF_IO12 AF0
+						DF_IO13 AF0
+						DF_IO14 AF0
+						DF_IO15 AF0
+					>;
+					DS_MEDIUM;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+
+				/*
+				 * the unused pins which are float external
+				 * pull them up internal
+				 */
+				mfp_pins_group_1: mfp_pins_group_1 {
+					pinctrl-single,pins = <
+						GPIO33 AF0 /* GPIO33 SSP0_CLK */
+						GPIO34 AF0 /* GPIO34 SSP0_FRM */
+						GPIO35 AF0 /* GPIO35 SSP0_RX */
+						GPIO36 AF0 /* GPIO36 SSP0_TX */
+					/* below GPIOs are free in DKB*/
+						GPIO9 AF0
+						GPIO12 AF0
+						GPIO13 AF0
+						GPIO15 AF0
+						GPIO18 AF0
+					>;
+					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_NONE;
+				};
+
+				/*
+				 * the unused pins which are float external
+				 * pull them down internal
+				 */
+				mfp_pins_group_2: mfp_pins_group_2 {
+					pinctrl-single,pins = <
+					>;
+					DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_NONE;
+				};
 
 				uart0_pmx_func1: uart0_pmx_func1 {
 					pinctrl-single,pins = <
