@@ -807,6 +807,10 @@ static ssize_t ddr_freq_store(struct device *dev, struct device_attribute *attr,
 			"echo freq > ddr_freq to set ddr rate(unit Khz)\n");
 		return -E2BIG;
 	}
+
+	/* Make ddr_min and ddr_max take effect even in debug interface */
+	freq = (ddr_min && ddr_min > freq) ? ddr_min : freq;
+	freq = (ddr_max && ddr_max < freq) ? ddr_max : freq;
 	ddr_set_rate(data, freq);
 
 	dev_dbg(dev, "ddr freq read back: %lu\n",
