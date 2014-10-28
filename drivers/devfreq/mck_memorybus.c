@@ -1331,7 +1331,7 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 
 	if (ddr_min) {
 		tmp = data->ddr_freq_tbl[0];
-		for (i = 1; i < data->ddr_freq_tbl_len; i++)
+		for (i = 1; i < data->ddr_freq_tbl_len + 1; i++)
 			if (data->ddr_freq_tbl[i - 1] >= ddr_min) {
 				tmp = data->ddr_freq_tbl[i - 1];
 				break;
