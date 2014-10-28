@@ -31,6 +31,11 @@ enum {
 	PM_QOS_GPUFREQ_3D_MAX,
 	PM_QOS_GPUFREQ_2D_MAX,
 	PM_QOS_GPUFREQ_SH_MAX,
+	/* define below QoS for on platform with bL arch */
+	PM_QOS_CPUFREQ_L_MIN,
+	PM_QOS_CPUFREQ_L_MAX,
+	PM_QOS_CPUFREQ_B_MIN,
+	PM_QOS_CPUFREQ_B_MAX,
 	/* insert new class ID */
 	PM_QOS_NUM_CLASSES,
 };
