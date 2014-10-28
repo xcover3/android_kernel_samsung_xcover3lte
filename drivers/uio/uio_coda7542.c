@@ -39,6 +39,7 @@ extern struct dma_iommu_mapping *pxa_ion_iommu_mapping;
 
 #define BIT_INT_CLEAR		(0xC)
 #define BIT_BUSY_FLAG		(0x160)
+#define BIT_INT_ENABLE		(0x170)
 
 struct uio_coda7542_dev {
 	struct uio_info uio_info;
@@ -173,11 +174,18 @@ static int active_coda7542(struct uio_coda7542_dev *cdev, int on)
 	return 0;
 }
 
+static void coda7542_cleanup(struct uio_coda7542_dev *cdev)
+{
+	pr_info("%s: process was killed abnormal\n", __func__);
+	__raw_writel(0x0, cdev->reg_base + BIT_INT_ENABLE);
+	__raw_writel(0x1, cdev->reg_base + BIT_INT_CLEAR);
+}
 
-static int coda7542_abnormal_stop(struct uio_coda7542_dev *cdev)
+
+static int __maybe_unused coda7542_abnormal_stop(struct uio_coda7542_dev *cdev)
 {
 	int i;
-	pr_info(KERN_INFO "process was killed abnormal\n");
+	pr_info("%s: process was killed abnormal\n", __func__);
 	/*
 	 *currently, we couldn't do other thing except waiting
 	 *for CNM VPU stop by itself
@@ -257,8 +265,8 @@ static int coda7542_release(struct uio_info *info, struct inode *inode,
 	 */
 	if (pinst->gotsemaphore) {
 		if (cdev->clk_status == 1) {
-			if (__raw_readl(cdev->reg_base + BIT_BUSY_FLAG) != 0)
-				coda7542_abnormal_stop(cdev);
+			schedule_timeout(msecs_to_jiffies(30));
+			coda7542_cleanup(cdev);
 		}
 		up(&cdev->sema);
 		pinst->gotsemaphore = 0;
