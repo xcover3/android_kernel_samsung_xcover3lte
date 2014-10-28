@@ -45,7 +45,12 @@ static void *regmap_aux;
 
 /* tdm platform data */
 static struct tdm_platform_data tdm_pdata = {
+#ifdef USE_3_WIRES_MODE
+	/* may need config USE_STATIC_SLOT_ALLOC */
+	.use_4_wires = 0,
+#else
 	.use_4_wires = 1,
+#endif
 	.slot_size = 20,
 	.slot_space = 1,
 	.start_slot = 0,
@@ -1455,6 +1460,12 @@ static int map_config(struct map_private *map_priv)
 	unsigned int val, reg;
 
 	/* configure pad */
+#ifdef USE_3_WIRES_MODE
+	/* set 3 wires mode in MAP */
+	val = readl_relaxed(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	val |=  (1 << 10);
+	writel_relaxed(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+#endif
 	val = readl_relaxed(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 	val &=  ~MAP_RESET;
 	writel_relaxed(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
