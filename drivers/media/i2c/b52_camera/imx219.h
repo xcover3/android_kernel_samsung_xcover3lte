@@ -292,7 +292,8 @@ struct b52_sensor_data b52_imx219 = {
 	},
 
 	.flip_change_phase = 1,
-	.gain_shift = 0,
+	.gain_shift = 0x00,
+	.expo_shift = 0x08,
 	.calc_dphy = 1,
 	.nr_lane = 4,
 	.ops = &imx219_ops,
