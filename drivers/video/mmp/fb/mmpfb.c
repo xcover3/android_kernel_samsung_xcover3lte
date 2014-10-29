@@ -29,26 +29,15 @@
 #include <linux/of_device.h>
 #include "mmpfb.h"
 
-/* uboot display start address */
-static unsigned int disp_start_addr;
-static unsigned int skip_power_on;
-
-static int __init early_fbmem(char *str)
+/* As bootloader always enable display, so we usually skip power on sequence in kernel */
+static unsigned int no_skipped_power_on;
+static int __init early_fbboot(char *str)
 {
-	char *endp;
-	static unsigned int max_fb_size;
-
-	max_fb_size = memparse(str, &endp);
-	if (*endp == '@') {
-		disp_start_addr = memparse(endp + 1, NULL);
-#if !defined(CONFIG_MMP_VIRTUAL_RESOLUTION)
-		skip_power_on = 1;
-#endif
-	}
-
-	return 1;
+	/* If no_skipped_power_on, kernel will follow normal display power on sequence */
+	no_skipped_power_on = 1;
+	return 0;
 }
-early_param("fbmem", early_fbmem);
+early_param("fbboot", early_fbboot);
 
 static int __init early_resolution(char *str)
 {
@@ -877,25 +866,27 @@ static int mmpfb_probe(struct platform_device *pdev)
 		goto failed_destroy_mutex;
 	}
 
-	/* memset framebuffer, or there may be dirty data in fb */
-	memset(fbi->fb_start, 0, fbi->fb_size);
-	if (skip_power_on) {
+	/* memset the 1st framebuffer, or there may be dirty data in fb */
+	memset(fbi->fb_start, 0, fbi->fb_size / fbi->buffer_num);
+
+	if (!no_skipped_power_on) {
+		/*
+		 * in skipped power on sequence, if virtual display, just show black color;
+		 * if it's not virtual dispaly,  don't change the start address, so still
+		 * show the same logo as bootloader at the 2nd buffer.
+		 */
 		if (is_virtual_display) {
-			memcpy(fbi->fb_start, __va(disp_start_addr),
-				fbi->fb_size / fbi->buffer_num);
-		} else {
-			memcpy(fbi->fb_start + fbi->fb_size / fbi->buffer_num,
-				__va(disp_start_addr), fbi->fb_size / fbi->buffer_num);
-			info->var.yoffset = MMP_YALIGN(info->var.yres);
+			mmpfb_set_address(&info->var, fbi);
 		}
-	} else
+	} else {
 		mmpfb_set_win(info);
+		mmpfb_set_address(&info->var, fbi);
+	}
 
 	dev_info(fbi->dev, "fb phys_addr 0x%lx, virt_addr 0x%p, size %dk\n",
 		(unsigned long)fbi->fb_start_dma,
 		fbi->fb_start, (fbi->fb_size >> 10));
 
-	mmpfb_set_address(&info->var, fbi);
 #ifndef CONFIG_PM_RUNTIME
 	/* fb power on */
 	if (modes_num > 0)
@@ -919,14 +910,14 @@ static int mmpfb_probe(struct platform_device *pdev)
 		info->node, info->fix.id);
 
 #ifdef CONFIG_LOGO
-	if ((fbi->fb_start) && (!skip_power_on)) {
+	if ((fbi->fb_start) && (no_skipped_power_on)) {
 		fb_prepare_logo(info, 0);
 		fb_show_logo(info, 0);
 	}
 #endif
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_forbid(&pdev->dev);
-	skip_power_on = 0;
+	no_skipped_power_on = 1;
 
 	return 0;
 
@@ -966,10 +957,10 @@ static int mmpfb_runtime_resume(struct device *dev)
 	struct mmpfb_info *fbi = platform_get_drvdata(pdev);
 	struct fb_info *info = fbi->fb_info;
 
-	if (skip_power_on)
-		mmpfb_power(fbi, MMP_ON_REDUCED);
-	else
+	if (no_skipped_power_on)
 		mmpfb_power(fbi, MMP_ON);
+	else
+		mmpfb_power(fbi, MMP_ON_REDUCED);
 
 	fb_set_suspend(info, 0);
 
