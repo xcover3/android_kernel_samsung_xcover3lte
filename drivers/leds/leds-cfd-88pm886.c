@@ -138,6 +138,17 @@ static void pm886_led_delayed_work(struct work_struct *work)
 		pm886_led_bright_set(&led->cdev, 0);
 }
 
+static void torch_set_current(struct pm886_led *led)
+{
+	struct pm886_chip *chip;
+	chip = led->chip;
+	/* set torch current */
+	regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG1,
+			   PM886_TORCH_ISET_MASK,
+			   ((PM886_LED_ISET(led->brightness)) << PM886_TORCH_ISET_OFFSET));
+}
+
+
 static void torch_on(struct pm886_led *led)
 {
 	unsigned long jiffies;
@@ -146,11 +157,11 @@ static void torch_on(struct pm886_led *led)
 
 	chip = led->chip;
 	mutex_lock(&led->lock);
-	if (!gpio_en)
+	if (!gpio_en) {
 		/* clear CFD_PLS_ON to disable */
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM886_CF_CFD_PLS_ON, 0);
-	else {
+	} else {
 		ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
 		if (ret) {
 			dev_err(led->cdev.dev,
@@ -173,15 +184,12 @@ static void torch_on(struct pm886_led *led)
 	regmap_update_bits(chip->battery_regmap, PM886_BST_CONFIG6,
 			PM886_BST_ILIM_DIS, PM886_BST_ILIM_DIS);
 	/* automatic booster mode */
-	/* set torch current */
-	regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG1,
-			   PM886_TORCH_ISET_MASK,
-			   ((PM886_LED_ISET(led->brightness)) << PM886_TORCH_ISET_OFFSET));
-	if (!gpio_en)
+	torch_set_current(led);
+	if (!gpio_en) {
 		/* set CFD_PLS_ON to enable */
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM886_CF_CFD_PLS_ON, PM886_CF_CFD_PLS_ON);
-	else {
+	} else {
 		ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
 		if (ret) {
 			dev_err(led->cdev.dev,
@@ -301,6 +309,8 @@ static void pm886_led_work(struct work_struct *work)
 	} else if (led->id == PM886_TORCH_LED) {
 		if ((led->current_brightness == 0) && led->brightness)
 			torch_on(led);
+		if (led->brightness && (led->brightness != led->current_brightness))
+			torch_set_current(led);
 		if (led->brightness == 0)
 			torch_off(led);
 
