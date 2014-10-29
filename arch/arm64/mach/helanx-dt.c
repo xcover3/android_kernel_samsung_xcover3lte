@@ -42,6 +42,7 @@ static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_SD8XXX_RFKILL
 	OF_DEV_AUXDATA("mrvl,sd8x-rfkill", 0, "sd8x-rfkill", NULL),
 #endif
+	OF_DEV_AUXDATA("marvell,pxa27x-keypad", 0xd4012000, "pxa27x-keypad", NULL),
 	{}
 };
 
