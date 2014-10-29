@@ -51,7 +51,7 @@ static struct pm_qos_request touchboost_gpush_qos_min = {
 };
 #endif
 
-static unsigned int boost_enabled = 1;
+static unsigned int boost_enabled;
 static struct work_struct inputboost_wk;
 
 /*
