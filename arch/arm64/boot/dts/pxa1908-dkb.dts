@@ -117,7 +117,7 @@
 
 			coda7542: coda7542@d420d000 {
 				marvell,sram-internal = <0>;
-				marvell,nv21_support = <0>;
+				marvell,nv21_support = <1>;
 				marvell,seconddaxi_none = <1>;
 				marvell,power-domain = <&pd_smmu>;
 				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
