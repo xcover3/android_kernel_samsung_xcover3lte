@@ -1532,7 +1532,7 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 	}
 
 	pxa_unit->apmu_base = of_iomap(np, 1);
-	if (!pxa_unit->mpmu_base) {
+	if (!pxa_unit->apmu_base) {
 		pr_err("failed to map apmu registers\n");
 		return;
 	}
@@ -1544,7 +1544,7 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 	}
 
 	pxa_unit->apbcp_base = of_iomap(np, 3);
-	if (!pxa_unit->mpmu_base) {
+	if (!pxa_unit->apbcp_base) {
 		pr_err("failed to map apbcp registers\n");
 		return;
 	}
