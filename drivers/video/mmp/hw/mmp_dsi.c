@@ -393,7 +393,8 @@ static int dsi_tx_cmds_common(struct mmp_dsi_port *dsi_port,
 		 * support to send lower power mode command on multi lanes,
 		 * ulc1 and helan3 hw only use lane0 for lower power commands
 		 */
-		if (!DISP_GEN4_LITE(dsi->version) && cmd_line.lp) {
+		if (!(DISP_GEN4_LITE(dsi->version) || DISP_GEN4_PLUS(dsi->version))
+			&& cmd_line.lp) {
 			temp = kzalloc(sizeof(u8) * DSI_MAX_DATA_BYTES * dsi->setting.lanes,
 				GFP_KERNEL);
 			if (temp == NULL)

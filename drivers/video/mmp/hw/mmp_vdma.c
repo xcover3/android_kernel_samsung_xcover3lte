@@ -470,7 +470,16 @@ static void vdma_set_win(struct mmp_vdma_info *vdma_info,
 			vdma_set_on(vdma_info, 1);
 		}
 	}
-	vdma_ch_sel(vdma_info);
+
+	/* GEN4.5 remove channel map
+	 *  VDMA channel 0 is used for PN graphic path.
+	 *  VDMA channel 1 is used for TV graphic path (not exist in helan3).
+	 *  VDMA channel 2&3&4 is used for PN video path.
+	 *  VDMA channel 5&6&7 is used for TV video path (not exist in helan3).
+	 */
+	if (!DISP_GEN4_PLUS(vdma->version))
+		vdma_ch_sel(vdma_info);
+
 	vdma_set_dst_addr(vdma_info);
 	if (DISP_GEN4_LITE(vdma->version)) {
 		vdma_squ_set(vdma_info->overlay_id, vdma_info->sub_ch_num,
@@ -714,6 +723,11 @@ static void vdma_clk_ctrl_set_default(struct mmp_vdma *vdma)
 
 	if (DISP_GEN4(vdma->version)) {
 		tmp = readl_relaxed(&vdma_reg->clk_ctrl);
+
+		/* Fix me, remove this part once VDMA clock auto gating feature is ready */
+		if (DISP_GEN4_PLUS(vdma->version))
+			tmp |= VDMA_CLK_AUTO_CTRL_DIS_MASK;
+
 		/* By default only enable vdma channel 0 clock */
 		for (i = 0; i < vdma->vdma_channel_num; i++) {
 			vdma_info = &vdma->vdma_info[i];
