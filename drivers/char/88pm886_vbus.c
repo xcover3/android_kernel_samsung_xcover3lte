@@ -18,6 +18,10 @@
 #define PM886_CHG_CONFIG1		(0x28)
 #define PM886_USB_OTG_EN		(1 << 7)
 
+#define PM886_OTG_LOG1			(0x47)
+#define PM886_OTG_UVVBAT		(1 << 0)
+#define PM886_OTG_SHORT_DET		(1 << 1)
+
 #define PM886_BOOST_CFG1		(0x6B)
 #define PM886_OTG_BST_VSET_MASK		(0x7)
 #define PM886_OTG_BST_VSET(x)		((x - 3750) / 250)
@@ -85,6 +89,21 @@ static int pm886_get_vbus(unsigned int *level)
 	return 0;
 }
 
+static void pm886_vbus_check_errors(struct pm886_vbus_info *info)
+{
+	int val = 0;
+
+	regmap_read(info->chip->battery_regmap, PM886_OTG_LOG1, &val);
+
+	if (val & PM886_OTG_UVVBAT)
+		dev_err(info->chip->dev, "OTG error: OTG_UVVBAT\n");
+	if (val & PM886_OTG_SHORT_DET)
+		dev_err(info->chip->dev, "OTG error: OTG_SHORT_DET\n");
+
+	if (val)
+		regmap_write(info->chip->battery_regmap, PM886_OTG_LOG1, val);
+}
+
 static int pm886_set_vbus(unsigned int vbus)
 {
 	int ret;
@@ -103,10 +122,11 @@ static int pm886_set_vbus(unsigned int vbus)
 	if (ret)
 		return ret;
 
-	if (data != vbus)
-		pr_info("vbus set failed %x\n", vbus);
-	else
-		pr_info("vbus set done %x\n", vbus);
+	if (data != vbus) {
+		dev_err(vbus_info->chip->dev, "vbus set failed %x\n", vbus);
+		pm886_vbus_check_errors(vbus_info);
+	} else
+		dev_info(vbus_info->chip->dev, "vbus set done %x\n", vbus);
 
 	return 0;
 }
@@ -199,6 +219,9 @@ static void pm886_vbus_config(struct pm886_vbus_info *info)
 	/* set booster voltage to 5.0V */
 	regmap_update_bits(info->chip->battery_regmap, PM886_BOOST_CFG1,
 			PM886_OTG_BST_VSET_MASK, PM886_OTG_BST_VSET(5000));
+
+	/* clear OTG errors */
+	pm886_vbus_check_errors(info);
 
 	/* set id gpadc low/upp threshold and enable it */
 	switch (info->id_gpadc) {
