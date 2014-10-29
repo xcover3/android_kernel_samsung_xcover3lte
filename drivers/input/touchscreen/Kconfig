@@ -939,6 +939,11 @@ config TOUCHSCREEN_SYNAPTICS_DSX_I2C
           To compile this driver as a module, choose M here: the
           module will be called synaptics_dsx_i2c.
 
+config TOUCHSCREEN_MSG2133
+	tristate "MSG2133 touchscreen driver"
+	depends on I2C
+	help
+	  Say Y here if enable support for the MSG2133 touchscreen controller.
 
 config TOUCHSCREEN_SUR40
 	tristate "Samsung SUR40 (Surface 2.0/PixelSense) touchscreen"
