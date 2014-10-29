@@ -49,8 +49,9 @@
 #define CPCR			0x0
 #define CWUCRS			0x0048
 #define CWUCRM			0x004c
-#define APCR_C0			0x1080
-#define APCR_C1			0x1084
+#define APSLPW			0x1000
+#define APCR_CLUSTER0		0x1080
+#define APCR_CLUSTER1		0x1084
 #define APCR_PER		0x1088
 #define AWUCRS			0x1048
 #define AWUCRM			0x104c
@@ -64,10 +65,21 @@
 #define PMUM_DDRCORSD		(1 << 27)
 #define PMUM_APBSD		(1 << 26)
 #define PMUM_BBSD		(1 << 25)
+#define PMUM_VCTCXOSD		(1 << 19)
 #define PMUM_MSASLPEN		(1 << 14)
 #define PMUM_STBYEN		(1 << 13)
 #define PMUM_SPDTCMSD		(1 << 12)
 #define PMUM_LDMA_MASK		(1 << 3)
+
+/* APSLPW  Wake up enable bits */
+#define PMUM_SLPWP0		(1 << 23)
+#define PMUM_SLPWP1		(1 << 22)
+#define PMUM_SLPWP2		(1 << 21)
+#define PMUM_SLPWP3		(1 << 20)
+#define PMUM_SLPWP4		(1 << 18)
+#define PMUM_SLPWP5		(1 << 17)
+#define PMUM_SLPWP6		(1 << 16)
+#define PMUM_SLPWP7		(1 << 15)
 
 /* Wakeup sources */
 #define PMUM_GT_WAKEUP		(1 << 30)
