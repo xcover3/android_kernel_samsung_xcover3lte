@@ -48,6 +48,7 @@
 #define PATH_PER_PIPE 3
 
 static struct pm_qos_request b52isp_qos_idle;
+static struct pm_qos_request ddrfreq_qos_req_min;
 static int b52isp_req_qos;
 
 static void b52isp_tasklet(unsigned long data);
@@ -2568,6 +2569,9 @@ after_chain_unregister:
 			/* set the stream off flag for isp cmd*/
 			lpipe->cur_cmd->flags |= BIT(CMD_FLAG_STREAM_OFF);
 			ret = b52isp_try_apply_cmd(lpipe);
+			if (lpipe->cur_cmd->flags & CMD_FLAG_MS)
+				pm_qos_update_request(&ddrfreq_qos_req_min,
+						PM_QOS_DEFAULT_VALUE);
 			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_STREAM_OFF);
 			if (ret < 0) {
 				d_inf(1, "apply change cmd failed on port:%d\n",
@@ -2695,6 +2699,9 @@ stream_data_off:
 				}
 				if (lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS)) {
 					paxi->r_type = B52AXI_REVENT_MEMSENSOR;
+					pm_qos_update_request(
+							&ddrfreq_qos_req_min,
+							528000);
 					ret = b52isp_try_apply_cmd(lpipe);
 					if (ret < 0)
 						goto unlock;
@@ -3640,6 +3647,11 @@ static int b52isp_probe(struct platform_device *pdev)
 	b52isp_qos_idle.name = B52ISP_DRV_NAME;
 	pm_qos_add_request(&b52isp_qos_idle, PM_QOS_CPUIDLE_BLOCK,
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
+	ddrfreq_qos_req_min.name = B52ISP_DRV_NAME;
+	pm_qos_add_request(&ddrfreq_qos_req_min,
+				PM_QOS_DDR_DEVFREQ_MIN,
+				PM_QOS_DEFAULT_VALUE);
 
 	ret = b52isp_setup(b52isp);
 	if (unlikely(ret < 0)) {
