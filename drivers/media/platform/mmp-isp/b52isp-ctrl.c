@@ -779,7 +779,7 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 
 	case V4L2_EXPOSURE_MANUAL:
 		if (ctrls->auto_expo->is_new) {
-			if (ctrls->aec_manual_mode ==
+			if (ctrls->aec_manual_mode->val ==
 					CID_AEC_AUTO_THRESHOLD)
 				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
 								AEC_AUTO);
@@ -1046,7 +1046,7 @@ static int b52isp_ctrl_set_gain(struct b52isp_ctrls *ctrls, int id)
 		break;
 	case 0:
 		if (ctrls->auto_gain->is_new) {
-			if (ctrls->aec_manual_mode ==
+			if (ctrls->aec_manual_mode->val ==
 					CID_AEC_AUTO_THRESHOLD)
 				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
 								AEC_AUTO);

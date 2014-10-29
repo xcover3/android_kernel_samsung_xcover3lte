@@ -2477,6 +2477,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		struct isp_vnode *vnode, int stream)
 {
 	int ret = 0, port, out_id;
+	static int mm_stream;
 	struct isp_subdev *pipe;
 	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
 						struct isp_build, media_dev);
@@ -2545,6 +2546,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			ret = atomic_notifier_chain_unregister(
 					&paxi->irq_r1.head, &b52isp_mac_irq_nb);
 			WARN_ON(ret < 0);
+			mm_stream = 0;
 			break;
 		default:
 			WARN_ON(1);
@@ -2655,7 +2657,6 @@ stream_data_off:
 				 */
 				SETUP_WITH_DEFAULT_FORMAT;
 
-				paxi->r_type = B52AXI_REVENT_RAWPROCCESS;
 				lpipe->cur_cmd->output[out_id].vnode = vnode;
 				lpipe->cur_cmd->output[out_id].pix_mp =
 					vnode->format.fmt.pix_mp;
@@ -2663,9 +2664,17 @@ stream_data_off:
 				lpipe->cur_cmd->flags |=
 					BIT(CMD_FLAG_LOCK_AEAG);
 
-				if (lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))
+				if (mm_stream == 1) {
+					paxi->r_type = B52AXI_REVENT_MEMSENSOR;
+					ret = b52isp_try_apply_cmd(lpipe);
+					if (ret < 0)
+						goto unlock;
+				} else if (lpipe->cur_cmd->flags
+							& BIT(CMD_FLAG_MS))
 					ret = 0;
 				else {
+					paxi->r_type =
+						B52AXI_REVENT_RAWPROCCESS;
 					ret = b52isp_try_apply_cmd(lpipe);
 					if (ret < 0)
 						goto unlock;
@@ -2697,6 +2706,7 @@ stream_data_off:
 									isp_vb);
 					if (unlikely(WARN_ON(ret < 0)))
 						goto unlock;
+					mm_stream = 1;
 				}
 			}
 			break;
