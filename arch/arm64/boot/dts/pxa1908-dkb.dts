@@ -904,24 +904,20 @@
 					synaptics,sensor_max_y = <1392>;
 					synaptics,sensor_margin_x = <39>;
 					synaptics,sensor_margin_y = <0>;
+					avdd-supply = <&ldo11>;
 				};
 
-				touch2: s3202@1080p {
-					compatible = "synaptics,s3202-touch";
+				touch2: msg2133@26 {
+					compatible = "focaltech,msg2133";
 					pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
-					reg = <0x22>;
+					reg = <0x26>;
 					interrupt-parent = <&gpio>;
 					interrupts = <72 0x1>;
-					/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
-					synaptics,irq-flags =  <0x2002>;
-					synaptics,irq-gpios = <&gpio 72 0>;
-					synaptics,reset-gpios = <&gpio 75 0>;
-					synaptics,sensor_res_x = <1080>;
-					synaptics,sensor_res_y = <1920>;
-					synaptics,sensor_max_x = <1080>;
-					synaptics,sensor_max_y = <2070>;
-					synaptics,sensor_margin_x = <0>;
-					synaptics,sensor_margin_y = <0>;
+					focaltech,abs-x-max = <480>;
+					focaltech,abs-y-max = <854>;
+					focaltech,irq-gpios = <&gpio 72 0>;
+					focaltech,reset-gpios = <&gpio 75 0>;
+					focaltech,v_tsp-supply = <&ldo11>;
 				};
 			};
 
