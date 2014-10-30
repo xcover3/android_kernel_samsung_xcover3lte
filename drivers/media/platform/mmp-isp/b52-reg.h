@@ -830,7 +830,7 @@ extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 #define FW_P1_REG_AF_BASE           (0x33c00)
 #define FW_P2_REG_AF_BASE           (0x33e00)
 #define FW_P1_P2_AF_OFFSET (FW_P2_REG_AF_BASE - FW_P1_REG_AF_BASE)
-#define FW_REG_AF_OFFSET	(0x14)
+#define REG_FW_AF_OFFSET	(0x14)
 
 #define REG_FW_AF_CURR_POS          (0x03e)
 /*works with video AF*/
@@ -869,6 +869,8 @@ extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 
 #define REG_FW_FOCUS_MAN_TRIGGER    (0x141)
 	#define FOCUS_MAN_TRIGGER (0x1)
+
+#define REG_FW_AF_INFINITY_POS      (0x1ae)
 
 #define REG_FW_AF_5X5_WIN_MODE      (0x1e0)
 	#define AF_5X5_WIN_ENABLE    (0x1)

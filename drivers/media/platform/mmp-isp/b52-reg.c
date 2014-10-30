@@ -732,9 +732,9 @@ static void b52_read_vcm_info(int pipe_id, u16 *val)
 	/* get af from blueprint data.
 	 * pipeline1 and pipeline2 have different register*/
 	if (pipe_id == 0)
-		*val = b52_readw(FW_P1_REG_AF_BASE + FW_REG_AF_OFFSET);
+		*val = b52_readw(FW_P1_REG_AF_BASE + REG_FW_AF_OFFSET);
 	else
-		*val = b52_readw(FW_P2_REG_AF_BASE + FW_REG_AF_OFFSET);
+		*val = b52_readw(FW_P2_REG_AF_BASE + REG_FW_AF_OFFSET);
 }
 #endif
 

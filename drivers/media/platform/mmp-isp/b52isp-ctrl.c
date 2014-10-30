@@ -1287,7 +1287,7 @@ static int b52isp_set_focus_infinity(int id)
 	u32 base = FW_P1_REG_AF_BASE + id * FW_P1_P2_AF_OFFSET;
 
 	b52_writeb(base + REG_FW_AF_ACIVE, AF_STOP);
-	distance = b52_readw(base + FW_REG_AF_OFFSET);
+	distance = b52_readw(base + REG_FW_AF_INFINITY_POS);
 
 	return b52isp_set_focus_distance(distance, id);
 }
