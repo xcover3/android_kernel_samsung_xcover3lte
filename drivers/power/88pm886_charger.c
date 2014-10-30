@@ -259,9 +259,9 @@ static bool pm886_charger_check_allowed(struct pm886_charger_info *info)
 			dev_err(info->dev, "get battery property failed.\n");
 			return false;
 		}
-
 		if (val.intval >= (info->fastchg_vol - info->recharge_thr)) {
-			dev_dbg(info->dev, "voltage not low enough.\n");
+			dev_dbg(info->dev, "voltage not low enough (%d). wait until (%d)\n",
+				val.intval, info->fastchg_vol - info->recharge_thr);
 			return false;
 		} else {
 			info->allow_chg_after_overvoltage = 1;
