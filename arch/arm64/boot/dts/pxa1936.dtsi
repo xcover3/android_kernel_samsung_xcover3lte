@@ -603,6 +603,7 @@
 				clocks = <&soc_clocks PXA1U88_CLK_DBGCLK>,
 					 <&soc_clocks PXA1U88_CLK_TRACECLK>;
 				clock-names = "DBGCLK","TRACECLK";
+				status = "disabled";
 				#address-cells = <1>;
 				#size-cells = <1>;
 				reg = <0xd4100000 0x100000>;
