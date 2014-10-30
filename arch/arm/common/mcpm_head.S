@@ -17,6 +17,10 @@
 #include <asm/mcpm.h>
 #include <asm/assembler.h>
 
+#ifdef CONFIG_CPU_PXA1908
+#include "../kernel/entry-el2.S"
+#endif
+
 #include "vlock.h"
 
 .if MCPM_SYNC_CLUSTER_CPUS
@@ -47,7 +51,9 @@
 	.align
 
 ENTRY(mcpm_entry_point)
-
+#ifdef CONFIG_CPU_PXA1908
+	el2_setup
+#endif
  ARM_BE8(setend        be)
  THUMB(	adr	r12, BSYM(1f)	)
  THUMB(	bx	r12		)

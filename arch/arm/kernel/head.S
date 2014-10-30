@@ -23,6 +23,10 @@
 #include <asm/thread_info.h>
 #include <asm/pgtable.h>
 
+#ifdef CONFIG_CPU_PXA1908
+#include "entry-el2.S"
+#endif
+
 #if defined(CONFIG_DEBUG_LL) && !defined(CONFIG_DEBUG_SEMIHOSTING)
 #include CONFIG_DEBUG_LL_INCLUDE
 #endif
@@ -79,6 +83,10 @@
 
 	__HEAD
 ENTRY(stext)
+#ifdef CONFIG_CPU_PXA1908
+	head_arm64_arg_fix
+	el2_setup
+#endif
  ARM_BE8(setend	be )			@ ensure we are in BE8 mode
 
  THUMB(	adr	r9, BSYM(1f)	)	@ Kernel is always entered in ARM.
