@@ -534,6 +534,8 @@ struct mmp_path_ops {
 	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
 	int (*set_commit)(struct mmp_path *path);
 	void (*set_trigger)(struct mmp_path *path);
+	int (*set_dfc_rate)(struct mmp_path *path, unsigned long rate);
+	unsigned long (*get_dfc_rate)(struct mmp_path *path);
 	/* todo: add query */
 };
 
@@ -735,6 +737,18 @@ static inline int mmp_path_wait_special_vsync(struct mmp_path *path)
 {
 	if (path && path->ops.wait_special_vsync)
 		return path->ops.wait_special_vsync(path);
+	return 0;
+}
+static inline int mmp_path_set_dfc_rate(struct mmp_path *path, unsigned long rate)
+{
+	if (path && path->ops.set_dfc_rate)
+		return path->ops.set_dfc_rate(path, rate);
+	return 0;
+}
+static inline int mmp_path_get_dfc_rate(struct mmp_path *path)
+{
+	if (path && path->ops.get_dfc_rate)
+		return path->ops.get_dfc_rate(path);
 	return 0;
 }
 static inline int mmp_path_set_gamma(struct mmp_path *path,

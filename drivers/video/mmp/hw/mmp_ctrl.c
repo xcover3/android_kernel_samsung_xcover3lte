@@ -1905,7 +1905,9 @@ static int mmphw_runtime_suspend(struct device *dev)
 	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
 
 	ctrl->status = MMP_OFF;
+	mutex_lock(&ctrl->access_ok);
 	mmphw_regs_store(ctrl);
+	mutex_unlock(&ctrl->access_ok);
 
 	if (vdma)
 		vdma->ops->runtime_onoff(0);
@@ -1920,7 +1922,9 @@ static int mmphw_runtime_resume(struct device *dev)
 	struct mmp_path *path = ctrl->path_plats[0].path;
 	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
 
+	mutex_lock(&ctrl->access_ok);
 	mmphw_regs_recovery(ctrl);
+	mutex_unlock(&ctrl->access_ok);
 	ctrl->status = MMP_ON;
 
 	if (vdma)

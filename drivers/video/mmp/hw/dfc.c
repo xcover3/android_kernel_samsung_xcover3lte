@@ -68,6 +68,7 @@ static unsigned long pll3_default;
 static unsigned int lcd_clk_en;
 static unsigned int plat;
 static unsigned long original_rate;
+static unsigned int sclk_div;
 
 #if 0
 /* PLL post divider table */
@@ -144,6 +145,29 @@ static u32 dsi_get_bpp_from_inputfmt(int fmt)
 		pr_err("%s, err: fmt not support or mode not set\n", __func__);
 		return 0;
 	}
+}
+
+static unsigned long set_pixel_clk(struct mmp_dsi *dsi, unsigned long dsi_rate)
+{
+	unsigned long pixel_rate;
+	int x;
+	u32 bpp = dsi_get_bpp_from_inputfmt(
+			dsi->mode.pix_fmt_out);
+
+	x = bpp / dsi->setting.lanes;
+	pixel_rate = dsi_rate / x;
+	/*
+	 * FIXME: On ULC:
+	 * For WVGA with 2 lanes whose pixel_clk is lower than
+	 * esc clk, we need to set pixel >= esc clk, so that LP
+	 * cmd and video mode cna work.
+	 */
+	if (DISP_GEN4_LITE(dsi->version)) {
+		if (pixel_rate < ESC_52M)
+			pixel_rate = ESC_52M;
+	}
+
+	return pixel_rate;
 }
 
 static void get_parent_index(unsigned long rate, struct parent_index *index)
@@ -374,6 +398,7 @@ static int dynamic_change_lcd(struct mmphw_ctrl *ctrl, struct mmp_dfc *dfc)
 	} else {
 		writel_relaxed(ctrl->dfc.apmu_value, ctrl->dfc.apmu_reg);
 		writel_relaxed(ctrl->dfc.sclk_value, ctrl->dfc.sclk_reg);
+		sclk_div = ctrl->dfc.sclk_value;
 	}
 
 	spin_lock_irqsave(&ctrl->dfc.lock, flags);
@@ -400,21 +425,18 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 	struct clk *path_clk = path_to_path_plat(path)->clk;
 	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
 	struct parent_index target, source;
-	int x, best_parent_count = 0;
+	int best_parent_count = 0;
 	struct clk *dsi_clk = dsi->clk;
 	struct mmp_dfc *dfc;
 	struct mmp_dfc temp;
 	int i, ret = 0;
-	u32 bpp = dsi_get_bpp_from_inputfmt(
-			dsi->mode.pix_fmt_out);
 
 	memset(&target, 0, sizeof(target));
 	memset(&temp, 0, sizeof(temp));
 	memcpy(&temp, &ctrl->dfc, sizeof(temp));
 
-	x = bpp / dsi->setting.lanes;
 	temp.dsi_rate = rate * MHZ_TO_HZ;
-	temp.path_rate = (rate / x) * MHZ_TO_HZ;
+	temp.path_rate = set_pixel_clk(dsi, temp.dsi_rate);
 
 	temp.parent0 = __clk_lookup(parent0_clk_tbl[0]);
 
@@ -510,7 +532,7 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 			temp.parent1 =
 				__clk_lookup(parent1_clk_tbl[DFC_FREQ_PARENT1_DISPLAY1 - 1]);
 			temp.dsi_rate = temp.parent2->rate/2;
-			temp.path_rate = temp.dsi_rate / x;
+			temp.path_rate = set_pixel_clk(dsi, temp.dsi_rate);
 			/* add dfc reqyest to list */
 			dfc = kzalloc(sizeof(struct mmp_dfc),	GFP_KERNEL);
 			if (dfc == NULL)
@@ -522,7 +544,7 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 
 		/* prepare the second change */
 		temp.dsi_rate = rate * MHZ_TO_HZ;
-		temp.path_rate = (rate / x) * MHZ_TO_HZ;
+		temp.path_rate = set_pixel_clk(dsi, temp.dsi_rate);
 		dfc = kzalloc(sizeof(struct mmp_dfc),	GFP_KERNEL);
 		if (dfc == NULL)
 			goto prepare_fail;
@@ -616,12 +638,86 @@ static void dfc_handle(void *data)
 		writel_relaxed(ctrl->dfc.apmu_value, ctrl->dfc.apmu_reg);
 		temp = (ctrl->dfc.sclk_value | (0x1<<28));
 		writel_relaxed(ctrl->dfc.sclk_value, ctrl->dfc.sclk_reg);
+
+		sclk_div = ctrl->dfc.sclk_value;
 		/* enable sclk end */
 		temp = readl_relaxed(ctrl->dfc.sclk_reg);
 		temp &= ~(0x1<<28);
 		writel_relaxed(temp, ctrl->dfc.sclk_reg);
 		atomic_set(&ctrl->dfc.commit, 0);
+
 	}
+}
+
+static int dfc_set_rate(struct mmp_path *path, unsigned long rate)
+{
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+	int ret;
+
+	mutex_lock(&ctrl->access_ok);
+
+	if (!path->status) {
+		/*
+		 * FIXME: enable hclk to do register operation.
+		 * TODO: Better use power domain on off
+		 */
+		clk_prepare_enable(__clk_lookup("LCDCIHCLK"));
+		writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
+				ctrl->reg_base + LCD_SCLK_DIV);
+	}
+
+	ret = dfc_prepare(ctrl, rate);
+	if (ret < 0) {
+		pr_err("dfc prepare failure\n");
+		mutex_unlock(&ctrl->access_ok);
+		return -1;
+	}
+	ret = dfc_commit(ctrl);
+	if (ret < 0) {
+		pr_err("dfc commit failure\n");
+		mutex_unlock(&ctrl->access_ok);
+		return -1;
+	}
+
+	if (!path->status) {
+		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
+		clk_disable_unprepare(__clk_lookup("LCDCIHCLK"));
+	}
+
+	mutex_unlock(&ctrl->access_ok);
+	return 0;
+}
+
+static unsigned long dfc_get_rate(struct mmp_path *path)
+{
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+	unsigned long rate;
+	int val;
+
+	mutex_lock(&ctrl->access_ok);
+	if (!path->status) {
+		clk_prepare_enable(__clk_lookup("LCDCIHCLK"));
+		writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
+				ctrl->reg_base + LCD_SCLK_DIV);
+	}
+
+	/*
+	 * Show mipi dsi rate in sprintf buffer so that
+	 * upper side can get this rate directly by read
+	 * sysfs node.
+	 */
+	rate = clk_get_rate(__clk_lookup("dsi_sclk"));
+	val = sclk_div;
+	val &= DSI1_BITCLK_DIV_MASK;
+	val = val >> 8;
+	rate = rate/val/1000000;
+
+	if (!path->status) {
+		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
+		clk_disable_unprepare(__clk_lookup("LCDCIHCLK"));
+	}
+	mutex_unlock(&ctrl->access_ok);
+	return rate;
 }
 
 #define    DIP_START   1
@@ -630,45 +726,17 @@ static void dfc_handle(void *data)
 int dfc_request(struct notifier_block *b, unsigned long val, void *v)
 {
 	struct mmp_path *path = mmp_get_path("mmp_pnpath");
-	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
-	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
-	struct clk *dsi_clk = dsi->clk;
 	u32 rate;
 	int ret;
-	static int initial_once = 1;
-
-	if (initial_once && (!IS_ERR_OR_NULL(dsi_clk))) {
-		original_rate = clk_get_rate(dsi_clk);
-		initial_once = 0;
-	}
 
 	if (val == DIP_START)
 		rate = *((u32 *)v);
 	else
 		rate = original_rate / MHZ_TO_HZ;
 
-	mutex_lock(&ctrl->access_ok);
-
-	if (!path->status)
-		clk_prepare_enable(dsi_clk);
-
-	ret = dfc_prepare(ctrl, rate);
-	if (ret < 0) {
-		pr_err("dfc prepare failure\n");
-		mutex_unlock(&ctrl->access_ok);
+	ret = dfc_set_rate(path, (unsigned long)rate);
+	if (ret < 0)
 		return NOTIFY_BAD;
-	}
-	ret = dfc_commit(ctrl);
-	if (ret < 0) {
-		pr_err("dfc commit failure\n");
-		mutex_unlock(&ctrl->access_ok);
-		return NOTIFY_BAD;
-	}
-
-	if (!path->status)
-		clk_disable_unprepare(dsi_clk);
-
-	mutex_unlock(&ctrl->access_ok);
 
 	return NOTIFY_OK;
 }
@@ -685,8 +753,8 @@ ssize_t freq_show(struct device *dev, struct device_attribute *attr,
 	struct clk *path_clk = path_to_path_plat(path)->clk;
 	struct clk *clk;
 	unsigned long rate;
+	int s = 0;
 
-	mutex_lock(&ctrl->access_ok);
 	clk = path_clk;
 	while (!IS_ERR_OR_NULL(clk)) {
 		rate = clk_get_rate(clk);
@@ -694,8 +762,11 @@ ssize_t freq_show(struct device *dev, struct device_attribute *attr,
 			clk->name, clk->num_parents, rate, clk->enable_count);
 		clk = clk_get_parent(clk);
 	}
-	mutex_unlock(&ctrl->access_ok);
-	return 0;
+
+	rate = dfc_get_rate(path);
+	s += sprintf(buf + s, "%ld\n", rate);
+
+	return s;
 }
 
 static ssize_t freq_store(
@@ -704,12 +775,9 @@ static ssize_t freq_store(
 {
 	struct mmphw_ctrl *ctrl = dev_get_drvdata(dev);
 	struct mmp_path *path = ctrl->path_plats[0].path;
-	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
-	struct clk *dsi_clk = dsi->clk;
 	unsigned long rate;
 	int ret;
 
-	mutex_lock(&ctrl->access_ok);
 	if (size > 30) {
 		mutex_unlock(&ctrl->access_ok);
 		pr_err("%s size = %zd > max 30 chars\n", __func__, size);
@@ -723,23 +791,10 @@ static ssize_t freq_store(
 		return ret;
 	}
 
-	if (!path->status)
-		clk_prepare_enable(dsi_clk);
-
-	ret = dfc_prepare(ctrl, rate);
-	if (ret < 0) {
-		pr_err("dfc prepare failure\n");
-		mutex_unlock(&ctrl->access_ok);
-		return size;
-	}
-	ret = dfc_commit(ctrl);
+	ret = dfc_set_rate(path, rate);
 	if (ret < 0)
-		pr_err("dfc commit failure\n");
+		return ret;
 
-	if (!path->status)
-		clk_disable_unprepare(dsi_clk);
-
-	mutex_unlock(&ctrl->access_ok);
 	return size;
 }
 DEVICE_ATTR(freq, S_IRUGO | S_IWUSR, freq_show, freq_store);
@@ -751,7 +806,7 @@ void ctrl_dfc_init(struct device *dev)
 	struct clk *path_clk = path_to_path_plat(path)->clk;
 	struct mmp_vsync_notifier_node *dfc_notifier_node = NULL;
 	unsigned int apmu_lcd;
-	int count, i;
+	int count, i, val;
 	struct device_node *np = of_find_node_by_name(NULL, "disp_apmu");
 	const char *clk_name = NULL;
 
@@ -813,10 +868,24 @@ void ctrl_dfc_init(struct device *dev)
 	ctrl->dfc.apmu_reg = ioremap(apmu_lcd , 4);
 	ctrl->dfc.sclk_reg = ctrl->reg_base + LCD_PN_SCLK;
 
+	sclk_div = readl_relaxed(ctrl->dfc.sclk_reg);
 	pll3_vco_default = clk_get_rate(__clk_lookup("pll4_vco"));
 	pll3_default = clk_get_rate(__clk_lookup("pll4"));
 
 	device_create_file(dev, &dev_attr_freq);
+
+	path->ops.set_dfc_rate = dfc_set_rate;
+	path->ops.get_dfc_rate = dfc_get_rate;
+
+	/*
+	 * FIXME: get original rate before dfc, so we can
+	 * set the original rate after dfc.
+	 */
+	original_rate = clk_get_rate(__clk_lookup("dsi_sclk"));
+	val = sclk_div;
+	val &= DSI1_BITCLK_DIV_MASK;
+	val = val >> 8;
+	original_rate = original_rate/val;
 
 	dip_register_notifier(&dip_disp_notifier, 0);
 }
