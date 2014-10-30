@@ -405,7 +405,7 @@
 			};
 
 			b52isp: b52isp@0xC0200000 {
-				compatible = "ovt,single-pipeline ISP";
+				compatible = "ovt,single-pipeline ISP(Lite)";
 				reg = <0xC0200000 0xFFFFF>;
 				reg-name = "b52isp-regs";
 				interrupts = <0 11 0x4>;
