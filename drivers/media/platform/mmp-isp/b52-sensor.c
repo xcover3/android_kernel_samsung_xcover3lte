@@ -21,6 +21,7 @@
 #include <media/b52-sensor.h>
 #include <linux/leds.h>
 #include <linux/math64.h>
+#include <uapi/media/b52_api.h>
 
 #include <media/mv_sc2_twsi_conf.h>
 
@@ -743,11 +744,11 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 				&sensor->csi.dphy_desc, sensor->mclk);
 
 	b52_sensor_call(sensor, update_otp,
-			&sensor->opt);
+			&sensor->otp);
 
 	module = sensor->drvdata->module;
 	for (num = 0; num < sensor->drvdata->num_module; num++)
-		if (sensor->opt.module_id == module->id)
+		if (sensor->otp.module_id == module->id)
 			break;
 
 	if (num < sensor->drvdata->num_module)
@@ -1275,10 +1276,11 @@ static int b52_sensor_set_defalut(struct b52_sensor *sensor)
 	if (!sensor->drvdata->ops->update_otp) {
 		pr_err("error: update_otp not defined\n");
 		return -EINVAL;
-	} else
+	} else {
 		sensor->ops.update_otp =
 			sensor->drvdata->ops->update_otp;
-
+		sensor->otp.otp_ctrl = 3;
+	}
 	return 0;
 }
 
@@ -2045,6 +2047,10 @@ static int b52_sensor_s_ctrl(struct v4l2_ctrl *ctrl)
 		b52_sensor_config_flash(flash);
 		break;
 
+	case V4L2_CID_PRIVATE_SENSOR_OTP_CONTROL:
+		sensor->otp.otp_ctrl = ctrl->val;
+		break;
+
 	default:
 		pr_err("%s: ctrl %x not support\n", __func__, ctrl->id);
 		return -EINVAL;
@@ -2056,6 +2062,17 @@ static int b52_sensor_s_ctrl(struct v4l2_ctrl *ctrl)
 static struct v4l2_ctrl_ops b52_sensor_ctrl_ops = {
 	.g_volatile_ctrl = b52_sensor_g_ctrl,
 	.s_ctrl          = b52_sensor_s_ctrl,
+};
+
+static struct v4l2_ctrl_config b52_sensor_otp_ctrl_cfg = {
+	.ops = &b52_sensor_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_SENSOR_OTP_CONTROL,
+	.name = "B52 Sensor OTP Control",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = V4L2_CID_SENSOR_OTP_CONTROL_NONE,
+	.max = V4L2_CID_SENSOR_OTP_CONTROL_WB | V4L2_CID_SENSOR_OTP_CONTROL_LENC,
+	.step = 1,
+	.def = V4L2_CID_SENSOR_OTP_CONTROL_WB | V4L2_CID_SENSOR_OTP_CONTROL_LENC,
 };
 
 static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
@@ -2187,6 +2204,8 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 	if (ctrl != NULL)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
+
+	v4l2_ctrl_new_custom(&ctrls->ctrl_hdl, &b52_sensor_otp_ctrl_cfg, NULL);
 
 	sensor->sd.ctrl_handler = &ctrls->ctrl_hdl;
 

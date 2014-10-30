@@ -26,6 +26,8 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/of_device.h>
+#include <uapi/media/b52_api.h>
+
 #include "ov13850.h"
 static int OV13850_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
@@ -407,11 +409,17 @@ static int OV13850_update_otp(struct v4l2_subdev *sd,
 	ret = update_otp_info(sensor, otp);
 	if (ret < 0)
 		return ret;
-	ret = update_otp_wb(sensor, otp);
-	if (ret < 0)
-		return ret;
-	ret = update_otp_lenc(sensor);
-	if (ret < 0)
-		return ret;
+
+	if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_WB) {
+		ret = update_otp_wb(sensor, otp);
+		if (ret < 0)
+			return ret;
+	}
+
+	if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_LENC) {
+		ret = update_otp_lenc(sensor);
+		if (ret < 0)
+			return ret;
+	}
 	return 0;
 }

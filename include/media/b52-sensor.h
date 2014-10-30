@@ -140,6 +140,7 @@ struct b52_sensor_otp {
 	u32 golden_bg_ratio;
 	u32 golden_gg_ratio;
 	u32 user_data[5];
+	u32 otp_ctrl;
 };
 
 struct b52_sensor_spec_ops {
@@ -301,7 +302,7 @@ struct b52_sensor {
 	struct sensor_power power;
 	enum b52_sensor_i2c_pos pos;
 
-	struct b52_sensor_otp opt;
+	struct b52_sensor_otp otp;
 
 	u32 mclk;
 	u32 pixel_rate;
