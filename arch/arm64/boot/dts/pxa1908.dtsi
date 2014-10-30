@@ -991,9 +991,10 @@
 
 	iml: iml@7ffffe0{
 		compatible = "marvell,mmp-iml";
-		reg = <0x07ffffe0 0x10>, <0xd403d200 0x10>, <0xd403b038 0x10>;
+		reg = <0x07ffffe0 0x10>, <0xd403d200 0x10>, <0xd403b038 0x10>, <0xd4282d24 0x4>;
 		interrupts = <0 56 0x4>;
 		interrupt-names = "IPC_MSA_DATA";
+		remap = <0 26 6>;
 		dmas = <&pdma0 0xFF 0>;
 		dma-names =  "iml-dma";
 		status = "disabled";

@@ -95,7 +95,7 @@ struct dma_req_arg {
 	dma_cookie_t tx_cookie;
 };
 
-static u32 mmap_addr;
+static dma_addr_t mmap_addr;
 static u32 iml_block_num = 512;
 static void __iomem *p_sharemem;
 static struct msa_ap_shmem_head *p_share_mem;
@@ -110,6 +110,7 @@ static int iml_module_major = RIPC_DMA_MAJOR;
 static int iml_module_minor;
 static unsigned char user_open_flag;	/*0:closed 1:open,2:open->closed */
 static bool handshake_flag;
+static dma_addr_t iml_dma_mask_set, iml_dma_mask_clear = (dma_addr_t)~0;
 
 
 static void first_ripc_handshake(void);
@@ -134,7 +135,6 @@ static void dump_mas_ap_head(struct msa_ap_shmem_head  *head)
 struct iml_pxa_dma {
 	struct dma_chan *dma_chan;
 	struct dma_async_tx_descriptor *desc;
-	int last_bytes;		/* size of last transmitted bytes */
 	struct tasklet_struct tsklet;
 };
 
@@ -258,6 +258,27 @@ static inline unsigned long block_to_phy(int block)
 	return (block << SLOT_SHIFT) + iml_dev.phybuf_addr;
 }
 
+/* val - content of cp remap register
+ * ap_offset - remap bit starting pos in CP addr remap register
+ * cp_offset - remap bit starting pos in CP address
+ * num - number of bits to remap
+ */
+static void cal_dma_mask(u32 val, u32 ap_offset, u32 cp_offset, u32 num)
+{
+	iml_dma_mask_set = ((val >> ap_offset) & ((1 << num) - 1));
+	iml_dma_mask_set <<= cp_offset;
+	iml_dma_mask_clear = (1 << num) - 1;
+	iml_dma_mask_clear = ~(iml_dma_mask_clear << cp_offset);
+	pr_info("dma_set_mask %p, dma_clear_mask %p\n",
+		(void *)iml_dma_mask_set, (void *)iml_dma_mask_clear);
+}
+
+/* replace higher bits of MSA addr */
+static inline dma_addr_t remap_dma_addr(dma_addr_t addr)
+{
+	return (addr & iml_dma_mask_clear) | iml_dma_mask_set;
+}
+
 static void ap_wakeup_dsp(void)
 {
 	debug_print("%s\n", __func__);
@@ -275,7 +296,7 @@ static void ap_wakeup_dsp(void)
 
 
 
-static void shecdule_rx(struct iml_module_device *dev)
+static void schedule_rx(struct iml_module_device *dev)
 {
 	tasklet_schedule(&dev->iml_dma->tsklet);
 }
@@ -309,8 +330,7 @@ static void dma_func_callback(void *arg)
 static void iml_dma_start_func(struct iml_module_device *dev)
 {
 	u16 datasize;
-	u32 src_phy_add;
-	dma_addr_t dst_phy_add = 0;
+	dma_addr_t src_phy_add, dst_phy_add;
 	enum dma_ctrl_flags flags = 0;
 	int read_slot_index;
 	int free_block;
@@ -324,7 +344,7 @@ static void iml_dma_start_func(struct iml_module_device *dev)
 		if (unlikely(free_block <= 0)) {
 			pr_err_ratelimited("error: no AP buffer is left\n");
 			wake_up_interruptible(&iml_dev.rx_wq);
-			shecdule_rx(&iml_dev);
+			schedule_rx(&iml_dev);
 			break;
 		}
 		next_write_block = get_next_write_pending_block(dev->ctl_head);
@@ -333,6 +353,7 @@ static void iml_dma_start_func(struct iml_module_device *dev)
 		datasize = p_share_mem->length;
 		dst_phy_add = block_to_phy(next_write_block);
 		src_phy_add = slot_to_phy(read_slot_index);
+		src_phy_add = remap_dma_addr(src_phy_add);
 
 		irq_debug_print("prepare DMA from slot %d => block %d\n",
 			read_slot_index, next_write_block);
@@ -503,7 +524,7 @@ static irqreturn_t ripc_interrupt_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 	slot_data_in_ring(slot);
-	shecdule_rx(&iml_dev);
+	schedule_rx(&iml_dev);
 	return IRQ_HANDLED;
 }
 
@@ -609,7 +630,7 @@ static int iml_iomem_probe(struct  platform_device *pdev)
 	/* iomap share mem header */
 	p_sharemem = of_shm_map_nocache(pdev, 0);
 	if (IS_ERR(p_sharemem)) {
-		dev_err(&pdev->dev, "ioremap p_sharemem falure\n");
+		dev_err(&pdev->dev, "ioremap p_sharemem failure\n");
 		ret = PTR_ERR(p_sharemem);
 		goto iomem_error;
 	}
@@ -621,7 +642,7 @@ static int iml_iomem_probe(struct  platform_device *pdev)
 	}
 	ripc_base = devm_ioremap_resource(&pdev->dev, &res);
 	if (IS_ERR(ripc_base)) {
-		dev_err(&pdev->dev, "ioremap ripc_base falure\n");
+		dev_err(&pdev->dev, "ioremap ripc_base failure\n");
 		ret = PTR_ERR(ripc_base);
 		goto iomem_error;
 	}
@@ -633,12 +654,39 @@ static int iml_iomem_probe(struct  platform_device *pdev)
 	}
 	ripc_clock_reg = devm_ioremap_resource(&pdev->dev, &res);
 	if (IS_ERR(ripc_clock_reg)) {
-		dev_err(&pdev->dev, "ioremap ripc_clock_reg falure\n");
+		dev_err(&pdev->dev, "ioremap ripc_clock_reg failure\n");
 		ret = PTR_ERR(ripc_clock_reg);
 		goto iomem_error;
 	}
 
 	writel(0x02, ripc_clock_reg);
+
+	/* iomap dma addr remap */
+	if (of_address_to_resource(np, 3, &res) == 0) {
+		/* the DMA addr sent by MSA is not physical address
+		 * so we need to manually remap it to phy addr
+		 * note that DMA engine hardware on some platforms
+		 * can support non phy addr sent by MSA
+		 */
+		u32 reg, offset[3];
+		void __iomem *cp_remap;
+
+		if (of_property_read_u32_array(np, "remap", offset, 3))
+			dev_err(&pdev->dev, "cannot find remap offset\n");
+		else {
+			cp_remap = devm_ioremap_resource(&pdev->dev, &res);
+			if (IS_ERR(cp_remap)) {
+				dev_err(&pdev->dev,
+					"ioremap cp remap reg failure\n");
+				ret = PTR_ERR(cp_remap);
+				goto iomem_error;
+			}
+			reg = readl(cp_remap);
+			cal_dma_mask(reg, offset[0],
+				offset[1], offset[2]);
+		}
+	}
+
 	p_share_mem = (struct msa_ap_shmem_head *)p_sharemem;
 	p_share_mem->ripc_flag = 0;
 	dump_mas_ap_head(p_share_mem);
@@ -699,11 +747,8 @@ static int iml_dma_probe(struct  platform_device *pdev)
 	}
 
 	dev_info(&pdev->dev,
-		"DMA alloc coherent vire "
-		"0x%p, phy 0x%x, "
-		"mem size: 0x%x\n",
-		buf_virt_add,
-		(u32) buf_phy_add,
+		"DMA alloc coherent virt 0x%p, phy 0x%p, mem size: 0x%x\n",
+		buf_virt_add, (void *)buf_phy_add,
 		IML_BLOCK_SIZE * iml_block_num);
 
 	iml_dev.iml_dma = devm_kzalloc(&pdev->dev,
