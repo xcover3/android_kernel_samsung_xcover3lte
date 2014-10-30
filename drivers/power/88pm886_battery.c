@@ -850,10 +850,13 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 	old_soc = ccnt_val->soc;
 	switch (chg_status) {
 	case POWER_SUPPLY_STATUS_CHARGING:
-		/* TODO: add protection here? */
 		dev_dbg(info->dev, "%s: before: charging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
+
+		/* the column counter has reached 100% here, clamp it to 99% */
+		ccnt_val->soc = (ccnt_val->soc >= 100) ? 99 : ccnt_val->soc;
 		info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
+
 		dev_dbg(info->dev, "%s: after: charging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
 		break;
