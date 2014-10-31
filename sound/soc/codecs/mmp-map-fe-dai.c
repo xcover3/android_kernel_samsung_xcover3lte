@@ -33,6 +33,7 @@
 #include <linux/gpio.h>
 #include <linux/input.h>
 #include <linux/mfd/mmp-map.h>
+#include <linux/mfd/88pm80x.h>
 
 struct map_fe_dai_private {
 	struct snd_soc_codec *codec;
@@ -1485,6 +1486,9 @@ static int mmp_map_startup(struct snd_pcm_substream *substream,
 	if (codec_dai->id == 3)
 		map_priv->bt_fm_sel = true;
 
+	/* enable audio mode for all audio scenarios*/
+	if (map_priv->sleep_vol > 0)
+		buck1_audio_mode_ctrl(1);
 	return 0;
 }
 
@@ -1525,6 +1529,9 @@ static void mmp_map_shutdown(struct snd_pcm_substream *substream,
 	if (codec_dai->id == 3)
 		map_priv->bt_fm_sel = false;
 
+	/* disable audio mode */
+	if (map_priv->sleep_vol > 0)
+		buck1_audio_mode_ctrl(0);
 	return;
 }
 
@@ -1736,9 +1743,25 @@ struct snd_soc_codec_driver soc_codec_dev_map = {
 
 static int mmp_map_fe_dai_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
 	struct map_private *map_priv = dev_get_drvdata(pdev->dev.parent);
 	struct map_fe_dai_private *map_fe_dai_priv;
 	int ret = 0;
+	u32 sleep_vol;
+
+	if (!np) {
+		dev_err(&pdev->dev, "no device node for map-fe\n");
+		return -EINVAL;
+	}
+
+	ret = of_property_read_u32(np, "sleep_vol", &sleep_vol);
+	/* if sleep_vol is not specificed, do not set audio mode voltage */
+	if (ret >= 0) {
+		/* set audio mode voltage */
+		set_buck1_audio_mode_vol(sleep_vol);
+		map_priv->sleep_vol = sleep_vol;
+	} else
+		map_priv->sleep_vol = 0;
 
 	map_fe_dai_priv = devm_kzalloc(&pdev->dev,
 		sizeof(struct map_fe_dai_private), GFP_KERNEL);

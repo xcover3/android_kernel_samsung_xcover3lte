@@ -476,6 +476,7 @@ struct map_private {
 	u32 bit_apb;
 	u32 pll_sel;
 	u32 apll;
+	u32 sleep_vol;
 	bool map_lite;
 	bool b0_fix;
 	bool	path_enabled;
