@@ -450,6 +450,12 @@ static int pm860_set_dai_startup(struct snd_pcm_substream *substream,
 			}
 		}
 
+#ifdef USE_3_WIRES_MODE
+		/* set 3 wires mode for codec */
+		tmp = snd_soc_read(codec, PM860_TDM_SETTING1);
+		tmp |= (1 << 7);
+		snd_soc_write(codec, PM860_TDM_SETTING1, tmp);
+#endif
 		/* enable pll_compat_mode */
 		tmp = snd_soc_read(codec, PM860_TDM_PLL_DIV);
 		tmp |= (1 << 5);
