@@ -16,7 +16,9 @@
 #include <linux/clk-provider.h>
 #include <linux/devfreq.h>
 #include <linux/clk/mmpdcstat.h>
+#include <linux/clk/mmpcpdvc.h>
 #include <linux/debugfs.h>
+
 #include "clk.h"
 #include "clk-plat.h"
 
@@ -179,6 +181,34 @@ unsigned int plat_get_vl_max(void)
 {
 	return platvl_max;
 }
+
+static struct cpmsa_dvc_info cpmsadvcinfo;
+
+/*
+ * This interface will be used by different platform to fill CP DVC info
+ */
+int fillcpdvcinfo(struct cpmsa_dvc_info *dvc_info)
+{
+	if (!dvc_info)
+		return -EINVAL;
+
+	memcpy(&cpmsadvcinfo, dvc_info, sizeof(struct cpmsa_dvc_info));
+	return 0;
+}
+
+/*
+ * This interface will be used by telephony to get CP DVC info, and
+ * they will use ACIPC to pass the info to CP
+ */
+int getcpdvcinfo(struct cpmsa_dvc_info *dvc_info)
+{
+	if (!dvc_info)
+		return -EINVAL;
+
+	memcpy(dvc_info, &cpmsadvcinfo, sizeof(struct cpmsa_dvc_info));
+	return 0;
+}
+EXPORT_SYMBOL(getcpdvcinfo);
 
 static struct comm_fuse_info comm_fuseinfo;
 

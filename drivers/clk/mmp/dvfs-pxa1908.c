@@ -14,6 +14,7 @@
 #include <linux/io.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/clk/dvfs-dvc.h>
+#include <linux/clk/mmpcpdvc.h>
 
 #include <linux/cputype.h>
 #include "clk-plat.h"
@@ -246,7 +247,7 @@ static unsigned long freqs_cmb_1908[VM_RAIL_MAX][VL_MAX] = {
 
 /* 8 VLs PMIC setting */
 /* FIXME: adjust according to SVC */
-static int vm_millivolts_1908_svcumc[][VL_MAX] = {
+static int vm_millivolts_1908_svcsec[][VL_MAX] = {
 	{1000, 1013, 1050, 1150, 1150, 1175, 1225, 1300},
 	{1000, 1013, 1050, 1150, 1150, 1175, 1225, 1300},
 	{925,  975,  988,  988,   988, 1013, 1075, 1125},/* Profile2 */
@@ -265,6 +266,13 @@ static int vm_millivolts_1908_svcumc[][VL_MAX] = {
 	{975,  1000, 1025, 1100, 1100, 1125, 1175, 1300},/* Profile13 */
 	{975,  1000, 1025, 1100, 1100, 1125, 1175, 1300},
 	{1000, 1013, 1050, 1150, 1150, 1175, 1225, 1300},/* Profile15 */
+};
+
+static struct cpmsa_dvc_info cpmsa_dvc_info_1908sec = {
+	.cpdvcinfo[0] = {416, VL1},
+	.cpdvcinfo[1] = {624, VL3},
+	.cpdvcinfo[2] = {832, VL5},
+	.msadvcvl = VL2,
 };
 
 /*
@@ -329,10 +337,12 @@ int __init setup_pxa1908_dvfs_platinfo(void)
 
 	/* FIXME: Here may need to identify chip stepping and profile */
 	dvc_pxa1908_info.millivolts =
-		vm_millivolts_1908_svcumc[uiprofile];
+		vm_millivolts_1908_svcsec[uiprofile];
 	freqs_cmb = freqs_cmb_1908;
 	plat_set_vl_min(0);
 	plat_set_vl_max(dvc_pxa1908_info.num_volts);
+
+	fillcpdvcinfo(&cpmsa_dvc_info_1908sec);
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
 	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);
