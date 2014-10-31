@@ -777,7 +777,7 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 		base + PHY_28NM_DIG_REG0);
 
 
-	if (cpu_is_pxa1928_b0() || cpu_is_pxa1908()) {
+	if (cpu_is_pxa1928_b0() || cpu_is_pxa1908() || cpu_is_pxa1936()) {
 		writel(readl(base + PHY_28NM_DIG_REG0) |
 			(0x0 << PHY_28NM_DIG_SQ_FILT_SHIFT
 			| 0x0 << PHY_28NM_DIG_SQ_BLK_SHIFT
