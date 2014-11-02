@@ -121,7 +121,10 @@ static inline int get_prechg_cur(struct pm886_charger_info *info)
 		info->prechg_cur = 750;
 	else if (info->prechg_cur < 300)
 		info->prechg_cur = 300;
-	return (info->prechg_cur - 300) / 150;
+	if (info->prechg_cur == 300)
+		return 0;
+	else
+		return (info->prechg_cur - 450) / 50 + 1;
 }
 
 static inline int get_prechg_vol(struct pm886_charger_info *info)
