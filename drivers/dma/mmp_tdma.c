@@ -100,6 +100,15 @@ enum mmp_tdma_type {
 	PXA910_SQU,
 };
 
+/*
+ * define mmp-tdma status
+ */
+enum {
+	TDMA_COMPLETE = 0,
+	TDMA_IN_PROGRESS,
+	TDMA_PAUSED,
+};
+
 #define TDMA_ALIGNMENT		3
 #define TDMA_MAX_XFER_BYTES    SZ_64K
 
@@ -117,6 +126,7 @@ struct mmp_tdma_chan {
 	u32				burst_sz;
 	enum dma_slave_buswidth		buswidth;
 	enum dma_status			status;
+	u32 dma_state;
 
 	int				idx;
 	enum mmp_tdma_type		type;
@@ -172,6 +182,7 @@ static void mmp_tdma_disable_chan(struct mmp_tdma_chan *tdmac)
 	tdcr &= ~TDCR_CHANEN;
 	writel(tdcr, tdmac->reg_base + TDCR);
 
+	tdmac->dma_state = TDMA_COMPLETE;
 	tdmac->status = DMA_COMPLETE;
 }
 
@@ -179,6 +190,7 @@ static void mmp_tdma_resume_chan(struct mmp_tdma_chan *tdmac)
 {
 	writel(readl(tdmac->reg_base + TDCR) | TDCR_CHANEN,
 					tdmac->reg_base + TDCR);
+	tdmac->dma_state = TDMA_IN_PROGRESS;
 	tdmac->status = DMA_IN_PROGRESS;
 }
 
@@ -186,6 +198,7 @@ static void mmp_tdma_pause_chan(struct mmp_tdma_chan *tdmac)
 {
 	writel(readl(tdmac->reg_base + TDCR) & ~TDCR_CHANEN,
 					tdmac->reg_base + TDCR);
+	tdmac->dma_state = TDMA_PAUSED;
 	tdmac->status = DMA_PAUSED;
 }
 
@@ -282,6 +295,7 @@ static int mmp_tdma_clear_chan_irq(struct mmp_tdma_chan *tdmac)
 		reg &= ~TDISR_COMP;
 		writel(reg, tdmac->reg_base + TDISR);
 
+		tdmac->dma_state = TDMA_IN_PROGRESS;
 		return 0;
 	}
 	return -EAGAIN;
@@ -299,6 +313,9 @@ static void dma_do_tasklet(unsigned long data)
 static size_t mmp_tdma_get_pos(struct mmp_tdma_chan *tdmac)
 {
 	size_t reg;
+	if (tdmac->dma_state == TDMA_COMPLETE)
+		return 0;
+
 	if (tdmac->idx == 0) {
 		reg = __raw_readl(tdmac->reg_base + TDSAR);
 		reg -= tdmac->desc_arr[0].src_addr;
@@ -574,6 +591,7 @@ static int mmp_tdma_chan_init(struct mmp_tdma_device *tdev,
 	tdmac->reg_base	   = (void __iomem *)tdev->base + idx * 4;
 	tdmac->pool	   = pool;
 	tdmac->status = DMA_COMPLETE;
+	tdmac->dma_state = TDMA_COMPLETE;
 	tdev->tdmac[tdmac->idx] = tdmac;
 	tasklet_init(&tdmac->tasklet, dma_do_tasklet, (unsigned long)tdmac);
 
