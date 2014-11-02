@@ -24,6 +24,7 @@
 #include <asm/errno.h>
 #include <asm/psci.h>
 #include <asm/smp_plat.h>
+#include <asm/suspend.h>
 
 #define PSCI_POWER_STATE_TYPE_STANDBY		0
 #define PSCI_POWER_STATE_TYPE_POWER_DOWN	1
@@ -171,8 +172,61 @@ static int psci_migrate(unsigned long cpuid)
 	return psci_to_linux_errno(err);
 }
 
+#ifdef CONFIG_ARM64_CPU_SUSPEND
+static int cpu_psci_cpu_suspend(unsigned long index)
+{
+	int ret;
+	struct psci_power_state state;
+
+	/*
+	* The cpu_ops suspend back-end implementation defines arg as
+	* the C-state index. The PSCI back-end has to translate it to a
+	* PSCI requested state using the following look-up.
+	*
+	* C1  - arg == 0 - standbywfi
+	* C2  - arg == 1 - CPU shutdown (affinity_level 0)
+	* MP2 - arg == 2 - CLUSTER shutdown (affinity_level 1)
+	* D1P - arg == 3 - D1P (affinity_level 2)
+	* D1  - arg == 4 - D1 (affinity_level 2)
+	* D2  - arg == 5 - D2 (affinity_level 2)
+	*/
+	state.type = index ? PSCI_POWER_STATE_TYPE_POWER_DOWN :
+			PSCI_POWER_STATE_TYPE_STANDBY;
+	if (index < 2)
+		state.affinity_level = 0;
+	else if (index == 2)
+		state.affinity_level = 1;
+	else
+		state.affinity_level = 2;
+
+	switch (index) {
+	case 0:
+	case 1:
+	case 2:
+		state.id = 0;
+		break;
+	case 3:
+		state.id = 1;
+		break;
+	case 4:
+		state.id = 3;
+		break;
+	case 5:
+		state.id = 7;
+		break;
+	default:
+		pr_err("unknown psci state!\n");
+		break;
+	};
+
+	ret = psci_ops.cpu_suspend(state, virt_to_phys(cpu_resume));
+
+	return ret;
+}
+#endif
+
 static const struct of_device_id psci_of_match[] __initconst = {
-	{ .compatible = "arm,psci",	},
+	{ .compatible = "arm,psci",},
 	{},
 };
 
@@ -290,6 +344,9 @@ const struct cpu_operations cpu_psci_ops = {
 #ifdef CONFIG_HOTPLUG_CPU
 	.cpu_disable	= cpu_psci_cpu_disable,
 	.cpu_die	= cpu_psci_cpu_die,
+#endif
+#ifdef CONFIG_ARM64_CPU_SUSPEND
+	.cpu_suspend	= cpu_psci_cpu_suspend,
 #endif
 };
 
