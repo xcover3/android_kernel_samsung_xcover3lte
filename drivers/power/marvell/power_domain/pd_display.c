@@ -63,17 +63,25 @@ enum {
 #define PMUA_ISLD_LCD_CTRL 0x1ac
 #define DMMY_CLK	(1 << 4)
 
+#define APMU_DEBUG 0x088
+#define DSI_PHY_DVM_MASK (1 << 31)
+
 static DEFINE_SPINLOCK(mmp_pd_display_lock);
 
 static int mmp_pd_pxa1u88_power_on(struct generic_pm_domain *domain)
 {
 	struct mmp_pd_display *pd = container_of(domain,
 			struct mmp_pd_display, genpd);
+	u32 val;
 
 	if (pd->hclk_clk)
 		clk_prepare_enable(pd->hclk_clk);
 	if (pd->esc_clk)
 		clk_prepare_enable(pd->esc_clk);
+
+	val = readl_relaxed(pd->reg_base + APMU_DEBUG) | DSI_PHY_DVM_MASK;
+	writel_relaxed(val, pd->reg_base + APMU_DEBUG);
+
 	if (pd->disp1_clk)
 		clk_prepare_enable(pd->disp1_clk);
 
@@ -84,9 +92,15 @@ static int mmp_pd_pxa1u88_power_off(struct generic_pm_domain *domain)
 {
 	struct mmp_pd_display *pd = container_of(domain,
 			struct mmp_pd_display, genpd);
+	u32 val;
 
 	if (pd->esc_clk)
 		clk_disable_unprepare(pd->esc_clk);
+
+	val = readl_relaxed(pd->reg_base + APMU_DEBUG);
+	val &= ~(DSI_PHY_DVM_MASK);
+	writel_relaxed(val, pd->reg_base + APMU_DEBUG);
+
 	if (pd->disp1_clk)
 		clk_disable_unprepare(pd->disp1_clk);
 	if (pd->hclk_clk)
