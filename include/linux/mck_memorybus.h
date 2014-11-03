@@ -156,6 +156,7 @@ struct ddr_devfreq_data {
 
 	/* used for debug interface */
 	atomic_t is_disabled;
+	atomic_t is_stopped;
 
 	struct timespec start_ts;
 	struct timespec stop_ts;

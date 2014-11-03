@@ -857,6 +857,50 @@ static ssize_t ddr_freq_show(struct device *dev, struct device_attribute *attr,
 		 clk_get_rate(data->ddr_clk) / KHZ_TO_HZ);
 }
 
+/* debug interface to enable/disable perf counter during AP suspend */
+static ssize_t stop_perf_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct platform_device *pdev;
+	struct ddr_devfreq_data *data;
+	int is_stopped;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	data = platform_get_drvdata(pdev);
+
+	if (0x1 != sscanf(buf, "%d", &is_stopped)) {
+		dev_err(dev, "<ERR> wrong parameter\n");
+		return -E2BIG;
+	}
+
+	is_stopped = !!is_stopped;
+	if (is_stopped == atomic_read(&data->is_stopped)) {
+		dev_info(dev, "perf counter has been already %s in suspend\n",
+			atomic_read(&data->is_stopped) ? "off" : "on");
+		return size;
+	}
+
+	if (is_stopped)
+		atomic_inc(&data->is_stopped);
+	else
+		atomic_dec(&data->is_stopped);
+
+	dev_info(dev, "perf counter is %s from debug interface!\n",
+		atomic_read(&data->is_stopped) ? "off" : "on");
+	return size;
+}
+
+static ssize_t stop_perf_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct platform_device *pdev;
+	struct ddr_devfreq_data *data;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	data = platform_get_drvdata(pdev);
+	return sprintf(buf, "perf counter is_stopped = %d\n",
+		 atomic_read(&data->is_stopped));
+}
 
 static struct ddr_devfreq_data *ddrfreq_data;
 
@@ -1024,6 +1068,8 @@ int ddr_profiling_store(int start)
 static struct pm_qos_request ddrfreq_qos_boot_max;
 static struct pm_qos_request ddrfreq_qos_boot_min;
 
+static DEVICE_ATTR(stop_perf_in_suspend, S_IRUGO | S_IWUSR,
+		stop_perf_show, stop_perf_store);
 static DEVICE_ATTR(high_upthrd_swp, S_IRUGO | S_IWUSR,
 	high_swp_show, high_swp_store);
 static DEVICE_ATTR(high_upthrd, S_IRUGO | S_IWUSR,
@@ -1321,13 +1367,22 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		ret = -ENOENT;
 		goto err_file_create1;
 	}
+
+	res = device_create_file(&pdev->dev, &dev_attr_stop_perf_in_suspend);
+	if (res) {
+		dev_err(dev,
+			"device attr stop_perf_in_suspend create fail: %d\n", res);
+		ret = -ENOENT;
+		goto err_file_create2;
+	}
+
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 	res = device_create_file(&pdev->dev, &dev_attr_high_upthrd_swp);
 	if (res) {
 		dev_err(dev,
 			"device attr high_upthrd_swp create fail: %d\n", res);
 		ret = -ENOENT;
-		goto err_file_create2;
+		goto err_file_create3;
 	}
 
 	res = device_create_file(&pdev->dev, &dev_attr_high_upthrd);
@@ -1379,6 +1434,8 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 
 err_file_create4:
 	device_remove_file(&pdev->dev, &dev_attr_high_upthrd_swp);
+err_file_create3:
+	device_remove_file(&pdev->dev, &dev_attr_stop_perf_in_suspend);
 err_file_create2:
 	device_remove_file(&pdev->dev, &dev_attr_ddr_freq);
 err_file_create1:
@@ -1433,6 +1490,7 @@ static int mck_suspend(struct device *dev)
 	unsigned long new_ddrclk, cp_request = 0;
 	struct platform_device *pdev;
 	struct ddr_devfreq_data *data;
+	unsigned long flags;
 
 	pdev = container_of(dev, struct platform_device, dev);
 	data = platform_get_drvdata(pdev);
@@ -1474,6 +1532,14 @@ static int mck_suspend(struct device *dev)
 	ddr_set_rate(data, new_ddrclk);
 	dev_info(dev, "Change ddr freq to lowest value. (cur: %luKhz)\n",
 		clk_get_rate(data->ddr_clk) / KHZ_TO_HZ);
+
+	if (atomic_read(&data->is_stopped)) {
+		dev_dbg(dev, "disable perf_counter before suspend!\n");
+		spin_lock_irqsave(&data->lock, flags);
+		stop_ddr_performance_counter(data);
+		spin_unlock_irqrestore(&data->lock, flags);
+	}
+
 	mutex_unlock(&data->devfreq->lock);
 	return 0;
 }
@@ -1482,11 +1548,20 @@ static int mck_resume(struct device *dev)
 {
 	struct platform_device *pdev;
 	struct ddr_devfreq_data *data;
+	unsigned long flags;
 
 	pdev = container_of(dev, struct platform_device, dev);
 	data = platform_get_drvdata(pdev);
 
 	mutex_lock(&data->devfreq->lock);
+
+	if (atomic_read(&data->is_stopped)) {
+		dev_dbg(dev, "restart perf_counter after resume!\n");
+		spin_lock_irqsave(&data->lock, flags);
+		start_ddr_performance_counter(data);
+		spin_unlock_irqrestore(&data->lock, flags);
+	}
+
 	/* scaling to saved frequency after exiting suspend */
 	ddr_set_rate(data, saved_ddrclk);
 	dev_info(dev, "Change ddr freq to saved value. (cur: %luKhz)\n",
