@@ -166,6 +166,7 @@ struct ccnt {
 	int alart_cc;
 	int real_last_cc;
 	int real_soc;
+	int previous_soc;
 	bool bypass_cc;
 };
 static struct ccnt ccnt_data;
@@ -932,6 +933,23 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 
 		/* the column counter has reached 100% here, clamp it to 99% */
 		ccnt_val->soc = (ccnt_val->soc >= 100) ? 99 : ccnt_val->soc;
+		/*
+		 * in supplement mode, if the load is so heavy that
+		 * it exceeds the charger's capability to power the system, the
+		 * battery is connected into the system and begins to discharge,
+		 * at this moment, the STATUS from charger is still "charging",
+		 * which makes sense from user's view.
+		 * so we need to monitor this case and hold the battery capacity
+		 * to make sure it doesn't drop.
+		 */
+		if (ccnt_val->previous_soc > ccnt_val->soc) {
+			dev_info(info->dev,
+				 "%s: supplement: previous_soc = %d%%, new_soc = %d%%\n",
+				 __func__,
+				 ccnt_val->previous_soc, ccnt_val->soc);
+			ccnt_val->soc = ccnt_val->previous_soc;
+		}
+
 		info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
 
 		/* clear this flag once the charging begins */
@@ -1015,6 +1033,17 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 
 		if (ccnt_val->soc <= 0)
 			ccnt_val->soc = 0;
+		/*
+		 * clamp the capacity can only decrease in discharging scenario;
+		 * just in case it happens
+		 */
+		if (ccnt_val->previous_soc < ccnt_val->soc) {
+			dev_info(info->dev,
+				 "%s: ?: previous_soc = %d%%, new_soc = %d%%\n",
+				 __func__,
+				 ccnt_val->previous_soc, ccnt_val->soc);
+			ccnt_val->soc = ccnt_val->previous_soc;
+		}
 
 		dev_dbg(info->dev, "%s: after: discharging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
@@ -1027,6 +1056,8 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		ccnt_val->last_cc =
 			(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
 	}
+
+	ccnt_val->previous_soc = ccnt_val->soc;
 
 	return;
 }
@@ -1281,6 +1312,7 @@ end:
 
 	ccnt_val->real_soc = ccnt_val->soc;
 	ccnt_val->real_last_cc = ccnt_val->last_cc;
+	ccnt_val->previous_soc = ccnt_val->soc;
 
 	dev_info(info->dev,
 		 "<---- %s: initial soc = %d\n", __func__, initial_soc);
