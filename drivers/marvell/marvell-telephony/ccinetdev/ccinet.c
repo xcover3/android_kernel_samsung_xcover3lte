@@ -50,12 +50,10 @@
 #define MAX_CID_NUM    8
 #define NETWORK_EMBMS_CID    0xFF
 
-#define SIOCUSECCINET    SIOCDEVPRIVATE
-#define SIOCRELEASECCINET (SIOCDEVPRIVATE+1)
-
-#define CCINET_IOCTL_SET_V6_CID (SIOCDEVPRIVATE+4)
-
-#define CCINET_IOCTL_SET_EMBMS_CID (SIOCDEVPRIVATE+5)
+#define CCINET_IOCTL_AQUIRE SIOCDEVPRIVATE
+#define CCINET_IOCTL_RELEASE (SIOCDEVPRIVATE+1)
+#define CCINET_IOCTL_SET_V6_CID (SIOCDEVPRIVATE+2)
+#define CCINET_IOCTL_SET_EMBMS_CID (SIOCDEVPRIVATE+3)
 
 struct ccinet_priv {
 	unsigned char is_used;
@@ -245,13 +243,9 @@ static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	int err = 0;
 	struct ccinet_priv *priv = netdev_priv(netdev);
 	switch (cmd) {
-	case SIOCUSECCINET:
+	case CCINET_IOCTL_AQUIRE:
 	{
-		int sim_id;
-		if (copy_from_user(&sim_id, rq->ifr_data, sizeof(sim_id))) {
-			err = -EFAULT;
-			break;
-		}
+		int sim_id = rq->ifr_ifru.ifru_ivalue;
 		spin_lock(&priv->lock);
 		if (priv->is_used) {
 			netdev_err(netdev,
@@ -262,19 +256,15 @@ static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		} else {
 			priv->sim_id = sim_id;
 			priv->is_used = 1;
-			netdev_err(netdev, "%s: SIM%d now use cid%d\n",
+			netdev_info(netdev, "%s: SIM%d now use cid%d\n",
 				__func__, sim_id + 1, (int)priv->cid);
 		}
 		spin_unlock(&priv->lock);
 		break;
 	}
-	case SIOCRELEASECCINET:
+	case CCINET_IOCTL_RELEASE:
 	{
-		int sim_id;
-		if (copy_from_user(&sim_id, rq->ifr_data, sizeof(sim_id))) {
-			err = -EFAULT;
-			break;
-		}
+		int sim_id = rq->ifr_ifru.ifru_ivalue;
 		spin_lock(&priv->lock);
 		if (priv->is_used) {
 			if (sim_id != priv->sim_id) {
@@ -288,13 +278,13 @@ static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				priv->sim_id = 0;
 				priv->is_used = 0;
 				spin_unlock(&priv->lock);
-				netdev_err(netdev,
+				netdev_info(netdev,
 					"%s: SIM%d now release cid%d\n",
 					__func__, sim_id + 1, (int)priv->cid);
 			}
 		} else {
 			spin_unlock(&priv->lock);
-			netdev_err(netdev,
+			netdev_warn(netdev,
 				"%s: SIM%d want release cid%d, but not used before\n",
 				__func__, sim_id + 1, priv->cid);
 		}
