@@ -286,6 +286,20 @@ static struct pm_qos_object cpu_freq_b_max_pm_qos = {
 	.name = "cpu_freq_b_max",
 };
 
+static BLOCKING_NOTIFIER_HEAD(cci_min_notifier);
+static struct pm_qos_constraints cci_min_constraints = {
+	.list = PLIST_HEAD_INIT(cci_min_constraints.list),
+	.notifiers = &cci_min_notifier,
+	.default_value = PM_QOS_DEFAULT_VALUE,
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.type = PM_QOS_MAX,
+};
+
+static struct pm_qos_object cci_min_pm_qos = {
+	.constraints = &cci_min_constraints,
+	.name = "cci_min",
+};
+
 #define DECLARE_GPU_NOTIFIER(CORE, MINMAX, TYPE) \
 	static BLOCKING_NOTIFIER_HEAD(gpu_freq_##CORE##_##MINMAX##_notifier); \
 	static struct pm_qos_constraints gpu_freq_##CORE##_##MINMAX##_constraints = { \
@@ -332,6 +346,7 @@ struct pm_qos_object *pm_qos_array[] = {
 	&cpu_freq_l_max_pm_qos,
 	&cpu_freq_b_min_pm_qos,
 	&cpu_freq_b_max_pm_qos,
+	&cci_min_pm_qos,
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,

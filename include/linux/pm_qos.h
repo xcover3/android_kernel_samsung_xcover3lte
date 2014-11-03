@@ -36,6 +36,7 @@ enum {
 	PM_QOS_CPUFREQ_L_MAX,
 	PM_QOS_CPUFREQ_B_MIN,
 	PM_QOS_CPUFREQ_B_MAX,
+	PM_QOS_CCI_MIN,
 	/* insert new class ID */
 	PM_QOS_NUM_CLASSES,
 };
