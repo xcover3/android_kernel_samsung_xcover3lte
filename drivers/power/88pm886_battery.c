@@ -1057,6 +1057,25 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 			(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
 	}
 
+	/* corner case: we need 1% step */
+	if (likely(abs(ccnt_val->previous_soc - ccnt_val->soc) <= 1)) {
+		dev_dbg(info->dev,
+			"%s: the step is fine: previous = %d%%, soc = %d%%\n",
+			__func__, ccnt_val->previous_soc, ccnt_val->soc);
+	} else {
+		if (ccnt_val->previous_soc - ccnt_val->soc > 1) {
+			ccnt_val->soc = ccnt_val->previous_soc - 1;
+			dev_info(info->dev,
+				 "%s: discharging too fast: previous = %d%%, soc = %d%%\n",
+				 __func__, ccnt_val->previous_soc, ccnt_val->soc);
+		} else {
+			ccnt_val->soc = ccnt_val->previous_soc + 1;
+			dev_info(info->dev,
+				 "%s: charging too fast? previous = %d%%, soc = %d%%\n",
+				 __func__, ccnt_val->previous_soc, ccnt_val->soc);
+		}
+	}
+
 	ccnt_val->previous_soc = ccnt_val->soc;
 
 	return;
