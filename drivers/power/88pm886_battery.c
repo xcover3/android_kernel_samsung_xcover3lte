@@ -835,6 +835,8 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
 	static int chg_status, old_soc;
+	static bool is_extreme_low;
+	static int power_off_cnt;
 
 	info->bat_params.volt = pm886_get_batt_vol(info, 1);
 	if (info->bat_params.status == POWER_SUPPLY_STATUS_UNKNOWN) {
@@ -856,6 +858,9 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		/* the column counter has reached 100% here, clamp it to 99% */
 		ccnt_val->soc = (ccnt_val->soc >= 100) ? 99 : ccnt_val->soc;
 		info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
+
+		/* clear this flag once the charging begins */
+		is_extreme_low = false;
 
 		dev_dbg(info->dev, "%s: after: charging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
@@ -894,18 +899,42 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		 *	|
 		 *	v
 		 * system is dead
+		 *
+		 * we monitor the voltage with load:
+		 * if voltage_with_load < power_off_th,
+		 *         soc is decreased with 1% step
+		 * _once_ voltage_with_load has ever been < safe_power_off_th
+		 * (it shows the voltage is really very low,
+		 *  we set is_extreme_low to indicate this condition)
+		 *         then every time we arrive here,
+		 *         the soc is decreased with 1% step
 		 */
-		if (info->bat_params.volt <= info->power_off_th) {
-			if (ccnt_val->soc > 0)
-				ccnt_val->soc--;
-			else if (ccnt_val->soc == 0)
-				ccnt_val->soc = 1;
-		} else if (info->bat_params.volt < info->safe_power_off_th) {
-			dev_info(info->dev, "%s: for safe: voltage = %d\n",
+		if (is_extreme_low) {
+			dev_info(info->dev, "%s: extreme_low : voltage = %d\n",
 				 __func__, info->bat_params.volt);
 			if (ccnt_val->soc >= 1)
 				ccnt_val->soc--;
+		} else {
+			if (info->bat_params.volt <= info->power_off_th) {
+				if (power_off_cnt > 5) {
+					power_off_cnt = 0;
+					if (ccnt_val->soc > 0)
+						ccnt_val->soc--;
+					else if (ccnt_val->soc == 0)
+						ccnt_val->soc = 1;
+				} else {
+					dev_info(info->dev, "hit power off!\n");
+					power_off_cnt++;
+				}
+			}
+			if (info->bat_params.volt < info->safe_power_off_th) {
+				dev_info(info->dev,
+					 "%s: for safe: voltage = %d\n",
+					 __func__, info->bat_params.volt);
+				is_extreme_low = true;
+			}
 		}
+
 		if (ccnt_val->soc <= 0)
 			ccnt_val->soc = 0;
 
