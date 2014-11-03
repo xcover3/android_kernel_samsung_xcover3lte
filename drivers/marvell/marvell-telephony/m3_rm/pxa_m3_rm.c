@@ -312,6 +312,7 @@ static int m3_open(struct inode *inode, struct file *filp)
 {
 	int port;
 	int gnss_open, senhub_open;
+	u32 apb_reg_v;
 	struct crmdev_dev *dev;  /* device information */
 
 	dev = container_of(inode->i_cdev, struct crmdev_dev, cdev);
@@ -348,6 +349,14 @@ static int m3_open(struct inode *inode, struct file *filp)
 
 		gps_ldo_control(1);
 		ldo_sleep_control(70000, "vm3pwr");
+		/* force anagrp power always on for GNSS power on */
+		if (clk_32k)
+			clk_enable(clk_32k);
+		else {
+			apb_reg_v = REG_READ(APB_SPARE9_REG);
+			apb_reg_v |= (0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+			REG_WRITE(apb_reg_v, APB_SPARE9_REG);
+		}
 	}
 	switch (port) {
 	case GNSS_PORT:
@@ -371,6 +380,7 @@ static int m3_open(struct inode *inode, struct file *filp)
 static int m3_close(struct inode *inode, struct file *filp)
 {
 	int port, gnss_open, senbub_open;
+	u32 apb_reg_v;
 	struct crmdev_dev *dev;  /* device information */
 
 	dev = container_of(inode->i_cdev, struct crmdev_dev, cdev);
@@ -408,6 +418,14 @@ static int m3_close(struct inode *inode, struct file *filp)
 	}
 
 	if (gnss_open == 0 && senbub_open == 0) {
+		/*clear anagrp power always on for GNSS power off */
+		if (clk_32k)
+			clk_disable(clk_32k);
+		else {
+			apb_reg_v = REG_READ(APB_SPARE9_REG);
+			apb_reg_v &= ~(0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+			REG_WRITE(apb_reg_v, APB_SPARE9_REG);
+		}
 		ldo_sleep_control(0, "vm3pwr");
 		gps_ldo_control(0);
 
