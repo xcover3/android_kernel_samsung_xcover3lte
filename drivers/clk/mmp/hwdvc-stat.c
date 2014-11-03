@@ -25,6 +25,7 @@ enum vlstat_mode {
 	/* support max 6 LPM now, could be extended */
 	LPM0,
 	LPM1,
+	/* support different vl from LPM2 */
 	LPM2,
 	LPM3,
 	LPM4,
@@ -184,9 +185,13 @@ void vol_dcstat_event(enum vlstat_msg msg, u32 midx, u32 vl)
 		vol_dcstat_update(ACTIVE);
 		break;
 	case VLSTAT_VOL_CHG:
-		vol_dcstat.mode_curlvl[midx] = vl;
-		if (midx == ACTIVE)
+		if (midx == ACTIVE) {
+			vol_dcstat.mode_curlvl[midx] = vl;
+			vol_dcstat.mode_curlvl[LPM0] = vl;
+			vol_dcstat.mode_curlvl[LPM1] = vl;
 			vol_dcstat_update(ACTIVE);
+		} else
+			vol_dcstat.mode_curlvl[LPM0 + midx] = vl;
 		break;
 	default:
 		pr_err("%s invaid event %u\n", __func__, msg);

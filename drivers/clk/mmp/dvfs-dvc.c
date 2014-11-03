@@ -591,7 +591,7 @@ static int hwdvc_set_m2_vl(struct dvfs_rail *rail, int lvl)
 	dvc_info->cached_cur_lvl[AP_LPM] = hwlvl;
 
 #ifdef CONFIG_VOLDC_STAT
-	vol_dcstat_event(VLSTAT_VOL_CHG, 1, hwlvl);
+	vol_dcstat_event(VLSTAT_VOL_CHG, 2, hwlvl);
 #endif
 	return 0;
 }
@@ -620,7 +620,7 @@ static int hwdvc_set_d1p_vl(struct dvfs_rail *rail, int lvl)
 	dvc_info->cached_cur_lvl[APSUB_IDLE] = hwlvl;
 
 #ifdef CONFIG_VOLDC_STAT
-	vol_dcstat_event(VLSTAT_VOL_CHG, 2, hwlvl);
+	vol_dcstat_event(VLSTAT_VOL_CHG, 3, hwlvl);
 #endif
 	return 0;
 }
