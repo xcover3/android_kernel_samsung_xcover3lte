@@ -259,6 +259,8 @@ static bool pm886_charger_check_allowed(struct pm886_charger_info *info)
 			dev_err(info->dev, "get battery property failed.\n");
 			return false;
 		}
+		/* change to mili-volts */
+		val.intval /= 1000;
 		if (val.intval >= (info->fastchg_vol - info->recharge_thr)) {
 			dev_dbg(info->dev, "voltage not low enough (%d). wait until (%d)\n",
 				val.intval, info->fastchg_vol - info->recharge_thr);

@@ -485,7 +485,7 @@ static int pm886_get_batt_vol(struct pm886_battery_info *info, int active)
 		return ret;
 	}
 
-	/* change to micro-voltage */
+	/* change to mili-volts */
 	vol /= 1000;
 
 	dev_dbg(info->dev, "%s: active = %d, voltage = %dmV\n",
@@ -1261,7 +1261,7 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		info->bat_params.volt = pm886_get_batt_vol(info, 1);
-		val->intval = info->bat_params.volt;
+		val->intval = (info->bat_params.volt * 1000);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		info->bat_params.ibat = pm886_get_ibat_cc(info);
