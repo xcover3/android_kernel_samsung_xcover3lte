@@ -143,6 +143,12 @@ struct pm886_battery_info {
 	int			t2;
 	int			t3;
 	int			t4;
+
+	int times_in_minus_ten;
+	int times_in_zero;
+
+	int offset_in_minus_ten;
+	int offset_in_zero;
 };
 
 static int ocv_table[100];
@@ -158,6 +164,9 @@ struct ccnt {
 	int last_cc;
 	int cc_offs;
 	int alart_cc;
+	int real_last_cc;
+	int real_soc;
+	bool bypass_cc;
 };
 static struct ccnt ccnt_data;
 
@@ -805,10 +814,11 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 	ccnt_uc = div_s64(ccnt_uc, 1000);
 	ccnt_mc = div_s64(ccnt_uc, 1000);
 	dev_dbg(info->dev,
-		"%s--> ccnt_uc: %lld uC, ccnt_mc: %lld mC, old->last_cc: %d%%\n",
-		__func__, ccnt_uc, ccnt_mc, ccnt_val->last_cc);
+		"%s--> ccnt_uc: %lld uC, ccnt_mc: %lld mC, old->last_cc: %d mC, old->real_last_cc: %d mC\n",
+		__func__, ccnt_uc, ccnt_mc, ccnt_val->last_cc, ccnt_val->real_last_cc);
 
 	/* 2. add the value */
+	ccnt_val->real_last_cc += ccnt_mc;
 	ccnt_val->last_cc += ccnt_mc;
 
 	/* 3. clap battery SoC for sanity check */
@@ -821,13 +831,78 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 		ccnt_val->last_cc = 0;
 	}
 
-	ccnt_val->soc = ccnt_val->last_cc * 100 / ccnt_val->max_cc;
+	/* keep updating the last_cc */
+	if (!ccnt_val->bypass_cc)
+		ccnt_val->soc = ccnt_val->last_cc * 100 / ccnt_val->max_cc;
+	else
+		dev_info(info->dev, "%s: CC is bypassed.\n", __func__);
 
 	dev_dbg(info->dev,
 		 "%s<-- ccnt_val->soc: %d%%, new->last_cc: %d mC\n",
 		 __func__, ccnt_val->soc, ccnt_val->last_cc);
 
+	if (ccnt_val->real_last_cc > ccnt_val->max_cc) {
+		ccnt_val->real_soc = 100;
+		ccnt_val->real_last_cc = ccnt_val->max_cc;
+	}
+	if (ccnt_val->real_last_cc < 0) {
+		ccnt_val->real_soc = 0;
+		ccnt_val->real_last_cc = 0;
+	}
+	ccnt_val->real_soc = ccnt_val->real_last_cc * 100 / ccnt_val->max_cc;
+
+	dev_dbg(info->dev,
+		 "%s<-- ccnt_val->real_soc: %d%%, new->real_last_cc: %d mC\n",
+		 __func__, ccnt_val->real_soc, ccnt_val->real_last_cc);
+
 	return 0;
+}
+
+static void pm886_battery_correct_low_temp(struct pm886_battery_info *info,
+					   struct ccnt *ccnt_val)
+{
+	int times, offset;
+	static bool temp_ever_low, temp_is_fine;
+
+	/* the temperature is multipled by 10 times */
+	if (info->bat_params.temp < -100) {
+		dev_info(info->dev, "temperature is lower than -10C\n");
+		times = info->times_in_minus_ten;
+		offset = info->offset_in_minus_ten;
+		temp_is_fine = false;
+		temp_ever_low = true;
+	} else if (info->bat_params.temp < 0) {
+		dev_info(info->dev, "temperature is lower than 0C\n");
+		times = info->times_in_zero;
+		offset = info->offset_in_zero;
+		temp_is_fine = false;
+		temp_ever_low = true;
+	} else {
+		times = 1;
+		offset = 0;
+		temp_is_fine = true;
+	}
+
+	/*
+	 * now the temperature resumes back,
+	 * but the temperature is low in the previous point,
+	 * we need to clamp the capacity until the real capacity falls down
+	 * to the same/lower value as ccnt_val->soc,
+	 * which is used to report to upper layer
+	 */
+	if (temp_is_fine && temp_ever_low) {
+		if (ccnt_val->real_soc <= ccnt_val->soc) {
+			ccnt_val->soc = ccnt_val->real_soc;
+			temp_ever_low = false;
+			ccnt_val->bypass_cc = false;
+		} else {
+			/* by pass the coulom counter for ccnt_val->soc */
+			ccnt_val->bypass_cc = true;
+		}
+	}
+
+	ccnt_val->soc *= times;
+	ccnt_val->soc -= offset;
 }
 
 /* correct SoC according to user scenario */
@@ -889,6 +964,9 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 	default:
 		dev_dbg(info->dev, "%s: before: discharging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
+
+		pm886_battery_correct_low_temp(info, ccnt_val);
+
 		/*
 		 * power_off_th      ===> capacity is no less than 1%
 		 *	|
@@ -1201,6 +1279,9 @@ end:
 	ccnt_val->last_cc =
 		(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
 
+	ccnt_val->real_soc = ccnt_val->soc;
+	ccnt_val->real_last_cc = ccnt_val->last_cc;
+
 	dev_info(info->dev,
 		 "<---- %s: initial soc = %d\n", __func__, initial_soc);
 
@@ -1451,6 +1532,12 @@ static int pm886_battery_dt_init(struct device_node *np,
 	info->t2 -= info->abs_lowest_temp;
 	info->t3 -= info->abs_lowest_temp;
 	info->t4 -= info->abs_lowest_temp;
+
+	of_property_read_u32(np, "times-in-minus-ten", &info->times_in_minus_ten);
+	of_property_read_u32(np, "offset-in-minus-ten", &info->offset_in_minus_ten);
+	of_property_read_u32(np, "times-in-zero", &info->times_in_zero);
+	of_property_read_u32(np, "offset-in-zero", &info->offset_in_zero);
+
 
 	return 0;
 }
