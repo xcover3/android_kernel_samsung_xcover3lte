@@ -162,7 +162,7 @@ endif
 
 	if [ -e $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/zImage ]; then cp -u $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/zImage $(PRODUCT_OUT); fi
 ifeq ($(ARCH),arm64)
-	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a 0x0A80000 -e 0x0A80000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
+	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a 0x0880000 -e 0x0880000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 else
 	$(MAKE) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
 endif
