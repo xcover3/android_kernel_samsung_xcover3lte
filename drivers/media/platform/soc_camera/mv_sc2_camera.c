@@ -1379,7 +1379,7 @@ static int mv_camera_probe(struct platform_device *pdev)
 	mcam_dev->id = pdev->id;
 	mcam_dev->pdev = pdev;
 	mcam_dev->dev = &pdev->dev;
-	mcam_dev->buffer_mode = B_DMA_CONTIG;
+	mcam_dev->buffer_mode = B_DMA_SG;
 
 	pm_runtime_enable(mcam_dev->dev);
 	mcam_dev->axi_clk = devm_clk_get(&pdev->dev, "SC2AXICLK");
