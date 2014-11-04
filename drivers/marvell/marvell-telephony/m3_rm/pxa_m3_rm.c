@@ -49,7 +49,7 @@
 #define DEBUG_MODE 0
 #define AXI_PHYS_ADDR 0xd4200000
 #define GEU_FUSE_VAL_APCFG3 0x10C
-#define ACQ_MIN_DDR_FREQ (528000)
+#define ACQ_MIN_DDR_FREQ (312000)
 
 static int m3_gnss_open_count;
 static int m3_senhub_open_count;
@@ -160,14 +160,14 @@ static void gps_ldo_control(int enable)
 	if (m3_regulator.reg_vm3) {
 		pr_info("gps_ldo_control: %d\n", enable);
 		if (enable) {
-			pr_info("ldo 13 enabled\n");
+			pr_info("gps ldo enabled\n");
 			regulator_set_voltage(m3_regulator.reg_vm3,
 					1800000, 1800000);
 			ret = regulator_enable(m3_regulator.reg_vm3);
 			if (ret)
 				pr_err("enable gps ldo fail!\n");
 		} else {
-			pr_info("ldo 13 disabled\n");
+			pr_info("gps ldo disabled\n");
 			ret = regulator_disable(m3_regulator.reg_vm3);
 			if (ret)
 				pr_err("disable gps ldo fail!\n");
@@ -568,11 +568,18 @@ static long m3_ioctl(struct file *filp,
 	case RM_IOC_M3_SET_ACQ_CONS:
 		if (copy_from_user(&cons_on, (int *)arg, sizeof(int)))
 			return -EFAULT;
-		pr_info("ACQ DDR constraint %s\n", cons_on ? "on" : "off");
-		if (cons_on)
-			pm_qos_update_request(&ddr_qos_min, ACQ_MIN_DDR_FREQ);
-		else
+		pr_info("ACQ DDR constraint %s, with value (%d)\n",
+				cons_on ? "on" : "off", cons_on);
+		if (cons_on) {
+			if (cons_on < ACQ_MIN_DDR_FREQ) {
+				pr_info("shift constraint (%d) to (%d)\n",
+					cons_on, ACQ_MIN_DDR_FREQ);
+				cons_on = ACQ_MIN_DDR_FREQ;
+			}
+			pm_qos_update_request(&ddr_qos_min, cons_on);
+		} else {
 			pm_qos_update_request(&ddr_qos_min, PM_QOS_DEFAULT_VALUE);
+		}
 	break;
 	default:
 	return -EOPNOTSUPP;
