@@ -30,6 +30,7 @@
 #define PM886_CHG_CONFIG1		(0x28)
 #define PM886_CHG_ENABLE		(1 << 0)
 #define PM886_CHG_WDT_EN		(1 << 1)
+#define PM886_USB_SUSP			(1 << 6)
 
 #define PM886_CHG_CONFIG3		(0x2A)
 #define PM886_OV_VBAT_EN		(1 << 0)
@@ -338,11 +339,22 @@ static int pm886_start_charging(struct pm886_charger_info *info)
 
 static int pm886_stop_charging(struct pm886_charger_info *info)
 {
+	unsigned int data;
+
 	dev_info(info->dev, "%s\n", __func__);
 	/* disable charging */
 	info->charging = 0;
-	return regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG1,
-				  PM886_CHG_ENABLE, 0);
+
+	regmap_read(info->chip->battery_regmap, PM886_CHG_CONFIG1, &data);
+	/* enable USB suspend */
+	data |= PM886_USB_SUSP;
+	regmap_write(info->chip->battery_regmap, PM886_CHG_CONFIG1, data);
+
+	/* disable USB suspend and stop charging */
+	data &= ~(PM886_USB_SUSP | PM886_CHG_ENABLE);
+	regmap_write(info->chip->battery_regmap, PM886_CHG_CONFIG1, data);
+
+	return 0;
 }
 
 static void pm886_chg_ext_power_changed(struct power_supply *psy)
