@@ -61,6 +61,6 @@ struct mmp_apical {
 	struct mmp_apical_info apical_info[0];
 };
 
-extern void apical_dbg_init(struct device *dev);
+extern int apical_dbg_init(struct device *dev);
 extern void apical_dbg_uninit(struct device *dev);
 #endif	/* _MMP_APICAL_H_ */

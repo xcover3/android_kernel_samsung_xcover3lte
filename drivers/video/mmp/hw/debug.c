@@ -52,8 +52,6 @@ void vsync_check_count(struct mmp_path *path)
 		return;
 	}
 
-	path->ops.set_irq(path, 1);
-
 	/* clear counts */
 	path->irq_count.vsync_count = 0;
 	path->irq_count.irq_count = 0;
@@ -61,6 +59,13 @@ void vsync_check_count(struct mmp_path *path)
 
 	/* trigger vsync check */
 	path->irq_count.vsync_check = 1;
+	/*
+	 * if vsync_check =1, irq handler won't call set_irq(path, 0)
+	 * so we can count vsync number with irq enable.
+	 * Or there will be corner case that irq happen once enable irq,
+	 * it will clear irq before vsync_check=1.
+	 */
+	path->ops.set_irq(path, 1);
 	init_timer(&vsync_timer);
 	vsync_timer.data = (unsigned long)path;
 	vsync_timer.function = vsync_check_timer;
@@ -140,32 +145,33 @@ ssize_t dsi_show(struct device *dev, struct device_attribute *attr,
 	s += sprintf(buf + s, "\trx2_header (@%p): 0x%x\n",
 		&dsi->rx2_header, readl(&dsi->rx2_header));
 	if (DISP_GEN4(mmp_dsi->version)) {
+		s += sprintf(buf + s, "\nDPHY regs\n");
 		s += sprintf(buf + s, "\tphy_ctrl1  (@%p): 0x%x\n",
-			&dsi->phy_ctrl1, readl(&dsi->phy.phy_ctrl1));
+			&dsi->phy.phy_ctrl1, readl(&dsi->phy.phy_ctrl1));
 		s += sprintf(buf + s, "\tphy_ctrl2  (@%p): 0x%x\n",
-			&dsi->phy_ctrl2, readl(&dsi->phy.phy_ctrl2));
+			&dsi->phy.phy_ctrl2, readl(&dsi->phy.phy_ctrl2));
 		s += sprintf(buf + s, "\tphy_ctrl3  (@%p): 0x%x\n",
-			&dsi->phy_ctrl3, readl(&dsi->phy.phy_ctrl3));
+			&dsi->phy.phy_ctrl3, readl(&dsi->phy.phy_ctrl3));
 		s += sprintf(buf + s, "\tphy_status0(@%p): 0x%x\n",
-			&dsi->phy_status0, readl(&dsi->phy.phy_status0));
+			&dsi->phy.phy_status0, readl(&dsi->phy.phy_status0));
 		s += sprintf(buf + s, "\tphy_status1(@%p): 0x%x\n",
-			&dsi->phy_status1, readl(&dsi->phy.phy_status1));
+			&dsi->phy.phy_status1, readl(&dsi->phy.phy_status1));
 		s += sprintf(buf + s, "\tphy_status2(@%p): 0x%x\n",
-			&dsi->phy_status2, readl(&dsi->phy.phy_status2));
+			&dsi->phy.phy_status2, readl(&dsi->phy.phy_status2));
 		s += sprintf(buf + s, "\tphy_rcomp0 (@%p): 0x%x\n",
-			&dsi->phy_rcomp0, readl(&dsi->phy.phy_rcomp0));
+			&dsi->phy.phy_rcomp0, readl(&dsi->phy.phy_rcomp0));
 		s += sprintf(buf + s, "\tphy_timing0(@%p): 0x%x\n",
-			&dsi->phy_timing0, readl(&dsi->phy.phy_timing0));
+			&dsi->phy.phy_timing0, readl(&dsi->phy.phy_timing0));
 		s += sprintf(buf + s, "\tphy_timing1(@%p): 0x%x\n",
-			&dsi->phy_timing1, readl(&dsi->phy.phy_timing1));
+			&dsi->phy.phy_timing1, readl(&dsi->phy.phy_timing1));
 		s += sprintf(buf + s, "\tphy_timing2(@%p): 0x%x\n",
-			&dsi->phy_timing2, readl(&dsi->phy.phy_timing2));
+			&dsi->phy.phy_timing2, readl(&dsi->phy.phy_timing2));
 		s += sprintf(buf + s, "\tphy_timing3(@%p): 0x%x\n",
-			&dsi->phy_timing3, readl(&dsi->phy.phy_timing3));
+			&dsi->phy.phy_timing3, readl(&dsi->phy.phy_timing3));
 		s += sprintf(buf + s, "\tphy_code_0 (@%p): 0x%x\n",
-			&dsi->phy_code_0, readl(&dsi->phy.phy_code_0));
+			&dsi->phy.phy_code_0, readl(&dsi->phy.phy_code_0));
 		s += sprintf(buf + s, "\tphy_code_1 (@%p): 0x%x\n",
-			&dsi->phy_code_1, readl(&dsi->phy.phy_code_1));
+			&dsi->phy.phy_code_1, readl(&dsi->phy.phy_code_1));
 	} else {
 		s += sprintf(buf + s, "\tphy_ctrl1  (@%p): 0x%x\n",
 			&dsi->phy_ctrl1, readl(&dsi->phy_ctrl1));
@@ -440,10 +446,30 @@ static ssize_t dsi_cmd_store(struct device *dev, struct device_attribute *attr,
 }
 DEVICE_ATTR(cmd, S_IWUSR, NULL, dsi_cmd_store);
 
-void dsi_dbg_init(struct device *dev)
+int dsi_dbg_init(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_dsi);
-	device_create_file(dev, &dev_attr_cmd);
+	int ret;
+
+	ret = device_create_file(dev, &dev_attr_dsi);
+	if (ret < 0)
+		goto err_dsireg;
+	ret = device_create_file(dev, &dev_attr_cmd);
+	if (ret < 0)
+		goto err_dsicmd;
+
+	return 0;
+
+err_dsicmd:
+	device_remove_file(dev, &dev_attr_dsi);
+err_dsireg:
+	return ret;
+
+}
+
+void dsi_dbg_uninit(struct device *dev)
+{
+	device_remove_file(dev, &dev_attr_cmd);
+	device_remove_file(dev, &dev_attr_dsi);
 }
 
 ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
@@ -676,9 +702,9 @@ static ssize_t lcd_store(
 }
 DEVICE_ATTR(lcd, S_IRUGO | S_IWUSR, lcd_show, lcd_store);
 
-void ctrl_dbg_init(struct device *dev)
+int ctrl_dbg_init(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_lcd);
+	return device_create_file(dev, &dev_attr_lcd);
 }
 
 ssize_t mmp_vdma_show(struct device *dev, struct device_attribute *attr,
@@ -688,7 +714,7 @@ ssize_t mmp_vdma_show(struct device *dev, struct device_attribute *attr,
 	struct mmp_vdma_info *vdma_info;
 	struct mmp_vdma_reg *vdma_reg;
 	struct mmp_vdma_ch_reg *ch_reg;
-	int i, path_id, index, s = 0;
+	int i, path_id, index, s = 0, channel_num = 8;
 	u32 tmp;
 	void *lcd_reg = vdma->lcd_reg_base;
 
@@ -754,7 +780,9 @@ ssize_t mmp_vdma_show(struct device *dev, struct device_attribute *attr,
 	s += sprintf(buf + s, "\tmain_ctrl    (@%p): 0x%x\n",
 		&vdma_reg->main_ctrl, readl_relaxed(&vdma_reg->main_ctrl));
 
-	for (i = 0; i < 8; i++) {
+	if (DISP_GEN4_LITE(vdma->version))
+		channel_num = 1;
+	for (i = 0; i < channel_num; i++) {
 		ch_reg = &vdma_reg->ch_reg[i];
 		s += sprintf(buf + s, "\tVDMA sub-channel:%d\n", i);
 		s += sprintf(buf + s, "\tdc_saddr     (@%p): 0x%x\n",
@@ -850,9 +878,9 @@ ssize_t mmp_vdma_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(vdma, S_IRUGO | S_IWUSR, mmp_vdma_show,
 	mmp_vdma_store);
 
-void vdma_dbg_init(struct device *dev)
+int vdma_dbg_init(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_vdma);
+	return device_create_file(dev, &dev_attr_vdma);
 }
 
 void vdma_dbg_uninit(struct device *dev)
@@ -1010,9 +1038,9 @@ ssize_t mmp_apical_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(apical, S_IRUGO | S_IWUSR, mmp_apical_show,
 	mmp_apical_store);
 
-void apical_dbg_init(struct device *dev)
+int apical_dbg_init(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_apical);
+	return device_create_file(dev, &dev_attr_apical);
 }
 
 void apical_dbg_uninit(struct device *dev)

@@ -401,5 +401,6 @@ struct dsi_phy_timing {
 	u32 lpx_ui;
 };
 
-extern void dsi_dbg_init(struct device *dev);
+extern int dsi_dbg_init(struct device *dev);
+extern void dsi_dbg_uninit(struct device *dev);
 #endif	/* _MMP_DSI_H_ */

@@ -166,6 +166,6 @@ struct mmp_vdma {
 	struct mmp_vdma_info vdma_info[0];
 };
 
-extern void vdma_dbg_init(struct device *dev);
+extern int vdma_dbg_init(struct device *dev);
 extern void vdma_dbg_uninit(struct device *dev);
 #endif	/* _MMP_VDMA_H_ */

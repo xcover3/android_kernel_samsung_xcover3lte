@@ -162,7 +162,12 @@ static int mmp_apical_probe(struct platform_device *pdev)
 		goto ioremap1_fail;
 	}
 	platform_set_drvdata(pdev, apical);
-	apical_dbg_init(apical->dev);
+	ret = apical_dbg_init(apical->dev);
+	if (ret < 0) {
+		dev_err(apical->dev, "%s: Failed to register apical dbg interface\n", __func__);
+		goto ioremap1_fail;
+	}
+
 	dev_info(&pdev->dev, "apical probe succeed\n");
 
 	return 0;

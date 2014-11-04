@@ -915,7 +915,11 @@ static int mmp_vdma_probe(struct platform_device *pdev)
 	of_property_read_u32(np, "marvell,vdma-axi", &use_axi);
 
 	platform_set_drvdata(pdev, vdma);
-	vdma_dbg_init(vdma->dev);
+	ret = vdma_dbg_init(vdma->dev);
+	if (ret < 0) {
+		dev_err(vdma->dev, "%s: Failed to register vdma dbg interface\n", __func__);
+		goto ioremap1_fail;
+	}
 
 	vdma->regs_store = devm_kzalloc(vdma->dev,
 			vdma->regs_len * sizeof(u32), GFP_KERNEL);
@@ -931,6 +935,7 @@ static int mmp_vdma_probe(struct platform_device *pdev)
 	return 0;
 
 ioremap1_fail:
+	vdma_dbg_uninit(vdma->dev);
 	devm_iounmap(&pdev->dev, vdma->reg_base);
 ioremap_fail:
 	devm_release_mem_region(&pdev->dev, res0->start, resource_size(res0));
@@ -952,6 +957,7 @@ static int mmp_vdma_remove(struct platform_device *pdev)
 		return -ENOENT;
 	}
 
+	vdma_dbg_uninit(vdma->dev);
 	devm_iounmap(vdma->dev, vdma->lcd_reg_base);
 	devm_iounmap(vdma->dev, vdma->reg_base);
 	devm_release_mem_region(vdma->dev, res0->start, resource_size(res0));

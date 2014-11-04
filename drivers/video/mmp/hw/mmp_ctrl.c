@@ -616,7 +616,8 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 				 * Unless we can find the right
 				 * display done handler (not delayed),
 				 * we wouldn't disable the irq */
-				mmp_path_set_irq(path, 0);
+				if (!(path->irq_count.vsync_check))
+					mmp_path_set_irq(path, 0);
 			}
 			if (path && path->vsync.handle_irq)
 				path->vsync.handle_irq(&path->vsync);
@@ -1841,7 +1842,13 @@ static int mmphw_probe(struct platform_device *pdev)
 		goto failed_path_init;
 	}
 
-	ctrl_dbg_init(&pdev->dev);
+	ret = ctrl_dbg_init(&pdev->dev);
+
+	if (ret < 0) {
+		dev_err(ctrl->dev, "%s: Failed to register ctrl dbg interface\n",
+				__func__);
+		goto failed_path_init;
+	}
 
 #ifdef CONFIG_MMP_DISP_DFC
 	ctrl_dfc_init(&pdev->dev);

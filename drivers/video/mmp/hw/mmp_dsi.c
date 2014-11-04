@@ -1376,7 +1376,12 @@ static int mmp_dsi_probe(struct platform_device *pdev)
 	ctrl = path_to_ctrl(path);
 	dsi->version = ctrl->version;
 
-	dsi_dbg_init(&pdev->dev);
+	ret = dsi_dbg_init(&pdev->dev);
+	if (ret < 0) {
+		dev_err(dsi->dev, "%s: Failed to register dsi dbg interface\n", __func__);
+		goto failed;
+	}
+
 	return 0;
 failed:
 	if (dsi)
@@ -1392,6 +1397,7 @@ static int mmp_dsi_remove(struct platform_device *pdev)
 {
 	struct mmp_dsi *dsi = platform_get_drvdata(pdev);
 
+	dsi_dbg_uninit(dsi->dev);
 	mmp_unregister_dsi(dsi);
 	platform_set_drvdata(pdev, NULL);
 
