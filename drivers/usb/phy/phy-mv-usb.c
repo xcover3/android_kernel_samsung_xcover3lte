@@ -182,6 +182,7 @@ static int mv_otg_reset(struct mv_otg *mvotg)
 {
 	unsigned int loops;
 	u32 tmp;
+	u32 portsc;
 
 	/* Stop the controller */
 	tmp = readl(&mvotg->op_regs->usbcmd);
@@ -206,6 +207,9 @@ static int mv_otg_reset(struct mv_otg *mvotg)
 	tmp = readl(&mvotg->op_regs->usbsts);
 	writel(tmp, &mvotg->op_regs->usbsts);
 
+	portsc = readl(&mvotg->op_regs->portsc[0]);
+	portsc |= PORTSCX_PORT_PHCD;
+	writel(portsc, &mvotg->op_regs->portsc[0]);
 	return 0;
 }
 

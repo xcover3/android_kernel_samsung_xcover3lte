@@ -861,7 +861,7 @@ static void _mv_usb2_phy_28nm_shutdown(struct mv_usb2_phy *mv_phy)
 
 	/* power down PHY Analog part */
 	val = readw(base + PHY_28NM_TX_REG0);
-	val &= ~(0x1 << PHY_28NM_TX_PU_ANA_SHIFT);
+	val |= (0x1 << PHY_28NM_TX_PU_ANA_SHIFT) | (0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT);
 	writew(val, base + PHY_28NM_TX_REG0);
 
 	/* power down PHY OTG part */
