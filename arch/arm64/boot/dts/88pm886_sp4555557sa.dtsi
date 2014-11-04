@@ -47,6 +47,14 @@
 		t3-degree = <50>;	/* 30C */
 		t4-degree = <65>;	/* 45C */
 
+		times-in-minus-ten = <2>;
+		offset-in-minus-ten = <100>;
+		times-in-zero = <1>;
+		offset-in-zero = <0>;
+
+		soc-low-th-cycle = <15>;
+		soc-high-th-cycle = <85>;
+
 		zero-degree-ohm = <28704>;
 
 		/* -24C, -23C, ..., 62C, 63C */
