@@ -22,6 +22,11 @@
 #include <linux/of_device.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/consumer.h>
+#include <linux/notifier.h>
+
+#ifdef CONFIG_USB_MV_UDC
+#include <linux/platform_data/mv_usb.h>
+#endif
 
 #define PM886_VBAT_MEAS_EN		(1 << 1)
 #define PM886_GPADC_BD_PREBIAS		(1 << 4)
@@ -96,6 +101,9 @@ struct pm886_battery_params {
 	int health;
 	int tech;
 	int temp;
+
+	/* battery cycle */
+	int  cycle_nums;
 };
 
 struct temp_vs_ohm {
@@ -104,8 +112,10 @@ struct temp_vs_ohm {
 };
 
 struct pm886_battery_info {
+	struct mutex		lock;
 	struct pm886_chip	*chip;
 	struct device	*dev;
+	struct notifier_block		nb;
 	struct pm886_battery_params	bat_params;
 
 	struct power_supply	battery;
@@ -149,6 +159,10 @@ struct pm886_battery_info {
 
 	int offset_in_minus_ten;
 	int offset_in_zero;
+
+	int  soc_low_th_cycle;
+	int  soc_high_th_cycle;
+	bool valid_cycle;
 };
 
 static int ocv_table[100];
@@ -702,6 +716,64 @@ static int pm886_get_batt_health(struct pm886_battery_info *info)
 	old_range = range;
 
 	return health;
+}
+
+static int pm886_cycles_notifier_call(struct notifier_block *nb,
+				       unsigned long val, void *v)
+{
+	struct pm886_battery_info *info =
+		container_of(nb, struct pm886_battery_info, nb);
+	int chg_status;
+
+	dev_dbg(info->dev, "notifier call is called.\n");
+	chg_status = pm886_battery_get_charger_status(info);
+	/* ignore whether charger is plug in or out if battery is FULL */
+	if (chg_status == POWER_SUPPLY_STATUS_FULL) {
+		if (info->valid_cycle) {
+			info->bat_params.cycle_nums++;
+			info->valid_cycle = false;
+			dev_info(info->dev, "update: battery cycle = %d\n",
+				 info->bat_params.cycle_nums);
+		}
+		return NOTIFY_DONE;
+	}
+
+	mutex_lock(&info->lock);
+	switch (val) {
+		/* charger cable removal */
+	case NULL_CHARGER:
+		if (info->bat_params.soc > info->soc_high_th_cycle) {
+			if (info->valid_cycle) {
+				info->bat_params.cycle_nums++;
+				info->valid_cycle = false;
+				dev_info(info->dev,
+					 "update: battery cycle = %d\n",
+					 info->bat_params.cycle_nums);
+			}
+		} else {
+			dev_dbg(info->dev,
+				"no update: battey cycle = %d\n",
+				info->bat_params.cycle_nums);
+			info->valid_cycle = false;
+		}
+		break;
+	default:
+		if (info->bat_params.soc < info->soc_low_th_cycle) {
+			info->valid_cycle = true;
+			dev_info(info->dev,
+				 "begin to monitor: battery cycle = %d\n",
+				 info->bat_params.cycle_nums);
+		} else {
+			info->valid_cycle = false;
+			dev_info(info->dev,
+				 "no need to monitor: battery cycle = %d\n",
+				 info->bat_params.cycle_nums);
+		}
+		break;
+	}
+	mutex_unlock(&info->lock);
+
+	return NOTIFY_OK;
 }
 
 static int pm886_battery_get_slp_cnt(struct pm886_battery_info *info)
@@ -1364,6 +1436,7 @@ static int pm886_init_fuelgauge(struct pm886_battery_info *info)
 		info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
 		info->bat_params.temp = 250;
 		info->bat_params.soc = 80;
+		info->bat_params.cycle_nums = 1;
 		return 0;
 	}
 	info->bat_params.status = pm886_battery_get_charger_status(info);
@@ -1391,6 +1464,7 @@ static enum power_supply_property pm886_batt_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_HEALTH,
+	POWER_SUPPLY_PROP_CYCLE_COUNT,
 };
 
 static int pm886_batt_get_prop(struct power_supply *psy,
@@ -1439,6 +1513,14 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HEALTH:
 		info->bat_params.health = pm886_get_batt_health(info);
 		val->intval = info->bat_params.health;
+		break;
+	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+		mutex_lock(&info->lock);
+		if (!info->bat_params.present)
+			val->intval = 1;
+		else
+			val->intval = info->bat_params.cycle_nums;
+		mutex_unlock(&info->lock);
 		break;
 	default:
 		return -ENODEV;
@@ -1589,6 +1671,8 @@ static int pm886_battery_dt_init(struct device_node *np,
 	of_property_read_u32(np, "times-in-zero", &info->times_in_zero);
 	of_property_read_u32(np, "offset-in-zero", &info->offset_in_zero);
 
+	of_property_read_u32(np, "soc-low-th-cycle", &info->soc_low_th_cycle);
+	of_property_read_u32(np, "soc-high-th-cycle", &info->soc_high_th_cycle);
 
 	return 0;
 }
@@ -1686,6 +1770,8 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	}
 	info->irq_nums = j;
 
+	mutex_init(&info->lock);
+
 	ret = pm886_battery_setup_adc(info);
 	if (ret < 0)
 		return ret;
@@ -1734,6 +1820,15 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	/* update the status timely */
 	queue_delayed_work(info->bat_wqueue, &info->monitor_work, 0);
 
+	info->nb.notifier_call = pm886_cycles_notifier_call;
+#ifdef CONFIG_USB_MV_UDC
+	ret = mv_udc_register_client(&info->nb);
+	if (ret < 0) {
+		dev_err(info->dev,
+			"%s: failed to register client!\n", __func__);
+		return ret;
+	}
+#endif
 	device_init_wakeup(&pdev->dev, 1);
 	dev_info(info->dev, "%s is successful to be probed.\n", __func__);
 
@@ -1767,6 +1862,9 @@ static int pm886_battery_remove(struct platform_device *pdev)
 	power_supply_unregister(&info->battery);
 	pm886_battery_release_adc(info);
 
+#ifdef CONFIG_USB_MV_UDC
+	mv_udc_unregister_client(&info->nb);
+#endif
 	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
