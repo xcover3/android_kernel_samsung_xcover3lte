@@ -87,12 +87,9 @@ static irqreturn_t rtc_update_handler(int irq, void *data)
 
 	if (strstr(saved_command_line, "androidboot.mode=charger")) {
 		/*
-		 * for uboot,
-		 * this bit indicates the system powers up because of "reboot",
-		 * then it boots up to the generic android instead of entering
-		 * power-off charge
+		 * uboot can use the power up and down log of PMIC
+		 * to distinguish the reboot and power-on
 		 */
-		regmap_update_bits(info->map, PM886_RTC_SPARE6, (1 << 1), (1 << 1));
 		schedule_work(&restart_work);
 	}
 
