@@ -34,4 +34,15 @@ config VOLDC_STAT
 	---help---
 	  Enable Dynamic Voltage state feature.
 
+config PXA1936_CLK
+	tristate "Enable pxa1936 clock"
+	depends on ARCH_MMP && COMMON_CLK
+	default n
+	---help---
+	  Enable clock driver for pxa1936. Though pxa1936 belongs to
+	  Helanx series, it has some difference due to the big.LITTLE
+	  architecture especially some PMU registers are totally
+	  different from those on previous platforms such as pxa1088,
+	  pxa1U88 and pxa1908.
+
 endif
