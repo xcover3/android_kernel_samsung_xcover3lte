@@ -38,6 +38,14 @@ static u32 mac_addr_offset[MAX_PORT_NUM][MAX_MAC_ADDR_NUM] = {
 	{REG_MAC_ADDR8, REG_MAC_ADDR9}
 };
 
+static u32 b52_reg_map[][2] = {
+	{FW_BUF_START,		FW_BUF_END},
+	{DATA_BUF_START,	DATA_BUF_END},
+	{CACHE_START,		CACHE_END},
+	{LINE_BUF_START,	LINE_BUF_END},
+	{HW_REG_START,		HW_REG_END},
+};
+
 static DECLARE_COMPLETION(b52isp_cmd_done);
 static __u8 b52isp_cmd_id;
 
@@ -3463,18 +3471,17 @@ static struct device test_dev = {
 };
 
 #define	B52_REG_PROC_FILE	"driver/b52_reg"
-static struct proc_dir_entry *b52_reg_proc;
+static struct proc_dir_entry	*b52_reg_proc;
+static char			out_buf[PAGE_SIZE];
+static size_t			out_cnt;
 
 static ssize_t b52_proc_read_reg(
 	struct file *filp,
-	char *buffer,
+	char __user *buffer,
 	size_t length,
-	loff_t *offset)
+	loff_t *ppos)
 {
-	pr_err("[b52_reg] usage:\n");
-	pr_err(" read:  echo r [addr] [count] > /proc/driver/b52_reg\n");
-	pr_err(" write: echo w [addr] [value] > /proc/driver/b52_reg\n");
-	return 0;
+	return simple_read_from_buffer(buffer, length, ppos, out_buf, out_cnt);
 }
 
 static ssize_t b52_proc_write_reg(struct file *filp,
@@ -3486,6 +3493,14 @@ static ssize_t b52_proc_write_reg(struct file *filp,
 	u32	tmp, val, i, cnt;
 	int	rw_write = 0;
 	char buf[64];
+	u32     offst = 0;
+
+	memset(out_buf, 0, PAGE_SIZE);
+	if (!b52_base) {
+		out_cnt = 0;
+		return length;
+	}
+
 	if (copy_from_user(buf, buffer, length)) {
 		pr_err("error: copy_from_user\n");
 		return -EFAULT;
@@ -3500,26 +3515,42 @@ static ssize_t b52_proc_write_reg(struct file *filp,
 		break;
 	default:
 		pr_err("error: access could only be r or w\n");
+		pr_info("[b52_reg] usage:\n");
+		pr_info(" read:  echo r [addr] [count] > /proc/driver/b52_reg\n");
+		pr_info(" write: echo w [addr] [value] > /proc/driver/b52_reg\n");
 		return -EFAULT;
 	}
 
+	for (i = 0; i < ARRAY_SIZE(b52_reg_map); i++) {
+		if ((addr >= b52_reg_map[i][0]) && (addr <= b52_reg_map[i][1]))
+			goto addr_valid;
+	}
+	pr_err("b52-reg: address 0x%X not in ISP register map\n", addr);
+	return -EINVAL;
+
+addr_valid:
 	if (rw_write) {
 		val = tmp;
 		b52_writeb(addr, val);
-		pr_err("[0x%08X] : %08X\n", addr, b52_readb(addr));
+		out_cnt = snprintf(out_buf, PAGE_SIZE,
+				"[0x%05X]: 0x%02X\n", addr, b52_readb(addr));
+		pr_info("%s", out_buf);
 	} else {
 		cnt = tmp;
 		if (cnt == 0)
 			cnt = 1;
 		else if (cnt > 1024)
 			cnt = 1024;
-		pr_err("\n");
 		for (i = 0; i < cnt; i++) {
-			pr_err("[0x%08X] : %08X\n", addr, b52_readb(addr));
+			offst += snprintf(out_buf + offst, PAGE_SIZE,
+				"[0x%05X]: 0x%02X\n", addr, b52_readb(addr));
 			addr++;
+			if (offst >= PAGE_SIZE)
+				break;
 		}
+		out_cnt = offst;
+		pr_info("\n%s", out_buf);
 	}
-
 	return length;
 }
 

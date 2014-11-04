@@ -496,7 +496,6 @@ static int b52isp_idi_set_power(struct isp_block *block, int level)
 	else
 		ret = pm_runtime_put(block->dev);
 
-	b52_set_base_addr(block->reg_base);
 	return ret;
 }
 
@@ -648,9 +647,11 @@ static int b52isp_idi_node_open(struct v4l2_subdev *sd,
 {
 	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
 	struct isp_block *blk = isp_sd2blk(isd);
-
+	int ret;
 	b52isp_pwr_enable = 1;
-	return isp_block_tune_power(blk, 1);
+	ret = isp_block_tune_power(blk, 1);
+	b52_set_base_addr(blk->reg_base);
+	return ret;
 }
 
 static int b52isp_idi_node_close(struct v4l2_subdev *sd,
@@ -658,7 +659,10 @@ static int b52isp_idi_node_close(struct v4l2_subdev *sd,
 {
 	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
 	struct isp_block *blk = isp_sd2blk(isd);
-	return isp_block_tune_power(blk, 0);
+	int ret;
+	ret = isp_block_tune_power(blk, 0);
+	b52_set_base_addr(blk->reg_base);
+	return ret;
 }
 
 /* subdev internal operations */

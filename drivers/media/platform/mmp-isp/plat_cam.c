@@ -30,6 +30,7 @@
 
 #include "plat_cam.h"
 #include "b52isp.h"
+#include "b52-reg.h"
 #include "ccicv2.h"
 
 #define PLAT_CAM_DRV	"platform-cam"
@@ -1106,6 +1107,8 @@ static int plat_tune_power(struct isp_build *isb,
 		return -EINVAL;
 
 	isp_block_tune_power(blk, enable);
+	if (code == SDCODE_B52ISP_IDI)
+		b52_set_base_addr(blk->reg_base);
 
 	return 0;
 }
