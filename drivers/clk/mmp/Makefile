@@ -2,10 +2,15 @@
 # Makefile for mmp specific clk
 #
 
-obj-y += clk-apbc.o clk-apmu.o clk-frac.o clk-mix.o clk-gate.o clk.o clk-gate2.o clk-dvfs-dummy.o clk-pll-pxa1928.o clk-core-pxa1928.o clk-core-helanx.o clk-pll-helanx.o clk-plat-comm.o simple_dip.o clk-audio-map.o
+obj-y += clk-apbc.o clk-apmu.o clk-frac.o clk-mix.o clk-gate.o clk.o clk-gate2.o clk-dvfs-dummy.o clk-pll-pxa1928.o clk-pll-helanx.o clk-plat-comm.o simple_dip.o clk-audio-map.o
 
 ifneq ($(CONFIG_OF),)
-obj-y += clk-pxa1U88.o clk-pxa1928.o clk-pxa1L88.o
+ifeq ($(CONFIG_PXA1936_CLK), y)
+obj-y += clk-core-helan3.o
+else
+obj-y += clk-core-helanx.o clk-pxa1L88.o clk-pxa1U88.o
+endif
+obj-y += clk-pxa1928.o clk-core-pxa1928.o
 endif
 
 obj-$(CONFIG_CPU_PXA168) += clk-pxa168.o
