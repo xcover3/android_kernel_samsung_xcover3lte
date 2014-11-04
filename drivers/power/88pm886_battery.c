@@ -188,14 +188,15 @@ static struct ccnt ccnt_data;
 /*
  * the save_buffer mapping:
  *
- * | o o o o   o o | o o ||         o      | o o o   o o o o |
- * |<--- temp ---> |     ||ocv_is_realiable|      SoC        |
+ * | o o o o   o o o | o ||         o      | o o o   o o o o |
+ * |<--- cycles ---->|   ||ocv_is_realiable|      SoC        |
  * |---RTC_SPARE6(0xef)--||-----------RTC_SPARE5(0xee)-------|
  */
 struct save_buffer {
-	int soc;
-	bool ocv_is_realiable;
-	int temp;
+	int soc:7;
+	bool ocv_is_realiable:1;
+	int padding:1;
+	int cycles:7;
 };
 static struct save_buffer extern_data;
 
@@ -278,8 +279,8 @@ static int pm886_battery_write_buffer(struct pm886_battery_info *info,
 	/* save values in RTC registers */
 	data = (value->soc & 0x7f) | (value->ocv_is_realiable << 7);
 
-	/* bits 0,1 are used for other purpose, so give up them * */
-	data |= (((value->temp / 10) + 50) & 0xfc) << 8;
+	/* bits 0 is used for other purpose, so give up it */
+	data |= (value->cycles & 0xfe) << 8;
 	set_extern_data(info, ALL_SAVED_DATA, data);
 
 	return 0;
@@ -294,9 +295,9 @@ static int pm886_battery_read_buffer(struct pm886_battery_info *info,
 	data = get_extern_data(info, ALL_SAVED_DATA);
 	value->soc = data & 0x7f;
 	value->ocv_is_realiable = (data & 0x80) >> 7;
-	value->temp = (((data >> 8) & 0xfc) - 50) * 10;
-	if (value->temp < 0)
-		value->temp = 0;
+	value->cycles = (data >> 8) & 0xfe;
+	if (value->cycles < 0)
+		value->cycles = 0;
 
 	/*
 	 * if register is 0, then stored values are invalid,
@@ -1215,8 +1216,8 @@ static void pm886_battery_monitor_work(struct work_struct *work)
 
 	/* save the recent value in non-volatile memory */
 	extern_data.soc = ccnt_data.soc;
-	extern_data.temp = info->bat_params.temp;
 	extern_data.ocv_is_realiable = info->ocv_is_realiable;
+	extern_data.cycles = info->bat_params.cycle_nums;
 	pm886_battery_write_buffer(info, &extern_data);
 
 	if (info->bat_params.soc <= LOW_BAT_CAP)
@@ -1293,11 +1294,12 @@ out:
 	return ret;
 }
 
-static int pm886_calc_init_soc(struct pm886_battery_info *info,
-			       struct ccnt *ccnt_val)
+static void pm886_init_soc_cycles(struct pm886_battery_info *info,
+				 struct ccnt *ccnt_val,
+				 int *initial_soc, int *initial_cycles)
 {
-	int initial_soc = 80;
 	int ret, slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
+	int cycles_from_saved;
 	bool battery_is_changed, soc_in_good_range, realiable_from_saved;
 
 	/*---------------- the following gets the initial_soc --------------*/
@@ -1321,6 +1323,7 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info,
 	ret = pm886_battery_read_buffer(info, &extern_data);
 	soc_from_saved = extern_data.soc;
 	realiable_from_saved = extern_data.ocv_is_realiable;
+	cycles_from_saved = extern_data.cycles;
 	dev_info(info->dev,
 		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n", \
 		 __func__, soc_from_saved, realiable_from_saved);
@@ -1329,12 +1332,13 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info,
 		dev_info(info->dev,
 			 "---> %s: arrive here from reboot.\n", __func__);
 		if (ret < 0) {
-			initial_soc = soc_from_vbat_slp;
+			*initial_soc = soc_from_vbat_slp;
 			info->ocv_is_realiable = false;
 		} else {
-			initial_soc = soc_from_saved;
+			*initial_soc = soc_from_saved;
 			info->ocv_is_realiable = realiable_from_saved;
 		}
+		*initial_cycles = cycles_from_saved;
 		goto end;
 	}
 	dev_info(info->dev, "---> %s: arrive here from power on.\n", __func__);
@@ -1357,18 +1361,21 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info,
 	dev_info(info->dev, "battery_is_changed = %d\n", battery_is_changed);
 	if (battery_is_changed) {
 		dev_info(info->dev, "----> %s: battery is changed\n", __func__);
-		initial_soc = soc_from_vbat_slp;
+		*initial_soc = soc_from_vbat_slp;
 		info->ocv_is_realiable = false;
+		/* let's assume it's new battery */
+		*initial_cycles = 0;
 		goto end;
 	}
 
 	/* battery unchanged */
+	*initial_cycles = cycles_from_saved;
 	slp_cnt = pm886_battery_get_slp_cnt(info);
-	dev_info(info->dev, "----> %s: battery is unchanged: \n", __func__);
+	dev_info(info->dev, "----> %s: battery is unchanged:\n", __func__);
 	dev_info(info->dev, "\t\t slp_cnt = %d\n", slp_cnt);
 
 	if (slp_cnt < info->sleep_counter_th) {
-		initial_soc = soc_from_saved;
+		*initial_soc = soc_from_saved;
 		info->ocv_is_realiable = realiable_from_saved;
 		dev_info(info->dev,
 			 "---> %s: battery is unchanged, and not relaxed:\n",
@@ -1384,12 +1391,12 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info,
 	soc_in_good_range = check_soc_range(info, soc_from_vbat_slp);
 	dev_info(info->dev, "soc_in_good_range = %d\n", soc_in_good_range);
 	if (soc_in_good_range) {
-		initial_soc = soc_from_vbat_slp;
+		*initial_soc = soc_from_vbat_slp;
 		info->ocv_is_realiable = true;
 		dev_info(info->dev,
 			 "OCV is in good range, use soc_from_vbat_slp.\n");
 	} else {
-		initial_soc = soc_from_saved;
+		*initial_soc = soc_from_saved;
 		info->ocv_is_realiable = realiable_from_saved;
 		dev_info(info->dev,
 			 "OCV is in bad range, use soc_from_saved.\n");
@@ -1397,7 +1404,7 @@ static int pm886_calc_init_soc(struct pm886_battery_info *info,
 
 end:
 	/* update ccnt_data timely */
-	ccnt_val->soc = initial_soc;
+	ccnt_val->soc = *initial_soc;
 	ccnt_val->last_cc =
 		(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
 
@@ -1406,14 +1413,14 @@ end:
 	ccnt_val->previous_soc = ccnt_val->soc;
 
 	dev_info(info->dev,
-		 "<---- %s: initial soc = %d\n", __func__, initial_soc);
+		 "<---- %s: initial soc = %d\n", __func__, *initial_soc);
 
-	return initial_soc;
+	return;
 }
 
 static int pm886_init_fuelgauge(struct pm886_battery_info *info)
 {
-	int ret;
+	int ret, initial_soc, initial_cycles;
 	if (!info) {
 		pr_err("%s: empty battery info.\n", __func__);
 		return -EINVAL;
@@ -1429,8 +1436,10 @@ static int pm886_init_fuelgauge(struct pm886_battery_info *info)
 	/*------------------- the following is SW related policy -------------*/
 	/* 1. check whether the battery is present */
 	info->bat_params.present = pm886_check_battery_present(info);
-	/* 2. get initial_soc */
-	info->bat_params.soc = pm886_calc_init_soc(info, &ccnt_data);
+	/* 2. get initial_soc and initial_cycles */
+	pm886_init_soc_cycles(info, &ccnt_data, &initial_soc, &initial_cycles);
+	info->bat_params.soc = initial_soc;
+	info->bat_params.cycle_nums = initial_cycles;
 	/* 3. the following initial the software status */
 	if (info->bat_params.present == 0) {
 		info->bat_params.status = POWER_SUPPLY_STATUS_UNKNOWN;
