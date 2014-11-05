@@ -191,6 +191,7 @@
 
 			disp: disp@d420b000 {
 				pinctrl-names = "default";
+				pinctrl-0 = <&disp_func>;
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
@@ -533,9 +534,8 @@
 
 				sdh1_pmx_func3: sdh1_pmx_func3 {
 						pinctrl-single,pins = <
-							GPIO7 AF0
+							GPIO97 AF0
 							GPIO71 AF0
-							GPIO14 AF0 /* WIFI_DCDC_EN */
 						>;
 						DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_NONE;
 				};
@@ -630,6 +630,15 @@
 						GPIO28 AF7
 					>;
 					DS_MEDIUM;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+
+				disp_func: disp_func {
+					pinctrl-single,pins = <
+						GPIO98 AF0
+						GPIO96 AF0
+						GPIO32 AF0
+					>;
+					MFP_LPM_PULL_DW;
 				};
 
 				twsi0_pmx_func: twsi0_pmx_func {
@@ -1138,10 +1147,9 @@
 
 	sd8x-rfkill {
 		sd-host = <&sdh1>;
-		pd-gpio = <&gpio 7 0>;
+		pd-gpio = <&gpio 97 0>;
 		rst-gpio = <&gpio 71 0>;
 		wib_3v3-supply = <&ldo15>;
-		3v3-ldo-gpio = <&gpio 14 0>;
 		edge-wakeup-gpio = <&gpio 39 0>;
 		status = "okay";
 	};
