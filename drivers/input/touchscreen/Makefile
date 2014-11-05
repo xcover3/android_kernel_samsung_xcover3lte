@@ -81,3 +81,4 @@ obj-$(CONFIG_TOUCHSCREEN_ZFORCE)	+= zforce_ts.o
 obj-$(CONFIG_TOUCHSCREEN_VNC)           += vnc_touch.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C)     += synaptics_dsx_i2c.o
 obj-$(CONFIG_TOUCHSCREEN_MSG2133)       += msg2133.o
+obj-$(CONFIG_TOUCHSCREEN_88MS100)   += 88ms100_touch.o

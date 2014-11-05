@@ -939,6 +939,18 @@ config TOUCHSCREEN_SYNAPTICS_DSX_I2C
           To compile this driver as a module, choose M here: the
           module will be called synaptics_dsx_i2c.
 
+config TOUCHSCREEN_88MS100
+	tristate "Marvell 88MS100 touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a 88MS100 PMIC and want to enable
+	  support for the built-in touchscreen.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called 88ms100_touch.
+
 config TOUCHSCREEN_MSG2133
 	tristate "MSG2133 touchscreen driver"
 	depends on I2C
