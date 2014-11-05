@@ -77,24 +77,42 @@ EXPORT_SYMBOL(dip_register_notifier);
 static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 			   unsigned long arg)
 {
-	void __user *argp = (void __user *)arg;
-	int i;
 	struct comp_info_array temp_array;
 	unsigned int rate = 0;
+	int i;
+#ifdef CONFIG_COMPAT
+	uint32_t buf[2];
+#endif
 
 	struct comp_info_array *array = &dip_info->comp_info_array;
 	if (cmd == DIP_START) {
-		if (copy_from_user
-		    (&temp_array, argp, sizeof(struct comp_info_array)))
+#ifdef CONFIG_COMPAT
+		if (copy_from_user(buf, compat_ptr(arg), sizeof(buf)))
 			return -EFAULT;
+		else {
+			temp_array.comp_num = buf[0];
+			temp_array.comp_info = (struct comp_info *)(u64)buf[1];
+		}
+#else
+		if (copy_from_user(&temp_array, (void __user *)arg,
+				sizeof(struct comp_info_array)))
+			return -EFAULT;
+#endif
 
 		if (MAX_NUM < temp_array.comp_num)
 			temp_array.comp_num = MAX_NUM;
 
 		array->comp_num = temp_array.comp_num;
 
-		if (copy_from_user(array->comp_info, temp_array.comp_info,
-				   sizeof(struct comp_info) * array->comp_num))
+#ifdef CONFIG_COMPAT
+		if (copy_from_user(array->comp_info,
+				compat_ptr((unsigned long)temp_array.comp_info),
+				sizeof(struct comp_info) * array->comp_num))
+#else
+		if (copy_from_user(array->comp_info,
+				(void __user *)temp_array.comp_info,
+				sizeof(struct comp_info) * array->comp_num))
+#endif
 			return -EFAULT;
 
 		for (i = 0; i < array->comp_num; i++) {
@@ -135,6 +153,9 @@ static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 static const struct file_operations simple_dip_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = dip_misc_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = dip_misc_ioctl,
+#endif
 };
 
 static const struct of_device_id simple_dip_dt_match[] = {
