@@ -17,6 +17,7 @@
 #include <linux/clocksource.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
+#include <linux/memblock.h>
 
 #include <asm/mach/arch.h>
 
@@ -223,6 +224,36 @@ void __init helanx_init_machine(void)
 			     helanx_auxdata_lookup, &platform_bus);
 }
 
+static u32 cp_area_size = 0x02000000;
+static u32 cp_area_addr = 0x06000000;
+static int __init early_cpmem(char *p)
+{
+	char *endp;
+
+	cp_area_size = memparse(p, &endp);
+	if (*endp == '@')
+		cp_area_addr = memparse(endp + 1, NULL);
+
+	return 0;
+}
+early_param("cpmem", early_cpmem);
+
+static void pxa_reserve_cp_memblock(void)
+{
+	/* Reserve memory for CP */
+	if (cp_area_size) {
+		/* panic when CP memory is larger than 64MB */
+		BUG_ON(cp_area_size > (1 << 26));
+		BUG_ON(memblock_reserve(cp_area_addr, cp_area_size) != 0);
+		pr_info("Reserved CP memory: 0x%x@0x%08x\n", cp_area_size, cp_area_addr);
+	}
+}
+
+static void __init helanx_reserve(void)
+{
+	pxa_reserve_cp_memblock();
+}
+
 static const char * const pxa1908_dt_board_compat[] __initconst = {
 	"marvell,pxa1908",
 	NULL,
@@ -233,6 +264,7 @@ DT_MACHINE_START(PXA1908_DT, "PXA1908")
 	.init_irq	= helanx_irq_init,
 	.init_machine   = helanx_init_machine,
 	.dt_compat      = pxa1908_dt_board_compat,
+	.reserve        = helanx_reserve,
 MACHINE_END
 
 static const char * const pxa1936_dt_board_compat[] __initconst = {
@@ -245,4 +277,5 @@ DT_MACHINE_START(PXA1936_DT, "PXA1936")
 	.init_irq	= helanx_irq_init,
 	.init_machine   = helanx_init_machine,
 	.dt_compat      = pxa1936_dt_board_compat,
+	.reserve        = helanx_reserve,
 MACHINE_END
