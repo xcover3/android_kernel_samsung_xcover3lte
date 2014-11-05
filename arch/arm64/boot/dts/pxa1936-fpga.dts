@@ -256,25 +256,25 @@
 					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_DRIVE_HIGH;
 				};
 				twsi0_pmx_func: twsi0_pmx_func {
-					/* gpio79/80: AF1 */
+					/* gpio53/54: AF2 */
 					pinctrl-single,pins = <
-						GPIO79 0x1
-						GPIO80 0x1
+						GPIO53 AF2
+						GPIO54 AF2
 					>;
 					MFP_LPM_FLOAT;
 				};
 				twsi0_pmx_gpio: twsi0_pmx_gpio {
 					pinctrl-single,pins = <
-						GPIO79 AF0
-						GPIO80 AF0
+						GPIO53 AF0
+						GPIO54 AF0
 					>;
 					MFP_LPM_FLOAT;
 				};
 				twsi1_pmx_func: twsi1_pmx_func {
 					/* gpio87/88: AF5 */
 					pinctrl-single,pins = <
-						GPIO87 0x5
-						GPIO88 0x5
+						GPIO87 AF5
+						GPIO88 AF5
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -288,8 +288,8 @@
 				twsi3_pmx_func: twsi3_pmx_func {
 					/* gpio73/74: AF5 */
 					pinctrl-single,pins = <
-						0x1d0 0x5
-						0x1d4 0x5
+						GPIO73 AF5
+						GPIO74 AF5
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -461,8 +461,8 @@
 				pinctrl-names = "default","gpio";
 				pinctrl-0 = <&twsi0_pmx_func>;
 				pinctrl-1 = <&twsi0_pmx_gpio>;
-				i2c-gpio = <&gpio 79 0 &gpio 80 0>;
-				status = "okay";
+				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
+				status = "disabled";
 			};
 			twsi1: i2c@d4010800 {
 				pinctrl-names = "default","gpio";

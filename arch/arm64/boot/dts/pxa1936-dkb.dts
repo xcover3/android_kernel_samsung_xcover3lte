@@ -633,10 +633,10 @@
 				};
 
 				twsi0_pmx_func: twsi0_pmx_func {
-					/* gpio53/54: AF1 */
+					/* gpio53/54: AF2 */
 					pinctrl-single,pins = <
-						GPIO53 AF1
-						GPIO54 AF1
+						GPIO53 AF2
+						GPIO54 AF2
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -662,20 +662,6 @@
 					>;
 					MFP_LPM_FLOAT;
 				};
-				twsi2_pmx_func: twsi2_pmx_func {
-					pinctrl-single,pins = <
-						GPIO110 AF0
-						GPIO111 AF0
-					>;
-					MFP_LPM_FLOAT;
-				};
-				twsi2_pmx_gpio: twsi2_pmx_gpio {
-					pinctrl-single,pins = <
-						GPIO110 AF1
-						GPIO111 AF1
-					>;
-					MFP_LPM_FLOAT;
-				};
 				twsi3_pmx_func: twsi3_pmx_func {
 					/* gpio73/74: AF5 */
 					pinctrl-single,pins = <
@@ -688,6 +674,20 @@
 					pinctrl-single,pins = <
 						GPIO73 AF0
 						GPIO74 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+				twsi3_pmx_senhb: twsi3_pmx_senhb {
+					pinctrl-single,pins = <
+						GPIO73 AF7
+						GPIO74 AF7
+					>;
+					MFP_DEFAULT;
+				};
+				twsi3_pmx_senhb_def: twsi3_pmx_senhb_def {
+					pinctrl-single,pins = <
+						GPIO73 AF7
+						GPIO74 AF7
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -718,22 +718,6 @@
 						GPIO83 AF6
 						GPIO84 AF6
 						GPIO85 AF6
-					>;
-					MFP_DEFAULT;
-				};
-
-				twsi3_pmx_senhb_def: twsi3_pmx_senhb_def {
-					pinctrl-single,pins = <
-						GPIO73 AF7
-						GPIO74 AF7
-					>;
-					MFP_LPM_FLOAT;
-				};
-
-				twsi3_pmx_senhb: twsi3_pmx_senhb {
-					pinctrl-single,pins = <
-						GPIO73 AF7
-						GPIO74 AF7
 					>;
 					MFP_DEFAULT;
 				};
@@ -822,13 +806,11 @@
 			};
 
 			twsi0: i2c@d4011000 {
-			/*
 				pinctrl-names = "default","gpio";
 				pinctrl-0 = <&twsi0_pmx_func>;
 				pinctrl-1 = <&twsi0_pmx_gpio>;
 				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
-			*/
-				status = "okay";
+				status = "disabled";
 		        };
 
 			twsi1: i2c@d4010800 {
