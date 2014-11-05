@@ -6,7 +6,7 @@ obj-y += clk-apbc.o clk-apmu.o clk-frac.o clk-mix.o clk-gate.o clk.o clk-gate2.o
 
 ifneq ($(CONFIG_OF),)
 ifeq ($(CONFIG_PXA1936_CLK), y)
-obj-y += clk-core-helan3.o
+obj-y += clk-core-helan3.o clk-pxa1936.o
 else
 obj-y += clk-core-helanx.o clk-pxa1L88.o clk-pxa1U88.o
 endif
