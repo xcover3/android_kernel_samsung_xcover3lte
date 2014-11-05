@@ -166,12 +166,17 @@ static void pxa1908_edge_wakeup_disable(void)
 #define DISABLE_ALL_WAKEUP_PORTS		\
 	(PMUM_SLPWP0 | PMUM_SLPWP1 | PMUM_SLPWP2 | PMUM_SLPWP3 |	\
 	 PMUM_SLPWP4 | PMUM_SLPWP5 | PMUM_SLPWP6 | PMUM_SLPWP7)
-/* CP wakeup ports are enabled by CP */
+/*
+ * Note:
+ * 1. CP wakeup ports are enabled by CP;
+ * 2. AP1_TIMER1, AP1_TIMER2 and AP1_TIMER3 in ULC are used by security team and
+ * it has no requirement to use it as wakeup source. So they are not enabled here.
+ * (And we found if enabled D1 can't be entered. Security team is following it.)
+ */
 #define ENABLE_AP_WAKEUP_SOURCES	\
 	(PMUM_AP_ASYNC_INT | PMUM_AP_FULL_IDLE | PMUM_SQU_SDH1 | PMUM_SDH_23 | \
 	 PMUM_KEYPRESS | PMUM_WDT | PMUM_RTC_ALARM | PMUM_AP0_2_TIMER_1 | \
-	 PMUM_AP0_2_TIMER_2 | PMUM_AP0_2_TIMER_3 | PMUM_AP1_TIMER_1 | \
-	 PMUM_AP1_TIMER_2 | PMUM_AP1_TIMER_3 | PMUM_WAKEUP7 | PMUM_WAKEUP6 | \
+	 PMUM_AP0_2_TIMER_2 | PMUM_AP0_2_TIMER_3 | PMUM_WAKEUP7 | PMUM_WAKEUP6 | \
 	 PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 | PMUM_WAKEUP2)
 static u32 s_awucrm;
 static u32 apbc_timer0;
