@@ -876,17 +876,13 @@
 			twsi2: i2c@d4037000 {
 				status = "okay";
 
-				pmic0: 88pm886@30 {
+				pmic0: 88pm860@30 {
 					reg = <0x30>;
 					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
 					interrupt-parent = <&gic>;
 
 					onkey {
-						marvell,pm886-onkey-gpio-number = <0>;
-					};
-
-					vbus {
-						gpadc-number = <1>;
+						onkey-gpio-number = <0>;
 					};
 
 					dvc {
@@ -1371,7 +1367,5 @@
 	};
 };
 
-#include "88pm886.dtsi"
-#include "88pm886_battery_common.dtsi"
-#include "88pm886_sp4555557sa.dtsi"
-#include "88pm886_pxa1908_dkb.dtsi"
+#include "88pm860.dtsi"
+#include "88pm860_pxa1936_dkb.dtsi"

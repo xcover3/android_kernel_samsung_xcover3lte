@@ -20,7 +20,7 @@
 		ldo20: LDO20 {PM8XX_LDO20;};
 	};
 	dvc {
-		/* pm822 dvc affect buck1/3/5, affected 32bit = (1 << 4) | (1 << 2) | (1 << 0)*/
+		/* pm860 dvc affect buck1/3/5, affected 32bit = (1 << 4) | (1 << 2) | (1 << 0)*/
 		/* we don't need to set buck1b since dual phase mode is enabled. */
 		dvc-affected-buckbits = <21>;
 	};
