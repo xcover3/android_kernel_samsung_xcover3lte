@@ -34,14 +34,15 @@ static void *arm64_dma_alloc(
 	order = get_order(size);
 
 	page = alloc_pages(gfp, order);
-	if (!page) {
-		*dma_handle = ~0;
-		return NULL;
-	}
 
 	if (!page && cma_available)
 		page = dma_alloc_from_contiguous(dev,
 			size >> PAGE_SHIFT, order);
+
+	if (!page) {
+		*dma_handle = ~0;
+		return NULL;
+	}
 
 	phys_addr = page_to_phys(page);
 	ptr = phys_to_virt(phys_addr);
