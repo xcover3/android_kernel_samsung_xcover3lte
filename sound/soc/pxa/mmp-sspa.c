@@ -220,6 +220,7 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
 
 	sspa_sp &= ~SSPA_SP_MSL;
+	sspa_sp |= SSPA_SP_FSP;
 	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
 
 	mmp_sspa_write_reg(sspa, SSPA_TXCTL, sspa_ctrl);
