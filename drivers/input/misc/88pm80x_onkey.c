@@ -350,6 +350,7 @@ static struct platform_driver pm80x_onkey_driver = {
 		   },
 	.probe = pm80x_onkey_probe,
 	.remove = pm80x_onkey_remove,
+	.shutdown = pm80x_onkey_shutdown,
 };
 
 module_platform_driver(pm80x_onkey_driver);
