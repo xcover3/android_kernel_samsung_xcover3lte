@@ -263,3 +263,10 @@ config ARM_MMP_SMP_CPUFREQ
 	help
 	  This adds the CPUFreq driver for Marvell's MMP SoCs.
 	  If in doubt, say N.
+
+config ARM_MMP_BL_CPUFREQ
+	bool "MARVELL BL SoC"
+	depends on ARCH_MMP
+	help
+	  This adds the CPUFreq driver for Marvell's MMP SoCs with bL arch
+	  If in doubt, say N.
