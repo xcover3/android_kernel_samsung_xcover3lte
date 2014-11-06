@@ -189,6 +189,7 @@ void reset_ripc_lock(void)
 		}
 	}
 	spin_unlock_irqrestore(&lock_for_ripc, flags);
+	pr_info("%s: reset ripc lock\n", __func__);
 }
 
 /*
@@ -312,6 +313,8 @@ int seh_api_ioctl_handler(unsigned long arg)
 				disable_irq(cp_watchdog->irq);
 		}
 		cp_holdcp();
+		reset_ripc_lock();
+		acipc_ap_block_cpuidle_axi(false);
 
 		if (copy_to_user
 		    (&((EehApiParams *) arg)->status, &status,
