@@ -29,7 +29,6 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/dmaengine.h>
-#include <linux/mfd/88pm80x.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -55,7 +54,6 @@ struct sspa_priv {
 	int txfifo;
 	int rxfifo;
 	unsigned int burst_size;
-	u32 sleep_vol;
 };
 
 static void mmp_sspa_write_reg(struct ssp_device *sspa, u32 reg, u32 val)
@@ -125,10 +123,6 @@ static int mmp_sspa_startup(struct snd_pcm_substream *substream,
 	if (priv->sspa->clk)
 		clk_prepare_enable(priv->sspa->clk);
 
-	if (priv->sleep_vol > 0)
-		/* enable audio mode */
-		buck1_audio_mode_ctrl(1);
-
 	return 0;
 }
 
@@ -139,10 +133,6 @@ static void mmp_sspa_shutdown(struct snd_pcm_substream *substream,
 
 	if (dai->active)
 		return;
-
-	if (priv->sleep_vol > 0)
-		/* disable audio mode */
-		buck1_audio_mode_ctrl(0);
 
 	if (priv->sspa->clk)
 		clk_disable_unprepare(priv->sspa->clk);
@@ -444,7 +434,6 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 	struct resource *res;
 	char const *platform_driver_name;
 	int ret;
-	u32 sleep_vol;
 
 	priv = devm_kzalloc(&pdev->dev,
 				sizeof(struct sspa_priv), GFP_KERNEL);
@@ -498,16 +487,6 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 
 	priv->dai_fmt = (unsigned int) -1;
 	platform_set_drvdata(pdev, priv);
-
-	ret = of_property_read_u32(np, "sleep_vol", &sleep_vol);
-	/* if sleep_vol is not specificed, do not set audio mode voltage */
-	if (ret >= 0) {
-		/* set audio mode voltage */
-		set_buck1_audio_mode_vol(sleep_vol);
-		priv->sleep_vol = sleep_vol;
-	} else
-		priv->sleep_vol = 0;
-
 
 	ret = devm_snd_soc_register_component(&pdev->dev, &mmp_sspa_component,
 					       &mmp_sspa_dai, 1);
