@@ -250,7 +250,7 @@
 						PXA_FLAG_TX_SEL_BUS_CLK
 						)>;
 		/* prop "sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay sdclk_sel0 sdclk_sel1 fakeclk_en> */
-				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_52M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_MMC_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_MMC_HS200 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 0 0 3 0 0>,
@@ -291,7 +291,7 @@
 						PXA_FLAG_ENABLE_CLOCK_GATING
 						)>;
 		/* prop "sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay sdclk_sel0 sdclk_sel1 fakeclk_en> */
-				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_52M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_SDR104 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 0 0 3 0 0>,
@@ -327,7 +327,7 @@
 						PXA_FLAG_DISABLE_PROBE_CDSCAN
 						)>;
 		/* prop "sdh-dtr-data": <timing preset_rate src_rate tx_delay rx_delay sdclk_sel0 sdclk_sel1 fakeclk_en> */
-				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_104M 0 0 0 0 0>,
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_52M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_45M PXA_SDH_DTR_89M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_SDR50 PXA_SDH_DTR_104M PXA_SDH_DTR_104M 0 0 0 0 0>,
