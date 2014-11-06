@@ -70,6 +70,8 @@ static unsigned int uisvcver;
 static unsigned int uiprofile;
 static unsigned int uisvtdro;
 static unsigned int uilvtdro;
+static unsigned int uisidd1p05;
+static struct thermal_fuse_info therinfo;
 
 struct svtrng {
 	unsigned int min;
@@ -163,6 +165,7 @@ static int __init __init_read_droinfo(void)
 	uiparity	= (uimanupara_63_32 >> 23) & 0x1;
 	uilvtdro = (uimanupara_95_64 >>  4) & 0x3ff;
 	uisvtdro = (uiblock7_rsv2 >> 22) & 0x3ff;
+	uisidd1p05 =  (uiblock7_rsv2 >>  8) & 0x3ff;
 	/* bit 240 ~ 255 for Profile information */
 
 	uisvcver =  (uiblock0_rsv1 >> 13) & 0x7;
@@ -171,6 +174,10 @@ static int __init __init_read_droinfo(void)
 		uiprofile = convert_fuse2profile(uiprofilefuses);
 	else
 		uiprofile = convert_svtdro2profile(uisvtdro);
+
+	therinfo.profile = uiprofile;
+	therinfo.iddq_1050 = uisidd1p05;
+	plat_fill_thermal_fuseinfo(&therinfo);
 
 	pr_info(" ");
 	pr_info("	*********************************\n");
@@ -191,6 +198,7 @@ static int __init __init_read_droinfo(void)
 	pr_info("		SVTDRO [9:0]	= %d\n", uisvtdro);
 	pr_info("		Profile	= %d\n", uiprofile);
 	pr_info("		SVCver	= %d\n", uisvcver);
+	pr_info("		SIDD1P05 = %d\n", uisidd1p05);
 	pr_info("	*********************************\n");
 	pr_info("\n");
 

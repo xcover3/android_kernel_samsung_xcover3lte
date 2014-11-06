@@ -46,4 +46,15 @@ static int smc_get_fuse_info(u64 function_id, void *arg)
 { return 0; }
 #endif
 
+/*
+ * fuse related information need by thermal, shared via plat,
+ * please extend if necessary.
+ */
+struct thermal_fuse_info {
+	unsigned int profile;
+	unsigned int iddq_1050;
+	unsigned int iddq_1030;
+};
+extern int plat_fill_thermal_fuseinfo(struct thermal_fuse_info *info);
+
 #endif

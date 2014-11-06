@@ -179,3 +179,33 @@ unsigned int plat_get_vl_max(void)
 {
 	return platvl_max;
 }
+
+static struct thermal_fuse_info thermal_fuse;
+
+int plat_fill_thermal_fuseinfo(struct thermal_fuse_info *info)
+{
+	if (!info) {
+		pr_err("%s NULL info!\n", __func__);
+		return -EINVAL;
+	}
+	memcpy(&thermal_fuse, info, sizeof(struct thermal_fuse_info));
+	return 0;
+}
+
+unsigned int get_chipprofile(void)
+{
+	return thermal_fuse.profile;
+}
+EXPORT_SYMBOL(get_chipprofile);
+
+unsigned int get_iddq_105(void)
+{
+	return thermal_fuse.iddq_1050;
+}
+EXPORT_SYMBOL(get_iddq_105);
+
+unsigned int get_iddq_130(void)
+{
+	return thermal_fuse.iddq_1030;
+}
+EXPORT_SYMBOL(get_iddq_130);
