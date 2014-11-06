@@ -93,6 +93,6 @@ int get_next_read_slot(void)
 void slot_data_out_ring(int slot)
 {
 	if (unlikely(!msa_ring.slots[slot].dirty))
-		pr_err_ratelimited("[iml]miss some slote in %d\n", slot);
+		pr_err_ratelimited("miss slot %d\n", slot);
 	msa_ring.slots[slot].dirty = 0;
 }

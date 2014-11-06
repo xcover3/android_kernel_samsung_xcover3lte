@@ -26,6 +26,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/io.h>
+#include <linux/mutex.h>
 #include <linux/platform_device.h>
 #include <asm/page.h>
 #include <linux/ratelimit.h>
@@ -115,7 +116,6 @@ static dma_addr_t iml_dma_mask_set, iml_dma_mask_clear = (dma_addr_t)~0;
 
 static void first_ripc_handshake(void);
 static void request_ripc_interrupt(void);
-static void ap_wakeup_dsp(void);
 
 static void dump_mas_ap_head(struct msa_ap_shmem_head  *head)
 {
@@ -136,6 +136,8 @@ struct iml_pxa_dma {
 	struct dma_chan *dma_chan;
 	struct dma_async_tx_descriptor *desc;
 	struct tasklet_struct tsklet;
+	struct mutex lock;
+	atomic_t refcnt;
 };
 
 struct iml_module_device {
@@ -147,6 +149,7 @@ struct iml_module_device {
 	struct ring_ctl_head *ctl_head;
 	unsigned long open_device_map;
 	struct cdev cdev;
+	struct platform_device *pdev;
 };
 
 static inline unsigned long slot_to_phy(int slot_index)
@@ -186,18 +189,15 @@ static void first_ripc_handshake(void)
 		return;
 	handshake_flag = true;
 	init_ring_state();
-	ap_wakeup_dsp();
+	request_ripc_interrupt();
 }
 
 static void request_ripc_interrupt(void)
 {
 	irq_debug_print("%s\n", __func__);
 
-	/* trigger an interrupt to msa; */
-	writel(0x1, ripc_base + RIPC_STATUS_REG);
 	if ((user_open_flag != 1))
 		return;
-	readl(ripc_base + RIPC_STATUS_REG);
 	readl(ripc_base + RIPC_STATUS_REG);
 	/* when MSA frees the resource, AP will get a RIPC INT */
 	writel(0x1, ripc_base + RIPC_AP_INT_REQ);
@@ -279,26 +279,22 @@ static inline dma_addr_t remap_dma_addr(dma_addr_t addr)
 	return (addr & iml_dma_mask_clear) | iml_dma_mask_set;
 }
 
-static void ap_wakeup_dsp(void)
-{
-	debug_print("%s\n", __func__);
-
-	/* read this status will change the status to "busy"(1)*/
-	readl(ripc_base + RIPC_STATUS_REG);
-	readl(ripc_base + RIPC_STATUS_REG);
-	/* write "1" to this reg will free the resource.
-	Resource changed from busy to free will trigger a INT to MSA */
-	writel(0x1, ripc_base + RIPC_STATUS_REG);
-	pr_info("ap_wakeup_dsp\n");
-
-	request_ripc_interrupt();
-}
-
-
-
 static void schedule_rx(struct iml_module_device *dev)
 {
 	tasklet_schedule(&dev->iml_dma->tsklet);
+}
+
+static inline void dma_cleanup(struct iml_module_device *dev)
+{
+	if (atomic_dec_and_test(&dev->iml_dma->refcnt)) {
+		mutex_lock(&dev->iml_dma->lock);
+		dma_free_coherent(&dev->pdev->dev,
+			IML_BLOCK_SIZE * iml_block_num,
+			dev->virbuf_addr - IML_BLOCK_SIZE,
+			dev->phybuf_addr - IML_BLOCK_SIZE);
+		mutex_unlock(&dev->iml_dma->lock);
+		dev_info(&dev->pdev->dev, "deallocate DMA region\n");
+	}
 }
 
 static void dma_func_callback(void *arg)
@@ -324,7 +320,7 @@ static void dma_func_callback(void *arg)
 	block_write_mark_complete(iml_dev.ctl_head, block);
 	wake_up_interruptible(&iml_dev.rx_wq);
 	kfree(arg);
-
+	dma_cleanup(&iml_dev);
 }
 
 static void iml_dma_start_func(struct iml_module_device *dev)
@@ -359,6 +355,10 @@ static void iml_dma_start_func(struct iml_module_device *dev)
 			read_slot_index, next_write_block);
 
 		arg = kmalloc(sizeof(struct dma_req_arg), GFP_ATOMIC);
+		if (!arg) {
+			pr_err_ratelimited("failed to alloc dma req\n");
+			break;
+		}
 		arg->block_index = next_write_block;
 		arg->slot_index = read_slot_index;
 		iml_dev.iml_dma->desc = iml_dev.iml_dma->dma_chan->
@@ -371,7 +371,8 @@ static void iml_dma_start_func(struct iml_module_device *dev)
 		if (arg->tx_cookie  <= 0) {
 			pr_err("iml_dev.iml_dma->cookie = %d\n",
 					arg->tx_cookie);
-		}
+		} else
+			atomic_inc(&iml_dev.iml_dma->refcnt);
 
 		read_slot_index = get_next_read_slot();
 		irq_debug_print("%s, next_read_slot :%d\n", __func__,
@@ -398,15 +399,44 @@ static void rx_func(unsigned long arg)
 static int iml_moudle_open(struct inode *inode, struct file *file)
 {
 	struct iml_module_device *dev;
+	u8 *virt_addr;
+	dma_addr_t phy_addr;
+	int ddr_on = (file->f_flags & O_ACCMODE) == O_WRONLY;
+
 	dev = container_of(inode->i_cdev, struct iml_module_device, cdev);
 	if (test_and_set_bit(0, &dev->open_device_map))
 		return 0;
 	file->private_data = dev;
+	if (!ddr_on && atomic_add_return(1, &iml_dev.iml_dma->refcnt) == 1) {
+		mutex_lock(&iml_dev.iml_dma->lock);
+		virt_addr = dma_alloc_coherent(&iml_dev.pdev->dev,
+			IML_BLOCK_SIZE * iml_block_num, &phy_addr, GFP_KERNEL);
+		mutex_unlock(&iml_dev.iml_dma->lock);
+		if (!virt_addr) {
+			atomic_dec(&iml_dev.iml_dma->refcnt);
+			dev_err(&iml_dev.pdev->dev, "IML_module can't malloc dma buffer\n");
+			return -ENOMEM;
+		}
+
+		dev_info(&iml_dev.pdev->dev,
+			"DMA alloc coherent virt 0x%p, phy 0x%p, mem size: 0x%x\n",
+			virt_addr, (void *)phy_addr,
+			IML_BLOCK_SIZE * iml_block_num);
+		mmap_addr = phy_addr;
+		iml_dev.ctl_head = (struct ring_ctl_head *)virt_addr;
+		iml_dev.ctl_head->signature = 0x12345678;
+		iml_dev.ctl_head->read_ptr = 0;
+		iml_dev.ctl_head->write_pending_ptr = 0;
+		iml_dev.ctl_head->write_ptr = 0;
+		iml_dev.ctl_head->total_block = iml_block_num - 1;
+		iml_dev.virbuf_addr = virt_addr + IML_BLOCK_SIZE;
+		iml_dev.phybuf_addr = phy_addr + IML_BLOCK_SIZE;
+	}
 
 	if (user_open_flag == 0 || user_open_flag == 2) {
 		handshake_flag = false;
 		user_open_flag = 1;
-		if ((file->f_flags & O_ACCMODE) == O_WRONLY) {
+		if (ddr_on) {
 			p_share_mem->ripc_flag |= IML_FLAG_DDR;
 			pr_info("iml DDR on\n");
 		} else {
@@ -492,6 +522,8 @@ static int iml_moudle_release(struct inode *inode, struct file *file)
 	pr_info("iml off\n");
 	user_open_flag = 2;
 	iml_sd_log_pause();
+	if ((file->f_flags & O_ACCMODE) != O_WRONLY)
+		dma_cleanup(&iml_dev);
 	clear_bit(0, &dev->open_device_map);
 	return 0;
 }
@@ -512,7 +544,6 @@ static irqreturn_t ripc_interrupt_handler(int irq, void *dev_id)
 	int slot;
 
 	irq_debug_print("%s\n", __func__);
-	readl(ripc_base + RIPC_STATUS_REG);
 	writel(0x0, ripc_base + RIPC_AP_INT_REQ);
 
 	slot = phy_to_slot(p_share_mem->start_ringbuf);
@@ -530,9 +561,6 @@ static irqreturn_t ripc_interrupt_handler(int irq, void *dev_id)
 
 static int iml_dma_init(struct platform_device *pdev)
 {
-	dma_cap_mask_t mask;
-	dma_cap_zero(mask);
-	dma_cap_set(DMA_MEMCPY, mask);
 	iml_dev.iml_dma->dma_chan
 			= dma_request_slave_channel(&pdev->dev,
 						"iml-dma");
@@ -728,28 +756,12 @@ irq_error:
 static int iml_dma_probe(struct  platform_device *pdev)
 {
 	int ret;
-	u8 *buf_virt_add;
-	dma_addr_t buf_phy_add;
 
 	if (!devres_open_group(&pdev->dev, iml_dma_probe, GFP_KERNEL))
 		return -ENOMEM;
 
 	dev_dbg(&pdev->dev,
 			"try to allocate %d\n", iml_block_num);
-
-	buf_virt_add =  dmam_alloc_coherent(&pdev->dev,
-				IML_BLOCK_SIZE * iml_block_num,
-				&buf_phy_add, GFP_KERNEL);
-	if (!buf_virt_add) {
-		ret = -ENOMEM;
-		dev_err(&pdev->dev, "IML_module can't malloc dma buffer\n");
-		goto dma_error;
-	}
-
-	dev_info(&pdev->dev,
-		"DMA alloc coherent virt 0x%p, phy 0x%p, mem size: 0x%x\n",
-		buf_virt_add, (void *)buf_phy_add,
-		IML_BLOCK_SIZE * iml_block_num);
 
 	iml_dev.iml_dma = devm_kzalloc(&pdev->dev,
 				sizeof(struct iml_pxa_dma), GFP_KERNEL);
@@ -766,17 +778,7 @@ static int iml_dma_probe(struct  platform_device *pdev)
 	}
 	tasklet_init(&iml_dev.iml_dma->tsklet,
 			rx_func, (unsigned long)&iml_dev);
-
-	iml_dev.ctl_head = (struct ring_ctl_head *)buf_virt_add;
-	iml_dev.ctl_head->signature = 0x12345678;
-	iml_dev.ctl_head->read_ptr = 0;
-	iml_dev.ctl_head->write_pending_ptr = 0;
-	iml_dev.ctl_head->write_ptr = 0;
-	iml_dev.ctl_head->total_block = iml_block_num - 1;
-	mmap_addr = buf_phy_add;
-
-	iml_dev.virbuf_addr = buf_virt_add + IML_BLOCK_SIZE;
-	iml_dev.phybuf_addr = buf_phy_add + IML_BLOCK_SIZE;
+	mutex_init(&iml_dev.iml_dma->lock);
 	devres_remove_group(&pdev->dev, iml_dma_probe);
 
 	return 0;
@@ -793,6 +795,7 @@ static int iml_module_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "IML module probe\n");
 
 	memset(&iml_dev, 0, sizeof(struct iml_module_device));
+	iml_dev.pdev = pdev;
 
 	result = iml_iomem_probe(pdev);
 	if (result)
