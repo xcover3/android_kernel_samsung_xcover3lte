@@ -504,7 +504,7 @@ static DEFINE_SPINLOCK(sdh1_lock);
 static DEFINE_SPINLOCK(sdh2_lock);
 static const char *sdh_parent_names[] = {"pll1_416", "pll1_624"};
 static struct mmp_clk_mix_config sdh_mix_config = {
-	.reg_info = DEFINE_MIX_REG_INFO(3, 8, 1, 6, 11),
+	.reg_info = DEFINE_MIX_REG_INFO(3, 8, 2, 6, 11),
 };
 
 /* Protect GC 3D register access APMU_GC&APMU_GC2D */
@@ -741,7 +741,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				&sdh_mix_config, &sdh0_lock);
 	clk = mmp_clk_register_gate(NULL, "sdh0_clk", "sdh0_mix_clk",
-				CLK_SET_RATE_PARENT,
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_SDH0,
 				0x12, 0x12, 0x0, 0, &sdh0_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SDH0, clk);
@@ -756,7 +756,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				&sdh_mix_config, &sdh1_lock);
 	clk = mmp_clk_register_gate(NULL, "sdh1_clk", "sdh1_mix_clk",
-				CLK_SET_RATE_PARENT,
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_SDH1,
 				0x12, 0x12, 0x0, 0, &sdh1_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SDH1, clk);
@@ -771,7 +771,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				&sdh_mix_config, &sdh2_lock);
 	clk = mmp_clk_register_gate(NULL, "sdh2_clk", "sdh2_mix_clk",
-				CLK_SET_RATE_PARENT,
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_SDH2,
 				0x12, 0x12, 0x0, 0, &sdh2_lock);
 	mmp_clk_add(unit, PXA1U88_CLK_SDH2, clk);
