@@ -91,12 +91,22 @@ MODULE_PARM_DESC(output_mask,
 
 struct b52isp_hw_desc b52isp_hw_table[] = {
 	[B52ISP_SINGLE] = {
+		.idi_port	= 2,
+		.idi_dump	= 1,
 		.nr_pipe	= 1,
 		.nr_axi		= 1,
 	},
-	[B52ISP_V3_2_4] = {
+	[B52ISP_DOUBLE] = {
+		.idi_port	= 2,
+		.idi_dump	= 1,
 		.nr_pipe	= 2,
 		.nr_axi		= 3,
+	},
+	[B52ISP_LITE] = {
+		.idi_port	= 1,
+		.idi_dump	= 0,
+		.nr_pipe	= 1,
+		.nr_axi		= 1,
 	},
 };
 
@@ -112,7 +122,8 @@ static char b52isp_block_name[][32] = {
 };
 
 static char b52isp_ispsd_name[][32] = {
-	[B52ISP_ISD_IDI]	= B52_IDI_NAME,
+	[B52ISP_ISD_IDI1]	= B52_IDI1_NAME,
+	[B52ISP_ISD_IDI2]	= B52_IDI2_NAME,
 	[B52ISP_ISD_PIPE1]	= B52_PATH_YUV_1_NAME,
 	[B52ISP_ISD_DUMP1]	= B52_PATH_RAW_1_NAME,
 	[B52ISP_ISD_MS1]	= B52_PATH_M2M_1_NAME,
@@ -619,7 +630,6 @@ static int b52isp_idi_link_setup(struct media_entity *entity,
 			      const struct media_pad *local,
 			      const struct media_pad *remote, u32 flags)
 {
-	/* TODO: MUST assign physical device to logical device!!! */
 	return 0;
 }
 
@@ -677,15 +687,23 @@ static const struct v4l2_subdev_internal_ops b52isp_idi_node_ops = {
 static void b52isp_idi_remove(struct b52isp *b52isp)
 {
 	struct isp_block *blk = b52isp->blk[B52ISP_BLK_IDI];
-	struct isp_subdev *isd = b52isp->isd[B52ISP_ISD_IDI];
+	struct b52isp_idi *idi;
+	int i;
 
-	b52isp_detach_blk_isd(isd, blk);
+	if (blk == NULL)
+		return;
+	idi = container_of(blk, struct b52isp_idi, block);
+
+	for (i = 0; i < b52isp->hw_desc->idi_port; i++) {
+		struct isp_subdev *isd = b52isp->isd[B52ISP_ISD_IDI1 + i];
+		b52isp->isd[B52ISP_ISD_IDI1 + i] = NULL;
+		b52isp_detach_blk_isd(isd, blk);
+		plat_ispsd_unregister(isd);
+		v4l2_ctrl_handler_free(&isd->ctrl_handler);
+		devm_kfree(b52isp->dev, isd);
+	}
 	b52isp->blk[B52ISP_BLK_IDI] = NULL;
-	b52isp->isd[B52ISP_ISD_IDI] = NULL;
-	plat_ispsd_unregister(isd);
-	v4l2_ctrl_handler_free(&isd->ctrl_handler);
-	devm_kfree(b52isp->dev, isd);
-	devm_kfree(b52isp->dev, container_of(blk, struct b52isp_idi, block));
+	devm_kfree(b52isp->dev, idi);
 }
 
 static int b52isp_idi_create(struct b52isp *b52isp)
@@ -695,10 +713,11 @@ static int b52isp_idi_create(struct b52isp *b52isp)
 	struct isp_block *block;
 	struct isp_subdev *ispsd;
 	struct v4l2_subdev *sd;
-	int ret;
+	int ret, i;
 
 	if (idi == NULL)
 		return -ENOMEM;
+
 	/* Add ISP Path Blocks */
 	block = &idi->block;
 	block->id.dev_type = PCAM_IP_B52ISP;
@@ -711,39 +730,42 @@ static int b52isp_idi_create(struct b52isp *b52isp)
 	b52isp->blk[B52ISP_BLK_IDI] = block;
 	idi->parent = b52isp;
 
-	ispsd = devm_kzalloc(b52isp->dev, sizeof(*ispsd), GFP_KERNEL);
-	if (ispsd == NULL)
-		return -ENOMEM;
-	sd = &ispsd->subdev;
-	ret = v4l2_ctrl_handler_init(&ispsd->ctrl_handler, 16);
-	if (unlikely(ret < 0))
-		return ret;
-	sd->entity.ops = &b52isp_idi_media_ops;
-	v4l2_subdev_init(sd, &b52isp_idi_subdev_ops);
-	sd->internal_ops = &b52isp_idi_node_ops;
-	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	sd->ctrl_handler = &ispsd->ctrl_handler;
-	strncpy(sd->name, b52isp_ispsd_name[B52ISP_ISD_IDI], sizeof(sd->name));
-	ispsd->ops = &b52isp_idi_sd_ops;
-	ispsd->drv_priv = b52isp;
-	ispsd->pads[B52PAD_IDI_IN1].flags = MEDIA_PAD_FL_SINK;
-	ispsd->pads[B52PAD_IDI_IN2].flags = MEDIA_PAD_FL_SINK;
-	ispsd->pads[B52PAD_IDI_PIPE1].flags = MEDIA_PAD_FL_SOURCE;
-	ispsd->pads[B52PAD_IDI_DUMP1].flags = MEDIA_PAD_FL_SOURCE;
-	ispsd->pads[B52PAD_IDI_PIPE2].flags = MEDIA_PAD_FL_SOURCE;
-	ispsd->pads[B52PAD_IDI_DUMP2].flags = MEDIA_PAD_FL_SOURCE;
-	ispsd->pads[B52PAD_IDI_BOTH].flags = MEDIA_PAD_FL_SOURCE;
-	ispsd->pads_cnt = B52_IDI_PAD_CNT;
-	ispsd->single = 1;
-	INIT_LIST_HEAD(&ispsd->gdev_list);
-	ispsd->sd_code = SDCODE_B52ISP_IDI;
-	ret = b52isp_attach_blk_isd(ispsd, block);
-	if (ret < 0)
-		return ret;
-	ret = plat_ispsd_register(ispsd);
-	if (ret < 0)
-		return ret;
-	b52isp->isd[B52ISP_ISD_IDI] = ispsd;
+	for (i = 0; i < b52isp->hw_desc->idi_port; i++) {
+		ispsd = devm_kzalloc(b52isp->dev, sizeof(*ispsd), GFP_KERNEL);
+		if (ispsd == NULL)
+			return -ENOMEM;
+		sd = &ispsd->subdev;
+		ret = v4l2_ctrl_handler_init(&ispsd->ctrl_handler, 0);
+		if (unlikely(ret < 0))
+			return ret;
+		sd->entity.ops = &b52isp_idi_media_ops;
+		v4l2_subdev_init(sd, &b52isp_idi_subdev_ops);
+		sd->internal_ops = &b52isp_idi_node_ops;
+		sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+		sd->ctrl_handler = &ispsd->ctrl_handler;
+		strncpy(sd->name, b52isp_ispsd_name[B52ISP_ISD_IDI1 + i],
+			sizeof(sd->name));
+		ispsd->ops = &b52isp_idi_sd_ops;
+		ispsd->drv_priv = idi;
+		ispsd->pads[B52PAD_IDI_IN].flags = MEDIA_PAD_FL_SINK;
+		ispsd->pads[B52PAD_IDI_PIPE1].flags = MEDIA_PAD_FL_SOURCE;
+		ispsd->pads[B52PAD_IDI_DUMP1].flags = MEDIA_PAD_FL_SOURCE;
+		ispsd->pads[B52PAD_IDI_PIPE2].flags = MEDIA_PAD_FL_SOURCE;
+		ispsd->pads[B52PAD_IDI_DUMP2].flags = MEDIA_PAD_FL_SOURCE;
+		ispsd->pads[B52PAD_IDI_BOTH].flags = MEDIA_PAD_FL_SOURCE;
+		ispsd->pads_cnt = B52_IDI_PAD_CNT;
+		ispsd->single = 1;
+		INIT_LIST_HEAD(&ispsd->gdev_list);
+		ispsd->sd_code = SDCODE_B52ISP_IDI1 + i;
+
+		ret = b52isp_attach_blk_isd(ispsd, block);
+		if (ret < 0)
+			return ret;
+		ret = plat_ispsd_register(ispsd);
+		if (ret < 0)
+			return ret;
+		b52isp->isd[B52ISP_ISD_IDI1 + i] = ispsd;
+	}
 	return 0;
 }
 
@@ -808,7 +830,7 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 	struct b52isp_lpipe *pipe = isd->drv_priv;
 	struct b52isp_cmd *cur_cmd;
 	struct isp_subdev *src;
-	int i, j, ret = 0;
+	int ret = 0;
 
 	WARN_ON(list_empty(&isd->gdev_list));
 	mutex_lock(&pipe->state_lock);
@@ -844,26 +866,11 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 
 	/* setup source and pre-scaler */
 	switch (src->sd_code) {
-	case SDCODE_B52ISP_IDI:
+	case SDCODE_B52ISP_IDI1:
+	case SDCODE_B52ISP_IDI2:
 		cur_cmd->src_type = CMD_SRC_SNSR;
-		switch (isd->sd_code) {
-		case SDCODE_B52ISP_PIPE1:
-		case SDCODE_B52ISP_DUMP1:
-			i = B52PAD_IDI_PIPE1;
-			j = B52PAD_IDI_IN1;
-			break;
-		case SDCODE_B52ISP_PIPE2:
-		case SDCODE_B52ISP_DUMP2:
-			i = B52PAD_IDI_PIPE2;
-			j = B52PAD_IDI_IN2;
-			break;
-		default:
-			ret = -EINVAL;
-			goto exit;
-		}
-		cur_cmd->pre_crop = src->crop_pad[i];
-		/* get CCIC-CTRL */
-		r_pad = media_entity_remote_pad(src->pads + j);
+		cur_cmd->pre_crop = src->crop_pad[r_pad->index];
+		r_pad = media_entity_remote_pad(src->pads + B52PAD_IDI_IN);
 		if (unlikely(WARN_ON(r_pad == NULL))) {
 			ret = -EPIPE;
 			goto exit;
@@ -883,6 +890,7 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 			media_entity_to_v4l2_subdev(r_pad->entity);
 		d_inf(4, "sensor is %s", cur_cmd->sensor->name);
 		break;
+
 	case SDCODE_B52ISP_A1R1:
 	case SDCODE_B52ISP_A2R1:
 	case SDCODE_B52ISP_A3R1:
@@ -931,7 +939,8 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 	case SDCODE_B52ISP_PIPE1:
 	case SDCODE_B52ISP_PIPE2:
 		switch (src->sd_code) {
-		case SDCODE_B52ISP_IDI:
+		case SDCODE_B52ISP_IDI1:
+		case SDCODE_B52ISP_IDI2:
 			cur_cmd->cmd_name = CMD_SET_FORMAT;
 			cur_cmd->flags = BIT(CMD_FLAG_INIT);
 			if (pipe->meta_dma) {
@@ -948,7 +957,8 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 		break;
 	case SDCODE_B52ISP_DUMP1:
 	case SDCODE_B52ISP_DUMP2:
-		if (src->sd_code != SDCODE_B52ISP_IDI) {
+		if (src->sd_code != SDCODE_B52ISP_IDI1 &&
+			src->sd_code != SDCODE_B52ISP_IDI2) {
 			ret = -EINVAL;
 			goto exit;
 		}
@@ -981,7 +991,8 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 		break;
 	case SDCODE_B52ISP_HDR:
 		switch (src->sd_code) {
-		case SDCODE_B52ISP_IDI:
+		case SDCODE_B52ISP_IDI1:
+		case SDCODE_B52ISP_IDI2:
 			cur_cmd->cmd_name = CMD_SET_FORMAT;
 			break;
 		case SDCODE_B52ISP_A1R1:
@@ -3307,7 +3318,7 @@ do { \
 
 static int b52isp_setup(struct b52isp *b52isp)
 {
-	int ret;
+	int i, ret;
 
 	b52isp->mac_map = 0;
 	mutex_init(&b52isp->mac_map_lock);
@@ -3326,9 +3337,15 @@ static int b52isp_setup(struct b52isp *b52isp)
 		goto exit_err;
 
 	/* First, the single pipeline links */
-	/* for one axi links */
-	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_PIPE1,
+	for (i = 0; i < b52isp->hw_desc->idi_port; i++) {
+		b52_add_link(b52isp, B52ISP_ISD_IDI1 + i, B52PAD_IDI_PIPE1,
 			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
+		if (b52isp->hw_desc->idi_dump == 0)
+			continue;
+		b52_add_link(b52isp, B52ISP_ISD_IDI1 + i, B52PAD_IDI_DUMP1,
+			B52ISP_ISD_DUMP1, B52PAD_PIPE_IN);
+	}
+
 	b52_add_link(b52isp, B52ISP_ISD_A1R1, B52PAD_AXI_OUT,
 			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
 	b52_add_link(b52isp, B52ISP_ISD_PIPE1, B52PAD_PIPE_OUT,
@@ -3346,7 +3363,7 @@ static int b52isp_setup(struct b52isp *b52isp)
 		return 0;
 
 	/* for two axi links */
-	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_DUMP1,
+	b52_add_link(b52isp, B52ISP_ISD_IDI1, B52PAD_IDI_DUMP1,
 			B52ISP_ISD_DUMP1, B52PAD_PIPE_IN);
 	b52_add_link(b52isp, B52ISP_ISD_A2R1, B52PAD_AXI_OUT,
 			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
@@ -3372,10 +3389,14 @@ static int b52isp_setup(struct b52isp *b52isp)
 	if (b52isp->hw_desc->nr_pipe < 2)
 		return 0;
 	/* Then, the double pipeline links */
-	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_PIPE2,
+	for (i = 0; i < b52isp->hw_desc->idi_port; i++) {
+		b52_add_link(b52isp, B52ISP_ISD_IDI1 + i, B52PAD_IDI_PIPE2,
 			B52ISP_ISD_PIPE2, B52PAD_PIPE_IN);
-	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_DUMP2,
+		if (b52isp->hw_desc->idi_dump == 0)
+			continue;
+		b52_add_link(b52isp, B52ISP_ISD_IDI1 + i, B52PAD_IDI_DUMP2,
 			B52ISP_ISD_DUMP2, B52PAD_PIPE_IN);
+	}
 
 	b52_add_link(b52isp, B52ISP_ISD_A3R1, B52PAD_AXI_OUT,
 			B52ISP_ISD_PIPE1, B52PAD_PIPE_IN);
@@ -3422,11 +3443,17 @@ static int b52isp_setup(struct b52isp *b52isp)
 			B52ISP_ISD_A3W2, B52PAD_AXI_IN);
 
 	/* Last, the logical pipeline links */
-	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_BOTH,
+	b52_add_link(b52isp, B52ISP_ISD_IDI1, B52PAD_IDI_BOTH,
 			B52ISP_ISD_HS, B52PAD_PIPE_IN);
-	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_BOTH,
+	b52_add_link(b52isp, B52ISP_ISD_IDI1, B52PAD_IDI_BOTH,
 			B52ISP_ISD_HDR, B52PAD_PIPE_IN);
-	b52_add_link(b52isp, B52ISP_ISD_IDI, B52PAD_IDI_BOTH,
+	b52_add_link(b52isp, B52ISP_ISD_IDI1, B52PAD_IDI_BOTH,
+			B52ISP_ISD_3D, B52PAD_PIPE_IN);
+	b52_add_link(b52isp, B52ISP_ISD_IDI2, B52PAD_IDI_BOTH,
+			B52ISP_ISD_HS, B52PAD_PIPE_IN);
+	b52_add_link(b52isp, B52ISP_ISD_IDI2, B52PAD_IDI_BOTH,
+			B52ISP_ISD_HDR, B52PAD_PIPE_IN);
+	b52_add_link(b52isp, B52ISP_ISD_IDI2, B52PAD_IDI_BOTH,
 			B52ISP_ISD_3D, B52PAD_PIPE_IN);
 
 	b52_add_link(b52isp, B52ISP_ISD_A1R1, B52PAD_AXI_OUT,
@@ -3604,7 +3631,11 @@ static const struct of_device_id b52isp_dt_match[] = {
 	},
 	{
 		.compatible = "ovt,double-pipeline ISP",
-		.data = b52isp_hw_table + B52ISP_V3_2_4,
+		.data = b52isp_hw_table + B52ISP_DOUBLE,
+	},
+	{
+		.compatible = "ovt,single-pipeline ISP(Lite)",
+		.data = b52isp_hw_table + B52ISP_LITE,
 	},
 	{},
 };

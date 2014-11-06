@@ -167,7 +167,9 @@ enum v4l2_priv_colorfx {
 #define V4L2_CID_SENSOR_OTP_CONTROL_WB	0x01
 #define V4L2_CID_SENSOR_OTP_CONTROL_LENC	0x02
 
-#define B52_IDI_NAME		"b52isd-IDI"
+/* B52 component names */
+#define B52_IDI1_NAME		"b52isd-IDI1"
+#define B52_IDI2_NAME		"b52isd-IDI2"
 #define B52_PATH_YUV_1_NAME	"b52isd-Pipeline#1"
 #define B52_PATH_YUV_2_NAME	"b52isd-Pipeline#2"
 #define B52_PATH_RAW_1_NAME	"b52isd-DataDump#1"

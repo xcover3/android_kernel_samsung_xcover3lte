@@ -9,8 +9,10 @@
 #include "b52isp-ctrl.h"
 
 struct b52isp_hw_desc {
-	int nr_pipe;
-	int nr_axi;
+	int idi_port;	/* Number of IDI input/output ports */
+	int idi_dump;	/* if IDI allow bypass ISP output? */
+	int nr_pipe;	/* Number of image process pipelines */
+	int nr_axi;	/* Number of AXI Masters */
 };
 
 enum b52isp_hardware_state {
@@ -31,8 +33,9 @@ enum b52isp_blk_id {
 };
 
 enum b52isp_isd_id {
-	B52ISP_ISD_IDI = 0,
-	B52ISP_ISD_PIPE1,
+	B52ISP_ISD_IDI1 = 0,
+	B52ISP_ISD_IDI2,
+	B52ISP_ISD_PIPE1 = 1,
 	B52ISP_ISD_DUMP1,
 	B52ISP_ISD_MS1,
 	B52ISP_ISD_PIPE2,
@@ -74,12 +77,12 @@ struct b52isp {
 
 enum b52isp_hw_version {
 	B52ISP_SINGLE = 0,
-	B52ISP_V3_2_4,
+	B52ISP_DOUBLE,
+	B52ISP_LITE,
 };
 
 enum b52_pad_id {
-	B52PAD_IDI_IN1 = 0,
-	B52PAD_IDI_IN2,
+	B52PAD_IDI_IN = 0,
 	B52PAD_IDI_PIPE1,
 	B52PAD_IDI_DUMP1,
 	B52PAD_IDI_PIPE2,

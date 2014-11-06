@@ -354,14 +354,14 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 			}
 			break;
 		/* In case of Sensor-To-Memory process */
-		case SDCODE_B52ISP_IDI:
+		case SDCODE_B52ISP_IDI1:
+		case SDCODE_B52ISP_IDI2:
 			ppl->src_type = PLAT_SRC_T_SNSR;
-			/* FIXME: can only handle input1 to pipeline1 case */
-			ppl->crop_a = isd->crop_pad + B52PAD_IDI_PIPE1;
+			ppl->crop_a = isd->crop_pad + pad->index;
 
 			/* get CCIC-CTRL */
 			pad = media_entity_remote_pad(
-				isd->pads + B52PAD_IDI_IN1);
+				isd->pads + B52PAD_IDI_IN);
 			if (WARN_ON(pad == NULL)) {
 				ret = -EPIPE;
 				goto unlock;
@@ -945,7 +945,7 @@ static int pcam_setup_links(struct isp_build *build,
 		sd[tmp->sd_code] = tmp;
 	}
 
-	if (sd[SDCODE_B52ISP_IDI] == NULL) {
+	if (sd[SDCODE_B52ISP_IDI1] == NULL) {
 		d_inf(1, "b52isp not found in %s", build->name);
 		return -ENODEV;
 	}
@@ -974,16 +974,27 @@ static int pcam_setup_links(struct isp_build *build,
 			&sd[SDCODE_CCICV2_DMA0]->subdev.entity,
 			CCIC_DMA_PAD_IN);
 
-	/* CCIC: CSI #1 => ISP */
+	/* CCIC: CSI #0 => ISP */
 	pcam_add_link(&sd[SDCODE_CCICV2_CSI0]->subdev.entity,
 			CCIC_CSI_PAD_ISP,
-			&sd[SDCODE_B52ISP_IDI]->subdev.entity,
-			B52PAD_IDI_IN1);
-	/* CCIC: CSI #0 => ISP */
+			&sd[SDCODE_B52ISP_IDI1]->subdev.entity,
+			B52PAD_IDI_IN);
+#if 0	/* don't support IDI cross feed for now */
+	pcam_add_link(&sd[SDCODE_CCICV2_CSI0]->subdev.entity,
+			CCIC_CSI_PAD_ISP,
+			&sd[SDCODE_B52ISP_IDI2]->subdev.entity,
+			B52PAD_IDI_IN);
+	/* CCIC: CSI #1 => ISP */
 	pcam_add_link(&sd[SDCODE_CCICV2_CSI1]->subdev.entity,
 			CCIC_CSI_PAD_ISP,
-			&sd[SDCODE_B52ISP_IDI]->subdev.entity,
-			B52PAD_IDI_IN2);
+			&sd[SDCODE_B52ISP_IDI1]->subdev.entity,
+			B52PAD_IDI_IN);
+#endif
+	if (sd[SDCODE_B52ISP_IDI2] != NULL)
+		pcam_add_link(&sd[SDCODE_CCICV2_CSI1]->subdev.entity,
+				CCIC_CSI_PAD_ISP,
+				&sd[SDCODE_B52ISP_IDI2]->subdev.entity,
+				B52PAD_IDI_IN);
 
 	if (sensor_sd[0])
 		pcam_add_link(&sensor_sd[0]->entity, 0,
@@ -1099,7 +1110,7 @@ static int plat_tune_power(struct isp_build *isb,
 			break;
 
 	if (&isd->hook == &isb->ispsd_list ||
-			isd->sd_code != code)
+		isd->sd_code != code)
 		return -ENODEV;
 
 	blk = isp_sd2blk(isd);
@@ -1107,7 +1118,7 @@ static int plat_tune_power(struct isp_build *isb,
 		return -EINVAL;
 
 	isp_block_tune_power(blk, enable);
-	if (code == SDCODE_B52ISP_IDI)
+	if (code == SDCODE_B52ISP_IDI1)
 		b52_set_base_addr(blk->reg_base);
 
 	return 0;
@@ -1118,7 +1129,7 @@ static int plat_setup_sensor(struct isp_build *isb,
 {
 	int ret;
 
-	ret = plat_tune_power(isb, SDCODE_B52ISP_IDI, 1);
+	ret = plat_tune_power(isb, SDCODE_B52ISP_IDI1, 1);
 	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 1);
 	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI1, 1);
 	if (ret < 0) {
@@ -1135,7 +1146,7 @@ static int plat_setup_sensor(struct isp_build *isb,
 
 	ret = plat_tune_power(isb, SDCODE_CCICV2_CSI1, 0);
 	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 0);
-	ret |= plat_tune_power(isb, SDCODE_B52ISP_IDI, 0);
+	ret |= plat_tune_power(isb, SDCODE_B52ISP_IDI1, 0);
 
 	return ret;
 }
