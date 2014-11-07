@@ -1188,6 +1188,7 @@ struct lcd_regs {
 #define gamma_id_ug(path)	((path) ? (((path) & 1) ? 0x5 : 0xa) : 0x1)
 #define gamma_id_vb(path)	((path) ? (((path) & 1) ? 0x6 : 0xb) : 0x2)
 
+#define	ESC_52M	52000000
 enum {
 	PATH_PN = 0,
 	PATH_TV,

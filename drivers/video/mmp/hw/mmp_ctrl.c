@@ -870,6 +870,16 @@ static void path_set_timing(struct mmp_path *path)
 		path_clk_req = dsi->get_sync_val(dsi,
 			DSI_SYNC_CLKREQ);
 
+		/*
+		 * FIXME: On ULC:
+		 * For WVGA with 2 lanes whose pixel_clk is lower than
+		 * esc clk, we need to set pixel >= esc clk, so that LP
+		 * cmd and video mode cna work.
+		 */
+		if (DISP_GEN4_LITE(ctrl->version)) {
+			if (path_clk_req < ESC_52M)
+				path_clk_req = ESC_52M;
+		}
 		/* master mode setting of dsi phy */
 		master_mode = dsi->get_sync_val(dsi,
 			DSI_SYNC_MASTER_MODE);
