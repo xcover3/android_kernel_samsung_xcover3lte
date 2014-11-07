@@ -2641,6 +2641,27 @@ out:
 }
 EXPORT_SYMBOL_GPL(regulator_set_suspend_voltage);
 
+int regulator_set_suspend_mode(struct regulator *regulator, unsigned int mode)
+{
+	struct regulator_dev *rdev = regulator->rdev;
+	int ret = 0;
+
+	mutex_lock(&rdev->mutex);
+
+	/* sanity check */
+	if (!rdev->desc->ops->set_suspend_mode) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	ret = rdev->desc->ops->set_suspend_mode(rdev, mode);
+
+out:
+	mutex_unlock(&rdev->mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(regulator_set_suspend_mode);
+
 static int _regulator_get_voltage(struct regulator_dev *rdev)
 {
 	int sel, ret;
