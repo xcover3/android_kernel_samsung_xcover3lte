@@ -220,7 +220,7 @@ else
 	@echo Skipping building of kernel modules, KERNEL_NO_MODULES set
 endif
 ifeq ($(ARCH),arm64)
-	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a 0x01280000 -e 0x01280000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
+	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a 0x0A80000 -e 0x0A80000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 else
 	$(MAKE) -j$(MAKE_JOBS) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
 endif
