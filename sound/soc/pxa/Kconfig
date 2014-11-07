@@ -245,19 +245,20 @@ config SND_MMP_MAP
 	select SND_MMP_MAP_FE_DAI
 	select SND_MMP_PCM_HOSTLESS
 	select SND_SOC_88PM860
+	select SND_MMP_MAP_DUMP
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell MAP reference platform. It depend on mmp-pcm,
 	  mmp-sspa, mmp-tdma. It will use the FE, BE and audio
 	  processing.
 
-config SND_PXA_SSP_DUMP
-	bool "PXA SSP data dump"
+config SND_MMP_MAP_DUMP
+	bool "MMP MAP DMA dump"
 	help
-	  Say Y if you want to enable PXA ssp data dump for SoC
-	  audio on the MARVELL pxa988/1088/1L88 reference
-	  platform. currently it dumps audio data from audio
-	  buffer in sram and save it in file under /data/.
+	  Say Y if you want to enable MMP MAP DMA dump for SoC
+	  audio on the MARVELL ULC/Helan3 reference platform.
+	  Currently it dumps audio data from audio buffer in
+	  sram and save it in file under /data/log/audio/.
 
 config SND_SOC_PXA_88PM805
 	bool "SoC Audio support for PXA 88PM805"
@@ -265,7 +266,6 @@ config SND_SOC_PXA_88PM805
 	select SND_PCM
 	select PXA_SSP
 	select SND_PXA_SOC_SSP
-	select SND_PXA_SSP_DUMP
 	select SND_MMP_SOC
 	select SND_PXA_SOC
 	select SND_SOC_88PM805
