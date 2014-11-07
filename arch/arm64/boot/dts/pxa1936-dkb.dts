@@ -38,15 +38,15 @@
 		pd_display: pd_display@0xd4282800 {
 			compatible = "marvell,power-domain-display-pxa1u88";
 			reg = <0xd4282800 0x1000>;
-			clocks = <&soc_clocks PXA1U88_CLK_DISP_HCLK>,
-				<&soc_clocks PXA1U88_CLK_DSI_ESC>,
-				<&soc_clocks PXA1U88_CLK_DISP1_EN>;
+			clocks = <&soc_clocks PXA1936_CLK_DISP_HCLK>,
+				<&soc_clocks PXA1936_CLK_DSI_ESC>,
+				<&soc_clocks PXA1936_CLK_DISP1_EN>;
 			clock-names = "LCDCIHCLK", "esc_clk", "disp1_clk_gate";
 		};
 
 		smmu {  /* iommu in vpu */
-			clocks = <&soc_clocks PXA1U88_CLK_VPU>,
-				<&soc_clocks PXA1U88_CLK_VPUBUS>;
+			clocks = <&soc_clocks PXA1936_CLK_VPU>,
+				<&soc_clocks PXA1936_CLK_VPUBUS>;
 			clock-names = "VPUCLK", "VPUACLK";
 			marvell,power-domain = <&pd_vpu>;
 			status = "okay";
@@ -72,30 +72,30 @@
 			pd_gc: pd_gc@d4282800 {
 				compatible = "marvell,power-domain-common-gc";
 				reg = <0xd4282800 0x1000>;
-				clocks = <&soc_clocks PXA1U88_CLK_GC3D>;
+				clocks = <&soc_clocks PXA1936_CLK_GC3D>;
 			};
 
 			pd_gc2d: pd_gc2d@d4282800 {
 				compatible = "marvell,power-domain-common-gc2d";
 				reg = <0xd4282800 0x1000>;
-				clocks = <&soc_clocks PXA1U88_CLK_GC2D>;
+				clocks = <&soc_clocks PXA1936_CLK_GC2D>;
 			};
 
 			gpu: gpu@C0400000 {
 				marvell,power-domain = <&pd_gc>;
 				marvell,gpu-mem-base = <0x09000000>;
 				marvell,gpu-mem-size = <0x1000000>;
-				clocks = <&soc_clocks PXA1U88_CLK_GC3D>,
-					<&soc_clocks PXA1U88_CLK_GCSH>,
-					<&soc_clocks PXA1U88_CLK_GCBUS>;
+				clocks = <&soc_clocks PXA1936_CLK_GC3D>,
+					<&soc_clocks PXA1936_CLK_GCSH>,
+					<&soc_clocks PXA1936_CLK_GCBUS>;
 				clock-names = "GC3DFCLK", "GCSHCLK", "GC3DACLK";
 				status = "okay";
 			};
 
 			gpu2d: gpu2d@d420c000 {
 				marvell,power-domain = <&pd_gc2d>;
-				clocks = <&soc_clocks PXA1U88_CLK_GC2D>,
-					<&soc_clocks PXA1U88_CLK_GCBUS>;
+				clocks = <&soc_clocks PXA1936_CLK_GC2D>,
+					<&soc_clocks PXA1936_CLK_GCBUS>;
 				clock-names = "GC2DFCLK", "GC2DACLK";
 				status = "okay";
 			};
@@ -103,15 +103,15 @@
 			pd_vpu: pd_vpu@d4282800 {
 				compatible = "marvell,power-domain-common-vpu";
 				reg = <0xd4282800 0x1000>;
-				clocks = <&soc_clocks PXA1U88_CLK_VPU>;
+				clocks = <&soc_clocks PXA1936_CLK_VPU>;
 			};
 
 			pd_smmu: pd_smmu@c0010000 {
 				compatible = "marvell,power-domain-smmu-pxa1u88";
 				reg = <0xc0010000 0x10000>;
 				marvell,power-domain-parent = <&pd_vpu>;
-				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
-					<&soc_clocks PXA1U88_CLK_VPUBUS>;
+				clocks = <&soc_clocks PXA1936_CLK_VPU>,
+					<&soc_clocks PXA1936_CLK_VPUBUS>;
 				clock-names = "VPUCLK", "VPUACLK";
 			};
 
@@ -120,8 +120,8 @@
 				marvell,nv21_support = <1>;
 				marvell,seconddaxi_none = <1>;
 				marvell,power-domain = <&pd_smmu>;
-				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
-					<&soc_clocks PXA1U88_CLK_VPUBUS>;
+				clocks = <&soc_clocks PXA1936_CLK_VPU>,
+					<&soc_clocks PXA1936_CLK_VPUBUS>;
 				clock-names = "VPUCLK", "VPUACLK";
 				status = "okay";
 			};
@@ -194,8 +194,8 @@
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
-				clocks = <&soc_clocks PXA1U88_CLK_DISP1>,
-					<&soc_clocks PXA1U88_CLK_DISP4>;
+				clocks = <&soc_clocks PXA1936_CLK_DISP1>,
+					<&soc_clocks PXA1936_CLK_DISP4>;
 				clock-names = "disp1_clk", "dsipll_clk";
 				status = "okay";
 				path1 {

@@ -11,7 +11,7 @@
 /include/ "skeleton.dtsi"
 #include "pxa1908-pinfunc.h"
 #include "pxa1908-pm.h"
-#include "../../../../include/dt-bindings/clock/marvell-pxa1U88.h"
+#include "../../../../include/dt-bindings/clock/marvell-pxa1936.h"
 #include <dt-bindings/clock/marvell-audio-map.h>
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
 #include "../../../../include/dt-bindings/usb/mv_usb.h"
@@ -132,7 +132,7 @@
 			compatible = "marvell,devfreq-ddr";
 			reg = <0xc0100000 0x880>;
 			interrupts = <0 43 0x4>;
-			clocks = <&soc_clocks PXA1U88_CLK_DDR>;
+			clocks = <&soc_clocks PXA1936_CLK_DDR>;
 			marvell,qos;
 			status = "disabled";
 		};
@@ -172,7 +172,7 @@
 				marvell,otg-name = "mv-otg";
 				marvell,phy-name = "mv-usb-phy";
 				marvell,pll-lock-bypass;
-				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				clocks = <&soc_clocks PXA1936_CLK_USB>;
 				status = "disabled";
 			};
 
@@ -185,7 +185,7 @@
 				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
 				marvell,otg-force-a-bus-req;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				clocks = <&soc_clocks PXA1936_CLK_USB>;
 				status = "disabled";
 			};
 
@@ -197,7 +197,7 @@
 				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
 				marvell,otg-force-a-bus-req;
 				interrupts = <0 44 0x4>;
-				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				clocks = <&soc_clocks PXA1936_CLK_USB>;
 				status = "disabled";
 			};
 
@@ -212,7 +212,7 @@
 				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
 				marvell,otg-force-a-bus-req;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				clocks = <&soc_clocks PXA1936_CLK_USB>;
 				status = "disabled";
 			};
 
@@ -274,9 +274,9 @@
 				compatible = "marvell,pxav3-mmc-v2";
 				reg = <0xd4281000 0x120>;
 				interrupts = <0 39 0x4>;
-				clocks = <&soc_clocks PXA1U88_CLK_SDH2
-					  &soc_clocks PXA1U88_CLK_SDH_AXI
-					  &soc_clocks PXA1U88_CLK_SDH2_DUMMY
+				clocks = <&soc_clocks PXA1936_CLK_SDH2
+					  &soc_clocks PXA1936_CLK_SDH_AXI
+					  &soc_clocks PXA1936_CLK_SDH2_DUMMY
 					  >;
 				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
@@ -287,9 +287,9 @@
 				compatible = "marvell,pxav3-mmc-v2";
 				reg = <0xd4280000 0x120>;
 				interrupts = <0 39 0x4>;
-				clocks = <&soc_clocks PXA1U88_CLK_SDH0
-					  &soc_clocks PXA1U88_CLK_SDH_AXI
-					  &soc_clocks PXA1U88_CLK_SDH0_DUMMY
+				clocks = <&soc_clocks PXA1936_CLK_SDH0
+					  &soc_clocks PXA1936_CLK_SDH_AXI
+					  &soc_clocks PXA1936_CLK_SDH0_DUMMY
 					  >;
 				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
@@ -300,9 +300,9 @@
 				compatible = "marvell,pxav3-mmc-v2";
 				reg = <0xd4280800 0x120>;
 				interrupts = <0 39 0x4>;
-				clocks = <&soc_clocks PXA1U88_CLK_SDH1
-					  &soc_clocks PXA1U88_CLK_SDH_AXI
-					  &soc_clocks PXA1U88_CLK_SDH1_DUMMY
+				clocks = <&soc_clocks PXA1936_CLK_SDH1
+					  &soc_clocks PXA1936_CLK_SDH_AXI
+					  &soc_clocks PXA1936_CLK_SDH1_DUMMY
 					  >;
 				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
@@ -364,8 +364,8 @@
 			devfreq-vpu {
 				compatible = "marvell,devfreq-vpu";
 				marvell,vpu-id = <0>;
-				clocks = <&soc_clocks PXA1U88_CLK_VPU
-					  &soc_clocks PXA1U88_CLK_VPUBUS>;
+				clocks = <&soc_clocks PXA1936_CLK_VPU
+					  &soc_clocks PXA1936_CLK_VPUBUS>;
 				clock-names = "vpu-fclk", "vpu-bclk";
 				marvell,mmp-clk-freq-combine =
 						<156000 156000>,
@@ -391,11 +391,11 @@
 				   mclk-div = <13>;
 				   interrupts = <0 42 0x4>;
 				   ahb_enable = <1>;
-				   clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_PHY4LN_CLK_EN>,
-							<&soc_clocks PXA1U88_CLK_SC2_CSI_CLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_4X_CLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_AHB_CLK>;
+				   clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>,
+							<&soc_clocks PXA1936_CLK_SC2_PHY4LN_CLK_EN>,
+							<&soc_clocks PXA1936_CLK_SC2_CSI_CLK>,
+							<&soc_clocks PXA1936_CLK_SC2_4X_CLK>,
+							<&soc_clocks PXA1936_CLK_SC2_AHB_CLK>;
 				   clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
 					   "SC24XCLK", "SC2AHBCLK";
 				   status = "disable";
@@ -410,11 +410,11 @@
 				   mclk-div = <13>;
 				   interrupts = <0 77 0x4>;
 				   ahb_enable = <1>;
-				   clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_PHY2LN_CLK_EN>,
-							<&soc_clocks PXA1U88_CLK_SC2_CSI_CLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_4X_CLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_AHB_CLK>;
+				   clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>,
+							<&soc_clocks PXA1936_CLK_SC2_PHY2LN_CLK_EN>,
+							<&soc_clocks PXA1936_CLK_SC2_CSI_CLK>,
+							<&soc_clocks PXA1936_CLK_SC2_4X_CLK>,
+							<&soc_clocks PXA1936_CLK_SC2_AHB_CLK>;
 				   clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
 							"SC24XCLK", "SC2AHBCLK";
 				   status = "disable";
@@ -436,10 +436,10 @@
 				fclk-name = "ISP-CLK";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				marvell,power-domain = <&pd_isp>;
-				clocks = <&soc_clocks PXA1U88_CLK_SC2_AXI_CLK>,
-						<&soc_clocks PXA1U88_CLK_ISP_CORE_CLK_EN>,
-						<&soc_clocks PXA1U88_CLK_ISP_PIPE_CLK>,
-						<&soc_clocks PXA1U88_CLK_SC2_AHB_CLK>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_AXI_CLK>,
+						<&soc_clocks PXA1936_CLK_ISP_CORE_CLK_EN>,
+						<&soc_clocks PXA1936_CLK_ISP_PIPE_CLK>,
+						<&soc_clocks PXA1936_CLK_SC2_AHB_CLK>;
 				clock-names = "SC2AXICLK", "ISPCORECLK", "ISPPIPECLK",
 								"SC2AHBCLK";
 				status = "disabled";
@@ -551,7 +551,7 @@
 					&pdma0 22 1>;
 				dma-names = "rx", "tx";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-				clocks = <&soc_clocks PXA1U88_CLK_UART0>;
+				clocks = <&soc_clocks PXA1936_CLK_UART0>;
 			};
 
 			uart1: uart@d4018000 {
@@ -562,7 +562,7 @@
 					&pdma0 24 1>;
 				dma-names = "rx", "tx";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-				clocks = <&soc_clocks PXA1U88_CLK_UART1>;
+				clocks = <&soc_clocks PXA1936_CLK_UART1>;
 			};
 
 			uart2: uart@d4036000 {
@@ -573,14 +573,14 @@
 					&pdma0 5 1>;
 				dma-names = "rx", "tx";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-				clocks = <&soc_clocks PXA1U88_CLK_UART2>;
+				clocks = <&soc_clocks PXA1936_CLK_UART2>;
 			};
 
 			pwm4: pwm@d401ac00 {
 				compatible = "marvell,pxa25x-pwm";
 				reg = <0xd401ac00 0x10>;
 				#pwm-cells = <2>;
-				clocks = <&soc_clocks PXA1U88_CLK_PWM3>;
+				clocks = <&soc_clocks PXA1936_CLK_PWM3>;
 				status = "okay";
 			};
 
@@ -592,7 +592,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupts = <0 49 0x4>;
-				clocks = <&soc_clocks PXA1U88_CLK_GPIO>;
+				clocks = <&soc_clocks PXA1936_CLK_GPIO>;
 				interrupt-names = "gpio_mux";
 				interrupt-controller;
 				#interrupt-cells = <2>;
@@ -630,7 +630,7 @@
 				reg = <0xd4010000 0x100>;
 				interrupts = <0 5 0x4>,<0 6 0x4>;
 				interrupt-names = "rtc 1Hz", "rtc alarm";
-				clocks = <&soc_clocks PXA1U88_CLK_RTC>;
+				clocks = <&soc_clocks PXA1936_CLK_RTC>;
 			};
 
 			keypad: keypad@d4012000 {
@@ -638,7 +638,7 @@
 				reg = <0xd4012000 0x4c>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 				interrupts = <0 9 0x4>;
-				clocks = <&soc_clocks PXA1U88_CLK_KPC>;
+				clocks = <&soc_clocks PXA1936_CLK_KPC>;
 			};
 
 			sspa0: sspa@d128dc00 {
@@ -689,7 +689,7 @@
 				#size-cells = <0>;
 				reg = <0xd4011000 0x64>;
 				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&soc_clocks PXA1U88_CLK_TWSI0>;
+				clocks = <&soc_clocks PXA1936_CLK_TWSI0>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
@@ -711,7 +711,7 @@
 				#size-cells = <0>;
 				reg = <0xd4010800 0x64>;
 				interrupts = <0 33 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&soc_clocks PXA1U88_CLK_TWSI1>;
+				clocks = <&soc_clocks PXA1936_CLK_TWSI1>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
@@ -727,7 +727,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				interrupts = <0 54 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&soc_clocks PXA1U88_CLK_TWSI2>;
+				clocks = <&soc_clocks PXA1936_CLK_TWSI2>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				/* RIPC3 */
@@ -748,7 +748,7 @@
 				#size-cells = <0>;
 				reg = <0xd4013800 0x64>;
 				interrupts = <0 93 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&soc_clocks PXA1U88_CLK_TWSI3>;
+				clocks = <&soc_clocks PXA1936_CLK_TWSI3>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
 				mrvl,i2c-fast-mode;
@@ -768,15 +768,15 @@
 				compatible = "marvell,pxa28nm-thermal";
 				reg = <0xd4013300 0x1C>;
 				interrupts = <0 60 0x4>;
-				clocks = <&soc_clocks PXA1U88_CLK_THERMAL>;
+				clocks = <&soc_clocks PXA1936_CLK_THERMAL>;
 				clock-names = "ts_clk";
 				status = "disabled";
 			};
 
 			coresight: coresight@d4100000 {
 				compatible = "marvell,coresight";
-				clocks = <&soc_clocks PXA1U88_CLK_DBGCLK>,
-					 <&soc_clocks PXA1U88_CLK_TRACECLK>;
+				clocks = <&soc_clocks PXA1936_CLK_DBGCLK>,
+					 <&soc_clocks PXA1936_CLK_TRACECLK>;
 				clock-names = "DBGCLK","TRACECLK";
 				status = "disabled";
 				#address-cells = <1>;
@@ -823,7 +823,7 @@
 				reg = <0xd401d000 0x100>;
 				interrupts = <0 16 0x4>,<0 17 0x4>,<0 18 0x4>;
 				interrupt-names = "IPC_AP_DATAACK", "IPC_AP_SET_CMD", "IPC_AP_SET_MSG";
-				clocks = <&soc_clocks PXA1U88_CLK_IPC_RST>;
+				clocks = <&soc_clocks PXA1936_CLK_IPC_RST>;
 				status = "disabled";
 			};
 
@@ -832,7 +832,7 @@
 				reg = <0xd4080000 0x100>, <0xd403d300 0x4>;
 				interrupts = <0 32 0x4>;
 				interrupt-names = "CP_TIMER2_3";
-				clocks = <&soc_clocks PXA1U88_CLK_AICER>;
+				clocks = <&soc_clocks PXA1936_CLK_AICER>;
 				watchdog-type = <1>; /* soc timer */
 				timer-num = <2>; /* timer num */
 				match-num = <0>; /* match num */
@@ -890,7 +890,7 @@
 	};
 
 	soc_clocks: clocks{
-		compatible = "marvell,pxa1U88-clock";
+		compatible = "marvell,pxa1936-clock";
 		reg = <0xd4050000 0x1000>,
 		      <0xd4282800 0x400>,
 		      <0xd4015000 0x1000>,
@@ -942,7 +942,7 @@
 
 	mcam0: mcam@0 {
 		compatible = "marvell,mv_sc2_camera";
-		clocks = <&soc_clocks PXA1U88_CLK_SC2_AXI_CLK>;
+		clocks = <&soc_clocks PXA1936_CLK_SC2_AXI_CLK>;
 		clock-names = "SC2AXICLK";
 		status = "disabled";
 		reg = <0x0 0x0>;
@@ -950,7 +950,7 @@
 
 	mcam1: mcam@1 {
 		compatible = "marvell,mv_sc2_camera";
-		clocks = <&soc_clocks PXA1U88_CLK_SC2_AXI_CLK>;
+		clocks = <&soc_clocks PXA1936_CLK_SC2_AXI_CLK>;
 		clock-names = "SC2AXICLK";
 		status = "disabled";
 		reg = <0x1 0x0>;
