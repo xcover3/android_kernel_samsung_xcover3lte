@@ -126,6 +126,22 @@ static struct sd8x_rfkill_platform_data
 	return NULL;
 }
 
+static int sd8x_regulator_set_low_current(struct regulator *wib_ldo, int enable)
+{
+	int uA_load;
+	int mode;
+
+	uA_load = enable ? OPTIMUM_MIN_CURRENT : OPTIMUM_MAX_CURRENT;
+	mode = enable ? REGULATOR_MODE_IDLE : REGULATOR_MODE_NORMAL;
+
+	if (regulator_set_optimum_mode(wib_ldo, uA_load) < 0) {
+		if (regulator_set_suspend_mode(wib_ldo, mode) < 0)
+			return -1;
+	}
+
+	return 0;
+}
+
 /*
  * For SD8xxx device, there are two power: supply 1v8 and 3v3
  *
@@ -163,7 +179,7 @@ static int sd8x_1v8_3v3_control(
 		if (pdata->wib_3v3) {
 			if (regulator_set_voltage(pdata->wib_3v3, 3300000, 3300000))
 				pr_err("fail to set regulator wib_3v3 to 3.3v\n");
-			if (regulator_set_optimum_mode(pdata->wib_3v3, OPTIMUM_MAX_CURRENT) < 0)
+			if (sd8x_regulator_set_low_current(pdata->wib_3v3, 0) < 0)
 				pr_err("fail to set optimum_mode for regulator wib_3v3\n");
 			if (!regulator_is_enabled(pdata->wib_3v3) &&
 					regulator_enable(pdata->wib_3v3))
@@ -172,7 +188,7 @@ static int sd8x_1v8_3v3_control(
 		if (pdata->wib_1v8) {
 			if (regulator_set_voltage(pdata->wib_1v8, 1800000, 1800000))
 				pr_err("fail to set regulator wib_1v8 to 1.8v\n");
-			if (regulator_set_optimum_mode(pdata->wib_1v8, OPTIMUM_MAX_CURRENT) < 0)
+			if (sd8x_regulator_set_low_current(pdata->wib_1v8, 0) < 0)
 				pr_err("fail to set optimum_mode for regulator wib_1v8\n");
 			if (!regulator_is_enabled(pdata->wib_1v8) &&
 					regulator_enable(pdata->wib_1v8))
@@ -181,7 +197,7 @@ static int sd8x_1v8_3v3_control(
 		if (pdata->wib_sdio_1v8) {
 			if (regulator_set_voltage(pdata->wib_sdio_1v8, 1800000, 1800000))
 				pr_err("fail to set regulator wib_sdio_1v8 to 1.8v\n");
-			if (regulator_set_optimum_mode(pdata->wib_sdio_1v8, OPTIMUM_MAX_CURRENT) < 0)
+			if (sd8x_regulator_set_low_current(pdata->wib_sdio_1v8, 0) < 0)
 				pr_err("fail to set optimum_mode for regulator wib_sdio_1v8\n");
 			if (!regulator_is_enabled(pdata->wib_sdio_1v8) &&
 					regulator_enable(pdata->wib_sdio_1v8))
@@ -193,7 +209,7 @@ static int sd8x_1v8_3v3_control(
 			gpio_direction_output(gpio_1v8_en, 0);
 		}
 		if (pdata->wib_3v3) {
-			if (regulator_set_optimum_mode(pdata->wib_3v3, OPTIMUM_MIN_CURRENT) < 0)
+			if (sd8x_regulator_set_low_current(pdata->wib_3v3, 1) < 0)
 				pr_err("fail to set optimum_mode for regulator wib_3v3\n");
 			if (regulator_is_enabled(pdata->wib_3v3) &&
 					regulator_disable(pdata->wib_3v3))
@@ -201,14 +217,14 @@ static int sd8x_1v8_3v3_control(
 
 		}
 		if (pdata->wib_1v8) {
-			if (regulator_set_optimum_mode(pdata->wib_1v8, OPTIMUM_MIN_CURRENT) < 0)
+			if (sd8x_regulator_set_low_current(pdata->wib_1v8, 1) < 0)
 				pr_err("fail to set optimum_mode for regulator wib_1v8\n");
 			if (regulator_is_enabled(pdata->wib_1v8) &&
 					regulator_disable(pdata->wib_1v8))
 				pr_err("fail to disable regulator wib_1v8\n");
 		}
 		if (pdata->wib_sdio_1v8) {
-			if (regulator_set_optimum_mode(pdata->wib_sdio_1v8, OPTIMUM_MIN_CURRENT) < 0)
+			if (sd8x_regulator_set_low_current(pdata->wib_sdio_1v8, 1) < 0)
 				pr_err("fail to set optimum_mode for regulator wib_sdio_1v8\n");
 			if (regulator_is_enabled(pdata->wib_sdio_1v8) &&
 					regulator_disable(pdata->wib_sdio_1v8))
