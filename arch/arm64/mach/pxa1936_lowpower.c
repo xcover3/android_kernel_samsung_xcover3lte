@@ -245,9 +245,10 @@ static struct platform_idle pxa1936_idle = {
 	.hotplug_state		= POWER_MODE_UDR,
 	/*
 	 * l2_flush_state indicates to the logic in mcpm_plat.c
-	 * to trigger calls to save_wakeup/restore_wakeup.
+	 * to trigger calls to save_wakeup/restore_wakeup,
+	 * but is also required for a cluster off indication to smc.
 	 */
-	.l2_flush_state		= POWER_MODE_UDR,
+	.l2_flush_state		= POWER_MODE_MP_POWERDOWN,
 	.ops			= &pxa1936_power_ops,
 	.states			= pxa1936_modes,
 	.state_count		= ARRAY_SIZE(pxa1936_modes),
