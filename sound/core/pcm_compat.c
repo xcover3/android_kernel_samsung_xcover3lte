@@ -23,6 +23,17 @@
 #include <linux/compat.h>
 #include <linux/slab.h>
 
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+#include <sound/soc.h>
+extern int hifi1_playback_enable;
+extern int hifi1_capture_enable;
+extern int hifi2_playback_enable;
+extern int hifi2_capture_enable;
+
+extern void playback_dump(struct snd_pcm_substream *substream);
+extern void capture_dump(struct snd_pcm_substream *substream);
+#endif
+
 static int snd_pcm_ioctl_delay_compat(struct snd_pcm_substream *substream,
 				      s32 __user *src)
 {
@@ -276,6 +287,10 @@ static int snd_pcm_ioctl_xferi_compat(struct snd_pcm_substream *substream,
 	compat_caddr_t buf;
 	u32 frames;
 	int err;
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+#endif
 
 	if (! substream->runtime)
 		return -ENOTTY;
@@ -297,6 +312,23 @@ static int snd_pcm_ioctl_xferi_compat(struct snd_pcm_substream *substream,
 	/* copy the result */
 	if (put_user(err, &data32->result))
 		return -EFAULT;
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+	if (!(hifi1_playback_enable || hifi2_playback_enable ||
+			hifi1_capture_enable || hifi2_capture_enable))
+		return 0;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if (((0 == cpu_dai->id) && hifi1_playback_enable) ||
+			((1 == cpu_dai->id) && hifi2_playback_enable)) {
+			playback_dump(substream);
+		}
+	} else {
+		if (((0 == cpu_dai->id) && hifi1_capture_enable) ||
+			((1 == cpu_dai->id) && hifi2_capture_enable)) {
+			capture_dump(substream);
+		}
+	}
+#endif
 	return 0;
 }
 
@@ -396,6 +428,10 @@ static int snd_pcm_ioctl_sync_ptr_compat(struct snd_pcm_substream *substream,
 	struct snd_pcm_mmap_status sstatus;
 	snd_pcm_uframes_t boundary;
 	int err;
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+#endif
 
 	if (snd_BUG_ON(!runtime))
 		return -EINVAL;
@@ -409,6 +445,7 @@ static int snd_pcm_ioctl_sync_ptr_compat(struct snd_pcm_substream *substream,
 		if (err < 0)
 			return err;
 	}
+
 	status = runtime->status;
 	control = runtime->control;
 	boundary = recalculate_boundary(runtime);
@@ -439,7 +476,23 @@ static int snd_pcm_ioctl_sync_ptr_compat(struct snd_pcm_substream *substream,
 	    put_user(scontrol.appl_ptr, &src->c.control.appl_ptr) ||
 	    put_user(scontrol.avail_min, &src->c.control.avail_min))
 		return -EFAULT;
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+	if (!(hifi1_playback_enable || hifi2_playback_enable ||
+			hifi1_capture_enable || hifi2_capture_enable))
+		return 0;
 
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if (((0 == cpu_dai->id) && hifi1_playback_enable) ||
+			((1 == cpu_dai->id) && hifi2_playback_enable)) {
+			playback_dump(substream);
+		}
+	} else {
+		if (((0 == cpu_dai->id) && hifi1_capture_enable) ||
+			((1 == cpu_dai->id) && hifi2_capture_enable)) {
+			capture_dump(substream);
+		}
+	}
+#endif
 	return 0;
 }
 

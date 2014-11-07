@@ -32,6 +32,13 @@
 #include <linux/mfd/mmp-map.h>
 #include "mmp-tdm.h"
 
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+int hifi1_playback_enable;
+int hifi1_capture_enable;
+int hifi2_playback_enable;
+int hifi2_capture_enable;
+#endif
+
 /* I2S1/I2S4/I2S3 use 44.1k sample rate by default */
 #define MAP_SR_HIFI SNDRV_PCM_RATE_44100
 #define MAP_SR_FM SNDRV_PCM_RATE_48000
@@ -58,6 +65,13 @@ static int map_startup_FM(struct snd_pcm_substream *substream)
 
 	return 0;
 }
+
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+static DEVICE_INT_ATTR(hifi1_playback_dump, 0644, hifi1_playback_enable);
+static DEVICE_INT_ATTR(hifi1_capture_dump, 0644, hifi1_capture_enable);
+static DEVICE_INT_ATTR(hifi2_playback_dump, 0644, hifi2_playback_enable);
+static DEVICE_INT_ATTR(hifi2_capture_dump, 0644, hifi2_capture_enable);
+#endif
 
 static int map_startup_hifi(struct snd_pcm_substream *substream)
 {
@@ -736,6 +750,35 @@ static int map_audio_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
 			ret);
 
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+	/* add hifi1_playback_dump sysfs entries */
+	ret = device_create_file(&pdev->dev, &dev_attr_hifi1_playback_dump.attr);
+	if (ret < 0)
+		dev_err(&pdev->dev,
+			"%s: failed to add hifi1_playback_dump sysfs files: %d\n",
+			__func__, ret);
+	/* add hifi1_capture_dump sysfs entries */
+	ret = device_create_file(&pdev->dev, &dev_attr_hifi1_capture_dump.attr);
+	if (ret < 0)
+		dev_err(&pdev->dev,
+			"%s: failed to add hifi1_capture_dump sysfs files: %d\n",
+			__func__, ret);
+
+	if (!map_get_lite_attr()) {
+		/* add hifi2_playback_dump sysfs entries */
+		ret = device_create_file(&pdev->dev, &dev_attr_hifi2_playback_dump.attr);
+		if (ret < 0)
+			dev_err(&pdev->dev,
+				"%s: failed to add hifi2_playback_dump sysfs files: %d\n",
+				__func__, ret);
+		/* add hifi2_capture_dump sysfs entries */
+		ret = device_create_file(&pdev->dev, &dev_attr_hifi2_capture_dump.attr);
+		if (ret < 0)
+			dev_err(&pdev->dev,
+				"%s: failed to add hifi2_capture_dump sysfs files: %d\n",
+				__func__, ret);
+	}
+#endif
 	return ret;
 }
 
@@ -744,6 +787,14 @@ static int map_audio_remove(struct platform_device *pdev)
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
 	snd_soc_unregister_card(card);
+#ifdef CONFIG_SND_MMP_MAP_DUMP
+	device_remove_file(&pdev->dev, &dev_attr_hifi1_playback_dump.attr);
+	device_remove_file(&pdev->dev, &dev_attr_hifi1_capture_dump.attr);
+	if (!map_get_lite_attr()) {
+		device_remove_file(&pdev->dev, &dev_attr_hifi2_playback_dump.attr);
+		device_remove_file(&pdev->dev, &dev_attr_hifi2_capture_dump.attr);
+	}
+#endif
 	return 0;
 }
 
