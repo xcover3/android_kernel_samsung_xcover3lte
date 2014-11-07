@@ -56,6 +56,7 @@
 #define APMU_TRACE		0x108
 
 #define APMU_CORE_STATUS 0x090
+#define APMU_DVC_DFC_DEBUG  0x140
 
 /* PLL */
 #define MPMU_PLL2CR	   (0x0034)
@@ -1513,6 +1514,12 @@ static void __init pxa1U88_misc_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	/* TOP_MEM_RTC_WTC_SPD = 0xEE006656 */
 	__raw_writel(0xEE006656, pxa_unit->ciu_base + TOP_MEM_RTC_WTC_SPD);
+
+	/*enable HW-DVC and HW-DFC when CP is fast wakeup*/
+	val = __raw_readl(pxa_unit->apmu_base + APMU_DVC_DFC_DEBUG);
+	val |= (1 << 5);
+	__raw_writel(val, pxa_unit->apmu_base + APMU_DVC_DFC_DEBUG);
+
 }
 
 static void __init pxa1U88_clk_init(struct device_node *np)
