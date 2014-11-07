@@ -691,7 +691,7 @@ static int fb_info_setup(struct fb_info *info,
 	info->fix.ywrapstep = 0;
 	info->fix.accel = FB_ACCEL_NONE;
 	info->fix.smem_start = fbi->fb_start_dma;
-	info->fix.smem_len = PAGE_ALIGN(fbi->fb_size);
+	info->fix.smem_len = fbi->fb_size;
 	info->fix.visual = (fbi->pix_fmt == PIXFMT_PSEUDOCOLOR) ?
 		FB_VISUAL_PSEUDOCOLOR : FB_VISUAL_TRUECOLOR;
 	info->fix.line_length = info->var.xres_virtual *
@@ -762,7 +762,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	struct mmp_buffer_driver_mach_info *mi;
 	struct fb_info *info = 0;
 	struct mmpfb_info *fbi = 0;
-	int ret, modes_num;
+	int ret, modes_num, dc_size, pitch;
 	int overlay_id = 0, buf_num = 2;
 	const char *path_name;
 	u32 start_addr;
@@ -848,13 +848,39 @@ static int mmpfb_probe(struct platform_device *pdev)
 	 * or use default size
 	 */
 	if (modes_num > 0) {
-		info->var.xres_virtual = MMP_XALIGN(info->var.xres);
-		info->var.yres_virtual = MMP_YALIGN(info->var.yres)
-			* fbi->buffer_num;
+		if (DISP_GEN4(mmp_path_get_version(fbi->path)) &&
+			!DISP_GEN4_LITE(mmp_path_get_version(fbi->path))) {
+			info->var.xres_virtual = MMP_XALIGN_GEN4(info->var.xres);
+			info->var.yres_virtual = MMP_YALIGN_GEN4(info->var.yres);
+		} else {
+			info->var.xres_virtual = MMP_XALIGN(info->var.xres);
+			info->var.yres_virtual = MMP_YALIGN(info->var.yres);
+		}
 
-		/* Allocate framebuffer memory: size = modes xy *4 */
-		fbi->fb_size = info->var.xres_virtual * info->var.yres_virtual
-				* info->var.bits_per_pixel / 8;
+		pitch = info->var.xres_virtual * info->var.bits_per_pixel / 8;
+		/*one framebuffer data memory size */
+		fbi->fb_size = pitch * info->var.yres_virtual;
+
+		if (!DISP_GEN4_LITE(mmp_path_get_version(fbi->path))) {
+			/* one framebuffer decoder-header size */
+			dc_size = fbi->fb_size / 512;
+			/* one decoder-header size aligned to pitch */
+			if (dc_size % pitch)
+				dc_size = (dc_size / pitch + 1) * pitch;
+
+			/*one framebuffer memory size : data + decoder-header */
+			fbi->fb_size += dc_size;
+
+			/* yres_virtual for totally framebuffer */
+			info->var.yres_virtual = (info->var.yres_virtual + dc_size/pitch)
+				* fbi->buffer_num;
+		} else
+			/* yres_virtual for totally framebuffer */
+			info->var.yres_virtual = info->var.yres_virtual * fbi->buffer_num;
+
+		/* Totally framebuffer memory size and make it PAGE_ALIGN */
+		fbi->fb_size = PAGE_ALIGN(fbi->fb_size * fbi->buffer_num);
+
 		if (is_virtual_display)
 			fbi->fb_size = MMPFB_DEFAULT_SIZE;
 	} else {
@@ -862,7 +888,7 @@ static int mmpfb_probe(struct platform_device *pdev)
 	}
 
 	if (fbi->fb_start_dma)
-		fbi->fb_start = fb_remap_framebuffer(PAGE_ALIGN(fbi->fb_size),
+		fbi->fb_start = fb_remap_framebuffer(fbi->fb_size,
 				fbi->fb_start_dma);
 	else {
 		ret = -ENOMEM;

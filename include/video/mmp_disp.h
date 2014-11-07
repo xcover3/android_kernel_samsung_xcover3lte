@@ -25,7 +25,11 @@
 
 #define MMP_XALIGN(x) ALIGN(x, 16)
 #define MMP_YALIGN(x) ALIGN(x, 4)
+#define MMP_XALIGN_GEN4(x) ALIGN(x, 64)
+#define MMP_YALIGN_GEN4(x) ALIGN(x, 4)
 
+#define DISP_GEN4(version)	((version) == 4 || (version) == 0x14 || (version) == 0x24)
+#define DISP_GEN4_LITE(version)	((version) == 0x14)
 enum {
 	PIXFMT_UYVY = 0,
 	PIXFMT_VYUY,
@@ -533,6 +537,7 @@ struct mmp_path_ops {
 	int (*ctrl_safe)(struct mmp_path *path);
 	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
 	int (*set_commit)(struct mmp_path *path);
+	int (*get_version)(struct mmp_path *path);
 	void (*set_trigger)(struct mmp_path *path);
 	int (*set_dfc_rate)(struct mmp_path *path, unsigned long rate);
 	unsigned long (*get_dfc_rate)(struct mmp_path *path);
@@ -825,6 +830,14 @@ static inline int mmp_path_ctrl_safe(struct mmp_path *path)
 		return path->ops.ctrl_safe(path);
 	return 1;
 }
+
+static inline int mmp_path_get_version(struct mmp_path *path)
+{
+	if (path && path->ops.get_version)
+		return path->ops.get_version(path);
+	return 0;
+}
+
 static inline void mmp_overlay_set_status(struct mmp_overlay *overlay,
 		int status)
 {

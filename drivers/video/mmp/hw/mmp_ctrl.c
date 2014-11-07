@@ -1537,6 +1537,12 @@ static int path_ctrl_safe(struct mmp_path *path)
 	}
 }
 
+static int path_get_version(struct mmp_path *path)
+{
+	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
+	return ctrl->version;
+}
+
 static int path_init(struct mmphw_path_plat *path_plat,
 		struct mmp_mach_path_config *config)
 {
@@ -1605,6 +1611,7 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	path->ops.set_commit = path_set_commit;
 	path->ops.set_trigger = path_hw_trigger;
 	path->ops.ctrl_safe = path_ctrl_safe;
+	path->ops.get_version = path_get_version;
 
 	path_set_default(path);
 
