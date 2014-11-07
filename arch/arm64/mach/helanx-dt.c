@@ -35,8 +35,12 @@ static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
 #ifdef CONFIG_MMP_MAP
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dc00, "mmp-sspa-dai.0", NULL),
 #endif
+#ifdef CONFIG_SOC_CAMERA_S5K8AA
 	OF_DEV_AUXDATA("soc-camera-pdrv", 0, "soc-camera-pdrv.0", &soc_camera_desc_0),
+#endif
+#ifdef CONFIG_SOC_CAMERA_SR200
 	OF_DEV_AUXDATA("soc-camera-pdrv", 1, "soc-camera-pdrv.1", &soc_camera_desc_1),
+#endif
 
 	OF_DEV_AUXDATA("marvell,mmp-disp", 0xd420b000, "mmp-disp", NULL),
 #ifdef CONFIG_SD8XXX_RFKILL
