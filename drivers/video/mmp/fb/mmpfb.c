@@ -688,7 +688,7 @@ static int fb_info_setup(struct fb_info *info,
 	info->fix.ywrapstep = 0;
 	info->fix.accel = FB_ACCEL_NONE;
 	info->fix.smem_start = fbi->fb_start_dma;
-	info->fix.smem_len = MMPFB_DEFAULT_SIZE;
+	info->fix.smem_len = PAGE_ALIGN(fbi->fb_size);
 	info->fix.visual = (fbi->pix_fmt == PIXFMT_PSEUDOCOLOR) ?
 		FB_VISUAL_PSEUDOCOLOR : FB_VISUAL_TRUECOLOR;
 	info->fix.line_length = info->var.xres_virtual *
