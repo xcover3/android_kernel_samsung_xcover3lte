@@ -441,6 +441,15 @@
 					>;
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
+				pmic1_pins: pinmux_88pm830_pins {
+					pinctrl-single,pins = <GPIO4 GPIO19 GPIO124>;
+					MFP_DEFAULT;
+				};
+
+				pmic1_pins_sleep: pinmux_88pm830_pins_sleep {
+					pinctrl-single,pins = <GPIO4>;
+					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+				};
 
 				keypad_in_func: keypad_in_func {
 					pinctrl-single,pins = <
@@ -895,6 +904,34 @@
 						pinctrl-0 = <&dvc_pmx_func>;
 					};
 				};
+
+				pmic1: 88pm830@68 {
+					/* gpio 4, 19, 124 */
+					pinctrl-names = "default","sleep";
+					pinctrl-0 = <&pmic1_pins>;
+					pinctrl-1 = <&pmic1_pins_sleep>;
+
+					reg = <0x68>;
+					interrupt-parent = <&gpio>;
+					interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+					edge-wakeup-gpio = <4>;
+
+					/* this is a temporary solution, only need vbus driver */
+				        charger {
+				        };
+				        battery {
+				        };
+				        led {
+					        flash-en-gpio = <124>;
+					        flash-txmsk-gpio = <19>;
+				        };
+					vbus {
+						status = "okay";
+					};
+				        debug {
+				        };
+			       };
+
 				pmic2: 88pm860@38 {
 					compatible = "marvell,88pm860";
 					reg = <0x38>;
@@ -1374,3 +1411,4 @@
 
 #include "88pm860.dtsi"
 #include "88pm860_pxa1936_dkb.dtsi"
+#include "88pm830.dtsi"
