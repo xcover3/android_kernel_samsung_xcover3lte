@@ -333,7 +333,13 @@ static int pm830_vbus_dt_init(struct device_node *np,
 			     struct device *dev,
 			     struct pm830_usb_pdata *pdata)
 {
-	return of_property_read_u32(np, "gpadc-number", &pdata->id_gpadc);
+	int ret;
+	ret = of_property_read_u32(np, "gpadc-number", &pdata->id_gpadc);
+	if (ret) {
+		dev_info(dev, "There is no valid gpadc for id detection\n");
+		pdata->id_gpadc = -1;
+	}
+	return 0;
 }
 
 static int pm830_vbus_probe(struct platform_device *pdev)
@@ -377,21 +383,23 @@ static int pm830_vbus_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	usb->id_irq = platform_get_irq(pdev, usb->id_gpadc + 1);
-	if (usb->id_irq < 0) {
-		dev_err(&pdev->dev, "failed to get idpin irq\n");
-		ret = -ENXIO;
-		goto out;
-	}
+	if (usb->id_gpadc != -1) {
+		usb->id_irq = platform_get_irq(pdev, usb->id_gpadc + 1);
+		if (usb->id_irq < 0) {
+			dev_err(&pdev->dev, "failed to get idpin irq\n");
+			ret = -ENXIO;
+			goto out;
+		}
 
-	ret = devm_request_threaded_irq(&pdev->dev, usb->vbus_irq, NULL,
-					pm830_vbus_handler,
-					IRQF_ONESHOT | IRQF_NO_SUSPEND,
-					"usb detect", usb);
-	if (ret) {
-		dev_info(&pdev->dev,
-			"cannot request irq for VBUS, return\n");
-		goto out;
+		ret = devm_request_threaded_irq(&pdev->dev, usb->vbus_irq, NULL,
+						pm830_vbus_handler,
+						IRQF_ONESHOT | IRQF_NO_SUSPEND,
+						"usb detect", usb);
+		if (ret) {
+			dev_info(&pdev->dev,
+				"cannot request irq for VBUS, return\n");
+			goto out;
+		}
 	}
 
 	ret = devm_request_threaded_irq(&pdev->dev, usb->id_irq, NULL,
@@ -414,10 +422,12 @@ static int pm830_vbus_probe(struct platform_device *pdev)
 				pm830_set_vbus);
 	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, get_vbus,
 				pm830_get_vbus);
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
-				pm830_read_id_val);
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
-				pm830_init_id);
+	if (usb->id_gpadc != -1) {
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
+					pm830_read_id_val);
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
+					pm830_init_id);
+	}
 
 	/*
 	 * GPADC is enabled in otg driver via calling pm830_init_id()
