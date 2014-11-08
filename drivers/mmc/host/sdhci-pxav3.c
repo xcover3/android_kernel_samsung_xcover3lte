@@ -1306,20 +1306,24 @@ static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
 		 */
 
 		atomic_set(&cur_dvfs_level, dvfs_level);
+		#ifdef CONFIG_PXA_DVFS
 		hwdvc_notifier_register(&dvfs_notifier); /* debug use */
+		#endif
 		is_dvfs_request_ok = 0;
 		pxa_sdh_request_dvfs_level(host, dvfs_level);
 		if (is_dvfs_request_ok != 1) {
 			pr_err("%s: drequest dvfs level %d fail and tuning stop\n",
 				mmc_hostname(host->mmc), dvfs_level);
+			#ifdef CONFIG_PXA_DVFS
 			hwdvc_notifier_unregister(&dvfs_notifier);
+			#endif
 			break;
 		}
 
 		pxav3_execute_tuning_cycle(host, opcode, bitmap);
-
+		#ifdef CONFIG_PXA_DVFS
 		hwdvc_notifier_unregister(&dvfs_notifier);
-
+		#endif
 		/*4. Scan the bitmap after tuning for 1 round */
 		tmp_tuning_value = pxav3_bitmap_scan(bitmap, tuning_range,
 					pdata->tuning_win_limit, &tmp_win_len);
