@@ -19,6 +19,7 @@ struct pm80x_vbus_info {
 	struct pm80x_chip	*chip;
 	struct pm80x_subchip	*subchip;
 	int			irq;
+	int			id_irq;
 	int			vbus_gpio;
 	int			id_gpadc;
 };
@@ -193,7 +194,7 @@ static int pm80x_set_vbus(unsigned int vbus)
 	case PM800_GPIO4:
 		/* OTG5V Enable/Disable is connected to GPIO_4 */
 		mask = PM800_GPIO4_GPIO_MODE(0x01) | PM800_GPIO4_VAL;
-		reg = PM800_GPIO_4_CNTRL;
+		reg = PM800_GPIO_4_5_CNTRL;
 		break;
 
 	default:
@@ -228,6 +229,13 @@ static irqreturn_t vbus_irq(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t vbus_id_irq(int irq, void *dev)
+{
+	pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_ID, 0);
+
+	return IRQ_HANDLED;
+}
+
 static int pm80x_vbus_probe(struct platform_device *pdev)
 {
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -258,33 +266,55 @@ static int pm80x_vbus_probe(struct platform_device *pdev)
 	if (vbus->id_gpadc == 0xff)
 		vbus->id_gpadc = -1;
 
-	vbus->irq = platform_get_irq(pdev, 0);
-	if (vbus->irq < 0) {
-		dev_err(&pdev->dev, "failed to get vbus irq\n");
-		ret = -ENXIO;
-		goto out;
+	/* request vbus irq */
+	if (vbus->vbus_gpio != -1) {
+		vbus->irq = platform_get_irq(pdev, 0);
+		if (vbus->irq < 0) {
+			dev_err(&pdev->dev, "failed to get vbus irq\n");
+			ret = -ENXIO;
+			goto out;
+		}
+
+		ret = request_threaded_irq(vbus->irq, NULL, vbus_irq,
+					   IRQF_ONESHOT | IRQF_NO_SUSPEND, "88pm800-vbus", vbus);
+		if (ret) {
+			dev_info(&pdev->dev,
+				"Can not request irq for VBUS, "
+				"disable clock gating\n");
+		}
 	}
 
-	ret = request_threaded_irq(vbus->irq, NULL, vbus_irq,
-				   IRQF_ONESHOT | IRQF_NO_SUSPEND, "88pm800-vbus", vbus);
-	if (ret) {
-		dev_info(&pdev->dev,
-			"Can not request irq for VBUS, "
-			"disable clock gating\n");
+	/* request usb id irq */
+	if (vbus->id_gpadc != -1) {
+		vbus->id_irq = platform_get_irq(pdev, vbus->id_gpadc + 1);
+		if (vbus->id_irq < 0) {
+			dev_err(&pdev->dev, "failed to get idpin irq\n");
+			ret = -ENXIO;
+			goto out;
+		}
+		ret = request_threaded_irq(vbus->id_irq, NULL, vbus_id_irq,
+				IRQF_ONESHOT | IRQF_NO_SUSPEND, "88pm800-vbus-id", vbus);
+		if (ret)
+			dev_info(&pdev->dev, "Can not request irq for VBUS id\n");
 	}
 
 	vbus_info = vbus;
 	platform_set_drvdata(pdev, vbus);
 	device_init_wakeup(&pdev->dev, 1);
 
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, set_vbus,
+	if (vbus->vbus_gpio != -1) {
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, set_vbus,
 				pm80x_set_vbus);
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, get_vbus,
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, get_vbus,
 				pm80x_read_vbus_val);
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
+	}
+
+	if (vbus->id_gpadc != -1) {
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
 				pm80x_read_id_val);
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
 				pm80x_init_id);
+	}
 
 	return 0;
 

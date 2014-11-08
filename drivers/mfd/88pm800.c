@@ -228,13 +228,31 @@ static struct resource usb_resources[] = {
 	.end = PM800_IRQ_CHG,
 	.flags = IORESOURCE_IRQ,
 	},
+	{
+	.name = "gpadc0",
+	.start = PM800_IRQ_GPADC0,
+	.end = PM800_IRQ_GPADC0,
+	.flags = IORESOURCE_IRQ,
+	},
+	{
+	.name = "gpadc1",
+	.start = PM800_IRQ_GPADC1,
+	.end = PM800_IRQ_GPADC1,
+	.flags = IORESOURCE_IRQ,
+	},
+	{
+	.name = "gpadc2",
+	.start = PM800_IRQ_GPADC2,
+	.end = PM800_IRQ_GPADC2,
+	.flags = IORESOURCE_IRQ,
+	},
 };
 
 static struct mfd_cell usb_devs[] = {
 	{
 	.name = "88pm80x-usb",
-	 .of_compatible = "marvell,88pm80x-usb",
-	.num_resources = 1,
+	.of_compatible = "marvell,88pm80x-usb",
+	.num_resources = ARRAY_SIZE(usb_resources),
 	.resources = &usb_resources[0],
 	.id = -1,
 	},
