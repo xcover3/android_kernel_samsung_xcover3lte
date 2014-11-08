@@ -56,4 +56,8 @@
 		  compatible = "marvell,88pm8xx-dvc";
 		  status = "disabled";
 	};
+	vbus {
+		  compatible = "marvell,88pm80x-usb";
+		  status = "disabled";
+	};
 };

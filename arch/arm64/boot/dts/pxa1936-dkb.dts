@@ -885,6 +885,11 @@
 						onkey-gpio-number = <0>;
 					};
 
+					vbus {
+						vbus-gpio = <0xff>;
+						id-gpadc = <2>;
+					};
+
 					dvc {
 						pinctrl-names = "default";
 						pinctrl-0 = <&dvc_pmx_func>;

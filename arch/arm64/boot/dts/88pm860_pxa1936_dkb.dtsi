@@ -49,4 +49,7 @@
 	dvc {
 		status = "okay";
 	};
+	vbus {
+		status = "okay";
+	};
 };
