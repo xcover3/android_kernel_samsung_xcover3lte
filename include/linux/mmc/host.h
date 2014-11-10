@@ -63,6 +63,7 @@ struct mmc_ios {
 #define MMC_BUS_WIDTH_8		3
 
 	unsigned char	timing;			/* timing specification used */
+	unsigned char	old_timing;		/* old timing specification used */
 
 #define MMC_SDR_MODE		0
 #define MMC_1_2V_DDR_MODE	1
