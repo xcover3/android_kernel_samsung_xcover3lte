@@ -23,6 +23,7 @@
 #include <linux/skbuff.h>
 #include <linux/mutex.h>
 #include <linux/dma-mapping.h>
+#include <linux/clk/mmpcpdvc.h>
 #include "pxa_cp_load_ioctl.h"
 #include "acipcd.h"
 #include "amipcd.h"
@@ -177,6 +178,11 @@ struct shm_skctl {
 	/* uuid reserved for SSIPC solution */
 	volatile unsigned int uuid_high;
 	volatile unsigned int uuid_low;
+
+	/* dvc voltage and frequency */
+	volatile unsigned int cp_freq[MAX_CP_PPNUM];
+	volatile unsigned int cp_vol[MAX_CP_PPNUM];
+	volatile unsigned int msa_dvc_vol;
 };
 
 /* share memory socket header structure */

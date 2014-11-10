@@ -1299,6 +1299,21 @@ static void read_dfc_table(void)
 	return;
 }
 #endif
+
+static void get_dvc_info(void)
+{
+	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
+	struct cpmsa_dvc_info dvc_vol_info;
+	int i = 0;
+
+	getcpdvcinfo(&dvc_vol_info);
+	for (i = 0; i < MAX_CP_PPNUM; i++) {
+		skctl_va->cp_freq[i] = dvc_vol_info.cpdvcinfo[i].cpfreq;
+		skctl_va->cp_vol[i] = dvc_vol_info.cpdvcinfo[i].cpvl;
+	}
+	skctl_va->msa_dvc_vol = dvc_vol_info.msadvcvl;
+}
+
 static int reboot_notifier_func(struct notifier_block *this,
 	unsigned long code, void *cmd)
 {
@@ -1372,6 +1387,7 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 	}
 
 	set_version_numb();
+	get_dvc_info();
 #if 0
 	read_mv_profile();
 	read_dvc_table();
