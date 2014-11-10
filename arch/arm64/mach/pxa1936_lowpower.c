@@ -36,6 +36,7 @@ static void __iomem *mpmu_virt_addr;
 static void __iomem *APMU_CORE_IDLE_CFG[MAX_CPU*MAX_CLUS];
 static void __iomem *APMU_MP_IDLE_CFG[MAX_CPU*MAX_CLUS];
 static void __iomem *ICU_GBL_INT_MSK[MAX_CPU*MAX_CLUS];
+static void __iomem *APMU_CORE_RSTCTRL[MAX_CPU*MAX_CLUS];
 static u32 s_awucrm;
 
 /* Registers for different CPUs are quite scattered */
@@ -49,6 +50,11 @@ static const unsigned APMU_MP_IDLE_CFG_OFFS[] = {
 static const unsigned ICU_GBL_INT_MSK_OFFS[] = {
 	0x228, 0x238, 0x248, 0x258, 0x278, 0x288, 0x298, 0x2a8
 };
+
+static const unsigned APMU_CORE_RSTCTRL_MSK_OFFS[] = {
+	0x12c, 0x130, 0x134, 0x138, 0x324, 0x328, 0x32c, 0x330
+};
+
 
 #define RINDEX(cpu, clus) ((cpu) + (clus)*MAX_CPU)
 
@@ -290,9 +296,35 @@ static void __init pxa1936_mappings(void)
 			apmu_virt_addr + APMU_MP_IDLE_CFG_OFFS[i];
 		ICU_GBL_INT_MSK[i] =
 			icu_virt_addr + ICU_GBL_INT_MSK_OFFS[i];
+		APMU_CORE_RSTCTRL[i] =
+			apmu_virt_addr + APMU_CORE_RSTCTRL_MSK_OFFS[i];
 	}
 
 	mpmu_virt_addr = regs_addr_get_va(REGS_ADDR_MPMU);
+
+}
+
+#define APMU_WAKEUP_CORE(n)		(1 << (n & 0x7))
+void pxa1936_gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
+{
+	unsigned int val = 0;
+	int targ_cpu;
+
+	gic_raise_softirq(mask, irq);
+	/*
+	 * Set the wakeup bits to make sure the core(s) can respond to
+	 * the IPI interrupt.
+	 * If the target core(s) is alive, this operation is ignored by
+	 * the APMU. After the core wakes up, these corresponding bits
+	 * are clearly automatically by PMU hardware.
+	 */
+	preempt_disable();
+	for_each_cpu(targ_cpu, mask) {
+		BUG_ON(targ_cpu >= CONFIG_NR_CPUS);
+		val |= APMU_WAKEUP_CORE(targ_cpu);
+	}
+	writel_relaxed(val, APMU_CORE_RSTCTRL[smp_processor_id()]);
+	preempt_enable();
 }
 
 static int __init pxa1936_lowpower_init(void)
@@ -304,6 +336,8 @@ static int __init pxa1936_lowpower_init(void)
 
 	pxa1936_mappings();
 	mcpm_plat_power_register(&pxa1936_idle);
+
+	set_smp_cross_call(pxa1936_gic_raise_softirq);
 
 	return 0;
 }
