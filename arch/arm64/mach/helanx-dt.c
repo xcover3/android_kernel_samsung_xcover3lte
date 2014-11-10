@@ -32,9 +32,8 @@ unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
 static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
-#ifdef CONFIG_MMP_MAP
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dc00, "mmp-sspa-dai.0", NULL),
-#endif
+	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dd00, "mmp-sspa-dai.1", NULL),
 #ifdef CONFIG_SOC_CAMERA_S5K8AA
 	OF_DEV_AUXDATA("soc-camera-pdrv", 0, "soc-camera-pdrv.0", &soc_camera_desc_0),
 #endif
