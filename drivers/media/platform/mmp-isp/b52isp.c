@@ -2153,7 +2153,7 @@ static int b52isp_mac_handler(struct isp_subdev *isd, unsigned long event)
 		break;
 	}
 
-	if (laxi->dma_state == B52DMA_IDLE)
+	if (laxi->dma_state != B52DMA_ACTIVE)
 		goto check_sof_irq;
 	else
 		goto check_eof_irq;
@@ -2168,7 +2168,8 @@ check_sof_irq:
 			buffer = isp_vnode_get_idle_buffer(vnode);
 
 		isp_vnode_put_busy_buffer(vnode, buffer);
-		b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
+		if (buffer && laxi->stream)
+			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
 
 		d_inf(4, "%s receive start", isd->subdev.name);
 	}
@@ -2185,11 +2186,15 @@ check_sof_irq:
 		if (!buffer) {
 			buffer = isp_vnode_get_idle_buffer(vnode);
 			isp_vnode_put_busy_buffer(vnode, buffer);
-		} else
+
+		} else if (laxi->stream)
 			d_inf(1, "%s: buffer in the BusyQ when drop! idle:%d, busy:%d",
 				  vnode->vdev.name,
 				  vnode->idle_buf_cnt, vnode->busy_buf_cnt);
-		b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
+		if (buffer && laxi->stream)
+			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
+		else
+			laxi->dma_state = B52DMA_HW_NO_STREAM;
 
 		d_inf(3, "%s receive drop frame", isd->subdev.name);
 	}
@@ -2210,21 +2215,23 @@ check_eof_irq:
 			pvnode->reset_mmu_chnl(pcam, vnode, num_planes);
 
 		buffer = isp_vnode_find_busy_buffer(vnode, 0);
-		b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
+		if (buffer && laxi->stream)
+			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
 
 		d_inf(3, "%s receive FIFO flow error", isd->subdev.name);
 	}
 
 	if (irqstatus & VIRT_IRQ_DONE) {
 		irqstatus &= ~VIRT_IRQ_DONE;
-		if (laxi->dma_state == B52DMA_IDLE)
+		if (laxi->dma_state != B52DMA_ACTIVE)
 			goto recheck;
 		laxi->dma_state = B52DMA_IDLE;
 
 		if ((paxi->r_type == B52AXI_REVENT_MEMSENSOR) &&
 			(port == B52AXI_PORT_R1)) {
 			buffer = isp_vnode_find_busy_buffer(vnode, 0);
-			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
+			if (buffer && laxi->stream)
+				b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
 			d_inf(4, "%s f2f kick read port", isd->subdev.name);
 			goto recheck;
 		}
@@ -2242,7 +2249,7 @@ check_eof_irq:
 	}
 
 recheck:
-	if (laxi->dma_state == B52DMA_IDLE) {
+	if (laxi->dma_state != B52DMA_ACTIVE) {
 		if (irqstatus & (VIRT_IRQ_START | VIRT_IRQ_DROP))
 			goto check_sof_irq;
 		if (irqstatus & (VIRT_IRQ_FIFO | VIRT_IRQ_DONE))
@@ -2381,6 +2388,7 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 			struct isp_vnode *vnode)
 {
 	int ret;
+	int cnt = 0;
 	struct plat_vnode *pvnode = container_of(vnode, struct plat_vnode, vnode);
 	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
 						 struct isp_build, media_dev);
@@ -2432,8 +2440,18 @@ disable:
 	if (atomic_dec_return(&laxi->en_cnt) > 0)
 		return 0;
 
-	if (pvnode->free_mmu_chnl)
+	if (pvnode->free_mmu_chnl) {
+		b52_clear_mac_rdy_bit(laxi->mac, laxi->port);
+		while (laxi->dma_state != B52DMA_HW_NO_STREAM) {
+			usleep_range(1000, 1500);
+			if (cnt++ > 500) {
+				d_inf(1, "%s err wait HW_NO_STREAM",
+					  laxi->isd.subdev.name);
+				break;
+			}
+		}
 		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
+	}
 
 	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
 	isp_block_tune_power(&paxi->blk, 0);
@@ -2528,38 +2546,6 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			clear_bit(out_id, &lpipe->cur_cmd->enable_map);
 
 		switch (lpipe->cur_cmd->cmd_name) {
-		case CMD_IMG_CAPTURE:
-		case CMD_RAW_PROCESS:
-		case CMD_HDR_STILL:
-			goto after_chain_unregister;
-		default:
-			break;
-		}
-
-		/* Stop listening to IRQ */
-		switch (port) {
-		case B52AXI_PORT_W1:
-			ret = atomic_notifier_chain_unregister(
-					&paxi->irq_w1.head, &b52isp_mac_irq_nb);
-			WARN_ON(ret < 0);
-			break;
-		case B52AXI_PORT_W2:
-			ret = atomic_notifier_chain_unregister(
-					&paxi->irq_w2.head, &b52isp_mac_irq_nb);
-			WARN_ON(ret < 0);
-			break;
-		case B52AXI_PORT_R1:
-			ret = atomic_notifier_chain_unregister(
-					&paxi->irq_r1.head, &b52isp_mac_irq_nb);
-			WARN_ON(ret < 0);
-			mm_stream = 0;
-			break;
-		default:
-			WARN_ON(1);
-		}
-
-after_chain_unregister:
-		switch (lpipe->cur_cmd->cmd_name) {
 		case CMD_TEST:
 		case CMD_RAW_DUMP:
 		case CMD_IMG_CAPTURE:
@@ -2574,6 +2560,8 @@ after_chain_unregister:
 			/* set the stream off flag for isp cmd*/
 			lpipe->cur_cmd->flags |= BIT(CMD_FLAG_STREAM_OFF);
 			ret = b52isp_try_apply_cmd(lpipe);
+			if (lpipe->cur_cmd->cmd_name == CMD_SET_FORMAT)
+				laxi->dma_state = B52DMA_HW_NO_STREAM;
 			if (lpipe->cur_cmd->flags & CMD_FLAG_MS)
 				pm_qos_update_request(&ddrfreq_qos_req_min,
 						PM_QOS_DEFAULT_VALUE);
@@ -2594,6 +2582,36 @@ stream_data_off:
 		}
 
 		b52_enable_axi_port(laxi, laxi->stream, vnode);
+
+		switch (lpipe->cur_cmd->cmd_name) {
+		case CMD_IMG_CAPTURE:
+		case CMD_RAW_PROCESS:
+		case CMD_HDR_STILL:
+			break;
+		default:
+			/* Stop listening to IRQ */
+			switch (port) {
+			case B52AXI_PORT_W1:
+				ret = atomic_notifier_chain_unregister(
+					&paxi->irq_w1.head, &b52isp_mac_irq_nb);
+				WARN_ON(ret < 0);
+				break;
+			case B52AXI_PORT_W2:
+				ret = atomic_notifier_chain_unregister(
+					&paxi->irq_w2.head, &b52isp_mac_irq_nb);
+				WARN_ON(ret < 0);
+				break;
+			case B52AXI_PORT_R1:
+				ret = atomic_notifier_chain_unregister(
+					&paxi->irq_r1.head, &b52isp_mac_irq_nb);
+				WARN_ON(ret < 0);
+				mm_stream = 0;
+				break;
+			default:
+				WARN_ON(1);
+			}
+			break;
+		}
 	}
 
 	/* Map / Unmap Logical AXI and Physical AXI */
@@ -2669,7 +2687,7 @@ stream_data_off:
 				lpipe->cur_cmd->output[out_id].vnode = vnode;
 				lpipe->cur_cmd->output[out_id].pix_mp =
 					vnode->format.fmt.pix_mp;
-				laxi->dma_state = B52DMA_IDLE;
+				laxi->dma_state = B52DMA_HW_NO_STREAM;
 				lpipe->cur_cmd->flags |=
 					BIT(CMD_FLAG_LOCK_AEAG);
 
@@ -2930,7 +2948,7 @@ static int b52isp_laxi_open_handler(struct b52isp_laxi *laxi,
 			vnode->hw_min_buf = item->input_min_buf;
 		}
 	}
-	WARN_ON(pipe->cur_cmd->cmd_name != item->cmd_name);
+
 	d_inf(3, "open %s (path:%s, hw_min_buf:%d)", vnode->vdev.name,
 		ppl.path->subdev.name, vnode->hw_min_buf);
 
@@ -3164,6 +3182,7 @@ static int b52isp_axi_create(struct b52isp *b52isp)
 		ispsd->drv_priv = axi;
 		b52isp->isd[B52ISP_ISD_A1W1 + i] = ispsd;
 		axi->parent = b52isp;
+		axi->dma_state = B52DMA_HW_NO_STREAM;
 		axi->mac = -1;
 		axi->port = -1;
 	}

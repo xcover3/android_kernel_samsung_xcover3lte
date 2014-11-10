@@ -3283,6 +3283,38 @@ int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta_addr,
 }
 EXPORT_SYMBOL(b52_update_mac_addr);
 
+void b52_clear_mac_rdy_bit(u8 mac, u8 port)
+{
+	u32 reg = 0;
+	u8 val = 0;
+
+	if (mac >= MAX_MAC_NUM || port >= MAX_PORT_NUM) {
+		pr_err("%s param error\n", __func__);
+		return;
+	}
+
+	switch (port) {
+	case MAC_PORT_W0:
+		val = W_RDY_0;
+		reg = mac_base[mac] + REG_MAC_RDY_ADDR0;
+		break;
+	case MAC_PORT_W1:
+		val = W_RDY_2;
+		reg = mac_base[mac] + REG_MAC_RDY_ADDR0;
+		break;
+	case MAC_PORT_R:
+		val = R_RDY_0;
+		reg = mac_base[mac] + REG_MAC_RDY_ADDR1;
+		break;
+	default:
+		pr_err("%s,%d param error\n", __func__, __LINE__);
+		return;
+	}
+
+	b52_writeb(reg, b52_readb(reg) & (~val));
+}
+EXPORT_SYMBOL(b52_clear_mac_rdy_bit);
+
 static int b52_config_mac(u8 mac_id, u8 port_id, int enable)
 {
 	__u8 val;
