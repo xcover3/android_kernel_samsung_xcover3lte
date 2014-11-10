@@ -16,7 +16,7 @@
 #include <linux/clk-provider.h>
 #include <linux/devfreq.h>
 #include <linux/clk/mmpdcstat.h>
-
+#include <linux/debugfs.h>
 #include "clk.h"
 #include "clk-plat.h"
 
@@ -180,32 +180,141 @@ unsigned int plat_get_vl_max(void)
 	return platvl_max;
 }
 
-static struct thermal_fuse_info thermal_fuse;
+static struct comm_fuse_info comm_fuseinfo;
 
-int plat_fill_thermal_fuseinfo(struct thermal_fuse_info *info)
+int plat_fill_fuseinfo(struct comm_fuse_info *info)
 {
 	if (!info) {
 		pr_err("%s NULL info!\n", __func__);
 		return -EINVAL;
 	}
-	memcpy(&thermal_fuse, info, sizeof(struct thermal_fuse_info));
+	memcpy(&comm_fuseinfo, info, sizeof(struct comm_fuse_info));
 	return 0;
 }
 
 unsigned int get_chipprofile(void)
 {
-	return thermal_fuse.profile;
+	return comm_fuseinfo.profile;
 }
 EXPORT_SYMBOL(get_chipprofile);
 
 unsigned int get_iddq_105(void)
 {
-	return thermal_fuse.iddq_1050;
+	return comm_fuseinfo.iddq_1050;
 }
 EXPORT_SYMBOL(get_iddq_105);
 
 unsigned int get_iddq_130(void)
 {
-	return thermal_fuse.iddq_1030;
+	return comm_fuseinfo.iddq_1030;
 }
 EXPORT_SYMBOL(get_iddq_130);
+
+#ifdef CONFIG_DEBUG_FS
+static ssize_t fab_fuse_read(struct file *file, char __user *user_buf,
+			       size_t count, loff_t *ppos)
+{
+	char val[20];
+	sprintf(val, "%d\n", comm_fuseinfo.fab);
+	return simple_read_from_buffer(user_buf, count, ppos, val, strlen(val));
+}
+static const struct file_operations fab_fuse_ops = {
+	.read		= fab_fuse_read,
+};
+
+static ssize_t svtdro_fuse_read(struct file *file, char __user *user_buf,
+			       size_t count, loff_t *ppos)
+{
+	char val[20];
+	sprintf(val, "%d\n", comm_fuseinfo.svtdro);
+	return simple_read_from_buffer(user_buf, count, ppos, val, strlen(val));
+}
+static const struct file_operations svtdro_fuse_ops = {
+	.read		= svtdro_fuse_read,
+};
+
+static ssize_t lvtdro_fuse_read(struct file *file, char __user *user_buf,
+			       size_t count, loff_t *ppos)
+{
+	char val[20];
+	sprintf(val, "%d\n", comm_fuseinfo.lvtdro);
+	return simple_read_from_buffer(user_buf, count, ppos, val, strlen(val));
+}
+static const struct file_operations lvtdro_fuse_ops = {
+	.read		= lvtdro_fuse_read,
+};
+
+static ssize_t profile_fuse_read(struct file *file, char __user *user_buf,
+			       size_t count, loff_t *ppos)
+{
+	char val[20];
+	sprintf(val, "%d\n", comm_fuseinfo.profile);
+	return simple_read_from_buffer(user_buf, count, ppos, val, strlen(val));
+}
+static const struct file_operations profile_fuse_ops = {
+	.read		= profile_fuse_read,
+};
+
+static ssize_t iddq_1050_fuse_read(struct file *file, char __user *user_buf,
+			       size_t count, loff_t *ppos)
+{
+	char val[20];
+	sprintf(val, "%d\n", comm_fuseinfo.iddq_1050);
+	return simple_read_from_buffer(user_buf, count, ppos, val, strlen(val));
+}
+static const struct file_operations iddq_1050_fuse_ops = {
+	.read		= iddq_1050_fuse_read,
+};
+
+
+static struct dentry *fuse;
+static int __init __init_fuse_debugfs_node(void)
+{
+	struct dentry *lvtdro_fuse = NULL, *svtdro_fuse = NULL;
+	struct dentry *fab_fuse = NULL;
+	struct dentry *profile_fuse = NULL;
+	struct dentry *iddq_1050_fuse = NULL;
+
+	fuse = debugfs_create_dir("fuse", NULL);
+	if (!fuse)
+		return -ENOENT;
+
+	fab_fuse = debugfs_create_file("fab", S_IRUGO, fuse, NULL, &fab_fuse_ops);
+	if (!fab_fuse)
+		goto err_fab_fuse;
+
+	svtdro_fuse = debugfs_create_file("svtdro", S_IRUGO, fuse, NULL, &svtdro_fuse_ops);
+	if (!svtdro_fuse)
+		goto err_svtdro_fuse;
+
+	lvtdro_fuse = debugfs_create_file("lvtdro", S_IRUGO, fuse, NULL, &lvtdro_fuse_ops);
+	if (!lvtdro_fuse)
+		goto err_lvtdro_fuse;
+
+	profile_fuse = debugfs_create_file("profile", S_IRUGO, fuse, NULL, &profile_fuse_ops);
+	if (!profile_fuse)
+		goto err_profile_fuse;
+
+	iddq_1050_fuse = debugfs_create_file("iddq1050", S_IRUGO, fuse, NULL, &iddq_1050_fuse_ops);
+	if (!iddq_1050_fuse)
+		goto err_iddq_1050_fuse;
+
+	return 0;
+
+err_iddq_1050_fuse:
+	debugfs_remove(profile_fuse);
+err_profile_fuse:
+	debugfs_remove(lvtdro_fuse);
+err_lvtdro_fuse:
+	debugfs_remove(svtdro_fuse);
+err_svtdro_fuse:
+	debugfs_remove(fab_fuse);
+err_fab_fuse:
+	debugfs_remove(fuse);
+	pr_err("debugfs entry created failed in %s\n", __func__);
+	return -ENOENT;
+
+}
+
+arch_initcall(__init_fuse_debugfs_node);
+#endif

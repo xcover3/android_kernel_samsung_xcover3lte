@@ -71,7 +71,7 @@ static unsigned int uiprofile;
 static unsigned int uisvtdro;
 static unsigned int uilvtdro;
 static unsigned int uisidd1p05;
-static struct thermal_fuse_info therinfo;
+static struct comm_fuse_info fuseinfo;
 
 struct svtrng {
 	unsigned int min;
@@ -175,9 +175,13 @@ static int __init __init_read_droinfo(void)
 	else
 		uiprofile = convert_svtdro2profile(uisvtdro);
 
-	therinfo.profile = uiprofile;
-	therinfo.iddq_1050 = uisidd1p05;
-	plat_fill_thermal_fuseinfo(&therinfo);
+	fuseinfo.fab = uifab;
+	fuseinfo.lvtdro = uilvtdro;
+	fuseinfo.svtdro = uisvtdro;
+
+	fuseinfo.profile = uiprofile;
+	fuseinfo.iddq_1050 = uisidd1p05;
+	plat_fill_fuseinfo(&fuseinfo);
 
 	pr_info(" ");
 	pr_info("	*********************************\n");
