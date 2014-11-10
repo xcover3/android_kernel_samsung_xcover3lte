@@ -355,6 +355,10 @@
 				status = "disabled";
 			};
 
+			timer2: timer@d401f000 {
+				status = "okay";
+			};
+
 			edgewakeup: edgewakeup@d4019800 {
 				status = "okay";
 			};

@@ -161,7 +161,7 @@
 			};
 
 			timer0: timer@d4014000 {
-				status = "okay";
+				status = "disabled";
 			};
 
 			timer1: timer@d4016000 {
@@ -169,7 +169,7 @@
 			};
 
 			timer2: timer@d401f000 {
-				status = "disabled";
+				status = "okay";
 			};
 
 			edgewakeup: edgewakeup@d4019800 {
