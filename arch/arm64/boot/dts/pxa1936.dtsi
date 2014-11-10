@@ -324,6 +324,15 @@
 				status = "disabled";
 			};
 
+			adma1: adma@d128d900 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xD128D900 0x100>;
+				interrupts = <0 83 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
+
 			dsi: dsi@d420b800 {
 				compatible = "marvell,mmp-dsi";
 				reg = <0xd420b800 0x1ec>;
@@ -653,16 +662,27 @@
 				status = "disabled";
 			};
 
+			sspa1: sspa@d128dd00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xd128dd00 0x100>;
+				dmas = <&adma1 1
+					&adma1 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA1>;
+				status = "disabled";
+			};
+
 			map: map@d1200000 {
 				compatible = "marvell,mmp-map";
-				marvell,map-lite;
-				reg = <0xd1230000 0x80
+				reg = <0xd1230000 0x100
 					0xd1200000 0x8000>;
 				audio_reg = <128>;
 				bit_sram = <3>;
 				bit_apb = <2>;
 				pll_sel = <0>;
-				power_ctrl = <2>;
+				power_ctrl = <0>;
 				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
 				status = "disabled";
 			};
