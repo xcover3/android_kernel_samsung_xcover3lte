@@ -1276,7 +1276,7 @@ static struct ddr_opt lpddr800_oparray[] = {
 };
 
 static unsigned long hwdfc_freq_table[] = {
-	0, 312000, 416000, 528000, 528000, 624000, 667000, 667000
+	0, 312000, 312000, 416000, 528000, 528000, 624000, 667000
 };
 
 /*
