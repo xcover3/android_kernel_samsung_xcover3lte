@@ -103,4 +103,5 @@ struct b52isp_ctrls {
 
 int b52isp_init_ctrls(struct b52isp_ctrls *ctrls);
 int b52isp_rw_awb_gain(struct b52isp_awb_gain *awb_gain, int id);
+void b52isp_ctrl_reset_bp_val(void);
 #endif

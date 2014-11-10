@@ -662,6 +662,7 @@ static int b52isp_idi_node_close(struct v4l2_subdev *sd,
 	int ret;
 	ret = isp_block_tune_power(blk, 0);
 	b52_set_base_addr(blk->reg_base);
+	b52isp_ctrl_reset_bp_val();
 	return ret;
 }
 

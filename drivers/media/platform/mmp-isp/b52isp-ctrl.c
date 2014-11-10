@@ -23,6 +23,12 @@
 #include "b52-reg.h"
 #include "b52isp.h"
 
+/*
+ * save the blue print value
+ */
+static u8 low_def[B52_NR_PIPELINE_MAX];
+static u8 high_def[B52_NR_PIPELINE_MAX];
+
 #define USER_GAIN_BIT 16
 #define SENSOR_GAIN_BIT 4
 #define GAIN_CONVERT (USER_GAIN_BIT - SENSOR_GAIN_BIT)
@@ -611,6 +617,17 @@ static struct b52_sensor *b52isp_ctrl_to_sensor(struct v4l2_ctrl *ctrl)
 	return sensor;
 }
 
+void b52isp_ctrl_reset_bp_val(void)
+{
+	int i;
+
+	for (i = 0; i < B52_NR_PIPELINE_MAX; i++) {
+		low_def[i] = 0;
+		high_def[i] = 0;
+	}
+}
+EXPORT_SYMBOL(b52isp_ctrl_reset_bp_val);
+
 static int b52isp_ctrl_set_saturation(struct v4l2_ctrl *ctrl, int id)
 {
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
@@ -695,8 +712,6 @@ static const s64 ev_bias_qmenu[] = {
 
 static int b52isp_ctrl_set_expo_bias(int idx, int id)
 {
-	static u8 low_def[B52_NR_PIPELINE_MAX];
-	static u8 high_def[B52_NR_PIPELINE_MAX];
 	u16 low_target;
 	u16 high_target;
 	u16 min_target_distance, adjacent_low_target;
