@@ -2129,10 +2129,10 @@ struct regval_tab sr544_ag[] = {
 	{0x003b, 0x00, 0xff},
 };
 struct regval_tab sr544_vflip[] = {
-	{0x0000, 0x00, 0x0001},
+	{0x0000, 0x0100, 0x0100},
 };
 struct regval_tab sr544_hflip[] = {
-	{0x0000, 0x00, 0x0002},
+	{0x0000, 0x0200, 0x0200},
 };
 #define N_SR544_INIT ARRAY_SIZE(sr544_res_init)
 #define N_SR544_ID ARRAY_SIZE(sr544_id)
@@ -2148,7 +2148,7 @@ struct regval_tab sr544_hflip[] = {
 #define N_SR544_STREAM_ON ARRAY_SIZE(sr544_stream_on)
 #define N_SR544_STREAM_OFF ARRAY_SIZE(sr544_stream_off)
 struct b52_sensor_mbus_fmt sr544_fmt = {
-	.mbus_code	= V4L2_MBUS_FMT_SBGGR10_1X10,
+	.mbus_code	= V4L2_MBUS_FMT_SRGGB10_1X10,
 	.colorspace	= V4L2_COLORSPACE_SRGB,
 	.regs = {
 		.tab = sr544_fmt_raw10,
@@ -2273,7 +2273,7 @@ struct b52_sensor_data b52_sr544 = {
 		.tab = sr544_vflip,
 		.num = N_SR544_VFLIP,
 	},
-
+	.flip_change_phase =  0,
 	.gain_shift = 0x08,
 	.expo_shift = 0x00,
 /*	.calc_dphy = 1, */

@@ -3137,7 +3137,7 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_EXPO, &reg);
 	switch (reg.num) {
 	case 2:
-		b52_writew(base + REG_FW_SSOR_AEC_ADDR_0, 0);
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_0, reg.tab->reg);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_1, reg.tab->reg);
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_2, reg.tab->reg + 1);
 		b52_writeb(base + REG_FW_SSOR_AEC_MSK_0, 0x00);
