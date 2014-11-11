@@ -1241,7 +1241,7 @@
 		compatible = "marvell,mmp-m3";
 		pmicver = <2>;
 		vm3pwr-supply = <&ldo3>;
-		antpwr-supply = <&ldo4>;
+		antpwr-supply = <&ldo9>;
 
 		pinctrl-names = "default", "poweron";
 		pinctrl-0 = <&gnss_pmx_def>;
@@ -1253,8 +1253,8 @@
 		compatible = "marvell,mmp-m3";
 		pmicver = <2>;
 		vm3pwr-supply = <&ldo3>;
-		antpwr-supply = <&ldo4>;
-		senpwr-supply = <&ldo4>;
+		antpwr-supply = <&ldo9>;
+		senpwr-supply = <&ldo18>;
 
 		pinctrl-names = "default", "poweron";
 		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
