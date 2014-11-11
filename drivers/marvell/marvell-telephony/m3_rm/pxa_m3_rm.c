@@ -73,11 +73,18 @@ struct regulators {
 	struct regulator *reg_vm3;
 	struct regulator *reg_sen;
 	struct regulator *reg_ant;
+	struct regulator *reg_vccm;
+};
+
+struct voltage_vccm {
+	u32 cm3_on;
+	u32 cm3_off;
 };
 
 struct crmdev_dev *crmdev_devices;
 struct crmdev_pin_ctrl m3_pctrl;
 struct regulators m3_regulator;
+struct voltage_vccm vccm_vol;
 static struct class *crmdev_class;
 static struct rm_m3_addr m3_addr;
 static spinlock_t m3init_sync_lock;
@@ -92,6 +99,7 @@ static void ldo_sleep_control(int ua_load, const char *ldo_name)
 {
 	int ret;
 	struct regulator *reg_ctrl = NULL;
+	int mode;
 
 	if (!strcmp("vm3pwr", ldo_name))
 		reg_ctrl = m3_regulator.reg_vm3;
@@ -101,11 +109,20 @@ static void ldo_sleep_control(int ua_load, const char *ldo_name)
 		reg_ctrl = m3_regulator.reg_ant;
 
 	if (reg_ctrl) {
-		ret = regulator_set_optimum_mode(reg_ctrl, ua_load);
-		if (ret < 0)
-			pr_err("set %s ldo fail!\n", ldo_name);
-		else
-			pr_info("set %s ldo sleep %duA\n", ldo_name, ua_load);
+		if (1 == pmic_ver) {
+			ret = regulator_set_optimum_mode(reg_ctrl, ua_load);
+			if (ret < 0)
+				pr_err("set %s ldo fail!\n", ldo_name);
+			else
+				pr_info("set %s ldo sleep %duA\n", ldo_name, ua_load);
+		} else if (2 == pmic_ver) {
+			mode = (ua_load > 5000) ? REGULATOR_MODE_NORMAL : REGULATOR_MODE_IDLE;
+			ret = regulator_set_suspend_mode(reg_ctrl, mode);
+			if (ret < 0)
+				pr_err("set %s ldo fail!\n", ldo_name);
+			else
+				pr_info("set %s ldo sleep %duA\n", ldo_name, ua_load);
+		}
 	}
 
 }
@@ -336,9 +353,13 @@ static int m3_open(struct inode *inode, struct file *filp)
 	if (gnss_open == 0 && senhub_open == 0) {
 		if (1 == pmic_ver)
 			extern_set_buck1_slp_volt(1);
-		else
-			/*TODO: will add it when PMIC side ready */
-			;
+		else if (2 == pmic_ver) {
+			if (m3_regulator.reg_vccm) {
+				pr_info("set vccmain to %duV\n", vccm_vol.cm3_on);
+				regulator_set_suspend_voltage(m3_regulator.reg_vccm,
+						vccm_vol.cm3_on);
+			}
+		}
 		if (!IS_ERR(m3_pctrl.pwron))
 			pinctrl_select_state(m3_pctrl.pinctrl,
 					m3_pctrl.pwron);
@@ -434,9 +455,13 @@ static int m3_close(struct inode *inode, struct file *filp)
 					m3_pctrl.def);
 		if (1 == pmic_ver)
 			extern_set_buck1_slp_volt(0);
-		else
-			/*TODO: will add it when pmic side ready*/
-			;
+		else if (2 == pmic_ver) {
+			if (m3_regulator.reg_vccm) {
+				pr_info("set vccmain to %duV\n", vccm_vol.cm3_off);
+				regulator_set_suspend_voltage(m3_regulator.reg_vccm,
+						vccm_vol.cm3_off);
+			}
+		}
 	}
 
 	return 0;
@@ -835,11 +860,21 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 		pr_err("get antenna do fail!\n");
 		m3_regulator.reg_ant = NULL;
 	}
+	m3_regulator.reg_vccm = regulator_get(m3rm_dev, "vccmain");
+	if (IS_ERR(m3_regulator.reg_vccm)) {
+		pr_err("get vccmain ldo fail\n");
+		m3_regulator.reg_vccm = NULL;
+	}
 
 	if (of_property_read_u32(np, "ipver", &m3_ip_ver))
 		m3_ip_ver = 1;
 	if (of_property_read_u32(np, "pmicver", &pmic_ver))
 		pmic_ver = 1;
+
+	if (of_property_read_u32_index(np, "vccmain", 0, &vccm_vol.cm3_on))
+		vccm_vol.cm3_on = 950000;
+	if (of_property_read_u32_index(np, "vccmain", 1, &vccm_vol.cm3_off))
+		vccm_vol.cm3_off = 700000;
 
 	ddr_qos_min.name = "l3000_acq";
 	pm_qos_add_request(&ddr_qos_min, PM_QOS_DDR_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
@@ -859,6 +894,8 @@ static int pxa_m3rm_remove(struct platform_device *pdev)
 		regulator_put(m3_regulator.reg_sen);
 	if (m3_regulator.reg_ant)
 		regulator_put(m3_regulator.reg_ant);
+	if (m3_regulator.reg_vccm)
+		regulator_put(m3_regulator.reg_vccm);
 	deinit_gnss_base_addr();
 	crmdev_cleanup_module(crmdev_nr_devs);
 	pr_info("crmdev module exit finished\n");
