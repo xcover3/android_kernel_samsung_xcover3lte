@@ -2107,7 +2107,7 @@ struct regval_tab sr544_id[] = {
 	{0x0f16, 0x4405, 0xffff},
 };
 struct regval_tab sr544_vts[] = {
-	{0x0006, 0x06, 0x7f},
+	{0x0006, 0x07, 0x7f},
 	{0x0007, 0xc8, 0xff},
 };
 struct regval_tab sr544_stream_on[] = {
@@ -2119,6 +2119,10 @@ struct regval_tab sr544_stream_off[] = {
 struct regval_tab sr544_expo[] = {
 	{0x0004, 0x00, 0xff},
 	{0x0005, 0x00, 0xff},
+};
+struct regval_tab sr544_frationalexp[] = {
+	{0x0002, 0x00, 0xff},
+	{0x0003, 0x00, 0xff},
 };
 struct regval_tab sr544_ag[] = {
 	{0x003a, 0x00, 0xff},
@@ -2137,6 +2141,7 @@ struct regval_tab sr544_hflip[] = {
 #define N_SR544_5M ARRAY_SIZE(sr544_res_5M)
 #define N_SR544_VTS ARRAY_SIZE(sr544_vts)
 #define N_SR544_EXPO ARRAY_SIZE(sr544_expo)
+#define N_SR544_FRATIONALEXPO ARRAY_SIZE(sr544_frationalexp)
 #define N_SR544_AG ARRAY_SIZE(sr544_ag)
 #define N_SR544_VFLIP ARRAY_SIZE(sr544_vflip)
 #define N_SR544_HFLIP ARRAY_SIZE(sr544_hflip)
@@ -2235,7 +2240,8 @@ struct b52_sensor_data b52_sr544 = {
 		[B52_SENSOR_AG] = {0x0010, 0x00f0},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
-	.expo_range = {0x00010, 0x07f8},
+	.expo_range = {0x00010, 0x07c8},
+	.frationalexp_range = {0x00000, 0x0b40},
 	.focus_range = {0x0010, 0x03ff},
 	.vts_reg = {
 		.tab = sr544_vts,
@@ -2244,6 +2250,10 @@ struct b52_sensor_data b52_sr544 = {
 	.expo_reg = {
 		.tab = sr544_expo,
 		.num = N_SR544_EXPO,
+	},
+	.frationalexp_reg = {
+		.tab = sr544_frationalexp,
+		.num = N_SR544_FRATIONALEXPO,
 	},
 	.gain_reg = {
 		[B52_SENSOR_AG] = {

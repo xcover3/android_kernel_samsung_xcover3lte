@@ -1671,9 +1671,12 @@ struct b52_sensor_cfg {
 	u16 expo_ratio;
 	u16 max_expo;
 	u16 min_expo;
+	u16 max_frationalexpo;
+	u16 min_frationalexpo;
 	u16 max_gain;
 	u16 min_gain;
 	u16 vts;
+	u16 hts;
 	u16 band_50hz;
 	u16 band_60hz;
 };
@@ -1689,6 +1692,11 @@ static inline void b52_set_expo_range(u16 max, u16 min)
 	b52_writew(ISP_MAX_EXPO, max);
 }
 
+static inline void b52_set_fration_expo_range(u16 max, u16 min)
+{
+	b52_writew(REG_FW_AEC_MAX_FRATIONAL_EXP, max);
+}
+
 static inline void b52_set_gain_range(u16 max, u16 min)
 {
 	b52_writew(ISP_MIN_GAIN, min);
@@ -1698,6 +1706,11 @@ static inline void b52_set_gain_range(u16 max, u16 min)
 static inline void b52_set_sensor_vts(u16 vts)
 {
 	b52_writew(ISP_VTS, vts);
+}
+
+static inline void b52_set_sensor_hts(u16 hts)
+{
+	b52_writew(ISP_HTS, hts);
 }
 
 static inline void b52_set_sensor_band(u16 band_50hz, u16 band_60hz)
@@ -1729,11 +1742,17 @@ static int b52_calc_sensor_cfg(struct v4l2_subdev *sd,
 	b52_sensor_call(sensor, g_param_range, B52_SENSOR_EXPO,
 			&cfg->min_expo, &cfg->max_expo);
 
+	b52_sensor_call(sensor, g_param_range, B52_SENSOR_FRACTIONALEXPO,
+			&cfg->min_frationalexpo, &cfg->max_frationalexpo);
+
 	b52_sensor_call(sensor, g_param_range, B52_SENSOR_GAIN,
 			&cfg->min_gain, &cfg->max_gain);
 
 	b52_sensor_call(sensor, g_param_range, B52_SENSOR_REQ_VTS,
 			&cfg->vts, &cfg->vts);
+
+	b52_sensor_call(sensor, g_param_range, B52_SENSOR_REQ_HTS,
+			&cfg->hts, &cfg->hts);
 
 	b52_sensor_call(sensor, g_band_step,
 			&cfg->band_50hz, &cfg->band_60hz);
@@ -1752,8 +1771,11 @@ static void b52_set_sensor(struct b52_sensor_cfg *cfg)
 {
 	b52_set_expo_ratio(cfg->expo_ratio);
 	b52_set_expo_range(cfg->max_expo, cfg->min_expo);
+	b52_set_fration_expo_range(cfg->max_frationalexpo,
+				cfg->min_frationalexpo);
 	b52_set_gain_range(cfg->max_gain, cfg->min_gain);
 	b52_set_sensor_vts(cfg->vts);
+	b52_set_sensor_hts(cfg->hts);
 	b52_set_sensor_band(cfg->band_50hz, cfg->band_60hz);
 }
 
@@ -1779,11 +1801,14 @@ static int b52_cfg_isp_ms(const struct b52_sensor_data *data, int path)
 	memset(&cfg, 0, sizeof(cfg));
 	cfg.min_expo = data->expo_range.min;
 	cfg.max_expo = data->expo_range.max;
+	cfg.min_frationalexpo =  data->frationalexp_range.min;
+	cfg.max_frationalexpo =  data->frationalexp_range.max;
 	cfg.min_gain = data->gain_range[B52_SENSOR_AG].min;
 	cfg.max_gain = data->gain_range[B52_SENSOR_AG].max;
 	cfg.min_gain = cfg.min_gain*data->gain_range[B52_SENSOR_DG].min/B52_GAIN_UNIT;
 	cfg.max_gain = cfg.max_gain*data->gain_range[B52_SENSOR_DG].max/B52_GAIN_UNIT;
 	cfg.vts = data->vts_range.min;
+	cfg.hts = data->res[0].hts;
 	/* FIXME: replace with really value*/
 	cfg.expo_ratio = 0x0100;
 	cfg.band_50hz = 0;
@@ -3130,6 +3155,13 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	default:
 		pr_err("%s: no expo reg", __func__);
 		break;
+	}
+	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_FRACTIONALEXPO, &reg);
+	if (reg.num > 0) {
+		b52_writeb(base + REG_FW_AEC_ALLOW_FRATIONAL_EXP, 0x01);
+		b52_writeb(base + REG_FW_SSOR_FRATIONAL_ADDR_0, reg.tab->reg);
+		b52_writeb(base + REG_FW_SSOR_FRATIONAL_ADDR_1,
+						reg.tab->reg + 1);
 	}
 	b52_writeb(base + REG_FW_AEC_EXP_SHIFT, expo_shift);
 

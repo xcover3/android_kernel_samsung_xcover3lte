@@ -329,6 +329,7 @@ extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 #define ISP_BRACKET_RATIO1          (CMD_BUF_A + 0x80)
 #define ISP_BRACKET_RATIO2          (CMD_BUF_A + 0x82)
 #define ISP_ZOOM_IN_RATIO           (CMD_BUF_A + 0x84)
+#define ISP_HTS				(CMD_BUF_A + 0x86)
 	#define ZOOM_RATIO_MAX	    (0x400)
 	#define ZOOM_RATIO_MIN	    (0x100)
 
@@ -750,6 +751,10 @@ extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 #define REG_FW_AEC_MAN_EXP          (0x030)
 #define REG_FW_AEC_MAN_GAIN         (0x034)
 
+#define REG_FW_AEC_ALLOW_FRATIONAL_EXP         (0x03c)
+
+#define REG_FW_AEC_MAX_FRATIONAL_EXP         (0x3303e)
+
 #define REG_FW_BAND_FILTER_MODE     (0x040)
 	#define BAND_FILTER_UNKNOWN		(0x0)
 	#define BAND_FILTER_60HZ		(0x1)
@@ -785,6 +790,9 @@ extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 #define REG_FW_SSOR_AEC_ADDR_5      (0x062)
 #define REG_FW_SSOR_AEC_ADDR_6      (0x064)
 #define REG_FW_SSOR_AEC_ADDR_7      (0x066)
+
+#define REG_FW_SSOR_FRATIONAL_ADDR_0      (0x06c)
+#define REG_FW_SSOR_FRATIONAL_ADDR_1      (0x06d)
 
 #define REG_FW_SSOR_AEC_MSK_0       (0x070)
 #define REG_FW_SSOR_AEC_MSK_1       (0x071)

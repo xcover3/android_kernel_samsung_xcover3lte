@@ -62,8 +62,10 @@ enum b52_sensor_param_type {
 	B52_SENSOR_AGAIN,
 	B52_SENSOR_DGAIN,
 	B52_SENSOR_EXPO,
+	B52_SENSOR_FRACTIONALEXPO,
 	B52_SENSOR_VTS,
 	B52_SENSOR_REQ_VTS,
+	B52_SENSOR_REQ_HTS,
 	B52_SENSOR_FOCUS,
 	B52_SENSOR_PARAM_MAX,
 };
@@ -204,15 +206,18 @@ struct b52_sensor_data {
 	/*the precision is for B52 ISP: Q4*/
 	/*NOTE: MAX range < def VTS*/
 	struct sensor_prop_range expo_range;
+	struct sensor_prop_range frationalexp_range;
 	struct sensor_prop_range focus_range;
 
 	struct b52_sensor_module *module;
 	u32 num_module;
 
 	struct b52_sensor_regs expo_reg;
+	struct b52_sensor_regs frationalexp_reg;
 	struct b52_sensor_regs vts_reg;
 	struct b52_sensor_regs gain_reg[B52_SENSOR_GAIN_MAX];
 	struct b52_sensor_regs af_reg;
+
 
 	u8 gain_shift;
 	u8 expo_shift;

@@ -1130,6 +1130,11 @@ static int b52_sensor_g_param_range(struct v4l2_subdev *sd,
 		*max = data->expo_range.max;
 		break;
 
+	case B52_SENSOR_FRACTIONALEXPO:
+		*min = data->frationalexp_range.min;
+		*max = data->frationalexp_range.max;
+		break;
+
 	case B52_SENSOR_VTS:
 		*min = data->vts_range.min;
 		*max = data->vts_range.max;
@@ -1138,6 +1143,11 @@ static int b52_sensor_g_param_range(struct v4l2_subdev *sd,
 	case B52_SENSOR_REQ_VTS:
 		*min = data->res[sensor->cur_res_idx].min_vts;
 		*max = data->res[sensor->cur_res_idx].min_vts;
+		break;
+
+	case B52_SENSOR_REQ_HTS:
+		*min = data->res[sensor->cur_res_idx].hts;
+		*max = data->res[sensor->cur_res_idx].hts;
 		break;
 
 	case B52_SENSOR_FOCUS:
@@ -1190,6 +1200,10 @@ static int b52_sensor_g_aecagc_reg(struct v4l2_subdev *sd,
 
 	case B52_SENSOR_VTS:
 		*reg = data->vts_reg;
+		break;
+
+	case B52_SENSOR_FRACTIONALEXPO:
+		*reg = data->frationalexp_reg;
 		break;
 
 	default:
