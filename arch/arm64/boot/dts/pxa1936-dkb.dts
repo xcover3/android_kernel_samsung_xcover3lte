@@ -861,6 +861,7 @@
 					synaptics,sensor_max_y = <1392>;
 					synaptics,sensor_margin_x = <39>;
 					synaptics,sensor_margin_y = <0>;
+					avdd-supply = <&ldo13>;
 				};
 
 				touch2: s3202@1080p {
@@ -879,6 +880,7 @@
 					synaptics,sensor_max_y = <2070>;
 					synaptics,sensor_margin_x = <0>;
 					synaptics,sensor_margin_y = <0>;
+					avdd-supply = <&ldo13>;
 				};
 			};
 
