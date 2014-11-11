@@ -1298,8 +1298,8 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 				 struct ccnt *ccnt_val,
 				 int *initial_soc, int *initial_cycles)
 {
-	int ret, slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
-	int cycles_from_saved;
+	int slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
+	int cycles_from_saved, saved_is_valid;
 	bool battery_is_changed, soc_in_good_range, realiable_from_saved;
 
 	/*---------------- the following gets the initial_soc --------------*/
@@ -1320,7 +1320,7 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 	 *  soc_from_saved is not realiable, use soc_from_vbat_slp
 	 */
 
-	ret = pm886_battery_read_buffer(info, &extern_data);
+	saved_is_valid = pm886_battery_read_buffer(info, &extern_data);
 	soc_from_saved = extern_data.soc;
 	realiable_from_saved = extern_data.ocv_is_realiable;
 	cycles_from_saved = extern_data.cycles;
@@ -1331,7 +1331,7 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 	if (system_is_reboot(info)) {
 		dev_info(info->dev,
 			 "---> %s: arrive here from reboot.\n", __func__);
-		if (ret < 0) {
+		if (saved_is_valid < 0) {
 			*initial_soc = soc_from_vbat_slp;
 			info->ocv_is_realiable = false;
 		} else {
@@ -1358,6 +1358,16 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 	 */
 	battery_is_changed = check_battery_change(info, soc_from_vbat_slp,
 						  soc_from_saved);
+	/*
+	 * the data saved is not realiable,
+	 * suppose the battery has been changed
+	 */
+	if (saved_is_valid < 0) {
+		dev_info(info->dev,
+			 "%s: the data saved is not realiable.\n", __func__);
+		battery_is_changed = true;
+	}
+
 	dev_info(info->dev, "battery_is_changed = %d\n", battery_is_changed);
 	if (battery_is_changed) {
 		dev_info(info->dev, "----> %s: battery is changed\n", __func__);
