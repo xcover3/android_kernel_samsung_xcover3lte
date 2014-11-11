@@ -25,6 +25,9 @@
 
 #include <media/mv_sc2_twsi_conf.h>
 
+static int otp_ctrl = -1;
+module_param(otp_ctrl, int, 0644);
+
 #ifdef CONFIG_ISP_USE_TWSI3
 #include <linux/i2c.h>
 int twsi_read_i2c_bb(u16 addr, u8 reg, u8 *val)
@@ -743,6 +746,8 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 		b52_sensor_call(sensor, get_dphy_desc,
 				&sensor->csi.dphy_desc, sensor->mclk);
 
+	if (otp_ctrl != -1)
+		sensor->otp.otp_ctrl = otp_ctrl;
 	b52_sensor_call(sensor, update_otp,
 			&sensor->otp);
 
