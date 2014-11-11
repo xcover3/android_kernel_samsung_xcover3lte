@@ -192,9 +192,10 @@ static void gps_ldo_control(int enable)
 	}
 }
 
-void gnss_config(void)
+int gnss_config(void)
 {
 	u32 pmu_reg_v, ciu_reg_v, apb_reg_v;
+	int retry_times, ret = 0;
 
 	pr_info("%s enters\n", __func__);
 
@@ -233,11 +234,19 @@ void gnss_config(void)
 	REG_WRITE(pmu_reg_v, PMUA_GNSS_PWR_CTRL);
 
 	/* wait for gnss_init_rdy */
+	/* Per DE, After release gnss reset,
+	init_rdy will be set after about 57 cycles of 32Khz. (1.78ms) */
+	retry_times = 10;
 	do {
+		mdelay(2);
 		ciu_reg_v = REG_READ(CIU_GPS_HANDSHAKE);
 		ciu_reg_v &= (0x1 << GNSS_CODEINIT_RDY_OFFSET);
-	} while (!ciu_reg_v);
-
+	} while (!ciu_reg_v && --retry_times);
+	if (retry_times == 0) {
+		pr_err("fail to get gnss_init_rdy\n");
+		ret = -1;
+		goto gnss_config_exit;
+	}
 #ifndef FPGA
 	/* trigger GNNS Fuse loading */
 	pmu_reg_v = REG_READ(PMUA_GNSS_PWR_CTRL);
@@ -245,11 +254,22 @@ void gnss_config(void)
 	REG_WRITE(pmu_reg_v, PMUA_GNSS_PWR_CTRL);
 
 	/* wait for gnss fuse load done */
+	/* Per DE, After start fuse load,
+	it will be done 128 cycles of 26Mhz (4.92us) and several more.*/
+	retry_times = 20;
 	do {
+		udelay(5);
 		pmu_reg_v = REG_READ(PMUA_GNSS_PWR_CTRL);
 		pmu_reg_v &= (0x1 << GNSS_FUSE_LOAD_START_OFFSET);
-	} while (pmu_reg_v);
+	} while (pmu_reg_v && --retry_times);
+	if (retry_times == 0) {
+		pr_err("fail to get gnss-fuse-load-done\n");
+		ret = -2;
+		goto gnss_config_exit;
+	}
 #endif
+gnss_config_exit:
+	return ret;
 }
 
 void gnss_power_off(void)
@@ -288,8 +308,11 @@ void gnss_power_off(void)
 
 int gnss_power_on(void)
 {
+	int ret = 0;
 	gnss_clr_init_done();
-	gnss_config(); /* software control mode by default*/
+	ret = gnss_config(); /* software control mode by default*/
+	if (ret < 0)
+		goto power_on_exit;
 
 	if (1 == m3_ip_ver) {
 #if DEBUG_MODE
@@ -322,7 +345,8 @@ int gnss_power_on(void)
 
 	GNSS_ALL_SRAM_MODE();
 
-	return 0;
+power_on_exit:
+	return ret;
 }
 /* open  */
 static int m3_open(struct inode *inode, struct file *filp)
@@ -497,9 +521,11 @@ static long m3_ioctl(struct file *filp,
 		} else {
 			spin_lock(&m3init_sync_lock);
 
-			flag = 0;
 			m3_init_done = 1;
-			gnss_power_on();
+			flag = gnss_power_on();
+			if (flag < 0)
+				gnss_power_off();
+
 			spin_unlock(&m3init_sync_lock);
 			if (copy_to_user((void *)arg, &flag, sizeof(int)))
 				return -1;
