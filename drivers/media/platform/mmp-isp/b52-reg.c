@@ -26,7 +26,6 @@
 
 static DEFINE_MUTEX(cmd_mutex);
 static void __iomem *b52_base;
-static u8 sensor_init;
 static atomic_t streaming_state = ATOMIC_INIT(0);
 static u32 mac_base[MAX_MAC_NUM] = {
 	MAC1_REG_BASE, MAC2_REG_BASE, MAC3_REG_BASE
@@ -940,8 +939,6 @@ static int b52_basic_init(struct b52isp_cmd *cmd)
 	u16 af_init_val;
 #endif
 	struct v4l2_subdev *sd = cmd->sensor;
-	struct media_pad *pad;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
 
 	if (!(cmd->flags & BIT(CMD_FLAG_INIT)))
 		return 0;
@@ -956,20 +953,11 @@ static int b52_basic_init(struct b52isp_cmd *cmd)
 	b52_set_aecagc_reg(sd, pipe_id);
 	b52_set_vcm_reg(sd, pipe_id);
 
-	b52_sensor_call(sensor, init);
-
 #ifdef CONFIG_ISP_USE_TWSI3
 	/*FIXME: set af init val, let it stay at current pos*/
 	b52_read_vcm_info(pipe_id, &af_init_val);
 	b52_sensor_call(sensor, s_focus, af_init_val);
 #endif
-	/*FIXME: stream on ccic csi*/
-	pad = media_entity_remote_pad(&cmd->sensor->entity.pads[0]);
-	sd = container_of(pad->entity, struct v4l2_subdev, entity);
-	v4l2_subdev_call(sd, video, s_stream, 1);
-
-	sd = cmd->sensor;
-	v4l2_subdev_call(sd, video, s_stream, 1);
 
 	return 0;
 }
@@ -1153,7 +1141,6 @@ int b52_load_fw(struct device *dev, void __iomem *base, int enable, int pwr)
 	/*hard coding: need to refine*/
 	b52_writeb(0x63600, 12);
 	b52_writeb(0x63700, 12);
-	sensor_init = 1;
 	pr_err("B52ISP version: HW %d.%d, SWM %d.%d, revision %d\n",
 	       b52_readb(REG_HW_VERSION), b52_readb(REG_HW_VERSION + 1),
 	       b52_readb(REG_SWM_VERSION), b52_readb(REG_SWM_VERSION + 1),
@@ -2546,14 +2533,12 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	}
 
 	if (!(flags & BIT(CMD_FLAG_MS)) &&
-		!(flags & BIT(CMD_FLAG_STREAM_OFF)) &&
-		sensor_init) {
+		!(flags & BIT(CMD_FLAG_STREAM_OFF))) {
 		b52_basic_init(cmd);
 
 		b52_g_sensor_fmt_data(sd, &data);
 		b52_fill_cmd_i2c_buf(data.tab, data.attr->addr,
 				data.num, data.attr->val_len, data.pos, 0);
-		sensor_init = 0;
 	}
 
 	val = b52_convert_mode_cfg(flags, 0);
@@ -2588,15 +2573,8 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 		return ret;
 
 	if (!(flags & BIT(CMD_FLAG_MS)) &&
-		(flags & BIT(CMD_FLAG_STREAM_OFF))) {
-		struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
-		struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
-
-		v4l2_subdev_call(sd, video, s_stream, 0);
-		v4l2_subdev_call(csi_sd, video, s_stream, 0);
-		sensor_init = 1;
+		(flags & BIT(CMD_FLAG_STREAM_OFF)))
 		return ret;
-	}
 
 	atomic_set(&streaming_state, 1);
 	if (flags & BIT(CMD_FLAG_MS))

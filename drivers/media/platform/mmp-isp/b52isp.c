@@ -2532,9 +2532,9 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 
 	/* stream off must happen before unmap LAXI and PAXI */
 	if (!laxi->stream) {
+		int mac_id;
 		struct b52isp_lpipe *lpipe = pipe->drv_priv;
 		struct isp_block *blk = isp_sd2blk(&laxi->isd);
-		int mac_id;
 
 		if (blk == NULL)
 			return 0;
@@ -2582,6 +2582,17 @@ stream_data_off:
 		}
 
 		b52_enable_axi_port(laxi, laxi->stream, vnode);
+
+		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
+			(lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
+			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
+			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
+			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
+
+			v4l2_subdev_call(sd, video, s_stream, 0);
+			v4l2_subdev_call(csi_sd, video, s_stream, 0);
+		}
 
 		switch (lpipe->cur_cmd->cmd_name) {
 		case CMD_IMG_CAPTURE:
@@ -2632,10 +2643,10 @@ stream_data_off:
 
 	/* Stream on must happen after map LAXI and PAXI */
 	if (laxi->stream) {
-		struct b52isp_lpipe *lpipe = pipe->drv_priv;
-		struct isp_block *blk = isp_sd2blk(&laxi->isd);
 		int mac_id, i, nr_out;
 		struct isp_videobuf *isp_vb;
+		struct isp_block *blk = isp_sd2blk(&laxi->isd);
+		struct b52isp_lpipe *lpipe = pipe->drv_priv;
 
 		paxi = container_of(blk, struct b52isp_paxi, blk);
 		mac_id = laxi->mac;
@@ -2649,6 +2660,20 @@ stream_data_off:
 		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 			set_bit(out_id, &lpipe->cur_cmd->enable_map);
 
+		if ((lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
+			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
+			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
+			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
+			struct b52_sensor *sensor = to_b52_sensor(sd);
+
+			if ((lpipe->cur_cmd->cmd_name == CMD_SET_FORMAT) ||
+					(lpipe->cur_cmd->cmd_name == CMD_RAW_DUMP))
+				b52_sensor_call(sensor, init);
+
+			v4l2_subdev_call(sd, video, s_stream, 1);
+			v4l2_subdev_call(csi_sd, video, s_stream, 1);
+		}
 		/*
 		 * This is just a W/R. Eventually, all command will be decided
 		 * by driver topology and path atgument, just before send MCU
@@ -2784,6 +2809,18 @@ stream_data_off:
 			if (WARN_ON(ret < 0))
 				goto unlock;
 			b52isp_export_cmd_buffer(lpipe->cur_cmd);
+			/*
+			 * FIXME:stream off sensor and csi, keep capture image cmd stream off do nothing
+			 * will refine this in the future
+			 * */
+			{
+				struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+				struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
+				struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
+
+				v4l2_subdev_call(sd, video, s_stream, 0);
+				v4l2_subdev_call(csi_sd, video, s_stream, 0);
+			}
 			/* ignore MAC IRQ, so skip notifier chain */
 			goto unlock;
 		case CMD_HDR_STILL:
