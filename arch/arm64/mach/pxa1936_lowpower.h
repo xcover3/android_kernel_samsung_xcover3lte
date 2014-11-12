@@ -44,6 +44,7 @@
 /* ICU */
 #define ICU_MASK_FIQ			(1 << 0)
 #define ICU_MASK_IRQ			(1 << 1)
+#define ICU_INT_STATUS_BASE		0x200
 
 /* MPMU regs offset */
 #define CPCR			0x0
@@ -56,6 +57,11 @@
 #define AWUCRS			0x1048
 #define AWUCRM			0x104c
 #define PWRMODE_STATUS		0x1030
+
+/* APBC regs offset */
+#define TIMER0			0x034
+#define TIMER1			0x044
+#define TIMER2			0x068
 
 /* MPMU.APCR_xx bits */
 #define PMUM_AXISD		(1 << 31)
