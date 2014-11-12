@@ -182,6 +182,28 @@ TRACE_EVENT(vsync,
 		__entry->on ? "enable" : "disable")
 );
 
+TRACE_EVENT(underflow,
+	TP_PROTO(struct mmp_path *path, u32 sts),
+
+	TP_ARGS(path, sts),
+
+	TP_STRUCT__entry(
+		__string(name, path->name)
+		__field(u32, sts)
+		__field(u32, id)
+	),
+
+	TP_fast_assign(
+		__assign_str(name, path->name);
+		__entry->sts = sts;
+		__entry->id = path->id;
+	),
+
+	TP_printk("%s%s%s", __get_str(name),
+			__entry->sts & gfx_udflow_imask(__entry->id) ? ": graphic layer" : "",
+			__entry->sts & vid_udflow_imask(__entry->id) ? ": video layer" : "")
+);
+
 TRACE_EVENT(fence,
 	TP_PROTO(struct sync_timeline *timeline, int id, int commit,
 		int frame, int pause),

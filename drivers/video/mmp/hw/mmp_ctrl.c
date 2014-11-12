@@ -497,7 +497,8 @@ static int path_set_irq(struct mmp_path *path, int on)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	u32 tmp;
-	u32 mask = display_done_imask(path->id) | vsync_imask(path->id);
+	u32 mask = display_done_imask(path->id) | vsync_imask(path->id) |
+		gfx_udflow_imask(path->id) | vid_udflow_imask(path->id);
 	int retry = 0;
 	unsigned long flags;
 
@@ -634,6 +635,9 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 				if (vsync_done & vsync_imask(id))
 					path->irq_count.vsync_count++;
 			}
+
+			if (isr_en & (gfx_udflow_imask(id) | vid_udflow_imask(id)))
+				trace_underflow(path, isr_en);
 		}
 
 		if (!disp_done)
