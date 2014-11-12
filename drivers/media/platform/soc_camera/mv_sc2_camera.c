@@ -569,10 +569,6 @@ static int mccic_vb2_stop_streaming(struct vb2_queue *vq)
 	ctrl_dev->ops->irq_mask(ctrl_dev, 0);
 	ctrl_dev->ops->config_mbus(ctrl_dev, mcam_dev->bus_type,
 					mcam_dev->mbus_flags, 0);
-	INIT_LIST_HEAD(&mcam_dev->buffers);
-	mcam_dev->mbuf = NULL;
-	mcam_dev->mbuf_shadow = NULL;
-
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG) {
 		/* nothing to do here */
 	} else if (mcam_dev->buffer_mode == B_DMA_SG) {
@@ -585,6 +581,10 @@ static int mccic_vb2_stop_streaming(struct vb2_queue *vq)
 		spin_unlock_irqrestore(&mcam_dev->mcam_lock, flags);
 		return -EINVAL;
 	}
+
+	INIT_LIST_HEAD(&mcam_dev->buffers);
+	mcam_dev->mbuf = NULL;
+	mcam_dev->mbuf_shadow = NULL;
 
 	/* reset the ccic ??? */
 	dev_dbg(icd->parent, "Release %d frames, %d singles, %d delivered\n",
