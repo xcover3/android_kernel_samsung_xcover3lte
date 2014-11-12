@@ -963,7 +963,7 @@
 						 interrupt-parent = <&gpio>;
 						 interrupts = <20 0x1>;
 						 irq-gpios = <&gpio 20 0>;
-						 avdd-supply = <&ldo4>;
+						 avdd-supply = <&ldo18>;
 				};
 
 				sensor2: bmi160@68 {
@@ -972,14 +972,14 @@
 						 interrupt-parent = <&gpio>;
 						 interrupts = <91 0x1>;
 						 irq-gpios = <&gpio 91 0>;
-						 avdd-supply = <&ldo4>;
+						 avdd-supply = <&ldo18>;
 						 bmi160-place = <2>;
 				};
 
 				sensor3: bme280@76 {
 						 compatible = "bosch-sensortec,bme280";
 						 reg = <0x76>;
-						 avdd-supply = <&ldo4>;
+						 avdd-supply = <&ldo18>;
 				};
 			};
 
