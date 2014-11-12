@@ -112,11 +112,13 @@
 				marvell,dsi-lanes = <4>;
 				marvell,burst-mode = <2>;
 				marvell,hbp-en;
+				status = "okay";
 			};
 
 			vdma: vdma@d4209000 {
 				marvell,vdma-num = <2>;
 				marvell,vdma-axi = <1>;
+				status = "okay";
 				vdma1 {
 					marvell,vdma-id = <0>;
 					marvell,sram-size = <30720>;
@@ -134,14 +136,23 @@
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
-				status = "disabled";
+				clocks = <&soc_clocks PXA1936_CLK_DISP1>;
+				clock-names = "disp1_clk";
+				status = "okay";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
 					marvell,overlay-num = <2>;
-					marvell,overlay-table = <0>, <1>;
-					marvell,output-type = <1>;
-					marvell,path-config = <0x10>;
-					marvell,link-config = <0x1>;
+					marvell,overlay-table = <0>,<1>;
+					marvell,output-type = <0>;
+					marvell,path-config = <0x60000001>;
+					marvell,link-config = <0x20000000>;
+					disp_apmu {
+						plat = <4>;
+						apmu-reg = <0xd428284c>;
+						clksrc-bit = <9>;
+						parent1-clk-tbl = "disp1_sel_clk", "dsi_pll";
+						parent2-clk-tbl = "pll1_624", "pll1_832", "pll1_499", "pll4", "pll4_div3";
+					};
 				};
 			};
 
@@ -152,6 +163,14 @@
 				marvell,default-pixfmt = <0x109>;
 				marvell,buffer-num = <3>;
 				marvell,fb-mem = <0x17000000>;
+				status = "okay";
+			};
+
+			fb1: fboverlay {
+				marvell,fb-name = "mmp-fb-overlay";
+				marvell,path-name = "mmp_pnpath";
+				marvell,overlay-id = <0>;
+				status = "okay";
 			};
 
 			asram: asram@d12a0000 {
