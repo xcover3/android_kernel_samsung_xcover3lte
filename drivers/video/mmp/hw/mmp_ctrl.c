@@ -84,6 +84,7 @@ static void path_hw_trigger(struct mmp_path *path)
 	struct mmp_overlay *overlay;
 	struct mmp_vdma_info *vdma;
 	int i, vsync_enable = 0;
+	int to_trigger_vdma = 0;
 	u32 tmp;
 	unsigned long flags;
 
@@ -107,9 +108,17 @@ static void path_hw_trigger(struct mmp_path *path)
 					 * will be disabled in following
 					 * display done irq handler */
 					vsync_enable = 1;
+
+				if (vdma->status >= VDMA_ON && vdma->status < VDMA_DISABLED)
+					/*
+					 * Only enable VDMA channel configure
+					 * registers after it is on and before
+					 * it is disabeld
+					 */
+					to_trigger_vdma = 1;
 				spin_unlock_irqrestore(&vdma->status_lock,
 						flags);
-				if (vdma->ops && vdma->ops->trigger)
+				if (to_trigger_vdma && vdma->ops && vdma->ops->trigger)
 					vdma->ops->trigger(vdma);
 				if (vsync_enable &&
 						!DISP_GEN4_LITE(path_to_ctrl(path)->version))
