@@ -837,6 +837,12 @@
 		};
 	};
 
+	panel: td043mgea1 {
+		compatible = "marvell,mmp-td043mgea1";
+		marvell,path-name = "mmp_pnpath";
+		status = "okay";
+	};
+
 	gps: mmp-gps {
 		compatible = "marvell,mmp-gps";
 		marvell,gps-eclk-ctrl;
