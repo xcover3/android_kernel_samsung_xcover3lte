@@ -1386,6 +1386,9 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		ddr_devfreq_profile.max_qos_type = PM_QOS_DDR_DEVFREQ_MAX;
 	}
 
+	/* by default, disable performance counter when AP enters suspend */
+	atomic_set(&data->is_stopped, 1);
+
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 	devfreq_throughput_data.freq_table = data->ddr_freq_tbl;
 	devfreq_throughput_data.table_len = data->ddr_freq_tbl_len;
