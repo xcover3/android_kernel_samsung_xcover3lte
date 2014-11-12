@@ -35,6 +35,9 @@ struct of_device_id regs_addr_matches[] = {
 	}, {
 		.compatible = "arm,cortex-a7-gic",
 		.data = &all_regs_addr[REGS_ADDR_GIC_DIST],
+	}, {
+		.compatible = "marvell,mmp-dciu",
+		.data = &all_regs_addr[REGS_ADDR_DCIU],
 	},
 	{},
 };
