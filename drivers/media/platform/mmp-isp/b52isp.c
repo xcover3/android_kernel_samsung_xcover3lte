@@ -2522,7 +2522,7 @@ do {	\
 static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		struct isp_vnode *vnode, int stream)
 {
-	int ret = 0, port, out_id;
+	int ret = 0, port, out_id, sid;
 	static int mm_stream;
 	struct isp_subdev *pipe;
 	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
@@ -2552,113 +2552,20 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 
 	laxi->stream = stream;
 
-	/* stream off must happen before unmap LAXI and PAXI */
-	if (!laxi->stream) {
-		int mac_id;
-		struct b52isp_lpipe *lpipe = pipe->drv_priv;
-		struct isp_block *blk = isp_sd2blk(&laxi->isd);
-
-		if (blk == NULL)
-			return 0;
-		paxi = container_of(blk, struct b52isp_paxi, blk);
-		mac_id = laxi->mac;
-		port = laxi->port;
-
-		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-			clear_bit(out_id, &lpipe->cur_cmd->enable_map);
-
-		switch (lpipe->cur_cmd->cmd_name) {
-		case CMD_TEST:
-		case CMD_RAW_DUMP:
-		case CMD_IMG_CAPTURE:
-		case CMD_RAW_PROCESS:
-		case CMD_HDR_STILL:
-			break;
-		case CMD_CHG_FORMAT:
-		case CMD_SET_FORMAT:
-			mutex_lock(&lpipe->state_lock);
-			if (!lpipe->cur_cmd->enable_map)
-				lpipe->cur_cmd->cmd_name = CMD_SET_FORMAT;
-			/* set the stream off flag for isp cmd*/
-			lpipe->cur_cmd->flags |= BIT(CMD_FLAG_STREAM_OFF);
-			ret = b52isp_try_apply_cmd(lpipe);
-			if (lpipe->cur_cmd->cmd_name == CMD_SET_FORMAT)
-				laxi->dma_state = B52DMA_HW_NO_STREAM;
-			if (lpipe->cur_cmd->flags & CMD_FLAG_MS)
-				pm_qos_update_request(&ddrfreq_qos_req_min,
-						PM_QOS_DEFAULT_VALUE);
-			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_STREAM_OFF);
-			if (ret < 0) {
-				d_inf(1, "apply change cmd failed on port:%d\n",
-					out_id);
-				goto stream_data_off;
-			}
-stream_data_off:
-			mutex_unlock(&lpipe->state_lock);
-			break;
-		default:
-			d_inf(1, "TODO: add stream off support of %s in command %d",
-				laxi->isd.subdev.name,
-				lpipe->cur_cmd->cmd_name);
-			break;
-		}
-
-		b52_enable_axi_port(laxi, laxi->stream, vnode);
-
-		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
-			(lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
-			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
-			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
-			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
-			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
-
-			v4l2_subdev_call(sd, video, s_stream, 0);
-			v4l2_subdev_call(csi_sd, video, s_stream, 0);
-		}
-
-		switch (lpipe->cur_cmd->cmd_name) {
-		case CMD_IMG_CAPTURE:
-		case CMD_RAW_PROCESS:
-		case CMD_HDR_STILL:
-			break;
-		default:
-			/* Stop listening to IRQ */
-			switch (port) {
-			case B52AXI_PORT_W1:
-				ret = atomic_notifier_chain_unregister(
-					&paxi->irq_w1.head, &b52isp_mac_irq_nb);
-				WARN_ON(ret < 0);
-				break;
-			case B52AXI_PORT_W2:
-				ret = atomic_notifier_chain_unregister(
-					&paxi->irq_w2.head, &b52isp_mac_irq_nb);
-				WARN_ON(ret < 0);
-				break;
-			case B52AXI_PORT_R1:
-				ret = atomic_notifier_chain_unregister(
-					&paxi->irq_r1.head, &b52isp_mac_irq_nb);
-				WARN_ON(ret < 0);
-				mm_stream = 0;
-				break;
-			default:
-				WARN_ON(1);
-			}
-			break;
-		}
-	}
+	if (!stream)
+		goto stream_off;
 
 	/* Map / Unmap Logical AXI and Physical AXI */
 	if (laxi == ppl.scalar_a->drv_priv) {
-		ret = b52_map_axi_port(laxi, laxi->stream, &ppl);
+		ret = b52_map_axi_port(laxi, 1, &ppl);
 		if (unlikely(WARN_ON(ret < 0)))
 			return ret;
 	} else {
-		int sid = 0;
+		sid = 0;
 		while (ppl.scalar_b[sid]) {
-			ret = b52_map_axi_port(ppl.scalar_b[sid]->drv_priv,
-						laxi->stream, &ppl);
+			ret = b52_map_axi_port(ppl.scalar_b[sid]->drv_priv, 1, &ppl);
 			if (unlikely(WARN_ON(ret < 0)))
-				return ret;
+				goto unmap_scalar_b;
 			sid++;
 		}
 	}
@@ -2958,6 +2865,122 @@ unlock:
 		mutex_unlock(&lpipe->state_lock);
 	}
 
+	if (ret < 0)
+		goto unmap_scalar;
+
+	return ret;
+
+stream_off:
+	/* stream off must happen before unmap LAXI and PAXI */
+	if (!laxi->stream) {
+		int mac_id;
+		struct b52isp_lpipe *lpipe = pipe->drv_priv;
+		struct isp_block *blk = isp_sd2blk(&laxi->isd);
+
+		if (blk == NULL)
+			return 0;
+		paxi = container_of(blk, struct b52isp_paxi, blk);
+		mac_id = laxi->mac;
+		port = laxi->port;
+
+		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+			clear_bit(out_id, &lpipe->cur_cmd->enable_map);
+
+		switch (lpipe->cur_cmd->cmd_name) {
+		case CMD_TEST:
+		case CMD_RAW_DUMP:
+		case CMD_IMG_CAPTURE:
+		case CMD_RAW_PROCESS:
+		case CMD_HDR_STILL:
+			break;
+		case CMD_CHG_FORMAT:
+		case CMD_SET_FORMAT:
+			mutex_lock(&lpipe->state_lock);
+			if (!lpipe->cur_cmd->enable_map)
+				lpipe->cur_cmd->cmd_name = CMD_SET_FORMAT;
+			/* set the stream off flag for isp cmd*/
+			lpipe->cur_cmd->flags |= BIT(CMD_FLAG_STREAM_OFF);
+			ret = b52isp_try_apply_cmd(lpipe);
+			if (lpipe->cur_cmd->cmd_name == CMD_SET_FORMAT)
+				laxi->dma_state = B52DMA_HW_NO_STREAM;
+			if (lpipe->cur_cmd->flags & CMD_FLAG_MS)
+				pm_qos_update_request(&ddrfreq_qos_req_min,
+						PM_QOS_DEFAULT_VALUE);
+			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_STREAM_OFF);
+			if (ret < 0) {
+				d_inf(1, "apply change cmd failed on port:%d\n",
+					out_id);
+				goto stream_data_off;
+			}
+stream_data_off:
+			mutex_unlock(&lpipe->state_lock);
+			break;
+		default:
+			d_inf(1, "TODO: add stream off support of %s in command %d",
+				laxi->isd.subdev.name,
+				lpipe->cur_cmd->cmd_name);
+			break;
+		}
+
+		b52_enable_axi_port(laxi, laxi->stream, vnode);
+
+		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
+			(lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
+			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
+			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
+			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
+
+			v4l2_subdev_call(sd, video, s_stream, 0);
+			v4l2_subdev_call(csi_sd, video, s_stream, 0);
+		}
+
+		switch (lpipe->cur_cmd->cmd_name) {
+		case CMD_IMG_CAPTURE:
+		case CMD_RAW_PROCESS:
+		case CMD_HDR_STILL:
+			break;
+		default:
+			/* Stop listening to IRQ */
+			switch (port) {
+			case B52AXI_PORT_W1:
+				ret = atomic_notifier_chain_unregister(
+					&paxi->irq_w1.head, &b52isp_mac_irq_nb);
+				WARN_ON(ret < 0);
+				break;
+			case B52AXI_PORT_W2:
+				ret = atomic_notifier_chain_unregister(
+					&paxi->irq_w2.head, &b52isp_mac_irq_nb);
+				WARN_ON(ret < 0);
+				break;
+			case B52AXI_PORT_R1:
+				ret = atomic_notifier_chain_unregister(
+					&paxi->irq_r1.head, &b52isp_mac_irq_nb);
+				WARN_ON(ret < 0);
+				mm_stream = 0;
+				break;
+			default:
+				WARN_ON(1);
+			}
+			break;
+		}
+	}
+
+unmap_scalar:
+	/* Unmap Logical AXI and Physical AXI */
+	if (laxi == ppl.scalar_a->drv_priv)
+		ret |= b52_map_axi_port(laxi, 0, &ppl);
+	else {
+		/* If all output mapped, find the last post scalar */
+		sid = 0;
+		while (ppl.scalar_b[sid])
+			sid++;
+unmap_scalar_b:
+		for (sid--; sid >= 0; sid--)
+			ret |= b52_map_axi_port(ppl.scalar_b[sid]->drv_priv,
+					 0, &ppl);
+	}
+
 	return ret;
 }
 
@@ -3040,6 +3063,7 @@ static int b52isp_video_event(struct notifier_block *nb,
 		ret = -EINVAL;
 		break;
 	}
+
 	return ret;
 }
 
