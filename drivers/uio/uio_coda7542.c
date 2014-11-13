@@ -177,8 +177,10 @@ static int active_coda7542(struct uio_coda7542_dev *cdev, int on)
 static void coda7542_cleanup(struct uio_coda7542_dev *cdev)
 {
 	pr_info("%s: process was killed abnormal\n", __func__);
+	coda7542_clk_on(cdev);
 	__raw_writel(0x0, cdev->reg_base + BIT_INT_ENABLE);
 	__raw_writel(0x1, cdev->reg_base + BIT_INT_CLEAR);
+	coda7542_clk_off(cdev);
 }
 
 
@@ -191,7 +193,7 @@ static int __maybe_unused coda7542_abnormal_stop(struct uio_coda7542_dev *cdev)
 	 *for CNM VPU stop by itself
 	 */
 	for (i = 0; i < 6; i++) {
-		schedule_timeout(msecs_to_jiffies(5));
+		msleep(5);
 		if (0 == __raw_readl(cdev->reg_base + BIT_BUSY_FLAG))
 			return 0;
 	}
@@ -250,7 +252,7 @@ static int coda7542_release(struct uio_info *info, struct inode *inode,
 	struct uio_coda7542_dev *cdev;
 	struct uio_listener *listener = file_priv;
 	struct coda7542_instance *pinst;
-	int ret = 0;
+	int i, ret = 0;
 
 	pr_debug("Enter coda7542_release()\n");
 	cdev = (struct uio_coda7542_dev *)info->priv;
@@ -265,7 +267,22 @@ static int coda7542_release(struct uio_info *info, struct inode *inode,
 	 */
 	if (pinst->gotsemaphore) {
 		if (cdev->clk_status == 1) {
-			schedule_timeout(msecs_to_jiffies(30));
+			for (i = 0; i < 30; i++) {
+				msleep(10);
+				if (0 == __raw_readl(cdev->reg_base + BIT_BUSY_FLAG)) {
+					/*
+					 * the additional sleep is to
+					 *  ensure interrupt is handled,
+					 *  as we are not sure which occur
+					 *  at first: between BUSY->0 and
+					 *  interrupt.
+					 */
+					msleep(10);
+					break;
+				}
+			}
+			if (i == 30)
+				pr_info("%s: VPU could not stop, will force clean\n", __func__);
 			coda7542_cleanup(cdev);
 		}
 		up(&cdev->sema);
