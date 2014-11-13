@@ -680,13 +680,13 @@ static int pm886_get_batt_health(struct pm886_battery_info *info)
 
 	temp = pm886_get_batt_temp(info);
 
-	if (temp < info->t1)
+	if (temp <= info->t1)
 		range = COLD_NO_CHARGING;
-	else if (temp < info->t2)
+	else if (temp <= info->t2)
 		range = LOW_TEMP_RANGE;
-	else if (temp < info->t3)
+	else if (temp <= info->t3)
 		range = STD_TEMP_RANGE;
-	else if (temp < info->t4)
+	else if (temp <= info->t4)
 		range = HIGH_TEMP_RANGE;
 	else
 		range = HOT_NO_CHARGING;
@@ -1763,6 +1763,21 @@ static int pm886_battery_probe(struct platform_device *pdev)
 			    GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
+
+	/* initialize the property in case the are missing in device tree */
+	info->abs_lowest_temp = 0;
+	info->t1 = 0;
+	info->t2 = 15;
+	info->t3 = 25;
+	info->t4 = 40;
+
+	info->times_in_minus_ten = 1;
+	info->offset_in_minus_ten = 0;
+	info->times_in_zero = 1;
+	info->offset_in_zero = 0;
+
+	info->soc_low_th_cycle = 15;
+	info->soc_high_th_cycle = 85;
 
 	info->cc_fixup = 100;
 
