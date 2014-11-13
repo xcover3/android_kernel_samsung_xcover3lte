@@ -1707,7 +1707,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 #endif
 
 #if defined(CONFIG_PXA_DVFS)
-	/* FIXME: enable dvfs on Helan3 */
+	setup_pxa1936_dvfs_platinfo();
 #endif
 
 #ifdef CONFIG_DEBUG_FS
