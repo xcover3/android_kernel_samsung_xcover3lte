@@ -134,6 +134,9 @@ ifeq ($(KERNEL_DEFCONFIG),local)
 else
 	echo "KERNEL_DEFCONFIG is "+$(KERNEL_DEFCONFIG)+"PRIVATE_KERNEL_ARGS is "+$(PRIVATE_KERNEL_ARGS)
 	$(MAKE) $(PRIVATE_KERNEL_ARGS) $(KERNEL_DEFCONFIG)
+ifeq ($(TARGET_SOC),pxa1936)
+        $(shell $(TOP)/kernel/scripts/$(TARGET_SOC)_config.sh)
+endif
 ifeq ($(HAVE_SECURITY_TZ_FEATURE),true)
 	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -e CONFIG_TZ_HYPERVISOR
 endif
@@ -178,6 +181,9 @@ ifeq ($(KERNEL_DEFCONFIG),local)
 	@echo Skipping kernel configuration, KERNEL_DEFCONFIG set to local
 else
 	$(MAKE) $(PRIVATE_KERNEL_ARGS) $(KERNEL_DEFCONFIG)
+ifeq ($(TARGET_SOC),pxa1936)
+        $(shell $(TOP)/kernel/scripts/$(TARGET_SOC)_config.sh)
+endif
 	$(KERNEL_SCRIPT_UPDATE) -e CONFIG_PROVE_LOCKING
 	$(KERNEL_SCRIPT_UPDATE) -e CONFIG_LOCKDEP
 	$(KERNEL_SCRIPT_UPDATE) -e CONFIG_DEBUG_LOCK_ALLOC
