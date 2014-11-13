@@ -1087,7 +1087,7 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 				ccnt_val->soc--;
 		} else {
 			if (info->bat_params.volt <= info->power_off_th) {
-				if (power_off_cnt > 5) {
+				if (power_off_cnt > 100) {
 					power_off_cnt = 0;
 					if (ccnt_val->soc > 0)
 						ccnt_val->soc--;
