@@ -93,6 +93,8 @@
 		bat-ntc-support;
 		gpadc-det-no = <3>;
 		gpadc-temp-no = <3>;
+
+		cc-fixup = <102>;
 	};
 
 	led {
