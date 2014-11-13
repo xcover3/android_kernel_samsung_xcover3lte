@@ -102,6 +102,7 @@ static void __iomem *p_sharemem;
 static struct msa_ap_shmem_head *p_share_mem;
 static void __iomem *ripc_base;
 static void __iomem *ripc_clock_reg;
+static void __iomem *cp_remap_reg;
 
 static struct iml_module_device iml_dev;
 static struct class *iml_dev_class;
@@ -258,17 +259,26 @@ static inline unsigned long block_to_phy(int block)
 	return (block << SLOT_SHIFT) + iml_dev.phybuf_addr;
 }
 
-/* val - content of cp remap register
- * ap_offset - remap bit starting pos in CP addr remap register
- * cp_offset - remap bit starting pos in CP address
- * num - number of bits to remap
- */
-static void cal_dma_mask(u32 val, u32 ap_offset, u32 cp_offset, u32 num)
+static void cal_dma_mask(void)
 {
-	iml_dma_mask_set = ((val >> ap_offset) & ((1 << num) - 1));
-	iml_dma_mask_set <<= cp_offset;
-	iml_dma_mask_clear = (1 << num) - 1;
-	iml_dma_mask_clear = ~(iml_dma_mask_clear << cp_offset);
+	/* reg - content of cp remap register
+	 * offset[0] - remap bit starting pos in CP addr remap register
+	 * offset[1] - remap bit starting pos in CP address
+	 * offset[2] - number of bits to remap
+	 */
+	u32 reg, offset[3];
+
+	if (of_property_read_u32_array(iml_dev.pdev->dev.of_node,
+			"remap", offset, 3)) {
+		dev_err(&iml_dev.pdev->dev, "cannot find remap offset\n");
+		return;
+	}
+
+	reg = readl(cp_remap_reg);
+	iml_dma_mask_set = ((reg >> offset[0]) & ((1 << offset[2]) - 1));
+	iml_dma_mask_set <<= offset[1];
+	iml_dma_mask_clear = (1 << offset[2]) - 1;
+	iml_dma_mask_clear = ~(iml_dma_mask_clear << offset[1]);
 	pr_info("dma_set_mask %p, dma_clear_mask %p\n",
 		(void *)iml_dma_mask_set, (void *)iml_dma_mask_clear);
 }
@@ -407,6 +417,10 @@ static int iml_moudle_open(struct inode *inode, struct file *file)
 	if (test_and_set_bit(0, &dev->open_device_map))
 		return 0;
 	file->private_data = dev;
+	if (unlikely(cp_remap_reg != NULL)) {
+		cal_dma_mask();
+		cp_remap_reg = NULL; /* no need to read it anymore */
+	}
 	if (!ddr_on && atomic_add_return(1, &iml_dev.iml_dma->refcnt) == 1) {
 		mutex_lock(&iml_dev.iml_dma->lock);
 		virt_addr = dma_alloc_coherent(&iml_dev.pdev->dev,
@@ -696,22 +710,12 @@ static int iml_iomem_probe(struct  platform_device *pdev)
 		 * note that DMA engine hardware on some platforms
 		 * can support non phy addr sent by MSA
 		 */
-		u32 reg, offset[3];
-		void __iomem *cp_remap;
-
-		if (of_property_read_u32_array(np, "remap", offset, 3))
-			dev_err(&pdev->dev, "cannot find remap offset\n");
-		else {
-			cp_remap = devm_ioremap_resource(&pdev->dev, &res);
-			if (IS_ERR(cp_remap)) {
-				dev_err(&pdev->dev,
-					"ioremap cp remap reg failure\n");
-				ret = PTR_ERR(cp_remap);
-				goto iomem_error;
-			}
-			reg = readl(cp_remap);
-			cal_dma_mask(reg, offset[0],
-				offset[1], offset[2]);
+		cp_remap_reg = devm_ioremap_resource(&pdev->dev, &res);
+		if (IS_ERR(cp_remap_reg)) {
+			dev_err(&pdev->dev,
+				"ioremap cp remap reg failure\n");
+			ret = PTR_ERR(cp_remap_reg);
+			goto iomem_error;
 		}
 	}
 
