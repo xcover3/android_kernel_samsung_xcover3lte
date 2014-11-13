@@ -383,6 +383,16 @@ static int pm830_vbus_probe(struct platform_device *pdev)
 		goto out;
 	}
 
+	ret = devm_request_threaded_irq(&pdev->dev, usb->vbus_irq, NULL,
+					pm830_vbus_handler,
+					IRQF_ONESHOT | IRQF_NO_SUSPEND,
+					"usb detect", usb);
+	if (ret) {
+		dev_info(&pdev->dev,
+			"cannot request irq for VBUS, return\n");
+		goto out;
+	}
+
 	if (usb->id_gpadc != -1) {
 		usb->id_irq = platform_get_irq(pdev, usb->id_gpadc + 1);
 		if (usb->id_irq < 0) {
@@ -391,25 +401,15 @@ static int pm830_vbus_probe(struct platform_device *pdev)
 			goto out;
 		}
 
-		ret = devm_request_threaded_irq(&pdev->dev, usb->vbus_irq, NULL,
-						pm830_vbus_handler,
+		ret = devm_request_threaded_irq(&pdev->dev, usb->id_irq, NULL,
+						pm830_id_handler,
 						IRQF_ONESHOT | IRQF_NO_SUSPEND,
-						"usb detect", usb);
+						"id detect", usb);
 		if (ret) {
 			dev_info(&pdev->dev,
-				"cannot request irq for VBUS, return\n");
+				"cannot request irq for idpin, return\n");
 			goto out;
 		}
-	}
-
-	ret = devm_request_threaded_irq(&pdev->dev, usb->id_irq, NULL,
-					pm830_id_handler,
-					IRQF_ONESHOT | IRQF_NO_SUSPEND,
-					"id detect", usb);
-	if (ret) {
-		dev_info(&pdev->dev,
-			"cannot request irq for idpin, return\n");
-		goto out;
 	}
 
 	/* global variable used by get/set_vbus */
