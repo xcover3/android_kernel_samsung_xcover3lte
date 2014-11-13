@@ -183,13 +183,18 @@
 			};
 
 			vdma: vdma@d4209000 {
-				marvell,vdma-num = <1>;
-				marvell,vdma-axi = <1>;
+				marvell,vdma-num = <2>;
+				marvell,vdma-axi = <0>;
 				status = "okay";
 				vdma1 {
 					marvell,vdma-id = <0>;
-					marvell,sram-size = <15360>;
+					marvell,sram-size = <30720>;
 					marvell,is_vid = <0>;
+				};
+				vdma2 {
+					marvell,vdma-id = <2>;
+					marvell,sram-size = <30720>;
+					marvell,is_vid = <1>;
 				};
 			};
 
@@ -205,8 +210,8 @@
 				status = "okay";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
-					marvell,overlay-num = <1>;
-					marvell,overlay-table = <1>;
+					marvell,overlay-num = <2>;
+					marvell,overlay-table =<0>,<1>;
 					marvell,output-type = <1>;
 					marvell,path-config = <0x10>;
 					marvell,link-config = <0x1>;
@@ -229,6 +234,13 @@
 				marvell,fb-mem = <0x17000000>;
 				status = "okay";
                         };
+
+			fb1: fboverlay {
+				marvell,fb-name = "mmp-fb-overlay";
+				marvell,path-name = "mmp_pnpath";
+				marvell,overlay-id = <0>;
+				status = "okay";
+			};
 
 			/* eMMC */
 			sdh2: sdh@d4281000 {
@@ -1195,21 +1207,29 @@
 		vibrator-supply = <&ldo9>;
 	};
 
-	panel1: hx8394 {
-		compatible = "marvell,mmp-hx8394";
+	panel1: r63311 {
+		compatible = "marvell,mmp-r63311";
 		marvell,path-name = "mmp_pnpath";
-		panel_esd = <0>;
-		rst_gpio = <&gpio 4 0>;
-		avdd-supply = <&ldo11>;
+		rst_gpio = <&gpio 98 0>;
+		power_gpio = <&gpio 96 0>;
+		bl_gpio = <&gpio 32 0>;
 		status = "okay";
 	};
 
-	panel2: otm8018b {
-		compatible = "marvell,mmp-otm8018b";
+	panel2: hx8394 {
+		compatible = "marvell,mmp-hx8394";
 		marvell,path-name = "mmp_pnpath";
 		panel_esd = <0>;
-		rst_gpio = <&gpio 4 0>;
-		avdd-supply = <&ldo11>;
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo10>;
+		status = "okay";
+	};
+
+	panel3: lg4591 {
+		compatible = "marvell,mmp-lg4591";
+		marvell,path-name = "mmp_pnpath";
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo10>;
 		status = "okay";
 	};
 
