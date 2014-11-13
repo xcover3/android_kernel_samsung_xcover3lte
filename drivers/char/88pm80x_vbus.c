@@ -92,7 +92,7 @@ static int pm80x_read_id_val(unsigned int *level)
 	data |= val & 0x0F;
 	if (ret)
 		return ret;
-	if (data > 0x10) {
+	if (data > 0x100) {
 		regmap_write(vbus_info->subchip->regmap_gpadc, low_th, 0x10);
 		if (ret)
 			return ret;
