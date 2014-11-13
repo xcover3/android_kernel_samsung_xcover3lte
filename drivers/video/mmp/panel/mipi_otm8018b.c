@@ -461,7 +461,7 @@ static void otm8018b_set_status(struct mmp_panel *panel, int status)
 
 static struct mmp_mode mmp_modes_otm8018b[] = {
 	[0] = {
-		.pixclock_freq = 69264000,
+		.pixclock_freq = 34347360,
 		.refresh = 60,
 		.xres = 480,
 		.yres = 854,
