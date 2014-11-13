@@ -162,6 +162,8 @@ struct pm886_battery_info {
 
 	int  soc_low_th_cycle;
 	int  soc_high_th_cycle;
+
+	int cc_fixup;
 	bool valid_cycle;
 };
 
@@ -883,7 +885,7 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 	dev_dbg(info->dev, "buf[0 ~ 4] = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
 		 buf[0], buf[1], buf[2], buf[3], buf[4]);
 	/* Factor is nC */
-	factor = 715;
+	factor = (info->cc_fixup) * 715 / 100;
 	ccnt_uc = ccnt_uc * factor;
 	ccnt_uc = div_s64(ccnt_uc, 1000);
 	ccnt_mc = div_s64(ccnt_uc, 1000);
@@ -1693,6 +1695,13 @@ static int pm886_battery_dt_init(struct device_node *np,
 	of_property_read_u32(np, "soc-low-th-cycle", &info->soc_low_th_cycle);
 	of_property_read_u32(np, "soc-high-th-cycle", &info->soc_high_th_cycle);
 
+	/*
+	 * introduced by PCB,
+	 * software needs to compensate the CC value,
+	 * multipiled by 100
+	 */
+	of_property_read_u32(np, "cc-fixup", &info->cc_fixup);
+
 	return 0;
 }
 
@@ -1754,6 +1763,8 @@ static int pm886_battery_probe(struct platform_device *pdev)
 			    GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
+
+	info->cc_fixup = 100;
 
 	pdata = pdev->dev.platform_data;
 	ret = pm886_battery_dt_init(node, info);
