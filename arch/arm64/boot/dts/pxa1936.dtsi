@@ -250,7 +250,7 @@
 			coda7542: coda7542@d420d000 {
 				compatible = "mrvl,mmp-coda7542";
 				reg = <0xd420d000 0x1000>,
-				      <0xd1004000 0>;
+				      <0x0 0>;
 				interrupts = <0 25 0x4>;
 				status = "disabled";
 			};
