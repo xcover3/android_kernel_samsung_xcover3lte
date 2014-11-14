@@ -56,8 +56,7 @@ static u16 mute_input_cnt, mute_output_cnt;
 static struct task_struct *recv_taskref;
 static struct task_struct *handshake_taskref;
 static struct sk_buff_head ctl_rxq, pcm_rxq, pcm_txq;
-static u32 pcm_rxcnt;
-static atomic_t pcm_txcnt, pcm_underrun_cnt;
+static u32 pcm_rxcnt, pcm_txcnt, pcm_underrun_cnt;
 
 #define ATC_VER 0x12
 #define MAKE_REQ_HANDLE() (++pending_msgid)
@@ -190,8 +189,8 @@ static int audiostub_open(struct inode *inode, struct file *filp)
 					return -ERESTARTSYS;
 			}
 			skb_queue_head_init(&pcm_txq);
-			atomic_set(&pcm_txcnt, 0);
-			atomic_set(&pcm_underrun_cnt, 0);
+			pcm_txcnt = 0;
+			pcm_underrun_cnt = 0;
 			pcm_tx_opened = true;
 		} else
 			return -EINVAL;
@@ -300,16 +299,6 @@ static ssize_t audiostub_write(struct file *file, const char __user *data,
 				return copied_bytes;
 		}
 
-		/* discard packets during underrun */
-		while (atomic_read(&pcm_underrun_cnt)) {
-			len -= pkt_size;
-			copied_bytes += pkt_size;
-			atomic_inc(&pcm_txcnt);
-			atomic_dec(&pcm_underrun_cnt);
-			if (len < pkt_size)
-				return copied_bytes;
-		}
-
 		if (skb_queue_len(&pcm_txq) == MAX_AUDIO_PACKET_NUM) {
 			if (copied_bytes == 0) {
 				if (file->f_flags & O_NONBLOCK)
@@ -377,7 +366,7 @@ static struct sk_buff *alloc_empty_data(void)
 
 static unsigned int audiostub_poll(struct file *filp, poll_table *wait)
 {
-	unsigned int len, mask = 0;
+	unsigned int mask = 0;
 
 	if (filp->private_data != (void *)AUDIO_PCM_OFFSET)
 		return 0;
@@ -389,12 +378,8 @@ static unsigned int audiostub_poll(struct file *filp, poll_table *wait)
 
 	} else if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
 		poll_wait(filp, &pcm_txwq, wait);
-		/* make sure a packet has been sent before poll returns */
-		len = skb_queue_len(&pcm_txq);
-		if (len == 0 || (poll_does_not_wait(wait)
-		    && len < MAX_AUDIO_PACKET_NUM)) {
+		if (skb_queue_len(&pcm_txq) < MAX_AUDIO_PACKET_NUM)
 			mask |= POLLOUT | POLLWRNORM;
-		}
 	}
 
 	return mask;
@@ -472,7 +457,7 @@ static long audiostub_ioctl(struct file *filp,
 		ret = put_user(pcm_wb | (pcm_master << 1), (int __user *)arg);
 		break;
 	case AUDIOSTUB_GET_WRITECNT:
-		ret = put_user(atomic_read(&pcm_txcnt), (u32 __user *) arg);
+		ret = put_user(pcm_txcnt, (u32 __user *) arg);
 		break;
 	case AUDIOSTUB_GET_READCNT:
 		ret = put_user(pcm_rxcnt, (u32 __user *) arg);
@@ -631,11 +616,11 @@ static void audio_data_handler(struct sk_buff *skb)
 			int ret;
 			struct pcm_stream_data *pcm_data;
 
-			atomic_inc(&pcm_txcnt);
+			++pcm_txcnt;
 			pcm_skb = skb_dequeue(&pcm_txq);
 			if (!pcm_skb) {
 				pr_err_ratelimited("PCM send underrun\n");
-				atomic_inc(&pcm_underrun_cnt);
+				++pcm_underrun_cnt;
 				pcm_skb = alloc_empty_data();
 				if (!pcm_skb)
 					break;
