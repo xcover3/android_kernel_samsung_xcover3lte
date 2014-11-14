@@ -648,7 +648,9 @@ static int b52isp_idi_node_open(struct v4l2_subdev *sd,
 	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
 	struct isp_block *blk = isp_sd2blk(isd);
 	int ret;
-	b52isp_pwr_enable = 1;
+
+	if (pm_runtime_suspended(blk->dev))
+		b52isp_pwr_enable = 0;
 	ret = isp_block_tune_power(blk, 1);
 	b52_set_base_addr(blk->reg_base);
 	return ret;
@@ -752,12 +754,20 @@ static int b52isp_path_hw_open(struct isp_block *block)
 {
 	int ret;
 
+	if (pm_runtime_suspended(block->dev)) {
+		d_inf(1, "ISP haven't been power on, it can't load firmware\n");
+		return 0;
+	} else if (b52isp_pwr_enable == 1)
+		goto fw_done;
+	else
+		b52isp_pwr_enable = 1;
+
 	ret = b52_load_fw(block->dev, block->reg_base, 1, b52isp_pwr_enable);
 	if (ret < 0)
 		return ret;
-	d_inf(2, "MCU Initialization done");
 
-	b52isp_pwr_enable = 0;
+fw_done:
+	d_inf(2, "MCU Initialization done");
 	return 0;
 }
 
@@ -774,6 +784,7 @@ static int b52isp_path_s_clock(struct isp_block *block, int rate)
 static int b52isp_path_hw_s_power(struct isp_block *block, int level)
 {
 	int ret = 0;
+
 	if (level)
 		ret = pm_runtime_get_sync(block->dev);
 	else
