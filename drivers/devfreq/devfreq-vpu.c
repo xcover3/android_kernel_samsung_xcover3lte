@@ -23,6 +23,7 @@
 #include <linux/mutex.h>
 #include <linux/pm_qos.h>
 #include <linux/pm_domain.h>
+#include <linux/pm_runtime.h>
 
 #define VPU_FREQ_MAX	8
 #define KHZ_TO_HZ	1000
@@ -484,6 +485,7 @@ cont:
 	data->pd_vpu = dev_to_genpd(dev);
 	if (IS_ERR(data->pd_vpu))
 		data->pd_vpu = NULL;
+	pm_runtime_enable(dev);
 #endif
 	return 0;
 
@@ -497,6 +499,10 @@ out:
 static int vpu_devfreq_remove(struct platform_device *pdev)
 {
 	struct vpu_devfreq_data *data = platform_get_drvdata(pdev);
+#ifdef CONFIG_MMP_PM_DOMAIN_COMMON
+	struct device *dev = &pdev->dev;
+	pm_runtime_disable(dev);
+#endif
 	devfreq_remove_device(data->devfreq);
 	kfree(data);
 	return 0;
