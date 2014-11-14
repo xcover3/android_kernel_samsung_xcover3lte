@@ -33,6 +33,8 @@
 #define PM886_GPADC_BD_EN		(1 << 5)
 #define PM886_BD_GP_SEL			(1 << 6)
 
+#define PM886_VBAT_LOW_TH		(0x18)
+
 #define PM886_CC_CONFIG1		(0x01)
 #define PM886_CC_EN			(1 << 0)
 #define PM886_CC_CLR_ON_RD		(1 << 2)
@@ -81,6 +83,12 @@
 
 /* this flag is used to decide whether the ocv_flag needs update */
 static atomic_t in_resume = ATOMIC_INIT(0);
+/*
+ * this flag shows that the voltage with load is too low:
+ * if it is lower than safe_power_off_th
+ * or lower than 3.0V, this flag is true;
+ */
+static bool is_extreme_low;
 
 enum {
 	ALL_SAVED_DATA,
@@ -114,7 +122,8 @@ struct temp_vs_ohm {
 };
 
 struct pm886_battery_info {
-	struct mutex		lock;
+	struct mutex		cycle_lock;
+	struct mutex		volt_lock;
 	struct pm886_chip	*chip;
 	struct device	*dev;
 	struct notifier_block		nb;
@@ -743,7 +752,7 @@ static int pm886_cycles_notifier_call(struct notifier_block *nb,
 		return NOTIFY_DONE;
 	}
 
-	mutex_lock(&info->lock);
+	mutex_lock(&info->cycle_lock);
 	switch (val) {
 		/* charger cable removal */
 	case NULL_CHARGER:
@@ -776,7 +785,7 @@ static int pm886_cycles_notifier_call(struct notifier_block *nb,
 		}
 		break;
 	}
-	mutex_unlock(&info->lock);
+	mutex_unlock(&info->cycle_lock);
 
 	return NOTIFY_OK;
 }
@@ -991,7 +1000,6 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
 	static int chg_status, old_soc;
-	static bool is_extreme_low;
 	static int power_off_cnt;
 
 	info->bat_params.volt = pm886_get_batt_vol(info, 1);
@@ -1034,7 +1042,9 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
 
 		/* clear this flag once the charging begins */
+		mutex_lock(&info->volt_lock);
 		is_extreme_low = false;
+		mutex_unlock(&info->volt_lock);
 
 		dev_dbg(info->dev, "%s: after: charging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
@@ -1108,7 +1118,9 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 				dev_info(info->dev,
 					 "%s: for safe: voltage = %d\n",
 					 __func__, info->bat_params.volt);
+				mutex_lock(&info->volt_lock);
 				is_extreme_low = true;
+				mutex_unlock(&info->volt_lock);
 			}
 		}
 
@@ -1299,6 +1311,11 @@ static int pm886_setup_fuelgauge(struct pm886_battery_info *info)
 	data = mask = PM886_SLP_CNT_HOLD;
 	ret = regmap_update_bits(info->chip->base_regmap,
 				 PM886_SLP_CNT2, mask, data);
+	if (ret < 0)
+		goto out;
+
+	/* 7. set the VBAT threashold as 3000mV: 0x900 * 1.367mV/LSB */
+	ret = regmap_write(info->chip->gpadc_regmap, PM886_VBAT_LOW_TH, 0x90);
 out:
 	return ret;
 }
@@ -1545,12 +1562,12 @@ static int pm886_batt_get_prop(struct power_supply *psy,
 		val->intval = info->bat_params.health;
 		break;
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
-		mutex_lock(&info->lock);
+		mutex_lock(&info->cycle_lock);
 		if (!info->bat_params.present)
 			val->intval = 1;
 		else
 			val->intval = info->bat_params.cycle_nums;
-		mutex_unlock(&info->lock);
+		mutex_unlock(&info->cycle_lock);
 		break;
 	default:
 		return -ENODEV;
@@ -1576,6 +1593,21 @@ static irqreturn_t pm886_battery_cc_handler(int irq, void *data)
 
 static irqreturn_t pm886_battery_vbat_handler(int irq, void *data)
 {
+	struct pm886_battery_info *info = data;
+	if (!info) {
+		pr_err("%s: empty battery info.\n", __func__);
+		return IRQ_NONE;
+	}
+	dev_info(info->dev, "battery voltage interrupt is served\n");
+
+	mutex_lock(&info->volt_lock);
+	is_extreme_low = true;
+	mutex_unlock(&info->volt_lock);
+
+	/* update the battery status when this interrupt is triggered. */
+	pm886_bat_update_status(info);
+	power_supply_changed(&info->battery);
+
 	return IRQ_HANDLED;
 }
 
@@ -1824,7 +1856,8 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	}
 	info->irq_nums = j;
 
-	mutex_init(&info->lock);
+	mutex_init(&info->cycle_lock);
+	mutex_init(&info->volt_lock);
 
 	ret = pm886_battery_setup_adc(info);
 	if (ret < 0)
