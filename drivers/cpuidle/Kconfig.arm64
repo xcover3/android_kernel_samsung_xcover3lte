@@ -17,3 +17,11 @@ config CPU_IDLE_MMP_V8
         default y
 	help
 	  Select this to enable cpuidle on MMP processors (ARMv8).
+
+config PXA1936_LPM
+	bool "LPM support for PXA1936"
+	default n
+	help
+	  Enable the PXA1936 dual cluster LPM support.
+	  This changes the behavior of the MCPM platform code.
+

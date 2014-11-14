@@ -117,7 +117,12 @@ static unsigned int _calc_coupled_state(int cpu, int cluster,
 					unsigned int *sw_state)
 {
 	unsigned int couple_state;
-
+#ifdef CONFIG_PXA1936_LPM
+	unsigned int last_clus = _calc_max_state(cluster?0:1)
+				>= mcpm_plat_idle->clusterdown_state;
+#else
+	unsigned int last_clus = 1;
+#endif
 	couple_state = _calc_max_state(cluster);
 
 	/* set default s/w state */
@@ -130,8 +135,10 @@ static unsigned int _calc_coupled_state(int cpu, int cluster,
 	 */
 	if (couple_state >= mcpm_plat_idle->clusterdown_state) {
 		*cluster_off = 1;
-		couple_state = min(couple_state,
-			((unsigned int)pm_qos_request(PM_QOS_CPUIDLE_BLOCK) - 1));
+		if (last_clus)
+			couple_state = min(couple_state,
+				((unsigned int)pm_qos_request(
+					PM_QOS_CPUIDLE_BLOCK) - 1));
 
 		if (sw_state)
 			*sw_state = couple_state;
@@ -324,7 +331,9 @@ static void mcpm_plat_pm_down(void *arg)
 		}
 
 		if ((calc_state >= mcpm_plat_idle->wakeup_state) &&
-		    (calc_state < mcpm_plat_idle->l2_flush_state) &&
+#ifndef CONFIG_PXA1936_LPM
+			(calc_state < mcpm_plat_idle->l2_flush_state) &&
+#endif
 		    (mcpm_plat_idle->ops->save_wakeup))
 			mcpm_plat_idle->ops->save_wakeup();
 
@@ -450,7 +459,9 @@ static void mcpm_plat_pm_powered_up(void)
 		cpu_cluster_pm_exit();
 
 	if (calc_state >= mcpm_plat_idle->wakeup_state &&
+#ifndef CONFIG_PXA1936_LPM
 	    calc_state < mcpm_plat_idle->l2_flush_state &&
+#endif
 	    mcpm_plat_idle->ops->restore_wakeup)
 		mcpm_plat_idle->ops->restore_wakeup();
 

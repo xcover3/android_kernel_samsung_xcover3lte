@@ -29,6 +29,8 @@
 #include "regs-addr.h"
 #include "pxa1936_lowpower.h"
 
+#define POWER_MODE_DEBUG
+
 #define MAX_CPU	4
 #define MAX_CLUS 2
 static void __iomem *apmu_virt_addr;
@@ -55,11 +57,16 @@ static const unsigned APMU_CORE_RSTCTRL_MSK_OFFS[] = {
 	0x12c, 0x130, 0x134, 0x138, 0x324, 0x328, 0x32c, 0x330
 };
 
+/* Per-cluster and APCR_PER */
+#define MPMU_APCR_PER MAX_CLUS
+static const unsigned MPMU_APCR_OFS[] = {
+	APCR_CLUSTER0, APCR_CLUSTER1, APCR_PER
+};
 
 #define RINDEX(cpu, clus) ((cpu) + (clus)*MAX_CPU)
 
 static struct cpuidle_state pxa1936_modes[] = {
-	[0] = {
+	[POWER_MODE_CORE_INTIDLE] = {
 		.exit_latency		= 18,
 		.target_residency	= 36,
 		/*
@@ -72,7 +79,7 @@ static struct cpuidle_state pxa1936_modes[] = {
 		.desc			= "C1: Core internal clock gated",
 		.enter			= cpuidle_simple_enter,
 	},
-	[1] = {
+	[POWER_MODE_CORE_POWERDOWN] = {
 		.exit_latency		= 350,
 		.target_residency	= 700,
 		.flags			= CPUIDLE_FLAG_TIME_VALID |
@@ -80,7 +87,7 @@ static struct cpuidle_state pxa1936_modes[] = {
 		.name			= "C2",
 		.desc			= "C2: Core power down",
 	},
-	[2] = {
+	[POWER_MODE_MP_POWERDOWN] = {
 		.exit_latency		= 450,
 		.target_residency	= 900,
 		.flags			= CPUIDLE_FLAG_TIME_VALID |
@@ -88,7 +95,7 @@ static struct cpuidle_state pxa1936_modes[] = {
 		.name			= "MP2",
 		.desc			= "MP2: Core subsystem power down",
 	},
-	[3] = {
+	[POWER_MODE_APPS_IDLE] = {
 		.exit_latency		= 500,
 		.target_residency	= 1000,
 		.flags			= CPUIDLE_FLAG_TIME_VALID |
@@ -96,18 +103,74 @@ static struct cpuidle_state pxa1936_modes[] = {
 		.name			= "D1p",
 		.desc			= "D1p: AP idle state",
 	},
-	[4] = {
+	[POWER_MODE_APPS_SLEEP] = {
 		.exit_latency		= 600,
 		.target_residency	= 1200,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
+		.name			= "D1pp",
+		.desc			= "D1pp: Chip idle state",
+	},
+	[POWER_MODE_UDR_VCTCXO] = {
+		.exit_latency		= 800,
+		.target_residency	= 2000,
 		.flags			= CPUIDLE_FLAG_TIME_VALID |
 					  CPUIDLE_FLAG_TIMER_STOP,
 		.name			= "D1",
 		.desc			= "D1: Chip idle state",
 	},
+	[POWER_MODE_UDR] = {
+		.exit_latency		= 900,
+		.target_residency	= 2500,
+		.flags			= CPUIDLE_FLAG_TIME_VALID |
+					  CPUIDLE_FLAG_TIMER_STOP,
+		.name			= "D2",
+		.desc			= "D2: Chip idle state",
+	},
 };
 
+#define APCR_MASK (PMUM_AXISD | PMUM_APBSD | PMUM_SLPEN | PMUM_DDRCORSD | \
+	PMUM_STBYEN | PMUM_VCTCXOSD)
+#define PXA1936_LPM_PUSH /* experimental only */
 static void pxa1936_set_dstate(u32 cpu, u32 cluster, u32 power_mode)
 {
+#ifdef CONFIG_PXA1936_LPM
+	unsigned apcr = readl_relaxed(mpmu_virt_addr+MPMU_APCR_OFS[cluster]);
+	unsigned set = 0;
+
+	switch (power_mode) {
+	case POWER_MODE_UDR:
+		set |= PMUM_VCTCXOSD;
+		/* fallthrough */
+	case POWER_MODE_UDR_VCTCXO:
+		set |= PMUM_STBYEN;
+		/* fallthrough */
+	case POWER_MODE_APPS_SLEEP:
+		set |= PMUM_APBSD | PMUM_SLPEN | PMUM_DDRCORSD;
+		/* fallthrough */
+	case POWER_MODE_APPS_IDLE:
+		set |= PMUM_AXISD;
+	}
+
+	apcr = (apcr & ~APCR_MASK) | set;
+	writel_relaxed(apcr, mpmu_virt_addr+MPMU_APCR_OFS[cluster]);
+#ifdef PXA1936_LPM_PUSH
+	/*
+	 * In some cases Cx enters C2MP with cpuidle vote not enabling
+	 * lower sleep modes, and remains there for a very long time.
+	 * This suggests cpuidle guess about coming wakeup is wrong.
+	 * This prevents the system from entering low power modes.
+	 * Still we cannot force APCR or the other cluster here, because
+	 * if the current cluster is not the last one, and the other
+	 * cluster enters MP_IDLE later, it will not re-set APCR's.
+	 * Since only the last cluster reflects pm_qos it its sleep
+	 * decision, such scenario would result in LPM entry which
+	 * violates the current pm_qos constraints.
+	 * Force APCR_PER for now.
+	 */
+	writel_relaxed(apcr, mpmu_virt_addr+MPMU_APCR_OFS[2]);
+#endif
+#endif
 }
 
 static void pxa1936_set_cstate(u32 cpu, u32 cluster, u32 power_mode)
@@ -121,7 +184,13 @@ static void pxa1936_set_cstate(u32 cpu, u32 cluster, u32 power_mode)
 	case POWER_MODE_MP_POWERDOWN:
 		/* fall through */
 	case POWER_MODE_CORE_POWERDOWN:
+		/* L2_SRAM_PWRDWN is set out of reset and never changed */
 		mcfg |= MP_PWRDWN | MP_IDLE;
+#ifndef POWER_MODE_DEBUG
+		mcfg |= L2_SRAM_PWRDWN;
+#else
+		mcfg &= ~L2_SRAM_PWRDWN;
+#endif
 		cfg |= CORE_IDLE | CORE_PWRDWN;
 		cfg |= MASK_GIC_nFIQ_TO_CORE | MASK_GIC_nIRQ_TO_CORE;
 		/* fall through */
@@ -146,6 +215,8 @@ static void pxa1936_clear_state(u32 cpu, u32 cluster)
 	cfg = readl(APMU_MP_IDLE_CFG[idx]);
 	cfg &= ~(MP_PWRDWN | MP_IDLE);
 	writel(cfg, APMU_MP_IDLE_CFG[idx]);
+
+	pxa1936_set_dstate(cpu, cluster, 0);
 }
 
 static void pxa1936_icu_global_mask(u32 cpu, u32 cluster, u32 mask)
@@ -194,8 +265,14 @@ static void pxa1936_lowpower_config(u32 cpu, u32 cluster, u32 power_mode,
 	(PMUM_AP_ASYNC_INT | PMUM_AP_FULL_IDLE | PMUM_SQU_SDH1 | PMUM_SDH_23 | \
 	 PMUM_KEYPRESS | PMUM_WDT | PMUM_RTC_ALARM | PMUM_AP0_2_TIMER_1 | \
 	 PMUM_AP0_2_TIMER_2 | PMUM_AP0_2_TIMER_3 | PMUM_AP1_TIMER_1 | \
-	 PMUM_AP1_TIMER_2 | PMUM_AP1_TIMER_3 | PMUM_WAKEUP7 | PMUM_WAKEUP6 | \
-	 PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 | PMUM_WAKEUP2)
+	 PMUM_CP_TIMER_3 | PMUM_CP_TIMER_2 | PMUM_CP_TIMER_1 | \
+	 PMUM_AP1_TIMER_2 | PMUM_AP1_TIMER_3)
+/* Do not enable these for now */
+#define ENABLE_AP_WAKEUP_PORTS \
+	 (PMUM_WAKEUP7 | PMUM_WAKEUP6 \
+	 | PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 | PMUM_WAKEUP2 \
+	 )
+
 /*
  * Enable AP wakeup sources and ports. To enalbe wakeup
  * ports, it needs both AP side to configure MPMU_APCR
@@ -227,6 +304,27 @@ static void pxa1936_set_pmu(u32 cpu, u32 calc_state, u32 vote_state)
 	pxa1936_icu_global_mask(cpu, cluster, 1); /* might be reset by HW */
 }
 
+#ifdef POWER_MODE_DEBUG
+#define MPMU_PWRMODE_STATUS 0x1030
+#define STAT_MODES 6
+#define STAT_MASK ((1<<STAT_MODES) - 1)
+unsigned pwr_stat[STAT_MODES + 1];
+static void track_power_mode(void)
+{
+	unsigned v = readl_relaxed(mpmu_virt_addr + MPMU_PWRMODE_STATUS);
+	v >>= 16;
+	if (v) {
+		int i;
+		writel_relaxed(v, mpmu_virt_addr + MPMU_PWRMODE_STATUS);
+		v &= STAT_MASK;
+		for (i = 0; i < STAT_MODES; i++)
+			if (v & (1<<i))
+				pwr_stat[i]++;
+		pwr_stat[i] = v;
+	}
+}
+#endif
+
 static void pxa1936_clr_pmu(u32 cpu)
 {
 	u32 mpidr = read_cpuid_mpidr();
@@ -235,6 +333,9 @@ static void pxa1936_clr_pmu(u32 cpu)
 	cluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 	pxa1936_lowpower_config(cpu, cluster, 0, 0, 0);
 	pxa1936_icu_global_mask(cpu, cluster, 1); /* might be reset by HW */
+#ifdef POWER_MODE_DEBUG
+	track_power_mode();
+#endif
 }
 
 static struct platform_power_ops pxa1936_power_ops = {
@@ -260,33 +361,10 @@ static struct platform_idle pxa1936_idle = {
 	.state_count		= ARRAY_SIZE(pxa1936_modes),
 };
 
-static const int intc_wakeups[] = {
-	2,
-	13,
-	14,
-	27,
-	28,
-	29,
-	30,
-	64
-};
-#define UNMASK_WAKE_VAL 0x51 /* CPU0, IRQ, PRIO=1 */
-static void __iomem *icu_init(void)
-{
-	void __iomem *icu_virt_addr;
-	int i;
-
-	icu_virt_addr = regs_addr_get_va(REGS_ADDR_ICU);
-
-	for (i = 0; i < ARRAY_SIZE(intc_wakeups); i++)
-		writel(UNMASK_WAKE_VAL, icu_virt_addr + intc_wakeups[i]*4);
-	return icu_virt_addr;
-}
-
 static void __init pxa1936_mappings(void)
 {
 	int i;
-	void __iomem *icu_virt_addr = icu_init();
+	void __iomem *icu_virt_addr = regs_addr_get_va(REGS_ADDR_ICU);
 
 	apmu_virt_addr = regs_addr_get_va(REGS_ADDR_APMU);
 
