@@ -914,6 +914,19 @@
 					focaltech,reset-gpios = <&gpio 75 0>;
 					focaltech,v_tsp-supply = <&ldo11>;
 				};
+
+				touch3: 88ms100@720p {
+					compatible = "marvell,88ms100-touch";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+					reg = <0x18>;
+					interrupt-parent = <&gpio>;
+					interrupts = <72 0x1>;
+					irq-gpios = <&gpio 72 0>;
+					reset-gpios = <&gpio 75 0>;
+					marvell,max-height = <1280>;
+					marvell,max-width = <720>;
+					avdd-supply = <&ldo11>;
+				};
 			};
 
 			twsi2: i2c@d4037000 {
