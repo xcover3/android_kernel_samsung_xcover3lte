@@ -150,27 +150,37 @@ static struct thermal_cooling_device_ops const cpufreq_cooling_ops = {
 	.set_cur_state = cpufreq_set_cur_state,
 };
 
-struct thermal_cooling_device *cpufreq_cool_register(void)
+struct thermal_cooling_device *cpufreq_cool_register(const char *cpu_name)
 {
 	struct thermal_cooling_device *cool_dev;
 	struct freq_cool_device *cpufreq_dev = NULL;
 	int i, index = 0, descend = -1;
 	unsigned int max_level = 0;
 	unsigned int freq = CPUFREQ_ENTRY_INVALID;
-	struct cpufreq_frequency_table *table =
-		cpufreq_frequency_get_table(0);
+	char cool_name[THERMAL_NAME_LENGTH];
+	struct cpufreq_frequency_table *table;
 
 	cpufreq_dev = kzalloc(sizeof(struct freq_cool_device),
 			      GFP_KERNEL);
 	if (!cpufreq_dev)
 		return ERR_PTR(-ENOMEM);
 
-	cool_dev = thermal_cooling_device_register("cpu-freq-cool", cpufreq_dev,
+	snprintf(cool_name, sizeof(cool_name), "%s-freq-cool", cpu_name);
+	cool_dev = thermal_cooling_device_register(cool_name, cpufreq_dev,
 						   &cpufreq_cooling_ops);
 	if (!cool_dev) {
 		kfree(cpufreq_dev);
 		return ERR_PTR(-EINVAL);
 	}
+
+	/* get frequency number */
+	if (!strcmp("cluster0", cpu_name))
+		table = cpufreq_frequency_get_table(0);
+	else if (!strcmp("cluster1", cpu_name))
+		table = cpufreq_frequency_get_table(4);
+	else
+		table = cpufreq_frequency_get_table(0);
+
 
 	/* get frequency number and order*/
 	for (i = 0; table[i].frequency != CPUFREQ_TABLE_END; i++) {
@@ -204,8 +214,16 @@ struct thermal_cooling_device *cpufreq_cool_register(void)
 	cpufreq_dev->cur_state = 0;
 
 	cpufreq_dev->qos_max.name = "req_thermal";
-	pm_qos_add_request(&cpufreq_dev->qos_max,
-		PM_QOS_CPUFREQ_MAX, PM_QOS_DEFAULT_VALUE);
+
+	if (!strcmp("cluster0", cpu_name))
+		pm_qos_add_request(&cpufreq_dev->qos_max,
+			PM_QOS_CPUFREQ_L_MAX, INT_MAX);
+	else if (!strcmp("cluster1", cpu_name))
+		pm_qos_add_request(&cpufreq_dev->qos_max,
+			PM_QOS_CPUFREQ_B_MAX, INT_MAX);
+	else
+		pm_qos_add_request(&cpufreq_dev->qos_max,
+			PM_QOS_CPUFREQ_MAX, INT_MAX);
 
 	return cool_dev;
 }

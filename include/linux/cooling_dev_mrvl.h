@@ -7,10 +7,10 @@
 #ifdef CONFIG_COOLING_DEV_MRVL
 
 #ifdef CONFIG_CPU_FREQ
-struct thermal_cooling_device *cpufreq_cool_register(void);
+struct thermal_cooling_device *cpufreq_cool_register(const char *cpu_name);
 void cpufreq_cool_unregister(struct thermal_cooling_device *cdev);
 #else
-static inline struct thermal_cooling_device *cpufreq_cool_register(void)
+static inline struct thermal_cooling_device *cpufreq_cool_register(const char *cpu_name)
 {
 	return NULL;
 }
@@ -80,7 +80,7 @@ static inline void gpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 #endif
 
 #else /* !CONFIG_COOLING_DEV_MRVL */
-static inline struct thermal_cooling_device *cpufreq_cool_register(void)
+static inline struct thermal_cooling_device *cpufreq_cool_register(const char *cpu_name)
 {
 	return NULL;
 }

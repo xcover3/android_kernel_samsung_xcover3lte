@@ -795,7 +795,7 @@ static int pxa1928_register_cpu_thermal(void)
 {
 	int i, trip_w_mask = 0;
 
-	thermal_dev.cdev.cool_cpufreq = cpufreq_cool_register();
+	thermal_dev.cdev.cool_cpufreq = cpufreq_cool_register("cpu");
 	thermal_dev.cdev.cool_cpuhotplug = cpuhotplug_cool_register();
 
 	thermal_dev.cdev.combile_cool = thermal_cooling_device_register(
