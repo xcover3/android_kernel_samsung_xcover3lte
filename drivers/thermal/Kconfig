@@ -218,6 +218,16 @@ config HELAN2_THERMAL
          There is also a watchdog reset, it will trigger SoC reset when temperature
          higher than a defined watchdog threshold.
 
+config PXA1936_THERMAL
+       bool "Pxa1936 Thermal interface support"
+       depends on THERMAL
+       help
+         Add thermal management for Helan3 SoC.
+         Helan3 thermal supports h/w auto test mode, and
+         it supports 3 thresholds which can be configured as up or down.
+         There is also a watchdog reset, it will trigger SoC reset when temperature
+         higher than a defined watchdog threshold.
+
 config DOVE_THERMAL
 	tristate "Temperature sensor on Marvell Dove SoCs"
 	depends on ARCH_DOVE
