@@ -2916,11 +2916,17 @@ static int __maybe_unused b52_cmd_awb(struct b52isp_cmd *cmd)
 	return wait_cmd_done(CMD_AWB_MODE);
 }
 
-int  b52_cmd_anti_shake(u16 block_size, int enable)
+int b52_cmd_anti_shake(u16 block_size, int enable)
 {
+	int ret;
+
+	mutex_lock(&cmd_mutex);
 	b52_writeb(CMD_REG1, enable);
 	b52_writew(CMD_REG2, block_size);
-	return wait_cmd_done(CMD_ANTI_SHAKE);
+	ret = wait_cmd_done(CMD_ANTI_SHAKE);
+	mutex_unlock(&cmd_mutex);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(b52_cmd_anti_shake);
 
