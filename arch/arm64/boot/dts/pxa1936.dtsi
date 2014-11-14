@@ -953,6 +953,8 @@
 
 	amipc {
 		compatible = "marvell,mmp-amipc";
+		reg = <0xC9420000 0x4000>;
+		reg-name = "dmachain";
 		interrupts = <0 95 0x4>;
 		status = "okay";
 	};
