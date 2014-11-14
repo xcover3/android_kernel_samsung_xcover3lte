@@ -1078,6 +1078,7 @@ static int b52isp_ctrl_get_gain(struct b52isp_ctrls *ctrls, int id)
 {
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 	ctrls->gain->val = b52_readw(base + REG_FW_AEC_MAN_GAIN);
+	ctrls->gain->val <<= GAIN_CONVERT;
 	return 0;
 }
 
@@ -1763,7 +1764,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 			V4L2_CID_AUTOGAIN, 0, 1, 1, 1);
 	ctrls->auto_gain->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	ctrls->gain = v4l2_ctrl_new_std(handler, ops,
-			V4L2_CID_GAIN, 0, 0xFFFFFFF, 1, 0x100);
+			V4L2_CID_GAIN, 0x100, 0xFFFFFFF, 1, 0x100);
 
 	/* auto frame rate */
 	ctrls->auto_frame_rate = v4l2_ctrl_new_custom(handler,
