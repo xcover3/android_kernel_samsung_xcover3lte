@@ -37,6 +37,7 @@
 #include <linux/pm_qos.h>
 #include <linux/cputype.h>
 #include "helan2_thermal.h"
+#include "ulc1_thermal.h"
 
 #define APB_CLK_BASE (0xd4015000)
 #define TSEN_PCTRL (0x0)
@@ -475,6 +476,136 @@ static void pxa28nm_set_interval(int ms)
 	(interval_val << TSEN_AUTO_INTERVAL_OFF) & TSEN_AUTO_INTERVAL_MASK);
 }
 
+static void mapping_cooling_dev_ulc(struct device_node *np)
+{
+	unsigned int profile = 0, iddq105 = 0, i;
+	char dt_name[20];
+	int fake_t = 0;
+	u32 ctable[2][2] = {{0}}, x = 0, y = 0;
+	struct cpufreq_frequency_table *table =
+		cpufreq_frequency_get_table(0);
+	u32 tsafe_freq, tsafe_plug;
+	unsigned int freq_max = 0;
+
+	profile = get_chipprofile();
+	iddq105 = get_iddq_105();
+	if (0 != iddq105 && profile < 16) {
+		getThermalLimitsPerPP_ulc1(profile, iddq105, (int **)thermal_dev.ttemp_table);
+
+		sprintf(dt_name, "core-p%d", profile);
+		if (!of_property_read_bool(np, dt_name))
+			sprintf(dt_name, "core-p0");
+
+		of_property_read_u32_array(np, dt_name, (u32 *)ctable, 2 * 2);
+		thermal_dev.cdev.cpufreq_cstate[0] = 0;
+		thermal_dev.cdev.hotplug_cstate[0] = 0;
+		/* first trip point and cooling state */
+		trips_temp[0] = thermal_dev.ttemp_table[0][0] * 1000;
+		thermal_dev.cdev.cpufreq_cstate[1] = ctable[0][0];
+		thermal_dev.cdev.hotplug_cstate[1] = ctable[0][1];
+		/* second trip point and cooling state */
+		x = ctable[0][0];
+		y = ctable[0][1];
+		trips_temp[1] = thermal_dev.ttemp_table[x][y] * 1000;
+		thermal_dev.cdev.cpufreq_cstate[2] = ctable[1][0];
+		thermal_dev.cdev.hotplug_cstate[2] = ctable[1][1];
+		/* thermal safe trip point and cooling state */
+		trips_temp[2] = 82000;
+		sprintf(dt_name, "thermal_safe-p%d", profile);
+		if (!of_property_read_bool(np, dt_name))
+			sprintf(dt_name, "thermal_safe-p0");
+		of_property_read_u32_index(np, dt_name, 0, &tsafe_freq);
+		of_property_read_u32_index(np, dt_name, 1, &tsafe_plug);
+		thermal_dev.cdev.cpufreq_cstate[3] = tsafe_freq;
+		thermal_dev.cdev.hotplug_cstate[3] = tsafe_plug;
+		/* keep the remaining cooling as thermal safe */
+		for (i = 4; i < THERMAL_MAX_TRIPS; i++) {
+			thermal_dev.cdev.cpufreq_cstate[i] = thermal_dev.cdev.cpufreq_cstate[3];
+			thermal_dev.cdev.hotplug_cstate[i] = thermal_dev.cdev.hotplug_cstate[3];
+		}
+
+		pr_info("|----raw mapping----|\n");
+		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
+			pr_info("%dmC==>%ld %ld\n", trips_temp[i],
+					thermal_dev.cdev.cpufreq_cstate[i+1],
+					thermal_dev.cdev.hotplug_cstate[i+1]);
+		}
+
+		/* for -1000mC, set fake temp from 35C; for same temperature */
+		pr_info("|----refine temp----|\n");
+		fake_t = 35000;
+		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
+			if (-1000 == trips_temp[i]) {
+				trips_temp[i] = fake_t;
+				fake_t += 1000;
+			} else
+				break;
+		}
+		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
+			pr_info("%dmC==>%ld %ld\n", trips_temp[i],
+					thermal_dev.cdev.cpufreq_cstate[i+1],
+					thermal_dev.cdev.hotplug_cstate[i+1]);
+		}
+		/* The table from SV is from 1.5G, we have to tune index */
+		for (i = 0; table[i].frequency != CPUFREQ_TABLE_END; i++) {
+			if (table[i].frequency > freq_max)
+				freq_max = table[i].frequency;
+		}
+		pr_info("|----tune for %dkHz chip----|\n", freq_max);
+		if (1100 * 1000 < freq_max && freq_max < 1300 * 1000) {
+			for (i = 0; i < THERMAL_MAX_TRIPS; i++)
+				if (thermal_dev.cdev.cpufreq_cstate[i])
+					thermal_dev.cdev.cpufreq_cstate[i]--;
+		} else if (900 * 1000 < freq_max && freq_max < 1100 * 1000) {
+			for (i = 0; i < THERMAL_MAX_TRIPS; i++) {
+				if (1 == thermal_dev.cdev.cpufreq_cstate[i])
+					thermal_dev.cdev.cpufreq_cstate[i] = 0;
+				else if (thermal_dev.cdev.cpufreq_cstate[i] >= 2)
+					thermal_dev.cdev.cpufreq_cstate[i] -= 2;
+			}
+		}
+		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
+			pr_info("%dmC==>%ld %ld(state %d)\n", trips_temp[i],
+					thermal_dev.cdev.cpufreq_cstate[i+1],
+					thermal_dev.cdev.hotplug_cstate[i+1], i + 1);
+		}
+		/* set to down threshold */
+		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++)
+			trips_hyst[i] = trips_temp[i] - 10000;
+	} else {
+		thermal_dev.cdev.cpufreq_cstate[0] = 0;
+		thermal_dev.cdev.hotplug_cstate[0] = 0;
+		/* First trip point and cooling */
+		trips_temp[0] = 70000;
+		thermal_dev.cdev.cpufreq_cstate[1] = 1;
+		thermal_dev.cdev.hotplug_cstate[1] = 0;
+		/* second trip point and cooling */
+		trips_temp[1] = 75000;
+		thermal_dev.cdev.cpufreq_cstate[2] = 2;
+		thermal_dev.cdev.hotplug_cstate[2] = 0;
+		/* thermal safe */
+		trips_temp[2] = 82000;
+		thermal_dev.cdev.cpufreq_cstate[3] = 3;
+		thermal_dev.cdev.hotplug_cstate[3] = 0;
+		/* keep the remaining cooling as thermal safe */
+		for (i = 4; i < THERMAL_MAX_TRIPS; i++) {
+			thermal_dev.cdev.cpufreq_cstate[i] = thermal_dev.cdev.cpufreq_cstate[3];
+			thermal_dev.cdev.hotplug_cstate[i] = thermal_dev.cdev.hotplug_cstate[3];
+		}
+		/* set to down threshold */
+		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++)
+			trips_hyst[i] = trips_temp[i] - 10000;
+
+		pr_warn("thermal iddq unfused chip, use default policy for profile(%d) iddq(%d)\n",
+				profile, iddq105);
+		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
+			pr_info("%dmC==>%ld %ld(state %d)\n", trips_temp[i],
+					thermal_dev.cdev.cpufreq_cstate[i+1],
+					thermal_dev.cdev.hotplug_cstate[i+1], i + 1);
+		}
+	}
+}
+
 #define PP_CARE_NUM 4
 static void pxa28nm_mapping_cooling_dev(struct device_node *np)
 {
@@ -783,7 +914,10 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 	/* init thermal framework */
 	pxa28nm_register_thermal();
 	/* init threshold */
-	pxa28nm_mapping_cooling_dev(pdev->dev.of_node);
+	if (cpu_is_pxa1U88())
+		pxa28nm_mapping_cooling_dev(pdev->dev.of_node);
+	else if (cpu_is_pxa1908())
+		mapping_cooling_dev_ulc(pdev->dev.of_node);
 	tmp = (millicelsius_encode(110000) << TSEN_WDT_THD_OFF) &
 					TSEN_WDT_THD_MASK;
 	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
