@@ -273,7 +273,8 @@ static DEFINE_MUTEX(ddraxi_freqs_mutex);
 static atomic_t fc_lock_ref_cnt;
 static struct cpu_opt *cur_apc0_cpu_op;
 static struct cpu_opt *cur_apc1_cpu_op;
-static struct cpu_opt *bridge_op;
+static struct cpu_opt *clst0_bridge_op;
+static struct cpu_opt *clst1_bridge_op;
 static struct ddr_opt *cur_ddr_op;
 static struct axi_opt *cur_axi_op;
 static struct pm_qos_request cci_qos_req_min[2];
@@ -1024,8 +1025,12 @@ static void clk_cpu_init(struct clk_hw *hw)
 
 		/* add it into core op list */
 		list_add_tail(&core->params->cpu_opt[i].node, op_list);
-		if (cop->pclk == core->params->bridge_cpurate)
-			bridge_op = cop;
+		if (cop->pclk == core->params->bridge_cpurate) {
+			if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME))
+				clst0_bridge_op = cop;
+			else if (!strcmp(hw->clk->name, CLST1_CORE_CLK_NAME))
+				clst1_bridge_op = cop;
+		}
 	}
 
 	/* get cur core rate */
@@ -1093,7 +1098,7 @@ static int clk_cpu_setrate(struct clk_hw *hw, unsigned long rate,
 			   unsigned long parent_rate)
 {
 	int mclk_type = 0;
-	struct cpu_opt *md_new, *md_old, *cur_cpu_op = NULL;
+	struct cpu_opt *md_new, *md_old, *bridge_op = NULL, *cur_cpu_op = NULL;
 	unsigned int index;
 	int ret = 0;
 	struct clk_core *core = to_clk_core(hw);
@@ -1101,10 +1106,12 @@ static int clk_cpu_setrate(struct clk_hw *hw, unsigned long rate,
 	struct list_head *op_list = NULL;
 
 	if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME)) {
+		bridge_op = clst0_bridge_op;
 		cur_cpu_op = cur_apc0_cpu_op;
 		op_list = &apc0_core_op_list;
 		mclk_type = CLST0;
 	} else if (!strcmp(hw->clk->name, CLST1_CORE_CLK_NAME)) {
+		bridge_op = clst1_bridge_op;
 		cur_cpu_op = cur_apc1_cpu_op;
 		op_list = &apc1_core_op_list;
 		mclk_type = CLST1;
