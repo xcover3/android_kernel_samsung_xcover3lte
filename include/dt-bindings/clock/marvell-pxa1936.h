@@ -64,6 +64,8 @@
 #define PXA1936_CLK_SWJTAG		77
 #define PXA1936_CLK_IPC_RST		78
 #define PXA1936_CLK_AICER		79
+#define PXA1936_CLK_SSP0		80
+#define PXA1936_CLK_SSP2		81
 
 /* axi periphrals */
 #define PXA1936_CLK_USB			100
