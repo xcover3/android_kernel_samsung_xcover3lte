@@ -18,6 +18,9 @@
 #define PM886_CHG_CONFIG1		(0x28)
 #define PM886_USB_OTG_EN		(1 << 7)
 
+#define PM886_CHG_CONFIG4		(0x2B)
+#define PM886_VBUS_SW_EN		(1 << 0)
+
 #define PM886_OTG_LOG1			(0x47)
 #define PM886_OTG_UVVBAT		(1 << 0)
 #define PM886_OTG_SHORT_DET		(1 << 1)
@@ -51,6 +54,7 @@ struct pm886_vbus_info {
 	int			id_irq;
 	int			vbus_gpio;
 	int			id_gpadc;
+	struct delayed_work	pxa_notify;
 };
 
 static struct pm886_vbus_info *vbus_info;
@@ -99,6 +103,9 @@ static int pm886_get_vbus(unsigned int *level)
 			*level = VBUS_LOW;
 			dev_dbg(vbus_info->chip->dev,
 				"%s: Cable out / OTG disabled !(%dmV)\n", __func__, voltage);
+			/* Open USB_SW in order to save power at low power mode */
+			regmap_update_bits(vbus_info->chip->battery_regmap,
+					PM886_CHG_CONFIG4, PM886_VBUS_SW_EN, 0);
 		}
 	}
 
@@ -125,12 +132,19 @@ static int pm886_set_vbus(unsigned int vbus)
 	int ret;
 	unsigned int data = 0;
 
-	if (vbus == VBUS_HIGH)
+	if (vbus == VBUS_HIGH) {
 		ret = regmap_update_bits(vbus_info->chip->battery_regmap, PM886_CHG_CONFIG1,
 					PM886_USB_OTG_EN, PM886_USB_OTG_EN);
-	else
+		if (ret)
+			return ret;
+		ret = regmap_update_bits(vbus_info->chip->battery_regmap,
+				PM886_CHG_CONFIG4, PM886_VBUS_SW_EN, PM886_VBUS_SW_EN);
+	} else
 		ret = regmap_update_bits(vbus_info->chip->battery_regmap, PM886_CHG_CONFIG1,
 					PM886_USB_OTG_EN, 0);
+
+	if (ret)
+		return ret;
 
 	usleep_range(10000, 20000);
 
@@ -202,16 +216,32 @@ static int pm886_init_id(void)
 	return 0;
 }
 
-static irqreturn_t pm886_vbus_handler(int irq, void *data)
+static void pm886_pxa_notify(struct work_struct *work)
 {
-
-	struct pm886_vbus_info *info = data;
+	struct pm886_vbus_info *info =
+		container_of(work, struct pm886_vbus_info, pxa_notify.work);
 	/*
 	 * 88pm886 has no ability to distinguish
 	 * AC/USB charger, so notify usb framework to do it
 	 */
 	pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_VBUS, 0);
+	dev_dbg(info->chip->dev, "88pm886 vbus pxa usb is notified..\n");
+}
+
+static irqreturn_t pm886_vbus_handler(int irq, void *data)
+{
+
+	struct pm886_vbus_info *info = data;
+	/*
+	 * Close USB_SW to allow USB 5V to USB PHY in case of cable
+	 * insertion. in case of removal this will be called and the
+	 * switch will be opened at pm886_get_vbus
+	 */
+	regmap_update_bits(vbus_info->chip->battery_regmap,
+				PM886_CHG_CONFIG4, PM886_VBUS_SW_EN, PM886_VBUS_SW_EN);
 	dev_dbg(info->chip->dev, "88pm886 vbus interrupt is served..\n");
+	/* allowing 7.5msec for the SW to close */
+	schedule_delayed_work(&info->pxa_notify, usecs_to_jiffies(7500));
 	return IRQ_HANDLED;
 }
 
@@ -322,6 +352,8 @@ static int pm886_vbus_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto out;
 	}
+
+	INIT_DELAYED_WORK(&usb->pxa_notify, pm886_pxa_notify);
 
 	ret = devm_request_threaded_irq(&pdev->dev, usb->vbus_irq, NULL,
 					pm886_vbus_handler,
