@@ -744,7 +744,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				&sdh_mix_config, &sdh0_lock);
 	clk = mmp_clk_register_gate(NULL, "sdh0_clk", "sdh0_mix_clk",
-				CLK_SET_RATE_PARENT,
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_SDH0,
 				0x12, 0x12, 0x0, 0, &sdh0_lock);
 	mmp_clk_add(unit, PXA1936_CLK_SDH0, clk);
@@ -759,7 +759,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				&sdh_mix_config, &sdh1_lock);
 	clk = mmp_clk_register_gate(NULL, "sdh1_clk", "sdh1_mix_clk",
-				CLK_SET_RATE_PARENT,
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_SDH1,
 				0x12, 0x12, 0x0, 0, &sdh1_lock);
 	mmp_clk_add(unit, PXA1936_CLK_SDH1, clk);
@@ -774,7 +774,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				&sdh_mix_config, &sdh2_lock);
 	clk = mmp_clk_register_gate(NULL, "sdh2_clk", "sdh2_mix_clk",
-				CLK_SET_RATE_PARENT,
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_SDH2,
 				0x12, 0x12, 0x0, 0, &sdh2_lock);
 	mmp_clk_add(unit, PXA1936_CLK_SDH2, clk);
