@@ -443,7 +443,7 @@
 				reg-name = "b52isp-regs";
 				interrupts = <0 11 0x4>;
 				fclk-name = "ISP-CLK";
-				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 				marvell,power-domain = <&pd_isp>;
 				clocks = <&soc_clocks PXA1936_CLK_SC2_AXI_CLK>,
 						<&soc_clocks PXA1936_CLK_ISP_CORE_CLK_EN>,
