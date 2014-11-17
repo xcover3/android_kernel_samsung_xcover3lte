@@ -142,8 +142,8 @@ struct pm800_regulator_info pm86x_regulator_info[] = {
 	PM800_BUCK(BUCK2, BUCK_ENA, 1, 750000, 2, BUCK_SLP1, buck_volt_range2, 0x73),
 	PM800_BUCK(BUCK3, BUCK_ENA, 2, 1500000, 4, BUCK_SLP1, buck_volt_range2, 0x73),
 	PM800_BUCK(BUCK4, BUCK_ENA, 3, 750000, 6, BUCK_SLP1, buck_volt_range2, 0x73),
-	PM800_BUCK(BUCK5, BUCK_ENA, 4, 1500000, 0, BUCK_SLP2, buck_volt_range3, 0x81),
-	PM800_BUCK(BUCK6, BUCK_ENA, 5, 800000, 2, BUCK_SLP2, buck_volt_range2, 0x73),
+	PM800_BUCK(BUCK5, BUCK_ENA, 4, 1500000, 0, BUCK_SLP2, buck_volt_range2, 0x73),
+	PM800_BUCK(BUCK6, BUCK_ENA, 5, 1500000, 2, BUCK_SLP2, buck_volt_range2, 0x73),
 	PM800_BUCK(BUCK1B, BUCK_ENA, 6, 3000000, 4, BUCK_SLP2, buck_volt_range1, 0x55),
 
 	PM800_LDO(LDO1, LDO_ENA1_1, 0, 100000, 0, LDO_SLP1, ldo_volt_table5),
