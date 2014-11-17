@@ -34,8 +34,8 @@
 #define PM886_HWMON_NAME	"88pm886-hwmon"
 
 enum {
-	PM886_A0 = 0x0,
-	PM886_A1 = 0x1
+	PM886_A0 = 0x00,
+	PM886_A1 = 0xa1,
 };
 
 /* TODO: use chip id is better */
