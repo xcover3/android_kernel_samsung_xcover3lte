@@ -28,6 +28,7 @@
 #include <video/mmpfb.h>
 #include "mmpfb.h"
 
+static unsigned long initial_rate;
 void check_pitch(struct mmp_surface *surface)
 {
 	struct mmp_win *win = &surface->win;
@@ -381,6 +382,46 @@ static int set_path_alpha(struct fb_info *info, unsigned long arg)
 	return mmp_overlay_set_path_alpha(fbi->overlay, &pa);
 }
 
+static int set_dfc_rate(struct fb_info *info, unsigned long arg)
+{
+	void __user *argp = (void __user *)arg;
+	struct mmpfb_info *fbi = info->par;
+	unsigned int fps;
+	unsigned long rate;
+	static int initial_once = 1;
+
+	if (copy_from_user(&fps, argp, sizeof(unsigned int)))
+		return -EFAULT;
+
+	if (initial_once) {
+		initial_rate = mmp_path_get_dfc_rate(fbi->path);
+		initial_once = 0;
+	}
+
+	rate = initial_rate * fps/60;
+	return mmp_path_set_dfc_rate(fbi->path, rate);
+}
+
+static int get_dfc_rate(struct fb_info *info, unsigned long arg)
+{
+	void __user *argp = (void __user *)arg;
+	struct mmpfb_info *fbi = info->par;
+	unsigned int fps;
+	unsigned int rate;
+
+	rate = mmp_path_get_dfc_rate(fbi->path);
+	fps = rate * 60 / initial_rate;
+	if (rate == 0) {
+		dev_dbg(info->dev, "Invalid dfc rate\n");
+		return -EFAULT;
+	}
+
+	if (copy_to_user(argp, &rate, sizeof(sizeof(unsigned int))))
+		return -EFAULT;
+
+	return 0;
+}
+
 int mmpfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
 	struct mmpfb_info *fbi = info->par;
@@ -423,6 +464,10 @@ int mmpfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 		return enable_commit_dma(info, arg);
 	case FB_IOCTL_SET_PATHALPHA:
 		return set_path_alpha(info, arg);
+	case FB_IOCTL_SET_DFC_RATE:
+		return set_dfc_rate(info, arg);
+	case FB_IOCTL_GET_DFC_RATE:
+		return get_dfc_rate(info, arg);
 	default:
 		dev_info(info->dev, "unknown ioctl 0x%x\n", cmd);
 		return -EINVAL;
@@ -446,6 +491,8 @@ int mmpfb_compat_ioctl(struct fb_info *info, unsigned int cmd,
 	case FB_IOCTL_GET_COLORKEYnALPHA:
 	case FB_IOCTL_FLIP_VSYNC:
 	case FB_IOCTL_ENABLE_COMMIT_DMA:
+	case FB_IOCTL_SET_DFC_RATE:
+	case FB_IOCTL_GET_DFC_RATE:
 		arg = (unsigned long)compat_ptr(arg);
 	case FB_IOCTL_FLIP_COMMIT:
 	case FB_IOCTL_WAIT_VSYNC:
