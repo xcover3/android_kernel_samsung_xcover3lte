@@ -1732,8 +1732,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 
 	pxa1936_misc_init(pxa_unit);
 	pxa1936_pll_init(pxa_unit);
-	/* FIXME: enable core/ddr/axi FC after bring up */
-	/* pxa1936_acpu_init(pxa_unit); */
+	pxa1936_acpu_init(pxa_unit);
 	pxa1936_apb_periph_clk_init(pxa_unit);
 	pxa1936_axi_periph_clk_init(pxa_unit);
 
