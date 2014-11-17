@@ -44,6 +44,9 @@
 #define PM8XX_LDO3		regulator-compatible = "88PM800-LDO3"; \
 				regulator-min-microvolt = <1200000>; \
 				regulator-max-microvolt = <3300000>
+#define PM86X_LDO3		regulator-compatible = "88PM800-LDO3"; \
+				regulator-min-microvolt = <1700000>; \
+				regulator-max-microvolt = <3300000>
 #define PM8XX_LDO4		regulator-compatible = "88PM800-LDO4"; \
 				regulator-min-microvolt = <1200000>; \
 				regulator-max-microvolt = <3300000>
@@ -73,6 +76,9 @@
 				regulator-max-microvolt = <3300000>
 #define PM8XX_LDO13		regulator-compatible = "88PM800-LDO13"; \
 				regulator-min-microvolt = <1700000>; \
+				regulator-max-microvolt = <3300000>
+#define PM86X_LDO13		regulator-compatible = "88PM800-LDO13"; \
+				regulator-min-microvolt = <1200000>; \
 				regulator-max-microvolt = <3300000>
 #define PM8XX_LDO14		regulator-compatible = "88PM800-LDO14"; \
 				regulator-min-microvolt = <1200000>; \
