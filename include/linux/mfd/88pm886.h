@@ -200,13 +200,6 @@ struct regmap *get_codec_companion(void);
 #define PM886_VBAT_2_VALUE(v)		((v << 9) / 700)
 #define PM886_VALUE_2_VBAT(val)		((val * 700) >> 9)
 
-/* 1.367 mV/LSB */
-/* this should be 1.709mV/LSB. setting to 1.367mV/LSB
-as a W/A since there's currently a BUG per JIRA PM886-9
-will be refined once fix is available*/
-#define PM886_VBUS_2_VALUE(v)		((v << 9) / 700)
-#define PM886_VALUE_2_VBUS(val)		((val * 700) >> 9)
-
 /* 0.342 mV/LSB */
 #define PM886_GPADC_VOL_2_VALUE(v)	((v << 9) / 175)
 #define PM886_GPADC_VALUE_2_VOL(val)	((val * 175) >> 9)

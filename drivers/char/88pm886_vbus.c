@@ -32,6 +32,19 @@
 /* choose 0x100(87.5mV) as threshold */
 #define OTG_IDPIN_TH			(0x100)
 
+/* 1.367 mV/LSB */
+/*
+ * this should be 1.709mV/LSB. setting to 1.367mV/LSB
+ * as a W/A since there's currently a BUG per JIRA PM886-9
+ * will be refined once fix is available
+ */
+#define PM886A0_VBUS_2_VALUE(v)		((v << 9) / 700)
+#define PM886A0_VALUE_2_VBUS(val)		((val * 700) >> 9)
+
+/* 1.709 mV/LSB */
+#define PM886_VBUS_2_VALUE(v)		((v << 9) / 875)
+#define PM886_VALUE_2_VBUS(val)		((val * 875) >> 9)
+
 struct pm886_vbus_info {
 	struct pm886_chip	*chip;
 	int			vbus_irq;
@@ -53,7 +66,10 @@ static int pm886_get_vbus(unsigned int *level)
 		return ret;
 
 	val = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
-	voltage = PM886_VALUE_2_VBUS(val);
+	if (vbus_info->chip->chip_id == PM886_A0)
+		voltage = PM886A0_VALUE_2_VBUS(val);
+	else
+		voltage = PM886_VALUE_2_VBUS(val);
 
 	/* read pm886 status to decide it's cable in or out */
 	regmap_read(vbus_info->chip->base_regmap, PM886_STATUS1, &val);
