@@ -1631,7 +1631,7 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 	int vdd_bit = -1;
 	u8 ctrl;
 
-	if ((ios->clock && (ios->clock != host->clock)) || (ios->timing != ios->old_timing)) {
+	if (ios->clock && ((ios->clock != host->clock) || (ios->timing != ios->old_timing))) {
 		if (host->ops->clk_prepare) {
 			sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
 			ios->clock = host->ops->clk_prepare(host, ios->clock);
