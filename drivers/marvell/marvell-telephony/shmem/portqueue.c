@@ -98,9 +98,6 @@ unsigned int portq_cp_port_fc;
 static unsigned int portq_ap_port_fc;
 static spinlock_t portq_ap_port_fc_lock;
 
-bool audiostub_inserted;
-EXPORT_SYMBOL(audiostub_inserted);
-
 /* check if tx queue is full */
 static inline bool portq_is_tx_full(struct portq *portq)
 {
@@ -708,8 +705,7 @@ void portq_broadcast_msg(enum portq_grp_type grp_type, int proc)
 			msg->diagHeader.seqNo = 0;
 			msg->diagHeader.msgType = proc;
 			msg->procId = proc;
-		} else if (portq->port == AUDIOSTUB_PORT
-				&& audiostub_inserted) {
+		} else if (portq->port == AUDIOSTUB_PORT) {
 			struct atc_header *msg;
 			size = sizeof(*msg);
 			msg = (struct atc_header *) skb_put(skb, size);

@@ -119,7 +119,6 @@ struct portq_group {
 
 extern struct portq_group portq_grp[];
 extern unsigned int portq_cp_port_fc;
-extern bool audiostub_inserted;
 
 extern int portq_init(void);
 extern void portq_exit(void);

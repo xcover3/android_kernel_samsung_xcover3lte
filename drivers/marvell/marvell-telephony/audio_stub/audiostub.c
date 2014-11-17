@@ -863,7 +863,6 @@ static int __init audiostub_init(void)
 	if (result < 0)
 		goto fail;
 
-	audiostub_inserted = true;
 	init_rcv_task();
 	return 0;
 
@@ -874,7 +873,6 @@ fail:
 
 static void __exit audiostub_exit(void)
 {
-	audiostub_inserted = false;
 	audiodev_cleanup_module(AUDIO_DEVICE_CNT);
 }
 
