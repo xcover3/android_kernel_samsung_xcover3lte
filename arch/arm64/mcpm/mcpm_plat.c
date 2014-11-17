@@ -575,6 +575,10 @@ static int __init mcpm_plat_pm_init(void)
 {
 	int ret;
 
+	ret = mcpm_plat_of_init();
+	if (ret)
+		return ret;
+
 	memset(mcpm_plat_enter_lpm, 0x0, sizeof(mcpm_plat_enter_lpm));
 
 	/*
@@ -586,8 +590,6 @@ static int __init mcpm_plat_pm_init(void)
 	ret = mcpm_platform_register(&mcpm_plat_pm_power_ops);
 	if (!ret)
 		ret = mcpm_sync_init(NULL);
-	if (!ret)
-		ret = mcpm_plat_of_init();
 	if (ret)
 		pr_warn("Power ops initialized with error %d\n", ret);
 
