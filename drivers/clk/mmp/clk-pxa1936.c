@@ -275,18 +275,18 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 /* pll default rate determined by ddr_mode */
 unsigned long pll_dfrate[DDR_TYPE_MAX][MAX_PLL_NUM][MAX_PLL_TYPE] = {
 	[DDR_533M] = {
-		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
 		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
 		/* for 533M case, reserve pll4 for LCD */
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
 	[DDR_667M] = {
-		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
 		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
 		{2670lu * MHZ, 1335 * MHZ, 667 * MHZ},
 	},
 	[DDR_800M] = {
-		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
 		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
@@ -548,7 +548,7 @@ static DEFINE_SPINLOCK(gc2d_lock);
 
 /* GC 3D */
 static const char * const gc3d_parent_names[] = {
-	"pll1_832_gate", "pll1_624_gate", "pll2p", "pll2_div3"
+	"pll1_832_gate", "pll1_624_gate", "pll2p", "pll2_div3", "pll3p",
 };
 
 static struct mmp_clk_mix_clk_table gc3d_pptbl[] = {
@@ -568,7 +568,7 @@ static struct mmp_clk_mix_config gc3d_mix_config = {
 
 /* GC shader */
 static const char * const gcsh_parent_names[] = {
-	"pll1_832_gate", "pll1_624_gate",  "pll2p", "pll3p",
+	"pll1_832_gate", "pll1_624_gate",  "pll2p", "pll2_div3", "pll3p",
 };
 
 static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
@@ -576,7 +576,7 @@ static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
 	{.rate = 312000000, .parent_index = 1, },
 	{.rate = 416000000, .parent_index = 0, },
 	{.rate = 624000000, .parent_index = 1, },
-	{.rate = 705000000, .parent_index = 2, },
+	{.rate = 705000000, .parent_index = 3, },
 	{.rate = 832000000, .parent_index = 0, },
 };
 
