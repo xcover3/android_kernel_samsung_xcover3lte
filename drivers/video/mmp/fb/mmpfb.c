@@ -533,7 +533,7 @@ static int mmpfb_set_par(struct fb_info *info)
 {
 	struct mmpfb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
-	struct mmp_mode mode, *mmp_modes;
+	struct mmp_mode mode, *mmp_modes = NULL;
 	int ret, videomode_num;
 
 	if (!mmp_path_ctrl_safe(fbi->path))
@@ -553,10 +553,13 @@ static int mmpfb_set_par(struct fb_info *info)
 		mode.real_xres = mode.xres;
 		mode.real_yres = mode.yres;
 	}
-	mode.real_xres = mmp_modes[0].real_xres;
-	mode.real_yres = mmp_modes[0].real_yres;
 
-	mmp_path_set_mode(fbi->path, &mode);
+	if (mmp_modes != NULL) {
+		mode.real_xres = mmp_modes[0].real_xres;
+		mode.real_yres = mmp_modes[0].real_yres;
+
+		mmp_path_set_mode(fbi->path, &mode);
+	}
 
 	/* set window related info */
 	mmpfb_set_win(info);
