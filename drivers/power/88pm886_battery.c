@@ -67,10 +67,6 @@
 #define PM886_CC_LOW_TH1		(0x12)		/* bit [7 : 0] */
 #define PM886_CC_LOW_TH2		(0x13)		/* bit [15 : 8] */
 
-#define PM886_BATTEMP_MON		(1 << 4)
-#define PM886_BATTEMP_MON_GP3		(1 << 4)
-#define PM886_BATTEMP_MON_GP1		(0 << 4)
-
 #define PM886_VBAT_AVG_MSB		(0xa0)
 #define PM886_VBAT_AVG_LSB		(0xa1)
 
@@ -1619,7 +1615,10 @@ static void pm886_pre_setup_fuelgauge(struct pm886_battery_info *info)
 		}
 		/* 3. base page 0x1f.0 = 0 --> lock the test page */
 		regmap_write(info->chip->base_regmap, 0x1f, 0x0);
-	}
+	} else
+		/* disable automatic GPADC1 temperature handling */
+		regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG1,
+				PM886_AUTO_TEMP_MON_DIS, PM886_AUTO_TEMP_MON_DIS);
 }
 
 static int pm886_init_fuelgauge(struct pm886_battery_info *info)
