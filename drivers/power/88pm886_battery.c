@@ -195,10 +195,10 @@ static struct ccnt ccnt_data;
  * |---RTC_SPARE6(0xef)--||-----------RTC_SPARE5(0xee)-------|
  */
 struct save_buffer {
-	int soc:7;
-	bool ocv_is_realiable:1;
-	int padding:1;
-	int cycles:7;
+	int soc;
+	int ocv_is_realiable;
+	int padding;
+	int cycles;
 };
 static struct save_buffer extern_data;
 
