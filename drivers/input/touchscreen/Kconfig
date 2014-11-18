@@ -957,6 +957,18 @@ config TOUCHSCREEN_MSG2133
 	help
 	  Say Y here if enable support for the MSG2133 touchscreen controller.
 
+config TOUCHSCREEN_MSG2138
+	tristate "MSG2138 touchscreen driver"
+	depends on I2C
+	help
+	  Say Y here if enable support for the MSG2138 touchscreen
+	  controller.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called msg2138.
+
 config TOUCHSCREEN_SUR40
 	tristate "Samsung SUR40 (Surface 2.0/PixelSense) touchscreen"
 	depends on USB
