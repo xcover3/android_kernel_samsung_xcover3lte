@@ -1304,11 +1304,18 @@ static inline bool check_hwdfc_inpro(void __iomem *apmu_base,
 static int ddr_hwdfc_seq(struct clk_hw *hw, unsigned int level)
 {
 	union dfc_ap dfc_ap;
+	union pmua_cc cc_ap;
 	struct clk_ddr *ddr = to_clk_ddr(hw);
 	void __iomem *apmu_base = ddr->params->apmu_base;
+	void __iomem *apmuccr = APMU_CCR(apmu_base);
 	bool inpro = false;
 	union dfc_status status;
 	int max_delay = 100;
+
+	/* AP votes allow FC */
+	cc_ap.v = readl(apmuccr);
+	cc_ap.b.ap_allow_spd_chg = 1;
+	writel(cc_ap.v, apmuccr);
 
 	/* wait for DFC triggered by CP/MSA is done */
 	status.v = readl(DFC_STATUS(apmu_base));
@@ -1740,6 +1747,8 @@ static inline void trigger_axi_fc(struct clk_axi *axi, struct axi_opt *top)
 	cc_ap.v = readl(apmuccr);
 	cc_ap.b.bus_clk_div = top->aclk_div;
 	cc_ap.b.bus_freq_chg_req = 1;
+	/* AP votes allow FC */
+	cc_ap.b.ap_allow_spd_chg = 1;
 	pr_debug("AXI FC APMU_CCR[%x]\n", cc_ap.v);
 	writel(cc_ap.v, apmuccr);
 
