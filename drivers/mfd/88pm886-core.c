@@ -34,6 +34,7 @@
 #define PM886_POWER_DOWN_LOG1		(0xe5)
 #define PM886_POWER_DOWN_LOG2		(0xe6)
 #define PM886_SW_PDOWN			(1 << 5)
+#define PM886_CHGBK_CONFIG6		(0x50)
 
 #define CELL_IRQ_RESOURCE(_name, _irq) { \
 	.name = _name, \
@@ -759,6 +760,7 @@ static const struct reg_default pm886_gpadc_patch[] = {
 };
 
 static const struct reg_default pm886_battery_patch[] = {
+	{PM886_CHGBK_CONFIG6, 0xEA},	 /* Improve Charging perf at Reduced VBUS*/
 };
 
 static const struct reg_default pm886_test_patch[] = {
