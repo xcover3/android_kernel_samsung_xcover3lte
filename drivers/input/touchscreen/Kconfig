@@ -969,6 +969,17 @@ config TOUCHSCREEN_MSG2138
 	  To compile this driver as a module, choose M here: the
 	  module will be called msg2138.
 
+config TOUCHSCREEN_FT6206
+	tristate "FT6206 touchscreen driver"
+	depends on I2C
+	help
+	  Say Y here if enable support for the FT6206 touchscreen controller.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ft6206_ts.
+
 config TOUCHSCREEN_SUR40
 	tristate "Samsung SUR40 (Surface 2.0/PixelSense) touchscreen"
 	depends on USB
