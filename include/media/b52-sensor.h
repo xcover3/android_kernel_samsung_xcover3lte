@@ -222,7 +222,8 @@ struct b52_sensor_data {
 	u8 gain_shift;
 	u8 expo_shift;
 	int calc_dphy;
-	int nr_lane;
+	u8 nr_lane;
+	u32 mipi_clk_bps;
 	/*optional*/
 	u32 skip_top_lines;
 	u32 skip_frames;
@@ -328,6 +329,8 @@ struct b52_sensor {
 	int i2c_dyn_ctrl;
 	int sensor_init;
 	atomic_t	stream_cnt;
+
+	struct blocking_notifier_head nh;
 };
 
 extern struct b52_sensor *b52_get_sensor(struct media_entity *entity);

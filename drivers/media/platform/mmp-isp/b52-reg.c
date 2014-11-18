@@ -1085,6 +1085,19 @@ void b52_set_base_addr(void __iomem *base)
 }
 EXPORT_SYMBOL_GPL(b52_set_base_addr);
 
+void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate)
+{
+	/*
+	 * sccb_rate = input_rate/(64*reg0x63600)
+	 * value of 0x63600 = input_rate/sccb_rate/64
+	 */
+	u8 val = input_rate / sccb_rate >> 6;
+
+	b52_writeb(SCCB_MASTER1_REG_BASE + REG_SCCB_SPEED, val);
+	b52_writeb(SCCB_MASTER2_REG_BASE + REG_SCCB_SPEED, val);
+}
+EXPORT_SYMBOL_GPL(b52_set_sccb_clock_rate);
+
 int b52_load_fw(struct device *dev, void __iomem *base, int enable, int pwr)
 {
 	int ret, i;
@@ -1138,9 +1151,9 @@ int b52_load_fw(struct device *dev, void __iomem *base, int enable, int pwr)
 	b52_writeb(REG_TOP_CORE_CTRL0_H, 0x80);
 	b52_writeb(REG_TOP_CORE_CTRL4_H, 0x0);
 	b52_writeb(REG_TOP_CORE_CTRL4_L, 0x0);
-	/*hard coding: need to refine*/
-	b52_writeb(0x63600, 12);
-	b52_writeb(0x63700, 12);
+
+	/* default Pipeline clock is 312M, the sccb clock is 400K */
+	b52_set_sccb_clock_rate(312000000, 400000);
 	pr_err("B52ISP version: HW %d.%d, SWM %d.%d, revision %d\n",
 	       b52_readb(REG_HW_VERSION), b52_readb(REG_HW_VERSION + 1),
 	       b52_readb(REG_SWM_VERSION), b52_readb(REG_SWM_VERSION + 1),

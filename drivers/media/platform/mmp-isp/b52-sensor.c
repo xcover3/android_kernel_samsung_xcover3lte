@@ -1460,6 +1460,7 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 		if (atomic_inc_return(&sensor->stream_cnt) > 1)
 			return 0;
 		regs = &sensor->drvdata->streamon;
+		blocking_notifier_call_chain(&sensor->nh, 0, sensor);
 	} else {
 		if (atomic_dec_return(&sensor->stream_cnt) > 0)
 			return 0;
@@ -1782,6 +1783,7 @@ static int b52_sensor_set_fmt(struct v4l2_subdev *sd,
 		sensor->cur_res_idx = j;
 
 		mutex_unlock(&sensor->lock);
+		blocking_notifier_call_chain(&sensor->nh, 0, sensor);
 	}
 
 	return 0;
@@ -2436,6 +2438,12 @@ static int b52_sensor_probe(struct i2c_client *client,
 		dev_err(dev, "the csi lane number is zero\n");
 		return -EINVAL;
 	}
+	sensor->csi.dphy_desc.clk_freq = sensor->drvdata->mipi_clk_bps >> 1;
+	if (sensor->csi.dphy_desc.clk_freq > 1500 * MHZ ||
+		sensor->csi.dphy_desc.clk_freq < MHZ) {
+		dev_err(dev, "the mipi clock maybe wrong\n");
+		return -EINVAL;
+	}
 	sensor->csi.calc_dphy = sensor->drvdata->calc_dphy;
 	if (!sensor->csi.calc_dphy) {
 		ret = of_property_read_u32(np, "dphy3", &sensor->csi.dphy[0]);
@@ -2475,6 +2483,7 @@ static int b52_sensor_probe(struct i2c_client *client,
 	if (ret)
 		goto error;
 
+	BLOCKING_INIT_NOTIFIER_HEAD(&sensor->nh);
 	mutex_init(&sensor->lock);
 
 	sensor->pad.flags = MEDIA_PAD_FL_SOURCE;

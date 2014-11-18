@@ -132,6 +132,7 @@ int b52_set_focus_win(struct v4l2_rect *win, int id);
 struct plat_cam;
 extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 			struct isp_videobuf *buf, int num_planes);
+void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 
 /* isp MCU memory layout */
 /* 1. PROGREM BUFFER(136KB):0x0    ~ 0x021FFF */

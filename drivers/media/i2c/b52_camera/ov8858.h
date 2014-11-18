@@ -774,6 +774,7 @@ struct b52_sensor_data b52_ov8858 = {
 	},
 	.gain_shift = 0,
 	.nr_lane = 4,
+	.mipi_clk_bps = 621000000,
 	.ops = &ov8858_ops,
 	.module = &ov8858_SUNNY,
 	.num_module =  1,

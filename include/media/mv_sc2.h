@@ -191,6 +191,8 @@ struct ccic_ctrl_ops {
 	void (*power_down)(struct ccic_ctrl_dev *ctrl_dev);
 	void (*clk_enable)(struct ccic_ctrl_dev *ctrl_dev);
 	void (*clk_disable)(struct ccic_ctrl_dev *ctrl_dev);
+	void (*clk_change)(struct ccic_ctrl_dev *ctrl_dev,
+				u32 mipi_bps, u8 lanes, u8 bpp);
 };
 
 struct msc2_ccic_dev {

@@ -352,6 +352,7 @@ struct b52_sensor_data b52_ov2680 = {
 	},
 	.gain_shift = 0,
 	.nr_lane = 1,
+	.mipi_clk_bps = 333000000,
 	.ops = &ov2680_ops,
 };
 

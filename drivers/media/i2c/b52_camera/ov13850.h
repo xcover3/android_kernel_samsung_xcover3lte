@@ -562,6 +562,7 @@ struct b52_sensor_data b52_ov13850 = {
 	.expo_shift = 0x08,
 /*	.calc_dphy = 1, */
 	.nr_lane = 4,
+	.mipi_clk_bps = 988000000,
 	.ops = &ov13850_ops,
 
 	.module = &ov13850_SUNNY,

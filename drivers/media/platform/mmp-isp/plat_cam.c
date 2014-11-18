@@ -27,6 +27,7 @@
 #include <linux/pm_qos.h>
 #include <linux/i2c.h>
 #include <media/b52socisp/host_isd.h>
+#include <media/b52-sensor.h>
 
 #include "plat_cam.h"
 #include "b52isp.h"
@@ -1099,6 +1100,92 @@ static struct v4l2_subdev *b52_detect_sensor(
 	return NULL;
 }
 
+static inline int plat_change_isp_clk(struct isp_subdev *isd,
+		struct b52_sensor *sensor)
+{
+	int ret;
+	struct isp_block *blk;
+	struct v4l2_subdev_format fmt = {
+		.pad = 0,
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+	};
+	ret = v4l2_subdev_call(&sensor->sd, pad, get_fmt, NULL, &fmt);
+	if (ret < 0)
+		return ret;
+
+	blk = isp_sd2blk(isd);
+	if (!blk) {
+		d_inf(1, "Unable to get idi blk");
+		return -EINVAL;
+	}
+
+	/* default use 30fps */
+	b52isp_idi_change_clock(blk, fmt.format.width, fmt.format.height, 30);
+	return 0;
+}
+
+static inline int plat_change_csi_clk(struct ccic_ctrl_dev *ccic_ctrl,
+		struct b52_sensor *sensor)
+{
+	/* bpp mainly for dpcm */
+	u8 bpp = 10;
+	u8 lanes = sensor->csi.dphy_desc.nr_lane;
+	u32 mipi_bps = sensor->csi.dphy_desc.clk_freq << 1;
+
+	ccic_ctrl->ops->clk_change(ccic_ctrl, mipi_bps, lanes, bpp);
+
+	return 0;
+}
+
+static int plat_sensor_notifier_call(struct notifier_block *nb,
+		unsigned long event, void *data)
+{
+	int ret = 0;
+	struct media_pad *pad;
+	struct ccic_csi *csi;
+	struct isp_subdev *isd;
+	struct b52_sensor *sensor = data;
+
+	/* get csi */
+	pad = media_entity_remote_pad(&sensor->pad);
+	if (!pad) {
+		d_inf(1, "Unable to get csi pad");
+		return -EINVAL;
+	}
+	isd = v4l2_get_subdev_hostdata(
+			media_entity_to_v4l2_subdev(pad->entity));
+	if (!isd) {
+		d_inf(1, "Unable to get csi isp_subdev");
+		return -EINVAL;
+	}
+	csi = isd->drv_priv;
+
+	ret = plat_change_csi_clk(csi->ccic_ctrl, sensor);
+	if (ret < 0)
+		return ret;
+
+	/* get IDI */
+	pad = media_entity_remote_pad(isd->pads + CCIC_CSI_PAD_ISP);
+	if (!pad) {
+		d_inf(1, "Unable to IDI pad");
+		return -EINVAL;
+	}
+	isd = v4l2_get_subdev_hostdata(
+			media_entity_to_v4l2_subdev(pad->entity));
+	if (!isd) {
+		d_inf(1, "Unable to get IDI isp_subdev");
+		return -EINVAL;
+	}
+
+	ret = plat_change_isp_clk(isd, sensor);
+
+	return ret;
+}
+
+static struct notifier_block plat_sensor_nb = {
+	.notifier_call = plat_sensor_notifier_call,
+};
+
 static int plat_tune_power(struct isp_build *isb,
 		enum plat_subdev_code code, int enable)
 {
@@ -1128,6 +1215,7 @@ static int plat_setup_sensor(struct isp_build *isb,
 		struct v4l2_subdev **sensor_sd)
 {
 	int ret;
+	struct b52_sensor *b52_sensor;
 
 	ret = plat_tune_power(isb, SDCODE_B52ISP_IDI1, 1);
 	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 1);
@@ -1138,10 +1226,17 @@ static int plat_setup_sensor(struct isp_build *isb,
 	}
 
 	sensor_sd[0] = b52_detect_sensor(isb, "backsensor");
-	if (!(sensor_sd[0]))
+	if (sensor_sd[0]) {
+		b52_sensor = container_of(sensor_sd[0], struct b52_sensor, sd);
+		blocking_notifier_chain_register(&b52_sensor->nh, &plat_sensor_nb);
+	} else
 		pr_info("plat detect back sensor failed\n");
+
 	sensor_sd[1] = b52_detect_sensor(isb, "frontsensor");
-	if (!(sensor_sd[1]))
+	if (sensor_sd[1]) {
+		b52_sensor = container_of(sensor_sd[1], struct b52_sensor, sd);
+		blocking_notifier_chain_register(&b52_sensor->nh, &plat_sensor_nb);
+	} else
 		pr_info("detect front sensor failed\n");
 
 	ret = plat_tune_power(isb, SDCODE_CCICV2_CSI1, 0);

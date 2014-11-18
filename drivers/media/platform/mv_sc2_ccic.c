@@ -817,8 +817,8 @@ static void ccic_clk_set_rate(struct ccic_ctrl_dev *ctrl_dev)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
 
-	clk_set_rate(ctrl_dev->csi_clk, 624000000);
-	clk_set_rate(ctrl_dev->clk4x, 624000000);
+	clk_set_rate(ctrl_dev->csi_clk, 312000000);
+	clk_set_rate(ctrl_dev->clk4x, 312000000);
 	if (ccic_dev->ahb_enable)
 		clk_set_rate(ctrl_dev->ahb_clk, 156000000);
 	clk_set_rate(ctrl_dev->mclk, 26000000);
@@ -851,6 +851,44 @@ static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
 	clk_disable_unprepare(ctrl_dev->mclk);
 }
 
+static void ccic_clk_change(struct ccic_ctrl_dev *ctrl_dev,
+					u32 mipi_bps, u8 lanes, u8 bpp)
+{
+	u32 rate;
+
+	/* csi clk > mipi bps * lanes / 8*/
+	rate = (mipi_bps >> 3) * lanes;
+	if (rate < 208000000)
+		rate = 208000000;
+	else if (rate < 312000000)
+		rate = 312000000;
+	else if (rate < 416000000)
+		rate = 416000000;
+	else
+		rate = 624000000;
+
+	clk_set_rate(ctrl_dev->csi_clk, rate);
+
+	/*
+	 * CCIC_CLK4X * BPP > CSI_CLK
+	 * rate = csi_clk * 8 / bpp
+	 */
+	rate = mipi_bps / bpp * lanes;
+	if (rate < 208000000)
+		rate = 208000000;
+	else if (rate < 312000000)
+		rate = 312000000;
+	else if (rate < 416000000)
+		rate = 416000000;
+	else
+		rate = 624000000;
+
+	clk_set_rate(ctrl_dev->clk4x, rate);
+
+	pr_debug("csi rate %lu\n", clk_get_rate(ctrl_dev->csi_clk));
+	pr_debug("4x rate %lu\n", clk_get_rate(ctrl_dev->clk4x));
+}
+
 static struct ccic_ctrl_ops ccic_ctrl_ops = {
 	.irq_mask = ccic_irqmask,
 	.config_mbus = ccic_config_mbus,
@@ -859,6 +897,7 @@ static struct ccic_ctrl_ops ccic_ctrl_ops = {
 	.power_down = ccic_power_down,
 	.clk_enable = ccic_clk_enable,
 	.clk_disable = ccic_clk_disable,
+	.clk_change = ccic_clk_change,
 };
 
 static int ccic_init_clk(struct ccic_ctrl_dev *ctrl_dev)

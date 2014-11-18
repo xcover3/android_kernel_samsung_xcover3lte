@@ -2278,6 +2278,7 @@ struct b52_sensor_data b52_sr544 = {
 	.expo_shift = 0x00,
 /*	.calc_dphy = 1, */
 	.nr_lane = 2,
+	.mipi_clk_bps = 871000000,
 	.ops = &sr544_ops,
 
 	.module = &sr544_SSG,

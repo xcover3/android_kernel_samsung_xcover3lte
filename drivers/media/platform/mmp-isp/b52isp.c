@@ -518,7 +518,7 @@ static int b52isp_idi_set_clock(struct isp_block *block, int rate)
 
 	if (rate) {
 		clk_set_rate(axi_clk, 312000000);
-		clk_set_rate(core_clk, 208000000);
+		clk_set_rate(core_clk, 156000000);
 		clk_set_rate(pipe_clk, 312000000);
 	}
 
@@ -531,6 +531,33 @@ struct isp_block_ops b52isp_idi_hw_ops = {
 	.set_power	= b52isp_idi_set_power,
 	.set_clock  = b52isp_idi_set_clock,
 };
+
+int b52isp_idi_change_clock(struct isp_block *block,
+				int w, int h, int fps)
+{
+	int sz = w * h * fps;
+	int rate;
+	struct clk *axi_clk = block->clock[0];
+	struct clk *pipe_clk = block->clock[2];
+
+	/* Need to refine the frequency */
+	if (sz > 180000000)
+		rate = 312000000;
+	else if (sz > 100000000)
+		rate = 208000000;
+	else
+		rate = 156000000;
+
+	clk_set_rate(axi_clk, rate);
+	clk_set_rate(pipe_clk, rate);
+	b52_set_sccb_clock_rate(clk_get_rate(pipe_clk), 400000);
+
+	d_inf(3, "isp axi clk %lu", clk_get_rate(axi_clk));
+	d_inf(3, "isp pipe clk %lu", clk_get_rate(pipe_clk));
+
+	return 0;
+}
+EXPORT_SYMBOL(b52isp_idi_change_clock);
 
 /********************************* IDI subdev *********************************/
 /* ioctl(subdev, IOCTL_XXX, arg) is handled by this one */
