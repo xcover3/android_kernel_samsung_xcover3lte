@@ -71,6 +71,14 @@
 #define PM886_TORCH_ISET_OFFSET	(5)
 #define PM886_TORCH_ISET_MASK		(0x7 << PM886_TORCH_ISET_OFFSET)
 
+#define PM886_MIN_CURRENT		(50)		/* mA */
+#define PM886_MAX_FLASH_CURRENT		(1600)		/* mA */
+#define PM886_MAX_SAFE_FLASH_CURRENT	(PM886_MAX_FLASH_CURRENT - 600)		/* mA */
+#define PM886_MAX_TORCH_CURRENT		(400)		/* mA */
+#define PM886_MAX_SAFE_TORCH_CURRENT	(PM886_MAX_TORCH_CURRENT - 200)		/* mA */
+
+#define PM886_CURRENT_DIV(x)		DIV_ROUND_UP(256, (x / 50))
+
 static unsigned gpio_en;
 static unsigned int dev_num;
 
@@ -85,6 +93,7 @@ struct pm886_led {
 
 	unsigned int brightness;
 	unsigned int current_brightness;
+	unsigned int max_current_div;
 
 	int id;
 	/* for external CF_EN and CF_TXMSK */
@@ -324,12 +333,11 @@ static void pm886_led_bright_set(struct led_classdev *cdev,
 	struct pm886_led *led = container_of(cdev, struct pm886_led, cdev);
 
 	/* skip the lowest level */
-	if (led->id == PM886_FLASH_LED)
-		led->brightness = ((value >> 3) + 1) * 50;
-	if (led->id == PM886_TORCH_LED)
-		led->brightness = ((value >> 5) + 1) * 50;
 	if (value == 0)
 		led->brightness = 0;
+	else
+		led->brightness = ((value / led->max_current_div) + 1) * 50;
+
 	dev_dbg(led->cdev.dev, "value = %d, brightness = %d\n",
 		 value, led->brightness);
 	schedule_work(&led->work);
@@ -451,6 +459,21 @@ static int pm886_led_dt_init(struct device_node *np,
 				   "bst-uvvbat-set", &pdata->bst_uvvbat_set);
 	if (ret)
 		return ret;
+	ret = of_property_read_u32(np,
+				   "max-flash-current", &pdata->max_flash_current);
+	if (ret) {
+		pdata->max_flash_current = PM886_MAX_SAFE_FLASH_CURRENT;
+		dev_err(dev,
+			"max-flash-current is not define in DTS, using default value\n");
+	}
+
+	ret = of_property_read_u32(np, "max-torch-current", &pdata->max_torch_current);
+	if (ret) {
+		pdata->max_flash_current = PM886_MAX_SAFE_TORCH_CURRENT;
+		dev_err(dev,
+			"max-torch-current is not define in DTS, using default value\n");
+	}
+
 	return 0;
 }
 static int pm886_setup(struct platform_device *pdev, struct pm886_led_pdata *pdata)
@@ -537,20 +560,13 @@ static int pm886_led_probe(struct platform_device *pdev)
 	struct pm886_led_pdata *pdata = pdev->dev.platform_data;
 	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct device_node *node = pdev->dev.of_node;
+	unsigned int max_current;
 	int ret;
 
 	led = devm_kzalloc(&pdev->dev, sizeof(struct pm886_led),
 			    GFP_KERNEL);
 	if (led == NULL)
 		return -ENOMEM;
-
-	if (pdev->id == PM886_FLASH_LED)
-		strncpy(led->name, "flash", MFD_NAME_SIZE - 1);
-	else
-		strncpy(led->name, "torch", MFD_NAME_SIZE - 1);
-
-	led->chip = chip;
-	led->id = pdev->id;
 
 	if (IS_ENABLED(CONFIG_OF)) {
 		if (!pdata) {
@@ -566,6 +582,23 @@ static int pm886_led_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	if (pdev->id == PM886_FLASH_LED) {
+		strncpy(led->name, "flash", MFD_NAME_SIZE - 1);
+		pdata->max_flash_current = (pdata->max_flash_current < PM886_MIN_CURRENT) ?
+				PM886_MIN_CURRENT : pdata->max_flash_current;
+		max_current = (pdata->max_flash_current > PM886_MAX_FLASH_CURRENT) ?
+				PM886_MAX_FLASH_CURRENT : pdata->max_flash_current;
+	} else {
+		strncpy(led->name, "torch", MFD_NAME_SIZE - 1);
+		pdata->max_torch_current = (pdata->max_torch_current < PM886_MIN_CURRENT) ?
+				PM886_MIN_CURRENT : pdata->max_torch_current;
+		max_current = (pdata->max_torch_current > PM886_MAX_TORCH_CURRENT) ?
+				PM886_MAX_TORCH_CURRENT : pdata->max_torch_current;
+	}
+
+	led->chip = chip;
+	led->id = pdev->id;
+	led->max_current_div = PM886_CURRENT_DIV(max_current);
 	led->cf_en = pdata->cf_en;
 	led->cf_txmsk = pdata->cf_txmsk;
 	led->gpio_en = pdata->gpio_en;

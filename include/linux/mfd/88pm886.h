@@ -154,6 +154,8 @@ struct pm886_led_pdata {
 	unsigned int cls_uv_set;
 	unsigned int cfd_bst_vset;
 	unsigned int bst_uvvbat_set;
+	unsigned int max_flash_current;
+	unsigned int max_torch_current;
 };
 
 struct pm886_chip {
