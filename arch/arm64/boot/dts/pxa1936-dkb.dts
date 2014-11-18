@@ -896,6 +896,10 @@
 
 					onkey {
 						onkey-gpio-number = <0>;
+						/* hardware reset: just reset */
+						hw-rst-type = <1>;
+						/* long onkey: power down */
+						long-onkey-type = <1>;
 					};
 
 					vbus {
