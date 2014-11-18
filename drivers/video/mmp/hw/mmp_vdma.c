@@ -224,6 +224,10 @@ static void vdma_set_on(struct mmp_vdma_info *vdma_info, int on)
 		spin_lock_irqsave(&vdma_info->status_lock, flags);
 		vdma_info->status = VDMA_TO_DISABLE;
 		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
+	} else if (MMP_ON_REDUCED == on) {
+		spin_lock_irqsave(&vdma_info->status_lock, flags);
+		vdma_info->status = VDMA_ON;
+		spin_unlock_irqrestore(&vdma_info->status_lock, flags);
 	} else {
 		spin_lock_irqsave(&vdma_info->status_lock, flags);
 		vdma_info->status = VDMA_ON;

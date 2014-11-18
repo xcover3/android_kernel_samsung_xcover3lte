@@ -1054,6 +1054,7 @@ static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 	int on = status_is_on(status);
 	struct mmp_path *path = overlay->path;
 	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
+	struct mmp_vdma_info *vdma = overlay->vdma;
 
 	mutex_lock(&ctrl->access_ok);
 
@@ -1065,6 +1066,8 @@ static void overlay_do_onoff(struct mmp_overlay *overlay, int status)
 			dsi->set_status(dsi, status);
 		if (path->panel && path->panel->set_status)
 			path->panel->set_status(path->panel, status);
+		if (vdma && vdma->ops && vdma->ops->set_on)
+			vdma->ops->set_on(vdma, status);
 		path->status = on;
 	} else if (on) {
 		if (path->ops.check_status(path) != path->status) {
