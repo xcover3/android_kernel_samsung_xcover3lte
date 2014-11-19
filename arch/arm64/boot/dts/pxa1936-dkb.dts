@@ -1020,7 +1020,7 @@
 			map: map@d1200000 {
 				marvell,b0_fix;
 				marvell,apll = <0>;
-				status = "disabled";
+				status = "okay";
 				mmp_map_codec: mmp_map_codec {
 					compatible = "marvell,mmp-map-codec";
 					#dailink-cells = <1>;
@@ -1081,7 +1081,6 @@
 
 	sound {
 		compatible = "marvell,map-card";
-		status = "disabled";
 		map,dapm-route =
 			"ADC input1", "TDM_MIC1_CAP",
 			"ADC input2", "TDM_MIC2_CAP",
