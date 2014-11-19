@@ -84,7 +84,7 @@
 #define CFD_MAX_BOOST_VOUT		5500
 #define CFD_VOUT_GAP_LEVEL		250
 
-static unsigned gpio_en;
+static int gpio_en;
 static unsigned int dev_num;
 
 struct pm886_led {
@@ -103,7 +103,6 @@ struct pm886_led {
 
 	int id;
 	/* for external CF_EN and CF_TXMSK */
-	int gpio_en;
 	int cf_en;
 	int cf_txmsk;
 };
@@ -168,7 +167,6 @@ static void torch_on(struct pm886_led *led)
 {
 	unsigned long jiffies;
 	struct pm886_chip *chip;
-	int ret;
 
 	chip = led->chip;
 	mutex_lock(&led->lock);
@@ -177,14 +175,7 @@ static void torch_on(struct pm886_led *led)
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM886_CF_CFD_PLS_ON, 0);
 	} else {
-		ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
-		if (ret) {
-			dev_err(led->cdev.dev,
-				"request cf-gpio error!\n");
-			return;
-		}
 		gpio_direction_output(led->cf_en, 0);
-		devm_gpio_free(led->cdev.dev, led->cf_en);
 	}
 	/* set TRCH_TIMER_RESET to reset torch timer so
 	 * led won't turn off */
@@ -205,14 +196,7 @@ static void torch_on(struct pm886_led *led)
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM886_CF_CFD_PLS_ON, PM886_CF_CFD_PLS_ON);
 	} else {
-		ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
-		if (ret) {
-			dev_err(led->cdev.dev,
-				"request cf-gpio error!\n");
-			return;
-		}
 		gpio_direction_output(led->cf_en, 1);
-		devm_gpio_free(led->cdev.dev, led->cf_en);
 	}
 	mutex_unlock(&led->lock);
 
@@ -226,7 +210,6 @@ static void torch_on(struct pm886_led *led)
 static void torch_off(struct pm886_led *led)
 {
 	struct pm886_chip *chip;
-	int ret;
 
 	chip = led->chip;
 	cancel_delayed_work_sync(&led->delayed_work);
@@ -236,14 +219,7 @@ static void torch_off(struct pm886_led *led)
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM886_CF_CFD_PLS_ON, 0);
 	else {
-		ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
-		if (ret) {
-			dev_err(led->cdev.dev,
-				"request cf-gpio error!\n");
-			return;
-		}
 		gpio_direction_output(led->cf_en, 0);
-		devm_gpio_free(led->cdev.dev, led->cf_en);
 	}
 	mutex_unlock(&led->lock);
 }
@@ -251,7 +227,6 @@ static void torch_off(struct pm886_led *led)
 static void strobe_flash(struct pm886_led *led)
 {
 	struct pm886_chip *chip;
-	int ret;
 
 	chip = led->chip;
 
@@ -261,14 +236,7 @@ static void strobe_flash(struct pm886_led *led)
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM886_CF_CFD_PLS_ON, 0);
 	else {
-		ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
-		if (ret) {
-			dev_err(led->cdev.dev,
-				"request cf-gpio error!\n");
-			return;
-		}
 		gpio_direction_output(led->cf_en, 0);
-		devm_gpio_free(led->cdev.dev, led->cf_en);
 	}
 	clear_errors(led);
 	/*
@@ -300,14 +268,7 @@ static void strobe_flash(struct pm886_led *led)
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM886_CF_CFD_PLS_ON, PM886_CF_CFD_PLS_ON);
 	else {
-		ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
-		if (ret) {
-			dev_err(led->cdev.dev,
-				"request cf-gpio error!\n");
-			return;
-		}
 		gpio_direction_output(led->cf_en, 1);
-		devm_gpio_free(led->cdev.dev, led->cf_en);
 	}
 	mutex_unlock(&led->lock);
 }
@@ -373,40 +334,47 @@ static ssize_t gpio_ctrl_store(
 	struct pm886_led *led;
 	struct led_classdev *cdev;
 	int ret;
-	unsigned int data;
+	int gpio_state;
 
 	cdev = dev_get_drvdata(dev);
 	led = container_of(cdev, struct pm886_led, cdev);
 
-	ret = sscanf(buf, "%d", &gpio_en);
+	ret = sscanf(buf, "%d", &gpio_state);
 	if (ret < 0) {
 		dev_dbg(dev, "%s: get gpio_en error, set to 0 as default\n", __func__);
-		gpio_en = 0;
+		gpio_state = 0;
 	}
 
 	dev_info(dev, "%s: gpio control %s\n",
-		 __func__, (gpio_en ? "enabled" : "disabled"));
+		 __func__, (gpio_state ? "enabled" : "disabled"));
 
 	cancel_delayed_work_sync(&led->delayed_work);
 	mutex_lock(&led->lock);
-	led->gpio_en = gpio_en;
 
 	/* clear CF_EN and CFD_PLS_ON before switching modes */
-	ret = devm_gpio_request(led->cdev.dev, led->cf_en, "cf-gpio");
-	if (ret)
-		dev_err(led->cdev.dev, "request cf-gpio error!\n");
-	gpio_direction_output(led->cf_en, 0);
-	devm_gpio_free(led->cdev.dev, led->cf_en);
-	/* clear CFD_PLS_ON to disable */
-	regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG4,
-				PM886_CF_CFD_PLS_ON, 0);
 
-	if (led->id == PM886_FLASH_LED)
-		regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG3,
-				PM886_CF_BITMASK_MODE, PM886_SELECT_FLASH_MODE);
-	else
-		regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG3,
-				PM886_CF_BITMASK_MODE, PM886_SELECT_TORCH_MODE);
+	/* request gpio only if it wasn't already requested */
+	if (!gpio_en) {
+		ret = gpio_request(led->cf_en, "cf-gpio");
+		if (ret) {
+			dev_err(led->cdev.dev, "request cf-gpio error!\n");
+			goto error;
+		}
+	}
+	gpio_direction_output(led->cf_en, 0);
+
+	/* release gpio in case the user disabled it */
+	if (!gpio_state)
+		gpio_free(led->cf_en);
+
+	gpio_en = gpio_state;
+
+	/* clear CFD_PLS_ON to disable */
+	ret = regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG4,
+				PM886_CF_CFD_PLS_ON, 0);
+	if (ret)
+		goto error;
+
 	if (gpio_en)
 		/* high active */
 		ret = regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG3,
@@ -416,16 +384,18 @@ static ssize_t gpio_ctrl_store(
 		ret = regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG3,
 					(PM886_CF_EN_HIGH | PM886_CFD_ENABLED),
 					PM886_CFD_MASKED);
-	regmap_read(led->chip->battery_regmap, PM886_CFD_CONFIG3, &data);
-	dev_dbg(dev, "%s: [0x62]= 0x%x\n", __func__, data);
-
-	if (ret)
+	if (ret) {
 		dev_err(dev, "gpio configure fail: ret = %d\n", ret);
+		goto error;
+	}
 
 	mutex_unlock(&led->lock);
 
 	pm886_led_bright_set(&led->cdev, 0);
 
+	return size;
+error:
+	mutex_unlock(&led->lock);
 	return size;
 }
 
@@ -609,14 +579,7 @@ static int pm886_setup(struct platform_device *pdev, struct pm886_led_pdata *pda
 				(PM886_CF_EN_HIGH | PM886_CFD_ENABLED));
 		if (ret)
 			return ret;
-		ret = devm_gpio_request(&pdev->dev, led->cf_en, "cf-gpio");
-		if (ret) {
-			dev_err(&pdev->dev,
-				"request cf-gpio error!\n");
-			return ret;
-		}
 		gpio_direction_output(led->cf_en, 0);
-		devm_gpio_free(&pdev->dev, led->cf_en);
 
 		ret = devm_gpio_request(&pdev->dev, led->cf_txmsk,
 					"cf_txmsk-gpio");
@@ -733,7 +696,6 @@ static int pm886_led_probe(struct platform_device *pdev)
 	led->max_current_div = PM886_CURRENT_DIV(max_current);
 	led->cf_en = pdata->cf_en;
 	led->cf_txmsk = pdata->cf_txmsk;
-	led->gpio_en = pdata->gpio_en;
 	gpio_en = pdata->gpio_en;
 
 	led->current_brightness = 0;
@@ -748,13 +710,20 @@ static int pm886_led_probe(struct platform_device *pdev)
 
 	mutex_lock(&led->lock);
 	if (!dev_num) {
+		if (gpio_en) {
+			ret = gpio_request(led->cf_en, "cf-gpio");
+			if (ret) {
+				dev_err(&pdev->dev, "request cf-gpio error!\n");
+				return ret;
+			}
+		}
 		ret = pm886_setup(pdev, pdata);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "device setup failed: %d\n", ret);
 			return ret;
 		}
-		dev_num++;
 	}
+	dev_num++;
 	mutex_unlock(&led->lock);
 
 	INIT_WORK(&led->work, pm886_led_work);
@@ -782,9 +751,15 @@ static int pm886_led_remove(struct platform_device *pdev)
 	struct pm886_led *led = platform_get_drvdata(pdev);
 
 	mutex_lock(&led->lock);
+
 	if (dev_num > 0)
 		dev_num--;
+
+	if ((!dev_num) && (gpio_en))
+		gpio_free(led->cf_en);
+
 	mutex_unlock(&led->lock);
+
 	if (led)
 		led_classdev_unregister(&led->cdev);
 	return 0;
