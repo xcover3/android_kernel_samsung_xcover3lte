@@ -912,7 +912,7 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 				mmp_dsi_panel.set_brightness =
 					mmp_dsi_panel_set_bl_panel;
 			} else
-				plat_data->plat_set_backlight =
+				mmp_dsi_panel.set_brightness =
 					mmp_dsi_panel_set_bl_gpio;
 
 #ifdef CONFIG_DDR_DEVFREQ
@@ -1000,6 +1000,9 @@ static int mmp_dsi_panel_shutdown(struct platform_device *dev)
 	if (mmp_dsi_panel.ddrfreq_qos != PM_QOS_DEFAULT_VALUE)
 		pm_qos_remove_request(&mmp_dsi_panel.ddrfreq_qos_req_min);
 #endif
+	if (mmp_dsi_panel.set_brightness)
+		mmp_dsi_panel.set_brightness(&mmp_dsi_panel, 0);
+
 	mmp_dsi_panel_set_status(&mmp_dsi_panel, 0);
 	mmp_unregister_panel(&mmp_dsi_panel);
 	kfree(mmp_dsi_panel.plat_data);
