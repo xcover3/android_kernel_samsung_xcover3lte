@@ -879,6 +879,7 @@ extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 #define REG_FW_FOCUS_MAN_TRIGGER    (0x141)
 	#define FOCUS_MAN_TRIGGER (0x1)
 
+#define REG_FW_AF_MACRO_POS         (0x016)
 #define REG_FW_AF_INFINITY_POS      (0x1ae)
 
 #define REG_FW_AF_5X5_WIN_MODE      (0x1e0)
