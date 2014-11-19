@@ -44,49 +44,49 @@
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x0>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 		cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x1>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 		cpu@2 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x2>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 		cpu@3 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x3>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 		cpu@4 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x100>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 		cpu@5 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x101>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 		cpu@6 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x102>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 		cpu@7 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0 0x103>;
-			enable-method = "mcpm";
+			enable-method = "psci";
 		};
 	};
 
@@ -95,6 +95,15 @@
 		method          = "smc";
 		cpu_off         = <0x85000001>;
 		cpu_on          = <0x85000002>;
+		status = "disabled";
+	};
+
+	psci {
+		compatible      = "arm,psci";
+		method          = "smc";
+		cpu_suspend     = <0x84000001>;
+		cpu_off         = <0x84000002>;
+		cpu_on          = <0x84000003>;
 	};
 
 	gic: interrupt-controller@d1df9000 {
