@@ -2803,6 +2803,14 @@ again:
 	DBG("*** %s got interrupt: 0x%08x\n",
 		mmc_hostname(host->mmc), intmask);
 
+	if ((intmask & SDHCI_INT_ERROR) && host->mmc->card) {
+		pr_err("%s: SDHCI_INT_STATUS = 0x%x\n", mmc_hostname(host->mmc), intmask);
+		if (host->cmd) {
+			pr_err("%s: host cmd opcode: 0x%x, host cmd arg: 0x%x\n",
+				mmc_hostname(host->mmc), host->cmd->opcode, host->cmd->arg);
+		}
+	}
+
 	if (intmask & (SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE)) {
 		u32 present = sdhci_readl(host, SDHCI_PRESENT_STATE) &
 			      SDHCI_CARD_PRESENT;
