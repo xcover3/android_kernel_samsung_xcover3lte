@@ -1298,10 +1298,10 @@
 		pwdn-gpios = <&gpio 70 0>;
 		reset-gpios = <&gpio 69 0>;
 
-		af_2v8-supply = <&ldo11>;
-		avdd_2v8-supply = <&ldo10>;
+		af_2v8-supply = <&ldo8>;
+		avdd_2v8-supply = <&ldo7>;
 		dovdd_1v8-supply = <&buck2>;
-		dvdd_1v2-supply = <&ldo8>;
+		dvdd_1v2-supply = <&ldo19>;
 
 		dphy_val = <0xff1d00 0x00024733 0x04001001>;
 		status = "okay";
@@ -1354,10 +1354,10 @@
 				dphy3 = <0x1500>;
 				dphy5 = <0xff>;
 				dphy6 = <0x1001>;
-				af_2v8-supply = <&ldo11>;
-				avdd_2v8-supply = <&ldo10>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
 				dovdd_1v8-supply = <&buck2>;
-				dvdd_1v2-supply = <&ldo8>;
+				dvdd_1v2-supply = <&ldo19>;
 				pwdn-gpios = <&gpio 68 1>;
 				reset-gpios = <&gpio 67 1>;
 			};
@@ -1372,10 +1372,10 @@
 				dphy3 = <0x1500>;
 				dphy5 = <0xff>;
 				dphy6 = <0x1001>;
-				af_2v8-supply = <&ldo11>;
-				avdd_2v8-supply = <&ldo10>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
 				dovdd_1v8-supply = <&buck2>;
-				dvdd_1v2-supply = <&ldo8>;
+				dvdd_1v2-supply = <&ldo19>;
 				pwdn-gpios = <&gpio 68 1>;
 				reset-gpios = <&gpio 67 1>;
 			};
@@ -1390,10 +1390,10 @@
 				dphy3 = <0x1500>;
 				dphy5 = <0xff>;
 				dphy6 = <0x1001>;
-				af_2v8-supply = <&ldo11>;
-				avdd_2v8-supply = <&ldo10>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
 				dovdd_1v8-supply = <&buck2>;
-				dvdd_1v2-supply = <&ldo8>;
+				dvdd_1v2-supply = <&ldo19>;
 				pwdn-gpios = <&gpio 68 1>;
 				reset-gpios = <&gpio 67 1>;
 			};
