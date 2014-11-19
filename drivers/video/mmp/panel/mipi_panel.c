@@ -844,6 +844,7 @@ static struct mmp_panel mmp_dsi_panel = {
 	.esd_set_onoff = mmp_panel_esd_onoff,
 };
 
+static bool backlight_state = true;
 static int mmp_dsi_panel_bl_update_status(struct backlight_device *bl)
 {
 	struct panel_plat_data *data = dev_get_drvdata(&bl->dev);
@@ -855,6 +856,14 @@ static int mmp_dsi_panel_bl_update_status(struct backlight_device *bl)
 		level = bl->props.brightness;
 	else
 		level = 0;
+
+	if (!backlight_state && (level > 0)) {
+		backlight_state = true;
+		msleep(50);
+	}
+
+	if (!level)
+		backlight_state = false;
 
 	/* If there is backlight function of board, use it */
 	if (data && data->plat_set_backlight) {
