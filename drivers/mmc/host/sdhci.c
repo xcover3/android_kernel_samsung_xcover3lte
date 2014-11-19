@@ -2684,8 +2684,8 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 			if (intmask & SDHCI_INT_DATA_TIMEOUT) {
 				if (((sdhci_readb(host, SDHCI_TIMEOUT_CONTROL) & 0xF) == 0xE)
 					&& (host->quirks2 & SDHCI_QUIRK2_TIMEOUT_SHORT)) {
-					pr_debug("%s: hardware timeout but change to use the software timeout timer.\n",
-						mmc_hostname(host->mmc));
+					pr_warn("%s: cmd%u caused timeout and switch to software timer.\n",
+						mmc_hostname(host->mmc), host->cmd->opcode);
 					return;
 				} else {
 					if (host->cmd)
