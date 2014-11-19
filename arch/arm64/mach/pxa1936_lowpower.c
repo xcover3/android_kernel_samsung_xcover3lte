@@ -327,28 +327,23 @@ void pxa1936_gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	writel_relaxed(val, APMU_CORE_RSTCTRL[smp_processor_id()]);
 	preempt_enable();
 }
-/* Returns 1 if psci property is found in the dtb */
-static int lpm_psci_method(void)
-{
-	struct device_node *np = of_find_node_by_name(NULL, "lpm_method");
-	const char *str = NULL;
 
-	if (np && !of_property_read_string(np, "method", &str)
-	    && !strcmp(str, "psci"))
-		return 1;
-	return 0;
-}
+static const struct of_device_id mcpm_of_match[] __initconst = {
+	{ .compatible = "arm,mcpm",},
+	{},
+};
 
 static int __init pxa1936_lowpower_init(void)
 {
+	struct device_node *np;
+
 	if (!of_machine_is_compatible("marvell,pxa1936"))
 		return -ENODEV;
 
-	/* If use psci method, don't init this driver */
-	if (lpm_psci_method())
+	np = of_find_matching_node(NULL, mcpm_of_match);
+	if (!np || !of_device_is_available(np))
 		return -ENODEV;
-
-	pr_err("Initialize pxa1936 low power controller.\n");
+	pr_info("Initialize pxa1936 low power controller based on mcpm.\n");
 
 	pxa1936_mappings();
 	mcpm_plat_power_register(&pxa1936_idle);

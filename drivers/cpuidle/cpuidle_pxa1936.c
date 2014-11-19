@@ -118,18 +118,10 @@ static int arm64_enter_state(struct cpuidle_device *dev,
 	return idx;
 }
 
-/* Returns non-0 if psci property is found in the dtb */
-static int lpm_psci_method(void)
-{
-	struct device_node *np = of_find_node_by_name(NULL, "lpm_method");
-	const char *str = NULL;
-
-	if (np && !of_property_read_string(np, "method", &str)
-			&& !strcmp(str, "psci"))
-		return 1;
-
-	return 0;
-}
+static const struct of_device_id psci_of_match[] __initconst = {
+	{ .compatible = "arm,psci",},
+	{},
+};
 
 /*
  * arm64_idle_init
@@ -140,10 +132,13 @@ static int lpm_psci_method(void)
  */
 int __init arm64_idle_init(void)
 {
+	struct device_node *np;
+
 	if (!of_machine_is_compatible("marvell,pxa1936"))
 		return -ENODEV;
 
-	if (!lpm_psci_method())
+	np = of_find_matching_node(NULL, psci_of_match);
+	if (!np || !of_device_is_available(np))
 		return -ENODEV;
 
 	return cpuidle_register(&arm64_idle_driver, NULL);

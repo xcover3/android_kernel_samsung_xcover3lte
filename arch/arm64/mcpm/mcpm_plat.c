@@ -533,7 +533,7 @@ static int __init mcpm_plat_of_init(void)
 	int err = 0;
 
 	np = of_find_matching_node(NULL, mcpm_of_match);
-	if (!np)
+	if (!np || !of_device_is_available(np))
 		return -ENODEV;
 
 	pr_info("probing function IDs from device-tree\n");
