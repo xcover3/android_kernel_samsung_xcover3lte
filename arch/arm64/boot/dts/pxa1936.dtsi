@@ -67,25 +67,25 @@
 		cpu@4 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
-			reg = <0 0x10100>;
+			reg = <0 0x100>;
 			enable-method = "mcpm";
 		};
 		cpu@5 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
-			reg = <0 0x10101>;
+			reg = <0 0x101>;
 			enable-method = "mcpm";
 		};
 		cpu@6 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
-			reg = <0 0x10102>;
+			reg = <0 0x102>;
 			enable-method = "mcpm";
 		};
 		cpu@7 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
-			reg = <0 0x10103>;
+			reg = <0 0x103>;
 			enable-method = "mcpm";
 		};
 	};

@@ -16,7 +16,6 @@
 #include <linux/pm_qos.h>
 #include <linux/cpuidle.h>
 #include <linux/of.h>
-#include <linux/cputype.h>
 
 #include <asm/compiler.h>
 #include <asm/io.h>
@@ -271,10 +270,6 @@ static int mcpm_plat_cpu_power_up(unsigned int cpu, unsigned int cluster,
 
 	unsigned int hwid = (cpu<<MPIDR_LEVEL_SHIFT(0))
 			    | (cluster<<MPIDR_LEVEL_SHIFT(1));
-
-	/* FIXME: 1936 cluster1's mpidr affinity level2 value is 1 */
-	if (cpu_is_pxa1936())
-		hwid |= (cluster << MPIDR_LEVEL_SHIFT(2));
 
 	if (up_mode)
 		return -EINVAL;
