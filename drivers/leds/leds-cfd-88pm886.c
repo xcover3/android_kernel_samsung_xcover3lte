@@ -80,6 +80,10 @@
 
 #define PM886_CURRENT_DIV(x)		DIV_ROUND_UP(256, (x / 50))
 
+#define CFD_MIN_BOOST_VOUT		3750
+#define CFD_MAX_BOOST_VOUT		5500
+#define CFD_VOUT_GAP_LEVEL		250
+
 static unsigned gpio_en;
 static unsigned int dev_num;
 
@@ -427,6 +431,99 @@ static ssize_t gpio_ctrl_store(
 
 static DEVICE_ATTR(gpio_ctrl, S_IRUGO | S_IWUSR, gpio_ctrl_show, gpio_ctrl_store);
 
+/* convert dts voltage value to register value, values in msec */
+static void convert_flash_timer_val_to_reg(unsigned int *flash_timer)
+{
+	/* in milliseconds */
+	int flash_timer_values[] = { 16, 23, 31, 39, 47, 57, 62, 70, 125, 187, 250, 312, 375, 437,
+					500, 565, 1000, 1500, 2000, 2500, 3000, 3496, 4000, 4520};
+	int num_of_flash_timer_values = ARRAY_SIZE(flash_timer_values);
+	int i;
+
+	for (i = 0; i < num_of_flash_timer_values; i++) {
+		if (*flash_timer <= flash_timer_values[i]) {
+			*flash_timer = i;
+			return;
+		}
+	}
+
+	 *flash_timer = num_of_flash_timer_values - 1;
+}
+
+/* convert dts voltage value to register value, values in mv */
+static void convert_cls_ov_set_val_to_reg(unsigned int *cls_ov_set)
+{
+	switch (*cls_ov_set) {
+	case 0 ... 3500:
+		*cls_ov_set = 0x2;
+		break;
+	case 3501 ... 4000:
+		*cls_ov_set = 0x1;
+		break;
+	case 4001 ... 4400:
+		*cls_ov_set = 0x0;
+		break;
+	case 4401 ... 4600:
+		*cls_ov_set = 0x3;
+		break;
+	default:
+		*cls_ov_set = 0x3;
+	}
+}
+
+/* convert dts voltage value to register value, values in mv */
+static void convert_cls_uv_set_val_to_reg(unsigned int *cls_uv_set)
+{
+	switch (*cls_uv_set) {
+	case 0 ... 1500:
+		*cls_uv_set = 0x0;
+		break;
+	case 1501 ... 2000:
+		*cls_uv_set = 0x1;
+		break;
+	case 2001 ... 2200:
+		*cls_uv_set = 0x2;
+		break;
+	case 2201 ... 2400:
+		*cls_uv_set = 0x3;
+		break;
+	default:
+		*cls_uv_set = 0x3;
+	}
+}
+
+/* convert dts voltage value to register value, values in mv */
+static void convert_cfd_bst_vset_val_to_reg(unsigned int *cfd_bst_vset)
+{
+	if (*cfd_bst_vset <= CFD_MIN_BOOST_VOUT)
+		*cfd_bst_vset = 0x0;
+	else if (*cfd_bst_vset >= CFD_MAX_BOOST_VOUT)
+		*cfd_bst_vset = 0x7;
+	else
+		*cfd_bst_vset = (*cfd_bst_vset - CFD_MIN_BOOST_VOUT) / CFD_VOUT_GAP_LEVEL;
+}
+
+/* convert dts voltage value to register value, values in mv */
+static void convert_cfd_bst_uvvbat_set_val_to_reg(unsigned int *bst_uvvbat_set)
+{
+	switch (*bst_uvvbat_set) {
+	case 0 ... 3100:
+		*bst_uvvbat_set = 0x0;
+		break;
+	case 3101 ... 3200:
+		*bst_uvvbat_set = 0x1;
+		break;
+	case 3201 ... 3300:
+		*bst_uvvbat_set = 0x2;
+		break;
+	case 3301 ... 3400:
+		*bst_uvvbat_set = 0x3;
+		break;
+	default:
+		*bst_uvvbat_set = 0x3;
+	}
+}
+
 static int pm886_led_dt_init(struct device_node *np,
 			 struct device *dev,
 			 struct pm886_led_pdata *pdata)
@@ -448,22 +545,35 @@ static int pm886_led_dt_init(struct device_node *np,
 				   "flash-timer", &pdata->flash_timer);
 	if (ret)
 		return ret;
+	convert_flash_timer_val_to_reg(&pdata->flash_timer);
+
 	ret = of_property_read_u32(np,
 				   "cls-ov-set", &pdata->cls_ov_set);
 	if (ret)
 		return ret;
+
+	convert_cls_ov_set_val_to_reg(&pdata->cls_ov_set);
+
 	ret = of_property_read_u32(np,
 				   "cls-uv-set", &pdata->cls_uv_set);
 	if (ret)
 		return ret;
+	convert_cls_uv_set_val_to_reg(&pdata->cls_uv_set);
+
 	ret = of_property_read_u32(np,
 				   "cfd-bst-vset", &pdata->cfd_bst_vset);
 	if (ret)
 		return ret;
+
+	convert_cfd_bst_vset_val_to_reg(&pdata->cfd_bst_vset);
+
 	ret = of_property_read_u32(np,
 				   "bst-uvvbat-set", &pdata->bst_uvvbat_set);
 	if (ret)
 		return ret;
+
+	convert_cfd_bst_uvvbat_set_val_to_reg(&pdata->bst_uvvbat_set);
+
 	ret = of_property_read_u32(np,
 				   "max-flash-current", &pdata->max_flash_current);
 	if (ret) {
