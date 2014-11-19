@@ -406,6 +406,7 @@
 #define PHY_28NM_CTRL1_CHRG_DTC_OUT_SHIFT_28	4
 #define PHY_28NM_CTRL1_VBUSDTC_OUT_SHIFT_28		2
 
+#define PHY_28NM_CTRL_REG0_SHIFT	12
 static int _mv_usb2_phy_55nm_init(struct mv_usb2_phy *mv_phy)
 {
 	struct platform_device *pdev = mv_phy->pdev;
@@ -716,6 +717,13 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 	void __iomem *base = mv_phy->base;
 	unsigned int tmp, val;
 
+	/* PHY_28NM_CTRL_REG0 */
+	if (cpu_is_pxa1908() || cpu_is_pxa1936()) {
+		writel(readl(base + PHY_28NM_CTRL_REG0) |
+			((0x3) << PHY_28NM_CTRL_REG0_SHIFT),
+			base + PHY_28NM_CTRL_REG0);
+	}
+
 	/* PHY_28NM_PLL_REG0 */
 	writel(readl(base + PHY_28NM_PLL_REG0) &
 		~(PHY_28NM_PLL_SELLPFR_MASK
@@ -868,6 +876,13 @@ static void _mv_usb2_phy_28nm_shutdown(struct mv_usb2_phy *mv_phy)
 	val = readw(base + PHY_28NM_OTG_REG);
 	val &= ~(0x1 << PHY_28NM_OTG_PU_OTG_SHIFT);
 	writew(val, base + PHY_28NM_OTG_REG);
+
+	/* PHY_28NM_CTRL_REG0 */
+	if (cpu_is_pxa1908() || cpu_is_pxa1936()) {
+		val = readl(base + PHY_28NM_CTRL_REG0);
+		val &= ~((0x3) << PHY_28NM_CTRL_REG0_SHIFT);
+		writew(val, base + PHY_28NM_CTRL_REG0);
+	}
 }
 
 static int mv_usb2_phy_init(struct usb_phy *phy)
