@@ -406,20 +406,20 @@ static int OV13850_update_otp(struct v4l2_subdev *sd,
 {
 	int ret = 0;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
-	ret = update_otp_info(sensor, otp);
-	if (ret < 0)
-		return ret;
-
-	if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_WB) {
-		ret = update_otp_wb(sensor, otp);
+	if (otp->user_otp->otp_type ==  SENSOR_TO_SENSOR) {
+		ret = update_otp_info(sensor, otp);
 		if (ret < 0)
 			return ret;
-	}
-
-	if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_LENC) {
-		ret = update_otp_lenc(sensor);
-		if (ret < 0)
-			return ret;
+		if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_WB) {
+			ret = update_otp_wb(sensor, otp);
+			if (ret < 0)
+				return ret;
+		}
+		if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_LENC) {
+			ret = update_otp_lenc(sensor);
+			if (ret < 0)
+				return ret;
+		}
 	}
 	return 0;
 }

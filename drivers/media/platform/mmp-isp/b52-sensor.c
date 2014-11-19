@@ -748,8 +748,6 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 
 	if (otp_ctrl != -1)
 		sensor->otp.otp_ctrl = otp_ctrl;
-	b52_sensor_call(sensor, update_otp,
-			&sensor->otp);
 
 	module = sensor->drvdata->module;
 	for (num = 0; num < sensor->drvdata->num_module; num++)
@@ -1467,7 +1465,6 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 			return 0;
 		regs = &sensor->drvdata->streamoff;
 	}
-
 	return __b52_sensor_cmd_write(
 			&sensor->drvdata->i2c_attr,
 			regs, sensor->pos);
@@ -1850,9 +1847,143 @@ struct v4l2_subdev_sensor_ops b52_sensor_sensor_ops = {
 	.g_skip_top_lines = b52_sensor_g_skip_top_lines,
 	.g_skip_frames    = b52_sensor_g_skip_frames,
 };
+/* ioctl(subdev, IOCTL_XXX, arg) is handled by this one */
+static long b52_sensor_ioctl(struct v4l2_subdev *sd,
+				unsigned int cmd, void *arg)
+{
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+	switch (cmd) {
+	case VIDIOC_PRIVATE_B52ISP_SENSOR_OTP:
+		sensor->otp.user_otp = (struct sensor_otp *)arg;
+		return	b52_sensor_call(sensor, update_otp, &sensor->otp);
+	default:
+		pr_err("unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",
+			_IOC_TYPE(cmd), _IOC_DIR(cmd), _IOC_NR(cmd), cmd);
+		return -ENXIO;
+	}
+	return 0;
+}
+#ifdef CONFIG_COMPAT
+/*FIXME: need to refine return val*/
+static int b52_usercopy(struct v4l2_subdev *sd,
+		unsigned int cmd, void *arg)
+{
+	char	sbuf[128];
+	void    *mbuf = NULL;
+	void	*parg = arg;
+	long	err  = -EINVAL;
 
+	/*  Copy arguments into temp kernel buffer  */
+	if (_IOC_DIR(cmd) != _IOC_NONE) {
+		if (_IOC_SIZE(cmd) <= sizeof(sbuf)) {
+			parg = sbuf;
+		} else {
+			/* too big to allocate from stack */
+			mbuf = kmalloc(_IOC_SIZE(cmd), GFP_KERNEL);
+			if (NULL == mbuf)
+				return -ENOMEM;
+			parg = mbuf;
+		}
+
+		err = -EFAULT;
+		if (_IOC_DIR(cmd) & _IOC_WRITE) {
+			unsigned int n = _IOC_SIZE(cmd);
+
+			if (copy_from_user(parg, (void __user *)arg, n))
+				goto out;
+
+			/* zero out anything we don't copy from userspace */
+			if (n < _IOC_SIZE(cmd))
+				memset((u8 *)parg + n, 0, _IOC_SIZE(cmd) - n);
+		} else {
+			/* read-only ioctl */
+			memset(parg, 0, _IOC_SIZE(cmd));
+		}
+	}
+
+	/* Handles IOCTL */
+	err = v4l2_subdev_call(sd, core, ioctl, cmd, parg);
+	if (err == -ENOIOCTLCMD)
+		err = -ENOTTY;
+	if (_IOC_DIR(cmd) & _IOC_READ) {
+		unsigned int n = _IOC_SIZE(cmd);
+		if (copy_to_user((void __user *)arg, parg, n))
+			goto out;
+	}
+out:
+	kfree(mbuf);
+	return err;
+}
+
+struct sensor_otp32 {
+	enum OTP_TYPE	otp_type;
+	__u16	lsc_otp_len;
+	__u16	wb_otp_len;
+	__u16	vcm_otp_len;
+	__u16   module_data_len;
+	compat_caddr_t	otp_data;
+	compat_caddr_t	module_data;
+};
+
+#define VIDIOC_PRIVATE_B52ISP_SENSOR_OTP32 \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct sensor_otp32)
+
+static int get_sensor_otp32(struct sensor_otp *kp,
+		struct sensor_otp32 __user *up)
+{
+	u32 tmp1, tmp2;
+	if (!access_ok(VERIFY_READ, up, sizeof(struct sensor_otp32)) ||
+			get_user(tmp1, &up->otp_data) ||
+			get_user(tmp2, &up->module_data) ||
+			get_user(kp->otp_type, &up->otp_type) ||
+			get_user(kp->lsc_otp_len, &up->lsc_otp_len) ||
+			get_user(kp->wb_otp_len, &up->wb_otp_len) ||
+			get_user(kp->vcm_otp_len, &up->vcm_otp_len) ||
+			get_user(kp->module_data_len, &up->module_data_len))
+		return -EFAULT;
+	kp->otp_data = compat_ptr(tmp1);
+	kp->module_data = compat_ptr(tmp2);
+	return 0;
+}
+
+static long b52_sensor_ioctl32(struct v4l2_subdev *sd,
+				unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct sensor_otp karg;
+	int compatible_arg = 1;
+	switch (cmd) {
+	case VIDIOC_PRIVATE_B52ISP_SENSOR_OTP32:
+		cmd = VIDIOC_PRIVATE_B52ISP_SENSOR_OTP;
+		get_sensor_otp32(&karg, arg);
+		compatible_arg = 0;
+		break;
+	default:
+		pr_err("unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",
+			_IOC_TYPE(cmd), _IOC_DIR(cmd), _IOC_NR(cmd), cmd);
+		return -ENXIO;
+	}
+
+	if (compatible_arg)
+		ret = b52_usercopy(sd, cmd, arg);
+	else {
+		mm_segment_t old_fs = get_fs();
+
+		set_fs(KERNEL_DS);
+		ret = b52_usercopy(sd, cmd, (void *)&karg);
+		set_fs(old_fs);
+	}
+
+	return ret;
+}
+#endif
 static struct v4l2_subdev_core_ops b52_sensor_core_ops = {
 	.s_power = b52_sensor_s_power,
+	.ioctl	= b52_sensor_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = b52_sensor_ioctl32,
+#endif
+
 };
 
 static struct v4l2_subdev_ops b52_sensor_sd_ops = {

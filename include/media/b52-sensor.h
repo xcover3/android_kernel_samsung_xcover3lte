@@ -7,7 +7,7 @@
 #include <media/v4l2-ctrls.h>
 #include <uapi/linux/v4l2-mediabus.h>
 #include <media/mrvl-camera.h>
-
+#include <media/b52_api.h>
 #define MAX_REGULATOR_NUM   (5)
 #define MAX_SENSOR_FMT_NUM  (4)
 
@@ -127,7 +127,6 @@ struct b52_sensor_module {
 	u32 apeture_size;
 	struct b52_sensor_vcm *vcm;
 };
-
 struct b52_sensor_otp {
 	u32 customer_id;
 	u32 module_id;
@@ -141,6 +140,7 @@ struct b52_sensor_otp {
 	u32 golden_rg_ratio;
 	u32 golden_bg_ratio;
 	u32 golden_gg_ratio;
+	struct sensor_otp *user_otp;
 	u32 user_data[5];
 	u32 otp_ctrl;
 };
@@ -150,7 +150,7 @@ struct b52_sensor_spec_ops {
 	int (*get_pixel_rate)(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
 	int (*get_dphy_desc)(struct v4l2_subdev *sd,
 			struct csi_dphy_desc *dphy_desc, u32 mclk);
-	int (*update_otp)(struct v4l2_subdev *sd, struct b52_sensor_otp *opt);
+	int (*update_otp)(struct v4l2_subdev *sd, struct b52_sensor_otp *otp);
 };
 
 enum sensor_i2c_len {

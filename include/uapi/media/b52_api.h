@@ -74,6 +74,20 @@ struct b52isp_adv_dns {
 	enum adv_dns_type type;
 	unsigned int times;
 };
+enum OTP_TYPE {
+	SENSOR_TO_SENSOR = 1,
+	SENSOR_TO_ISP = 2,
+	ISP_TO_SENSOR = 3,
+};
+struct sensor_otp {
+	enum OTP_TYPE	otp_type;
+	__u16			lsc_otp_len;
+	__u16			wb_otp_len;
+	__u16			vcm_otp_len;
+	__u16			module_data_len;
+	void				*otp_data;
+	void				*module_data;
+};
 
 enum type_aeag {
 	TYPE_3A_UNLOCK,
@@ -245,4 +259,6 @@ enum v4l2_priv_colorfx {
 	_IOW('V', BASE_VIDIOC_PRIVATE + 9, struct b52isp_path_arg)
 #define VIDIOC_PRIVATE_B52ISP_ANTI_SHAKE\
 	_IOW('V', BASE_VIDIOC_PRIVATE + 10, struct b52isp_anti_shake_arg)
+#define VIDIOC_PRIVATE_B52ISP_SENSOR_OTP\
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct sensor_otp)
 #endif /* _B52_API_H */

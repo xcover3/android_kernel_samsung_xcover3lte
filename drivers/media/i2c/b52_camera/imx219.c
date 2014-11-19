@@ -476,31 +476,33 @@ static int IMX219_update_otp(struct v4l2_subdev *sd,
 {
 	int ret = 0;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
-	ret = update_sensor_states(sensor);
-	ret = update_otp_info(sensor, otp);
-	if (ret < 0)
-		return ret;
+	if (otp->user_otp->otp_type ==  SENSOR_TO_SENSOR) {
+		ret = update_sensor_states(sensor);
+		ret = update_otp_info(sensor, otp);
+		if (ret < 0)
+			return ret;
 
-	if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_WB) {
-		ret = update_otp_wb(sensor, otp);
-		if (ret < 0)
-			return ret;
-	}
+		if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_WB) {
+			ret = update_otp_wb(sensor, otp);
+			if (ret < 0)
+				return ret;
+		}
 #if 0
-	ret = update_otp_af(sensor, otp);
-	if (ret < 0)
-		return ret;
-#endif
-	if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_LENC) {
-		ret = update_otp_lenc(sensor);
+		ret = update_otp_af(sensor, otp);
 		if (ret < 0)
 			return ret;
+#endif
+		if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_LENC) {
+			ret = update_otp_lenc(sensor);
+			if (ret < 0)
+				return ret;
+		}
+		while (1) {
+			ret = IMX219_read_i2c(sensor, 0x3201);
+			if ((ret & 0x01) == 1)
+				break;
+		}
+		IMX219_write_i2c(sensor, 0x0100, 0x01);
 	}
-	while (1) {
-		ret = IMX219_read_i2c(sensor, 0x3201);
-		if ((ret & 0x01) == 1)
-			break;
-	}
-	IMX219_write_i2c(sensor, 0x0100, 0x01);
 	return 0;
 }
