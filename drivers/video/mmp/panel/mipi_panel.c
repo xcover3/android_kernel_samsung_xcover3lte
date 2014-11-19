@@ -42,6 +42,18 @@
 #include <linux/fb.h>
 #include <video/mmp_disp.h>
 #include <video/mipi_display.h>
+#include <video/mmp_esd.h>
+
+#define MIPI_DCS_NORMAL_STATE 0x9c
+
+static char pkt_size_cmd[] = {0x1};
+static char read_status[] = {0x0a};
+
+static struct mmp_dsi_cmd_desc panel_read_status_cmds[] = {
+	{MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE, 0, 0, sizeof(pkt_size_cmd),
+		pkt_size_cmd},
+	{MIPI_DSI_DCS_READ, 0, 0, sizeof(read_status), read_status},
+};
 
 #ifdef CONFIG_OF
 enum {
@@ -78,6 +90,7 @@ struct ext_pin_ctrls {
 
 struct panel_plat_data {
 	u32 id;
+	int esd_enable;
 	struct mmp_panel *panel;
 	struct mmp_mode mode;
 	struct mmp_dsi_cmds cmds;
@@ -668,6 +681,19 @@ set_bl_return:
 }
 #endif
 
+static void mmp_panel_esd_onoff(struct mmp_panel *panel, int status)
+{
+	struct panel_plat_data *plat = panel->plat_data;
+
+	if (status) {
+		if (plat->esd_enable)
+			esd_start(&panel->esd);
+	} else {
+		if (plat->esd_enable)
+			esd_stop(&panel->esd);
+	}
+}
+
 #ifdef CONFIG_OF
 static void mmp_dsi_panel_power(struct mmp_panel *panel, int skip, int on)
 {
@@ -728,6 +754,31 @@ static void mmp_dsi_panel_on(struct mmp_panel *panel)
 static void mmp_dsi_panel_on(struct mmp_panel *panel) {}
 #endif
 
+static int mmp_dsi_panel_get_status(struct mmp_panel *panel)
+{
+	struct mmp_dsi_buf dbuf;
+	u8 read_status = 0;
+	int ret;
+
+	ret = mmp_panel_dsi_rx_cmd_array(panel, &dbuf,
+			panel_read_status_cmds,
+			ARRAY_SIZE(panel_read_status_cmds));
+	if (ret < 0) {
+		pr_err("[ERROR] DSI receive failure!\n");
+		return 1;
+	}
+
+	read_status = dbuf.data[0];
+	if (read_status != MIPI_DCS_NORMAL_STATE) {
+		pr_err("[ERROR] panel status is 0x%x\n", read_status);
+		return 1;
+	} else {
+		pr_debug("panel status is 0x%x\n", read_status);
+	}
+
+	return 0;
+}
+
 static void mmp_dsi_panel_set_status(struct mmp_panel *panel, int status)
 {
 	struct panel_plat_data *plat = panel->plat_data;
@@ -744,9 +795,12 @@ static void mmp_dsi_panel_set_status(struct mmp_panel *panel, int status)
 			plat->plat_onoff(1);
 		else
 			mmp_dsi_panel_power(panel, skip_on, 1);
-		if (!skip_on)
+		if (!skip_on) {
 			mmp_dsi_panel_on(panel);
-		mmp_dsi_panel_enable(panel);
+			mmp_dsi_panel_enable(panel);
+		}
+
+		mmp_dsi_panel_get_status(panel);
 	} else if (status_is_off(status)) {
 		mmp_dsi_panel_disable(panel);
 		/* power off */
@@ -773,11 +827,21 @@ static int mmp_dsi_panel_get_modelist(struct mmp_panel *panel,
 	return 1;
 }
 
+
+static void mmp_panel_esd_recover(struct mmp_panel *panel)
+{
+	struct mmp_path *path = mmp_get_path(panel->plat_path_name);
+	esd_panel_recover(path);
+}
+
 static struct mmp_panel mmp_dsi_panel = {
 	.name = "mmp-dsi-panel",
 	.panel_type = PANELTYPE_DSI_VIDEO,
 	.get_modelist = mmp_dsi_panel_get_modelist,
 	.set_status = mmp_dsi_panel_set_status,
+	.get_status = mmp_dsi_panel_get_status,
+	.panel_esd_recover = mmp_panel_esd_recover,
+	.esd_set_onoff = mmp_panel_esd_onoff,
 };
 
 static int mmp_dsi_panel_bl_update_status(struct backlight_device *bl)
@@ -832,10 +896,16 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 	u32 panel_num;
 	struct device_node *child_np;
 	int i = 0;
+	u32 esd_enable;
 
 	plat_data = kzalloc(sizeof(*plat_data), GFP_KERNEL);
 	if (!plat_data)
 		return -ENOMEM;
+
+	if (of_property_read_u32(child_np, "panel_esd", &esd_enable))
+		esd_enable = 0;
+
+	plat_data->esd_enable = esd_enable;
 
 	if (IS_ENABLED(CONFIG_OF)) {
 		ret = of_property_read_string(np, "marvell,path-name",
@@ -955,6 +1025,8 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 	plat_data->panel = &mmp_dsi_panel;
 	mmp_register_panel(&mmp_dsi_panel);
 
+	if (plat_data->esd_enable)
+		esd_init(&mmp_dsi_panel);
 	/*
 	 * if no panel or plat associate backlight control,
 	 * don't register backlight device here.
