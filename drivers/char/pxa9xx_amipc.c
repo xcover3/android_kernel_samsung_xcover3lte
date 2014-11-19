@@ -246,7 +246,6 @@ static enum amipc_return_code amipc_event_set(enum amipc_events user_event,
 {
 	unsigned long end_time;
 	u32 ciu_reg;
-	static int busy_cnt;
 	unsigned long flags;
 
 	IPC_ENTER();
@@ -267,7 +266,6 @@ static enum amipc_return_code amipc_event_set(enum amipc_events user_event,
 		}
 	}
 	if (!(amipc->ipc_tx[E_TO_OFF(user_event)].ack)) {
-		busy_cnt = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].event = user_event;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data1 = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data2 = 0;
@@ -277,26 +275,23 @@ static enum amipc_return_code amipc_event_set(enum amipc_events user_event,
 		amipc_notify_peer();
 		spin_unlock_irqrestore(&transfer_lock, flags);
 	} else {
-		busy_cnt++;
-		if (busy_cnt >= 3) {
-			/* read three times for clock gate off problem */
-			spin_lock_irqsave(&transfer_lock, flags);
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg &= ~AP_GNSS_WAKEUP;
-			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
-			/* add 1ms delay for sync signal to CM3 */
-			mdelay(1);
-			pr_info("cm3:reset handshake bit1\n");
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg |= AP_GNSS_WAKEUP;
-			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
-			/* add 1ms delay for sync signal to CM3 */
-			mdelay(1);
-			amipc->dbg_info.rst_bit1_num++;
-			spin_unlock_irqrestore(&transfer_lock, flags);
-		}
+		/* read three times for clock gate off problem */
+		spin_lock_irqsave(&transfer_lock, flags);
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg &= ~AP_GNSS_WAKEUP;
+		ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+		/* add 1ms delay for sync signal to CM3 */
+		mdelay(1);
+		pr_info("cm3:reset handshake bit1\n");
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg |= AP_GNSS_WAKEUP;
+		ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+		/* add 1ms delay for sync signal to CM3 */
+		mdelay(1);
+		amipc->dbg_info.rst_bit1_num++;
+		spin_unlock_irqrestore(&transfer_lock, flags);
 		IPC_LEAVE();
 		return AMIPC_RC_AGAIN;
 	}
@@ -312,7 +307,6 @@ static enum amipc_return_code amipc_data_send(enum amipc_events user_event,
 {
 	unsigned long end_time;
 	u32 ciu_reg;
-	static int busy_cnt;
 	unsigned long flags;
 
 	IPC_ENTER();
@@ -335,7 +329,6 @@ static enum amipc_return_code amipc_data_send(enum amipc_events user_event,
 		}
 	}
 	if (!(amipc->ipc_tx[E_TO_OFF(user_event)].ack)) {
-		busy_cnt = 0;
 		amipc->ipc_tx[E_TO_OFF(user_event)].event = user_event;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data1 = data1;
 		amipc->ipc_tx[E_TO_OFF(user_event)].data2 = data2;
@@ -345,26 +338,23 @@ static enum amipc_return_code amipc_data_send(enum amipc_events user_event,
 		amipc_notify_peer();
 		spin_unlock_irqrestore(&transfer_lock, flags);
 	} else {
-		busy_cnt++;
-		if (busy_cnt >= 3) {
-			/* read three times for clock gate off problem */
-			spin_lock_irqsave(&transfer_lock, flags);
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg &= ~AP_GNSS_WAKEUP;
-			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
-			/* add 1ms delay for sync signal to CM3 */
-			mdelay(1);
-			pr_info("cm3:reset handshake bit1\n");
-			ciu_reg = ciu_readl(GNSS_HANDSHAKE);
-			ciu_reg |= AP_GNSS_WAKEUP;
-			ciu_writel(GNSS_HANDSHAKE, ciu_reg);
-			/* add 1ms delay for sync signal to CM3 */
-			mdelay(1);
-			amipc->dbg_info.rst_bit1_num++;
-			spin_unlock_irqrestore(&transfer_lock, flags);
-		}
+		/* read three times for clock gate off problem */
+		spin_lock_irqsave(&transfer_lock, flags);
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg &= ~AP_GNSS_WAKEUP;
+		ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+		/* add 1ms delay for sync signal to CM3 */
+		mdelay(1);
+		pr_info("cm3:reset handshake bit1\n");
+		ciu_reg = ciu_readl(GNSS_HANDSHAKE);
+		ciu_reg |= AP_GNSS_WAKEUP;
+		ciu_writel(GNSS_HANDSHAKE, ciu_reg);
+		/* add 1ms delay for sync signal to CM3 */
+		mdelay(1);
+		amipc->dbg_info.rst_bit1_num++;
+		spin_unlock_irqrestore(&transfer_lock, flags);
 		IPC_LEAVE();
 		return AMIPC_RC_AGAIN;
 	}
