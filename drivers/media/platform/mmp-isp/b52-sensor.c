@@ -22,7 +22,7 @@
 #include <linux/leds.h>
 #include <linux/math64.h>
 #include <uapi/media/b52_api.h>
-
+#include <linux/clk.h>
 #include <media/mv_sc2_twsi_conf.h>
 
 static int otp_ctrl = -1;
@@ -1308,7 +1308,8 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 	struct sensor_power *power;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
-
+	if (sensor->drvdata->ops->s_power)
+		return sensor->drvdata->ops->s_power(sd, on);
 	power = (struct sensor_power *) &(sensor->power);
 
 	if (on) {
@@ -1320,10 +1321,11 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 					SC2_PIN_ST_SCCB, SC2_MOD_B52ISP);
 			if (ret < 0) {
 				pr_err("b52 sensor i2c pin is not configured\n");
-				return ret;
+				goto st_err;
 			}
 		}
-
+		clk_set_rate(sensor->clk, sensor->mclk);
+		clk_prepare_enable(sensor->clk);
 		power->pwdn = devm_gpiod_get(&client->dev, "pwdn");
 		if (IS_ERR(power->pwdn)) {
 			dev_warn(&client->dev, "Failed to get gpio pwdn\n");
@@ -1332,7 +1334,7 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			ret = gpiod_direction_output(power->pwdn, 0);
 			if (ret < 0) {
 				dev_err(&client->dev, "Failed to set gpio pwdn\n");
-				return ret;
+				goto i2c_err;
 			}
 		}
 
@@ -1423,6 +1425,7 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				pr_err("b52 sensor gpio pin is not configured\n");
 		}
+		clk_disable_unprepare(sensor->clk);
 		sensor->sensor_init = 0;
 	}
 
@@ -1443,10 +1446,13 @@ avdd_err:
 rst_err:
 	if (sensor->power.pwdn)
 		devm_gpiod_put(&client->dev, sensor->power.pwdn);
-
+i2c_err:
+	clk_disable_unprepare(sensor->clk);
 	if (sensor->i2c_dyn_ctrl)
 		ret = sc2_select_pins_state(sensor->pos - 1,
 				SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);
+st_err:
+	power->ref_cnt--;
 
 	return ret;
 }
@@ -2432,7 +2438,11 @@ static int b52_sensor_probe(struct i2c_client *client,
 		dev_err(dev, "failed to get mclk, errno %d\n", ret);
 		return ret;
 	}
-
+	sensor->clk = devm_clk_get(dev, "SC2MCLK");
+	if (IS_ERR(sensor->clk)) {
+		dev_err(dev, "failed to get SC2MCLK clock\n");
+		return -ENODEV;
+	}
 	sensor->csi.dphy_desc.nr_lane = sensor->drvdata->nr_lane;
 	if (!sensor->csi.dphy_desc.nr_lane) {
 		dev_err(dev, "the csi lane number is zero\n");

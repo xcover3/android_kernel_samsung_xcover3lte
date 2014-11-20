@@ -486,6 +486,7 @@ struct b52_sensor_spec_ops ov13850_ops = {
 	.get_pixel_rate = OV13850_get_pixelclock,
 	.get_dphy_desc = OV13850_get_dphy_desc,
 	.update_otp = OV13850_update_otp,
+	.s_power = NULL,
 };
 struct b52_sensor_data b52_ov13850 = {
 	.name = "ovt.ov13850",

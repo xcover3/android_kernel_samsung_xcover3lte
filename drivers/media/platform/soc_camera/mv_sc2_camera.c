@@ -679,7 +679,8 @@ static int mccic_add_device(struct soc_camera_device *icd)
 	/* ccic_enable_clk(mcam_dev); */
 	/* ccic_power_up(mcam_dev); */
 	/* TBD: ccic_stop(mcam_dev); */
-
+	clk_set_rate(mcam_dev->mclk, 26000000);
+	clk_prepare_enable(mcam_dev->mclk);
 	mcam_dev->frame_state.frames = 0;
 	mcam_dev->frame_state.singles = 0;
 	mcam_dev->frame_state.delivered = 0;
@@ -745,7 +746,6 @@ static int mccic_add_device(struct soc_camera_device *icd)
 		if (ret < 0)
 			return ret;
 	}
-
 	ret = of_property_read_u32_array(np, "dphy_val",
 			ctrl_dev->csi.dphy, ARRAY_SIZE(ctrl_dev->csi.dphy));
 	if (ret)
@@ -799,11 +799,11 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	/* 1. put msc2_mmu_dev */
 	msc2_put_sc2(&mcam_dev->sc2_mmu);
 	mcam_dev->sc2_mmu = NULL;
-
 	/* 2. handle HW, clk, power, ccic */
 	clk_disable_unprepare(mcam_dev->axi_clk);
 	/* TBD ccic_power_down(ccic_dev); */
 	/* TBD ccic_disable_clk(ccic_dev); */
+	clk_disable_unprepare(mcam_dev->mclk);
 	pm_runtime_put(mcam_dev->dev);
 	/* 3.4 is not necessary */
 	soc_camera_power_off(&mcam_dev->pdev->dev, ssdd, NULL);
@@ -1381,7 +1381,9 @@ static int mv_camera_probe(struct platform_device *pdev)
 	mcam_dev->pdev = pdev;
 	mcam_dev->dev = &pdev->dev;
 	mcam_dev->buffer_mode = B_DMA_SG;
-
+	mcam_dev->mclk = devm_clk_get(&pdev->dev, "SC2MCLK");
+	if (IS_ERR(mcam_dev->mclk))
+		return PTR_ERR(mcam_dev->mclk);
 	pm_runtime_enable(mcam_dev->dev);
 	mcam_dev->axi_clk = devm_clk_get(&pdev->dev, "SC2AXICLK");
 	if (IS_ERR(mcam_dev->axi_clk))

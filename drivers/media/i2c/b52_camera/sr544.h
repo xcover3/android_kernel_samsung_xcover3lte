@@ -2197,11 +2197,13 @@ static int SR544_get_dphy_desc(struct v4l2_subdev *sd,
 			struct csi_dphy_desc *dphy_desc, u32 mclk);
 static int SR544_update_otp(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *opt);
+static int SR544_s_power(struct v4l2_subdev *sd, int on);
 
 struct b52_sensor_spec_ops sr544_ops = {
 	.get_pixel_rate = SR544_get_pixelclock,
 	.get_dphy_desc = SR544_get_dphy_desc,
 	.update_otp = SR544_update_otp,
+	.s_power = SR544_s_power,
 };
 struct b52_sensor_data b52_sr544 = {
 	.name = "samsung.sr544",

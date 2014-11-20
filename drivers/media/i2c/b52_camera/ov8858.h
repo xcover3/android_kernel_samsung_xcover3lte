@@ -706,6 +706,7 @@ struct b52_sensor_spec_ops ov8858_ops = {
 	.get_pixel_rate = OV8858_get_pixelclock,
 	.get_dphy_desc = OV8858_get_dphy_desc,
 	.update_otp = OV8858_update_otp,
+	.s_power = NULL,
 };
 struct b52_sensor_data b52_ov8858 = {
 	.name = "ovt.ov8858",

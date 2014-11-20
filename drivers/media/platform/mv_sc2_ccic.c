@@ -821,17 +821,13 @@ static void ccic_clk_set_rate(struct ccic_ctrl_dev *ctrl_dev)
 	clk_set_rate(ctrl_dev->clk4x, 312000000);
 	if (ccic_dev->ahb_enable)
 		clk_set_rate(ctrl_dev->ahb_clk, 156000000);
-	clk_set_rate(ctrl_dev->mclk, 26000000);
-
 	return;
 }
 
 static void ccic_clk_enable(struct ccic_ctrl_dev *ctrl_dev)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
-
 	ccic_clk_set_rate(ctrl_dev);
-	clk_prepare_enable(ctrl_dev->mclk);
 	clk_prepare_enable(ctrl_dev->dphy_clk);
 	clk_prepare_enable(ctrl_dev->csi_clk);
 	clk_prepare_enable(ctrl_dev->clk4x);
@@ -848,7 +844,6 @@ static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
 	clk_disable_unprepare(ctrl_dev->clk4x);
 	clk_disable_unprepare(ctrl_dev->csi_clk);
 	clk_disable_unprepare(ctrl_dev->dphy_clk);
-	clk_disable_unprepare(ctrl_dev->mclk);
 }
 
 static void ccic_clk_change(struct ccic_ctrl_dev *ctrl_dev,
@@ -903,10 +898,6 @@ static struct ccic_ctrl_ops ccic_ctrl_ops = {
 static int ccic_init_clk(struct ccic_ctrl_dev *ctrl_dev)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
-
-	ctrl_dev->mclk = devm_clk_get(&ccic_dev->pdev->dev, "SC2MCLK");
-	if (IS_ERR(ctrl_dev->mclk))
-		return PTR_ERR(ctrl_dev->mclk);
 	ctrl_dev->dphy_clk = devm_clk_get(&ccic_dev->pdev->dev, "SC2DPHYCLK");
 	if (IS_ERR(ctrl_dev->dphy_clk))
 		return PTR_ERR(ctrl_dev->dphy_clk);

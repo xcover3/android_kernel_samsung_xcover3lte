@@ -151,6 +151,7 @@ struct b52_sensor_spec_ops {
 	int (*get_dphy_desc)(struct v4l2_subdev *sd,
 			struct csi_dphy_desc *dphy_desc, u32 mclk);
 	int (*update_otp)(struct v4l2_subdev *sd, struct b52_sensor_otp *otp);
+	int (*s_power)(struct v4l2_subdev *sd, int onoff);
 };
 
 enum sensor_i2c_len {
@@ -325,7 +326,7 @@ struct b52_sensor {
 	struct b52_sensor_regs mf_regs;
 	u8 cur_res_idx;
 	u8 cur_mbus_idx;
-
+	struct clk *clk;
 	int i2c_dyn_ctrl;
 	int sensor_init;
 	atomic_t	stream_cnt;

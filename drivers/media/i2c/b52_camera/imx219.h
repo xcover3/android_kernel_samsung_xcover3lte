@@ -220,6 +220,7 @@ struct b52_sensor_spec_ops imx219_ops = {
 	.get_pixel_rate = IMX219_get_pixelclock,
 	.get_dphy_desc = IMX219_get_dphy_desc,
 	.update_otp = IMX219_update_otp,
+	.s_power = NULL,
 };
 struct b52_sensor_data b52_imx219 = {
 	.name = "imx219",
