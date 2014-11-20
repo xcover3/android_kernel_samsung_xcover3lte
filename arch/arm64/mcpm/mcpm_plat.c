@@ -294,7 +294,7 @@ static void mcpm_plat_pm_down(void *arg)
 	int mpidr, cpu, cluster;
 	bool skip_wfi = false, last_man = false;
 	unsigned int *idx = (unsigned int *)arg;
-	unsigned int calc_state, vote_state;
+	unsigned int calc_state, vote_state = 0;
 	unsigned int cluster_off;
 
 	mpidr = read_cpuid_mpidr();
@@ -365,7 +365,7 @@ static void mcpm_plat_pm_down(void *arg)
 	__mcpm_cpu_down(cpu, cluster);
 
 	if (!skip_wfi) {
-		if (unlikely(calc_state >= mcpm_plat_idle->l2_flush_state))
+		if (unlikely(last_man && vote_state >= mcpm_plat_idle->l2_flush_state))
 			mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point), 1);
 		else
 			mcpm_plat_cpu_power_down(virt_to_phys(mcpm_entry_point), 0);
