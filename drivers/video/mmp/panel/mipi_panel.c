@@ -52,6 +52,7 @@ enum {
 struct ext_pin {
 	const char *name;
 	u32 type;
+	u32 value;
 	union {
 		int gpio;
 		struct regulator *supply;
@@ -188,7 +189,7 @@ static int mmp_dsi_panel_parse_video_mode(
 }
 
 static int mmp_dsi_panel_parse_dt_pin(struct device_node *np,
-		const char *propname, struct ext_pin *pin)
+		struct device *dev, const char *propname, struct ext_pin *pin)
 {
 	size_t len;
 	int ret;
@@ -208,6 +209,11 @@ static int mmp_dsi_panel_parse_dt_pin(struct device_node *np,
 		struct regulator *supply;
 		char *supply_name;
 
+		ret = of_property_read_u32_with_suffix(np,
+				propname, "-value", &pin->value);
+		if (unlikely(ret))
+			pin->value = 0;
+
 		len = strlen(propname) + strlen("-supply") + 1;
 		supply_name = kmalloc(sizeof(char) * len, GFP_KERNEL);
 		if (unlikely(!supply_name))
@@ -221,7 +227,7 @@ static int mmp_dsi_panel_parse_dt_pin(struct device_node *np,
 			kfree(supply_name);
 			return -EINVAL;
 		}
-		supply = regulator_get(NULL, node->name);
+		supply = regulator_get(dev, node->name);
 		if (IS_ERR_OR_NULL(supply)) {
 			pr_err("%s regulator(%s) get error!\n",
 					__func__, node->name);
@@ -321,7 +327,8 @@ err_find_node:
 }
 
 static int mmp_dsi_panel_parse_external_pins(
-		struct device_node *pin_node, struct panel_plat_data *plat_data)
+		struct device_node *pin_node, struct device *dev,
+		struct panel_plat_data *plat_data)
 {
 	struct device_node *np = NULL;
 	struct ext_pin *pins;
@@ -363,7 +370,7 @@ static int mmp_dsi_panel_parse_external_pins(
 		return -ENOMEM;
 
 	for_each_child_of_node(pin_node, np) {
-		ret = mmp_dsi_panel_parse_dt_pin(np,
+		ret = mmp_dsi_panel_parse_dt_pin(np, dev,
 				pin_node->name, &pins[i++]);
 		if (unlikely(ret < 0)) {
 			pr_err("%s: failed to parse %s node\n",
@@ -483,6 +490,11 @@ static int mmp_dsi_panel_ext_pin_ctrl(struct mmp_panel *panel,
 						pin->name);
 				return -EINVAL;
 			}
+
+			if (pin->value)
+				regulator_set_voltage(pin->supply, pin->value,
+						pin->value);
+
 			rc = regulator_enable(pin->supply);
 			if (unlikely(rc)) {
 				dev_err(panel->dev, "regulator(%s) enable failed\n",
@@ -833,7 +845,8 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "not found pin_node!\n");
 			return -EINVAL;
 		}
-		ret = mmp_dsi_panel_parse_external_pins(pin_node, plat_data);
+		ret = mmp_dsi_panel_parse_external_pins(pin_node, &pdev->dev,
+				plat_data);
 		if (unlikely(ret)) {
 			dev_err(&pdev->dev, "failed to parse pin_node\n");
 			return -EINVAL;
