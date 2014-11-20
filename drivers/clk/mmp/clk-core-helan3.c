@@ -87,6 +87,9 @@ struct clk_axi {
 #define DCIU_CPU_CONF_SRAM_1(c, i)	\
 	DCIU_REG(c->params->dciu_base, (0x18 + 0x40 * (i)))
 
+#define CIU_REG(ciu_base, x)	(ciu_base + (x))
+#define CIU_TOP_MEM_XTC(c)	CIU_REG(c->params->ciu_base, 0x0044)
+
 static DEFINE_SPINLOCK(fc_seq_lock);
 static struct task_struct *fc_seqlock_owner;
 static int fc_seqlock_cnt;
@@ -827,7 +830,7 @@ static void __init __init_cpu_rtcwtc(struct clk_hw *hw, struct cpu_opt *cpu_opt)
 		cpu_opt->l1_xtc_addr = DCIU_CPU_CONF_SRAM_0(core, 1);
 		cpu_opt->l2_xtc_addr = DCIU_CPU_CONF_SRAM_1(core, 1);
 	}
-};
+}
 
 #ifdef CONFIG_CPU_FREQ
 static void __init_cpufreq_table(struct clk_hw *hw)
@@ -924,7 +927,7 @@ static bool __is_cpu_op_invalid(struct clk_core *core, struct cpu_opt *cop)
 				return true;
 	}
 	return false;
-};
+}
 
 static void __init_fc_setting(void *apmu_base)
 {
@@ -1770,6 +1773,10 @@ static void axi_fc_seq(struct clk_axi *axi, struct axi_opt *cop,
 	if (!needchg)
 		return;
 
+	/* update rtc/wtc if neccessary, PP low -> high */
+	if ((cop->aclk < top->aclk) && (top->xtc_val != cop->xtc_val))
+		writel(top->xtc_val, top->xtc_addr);
+
 	trace_pxa_axi_clk_chg(CLK_CHG_ENTRY, cop->aclk, top->aclk);
 
 	pre_fc(apmu_base);
@@ -1777,6 +1784,10 @@ static void axi_fc_seq(struct clk_axi *axi, struct axi_opt *cop,
 	trigger_axi_fc(axi, top);
 
 	trace_pxa_axi_clk_chg(CLK_CHG_EXIT, cop->aclk, top->aclk);
+
+	/*  update rtc/wtc if neccessary, high -> low */
+	if ((cop->aclk > top->aclk) && (top->xtc_val != cop->xtc_val))
+		writel(top->xtc_val, top->xtc_addr);
 }
 
 static inline void get_axi_srcdiv(struct clk_axi *axi,
@@ -1907,6 +1918,27 @@ out:
 	return ret;
 }
 
+static void __init __init_axi_rtcwtc(struct clk_hw *hw, struct axi_opt *axi_opt)
+{
+	unsigned int size, index;
+	struct clk_axi *axi = to_clk_axi(hw);
+	struct axi_rtcwtc *axi_rtcwtc_table = axi->params->axi_rtcwtc_table;
+	size = axi->params->axi_rtcwtc_table_size;
+
+	if (!axi_rtcwtc_table || !size)
+		return;
+
+	for (index = 0; index < size; index++)
+		if (axi_opt->aclk <= axi_rtcwtc_table[index].max_aclk)
+			break;
+
+	if (index == size)
+		index = size - 1;
+
+	axi_opt->xtc_val = axi_rtcwtc_table[index].xtc_val;
+	axi_opt->xtc_addr = CIU_TOP_MEM_XTC(axi);
+}
+
 static void clk_axi_init(struct clk_hw *hw)
 {
 	struct clk *parent, *clk;
@@ -1938,6 +1970,8 @@ static void clk_axi_init(struct clk_hw *hw)
 		parent = hwsel2parent(parent_table, parent_table_size,
 				      cop->axi_clk_sel);
 		BUG_ON(IS_ERR(parent));
+		/* fill the opt related setting */
+		__init_axi_rtcwtc(hw, cop);
 		cop->axi_parent = parent;
 		cop->axi_clk_src = clk_get_rate(parent) / MHZ;
 		cop->aclk_div = cop->axi_clk_src / cop->aclk - 1;
@@ -1953,6 +1987,10 @@ static void clk_axi_init(struct clk_hw *hw)
 	if ((cur_op.axi_clk_src != cur_axi_op->axi_clk_src) ||
 	    (cur_op.aclk != cur_axi_op->aclk))
 		WARN_ON("Boot AXI PP is not supported!");
+
+	/* config the wtc/rtc value according to current frequency */
+	if (cur_axi_op->xtc_val)
+		writel(cur_axi_op->xtc_val, cur_axi_op->xtc_addr);
 
 	if (axi->params->dcstat_support) {
 		idx = 0;

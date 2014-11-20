@@ -1550,6 +1550,7 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 
 	axi_params.apmu_base = pxa_unit->apmu_base;
 	axi_params.mpmu_base = pxa_unit->mpmu_base;
+	axi_params.ciu_base = pxa_unit->ciu_base;
 	axi_params.axi_opt = axi_op_array;
 	axi_params.axi_opt_size = ARRAY_SIZE(axi_op_array);
 

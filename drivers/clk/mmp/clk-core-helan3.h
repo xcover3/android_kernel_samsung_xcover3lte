@@ -126,6 +126,13 @@ int register_slave_clock(struct clk *sclk, int mclk_type,
 			 unsigned long max_freq,
 			 struct combclk_relation *relation_tbl,
 			 unsigned int nr_relation_tbl);
+
+/* RTC/WTC table used for solution change rtc/wtc on the fly */
+struct axi_rtcwtc {
+	unsigned int max_aclk;	/* max rate could be used by this rtc/wtc */
+	unsigned int xtc_val;
+};
+
 /*
  * MMP AXI:
  */
@@ -135,15 +142,20 @@ struct axi_opt {
 	unsigned int axi_clk_src;	/* axi src rate */
 	struct clk *axi_parent;	/* axi clk parent node */
 	unsigned int aclk_div;	/* axi clk divider */
+	unsigned int xtc_val;		/* RTC/WTC value */
+	void __iomem *xtc_addr;	/* RTC/WTC address */
 };
 
 struct axi_params {
 	void __iomem *apmu_base;
 	void __iomem *mpmu_base;
+	void __iomem *ciu_base;
 	struct parents_table *parent_table;
 	int parent_table_size;
 	struct axi_opt *axi_opt;
 	int axi_opt_size;
+	struct axi_rtcwtc *axi_rtcwtc_table;
+	int axi_rtcwtc_table_size;
 	/* dynamic dc stat support? */
 	bool dcstat_support;
 };
