@@ -77,6 +77,7 @@ struct ext_pin_ctrls {
 #endif
 
 struct panel_plat_data {
+	u32 id;
 	struct mmp_panel *panel;
 	struct mmp_mode mode;
 	struct mmp_dsi_cmds cmds;
@@ -92,6 +93,25 @@ struct panel_plat_data {
 	void (*plat_onoff)(int status);
 	void (*plat_set_backlight)(struct mmp_panel *panel, int level);
 };
+
+static unsigned long current_panel_id;
+
+static int __init early_read_panel_id(char *str)
+{
+	unsigned long id;
+	int ret = 0;
+
+	ret = kstrtoul(str, 0, &id);
+	if (ret < 0) {
+		pr_err("strtoul err.\n");
+		return ret;
+	}
+
+	current_panel_id = id;
+
+	return 1;
+}
+early_param("panel.id", early_read_panel_id);
 
 #ifdef CONFIG_OF
 static DEFINE_SPINLOCK(bl_lock);
@@ -809,79 +829,115 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 	int ret;
 	struct device_node *pin_node;
 	struct device_node *videomode_node;
+	u32 panel_num;
+	struct device_node *child_np;
+	int i = 0;
 
 	plat_data = kzalloc(sizeof(*plat_data), GFP_KERNEL);
 	if (!plat_data)
 		return -ENOMEM;
 
 	if (IS_ENABLED(CONFIG_OF)) {
-		ret = mmp_dsi_panel_parse_cmds(np, "marvell,dsi-panel-init-cmds",
-			&plat_data->cmds);
-		if (ret < 0)
-			return ret;
-
-		/* parse dt of video mode node */
-		videomode_node = of_find_node_by_name(np, "video_mode");
-		if (unlikely(!videomode_node)) {
-			dev_err(&pdev->dev, "not found videomode_node!\n");
-			return -EINVAL;
-		}
-		ret = mmp_dsi_panel_parse_video_mode(videomode_node, plat_data);
-		if (ret < 0) {
-			dev_err(&pdev->dev, "failed to parse video mode\n");
-			return ret;
-		}
-
 		ret = of_property_read_string(np, "marvell,path-name",
-				&path_name);
+			&path_name);
 		if (ret < 0)
 			return ret;
 
 		mmp_dsi_panel.plat_path_name = path_name;
 
-		/* parse dt of external pin node */
-		pin_node = of_find_node_by_name(np, "panel-ext-pin");
-		if (unlikely(!pin_node)) {
-			dev_err(&pdev->dev, "not found pin_node!\n");
+		if (of_property_read_u32(np, "marvell,dsi-panel-num",
+					&panel_num))
 			return -EINVAL;
-		}
-		ret = mmp_dsi_panel_parse_external_pins(pin_node, &pdev->dev,
-				plat_data);
-		if (unlikely(ret)) {
-			dev_err(&pdev->dev, "failed to parse pin_node\n");
-			return -EINVAL;
-		}
-		of_node_put(pin_node);
 
-		mmp_dsi_panel_parse_cmds(np, "marvell,dsi-panel-enable-cmds",
-			&plat_data->enable_cmds);
-		mmp_dsi_panel_parse_cmds(np, "marvell,dsi-panel-disable-cmds",
-			&plat_data->disable_cmds);
+		for_each_child_of_node(np, child_np) {
+			if (of_property_read_u32(child_np, "panel_id",
+						&plat_data->id))
+				return -EINVAL;
 
-		if (of_get_named_gpio(np, "bl_gpio", 0) < 0) {
-			mmp_dsi_panel_parse_cmds(np,
+			if (current_panel_id != plat_data->id) {
+				if (panel_num == ++i) {
+					pr_info("can't find suitable panel in dts\n");
+					return -EINVAL;
+				}
+				continue;
+			}
+
+			ret = mmp_dsi_panel_parse_cmds(child_np,
+					"marvell,dsi-panel-init-cmds",
+					&plat_data->cmds);
+			if (ret < 0)
+				return ret;
+
+			/* parse dt of video mode node */
+			videomode_node = of_find_node_by_name(child_np,
+					"video_mode");
+			if (unlikely(!videomode_node)) {
+				dev_err(&pdev->dev, "not found videomode_node!\n");
+				return -EINVAL;
+			}
+			ret = mmp_dsi_panel_parse_video_mode(videomode_node,
+					plat_data);
+			if (ret < 0) {
+				dev_err(&pdev->dev, "failed to parse video mode\n");
+				return ret;
+			}
+
+			/* parse dt of external pin node */
+			pin_node = of_find_node_by_name(child_np,
+					"panel-ext-pin");
+			if (unlikely(!pin_node)) {
+				dev_err(&pdev->dev, "not found pin_node!\n");
+				return -EINVAL;
+			}
+			ret = mmp_dsi_panel_parse_external_pins(pin_node,
+					&pdev->dev, plat_data);
+			if (unlikely(ret)) {
+				dev_err(&pdev->dev, "failed to parse pin_node\n");
+				return -EINVAL;
+			}
+			of_node_put(pin_node);
+
+			mmp_dsi_panel_parse_cmds(child_np,
+					"marvell,dsi-panel-enable-cmds",
+					&plat_data->enable_cmds);
+
+			mmp_dsi_panel_parse_cmds(child_np,
+					"marvell,dsi-panel-disable-cmds",
+					&plat_data->disable_cmds);
+
+			if (of_get_named_gpio(child_np, "bl_gpio", 0) < 0) {
+				mmp_dsi_panel_parse_cmds(child_np,
 					"marvell,dsi-panel-backlight-set-brightness-cmds",
 					&plat_data->brightness_cmds);
-			mmp_dsi_panel.set_brightness = mmp_dsi_panel_set_bl_panel;
-		} else
-			plat_data->plat_set_backlight = mmp_dsi_panel_set_bl_gpio;
+				mmp_dsi_panel.set_brightness =
+					mmp_dsi_panel_set_bl_panel;
+			} else
+				plat_data->plat_set_backlight =
+					mmp_dsi_panel_set_bl_gpio;
 
 #ifdef CONFIG_DDR_DEVFREQ
-		ret = of_property_read_u32(np, "marvell,ddrfreq-qos",
-				&mmp_dsi_panel.ddrfreq_qos);
-		if (ret < 0) {
-			mmp_dsi_panel.ddrfreq_qos = PM_QOS_DEFAULT_VALUE;
-			pr_debug("panel %s didn't has ddrfreq min request\n",
-				mmp_dsi_panel.name);
-		} else {
-			mmp_dsi_panel.ddrfreq_qos_req_min.name = "lcd";
-			pm_qos_add_request(&mmp_dsi_panel.ddrfreq_qos_req_min,
-					PM_QOS_DDR_DEVFREQ_MIN,
-					PM_QOS_DEFAULT_VALUE);
-			pr_debug("panel %s has ddrfreq min request: %u\n",
-				 mmp_dsi_panel.name, mmp_dsi_panel.ddrfreq_qos);
-		}
+			ret = of_property_read_u32(child_np,
+					"marvell,ddrfreq-qos",
+					&mmp_dsi_panel.ddrfreq_qos);
+			if (ret < 0) {
+				mmp_dsi_panel.ddrfreq_qos =
+					PM_QOS_DEFAULT_VALUE;
+				pr_debug("panel %s didn't has ddrfreq min ",
+						"request\n",
+						mmp_dsi_panel.name);
+			} else {
+				mmp_dsi_panel.ddrfreq_qos_req_min.name = "lcd";
+				pm_qos_add_request(
+					&mmp_dsi_panel.ddrfreq_qos_req_min,
+						PM_QOS_DDR_DEVFREQ_MIN,
+						PM_QOS_DEFAULT_VALUE);
+				pr_debug("panel %s has ddrfreq min request: %u\n",
+					 mmp_dsi_panel.name,
+					 mmp_dsi_panel.ddrfreq_qos);
+			}
 #endif
+			break;
+		}
 	} else {
 		/* get configs from platform data */
 		mi = pdev->dev.platform_data;
