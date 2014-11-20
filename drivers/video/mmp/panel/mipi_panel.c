@@ -994,6 +994,19 @@ static int mmp_dsi_panel_remove(struct platform_device *dev)
 	return 0;
 }
 
+static int mmp_dsi_panel_shutdown(struct platform_device *dev)
+{
+#ifdef CONFIG_DDR_DEVFREQ
+	if (mmp_dsi_panel.ddrfreq_qos != PM_QOS_DEFAULT_VALUE)
+		pm_qos_remove_request(&mmp_dsi_panel.ddrfreq_qos_req_min);
+#endif
+	mmp_dsi_panel_set_status(&mmp_dsi_panel, 0);
+	mmp_unregister_panel(&mmp_dsi_panel);
+	kfree(mmp_dsi_panel.plat_data);
+
+	return 0;
+}
+
 #ifdef CONFIG_OF
 static const struct of_device_id mmp_dsi_panel_dt_match[] = {
 	{ .compatible = "marvell,mmp-dsi-panel" },
@@ -1009,6 +1022,7 @@ static struct platform_driver mmp_dsi_panel_driver = {
 	},
 	.probe		= mmp_dsi_panel_probe,
 	.remove		= mmp_dsi_panel_remove,
+	.shutdown	= mmp_dsi_panel_shutdown,
 };
 
 static int mmp_dsi_panel_init(void)
