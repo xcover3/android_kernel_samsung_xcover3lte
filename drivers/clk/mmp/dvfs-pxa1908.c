@@ -65,6 +65,7 @@ static unsigned int uimanupara_63_32;
 static unsigned int uimanupara_95_64;
 static unsigned int uiblock0_rsv1;
 static unsigned int uiblock7_rsv2;
+static unsigned int uiblock7_rsv5;
 
 static unsigned int uiprofilefuses;
 static unsigned int uisvcver;
@@ -72,6 +73,7 @@ static unsigned int uiprofile;
 static unsigned int uisvtdro;
 static unsigned int uilvtdro;
 static unsigned int uisidd1p05;
+static unsigned int uisidd1p30;
 static struct comm_fuse_info fuseinfo;
 
 struct svtrng {
@@ -132,6 +134,7 @@ struct fuse_info {
 	u32 arg2;
 	u32 arg3;
 	u32 arg4;
+	u32 arg5;
 };
 
 static int __init __init_read_droinfo(void)
@@ -144,6 +147,7 @@ static int __init __init_read_droinfo(void)
 	unsigned int uix = 0;
 	unsigned int uiy = 0;
 	unsigned int uiparity = 0;
+	unsigned int uifusever = 0;
 
 	smc_get_fuse_info(0xD0002000, (void *)&arg);
 
@@ -152,9 +156,10 @@ static int __init __init_read_droinfo(void)
 	uimanupara_95_64 = arg.arg2;
 	uiblock0_rsv1 = arg.arg3;
 	uiblock7_rsv2 = arg.arg4;
-	pr_info("FUSE %x %x %x %x %x\n",
+	uiblock7_rsv5 = arg.arg5;
+	pr_info("FUSE %x %x %x %x %x %x\n",
 		uimanupara_31_00, uimanupara_63_32, uimanupara_95_64,
-		uiblock0_rsv1, uiblock7_rsv2);
+		uiblock0_rsv1, uiblock7_rsv2, uiblock7_rsv5);
 
 	uiallocrev	= uimanupara_31_00 & 0x7;
 	uifab		= (uimanupara_31_00 >>  3) & 0x1f;
@@ -164,9 +169,17 @@ static int __init __init_read_droinfo(void)
 	uix		= (uimanupara_63_32 >>  7) & 0xff;
 	uiy		= (uimanupara_63_32 >> 15) & 0xff;
 	uiparity	= (uimanupara_63_32 >> 23) & 0x1;
+
+	uifusever = (uiblock0_rsv1 >> 6) & 0x3;
+	if (1 == uifusever) {
+		uisvtdro = ((uimanupara_95_64 & 0x3) << 8) | ((uimanupara_63_32 >> 24) & 0xff);
+		uisidd1p05 = (uiblock7_rsv5 >> 9) & 0x3ff;
+	} else {
+		uisvtdro = (uiblock7_rsv2 >> 22) & 0x3ff;
+		uisidd1p05 =  (uiblock7_rsv2 >>  8) & 0x3ff;
+		uisidd1p30 =  (uiblock7_rsv5 >>  9) & 0x3ff;
+	}
 	uilvtdro = (uimanupara_95_64 >>  4) & 0x3ff;
-	uisvtdro = (uiblock7_rsv2 >> 22) & 0x3ff;
-	uisidd1p05 =  (uiblock7_rsv2 >>  8) & 0x3ff;
 	/* bit 240 ~ 255 for Profile information */
 
 	uisvcver =  (uiblock0_rsv1 >> 13) & 0x7;
@@ -182,6 +195,7 @@ static int __init __init_read_droinfo(void)
 
 	fuseinfo.profile = uiprofile;
 	fuseinfo.iddq_1050 = uisidd1p05;
+	fuseinfo.iddq_1030 = uisidd1p30;
 	plat_fill_fuseinfo(&fuseinfo);
 
 	pr_info(" ");
