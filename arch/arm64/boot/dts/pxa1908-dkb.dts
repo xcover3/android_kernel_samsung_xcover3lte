@@ -1324,6 +1324,8 @@
 			OV5642: sensor@0 {
 				compatible = "ovt,ov5642";
 				sensor-name = "ovt,ov5642";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
 				reg = <0x3c>;
 				adapter = <0x1>;
 				status = "okay";
@@ -1344,6 +1346,8 @@
 			OV13850: sensor@1 {
 				compatible = "ovt,ov13850";
 				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
 				reg = <0x10>;
 				sc2-i2c-dyn-ctrl;
 				adapter = <0x1>;
@@ -1362,6 +1366,8 @@
 			SR544: sensor@2 {
 				compatible = "samsung,sr544";
 				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
 				reg = <0x28>;
 				sc2-i2c-dyn-ctrl;
 				adapter = <0x1>;
@@ -1380,6 +1386,8 @@
 			imx219: sensor@3 {
 				compatible = "sony,imx219";
 				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
 				reg = <0x1A>;
 				sc2-i2c-dyn-ctrl;
 				adapter = <0x1>;

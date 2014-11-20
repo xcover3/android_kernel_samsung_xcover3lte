@@ -367,12 +367,11 @@
 				   mclk-div = <13>;
 				   interrupts = <0 42 0x4>;
 				   ahb_enable = <1>;
-				   clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_PHY4LN_CLK_EN>,
+				   clocks =	<&soc_clocks PXA1U88_CLK_SC2_PHY4LN_CLK_EN>,
 							<&soc_clocks PXA1U88_CLK_SC2_CSI_CLK>,
 							<&soc_clocks PXA1U88_CLK_SC2_4X_CLK>,
 							<&soc_clocks PXA1U88_CLK_SC2_AHB_CLK>;
-				   clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
+				   clock-names =  "SC2DPHYCLK", "SC2CSICLK",
 					   "SC24XCLK", "SC2AHBCLK";
 				   status = "disable";
 			};
@@ -386,12 +385,11 @@
 				   mclk-div = <13>;
 				   interrupts = <0 77 0x4>;
 				   ahb_enable = <1>;
-				   clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>,
-							<&soc_clocks PXA1U88_CLK_SC2_PHY2LN_CLK_EN>,
+				   clocks = 	<&soc_clocks PXA1U88_CLK_SC2_PHY2LN_CLK_EN>,
 							<&soc_clocks PXA1U88_CLK_SC2_CSI_CLK>,
 							<&soc_clocks PXA1U88_CLK_SC2_4X_CLK>,
 							<&soc_clocks PXA1U88_CLK_SC2_AHB_CLK>;
-				   clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
+				   clock-names =  "SC2DPHYCLK", "SC2CSICLK",
 							"SC24XCLK", "SC2AHBCLK";
 				   status = "disable";
 			};
@@ -925,16 +923,18 @@
 
 	mcam0: mcam@0 {
 		compatible = "marvell,mv_sc2_camera";
-		clocks = <&soc_clocks PXA1U88_CLK_SC2_AXI_CLK>;
-		clock-names = "SC2AXICLK";
+		clocks = <&soc_clocks PXA1U88_CLK_SC2_AXI_CLK>,
+				<&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+		clock-names = "SC2AXICLK", "SC2MCLK";
 		status = "disabled";
 		reg = <0x0 0x0>;
 	};
 
 	mcam1: mcam@1 {
 		compatible = "marvell,mv_sc2_camera";
-		clocks = <&soc_clocks PXA1U88_CLK_SC2_AXI_CLK>;
-		clock-names = "SC2AXICLK";
+		clocks = <&soc_clocks PXA1U88_CLK_SC2_AXI_CLK>,
+				<&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+		clock-names = "SC2AXICLK", "SC2MCLK";
 		status = "disabled";
 		reg = <0x1 0x0>;
 	};
