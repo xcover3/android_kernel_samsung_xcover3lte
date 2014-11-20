@@ -987,6 +987,7 @@ static int mmp_dsi_panel_remove(struct platform_device *dev)
 	if (mmp_dsi_panel.ddrfreq_qos != PM_QOS_DEFAULT_VALUE)
 		pm_qos_remove_request(&mmp_dsi_panel.ddrfreq_qos_req_min);
 #endif
+	mmp_dsi_panel_set_status(&mmp_dsi_panel, 0);
 	mmp_unregister_panel(&mmp_dsi_panel);
 	kfree(mmp_dsi_panel.plat_data);
 
