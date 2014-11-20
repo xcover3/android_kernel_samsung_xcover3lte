@@ -2533,6 +2533,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 	int num_planes = vnode->format.fmt.pix_mp.num_planes;
 	struct b52isp_paxi *paxi;
 	struct plat_pipeline ppl;
+	struct b52isp_lpipe *lpipe;
 
 	d_inf(3, "%s: handling the stream %d event from %s",
 		laxi->isd.subdev.name, stream, vnode->vdev.name);
@@ -2549,6 +2550,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 	if (WARN_ON(pipe == NULL))
 		return -ENODEV;
 	out_id = ret;
+	lpipe = pipe->drv_priv;
 
 	laxi->stream = stream;
 
@@ -2575,7 +2577,6 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		int mac_id, i, nr_out;
 		struct isp_videobuf *isp_vb;
 		struct isp_block *blk = isp_sd2blk(&laxi->isd);
-		struct b52isp_lpipe *lpipe = pipe->drv_priv;
 
 		paxi = container_of(blk, struct b52isp_paxi, blk);
 		mac_id = laxi->mac;
@@ -2866,7 +2867,7 @@ unlock:
 	}
 
 	if (ret < 0)
-		goto unmap_scalar;
+		goto disable_axi;
 
 	return ret;
 
@@ -2874,7 +2875,6 @@ stream_off:
 	/* stream off must happen before unmap LAXI and PAXI */
 	if (!laxi->stream) {
 		int mac_id;
-		struct b52isp_lpipe *lpipe = pipe->drv_priv;
 		struct isp_block *blk = isp_sd2blk(&laxi->isd);
 
 		if (blk == NULL)
@@ -2922,8 +2922,10 @@ stream_data_off:
 			break;
 		}
 
-		b52_enable_axi_port(laxi, laxi->stream, vnode);
+disable_axi:
+		b52_enable_axi_port(laxi, 0, vnode);
 
+		/* stream off sensor and csi */
 		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
 			(lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
@@ -2934,6 +2936,9 @@ stream_data_off:
 			v4l2_subdev_call(sd, video, s_stream, 0);
 			v4l2_subdev_call(csi_sd, video, s_stream, 0);
 		}
+
+		if (laxi->stream && ret < 0)
+			goto unmap_scalar;
 
 		switch (lpipe->cur_cmd->cmd_name) {
 		case CMD_IMG_CAPTURE:
@@ -2964,6 +2969,7 @@ stream_data_off:
 			}
 			break;
 		}
+
 	}
 
 unmap_scalar:
