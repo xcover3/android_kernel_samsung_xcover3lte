@@ -95,6 +95,10 @@
 #define PM860_VOL_SEL_4			0x67
 #define PM860_CLIP_BITS_REG1		0x68
 #define PM860_CLIP_BITS_REG2		0x69
+#define PM860_DRE_REG1			0x6a
+#define PM860_DRE_REG2			0x6b
+#define PM860_DRE_REG3			0x6c
+#define PM860_DRE_REG4			0x6d
 
 /* Advanced setting */
 #define PM860_ANALOG_BLOCK_EN		0x70
