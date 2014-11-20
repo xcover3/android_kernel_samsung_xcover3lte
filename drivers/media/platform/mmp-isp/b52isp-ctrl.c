@@ -720,8 +720,8 @@ static const int ev_bias_offset[] = {
 
 static int b52isp_ctrl_set_expo_bias(int idx, int id)
 {
-	u16 low_target;
-	u16 high_target;
+	int low_target;
+	int high_target;
 	int offset;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 
@@ -740,12 +740,8 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id)
 
 	/* (low_def[id]+ high_def[id])/2+(EV offset) */
 	low_target = ((low_def[id] + high_def[id]) >> 1) + offset;
+	low_target = clamp(low_target, 0, 0xFF);
 	high_target = low_target;
-
-	if (low_target & 0xFF00)
-		low_target = 0xFF;
-	if (high_target & 0xFF00)
-		high_target = 0xFF;
 
 	b52_writeb(base + REG_FW_AEC_TARGET_LOW, low_target);
 	b52_writeb(base + REG_FW_AEC_TARGET_HIGH, high_target);
