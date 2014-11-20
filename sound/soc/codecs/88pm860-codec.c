@@ -1270,9 +1270,27 @@ static int pm860_codec_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void pm860_codec_shutdown(struct platform_device *pdev)
+{
+	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct regmap *map = chip->regmap;
+
+	/* mute all the volume */
+	regmap_write(map, PM860_VOL_SEL_1, 0);
+	regmap_write(map, PM860_VOL_SEL_2, 0);
+	regmap_write(map, PM860_VOL_SEL_3, 0);
+	regmap_write(map, PM860_VOL_SEL_4, 0);
+
+	/* disable the codec */
+	regmap_write(map, PM860_MAIN_POWER_REG, 0);
+
+	return;
+}
+
 static struct platform_driver pm860_codec_driver = {
 	.probe		= pm860_codec_probe,
 	.remove		= pm860_codec_remove,
+	.shutdown	= pm860_codec_shutdown,
 	.driver		= {
 		.name	= "88pm860-codec",
 		.owner	= THIS_MODULE,
