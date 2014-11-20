@@ -704,18 +704,25 @@ static const s64 iso_qmenu[] = {
 	100, 200, 400, 800, 1600
 };
 
-/* Supported Exposure Bias values, -2.0EV...+2.0EV */
+/*
+ * Supported Exposure Bias values, -3.0EV...+3.0EV
+ * ev = ev_bias_qmenu[] / 2
+ */
+
 static const s64 ev_bias_qmenu[] = {
-	/* AE_INDEX: 0...8 */
-	-3, -2, -1, 0, 1, 2, 3
+	-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6
+};
+
+static const int ev_bias_offset[] = {
+	-0x36, -0x34, -0x32, -0x28, -0x1E, -0x0D, 0,
+	0x0C, 0x16, 0x20, 0x2A, 0x36, 0x3A
 };
 
 static int b52isp_ctrl_set_expo_bias(int idx, int id)
 {
 	u16 low_target;
 	u16 high_target;
-	u16 min_target_distance, adjacent_low_target;
-	s64 bias;
+	int offset;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 
 	/* get the blue print value */
@@ -729,25 +736,11 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id)
 			return -EINVAL;
 	}
 
-	bias = ev_bias_qmenu[idx];
+	offset = ev_bias_offset[idx];
 
-	/* power(2, bias)*(low_def[id]+ high_def[id])/2*/
-	if (bias > 0) {
-		low_target = (low_def[id] + high_def[id]) << (bias - 1);
-		high_target = low_target;
-	} else if (bias < 0) {
-		bias *= -1;
-		low_target = (low_def[id] + high_def[id]) >> (bias + 1);
-		adjacent_low_target = (low_def[id] + high_def[id]) >> bias;
-		min_target_distance = b52_readb(base + REG_FW_AEC_STABLE_RANGE0) +
-			b52_readb(base + REG_FW_AEC_STABLE_RANGE1) + 1;
-		if (low_target > adjacent_low_target - min_target_distance)
-			low_target = adjacent_low_target - min_target_distance;
-		high_target = low_target;
-	} else {
-		low_target = low_def[id];
-		high_target = high_def[id];
-	}
+	/* (low_def[id]+ high_def[id])/2+(EV offset) */
+	low_target = ((low_def[id] + high_def[id]) >> 1) + offset;
+	high_target = low_target;
 
 	if (low_target & 0xFF00)
 		low_target = 0xFF;
@@ -997,12 +990,8 @@ static int b52isp_ctrl_set_iso(struct b52isp_ctrls *ctrls, int id)
 		if (ret < 0)
 			return ret;
 
-		/*
-		 *the max gain should be a little bigger(e.g %20) than
-		 *the min gain for banding control tolerance.
-		 */
 		b52_writew(base + REG_FW_MIN_CAM_GAIN, gain);
-		b52_writew(base + REG_FW_MAX_CAM_GAIN, gain * 6 / 5);
+		b52_writew(base + REG_FW_MAX_CAM_GAIN, gain);
 
 		break;
 
