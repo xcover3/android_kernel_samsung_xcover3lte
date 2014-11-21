@@ -991,7 +991,7 @@ static void pm886_battery_correct_low_temp(struct pm886_battery_info *info,
 	/* offset are multipled by 10 times becasue the soc now is 1000% */
 	offset *= 10;
 
-	ccnt_val->soc *= times;
+	ccnt_val->soc = ccnt_val->real_soc * times;
 	ccnt_val->soc -= offset;
 }
 
