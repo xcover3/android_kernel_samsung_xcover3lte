@@ -78,6 +78,8 @@ extern int msendskb(int sock, struct sk_buff *skb, int len, int flags);
 extern struct sk_buff *mrecvskb(int sock, int len, int flags);
 extern void data_dump(const unsigned char *data, unsigned int len, int port,
 		      int direction);
+extern void msocket_recv_throttled(int sock);
+extern void msocket_recv_unthrottled(int sock);
 /* designed for future use, not used here */
 /*
  * extern void msched_work(struct work_struct *work);

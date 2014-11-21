@@ -390,6 +390,36 @@ static void cp_sync_worker(struct work_struct *work)
 	spin_unlock(&cp_sync_lock);
 }
 
+/* thottle portq receive by msocket */
+void msocket_recv_throttled(int sock)
+{
+	struct portq *portq;
+	portq = (struct portq *)portq_get(sock);
+	if (!portq) {
+		pr_err("MSOCK: %s: sock %d not opened!\n",
+		       __func__, sock);
+		return;
+	}
+
+	portq_recv_throttled(portq);
+}
+EXPORT_SYMBOL(msocket_recv_throttled);
+
+/* unthottle portq receive by msocket */
+void msocket_recv_unthrottled(int sock)
+{
+	struct portq *portq;
+	portq = (struct portq *)portq_get(sock);
+	if (!portq) {
+		pr_err("MSOCK: %s: sock %d not opened!\n",
+		       __func__, sock);
+		return;
+	}
+
+	portq_recv_unthrottled(portq);
+}
+EXPORT_SYMBOL(msocket_recv_unthrottled);
+
 /* start msocket sync */
 static void msocket_connect(enum portq_grp_type grp_type)
 {

@@ -170,4 +170,7 @@ static inline struct portq_group *portq_get_group(struct portq *portq)
 	return &portq_grp[portq->grp_type];
 }
 
+extern void portq_recv_throttled(struct portq *portq);
+extern void portq_recv_unthrottled(struct portq *portq);
+
 #endif /* _PORTQUEUE_H_ */

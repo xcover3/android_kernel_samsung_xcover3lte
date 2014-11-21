@@ -140,6 +140,47 @@ static inline bool portq_is_ap_xmit_throttled(struct portq *portq)
 		return false;
 }
 
+/* check whether need throttle port according receive buffer comsumed.
+ * receive buffer can be portq itself or external buffer list
+ * for callback mode
+ * */
+void portq_recv_throttled(struct portq *portq)
+{
+	struct portq_group *pgrp = portq_get_group(portq);
+	if (!portq_is_cp_xmit_throttled(portq)) {
+		spin_lock(&portq_ap_port_fc_lock);
+		portq_ap_port_fc |= (1 << portq->port);
+		pgrp->rbctl->skctl_va->ap_port_fc = portq_ap_port_fc;
+		portq->stat_fc_ap_throttle_cp++;
+		shm_notify_port_fc(pgrp->rbctl);
+		pr_warn(
+			   "MSOCK: port %d AP throttle CP!!!\n",
+			   portq->port);
+		spin_unlock(&portq_ap_port_fc_lock);
+	}
+}
+
+/* unthrottle port according receive buffer comsumed.
+ * receive buffer can be portq itself or external buffer list
+ * for callback mode
+ * */
+void portq_recv_unthrottled(struct portq *portq)
+{
+	struct portq_group *pgrp = portq_get_group(portq);
+	if (portq_is_synced(portq) &&
+	    portq_is_cp_xmit_throttled(portq)) {
+		unsigned long flags;
+		spin_lock_irqsave(&portq_ap_port_fc_lock, flags);
+		portq_ap_port_fc &= ~(1 << portq->port);
+		pgrp->rbctl->skctl_va->ap_port_fc = portq_ap_port_fc;
+		portq->stat_fc_ap_unthrottle_cp++;
+		shm_notify_port_fc(pgrp->rbctl);
+		pr_warn("MSOCK: port %d AP unthrottle CP!!!\n",
+		       portq->port);
+		spin_unlock_irqrestore(&portq_ap_port_fc_lock, flags);
+	}
+}
+
 void portq_packet_send_cb(struct shm_rbctl *rbctl)
 {
 	struct portq_group *pgrp = (struct portq_group *)rbctl->priv;
@@ -593,7 +634,6 @@ struct sk_buff *portq_recv(struct portq *portq, bool block)
 {
 	struct sk_buff *skb;
 	unsigned long flags;
-	struct portq_group *pgrp = portq_get_group(portq);
 
 	spin_lock_irqsave(&portq->lock, flags);
 
@@ -620,22 +660,8 @@ struct sk_buff *portq_recv(struct portq *portq, bool block)
 	skb = skb_dequeue(&portq->rx_q);
 	portq->stat_rx_got++;
 
-	if (skb &&
-	    portq_is_synced(portq) &&
-	    portq_is_cp_xmit_throttled(portq) &&
-	    portq_is_rx_below_lo_wm(portq)) {
-		unsigned long flags;
-
-		/* it is not necessarily to put lock before "if" */
-		spin_lock_irqsave(&portq_ap_port_fc_lock, flags);
-		portq_ap_port_fc &= ~(1 << portq->port);
-		pgrp->rbctl->skctl_va->ap_port_fc = portq_ap_port_fc;
-		portq->stat_fc_ap_unthrottle_cp++;
-		shm_notify_port_fc(pgrp->rbctl);
-		pr_warn("MSOCK: port %d AP unthrottle CP!!!\n",
-		       portq->port);
-		spin_unlock_irqrestore(&portq_ap_port_fc_lock, flags);
-	}
+	if (skb && portq_is_rx_below_lo_wm(portq))
+		portq_recv_unthrottled(portq);
 
 	/* release the lock */
 	spin_unlock_irqrestore(&portq->lock, flags);
@@ -751,11 +777,15 @@ void portq_broadcast_msg(enum portq_grp_type grp_type, int proc)
 		spin_lock(&portq->lock);
 
 		if (portq->recv_cb) {
+			void (*cb)(struct sk_buff *, void *);
+			cb = portq->recv_cb;
 			skb_pull(skb, sizeof(struct shm_skhdr));
-			portq->recv_cb(skb, portq->recv_arg);
 			portq->stat_rx_indicate++;
 			portq->stat_rx_got++;
 			spin_unlock(&portq->lock);
+			spin_unlock_irqrestore(&pgrp->list_lock, flags);
+			cb(skb, portq->recv_arg);
+			spin_lock_irqsave(&pgrp->list_lock, flags);
 			continue;
 		}
 
@@ -1135,12 +1165,14 @@ static void portq_rx_worker(struct work_struct *work)
 		spin_lock(&portq->lock);
 
 		if (portq->recv_cb) {
+			void (*cb)(struct sk_buff *, void *);
+			cb = portq->recv_cb;
 			skb_pull(skb, sizeof(struct shm_skhdr));
-			portq->recv_cb(skb, portq->recv_arg);
 			portq->stat_rx_indicate++;
 			portq->stat_rx_got++;
 			spin_unlock(&portq->lock);
 			spin_unlock_irq(&pgrp->list_lock);
+			cb(skb, portq->recv_arg);
 			continue;
 		}
 
@@ -1150,19 +1182,8 @@ static void portq_rx_worker(struct work_struct *work)
 			portq->stat_rx_queue_max = skb_queue_len(&portq->rx_q);
 
 		/* process port flow control */
-		if (!portq_is_cp_xmit_throttled(portq)
-		    && portq_is_rx_above_hi_wm(portq)) {
-			/* it is not necessarily to put lock before "if" */
-			spin_lock(&portq_ap_port_fc_lock);
-			portq_ap_port_fc |= (1 << portq->port);
-			rbctl->skctl_va->ap_port_fc = portq_ap_port_fc;
-			portq->stat_fc_ap_throttle_cp++;
-			shm_notify_port_fc(rbctl);
-			pr_warn(
-			       "MSOCK: port %d AP throttle CP!!!\n",
-			       portq->port);
-			spin_unlock(&portq_ap_port_fc_lock);
-		}
+		if (portq_is_rx_above_hi_wm(portq))
+			portq_recv_throttled(portq);
 
 		/* notify upper layer that packet available */
 		if (portq->status & PORTQ_STATUS_RECV_EMPTY) {
