@@ -2606,6 +2606,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 		.data = &b52_sr544,
 	},
 #endif
+#ifdef CONFIG_B52_CAMERA_HI551
+	{
+		.compatible = "hynix,hi551",
+		.data = &b52_hi551,
+	},
+#endif
 	{  }
 };
 
