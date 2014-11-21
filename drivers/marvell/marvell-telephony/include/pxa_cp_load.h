@@ -52,6 +52,7 @@ extern void cp_holdcp(void);
 extern bool cp_get_status(void);
 
 extern uint32_t arbel_bin_phys_addr;
+extern uint32_t seagull_remap_smc_funcid;
 
 extern void (*watchdog_count_stop_fp)(void);
 
@@ -64,16 +65,14 @@ extern void release_fc_mutex(void);
 int cp_invoke_smc(u64 function_id, u64 arg0, u64 arg1,
 	u64 arg2);
 
-#define SMC_FUNC_SEAGULL_REMAP 0xD0002001
-
 static inline int cp_set_seagull_remap_reg(u64 val)
 {
 	int ret;
 
-	ret = cp_invoke_smc(SMC_FUNC_SEAGULL_REMAP, val, 0, 0);
+	ret = cp_invoke_smc(seagull_remap_smc_funcid, val, 0, 0);
 
 	pr_info("%s: function_id: 0x%llx, arg0: 0x%llx, ret 0x%x\n",
-		__func__, (u64)SMC_FUNC_SEAGULL_REMAP, val, ret);
+		__func__, (u64)seagull_remap_smc_funcid, val, ret);
 
 	return ret;
 }

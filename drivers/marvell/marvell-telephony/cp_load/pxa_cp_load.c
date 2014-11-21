@@ -52,6 +52,8 @@ uint32_t reliable_bin_phys_addr;
 static void *arbel_bin_virt_addr;
 static void *reliable_bin_virt_addr;
 
+uint32_t seagull_remap_smc_funcid;
+
 int cp_set_ops(void)
 {
 	int ret = 0;
@@ -412,6 +414,14 @@ static int cp_load_probe(struct platform_device *pdev)
 		pr_err("%s: failed to read lpm-qos\n", __func__);
 		goto err6;
 	}
+
+	if (of_property_read_u32(pdev->dev.of_node, "remap-smc-funcid",
+					&seagull_remap_smc_funcid)) {
+		/* not all the platform support this field */
+		pr_warn("%s: failed to read remap-smc-funcid\n", __func__);
+	} else
+		pr_info("%s: seagull_remap_smc_funcid is set to 0x%08x",
+			__func__, seagull_remap_smc_funcid);
 
 	if (cp_set_ops())
 		goto err6;
