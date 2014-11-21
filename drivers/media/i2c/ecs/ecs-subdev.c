@@ -493,16 +493,6 @@ static int xsd_init(struct v4l2_subdev *sd, u32 val)
 	return v4l2_ctrl_handler_setup(&xsd->ctrl_handler);
 }
 
-static int xsd_g_chip_ident(struct v4l2_subdev *sd,
-				   struct v4l2_dbg_chip_ident *id)
-{
-	struct x_subdev *xsd = to_xsd(sd);
-
-	id->ident = xsd->model;
-	id->revision = 0;
-	return 0;
-}
-
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 static int xsd_g_register(struct v4l2_subdev *sd,
 				 struct v4l2_dbg_register *reg)
@@ -548,7 +538,6 @@ static int ecs_g_mbus_config(struct v4l2_subdev *sd,
 
 static struct v4l2_subdev_core_ops xsd_core_ops = {
 	.init			= xsd_init,
-	.g_chip_ident		= xsd_g_chip_ident,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register		= xsd_g_register,
 	.s_register		= xsd_s_register,
