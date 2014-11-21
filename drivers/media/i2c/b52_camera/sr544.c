@@ -159,7 +159,6 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	char *paddr = NULL;
 	unsigned int sum;
 	ushort bank_addr;
-	int ret = 0;
 	ushort bank_map[3] = {BANK1_BASE, BANK2_BASE, BANK2_BASE};
 	ushort bank_base =  bank_map[0];
 	char *bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
@@ -201,8 +200,7 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			| (bank_grp1[GROUP1_SUM_OFFSET+2] << 8)
 			| (bank_grp1[GROUP1_SUM_OFFSET+3] << 0);
 		paddr = otp->user_otp->module_data;
-		ret = copy_to_user(paddr, &bank_grp1[GROUP1_ID_OFFSET], len);
-		if (ret != len)
+		if (copy_to_user(paddr, &bank_grp1[GROUP1_ID_OFFSET], len))
 			return -1;
 	}
 	len = otp->user_otp->vcm_otp_len;
@@ -219,19 +217,19 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			| (bank_grp2[GROUP2_SUM_OFFSET+3] << 0);
 		if (len > 0) {
 			paddr = (char *)otp->user_otp->otp_data + tmp_len;
-			ret = copy_to_user(paddr,
+			if (copy_to_user(paddr,
 					&bank_grp2[GROUP2_AF_OFFSET],
-					len);
-			if (ret != len)
-				return -1;
+					len))
+				return 1;
 			tmp_len += len;
 		}
 		len = otp->user_otp->wb_otp_len/2;
 		if (len > 0) {
 			paddr = (char *) otp->user_otp->otp_data + tmp_len;
-			ret = copy_to_user(paddr,
-					&bank_grp2[GROUP2_GOLDEN_OFFSET], len);
-				tmp_len += len;
+			if (copy_to_user(paddr,
+					&bank_grp2[GROUP2_GOLDEN_OFFSET], len))
+				return -1;
+			tmp_len += len;
 		}
 	}
 	len = otp->user_otp->wb_otp_len/2;
@@ -247,9 +245,8 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			| (bank_grp3[GROUP3_SUM_OFFSET+2] << 8)
 			| (bank_grp3[GROUP3_SUM_OFFSET+3] << 0);
 		paddr = (char *)otp->user_otp->otp_data + tmp_len;
-		ret = copy_to_user(paddr,
-					&bank_grp3[GROUP3_CURRENT_OFFSET], len);
-		if (ret != len)
+		if (copy_to_user(paddr,
+					&bank_grp3[GROUP3_CURRENT_OFFSET], len))
 			return -1;
 		tmp_len += len;
 	}
@@ -266,8 +263,7 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			| (bank_grp4[GROUP4_SUM_OFFSET+2] << 8)
 			| (bank_grp4[GROUP4_SUM_OFFSET+3] << 0);
 		paddr = (char *)(otp->user_otp->otp_data + tmp_len);
-		ret = copy_to_user(paddr, &bank_grp4[GROUP4_LSC_OFFSET], len);
-		if (ret != len)
+		if (copy_to_user(paddr, &bank_grp4[GROUP4_LSC_OFFSET], len))
 			return -1;
 	}
 	SR544_write_reg(sd, 0x0118,  0x00);
