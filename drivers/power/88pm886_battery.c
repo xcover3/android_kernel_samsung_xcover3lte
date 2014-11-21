@@ -77,6 +77,8 @@
 #define LOW_BAT_INTERVAL		(HZ * 5)
 #define LOW_BAT_CAP			(15)
 
+#define ROUND_SOC(_x)			(((_x) + 5) / 10 * 10)
+
 /* this flag is used to decide whether the ocv_flag needs update */
 static atomic_t in_resume = ATOMIC_INIT(0);
 
@@ -899,7 +901,7 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 
 	/* 3. clap battery SoC for sanity check */
 	if (ccnt_val->last_cc > ccnt_val->max_cc) {
-		ccnt_val->soc = 100;
+		ccnt_val->soc = 1000;
 		ccnt_val->last_cc = ccnt_val->max_cc;
 	}
 	if (ccnt_val->last_cc < 0) {
@@ -909,7 +911,7 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 
 	/* keep updating the last_cc */
 	if (!ccnt_val->bypass_cc)
-		ccnt_val->soc = ccnt_val->last_cc * 100 / ccnt_val->max_cc;
+		ccnt_val->soc = ccnt_val->last_cc * 100 / (ccnt_val->max_cc / 10);
 	else
 		dev_info(info->dev, "%s: CC is bypassed.\n", __func__);
 
@@ -918,14 +920,14 @@ static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
 		 __func__, ccnt_val->soc, ccnt_val->last_cc);
 
 	if (ccnt_val->real_last_cc > ccnt_val->max_cc) {
-		ccnt_val->real_soc = 100;
+		ccnt_val->real_soc = 1000;
 		ccnt_val->real_last_cc = ccnt_val->max_cc;
 	}
 	if (ccnt_val->real_last_cc < 0) {
 		ccnt_val->real_soc = 0;
 		ccnt_val->real_last_cc = 0;
 	}
-	ccnt_val->real_soc = ccnt_val->real_last_cc * 100 / ccnt_val->max_cc;
+	ccnt_val->real_soc = ccnt_val->real_last_cc * 100 / (ccnt_val->max_cc / 10);
 
 	dev_dbg(info->dev,
 		 "%s<-- ccnt_val->real_soc: %d%%, new->real_last_cc: %d mC\n",
@@ -977,6 +979,9 @@ static void pm886_battery_correct_low_temp(struct pm886_battery_info *info,
 		}
 	}
 
+	/* offset are multipled by 10 times becasue the soc now is 1000% */
+	offset *= 10;
+
 	ccnt_val->soc *= times;
 	ccnt_val->soc -= offset;
 }
@@ -1007,7 +1012,8 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 			__func__, ccnt_val->soc);
 
 		/* the column counter has reached 100% here, clamp it to 99% */
-		ccnt_val->soc = (ccnt_val->soc >= 100) ? 99 : ccnt_val->soc;
+		ccnt_val->soc = (ccnt_val->soc >= 1000) ? 990 : ccnt_val->soc;
+
 		/*
 		 * in supplement mode, if the load is so heavy that
 		 * it exceeds the charger's capability to power the system, the
@@ -1037,16 +1043,16 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		dev_dbg(info->dev, "%s: before: full-->capacity: %d\n",
 			__func__, ccnt_val->soc);
 
-		if (ccnt_val->soc < 100) {
+		if (ccnt_val->soc < 1000) {
 			dev_info(info->dev,
-				 "%s: %d: capacity %d%% < 100%%, ramp up..\n",
+				 "%s: %d: capacity %d%% < 1000%%, ramp up..\n",
 				 __func__, __LINE__, ccnt_val->soc);
-			ccnt_val->soc++;
+			ccnt_val->soc += 10;
 			info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
 		}
 
-		if (ccnt_val->soc >= 100) {
-			ccnt_val->soc = 100;
+		if (ccnt_val->soc >= 1000) {
+			ccnt_val->soc = 1000;
 			info->bat_params.status = POWER_SUPPLY_STATUS_FULL;
 		}
 		dev_dbg(info->dev, "%s: after: full-->capacity: %d%%\n",
@@ -1083,16 +1089,16 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		if (is_extreme_low) {
 			dev_info(info->dev, "%s: extreme_low : voltage = %d\n",
 				 __func__, info->bat_params.volt);
-			if (ccnt_val->soc >= 1)
-				ccnt_val->soc--;
+			if (ccnt_val->soc >= 10)
+				ccnt_val->soc -= 10;
 		} else {
 			if (info->bat_params.volt <= info->power_off_th) {
 				if (power_off_cnt > 100) {
 					power_off_cnt = 0;
 					if (ccnt_val->soc > 0)
-						ccnt_val->soc--;
+						ccnt_val->soc -= 10;
 					else if (ccnt_val->soc == 0)
-						ccnt_val->soc = 1;
+						ccnt_val->soc = 10;
 				} else {
 					dev_info(info->dev, "hit power off!\n");
 					power_off_cnt++;
@@ -1128,28 +1134,29 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 	if (old_soc != ccnt_val->soc) {
 		dev_info(info->dev, "%s: needs update: %d%% -> %d%%\n",
 			 __func__, old_soc, ccnt_val->soc);
-		ccnt_val->last_cc =
-			(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
+		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc + 5);
 	}
 
 	/* corner case: we need 1% step */
-	if (likely(abs(ccnt_val->previous_soc - ccnt_val->soc) <= 1)) {
+	if (likely(abs(ccnt_val->previous_soc - ccnt_val->soc) <= 10)) {
 		dev_dbg(info->dev,
 			"%s: the step is fine: previous = %d%%, soc = %d%%\n",
 			__func__, ccnt_val->previous_soc, ccnt_val->soc);
 	} else {
-		if (ccnt_val->previous_soc - ccnt_val->soc > 1) {
-			ccnt_val->soc = ccnt_val->previous_soc - 1;
+		if (ccnt_val->previous_soc - ccnt_val->soc > 10) {
+			ccnt_val->soc = ccnt_val->previous_soc - 10;
 			dev_info(info->dev,
 				 "%s: discharging too fast: previous = %d%%, soc = %d%%\n",
 				 __func__, ccnt_val->previous_soc, ccnt_val->soc);
 		} else {
-			ccnt_val->soc = ccnt_val->previous_soc + 1;
+			ccnt_val->soc = ccnt_val->previous_soc + 10;
 			dev_info(info->dev,
 				 "%s: charging too fast? previous = %d%%, soc = %d%%\n",
 				 __func__, ccnt_val->previous_soc, ccnt_val->soc);
 		}
 	}
+
+	ccnt_val->soc = ROUND_SOC(ccnt_val->soc);
 
 	ccnt_val->previous_soc = ccnt_val->soc;
 
@@ -1181,7 +1188,7 @@ static void pm886_bat_update_status(struct pm886_battery_info *info)
 
 	pm886_battery_calc_ccnt(info, &ccnt_data);
 	pm886_battery_correct_soc(info, &ccnt_data);
-	info->bat_params.soc = ccnt_data.soc;
+	info->bat_params.soc = ccnt_data.soc / 10;
 }
 
 static void pm886_battery_monitor_work(struct work_struct *work)
@@ -1217,7 +1224,7 @@ static void pm886_battery_monitor_work(struct work_struct *work)
 	}
 
 	/* save the recent value in non-volatile memory */
-	extern_data.soc = ccnt_data.soc;
+	extern_data.soc = ccnt_data.soc / 10;
 	extern_data.ocv_is_realiable = info->ocv_is_realiable;
 	extern_data.cycles = info->bat_params.cycle_nums;
 	pm886_battery_write_buffer(info, &extern_data);
@@ -1417,8 +1424,10 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 end:
 	/* update ccnt_data timely */
 	ccnt_val->soc = *initial_soc;
-	ccnt_val->last_cc =
-		(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
+
+	/* multiple 10 */
+	ccnt_val->soc *= 10;
+	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc + 5);
 
 	ccnt_val->real_soc = ccnt_val->soc;
 	ccnt_val->real_last_cc = ccnt_val->last_cc;
