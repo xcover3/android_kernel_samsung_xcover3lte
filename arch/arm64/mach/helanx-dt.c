@@ -242,6 +242,7 @@ static const char * const pxa1936_dt_board_compat[] __initconst = {
 
 DT_MACHINE_START(PXA1936_DT, "PXA1936")
 	.init_time      = helanx_timer_init,
+	.init_irq	= helanx_irq_init,
 	.init_machine   = helanx_init_machine,
 	.dt_compat      = pxa1936_dt_board_compat,
 MACHINE_END
