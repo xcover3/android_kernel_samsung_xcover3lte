@@ -267,7 +267,8 @@ static const int intc_wakeups[] = {
 	27,
 	28,
 	29,
-	30
+	30,
+	64
 };
 #define UNMASK_WAKE_VAL 0x51 /* CPU0, IRQ, PRIO=1 */
 static void __iomem *icu_init(void)
