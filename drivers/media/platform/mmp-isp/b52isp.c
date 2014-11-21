@@ -2655,6 +2655,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		case CMD_RAW_DUMP:
 		case CMD_CHG_FORMAT:
 		case CMD_SET_FORMAT:
+			lpipe->cur_cmd->nr_mac = paxi->parent->hw_desc->nr_axi;
 			lpipe->cur_cmd->output_map = ppl.dst_map;
 			if (vnode->buf_type ==
 				V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {

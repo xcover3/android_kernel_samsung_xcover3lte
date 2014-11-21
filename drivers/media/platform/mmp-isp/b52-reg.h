@@ -111,6 +111,7 @@ struct b52isp_cmd {
 	__u16			b_ratio_1;
 	__u16			b_ratio_2;
 	struct b52_adv_dns	adv_dns;
+	u8 nr_mac;
 	void *priv;
 };
 

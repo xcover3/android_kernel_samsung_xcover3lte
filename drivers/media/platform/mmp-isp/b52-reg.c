@@ -2568,6 +2568,12 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 			msleep(60);
 			b52_writeb(mac_base[0] + REG_MAC_RDY_ADDR0, 0);
 		}
+	} else {
+		int i;
+		for (i = 0; i < cmd->nr_mac; i++) {
+			b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
+			b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR1, 0);
+		}
 	}
 
 	if (!(flags & BIT(CMD_FLAG_MS)) &&
