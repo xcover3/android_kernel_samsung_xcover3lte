@@ -829,7 +829,7 @@
 			};
 
 			coresight: coresight@d4100000 {
-				status = "okay";
+				status = "disabled";
 			};
 
 			twsi0: i2c@d4011000 {
