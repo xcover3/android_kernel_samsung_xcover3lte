@@ -133,7 +133,7 @@ __maybe_unused int SR544_check_crc32(
 
 #define GROUP1_OFFSET 0
 #define GROUP2_OFFSET 0x60
-#define GROUP3_OFFSET 0xa0
+#define GROUP3_OFFSET 0xe0
 #define GROUP4_OFFSET 0x120
 
 #define GROUP1_LEN 0x60
