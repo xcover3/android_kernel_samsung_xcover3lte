@@ -63,6 +63,7 @@
 #define PM886_BST_VSET_MASK		(0x7 << PM886_BST_VSET_OFFSET)
 #define PM886_BST_UVVBAT_OFFSET	(0)
 #define PM886_BST_UVVBAT_MASK		(0x7 << PM886_BST_UVVBAT_OFFSET)
+#define PM886_BST_UVVBAT_EN_MASK	(0x1 << 3)
 #define PM886_BST_ILIM_DIS		(0x1 << 7)
 
 #define PM886_LED_ISET(x)		(((x) - 50) / 50)
@@ -546,6 +547,13 @@ static int pm886_setup(struct platform_device *pdev, struct pm886_led_pdata *pda
 			PM886_BST_UVVBAT_MASK, (pdata->bst_uvvbat_set << PM886_BST_UVVBAT_OFFSET));
 	if (ret)
 		return ret;
+	/* if A0, disable UVVBAT due to comparator faults in silicon */
+	if (chip->chip_id == PM886_A0) {
+		ret = regmap_update_bits(chip->battery_regmap, PM886_BST_CONFIG2,
+				PM886_BST_UVVBAT_EN_MASK, 0);
+		if (ret)
+			return ret;
+	}
 	/* set CFD_CLK_EN to enable */
 	ret = regmap_update_bits(chip->base_regmap, PM886_CLK_CTRL1,
 			PM886_CFD_CLK_EN, PM886_CFD_CLK_EN);
