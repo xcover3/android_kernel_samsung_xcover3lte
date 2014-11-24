@@ -50,6 +50,8 @@ struct isp_notifier {
 struct isp_vnode {
 	struct video_device	vdev;	/* has entity */
 	struct file		*file;
+	/* This lock protects the backend link of the media-entity in vdev */
+	struct mutex		link_lock;
 
 	/* buffer */
 	spinlock_t		vb_lock;

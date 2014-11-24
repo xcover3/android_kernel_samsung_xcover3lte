@@ -916,14 +916,22 @@ static void plat_close_vdev(struct isp_build *build)
 {
 	struct plat_cam *pcam = build->plat_priv;
 	struct plat_vnode *pvnode;
+	struct media_entity *ent;
 
 	list_for_each_entry(pvnode, &pcam->vnode_pool, hook) {
 		int ret;
+		unsigned long flags;
 		if (pvnode->vnode.file == NULL)
-			continue;
+			goto release_link;
 		ret = pvnode->vnode.vdev.fops->release(pvnode->vnode.file);
 		d_inf(1, "force release of vdev %s, ret %d",
 			pvnode->vnode.vdev.name, ret);
+release_link:
+		ent = &pvnode->vnode.vdev.entity;
+		flags = ent->links[0].flags & ~MEDIA_LNK_FL_ENABLED;
+		mutex_lock(&pvnode->vnode.link_lock);
+		media_entity_setup_link(&ent->links[0], flags);
+		mutex_unlock(&pvnode->vnode.link_lock);
 	}
 }
 

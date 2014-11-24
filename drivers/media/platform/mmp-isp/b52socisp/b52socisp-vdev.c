@@ -807,8 +807,10 @@ static int isp_vnode_close(struct file *file)
 	blocking_notifier_call_chain(&vnode->notifier.head,
 			VDEV_NOTIFY_CLOSE, vnode);
 	vnode->state = ISP_VNODE_ST_IDLE;
-exit:
+	/* OK, safe now, release graph lock */
+	mutex_unlock(&vnode->link_lock);
 	vnode->file = NULL;
+exit:
 	mutex_unlock(&vnode->st_lock);
 	return 0;
 }
@@ -816,7 +818,7 @@ exit:
 static int isp_vnode_open(struct file *file)
 {
 	struct isp_vnode *vnode = video_drvdata(file);
-	struct media_pad *pad = media_entity_remote_pad(&vnode->pad);
+	struct media_pad *pad;
 	struct v4l2_subdev *sd = NULL;
 	int ret = 0;
 
@@ -829,17 +831,25 @@ static int isp_vnode_open(struct file *file)
 	}
 
 	/*
+	 * Careful! In the following part we're doing something related to the
+	 * media link, so MUST hold the link lock, otherwize another process
+	 * may mess it up at our back.
+	 */
+	mutex_lock(&vnode->link_lock);
+
+	/*
 	 * For output vnode, find a pipeline for it,
 	 * but input vnode don't need one
 	 */
 	if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		goto vnode_init;
 
+	pad = media_entity_remote_pad(&vnode->pad);
 	/* If at least, one link is enabled, OK to open */
 	if (pad == NULL) {
 		d_inf(1, "vdev node not connected to any media entity");
 		ret = -EPIPE;
-		goto exit_err;
+		goto err_pipe;
 	}
 
 	sd = media_entity_to_v4l2_subdev(pad->entity);
@@ -849,11 +859,12 @@ static int isp_vnode_open(struct file *file)
 			goto err_sd;
 	}
 
-vnode_init:
 	ret = blocking_notifier_call_chain(&vnode->notifier.head,
 			VDEV_NOTIFY_OPEN, vnode);
 	if (ret < 0)
 		goto err_notify;
+
+vnode_init:
 	ret = isp_vnode_vb2_init(&vnode->vq, vnode);
 	if (ret < 0)
 		goto err_vb;
@@ -861,15 +872,23 @@ vnode_init:
 	vnode->format.type = vnode->buf_type;
 	vnode->state = ISP_VNODE_ST_LINK;
 	vnode->file = file;
+	ret = v4l2_ctrl_handler_setup(&vnode->ctrl_handler);
+	if (ret < 0)
+		goto err_handler;
 	mutex_unlock(&vnode->st_lock);
-	return v4l2_ctrl_handler_setup(&vnode->ctrl_handler);
+	return ret;
 
-err_notify:
+err_handler:
+	/* Nothing to do for VB2 de-init */
 err_vb:
-err_sd:
+	blocking_notifier_call_chain(&vnode->notifier.head,
+			VDEV_NOTIFY_CLOSE, vnode);
+err_notify:
 	if (sd)
 		v4l2_subdev_call(sd, core, init, 0);
-exit_err:
+err_sd:
+err_pipe:
+	mutex_unlock(&vnode->link_lock);
 	mutex_unlock(&vnode->st_lock);
 	return ret;
 }
@@ -935,6 +954,7 @@ int isp_vnode_add(struct isp_vnode *vnode, struct v4l2_device *vdev,
 	spin_lock_init(&vnode->vb_lock);
 	mutex_init(&vnode->vdev_lock);
 	mutex_init(&vnode->st_lock);
+	mutex_init(&vnode->link_lock);
 	INIT_LIST_HEAD(&vnode->idle_buf);
 	INIT_LIST_HEAD(&vnode->busy_buf);
 	vnode->idle_buf_cnt = vnode->busy_buf_cnt = 0;
