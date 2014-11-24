@@ -1124,6 +1124,7 @@ static struct cpu_opt clst0_op_array[] = {
 		.pclk = 1057,
 		.core_aclk = 528,
 		.ap_clk_sel = 0x2,
+		.ap_clk_src = 1057,
 	},
 	{
 		.pclk = 1248,
@@ -1190,16 +1191,19 @@ static struct cpu_opt clst1_op_array[] = {
 		.pclk = 1526,
 		.core_aclk = 763,
 		.ap_clk_sel = 0x3,
+		.ap_clk_src = 1526,
 	},
 	{
 		.pclk = 1595,
 		.core_aclk = 797,
 		.ap_clk_sel = 0x3,
+		.ap_clk_src = 1595,
 	},
 	{
 		.pclk = 1803,
 		.core_aclk = 901,
 		.ap_clk_sel = 0x3,
+		.ap_clk_src = 1803,
 	},
 };
 
@@ -1210,7 +1214,7 @@ static struct core_params clst1_core_params = {
 	.cpu_opt = clst1_op_array,
 	.cpu_opt_size = ARRAY_SIZE(clst1_op_array),
 	.bridge_cpurate = 1248,
-	.max_cpurate = 1526,
+	.max_cpurate = 1803,
 	.dcstat_support = false,
 };
 
