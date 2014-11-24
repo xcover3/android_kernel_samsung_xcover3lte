@@ -1663,6 +1663,16 @@ config SENSORS_LTR558_I2C
 	  Say Y here if you have a ltr558 and ltr553  device on the board and use I2C
 	  communication, else say N.
 
+config SENSOR_EPL2182
+	tristate "EPL 2182 proximity and ambient light sensor"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have a epl2182 device on the board and use I2C
+	  communication, else say N.
+
+	  To compile this driver as a module, choose M here.
+
 if ACPI
 
 comment "ACPI drivers"
