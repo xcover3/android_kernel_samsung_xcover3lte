@@ -127,15 +127,23 @@ static int icu_set_affinity(struct irq_data *d,
 {
 	struct icu_chip_data *data = &icu_data[0];
 	int hwirq = d->irq - data->virq_base;
-	u32 r, cpu;
+	u32 r, cpu, val;
 
 	if (irq_ignore_wakeup(data, hwirq))
 		return 0;
 
 	cpu = cpumask_first(mask_val);
+	if (cpu <= 3)
+		val = ICU_INT_CONF_AP(cpu);
+	else if ((cpu > 3) && (cpu <= 7))
+		val = ICU_INT_CONF_AP2(cpu);
+	else {
+		pr_err("Wrong CPU number: %d\n", cpu);
+		BUG_ON(1);
+	}
 	r = readl_relaxed(mmp_icu_base + (hwirq << 2));
 	r &= ~ICU_INT_CONF_AP_MASK;
-	r |= ICU_INT_CONF_AP(cpu);
+	r |= val;
 	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
 
 	return 0;
