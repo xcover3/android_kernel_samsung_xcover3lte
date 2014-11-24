@@ -470,7 +470,7 @@ static int pm886_led_dt_init(struct device_node *np,
 
 	ret = of_property_read_u32(np, "max-torch-current", &pdata->max_torch_current);
 	if (ret) {
-		pdata->max_flash_current = PM886_MAX_SAFE_TORCH_CURRENT;
+		pdata->max_torch_current = PM886_MAX_SAFE_TORCH_CURRENT;
 		dev_err(dev,
 			"max-torch-current is not define in DTS, using default value\n");
 	}
