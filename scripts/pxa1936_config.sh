@@ -7,7 +7,6 @@
 ./scripts/config -d CONFIG_CPU_IDLE_MMP_V8
 ./scripts/config -d CONFIG_CPU_FREQ
 ./scripts/config -d ARM_MMP_SMP_CPUFREQ
-./scripts/config -d CONFIG_CPU_THERMAL
 ./scripts/config -d CONFIG_PXA1928_THERMAL
 ./scripts/config -d CONFIG_HELAN2_THERMAL
 ./scripts/config -d CONFIG_PXA_DVFS
