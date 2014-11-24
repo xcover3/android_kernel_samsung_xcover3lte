@@ -178,7 +178,8 @@ struct b52_sensor_data {
 
 	struct b52_sensor_spec_ops *ops;
 
-	struct b52_sensor_i2c_attr i2c_attr;
+	struct b52_sensor_i2c_attr *i2c_attr;
+	int num_i2c_attr;
 	struct b52_sensor_regs id;
 
 	struct b52_sensor_regs global_setting;
@@ -324,6 +325,7 @@ struct b52_sensor {
 	struct mutex lock; /* Protects streaming, format, interval*/
 	struct v4l2_mbus_framefmt mf;
 	struct b52_sensor_regs mf_regs;
+	u8 cur_i2c_idx;
 	u8 cur_res_idx;
 	u8 cur_mbus_idx;
 	struct clk *clk;

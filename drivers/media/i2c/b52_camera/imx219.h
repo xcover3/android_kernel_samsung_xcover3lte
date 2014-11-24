@@ -136,6 +136,14 @@ struct regval_tab imx219_vflip[] = {
 struct regval_tab imx219_hflip[] = {
 	{0x0172, 0x01, 0x1},
 };
+struct b52_sensor_i2c_attr imx219_i2c_attr[] = {
+	[0] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x1A,
+	},
+};
+#define N_IMX219_I2C_ATTR ARRAY_SIZE(imx219_i2c_attr)
 #define N_IMX219_INIT ARRAY_SIZE(imx219_res_init)
 #define N_IMX219_ID ARRAY_SIZE(imx219_id)
 #define N_IMX219_VCM_ID ARRAY_SIZE(imx219_vcm_id)
@@ -225,11 +233,8 @@ struct b52_sensor_spec_ops imx219_ops = {
 struct b52_sensor_data b52_imx219 = {
 	.name = "imx219",
 	.type = SONY_SENSOR,
-	.i2c_attr = {
-		.reg_len = I2C_16BIT,
-		.val_len = I2C_8BIT,
-		.addr = 0x1A,
-	},
+	.i2c_attr = imx219_i2c_attr,
+	.num_i2c_attr = N_IMX219_I2C_ATTR,
 	.id = {
 		.tab = imx219_id,
 		.num = N_IMX219_ID,

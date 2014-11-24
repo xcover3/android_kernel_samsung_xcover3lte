@@ -229,6 +229,14 @@ struct regval_tab ov2680_vflip[] = {
 struct regval_tab ov2680_hflip[] = {
 };
 
+struct b52_sensor_i2c_attr ov2680_i2c_attr[] = {
+	[0] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x36,
+	},
+};
+#define N_OV2680_I2C_ATTR ARRAY_SIZE(ov2680_i2c_attr)
 #define N_OV2680_INIT ARRAY_SIZE(ov2680_res_init)
 #define N_OV2680_ID ARRAY_SIZE(ov2680_id)
 #define N_OV2680_FMT_RAW8 ARRAY_SIZE(ov2680_fmt_raw8)
@@ -288,11 +296,8 @@ struct b52_sensor_spec_ops ov2680_ops = {
 struct b52_sensor_data b52_ov2680 = {
 	.name = "ovt.ov2680",
 	.type = OVT_SENSOR,
-	.i2c_attr = {
-		.reg_len = I2C_16BIT,
-		.val_len = I2C_8BIT,
-		.addr = 0x36,
-	},
+	.i2c_attr = ov2680_i2c_attr,
+	.num_i2c_attr = N_OV2680_I2C_ATTR,
 	.id = {
 		.tab = ov2680_id,
 		.num = N_OV2680_ID,

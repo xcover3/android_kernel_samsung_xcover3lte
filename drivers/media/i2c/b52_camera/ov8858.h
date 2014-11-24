@@ -638,6 +638,15 @@ struct regval_tab ov8858_vflip[] = {
 struct regval_tab ov8858_hflip[] = {
 	{0x3621, 0x00, 0x4},
 };
+
+struct b52_sensor_i2c_attr ov8858_i2c_attr[] = {
+	[0] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x36,
+	},
+};
+#define N_OV8858_I2C_ATTR ARRAY_SIZE(ov8858_i2c_attr)
 #define N_OV8858_INIT ARRAY_SIZE(ov8858_res_init)
 #define N_OV8858_ID ARRAY_SIZE(ov8858_id)
 #define N_OV8858_FMT_RAW10 ARRAY_SIZE(ov8858_fmt_raw10)
@@ -711,11 +720,8 @@ struct b52_sensor_spec_ops ov8858_ops = {
 struct b52_sensor_data b52_ov8858 = {
 	.name = "ovt.ov8858",
 	.type = OVT_SENSOR,
-	.i2c_attr = {
-		.reg_len = I2C_16BIT,
-		.val_len = I2C_8BIT,
-		.addr = 0x36,
-	},
+	.i2c_attr = ov8858_i2c_attr,
+	.num_i2c_attr = N_OV8858_I2C_ATTR,
 	.id = {
 		.tab = ov8858_id,
 		.num = N_OV8858_ID,

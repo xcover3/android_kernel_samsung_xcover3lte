@@ -2134,6 +2134,14 @@ struct regval_tab sr544_vflip[] = {
 struct regval_tab sr544_hflip[] = {
 	{0x0000, 0x0200, 0x0200},
 };
+struct b52_sensor_i2c_attr sr544_i2c_attr[] = {
+	[0] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_16BIT,
+		.addr = 0x28,
+	},
+};
+#define N_SR544_I2C_ATTR ARRAY_SIZE(sr544_i2c_attr)
 #define N_SR544_INIT ARRAY_SIZE(sr544_res_init)
 #define N_SR544_ID ARRAY_SIZE(sr544_id)
 #define N_SR544_FMT_RAW10 ARRAY_SIZE(sr544_fmt_raw10)
@@ -2208,11 +2216,8 @@ struct b52_sensor_spec_ops sr544_ops = {
 struct b52_sensor_data b52_sr544 = {
 	.name = "samsung.sr544",
 	.type = HYNIX_SENSOR,
-	.i2c_attr = {
-		.reg_len = I2C_16BIT,
-		.val_len = I2C_16BIT,
-		.addr = 0x28,
-	},
+	.i2c_attr = sr544_i2c_attr,
+	.num_i2c_attr = N_SR544_I2C_ATTR,
 	.id = {
 		.tab = sr544_id,
 		.num = N_SR544_ID,

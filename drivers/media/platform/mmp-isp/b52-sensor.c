@@ -288,7 +288,7 @@ static int b52_sensor_cmd_read_twsi(struct v4l2_subdev *sd, u16 addr,
 		return -EINVAL;
 	}
 
-	data.attr = &sensor->drvdata->i2c_attr;
+	data.attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 	data.tab = tab;
 	data.num = num;
 	data.pos = sensor->pos;
@@ -332,7 +332,7 @@ static int b52_sensor_cmd_write_twsi(struct v4l2_subdev *sd, u16 addr,
 		return -EINVAL;
 	}
 
-	attr = &sensor->drvdata->i2c_attr;
+	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 
 	switch (num) {
 	case 1:
@@ -390,7 +390,7 @@ static int b52_sensor_g_cur_fmt_twsi(struct v4l2_subdev *sd,
 
 	mutex_lock(&sensor->lock);
 
-	data->attr = &sensor->drvdata->i2c_attr;
+	data->attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 	data->tab  = sensor->mf_regs.tab;
 /*not write sensor setting in set_format command*/
 /*	data->num  = sensor->mf_regs.num; */
@@ -466,7 +466,7 @@ static int b52_sensor_cmd_write(struct v4l2_subdev *sd, u16 addr,
 		return -EINVAL;
 	}
 
-	attr = &sensor->drvdata->i2c_attr;
+	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 	if (num > 3 || (num == 3 && attr->val_len == I2C_16BIT)) {
 		pr_err("%s, write num %d too long\n", __func__, num);
 		return -EINVAL;
@@ -526,7 +526,7 @@ static int b52_sensor_cmd_read(struct v4l2_subdev *sd, u16 addr,
 		return -EINVAL;
 	}
 
-	attr = &sensor->drvdata->i2c_attr;
+	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 	if (num > 3 || (num == 3 && attr->val_len == I2C_16BIT)) {
 		pr_err("%s, read num %d too long\n", __func__, num);
 		return -EINVAL;
@@ -534,7 +534,7 @@ static int b52_sensor_cmd_read(struct v4l2_subdev *sd, u16 addr,
 
 	for (i = 0; i < num; i++)
 		tab[i].reg = addr + i;
-	data.attr = &sensor->drvdata->i2c_attr;
+	data.attr = attr;
 	data.tab = tab;
 	data.num = num;
 	data.pos = sensor->pos;
@@ -580,7 +580,7 @@ static int b52_sensor_g_cur_fmt(struct v4l2_subdev *sd,
 
 	mutex_lock(&sensor->lock);
 
-	data->attr = &sensor->drvdata->i2c_attr;
+	data->attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 	data->tab  = sensor->mf_regs.tab;
 	data->num  = sensor->mf_regs.num;
 	data->pos  = sensor->pos;
@@ -708,9 +708,11 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 		pr_err("%s, error param\n", __func__);
 		return -EINVAL;
 	}
+
 	if (sensor->sensor_init)
 		return 0;
-	attr = &sensor->drvdata->i2c_attr;
+
+	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 	regs.tab = sensor->drvdata->global_setting.tab;
 
 	while (written_num < sensor->drvdata->global_setting.num) {
@@ -816,10 +818,28 @@ static int b52_sensor_detect_vcm(struct v4l2_subdev *sd)
 	return 0;
 }
 #endif
-static int b52_sensor_detect_sensor(struct v4l2_subdev *sd)
+static inline int __detect_sensor(const struct b52_sensor_regs *id,
+			const struct b52_sensor_i2c_attr *attr, u8 pos)
 {
 	int i;
 	u16 val;
+	int ret;
+
+	for (i = 0; i < id->num; i++) {
+		ret = b52_sensor_isp_read(attr, id->tab[i].reg, &val, pos);
+
+		if (ret || val != id->tab[i].val) {
+			pr_debug("val: got %x, req %x\n", val, id->tab[i].val);
+			return -ENODEV;
+		}
+	}
+
+	return 0;
+}
+
+static int b52_sensor_detect_sensor(struct v4l2_subdev *sd)
+{
+	int i;
 	int ret;
 	const struct b52_sensor_regs *id;
 	const struct b52_sensor_i2c_attr *attr;
@@ -832,20 +852,21 @@ static int b52_sensor_detect_sensor(struct v4l2_subdev *sd)
 		return -EINVAL;
 	}
 
-	attr = &sensor->drvdata->i2c_attr;
-
-	for (i = 0; i < id->num; i++) {
-		ret = b52_sensor_isp_read(attr, id->tab[i].reg,
-				&val, sensor->pos);
-
-		if (ret || val != id->tab[i].val) {
-			pr_err("detect %s failed\n", sensor->drvdata->name);
-			pr_err("val: got %x, req %x\n", val, id->tab[i].val);
-			return -ENODEV;
-		}
+	for (i = 0; i < sensor->drvdata->num_i2c_attr; i++) {
+		attr = &sensor->drvdata->i2c_attr[i];
+		ret = __detect_sensor(id, attr, sensor->pos);
+		if (!ret)
+			goto sensor_detected;
 	}
 
-	pr_info("sensor %s detected\n", sensor->drvdata->name);
+	pr_err("detect %s failed\n", sensor->drvdata->name);
+	return ret;
+
+sensor_detected:
+	sensor->cur_i2c_idx = i;
+	pr_info("sensor %s detected, i2c addr 0x%x\n",
+			sensor->drvdata->name, sensor->drvdata->i2c_attr[i].addr);
+
 	return 0;
 }
 
@@ -1176,7 +1197,7 @@ static int b52_sensor_g_sensor_attr(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	*attr = sensor->drvdata->i2c_attr;
+	*attr = sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 
 	return 0;
 }
@@ -1460,21 +1481,24 @@ st_err:
 static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	const struct b52_sensor_regs *regs;
+	const struct b52_sensor_i2c_attr *attr;
 	struct b52_sensor *sensor = to_b52_sensor(sd)
 
 	if (enable) {
 		if (atomic_inc_return(&sensor->stream_cnt) > 1)
 			return 0;
+
 		regs = &sensor->drvdata->streamon;
 		blocking_notifier_call_chain(&sensor->nh, 0, sensor);
 	} else {
 		if (atomic_dec_return(&sensor->stream_cnt) > 0)
 			return 0;
+
 		regs = &sensor->drvdata->streamoff;
 	}
-	return __b52_sensor_cmd_write(
-			&sensor->drvdata->i2c_attr,
-			regs, sensor->pos);
+
+	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
+	return __b52_sensor_cmd_write(attr, regs, sensor->pos);
 }
 
 static enum v4l2_mbus_pixelcode b52_sensor_get_real_mbus(

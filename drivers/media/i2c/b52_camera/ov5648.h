@@ -324,6 +324,14 @@ struct regval_tab ov5648_vflip[] = {
 struct regval_tab ov5648_hflip[] = {
 };
 
+struct b52_sensor_i2c_attr ov5648_i2c_attr[] = {
+	[0] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x36,
+	},
+};
+#define N_OV5648_I2C_ATTR ARRAY_SIZE(ov5648_i2c_attr)
 #define N_OV5648_INIT ARRAY_SIZE(ov5648_res_init)
 #define N_OV5648_ID ARRAY_SIZE(ov5648_id)
 #define N_OV5648_FMT_RAW8 ARRAY_SIZE(ov5648_fmt_raw8)
@@ -383,11 +391,8 @@ struct b52_sensor_spec_ops ov5648_ops = {
 struct b52_sensor_data b52_ov5648 = {
 	.name = "ovt.ov5648",
 	.type = OVT_SENSOR,
-	.i2c_attr = {
-		.reg_len = I2C_16BIT,
-		.val_len = I2C_8BIT,
-		.addr = 0x36,
-	},
+	.i2c_attr = ov5648_i2c_attr,
+	.num_i2c_attr = N_OV5648_I2C_ATTR,
 	.id = {
 		.tab = ov5648_id,
 		.num = N_OV5648_ID,

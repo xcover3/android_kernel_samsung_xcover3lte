@@ -406,6 +406,14 @@ struct regval_tab ov13850_vflip[] = {
 struct regval_tab ov13850_hflip[] = {
 	{0x3821, 0x04, 0x4},
 };
+struct b52_sensor_i2c_attr ov13850_i2c_attr[] = {
+	[0] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x10,
+	},
+};
+#define N_OV13850_I2C_ATTR ARRAY_SIZE(ov13850_i2c_attr)
 #define N_OV13850_INIT ARRAY_SIZE(ov13850_res_init)
 #define N_OV13850_ID ARRAY_SIZE(ov13850_id)
 #define N_OV13850_FMT_RAW10 ARRAY_SIZE(ov13850_fmt_raw10)
@@ -491,11 +499,8 @@ struct b52_sensor_spec_ops ov13850_ops = {
 struct b52_sensor_data b52_ov13850 = {
 	.name = "ovt.ov13850",
 	.type = OVT_SENSOR,
-	.i2c_attr = {
-		.reg_len = I2C_16BIT,
-		.val_len = I2C_8BIT,
-		.addr = 0x10,
-	},
+	.i2c_attr = ov13850_i2c_attr,
+	.num_i2c_attr = N_OV13850_I2C_ATTR,
 	.id = {
 		.tab = ov13850_id,
 		.num = N_OV13850_ID,
