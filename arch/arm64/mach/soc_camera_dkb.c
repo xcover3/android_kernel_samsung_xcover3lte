@@ -10,6 +10,7 @@
  */
 
 #include <linux/of_gpio.h>
+#include <linux/clk.h>
 #include "soc_camera_dkb.h"
 
 /* this is just define for more soc cameras */
@@ -17,6 +18,7 @@ static struct regulator *avdd_2v8;
 static struct regulator *dovdd_1v8;
 static struct regulator *af_2v8;
 static struct regulator *dvdd_1v2;
+static struct clk *mclk;
 #ifdef CONFIG_SOC_CAMERA_SR200
 static int sr200_sensor_power(struct device *dev, int on)
 {
@@ -28,6 +30,10 @@ static int sr200_sensor_power(struct device *dev, int on)
 	 * The regulators is for sensor and should be in sensor driver
 	 * As SoC camera does not support device tree, adding code here
 	 */
+
+	mclk = devm_clk_get(dev, "SC2MCLK");
+	if (IS_ERR(mclk))
+		return PTR_ERR(mclk);
 
 	if (!avdd_2v8) {
 		avdd_2v8 = regulator_get(dev, "avdd_2v8");
@@ -113,9 +119,13 @@ static int sr200_sensor_power(struct device *dev, int on)
 		}
 
 		gpio_direction_output(cam_enable, 1);
-		usleep_range(5000, 20000);
+		usleep_range(1000, 5000);
+
+		clk_set_rate(mclk, 26000000);
+		clk_prepare_enable(mclk);
+
 		gpio_direction_output(cam_reset, 1);
-		usleep_range(5000, 20000);
+		usleep_range(1000, 5000);
 	} else {
 		/*
 		 * Keep PWDN always on as defined in spec
@@ -124,6 +134,10 @@ static int sr200_sensor_power(struct device *dev, int on)
 		 */
 		gpio_direction_output(cam_reset, 0);
 		usleep_range(5000, 20000);
+
+		clk_disable_unprepare(mclk);
+		devm_clk_put(dev, mclk);
+
 		gpio_direction_output(cam_enable, 0);
 		usleep_range(5000, 20000);
 
@@ -143,6 +157,7 @@ static int sr200_sensor_power(struct device *dev, int on)
 	return 0;
 
 cam_reset_failed:
+	devm_clk_put(dev, mclk);
 	gpio_free(cam_enable);
 cam_enable_failed:
 	ret = -EIO;
@@ -202,6 +217,10 @@ static int s5k8aa_sensor_power(struct device *dev, int on)
 	 * As SoC camera does not support device tree, adding code here
 	 */
 
+	mclk = devm_clk_get(dev, "SC2MCLK");
+	if (IS_ERR(mclk))
+		return PTR_ERR(mclk);
+
 	if (!avdd_2v8) {
 		avdd_2v8 = regulator_get(dev, "avdd_2v8");
 		if (IS_ERR(avdd_2v8)) {
@@ -285,6 +304,9 @@ static int s5k8aa_sensor_power(struct device *dev, int on)
 				goto cam_regulator_enable_failed;
 		}
 
+		clk_set_rate(mclk, 26000000);
+		clk_prepare_enable(mclk);
+
 		gpio_direction_output(cam_reset, 0);
 		usleep_range(5000, 20000);
 		gpio_direction_output(cam_enable, 1);
@@ -298,6 +320,9 @@ static int s5k8aa_sensor_power(struct device *dev, int on)
 		 * usleep_range(5000, 20000);
 		 */
 		gpio_direction_output(cam_reset, 0);
+
+		clk_disable_unprepare(mclk);
+		devm_clk_put(dev, mclk);
 
 		if (dovdd_1v8)
 			regulator_disable(dovdd_1v8);
@@ -315,6 +340,7 @@ static int s5k8aa_sensor_power(struct device *dev, int on)
 	return 0;
 
 cam_reset_failed:
+	devm_clk_put(dev, mclk);
 	gpio_free(cam_enable);
 cam_enable_failed:
 	ret = -EIO;
