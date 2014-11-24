@@ -70,6 +70,9 @@ struct pm886_gpadc_info {
 
 extern struct iio_dev *iio_allocate_device(int sizeof_priv);
 
+/* used by external access */
+static struct pm886_gpadc_info *g_gpadc;
+
 static u8 pm886_channel_to_reg(int channel)
 {
 	u8 reg;
@@ -195,6 +198,33 @@ static int pm886_gpadc_get_processed(struct pm886_gpadc_info *gpadc,
 		 __func__, val, (iio->channels[channel]).address, *res);
 
 	return ret;
+}
+
+static int pm886_gpadc_set_bias_current(struct pm886_gpadc_info *info,
+					   int gpadc_number, int bias_current)
+{
+	int reg_val;
+	u8 reg;
+	switch (gpadc_number) {
+	case GPADC_0_RES:
+		reg = PM886_GAPDC_CONFIG11;
+		break;
+	case GPADC_1_RES:
+		reg = PM886_GAPDC_CONFIG12;
+		break;
+	case GPADC_2_RES:
+		reg = PM886_GAPDC_CONFIG13;
+		break;
+	case GPADC_3_RES:
+		reg = PM886_GAPDC_CONFIG14;
+		break;
+	default:
+		dev_err(info->chip->dev, "unsupported gpadc!\n");
+		return -EINVAL;
+	}
+
+	reg_val = (bias_current - 1) / 5;
+	return regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, reg_val);
 }
 
 static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
@@ -472,6 +502,8 @@ static int pm886_gpadc_probe(struct platform_device *pdev)
 		return err;
 	}
 	dev_info(&iio->dev, "%s is successful to be probed.\n", __func__);
+
+	g_gpadc = gpadc;
 	return 0;
 }
 
@@ -482,6 +514,44 @@ static int pm886_gpadc_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+int extern_pm886_gpadc_set_current_generator(int gpadc_number, int on)
+{
+	return pm886_gpadc_set_current_generator(g_gpadc, gpadc_number, on);
+}
+EXPORT_SYMBOL(extern_pm886_gpadc_set_current_generator);
+
+int extern_pm886_gpadc_get_volt(int gpadc_number, int *volt)
+{
+	int channel;
+	switch (gpadc_number) {
+	case GPADC_0_RES:
+		channel = GPADC0_RES_CHAN;
+		break;
+	case GPADC_1_RES:
+		channel = GPADC1_RES_CHAN;
+		break;
+	case GPADC_2_RES:
+		channel = GPADC2_RES_CHAN;
+		break;
+	case GPADC_3_RES:
+		channel = GPADC3_RES_CHAN;
+		break;
+	default:
+		pr_err("%s: unsupported gpadc!\n", __func__);
+		return -EINVAL;
+	}
+
+	return pm886_gpadc_get_processed(g_gpadc, channel, volt);
+}
+EXPORT_SYMBOL(extern_pm886_gpadc_get_volt);
+
+
+int extern_pm886_gpadc_set_bias_current(int gpadc_number, int bias)
+{
+	return pm886_gpadc_set_bias_current(g_gpadc, gpadc_number, bias);
+}
+EXPORT_SYMBOL(extern_pm886_gpadc_set_bias_current);
 
 static struct platform_driver pm886_gpadc_driver = {
 	.driver = {

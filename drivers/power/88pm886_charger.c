@@ -27,7 +27,6 @@
 
 #define CHG_RESTART_DELAY		(5) /* in minutes */
 
-#define PM886_CHG_CONFIG1		(0x28)
 #define PM886_CHG_ENABLE		(1 << 0)
 #define PM886_CHG_WDT_EN		(1 << 1)
 #define PM886_USB_SUSP			(1 << 6)

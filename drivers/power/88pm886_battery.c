@@ -32,6 +32,9 @@
 #define PM886_GPADC_BD_PREBIAS		(1 << 4)
 #define PM886_GPADC_BD_EN		(1 << 5)
 #define PM886_BD_GP_SEL			(1 << 6)
+#define PM886_BATT_TEMP_SEL		(1 << 7)
+#define PM886_BATT_TEMP_SEL_GP1		(0 << 7)
+#define PM886_BATT_TEMP_SEL_GP3		(1 << 7)
 
 #define PM886_VBAT_LOW_TH		(0x18)
 
@@ -62,6 +65,10 @@
 
 #define PM886_CC_LOW_TH1		(0x12)		/* bit [7 : 0] */
 #define PM886_CC_LOW_TH2		(0x13)		/* bit [15 : 8] */
+
+#define PM886_BATTEMP_MON		(1 << 4)
+#define PM886_BATTEMP_MON_GP3		(1 << 4)
+#define PM886_BATTEMP_MON_GP1		(0 << 4)
 
 #define PM886_VBAT_AVG_MSB		(0xa0)
 #define PM886_VBAT_AVG_LSB		(0xa1)
@@ -138,6 +145,7 @@ struct pm886_battery_info {
 	int			total_capacity;
 
 	bool			use_ntc;
+	bool			use_sw_bd;
 	int			gpadc_det_no;
 	int			gpadc_temp_no;
 
@@ -390,9 +398,19 @@ static int pm886_enable_bat_detect(struct pm886_battery_info *info, bool enable)
 	case 1:
 		data = 0;
 		mask = PM886_BD_GP_SEL;
+		/* choose gpadc1 for battery temperature monitoring algo */
+		regmap_update_bits(info->chip->gpadc_regmap,
+				   PM886_GPADC_CONFIG8,
+				   PM886_BATT_TEMP_SEL,
+				   PM886_BATT_TEMP_SEL_GP1);
 		break;
 	case 3:
+		/* choose gpadc3 for battery temperature monitoring algo */
 		data = mask = PM886_BD_GP_SEL;
+		regmap_update_bits(info->chip->gpadc_regmap,
+				   PM886_GPADC_CONFIG8,
+				   PM886_BATT_TEMP_SEL,
+				   PM886_BATT_TEMP_SEL_GP3);
 		break;
 	default:
 		dev_err(info->dev,
@@ -424,22 +442,83 @@ static bool pm886_check_battery_present(struct pm886_battery_info *info)
 	}
 
 	if (info->use_ntc) {
-		ret = pm886_enable_bat_detect(info, true);
-		if (ret < 0) {
-			present = true;
-			goto out;
+		if (info->use_sw_bd) {
+			/*
+			 * 1. bias_current = 1uA
+			 * 2. check the gpadc voltage: if < 1.8V, present
+			 *    0.6 * Vsys = 0.6 * 3V = 1.8V
+			 */
+			int gp = info->gpadc_det_no;
+			int volt;
+
+			if (gp != 0 || gp != 2) {
+				dev_err(info->dev,
+					"%s: wrong_gpadc = %d\n", __func__, gp);
+				present = true;
+				return present;
+			}
+
+			if (info->chip->chip_id == PM886_A1) {
+				/* disable monitoring on GPADC1 */
+				regmap_update_bits(info->chip->battery_regmap,
+						   PM886_CHG_CONFIG1,
+						   PM886_BATTEMP_MON,
+						   PM886_BATTEMP_MON_GP3);
+				/*
+				 * select GPADC3 as external input for
+				 * battery tempeareure monitoring algorithm
+				 */
+				regmap_update_bits(info->chip->gpadc_regmap,
+						   PM886_GPADC_CONFIG8,
+						   PM886_BATT_TEMP_SEL,
+						   PM886_BATT_TEMP_SEL_GP3);
+				/*
+				 * selects GPADC3 as input selection for
+				 * battery detection
+				 */
+				regmap_update_bits(info->chip->gpadc_regmap,
+						   PM886_GPADC_CONFIG8,
+						   PM886_GPADC_BD_EN,
+						   PM886_GPADC_BD_EN);
+			}
+			/* enable bias current */
+			ret = extern_pm886_gpadc_set_current_generator(gp, 1);
+			if (ret < 0)
+				goto out;
+			/* set bias_current = 1uA */
+			ret = extern_pm886_gpadc_set_bias_current(gp, 1);
+			if (ret < 0)
+				goto out;
+			/* measure the gpadc voltage */
+			ret = extern_pm886_gpadc_get_volt(gp, &volt);
+			if (ret < 0)
+				goto out;
+			if (volt < 1800000)
+				present = true;
+			else
+				present = false;
+
+		} else {
+			/* use gpadc 1/3 to detect battery */
+			ret = pm886_enable_bat_detect(info, true);
+			if (ret < 0) {
+				present = true;
+				goto out;
+			}
+			regmap_read(info->chip->base_regmap, PM886_STATUS1, &data);
+			present = !!(data & PM886_BAT_DET);
+
+			/* disable battery detection to measure temperature */
+			pm886_enable_bat_detect(info, false);
+
 		}
-		regmap_read(info->chip->base_regmap, PM886_STATUS1, &data);
-		present = !!(data & PM886_BAT_DET);
 	} else {
+		/* battery is _not_ removable */
 		present = true;
 	}
 out:
 	if (ret < 0)
 		present = true;
-
-	/* disable the battery detection to measure the battery temperature*/
-	pm886_enable_bat_detect(info, false);
 
 	return present;
 }
@@ -1679,6 +1758,12 @@ static int pm886_battery_dt_init(struct device_node *np,
 		if (ret)
 			return ret;
 	}
+
+	if (of_get_property(np, "bat-software-battery-detection", NULL))
+		info->use_sw_bd = true;
+	else
+		info->use_sw_bd = false;
+
 	ret = of_property_read_u32(np, "gpadc-temp-no", &info->gpadc_temp_no);
 	if (ret)
 		return ret;

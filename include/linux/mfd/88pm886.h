@@ -247,4 +247,9 @@ void  pm886_power_off(void);
 int pm886_reboot_notifier_callback(struct notifier_block *nb,
 				   unsigned long code, void *cmd);
 
+/* gpadc part */
+int extern_pm886_gpadc_set_current_generator(int gpadc_number, int on);
+int extern_pm886_gpadc_get_volt(int gpadc_number, int *volt);
+int extern_pm886_gpadc_set_bias_current(int gpadc_number, int bias);
+
 #endif /* __LINUX_MFD_88PM886_H */
