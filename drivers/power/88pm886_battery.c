@@ -1228,6 +1228,13 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc + 5);
 	}
 
+	/* align the last_cc to max_cc when the *charger status is FULL */
+	if (chg_status == POWER_SUPPLY_STATUS_FULL) {
+		dev_info(info->dev, "%s: before align last_cc = %d\n",
+			 __func__, ccnt_val->last_cc);
+		ccnt_val->last_cc = ccnt_val->max_cc;
+	}
+
 	/* corner case: we need 1% step */
 	if (likely(abs(ccnt_val->previous_soc - ccnt_val->soc) <= 10)) {
 		dev_dbg(info->dev,
