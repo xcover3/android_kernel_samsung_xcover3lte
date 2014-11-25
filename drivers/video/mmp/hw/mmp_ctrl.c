@@ -47,6 +47,7 @@
 
 static BLOCKING_NOTIFIER_HEAD(mmp_panel_notifier_list);
 
+static int path_ctrl_safe(struct mmp_path *path);
 int mmp_notifier(unsigned long state, void *val)
 {
 	return blocking_notifier_call_chain(&mmp_panel_notifier_list, state, val);
@@ -467,6 +468,28 @@ static int overlay_set_path_alpha(struct mmp_overlay *overlay,
 	return 0;
 }
 
+static int ctrl_irq_set(struct mmp_path *path, u32 mask, u32 set)
+{
+	u32 tmp1, tmp2;
+	int retry = 0;
+
+	tmp1 = readl_relaxed(ctrl_regs(path) + SPU_IRQ_ENA);
+	tmp2 = tmp1;
+	tmp1 &= ~mask;
+	tmp1 |= set;
+	if (tmp1 != tmp2)
+		writel_relaxed(tmp1, ctrl_regs(path) + SPU_IRQ_ENA);
+
+	/* FIXME: irq register write failure */
+	while (tmp1 != readl(ctrl_regs(path) + SPU_IRQ_ENA)
+		&& retry < 10000) {
+		retry++;
+		writel_relaxed(tmp1, ctrl_regs(path)
+			+ SPU_IRQ_ENA);
+	}
+	return retry;
+}
+
 static int path_set_irq(struct mmp_path *path, int on)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
@@ -489,18 +512,27 @@ static int path_set_irq(struct mmp_path *path, int on)
 	if (!on) {
 		if (atomic_read(&path->irq_en_ref))
 			if (atomic_dec_and_test(&path->irq_en_ref)) {
-				tmp = readl_relaxed(ctrl_regs(path) + SPU_IRQ_ENA);
-				tmp &= ~mask;
-				writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ENA);
-				/* FIXME: irq register write failure */
-				while (tmp != readl(ctrl_regs(path) + SPU_IRQ_ENA)
-					&& retry < 10000) {
-					retry++;
-					writel_relaxed(tmp, ctrl_regs(path)
-						+ SPU_IRQ_ENA);
+				if (!path_ctrl_safe(path)) {
+					/*
+					 * if it is suspended, we can't access real register,
+					 * should only change the stored value to let them be
+					 * valid in resume.
+					 */
+					tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
+					tmp &= ~mask;
+					ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
+				} else {
+					retry = ctrl_irq_set(path, mask, 0);
+					if (retry == 10000) {
+						pr_info("disable irq: write LCD IRQ failure\n");
+						/*
+						 * if disable irq failure, we should keep the
+						 * irq_en_ref the same, so irq would be enabled
+						 * always and try to disable irq.
+						 */
+						atomic_inc(&path->irq_en_ref);
+					}
 				}
-				if (retry == 10000)
-					pr_info("write LCD IRQ failure\n");
 				dev_dbg(path->dev, "%s eof intr off\n", path->name);
 			}
 	} else {
@@ -510,27 +542,43 @@ static int path_set_irq(struct mmp_path *path, int on)
 			 * It would not trigger handler if the status on
 			 * before enable.
 			 */
-			if (!DISP_GEN4(ctrl->version)) {
-				tmp = readl(ctrl_regs(path) + SPU_IRQ_ISR);
-				tmp &= ~mask;
-			} else
-				tmp = mask;
-			writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ISR);
-			tmp = readl(ctrl_regs(path) + SPU_IRQ_ENA);
-			tmp |= mask;
-			writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ENA);
-			/* FIXME: irq register write failure */
-			while (tmp != readl(ctrl_regs(path) + SPU_IRQ_ENA)
-				&& retry < 10000) {
-				retry++;
-				writel_relaxed(tmp, ctrl_regs(path)
-					+ SPU_IRQ_ENA);
+			if (!path_ctrl_safe(path)) {
+				if (!DISP_GEN4(ctrl->version)) {
+					tmp = ctrl->regs_store[SPU_IRQ_ISR / 4];
+					tmp &= ~mask;
+					ctrl->regs_store[SPU_IRQ_ISR / 4] = tmp;
+				} else
+					tmp = mask;
+				ctrl->regs_store[SPU_IRQ_ISR / 4] = tmp;
+
+				/*
+				 * if it is suspended, we can't access real register,
+				 * should only change the stored value to let them be
+				 * valid in resume.
+				 */
+				tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
+				tmp |= mask;
+				ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
+			} else {
+				if (!DISP_GEN4(ctrl->version)) {
+					tmp = readl(ctrl_regs(path) + SPU_IRQ_ISR);
+					tmp &= ~mask;
+				} else
+					tmp = mask;
+				writel_relaxed(tmp, ctrl_regs(path) + SPU_IRQ_ISR);
+
+				retry = ctrl_irq_set(path, 0, mask);
 			}
-			if (retry == 10000)
-				pr_info("write LCD IRQ failure\n");
 			dev_dbg(path->dev, "%s eof intr on\n", path->name);
 		}
-		atomic_inc(&path->irq_en_ref);
+		/*
+		 * if enable irq failure, we shouldn't irq_en_ref++,
+		 * or there will be no chance to enable irq.
+		 */
+		if (retry == 10000)
+			pr_info("enable irq: write LCD IRQ failure\n");
+		else
+			atomic_inc(&path->irq_en_ref);
 	}
 
 	if (ctrl->clk && !in_irq())

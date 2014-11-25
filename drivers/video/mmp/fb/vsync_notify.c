@@ -25,6 +25,8 @@
 
 void mmpfb_wait_vsync(struct mmpfb_info *fbi)
 {
+	dev_dbg(fbi->dev, "wait vsync: vcnt %d, irq_en_ref: %d\n",
+			atomic_read(&fbi->vsync.vcnt), atomic_read(&fbi->path->irq_en_ref));
 	/*
 	 * for N buffer cases,
 	 * #1- (N-2) buffers passed in one frame:
@@ -32,11 +34,12 @@ void mmpfb_wait_vsync(struct mmpfb_info *fbi)
 	 * #N-1 buffer need to wait vsync
 	 * e.g, for two buffer case, always wait
 	 * for three buffer, only 2nd buffer need wait
-	*/
-	if (!atomic_dec_and_test(&fbi->vsync.vcnt))
-		return;
-	dev_dbg(fbi->dev, "wait vsync: vcnt %d\n",
-		atomic_read(&fbi->vsync.vcnt));
+	 *
+	 * If vcnt is 0, we can't decrease it.
+	 */
+	if (atomic_read(&fbi->vsync.vcnt))
+		if (!atomic_dec_and_test(&fbi->vsync.vcnt))
+			return;
 	mmp_path_wait_vsync(fbi->path);
 }
 
