@@ -405,16 +405,8 @@ void shm_rb_data_init(struct shm_rbctl *rbctl)
 	rbctl->cp_stopped_num = 0;
 	rbctl->cp_resumed_num = 0;
 
-	rbctl->skctl_va->ap_wptr = 0;
-	rbctl->skctl_va->cp_rptr = 0;
-	rbctl->skctl_va->ap_port_fc = 0;
-	rbctl->skctl_va->ap_rptr = 0;
-	rbctl->skctl_va->cp_wptr = 0;
-	rbctl->skctl_va->cp_port_fc = 0;
+	memset(rbctl->skctl_va, 0, sizeof(struct shm_skctl));
 	rbctl->skctl_va->ap_pcm_master = PMIC_MASTER_FLAG;
-	rbctl->skctl_va->diag_ap_db_ver = 0;
-	rbctl->skctl_va->diag_cp_db_ver = 0;
-	rbctl->skctl_va->diag_header_ptr = 0;
 }
 
 void shm_lock_init(void)
