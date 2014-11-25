@@ -229,10 +229,16 @@ void panic_flush(struct pt_regs *regs)
 		 * shutting down.  But if there is a chance of
 		 * rebooting the system it will be rebooted.
 		 */
-		arm_pm_restart(0, NULL);
+		if (arm_pm_restart != NULL)
+			arm_pm_restart(0, NULL);
 	}
 
 	raw_spin_unlock(&panic_lock);
+
+	/*
+	 * Whoops - the architecture was unable to reboot.
+	 */
+	pr_emerg("Reboot failed -- System halted\n");
 	while (1)
 		cpu_relax();
 }
