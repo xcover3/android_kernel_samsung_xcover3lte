@@ -534,6 +534,11 @@ static int vdma_get_dc_saddr(struct mmp_vdma_info *vdma_info,
 #endif
 	int i;
 
+	if (IS_ERR(dbuf)) {
+		pr_err("failed to get dmabuf, fd is %d\n", fd);
+		return -EINVAL;
+	}
+
 	/* create attachment for the dmabuf with the user device */
 	dba = dma_buf_attach(dbuf, vdma->dev);
 
