@@ -729,9 +729,13 @@ int dfc_request(struct notifier_block *b, unsigned long val, void *v)
 	u32 rate;
 	int ret;
 
-	if (val == DIP_START)
+	if (val == DIP_START) {
 		rate = *((u32 *)v);
-	else
+		if (rate == 0) {
+			pr_err("LCD DFC Failed: The rate is 0\n");
+			return NOTIFY_DONE;
+		}
+	} else
 		rate = original_rate / MHZ_TO_HZ;
 
 	ret = dfc_set_rate(path, (unsigned long)rate);
@@ -779,18 +783,20 @@ static ssize_t freq_store(
 	int ret;
 
 	if (size > 30) {
-		mutex_unlock(&ctrl->access_ok);
 		pr_err("%s size = %zd > max 30 chars\n", __func__, size);
 		return size;
 	}
 
 	ret = (int)kstrtoul(buf, 0, &rate);
 	if (ret < 0) {
-		mutex_unlock(&ctrl->access_ok);
 		dev_err(dev, "strtoul err.\n");
 		return ret;
 	}
 
+	if (rate == 0) {
+		pr_err("LCD DFC Failed: The rate is 0\n");
+		return -1;
+	}
 	ret = dfc_set_rate(path, rate);
 	if (ret < 0)
 		return ret;
