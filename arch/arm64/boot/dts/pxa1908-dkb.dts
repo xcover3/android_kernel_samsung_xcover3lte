@@ -720,20 +720,6 @@
 					>;
 					MFP_LPM_FLOAT;
 				};
-				twsi2_pmx_func: twsi2_pmx_func {
-					pinctrl-single,pins = <
-						GPIO110 AF0
-						GPIO111 AF0
-					>;
-					MFP_LPM_FLOAT;
-				};
-				twsi2_pmx_gpio: twsi2_pmx_gpio {
-					pinctrl-single,pins = <
-						GPIO110 AF1
-						GPIO111 AF1
-					>;
-					MFP_LPM_FLOAT;
-				};
 				twsi3_pmx_func: twsi3_pmx_func {
 					/* gpio73/74: AF5 */
 					pinctrl-single,pins = <
