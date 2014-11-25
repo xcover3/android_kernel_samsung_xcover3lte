@@ -71,6 +71,7 @@ struct b52isp_output {
 	struct v4l2_pix_format_mplane	pix_mp;
 	struct isp_videobuf	*buf[B52_BUFFER_PER_BRACKET];
 	int nr_buffer;
+	int no_zoom;
 };
 
 struct b52_adv_dns {
@@ -105,7 +106,6 @@ struct b52isp_cmd {
 	unsigned long		output_map;
 	unsigned long		enable_map;
 	struct list_head	hook;
-	int			zoom;
 	dma_addr_t		meta_dma;
 	int			meta_port;
 	__u16			b_ratio_1;
@@ -129,6 +129,7 @@ void b52_ack_xlate_irq(__u32 *events, int max_mac_num);
 int b52_read_pipeline_info(int pipe_id, u8 *buffer);
 int b52_read_debug_info(u8 *buffer);
 int b52_cmd_anti_shake(u16 block_size, int enable);
+int b52_cmd_zoom_in(int path, int zoom);
 int b52_set_focus_win(struct v4l2_rect *win, int id);
 struct plat_cam;
 extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
@@ -290,6 +291,7 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 /* output configuration */
 #define ISP_OUTPUT_PORT_SEL         (CMD_BUF_A + 0x20)
 #define ISP_OUTPUT1_TYPE            (CMD_BUF_A + 0x22)
+	#define ISP_OUTPUT_NO_ZOOM      (0x1 << 4)
 #define ISP_OUTPUT1_WIDTH           (CMD_BUF_A + 0x24)
 #define ISP_OUTPUT1_HEIGHT          (CMD_BUF_A + 0x26)
 #define ISP_OUTPUT1_MEM_WIDTH       (CMD_BUF_A + 0x28)

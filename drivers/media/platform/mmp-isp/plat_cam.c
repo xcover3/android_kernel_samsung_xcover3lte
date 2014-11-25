@@ -757,6 +757,9 @@ static int pvnode_s_ctrl(struct v4l2_ctrl *ctrl)
 			pvnode->vnode.vdev.name, ctrl->val);
 		pvnode->vnode.sw_min_buf = ctrl->val;
 		return 0;
+	case V4L2_CID_VDEV_ENABLE_NO_ZOOM:
+		pvnode->no_zoom = ctrl->val;
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -783,6 +786,16 @@ struct v4l2_ctrl_config pvnode_buf_detain_num = {
 	.max	= VIDEO_MAX_FRAME - 1,
 	.step	= 1,
 	.type	= V4L2_CTRL_TYPE_INTEGER,
+	.ops	= &pvnode_ctrl_ops,
+};
+struct v4l2_ctrl_config pvnode_enable_no_zoom = {
+	.id	= V4L2_CID_VDEV_ENABLE_NO_ZOOM,
+	.name	= "video device enable no zoom",
+	.min	= 0,
+	.max	= 1,
+	.step	= 1,
+	.def	= 0,
+	.type	= V4L2_CTRL_TYPE_BOOLEAN,
 	.ops	= &pvnode_ctrl_ops,
 };
 
@@ -905,6 +918,8 @@ attach_input:
 				&pvnode_buf_layout, pvnode);
 	v4l2_ctrl_new_custom(&pvnode->vnode.ctrl_handler,
 				&pvnode_buf_detain_num, pvnode);
+	v4l2_ctrl_new_custom(&pvnode->vnode.ctrl_handler,
+				&pvnode_enable_no_zoom, pvnode);
 	if (pvnode->vnode.ctrl_handler.error) {
 		ret = pvnode->vnode.ctrl_handler.error;
 		d_inf(1, "failed to register video dev controls: %d", ret);

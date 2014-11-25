@@ -137,6 +137,8 @@ enum vdev_buffer_layout {
 		(V4L2_CID_CAMERA_CLASS_BASE + 0x1002)
 #define V4L2_CID_VDEV_BUFFER_DETAIN_NUM	\
 		(V4L2_CID_CAMERA_CLASS_BASE + 0x1003)
+#define V4L2_CID_VDEV_ENABLE_NO_ZOOM\
+		(V4L2_CID_CAMERA_CLASS_BASE + 0x1004)
 
 /* sleep function for sensor power sequence, only provide 1ms precision */
 /* According to Documentation/timers/timers-howto.txt, we should choose *sleep

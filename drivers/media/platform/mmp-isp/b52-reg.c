@@ -1492,7 +1492,7 @@ static int b52_bit_cnt(u8 n)
 }
 
 static int b52_calc_output_cfg(struct b52_output_cfg *cfg,
-		struct v4l2_pix_format_mplane *fmt, int port)
+		struct v4l2_pix_format_mplane *fmt, int port, int no_zoom)
 {
 	int ret;
 	u8 bpp;
@@ -1505,6 +1505,9 @@ static int b52_calc_output_cfg(struct b52_output_cfg *cfg,
 	ret = b52_convert_output_fmt(fmt->pixelformat, &cfg->fmt, &bpp);
 	if (ret)
 		return ret;
+
+	if (no_zoom)
+		cfg->fmt |= ISP_OUTPUT_NO_ZOOM;
 
 	cfg->width = fmt->width;
 	cfg->height = fmt->height;
@@ -1594,7 +1597,7 @@ static int b52_cfg_output(struct b52isp_output *output, u8 bit_map)
 	for (i = 0, j = 0; i < B52_OUTPUT_PER_PIPELINE; i++) {
 		if (output[i].vnode == NULL)
 			continue;
-		ret = b52_calc_output_cfg(&cfg, &output[i].pix_mp, j);
+		ret = b52_calc_output_cfg(&cfg, &output[i].pix_mp, j, output[i].no_zoom);
 		if (ret)
 			goto out;
 
@@ -2911,22 +2914,26 @@ static int b52_cmd_process_raw(struct b52isp_cmd *cmd)
 	return ret;
 }
 
-static int b52_cmd_zoom_in(struct b52isp_cmd *cmd)
+int b52_cmd_zoom_in(int path, int zoom)
 {
 	u8 val;
+	int ret;
 
-	if (cmd->zoom > ZOOM_RATIO_MAX ||
-	    cmd->zoom < ZOOM_RATIO_MIN) {
-		pr_err("zoom cmd: zoom error %x\n", cmd->zoom);
+	if (zoom > ZOOM_RATIO_MAX || zoom < ZOOM_RATIO_MIN) {
+		pr_err("zoom cmd: zoom error %x\n", zoom);
 		return -EINVAL;
 	}
 
-	val = b52_convert_work_mode(cmd->path, 0);
+	mutex_lock(&cmd_mutex);
+	val = b52_convert_work_mode(path, 0);
 	b52_writeb(CMD_REG1, val);
-	b52_writew(CMD_REG2, cmd->zoom);
+	b52_writew(CMD_REG2, zoom);
+	ret = wait_cmd_done(CMD_ZOOM_IN_MODE);
+	mutex_unlock(&cmd_mutex);
 
-	return wait_cmd_done(CMD_ZOOM_IN_MODE);
+	return ret;
 }
+EXPORT_SYMBOL_GPL(b52_cmd_zoom_in);
 
 static int __maybe_unused b52_cmd_awb(struct b52isp_cmd *cmd)
 {
@@ -3093,9 +3100,6 @@ int b52_hdl_cmd(struct b52isp_cmd *cmd)
 		break;
 	case CMD_SET_FORMAT:
 		ret = b52_cmd_set_fmt(cmd);
-		break;
-	case CMD_SET_ZOOM:
-		ret = b52_cmd_zoom_in(cmd);
 		break;
 	case CMD_CHG_FORMAT:
 		ret = b52_cmd_chg_fmt(cmd);

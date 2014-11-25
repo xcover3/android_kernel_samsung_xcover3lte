@@ -1393,22 +1393,10 @@ static int b52isp_ctrl_get_aec_stable(struct b52isp_ctrls *ctrls, int id)
 
 static int b52isp_ctrl_set_zoom(int zoom, int id)
 {
-	int ret;
-	struct b52isp_cmd *cmd;
+	int path;
 
-	cmd = kzalloc(sizeof(*cmd), GFP_KERNEL);
-	if (NULL == cmd)
-		return -ENOMEM;
-
-	cmd->path = id ? B52ISP_ISD_PIPE2 : B52ISP_ISD_PIPE1;
-	cmd->cmd_name = CMD_SET_ZOOM;
-	cmd->zoom = zoom;
-
-	ret = b52_hdl_cmd(cmd);
-
-	kfree(cmd);
-
-	return ret;
+	path = id ? B52ISP_ISD_PIPE2 : B52ISP_ISD_PIPE1;
+	return b52_cmd_zoom_in(path, zoom);
 }
 
 static int b52isp_ctrl_afr_sr_min_fps(int sr, int id)

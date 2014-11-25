@@ -40,6 +40,7 @@ struct plat_cam {
 };
 
 struct plat_vnode {
+	int no_zoom;
 	struct list_head	hook;
 	struct mmu_chs_desc	mmu_ch_dsc;
 	int	(*alloc_mmu_chnl)(struct plat_cam *pcam, __u8 ip_id,

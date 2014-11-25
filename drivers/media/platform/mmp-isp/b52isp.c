@@ -2668,6 +2668,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 				SETUP_WITH_DEFAULT_FORMAT;
 
 				lpipe->cur_cmd->output[out_id].vnode = vnode;
+				lpipe->cur_cmd->output[out_id].no_zoom = pvnode->no_zoom;
 				lpipe->cur_cmd->output[out_id].pix_mp =
 					vnode->format.fmt.pix_mp;
 				laxi->dma_state = B52DMA_HW_NO_STREAM;
