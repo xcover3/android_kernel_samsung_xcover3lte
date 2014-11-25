@@ -528,7 +528,7 @@ static int isp_vnode_vb2_init(struct vb2_queue *vq, struct isp_vnode *vnode)
 
 /********************************* V4L2 APIs *********************************/
 
-static int isp_vnode_querycap(struct file *file, void *fh,
+static int __maybe_unused isp_vnode_querycap(struct file *file, void *fh,
 				struct v4l2_capability *cap)
 {
 	struct isp_vnode *vnode = video_drvdata(file);
@@ -769,7 +769,7 @@ static int isp_vnode_s_input(struct file *file, void *fh, unsigned int input)
 }
 
 static const struct v4l2_ioctl_ops isp_vnode_ioctl_ops = {
-	.vidioc_querycap		= isp_vnode_querycap,
+/*	.vidioc_querycap		= isp_vnode_querycap,*/
 	.vidioc_g_fmt_vid_cap_mplane	= isp_vnode_get_format,
 	.vidioc_s_fmt_vid_cap_mplane	= isp_vnode_set_format,
 	.vidioc_try_fmt_vid_cap_mplane	= isp_vnode_try_format,
