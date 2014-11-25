@@ -806,22 +806,26 @@
 
 				dbg: dbg@0xd4110000 {
 					compatible = "marvell,coresight-dbg";
-					reg = <0xd4110000 0x8000>;
+					reg = <0xd4110000 0x8000>,
+					      <0xd4130000 0x8000>;
 				};
 
 				cti: cti@0xd4118000 {
 					compatible = "marvell,coresight-cti";
-				        reg = <0xd4118000 0x4000>;
+				        reg = <0xd4118000 0x4000>,
+					      <0xd4138000 0x4000>;
 				};
 
 				etm: etm@0xd411c000 {
 					compatible = "marvell,coresight-etm";
-				        reg = <0xd411c000 0x4000>;
+				        reg = <0xd411c000 0x4000>,
+					      <0xd413c000 0x4000>;
 				};
 
 				letb: letb@0xd410a000 {
 					compatible = "marvell,coresight-letb";
-				        reg = <0xd410a000 0x4000>;
+				        reg = <0xd410a000 0x4000>,
+					      <0xd412a000 0x4000>;
 				};
 			};
 
