@@ -1618,6 +1618,18 @@ config SENSORS_STK3X1X
 	Stk3x1x is a light and proximity sensor.
 	Config dts is also needed.
 
+config SENSORS_LIS3DH
+	tristate "ST lid3dh 3-Axid accelerometer device with I2C bus"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have a lis3dh device on the board and use I2C
+	  communication, else say N.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here.
+
 if ACPI
 
 comment "ACPI drivers"
