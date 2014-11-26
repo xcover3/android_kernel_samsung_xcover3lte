@@ -1627,7 +1627,7 @@ static int b52_calc_rd_cfg(struct b52_rd_cfg *cfg,
 	u8 bpp;
 	int ret;
 
-	if (port >= MAX_RD_PORT || port < 0) {
+	if (port >= MAX_RD_PORT) {
 		pr_err("%s param error\n", __func__);
 		return -EINVAL;
 	}
@@ -2379,7 +2379,7 @@ EXPORT_SYMBOL_GPL(b52_cmd_read_i2c);
 
 int b52_cmd_write_i2c(struct b52_cmd_i2c_data *data)
 {
-	u32 num = data->num;
+	u32 num;
 	u16 write_num = 0;
 	int ret = 0;
 	const struct b52_sensor_i2c_attr *attr;
@@ -2389,7 +2389,7 @@ int b52_cmd_write_i2c(struct b52_cmd_i2c_data *data)
 		return -EINVAL;
 	}
 	attr = data->attr;
-
+	num = data->num;
 	do {
 		write_num = (num < I2C_MAX_NUM) ? num : I2C_MAX_NUM;
 		b52_fill_cmd_i2c_buf(data->tab, attr->addr,
@@ -2467,6 +2467,7 @@ static u8 b52_convert_work_mode(int path, int type)
 		break;
 	case B52ISP_ISD_HDR:
 		val = HDR;
+		break;
 	default:
 		pr_err("%s: wrong path\n", __func__);
 		break;
@@ -2727,8 +2728,6 @@ static char *y_buffer, *uv_buffer;
 
 static void b52_free_coherent_mem(u32 size)
 {
-	/*Currently not free the buffer*/
-	return;
 	if (y_buffer) {
 		dma_free_coherent(NULL, size, y_buffer, y_phy_addr);
 		y_buffer = NULL;
@@ -3121,11 +3120,12 @@ EXPORT_SYMBOL_GPL(b52_hdl_cmd);
 static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 {
 	u32 base;
-	struct b52_sensor_regs reg;
-	struct b52_sensor_i2c_attr attr;
 	u8 type;
 	u8 val;
+	int ret;
 	u8 gain_shift, expo_shift;
+	struct b52_sensor_regs reg;
+	struct b52_sensor_i2c_attr attr;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 	if (p_num > 1) {
 		pr_err("%s: parameter error %d\n", __func__, p_num);
@@ -3153,7 +3153,9 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 #endif
 	b52_writeb(base + REG_FW_SSOR_TYPE, type);
 
-	b52_sensor_call(sensor, g_sensor_attr, &attr);
+	ret = b52_sensor_call(sensor, g_sensor_attr, &attr);
+	if (ret < 0)
+		return ret;
 	b52_writeb(base + REG_FW_SSOR_DEV_ID, attr.addr<<1);
 	/*16-bit addr; 8-bit data */
 	val = sensor->pos;
@@ -3163,7 +3165,9 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 		val |= FOCUS_DATA_16BIT;
 	b52_writeb(base + REG_FW_SSOR_I2C_OPT, val);
 
-	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_EXPO, &reg);
+	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_EXPO, &reg);
+	if (ret < 0)
+		return ret;
 	switch (reg.num) {
 	case 2:
 		b52_writew(base + REG_FW_SSOR_AEC_ADDR_0, reg.tab->reg);
@@ -3185,8 +3189,8 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 		pr_err("%s: no expo reg", __func__);
 		break;
 	}
-	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_FRACTIONALEXPO, &reg);
-	if (reg.num > 0) {
+	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_FRACTIONALEXPO, &reg);
+	if (!ret && (reg.num > 0)) {
 		b52_writeb(base + REG_FW_AEC_ALLOW_FRATIONAL_EXP, 0x01);
 		b52_writeb(base + REG_FW_SSOR_FRATIONAL_ADDR_0, reg.tab->reg);
 		b52_writeb(base + REG_FW_SSOR_FRATIONAL_ADDR_1,
@@ -3194,7 +3198,9 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	}
 	b52_writeb(base + REG_FW_AEC_EXP_SHIFT, expo_shift);
 
-	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_VTS, &reg);
+	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_VTS, &reg);
+	if (ret < 0)
+		return ret;
 	b52_writew(base + REG_FW_SSOR_AEC_ADDR_4, reg.tab->reg);
 	b52_writew(base + REG_FW_SSOR_AEC_ADDR_5, reg.tab->reg + 1);
 	b52_writeb(base + REG_FW_SSOR_AEC_MSK_4, 0xff);
@@ -3204,7 +3210,9 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	/*
 	 * TODO: NEED vendor add DG support
 	 */
-	b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_AGAIN, &reg);
+	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_AGAIN, &reg);
+	if (ret < 0)
+		return ret;
 	b52_writew(base + REG_FW_SSOR_AEC_ADDR_6, reg.tab->reg);
 	b52_writew(base + REG_FW_SSOR_AEC_ADDR_7, reg.tab->reg + 1);
 	b52_writeb(base + REG_FW_SSOR_AEC_MSK_6, 0xff);

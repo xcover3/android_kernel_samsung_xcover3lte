@@ -845,13 +845,12 @@ static int b52_sensor_detect_sensor(struct v4l2_subdev *sd)
 	const struct b52_sensor_i2c_attr *attr;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 
-	id = &sensor->drvdata->id;
-
 	if (!sensor) {
 		pr_err("%s, error param\n", __func__);
 		return -EINVAL;
 	}
 
+	id = &sensor->drvdata->id;
 	for (i = 0; i < sensor->drvdata->num_i2c_attr; i++) {
 		attr = &sensor->drvdata->i2c_attr[i];
 		ret = __detect_sensor(id, attr, sensor->pos);
@@ -1235,7 +1234,7 @@ static int b52_sensor_g_aecagc_reg(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	if (!reg || !reg->tab || !reg->num) {
+	if (!reg->tab || (reg->num == 0)) {
 		pr_err("%s: reg is null\n", __func__);
 		return -EINVAL;
 	}
@@ -2697,12 +2696,17 @@ static const struct of_device_id b52_sensor_of_match[] = {
 
 const struct b52_sensor_data *memory_sensor_match(char *sensor_name)
 {
-	const struct of_device_id *p = b52_sensor_of_match;
-	while (p != NULL) {
-		if (!strcmp(sensor_name, p->compatible))
-			return p->data;
-		p++;
+	int i;
+
+	if (!sensor_name) {
+		pr_err("%s, parameter is NULL\n", __func__);
+		return NULL;
 	}
+
+	for (i = 0; i < ARRAY_SIZE(b52_sensor_of_match); i++)
+		if (!strcmp(sensor_name, b52_sensor_of_match[i].compatible))
+			return b52_sensor_of_match[i].data;
+
 	return NULL;
 }
 EXPORT_SYMBOL(memory_sensor_match);

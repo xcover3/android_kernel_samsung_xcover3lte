@@ -625,12 +625,11 @@ int msc2_get_sc2(struct msc2_mmu_dev **sc2_host, int id)
 
 	list_for_each_entry(sc2_dev, &sc2_devices, list) {
 		if (sc2_dev->id == id)
-			break;
+			goto found;
 	}
+	return -ENODEV;
 
-	if (sc2_dev == NULL)
-		return -ENODEV;
-
+found:
 	*sc2_host = sc2_dev;
 	sc2_dev->usr_cnt++;
 	dev_info(sc2_dev->dev, "acquire sc2 DMA succeed\n");

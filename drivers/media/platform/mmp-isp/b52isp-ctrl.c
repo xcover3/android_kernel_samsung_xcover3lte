@@ -753,9 +753,9 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 {
 	int ret = 0;
 	u32 lines = 0;
-	u32 expo;
-	u16 max_expo;
-	u16 min_expo;
+	u32 expo = 0;
+	u16 max_expo = 0;
+	u16 min_expo = 0;
 	int value = ctrls->auto_expo->val;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 	bool ae_lock  = ctrls->aaa_lock->cur.val & V4L2_LOCK_EXPOSURE;
@@ -769,8 +769,11 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 		if (ctrls->auto_expo->is_new) {
 			if (!sensor)
 				return -EINVAL;
-			b52_sensor_call(sensor, g_param_range, B52_SENSOR_EXPO,
-				&min_expo, &max_expo);
+			ret = b52_sensor_call(sensor, g_param_range,
+				B52_SENSOR_EXPO, &min_expo, &max_expo);
+			if (ret < 0)
+				return ret;
+
 			b52_writel(base + REG_FW_MAX_CAM_EXP, max_expo);
 			b52_writel(base + REG_FW_MIN_CAM_EXP, min_expo);
 
@@ -785,11 +788,9 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 		if (ctrls->auto_expo->is_new) {
 			if (ctrls->aec_manual_mode->val ==
 					CID_AEC_AUTO_THRESHOLD)
-				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
-								AEC_AUTO);
+				b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_AUTO);
 			else
-				b52_writeb(base + REG_FW_AEC_MANUAL_EN,
-								AEC_MANUAL);
+				b52_writeb(base + REG_FW_AEC_MANUAL_EN, AEC_MANUAL);
 		}
 		if (ctrls->exposure->is_new) {
 			if (!sensor)
@@ -809,13 +810,10 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 			expo = ctrls->expo_line->val;
 			if (ctrls->aec_manual_mode->val ==
 						CID_AEC_AUTO_THRESHOLD) {
-				b52_writel(base + REG_FW_MAX_CAM_EXP,
-								expo >> 4);
-				b52_writel(base + REG_FW_MIN_CAM_EXP,
-								expo >> 4);
+				b52_writel(base + REG_FW_MAX_CAM_EXP, expo >> 4);
+				b52_writel(base + REG_FW_MIN_CAM_EXP, expo >> 4);
 			} else
-				b52_writel(base + REG_FW_AEC_MAN_EXP,
-								expo);
+				b52_writel(base + REG_FW_AEC_MAN_EXP, expo);
 		}
 		break;
 
@@ -841,6 +839,9 @@ static int b52isp_ctrl_get_expo(struct b52isp_ctrls *ctrls, int id)
 		ctrls->exposure->val = lines;
 	else {
 		ret = b52_sensor_call(sensor, to_expo_time, &time, lines >> 4);
+		if (ret < 0)
+			return ret;
+
 		ctrls->exposure->val = time;
 	}
 	return ret;
@@ -952,10 +953,11 @@ static int b52isp_ctrl_set_iso(struct b52isp_ctrls *ctrls, int id)
 	u32 iso;
 	u32 gain;
 	int ret;
+	u16 min_gain = 0;
+	u16 max_gain = 0;
 	int idx = ctrls->iso->val;
 	int auto_iso = ctrls->auto_iso->val;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
-	u16 min_gain, max_gain;
 	struct b52_sensor *sensor = b52isp_ctrl_to_sensor(ctrls->auto_iso);
 	if (!sensor)
 		return -EINVAL;
@@ -963,8 +965,11 @@ static int b52isp_ctrl_set_iso(struct b52isp_ctrls *ctrls, int id)
 	/* FIXME:expo and gain auto register are same, how to handle*/
 	switch (auto_iso) {
 	case V4L2_ISO_SENSITIVITY_AUTO:
-		b52_sensor_call(sensor, g_param_range, B52_SENSOR_GAIN,
-			&min_gain, &max_gain);
+		ret = b52_sensor_call(sensor, g_param_range,
+			B52_SENSOR_GAIN, &min_gain, &max_gain);
+		if (ret < 0)
+			return ret;
+
 		b52_writew(base + REG_FW_MIN_CAM_GAIN, min_gain);
 		b52_writew(base + REG_FW_MAX_CAM_GAIN, max_gain);
 
@@ -1025,8 +1030,8 @@ static int b52isp_ctrl_get_iso(struct b52isp_ctrls *ctrls, int id)
 static int b52isp_ctrl_set_gain(struct b52isp_ctrls *ctrls, int id)
 {
 	int ret = 0;
-	u16 min_gain;
-	u16 max_gain;
+	u16 min_gain = 0;
+	u16 max_gain = 0;
 	int gain = ctrls->gain->val;
 	int auto_gain = ctrls->auto_gain->val;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
@@ -1037,8 +1042,11 @@ static int b52isp_ctrl_set_gain(struct b52isp_ctrls *ctrls, int id)
 	/* FIXME:expo and gain auto register are same, how to handle*/
 	switch (auto_gain) {
 	case 1:
-		b52_sensor_call(sensor, g_param_range, B52_SENSOR_GAIN,
-			&min_gain, &max_gain);
+		ret = b52_sensor_call(sensor, g_param_range,
+			B52_SENSOR_GAIN, &min_gain, &max_gain);
+		if (ret < 0)
+			return ret;
+
 		b52_writew(base + REG_FW_MAX_CAM_GAIN, max_gain);
 		b52_writew(base + REG_FW_MIN_CAM_GAIN, min_gain);
 
@@ -1176,8 +1184,10 @@ static int b52isp_ctrl_set_image_effect(int value, int id)
 
 	for (i = 0; i < ARRAY_SIZE(b52isp_ctrl_effects); i++)
 		if (b52isp_ctrl_effects[i].id == value)
-			break;
+			goto found;
+	return -EINVAL;
 
+found:
 	reg = b52isp_ctrl_effects[i].reg;
 	for (j = 0; j < b52isp_ctrl_effects[i].reg_len; j++) {
 		if (reg[j].len == 1) {
@@ -1450,8 +1460,11 @@ static int b52isp_ctrl_set_afr(struct b52isp_ctrls *ctrls, int id)
 			sensor = b52isp_ctrl_to_sensor(ctrls->afr_max_gain);
 			if (!sensor)
 				return -EINVAL;
-			b52_sensor_call(sensor, g_param_range, B52_SENSOR_GAIN,
-					&min_sensor_gain, &max_sensor_gain);
+			ret = b52_sensor_call(sensor, g_param_range,
+				B52_SENSOR_GAIN, &min_sensor_gain, &max_sensor_gain);
+			if (ret < 0)
+				return ret;
+
 			max_gain = (ctrls->afr_max_gain->val) *
 							0x20 / max_sensor_gain;
 			b52_writew(base + REG_FW_AFR_MAX_GAIN1,
