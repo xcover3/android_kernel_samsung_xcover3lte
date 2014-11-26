@@ -12,3 +12,4 @@
 ./scripts/config -d CONFIG_PXA_DVFS
 ./scripts/config -d CONFIG_PM_DEVFREQ
 ./scripts/config -e PXA1936_CLK
+./scripts/config -d CONFIG_ANDROID_BINDER_IPC_32BIT
