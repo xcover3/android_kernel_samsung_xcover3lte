@@ -835,7 +835,7 @@ void pxa910_diag_gserial_cleanup(void)
 		tty_port_destroy(&port->port);
 		kfree(port);
 
-		tty_unregister_device(gs_modem_tty_driver, i);
+		tty_unregister_device(gs_diag_tty_driver, i);
 	}
 	n_diag_ports = 0;
 
