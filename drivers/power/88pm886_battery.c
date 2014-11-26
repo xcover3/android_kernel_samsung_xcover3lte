@@ -1225,7 +1225,7 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 	if (old_soc != ccnt_val->soc) {
 		dev_info(info->dev, "%s: needs update: %d%% -> %d%%\n",
 			 __func__, old_soc, ccnt_val->soc);
-		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc + 5);
+		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
 	}
 
 	/* align the last_cc to max_cc when the *charger status is FULL */
@@ -1530,7 +1530,7 @@ end:
 
 	/* multiple 10 */
 	ccnt_val->soc *= 10;
-	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc + 5);
+	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
 
 	ccnt_val->real_soc = ccnt_val->soc;
 	ccnt_val->real_last_cc = ccnt_val->last_cc;
