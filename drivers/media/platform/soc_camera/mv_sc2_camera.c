@@ -35,9 +35,12 @@
 #include <media/mrvl-camera.h> /* TBD refined */
 #include <media/mv_sc2.h>
 #include <media/mv_sc2_twsi_conf.h>
+#include <linux/pm_qos.h>
 
 #include "mv_sc2_camera.h"
 
+static struct pm_qos_request sc2_camera_qos_idle;
+static int sc2_camera_req_qos;
 static int buffer_mode = -1;
 module_param(buffer_mode, int, 0444);
 MODULE_PARM_DESC(buffer_mode,
@@ -671,6 +674,7 @@ static int mccic_add_device(struct soc_camera_device *icd)
 	if (IS_ERR(mcam_dev->vb_alloc_ctx))
 		return PTR_ERR(mcam_dev->vb_alloc_ctx);
 
+	pm_qos_update_request(&sc2_camera_qos_idle, sc2_camera_req_qos);
 	/* 3.4 is not necessary soc_camera_power_on*/
 	/* GPIO and regulator related for sensor */
 	soc_camera_power_on(&mcam_dev->pdev->dev, ssdd, NULL);
@@ -782,6 +786,8 @@ put_mmu:
 	/* TBD: ccic_power_down(mcam_dev); */
 	/* TBD: ccic_disable_clk(mcam_dev); */
 power_off:
+	pm_qos_add_request(&sc2_camera_qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	pm_runtime_put(mcam_dev->dev);
 	soc_camera_power_off(&mcam_dev->pdev->dev, ssdd, NULL);
 
@@ -826,6 +832,8 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	else
 		vb2_dma_sg_cleanup_ctx(mcam_dev->vb_alloc_ctx);
 	mcam_dev->vb_alloc_ctx = NULL;
+	pm_qos_update_request(&sc2_camera_qos_idle,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 }
 
 /* try_fmt should not return error, TBD */
@@ -1370,6 +1378,12 @@ static int mv_camera_probe(struct platform_device *pdev)
 	}
 	pdev->id = ret;
 
+	ret = of_property_read_u32(np, "lpm-qos", &sc2_camera_req_qos);
+	if (ret)
+		return ret;
+	sc2_camera_qos_idle.name = MV_SC2_CAMERA_NAME;
+	pm_qos_add_request(&sc2_camera_qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	/* 2. alloc mcam_dev and setup */
 	mcam_dev = devm_kzalloc(&pdev->dev, sizeof(struct mv_camera_dev),
 					GFP_KERNEL);
@@ -1418,6 +1432,7 @@ static int mv_camera_remove(struct platform_device *pdev)
 		mcam_dev->mbus_fmt_code[i] = 0;
 	mcam_dev->mbus_fmt_num = 0;
 
+	pm_qos_remove_request(&sc2_camera_qos_idle);
 	pm_runtime_disable(mcam_dev->dev);
 	soc_camera_host_unregister(soc_host);
 	dev_info(&pdev->dev, "camera driver unloaded\n");
