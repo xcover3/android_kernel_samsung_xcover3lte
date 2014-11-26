@@ -35,7 +35,7 @@ struct sr200_format {
 
 struct sr200 {
 	struct v4l2_subdev subdev;
-	int model;	/* V4L2_IDENT_SR200* codes from v4l2-chip-ident.h */
+	struct v4l2_ctrl_handler	hdl;
 	struct v4l2_rect rect;
 	u32 pixfmt;
 	int frame_rate;
@@ -3493,7 +3493,8 @@ static struct sr200_regval regs_res_vga_cam[] = {
 
 	{0x03, 0x00},
 	{0x01, 0x30},
-	/* NEED Delay 400ms */
+
+	{SR200_TERM, 0}, /* NEED Delay 400ms */
 	/* END of sr200pc20m_recording_50Hz_common*/
 };
 
@@ -4975,9 +4976,10 @@ struct sr200_resolution_table sr200_resolutions[] = {
  * this define for normal preview and camcorder different setting
  * but same resolution
  */
-#define VIDEO_TO_NARMAL 1
-#define NARMAL_TO_VIDEO 2
+#define NORMAL_STATUS 0
+#define VIDEO_TO_NORMAL 1
+#define NORMAL_TO_VIDEO 2
 #define VIDEO_TO_CALL 3
-#define VIDIOC_PRIVATE_SR200_VIDEO_MODE \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 50, unsigned int)
+#define V4L2_CID_PRIVATE_SR200_VIDEO_MODE \
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1001)
 #endif

@@ -31,16 +31,21 @@ static const struct sr200_datafmt sr200_colour_fmts[] = {
 	{V4L2_MBUS_FMT_YVYU8_2X8, V4L2_COLORSPACE_JPEG},
 };
 
-static const struct v4l2_queryctrl sr200_controls[] = {
-	{
-		.id = V4L2_CID_BRIGHTNESS,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.name = "brightness",
-	}
-};
-
+static int video_mode;
 static struct sr200_regval *regs_resolution;
 static struct sr200_regval *regs_display_setting;
+
+static const struct v4l2_ctrl_ops sr200_ctrl_ops;
+static struct v4l2_ctrl_config sr200_ctrl_video_mode_cfg = {
+	.ops = &sr200_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_SR200_VIDEO_MODE,
+	.name = "video mode",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = VIDEO_TO_NORMAL,
+	.max = VIDEO_TO_CALL,
+	.step = 1,
+	.def = VIDEO_TO_NORMAL,
+};
 
 static struct sr200_regval *regs_res_all[] = {
 	[SR200_FMT_VGA] = regs_res_vga,
@@ -208,15 +213,18 @@ static int sr200_try_fmt(struct v4l2_subdev *sd,
 	case V4L2_MBUS_FMT_VYUY8_2X8:
 	case V4L2_MBUS_FMT_YVYU8_2X8:
 	case V4L2_MBUS_FMT_YUYV8_2X8:
-		regs_resolution = sr200_get_res_regs(mf->width, mf->height);
-		if (!regs_resolution) {
-			/* set default resolution */
-			dev_warn(&client->dev,
-				"sr200: res not support, set to VGA\n");
-			mf->width = SR200_OUT_WIDTH_DEF;
-			mf->height = SR200_OUT_HEIGHT_DEF;
-			regs_resolution =
-				sr200_get_res_regs(mf->width, mf->height);
+		/* for sr200, only in normal preview status, it need to get res.*/
+		if (video_mode == NORMAL_STATUS) {
+			regs_resolution = sr200_get_res_regs(mf->width, mf->height);
+			if (!regs_resolution) {
+				/* set default resolution */
+				dev_warn(&client->dev,
+					"sr200: res not support, set to VGA\n");
+				mf->width = SR200_OUT_WIDTH_DEF;
+				mf->height = SR200_OUT_HEIGHT_DEF;
+				regs_resolution =
+					sr200_get_res_regs(mf->width, mf->height);
+			}
 		}
 		sr200->rect.width = mf->width;
 		sr200->rect.height = mf->height;
@@ -253,7 +261,8 @@ static int sr200_s_fmt(struct v4l2_subdev *sd,
 	 * ret |= sr200_write_raw_array(sd, regs_display_setting);
 	 */
 	ret = sr200_write_raw_array(sd, regs_resolution);
-
+	/* restore video_mode to normal preview status */
+	video_mode = NORMAL_STATUS;
 	return ret;
 }
 
@@ -297,38 +306,25 @@ static int sr200_enum_fsizes(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int sr200_set_brightness(struct i2c_client *client, int value)
+static int sr200_set_video_mode(int value)
 {
-	return 0;
-}
-
-static int sr200_set_video_mode(struct i2c_client *client, int value)
-{
-	if (value == NARMAL_TO_VIDEO)
-		regs_resolution = regs_res_vga_cam;
-	else if (value == VIDEO_TO_NARMAL)
+	switch (value) {
+	case VIDEO_TO_NORMAL:
 		regs_resolution = regs_res_auto_fps;
-	else if (value == VIDEO_TO_CALL)
-		regs_resolution = regs_res_vga_vt;
-	return 0;
-}
-
-static int sr200_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	int ret = 0;
-
-	switch (ctrl->id) {
-	case V4L2_CID_BRIGHTNESS:
-		ret = sr200_set_brightness(client, ctrl->value);
 		break;
-	case VIDIOC_PRIVATE_SR200_VIDEO_MODE:
-		ret = sr200_set_video_mode(client, ctrl->value);
+	case NORMAL_TO_VIDEO:
+		regs_resolution = regs_res_vga_cam;
+		break;
+	case VIDEO_TO_CALL:
+		regs_resolution = regs_res_vga_vt;
 		break;
 	default:
-		ret = -EINVAL;
+		value = NORMAL_STATUS;
+		break;
 	}
-	return ret;
+
+	video_mode = value;
+	return 0;
 }
 
 static int sr200_init(struct v4l2_subdev *sd, u32 plat)
@@ -346,9 +342,26 @@ static int sr200_g_mbus_config(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int sr200_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_PRIVATE_SR200_VIDEO_MODE:
+		ret = sr200_set_video_mode(ctrl->val);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+static const struct v4l2_ctrl_ops sr200_ctrl_ops = {
+	.s_ctrl = sr200_s_ctrl,
+};
+
 static struct v4l2_subdev_core_ops sr200_subdev_core_ops = {
 	.init		= sr200_init,
-	.s_ctrl		= sr200_s_ctrl,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register	= sr200_g_register,
 	.s_register	= sr200_s_register,
@@ -386,7 +399,6 @@ static int sr200_detect(struct i2c_client *client)
 	return 0;
 }
 
-
 static int sr200_probe(struct i2c_client *client,
 				const struct i2c_device_id *did)
 {
@@ -410,6 +422,12 @@ static int sr200_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	v4l2_i2c_subdev_init(&sr200->subdev, client, &sr200_subdev_ops);
+	v4l2_ctrl_handler_init(&sr200->hdl, 1);
+	v4l2_ctrl_new_custom(&sr200->hdl, &sr200_ctrl_video_mode_cfg, NULL);
+	sr200->subdev.ctrl_handler = &sr200->hdl;
+	if (sr200->hdl.error)
+		return sr200->hdl.error;
+
 	sr200->rect.left = 0;
 	sr200->rect.top = 0;
 	sr200->rect.width = SR200_OUT_WIDTH_DEF;
@@ -422,6 +440,7 @@ static int sr200_remove(struct i2c_client *client)
 {
 	struct sr200 *sr200 = to_sr200(client);
 
+	v4l2_ctrl_handler_free(&sr200->hdl);
 	kfree(sr200);
 	return 0;
 }
