@@ -155,7 +155,7 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *otp)
 {
 	int i, len, tmp_len = 0;
-	int flag;
+	int flag, ret = 0;
 	char *paddr = NULL;
 	unsigned int sum;
 	ushort bank_addr;
@@ -186,8 +186,11 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 		bank_base =  bank_map[1];
 	else if (flag == 0x07)
 		bank_base =  bank_map[2];
-	else
-		return -1;
+	else {
+		pr_err("the module has no OTP data\n");
+		ret = -EPERM;
+		goto err;
+	}
 	len = otp->user_otp->module_data_len;
 	if (len > 0) {
 		SR544_write_reg(sd, 0x010a, (bank_base>>8)&0xff);
@@ -200,8 +203,11 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			| (bank_grp1[GROUP1_SUM_OFFSET+2] << 8)
 			| (bank_grp1[GROUP1_SUM_OFFSET+3] << 0);
 		paddr = otp->user_otp->module_data;
-		if (copy_to_user(paddr, &bank_grp1[GROUP1_ID_OFFSET], len))
-			return -1;
+		if (copy_to_user(paddr, &bank_grp1[GROUP1_ID_OFFSET],
+							len)) {
+			ret = -EIO;
+			goto err;
+		}
 	}
 	len = otp->user_otp->vcm_otp_len;
 	if (len != 0 || otp->user_otp->wb_otp_len != 0) {
@@ -219,16 +225,20 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			paddr = (char *)otp->user_otp->otp_data + tmp_len;
 			if (copy_to_user(paddr,
 					&bank_grp2[GROUP2_AF_OFFSET],
-					len))
-				return 1;
+					len)) {
+				ret = -EIO;
+				goto err;
+			}
 			tmp_len += len;
 		}
 		len = otp->user_otp->wb_otp_len/2;
 		if (len > 0) {
 			paddr = (char *) otp->user_otp->otp_data + tmp_len;
 			if (copy_to_user(paddr,
-					&bank_grp2[GROUP2_GOLDEN_OFFSET], len))
-				return -1;
+				&bank_grp2[GROUP2_GOLDEN_OFFSET], len)) {
+				ret = -EIO;
+				goto err;
+			}
 			tmp_len += len;
 		}
 	}
@@ -246,8 +256,10 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			| (bank_grp3[GROUP3_SUM_OFFSET+3] << 0);
 		paddr = (char *)otp->user_otp->otp_data + tmp_len;
 		if (copy_to_user(paddr,
-					&bank_grp3[GROUP3_CURRENT_OFFSET], len))
-			return -1;
+				&bank_grp3[GROUP3_CURRENT_OFFSET], len)) {
+			ret = -EIO;
+			goto err;
+		}
 		tmp_len += len;
 	}
 	len = otp->user_otp->lsc_otp_len;
@@ -263,9 +275,12 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			| (bank_grp4[GROUP4_SUM_OFFSET+2] << 8)
 			| (bank_grp4[GROUP4_SUM_OFFSET+3] << 0);
 		paddr = (char *)(otp->user_otp->otp_data + tmp_len);
-		if (copy_to_user(paddr, &bank_grp4[GROUP4_LSC_OFFSET], len))
-			return -1;
+		if (copy_to_user(paddr, &bank_grp4[GROUP4_LSC_OFFSET], len)) {
+			ret = -EIO;
+			goto err;
+		}
 	}
+err:
 	SR544_write_reg(sd, 0x0118,  0x00);
 	SR544_write_reg(sd, 0x003e,  0x00);
 	SR544_write_reg(sd, 0x0118,  0x01);
@@ -273,7 +288,7 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	devm_kfree(sd->dev, bank_grp2);
 	devm_kfree(sd->dev, bank_grp3);
 	devm_kfree(sd->dev, bank_grp4);
-	return 0;
+	return ret;
 }
 static int SR544_update_otp(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *otp)
