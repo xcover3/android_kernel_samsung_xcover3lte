@@ -45,11 +45,9 @@
 #endif
 
 #define PM886_NAME		"88pm886"
-#define PM886_GPADC_NAME	"88pm886-gpadc"
 #define PM886_PAGES_NUM		(0x8)
 
 static struct dentry *pm886_dir;
-static struct dentry *pm886_gpadc_dir;
 static u8 debug_page_addr, debug_reg_addr, debug_reg_val;
 
 static int pm886_reg_addr_print(struct seq_file *s, void *p)
@@ -124,6 +122,7 @@ static ssize_t pm886_page_addr_write(struct file *file,
 	case 1:
 	case 2:
 	case 3:
+	case 4:
 	case 7:
 		pr_info("set page number as: 0x%x\n", user_page);
 		break;
@@ -156,7 +155,7 @@ static int pm886_reg_val_get(struct seq_file *s, void *p)
 		 debug_page_addr, debug_reg_addr);
 	switch (debug_page_addr) {
 	case 0:
-		map = chip->base_regmap;
+		map = chip->ldo_regmap;
 		break;
 	case 1:
 		map = chip->power_regmap;
@@ -166,6 +165,9 @@ static int pm886_reg_val_get(struct seq_file *s, void *p)
 		break;
 	case 3:
 		map = chip->battery_regmap;
+		break;
+	case 4:
+		map = chip->buck_regmap;
 		break;
 	case 7:
 		map = chip->test_regmap;
@@ -213,13 +215,16 @@ static ssize_t pm886_reg_val_write(struct file *file,
 		map = chip->base_regmap;
 		break;
 	case 1:
-		map = chip->power_regmap;
+		map = chip->ldo_regmap;
 		break;
 	case 2:
 		map = chip->gpadc_regmap;
 		break;
 	case 3:
 		map = chip->battery_regmap;
+		break;
+	case 4:
+		map = chip->buck_regmap;
 		break;
 	case 7:
 		map = chip->test_regmap;
@@ -444,10 +449,6 @@ static int pm886_debug_probe(struct platform_device *pdev)
 
 	pm886_dir = debugfs_create_dir(PM886_NAME, NULL);
 	if (!pm886_dir)
-		goto err;
-
-	pm886_gpadc_dir = debugfs_create_dir(PM886_GPADC_NAME, NULL);
-	if (!pm886_gpadc_dir)
 		goto err;
 
 	file = debugfs_create_file("register-address", (S_IRUGO | S_IWUSR | S_IWGRP),

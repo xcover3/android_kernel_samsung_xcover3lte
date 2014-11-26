@@ -26,7 +26,8 @@
 #define PM886_HEADSET_NAME	"88pm886-headset"
 #define PM886_VBUS_NAME		"88pm886-vbus"
 #define PM886_CFD_NAME		"88pm886-leds"
-#define PM886_REGULATOR_NAME	"88pm886-regulator"
+#define PM886_BUCK_NAME		"88pm886-buck"
+#define PM886_LDO_NAME		"88pm886-ldo"
 #define PM886_DVC_NAME		"88pm886-dvc"
 #define PM886_RGB_NAME		"88pm886-rgb"
 #define PM886_DEBUGFS_NAME	"88pm886-debugfs"
@@ -60,9 +61,10 @@ enum pm886_reg_nums {
 
 enum pm886_pages {
 	PM886_BASE_PAGE = 0,
-	PM886_POWER_PAGE,
+	PM886_LDO_PAGE,
 	PM886_GPADC_PAGE,
 	PM886_BATTERY_PAGE,
+	PM886_BUCK_PAGE = 4,
 	PM886_TEST_PAGE = 7,
 };
 
@@ -163,21 +165,27 @@ struct pm886_chip {
 	struct i2c_client *client;
 	struct device *dev;
 
+	struct i2c_client *ldo_page;	/* chip client for ldo page */
 	struct i2c_client *power_page;	/* chip client for power page */
 	struct i2c_client *gpadc_page;	/* chip client for gpadc page */
 	struct i2c_client *battery_page;/* chip client for battery page */
+	struct i2c_client *buck_page;	/* chip client for buck page */
 	struct i2c_client *test_page;	/* chip client for test page */
 
 	struct regmap *base_regmap;
+	struct regmap *ldo_regmap;
 	struct regmap *power_regmap;
 	struct regmap *gpadc_regmap;
 	struct regmap *battery_regmap;
+	struct regmap *buck_regmap;
 	struct regmap *test_regmap;
 	struct regmap *codec_regmap;
 
+	unsigned short ldo_page_addr;	/* ldo page I2C address */
 	unsigned short power_page_addr;	/* power page I2C address */
 	unsigned short gpadc_page_addr;	/* gpadc page I2C address */
 	unsigned short battery_page_addr;/* battery page I2C address */
+	unsigned short buck_page_addr;	/* buck page I2C address */
 	unsigned short test_page_addr;	/* test page I2C address */
 
 	unsigned int chip_id;

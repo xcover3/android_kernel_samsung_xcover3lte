@@ -104,9 +104,15 @@ static const struct resource leds_resources[] = {
 	CELL_IRQ_RESOURCE("88pm886-cfd-fail", PM886_IRQ_CFD_FAIL),
 };
 
-static const struct resource regulator_resources[] = {
+static const struct resource buck_resources[] = {
 	{
-	.name = PM886_REGULATOR_NAME,
+	.name = PM886_BUCK_NAME,
+	},
+};
+
+static const struct resource ldo_resources[] = {
+	{
+	.name = PM886_LDO_NAME,
 	},
 };
 
@@ -143,27 +149,27 @@ static const struct mfd_cell pm886_cell_devs[] = {
 	CELL_DEV(PM886_VBUS_NAME, vbus_resources, "marvell,88pm886-vbus", -1),
 	CELL_DEV(PM886_CFD_NAME, leds_resources, "marvell,88pm886-leds", PM886_FLASH_LED),
 	CELL_DEV(PM886_CFD_NAME, leds_resources, "marvell,88pm886-leds", PM886_TORCH_LED),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-buck1", 0),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-buck2", 1),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-buck3", 2),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-buck4", 3),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-buck5", 4),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo1", 5),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo2", 6),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo3", 7),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo4", 8),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo5", 9),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo6", 10),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo7", 11),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo8", 12),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo9", 13),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo10", 14),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo11", 15),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo12", 16),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo13", 17),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo14", 18),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo15", 19),
-	CELL_DEV(PM886_REGULATOR_NAME, regulator_resources, "marvell,88pm886-ldo16", 20),
+	CELL_DEV(PM886_BUCK_NAME, buck_resources, "marvell,88pm886-buck1", 0),
+	CELL_DEV(PM886_BUCK_NAME, buck_resources, "marvell,88pm886-buck2", 1),
+	CELL_DEV(PM886_BUCK_NAME, buck_resources, "marvell,88pm886-buck3", 2),
+	CELL_DEV(PM886_BUCK_NAME, buck_resources, "marvell,88pm886-buck4", 3),
+	CELL_DEV(PM886_BUCK_NAME, buck_resources, "marvell,88pm886-buck5", 4),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo1", 5),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo2", 6),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo3", 7),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo4", 8),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo5", 9),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo6", 10),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo7", 11),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo8", 12),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo9", 13),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo10", 14),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo11", 15),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo12", 16),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo13", 17),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo14", 18),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo15", 19),
+	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo16", 20),
 	CELL_DEV(PM886_DVC_NAME, dvc_resources, "marvell,88pm886-dvc", -1),
 	CELL_DEV(PM886_RGB_NAME, rgb_resources, "marvell,88pm886-rgb0", PM886_RGB_LED0),
 	CELL_DEV(PM886_RGB_NAME, rgb_resources, "marvell,88pm886-rgb1", PM886_RGB_LED1),
@@ -456,9 +462,11 @@ struct pm886_chip *pm886_init_chip(struct i2c_client *client)
 	chip->client = client;
 	chip->irq = client->irq;
 	chip->dev = &client->dev;
+	chip->ldo_page_addr = client->addr + 1;
 	chip->power_page_addr = client->addr + 1;
 	chip->gpadc_page_addr = client->addr + 2;
 	chip->battery_page_addr = client->addr + 3;
+	chip->buck_page_addr = client->addr + 4;
 	chip->test_page_addr = client->addr + 7;
 
 	dev_set_drvdata(chip->dev, chip);
@@ -644,6 +652,10 @@ int pm886_init_pages(struct pm886_chip *chip)
 		goto out;
 	}
 
+	/* ldo page */
+	chip->ldo_page = chip->power_page;
+	chip->ldo_regmap = chip->power_regmap;
+
 	/* gpadc page */
 	chip->gpadc_page = i2c_new_dummy(client->adapter, chip->gpadc_page_addr);
 	if (!chip->gpadc_page) {
@@ -674,6 +686,21 @@ int pm886_init_pages(struct pm886_chip *chip)
 		goto out;
 	}
 
+	/* buck page */
+	chip->buck_page = i2c_new_dummy(client->adapter, chip->buck_page_addr);
+	if (!chip->buck_page) {
+		dev_err(chip->dev, "Failed to new buck_page: %d\n", ret);
+		ret = -ENODEV;
+		goto out;
+	}
+	chip->buck_regmap = devm_regmap_init_i2c(chip->buck_page,
+						  power_regmap_config);
+	if (IS_ERR(chip->buck_regmap)) {
+		dev_err(chip->dev, "Failed to init buck_regmap: %d\n", ret);
+		ret = PTR_ERR(chip->buck_regmap);
+		goto out;
+	}
+
 	/* test page */
 	chip->test_page = i2c_new_dummy(client->adapter, chip->test_page_addr);
 	if (!chip->test_page) {
@@ -700,8 +727,12 @@ void pm800_exit_pages(struct pm886_chip *chip)
 
 	if (chip->power_page)
 		i2c_unregister_device(chip->power_page);
+	if (chip->ldo_page)
+		i2c_unregister_device(chip->ldo_page);
 	if (chip->gpadc_page)
 		i2c_unregister_device(chip->gpadc_page);
+	if (chip->buck_page)
+		i2c_unregister_device(chip->buck_page);
 	if (chip->test_page)
 		i2c_unregister_device(chip->test_page);
 }
@@ -875,14 +906,17 @@ int pm886_apply_bd_patch(struct pm886_chip *chip, struct device_node *np)
 		case PM886_BASE_PAGE:
 			regmap_update_bits(chip->base_regmap, reg, mask, data);
 			break;
-		case PM886_POWER_PAGE:
-			regmap_update_bits(chip->power_regmap, reg, mask, data);
+		case PM886_LDO_PAGE:
+			regmap_update_bits(chip->ldo_regmap, reg, mask, data);
 			break;
 		case PM886_GPADC_PAGE:
 			regmap_update_bits(chip->gpadc_regmap, reg, mask, data);
 			break;
 		case PM886_BATTERY_PAGE:
 			regmap_update_bits(chip->battery_regmap, reg, mask, data);
+			break;
+		case PM886_BUCK_PAGE:
+			regmap_update_bits(chip->buck_regmap, reg, mask, data);
 			break;
 		case PM886_TEST_PAGE:
 			regmap_update_bits(chip->test_regmap, reg, mask, data);
