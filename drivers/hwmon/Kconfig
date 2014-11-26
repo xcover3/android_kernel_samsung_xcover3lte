@@ -1643,6 +1643,18 @@ config SENSORS_TSL2772
 	  This driver can also be built as a module.  If so, the module
 	  will be called tsl277x.
 
+config SENSORS_MC3XXX
+	tristate "mCube mc3xxx 3-Axis accelerometer device with I2C bus"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have a mc3xxx device on the board and use I2C
+	  communication, else say N.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here.
+
 if ACPI
 
 comment "ACPI drivers"

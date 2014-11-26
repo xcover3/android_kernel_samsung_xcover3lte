@@ -151,6 +151,7 @@ obj-$(CONFIG_SENSORS_GRIP)	+= grip_sensor.o
 obj-$(CONFIG_SENSORS_STK3X1X)	+= stk3x1x.o
 obj-$(CONFIG_SENSORS_LIS3DH)	+= lis3dh.o
 obj-$(CONFIG_SENSORS_TSL2772)	+= tsl277x.o
+obj-$(CONFIG_SENSORS_MC3XXX)	+= mc3xxx.o
 
 obj-$(CONFIG_PMBUS)		+= pmbus/
 obj-y				+= bmi160/
