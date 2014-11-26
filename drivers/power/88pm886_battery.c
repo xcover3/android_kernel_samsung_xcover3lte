@@ -899,11 +899,11 @@ out:
 static void check_set_ocv_flag(struct pm886_battery_info *info,
 			       struct ccnt *ccnt_val)
 {
-	int old_soc, vol, slp_cnt, new_soc, low_th, high_th;
+	int old_soc, vol, slp_cnt, new_soc, low_th, high_th, tmp_soc;
 	bool soc_in_good_range;
 
 	/* save old SOC in case to recover */
-	old_soc = ccnt_val->soc;
+	old_soc = ROUND_SOC(ccnt_val->soc) / 10; /* 100% */
 	low_th = info->range_low_th;
 	high_th = info->range_high_th;
 
@@ -929,16 +929,16 @@ static void check_set_ocv_flag(struct pm886_battery_info *info,
 	soc_in_good_range = check_soc_range(info, new_soc);
 	if (soc_in_good_range) {
 		info->ocv_is_realiable = 1;
-		ccnt_val->soc = new_soc;
+		tmp_soc = new_soc;
 		dev_info(info->dev, "good range: new SoC = %d\n", new_soc);
 	} else {
 		info->ocv_is_realiable = 0;
-		ccnt_val->soc = old_soc;
+		tmp_soc = old_soc;
 		dev_info(info->dev, "in bad range (%d), no update\n", old_soc);
 	}
 
-	ccnt_val->last_cc =
-		(ccnt_val->max_cc / 1000) * (ccnt_val->soc * 10 + 5);
+	ccnt_val->soc = tmp_soc * 10;
+	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
 }
 
 static int pm886_battery_calc_ccnt(struct pm886_battery_info *info,
