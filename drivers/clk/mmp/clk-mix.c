@@ -201,10 +201,13 @@ static int _set_rate(struct mmp_clk_mix *mix, u32 mux_val, u32 div_val,
 		} while (timeout);
 
 		if (timeout == 0) {
+			if (mix->lock)
+				spin_unlock_irqrestore(mix->lock, flags);
+
 			pr_err("%s:%s cannot do frequency change\n",
 				__func__, __clk_get_name(mix->hw.clk));
 			ret = -EBUSY;
-			goto error;
+			return ret;
 		}
 	} else {
 		fc_req = readl(ri->reg_clk_ctrl);
@@ -220,7 +223,7 @@ static int _set_rate(struct mmp_clk_mix *mix, u32 mux_val, u32 div_val,
 
 
 	ret = 0;
-error:
+
 	if (mix->lock)
 		spin_unlock_irqrestore(mix->lock, flags);
 
