@@ -23,6 +23,7 @@
 #include <linux/iio/iio.h>
 #include <linux/iio/consumer.h>
 #include <linux/notifier.h>
+#include <linux/pm.h>
 
 #ifdef CONFIG_USB_MV_UDC
 #include <linux/platform_data/mv_usb.h>
@@ -1333,6 +1334,7 @@ static void pm886_battery_monitor_work(struct work_struct *work)
 	else
 		queue_delayed_work(info->bat_wqueue, &info->monitor_work,
 				   MONITOR_INTERVAL);
+	pm_relax(info->dev);
 }
 
 static void pm886_charged_work(struct work_struct *work)
@@ -2022,6 +2024,7 @@ static int pm886_battery_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&info->charged_work, pm886_charged_work);
 	INIT_DEFERRABLE_WORK(&info->monitor_work, pm886_battery_monitor_work);
 
+	pm_stay_awake(info->dev);
 	/* update the status timely */
 	queue_delayed_work(info->bat_wqueue, &info->monitor_work, 0);
 
@@ -2091,6 +2094,7 @@ static int pm886_battery_resume(struct device *dev)
 	 * avoid to reading in short sleep case
 	 * to update ocv_is_realiable flag effectively
 	 */
+	pm_stay_awake(info->dev);
 	atomic_set(&in_resume, 1);
 	queue_delayed_work(info->bat_wqueue,
 			   &info->monitor_work, 300 * HZ / 1000);
