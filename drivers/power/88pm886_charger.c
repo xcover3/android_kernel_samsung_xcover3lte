@@ -692,7 +692,6 @@ static void pm886_chg_state_machine(struct pm886_charger_info *info)
 		} else if (info->full) {
 			info->full = 0;
 			power_supply_changed(&info->ac_chg);
-			power_supply_changed(&info->usb_chg);
 		} else {
 			/* start recharge */
 			if (!info->charging && chg_allowed)
@@ -741,7 +740,6 @@ static void pm886_chg_state_machine(struct pm886_charger_info *info)
 		dev_dbg(info->chip->dev, "charger status changed from %s to %s\n",
 			charger_status[prev_status], charger_status[info->pm886_charger_status]);
 		power_supply_changed(&info->ac_chg);
-		power_supply_changed(&info->usb_chg);
 	}
 }
 
