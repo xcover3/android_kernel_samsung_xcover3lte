@@ -153,6 +153,9 @@ ifeq ($(TARGET_SOC),pxa1936)
 	$(KERNEL_SCRIPT_UPDATE) -d CORESIGHT_SUPPORT
 	$(KERNEL_SCRIPT_UPDATE) -d CORESIGHT_TRACE_SUPPORT
 endif
+ifeq ($(TARGET_USES_64_BIT_BINDER),true)
+	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -d CONFIG_ANDROID_BINDER_IPC_32BIT
+endif
 ifeq ($(HAVE_SECURITY_TZ_FEATURE),true)
 	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -e CONFIG_TZ_HYPERVISOR
 endif
@@ -247,6 +250,9 @@ endif
 	$(KERNEL_SCRIPT_UPDATE) -e CONFIG_CMA_DEBUG
 ifeq ($(HAVE_SECURITY_TZ_FEATURE),true)
 	$(KERNEL_SCRIPT_UPDATE) -e CONFIG_TZ_HYPERVISOR
+endif
+ifeq ($(TARGET_USES_64_BIT_BINDER),true)
+	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -d CONFIG_ANDROID_BINDER_IPC_32BIT
 endif
 endif
 	$(MAKE) -j$(MAKE_JOBS) $(PRIVATE_KERNEL_ARGS)
