@@ -58,11 +58,11 @@ int pm886_dvc_set_volt(u8 level, int uv)
 	int ret = 0;
 	struct regmap *regmap;
 
-	if (!g_dvc || !g_dvc->chip || !g_dvc->chip->power_regmap) {
+	if (!g_dvc || !g_dvc->chip || !g_dvc->chip->buck_regmap) {
 		pr_err("%s: NULL pointer!\n", __func__);
 		return -EINVAL;
 	}
-	regmap = g_dvc->chip->power_regmap;
+	regmap = g_dvc->chip->buck_regmap;
 
 	if (uv < BUCK_MIN_VOLT || uv > BUCK_MAX_VOLT) {
 		dev_err(g_dvc->chip->dev, "the expected voltage is out of range!\n");
@@ -94,12 +94,12 @@ int pm886_dvc_get_volt(u8 level)
 	int ret = 0, regval = 0;
 	u8 buck1_volt_reg;
 
-	if (!g_dvc || !g_dvc->chip || !g_dvc->chip->power_regmap) {
+	if (!g_dvc || !g_dvc->chip || !g_dvc->chip->buck_regmap) {
 		pr_err("%s: NULL pointer!\n", __func__);
 		return -EINVAL;
 	}
 
-	regmap = g_dvc->chip->power_regmap;
+	regmap = g_dvc->chip->buck_regmap;
 	if (level >= BUCK_MAX_DVC_LEVEL) {
 		dev_err(g_dvc->chip->dev, "%s: DVC level out of range\n", __func__);
 		return -EINVAL;

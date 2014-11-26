@@ -700,6 +700,8 @@ int pm886_init_pages(struct pm886_chip *chip)
 		ret = PTR_ERR(chip->buck_regmap);
 		goto out;
 	}
+	/* hardcode buck_regmap at present */
+	chip->buck_regmap = chip->power_regmap;
 
 	/* test page */
 	chip->test_page = i2c_new_dummy(client->adapter, chip->test_page_addr);

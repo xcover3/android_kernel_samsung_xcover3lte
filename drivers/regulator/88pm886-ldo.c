@@ -300,7 +300,7 @@ static int pm886_ldo_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to allocate pm886_regualtors");
 		return -ENOMEM;
 	}
-	data->map = chip->power_regmap;
+	data->map = chip->ldo_regmap;
 	data->chip = chip;
 
 	/* add regulator config */
