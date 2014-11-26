@@ -162,6 +162,17 @@ static void pxa1908_edge_wakeup_disable(void)
 	need_restore_pad_wakeup = 0;
 }
 
+#define SDH_WAKEUP_ICU      94  /* icu interrupt num for sdh wakeup */
+static void sdh_wakeup_icu_enable(void)
+{
+	writel_relaxed(ICU_IRQ_ENABLE, icu_virt_addr + (SDH_WAKEUP_ICU << 2));
+}
+
+static void sdh_wakeup_icu_disable(void)
+{
+	writel_relaxed(0, icu_virt_addr + (SDH_WAKEUP_ICU << 2));
+}
+
 /* ========================= Wakeup ports settings=========================== */
 #define DISABLE_ALL_WAKEUP_PORTS		\
 	(PMUM_SLPWP0 | PMUM_SLPWP1 | PMUM_SLPWP2 | PMUM_SLPWP3 |	\
@@ -283,6 +294,7 @@ static void pxa1908_set_dstate(u32 cpu, u32 power_mode)
 		 * it has to be put in D1P mode.
 		 */
 		pxa1908_edge_wakeup_enable();
+		sdh_wakeup_icu_enable();
 		break;
 	default:
 		WARN(1, "Invalid D power state!\n");
@@ -351,6 +363,7 @@ static void pxa1908_clear_state(u32 cpu)
 	writel_relaxed(apcr, mpmu_virt_addr + APCR);
 	apcr = readl_relaxed(mpmu_virt_addr + APCR);	/* RAW for barrier */
 
+	sdh_wakeup_icu_disable();
 	pxa1908_edge_wakeup_disable();
 
 	return;
