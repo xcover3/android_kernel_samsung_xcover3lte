@@ -114,6 +114,7 @@
 		bst-uvvbat-set = <0x0>;		/* 3.1V */
 		max-flash-current = <1200>;	/* mA */
 		max-torch-current = <200>;	/* mA */
+		torch-force-max-current = <0>;
 	};
 
 	red: led-rgb0 {
