@@ -206,15 +206,16 @@ struct mv_udc {
 	unsigned int		test_mode;
 
 	int			errors;
-	unsigned		softconnect:1,
-				vbus_active:1,
-				remote_wakeup:1,
-				selfpowered:1,
-				softconnected:1,
-				force_fs:1,
-				clock_gating:1,
-				active:1,
-				stopped:1;      /* stop bit is setted */
+
+	unsigned int		softconnect;
+	unsigned int		vbus_active;
+	unsigned int		remote_wakeup;
+	unsigned int		selfpowered;
+	unsigned int		softconnected;
+	unsigned int		force_fs;
+	unsigned int		clock_gating;
+	unsigned int		active;
+	unsigned int		stopped;      /* stop bit is setted */
 
 	struct work_struct	vbus_work;
 	struct workqueue_struct *qwork;
