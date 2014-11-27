@@ -17,9 +17,85 @@
 		apb@d4000000 {
 			pmx: pinmux@d401e000 {
 				sspa1_func: sspa1_func {
+					/*this config for camera on cmtb board */
+					pinctrl-single,pins = <
+						GPIO27 AF0
+						GPIO28 AF0
+					>;
+					MFP_LPM_FLOAT;
 				};
 			};
 		};
+	};
+
+	mcam0:mcam@0 {
+		sc2-i2c-dyn-ctrl;
+		status = "disable";
+	};
+
+	mcam1:mcam@1 {
+		sc2-i2c-dyn-ctrl;
+		status = "disable";
+	};
+
+	soc-camera@0 {
+		status = "disable";
+	};
+
+	soc-camera@1 {
+		status = "disable";
+	};
+
+	plat_cam {
+		status = "okay";
+		backsensor {
+			compatible = "marvell,backsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			SR544: sensor@0 {
+				compatible = "samsung,sr544";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x28>;
+				sc2-i2c-dyn-ctrl;
+				pxa1908_cmtb_board;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+				mut-gpios = <&gpio 1 0>;
+				ecam1-gpios = <&gpio 27 0>;
+				ecam2-gpios = <&gpio 28 0>;
+				ecam3-gpios = <&gpio 29 0>;
+				ecam4-gpios = <&gpio 30 1>;
+				ilim-gpios = <&gpio 0 0>;
+				mutfault-gpios = <&gpio 2 0>;
+			};
+		};
+	};
+
+	b52isp_sc2_csi0 {
+	        status = "okay";
+	};
+	b52isp_sc2_csi1 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma0 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma1 {
+	        status = "okay";
 	};
 
 };
