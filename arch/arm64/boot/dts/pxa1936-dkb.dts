@@ -924,10 +924,14 @@
 				        charger {
 				        };
 				        battery {
+						marvell,fg-has-external-storage;
+						external-storage = <&pmic0>;
+						external-resistor = <200>; /* mohm */
 				        };
 				        led {
 					        flash-en-gpio = <124>;
 					        flash-txmsk-gpio = <19>;
+						status = "okay";
 				        };
 					vbus {
 						status = "okay";
@@ -1424,3 +1428,5 @@
 #include "88pm860.dtsi"
 #include "88pm860_pxa1936_dkb.dtsi"
 #include "88pm830.dtsi"
+#include "88pm830_battery_common.dtsi"
+#include "88pm830_sp4555557sa.dtsi"
