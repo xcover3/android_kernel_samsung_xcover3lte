@@ -152,6 +152,16 @@ static struct v4l2_ctrl_config b52isp_ctrl_afr_max_gain_cfg = {
 	.step = 1,
 	.def = CID_AFR_MAX_GAIN_MAX,
 };
+static struct v4l2_ctrl_config b52isp_ctrl_band_step_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_BAND_STEP,
+	.name = "band step",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 0xff,
+	.step = 1,
+	.def = 0,
+};
 struct b52isp_ctrl_colorfx_reg {
 	u32 reg;
 	u32 val;
@@ -1086,6 +1096,22 @@ static int b52isp_ctrl_get_gain(struct b52isp_ctrls *ctrls, int id)
 	return 0;
 }
 
+static int b52isp_ctrl_get_band_step(struct b52isp_ctrls *ctrls, int id)
+{
+	/* unit is line Q4*/
+	switch (ctrls->pwr_line_freq->val) {
+	case V4L2_CID_POWER_LINE_FREQUENCY_50HZ:
+		ctrls->band_step->val = b52_readw(REG_BAND_DET_50HZ) << 4;
+		break;
+	case V4L2_CID_POWER_LINE_FREQUENCY_60HZ:
+		ctrls->band_step->val = b52_readw(REG_BAND_DET_60HZ) << 4;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static int b52isp_ctrl_set_band(struct v4l2_ctrl *ctrl, int id)
 {
 	int ret;
@@ -1106,7 +1132,7 @@ static int b52isp_ctrl_set_band(struct v4l2_ctrl *ctrl, int id)
 				&band_50hz, &band_60hz);
 		if (ret < 0)
 			return ret;
-		b52_writeb(base + REG_BAND_DET_50HZ, band_50hz);
+		b52_writew(REG_BAND_DET_50HZ, band_50hz);
 
 		b52_writeb(base + REG_FW_AUTO_BAND_DETECTION,
 				AUTO_BAND_DETECTION_OFF);
@@ -1117,7 +1143,7 @@ static int b52isp_ctrl_set_band(struct v4l2_ctrl *ctrl, int id)
 				&band_50hz, &band_60hz);
 		if (ret < 0)
 			return ret;
-		b52_writeb(base + REG_BAND_DET_60HZ, band_60hz);
+		b52_writew(REG_BAND_DET_60HZ, band_60hz);
 
 		b52_writeb(base + REG_FW_AUTO_BAND_DETECTION,
 				AUTO_BAND_DETECTION_OFF);
@@ -1396,6 +1422,9 @@ static int b52isp_ctrl_get_aec_stable(struct b52isp_ctrls *ctrls, int id)
 	else if (b52_readw(base + REG_FW_AEC_MAN_GAIN) ==
 					b52_readw(base + REG_FW_MAX_CAM_GAIN))
 		ctrls->aec_stable->val = AEC_STATE_STABLE;
+	else if ((b52_readl(base + REG_FW_AEC_MAN_EXP) >> 4) ==
+					b52_readl(base + REG_FW_MIN_CAM_EXP))
+		ctrls->aec_stable->val = AEC_STATE_STABLE;
 	else
 		ctrls->aec_stable->val = AEC_STATE_UNSTABLE;
 	return 0;
@@ -1551,6 +1580,9 @@ static int b52isp_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_AUTOGAIN:
 		ret = b52isp_ctrl_get_gain(ctrls, id);
 		break;
+	case V4L2_CID_PRIVATE_BAND_STEP:
+		ret = b52isp_ctrl_get_band_step(ctrls, id);
+		break;
 	case V4L2_CID_PRIVATE_TARGET_Y:
 		ret = b52isp_ctrl_get_target_y(ctrls, id);
 		break;
@@ -1680,7 +1712,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	struct v4l2_ctrl_handler *handler = &ctrls->ctrl_handler;
 	const struct v4l2_ctrl_ops *ops = &b52isp_ctrl_ops;
 
-	v4l2_ctrl_handler_init(handler, 35);
+	v4l2_ctrl_handler_init(handler, 36);
 
 	ctrls->saturation = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_SATURATION, 0, 0xFF, 1, 0);
@@ -1792,6 +1824,9 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	ctrls->aec_stable = v4l2_ctrl_new_custom(handler,
 			&b52isp_ctrl_aec_stable_cfg, NULL);
 	ctrls->aec_stable->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	ctrls->band_step = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_band_step_cfg, NULL);
+	ctrls->band_step->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	if (handler->error) {
 		pr_err("%s: failed to init all ctrls", __func__);
 		return handler->error;
