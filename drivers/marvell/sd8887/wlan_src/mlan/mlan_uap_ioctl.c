@@ -255,6 +255,8 @@ wlan_uap_bss_ioctl_reset(IN pmlan_adapter pmadapter,
 	}
 	pmpriv->aggr_prio_tbl[6].ampdu_user =
 		pmpriv->aggr_prio_tbl[7].ampdu_user = BA_STREAM_NOT_ALLOWED;
+	pmpriv->addba_reject[6] =
+		pmpriv->addba_reject[7] = ADDBA_RSP_STATUS_REJECT;
 
 	/* hs_configured, hs_activated are reset by main loop */
 	pmadapter->hs_cfg.conditions = HOST_SLEEP_DEF_COND;
@@ -1526,6 +1528,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_11h_ioctl_dfs_testing(pmadapter,
 							    pioctl_req);
 #endif
+		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_REPORT_REQUEST)
+			status = wlan_11h_ioctl_dfs_cancel_chan_report(pmpriv,
+								       pioctl_req);
 		break;
 	case MLAN_IOCTL_RADIO_CFG:
 		radiocfg = (mlan_ds_radio_cfg *)pioctl_req->pbuf;

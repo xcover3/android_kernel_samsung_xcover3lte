@@ -1017,7 +1017,7 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 		cleanup_rx_reorder_tbl = (initiator) ? MFALSE : MTRUE;
 
 	PRINTM(MEVENT, "delete_bastream_tbl: " MACSTR " tid=%d, type=%d"
-	       "initiator=%d\n", MAC2STR(peer_mac), tid, initiator, type);
+	       "initiator=%d\n", MAC2STR(peer_mac), tid, type, initiator);
 
 	if (cleanup_rx_reorder_tbl) {
 		rx_reor_tbl_ptr =

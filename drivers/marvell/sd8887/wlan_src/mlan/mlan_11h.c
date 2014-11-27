@@ -562,10 +562,17 @@ wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 		(HostCmd_DS_CHAN_RPT_REQ *)pinfo_buf;
 	wlan_dfs_device_state_t *pstate_dfs = &priv->adapter->state_dfs;
 	MrvlIEtypes_ChanRpt11hBasic_t *ptlv_basic;
+	t_bool is_cancel_req = MFALSE;
+
+	/*
+	 * pchan_rpt_req->millisec_dwell_time would be zero if the chan_rpt_req
+	 * is to cancel current ongoing report
+	 */
+	if (pchan_rpt_req->millisec_dwell_time == 0)
+		is_cancel_req = MTRUE;
 
 	ENTER();
-
-	if (pstate_dfs->dfs_check_pending) {
+	if (pstate_dfs->dfs_check_pending && !is_cancel_req) {
 		PRINTM(MERROR,
 		       "11h: ChanRptReq - previous CMD_CHAN_REPORT_REQUEST has"
 		       " not returned its result yet (as EVENT_CHANNEL_READY)."
@@ -581,8 +588,9 @@ wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 	       sizeof(HostCmd_DS_CHAN_RPT_REQ));
 
 	/* if DFS channel, add BASIC report TLV, and set radar bit */
-	if (wlan_11h_radar_detect_required
-	    (priv, pchan_rpt_req->chan_desc.chanNum)) {
+	if (!is_cancel_req &&
+	    wlan_11h_radar_detect_required(priv,
+					   pchan_rpt_req->chan_desc.chanNum)) {
 		ptlv_basic =
 			(MrvlIEtypes_ChanRpt11hBasic_t *)(((t_u8 *)(pcmd_ptr)) +
 							  pcmd_ptr->size);
@@ -600,7 +608,10 @@ wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 	   CMD_RESP == SUCCESS */
 	pstate_dfs->dfs_check_pending = MFALSE;
 	pstate_dfs->dfs_radar_found = MFALSE;
-	pstate_dfs->dfs_check_channel = pchan_rpt_req->chan_desc.chanNum;
+
+	if (!is_cancel_req)
+		pstate_dfs->dfs_check_channel =
+			pchan_rpt_req->chan_desc.chanNum;
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -2213,9 +2224,14 @@ wlan_11h_check_chan_report(mlan_private *priv, t_u8 chan)
 			ret = MLAN_STATUS_FAILURE;
 		}
 	} else {
+		/* When Cache is not valid. This is required during extending
+		   cache validity during bss_stop */
+		pstate_dfs->dfs_check_channel = 0;
+
 		/* TODO: reissue report request if not pending.  BUT HOW to
 		   make the code wait for it??? For now, just fail since we
 		   don't have the info. */
+
 		ret = MLAN_STATUS_PENDING;
 	}
 
@@ -2517,10 +2533,19 @@ wlan_11h_cmdresp_process(mlan_private *priv, const HostCmd_DS_COMMAND *resp)
 		break;
 
 	case HostCmd_CMD_CHAN_REPORT_REQUEST:
-		PRINTM(MINFO,
-		       "11h: Ret ChanRptReq.  Set dfs_check_pending and wait"
-		       " for EVENT_CHANNEL_REPORT.\n");
 		priv->adapter->state_dfs.dfs_check_pending = MTRUE;
+
+		if (resp->params.chan_rpt_req.millisec_dwell_time == 0) {
+			/* from wlan_11h_ioctl_dfs_cancel_chan_report */
+			priv->adapter->state_dfs.dfs_check_pending = MFALSE;
+			priv->adapter->state_dfs.dfs_check_channel = 0;
+			PRINTM(MINFO, "11h: Cancelling Chan Report \n");
+		} else {
+			PRINTM(MERROR,
+			       "11h: Ret ChanRptReq.  Set dfs_check_pending and wait"
+			       " for EVENT_CHANNEL_REPORT.\n");
+		}
+
 		break;
 
 	default:
@@ -2736,6 +2761,40 @@ wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 	return MLAN_STATUS_SUCCESS;
 }
 #endif /* DFS_TESTING_SUPPORT */
+
+/**
+ *  @brief 802.11h DFS cancel chan report
+ *
+ *  @param priv         Pointer to mlan_private
+ *  @param pioctl_req   Pointer to mlan_ioctl_req
+ *
+ *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_11h_ioctl_dfs_cancel_chan_report(mlan_private *priv,
+				      pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
+	HostCmd_DS_CHAN_RPT_REQ *chan_rpt_req = MNULL;
+	t_s32 ret;
+
+	ENTER();
+
+	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
+
+	chan_rpt_req =
+		(HostCmd_DS_CHAN_RPT_REQ *)&ds_11hcfg->param.chan_rpt_req;
+
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_CHAN_REPORT_REQUEST,
+			       HostCmd_ACT_GEN_SET, 0,
+			       (t_void *)pioctl_req, (t_void *)chan_rpt_req);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
 
 /**
  *  @brief Check if channel is under NOP (Non-Occupancy Period)

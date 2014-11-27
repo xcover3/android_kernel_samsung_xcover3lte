@@ -3319,6 +3319,7 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	switch (cmdresp_no) {
 	case HOST_CMD_APCMD_BSS_STOP:
 		pmpriv->uap_bss_started = MFALSE;
+
 		wlan_11h_check_update_radar_det_state(pmpriv);
 
 		if (pmpriv->adapter->state_rdh.stage == RDH_STOP_INTFS)

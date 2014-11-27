@@ -235,6 +235,8 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 
+	pmadapter->feature_control = pmdevice->feature_control;
+
 	if ((pmdevice->int_mode == INT_MODE_GPIO) && (pmdevice->gpio_pin == 0)) {
 		PRINTM(MERROR, "SDIO_GPIO_INT_CONFIG: Invalid GPIO Pin\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -285,8 +287,9 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 #else
 	pmadapter->init_para.cfg_11d = 0;
 #endif
-	pmadapter->init_para.dfs_master_radar_det_en =
-		DFS_MASTER_RADAR_DETECT_EN;
+	if (IS_DFS_SUPPORT(pmadapter->feature_control))
+		pmadapter->init_para.dfs_master_radar_det_en =
+			DFS_MASTER_RADAR_DETECT_EN;
 	pmadapter->init_para.dfs_slave_radar_det_en = DFS_SLAVE_RADAR_DETECT_EN;
 	if (IS_SD8777(pmadapter->card_type) || IS_SD8787(pmadapter->card_type))
 		pmadapter->init_para.fw_crc_check = pmdevice->fw_crc_check;

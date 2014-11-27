@@ -195,12 +195,15 @@ addbapara [timeout txwinsize rxwinsize txamsdu rxamsdu]
 aggrpriotbl <m0> <n0> <m1> <n1> ... <m7> <n7>
 addbareject <m0> <m1> ... <m7>
 httxbfcfg <ACTION> [ACT_DATA]
+httxcfg [<m>] [<n>]
+htstreamcfg [n]
 deepsleep [MODE] [IDLE_TIME]
 sdcmd52rw <FN no.> <address> [data]
 hostcmd <txpwrlimit_cfg.conf> txpwrlimit_cfg_get
 hostcmd <txpwrlimit_cfg.conf> txpwrlimit_2g_cfg_set
 hostcmd <txpwrlimit_cfg.conf> txpwrlimit_5g_cfg_set
 tx_data_pause [ENABLE][TX_BUF_CNT]
+vhtcfg <j> <k> [l] [m] [n] [o]
 dfstesting [<user_cac_pd> <user_nop_pd> <no_chan_change> <fixed_chan_num>]
 mgmtframectrl [MASK]
 
@@ -228,7 +231,8 @@ sys_cfg_pkt_fwd_ctl [PKT_FWD_CTRL]
 sys_cfg_sta_ageout_timer [STA_AGEOUT_TIMER]
 sys_cfg_ps_sta_ageout_timer [PS_STA_AGEOUT_TIMER]
 sys_cfg_auth [AUTH_MODE]
-sys_cfg_protocol [PROTOCOL]
+sys_cfg_protocol [PROTOCOL] [AKM_SUITE]
+sys_cfg_pmf [MFPC] [MFPR]
 sys_cfg_wep_key [INDEX ISDEFAULT KEY]
 sys_cfg_cipher [PAIRWISE_CIPHER GROUP_CIPHER]
 sys_cfg_pwk_cipher [<PROTOCOL>] [PAIRWISE_CIPHER]
@@ -944,7 +948,7 @@ sys_cfg_auth
 
 sys_cfg_protocol
 ----------------
-    "./uaputl.exe sys_cfg_protocol [PROTOCOL]"
+    "./uaputl.exe sys_cfg_protocol [PROTOCOL] [AKM_SUITE]"
 
     This command is used to set or get the encryption protocol.
 
@@ -957,12 +961,45 @@ sys_cfg_protocol
 			40		 WPA, WPA2 Mixed Mode
     empty - Get current encryption protocol
 
+    AKM_SUITE:
+            bit 0   KEY_MGMT_EAP
+            bit 1   KEY_MGMT_PSK
+            bit 2   KEY_MGMT_NONE
+            bit 3   KEY_MGMT_PSK_SHA256
+
     Example:
 	./uaputl.exe sys_cfg_protocol 2
 		Set AP encryption protocol to static WEP.
 
 	./uaputl.exe sys_cfg_protocol
 		Get AP encryption protocol.
+
+    ./uaputl.exe sys_cfg_protocol 32 0x102
+        Set AP encryption protocol to WPA2 and AKM SUITE to PSK and PSK SHA256
+
+    ./uaputl.exe sys_cfg_protocol 40 0x100
+        Set AP encryption protocol to WPA+WPA2 and AKM SUITE to PSK SHA256
+
+sys_cfg_pmf
+-----------
+    "./uaputl.exe sys_cfg_pmf [MFPC] [MFPR]"
+
+    This command is used to set or get the PMF settings.
+
+    The supported options are:
+        MFPC:       0 - Mgmt frame protection not capable
+                    1 - Mgmt frame protection capable
+
+        MFPR:       0 - Mgmt frame protection not required
+                    1 - Mgmt frame protection required
+                    x - don't care if MFPC = 0
+
+    Example:
+    ./uaputl.exe sys_cfg_pmf 1 1
+        Set AP's PMF params to Mgmt frames protection capable and required.
+
+    ./uaputl.exe sys_cfg_pmf
+        Get AP's PMF params settings.
 
 sys_cfg_wep_key
 ---------------
@@ -1892,7 +1929,8 @@ addbareject
         Example:
         ./uaputl.exe addbareject
             This command will get the current table.
-	        [0 0 0 0 0 0 0 0]. ADDBA would be accepted for all TIDs. This is the default state.
+	        [0 0 0 0 0 0 1 1]. ADDBA would be accepted for all TIDs except for TID [6,7].
+	        This is the default state.
 
         ./uaputl.exe addbareject 0 0 1 1 0 0 0 0
             This command will accept ADDBA requests for Tid [0,1,4,5,6,7] and reject ADDBA requests for Tid [2,3]
@@ -1956,6 +1994,61 @@ httxbfcfg
 		                                                      FB type to 3 for peer 00:50:43:20:BF:43
 		./uaputl.exe httxbfcfg 4 00:50:43:20:BF:24 43     : Set TX BF SNR threshold to peer
 
+
+httxcfg
+	This command is used to configure various 11n specific configuration
+	for transmit (such as Short GI, Channel BW and Green field support)
+
+	where <m> is <txcfg>
+	This is a bitmap and should be used as following
+		Bit 15-7: Reserved set to 0
+		Bit 6: Short GI in 40 Mhz enable/disable
+		Bit 5: Short GI in 20 Mhz enable/disable
+		Bit 4: Green field enable/disable
+		Bit 3-2: Reserved set to 0
+		Bit 1: 20/40 Mhz enable disable.
+		Bit 0: Reserved set to 0
+
+	When Bit 1 is set then firmware could transmit in 20Mhz or 40Mhz based
+	on rate adaptation. When this bit is reset then firmware will only
+	transmit in 20Mhz.
+
+	where <n> is <band>
+	<band> - This is the band info for <txcfg> settings.
+		0: Settings for both 2.4G and 5G bands
+		1: Settings for 2.4G band
+		2: Settings for 5G band
+
+	Example:
+		./uaputl.exe -i uapX httxcfg
+		This will display HT Tx configuration for 2.4G and 5G band.
+
+		./uaputl.exe -i uapX httxcfg 0x62
+		This will enable 20/40 and Short GI but will disable Green field for 2.4G and 5G band.
+
+		./uaputl.exe -i uapX httxcfg 0x30 1
+		This will enable Short GI 20 Mhz and Green field for 2.4G band.
+
+	The default value is 0x20 for 2.4G and 0x62 for 5G.
+
+	Note:- If 20/40 MHz support is disabled in htcapinfo, device will not transmit
+	in 40 MHz even 20/40 MHz is enabled in httxcfg.
+
+htstreamcfg
+	This command is used to set/get HT stream configuration.
+	The setting only takes effect in next association.
+
+	Usage:
+		./uaputl.exe -i uapX htstreamcfg [n]
+
+	where <n>
+		0x11: HT stream 1x1 mode
+		0x22: HT stream 2x2 mode
+
+	Examples:
+		./uaputl.exe -i uapX htstreamcfg        : Get current setting
+		./uaputl.exe -i uapX htstreamcfg 0x11   : Set HT stream 1x1 mode
+		./uaputl.exe -i uapX htstreamcfg 0x22   : Set HT stream 2x2 mode
 
 deepsleep
 ---------
@@ -2040,6 +2133,116 @@ tx_data_pause
     ./uaputl.exe tx_data_pause 1    : Enable pause tx event, max tx buffer number unchanged.
     ./uaputl.exe tx_data_pause 0    : Disable pasue tx event, max tx buffer number unchanged.
     ./uaputl.exe tx_data_pause 1 15 : Enable pause tx event, with max tx buffer number 15.
+
+vhtcfg
+	This command is used to set and get various 11ac specific configuration
+	for transmission and reception. For the SET operation, all paramaters
+	may be applied.	For the GET operation, only the first two parameters are applied.
+	The 6th argument "rx_mcs_set" can be used to disbale/enable 802.11ac.
+
+	where <j> is <band>
+	<band> - This is the band setting for the vhtcfg
+		0: Settings for both 2.4G and 5G bands (for SET operation, 11N BW only)
+		1: Settings for 2.4G band (for 11N BW only)
+		2: Settings for 5G band
+
+	where <k> is <txrx>
+	<txrx> - This parameter specifies the configuration of VHT operation for TX or/and VHT capabilities
+		1: configuration of VHT capabilities tx
+		2: configuration of VHT capabilities rx
+	Note: For the STA, the VHT capabilities configuration is applied in association,
+	      whereas the VHT operations configuration is actually used in Tx.
+
+	where [l] is <bwcfg>
+	<bwcfg> - This parameter specifies the bandwidth (BW) configuration
+		  applied to the vhtcfg.
+	If <txrx> is 1/3 (Tx operations),
+		0: Tx BW follows the BW (20/40 MHz) from 11N CFG
+		1: Tx BW follows the BW (80/160/80+80 MHz) from VHT Capabilities
+		   defined in <vhtcap> below for 5G band.
+
+	where [m] is <vhtcap>
+	<vhtcap> - This parameter specifies the VHT capabilities info if <txrx> is 2 (association)
+		   or the VHT Tx operations if <txrx> is 1 (Tx operations).
+		   The VHT Tx operation should be a subset of VHT capabilities for association.
+		   It is a bitmap and should be used as follows:
+
+		Bit 31-30: Reserved and set to 0
+		Bit 29:    TX antenna pattern consistency
+			   1: antenna pattern does not change
+			   0: antenna pattern might change
+		Bit 28:    RX antenna pattern consistency
+			   1: antenna pattern does not change
+			   0: antenna pattern might change
+		Bit 27-26: VHT link adaptation capable
+			   0: no feedback of VHT MFB from the STA
+			   1: unsolicted feedback of VHT MFB from the STA
+			   2: both response and unsolicted feedback of VHT MFB
+			      from the STA
+			   3: reserved and set to 0
+		Bit 25-23: Maximum A-MPDU length exponent
+		Bit 22:    +HTC-VHT capable (1: enable. 0 disable)
+		Bit 21:    VHT TXOP PS
+		Bit 20:    MU beamformee capable (1: enable. 0 disable)
+		Bit 19:    MU beamformer capable (1: enable. 0 disable)
+		Bit 18-16: Number of sounding dimensions (set to maximum-1
+			   if Bit 11 is 1. Otherwise, reserved and set to 0)
+		Bit 15-13: Compressed steering number of beamformer
+			   antennas supported (set to maximum-1 if Bit 12 is 1.
+			   Otherwise, reserved and set to 0)
+		Bit 12:    SU beamformee capable (1: enable. 0 disable)
+		Bit 11:    SU beamformer capable (1: enable. 0 disable)
+		Bit 10-8:  Rx STBC
+			   0: no support
+			   1: support of 1 spatial stream
+			   2: support of 1-2 streams
+			   3: support of 1-3 spatial streams
+			   4: support of 1-4 spatial streams
+			   5-7: reserved and set to 0
+		Bit 7:     TX STBC (1: enable. 0 disable)
+		Bit 6:     Short GI for 160 and 80+80 MHz (1: enable. 0 disable)
+		Bit 5:     Short GI for 80 MHz (1: enable. 0 disable)
+		Bit 4:     Rx LDPC (1: enable. 0 disable)
+		Bit 3-2:   Supported channel width set.
+			   0: no support of either 160 or 80+80 MHz.
+			   1: support of 160 MHz
+			   2: support of both 160 and 80+80 MHz.
+			   3: reserved and set to 0.
+		Bit 1-0:   Maximum MPDU length
+			   0: 3895 octets.
+			   1: 7991 octets.
+			   2: 11454 octets.
+			   3: reserved and set to 0.
+
+	where [n] is <tx_mcs_map>,
+	<tx_mcs_map> - This parameter specifies the TX MCS map. It may not be used for the STA if <txrx> is 1 (Tx operations).
+		It is a bitmap and should be used as following
+		Bit 15-0:  MCS map, which is defined as folows:
+			Bit 15-14: Max MCS for 8 SS
+			Bit 13-12: Max MCS for 7 SS
+			Bit 11-10: Max MCS for 6 SS
+			Bit 9-8:   Max MCS for 5 SS
+			Bit 7-6:   Max MCS for 4 SS
+			Bit 5-4:   Max MCS for 3 SS
+			Bit 3-2:   Max MCS for 2 SS
+			Bit 1-0:   Max MCS for 1 SS
+
+	where [o] is <rx_mcs_map>.
+	<rx_mcs_map> - This parameter specifies the RX MCS map. It may not be used for the STA if <txrx> is 1 (Tx operations).
+		It is a bitmap with the same sructure as for <tx_mcs_map>
+		rx_mcs_map = 0xffff : FW will disable 802.11ac
+                rx_mcs_map = others : FW will enable 802.11ac
+
+	Note: The user setting of vhtcap may be overwritten by the driver
+	      if the setting of those fields is beyond the hardware capabilities.
+
+	Examples:
+		./uaputl.exe -i uapX vhtcfg 2 3            : Get current VHT configuration in 5GHz for the uAP.
+		./uaputl.exe -i uapX vhtcfg 2 3 0 0x000001f0 0xfffa 0xfffa
+		    : Set the current/maximum VHT configuration in 5GHz for the uAP.
+		      Both Tx and Rx supports MCS 0-9 for both 1 and 2 spatial streams.
+		./uaputl.exe -i uapX vhtcfg 2 3 0 0x000001b0
+		    : Set the VHT capability information in 5GHz for the uAP, and keep the Tx/Rx MCS Map same as before.
 
 dfstesting
 ----------

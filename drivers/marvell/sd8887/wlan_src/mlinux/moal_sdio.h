@@ -61,6 +61,7 @@ Change log:
 #define SD8887_A0_FW_NAME    "mrvl/sd8887_uapsta.bin"
 #define SD8887_A2_FW_NAME    "mrvl/sd8887_uapsta_a2.bin"
 #define SD8887_WLAN_A2_FW_NAME "mrvl/sd8887_wlan_a2.bin"
+#define SD8887_WLAN_A0_FW_NAME "mrvl/sd8887_wlan.bin"
 #ifndef DEFAULT_FW_NAME
 #define DEFAULT_FW_NAME ""
 #endif

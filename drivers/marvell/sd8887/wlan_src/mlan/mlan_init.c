@@ -175,7 +175,6 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 #ifdef STA_SUPPORT
 	t_u32 buf_size;
 	BSSDescriptor_t *ptemp_scan_table = MNULL;
-	t_u8 i = 0;
 	t_u8 chan_2g[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
 	t_u8 chan_5g[] = {
 		12, 16, 34, 38, 42, 46, 36, 40, 44,
@@ -251,13 +250,6 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 		PRINTM(MERROR, "Failed to allocate channel statistics\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
-	}
-	for (i = 0; i < pmadapter->num_in_chan_stats; i++) {
-		if (i < sizeof(chan_2g))
-			pmadapter->pchan_stats[i].chan_num = chan_2g[i];
-		else
-			pmadapter->pchan_stats[i].chan_num =
-				chan_5g[i - sizeof(chan_2g)];
 	}
 #endif
 
@@ -479,6 +471,9 @@ wlan_init_priv(pmlan_private priv)
 		priv->add_ba_param.rx_win_size =
 			pmadapter->psdio_device->ampdu_info->
 			ampdu_uap_rxwinsize;
+		priv->aggr_prio_tbl[6].ampdu_user =
+			priv->aggr_prio_tbl[7].ampdu_user =
+			BA_STREAM_NOT_ALLOWED;
 	}
 #endif
 

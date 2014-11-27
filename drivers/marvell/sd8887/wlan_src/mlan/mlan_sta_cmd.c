@@ -949,6 +949,40 @@ done:
 }
 
 /**
+ *  @brief This function send eapol pkt to FW
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status
+wlan_cmd_eapol_pkt(IN pmlan_private pmpriv,
+		   IN HostCmd_DS_COMMAND *cmd,
+		   IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	HostCmd_DS_EAPOL_PKT *eapol_pkt = &cmd->params.eapol_pkt;
+	mlan_buffer *pmbuf = (mlan_buffer *)pdata_buf;
+
+	ENTER();
+	eapol_pkt->action = wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
+	cmd->size = sizeof(HostCmd_DS_EAPOL_PKT) + S_DS_GEN;
+	cmd->command = wlan_cpu_to_le16(cmd->command);
+
+	eapol_pkt->tlv_eapol.header.type = wlan_cpu_to_le16(TLV_TYPE_EAPOL_PKT);
+	eapol_pkt->tlv_eapol.header.len = wlan_cpu_to_le16(pmbuf->data_len);
+	memcpy(pmpriv->adapter, eapol_pkt->tlv_eapol.pkt_buf,
+	       pmbuf->pbuf + pmbuf->data_offset, pmbuf->data_len);
+	cmd->size += pmbuf->data_len;
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function prepares command of supplicant pmk
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -2373,6 +2407,10 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 	case HostCmd_CMD_SUPPLICANT_PMK:
 		ret = wlan_cmd_802_11_supplicant_pmk(pmpriv, cmd_ptr,
 						     cmd_action, pdata_buf);
+		break;
+	case HostCmd_CMD_802_11_EAPOL_PKT:
+		ret = wlan_cmd_eapol_pkt(pmpriv, cmd_ptr, cmd_action,
+					 pdata_buf);
 		break;
 	case HostCmd_CMD_SUPPLICANT_PROFILE:
 		ret = wlan_cmd_802_11_supplicant_profile(pmpriv, cmd_ptr,

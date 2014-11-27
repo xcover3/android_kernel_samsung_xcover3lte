@@ -651,6 +651,11 @@ out:
 
 #define MAX_RX_PENDING_THRHLD	50
 
+/** high rx pending packets */
+#define HIGH_RX_PENDING         100
+/** low rx pending packets */
+#define LOW_RX_PENDING          80
+
 /** MAX Tx Pending count */
 #define MAX_TX_PENDING      100
 
@@ -814,6 +819,16 @@ struct tcp_sess {
 	t_u32 ack_seq;
 	/** tcp ack buffer */
 	void *ack_skb;
+};
+
+struct tx_status_info {
+	struct list_head link;
+    /** cookie */
+	t_u64 tx_cookie;
+    /** seq_num */
+	t_u8 tx_seq_num;
+	/**          skb */
+	void *tx_skb;
 };
 
 /** default rssi low threshold */
@@ -1110,14 +1125,9 @@ struct _moal_private {
 	spinlock_t tx_stat_lock;
     /** tx_seq_num */
 	t_u8 tx_seq_num;
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-    /** tx_buf */
-	t_u8 *last_tx_buf;
-    /** tx_buf_len */
-	t_u8 last_tx_buf_len;
-    /** cookie */
-	t_u64 last_tx_cookie;
-#endif
+    /** tx status queue */
+	struct list_head tx_stat_queue;
+
     /** rx hgm data */
 	hgm_data *hist_data;
 };
@@ -1165,6 +1175,7 @@ struct _moal_handle {
 	struct device *hotplug_device;
     /** STATUS variables */
 	MOAL_HARDWARE_STATUS hardware_status;
+	BOOLEAN fw_reload;
 	/** POWER MANAGEMENT AND PnP SUPPORT */
 	BOOLEAN surprise_removed;
 	/** Firmware release number */
@@ -1677,6 +1688,9 @@ woal_get_priv_bss_type(moal_handle *handle, mlan_bss_type bss_type)
 	return NULL;
 }
 
+/* CAC Measure report default time 60 seconds */
+#define MEAS_REPORT_TIME (60 * HZ)
+
 /** Max line length allowed in init config file */
 #define MAX_LINE_LEN        256
 /** Max MAC address string length allowed */
@@ -1849,6 +1863,7 @@ mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 #ifdef CONFIG_PROC_FS
 mlan_status woal_request_soft_reset(moal_handle *handle);
 #endif
+void woal_request_fw_reload(moal_handle *handle);
 
 #ifdef PROC_DEBUG
 /** Get debug information */
@@ -2141,6 +2156,10 @@ BOOLEAN woal_ssid_valid(mlan_802_11_ssid *pssid);
 int woal_is_connected(moal_private *priv, mlan_ssid_bssid *ssid_bssid);
 int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen);
 void woal_tcp_ack_tx_indication(moal_private *priv, mlan_buffer *pmbuf);
+
+void woal_flush_tx_stat_queue(moal_private *priv);
+struct tx_status_info *woal_get_tx_info(moal_private *priv, t_u8 tx_seq_num);
+void woal_remove_tx_info(moal_private *priv, t_u8 tx_seq_num);
 mlan_status woal_request_country_power_table(moal_private *priv, char *region);
 mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
 			       t_u8 wait_option, t_u8 action);

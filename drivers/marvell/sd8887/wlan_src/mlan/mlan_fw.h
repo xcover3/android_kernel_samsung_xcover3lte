@@ -456,6 +456,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_BTCOEX_WL_AGGR_WINSIZE					(PROPRIETARY_TLV_BASE_ID + 0xca)
 /** TLV type :  scan time */
 #define TLV_BTCOEX_WL_SCANTIME    					(PROPRIETARY_TLV_BASE_ID + 0Xcb)
+/** TLV type : Ewpa_eapol_pkt */
+#define TLV_TYPE_EAPOL_PKT                          (PROPRIETARY_TLV_BASE_ID + 0xcf)
 
 /** ADDBA TID mask */
 #define ADDBA_TID_MASK   (MBIT(2) | MBIT(3) | MBIT(4) | MBIT(5))
@@ -914,6 +916,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV type : Channel statistics */
 #define TLV_TYPE_CHANNEL_STATS       (PROPRIETARY_TLV_BASE_ID + 0xc6)	/* 0x01c6
 									 */
+/** TLV type : BSS_MODE */
+#define TLV_TYPE_BSS_MODE            (PROPRIETARY_TLV_BASE_ID + 0xce)	/* 0x01ce
+									 */
 
 /** Firmware Host Command ID Constants */
 /** Host Command ID : Get hardware specifications */
@@ -1058,6 +1063,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HostCmd_CMD_FUNC_INIT                 0x00a9
 /** Host Command ID : Function shutdown */
 #define HostCmd_CMD_FUNC_SHUTDOWN             0x00aa
+
+/** Host Command ID :EAPOL PKT */
+#define HostCmd_CMD_802_11_EAPOL_PKT    			0x012e
 
 /** Host Command ID: Multi chan config */
 #define HostCmd_CMD_MULTI_CHAN_CONFIG                0x011e
@@ -3265,9 +3273,19 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_SCAN_EXT {
      *  MrvlIEtypes_RatesParamSet_t         OpRateSet;
      *  MrvlIEtypes_NumProbes_t             NumProbes;
      *  MrvlIEtypes_WildCardSsIdParamSet_t  WildCardSSIDParamSet;
+     *  MrvlIEtypes_BssMode_t               BssMode;
      */
 } MLAN_PACK_END HostCmd_DS_802_11_SCAN_EXT;
 
+/** MrvlIEtypes_BssMode */
+typedef MLAN_PACK_START struct _MrvlIEtypes_BssMode_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+	/* INFRA/IBSS/AUTO */
+	t_u8 bss_mode;
+} MLAN_PACK_END MrvlIEtypes_BssMode_t;
+
+/** BSS scan Rsp */
 typedef MLAN_PACK_START struct _MrvlIEtypes_Bss_Scan_Rsp_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
@@ -4905,6 +4923,22 @@ typedef MLAN_PACK_START struct _MrvlIETypes_BtCoexAggrWinSize_t {
 	t_u8 reserved;
 } MLAN_PACK_END MrvlIETypes_BtCoexAggrWinSize_t;
 
+/** MrvlIEtypes_eapol_pkt_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_eapol_pkt_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** eapol pkt buf */
+	t_u8 pkt_buf[0];
+} MLAN_PACK_END MrvlIEtypes_eapol_pkt_t;
+
+/** HostCmd_DS_EAPOL_PKT */
+typedef MLAN_PACK_START struct _HostCmd_DS_EAPOL_PKT {
+	/** Action */
+	t_u16 action;
+	/** TLV buffer */
+	MrvlIEtypes_eapol_pkt_t tlv_eapol;
+} MLAN_PACK_END HostCmd_DS_EAPOL_PKT;
+
 #ifdef RX_PACKET_COALESCE
 typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {
 	/** Action */
@@ -5476,6 +5510,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 #ifdef RX_PACKET_COALESCE
 		HostCmd_DS_RX_PKT_COAL_CFG rx_pkt_coal_cfg;
 #endif
+		HostCmd_DS_EAPOL_PKT eapol_pkt;
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND;
 

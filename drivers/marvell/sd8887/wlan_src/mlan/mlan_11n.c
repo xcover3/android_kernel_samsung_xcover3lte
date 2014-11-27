@@ -2198,6 +2198,58 @@ wlan_validate_chan_offset(IN mlan_private *pmpriv,
 }
 
 /**
+ *  @brief This function check if ht40 is allowed in current region
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param pbss_desc    A pointer to BSSDescriptor_t structure
+ *
+ *  @return MTRUE/MFALSE
+ */
+static int
+wlan_check_chan_width_ht40_by_region(IN mlan_private *pmpriv,
+				     IN BSSDescriptor_t *pbss_desc)
+{
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	int i = 0;
+	int cover_pri_chan = MFALSE;
+	t_u8 pri_chan = pbss_desc->pht_info->ht_info.pri_chan;
+	t_u8 chan_offset =
+		GET_SECONDARYCHAN(pbss_desc->pht_info->ht_info.field2);
+	t_u8 num_cfp = pmadapter->region_channel[0].num_cfp;
+
+	ENTER();
+
+	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
+	    pmadapter->region_channel && pmadapter->region_channel[0].valid) {
+		for (i = 0; i < num_cfp; i++) {
+			if (pri_chan ==
+			    pmadapter->region_channel[0].pcfp[i].channel) {
+				cover_pri_chan = MTRUE;
+				break;
+			}
+		}
+		if (!cover_pri_chan) {
+			LEAVE();
+			return MFALSE;
+		}
+
+		if (chan_offset == SEC_CHANNEL_ABOVE) {
+			if (pri_chan > num_cfp - 4) {
+				LEAVE();
+				return MFALSE;
+			}
+		} else if (chan_offset == SEC_CHANNEL_BELOW) {
+			if (pri_chan < 5) {
+				LEAVE();
+				return MFALSE;
+			}
+		}
+	}
+	LEAVE();
+	return MTRUE;
+}
+
+/**
  *  @brief This function append the 802_11N tlv
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -2310,7 +2362,9 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 					CHAN_BW_80MHZ << 2;
 		} else if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 			   ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.
-						 field2)) {
+						 field2) &&
+			   wlan_check_chan_width_ht40_by_region(pmpriv,
+								pbss_desc)) {
 			SET_SECONDARYCHAN(pchan_list->chan_scan_param[0].
 					  radio_type,
 					  GET_SECONDARYCHAN(pbss_desc->

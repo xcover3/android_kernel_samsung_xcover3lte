@@ -310,6 +310,7 @@ woal_uap_get_fw_info(struct net_device *dev, struct ifreq *req)
 	fw.fw_release_number = fw_info.fw_ver;
 	fw.hw_dev_mcs_support = fw_info.hw_dev_mcs_support;
 	fw.region_code = fw_info.region_code;
+	fw.hw_dot_11n_dev_cap = fw_info.hw_dot_11n_dev_cap;
 	/* Copy to user */
 	if (copy_to_user(req->ifr_data, &fw, sizeof(fw))) {
 		PRINTM(MERROR, "Copy to user failed!\n");
@@ -930,6 +931,243 @@ done:
 }
 
 /**
+ *  @brief Set/Get 11n configurations
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *  @return         0 --success, otherwise fail
+ */
+static int
+woal_uap_ht_tx_cfg(struct net_device *dev, struct ifreq *req)
+{
+	int ret = 0;
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	mlan_ds_11n_cfg *cfg_11n = NULL;
+	mlan_ds_11n_tx_cfg httx_cfg;
+	mlan_ioctl_req *ioctl_req = NULL;
+	ht_tx_cfg_para_hdr param;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	memset(&param, 0, sizeof(ht_tx_cfg_para_hdr));
+	memset(&httx_cfg, 0, sizeof(mlan_ds_11n_tx_cfg));
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "woal_uap_ht_tx_cfg corrupt data\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	if (copy_from_user(&param, req->ifr_data, sizeof(ht_tx_cfg_para_hdr))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11n_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	cfg_11n = (mlan_ds_11n_cfg *)ioctl_req->pbuf;
+	cfg_11n->sub_command = MLAN_OID_11N_CFG_TX;
+	ioctl_req->req_id = MLAN_IOCTL_11N_CFG;
+	if (copy_from_user
+	    (&httx_cfg, req->ifr_data + sizeof(ht_tx_cfg_para_hdr),
+	     sizeof(mlan_ds_11n_tx_cfg))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	if (!param.action) {
+		/* Get 11n tx parameters from MLAN */
+		ioctl_req->action = MLAN_ACT_GET;
+		cfg_11n->param.tx_cfg.misc_cfg = BAND_SELECT_BG;
+	} else {
+		/* Set HT Tx configurations */
+		cfg_11n->param.tx_cfg.httxcap = httx_cfg.httxcap;
+		PRINTM(MINFO, "SET: httxcap:0x%x\n", httx_cfg.httxcap);
+		cfg_11n->param.tx_cfg.misc_cfg = httx_cfg.misc_cfg;
+		PRINTM(MINFO, "SET: httxcap band:0x%x\n", httx_cfg.misc_cfg);
+		/* Update 11n tx parameters in MLAN */
+		ioctl_req->action = MLAN_ACT_SET;
+	}
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+	if (ioctl_req->action == MLAN_ACT_GET) {
+		httx_cfg.httxcap = cfg_11n->param.tx_cfg.httxcap;
+		PRINTM(MINFO, "GET: httxcap:0x%x\n", httx_cfg.httxcap);
+		cfg_11n->param.tx_cfg.httxcap = 0;
+		cfg_11n->param.tx_cfg.misc_cfg = BAND_SELECT_A;
+		status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+		if (status != MLAN_STATUS_SUCCESS) {
+			ret = -EFAULT;
+			goto done;
+		}
+		httx_cfg.misc_cfg = cfg_11n->param.tx_cfg.httxcap;
+		PRINTM(MINFO, "GET: httxcap for 5GHz:0x%x\n",
+		       httx_cfg.misc_cfg);
+	}
+	/* Copy to user */
+	if (copy_to_user(req->ifr_data + sizeof(ht_tx_cfg_para_hdr),
+			 &httx_cfg, sizeof(mlan_ds_11n_tx_cfg))) {
+		PRINTM(MERROR, "Copy to user failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get Set/Get 11AC configurations
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *  @return         0 --success, otherwise fail
+ */
+static int
+woal_uap_vht_cfg(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	int ret = 0, resbuf_len = 0;
+	mlan_ds_11ac_cfg *cfg_11ac = NULL;
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_11ac_vht_cfg *vhtcfg = NULL, vht_cfg;
+	t_u8 *respbuf = NULL;
+	vht_cfg_para_hdr param;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+#define CMD_RESPBUF_LEN  2048
+	gfp_t flag;
+
+	ENTER();
+
+	memset(&param, 0, sizeof(vht_cfg_para_hdr));
+
+	flag = (in_atomic() || irqs_disabled())? GFP_ATOMIC : GFP_KERNEL;
+	respbuf = kzalloc(CMD_RESPBUF_LEN, flag);
+	if (!respbuf) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "woal_uap_ht_tx_cfg corrupt data\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	if (copy_from_user(&param, req->ifr_data, sizeof(vht_cfg_para_hdr))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11ac_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	cfg_11ac = (mlan_ds_11ac_cfg *)ioctl_req->pbuf;
+	cfg_11ac->sub_command = MLAN_OID_11AC_VHT_CFG;
+	ioctl_req->req_id = MLAN_IOCTL_11AC_CFG;
+	if (copy_from_user(&vht_cfg, req->ifr_data + sizeof(vht_cfg_para_hdr),
+			   sizeof(mlan_ds_11ac_vht_cfg))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	if (vht_cfg.band == BAND_SELECT_BOTH) {
+		cfg_11ac->param.vht_cfg.band = (BAND_SELECT_BG | BAND_SELECT_A);
+	} else {
+		cfg_11ac->param.vht_cfg.band = vht_cfg.band;
+	}
+	if (!param.action) {
+		/* GET operation */
+		if (vht_cfg.band == BAND_SELECT_BOTH) {
+			/* if get both bands, get BG first */
+			cfg_11ac->param.vht_cfg.band = BAND_SELECT_BG;
+		}
+		PRINTM(MINFO, "GET: vhtcfg band: 0x%x\n",
+		       cfg_11ac->param.vht_cfg.band);
+		if (priv->bss_role == MLAN_BSS_ROLE_UAP)
+			cfg_11ac->param.vht_cfg.txrx = MLAN_RADIO_RX;
+		else
+			cfg_11ac->param.vht_cfg.txrx = vht_cfg.txrx;
+		PRINTM(MINFO, "GET: vhtcfg txrx: 0x%x\n",
+		       cfg_11ac->param.vht_cfg.txrx);
+		ioctl_req->action = MLAN_ACT_GET;
+	} else {
+		/* Band */
+		cfg_11ac->param.vht_cfg.band = vht_cfg.band;
+		PRINTM(MINFO, "SET: vhtcfg band: 0x%x\n",
+		       cfg_11ac->param.vht_cfg.band);
+		/* Tx/Rx */
+		cfg_11ac->param.vht_cfg.txrx = vht_cfg.txrx;
+		PRINTM(MINFO, "SET: vhtcfg txrx: 0x%x\n",
+		       cfg_11ac->param.vht_cfg.txrx);
+		/* BW cfg */
+		cfg_11ac->param.vht_cfg.bwcfg = vht_cfg.bwcfg;
+		PRINTM(MINFO, "SET: vhtcfg bw cfg:0x%x\n",
+		       cfg_11ac->param.vht_cfg.bwcfg);
+
+		cfg_11ac->param.vht_cfg.vht_cap_info = vht_cfg.vht_cap_info;
+		PRINTM(MINFO, "SET: vhtcfg vht_cap_info:0x%x\n",
+		       cfg_11ac->param.vht_cfg.vht_cap_info);
+		cfg_11ac->param.vht_cfg.vht_tx_mcs = vht_cfg.vht_tx_mcs;
+		cfg_11ac->param.vht_cfg.vht_rx_mcs = vht_cfg.vht_rx_mcs;
+		/* Update 11AC parameters in MLAN */
+		ioctl_req->action = MLAN_ACT_SET;
+	}
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* number of vhtcfg entries */
+	*respbuf = 1;
+	vhtcfg = (mlan_ds_11ac_vht_cfg *)(respbuf + 1);
+	memcpy(vhtcfg, &cfg_11ac->param.vht_cfg, sizeof(mlan_ds_11ac_vht_cfg));
+	resbuf_len = 1 + sizeof(mlan_ds_11ac_vht_cfg);
+
+	if ((ioctl_req->action == MLAN_ACT_GET) &&
+	    (vht_cfg.band == BAND_SELECT_BOTH)) {
+		cfg_11ac->param.vht_cfg.band = BAND_SELECT_A;
+		status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+		if (status != MLAN_STATUS_SUCCESS) {
+			ret = -EFAULT;
+			goto done;
+		}
+		/* number of vhtcfg entries */
+		*respbuf = 2;
+		vhtcfg++;
+		memcpy(vhtcfg, &cfg_11ac->param.vht_cfg,
+		       sizeof(mlan_ds_11ac_vht_cfg));
+		resbuf_len += sizeof(mlan_ds_11ac_vht_cfg);
+	}
+	if (ioctl_req->action == MLAN_ACT_GET) {
+		if (copy_to_user(req->ifr_data, respbuf, resbuf_len)) {
+			PRINTM(MERROR, "Copy to user failed\n");
+			ret = -EFAULT;
+		}
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	if (respbuf)
+		kfree(respbuf);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief uap hs_cfg ioctl handler
  *
  *  @param dev      A pointer to net_device structure
@@ -1288,6 +1526,143 @@ done:
 }
 
 /**
+ * @brief Set/Get HT stream configurations
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *
+ * @return           0 --success, otherwise fail
+ */
+static int
+woal_uap_htstream_cfg(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	int ret = 0;
+	mlan_ds_11n_cfg *cfg = NULL;
+	mlan_ioctl_req *ioctl_req = NULL;
+	htstream_cfg_t htstream_cfg;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	memset(&htstream_cfg, 0, sizeof(htstream_cfg_t));
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "woal_uap_htstream_cfg corrupt data\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	if (copy_from_user
+	    (&htstream_cfg, req->ifr_data, sizeof(htstream_cfg_t))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11n_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	cfg = (mlan_ds_11n_cfg *)ioctl_req->pbuf;
+	cfg->sub_command = MLAN_OID_11N_CFG_STREAM_CFG;
+	ioctl_req->req_id = MLAN_IOCTL_11N_CFG;
+
+	if (!htstream_cfg.action) {
+		/* Get operation */
+		ioctl_req->action = MLAN_ACT_GET;
+	} else {
+		/* Update HT stream parameter in MLAN */
+		ioctl_req->action = MLAN_ACT_SET;
+		/* Set HT Stream configuration */
+		cfg->param.stream_cfg = htstream_cfg.stream_cfg;
+		PRINTM(MINFO, "SET: htstream_cfg:0x%x\n",
+		       cfg->param.stream_cfg);
+	}
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+	/* Copy to user */
+	if (ioctl_req->action == MLAN_ACT_GET) {
+		PRINTM(MINFO, "GET: htstream_cfg:0x%x\n",
+		       htstream_cfg.stream_cfg);
+		htstream_cfg.stream_cfg = cfg->param.stream_cfg;
+		if (copy_to_user(req->ifr_data,
+				 &htstream_cfg, sizeof(htstream_cfg_t))) {
+			PRINTM(MERROR, "Copy to user failed!\n");
+			ret = -EFAULT;
+			goto done;
+		}
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Get DFS_REPEATER mode
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *
+ * @return           0 --success, otherwise fail
+ */
+static int
+woal_uap_cac_timer_status(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	int ret = 0;
+	cac_timer_status param;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "uap_antenna_cfg() corrupt data\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	memset(&param, 0, sizeof(cac_timer_status));
+
+	/* Get user data */
+	if (copy_from_user(&param, req->ifr_data, sizeof(cac_timer_status))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Currently default action is get */
+	param.mode = 0;
+
+	if (priv->phandle->cac_period == MTRUE) {
+		long cac_left_jiffies;
+
+		cac_left_jiffies = MEAS_REPORT_TIME -
+			(jiffies - priv->phandle->meas_start_jiffies);
+
+		/* cac_left_jiffies would be negative if timer has already
+		   elapsed. positive if timer is still yet to lapsed */
+		if (cac_left_jiffies > 0)
+			param.mode = (t_u32)cac_left_jiffies / HZ;
+	}
+
+	if (copy_to_user(req->ifr_data, &param, sizeof(cac_timer_status))) {
+		PRINTM(MERROR, "Copy to user failed\n");
+		ret = -EFAULT;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		LEAVE();
+	return ret;
+}
+
+/**
  *  @brief uap ioctl handler
  *
  *  @param dev      A pointer to net_device structure
@@ -1349,6 +1724,12 @@ woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 	case UAP_TX_BF_CFG:
 		ret = woal_uap_tx_bf_cfg(dev, req);
 		break;
+	case UAP_HT_TX_CFG:
+		ret = woal_uap_ht_tx_cfg(dev, req);
+		break;
+	case UAP_VHT_CFG:
+		ret = woal_uap_vht_cfg(dev, req);
+		break;
 	case UAP_HS_CFG:
 		ret = woal_uap_hs_cfg(dev, req, MTRUE);
 		break;
@@ -1363,6 +1744,12 @@ woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 		break;
 	case UAP_ANTENNA_CFG:
 		ret = woal_uap_antenna_cfg(dev, req);
+		break;
+	case UAP_HT_STREAM_CFG:
+		ret = woal_uap_htstream_cfg(dev, req);
+		break;
+	case UAP_CAC_TIMER_STATUS:
+		ret = woal_uap_cac_timer_status(dev, req);
 		break;
 	default:
 		break;
@@ -2328,7 +2715,7 @@ done:
  *  @return         0--success, otherwise failure
  */
 int
-woal_uap_set_11ac_status(moal_private *priv, t_u8 action)
+woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40)
 {
 
 	mlan_ioctl_req *req = NULL;
@@ -2362,7 +2749,10 @@ woal_uap_set_11ac_status(moal_private *priv, t_u8 action)
 		cfg_11ac->param.vht_cfg.vht_rx_mcs =
 			cfg_11ac->param.vht_cfg.vht_tx_mcs = 0xffff;
 	} else {
-		cfg_11ac->param.vht_cfg.bwcfg = MTRUE;
+		if (vht20_40)
+			cfg_11ac->param.vht_cfg.bwcfg = MFALSE;
+		else
+			cfg_11ac->param.vht_cfg.bwcfg = MTRUE;
 		cfg_11ac->param.vht_cfg.vht_cap_info &=
 			~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
 		cfg_11ac->param.vht_cfg.vht_tx_mcs =
@@ -2716,7 +3106,6 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		ret = -EINVAL;
 		goto done;
 	}
-
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
 	if (req == NULL) {
 		ret = -ENOMEM;
@@ -2737,7 +3126,12 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 	case UAP_BSS_STOP:
 		if (priv->bss_started == MFALSE) {
 			PRINTM(MWARN, "Warning: BSS already stopped!\n");
-			/* goto done; */
+			/* This is a situation where CAC it started and BSS
+			   start is dealyed and before CAC timer expires BSS
+			   stop is triggered. Do not skip sending the BSS_STOP
+			   command since there are many routines triggered on
+			   BSS_STOP command response. */
+			woal_cancel_cac_block(priv);
 		}
 		bss->sub_command = MLAN_OID_BSS_STOP;
 		break;
@@ -2754,7 +3148,6 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		ret = -EFAULT;
 		goto done;
 	}
-
 	if (data == UAP_BSS_STOP || data == UAP_BSS_RESET) {
 		priv->bss_started = MFALSE;
 		woal_stop_queue(priv->netdev);

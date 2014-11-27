@@ -38,8 +38,6 @@ Change log:
 /********************************************************
 			Local Variables
 ********************************************************/
-/* CAC Measure report default time 60 seconds */
-#define MEAS_REPORT_TIME (60 * HZ)
 #define MRVL_TLV_HEADER_SIZE            4
 /* Marvell Channel config TLV ID */
 #define MRVL_CHANNELCONFIG_TLV_ID       (0x0100 + 0x2a)	/* 0x012a */
@@ -3121,6 +3119,8 @@ done:
 	return ret;
 }
 
+extern int woal_11h_cancel_chan_report_ioctl(moal_private *priv,
+					     t_u8 wait_option);
 /**
  *  @brief Cancel CAC period block
  *
@@ -3134,6 +3134,8 @@ woal_cancel_cac_block(moal_private *priv)
 	ENTER();
 	/* if during CAC period, wake up wait queue */
 	if (priv->phandle->cac_period == MTRUE) {
+		/* Make sure Chan Report is cancelled */
+		woal_11h_cancel_chan_report_ioctl(priv, MOAL_CMD_WAIT);
 		priv->phandle->cac_period = MFALSE;
 		priv->phandle->meas_start_jiffies = 0;
 		if (priv->phandle->delay_bss_start == MTRUE)
@@ -3176,6 +3178,53 @@ woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	ds_11hcfg->sub_command = MLAN_OID_11H_CHANNEL_CHECK;
 	req->req_id = MLAN_IOCTL_11H_CFG;
 	req->action = MLAN_ACT_SET;
+	/* Send Channel Check command and wait until the report is ready */
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* set flag from here */
+	priv->phandle->cac_period = MTRUE;
+	priv->phandle->meas_start_jiffies = jiffies;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Issue MLAN_OID_11H_CHAN_REPORT_REQUEST ioctl to cancel dozer
+ *
+ *  @param priv     Pointer to the moal_private driver data struct
+ *  @param wait_option wait option
+ *
+ *  @return         0 --success, otherwise fail
+ */
+int
+woal_11h_cancel_chan_report_ioctl(moal_private *priv, t_u8 wait_option)
+{
+	int ret = 0;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11h_cfg *ds_11hcfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	ds_11hcfg = (mlan_ds_11h_cfg *)req->pbuf;
+
+	ds_11hcfg->sub_command = MLAN_OID_11H_CHAN_REPORT_REQUEST;
+	req->req_id = MLAN_IOCTL_11H_CFG;
+	req->action = MLAN_ACT_SET;
+	ds_11hcfg->param.chan_rpt_req.millisec_dwell_time = 0;
 	/* Send Channel Check command and wait until the report is ready */
 	status = woal_request_ioctl(priv, req, wait_option);
 	if (status != MLAN_STATUS_SUCCESS) {

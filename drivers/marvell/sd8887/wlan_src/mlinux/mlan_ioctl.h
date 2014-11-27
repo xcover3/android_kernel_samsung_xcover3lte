@@ -198,6 +198,7 @@ enum _mlan_ioctl_req_id {
 #if defined(DFS_TESTING_SUPPORT)
 	MLAN_OID_11H_DFS_TESTING = 0x00110003,
 #endif
+	MLAN_OID_11H_CHAN_REPORT_REQUEST = 0x00110004,
 
 	/* 802.11n Configuration Group RANDYTODO for value assign */
 	MLAN_IOCTL_11AC_CFG = 0x00120000,
@@ -2952,6 +2953,14 @@ typedef struct _mlan_ds_11h_dfs_testing {
 } mlan_ds_11h_dfs_testing, *pmlan_ds_11h_dfs_testing;
 #endif
 
+typedef struct _mlan_ds_11h_chan_rep_req {
+	t_u16 startFreq;
+	t_u8 chanWidth;
+	t_u8 chanNum;
+	t_u32 millisec_dwell_time;
+				/**< Channel dwell time in milliseconds */
+} mlan_ds_11h_chan_rep_req;
+
 /** Type definition of mlan_ds_11h_cfg for MLAN_IOCTL_11H_CFG */
 typedef struct _mlan_ds_11h_cfg {
     /** Sub-command */
@@ -2963,6 +2972,7 @@ typedef struct _mlan_ds_11h_cfg {
 	/** User-configuation for MLAN_OID_11H_DFS_TESTING */
 		mlan_ds_11h_dfs_testing dfs_testing;
 #endif
+		mlan_ds_11h_chan_rep_req chan_rpt_req;
 	} param;
 } mlan_ds_11h_cfg, *pmlan_ds_11h_cfg;
 
@@ -3472,6 +3482,8 @@ typedef struct _mlan_ds_misc_cfg {
 #ifdef RX_PACKET_COALESCE
 		mlan_ds_misc_rx_packet_coalesce rx_coalesce;
 #endif
+	/** FW reload flag */
+		t_u8 fw_reload;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

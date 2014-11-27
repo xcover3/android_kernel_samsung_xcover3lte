@@ -35,7 +35,7 @@ static char *fw_name;
 /** fw serial download flag */
 static int bt_fw_serial = 1;
 /** request firmware nowait */
-static int req_fw_nowait;
+int req_fw_nowait;
 static int multi_fn = BIT(2);
 
 #define DEFAULT_FW_NAME ""
@@ -750,7 +750,8 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 	m_dev_nfc = &priv->bt_dev.m_dev[NFC_SEQ];
 
 	if ((priv == NULL) || (priv->adapter == NULL) ||
-	    (priv->bt_dev.card == NULL) || (m_dev_bt == NULL)) {
+	    (priv->bt_dev.card == NULL) || (m_dev_bt == NULL) ||
+	    (m_dev_fm == NULL) || (m_dev_nfc == NULL)) {
 		LEAVE();
 		return BT_STATUS_FAILURE;
 	}
@@ -905,9 +906,15 @@ sd_download_firmware_w_helper(bt_private *priv)
 					      GFP_KERNEL, priv,
 					      sd_request_fw_callback);
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 13)
 		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 					      cur_fw_name, priv->hotplug_device,
 					      priv, sd_request_fw_callback);
+#else
+		ret = request_firmware_nowait(THIS_MODULE,
+					      cur_fw_name, priv->hotplug_device,
+					      priv, sd_request_fw_callback);
+#endif
 #endif
 		if (ret < 0)
 			PRINTM(FATAL,
@@ -959,7 +966,10 @@ sd_card_to_host(bt_private *priv)
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 
 	ENTER();
-	mbt_dev = (struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].dev_pointer;
+	if (priv->bt_dev.m_dev[BT_SEQ].spec_type != BLUEZ_SPEC)
+		mbt_dev =
+			(struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].
+			dev_pointer;
 	if (!card || !card->func) {
 		PRINTM(ERROR, "BT: card or function is NULL!\n");
 		ret = BT_STATUS_FAILURE;

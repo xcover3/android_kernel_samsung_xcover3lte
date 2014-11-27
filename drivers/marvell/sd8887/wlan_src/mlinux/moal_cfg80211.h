@@ -67,6 +67,10 @@ void *woal_get_wiphy_priv(struct wiphy *wiphy);
 
 /* Get the private structure from net device */
 void *woal_get_netdev_priv(struct net_device *dev);
+#ifdef STA_SUPPORT
+/** get scan interface */
+moal_private *woal_get_scan_interface(moal_handle *handle);
+#endif
 
 t_u8 woal_band_cfg_to_ieee_band(t_u32 band);
 
@@ -292,6 +296,10 @@ void woal_remove_virtual_interface(moal_handle *handle);
 #endif /* WIFI_DIRECT_SUPPORT && V14_FEATURE */
 
 #ifdef UAP_CFG80211
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+int woal_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
+			      const struct cfg80211_acl_data *params);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 int woal_cfg80211_add_beacon(struct wiphy *wiphy,
 			     struct net_device *dev,
@@ -317,7 +325,8 @@ int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 #else
 			      u8 *mac_addr);
 #endif
-#endif
+#endif /* UAP_CFG80211 */
+
 void woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option);
 int woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 				const t_u8 *beacon_ies, size_t beacon_ies_len,

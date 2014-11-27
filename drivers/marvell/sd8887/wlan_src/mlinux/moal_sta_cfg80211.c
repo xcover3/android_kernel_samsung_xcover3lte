@@ -137,8 +137,8 @@ int woal_cfg80211_resume(struct wiphy *wiphy);
 int woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow);
 #endif
 
-void woal_check_auto_tdls(struct wiphy *wiphy, struct net_device *dev);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,0)|| defined(COMPAT_WIRELESS)
+void woal_check_auto_tdls(struct wiphy *wiphy, struct net_device *dev);
 int woal_cfg80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 			    const u8 *peer,
@@ -155,6 +155,9 @@ int woal_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 			    u8 action_code, u8 dialog_token, u16 status_code,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
 			    u32 peer_capability,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+			    bool initiator,
 #endif
 			    const u8 *extra_ies, size_t extra_ies_len);
 static int
@@ -238,6 +241,9 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 	.del_beacon = woal_cfg80211_del_beacon,
 #endif
 	.del_station = woal_cfg80211_del_station,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+	.set_mac_acl = woal_cfg80211_set_mac_acl,
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
 	.mgmt_frame_register = woal_cfg80211_mgmt_frame_register,
 	.mgmt_tx = woal_cfg80211_mgmt_tx,
@@ -2213,23 +2219,32 @@ woal_uap_scan(moal_private *priv, wlan_user_scan_cfg *scan_cfg)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	moal_handle *handle = priv->phandle;
+	moal_private *tmp_priv;
+	u8 role;
 
 	ENTER();
-	woal_role_switch(priv, MOAL_IOCTL_WAIT, MLAN_BSS_ROLE_STA);
+	if (priv->bss_index > 0)
+		tmp_priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	else
+		tmp_priv = priv;
+	role = GET_BSS_ROLE(tmp_priv);
+	if (role == MLAN_BSS_ROLE_UAP)
+		woal_role_switch(tmp_priv, MOAL_IOCTL_WAIT, MLAN_BSS_ROLE_STA);
 #ifdef REASSOCIATION
 	if (MOAL_ACQ_SEMAPHORE_BLOCK(&handle->reassoc_sem)) {
 		PRINTM(MERROR, "Acquire semaphore error, woal_do_combo_scan\n");
 		goto done;
 	}
 #endif /* REASSOCIATION */
-	priv->report_scan_result = MTRUE;
-	ret = woal_request_userscan(priv, MOAL_IOCTL_WAIT, scan_cfg);
+	tmp_priv->report_scan_result = MTRUE;
+	ret = woal_request_userscan(tmp_priv, MOAL_IOCTL_WAIT, scan_cfg);
 	woal_sched_timeout(5);
 #ifdef REASSOCIATION
 	MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
 #endif
 done:
-	woal_role_switch(priv, MOAL_IOCTL_WAIT, MLAN_BSS_ROLE_UAP);
+	if (role == MLAN_BSS_ROLE_UAP)
+		woal_role_switch(tmp_priv, MOAL_IOCTL_WAIT, MLAN_BSS_ROLE_UAP);
 	LEAVE();
 	return ret;
 }
@@ -2280,16 +2295,6 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	ENTER();
 
 	PRINTM(MINFO, "Received scan request on %s\n", dev->name);
-#ifdef UAP_CFG80211
-	/* return 0 to avoid hostapd failure */
-	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP && (priv->bss_index > 0)
-		) {
-		LEAVE();
-		cfg80211_scan_done(request, MTRUE);
-		return 0;
-	}
-#endif
-
 	if (priv->phandle->scan_pending_on_block == MTRUE) {
 		PRINTM(MCMND, "scan already in processing...\n");
 		LEAVE();
@@ -2322,9 +2327,11 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	if (MLAN_STATUS_SUCCESS ==
 	    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
 		if (bss_info.scan_block) {
-			PRINTM(MCMND, "block scan in mlan module...\n");
-			LEAVE();
-			return -EAGAIN;
+			PRINTM(MEVENT, "Block scan in mlan module\n");
+			woal_inform_bss_from_scan_result(priv, NULL,
+							 MOAL_IOCTL_WAIT);
+			cfg80211_scan_done(request, MFALSE);
+			return ret;
 		}
 	}
 	if (priv->scan_request && priv->scan_request != request) {
@@ -2994,7 +3001,8 @@ woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 
 	ENTER();
-	PRINTM(MINFO, "Received disassociation request on %s\n", dev->name);
+	PRINTM(MMSG, "wlan: Received disassociation request on %s\n",
+	       dev->name);
 #ifdef UAP_CFG80211
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
 		LEAVE();
@@ -3030,9 +3038,6 @@ woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 		return -EFAULT;
 	}
 	priv->cfg_disconnect = MFALSE;
-	PRINTM(MMSG,
-	       "wlan: Successfully disconnected from " MACSTR
-	       ": Reason code %d\n", MAC2STR(priv->cfg_bssid), reason_code);
 
 	memset(priv->cfg_bssid, 0, ETH_ALEN);
 	if (priv->bss_type == MLAN_BSS_TYPE_STA)
@@ -3090,7 +3095,9 @@ woal_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 		PRINTM(MERROR, "cfg80211: Failed to get station info\n");
 		ret = -EFAULT;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,0)|| defined(COMPAT_WIRELESS)
 	woal_check_auto_tdls(wiphy, dev);
+#endif
 	LEAVE();
 	return ret;
 }
@@ -3155,8 +3162,6 @@ woal_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *dev,
 
 	ChanStatistics_t *pchan_stats = NULL;
 	mlan_scan_resp scan_resp;
-	t_u8 index = 0;
-	int i;
 
 	ENTER();
 	PRINTM(MIOCTL, "dump_survey idx=%d\n", idx);
@@ -3192,40 +3197,30 @@ woal_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *dev,
 			goto done;
 		}
 		pchan_stats = (ChanStatistics_t *)scan_resp.pchan_stats;
-		for (i = 0; i < scan_resp.num_in_chan_stats; i++) {
-			if (pchan_stats[i].cca_scan_duration) {
-				if (idx == index) {
-					memset(survey, 0,
-					       sizeof(struct survey_info));
-					band = woal_band_cfg_to_ieee_band
-						(pchan_stats[i].bandconfig);
-					survey->channel =
-						ieee80211_get_channel(wiphy,
-								      ieee80211_channel_to_frequency
-								      (pchan_stats
-								       [i].
-								       chan_num
+		if (idx >= scan_resp.num_in_chan_stats)
+			goto done;
+		if (!pchan_stats[idx].cca_scan_duration)
+			goto done;
+		ret = 0;
+		memset(survey, 0, sizeof(struct survey_info));
+		band = woal_band_cfg_to_ieee_band(pchan_stats[idx].bandconfig);
+		survey->channel =
+			ieee80211_get_channel(wiphy,
+					      ieee80211_channel_to_frequency
+					      (pchan_stats[idx].chan_num
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39) || defined(COMPAT_WIRELESS)
-								       , band
+					       , band
 #endif
-								      ));
-					survey->filled =
-						SURVEY_INFO_NOISE_DBM |
-						SURVEY_INFO_CHANNEL_TIME |
-						SURVEY_INFO_CHANNEL_TIME_BUSY;
-					survey->noise = pchan_stats[i].noise;
-					survey->channel_time =
-						pchan_stats[i].
-						cca_scan_duration;
-					survey->channel_time_busy =
-						pchan_stats[i].
-						cca_busy_duration;
-					ret = 0;
-					goto done;
-				}
-				index++;
-			}
-		}
+					      ));
+		survey->filled = SURVEY_INFO_NOISE_DBM;
+		survey->noise = pchan_stats[idx].noise;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
+		survey->filled |=
+			SURVEY_INFO_CHANNEL_TIME |
+			SURVEY_INFO_CHANNEL_TIME_BUSY;
+		survey->channel_time = pchan_stats[idx].cca_scan_duration;
+		survey->channel_time_busy = pchan_stats[idx].cca_busy_duration;
+#endif
 	}
 done:
 	LEAVE();
@@ -4353,9 +4348,15 @@ woal_check_auto_tdls(struct wiphy *wiphy, struct net_device *dev)
 	}
 	if (tdls_discovery)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+		woal_cfg80211_tdls_mgmt(wiphy, dev, bcast_addr,
+					TDLS_DISCOVERY_REQUEST, 1, 0, 0, 0,
+					NULL, 0);
+#else
 		woal_cfg80211_tdls_mgmt(wiphy, dev, bcast_addr,
 					TDLS_DISCOVERY_REQUEST, 1, 0, 0, NULL,
 					0);
+#endif
 #else
 		woal_cfg80211_tdls_mgmt(wiphy, dev, bcast_addr,
 					TDLS_DISCOVERY_REQUEST, 1, 0, NULL, 0);
@@ -4956,6 +4957,31 @@ fail:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+/**
+ * @brief Tx TDLS packet
+ *
+ * @param wiphy                 A pointer to wiphy structure
+ * @param dev                   A pointer to net_device structure
+ * @param peer                  A pointer to peer mac
+ * @param action_code           tdls action code
+ * @param dialog_token          dialog_token
+ * @param status_code           status_code
+ * @param peer_capability       peer capability
+ * @param initiator             initiator
+ * @param extra_ie              A pointer to extra ie buffer
+ * @param extra_ie_len          etra ie len
+ *
+ * @return                      0 -- success, otherwise fail
+ */
+int
+woal_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
+			const t_u8 *peer,
+			u8 action_code, t_u8 dialog_token,
+			t_u16 status_code, t_u32 peer_capability,
+			bool initiator,
+			const t_u8 *extra_ies, size_t extra_ies_len)
+#else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
 /**
  * @brief Tx TDLS packet
@@ -5002,6 +5028,7 @@ woal_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 			t_u8 *peer, u8 action_code, t_u8 dialog_token,
 			t_u16 status_code, const t_u8 *extra_ies,
 			size_t extra_ies_len)
+#endif
 #endif
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
@@ -5866,6 +5893,11 @@ woal_register_cfg80211(moal_private *priv)
 	/* Initialize cipher suits */
 	wiphy->cipher_suites = cfg80211_cipher_suites;
 	wiphy->n_cipher_suites = ARRAY_SIZE(cfg80211_cipher_suites);
+#ifdef UAP_CFG80211
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+	wiphy->max_acl_mac_addrs = MAX_MAC_FILTER_NUM;
+#endif
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 	if (cfg80211_drcs && priv->phandle->card_info->drcs)

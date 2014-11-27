@@ -2217,6 +2217,13 @@ wlan_process_802dot11_mgmt_pkt(IN mlan_private *priv,
 	case SUBTYPE_ACTION:
 		category = *(payload + sizeof(wlan_802_11_header));
 		action_code = *(payload + sizeof(wlan_802_11_header) + 1);
+		if (category == IEEE_MGMT_ACTION_CATEGORY_BLOCK_ACK) {
+			PRINTM(MINFO,
+			       "Drop BLOCK ACK action frame: action_code=%d\n",
+			       action_code);
+			LEAVE();
+			return ret;
+		}
 		if ((category == CATEGORY_PUBLIC) &&
 		    (action_code == TDLS_DISCOVERY_RESPONSE)) {
 			pcb->moal_updata_peer_signal(pmadapter->pmoal_handle,
@@ -2703,24 +2710,19 @@ wlan_radio_ioctl_ant_cfg(IN pmlan_adapter pmadapter,
 	mlan_ds_radio_cfg *radio_cfg = MNULL;
 	t_u16 cmd_action = 0;
 	mlan_ds_ant_cfg *ant_cfg = MNULL;
+	t_u16 *ant_cfg_1x1 = MNULL;
 
 	ENTER();
 
 	radio_cfg = (mlan_ds_radio_cfg *)pioctl_req->pbuf;
-	ant_cfg = &radio_cfg->param.ant_cfg;
+	if (IS_STREAM_2X2(pmadapter->feature_control))
+		ant_cfg = &radio_cfg->param.ant_cfg;
 
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		/* User input validation */
-		if (!ant_cfg->tx_antenna ||
-		    bitcount(ant_cfg->tx_antenna & 0xFFFF) >
-		    pmadapter->number_of_antenna) {
-			PRINTM(MERROR, "Invalid antenna setting\n");
-			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
-			ret = MLAN_STATUS_FAILURE;
-			goto exit;
-		}
-		if (ant_cfg->rx_antenna) {
-			if (bitcount(ant_cfg->rx_antenna & 0xFFFF) >
+		if (IS_STREAM_2X2(pmadapter->feature_control)) {
+			if (!ant_cfg->tx_antenna ||
+			    bitcount(ant_cfg->tx_antenna & 0xFFFF) >
 			    pmadapter->number_of_antenna) {
 				PRINTM(MERROR, "Invalid antenna setting\n");
 				pioctl_req->status_code =
@@ -2728,17 +2730,43 @@ wlan_radio_ioctl_ant_cfg(IN pmlan_adapter pmadapter,
 				ret = MLAN_STATUS_FAILURE;
 				goto exit;
 			}
-		} else
-			ant_cfg->rx_antenna = ant_cfg->tx_antenna;
+			if (ant_cfg->rx_antenna) {
+				if (bitcount(ant_cfg->rx_antenna & 0xFFFF) >
+				    pmadapter->number_of_antenna) {
+					PRINTM(MERROR,
+					       "Invalid antenna setting\n");
+					pioctl_req->status_code =
+						MLAN_ERROR_INVALID_PARAMETER;
+					ret = MLAN_STATUS_FAILURE;
+					goto exit;
+				}
+			} else
+				ant_cfg->rx_antenna = ant_cfg->tx_antenna;
+		} else if (!radio_cfg->param.antenna ||
+			   ((radio_cfg->param.antenna != RF_ANTENNA_AUTO) &&
+			    (radio_cfg->param.antenna & 0xFFFC))) {
+			PRINTM(MERROR, "Invalid antenna setting\n");
+			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
+			ret = MLAN_STATUS_FAILURE;
+			goto exit;
+		}
 		cmd_action = HostCmd_ACT_GEN_SET;
 	} else
 		cmd_action = HostCmd_ACT_GEN_GET;
+
+	/* Cast it to t_u16, antenna mode for command
+	   HostCmd_CMD_802_11_RF_ANTENNA requires 2 bytes */
+	if (!IS_STREAM_2X2(pmadapter->feature_control))
+		ant_cfg_1x1 = (t_u16 *)&radio_cfg->param.antenna;
 
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_RF_ANTENNA,
 			       cmd_action,
-			       0, (t_void *)pioctl_req, (t_void *)ant_cfg);
+			       0,
+			       (t_void *)pioctl_req,
+			       (IS_STREAM_2X2(pmadapter->feature_control)) ?
+			       (t_void *)ant_cfg : (t_void *)ant_cfg_1x1);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;

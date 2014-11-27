@@ -25,6 +25,7 @@
 #include <linux/version.h>
 #include <linux/kthread.h>
 #include <linux/skbuff.h>
+#include <linux/vmalloc.h>
 
 #include "hci_wrapper.h"
 
@@ -467,6 +468,12 @@ typedef struct _bt_private {
 	const struct firmware *fw_helper;
 	/** Firmware */
 	const struct firmware *firmware;
+	/** Init user configure file */
+	const struct firmware *init_user_cfg;
+	/** Init user configure wait queue token */
+	u16 init_user_conf_wait_flag;
+	/** Init user configure file wait queue */
+	wait_queue_head_t init_user_conf_wait_q __ATTRIB_ALIGN__;
 	/** Firmware request start time */
 	struct timeval req_fw_time;
 	/** Hotplug device */
@@ -489,6 +496,7 @@ typedef struct _bt_private {
 	const struct sdio_device *psdio_device;
 	int debug_device_pending;
 	int debug_ocf_ogf[2];
+	u8 fw_reload;
 } bt_private, *pbt_private;
 
 /** Disable interrupt */
@@ -704,9 +712,13 @@ int sbi_get_int_status(bt_private *priv);
 int sd_enable_host_int(bt_private *priv);
 /** This function disables the host interrupts */
 int sd_disable_host_int(bt_private *priv);
+/** This function reload firmware */
+void bt_request_fw_reload(bt_private *priv);
 /** This function downloads firmware image to the card */
 int sd_download_firmware_w_helper(bt_private *priv);
 void bt_dump_sdio_regs(bt_private *priv);
+/* dumps the firmware to /var/ or /data/ */
+void bt_dump_firmware_info_v2(bt_private *priv);
 
 /** Max line length allowed in init config file */
 #define MAX_LINE_LEN        256

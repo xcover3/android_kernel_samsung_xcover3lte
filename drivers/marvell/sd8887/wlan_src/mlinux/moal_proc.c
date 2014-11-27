@@ -429,6 +429,10 @@ woal_config_write(struct file *f, const char __user * buf, size_t count,
 					       len - 1);
 			}
 		}
+		if (!strncmp(databuf, "fw_reload", strlen("fw_reload"))) {
+			PRINTM(MMSG, "Request fw_reload...\n");
+			woal_request_fw_reload(handle);
+		}
 	}
 	MODULE_PUT;
 	LEAVE();

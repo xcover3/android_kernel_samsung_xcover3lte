@@ -358,6 +358,11 @@ regioncode
 		iwpriv mlan0 regioncode         : Get region code
 		iwpriv mlan0 regioncode 0x10    : Set region code to USA (0x10)
 
+	Note : in some case regioncode will be 0 after updated countycode or 80211d
+		i.e. mlanutl mlanX countrycode  (CA, JP, CN, DE, ES AT, BR, RU)
+		or uaputl.exe sys_cfg_80211d state 1 country (CA, JP, CN, DE, ES AT, BR, RU)
+		Please use cfp instead of it.
+
 cfpcode
 	This command is used to set/get the Channel-Frequency-Power table codes.
 	The region table can be selected through region code.

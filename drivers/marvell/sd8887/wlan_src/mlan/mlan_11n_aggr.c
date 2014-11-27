@@ -45,7 +45,6 @@ Change log:
 /********************************************************
 			Local Functions
 ********************************************************/
-
 /**
  *  @brief Aggregate individual packets into one AMSDU packet
  *
@@ -234,6 +233,7 @@ wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		0x00, 0x00, 0x00
 	};
 	t_u8 hdr_len = sizeof(Eth803Hdr_t);
+	t_u8 eapol_type[2] = { 0x88, 0x8e };
 
 	ENTER();
 
@@ -300,6 +300,24 @@ wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			ret = wlan_uap_recv_packet(priv, daggr_mbuf);
 		} else {
 #endif /* UAP_SUPPORT */
+		/** send EAPOL from AMSDU pkt to firmware */
+			if (priv->sec_info.ewpa_enabled &&
+			    (!memcmp
+			     (pmadapter,
+			      daggr_mbuf->pbuf + daggr_mbuf->data_offset +
+			      MLAN_ETHER_PKT_TYPE_OFFSET, eapol_type,
+			      sizeof(eapol_type)))) {
+				ret = wlan_prepare_cmd(priv,
+						       HostCmd_CMD_802_11_EAPOL_PKT,
+						       0, 0, MNULL, daggr_mbuf);
+				if (ret == MLAN_STATUS_SUCCESS)
+					wlan_recv_event(priv,
+							MLAN_EVENT_ID_DRV_DEFER_HANDLING,
+							MNULL);
+				wlan_free_mlan_buffer(pmadapter, daggr_mbuf);
+				data += pkt_len + pad;
+				continue;
+			}
 			ret = pmadapter->callbacks.moal_recv_packet(pmadapter->
 								    pmoal_handle,
 								    daggr_mbuf);

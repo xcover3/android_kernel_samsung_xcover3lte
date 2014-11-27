@@ -65,6 +65,7 @@
 		e.g. copy init_cfg.conf to firmware directory, init_cfg=mrvl/init_cfg.conf
 	  cal_data_cfg=<CAL data config file name>
 		e.g. copy cal_data.conf to firmware directory, cal_data_cfg=mrvl/cal_data.conf
+          Note: Loading driver with 8887 must include correct cal_data_cfg parameter.
 	  cfg80211_wext=<bit mask of CFG80211 and WEXT control>
 		Bit 0: STA WEXT
 		Bit 1: uAP WEXT
@@ -228,6 +229,19 @@
 	echo 6 > /proc/sys/kernel/printk    (messages with a higher priority than 6
 	                                     will be printed to the console)
 	echo 15 > /proc/sys/kernel/printk   (all messages will be printed to console)
+
+4) FOR FW RELOAD
+    a) Enable parallel firmware download in driver parameter
+       insmod sd8xxx.ko fw_serial=0
+
+    b) default fw name for parallel firmware download
+       sd8887_wlan_a2.bin
+
+    c) Trigger FW reload
+       echo "fw_reload" > /proc/mwlan/config
+
+    (Note: This feature only works on CAC-A2 board which supports parallel fw download)
+#emdof
 
 
 ===============================================================================
@@ -2012,6 +2026,10 @@ regioncode
 	Examples:
 		mlanutl mlan0 regioncode         : Get region code
 		mlanutl mlan0 regioncode 0x10    : Set region code to USA (0x10)
+	Note : in some case regioncode will be 0 after updated countycode or 80211d
+		i.e. mlanutl mlanX countrycode  (CA, JP, CN, DE, ES AT, BR, RU)
+		or uaputl.exe sys_cfg_80211d state 1 country (CA, JP, CN, DE, ES AT, BR, RU)
+		Please use cfp instead of it.
 
 regrdwr
 	This command is used to read/write the adapter register.

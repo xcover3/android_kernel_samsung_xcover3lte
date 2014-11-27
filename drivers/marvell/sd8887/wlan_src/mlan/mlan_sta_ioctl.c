@@ -4058,8 +4058,12 @@ wlan_misc_ioctl_warm_reset(IN pmlan_adapter pmadapter,
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	pmlan_buffer pmbuf;
 	t_s32 i = 0;
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 
 	ENTER();
+	/* Cancel all pending commands and complete ioctls */
+	if (misc->param.fw_reload)
+		wlan_cancel_all_pending_cmd(pmadapter);
     /** Init all the head nodes and free all the locks here */
 	for (i = 0; i < pmadapter->priv_num; i++)
 		wlan_free_priv(pmadapter->priv[i]);
@@ -4085,11 +4089,13 @@ wlan_misc_ioctl_warm_reset(IN pmlan_adapter pmadapter,
 			wlan_init_priv(pmadapter->priv[i]);
 	}
 
-	/* Restart the firmware */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FUNC_SHUTDOWN,
-			       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
-	if (ret)
-		goto done;
+	if (misc->param.fw_reload != MTRUE) {
+		/* Restart the firmware */
+		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FUNC_SHUTDOWN,
+				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
+		if (ret)
+			goto done;
+	}
 
 	/* Issue firmware initialize commands for first BSS, for other
 	   interfaces it will be called after getting the last init command

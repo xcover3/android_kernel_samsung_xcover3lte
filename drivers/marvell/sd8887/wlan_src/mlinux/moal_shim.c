@@ -736,8 +736,12 @@ moal_send_packet_complete(IN t_void *pmoal_handle,
 #endif /* #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29) */
 			}
 		}
-		if (skb)
+		if (skb) {
+			if (pmbuf != (mlan_buffer *)skb->head)
+				kfree(pmbuf);
 			dev_kfree_skb_any(skb);
+
+		}
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -893,6 +897,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 	int custom_len = 0;
 #ifdef STA_CFG80211
 	unsigned long flags;
+	moal_private *scan_priv = NULL;
 #endif
 #endif
 	moal_private *priv = NULL;
@@ -990,11 +995,14 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 
 	case MLAN_EVENT_ID_DRV_SCAN_REPORT:
 		PRINTM(MINFO, "Scan report\n");
+
 		if (priv->report_scan_result) {
 			priv->report_scan_result = MFALSE;
 #ifdef STA_CFG80211
 			if (IS_STA_CFG80211(cfg80211_wext)) {
-				if (priv->scan_request) {
+				scan_priv =
+					woal_get_scan_interface(priv->phandle);
+				if (scan_priv && scan_priv->scan_request) {
 					PRINTM(MINFO,
 					       "Reporting scan results\n");
 					woal_inform_bss_from_scan_result(priv,
@@ -1008,16 +1016,16 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 								   PASSIVE_SCAN_CHAN_TIME,
 								   SPECIFIC_SCAN_CHAN_TIME);
 					}
-				}
-				spin_lock_irqsave(&priv->scan_req_lock, flags);
-				if (priv->scan_request) {
-					cfg80211_scan_done(priv->scan_request,
+					cfg80211_scan_done(scan_priv->
+							   scan_request,
 							   MFALSE);
-					priv->scan_request = NULL;
+					spin_lock_irqsave(&scan_priv->
+							  scan_req_lock, flags);
+					scan_priv->scan_request = NULL;
+					spin_unlock_irqrestore(&scan_priv->
+							       scan_req_lock,
+							       flags);
 				}
-				spin_unlock_irqrestore(&priv->scan_req_lock,
-						       flags);
-
 			}
 #endif /* STA_CFG80211 */
 
@@ -1895,37 +1903,45 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 			unsigned long flag;
 			tx_status_event *tx_status =
 				(tx_status_event *)(pmevent->event_buf + 4);
+			struct tx_status_info *tx_info = NULL;
 			PRINTM(MINFO,
 			       "Receive Tx status: tx_token=%d, pkt_type=0x%x, status=%d tx_seq_num=%d\n",
 			       tx_status->tx_token_id, tx_status->packet_type,
 			       tx_status->status, priv->tx_seq_num);
 			spin_lock_irqsave(&priv->tx_stat_lock, flag);
-			if (priv->last_tx_buf && priv->last_tx_cookie &&
-			    (tx_status->tx_token_id == priv->tx_seq_num)) {
+			tx_info =
+				woal_get_tx_info(priv, tx_status->tx_token_id);
+			if (tx_info) {
 				bool ack;
+				struct sk_buff *skb =
+					(struct sk_buff *)tx_info->tx_skb;
 				if (!tx_status->status)
 					ack = true;
 				else
 					ack = false;
-				PRINTM(MEVENT, "Wlan: P2P Tx status=%d\n", ack);
+				PRINTM(MEVENT, "Wlan: Tx status=%d\n", ack);
+				if (tx_info->tx_cookie) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
-				cfg80211_mgmt_tx_status(priv->netdev,
-							priv->last_tx_cookie,
-							priv->last_tx_buf,
-							priv->last_tx_buf_len,
-							ack, GFP_ATOMIC);
+					cfg80211_mgmt_tx_status(priv->netdev,
+								tx_info->
+								tx_cookie,
+								skb->data,
+								skb->len, ack,
+								GFP_ATOMIC);
 #else
-				cfg80211_mgmt_tx_status(priv->wdev,
-							priv->last_tx_cookie,
-							priv->last_tx_buf,
-							priv->last_tx_buf_len,
-							ack, GFP_ATOMIC);
+					cfg80211_mgmt_tx_status(priv->wdev,
+								tx_info->
+								tx_cookie,
+								skb->data,
+								skb->len, ack,
+								GFP_ATOMIC);
 #endif
 #endif
-				kfree(priv->last_tx_buf);
-				priv->last_tx_buf = NULL;
-				priv->last_tx_cookie = 0;
+				}
+				list_del(&tx_info->link);
+				dev_kfree_skb_any(skb);
+				kfree(tx_info);
 			}
 			spin_unlock_irqrestore(&priv->tx_stat_lock, flag);
 		}

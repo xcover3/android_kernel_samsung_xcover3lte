@@ -338,6 +338,11 @@ proc_write(struct file *file,
 	}
 	if (!strncmp(buffer, "debug_dump", strlen("debug_dump"))) {
 		bt_dump_sdio_regs(bpriv);
+		bt_dump_firmware_info_v2(bpriv);
+	}
+	if (!strncmp(buffer, "fw_reload", strlen("fw_reload"))) {
+		PRINTM(MSG, "Request fw_reload...\n");
+		bt_request_fw_reload(bpriv);
 	}
 	if (pos + len > pdata->wrlen)
 		pdata->wrlen = len + file->f_pos;

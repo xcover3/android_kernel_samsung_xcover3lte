@@ -367,6 +367,27 @@ woal_is_any_interface_active(moal_handle *handle)
 	return MFALSE;
 }
 
+#ifdef STA_SUPPORT
+/**
+ *  @brief Check if any interface has pending scan req
+ *
+ *  @param handle        A pointer to moal_handle
+ *
+ *
+ *  @return              MTRUE/MFALSE;
+ */
+moal_private *
+woal_get_scan_interface(moal_handle *handle)
+{
+	int i;
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i] && handle->priv[i]->scan_request)
+			return handle->priv[i];
+	}
+	return NULL;
+}
+#endif
+
 /**
  *  @brief Get current frequency of active interface
  *
@@ -2043,7 +2064,8 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 	unsigned long flags;
-	t_u8 *last_tx_buf;
+	struct sk_buff *skb = NULL;
+	struct tx_status_info *tx_info = NULL;
 #endif
 #endif
 
@@ -2080,29 +2102,6 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			woal_cancel_timer(&priv->phandle->remain_timer);
 			woal_remain_timer_func(priv->phandle);
 		}
-	/** report previous tx status */
-		spin_lock_irqsave(&priv->tx_stat_lock, flags);
-		if (priv->last_tx_buf && priv->last_tx_cookie) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
-			cfg80211_mgmt_tx_status(dev, priv->last_tx_cookie,
-						priv->last_tx_buf,
-						priv->last_tx_buf_len, true,
-						GFP_ATOMIC);
-#else
-			cfg80211_mgmt_tx_status(priv->wdev,
-						priv->last_tx_cookie,
-						priv->last_tx_buf,
-						priv->last_tx_buf_len, true,
-						GFP_ATOMIC);
-#endif
-#endif
-			kfree(priv->last_tx_buf);
-			priv->last_tx_buf = NULL;
-			priv->last_tx_cookie = 0;
-		}
-		spin_unlock_irqrestore(&priv->tx_stat_lock, flags);
-
 		/* With sd8777 We have difficulty to receive response packet in
 		   500ms */
 #define MGMT_TX_DEFAULT_WAIT_TIME	   1500
@@ -2261,14 +2260,25 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	if (ieee80211_is_action(((struct ieee80211_mgmt *)buf)->frame_control)) {
 		pmbuf->flags = MLAN_BUF_FLAG_TX_STATUS;
 		pmbuf->tx_seq_num = ++priv->tx_seq_num;
-		last_tx_buf = kmalloc(len, GFP_KERNEL);
-		if (last_tx_buf) {
-			memcpy(last_tx_buf, buf, len);
-			spin_lock_irqsave(&priv->tx_stat_lock, flags);
-			priv->last_tx_cookie = *cookie;
-			priv->last_tx_buf = last_tx_buf;
-			priv->last_tx_buf_len = len;
-			spin_unlock_irqrestore(&priv->tx_stat_lock, flags);
+		tx_info = kzalloc(sizeof(struct tx_status_info), GFP_ATOMIC);
+		if (tx_info) {
+			skb = alloc_skb(len, GFP_ATOMIC);
+			if (skb) {
+				memcpy(skb->data, buf, len);
+				skb_put(skb, len);
+				spin_lock_irqsave(&priv->tx_stat_lock, flags);
+				tx_info->tx_cookie = *cookie;
+				tx_info->tx_skb = skb;
+				tx_info->tx_seq_num = pmbuf->tx_seq_num;
+				INIT_LIST_HEAD(&tx_info->link);
+				list_add_tail(&tx_info->link,
+					      &priv->tx_stat_queue);
+				spin_unlock_irqrestore(&priv->tx_stat_lock,
+						       flags);
+			} else {
+				kfree(tx_info);
+				tx_info = NULL;
+			}
 		}
 	}
 #endif
@@ -2289,7 +2299,7 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		   necessary for P2P action handshake to wait 30ms. */
 		if (ieee80211_is_action
 		    (((struct ieee80211_mgmt *)buf)->frame_control)) {
-			if (priv->last_tx_buf && priv->last_tx_cookie)
+			if (tx_info)
 				break;
 			else
 				woal_sched_timeout(30);
@@ -2322,13 +2332,9 @@ done:
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 	if (status != MLAN_STATUS_PENDING) {
-		spin_lock_irqsave(&priv->tx_stat_lock, flags);
-		if (priv->last_tx_buf) {
-			kfree(priv->last_tx_buf);
-			priv->last_tx_buf = NULL;
-			priv->last_tx_cookie = 0;
-		}
-		spin_unlock_irqrestore(&priv->tx_stat_lock, flags);
+		if (tx_info)
+			woal_remove_tx_info(priv, tx_info->tx_seq_num);
+
 	}
 #endif
 #endif

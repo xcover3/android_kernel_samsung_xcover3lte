@@ -557,6 +557,351 @@ exit:
 }
 
 /**
+ *  @brief This function save the dump info to file
+ *
+ *
+ *  @param dir_name     directory name
+ *  @param file_name    file_name
+ *  @return    0 --success otherwise fail
+ */
+int
+bt_save_dump_info_to_file(char *dir_name, char *file_name, u8 *buf, u32 buf_len)
+{
+	int ret = BT_STATUS_SUCCESS;
+	struct file *pfile = NULL;
+	u8 name[64];
+	mm_segment_t fs;
+	loff_t pos;
+
+	ENTER();
+
+	if (!dir_name || !file_name || !buf) {
+		PRINTM(ERROR, "Can't save dump info to file\n");
+		ret = BT_STATUS_FAILURE;
+		goto done;
+	}
+
+	memset(name, 0, sizeof(name));
+	sprintf((char *)name, "%s/%s", dir_name, file_name);
+	pfile = filp_open((const char *)name, O_CREAT | O_RDWR, 0644);
+	if (IS_ERR(pfile)) {
+		PRINTM(MSG,
+		       "Create file %s error, try to save dump file in /var\n",
+		       name);
+		memset(name, 0, sizeof(name));
+		sprintf((char *)name, "%s/%s", "/var", file_name);
+		pfile = filp_open((const char *)name, O_CREAT | O_RDWR, 0644);
+	}
+	if (IS_ERR(pfile)) {
+		PRINTM(ERROR, "Create Dump file for %s error\n", name);
+		ret = BT_STATUS_FAILURE;
+		goto done;
+	}
+
+	PRINTM(MSG, "Dump data %s saved in %s\n", file_name, name);
+
+	fs = get_fs();
+	set_fs(KERNEL_DS);
+	pos = 0;
+	vfs_write(pfile, (const char __user *)buf, buf_len, &pos);
+	filp_close(pfile, NULL);
+	set_fs(fs);
+
+	PRINTM(MSG, "Dump data %s saved in %s successfully\n", file_name, name);
+
+done:
+	LEAVE();
+	return ret;
+}
+
+#define DEBUG_HOST_READY		0xEE
+#define DEBUG_FW_DONE			0xFF
+#define MAX_POLL_TRIES			100
+
+#define DEBUG_DUMP_CTRL_REG_8897               0xE2
+#define DEBUG_DUMP_START_REG_8897              0xE3
+#define DEBUG_DUMP_END_REG_8897                0xEA
+#define DEBUG_DUMP_CTRL_REG_8887               0xA2
+#define DEBUG_DUMP_START_REG_8887              0xA3
+#define DEBUG_DUMP_END_REG_8887                0xAA
+
+typedef enum {
+	DUMP_TYPE_ITCM = 0,
+	DUMP_TYPE_DTCM = 1,
+	DUMP_TYPE_SQRAM = 2,
+	DUMP_TYPE_APU_REGS = 3,
+	DUMP_TYPE_CIU_REGS = 4,
+	DUMP_TYPE_ICU_REGS = 5,
+	DUMP_TYPE_MAC_REGS = 6,
+	DUMP_TYPE_EXTEND_7 = 7,
+	DUMP_TYPE_EXTEND_8 = 8,
+	DUMP_TYPE_EXTEND_9 = 9,
+	DUMP_TYPE_EXTEND_10 = 10,
+	DUMP_TYPE_EXTEND_11 = 11,
+	DUMP_TYPE_EXTEND_12 = 12,
+	DUMP_TYPE_EXTEND_13 = 13,
+	DUMP_TYPE_EXTEND_LAST = 14
+} dumped_mem_type;
+
+#define MAX_NAME_LEN               8
+#define MAX_FULL_NAME_LEN               32
+
+typedef struct {
+	u8 mem_name[MAX_NAME_LEN];
+	u8 *mem_Ptr;
+	struct file *pfile_mem;
+	u8 done_flag;
+} memory_type_mapping;
+
+memory_type_mapping mem_type_mapping_tbl[] = {
+	{"ITCM", NULL, NULL, 0xF0},
+	{"DTCM", NULL, NULL, 0xF1},
+	{"SQRAM", NULL, NULL, 0xF2},
+	{"APU", NULL, NULL, 0xF3},
+	{"CIU", NULL, NULL, 0xF4},
+	{"ICU", NULL, NULL, 0xF5},
+	{"MAC", NULL, NULL, 0xF6},
+	{"EXT7", NULL, NULL, 0xF7},
+	{"EXT8", NULL, NULL, 0xF8},
+	{"EXT9", NULL, NULL, 0xF9},
+	{"EXT10", NULL, NULL, 0xFA},
+	{"EXT11", NULL, NULL, 0xFB},
+	{"EXT12", NULL, NULL, 0xFC},
+	{"EXT13", NULL, NULL, 0xFD},
+	{"EXTLAST", NULL, NULL, 0xFE},
+};
+
+typedef enum {
+	RDWR_STATUS_SUCCESS = 0,
+	RDWR_STATUS_FAILURE = 1,
+	RDWR_STATUS_DONE = 2
+} rdwr_status;
+
+/**
+ *  @brief This function read/write firmware via cmd52
+ *
+ *  @param phandle   A pointer to moal_handle
+ *
+ *  @return         MLAN_STATUS_SUCCESS
+ */
+rdwr_status
+woal_cmd52_rdwr_firmware(bt_private *priv, u8 doneflag)
+{
+	int ret = 0;
+	int tries = 0;
+	u8 ctrl_data = 0;
+	u8 dbg_dump_ctrl_reg = 0;
+
+	if (priv->card_type == CARD_TYPE_SD8887)
+		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8887;
+	else if (priv->card_type == CARD_TYPE_SD8897)
+		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8897;
+
+	sdio_writeb(((struct sdio_mmc_card *)priv->bt_dev.card)->func,
+		    DEBUG_HOST_READY, dbg_dump_ctrl_reg, &ret);
+	if (ret) {
+		PRINTM(ERROR, "SDIO Write ERR\n");
+		return RDWR_STATUS_FAILURE;
+	}
+	for (tries = 0; tries < MAX_POLL_TRIES; tries++) {
+		ctrl_data =
+			sdio_readb(((struct sdio_mmc_card *)priv->bt_dev.card)->
+				   func, dbg_dump_ctrl_reg, &ret);
+		if (ret) {
+			PRINTM(ERROR, "SDIO READ ERR\n");
+			return RDWR_STATUS_FAILURE;
+		}
+		if (ctrl_data == DEBUG_FW_DONE)
+			break;
+		if (doneflag && ctrl_data == doneflag)
+			return RDWR_STATUS_DONE;
+		if (ctrl_data != DEBUG_HOST_READY) {
+			PRINTM(INFO,
+			       "The ctrl reg was changed, re-try again!\n");
+			sdio_writeb(((struct sdio_mmc_card *)priv->bt_dev.
+				     card)->func, DEBUG_HOST_READY,
+				    dbg_dump_ctrl_reg, &ret);
+			if (ret) {
+				PRINTM(ERROR, "SDIO Write ERR\n");
+				return RDWR_STATUS_FAILURE;
+			}
+		}
+		udelay(100);
+	}
+	if (ctrl_data == DEBUG_HOST_READY) {
+		PRINTM(ERROR, "Fail to pull ctrl_data\n");
+		return RDWR_STATUS_FAILURE;
+	}
+
+	return RDWR_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function dump firmware memory to file
+ *
+ *  @param phandle   A pointer to moal_handle
+ *
+ *  @return         N/A
+ */
+void
+bt_dump_firmware_info_v2(bt_private *priv)
+{
+	int ret = 0;
+	unsigned int reg, reg_start, reg_end;
+	u8 *dbg_ptr = NULL;
+	u8 dump_num = 0;
+	u8 idx = 0;
+	u8 doneflag = 0;
+	rdwr_status stat;
+	u8 i = 0;
+	u8 read_reg = 0;
+	u32 memory_size = 0;
+	u8 path_name[64], file_name[32];
+	u8 *end_ptr = NULL;
+	u8 dbg_dump_start_reg = 0;
+	u8 dbg_dump_end_reg = 0;
+
+	if (!priv) {
+		PRINTM(ERROR, "Could not dump firmwware info\n");
+		return;
+	}
+
+	if ((priv->card_type != CARD_TYPE_SD8887) &&
+	    (priv->card_type != CARD_TYPE_SD8897)) {
+		PRINTM(MSG, "card_type %d don't support FW dump\n",
+		       priv->card_type);
+		return;
+	}
+
+	memset(path_name, 0, sizeof(path_name));
+	strcpy((char *)path_name, "/data");
+	PRINTM(MSG, "Create DUMP directory success:dir_name=%s\n", path_name);
+
+	if (priv->card_type == CARD_TYPE_SD8887) {
+		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8887;
+		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8887;
+	} else if (priv->card_type == CARD_TYPE_SD8897) {
+		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8897;
+		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8897;
+	}
+
+	sbi_wakeup_firmware(priv);
+	sdio_claim_host(((struct sdio_mmc_card *)priv->bt_dev.card)->func);
+	/* start dump fw memory */
+	PRINTM(MSG, "==== DEBUG MODE OUTPUT START ====\n");
+	/* read the number of the memories which will dump */
+	if (RDWR_STATUS_FAILURE == woal_cmd52_rdwr_firmware(priv, doneflag))
+		goto done;
+	reg = dbg_dump_start_reg;
+	dump_num =
+		sdio_readb(((struct sdio_mmc_card *)priv->bt_dev.card)->func,
+			   reg, &ret);
+	if (ret) {
+		PRINTM(MSG, "SDIO READ MEM NUM ERR\n");
+		goto done;
+	}
+
+	/* read the length of every memory which will dump */
+	for (idx = 0; idx < dump_num; idx++) {
+		if (RDWR_STATUS_FAILURE ==
+		    woal_cmd52_rdwr_firmware(priv, doneflag))
+			goto done;
+		memory_size = 0;
+		reg = dbg_dump_start_reg;
+		for (i = 0; i < 4; i++) {
+			read_reg =
+				sdio_readb(((struct sdio_mmc_card *)priv->
+					    bt_dev.card)->func, reg, &ret);
+			if (ret) {
+				PRINTM(MSG, "SDIO READ ERR\n");
+				goto done;
+			}
+			memory_size |= (read_reg << i * 8);
+			reg++;
+		}
+		if (memory_size == 0) {
+			PRINTM(MSG, "Firmware Dump Finished!\n");
+			break;
+		} else {
+			PRINTM(MSG, "%s_SIZE=0x%x\n",
+			       mem_type_mapping_tbl[idx].mem_name, memory_size);
+			mem_type_mapping_tbl[idx].mem_Ptr =
+				vmalloc(memory_size + 1);
+			if ((ret != BT_STATUS_SUCCESS) ||
+			    !mem_type_mapping_tbl[idx].mem_Ptr) {
+				PRINTM(ERROR,
+				       "Error: vmalloc %s buffer failed!!!\n",
+				       mem_type_mapping_tbl[idx].mem_name);
+				goto done;
+			}
+			dbg_ptr = mem_type_mapping_tbl[idx].mem_Ptr;
+			end_ptr = dbg_ptr + memory_size;
+		}
+		doneflag = mem_type_mapping_tbl[idx].done_flag;
+		PRINTM(MSG, "Start %s output, please wait...\n",
+		       mem_type_mapping_tbl[idx].mem_name);
+		do {
+			stat = woal_cmd52_rdwr_firmware(priv, doneflag);
+			if (RDWR_STATUS_FAILURE == stat)
+				goto done;
+
+			reg_start = dbg_dump_start_reg;
+			reg_end = dbg_dump_end_reg;
+			for (reg = reg_start; reg <= reg_end; reg++) {
+				*dbg_ptr =
+					sdio_readb(((struct sdio_mmc_card *)
+						    priv->bt_dev.card)->func,
+						   reg, &ret);
+				if (ret) {
+					PRINTM(MSG, "SDIO READ ERR\n");
+					goto done;
+				}
+				if (dbg_ptr < end_ptr)
+					dbg_ptr++;
+				else
+					PRINTM(MSG,
+					       "pre-allocced buf is not enough\n");
+			}
+			if (RDWR_STATUS_DONE == stat) {
+				PRINTM(MSG, "%s done:"
+				       "size = 0x%x\n",
+				       mem_type_mapping_tbl[idx].mem_name,
+				       (unsigned int)(dbg_ptr -
+						      mem_type_mapping_tbl[idx].
+						      mem_Ptr));
+				memset(file_name, 0, sizeof(file_name));
+				sprintf((char *)file_name, "%s%s", "file_bt_",
+					mem_type_mapping_tbl[idx].mem_name);
+				if (BT_STATUS_SUCCESS !=
+				    bt_save_dump_info_to_file((char *)path_name,
+							      (char *)file_name,
+							      mem_type_mapping_tbl
+							      [idx].mem_Ptr,
+							      memory_size))
+					PRINTM(MSG,
+					       "Can't save dump file %s in %s\n",
+					       file_name, path_name);
+				vfree(mem_type_mapping_tbl[idx].mem_Ptr);
+				mem_type_mapping_tbl[idx].mem_Ptr = NULL;
+				break;
+			}
+		} while (1);
+	}
+	PRINTM(MSG, "==== DEBUG MODE OUTPUT END ====\n");
+	/* end dump fw memory */
+done:
+	sdio_release_host(((struct sdio_mmc_card *)priv->bt_dev.card)->func);
+	for (idx = 0; idx < dump_num; idx++) {
+		if (mem_type_mapping_tbl[idx].mem_Ptr) {
+			vfree(mem_type_mapping_tbl[idx].mem_Ptr);
+			mem_type_mapping_tbl[idx].mem_Ptr = NULL;
+		}
+	}
+	PRINTM(MSG, "==== DEBUG MODE END ====\n");
+	return;
+}
+
+/**
  *  @brief This function shows debug info for timeout of command sending.
  *
  *  @param adapter  A pointer to bt_private
@@ -1680,6 +2025,101 @@ done:
 	return ret;
 }
 
+#define FW_POLL_TRIES 100
+#define FW_RESET_REG  0xB6
+
+/**
+ *  @brief This function reload firmware
+ *
+ *  @param priv   A pointer to bt_private
+ *
+ *  @return       0--success, otherwise failure
+ */
+static int
+bt_reload_fw(bt_private *priv)
+{
+	int ret = 0, tries = 0;
+	u8 value = 1;
+
+	ENTER();
+	/** Wake up firmware firstly */
+	sbi_wakeup_firmware(priv);
+
+    /** wait SOC fully wake up */
+	for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
+		ret = sd_write_reg(priv, FW_RESET_REG, 0xba);
+		if (!ret) {
+			ret = sd_read_reg(priv, FW_RESET_REG, &value);
+			if (!ret && (value == 0xba)) {
+				PRINTM(MSG, "Fw wake up\n");
+				break;
+			}
+		}
+		udelay(1000);
+	}
+
+	ret = sd_write_reg(priv, FW_RESET_REG, 1);
+	if (ret) {
+		PRINTM(ERROR, "Failed to write register.\n");
+		goto done;
+	}
+
+	/** Poll register around 1 ms */
+	for (; tries < FW_POLL_TRIES; ++tries) {
+		ret = sd_read_reg(priv, FW_RESET_REG, &value);
+		if (ret) {
+			PRINTM(ERROR, "Failed to read register.\n");
+			goto done;
+		}
+		if (value == 0)
+			/** FW is ready */
+			break;
+		udelay(1000);
+	}
+	if (value) {
+		PRINTM(ERROR, "Failed to poll FW reset register %X=0x%x\n",
+		       FW_RESET_REG, value);
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/** reload FW */
+	ret = bt_init_fw(priv);
+	if (ret) {
+		PRINTM(ERROR, "Re download firmware failed.\n");
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function request to reload firmware
+ *
+ *  @param priv   A pointer to bt_private
+ *
+ *  @return         N/A
+ */
+void
+bt_request_fw_reload(bt_private *priv)
+{
+	ENTER();
+
+	/** Reload FW */
+	priv->fw_reload = TRUE;
+	if (bt_reload_fw(priv)) {
+		PRINTM(ERROR, "FW reload fail\n");
+		goto done;
+	}
+	priv->fw_reload = FALSE;
+	/** Other operation here? */
+done:
+	LEAVE();
+	return;
+}
+
 /**
  *  @brief This function frees the structure of adapter
  *
@@ -2115,6 +2555,11 @@ sbi_register_conf_dpc(bt_private *priv)
 
 	priv->bt_dev.tx_dnld_rdy = TRUE;
 
+	if (priv->fw_reload) {
+		LEAVE();
+		return ret;
+	}
+
 	if (drv_mode & DRV_MODE_BT) {
 		mbt_dev = alloc_mbt_dev();
 		if (!mbt_dev) {
@@ -2437,7 +2882,7 @@ sbi_register_conf_dpc(bt_private *priv)
 
 	/* Get FW version */
 	bt_get_fw_version(priv);
-	snprintf(priv->adapter->drv_ver, MAX_VER_STR_LEN,
+	snprintf((char *)priv->adapter->drv_ver, MAX_VER_STR_LEN,
 		 mbt_driver_version, fw_version);
 
 done:
@@ -2513,6 +2958,9 @@ bt_add_card(void *card)
 	if (BT_STATUS_SUCCESS != sdio_get_sdio_device(priv))
 		goto err_kmalloc;
 
+	/** user config file */
+	init_waitqueue_head(&priv->init_user_conf_wait_q);
+
 	priv->bt_dev.card = card;
 
 	((struct sdio_mmc_card *)card)->priv = priv;
@@ -2570,7 +3018,10 @@ bt_send_hw_remove_event(bt_private *priv)
 		LEAVE();
 		return;
 	}
-	mbt_dev = (struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].dev_pointer;
+	if (priv->bt_dev.m_dev[BT_SEQ].spec_type != BLUEZ_SPEC)
+		mbt_dev =
+			(struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].
+			dev_pointer;
 #define HCI_HARDWARE_ERROR_EVT  0x10
 #define HCI_HARDWARE_REMOVE     0x24
 	skb = bt_skb_alloc(3, GFP_ATOMIC);

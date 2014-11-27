@@ -2229,6 +2229,8 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 		ret = wlan_ret_802_11_supplicant_profile(pmpriv, resp,
 							 pioctl_buf);
 		break;
+	case HostCmd_CMD_802_11_EAPOL_PKT:
+		break;
 	case HostCmd_CMD_802_11D_DOMAIN_INFO:
 		ret = wlan_ret_802_11d_domain_info(pmpriv, resp);
 		break;
