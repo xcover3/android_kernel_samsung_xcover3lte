@@ -410,9 +410,19 @@ static struct thermal_cooling_device_ops const combile_cooling_ops = {
 static void pxa28nm_register_thermal(void)
 {
 	int i, trip_w_mask = 0;
+	struct thermal_cooling_device *cool_dev;
+	cool_dev = cpufreq_cool_register("cluster0");
+	if (cool_dev)
+		thermal_dev.cdev.cool_cpu_cluster0_freq = cool_dev;
+	else
+		thermal_dev.cdev.cool_cpu_cluster0_freq = NULL;
 
-	thermal_dev.cdev.cool_cpu_cluster0_freq = cpufreq_cool_register("cluster0");
-	thermal_dev.cdev.cool_cpu_cluster1_freq = cpufreq_cool_register("cluster1");
+	cool_dev = cpufreq_cool_register("cluster1");
+	if (cool_dev)
+		thermal_dev.cdev.cool_cpu_cluster1_freq = cool_dev;
+	else
+		thermal_dev.cdev.cool_cpu_cluster1_freq = NULL;
+
 	thermal_dev.cdev.cool_cpuhotplug = cpuhotplug_cool_register();
 
 	thermal_dev.cdev.combile_cool = thermal_cooling_device_register(

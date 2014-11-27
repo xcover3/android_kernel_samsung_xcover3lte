@@ -181,6 +181,8 @@ struct thermal_cooling_device *cpufreq_cool_register(const char *cpu_name)
 	else
 		table = cpufreq_frequency_get_table(0);
 
+	if (!table)
+		return ERR_PTR(-EINVAL);
 
 	/* get frequency number and order*/
 	for (i = 0; table[i].frequency != CPUFREQ_TABLE_END; i++) {
