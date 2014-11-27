@@ -95,6 +95,7 @@ struct pm886_led {
 	unsigned int brightness;
 	unsigned int current_brightness;
 	unsigned int max_current_div;
+	unsigned int force_max_current;
 
 	int id;
 	/* for external CF_EN and CF_TXMSK */
@@ -336,8 +337,11 @@ static void pm886_led_bright_set(struct led_classdev *cdev,
 	/* skip the lowest level */
 	if (value == 0)
 		led->brightness = 0;
-	else
+	else {
+		if (led->force_max_current)
+			value = LED_FULL;
 		led->brightness = ((value / led->max_current_div) + 1) * 50;
+	}
 
 	dev_dbg(led->cdev.dev, "value = %d, brightness = %d\n",
 		 value, led->brightness);
@@ -475,6 +479,11 @@ static int pm886_led_dt_init(struct device_node *np,
 			"max-torch-current is not define in DTS, using default value\n");
 	}
 
+	ret = of_property_read_u32(np,
+				"torch-force-max-current", &pdata->torch_force_max_current);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 static int pm886_setup(struct platform_device *pdev, struct pm886_led_pdata *pdata)
@@ -602,6 +611,11 @@ static int pm886_led_probe(struct platform_device *pdev)
 				PM886_MIN_CURRENT : pdata->max_torch_current;
 		max_current = (pdata->max_torch_current > PM886_MAX_TORCH_CURRENT) ?
 				PM886_MAX_TORCH_CURRENT : pdata->max_torch_current;
+		/*
+		 * Allow to force a constant current regardless of upper
+		 * layer request
+		 */
+		led->force_max_current = pdata->torch_force_max_current;
 	}
 
 	led->chip = chip;

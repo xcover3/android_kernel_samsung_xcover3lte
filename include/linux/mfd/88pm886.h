@@ -156,6 +156,7 @@ struct pm886_led_pdata {
 	unsigned int bst_uvvbat_set;
 	unsigned int max_flash_current;
 	unsigned int max_torch_current;
+	unsigned int torch_force_max_current;
 };
 
 struct pm886_chip {
