@@ -833,12 +833,8 @@
 			};
 
 			twsi0: i2c@d4011000 {
-				pinctrl-names = "default","gpio";
-				pinctrl-0 = <&twsi0_pmx_func>;
-				pinctrl-1 = <&twsi0_pmx_gpio>;
-				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
-				status = "disabled";
-		        };
+				status = "okay";
+		     };
 
 			twsi1: i2c@d4010800 {
 				pinctrl-names = "default","gpio";
