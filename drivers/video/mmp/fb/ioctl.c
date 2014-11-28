@@ -218,7 +218,10 @@ static int enable_commit(struct fb_info *info, unsigned long arg)
 	 * Enable irq once in after flip buffer
 	 * IRQ will be disabled in irq handler.
 	 */
-	mmp_path_set_irq(fbi->path, 1);
+	if (!atomic_read(&fbi->path->irq_en_count)) {
+		atomic_inc(&fbi->path->irq_en_count);
+		mmp_path_set_irq(fbi->path, 1);
+	}
 
 	return 0;
 }

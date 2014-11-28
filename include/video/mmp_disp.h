@@ -702,6 +702,7 @@ struct mmp_path {
 	int status;
 	struct mutex access_ok;
 	atomic_t irq_en_ref;
+	atomic_t irq_en_count;
 
 	/* debug */
 	struct mmp_mach_debug_irq_count irq_count;

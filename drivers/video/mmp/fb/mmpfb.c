@@ -481,7 +481,10 @@ static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 	 * Pan_display will enable irq,
 	 * IRQ will be disabled in irq handler.
 	 */
-	mmp_path_set_irq(fbi->path, 1);
+	if (!atomic_read(&fbi->path->irq_en_count)) {
+		atomic_inc(&fbi->path->irq_en_count);
+		mmp_path_set_irq(fbi->path, 1);
+	}
 
 	decompress_en = !!(var->reserved[0] & DECOMPRESS_MODE);
 	pr_debug("%s: decompress_en : %d\n", __func__, decompress_en);

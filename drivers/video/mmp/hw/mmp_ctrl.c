@@ -115,7 +115,10 @@ static void path_hw_trigger(struct mmp_path *path)
 						!DISP_GEN4_LITE(path_to_ctrl(path)->version))
 					/* Enable irq that vdma channel clock
 					 * will be disabled in irq handler */
-					mmp_path_set_irq(path, 1);
+					if (!atomic_read(&path->irq_en_count)) {
+						atomic_inc(&path->irq_en_count);
+						mmp_path_set_irq(path, 1);
+					}
 			}
 		}
 	}
@@ -664,7 +667,10 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 				 * Unless we can find the right
 				 * display done handler (not delayed),
 				 * we wouldn't disable the irq */
-				if (!(path->irq_count.vsync_check))
+				if (!(path->irq_count.vsync_check) &&
+					atomic_read(&path->irq_en_count) &&
+					atomic_dec_and_test(
+					&path->irq_en_count))
 					mmp_path_set_irq(path, 0);
 			}
 			if (path && path->vsync.handle_irq)
