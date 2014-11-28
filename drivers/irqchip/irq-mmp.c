@@ -296,7 +296,7 @@ const struct irq_domain_ops mmp_irq_domain_ops = {
 static struct mmp_intc_conf mmp_conf = {
 	.conf_enable	= 0x51,
 	.conf_disable	= 0x0,
-	.conf_mask	= 0x7f,
+	.conf_mask	= 0x7fff,
 };
 
 static struct mmp_intc_conf mmp2_conf = {
