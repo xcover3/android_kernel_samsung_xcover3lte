@@ -789,7 +789,7 @@
 			};
 
 			thermal: thermal@d4013300 {
-				compatible = "marvell,pxa28nm-thermal";
+				compatible = "marvell,pxa1936-thermal";
 				reg = <0xd4013300 0x1C>;
 				interrupts = <0 60 0x4>;
 				clocks = <&soc_clocks PXA1936_CLK_THERMAL>;
