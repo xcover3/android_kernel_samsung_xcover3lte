@@ -167,20 +167,21 @@ MODULE_PARM_DESC(caps_charge, "88PM860 caps charge time (msecs)");
 
 static struct regmap *pm80x_get_companion(struct pm80x_chip *chip)
 {
-#ifdef CONFIG_MFD_88PM886
-	return get_companion();
-#else
 	struct pm80x_chip *chip_comp;
 
-	if (!chip->companion) {
-		dev_err(chip->dev, "%s: no companion chip\n", __func__);
-		return NULL;
+	if (chip->pmic_type == PMIC_PM886) {
+		return get_companion();
+	} else {
+		if (!chip->companion) {
+			dev_err(chip->dev,
+				"%s: no companion chip\n", __func__);
+			return NULL;
+		}
+
+		chip_comp = i2c_get_clientdata(chip->companion);
+
+		return chip_comp->regmap;
 	}
-
-	chip_comp = i2c_get_clientdata(chip->companion);
-
-	return chip_comp->regmap;
-#endif
 }
 
 static unsigned int pm860_read(struct snd_soc_codec *codec,
