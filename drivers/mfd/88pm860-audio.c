@@ -162,6 +162,21 @@ static const struct of_device_id pm860_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, pm860_of_match);
 
+static int pm860_parse_dt(struct device_node *np, struct pm80x_chip *chip)
+{
+	if (!chip)
+		return -EINVAL;
+
+	if (of_property_read_u32(np,
+			"marvell,pmic-type", &chip->pmic_type)) {
+		dev_info(chip->dev, "do not get pmic type\n");
+		/* set default pmic is 88pm860 */
+		chip->pmic_type = PMIC_PM860;
+	}
+
+	return 0;
+}
+
 static int pm860_audio_probe(struct i2c_client *client,
 				      const struct i2c_device_id *id)
 {
@@ -184,6 +199,8 @@ static int pm860_audio_probe(struct i2c_client *client,
 			ret);
 		return ret;
 	}
+
+	pm860_parse_dt(client->dev.of_node, pm860);
 
 	/* add pm860_reg sysfs entries */
 	ret = device_create_file(pm860->dev, &dev_attr_pm860_reg);

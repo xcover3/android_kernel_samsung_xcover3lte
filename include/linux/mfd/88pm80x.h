@@ -19,6 +19,12 @@
 #include <linux/switch.h>
 
 enum {
+	PMIC_PM860 = 0,
+	PMIC_PM886,
+	PMIC_MAX,
+};
+
+enum {
 	CHIP_INVALID = 0,
 	CHIP_PM800,
 	CHIP_PM805,
@@ -580,6 +586,7 @@ struct pm80x_chip {
 	struct regmap_irq_chip *regmap_irq_chip;
 	struct regmap_irq_chip_data *irq_data;
 	int type;
+	int pmic_type;
 	int chip_id;
 	int irq;
 	int irq_mode;
