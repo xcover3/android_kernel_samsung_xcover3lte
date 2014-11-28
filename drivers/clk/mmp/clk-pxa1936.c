@@ -250,6 +250,7 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 		.out_name = "pll3",
 		.outp_name = "pll3p",
 		.vco_div3_name = "pll3_div3",
+		.vco_flag = HELANX_PLL_SKIP_DEF_RATE,
 		.vcoclk_flag = CLK_IS_ROOT,
 		.outpclk_flag = CLK_SET_RATE_PARENT,
 		.out_flag = HELANX_PLLOUT,
