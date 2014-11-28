@@ -425,16 +425,19 @@ static void clk_pll_vco_init(struct clk_hw *hw)
 		__pll_vco_cfg(vco);
 	} else {
 		vco_rate = __get_vco_freq(hw) / MHZ;
-		/* check whether vco is in the range of 2% our expectation */
-		tmp = params->default_rate / MHZ;
-		if (tmp != vco_rate) {
-			vco_rngh = tmp + tmp * 2 / 100;
-			vco_rngl = tmp - tmp * 2 / 100;
-			BUG_ON(!((vco_rngl <= vco_rate) &&
-				 (vco_rate <= vco_rngh)));
+		if (vco->flags & HELANX_PLL_SKIP_DEF_RATE) {
+			hw->clk->rate = vco_rate * MHZ;
+		} else {
+			/* check whether vco is in the range of 2% our expectation */
+			tmp = params->default_rate / MHZ;
+			if (tmp != vco_rate) {
+				vco_rngh = tmp + tmp * 2 / 100;
+				vco_rngl = tmp - tmp * 2 / 100;
+				BUG_ON(!((vco_rngl <= vco_rate) &&
+					 (vco_rate <= vco_rngh)));
+			}
+			hw->clk->rate = params->default_rate;
 		}
-		hw->clk->rate = params->default_rate;
-
 		/* Make sure SSC is enabled if pll is on */
 		if (vco->flags & HELANX_PLL_SSC_FEAT) {
 			config_ssc(vco, hw->clk->rate);

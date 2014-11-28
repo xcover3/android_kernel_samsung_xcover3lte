@@ -96,6 +96,11 @@ struct clk_pll {
 #define HELANX_PLL_SSC_AON		BIT(2)
 #define HELANX_PLL_28NM			BIT(3)
 #define HELANX_PLL_40NM			BIT(4)
+/*
+ * For specific pll such as pll3p, don't check default rate to support
+ * more boot up op.
+ */
+#define HELANX_PLL_SKIP_DEF_RATE	BIT(5)
 
 extern struct clk *helanx_clk_register_vco(const char *name,
 					   const char *parent_name,
