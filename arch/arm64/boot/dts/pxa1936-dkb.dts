@@ -943,6 +943,7 @@
 				pmic2: 88pm860@38 {
 					compatible = "marvell,88pm860";
 					reg = <0x38>;
+					marvell,pmic-type = <0>;
 					/* no codec_int currently, comment out now */
 					/*
 					interrupt-parent = <&gpio>;
