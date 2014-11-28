@@ -332,6 +332,7 @@ struct b52_sensor {
 	int i2c_dyn_ctrl;
 	int sensor_init;
 	atomic_t	stream_cnt;
+	int board_prop_id;
 
 	struct blocking_notifier_head nh;
 };

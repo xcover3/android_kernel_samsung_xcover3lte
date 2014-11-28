@@ -1322,6 +1322,78 @@ static int b52_sensor_set_defalut(struct b52_sensor *sensor)
 	return 0;
 }
 
+static void b52_sensor_s_board_power(struct i2c_client *client, int on)
+{
+	struct gpio_desc *mut;
+	struct gpio_desc *ecam1;
+	struct gpio_desc *ecam2;
+	struct gpio_desc *ecam3;
+	struct gpio_desc *ecam4;
+	struct gpio_desc *ilim;
+
+	mut = devm_gpiod_get(&client->dev, "mut");
+	if (IS_ERR(mut)) {
+		dev_warn(&client->dev, "Failed to get mut gpio\n");
+		mut = NULL;
+	}
+
+	ecam1 = devm_gpiod_get(&client->dev, "ecam1");
+	if (IS_ERR(ecam1)) {
+		dev_warn(&client->dev, "Failed to get ecam1 gpio\n");
+		ecam1 = NULL;
+	}
+
+	ecam2 = devm_gpiod_get(&client->dev, "ecam2");
+	if (IS_ERR(ecam2)) {
+		dev_warn(&client->dev, "Failed to get ecam2 gpio\n");
+		ecam2 = NULL;
+	}
+
+	ecam3 = devm_gpiod_get(&client->dev, "ecam3");
+	if (IS_ERR(ecam3)) {
+		dev_warn(&client->dev, "Failed to get ecam3 gpio\n");
+		ecam3 = NULL;
+	}
+
+	ecam4 = devm_gpiod_get(&client->dev, "ecam4");
+	if (IS_ERR(ecam4)) {
+		dev_warn(&client->dev, "Failed to get ecam4 gpio\n");
+		ecam4 = NULL;
+	}
+
+	ilim = devm_gpiod_get(&client->dev, "ilim");
+	if (IS_ERR(ilim)) {
+		dev_warn(&client->dev, "Failed to get ilim gpio\n");
+		ilim = NULL;
+	}
+
+	if (on) {
+		if (mut)
+			gpiod_set_value_cansleep(mut, 0);
+		if (ecam1)
+			gpiod_set_value_cansleep(ecam1, 0);
+		if (ecam2)
+			gpiod_set_value_cansleep(ecam2, 0);
+		if (ecam3)
+			gpiod_set_value_cansleep(ecam3, 0);
+		if (ecam4)
+			gpiod_set_value_cansleep(ecam4, 0);
+		if (ilim)
+			gpiod_set_value_cansleep(ilim, 1);
+	} else {
+		if (mut)
+			gpiod_set_value_cansleep(mut, 1);
+		if (ecam1)
+			gpiod_set_value_cansleep(ecam1, 1);
+		if (ecam2)
+			gpiod_set_value_cansleep(ecam2, 1);
+		if (ecam3)
+			gpiod_set_value_cansleep(ecam3, 1);
+		if (ecam4)
+			gpiod_set_value_cansleep(ecam4, 1);
+	}
+}
+
 static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 {
 	int ret = 0;
@@ -1329,6 +1401,10 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 	struct sensor_power *power;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
+
+	if (sensor->board_prop_id == 1)
+		b52_sensor_s_board_power(client, on);
+
 	if (sensor->drvdata->ops->s_power)
 		return sensor->drvdata->ops->s_power(sd, on);
 	power = (struct sensor_power *) &(sensor->power);
@@ -2450,6 +2526,10 @@ static int b52_sensor_probe(struct i2c_client *client,
 
 	if (of_get_property(np, "sc2-i2c-dyn-ctrl", NULL))
 		sensor->i2c_dyn_ctrl = 1;
+
+	/* default the board prop is DKB*/
+	if (of_get_property(np, "pxa1908_cmtb_board", NULL))
+		sensor->board_prop_id = 1;
 
 	ret = of_property_read_u32(np, "sensor-pos", (u32 *)&sensor->pos);
 	if (ret < 0) {
