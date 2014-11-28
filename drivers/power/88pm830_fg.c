@@ -45,7 +45,7 @@ unsigned int get_extern_data(struct pm830_battery_info *info, int flag)
 			if (pmic->chip_id == CHIP_PM86X_ID_A0) {
 				regmap_bulk_read(pmic->regmap, PM860_A0_SLP_CNT1, buf, 2);
 				val = (buf[0] | ((buf[1] & 0x3) << 8));
-				dev_info(info->dev, "sleep_counter = %d, 0x%x\n", val, val);
+				dev_dbg(info->dev, "sleep_counter = %d, 0x%x\n", val, val);
 				/* clear sleep counter */
 				regmap_update_bits(pmic->regmap, PM860_A0_SLP_CNT2,
 						   PM860_A0_SLP_CNT_RST, PM860_A0_SLP_CNT_RST);
