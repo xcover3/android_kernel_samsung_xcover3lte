@@ -823,6 +823,12 @@ int pm886_stepping_fixup(struct pm886_chip *chip)
 	chip->type = pm886_of_get_type(&chip->client->dev);
 	switch (chip->type) {
 	case PM886:
+		if (chip->chip_id == PM886_A1) {
+			/* set HPFM bit for buck1 */
+			regmap_update_bits(chip->power_regmap, 0xa0, 1 << 7, 1 << 7);
+			/* clear LPFM bit for buck1 */
+			regmap_update_bits(chip->power_regmap, 0x9f, 1 << 3, 0 << 3);
+		}
 		break;
 	default:
 		break;
