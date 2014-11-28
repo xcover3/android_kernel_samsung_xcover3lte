@@ -1,5 +1,5 @@
 /*
- * pxa28nm_thermal.c - Marvell 28nm TMU (Thermal Management Unit)
+ * pxa1936_thermal.c - Marvell pxa1936 TMU (Thermal Management Unit)
  *
  * Author:      Liang Chen <chl@marvell.com>
  * Copyright:   (C) 2014 Marvell International Ltd.
@@ -548,7 +548,7 @@ static irqreturn_t pxa28nm_irq(int irq, void *devid)
 	return IRQ_WAKE_THREAD;
 }
 
-static int pxa28nm_thermal_probe(struct platform_device *pdev)
+static int pxa1936_thermal_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	u32 tmp;
@@ -645,7 +645,7 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int pxa28nm_thermal_remove(struct platform_device *pdev)
+static int pxa1936_thermal_remove(struct platform_device *pdev)
 {
 	reg_clr_set(TSEN_PCTRL, 0, TSEN_RESET);
 	clk_disable_unprepare(thermal_dev.therm_clk);
@@ -659,27 +659,27 @@ static int pxa28nm_thermal_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id pxa28nm_tmu_match[] = {
-	{ .compatible = "marvell,pxa28nm-thermal", },
+static const struct of_device_id pxa1936_tmu_match[] = {
+	{ .compatible = "marvell,pxa1936-thermal", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, pxa28nm_tmu_match);
 #endif
 
-static struct platform_driver pxa28nm_thermal_driver = {
+static struct platform_driver pxa1936_thermal_driver = {
 	.driver = {
-		.name   = "pxa28nm-thermal",
+		.name   = "pxa1936-thermal",
 		.pm     = PXA_TMU_PM,
 #ifdef CONFIG_OF
-		.of_match_table = of_match_ptr(pxa28nm_tmu_match),
+		.of_match_table = of_match_ptr(pxa1936_tmu_match),
 #endif
 	},
-	.probe = pxa28nm_thermal_probe,
-	.remove = pxa28nm_thermal_remove,
+	.probe = pxa1936_thermal_probe,
+	.remove = pxa1936_thermal_remove,
 };
-module_platform_driver(pxa28nm_thermal_driver);
+module_platform_driver(pxa1936_thermal_driver);
 
 MODULE_AUTHOR("Marvell Semiconductor");
 MODULE_DESCRIPTION("HELAN3 SoC thermal driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:pxa28nm-thermal");
+MODULE_ALIAS("platform:pxa1936-thermal");
