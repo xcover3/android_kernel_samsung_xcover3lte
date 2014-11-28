@@ -120,12 +120,43 @@ enum comp {
 	BOOT_DVFS_MAX,
 };
 
-static unsigned long minfreq[BOOT_DVFS_MAX] = {
-	156 * MHZ, 156 * MHZ, 78 * MHZ
-};
+static unsigned long minfreq[BOOT_DVFS_MAX] = { 0, 0, 0 };
 static unsigned long bootfreq[BOOT_DVFS_MAX];
 static struct clk *clk[BOOT_DVFS_MAX];
 static char *clk_name[BOOT_DVFS_MAX] = {"cpu", "ddr", "axi"};
+
+static struct pm_qos_request sdh_core_qos_max;
+static struct pm_qos_request sdh_ddr_qos_max;
+
+static int __init sdh_tuning_init(void)
+{
+
+	struct cpufreq_frequency_table *cpufreq_table =
+		cpufreq_frequency_get_table(0);
+	struct devfreq_frequency_table *ddrfreq_table =
+		devfreq_frequency_get_table(DEVFREQ_DDR);
+
+	if (cpufreq_table)
+		minfreq[CORE] = cpufreq_table[0].frequency;
+	else
+		pr_err("%s cpufreq_table get failed, use 0 to set!\n", __func__);
+
+	if (ddrfreq_table)
+		minfreq[DDR] = ddrfreq_table[0].frequency;
+	else
+		pr_err("%s ddrfreq_table get failed, use 0 to set!\n", __func__);
+
+	sdh_core_qos_max.name = "sdh_tuning";
+	pm_qos_add_request(&sdh_core_qos_max,
+		PM_QOS_CPUFREQ_MAX, PM_QOS_DEFAULT_VALUE);
+
+	sdh_ddr_qos_max.name = "sdh_tuning";
+	pm_qos_add_request(&sdh_ddr_qos_max,
+		PM_QOS_DDR_DEVFREQ_MAX, PM_QOS_DEFAULT_VALUE);
+
+	return 0;
+}
+arch_initcall(sdh_tuning_init);
 
 int sdh_tunning_scaling2minfreq(void)
 {
@@ -142,9 +173,11 @@ int sdh_tunning_scaling2minfreq(void)
 
 		if (!bootfreq[i])
 			bootfreq[i] = clk_get_rate(clk[i]);
-
-		clk_set_rate(clk[i], minfreq[i]);
 	}
+
+	clk_set_rate(clk[AXI], minfreq[AXI]);
+	pm_qos_update_request(&sdh_core_qos_max, minfreq[CORE]);
+	pm_qos_update_request(&sdh_ddr_qos_max, minfreq[DDR]);
 
 	return 0;
 }
@@ -153,11 +186,16 @@ int sdh_tunning_restorefreq(void)
 {
 	int i;
 
+	pm_qos_update_request(&sdh_core_qos_max, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&sdh_ddr_qos_max, PM_QOS_DEFAULT_VALUE);
+
 	for (i = 0; i < BOOT_DVFS_MAX; i++) {
 		if (!clk[i])
 			continue;
+
 		clk_set_rate(clk[i], bootfreq[i]);
 	}
+
 	return 0;
 }
 
