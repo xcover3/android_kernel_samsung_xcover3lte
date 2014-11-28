@@ -221,6 +221,7 @@ void pm886_dev_exit(struct pm886_chip *chip);
 int pm886_irq_init(struct pm886_chip *chip);
 int pm886_irq_exit(struct pm886_chip *chip);
 int pm886_apply_patch(struct pm886_chip *chip);
+int pm886_stepping_fixup(struct pm886_chip *chip);
 int pm886_apply_bd_patch(struct pm886_chip *chip, struct device_node *np);
 
 extern struct regmap_irq_chip pm886_irq_chip;

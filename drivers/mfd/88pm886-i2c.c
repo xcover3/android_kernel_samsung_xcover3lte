@@ -71,6 +71,13 @@ static int pm886_i2c_probe(struct i2c_client *client,
 		goto err_apply_patch;
 	}
 
+	/* fixup according PMIC stepping */
+	ret = pm886_stepping_fixup(chip);
+	if (ret) {
+		dev_err(chip->dev, "fixup according to chip stepping\n");
+		goto err_apply_patch;
+	}
+
 	/* patch for board configuration */
 	ret = pm886_apply_bd_patch(chip, node);
 	if (ret) {

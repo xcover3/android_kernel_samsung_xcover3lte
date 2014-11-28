@@ -815,6 +815,22 @@ out:
 	return 0;
 }
 
+int pm886_stepping_fixup(struct pm886_chip *chip)
+{
+	if (!chip || !chip->client)
+		return -EINVAL;
+
+	chip->type = pm886_of_get_type(&chip->client->dev);
+	switch (chip->type) {
+	case PM886:
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 int pm886_apply_bd_patch(struct pm886_chip *chip, struct device_node *np)
 {
 	unsigned int page, reg, mask, data;
