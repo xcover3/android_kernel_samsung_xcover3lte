@@ -338,9 +338,29 @@ static int pm886_start_charging(struct pm886_charger_info *info)
 {
 	dev_info(info->dev, "%s\n", __func__);
 	info->charging = 1;
+
+	/* open test page */
+	regmap_write(info->chip->base_regmap, 0x1F, 0x1);
+
+	/*
+	 * override the status of the internal comparator after the 128ms filter,
+	 * to assure charging is enabled regardless of the recharge threshold.
+	 */
+	regmap_write(info->chip->test_regmap, 0x40, 0x10);
+	regmap_write(info->chip->test_regmap, 0x43, 0x10);
+	regmap_write(info->chip->test_regmap, 0x46, 0x04);
+
 	/* enable charging */
 	regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG1,
 			   PM886_CHG_ENABLE, PM886_CHG_ENABLE);
+
+	/* clear the previous settings */
+	regmap_write(info->chip->test_regmap, 0x40, 0x00);
+	regmap_write(info->chip->test_regmap, 0x43, 0x00);
+	regmap_write(info->chip->test_regmap, 0x46, 0x00);
+
+	/* close test page */
+	regmap_write(info->chip->base_regmap, 0x1F, 0x00);
 
 	return 0;
 }
