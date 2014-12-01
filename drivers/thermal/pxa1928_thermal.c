@@ -409,7 +409,7 @@ void print_reg(void)
 {
 	void __iomem *reg_base = thermal_dev.base;
 	u32 cfg, int0, int1, data, auto_read, temp;
-	int thld0, thld1, thld2;
+	int thld0 = 0, thld1 = 0, thld2 = 0;
 
 	cfg = readl(reg_base + TSEN_CFG_REG_1);
 	int0 = readl(reg_base + TSEN_INT0_WDOG_THLD_REG_1);
