@@ -1090,6 +1090,7 @@ int is_dvfs_request_ok;
 /* global lock for tuning of different SDHs */
 DEFINE_MUTEX(dvfs_tuning_lock);
 
+#ifdef CONFIG_PXA_DVFS
 static int hwdvc_stat_notifier_handler(struct notifier_block *nb,
 		unsigned long rails, void *data)
 {
@@ -1109,6 +1110,7 @@ static int hwdvc_stat_notifier_handler(struct notifier_block *nb,
 static struct notifier_block dvfs_notifier = {
 	.notifier_call = hwdvc_stat_notifier_handler,
 };
+#endif
 
 static int pxav3_get_pretuned_data(struct sdhci_host *host,
 		struct device *dev, struct sdhci_pxa_platdata *pdata)
