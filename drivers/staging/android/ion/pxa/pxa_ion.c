@@ -108,11 +108,13 @@ struct sg_table *sg_clone_table(struct sg_table *table_from,
 	struct sg_table *table_to)
 {
 	struct scatterlist *sg_from, *sg_to;
-	int i;
+	int i, ret = 0;
 
 	/* alloc extra sg list for appendix buffer */
-	sg_alloc_table(table_to, table_from->nents + num_extra_pages,
+	ret = sg_alloc_table(table_to, table_from->nents + num_extra_pages,
 			GFP_KERNEL);
+	if (unlikely(ret))
+		return NULL;
 	sg_to = table_to->sgl;
 	for_each_sg(table_from->sgl, sg_from, table_from->nents, i) {
 		sg_to->page_link = sg_from->page_link;
