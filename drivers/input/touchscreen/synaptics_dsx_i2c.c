@@ -1700,11 +1700,11 @@ static ssize_t virtual_keys_show(struct kobject *kobj,
 
 	return sprintf(buf,
 		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_BACK)
-		":%d:%d:100:60" ":"
+		":%d:%d:100:100" ":"
 		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_HOMEPAGE)
-		":%d:%d:100:60" ":"
+		":%d:%d:100:100" ":"
 		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_MENU)
-		":%d:%d:100:60\n",
+		":%d:%d:100:100\n",
 		x1, y, x2, y, x3, y);
 }
 
