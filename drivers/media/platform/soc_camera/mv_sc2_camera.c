@@ -716,7 +716,7 @@ static int mccic_add_device(struct soc_camera_device *icd)
 		ret = msc2_mmu->ops->bypass_status(msc2_mmu);
 		if (((ret & (1 << SC2_WBYPASS)) &&
 			 (mcam_dev->buffer_mode != B_DMA_CONTIG)) ||
-			(~(ret & (1 << SC2_WBYPASS)) &&
+			(!(ret & (1 << SC2_WBYPASS)) &&
 			 (mcam_dev->buffer_mode != B_DMA_SG))) {
 			dev_warn(dev, "sc2 mmu bypass mode not match ccic buffer mode\n");
 			goto put_mmu;
@@ -1120,7 +1120,7 @@ static int mccic_set_bus_param(struct soc_camera_device *icd)
 	int ret;
 
 	ret = v4l2_subdev_call(sd, video, g_mbus_config, &cfg);
-	if ((ret < 0) && (ret != -ENOIOCTLCMD) && (ret != -ENODEV)) {
+	if ((ret < 0) && (ret != -ENOIOCTLCMD)) {
 		dev_dbg(icd->parent, "g_mbus_config failed\n");
 		return ret;
 	}

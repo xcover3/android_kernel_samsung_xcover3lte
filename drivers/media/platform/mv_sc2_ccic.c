@@ -1153,11 +1153,12 @@ static int msc2_ccic_probe(struct platform_device *pdev)
 	ccic_dev->res = res;
 	ccic_dev->base = base;
 
-	ccic_dev->irq = platform_get_irq(pdev, 0);
-	if (ccic_dev->irq < 0) {
+	ret = platform_get_irq(pdev, 0);
+	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to get irq resource\n");
 		return -ENXIO;
 	}
+	ccic_dev->irq = ret;
 
 	/* TBD mccic_init_clk(ccic_dev); */
 	ret = devm_request_irq(&ccic_dev->pdev->dev, ccic_dev->irq,

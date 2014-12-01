@@ -32,9 +32,9 @@
 
 static int IMX219_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
-	int Pll1_predivp;
-	int Pll1_mult;
-	int temp1, temp2;
+	int Pll1_predivp = 1;
+	int Pll1_mult = 0;
+	int temp1 = 0, temp2 = 0;
 
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 	b52_sensor_call(sensor, i2c_read, 0x0304, &Pll1_predivp, 1);
@@ -57,7 +57,7 @@ static int IMX219_get_dphy_desc(struct v4l2_subdev *sd,
 
 static int IMX219_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
-	int temp1, temp2;
+	int temp1 = 0, temp2;
 	u32 mipi_clk;
 	int lans[] = {0, 2, 0, 4};
 	struct b52_sensor *sensor = to_b52_sensor(sd);

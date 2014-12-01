@@ -1507,6 +1507,9 @@ static int soc_camera_probe_finish(struct soc_camera_device *icd)
 	struct v4l2_mbus_framefmt mf;
 	int ret;
 
+	if (!sd)
+		return -ENODEV;
+
 	sd->grp_id = soc_camera_grp_id(icd);
 	v4l2_set_subdev_hostdata(sd, icd);
 

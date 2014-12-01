@@ -842,7 +842,11 @@ static int ccicv2_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "could not allocate memory\n");
 			return -ENOMEM;
 		}
-		of_property_read_u32(np, "csi_id", &i);
+		ret = of_property_read_u32(np, "csi_id", &i);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to get csi_id\n");
+			return -ENODEV;
+		}
 		pdev->id = pdev->dev.id = i;
 		platform_set_drvdata(pdev, ccic_csi);
 		ccic_csi->dev = &(pdev->dev);
@@ -859,7 +863,11 @@ static int ccicv2_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "could not allocate memory\n");
 			return -ENOMEM;
 		}
-		of_property_read_u32(np, "dma_id", &i);
+		ret = of_property_read_u32(np, "dma_id", &i);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to get dma_id\n");
+			return -ENODEV;
+		}
 		pdev->id = pdev->dev.id = i;
 		platform_set_drvdata(pdev, ccic_dma);
 		ccic_dma->dev = &pdev->dev;
