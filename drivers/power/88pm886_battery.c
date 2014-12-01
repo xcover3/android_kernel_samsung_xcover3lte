@@ -1138,11 +1138,13 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 				 "%s: %d: capacity %d%% < 1000%%, ramp up..\n",
 				 __func__, __LINE__, ccnt_val->soc);
 			ccnt_val->soc += 10;
+			ccnt_val->real_soc = ccnt_val->soc;
 			info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
 		}
 
 		if (ccnt_val->soc >= 1000) {
 			ccnt_val->soc = 1000;
+			ccnt_val->real_soc = 1000;
 			info->bat_params.status = POWER_SUPPLY_STATUS_FULL;
 		}
 		dev_dbg(info->dev, "%s: after: full-->capacity: %d%%\n",
@@ -1226,7 +1228,15 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 	if (old_soc != ccnt_val->soc) {
 		dev_info(info->dev, "%s: needs update: %d%% -> %d%%\n",
 			 __func__, old_soc, ccnt_val->soc);
-		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
+		/*
+		 * rounded SoC is used by upper layer,
+		 * while the last_cc is used to calculate in the following cycle,
+		 * so we shouldn't use the rounded_soc to calculate
+		 *
+		 * the following line is not right
+		 * ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
+		 */
+		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc);
 	}
 
 	/* align the last_cc to max_cc when the *charger status is FULL */
@@ -1234,6 +1244,8 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		dev_info(info->dev, "%s: before align last_cc = %d\n",
 			 __func__, ccnt_val->last_cc);
 		ccnt_val->last_cc = ccnt_val->max_cc;
+		/* also align the real_last_cc for low temperature scenario */
+		ccnt_val->real_last_cc = ccnt_val->max_cc;
 	}
 
 	/* corner case: we need 1% step */
@@ -1255,9 +1267,13 @@ static void pm886_battery_correct_soc(struct pm886_battery_info *info,
 		}
 	}
 
-	ccnt_val->soc = ROUND_SOC(ccnt_val->soc);
-
+	/*
+	 * previous_soc is used for calculation,
+	 * it reflects the delta in one round: real_value + protected_value
+	 */
 	ccnt_val->previous_soc = ccnt_val->soc;
+
+	ccnt_val->soc = ROUND_SOC(ccnt_val->soc);
 
 	return;
 }
