@@ -1327,6 +1327,8 @@
 				compatible = "ovt,ov5642";
 				sensor-name = "ovt,ov5642";
 				reg = <0x3c>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
 				adapter = <0x1>;
 				status = "okay";
 				mclk = <24000000>;
@@ -1347,6 +1349,8 @@
 				compatible = "ovt,ov13850";
 				status = "okay";
 				reg = <0x10>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
 				sc2-i2c-dyn-ctrl;
 				adapter = <0x1>;
 				sensor-pos = <1>;
@@ -1365,6 +1369,8 @@
 				compatible = "samsung,sr544";
 				status = "okay";
 				reg = <0x28>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
 				sc2-i2c-dyn-ctrl;
 				adapter = <0x1>;
 				sensor-pos = <1>;
@@ -1383,6 +1389,8 @@
 				compatible = "sony,imx219";
 				status = "okay";
 				reg = <0x1A>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
 				sc2-i2c-dyn-ctrl;
 				adapter = <0x1>;
 				sensor-pos = <1>;
