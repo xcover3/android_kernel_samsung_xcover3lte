@@ -744,6 +744,8 @@ static ssize_t high_upthrd_store(struct device *dev,
 
 	mutex_lock(&devfreq->lock);
 	data->high_upthrd = high_upthrd;
+	if (data->cpu_up)
+		__update_dev_upthreshold(high_upthrd, devfreq->data);
 	mutex_unlock(&devfreq->lock);
 
 	return size;
