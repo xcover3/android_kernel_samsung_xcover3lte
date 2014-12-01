@@ -130,7 +130,7 @@ static struct pm_qos_request sdh_ddr_qos_max;
 
 static int __init sdh_tuning_init(void)
 {
-
+#if defined(CONFIG_CPU_FREQ) && defined(CONFIG_PM_DEVFREQ)
 	struct cpufreq_frequency_table *cpufreq_table =
 		cpufreq_frequency_get_table(0);
 	struct devfreq_frequency_table *ddrfreq_table =
@@ -145,7 +145,11 @@ static int __init sdh_tuning_init(void)
 		minfreq[DDR] = ddrfreq_table[0].frequency;
 	else
 		pr_err("%s ddrfreq_table get failed, use 0 to set!\n", __func__);
-
+#else
+	pr_info("%s CONFIG_CPU_FREQ & CONFIG_PM_DEVFREQ not defined!\n", __func__);
+	minfreq[CORE] = 0;
+	minfreq[DDR] = 0;
+#endif
 	sdh_core_qos_max.name = "sdh_tuning";
 	pm_qos_add_request(&sdh_core_qos_max,
 		PM_QOS_CPUFREQ_MAX, PM_QOS_DEFAULT_VALUE);
