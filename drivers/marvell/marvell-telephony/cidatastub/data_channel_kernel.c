@@ -24,7 +24,9 @@
 #define SEARCH_CID_RETRIES 3
 /* magic number that no handler found for data packages */
 #define ERR_NO_HANDLER -123
-#define CSD_CALLBACK_RETRIES 5
+#define ERR_NO_CALLBACK -124
+#define CSD_NO_CALLBACK_MAX_TRY_NUM 25
+#define CSD_MAX_TRY_NUM 5
 
 static int csd_package_lose_counter;
 
@@ -142,10 +144,9 @@ int clientCiDataIndicateCallback(UINT8 *dataIndArgs)
 		else
 			return ret;
 	} else {
-		DBGMSG
-		    ("%s: Not found callback for index %d\n",
-		     __func__, index);
-		return -1;
+		pr_warn_ratelimited("%s: Not found callback for index %d\n",
+			__func__, index);
+		return ERR_NO_CALLBACK;
 	}
 }
 
@@ -168,10 +169,18 @@ int ciCsdDataInitTask(void *data)
 	return 0;
 }
 
+static inline int should_retry(int tried_times, int err)
+{
+	return (err == ERR_NO_CALLBACK &&
+		tried_times < CSD_NO_CALLBACK_MAX_TRY_NUM) ||
+		(err < 0 && err != ERR_NO_CALLBACK &&
+		tried_times < CSD_MAX_TRY_NUM);
+}
+
 static void ciCsdStubEventHandler(UINT8 *rxmsg)
 {
 	ShmApiMsg *pData;
-	int reties = 0, ret;
+	int tried_times = 0, ret;
 
 	pData = (ShmApiMsg *) rxmsg;
 	if (pData->svcId != CiCsdStubSvc_Id) {
@@ -187,29 +196,24 @@ static void ciCsdStubEventHandler(UINT8 *rxmsg)
 		csdChannelInited = 1;
 		break;
 	case CiDataStubIndDataProcId:
-		do {
+		while (1) {
 			ret =
 			    clientCiDataIndicateCallback(rxmsg +
 							 SHM_HEADER_SIZE);
-			if (ret == ERR_NO_HANDLER) {
-				msleep_interruptible(20);	/* 20ms */
-				continue;
-			} else if (ret <= 0) {	/* not corecttly send to tty */
-				csd_package_lose_counter++;
-				if (csd_package_lose_counter % 100 == 0)
-					DPRINT("%s,"
-					     "csd_package_lose_counter = %d\n",
-					     __func__,
-					     csd_package_lose_counter);
+			tried_times++;
+			if (!should_retry(tried_times, ret))
 				break;
-			} else
-				break;
+			msleep_interruptible(20);	/* 20ms */
+		}
 
-		} while (reties++ < CSD_CALLBACK_RETRIES);
-
-		if (reties > 0)
-			DPRINT("%s,retries = %d\n", __func__, reties);
-
+		if (ret <= 0) {
+			/* not corecttly send to tty */
+			csd_package_lose_counter++;
+			pr_warn_ratelimited(
+				"%s,tried_times=%d, ret=%d, drop_count=%d\n",
+				__func__, tried_times, ret,
+				csd_package_lose_counter);
+		}
 		break;
 	case MsocketLinkdownProcId:
 		DPRINT("%s: received  MsocketLinkdownProcId!\n", __func__);
