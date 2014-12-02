@@ -896,7 +896,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	/* Set correct bus mode for MMC before attempting init */
 	if (!mmc_host_is_spi(host))
 		mmc_set_bus_mode(host, MMC_BUSMODE_OPENDRAIN);
-
+reinit:
 	/*
 	 * Since we're changing the OCR value, we seem to
 	 * need to tell some cards to go back to the idle
@@ -1168,7 +1168,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		if (err) {
 			pr_warning("%s: tuning execution failed\n",
 				   mmc_hostname(card->host));
-			goto err;
+			host->caps2 &= ~MMC_CAP2_HS200;
+			goto reinit;
 		}
 
 		ext_csd_bits = (bus_width == MMC_BUS_WIDTH_8) ?

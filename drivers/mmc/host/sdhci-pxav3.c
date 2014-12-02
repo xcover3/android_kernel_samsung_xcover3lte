@@ -1366,8 +1366,9 @@ static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
 
 	/* 7. Set tuning rx value to hardware */
 	if (tuning_value < 0) {
-		panic("%s: failed to find any valid rx window\n",
-			mmc_hostname(host->mmc));
+		pr_info("%s: failed to find any valid rx window\n",
+				mmc_hostname(host->mmc));
+		return -EINVAL;
 	} else {
 		dvfs_level++;
 		if (pretuned) {
