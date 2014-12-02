@@ -1489,7 +1489,7 @@ static int mck_suspend(struct device *dev)
 	struct plist_node *node;
 	struct pm_qos_request *req;
 	unsigned int qos_min, i = 0;
-	unsigned long new_ddrclk, cp_request = 0;
+	unsigned long new_ddrclk, dip_request = 0;
 	struct platform_device *pdev;
 	struct ddr_devfreq_data *data;
 	unsigned long flags;
@@ -1508,17 +1508,17 @@ static int mck_suspend(struct device *dev)
 			->constraints->list.node_list;
 	list_for_each_entry(node, list_min, node_list) {
 		req = container_of(node, struct pm_qos_request, node);
-		if (req->name && !strcmp(req->name, "cp") &&
+		if (req->name && !strcmp(req->name, "dip_ddr_min") &&
 			(node->prio > data->ddr_freq_tbl[0])) {
 			dev_info(dev, "%s request min qos\n",
 				req->name);
-			cp_request = 1;
+			dip_request = 1;
 			break;
 		}
 	}
 
-	/* if CP request QOS min, set rate as CP request */
-	if (cp_request) {
+	/* if dip request QOS min, set rate as dip request */
+	if (dip_request) {
 		do {
 			if (node->prio == data->ddr_freq_tbl[i]) {
 				new_ddrclk = data->ddr_freq_tbl[i];
