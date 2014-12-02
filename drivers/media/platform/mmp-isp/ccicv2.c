@@ -119,17 +119,16 @@ static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
 			d_inf(2, "miss EOF\n");
 
 		ispvb = isp_vnode_find_busy_buffer(vnode, 1);
-		if (!ispvb)
+		if (!ispvb) {
 			ispvb = isp_vnode_get_idle_buffer(vnode);
-
-		if (!ispvb)
-			d_inf(3, "no buffer in idle queue, expect frame drop");
-		else {
-			ccic_dma_fill_buf(ccic_dma, ispvb);
 			isp_vnode_put_busy_buffer(vnode, ispvb);
 		}
 
-		set_bit(FLAG_FRAME_SOF0, &ccic_dma->flags);
+		if (ispvb) {
+			ccic_dma_fill_buf(ccic_dma, ispvb);
+			set_bit(FLAG_FRAME_SOF0, &ccic_dma->flags);
+		} else
+			d_inf(3, "no buffer in idle queue, expect frame drop");
 	}
 
 	if ((irqs & IRQ_EOF0) &&
