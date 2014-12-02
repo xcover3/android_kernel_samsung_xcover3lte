@@ -104,7 +104,8 @@ static int pm886_get_vbus(unsigned int *level)
 			dev_dbg(vbus_info->chip->dev,
 				"%s: Cable out / OTG disabled !(%dmV)\n", __func__, voltage);
 			/* Open USB_SW in order to save power at low power mode */
-			regmap_update_bits(vbus_info->chip->battery_regmap,
+			if (vbus_info->chip->chip_id != PM886_A0)
+				regmap_update_bits(vbus_info->chip->battery_regmap,
 					PM886_CHG_CONFIG4, PM886_VBUS_SW_EN, 0);
 		}
 	}
@@ -137,7 +138,8 @@ static int pm886_set_vbus(unsigned int vbus)
 					PM886_USB_OTG_EN, PM886_USB_OTG_EN);
 		if (ret)
 			return ret;
-		ret = regmap_update_bits(vbus_info->chip->battery_regmap,
+		if (vbus_info->chip->chip_id != PM886_A0)
+			ret = regmap_update_bits(vbus_info->chip->battery_regmap,
 				PM886_CHG_CONFIG4, PM886_VBUS_SW_EN, PM886_VBUS_SW_EN);
 	} else
 		ret = regmap_update_bits(vbus_info->chip->battery_regmap, PM886_CHG_CONFIG1,
@@ -237,8 +239,9 @@ static irqreturn_t pm886_vbus_handler(int irq, void *data)
 	 * insertion. in case of removal this will be called and the
 	 * switch will be opened at pm886_get_vbus
 	 */
-	regmap_update_bits(vbus_info->chip->battery_regmap,
-				PM886_CHG_CONFIG4, PM886_VBUS_SW_EN, PM886_VBUS_SW_EN);
+	if (vbus_info->chip->chip_id != PM886_A0)
+		regmap_update_bits(vbus_info->chip->battery_regmap,
+			PM886_CHG_CONFIG4, PM886_VBUS_SW_EN, PM886_VBUS_SW_EN);
 	dev_dbg(info->chip->dev, "88pm886 vbus interrupt is served..\n");
 	/* allowing 7.5msec for the SW to close */
 	schedule_delayed_work(&info->pxa_notify, usecs_to_jiffies(7500));
