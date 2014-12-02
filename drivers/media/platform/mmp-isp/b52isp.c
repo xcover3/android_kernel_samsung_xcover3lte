@@ -1686,7 +1686,7 @@ fail_double:
 	if (lpipe->meta_cpu == NULL) {
 		lpipe->meta_size = b52_get_metadata_len(B52ISP_ISD_PIPE1);
 		lpipe->meta_cpu = dmam_alloc_coherent(b52isp->dev,
-					lpipe->meta_size, &lpipe->meta_dma,
+					lpipe->meta_size + 0x10000, &lpipe->meta_dma,
 					GFP_KERNEL);
 		WARN_ON(lpipe->meta_cpu == NULL);
 		d_inf(4, "alloc meta data for %s with %d bytes, VA@%p, PA@%X",
@@ -1719,7 +1719,7 @@ link_off:
 				struct isp_dev_ptr, hook);
 		ppipe = container_of(item->ptr, struct b52isp_ppipe, block);
 		if (lpipe->meta_cpu) {
-			dmam_free_coherent(b52isp->dev, lpipe->meta_size,
+			dmam_free_coherent(b52isp->dev, lpipe->meta_size + 0x10000,
 				lpipe->meta_cpu, lpipe->meta_dma);
 			lpipe->meta_cpu = NULL;
 		}
