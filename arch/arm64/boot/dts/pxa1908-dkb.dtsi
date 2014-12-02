@@ -307,7 +307,7 @@
 				pinctrl-2 = <&sdh1_pmx_edge_wakeup>;
 				bus-width = <4>;
 				marvell,sdh-pm-runtime-en;
-				marvell,sdh-host-caps-disable = <(MMC_CAP_UHS_SDR104 | MMC_CAP_UHS_SDR50)>;
+				marvell,sdh-host-caps-disable = <(MMC_CAP_UHS_SDR50)>;
 				marvell,sdh-quirks = <(SDHCI_QUIRK_BROKEN_CARD_DETECTION)>;
 				marvell,sdh-quirks2 = <(SDHCI_QUIRK2_HOLDSUSPEND_AFTER_REQUEST |
 						SDHCI_QUIRK2_FAKE_SDIO_IRQ_IN_UHS |
