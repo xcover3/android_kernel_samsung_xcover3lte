@@ -14,3 +14,13 @@
 ./scripts/config -d CONFIG_HELAN2_THERMAL
 ./scripts/config -e CONFIG_PXA1936_CLK
 ./scripts/config -d CONFIG_ANDROID_BINDER_IPC_32BIT
+./scripts/config -d SCHED_AUTOGROUP
+./scripts/config -e SCHED_MC
+./scripts/config -e DISABLE_CPU_SCHED_DOMAIN_BALANCE
+./scripts/config -e SCHED_HMP
+./scripts/config -d SCHED_HMP_PRIO_FILTER
+./scripts/config --set-str HMP_FAST_CPU_MASK 4-7
+./scripts/config --set-str HMP_SLOW_CPU_MASK 0-3
+./scripts/config -e HMP_VARIABLE_SCALE
+./scripts/config -e HMP_FREQUENCY_INVARIANT_SCALE
+./scripts/config -e SCHED_HMP_LITTLE_PACKING
