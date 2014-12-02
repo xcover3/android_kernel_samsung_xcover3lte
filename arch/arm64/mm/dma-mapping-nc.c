@@ -33,11 +33,11 @@ static void *arm64_dma_alloc(
 	size = PAGE_ALIGN(size);
 	order = get_order(size);
 
-	page = alloc_pages(gfp, order);
-
-	if (!page && cma_available)
+	if (cma_available)
 		page = dma_alloc_from_contiguous(dev,
-			size >> PAGE_SHIFT, order);
+				size >> PAGE_SHIFT, order);
+	else
+		page = alloc_pages(gfp, order);
 
 	if (!page) {
 		*dma_handle = ~0;
@@ -68,7 +68,10 @@ static void arm64_dma_free(
 	size = PAGE_ALIGN(size);
 	order = get_order(size);
 
-	__free_pages(page, order);
+	if (cma_available)
+		dma_release_from_contiguous(dev, page, size >> PAGE_SHIFT);
+	else
+		__free_pages(page, order);
 }
 
 static dma_addr_t arm64_dma_map_page(
