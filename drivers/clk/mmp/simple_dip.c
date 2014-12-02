@@ -20,7 +20,6 @@
 #include <linux/devfreq.h>
 #include <linux/of.h>
 #include <asm-generic/uaccess.h>
-#include <linux/wakelock.h>
 
 #define DRV_NAME	"simple_dip"
 #define MISCDEV_MINOR	100
@@ -63,8 +62,6 @@ static struct comp_info comp_info_temp[MAX_NUM];
 
 static BLOCKING_NOTIFIER_HEAD(dip_notifier_list);
 static struct dip_info *dip_info;
-
-static struct wake_lock dip_wakelock;
 
 static int dip_notifier(unsigned int state, void *val)
 {
@@ -138,10 +135,8 @@ static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 			}
 		}
 		dip_notifier(cmd, &rate);
-		wake_lock(&dip_wakelock);
 		return 0;
 	} else if (cmd == DIP_END) {
-		wake_unlock(&dip_wakelock);
 		dip_notifier(cmd, &rate);
 		pm_qos_update_request(&dip_info->cpu_min_qos,
 				      PM_QOS_DEFAULT_VALUE);
@@ -205,8 +200,6 @@ static int simple_dip_probe(struct platform_device *dev)
 	pm_qos_add_request(&dip_info->ddr_max_qos, PM_QOS_DDR_DEVFREQ_MAX,
 			   INT_MAX);
 
-	wake_lock_init(&dip_wakelock, WAKE_LOCK_SUSPEND, "dip_wakeups");
-
 	/* register misc device */
 	ret = misc_register(&dip_info->misc_dev);
 	if (ret < 0) {
@@ -226,8 +219,6 @@ err_free_dip:
 static int simple_dip_remove(struct platform_device *dev)
 {
 	struct dip_info *dip_info = platform_get_drvdata(dev);
-
-	wake_lock_destroy(&dip_wakelock);
 
 	misc_deregister(&dip_info->misc_dev);
 	platform_set_drvdata(dev, NULL);
