@@ -836,15 +836,18 @@ static void __init __init_cpu_rtcwtc(struct clk_hw *hw, struct cpu_opt *cpu_opt)
 static void __init_cpufreq_table(struct clk_hw *hw)
 {
 	struct cpu_opt *cop;
-	unsigned int cpu_opt_size = 0, i = 0;
+	unsigned int cpu_opt_size = 0, i = 0, clst_index = 0;
 	struct clk_core *core = to_clk_core(hw);
 	struct cpufreq_frequency_table *cpufreq_tbl;
 	struct list_head *op_list = NULL;
 
-	if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME))
+	if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME)) {
 		op_list = &apc0_core_op_list;
-	else if (!strcmp(hw->clk->name, CLST1_CORE_CLK_NAME))
+		clst_index = 0;
+	} else if (!strcmp(hw->clk->name, CLST1_CORE_CLK_NAME)) {
 		op_list = &apc1_core_op_list;
+		clst_index = 1;
+	}
 
 	cpu_opt_size = core->params->cpu_opt_size;
 	cpufreq_tbl =
@@ -861,8 +864,8 @@ static void __init_cpufreq_table(struct clk_hw *hw)
 	cpufreq_tbl[i].driver_data = i;
 	cpufreq_tbl[i].frequency = CPUFREQ_TABLE_END;
 
-	for_each_possible_cpu(i)
-	    cpufreq_frequency_table_get_attr(cpufreq_tbl, i);
+	for (i = clst_index * CORES_PER_CLUSTER; i < (clst_index + 1) * CORES_PER_CLUSTER; i++)
+		cpufreq_frequency_table_get_attr(cpufreq_tbl, i);
 }
 #else
 #define __init_cpufreq_table() do {} while (0)

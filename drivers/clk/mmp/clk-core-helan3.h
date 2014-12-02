@@ -10,6 +10,7 @@ enum {
 	AXI,
 };
 
+#define CORES_PER_CLUSTER	4
 #define CLST0_CORE_CLK_NAME	"clst0"
 #define CLST1_CORE_CLK_NAME	"clst1"
 
