@@ -206,7 +206,7 @@ config VIPERBOARD_ADC
 
 config 88PM886_GPADC
 	tristate "88pm886 GPADC (General Purpose A/D Converter) Support"
-	depends on MFD_88PM886
+	depends on MFD_88PM88X
 	default n
 	help
 	  Say yes here if you want support for the 88pm886 General

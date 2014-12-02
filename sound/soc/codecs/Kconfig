@@ -574,7 +574,7 @@ config SND_SOC_88PM800_HS
 
 config SND_SOC_88PM886_HS
 	tristate "88pm886 Headset"
-	depends on MFD_88PM886
+	depends on MFD_88PM88X
 	help
 	  Say Y if you what use 88pm886 chip
 	  for the headset detect

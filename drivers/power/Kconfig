@@ -94,7 +94,7 @@ config BATTERY_88PM830
 
 config BATTERY_88PM886
 	tristate "Marvell 88PM886 battery driver"
-	depends on MFD_88PM886
+	depends on MFD_88PM88X
 	help
 	  Say Y here to enable fuelgauge for Marvell 88PM886 chip, which uses
 	  the colume counter to calculate the battery capacity.
@@ -256,7 +256,7 @@ config CHARGER_88PM860X
 
 config CHARGER_88PM886
 	tristate "Marvell 88PM886 Charger driver"
-	depends on MFD_88PM886
+	depends on MFD_88PM88X
 	help
 	  Say Y here to enable charger for Marvell 88PM886 chip.
 

@@ -38,7 +38,7 @@ config LEDS_88PM830
 config LEDS_88PM886_RGB
 	tristate "RGB LED Support for Marvell 88PM886 PMIC"
 	depends on LEDS_CLASS
-	depends on MFD_88PM886
+	depends on MFD_88PM88X
 	help
 	  This option enables rgb leds driver in Marvell Semiconductor 88PM886
 	  PMIC. The user can control rgb leds via /sys/class fs.
@@ -48,7 +48,7 @@ config LEDS_88PM886_RGB
 config LEDS_88PM886_CFD
 	tristate "LED Support for Marvell 88PM886 PMIC"
 	depends on LEDS_CLASS
-	depends on MFD_88PM886
+	depends on MFD_88PM88X
 	help
 	  This option enables camera torch/flash driver found on Marvell
 	  Semiconductor 88PM886 PMIC.

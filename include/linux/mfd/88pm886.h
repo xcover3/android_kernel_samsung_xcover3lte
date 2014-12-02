@@ -199,9 +199,6 @@ struct pm886_chip {
 	struct notifier_block cb_nb;
 };
 
-struct regmap *get_companion(void);
-struct regmap *get_codec_companion(void);
-
 /* 1.367 mV/LSB */
 #define PM886_VBAT_2_VALUE(v)		((v << 9) / 700)
 #define PM886_VALUE_2_VBAT(val)		((val * 700) >> 9)
@@ -231,9 +228,11 @@ extern struct regmap_irq_chip pm886_irq_chip;
 extern const struct of_device_id pm886_of_match[];
 
 /* dvc external interface */
-#ifdef CONFIG_MFD_88PM886
+#ifdef CONFIG_MFD_88PM88X
 int pm886_dvc_set_volt(u8 level, int uv);
 int pm886_dvc_get_volt(u8 level);
+struct regmap *get_companion(void);
+struct regmap *get_codec_companion(void);
 #else
 static inline int pm886_dvc_set_volt(u8 level, int uv)
 {
@@ -242,6 +241,14 @@ static inline int pm886_dvc_set_volt(u8 level, int uv)
 static inline int pm886_dvc_get_volt(u8 level)
 {
 	return 0;
+}
+static inline struct regmap *get_companion(void)
+{
+	return NULL;
+}
+static inline struct regmap *get_codec_companion(void)
+{
+	return NULL;
 }
 #endif
 

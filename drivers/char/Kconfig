@@ -639,7 +639,7 @@ config VBUS_88PM830
 
 config VBUS_88PM886
 	tristate "Marvell VBUS 88PM886 PMIC/charger/fuel-gauge support"
-	depends on MFD_88PM886
+	depends on MFD_88PM88X
 	help
 	  Say Y here if you have a 88PM886 PMIC/charger/fuel-gauge IC to detect
 	  USB Vbus/IDpin event.
