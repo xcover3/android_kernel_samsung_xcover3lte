@@ -37,7 +37,6 @@ static struct pm_qos_request touchboost_ddr_qos_min = {
 };
 #endif
 
-#ifdef GC_QOS_READY
 static struct pm_qos_request touchboost_gpu3d_qos_min = {
 	.name = "input_boost",
 };
@@ -49,7 +48,6 @@ static struct pm_qos_request touchboost_gpu2d_qos_min = {
 static struct pm_qos_request touchboost_gpush_qos_min = {
 	.name = "input_boost",
 };
-#endif
 
 static unsigned int boost_enabled;
 static struct work_struct inputboost_wk;
@@ -74,7 +72,6 @@ static void inputboost_work(struct work_struct *w)
 	pm_qos_update_request_timeout(&touchboost_ddr_qos_min,
 			MAX_FREQ, CPU_BOOST_TIME);
 #endif
-#ifdef GC_QOS_READY
 	/* boost gpu0(3D) to max frequency */
 	pm_qos_update_request_timeout(&touchboost_gpu3d_qos_min,
 			MAX_FREQ, CPU_BOOST_TIME);
@@ -86,7 +83,6 @@ static void inputboost_work(struct work_struct *w)
 	/* boost shader to max frequency */
 	pm_qos_update_request_timeout(&touchboost_gpush_qos_min,
 			MAX_FREQ, CPU_BOOST_TIME);
-#endif
 }
 
 static void keyboost_event(struct input_handle *handle, unsigned int type,
@@ -199,7 +195,6 @@ static int __init boost_init(void)
 	pm_qos_add_request(&touchboost_ddr_qos_min,
 		   PM_QOS_DDR_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
 #endif
-#ifdef GC_QOS_READY
 	pm_qos_add_request(&touchboost_gpu3d_qos_min,
 		PM_QOS_GPUFREQ_3D_MIN, PM_QOS_DEFAULT_VALUE);
 
@@ -208,7 +203,7 @@ static int __init boost_init(void)
 
 	pm_qos_add_request(&touchboost_gpush_qos_min,
 		PM_QOS_GPUFREQ_SH_MIN, PM_QOS_DEFAULT_VALUE);
-#endif
+
 	INIT_WORK(&inputboost_wk, inputboost_work);
 #ifdef CONFIG_DEBUG_FS
 	debugfs_create_u32("inputbst_enable", 0644, NULL,
