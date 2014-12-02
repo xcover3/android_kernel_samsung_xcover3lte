@@ -65,7 +65,7 @@ static int pm886_i2c_probe(struct i2c_client *client,
 	}
 
 	/* patch for PMIC chip itself */
-	ret = pm886_apply_patch(chip);
+	ret = pm88x_apply_patch(chip);
 	if (ret) {
 		dev_err(chip->dev, "apply 88pm886 register patch fails\n");
 		goto err_apply_patch;

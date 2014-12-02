@@ -50,15 +50,6 @@ enum {
 	PM886_RGB_LED2,
 };
 
-/* FIXME: change according to spec */
-enum pm886_reg_nums {
-	PM886_BASE_PAGE_NUMS = 0xff,
-	PM886_POWER_PAGE_NUMS = 0xff,
-	PM886_GPADC_PAGE_NUMS = 0xff,
-	PM886_BATTERY_PAGE_NUMS = 0xff,
-	PM886_TEST_PAGE_NUMS = 0xff,
-};
-
 enum pm886_pages {
 	PM886_BASE_PAGE = 0,
 	PM886_LDO_PAGE,
@@ -232,7 +223,7 @@ void pm886_dev_exit(struct pm886_chip *chip);
 
 int pm886_irq_init(struct pm886_chip *chip);
 int pm886_irq_exit(struct pm886_chip *chip);
-int pm886_apply_patch(struct pm886_chip *chip);
+int pm88x_apply_patch(struct pm886_chip *chip);
 int pm886_stepping_fixup(struct pm886_chip *chip);
 int pm886_apply_bd_patch(struct pm886_chip *chip, struct device_node *np);
 
