@@ -1168,7 +1168,7 @@ static int mmp_tdm_set_out1_channel_map(struct snd_soc_dai *dai,
 	struct tdm_dai_private *tdm_dai_priv = snd_soc_dai_get_drvdata(dai);
 	unsigned int slot_1 = 0, slot_2 = 0;
 	unsigned int mask = 0;
-	int channel_id;
+	int channel_id = 0;
 	int tdm_out1_tx_num;
 	struct slot_info *tdm_out1_tx;
 	bool found;
@@ -1330,7 +1330,7 @@ static int mmp_tdm_set_out2_channel_map(struct snd_soc_dai *dai,
 	struct tdm_dai_private *tdm_dai_priv = snd_soc_dai_get_drvdata(dai);
 	unsigned int slot_1 = 0, slot_2 = 0;
 	unsigned int mask = 0;
-	int channel_id;
+	int channel_id = 0;
 	int tdm_out2_tx_num;
 	struct slot_info *tdm_out2_tx;
 	bool found;
