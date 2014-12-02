@@ -195,7 +195,9 @@ static void disable_chan(struct mmp_pdma_phy *phy)
 		return;
 
 	reg = (phy->idx << 2) + DCSR;
-	writel(readl(phy->base + reg) & ~DCSR_RUN, phy->base + reg);
+	writel(readl(phy->base + reg) &
+		~(DCSR_RUN | DCSR_EORIRQEN | DCSR_EORSTOPEN),
+		phy->base + reg);
 }
 
 static int clear_chan_irq(struct mmp_pdma_phy *phy)
@@ -219,11 +221,16 @@ static int clear_chan_irq(struct mmp_pdma_phy *phy)
 static irqreturn_t mmp_pdma_chan_handler(int irq, void *dev_id)
 {
 	struct mmp_pdma_phy *phy = dev_id;
+	struct mmp_pdma_chan *pchan = phy->vchan;
 
 	if (clear_chan_irq(phy) != 0)
 		return IRQ_NONE;
 
-	tasklet_schedule(&phy->vchan->tasklet);
+	if (pchan)
+		tasklet_schedule(&pchan->tasklet);
+	else
+		pr_err("%s: pdma channel has been freed\n", __func__);
+
 	return IRQ_HANDLED;
 }
 
