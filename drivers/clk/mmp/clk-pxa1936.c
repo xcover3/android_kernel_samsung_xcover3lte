@@ -712,7 +712,7 @@ static struct mmp_clk_mix_config sc2_axi_mix_config = {
 static const char *sc2_phy_parent_names[] = {"pll1_6", "pll1_12"};
 
 static const char *isp_pipe_parent_names[] = {"pll1_416_gate", "pll1_624_gate",
-			"pll4_div3", "pll2p",};
+			"pll4_div3", "pll1_499_en",};
 static struct mmp_clk_mix_config isp_pipe_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 4, 2, 2, 7),
 };
