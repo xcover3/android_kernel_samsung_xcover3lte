@@ -98,6 +98,7 @@ static DEFINE_PER_CPU(struct cpu_time_info, hotplug_cpu_time);
 
 static u32 trans_load[][2] = {
 	{150000, 312000},	/* pxa1928 */
+	{624000, 800000},	/* pxa1908 */
 	{150000, 312000},	/* pxa1L88 */
 };
 
@@ -734,8 +735,10 @@ static int __init stand_alone_hotplug_init(void)
 
 	if (of_machine_is_compatible("marvell,pxa1928"))
 		i = 0;
-	else
+	else if (of_machine_is_compatible("marvell,pxa1908"))
 		i = 1;
+	else
+		i = 2;
 
 	/* set trans_load_XX */
 	trans_load_l0 = 0;
