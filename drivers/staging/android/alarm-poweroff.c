@@ -30,14 +30,17 @@ static int rtc_power_up_flag;
 static ssize_t alarm_read(struct file *file, char __user *buf, size_t count,
 			loff_t *ppos)
 {
-	int len = 0;
+	int ret = 0;
 
 	if (rtc_power_up_flag) {
-		len += sprintf(buf+len, "%lu\n", power_up_alarm_time);
-		pr_info("%s,%s,%d\n", __func__, buf, len);
+		ret = copy_to_user(buf, &power_up_alarm_time,
+				   sizeof(unsigned long));
+		if (ret)
+			return ret;
+		pr_info("%s,%s,%d\n", __func__, buf, ret);
 	}
-	return len;
 
+	return ret;
 }
 
 static int alarm_open(struct inode *inode, struct file *file)
