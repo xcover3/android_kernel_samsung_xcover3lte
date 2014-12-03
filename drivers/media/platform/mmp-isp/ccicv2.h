@@ -16,6 +16,7 @@ struct ccic_csi {
 	struct b52_sensor *sensor;
 	struct ccic_ctrl_dev *ccic_ctrl;
 
+	int csi_mux_repacked;
 	atomic_t		stream_cnt;
 };
 

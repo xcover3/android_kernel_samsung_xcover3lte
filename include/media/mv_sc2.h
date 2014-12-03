@@ -35,6 +35,7 @@
 #define SC2_IDI_SEL_REPACK    (0x2)
 #define SC2_IDI_SEL_PARALLEL  (0x3)
 #define SC2_IDI_SEL_AHB       (0x4)
+#define SC2_IDI_SEL_REPACK_OTHER	(0x5)
 
 #define SC2_CH_NUM 16
 #define SC2_CH_MASK (~0xffff)

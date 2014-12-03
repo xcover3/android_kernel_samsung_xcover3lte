@@ -774,6 +774,8 @@ static void ccic_config_idi(struct ccic_ctrl_dev *ctrl_dev, int sel)
 		ccic_reg_clear_bit(ccic_dev,
 				REG_CSI2_CTRL2, CSI2_C2_REPACK_ENA);
 		ccic_reg_clear_bit(ccic_dev, REG_CSI2_CTRL2, CSI2_C2_DPCM_ENA);
+		ccic_reg_clear_bit(ccic_dev,
+				REG_CSI2_CTRL2, CSI2_C2_DPCM_REPACK_MUX_SEL_OTHER);
 		return;
 	case SC2_IDI_SEL_REPACK:
 		ccic_reg_write_mask(ccic_dev, REG_IDI_CTRL,
@@ -794,6 +796,10 @@ static void ccic_config_idi(struct ccic_ctrl_dev *ctrl_dev, int sel)
 	case SC2_IDI_SEL_PARALLEL:
 		ccic_reg_write_mask(ccic_dev, REG_IDI_CTRL,
 			IDI_SEL_PARALLEL, IDI_SEL_MASK);
+		break;
+	case SC2_IDI_SEL_REPACK_OTHER:
+		ccic_reg_set_bit(ccic_dev,
+				REG_CSI2_CTRL2, CSI2_C2_DPCM_REPACK_MUX_SEL_OTHER);
 		break;
 	default:
 		dev_err(ccic_dev->dev, "IDI source is error %d\n", sel);

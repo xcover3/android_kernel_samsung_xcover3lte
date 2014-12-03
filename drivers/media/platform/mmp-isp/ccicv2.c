@@ -163,8 +163,23 @@ static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
 static int ccic_csi_hw_open(struct isp_block *block)
 {
 	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
+	struct msc2_ccic_dev *ccic_dev_host = NULL;
+	struct ccic_ctrl_dev *ctrl_dev;
 
-	csi->ccic_ctrl->ops->clk_enable(csi->ccic_ctrl);
+	/*
+	 * here support csi mux repack funcion.
+	 * enable csi2-> ccic1 IDI path.
+	 * */
+	if (csi->csi_mux_repacked) {
+		if (csi->dev->id != 1)
+			d_inf(1, "ccic csi device not match\n");
+
+		msc2_get_ccic_dev(&ccic_dev_host, 0);
+		ctrl_dev = ccic_dev_host->ctrl_dev;
+		ctrl_dev->ops->clk_enable(ctrl_dev);
+	}
+	ctrl_dev = csi->ccic_ctrl;
+	ctrl_dev->ops->clk_enable(ctrl_dev);
 #if 0
 /*
  * FIXME: ISP and SC2 use separate power, need share it
@@ -177,7 +192,19 @@ static int ccic_csi_hw_open(struct isp_block *block)
 static void ccic_csi_hw_close(struct isp_block *block)
 {
 	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
-	csi->ccic_ctrl->ops->clk_disable(csi->ccic_ctrl);
+	struct msc2_ccic_dev *ccic_dev_host = NULL;
+	struct ccic_ctrl_dev *ctrl_dev;
+
+	if (csi->csi_mux_repacked) {
+		if (csi->dev->id != 1)
+			d_inf(1, "ccic csi device not match\n");
+
+		msc2_get_ccic_dev(&ccic_dev_host, 0);
+		ctrl_dev = ccic_dev_host->ctrl_dev;
+		ctrl_dev->ops->clk_disable(ctrl_dev);
+	}
+	ctrl_dev = csi->ccic_ctrl;
+	ctrl_dev->ops->clk_disable(ctrl_dev);
 #if 0
 /*
  * FIXME: ISP and SC2 use separate power, need share it
@@ -220,6 +247,8 @@ static int ccic_csi_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
 	struct ccic_csi *ccic_csi = isd->drv_priv;
+	struct msc2_ccic_dev *ccic_dev_host = NULL;
+	struct ccic_ctrl_dev *ctrl_dev;
 	int ret = 0;
 
 	if (!enable)
@@ -234,11 +263,25 @@ static int ccic_csi_set_stream(struct v4l2_subdev *sd, int enable)
 	if (ret < 0)
 		return ret;
 
-	ccic_csi->ccic_ctrl->ops->config_idi(ccic_csi->ccic_ctrl,
-			SC2_IDI_SEL_REPACK);
-	ccic_csi->ccic_ctrl->ops->config_mbus(ccic_csi->ccic_ctrl,
-			V4L2_MBUS_CSI2,	0, 1);
-	ccic_csi->ccic_ctrl->ops->irq_mask(ccic_csi->ccic_ctrl, 1);
+	/*
+	 * here support csi mux repack funcion.
+	 * enable csi2-> ccic1 IDI path.
+	 * */
+	if (ccic_csi->csi_mux_repacked) {
+		if (ccic_csi->dev->id != 1)
+			d_inf(1, "ccic csi device not match\n");
+
+		msc2_get_ccic_dev(&ccic_dev_host, 0);
+		ctrl_dev = ccic_dev_host->ctrl_dev;
+		ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_REPACK);
+		ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_REPACK_OTHER);
+		ctrl_dev->ops->irq_mask(ctrl_dev, 1);
+	}
+
+	ctrl_dev = ccic_csi->ccic_ctrl;
+	ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_REPACK);
+	ctrl_dev->ops->config_mbus(ctrl_dev, V4L2_MBUS_CSI2, 0, 1);
+	ctrl_dev->ops->irq_mask(ctrl_dev, 1);
 	return 0;
 
 stream_off:
@@ -246,9 +289,20 @@ stream_off:
 		return 0;
 
 	d_inf(3, "csi stream off");
-	ccic_csi->ccic_ctrl->ops->irq_mask(ccic_csi->ccic_ctrl, 0);
-	ccic_csi->ccic_ctrl->ops->config_mbus(ccic_csi->ccic_ctrl,
-				V4L2_MBUS_CSI2,	0, 0);
+	if (ccic_csi->csi_mux_repacked) {
+		if (ccic_csi->dev->id != 1)
+			d_inf(1, "ccic csi device not match\n");
+
+		msc2_get_ccic_dev(&ccic_dev_host, 0);
+		ctrl_dev = ccic_dev_host->ctrl_dev;
+		ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_NONE);
+		ctrl_dev->ops->irq_mask(ctrl_dev, 0);
+	}
+
+	ctrl_dev = ccic_csi->ccic_ctrl;
+	ctrl_dev->ops->irq_mask(ctrl_dev, 0);
+	ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_NONE);
+	ctrl_dev->ops->config_mbus(ctrl_dev, V4L2_MBUS_CSI2, 0, 0);
 	return 0;
 }
 
@@ -849,6 +903,10 @@ static int ccicv2_probe(struct platform_device *pdev)
 		pdev->id = pdev->dev.id = i;
 		platform_set_drvdata(pdev, ccic_csi);
 		ccic_csi->dev = &(pdev->dev);
+
+		ccic_csi->csi_mux_repacked = 0;
+		if (of_get_property(np, "csi_mux_repacked", NULL))
+			ccic_csi->csi_mux_repacked = 1;
 
 		ret = ccic_csi_create(ccic_csi);
 		if (unlikely(ret < 0)) {

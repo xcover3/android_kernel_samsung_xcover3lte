@@ -1003,17 +1003,19 @@ static int pcam_setup_links(struct isp_build *build,
 			CCIC_CSI_PAD_ISP,
 			&sd[SDCODE_B52ISP_IDI1]->subdev.entity,
 			B52PAD_IDI_IN);
-#if 0	/* don't support IDI cross feed for now */
-	pcam_add_link(&sd[SDCODE_CCICV2_CSI0]->subdev.entity,
-			CCIC_CSI_PAD_ISP,
-			&sd[SDCODE_B52ISP_IDI2]->subdev.entity,
-			B52PAD_IDI_IN);
+
+	if (sd[SDCODE_B52ISP_IDI2] != NULL)
+		pcam_add_link(&sd[SDCODE_CCICV2_CSI0]->subdev.entity,
+				CCIC_CSI_PAD_ISP,
+				&sd[SDCODE_B52ISP_IDI2]->subdev.entity,
+				B52PAD_IDI_IN);
+
 	/* CCIC: CSI #1 => ISP */
 	pcam_add_link(&sd[SDCODE_CCICV2_CSI1]->subdev.entity,
 			CCIC_CSI_PAD_ISP,
 			&sd[SDCODE_B52ISP_IDI1]->subdev.entity,
 			B52PAD_IDI_IN);
-#endif
+
 	if (sd[SDCODE_B52ISP_IDI2] != NULL)
 		pcam_add_link(&sd[SDCODE_CCICV2_CSI1]->subdev.entity,
 				CCIC_CSI_PAD_ISP,
