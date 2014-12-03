@@ -82,6 +82,7 @@ struct regval_tab ov2680_res_init[] = {
 	{0x4008, 0x00},
 	{0x4009, 0x03},
 	{0x4602, 0x02},
+	{0x4800, 0x24},
 	{0x481f, 0x36},
 	{0x4825, 0x36},
 	{0x4837, 0x30},
@@ -252,7 +253,7 @@ struct b52_sensor_i2c_attr ov2680_i2c_attr[] = {
 #define N_OV2680_VFLIP ARRAY_SIZE(ov2680_vflip)
 
 struct b52_sensor_mbus_fmt ov2680_fmt = {
-	.mbus_code	= V4L2_MBUS_FMT_SBGGR8_1X8,
+	.mbus_code	= V4L2_MBUS_FMT_SBGGR10_1X10,
 	.colorspace	= V4L2_COLORSPACE_SRGB,
 	.regs = {
 		.tab = ov2680_fmt_raw8,
@@ -286,12 +287,10 @@ struct b52_sensor_resolution ov2680_res[] = {
 
 static int OV2680_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
 static int OV2680_get_dphy_desc(struct v4l2_subdev *sd, struct csi_dphy_desc *dphy_desc, u32 mclk);
-static int OV2680_update_otp(struct v4l2_subdev *sd, struct b52_sensor_otp *otp);
 
 struct b52_sensor_spec_ops ov2680_ops = {
 	.get_pixel_rate = OV2680_get_pixelclock,
 	.get_dphy_desc = OV2680_get_dphy_desc,
-	.update_otp = OV2680_update_otp,
 };
 struct b52_sensor_data b52_ov2680 = {
 	.name = "ovt.ov2680",
@@ -318,13 +317,17 @@ struct b52_sensor_data b52_ov2680 = {
 		.tab = ov2680_stream_off,
 		.num = N_OV2680_STREAM_OFF,
 	},
+	.gain2iso_ratio = {
+		.numerator = 100,
+		.denominator = 0x10,
+	},
 	.vts_range = {0x0ba0, 0x7fff},
 	.gain_range = {
 		[B52_SENSOR_AG] = {0x0010, 0x00ff},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
 	.expo_range = {0x00010, 0xb90},
-	.focus_range = {0x0010, 0x03ff},
+	.focus_range = {0x0000, 0x0000},
 	.vts_reg = {
 		.tab = ov2680_vts,
 		.num = N_OV2680_VTS,
@@ -355,7 +358,9 @@ struct b52_sensor_data b52_ov2680 = {
 		.tab = ov2680_vflip,
 		.num = N_OV2680_VFLIP,
 	},
-	.gain_shift = 0,
+	.flip_change_phase = 0,
+	.gain_shift = 0x00,
+	.expo_shift = 0x08,
 	.nr_lane = 1,
 	.mipi_clk_bps = 333000000,
 	.ops = &ov2680_ops,
