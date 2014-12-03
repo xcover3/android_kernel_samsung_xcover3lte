@@ -794,7 +794,7 @@ static const struct of_device_id pm886_led_dt_match[] = {
 	{ .compatible = "marvell,88pm886-leds", },
 	{ },
 };
-MODULE_DEVICE_TABLE(of, pm886_chg_dt_match);
+MODULE_DEVICE_TABLE(of, pm886_led_dt_match);
 
 static struct platform_driver pm886_led_driver = {
 	.driver	= {
