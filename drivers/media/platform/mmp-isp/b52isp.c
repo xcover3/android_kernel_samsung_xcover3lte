@@ -53,6 +53,10 @@ static int b52isp_req_qos;
 
 static void b52isp_tasklet(unsigned long data);
 
+static void *meta_cpu;
+static dma_addr_t meta_dma;
+#define META_DATA_SIZE  0x10080
+
 static int trace = 2;
 module_param(trace, int, 0644);
 MODULE_PARM_DESC(trace,
@@ -1685,10 +1689,12 @@ fail_double:
 	/* alloc meta data internal buffer */
 	if (lpipe->meta_cpu == NULL) {
 		lpipe->meta_size = b52_get_metadata_len(B52ISP_ISD_PIPE1);
-		lpipe->meta_cpu = dmam_alloc_coherent(b52isp->dev,
-					lpipe->meta_size + 0x10000, &lpipe->meta_dma,
-					GFP_KERNEL);
-		WARN_ON(lpipe->meta_cpu == NULL);
+		lpipe->meta_cpu = meta_cpu;
+		lpipe->meta_dma = meta_dma;
+		if (lpipe->meta_cpu == NULL) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
 		d_inf(4, "alloc meta data for %s with %d bytes, VA@%p, PA@%X",
 			lpipe->isd.subdev.name, lpipe->meta_size,
 			lpipe->meta_cpu, (u32)lpipe->meta_dma);
@@ -1718,11 +1724,9 @@ link_off:
 				&lpipe->isd.gdev_list,
 				struct isp_dev_ptr, hook);
 		ppipe = container_of(item->ptr, struct b52isp_ppipe, block);
-		if (lpipe->meta_cpu) {
-			dmam_free_coherent(b52isp->dev, lpipe->meta_size + 0x10000,
-				lpipe->meta_cpu, lpipe->meta_dma);
+		if (lpipe->meta_cpu)
 			lpipe->meta_cpu = NULL;
-		}
+
 		if (lpipe->pinfo_buf) {
 			devm_kfree(b52isp->dev, lpipe->pinfo_buf);
 			lpipe->pinfo_buf = NULL;
@@ -3725,6 +3729,11 @@ static int b52isp_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	meta_cpu = dmam_alloc_coherent(&pdev->dev, META_DATA_SIZE,
+				&meta_dma, GFP_KERNEL);
+	if (unlikely(meta_cpu == NULL))
+		dev_err(&pdev->dev, "could not allocate meta buffer\n");
+
 	if (unlikely(of_id == NULL)) {
 		dev_err(&pdev->dev, "failed to find matched device\n");
 		return -ENODEV;
@@ -3839,6 +3848,7 @@ static int b52isp_remove(struct platform_device *pdev)
 
 	pm_qos_remove_request(&b52isp_qos_idle);
 	pm_runtime_disable(b52isp->dev);
+	dmam_free_coherent(b52isp->dev, META_DATA_SIZE, meta_cpu, meta_dma);
 	devm_kfree(b52isp->dev, b52isp);
 	return 0;
 }
