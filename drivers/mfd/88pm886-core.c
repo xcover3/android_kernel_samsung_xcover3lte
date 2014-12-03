@@ -725,7 +725,6 @@ static const struct reg_default pm886_base_patch[] = {
 	{PM886_GPIO_CTRL2, 0x00}, /*               , gpio2: input   */
 	{PM886_GPIO_CTRL3, 0x44}, /* dvc2          , dvc1           */
 	{PM886_GPIO_CTRL4, 0x00}, /* gpio5v_1:input, gpio5v_2: input*/
-	{PM886_RTC_ALARM_CTRL1, 0x80}, /* USE_XO = 1 */
 	{PM886_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
 	{PM886_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
 	{PM886_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
@@ -831,6 +830,9 @@ int pm886_stepping_fixup(struct pm886_chip *chip)
 			/* clear LPFM bit for buck1 */
 			regmap_update_bits(chip->power_regmap, 0x9f, 1 << 3, 0 << 3);
 		}
+		/* set USE_XO */
+		regmap_update_bits(chip->base_regmap, PM886_RTC_ALARM_CTRL1,
+			PM886_USE_XO, PM886_USE_XO);
 		break;
 	default:
 		break;
