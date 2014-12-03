@@ -45,7 +45,6 @@
 struct sspa_priv {
 	struct ssp_device *sspa;
 	struct snd_dmaengine_dai_dma_data *dma_params;
-	int dai_fmt;
 	int running_cnt;
 	int txsp;
 	int rxsp;
@@ -73,7 +72,6 @@ static void mmp_sspa_tx_enable(struct ssp_device *sspa)
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_TXSP);
 	sspa_sp &= ~SSPA_SP_S_RST;
 	sspa_sp |= SSPA_SP_S_EN;
-	sspa_sp |= SSPA_SP_WEN;
 	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
 }
 
@@ -82,10 +80,9 @@ static void mmp_sspa_tx_disable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_TXSP);
-	sspa_sp |= SSPA_SP_FFLUSH;
-	sspa_sp |= SSPA_SP_S_RST;
 	sspa_sp &= ~SSPA_SP_S_EN;
-	sspa_sp |= SSPA_SP_WEN;
+	sspa_sp |= SSPA_SP_S_RST;
+	sspa_sp |= SSPA_SP_FFLUSH;
 	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
 }
 
@@ -96,8 +93,8 @@ static void mmp_sspa_rx_enable(struct ssp_device *sspa)
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_RXSP);
 	sspa_sp &= ~SSPA_SP_S_RST;
 	sspa_sp |= SSPA_SP_S_EN;
-	sspa_sp |= SSPA_SP_WEN;
 	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
+	udelay(1);
 }
 
 static void mmp_sspa_rx_disable(struct ssp_device *sspa)
@@ -105,10 +102,10 @@ static void mmp_sspa_rx_disable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp_sspa_read_reg(sspa, SSPA_RXSP);
+	sspa_sp &= ~SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_S_RST;
 	sspa_sp |= SSPA_SP_FFLUSH;
-	sspa_sp &= ~SSPA_SP_S_EN;
-	sspa_sp |= SSPA_SP_WEN;
+
 	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
 }
 
@@ -136,8 +133,6 @@ static void mmp_sspa_shutdown(struct snd_pcm_substream *substream,
 
 	if (priv->sspa->clk)
 		clk_disable_unprepare(priv->sspa->clk);
-
-	priv->dai_fmt = (unsigned int) -1;
 
 	return;
 }
@@ -168,21 +163,22 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 {
 	struct sspa_priv *sspa_priv = snd_soc_dai_get_drvdata(cpu_dai);
 	struct ssp_device *sspa = sspa_priv->sspa;
-	u32 sspa_sp, sspa_ctrl;
-	/* check if we need to change anything at all */
-	if (sspa_priv->dai_fmt == fmt)
-		return 0;
+	u32 sspa_sp, sspa_ctrl, tx_en, rx_en, sp_reg, ctrl_reg;
 
-	/* we can only change the settings if the port is not in use */
-	if ((mmp_sspa_read_reg(sspa, SSPA_TXSP) & SSPA_SP_S_EN) ||
-	    (mmp_sspa_read_reg(sspa, SSPA_RXSP) & SSPA_SP_S_EN)) {
-		dev_dbg(&sspa->pdev->dev,
-			"can't change hardware dai format: stream is in use\n");
+	tx_en = mmp_sspa_read_reg(sspa, SSPA_TXSP) & SSPA_SP_S_EN;
+	rx_en = mmp_sspa_read_reg(sspa, SSPA_RXSP) & SSPA_SP_S_EN;
+	if (cpu_dai->playback_active && !tx_en) {
+		sp_reg = SSPA_TXSP;
+		ctrl_reg = SSPA_TXCTL;
+	} else if (cpu_dai->capture_active && !rx_en) {
+		sp_reg = SSPA_RXSP;
+		ctrl_reg = SSPA_RXCTL;
+	} else {
+		/* don't configure anything */
 		return 0;
 	}
-
 	/* reset port settings */
-	sspa_sp = SSPA_SP_WEN | SSPA_SP_S_RST | SSPA_SP_FFLUSH | SSPA_SP_FIX;
+	sspa_sp = SSPA_SP_WEN | SSPA_SP_FIX;
 	sspa_ctrl = 0;
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -211,26 +207,33 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 		sspa_sp |= SSPA_TXSP_FPER(63);
 		sspa_sp |= SSPA_SP_FWID(31);
 		sspa_ctrl |= SSPA_CTL_XDATDLY(1);
+		sspa_ctrl &= ~SSPA_CTL_XWDLEN1_MASK;
+		sspa_ctrl |= SSPA_CTL_XWDLEN1(SSPA_CTL_32_BITS);
+		/* fix to sample shift issue in I2S mode */
+		if (cpu_dai->playback_active && !tx_en)
+			sspa_sp |= SSPA_SP_FSP;
+		break;
+	case SND_SOC_DAIFMT_DSP_A:
+		sspa_sp |= SSPA_TXSP_FPER(31);
+		sspa_sp |= SSPA_SP_FWID(0);
+		sspa_ctrl |= SSPA_CTL_XDATDLY(1);
+		sspa_ctrl &= ~SSPA_CTL_XWDLEN1_MASK;
+		sspa_ctrl |= SSPA_CTL_XWDLEN1(SSPA_CTL_16_BITS);
+		break;
+	case SND_SOC_DAIFMT_DSP_B:
+		sspa_sp |= SSPA_TXSP_FPER(31);
+		sspa_sp |= SSPA_SP_FWID(0);
+		sspa_ctrl |= SSPA_CTL_XDATDLY(0);
+		sspa_ctrl &= ~SSPA_CTL_XWDLEN1_MASK;
+		sspa_ctrl |= SSPA_CTL_XWDLEN1(SSPA_CTL_16_BITS);
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
-	mmp_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
+	mmp_sspa_write_reg(sspa, sp_reg, sspa_sp);
+	mmp_sspa_write_reg(sspa, ctrl_reg, sspa_ctrl);
 
-	sspa_sp &= ~SSPA_SP_MSL;
-	sspa_sp |= SSPA_SP_FSP;
-	mmp_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
-
-	mmp_sspa_write_reg(sspa, SSPA_TXCTL, sspa_ctrl);
-	mmp_sspa_write_reg(sspa, SSPA_RXCTL, sspa_ctrl);
-
-	/* Since we are configuring the timings for the format by hand
-	 * we have to defer some things until hw_params() where we
-	 * know parameters like the sample size.
-	 */
-	sspa_priv->dai_fmt = fmt;
 	return 0;
 }
 
@@ -256,8 +259,6 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 
 	sspa_ctrl &= ~SSPA_CTL_XFRLEN1_MASK;
 	sspa_ctrl |= SSPA_CTL_XFRLEN1(params_channels(params) - 1);
-	sspa_ctrl &= ~SSPA_CTL_XWDLEN1_MASK;
-	sspa_ctrl |= SSPA_CTL_XWDLEN1(SSPA_CTL_32_BITS);
 	sspa_ctrl &= ~SSPA_CTL_XSSZ1_MASK;
 
 	switch (params_format(params)) {
@@ -486,7 +487,6 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->sspa->clk))
 		return PTR_ERR(priv->sspa->clk);
 
-	priv->dai_fmt = (unsigned int) -1;
 	platform_set_drvdata(pdev, priv);
 
 	ret = devm_snd_soc_register_component(&pdev->dev, &mmp_sspa_component,
