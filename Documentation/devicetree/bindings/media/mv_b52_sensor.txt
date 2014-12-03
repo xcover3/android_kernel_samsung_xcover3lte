@@ -3,7 +3,7 @@ B52 sensor
 backsensor node
 ------------
 Required properties:
-- compatible	: "marvell,backsensor";
+- compatible	: "marvell,backsensor" "marvell,frontsensor";
 
 sensor node
 ------------

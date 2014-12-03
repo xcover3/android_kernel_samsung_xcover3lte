@@ -67,6 +67,32 @@
 
 	plat_cam {
 		status = "okay";
+		frontsensor {
+			compatible = "marvell,frontsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			OV2680f: sensor@0 {
+				compatible = "ovt,ov2680";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x36>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0xff1d00>;
+				dphy5 = <0x00024733>;
+				dphy6 = <0x4001001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 70 1>;
+				reset-gpios = <&gpio 69 1>;
+			};
+		};
 		backsensor {
 			compatible = "marvell,backsensor";
 			#address-cells = <1>;
@@ -195,7 +221,26 @@
 				pwdn-gpios = <&gpio 68 1>;
 				reset-gpios = <&gpio 67 1>;
 			};
-
+			OV2680b: sensor@6 {
+				compatible = "ovt,ov2680";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x36>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0x11>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
 		};
 	};
 
@@ -203,6 +248,7 @@
 	        status = "okay";
 	};
 	b52isp_sc2_csi1 {
+			csi_mux_repacked;
 	        status = "okay";
 	};
 	b52isp_sc2_dma0 {
