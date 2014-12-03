@@ -1429,6 +1429,7 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 				 int *initial_soc, int *initial_cycles)
 {
 	int slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
+	int active_volt, soc_from_vbat_active;
 	int cycles_from_saved, saved_is_valid;
 	bool battery_is_changed, soc_in_good_range, realiable_from_saved;
 
@@ -1457,6 +1458,36 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 	dev_info(info->dev,
 		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n", \
 		 __func__, soc_from_saved, realiable_from_saved);
+	/*
+	 * here is a corner case:
+	 * a) plug into the charger cable first
+	 * b) then plug into the battery
+	 * in this case the vbat_slp is a random value, it's not realiable
+	 *
+	 * fix:
+	 * if the system is "charger wake-uped"
+	 * then if (abs(soc_from_vbat_slp - soc_from_vbat) > 40)
+	 * the initial_soc = soc_from_saved;
+	 * else
+	 * the initial_soc = soc_from_vbat_slp
+	 */
+	if (info->chip->powerup & 0x2) {
+		active_volt = pm886_get_batt_vol(info, 1);
+		dev_info(info->dev, "---> %s: active_volt = %dmV\n",
+			 __func__, active_volt);
+		soc_from_vbat_active = pm886_get_soc_from_ocv(active_volt);
+		dev_info(info->dev, "---> %s: soc_from_vbat_active = %d\n",
+			 __func__, soc_from_vbat_active);
+
+		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40)
+			*initial_soc = soc_from_saved;
+		else
+			*initial_soc = soc_from_vbat_slp;
+
+		*initial_cycles = cycles_from_saved;
+
+		goto end;
+	}
 
 	if (system_is_reboot(info)) {
 		dev_info(info->dev,
