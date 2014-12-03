@@ -6,6 +6,7 @@
 #include <linux/tick.h>
 #include <linux/mm.h>
 #include <linux/stackprotector.h>
+#include <linux/debugfs.h>
 
 #include <asm/tlb.h>
 
@@ -37,6 +38,65 @@ static int __init cpu_idle_nopoll_setup(char *__unused)
 	return 1;
 }
 __setup("hlt", cpu_idle_nopoll_setup);
+#endif
+
+#ifdef CONFIG_DEBUG_FS
+ssize_t nohlt_read(struct file *file, char __user *buf,
+			size_t count, loff_t *ppos)
+{
+	pr_info("cpu_idle_force_poll value is %d.\n",
+		cpu_idle_force_poll);
+	return 0;
+}
+
+ssize_t nohlt_write(struct file *file, const char __user *buff,
+			 size_t len, loff_t *ppos)
+{
+
+	char info[20];
+	int ret;
+	memset(info, '\0', 20);
+
+	if (copy_from_user(info, buff, len))
+		return -EFAULT;
+	ret = sscanf(info, "%d", &cpu_idle_force_poll);
+	if (ret < 0)
+		return -EINVAL;
+	if (cpu_idle_force_poll > 1 || cpu_idle_force_poll < 0) {
+		pr_err("wrong parameter: nohlt flag should be 1(enable) or 0(disable)!\n");
+		cpu_idle_force_poll = 0;
+		}
+	return len;
+}
+
+const struct file_operations nohlt_ops = {
+	.owner		= THIS_MODULE,
+	.open		= simple_open,
+	.read		= nohlt_read,
+	.write		= nohlt_write,
+};
+
+static	struct dentry *nohlt_flag;
+int nohlt_debugfs_init(void)
+{
+	nohlt_flag = debugfs_create_file("nohlt", S_IRUGO | S_IWUSR | S_IWGRP,
+					     NULL, NULL, &nohlt_ops);
+
+	if (!nohlt_flag) {
+		pr_err("faile to create nohlt debugfs!\n");
+		return -ENOENT;
+	} else if (nohlt_flag == ERR_PTR(-ENODEV)) {
+		pr_err("nohlt error!\n");
+		return -ENOENT;
+	}
+
+	return 0;
+}
+
+void nohlt_debugfs_remove(void)
+{
+	debugfs_remove(nohlt_flag);
+}
 #endif
 
 static inline int cpu_idle_poll(void)
@@ -142,3 +202,6 @@ void cpu_startup_entry(enum cpuhp_state state)
 	arch_cpu_idle_prepare();
 	cpu_idle_loop();
 }
+#ifdef CONFIG_DEBUG_FS
+postcore_initcall(nohlt_debugfs_init);
+#endif
