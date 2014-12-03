@@ -335,7 +335,8 @@ static int pm886_vbus_probe(struct platform_device *pdev)
 	struct device_node *node = pdev->dev.of_node;
 	int ret;
 
-	usb = devm_kzalloc(&pdev->dev,
+	/* vbus_info global variable used by get/set_vbus */
+	vbus_info = usb = devm_kzalloc(&pdev->dev,
 			   sizeof(struct pm886_vbus_info), GFP_KERNEL);
 	if (!usb)
 		return -ENOMEM;
@@ -388,9 +389,6 @@ static int pm886_vbus_probe(struct platform_device *pdev)
 			goto out;
 		}
 	}
-
-	/* global variable used by get/set_vbus */
-	vbus_info = usb;
 
 	platform_set_drvdata(pdev, usb);
 	device_init_wakeup(&pdev->dev, 1);
