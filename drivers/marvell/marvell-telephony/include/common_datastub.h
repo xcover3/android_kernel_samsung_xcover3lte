@@ -153,7 +153,7 @@ typedef struct CiDatPrimRecvDataOptInd_struct {
 					 CiDatConnInfo_struct*/
 	CiDatPdu recvPdu;		/**< Received data PDU
 						\sa CiDatPdu_struct */
-
+	u32 reserved;
 } CiDatPrimRecvDataOptInd;
 
 #endif /* __COMMON_DATASTUB_H__ */
