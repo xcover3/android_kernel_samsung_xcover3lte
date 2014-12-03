@@ -12,6 +12,5 @@
 ./scripts/config -d CONFIG_ARM_MMP_SMP_CPUFREQ
 ./scripts/config -d CONFIG_PXA1928_THERMAL
 ./scripts/config -d CONFIG_HELAN2_THERMAL
-./scripts/config -d CONFIG_PXA_DVFS
 ./scripts/config -e CONFIG_PXA1936_CLK
 ./scripts/config -d CONFIG_ANDROID_BINDER_IPC_32BIT
