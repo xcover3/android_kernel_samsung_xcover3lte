@@ -837,21 +837,15 @@ static int isp_vnode_open(struct file *file)
 	 */
 	mutex_lock(&vnode->link_lock);
 
-	/*
-	 * For output vnode, find a pipeline for it,
-	 * but input vnode don't need one
-	 */
-	if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		goto vnode_init;
-
 	pad = media_entity_remote_pad(&vnode->pad);
-	/* If at least, one link is enabled, OK to open */
+	/* If backend link not enabled, reject open */
 	if (pad == NULL) {
 		d_inf(1, "vdev node not connected to any media entity");
 		ret = -EPIPE;
 		goto err_pipe;
 	}
 
+	/* Notify back-end entity about vdev open */
 	sd = media_entity_to_v4l2_subdev(pad->entity);
 	if (subdev_has_fn(sd, core, init)) {
 		ret = v4l2_subdev_call(sd, core, init, 1);
@@ -864,7 +858,7 @@ static int isp_vnode_open(struct file *file)
 	if (ret < 0)
 		goto err_notify;
 
-vnode_init:
+	/* Video buffer and vdev initialize */
 	ret = isp_vnode_vb2_init(&vnode->vq, vnode);
 	if (ret < 0)
 		goto err_vb;
