@@ -494,7 +494,7 @@ static bool pm886_check_battery_present(struct pm886_battery_info *info)
 			ret = extern_pm886_gpadc_get_volt(gp, &volt);
 			if (ret < 0)
 				goto out;
-			if (volt < 1800000)
+			if (volt < 700000)
 				present = true;
 			else
 				present = false;
