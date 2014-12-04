@@ -45,29 +45,38 @@ void cpunum_qos_unlock(void)
 static void cpu_plugin_onecore(void)
 {
 	int i;
-	for (i = NUM_CPUS - 1; i > 0; --i) {
-		if (0 == cpu_online(i)) {
-			cpu_up(i);
+	unsigned int target = NR_CPUS;
+
+	get_online_cpus();
+	for (i = 0; i < NR_CPUS; i++) {
+		if (!cpu_online(i)) {
+			target = i;
 			break;
 		}
 	}
+	put_online_cpus();
+
+	if ((target >= 0) && (target < NR_CPUS))
+		cpu_up(target);
 }
 
 static void cpu_plugout_onecore(void)
 {
-	unsigned long nr_rq_min = -1UL;
-	unsigned int cpu_rq_min = 0;
 	int i;
-	for_each_online_cpu(i) {
-		if (0 == i)
-			continue;
-		if (nr_rq_min > get_cpu_nr_running(i)) {
-			nr_rq_min = get_cpu_nr_running(i);
-			cpu_rq_min = i;
+	unsigned int target = NR_CPUS;
+
+	get_online_cpus();
+	/* not permit CPU0 to plug out */
+	for (i = NR_CPUS - 1; i > 0; i--) {
+		if (cpu_online(i)) {
+			target = i;
+			break;
 		}
 	}
-	if (0 != cpu_rq_min)
-		cpu_down(cpu_rq_min);
+	put_online_cpus();
+
+	if ((target > 0) && (target < NR_CPUS))
+		cpu_down(target);
 }
 
 static int cpunum_notify(struct notifier_block *b, unsigned long val, void *v)
