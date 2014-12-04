@@ -423,7 +423,7 @@ static void pxa28nm_register_thermal(void)
 	else
 		thermal_dev.cdev.cool_cpu_cluster1_freq = NULL;
 
-	thermal_dev.cdev.cool_cpuhotplug = cpuhotplug_cool_register();
+	thermal_dev.cdev.cool_cpuhotplug = cpuhotplug_cool_register("helan3");
 
 	thermal_dev.cdev.combile_cool = thermal_cooling_device_register(
 			"cpu-combile-cool", &thermal_dev, &combile_cooling_ops);

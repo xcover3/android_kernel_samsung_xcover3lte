@@ -22,10 +22,10 @@ void cpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 #endif
 
 #ifdef CONFIG_HOTPLUG_CPU
-struct thermal_cooling_device *cpuhotplug_cool_register(void);
+struct thermal_cooling_device *cpuhotplug_cool_register(const char *cpu_name);
 void cpuhotplug_cool_unregister(struct thermal_cooling_device *cdev);
 #else
-static inline struct thermal_cooling_device *cpuhotplug_cool_register(void)
+static inline struct thermal_cooling_device *cpuhotplug_cool_register(const char *cpu_name)
 {
 	return NULL;
 }
@@ -89,7 +89,7 @@ void cpufreq_cool_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }
-static inline struct thermal_cooling_device *cpuhotplug_cool_register(void)
+static inline struct thermal_cooling_device *cpuhotplug_cool_register(const char *cpu_name)
 {
 	return NULL;
 }

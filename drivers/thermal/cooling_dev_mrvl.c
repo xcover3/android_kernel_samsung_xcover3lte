@@ -21,6 +21,7 @@ struct cpuhotplug_cool_device {
 	unsigned int max_state;
 	unsigned int cur_state;
 	struct pm_qos_request cpu_num_max;
+	struct pm_qos_request cpu_num_min;
 };
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -56,6 +57,9 @@ static int cpuhotplug_set_cur_state(struct thermal_cooling_device *cdev,
 	cpuhotplug_device->cur_state = state;
 	pm_qos_update_request(&cpuhotplug_device->cpu_num_max, cpu_num - state);
 
+	if (!strcmp(cdev->type, "helan3-hotplug-cool"))
+		pm_qos_update_request(&cpuhotplug_device->cpu_num_min, cpu_num - state - 1);
+
 	return 0;
 }
 
@@ -66,17 +70,21 @@ static struct thermal_cooling_device_ops const cpuhotplug_cooling_ops = {
 	.set_cur_state = cpuhotplug_set_cur_state,
 };
 
-struct thermal_cooling_device *cpuhotplug_cool_register(void)
+struct thermal_cooling_device *cpuhotplug_cool_register(const char *cpu_name)
 {
 	struct thermal_cooling_device *cool_dev;
 	struct cpuhotplug_cool_device *cpuhotplug_dev = NULL;
+	char cool_name[THERMAL_NAME_LENGTH];
+
 
 	cpuhotplug_dev = kzalloc(sizeof(struct cpuhotplug_cool_device),
 			      GFP_KERNEL);
 	if (!cpuhotplug_dev)
 		return ERR_PTR(-ENOMEM);
 
-	cool_dev = thermal_cooling_device_register("cpu-hotplug-cool",
+	snprintf(cool_name, sizeof(cool_name), "%s-hotplug-cool", cpu_name);
+
+	cool_dev = thermal_cooling_device_register(cool_name,
 			cpuhotplug_dev, &cpuhotplug_cooling_ops);
 	if (!cool_dev) {
 		kfree(cpuhotplug_dev);
@@ -90,6 +98,12 @@ struct thermal_cooling_device *cpuhotplug_cool_register(void)
 	cpuhotplug_dev->cpu_num_max.name = "req_thermal";
 	pm_qos_add_request(&cpuhotplug_dev->cpu_num_max,
 		PM_QOS_CPU_NUM_MAX, num_possible_cpus());
+
+	if (!strcmp("helan3", cpu_name)) {
+		cpuhotplug_dev->cpu_num_min.name = "req_thermal";
+		pm_qos_add_request(&cpuhotplug_dev->cpu_num_min,
+			PM_QOS_CPU_NUM_MIN, 0);
+	}
 
 	return cool_dev;
 }
@@ -138,8 +152,15 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 		return -EINVAL;
 
 	cpufreq_device->cur_state = state;
-	pm_qos_update_request(&cpufreq_device->qos_max,
+
+	if ((!strcmp(cdev->type, "cluster0-freq-cool")) ||
+		(!strcmp(cdev->type, "cluster1-freq-cool"))) {
+		pm_qos_update_request(&cpufreq_device->qos_max,
+		cpufreq_device->freqs[state]/1000);
+	} else
+		pm_qos_update_request(&cpufreq_device->qos_max,
 			cpufreq_device->freqs[state]);
+
 	return 0;
 }
 
