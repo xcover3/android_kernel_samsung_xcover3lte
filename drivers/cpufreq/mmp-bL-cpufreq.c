@@ -393,15 +393,19 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 
 	set_clst_policy_info(policy, clst_index);
 
-	pm_qos_add_request(&cpufreq_qos_req_min[clst_index],
-			   cpufreq_qos_min_id[clst_index], policy->cur / 1000);
-	pm_qos_add_request(&cpupolicy_qos_req_min[clst_index],
-			   cpufreq_qos_min_id[clst_index], policy->min / 1000);
-	pm_qos_add_request(&qosmin_qos_req_max[clst_index],
-			   cpufreq_qos_max_id[clst_index],
-			   pm_qos_request(cpufreq_qos_min_id[clst_index]));
-	pm_qos_add_request(&cpupolicy_qos_req_max[clst_index],
-			   cpufreq_qos_max_id[clst_index], policy->max / 1000);
+	if (!pm_qos_request_active(&cpufreq_qos_req_min[clst_index]))
+		pm_qos_add_request(&cpufreq_qos_req_min[clst_index],
+				   cpufreq_qos_min_id[clst_index], policy->cur / 1000);
+	if (!pm_qos_request_active(&cpupolicy_qos_req_min[clst_index]))
+		pm_qos_add_request(&cpupolicy_qos_req_min[clst_index],
+				   cpufreq_qos_min_id[clst_index], policy->min / 1000);
+	if (!pm_qos_request_active(&qosmin_qos_req_max[clst_index]))
+		pm_qos_add_request(&qosmin_qos_req_max[clst_index],
+				   cpufreq_qos_max_id[clst_index],
+				   pm_qos_request(cpufreq_qos_min_id[clst_index]));
+	if (!pm_qos_request_active(&cpupolicy_qos_req_max[clst_index]))
+		pm_qos_add_request(&cpupolicy_qos_req_max[clst_index],
+				   cpufreq_qos_max_id[clst_index], policy->max / 1000);
 
 	pr_info("%s: finish initialization on cluster-%d\n", __func__, clst_index);
 
@@ -411,7 +415,6 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 static int mmp_bL_cpufreq_exit(struct cpufreq_policy *policy)
 {
 	mutex_destroy(&mmp_cpu_lock);
-	cpufreq_frequency_table_put_attr(policy->cpu);
 	return 0;
 }
 
