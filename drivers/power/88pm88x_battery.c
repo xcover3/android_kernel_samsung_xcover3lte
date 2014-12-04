@@ -1336,10 +1336,14 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 		atomic_set(&in_resume, 0);
 	}
 
-	/* notify when parameters are changed */
+	/*
+	 * send a notification when:
+	 * 1. capacity or status is changed - in order to update Android
+	 * 2. status is FULL - trigger the charger driver to check the recharge threshold
+	 */
 	if ((prev_cap != info->bat_params.soc)
-	    || (abs(prev_volt - info->bat_params.volt) > 100)
-	    || (prev_status != info->bat_params.status)) {
+	    || (prev_status != info->bat_params.status)
+	    || (info->bat_params.status == POWER_SUPPLY_STATUS_FULL)) {
 
 		power_supply_changed(&info->battery);
 		prev_cap = info->bat_params.soc;
