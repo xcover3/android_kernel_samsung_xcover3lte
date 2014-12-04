@@ -22,6 +22,7 @@
 #include <linux/regmap.h>
 #include <linux/slab.h>
 #include <linux/mfd/core.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/regulator/machine.h>
 

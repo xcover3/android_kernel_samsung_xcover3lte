@@ -17,6 +17,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/input.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>

@@ -21,6 +21,7 @@
 #include <linux/jiffies.h>
 #include <linux/notifier.h>
 #include <linux/err.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 #include <linux/of_device.h>

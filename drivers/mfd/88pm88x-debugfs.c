@@ -37,6 +37,7 @@
 #include <linux/slab.h>
 #include <linux/irq.h>
 
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 
 #ifdef CONFIG_DEBUG_FS

@@ -12,6 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/module.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/mfd/88pm886-reg.h>
 

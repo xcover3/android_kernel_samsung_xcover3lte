@@ -16,6 +16,7 @@
 #include <linux/regmap.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 #include <linux/io.h>

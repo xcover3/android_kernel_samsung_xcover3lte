@@ -12,6 +12,7 @@
 #include <linux/clk/mmp_sdh_tuning.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/clk/dvfs-dvc.h>
 #include <linux/clk/mmpcpdvc.h>

@@ -18,6 +18,7 @@
 #include <linux/iio/sysfs.h>
 #include <linux/iio/driver.h>
 #include <linux/iio/machine.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 

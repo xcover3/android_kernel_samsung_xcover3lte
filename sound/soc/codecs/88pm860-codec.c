@@ -34,6 +34,7 @@
 #include <linux/input.h>
 #include <linux/proc_fs.h>
 #include <linux/mfd/88pm80x.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 

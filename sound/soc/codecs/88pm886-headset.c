@@ -20,6 +20,7 @@
 #include <linux/uaccess.h>
 #include <linux/of.h>
 #include <linux/mutex.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 
 #define PM886_HEADSET_CNTRL		(0x38)

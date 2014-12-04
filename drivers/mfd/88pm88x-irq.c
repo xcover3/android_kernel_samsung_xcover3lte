@@ -19,6 +19,7 @@
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 
 /* interrupt status registers */

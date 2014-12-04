@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/regmap.h>
 #include <linux/mfd/core.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/rtc.h>
 #include <linux/reboot.h>

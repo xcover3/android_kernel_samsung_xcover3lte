@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/mfd/core.h>
+#include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 
 static int pm886_i2c_probe(struct i2c_client *client,
