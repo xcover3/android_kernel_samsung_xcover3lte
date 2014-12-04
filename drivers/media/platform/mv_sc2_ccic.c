@@ -536,6 +536,14 @@ static void ccic_shadow_ready(struct ccic_dma_dev *dma_dev)
 	spin_unlock_irqrestore(&dma_dev->ccic_dev->ccic_lock, flags);
 }
 
+static void ccic_shadow_empty(struct ccic_dma_dev *dma_dev)
+{
+	unsigned long flags = 0;
+	spin_lock_irqsave(&dma_dev->ccic_dev->ccic_lock, flags);
+	ccic_reg_clear_bit(dma_dev->ccic_dev, REG_CTRL1, C1_SHADOW_RDY);
+	spin_unlock_irqrestore(&dma_dev->ccic_dev->ccic_lock, flags);
+}
+
 static void ccic_set_yaddr(struct ccic_dma_dev *dma_dev, u32 addr)
 {
 	struct msc2_ccic_dev *ccic_dev = dma_dev->ccic_dev;
@@ -602,6 +610,7 @@ static void ccic_disable(struct ccic_dma_dev *dma_dev)
 static struct ccic_dma_ops ccic_dma_ops = {
 	.setup_image = ccic_hw_setup_image,
 	.shadow_ready = ccic_shadow_ready,
+	.shadow_empty = ccic_shadow_empty,
 	.set_yaddr = ccic_set_yaddr,
 	.set_uaddr = ccic_set_uaddr,
 	.set_vaddr = ccic_set_vaddr,

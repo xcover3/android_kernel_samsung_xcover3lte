@@ -156,6 +156,7 @@ struct ccic_dma_dev {
 struct ccic_dma_ops {
 	int (*setup_image)(struct ccic_dma_dev *dma_dev);
 	void (*shadow_ready)(struct ccic_dma_dev *dma_dev);
+	void (*shadow_empty)(struct ccic_dma_dev *dma_dev);
 	void (*set_yaddr)(struct ccic_dma_dev *dma_dev, u32 addr);
 	void (*set_uaddr)(struct ccic_dma_dev *dma_dev, u32 addr);
 	void (*set_vaddr)(struct ccic_dma_dev *dma_dev, u32 addr);

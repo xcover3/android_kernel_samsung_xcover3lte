@@ -1305,58 +1305,82 @@ static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
 	struct mv_camera_dev *mcam_dev = dma_dev->priv;
 	struct device *dev = &mcam_dev->pdev->dev;
 
+	/*
+	 * In OVERFLOW, we don't touch bufferQ, so no need to grab buffer
+	 * lock.
+	 */
 	if (irqs & IRQ_OVERFLOW) {
+		/*
+		 * In case of overflow, the 1st thing to do is to tell HW
+		 * stop working by clear ready bit. But can't reset MMU
+		 * right now, because it's possible that the subsequent
+		 * buffer already start been DMAed on. So just make a mark
+		 * here and do error handling in drop frame IRQ.
+		 */
+		dma_dev->ops->shadow_empty(dma_dev);
 		set_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags);
+		irqs &= ~IRQ_OVERFLOW;
 		dev_warn(dev, "irq overflow!\n");
 	}
 
 	spin_lock(&mcam_dev->mcam_lock);
-	/* The below code can be optimized.
-	 * If the last irq is SOF,
-	 * the EOF should be judged first,
-	 * and vice versa
-	 * This can handle the SOF and EOF
-	 * occur in the same interrupt period
+	/*
+	 * It's possible that SOF comes together with EOF, the sequence to
+	 * handle them depends on whether DMA is active, this can be tell
+	 * by checking the Start-Of-Frame flag.
 	 */
-	/* need reconsider and careful review */
-	if (irqs & IRQ_SOF0) {
-		if (test_bit(CF_FRAME_SOF0, &mcam_dev->flags)) {
-			/*
-			 * This means the last EOF is missed
-			 * The vbuf is not released
-			 * Can not setup new buf,
-			 * otherwise, the old one will be leaked
-			 */
-			dev_warn(dev, "miss EOF\n");
-		}
+	if (test_bit(CF_FRAME_SOF0, &mcam_dev->flags))
+		goto handle_eof;
+	else
+		goto handle_sof;
 
+handle_sof:
+	if (irqs & IRQ_SOF0) {
+		set_bit(CF_FRAME_SOF0, &mcam_dev->flags);
+		irqs &= ~IRQ_SOF0;
 		if (!test_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags)) {
 			msc2_setup_buffer(mcam_dev);
 			dma_dev->ops->shadow_ready(dma_dev);
 		}
-		set_bit(CF_FRAME_SOF0, &mcam_dev->flags);
+		goto handle_eof;
 	}
-
-	if (irqs & IRQ_EOF0 &&
-		test_bit(CF_FRAME_SOF0, &mcam_dev->flags)) {
-		if (!test_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags)) {
-			mccic_frame_complete(mcam_dev);
-		} else
-			clear_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags);
-		clear_bit(CF_FRAME_SOF0, &mcam_dev->flags);
-	}
-
+	/* SHADOW_NOT_READY is mutual exclusive with SOF */
 	if (irqs & IRQ_SHADOW_NOT_RDY) {
-		msc2_setup_buffer(mcam_dev);
+		clear_bit(CF_FRAME_SOF0, &mcam_dev->flags);
+		if (test_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags) &&
+			(mcam_dev->buffer_mode == B_DMA_SG)) {
+			/* If overflow happens, reset MMU here */
+			u32 i, tid[mcam_dev->mbuf->vb2_buf.num_planes];
+			for (i = 0; i < mcam_dev->mbuf->vb2_buf.num_planes;
+				 i++)
+				tid[i] = mcam_dev->mbuf->ch_info[i].tid;
+			mcam_dev->sc2_mmu->ops->reset_ch(mcam_dev->sc2_mmu, tid, i);
+			WARN_ON(mcam_dev->sc2_mmu->ops->enable_ch(
+				mcam_dev->sc2_mmu, tid, i));
+			clear_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags);
+		} else
+			msc2_setup_buffer(mcam_dev);
 		dma_dev->ops->shadow_ready(dma_dev);
 	}
 
+handle_eof:
+	if (irqs & IRQ_EOF0) {
+		clear_bit(CF_FRAME_SOF0, &mcam_dev->flags);
+		irqs &= ~IRQ_EOF0;
+		if (!test_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags))
+			mccic_frame_complete(mcam_dev);
+	}
+
+	if (irqs & IRQ_EOF0)
+		goto handle_eof;
+	if (irqs & IRQ_SOF0)
+		goto handle_sof;
 	spin_unlock(&mcam_dev->mcam_lock);
 
-	if (irqs & ALLIRQS)
-		return IRQ_HANDLED;
-	else
+	if (irqs)
 		return IRQ_NONE;
+	else
+		return IRQ_HANDLED;
 }
 
 static irqreturn_t ctrl_irq_handler(struct ccic_ctrl_dev *ctrl_dev, u32 irqs)
