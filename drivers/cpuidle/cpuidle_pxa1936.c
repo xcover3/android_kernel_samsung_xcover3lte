@@ -105,7 +105,7 @@ static int arm64_enter_state(struct cpuidle_device *dev,
 	 * Pass C-state index to cpu_suspend which in turn will call
 	 * the CPU ops suspend protocol with index as a parameter
 	 */
-	ret = cpu_suspend(idx);
+	ret = cpu_suspend((unsigned long)&idx);
 	if (ret)
 		pr_warn_once("returning from cpu_suspend %s %d\n",
 			     __func__, ret);

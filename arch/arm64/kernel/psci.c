@@ -173,10 +173,11 @@ static int psci_migrate(unsigned long cpuid)
 }
 
 #ifdef CONFIG_ARM64_CPU_SUSPEND
-static int cpu_psci_cpu_suspend(unsigned long index)
+static int cpu_psci_cpu_suspend(unsigned long arg)
 {
 	int ret;
 	struct psci_power_state state;
+	unsigned int index = *(unsigned int *)arg;
 
 	/*
 	* The cpu_ops suspend back-end implementation defines arg as
@@ -215,7 +216,7 @@ static int cpu_psci_cpu_suspend(unsigned long index)
 		state.id = 7;
 		break;
 	default:
-		pr_err("unknown psci state!\n");
+		pr_err("unknown psci state: %u !\n", index);
 		break;
 	};
 
