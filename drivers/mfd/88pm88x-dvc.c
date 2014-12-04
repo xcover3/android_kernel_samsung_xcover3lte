@@ -24,7 +24,7 @@
 #include <linux/of.h>
 
 /* to enable dvc*/
-#define PM886_PWR_HOLD			(1 << 7)
+#define PM88X_PWR_HOLD			(1 << 7)
 
 #define BUCK_MIN_VOLT			(600000)
 #define BUCK_MAX_VOLT			(1587500)
@@ -32,11 +32,11 @@
 #define BUCK_MAX_DVC_LEVEL		(8)
 
 /* encapsulate for future usage */
-struct pm886_dvc {
-	struct pm886_chip *chip;
+struct pm88x_dvc {
+	struct pm88x_chip *chip;
 };
 
-static struct pm886_dvc *g_dvc;
+static struct pm88x_dvc *g_dvc;
 
 static inline int volt_to_reg(int uv)
 {
@@ -50,10 +50,10 @@ static inline int reg_to_volt(int regval)
 
 /*
  * Example for usage: set buck1 level1 as 1200mV
- * pm886_dvc_set_volt(1, 1200 * 1000);
+ * pm88x_dvc_set_volt(1, 1200 * 1000);
  * level begins with 0
  */
-int pm886_dvc_set_volt(u8 level, int uv)
+int pm88x_dvc_set_volt(u8 level, int uv)
 {
 	u8 buck1_volt_reg;
 	int ret = 0;
@@ -76,9 +76,9 @@ int pm886_dvc_set_volt(u8 level, int uv)
 	}
 
 	if (level < 4)
-		buck1_volt_reg = PM886_BUCK1_VOUT;
+		buck1_volt_reg = PM88X_BUCK1_VOUT;
 	else {
-		buck1_volt_reg = PM886_BUCK1_4_VOUT;
+		buck1_volt_reg = PM88X_BUCK1_4_VOUT;
 		level -= 4;
 	}
 
@@ -87,9 +87,9 @@ int pm886_dvc_set_volt(u8 level, int uv)
 				 0x7f, volt_to_reg(uv));
 	return ret;
 };
-EXPORT_SYMBOL(pm886_dvc_set_volt);
+EXPORT_SYMBOL(pm88x_dvc_set_volt);
 
-int pm886_dvc_get_volt(u8 level)
+int pm88x_dvc_get_volt(u8 level)
 {
 	struct regmap *regmap;
 	int ret = 0, regval = 0;
@@ -107,9 +107,9 @@ int pm886_dvc_get_volt(u8 level)
 	}
 
 	if (level < 4)
-		buck1_volt_reg = PM886_BUCK1_VOUT;
+		buck1_volt_reg = PM88X_BUCK1_VOUT;
 	else {
-		buck1_volt_reg = PM886_BUCK1_4_VOUT;
+		buck1_volt_reg = PM88X_BUCK1_4_VOUT;
 		level -= 4;
 	}
 
@@ -124,12 +124,12 @@ int pm886_dvc_get_volt(u8 level)
 
 	return reg_to_volt(regval);
 }
-EXPORT_SYMBOL(pm886_dvc_get_volt);
+EXPORT_SYMBOL(pm88x_dvc_get_volt);
 
-static int pm886_dvc_probe(struct platform_device *pdev)
+static int pm88x_dvc_probe(struct platform_device *pdev)
 {
-	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
-	static struct pm886_dvc *dvcdata;
+	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	static struct pm88x_dvc *dvcdata;
 	int ret;
 
 	dvcdata = devm_kzalloc(&pdev->dev, sizeof(*g_dvc), GFP_KERNEL);
@@ -144,16 +144,16 @@ static int pm886_dvc_probe(struct platform_device *pdev)
 	g_dvc->chip = chip;
 
 	/* config gpio1 as DVC3 pin */
-	ret = regmap_update_bits(chip->base_regmap, PM886_GPIO_CTRL1,
-				 PM886_GPIO1_MODE_MSK, PM886_GPIO1_SET_DVC);
+	ret = regmap_update_bits(chip->base_regmap, PM88X_GPIO_CTRL1,
+				 PM88X_GPIO1_MODE_MSK, PM88X_GPIO1_SET_DVC);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to set gpio1 as dvc pin!\n");
 		return ret;
 	}
 
 	/* enable dvc feature */
-	ret = regmap_update_bits(chip->base_regmap, PM886_MISC_CONFIG1,
-				 PM886_PWR_HOLD, PM886_PWR_HOLD);
+	ret = regmap_update_bits(chip->base_regmap, PM88X_MISC_CONFIG1,
+				 PM88X_PWR_HOLD, PM88X_PWR_HOLD);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to enable pmic dvc feature!\n");
 		return ret;
@@ -162,41 +162,41 @@ static int pm886_dvc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int pm886_dvc_remove(struct platform_device *pdev)
+static int pm88x_dvc_remove(struct platform_device *pdev)
 {
-	struct pm886_dvc *dvcdata = platform_get_drvdata(pdev);
+	struct pm88x_dvc *dvcdata = platform_get_drvdata(pdev);
 	devm_kfree(&pdev->dev, dvcdata);
 	return 0;
 }
 
-static struct of_device_id pm886_dvc_of_match[] = {
+static struct of_device_id pm88x_dvc_of_match[] = {
 	{.compatible = "marvell,88pm886-dvc"},
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, pm886_dvc_of_match);
+MODULE_DEVICE_TABLE(of, pm88x_dvc_of_match);
 
-static struct platform_driver pm886_dvc_driver = {
+static struct platform_driver pm88x_dvc_driver = {
 	.driver = {
 		   .name = "88pm886-dvc",
 		   .owner = THIS_MODULE,
-		   .of_match_table = of_match_ptr(pm886_dvc_of_match),
+		   .of_match_table = of_match_ptr(pm88x_dvc_of_match),
 		   },
-	.probe = pm886_dvc_probe,
-	.remove = pm886_dvc_remove,
+	.probe = pm88x_dvc_probe,
+	.remove = pm88x_dvc_remove,
 };
 
-static int pm886_dvc_init(void)
+static int pm88x_dvc_init(void)
 {
-	return platform_driver_register(&pm886_dvc_driver);
+	return platform_driver_register(&pm88x_dvc_driver);
 }
-subsys_initcall(pm886_dvc_init);
+subsys_initcall(pm88x_dvc_init);
 
-static void pm886_dvc_exit(void)
+static void pm88x_dvc_exit(void)
 {
-	platform_driver_unregister(&pm886_dvc_driver);
+	platform_driver_unregister(&pm88x_dvc_driver);
 }
-module_exit(pm886_dvc_exit);
+module_exit(pm88x_dvc_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("DVC Driver for Marvell 88PM886 PMIC");

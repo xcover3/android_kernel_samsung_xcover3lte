@@ -311,14 +311,14 @@ static struct dvfs_rail_component vm_rail_comp_tbl_dvc[VM_RAIL_MAX] = {
 
 static int set_pmic_volt(unsigned int lvl, unsigned int mv)
 {
-	return pm886_dvc_set_volt(lvl, mv * mV2uV);
+	return pm88x_dvc_set_volt(lvl, mv * mV2uV);
 }
 
 static int get_pmic_volt(unsigned int lvl)
 {
 	int uv = 0;
 
-	uv = pm886_dvc_get_volt(lvl);
+	uv = pm88x_dvc_get_volt(lvl);
 	if (uv < 0)
 		return uv;
 	return DIV_ROUND_UP(uv, mV2uV);

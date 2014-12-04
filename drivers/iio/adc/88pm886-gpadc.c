@@ -22,12 +22,12 @@
 #include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 
-#define PM886_GAPDC_CONFIG11		(0x0b) /* perbias and bias for gpadc0 */
-#define PM886_GAPDC_CONFIG12		(0x0c) /* perbias and bias for gpadc1 */
-#define PM886_GAPDC_CONFIG13		(0x0d) /* perbias and bias for gpadc2 */
-#define PM886_GAPDC_CONFIG14		(0x0e) /* perbias and bias for gpadc3 */
+#define PM88X_GAPDC_CONFIG11		(0x0b) /* perbias and bias for gpadc0 */
+#define PM88X_GAPDC_CONFIG12		(0x0c) /* perbias and bias for gpadc1 */
+#define PM88X_GAPDC_CONFIG13		(0x0d) /* perbias and bias for gpadc2 */
+#define PM88X_GAPDC_CONFIG14		(0x0e) /* perbias and bias for gpadc3 */
 
-#define PM886_GPADC_CONFIG20		(0x14) /* gp_bias_out and gp_bias_en */
+#define PM88X_GPADC_CONFIG20		(0x14) /* gp_bias_out and gp_bias_en */
 
 enum {
 	GPADC_0_RES,
@@ -61,8 +61,8 @@ enum {
 	GPADC3_RES_CHAN = 17,
 };
 
-struct pm886_gpadc_info {
-	struct pm886_chip *chip;
+struct pm88x_gpadc_info {
+	struct pm88x_chip *chip;
 	struct mutex	lock;
 	u8 (*channel_to_reg)(int channel);
 	u8 (*channel_to_gpadc_num)(int channel);
@@ -72,9 +72,9 @@ struct pm886_gpadc_info {
 extern struct iio_dev *iio_allocate_device(int sizeof_priv);
 
 /* used by external access */
-static struct pm886_gpadc_info *g_gpadc;
+static struct pm88x_gpadc_info *g_gpadc;
 
-static u8 pm886_channel_to_reg(int channel)
+static u8 pm88x_channel_to_reg(int channel)
 {
 	u8 reg;
 
@@ -121,7 +121,7 @@ static u8 pm886_channel_to_reg(int channel)
 	return reg;
 }
 
-static u8 pm886_channel_to_gpadc_num(int channel)
+static u8 pm88x_channel_to_gpadc_num(int channel)
 {
 	return (channel - GPADC0_RES_CHAN);
 }
@@ -131,7 +131,7 @@ static u8 pm886_channel_to_gpadc_num(int channel)
  * - there are 4 GPADC channels
  * - the workable range for the GPADC is [0, 1400mV],
  */
-static int pm886_gpadc_set_current_generator(struct pm886_gpadc_info *info,
+static int pm88x_gpadc_set_current_generator(struct pm88x_gpadc_info *info,
 					     int gpadc_number, int on)
 {
 	int ret;
@@ -151,13 +151,13 @@ static int pm886_gpadc_set_current_generator(struct pm886_gpadc_info *info,
 	}
 
 	ret = regmap_update_bits(info->chip->gpadc_regmap,
-				 PM886_GPADC_CONFIG20, mask1 | mask2,
+				 PM88X_GPADC_CONFIG20, mask1 | mask2,
 				 gp_bias_out | gp_bias_en);
 
 	return ret;
 }
 
-static int pm886_gpadc_get_raw(struct pm886_gpadc_info *gpadc, int channel, int *res)
+static int pm88x_gpadc_get_raw(struct pm88x_gpadc_info *gpadc, int channel, int *res)
 {
 	u8 buf[2];
 	int raw, ret;
@@ -180,13 +180,13 @@ static int pm886_gpadc_get_raw(struct pm886_gpadc_info *gpadc, int channel, int 
 	return ret;
 }
 
-static int pm886_gpadc_get_processed(struct pm886_gpadc_info *gpadc,
+static int pm88x_gpadc_get_processed(struct pm88x_gpadc_info *gpadc,
 				     int channel, int *res)
 {
 	int ret, val;
 	struct iio_dev *iio = iio_priv_to_dev(gpadc);
 
-	ret = pm886_gpadc_get_raw(gpadc, channel, &val);
+	ret = pm88x_gpadc_get_raw(gpadc, channel, &val);
 	if (ret) {
 		dev_err(gpadc->chip->dev, "get raw value fails: 0x%x\n", ret);
 		return ret;
@@ -201,23 +201,23 @@ static int pm886_gpadc_get_processed(struct pm886_gpadc_info *gpadc,
 	return ret;
 }
 
-static int pm886_gpadc_set_bias_current(struct pm886_gpadc_info *info,
+static int pm88x_gpadc_set_bias_current(struct pm88x_gpadc_info *info,
 					   int gpadc_number, int bias_current)
 {
 	int reg_val;
 	u8 reg;
 	switch (gpadc_number) {
 	case GPADC_0_RES:
-		reg = PM886_GAPDC_CONFIG11;
+		reg = PM88X_GAPDC_CONFIG11;
 		break;
 	case GPADC_1_RES:
-		reg = PM886_GAPDC_CONFIG12;
+		reg = PM88X_GAPDC_CONFIG12;
 		break;
 	case GPADC_2_RES:
-		reg = PM886_GAPDC_CONFIG13;
+		reg = PM88X_GAPDC_CONFIG13;
 		break;
 	case GPADC_3_RES:
-		reg = PM886_GAPDC_CONFIG14;
+		reg = PM88X_GAPDC_CONFIG14;
 		break;
 	default:
 		dev_err(info->chip->dev, "unsupported gpadc!\n");
@@ -228,7 +228,7 @@ static int pm886_gpadc_set_bias_current(struct pm886_gpadc_info *info,
 	return regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, reg_val);
 }
 
-static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
+static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 					   int gpadc_number,
 					   int *bias_current, int *bias_voltage)
 {
@@ -236,19 +236,19 @@ static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
 	u8 reg;
 	switch (gpadc_number) {
 	case GPADC_0_RES:
-		reg = PM886_GAPDC_CONFIG11;
+		reg = PM88X_GAPDC_CONFIG11;
 		channel = GPADC0_RES_CHAN;
 		break;
 	case GPADC_1_RES:
-		reg = PM886_GAPDC_CONFIG12;
+		reg = PM88X_GAPDC_CONFIG12;
 		channel = GPADC1_RES_CHAN;
 		break;
 	case GPADC_2_RES:
-		reg = PM886_GAPDC_CONFIG13;
+		reg = PM88X_GAPDC_CONFIG13;
 		channel = GPADC2_RES_CHAN;
 		break;
 	case GPADC_3_RES:
-		reg = PM886_GAPDC_CONFIG14;
+		reg = PM88X_GAPDC_CONFIG14;
 		channel = GPADC3_RES_CHAN;
 		break;
 	default:
@@ -264,7 +264,7 @@ static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
 			return ret;
 		msleep(20);
 
-		ret = pm886_gpadc_get_processed(info, channel, bias_voltage);
+		ret = pm88x_gpadc_get_processed(info, channel, bias_voltage);
 		if (ret < 0)
 			return ret;
 		if (*bias_voltage > 50000 && *bias_voltage < 1350000) {
@@ -285,7 +285,7 @@ static int pm886_gpadc_choose_bias_current(struct pm886_gpadc_info *info,
 	return 0;
 }
 
-static int pm886_gpadc_get_resistor(struct pm886_gpadc_info *gpadc,
+static int pm88x_gpadc_get_resistor(struct pm88x_gpadc_info *gpadc,
 				    int channel, int *res)
 {
 	int ret, bias_current, bias_voltage ;
@@ -293,11 +293,11 @@ static int pm886_gpadc_get_resistor(struct pm886_gpadc_info *gpadc,
 	u8 gpadc_number = gpadc->channel_to_gpadc_num(channel);
 
 	/* enable bias current */
-	ret = pm886_gpadc_set_current_generator(gpadc, gpadc_number, 1);
+	ret = pm88x_gpadc_set_current_generator(gpadc, gpadc_number, 1);
 	if (ret < 0)
 		return ret;
 
-	ret = pm886_gpadc_choose_bias_current(gpadc, gpadc_number,
+	ret = pm88x_gpadc_choose_bias_current(gpadc, gpadc_number,
 					      &bias_current, &bias_voltage);
 	if (ret < 0)
 		return ret;
@@ -308,11 +308,11 @@ static int pm886_gpadc_get_resistor(struct pm886_gpadc_info *gpadc,
 	return 0;
 }
 
-static int pm886_gpadc_read_raw(struct iio_dev *iio,
+static int pm88x_gpadc_read_raw(struct iio_dev *iio,
 				struct iio_chan_spec const *chan,
 				int *val, int *val2, long mask)
 {
-	struct pm886_gpadc_info *gpadc = iio_priv(iio);
+	struct pm88x_gpadc_info *gpadc = iio_priv(iio);
 	int err;
 
 	mutex_lock(&gpadc->lock);
@@ -322,17 +322,17 @@ static int pm886_gpadc_read_raw(struct iio_dev *iio,
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		err = pm886_gpadc_get_raw(gpadc, chan->channel, val);
+		err = pm88x_gpadc_get_raw(gpadc, chan->channel, val);
 		err = err ? -EIO : IIO_VAL_INT;
 		break;
 
 	case IIO_CHAN_INFO_PROCESSED:
-		err = pm886_gpadc_get_processed(gpadc, chan->channel, val);
+		err = pm88x_gpadc_get_processed(gpadc, chan->channel, val);
 		err = err ? -EIO : IIO_VAL_INT;
 		break;
 
 	case IIO_CHAN_INFO_SCALE:
-		err = pm886_gpadc_get_resistor(gpadc, chan->channel, val);
+		err = pm88x_gpadc_get_resistor(gpadc, chan->channel, val);
 		err = err ? -EIO : IIO_VAL_INT;
 		break;
 
@@ -356,7 +356,7 @@ static int pm886_gpadc_read_raw(struct iio_dev *iio,
 }
 
 /* according to value register sequence */
-static const struct iio_chan_spec pm886_gpadc_channels[] = {
+static const struct iio_chan_spec pm88x_gpadc_channels[] = {
 	/* FIXME */
 	ADC_CHANNEL(VSC_VOLT_CHAN, 1709, IIO_VOLTAGE, "vsc", IIO_CHAN_INFO_RAW),
 	ADC_CHANNEL(VCHG_PWR_VOLT_CHAN, 1709, IIO_VOLTAGE, "vchg_pwr", IIO_CHAN_INFO_RAW),
@@ -387,12 +387,12 @@ static const struct iio_chan_spec pm886_gpadc_channels[] = {
 };
 
 
-static const struct iio_info pm886_gpadc_iio_info = {
-	.read_raw = pm886_gpadc_read_raw,
+static const struct iio_info pm88x_gpadc_iio_info = {
+	.read_raw = pm88x_gpadc_read_raw,
 	.driver_module = THIS_MODULE,
 };
 
-static int pm886_gpadc_setup(struct pm886_gpadc_info *gpadc)
+static int pm88x_gpadc_setup(struct pm88x_gpadc_info *gpadc)
 {
 	int ret;
 	if (!gpadc || !gpadc->chip || !gpadc->chip->gpadc_regmap) {
@@ -400,49 +400,49 @@ static int pm886_gpadc_setup(struct pm886_gpadc_info *gpadc)
 		return -ENODEV;
 	}
 	/* gpadc enable */
-	ret = regmap_update_bits(gpadc->chip->gpadc_regmap, PM886_GPADC_CONFIG6,
+	ret = regmap_update_bits(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG6,
 				 1 << 0, 1 << 0);
 	if (ret < 0)
 		return ret;
 
 	/* enable all of the gpadc */
-	regmap_write(gpadc->chip->gpadc_regmap, PM886_GPADC_CONFIG1, 0xff);
-	regmap_write(gpadc->chip->gpadc_regmap, PM886_GPADC_CONFIG2, 0xff);
-	regmap_write(gpadc->chip->gpadc_regmap, PM886_GPADC_CONFIG3, 0x01);
+	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG1, 0xff);
+	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, 0xff);
+	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG3, 0x01);
 
 	return 0;
 }
 
-static const struct of_device_id of_pm886_gpadc_match[] = {
-	{ .compatible = "marvell,88pm886-gpadc" },
+static const struct of_device_id of_pm88x_gpadc_match[] = {
+	{ .compatible = "marvell,88pm88x-gpadc" },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, of_pm886_gpadc_match);
+MODULE_DEVICE_TABLE(of, of_pm88x_gpadc_match);
 
 /* default maps used by iio consumer */
-static struct iio_map pm886_default_iio_maps[] = {
+static struct iio_map pm88x_default_iio_maps[] = {
 	{
-		.consumer_dev_name = "88pm886-battery",
+		.consumer_dev_name = "88pm88x-battery",
 		.consumer_channel = "vbat",
 		.adc_channel_label = "vbat",
 	},
 	{
-		.consumer_dev_name = "88pm886-battery",
+		.consumer_dev_name = "88pm88x-battery",
 		.consumer_channel = "vbat_slp",
 		.adc_channel_label = "vbat_slp",
 	},
 	{
-		.consumer_dev_name = "88pm886-battery",
+		.consumer_dev_name = "88pm88x-battery",
 		.consumer_channel = "gpadc3_res",
 		.adc_channel_label = "gpadc3_res",
 	},
 	{ }
 };
 
-static int pm886_iio_map_register(struct iio_dev *iio,
-				  struct pm886_gpadc_info *gpadc)
+static int pm88x_iio_map_register(struct iio_dev *iio,
+				  struct pm88x_gpadc_info *gpadc)
 {
-	struct iio_map *map = pm886_default_iio_maps;
+	struct iio_map *map = pm88x_default_iio_maps;
 	int ret;
 
 	ret = iio_map_array_register(iio, map);
@@ -456,17 +456,17 @@ static int pm886_iio_map_register(struct iio_dev *iio,
 	return 0;
 }
 
-static int pm886_gpadc_probe(struct platform_device *pdev)
+static int pm88x_gpadc_probe(struct platform_device *pdev)
 {
 	struct iio_dev *iio;
 	struct device *dev = &pdev->dev;
-	struct pm886_gpadc_info *gpadc;
+	struct pm88x_gpadc_info *gpadc;
 	const struct of_device_id *match;
 	int err;
 
-	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 
-	match = of_match_device(of_pm886_gpadc_match, dev);
+	match = of_match_device(of_pm88x_gpadc_match, dev);
 	if (!match)
 		return -EINVAL;
 
@@ -476,24 +476,24 @@ static int pm886_gpadc_probe(struct platform_device *pdev)
 
 	gpadc = iio_priv(iio);
 	gpadc->chip = chip;
-	gpadc->channel_to_reg = pm886_channel_to_reg;
-	gpadc->channel_to_gpadc_num = pm886_channel_to_gpadc_num;
+	gpadc->channel_to_reg = pm88x_channel_to_reg;
+	gpadc->channel_to_gpadc_num = pm88x_channel_to_gpadc_num;
 
 	mutex_init(&gpadc->lock);
 
 	iio->dev.of_node = pdev->dev.of_node;
-	err = pm886_iio_map_register(iio, gpadc);
+	err = pm88x_iio_map_register(iio, gpadc);
 	if (err)
 		return err;
 
-	iio->name = "88pm886-gpadc";
+	iio->name = "88pm88x-gpadc";
 	iio->dev.parent = dev;
-	iio->info = &pm886_gpadc_iio_info;
+	iio->info = &pm88x_gpadc_iio_info;
 	iio->modes = INDIO_DIRECT_MODE;
-	iio->channels = pm886_gpadc_channels;
-	iio->num_channels = ARRAY_SIZE(pm886_gpadc_channels);
+	iio->channels = pm88x_gpadc_channels;
+	iio->num_channels = ARRAY_SIZE(pm88x_gpadc_channels);
 
-	err = pm886_gpadc_setup(gpadc);
+	err = pm88x_gpadc_setup(gpadc);
 	if (err < 0)
 		return err;
 
@@ -508,7 +508,7 @@ static int pm886_gpadc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int pm886_gpadc_remove(struct platform_device *pdev)
+static int pm88x_gpadc_remove(struct platform_device *pdev)
 {
 	struct iio_dev *iio = platform_get_drvdata(pdev);
 	iio_device_unregister(iio);
@@ -516,13 +516,13 @@ static int pm886_gpadc_remove(struct platform_device *pdev)
 	return 0;
 }
 
-int extern_pm886_gpadc_set_current_generator(int gpadc_number, int on)
+int extern_pm88x_gpadc_set_current_generator(int gpadc_number, int on)
 {
-	return pm886_gpadc_set_current_generator(g_gpadc, gpadc_number, on);
+	return pm88x_gpadc_set_current_generator(g_gpadc, gpadc_number, on);
 }
-EXPORT_SYMBOL(extern_pm886_gpadc_set_current_generator);
+EXPORT_SYMBOL(extern_pm88x_gpadc_set_current_generator);
 
-int extern_pm886_gpadc_get_volt(int gpadc_number, int *volt)
+int extern_pm88x_gpadc_get_volt(int gpadc_number, int *volt)
 {
 	int channel;
 	switch (gpadc_number) {
@@ -543,39 +543,39 @@ int extern_pm886_gpadc_get_volt(int gpadc_number, int *volt)
 		return -EINVAL;
 	}
 
-	return pm886_gpadc_get_processed(g_gpadc, channel, volt);
+	return pm88x_gpadc_get_processed(g_gpadc, channel, volt);
 }
-EXPORT_SYMBOL(extern_pm886_gpadc_get_volt);
+EXPORT_SYMBOL(extern_pm88x_gpadc_get_volt);
 
 
-int extern_pm886_gpadc_set_bias_current(int gpadc_number, int bias)
+int extern_pm88x_gpadc_set_bias_current(int gpadc_number, int bias)
 {
-	return pm886_gpadc_set_bias_current(g_gpadc, gpadc_number, bias);
+	return pm88x_gpadc_set_bias_current(g_gpadc, gpadc_number, bias);
 }
-EXPORT_SYMBOL(extern_pm886_gpadc_set_bias_current);
+EXPORT_SYMBOL(extern_pm88x_gpadc_set_bias_current);
 
-static struct platform_driver pm886_gpadc_driver = {
+static struct platform_driver pm88x_gpadc_driver = {
 	.driver = {
-		.name = "88pm886-gpadc",
+		.name = "88pm88x-gpadc",
 		.owner = THIS_MODULE,
-		.of_match_table = of_match_ptr(of_pm886_gpadc_match),
+		.of_match_table = of_match_ptr(of_pm88x_gpadc_match),
 	},
-	.probe = pm886_gpadc_probe,
-	.remove = pm886_gpadc_remove,
+	.probe = pm88x_gpadc_probe,
+	.remove = pm88x_gpadc_remove,
 };
 
-static int pm886_gpadc_init(void)
+static int pm88x_gpadc_init(void)
 {
-	return platform_driver_register(&pm886_gpadc_driver);
+	return platform_driver_register(&pm88x_gpadc_driver);
 }
-module_init(pm886_gpadc_init);
+module_init(pm88x_gpadc_init);
 
-static void pm886_gpadc_exit(void)
+static void pm88x_gpadc_exit(void)
 {
-	platform_driver_unregister(&pm886_gpadc_driver);
+	platform_driver_unregister(&pm88x_gpadc_driver);
 }
-module_exit(pm886_gpadc_exit);
+module_exit(pm88x_gpadc_exit);
 
 MODULE_AUTHOR("Yi Zhang <yizhang@marvell.com>");
-MODULE_DESCRIPTION("Marvell 88PM886 GPADC driver");
+MODULE_DESCRIPTION("Marvell 88PM88x GPADC driver");
 MODULE_LICENSE("GPL v2");

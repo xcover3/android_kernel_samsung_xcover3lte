@@ -61,7 +61,7 @@
 #define MIC_DET_PRD_CTN		(3 << 3)
 
 struct pm886_hs_info {
-	struct pm886_chip *chip;
+	struct pm88x_chip *chip;
 	struct device *dev;
 	struct regmap *map;
 	struct regmap *map_gpadc;
@@ -536,7 +536,7 @@ static struct regmap *pm80x_get_companion(void)
 
 static int pm886_headset_probe(struct platform_device *pdev)
 {
-	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	int irq_headset, irq_hook, ret = 0;
 	struct resource *headset_resource, *mic_resource;
 

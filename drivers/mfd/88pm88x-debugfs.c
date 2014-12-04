@@ -45,27 +45,27 @@
 #include <linux/ctype.h>
 #endif
 
-#define PM886_NAME		"88pm886"
-#define PM886_PAGES_NUM		(0x8)
+#define PM88X_NAME		"88pm886"
+#define PM88X_PAGES_NUM		(0x8)
 
-static struct dentry *pm886_dir;
+static struct dentry *pm88x_dir;
 static u8 debug_page_addr, debug_reg_addr, debug_reg_val;
 
-static int pm886_reg_addr_print(struct seq_file *s, void *p)
+static int pm88x_reg_addr_print(struct seq_file *s, void *p)
 {
 	return seq_printf(s, "0x%02x\n", debug_reg_addr);
 }
 
-static int pm886_reg_addr_open(struct inode *inode, struct file *file)
+static int pm88x_reg_addr_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, pm886_reg_addr_print, inode->i_private);
+	return single_open(file, pm88x_reg_addr_print, inode->i_private);
 }
 
-static ssize_t pm886_reg_addr_write(struct file *file,
+static ssize_t pm88x_reg_addr_write(struct file *file,
 				     const char __user *user_buf,
 				     size_t count, loff_t *ppos)
 {
-	struct pm886_chip *chip = file->private_data;
+	struct pm88x_chip *chip = file->private_data;
 	unsigned long user_reg;
 	int err;
 
@@ -83,29 +83,29 @@ static ssize_t pm886_reg_addr_write(struct file *file,
 	return count;
 }
 
-static const struct file_operations pm886_reg_addr_fops = {
-	.open = pm886_reg_addr_open,
-	.write = pm886_reg_addr_write,
+static const struct file_operations pm88x_reg_addr_fops = {
+	.open = pm88x_reg_addr_open,
+	.write = pm88x_reg_addr_write,
 	.read = seq_read,
 	.release = single_release,
 	.owner = THIS_MODULE,
 };
 
-static int pm886_page_addr_print(struct seq_file *s, void *p)
+static int pm88x_page_addr_print(struct seq_file *s, void *p)
 {
 	return seq_printf(s, "0x%02x\n", debug_page_addr);
 }
 
-static int pm886_page_addr_open(struct inode *inode, struct file *file)
+static int pm88x_page_addr_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, pm886_page_addr_print, inode->i_private);
+	return single_open(file, pm88x_page_addr_print, inode->i_private);
 }
 
-static ssize_t pm886_page_addr_write(struct file *file,
+static ssize_t pm88x_page_addr_write(struct file *file,
 				     const char __user *user_buf,
 				     size_t count, loff_t *ppos)
 {
-	struct pm886_chip *chip =
+	struct pm88x_chip *chip =
 		((struct seq_file *)(file->private_data))->private;
 	u8 user_page;
 	int err;
@@ -114,7 +114,7 @@ static ssize_t pm886_page_addr_write(struct file *file,
 	if (err)
 		return err;
 
-	if (user_page >= PM886_PAGES_NUM) {
+	if (user_page >= PM88X_PAGES_NUM) {
 		dev_err(chip->dev, "debugfs error input > number of pages\n");
 		return -EINVAL;
 	}
@@ -137,17 +137,17 @@ static ssize_t pm886_page_addr_write(struct file *file,
 	return count;
 }
 
-static const struct file_operations pm886_page_addr_fops = {
-	.open = pm886_page_addr_open,
-	.write = pm886_page_addr_write,
+static const struct file_operations pm88x_page_addr_fops = {
+	.open = pm88x_page_addr_open,
+	.write = pm88x_page_addr_write,
 	.read = seq_read,
 	.release = single_release,
 	.owner = THIS_MODULE,
 };
 
-static int pm886_reg_val_get(struct seq_file *s, void *p)
+static int pm88x_reg_val_get(struct seq_file *s, void *p)
 {
-	struct pm886_chip *chip = s->private;
+	struct pm88x_chip *chip = s->private;
 	int err;
 	struct regmap *map;
 	unsigned int user_val;
@@ -188,16 +188,16 @@ static int pm886_reg_val_get(struct seq_file *s, void *p)
 	return 0;
 }
 
-static int pm886_reg_val_open(struct inode *inode, struct file *file)
+static int pm88x_reg_val_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, pm886_reg_val_get, inode->i_private);
+	return single_open(file, pm88x_reg_val_get, inode->i_private);
 }
 
-static ssize_t pm886_reg_val_write(struct file *file,
+static ssize_t pm88x_reg_val_write(struct file *file,
 				const char __user *user_buf,
 				size_t count, loff_t *ppos)
 {
-	struct pm886_chip *chip = ((struct seq_file *)(file->private_data))->private;
+	struct pm88x_chip *chip = ((struct seq_file *)(file->private_data))->private;
 	unsigned long user_val;
 	static struct regmap *map;
 	int err;
@@ -245,20 +245,20 @@ static ssize_t pm886_reg_val_write(struct file *file,
 	return count;
 }
 
-static const struct file_operations pm886_reg_val_fops = {
-	.open = pm886_reg_val_open,
+static const struct file_operations pm88x_reg_val_fops = {
+	.open = pm88x_reg_val_open,
 	.read = seq_read,
-	.write = pm886_reg_val_write,
+	.write = pm88x_reg_val_write,
 	.llseek = seq_lseek,
 	.release = single_release,
 	.owner = THIS_MODULE,
 };
 
-static ssize_t pm886_compact_addr_write(struct file *file,
+static ssize_t pm88x_compact_addr_write(struct file *file,
 				const char __user *user_buf,
 				size_t count, loff_t *ppos)
 {
-	struct pm886_chip *chip = file->private_data;
+	struct pm88x_chip *chip = file->private_data;
 	int err;
 
 	static char msg[20], index[20];
@@ -283,13 +283,13 @@ static ssize_t pm886_compact_addr_write(struct file *file,
 	return count;
 }
 
-static const struct file_operations pm886_compact_addr_fops = {
+static const struct file_operations pm88x_compact_addr_fops = {
 	.open = simple_open,
-	.write = pm886_compact_addr_write,
+	.write = pm88x_compact_addr_write,
 	.owner = THIS_MODULE,
 };
 
-static int pm886_registers_print(struct pm886_chip *chip, u8 page,
+static int pm88x_registers_print(struct pm88x_chip *chip, u8 page,
 			     struct seq_file *s)
 {
 	static u8 reg;
@@ -325,34 +325,34 @@ static int pm886_registers_print(struct pm886_chip *chip, u8 page,
 	return 0;
 }
 
-static int pm886_print_whole_page(struct seq_file *s, void *p)
+static int pm88x_print_whole_page(struct seq_file *s, void *p)
 {
-	struct pm886_chip *chip = s->private;
+	struct pm88x_chip *chip = s->private;
 	u8 page_addr = debug_page_addr;
 
 	seq_puts(s, "88pm886 register values:\n");
 	seq_printf(s, " page 0x%02x:\n", page_addr);
 
-	pm886_registers_print(chip, debug_page_addr, s);
+	pm88x_registers_print(chip, debug_page_addr, s);
 	return 0;
 }
 
-static int pm886_whole_page_open(struct inode *inode, struct file *file)
+static int pm88x_whole_page_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, pm886_print_whole_page, inode->i_private);
+	return single_open(file, pm88x_print_whole_page, inode->i_private);
 }
 
-static const struct file_operations pm886_whole_page_fops = {
-	.open = pm886_whole_page_open,
+static const struct file_operations pm88x_whole_page_fops = {
+	.open = pm88x_whole_page_open,
 	.read = seq_read,
 	.release = single_release,
 	.owner = THIS_MODULE,
 };
 
-static ssize_t pm886_read_power_down(struct file *file, char __user *user_buf,
+static ssize_t pm88x_read_power_down(struct file *file, char __user *user_buf,
 				     size_t count, loff_t *ppos)
 {
-	struct pm886_chip *chip = file->private_data;
+	struct pm88x_chip *chip = file->private_data;
 	unsigned int i;
 	int len = 0;
 	char buf[100];
@@ -401,16 +401,16 @@ static ssize_t pm886_read_power_down(struct file *file, char __user *user_buf,
 	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
 }
 
-static const struct file_operations pm886_power_down_fops = {
+static const struct file_operations pm88x_power_down_fops = {
 	.open = simple_open,
-	.read = pm886_read_power_down,
+	.read = pm88x_read_power_down,
 	.owner = THIS_MODULE,
 };
 
-static ssize_t pm886_read_power_up(struct file *file, char __user *user_buf,
+static ssize_t pm88x_read_power_up(struct file *file, char __user *user_buf,
 				   size_t count, loff_t *ppos)
 {
-	struct pm886_chip *chip = file->private_data;
+	struct pm88x_chip *chip = file->private_data;
 	unsigned int i;
 	int len = 0;
 	char buf[100];
@@ -437,87 +437,87 @@ static ssize_t pm886_read_power_up(struct file *file, char __user *user_buf,
 	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
 }
 
-static const struct file_operations pm886_power_up_fops = {
+static const struct file_operations pm88x_power_up_fops = {
 	.open = simple_open,
-	.read = pm886_read_power_up,
+	.read = pm88x_read_power_up,
 	.owner = THIS_MODULE,
 };
 
-static int pm886_debug_probe(struct platform_device *pdev)
+static int pm88x_debug_probe(struct platform_device *pdev)
 {
 	struct dentry *file;
-	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 
-	pm886_dir = debugfs_create_dir(PM886_NAME, NULL);
-	if (!pm886_dir)
+	pm88x_dir = debugfs_create_dir(PM88X_NAME, NULL);
+	if (!pm88x_dir)
 		goto err;
 
 	file = debugfs_create_file("register-address", (S_IRUGO | S_IWUSR | S_IWGRP),
-		pm886_dir, chip, &pm886_reg_addr_fops);
+		pm88x_dir, chip, &pm88x_reg_addr_fops);
 	if (!file)
 		goto err;
 
 	file = debugfs_create_file("page-address", (S_IRUGO | S_IWUSR | S_IWGRP),
-		pm886_dir, chip, &pm886_page_addr_fops);
+		pm88x_dir, chip, &pm88x_page_addr_fops);
 	if (!file)
 		goto err;
 
 	file = debugfs_create_file("register-value", (S_IRUGO | S_IWUSR | S_IWGRP),
-		pm886_dir, chip, &pm886_reg_val_fops);
+		pm88x_dir, chip, &pm88x_reg_val_fops);
 	if (!file)
 		goto err;
 
 	file = debugfs_create_file("compact-address", (S_IRUGO | S_IWUSR | S_IWGRP),
-		pm886_dir, chip, &pm886_compact_addr_fops);
+		pm88x_dir, chip, &pm88x_compact_addr_fops);
 	if (!file)
 		goto err;
 	file = debugfs_create_file("whole-page", (S_IRUGO | S_IRUSR | S_IRGRP),
-		pm886_dir, chip, &pm886_whole_page_fops);
+		pm88x_dir, chip, &pm88x_whole_page_fops);
 	if (!file)
 		goto err;
 	file = debugfs_create_file("power-down-log", (S_IRUGO | S_IRUSR | S_IRGRP),
-		pm886_dir, chip, &pm886_power_down_fops);
+		pm88x_dir, chip, &pm88x_power_down_fops);
 	if (!file)
 		goto err;
 	file = debugfs_create_file("power-up-log", (S_IRUGO | S_IRUSR | S_IRGRP),
-		pm886_dir, chip, &pm886_power_up_fops);
+		pm88x_dir, chip, &pm88x_power_up_fops);
 	if (!file)
 		goto err;
 	return 0;
 err:
-	debugfs_remove_recursive(pm886_dir);
+	debugfs_remove_recursive(pm88x_dir);
 	dev_err(&pdev->dev, "failed to create debugfs entries.\n");
 	return -ENOMEM;
 }
 
-static int pm886_debug_remove(struct platform_device *pdev)
+static int pm88x_debug_remove(struct platform_device *pdev)
 {
-	debugfs_remove_recursive(pm886_dir);
+	debugfs_remove_recursive(pm88x_dir);
 
 	return 0;
 }
 
 
-static struct platform_driver pm886_debug_driver = {
+static struct platform_driver pm88x_debug_driver = {
 	.driver = {
 		.name = "88pm886-debugfs",
 		.owner = THIS_MODULE,
 	},
-	.probe  = pm886_debug_probe,
-	.remove = pm886_debug_remove
+	.probe  = pm88x_debug_probe,
+	.remove = pm88x_debug_remove
 };
 
-static int pm886_debug_init(void)
+static int pm88x_debug_init(void)
 {
-	return platform_driver_register(&pm886_debug_driver);
+	return platform_driver_register(&pm88x_debug_driver);
 }
 
-static void pm886_debug_exit(void)
+static void pm88x_debug_exit(void)
 {
-	platform_driver_unregister(&pm886_debug_driver);
+	platform_driver_unregister(&pm88x_debug_driver);
 }
-subsys_initcall(pm886_debug_init);
-module_exit(pm886_debug_exit);
+subsys_initcall(pm88x_debug_init);
+module_exit(pm88x_debug_exit);
 
 MODULE_AUTHOR("Yi Zhang <yizhang@marvell.com>");
 MODULE_DESCRIPTION("88pm886 debug interface");

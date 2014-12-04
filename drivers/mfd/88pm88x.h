@@ -34,6 +34,6 @@ extern const struct regmap_config pm886_test_i2c_regmap;
 extern const struct mfd_cell pm886_cell_devs[];
 extern struct pmic_cell_info pm886_cell_info;
 
-int pm886_apply_patch(struct pm886_chip *chip);
+int pm886_apply_patch(struct pm88x_chip *chip);
 
 #endif

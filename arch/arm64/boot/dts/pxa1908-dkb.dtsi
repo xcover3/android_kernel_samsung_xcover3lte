@@ -932,14 +932,6 @@
 					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
 					interrupt-parent = <&gic>;
 
-					onkey {
-						marvell,pm886-onkey-gpio-number = <0>;
-					};
-
-					vbus {
-						gpadc-number = <1>;
-					};
-
 					dvc {
 						pinctrl-names = "default";
 						pinctrl-0 = <&dvc_pmx_func>;

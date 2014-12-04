@@ -29,49 +29,49 @@
 
 #define CHG_RESTART_DELAY		(5) /* in minutes */
 
-#define PM886_CHG_ENABLE		(1 << 0)
-#define PM886_CHG_WDT_EN		(1 << 1)
-#define PM886_USB_SUSP			(1 << 6)
+#define PM88X_CHG_ENABLE		(1 << 0)
+#define PM88X_CHG_WDT_EN		(1 << 1)
+#define PM88X_USB_SUSP			(1 << 6)
 
-#define PM886_CHG_CONFIG3		(0x2A)
-#define PM886_OV_VBAT_EN		(1 << 0)
+#define PM88X_CHG_CONFIG3		(0x2A)
+#define PM88X_OV_VBAT_EN		(1 << 0)
 
-#define PM886_PRE_CONFIG1		(0x2D)
-#define PM886_ICHG_PRE_SET_OFFSET	(0)
-#define PM886_ICHG_PRE_SET_MASK		(0X7 << PM886_ICHG_PRE_SET_OFFSET)
-#define PM886_VBAT_PRE_TERM_SET_OFFSET	(4)
-#define PM886_VBAT_PRE_TERM_SET_MASK	(0x7 << PM886_VBAT_PRE_TERM_SET_OFFSET)
+#define PM88X_PRE_CONFIG1		(0x2D)
+#define PM88X_ICHG_PRE_SET_OFFSET	(0)
+#define PM88X_ICHG_PRE_SET_MASK		(0X7 << PM88X_ICHG_PRE_SET_OFFSET)
+#define PM88X_VBAT_PRE_TERM_SET_OFFSET	(4)
+#define PM88X_VBAT_PRE_TERM_SET_MASK	(0x7 << PM88X_VBAT_PRE_TERM_SET_OFFSET)
 
-#define PM886_FAST_CONFIG1		(0x2E)
-#define PM886_VBAT_FAST_SET_MASK	(0x7F << 0)
+#define PM88X_FAST_CONFIG1		(0x2E)
+#define PM88X_VBAT_FAST_SET_MASK	(0x7F << 0)
 
-#define PM886_FAST_CONFIG2		(0x2F)
-#define PM886_ICHG_FAST_SET_MASK	(0x1F << 0)
+#define PM88X_FAST_CONFIG2		(0x2F)
+#define PM88X_ICHG_FAST_SET_MASK	(0x1F << 0)
 
-#define PM886_FAST_CONFIG3		(0x30)
-#define PM886_IBAT_EOC_TH		(0x3F << 0)
+#define PM88X_FAST_CONFIG3		(0x30)
+#define PM88X_IBAT_EOC_TH		(0x3F << 0)
 
-#define PM886_TIMER_CONFIG		(0x31)
-#define PM886_FASTCHG_TOUT_OFFSET	(0)
-#define PM886_RECHG_THR_SET_50MV	(0x0 << 4)
-#define PM886_CHG_ILIM_EXTD_1X5		(0x3 << 6)
+#define PM88X_TIMER_CONFIG		(0x31)
+#define PM88X_FASTCHG_TOUT_OFFSET	(0)
+#define PM88X_RECHG_THR_SET_50MV	(0x0 << 4)
+#define PM88X_CHG_ILIM_EXTD_1X5		(0x3 << 6)
 
-#define PM886_EXT_ILIM_CONFIG		(0x34)
-#define PM886_CHG_ILIM_FINE_10		(0x4 << 4)
+#define PM88X_EXT_ILIM_CONFIG		(0x34)
+#define PM88X_CHG_ILIM_FINE_10		(0x4 << 4)
 
-#define PM886_MPPT_CONFIG3		(0x40)
-#define PM886_WA_TH_SET_3V9		(0x3 << 0)
+#define PM88X_MPPT_CONFIG3		(0x40)
+#define PM88X_WA_TH_SET_3V9		(0x3 << 0)
 
-#define PM886_CHG_LOG1			(0x45)
-#define PM886_BATT_REMOVAL		(1 << 0)
-#define PM886_CHG_REMOVAL		(1 << 1)
-#define PM886_BATT_TEMP_NOK		(1 << 2)
-#define PM886_CHG_WDT_EXPIRED		(1 << 3)
-#define PM886_OV_VBAT			(1 << 5)
-#define PM886_CHG_TIMEOUT		(1 << 6)
-#define PM886_OV_ITEMP			(1 << 7)
+#define PM88X_CHG_LOG1			(0x45)
+#define PM88X_BATT_REMOVAL		(1 << 0)
+#define PM88X_CHG_REMOVAL		(1 << 1)
+#define PM88X_BATT_TEMP_NOK		(1 << 2)
+#define PM88X_CHG_WDT_EXPIRED		(1 << 3)
+#define PM88X_OV_VBAT			(1 << 5)
+#define PM88X_CHG_TIMEOUT		(1 << 6)
+#define PM88X_OV_ITEMP			(1 << 7)
 
-struct pm886_charger_info {
+struct pm88x_charger_info {
 	struct device *dev;
 	struct power_supply ac_chg;
 	struct power_supply usb_chg;
@@ -106,16 +106,16 @@ struct pm886_charger_info {
 	int irq_nums;
 	int irq[7];
 
-	struct pm886_chip *chip;
-	int pm886_charger_status;
+	struct pm88x_chip *chip;
+	int pm88x_charger_status;
 };
 
-static enum power_supply_property pm886_props[] = {
+static enum power_supply_property pm88x_props[] = {
 	POWER_SUPPLY_PROP_STATUS, /* Charger status output */
 	POWER_SUPPLY_PROP_ONLINE, /* External power source */
 };
 
-static inline int get_prechg_cur(struct pm886_charger_info *info)
+static inline int get_prechg_cur(struct pm88x_charger_info *info)
 {
 	/* precharge current range is 300mA - 750mA */
 	if (info->prechg_cur > 750)
@@ -128,7 +128,7 @@ static inline int get_prechg_cur(struct pm886_charger_info *info)
 		return (info->prechg_cur - 450) / 50 + 1;
 }
 
-static inline int get_prechg_vol(struct pm886_charger_info *info)
+static inline int get_prechg_vol(struct pm88x_charger_info *info)
 {
 	/* precharge voltage range is 2.3V - 3.0V */
 	if (info->prechg_vol > 3000)
@@ -138,7 +138,7 @@ static inline int get_prechg_vol(struct pm886_charger_info *info)
 	return (info->prechg_vol - 2300) / 100;
 }
 
-static inline int get_fastchg_eoc(struct pm886_charger_info *info)
+static inline int get_fastchg_eoc(struct pm88x_charger_info *info)
 {
 	/* fastcharge eoc current range is 10mA - 640mA */
 	if (info->fastchg_eoc > 640)
@@ -148,7 +148,7 @@ static inline int get_fastchg_eoc(struct pm886_charger_info *info)
 	return (info->fastchg_eoc - 10) / 10;
 }
 
-static inline int get_fastchg_cur(struct pm886_charger_info *info)
+static inline int get_fastchg_cur(struct pm88x_charger_info *info)
 {
 	/* fastcharge current range is 300mA - 1500mA */
 	if (info->fastchg_cur > 1500)
@@ -162,7 +162,7 @@ static inline int get_fastchg_cur(struct pm886_charger_info *info)
 		return ((info->fastchg_cur - 450) / 50) + 1;
 }
 
-static inline int get_fastchg_vol(struct pm886_charger_info *info)
+static inline int get_fastchg_vol(struct pm88x_charger_info *info)
 {
 	/* fastcharge voltage range is 3.6V - 4.5V */
 	if (info->fastchg_vol > 4500)
@@ -172,7 +172,7 @@ static inline int get_fastchg_vol(struct pm886_charger_info *info)
 	return (info->fastchg_vol - 3600) * 10 / 125;
 }
 
-static inline int get_recharge_vol(struct pm886_charger_info *info)
+static inline int get_recharge_vol(struct pm88x_charger_info *info)
 {
 	/* recharge voltage range is 50mV - 200mV */
 	if (info->recharge_thr > 200)
@@ -182,7 +182,7 @@ static inline int get_recharge_vol(struct pm886_charger_info *info)
 	return (info->recharge_thr - 50) / 50;
 }
 
-static inline int get_ilim_cur(struct pm886_charger_info *info, unsigned int limit_cur)
+static inline int get_ilim_cur(struct pm88x_charger_info *info, unsigned int limit_cur)
 {
 	/* currnet limit range is 100mA - 1600mA */
 	if (limit_cur > 1600)
@@ -192,7 +192,7 @@ static inline int get_ilim_cur(struct pm886_charger_info *info, unsigned int lim
 	return (limit_cur - 100) / 100;
 }
 
-static inline int get_fastchg_timeout(struct pm886_charger_info *info)
+static inline int get_fastchg_timeout(struct pm88x_charger_info *info)
 {
 	static int ret;
 
@@ -214,7 +214,7 @@ static char *supply_interface[] = {
 	"battery",
 };
 
-static bool pm886_charger_check_allowed(struct pm886_charger_info *info)
+static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 {
 	union power_supply_propval val;
 	static struct power_supply *psy;
@@ -286,11 +286,11 @@ static bool pm886_charger_check_allowed(struct pm886_charger_info *info)
 	return true;
 }
 
-static int pm886_charger_get_property(struct power_supply *psy,
+static int pm88x_charger_get_property(struct power_supply *psy,
 			      enum power_supply_property psp,
 			      union power_supply_propval *val)
 {
-	struct pm886_charger_info *info = dev_get_drvdata(psy->dev->parent);
+	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
 
 	if (!info) {
 		pr_err("%s: charger chip info is empty!\n", __func__);
@@ -305,7 +305,7 @@ static int pm886_charger_get_property(struct power_supply *psy,
 			val->intval = info->usb_chg_online;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
-		val->intval = info->pm886_charger_status;
+		val->intval = info->pm88x_charger_status;
 		break;
 	default:
 		return -EINVAL;
@@ -313,29 +313,29 @@ static int pm886_charger_get_property(struct power_supply *psy,
 	return 0;
 }
 
-static int pm886_config_charger(struct pm886_charger_info *info)
+static int pm88x_config_charger(struct pm88x_charger_info *info)
 {
 	unsigned int limit_cur = info->limit_cur;
 	unsigned int data;
 
 	/* config fast charge timeout, rechare vol and ilim exted */
-	data =  (get_fastchg_timeout(info) << PM886_FASTCHG_TOUT_OFFSET)
-		| PM886_RECHG_THR_SET_50MV;
+	data =  (get_fastchg_timeout(info) << PM88X_FASTCHG_TOUT_OFFSET)
+		| PM88X_RECHG_THR_SET_50MV;
 	if (limit_cur > 1600) {
 		limit_cur *= 2;
 		limit_cur /= 3;
-		data |= PM886_CHG_ILIM_EXTD_1X5;
+		data |= PM88X_CHG_ILIM_EXTD_1X5;
 	}
-	regmap_write(info->chip->battery_regmap, PM886_TIMER_CONFIG, data);
+	regmap_write(info->chip->battery_regmap, PM88X_TIMER_CONFIG, data);
 
 	/* config current limit raw and fine */
-	regmap_write(info->chip->battery_regmap, PM886_EXT_ILIM_CONFIG,
-		     PM886_CHG_ILIM_FINE_10 | get_ilim_cur(info, limit_cur));
+	regmap_write(info->chip->battery_regmap, PM88X_EXT_ILIM_CONFIG,
+		     PM88X_CHG_ILIM_FINE_10 | get_ilim_cur(info, limit_cur));
 
 	return 0;
 }
 
-static int pm886_start_charging(struct pm886_charger_info *info)
+static int pm88x_start_charging(struct pm88x_charger_info *info)
 {
 	dev_info(info->dev, "%s\n", __func__);
 	info->charging = 1;
@@ -352,8 +352,8 @@ static int pm886_start_charging(struct pm886_charger_info *info)
 	regmap_write(info->chip->test_regmap, 0x46, 0x04);
 
 	/* enable charging */
-	regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG1,
-			   PM886_CHG_ENABLE, PM886_CHG_ENABLE);
+	regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
+			   PM88X_CHG_ENABLE, PM88X_CHG_ENABLE);
 
 	/* clear the previous settings */
 	regmap_write(info->chip->test_regmap, 0x40, 0x00);
@@ -366,7 +366,7 @@ static int pm886_start_charging(struct pm886_charger_info *info)
 	return 0;
 }
 
-static int pm886_stop_charging(struct pm886_charger_info *info)
+static int pm88x_stop_charging(struct pm88x_charger_info *info)
 {
 	unsigned int data;
 
@@ -374,21 +374,21 @@ static int pm886_stop_charging(struct pm886_charger_info *info)
 	/* disable charging */
 	info->charging = 0;
 
-	regmap_read(info->chip->battery_regmap, PM886_CHG_CONFIG1, &data);
+	regmap_read(info->chip->battery_regmap, PM88X_CHG_CONFIG1, &data);
 	/* enable USB suspend */
-	data |= PM886_USB_SUSP;
-	regmap_write(info->chip->battery_regmap, PM886_CHG_CONFIG1, data);
+	data |= PM88X_USB_SUSP;
+	regmap_write(info->chip->battery_regmap, PM88X_CHG_CONFIG1, data);
 
 	/* disable USB suspend and stop charging */
-	data &= ~(PM886_USB_SUSP | PM886_CHG_ENABLE);
-	regmap_write(info->chip->battery_regmap, PM886_CHG_CONFIG1, data);
+	data &= ~(PM88X_USB_SUSP | PM88X_CHG_ENABLE);
+	regmap_write(info->chip->battery_regmap, PM88X_CHG_CONFIG1, data);
 
 	return 0;
 }
 
-static void pm886_chg_ext_power_changed(struct power_supply *psy)
+static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 {
-	struct pm886_charger_info *info = dev_get_drvdata(psy->dev->parent);
+	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
 
 	if (!strncmp(psy->name, "ac", 2) && (info->ac_chg_online))
 		dev_dbg(info->dev, "%s: ac charger.\n", __func__);
@@ -400,10 +400,10 @@ static void pm886_chg_ext_power_changed(struct power_supply *psy)
 	schedule_work(&info->chg_state_machine_work);
 }
 
-static ssize_t pm886_control_charging(struct device *dev,
+static ssize_t pm88x_control_charging(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct pm886_charger_info *info = dev_get_drvdata(dev);
+	struct pm88x_charger_info *info = dev_get_drvdata(dev);
 	int enable;
 
 	if (!info)
@@ -425,9 +425,9 @@ static ssize_t pm886_control_charging(struct device *dev,
 	return strnlen(buf, PAGE_SIZE);
 }
 
-static DEVICE_ATTR(control, S_IWUSR | S_IWGRP, NULL, pm886_control_charging);
+static DEVICE_ATTR(control, S_IWUSR | S_IWGRP, NULL, pm88x_control_charging);
 
-static int pm886_power_supply_register(struct pm886_charger_info *info)
+static int pm88x_power_supply_register(struct pm88x_charger_info *info)
 {
 	int ret = 0;
 
@@ -440,10 +440,10 @@ static int pm886_power_supply_register(struct pm886_charger_info *info)
 	/* AC supply */
 	info->ac_chg.name = "ac";
 	info->ac_chg.type = POWER_SUPPLY_TYPE_MAINS;
-	info->ac_chg.properties = pm886_props;
-	info->ac_chg.num_properties = ARRAY_SIZE(pm886_props);
-	info->ac_chg.get_property = pm886_charger_get_property;
-	info->ac_chg.external_power_changed = pm886_chg_ext_power_changed;
+	info->ac_chg.properties = pm88x_props;
+	info->ac_chg.num_properties = ARRAY_SIZE(pm88x_props);
+	info->ac_chg.get_property = pm88x_charger_get_property;
+	info->ac_chg.external_power_changed = pm88x_chg_ext_power_changed;
 
 	ret = power_supply_register(info->dev, &info->ac_chg);
 	if (ret < 0)
@@ -452,10 +452,10 @@ static int pm886_power_supply_register(struct pm886_charger_info *info)
 	/* USB supply */
 	info->usb_chg.name = "usb";
 	info->usb_chg.type = POWER_SUPPLY_TYPE_USB;
-	info->usb_chg.properties = pm886_props;
-	info->usb_chg.num_properties = ARRAY_SIZE(pm886_props);
-	info->usb_chg.get_property = pm886_charger_get_property;
-	info->usb_chg.external_power_changed = pm886_chg_ext_power_changed;
+	info->usb_chg.properties = pm88x_props;
+	info->usb_chg.num_properties = ARRAY_SIZE(pm88x_props);
+	info->usb_chg.get_property = pm88x_charger_get_property;
+	info->usb_chg.external_power_changed = pm88x_chg_ext_power_changed;
 
 	ret = power_supply_register(info->dev, &info->usb_chg);
 	if (ret < 0)
@@ -468,7 +468,7 @@ err_usb:
 	return ret;
 }
 
-static int pm886_charger_init(struct pm886_charger_info *info)
+static int pm88x_charger_init(struct pm88x_charger_info *info)
 {
 	unsigned int mask, data;
 
@@ -480,10 +480,10 @@ static int pm886_charger_init(struct pm886_charger_info *info)
 	info->ac_chg_online = 0;
 	info->usb_chg_online = 0;
 	info->charging = 0;
-	info->pm886_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
+	info->pm88x_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
 
 	/* stop charging first */
-	pm886_stop_charging(info);
+	pm88x_stop_charging(info);
 
 	/* WA for A0 to prevent OV_VBAT fault and support dead battery case */
 	if (info->chip->chip_id == PM886_A0) {
@@ -503,45 +503,45 @@ static int pm886_charger_init(struct pm886_charger_info *info)
 		/* close test page */
 		regmap_write(info->chip->base_regmap, 0x1F, 0x0);
 		/* disable OV_VBAT */
-		regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG3,
-				   PM886_OV_VBAT_EN, 0);
+		regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG3,
+				   PM88X_OV_VBAT_EN, 0);
 		/* disable OV_VSYS1 and UV_VSYS1 */
-		regmap_write(info->chip->base_regmap, PM886_LOWPOWER4, 0x14);
+		regmap_write(info->chip->base_regmap, PM88X_LOWPOWER4, 0x14);
 	}
 
 	/* disable charger watchdog */
-	regmap_update_bits(info->chip->battery_regmap, PM886_CHG_CONFIG1,
-			   PM886_CHG_WDT_EN, 0);
+	regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
+			   PM88X_CHG_WDT_EN, 0);
 
 	/* config pre-charge parameters */
-	mask = PM886_ICHG_PRE_SET_MASK | PM886_VBAT_PRE_TERM_SET_MASK;
-	data = get_prechg_cur(info) << PM886_ICHG_PRE_SET_OFFSET
-		| get_prechg_vol(info) << PM886_VBAT_PRE_TERM_SET_OFFSET;
-	regmap_update_bits(info->chip->battery_regmap, PM886_PRE_CONFIG1,
+	mask = PM88X_ICHG_PRE_SET_MASK | PM88X_VBAT_PRE_TERM_SET_MASK;
+	data = get_prechg_cur(info) << PM88X_ICHG_PRE_SET_OFFSET
+		| get_prechg_vol(info) << PM88X_VBAT_PRE_TERM_SET_OFFSET;
+	regmap_update_bits(info->chip->battery_regmap, PM88X_PRE_CONFIG1,
 			   mask, data);
 
 	/* config fast-charge parameters */
-	regmap_update_bits(info->chip->battery_regmap, PM886_FAST_CONFIG1,
-			   PM886_VBAT_FAST_SET_MASK, get_fastchg_vol(info));
+	regmap_update_bits(info->chip->battery_regmap, PM88X_FAST_CONFIG1,
+			   PM88X_VBAT_FAST_SET_MASK, get_fastchg_vol(info));
 
-	regmap_update_bits(info->chip->battery_regmap, PM886_FAST_CONFIG2,
-			   PM886_ICHG_FAST_SET_MASK, get_fastchg_cur(info));
+	regmap_update_bits(info->chip->battery_regmap, PM88X_FAST_CONFIG2,
+			   PM88X_ICHG_FAST_SET_MASK, get_fastchg_cur(info));
 
-	regmap_update_bits(info->chip->battery_regmap, PM886_FAST_CONFIG3,
-			   PM886_IBAT_EOC_TH, get_fastchg_eoc(info));
+	regmap_update_bits(info->chip->battery_regmap, PM88X_FAST_CONFIG3,
+			   PM88X_IBAT_EOC_TH, get_fastchg_eoc(info));
 
 	/* set wall-adaptor threshold to 3.9V */
-	regmap_update_bits(info->chip->battery_regmap, PM886_MPPT_CONFIG3,
-			   PM886_WA_TH_SET_3V9, PM886_WA_TH_SET_3V9);
+	regmap_update_bits(info->chip->battery_regmap, PM88X_MPPT_CONFIG3,
+			   PM88X_WA_TH_SET_3V9, PM88X_WA_TH_SET_3V9);
 
 	return 0;
 }
 
-static int pm886_charger_notifier_call(struct notifier_block *nb,
+static int pm88x_charger_notifier_call(struct notifier_block *nb,
 				       unsigned long type, void *chg_event)
 {
-	struct pm886_charger_info *info =
-		container_of(nb, struct pm886_charger_info, nb);
+	struct pm88x_charger_info *info =
+		container_of(nb, struct pm88x_charger_info, nb);
 	static unsigned long prev_chg_type = NULL_CHARGER;
 
 	/* no change in charger type - nothing to do */
@@ -550,7 +550,7 @@ static int pm886_charger_notifier_call(struct notifier_block *nb,
 
 	/* disable the auto-charging on cable insertion and removal */
 	if (prev_chg_type == NULL_CHARGER || type == NULL_CHARGER)
-		pm886_stop_charging(info);
+		pm88x_stop_charging(info);
 
 	prev_chg_type = type;
 
@@ -591,7 +591,7 @@ static int pm886_charger_notifier_call(struct notifier_block *nb,
 	}
 
 	if (type != NULL_CHARGER)
-		pm886_config_charger(info);
+		pm88x_config_charger(info);
 
 	schedule_work(&info->chg_state_machine_work);
 
@@ -601,20 +601,20 @@ static int pm886_charger_notifier_call(struct notifier_block *nb,
 	return 0;
 }
 
-static void pm886_restart_chg_work(struct work_struct *work)
+static void pm88x_restart_chg_work(struct work_struct *work)
 {
-	struct pm886_charger_info *info =
-		container_of(work, struct pm886_charger_info,
+	struct pm88x_charger_info *info =
+		container_of(work, struct pm88x_charger_info,
 			restart_chg_work.work);
 
 	info->allow_chg_after_tout = 1;
 	schedule_work(&info->chg_state_machine_work);
 }
 
-static irqreturn_t pm886_chg_fail_handler(int irq, void *data)
+static irqreturn_t pm88x_chg_fail_handler(int irq, void *data)
 {
 	static int value;
-	struct pm886_charger_info *info = data;
+	struct pm88x_charger_info *info = data;
 
 	if (!info) {
 		pr_err("%s: charger chip info is empty!\n", __func__);
@@ -625,20 +625,20 @@ static irqreturn_t pm886_chg_fail_handler(int irq, void *data)
 	info->charging = 0;
 	dev_info(info->dev, "charge fail interrupt is served\n");
 
-	regmap_read(info->chip->battery_regmap, PM886_CHG_LOG1, &value);
+	regmap_read(info->chip->battery_regmap, PM88X_CHG_LOG1, &value);
 
-	if (value & PM886_BATT_REMOVAL)
+	if (value & PM88X_BATT_REMOVAL)
 		dev_info(info->chip->dev, "battery is plugged out.\n");
 
-	if (value & PM886_CHG_REMOVAL)
+	if (value & PM88X_CHG_REMOVAL)
 		dev_info(info->chip->dev, "charger cable is plugged out.\n");
 
-	if (value & PM886_BATT_TEMP_NOK) {
+	if (value & PM88X_BATT_TEMP_NOK) {
 		dev_err(info->chip->dev, "battery temperature is abnormal.\n");
 		/* handled in battery driver */
 	}
 
-	if (value & PM886_CHG_WDT_EXPIRED) {
+	if (value & PM88X_CHG_WDT_EXPIRED) {
 		info->allow_chg_after_tout = 0;
 		dev_err(info->dev, "charger WDT expired! restart charging in %d min\n",
 				CHG_RESTART_DELAY);
@@ -646,12 +646,12 @@ static irqreturn_t pm886_chg_fail_handler(int irq, void *data)
 				CHG_RESTART_DELAY * 60 * HZ);
 	}
 
-	if (value & PM886_OV_VBAT) {
+	if (value & PM88X_OV_VBAT) {
 		dev_err(info->chip->dev, "battery voltage is abnormal.\n");
 		info->allow_chg_after_overvoltage = 0;
 	}
 
-	if (value & PM886_CHG_TIMEOUT) {
+	if (value & PM88X_CHG_TIMEOUT) {
 		dev_err(info->chip->dev, "charge timeout.\n");
 		info->allow_chg_after_tout = 0;
 		dev_err(info->dev, "charger tomeout! restart charging in %d min\n",
@@ -660,21 +660,21 @@ static irqreturn_t pm886_chg_fail_handler(int irq, void *data)
 				CHG_RESTART_DELAY * 60 * HZ);
 	}
 
-	if (value & PM886_OV_ITEMP)
+	if (value & PM88X_OV_ITEMP)
 		/* handled in a dedicated interrupt */
 		dev_err(info->chip->dev, "internal temperature abnormal.\n");
 
 	/* write to clear */
-	regmap_write(info->chip->battery_regmap, PM886_CHG_LOG1, value);
+	regmap_write(info->chip->battery_regmap, PM88X_CHG_LOG1, value);
 
 	schedule_work(&info->chg_state_machine_work);
 
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t pm886_chg_done_handler(int irq, void *data)
+static irqreturn_t pm88x_chg_done_handler(int irq, void *data)
 {
-	struct pm886_charger_info *info = data;
+	struct pm88x_charger_info *info = data;
 
 	if (!info) {
 		pr_err("%s: charger chip info is empty!\n", __func__);
@@ -689,14 +689,14 @@ static irqreturn_t pm886_chg_done_handler(int irq, void *data)
 	info->allow_recharge = 0;
 
 	/* disable auto-recharge */
-	pm886_stop_charging(info);
+	pm88x_stop_charging(info);
 
 	schedule_work(&info->chg_state_machine_work);
 
 	return IRQ_HANDLED;
 }
 
-static void pm886_chg_state_machine(struct pm886_charger_info *info)
+static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 {
 	int chg_allowed, chg_online, prev_status;
 	char *charger_status[] = {
@@ -707,17 +707,17 @@ static void pm886_chg_state_machine(struct pm886_charger_info *info)
 		"FULL",
 	};
 
-	chg_allowed = pm886_charger_check_allowed(info);
-	prev_status = info->pm886_charger_status;
+	chg_allowed = pm88x_charger_check_allowed(info);
+	prev_status = info->pm88x_charger_status;
 	chg_online = info->ac_chg_online || info->usb_chg_online;
 
 	mutex_lock(&info->lock);
 
-	switch (info->pm886_charger_status) {
+	switch (info->pm88x_charger_status) {
 	case POWER_SUPPLY_STATUS_FULL:
 		/* charger removed */
 		if (!chg_online) {
-			info->pm886_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
+			info->pm88x_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
 		/* recharge done */
 		} else if (info->full) {
 			info->full = 0;
@@ -725,36 +725,36 @@ static void pm886_chg_state_machine(struct pm886_charger_info *info)
 		} else {
 			/* start recharge */
 			if (!info->charging && chg_allowed)
-				pm886_start_charging(info);
+				pm88x_start_charging(info);
 			/* stop recharge */
 			else if (info->charging && !chg_allowed)
-				pm886_stop_charging(info);
+				pm88x_stop_charging(info);
 		}
 		break;
 
 	case POWER_SUPPLY_STATUS_DISCHARGING:
 		/* charger inserted & charging allowed */
 		if (chg_online && chg_allowed) {
-			info->pm886_charger_status = POWER_SUPPLY_STATUS_CHARGING;
-			pm886_start_charging(info);
+			info->pm88x_charger_status = POWER_SUPPLY_STATUS_CHARGING;
+			pm88x_start_charging(info);
 		}
 		break;
 
 	case POWER_SUPPLY_STATUS_CHARGING:
 		/* charger removed */
 		if (!chg_online) {
-			info->pm886_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
+			info->pm88x_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
 		/* charging done - battery full */
 		} else if (info->full) {
 			info->full = 0;
-			info->pm886_charger_status = POWER_SUPPLY_STATUS_FULL;
+			info->pm88x_charger_status = POWER_SUPPLY_STATUS_FULL;
 		/* charging stopped for some reason */
 		} else if (!info->charging) {
-			info->pm886_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
+			info->pm88x_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
 		/* charging not allowed */
 		} else if (!chg_allowed) {
-			info->pm886_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
-			pm886_stop_charging(info);
+			info->pm88x_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
+			pm88x_stop_charging(info);
 		}
 		break;
 
@@ -766,31 +766,31 @@ static void pm886_chg_state_machine(struct pm886_charger_info *info)
 	mutex_unlock(&info->lock);
 
 	/* notify when status is changed */
-	if (prev_status != info->pm886_charger_status) {
+	if (prev_status != info->pm88x_charger_status) {
 		dev_dbg(info->chip->dev, "charger status changed from %s to %s\n",
-			charger_status[prev_status], charger_status[info->pm886_charger_status]);
+			charger_status[prev_status], charger_status[info->pm88x_charger_status]);
 		power_supply_changed(&info->ac_chg);
 	}
 }
 
-static void pm886_chg_state_machine_work(struct work_struct *work)
+static void pm88x_chg_state_machine_work(struct work_struct *work)
 {
-	struct pm886_charger_info *info =
-		container_of(work, struct pm886_charger_info, chg_state_machine_work);
+	struct pm88x_charger_info *info =
+		container_of(work, struct pm88x_charger_info, chg_state_machine_work);
 
-	pm886_chg_state_machine(info);
+	pm88x_chg_state_machine(info);
 }
 
-static struct pm886_irq_desc {
+static struct pm88x_irq_desc {
 	const char *name;
 	irqreturn_t (*handler)(int irq, void *data);
-} pm886_irq_descs[] = {
-	{"charge fail", pm886_chg_fail_handler},
-	{"charge done", pm886_chg_done_handler},
+} pm88x_irq_descs[] = {
+	{"charge fail", pm88x_chg_fail_handler},
+	{"charge done", pm88x_chg_done_handler},
 };
 
-static int pm886_charger_dt_init(struct device_node *np,
-			     struct pm886_charger_info *info)
+static int pm88x_charger_dt_init(struct device_node *np,
+			     struct pm88x_charger_info *info)
 {
 	int ret;
 
@@ -834,15 +834,15 @@ static int pm886_charger_dt_init(struct device_node *np,
 	return 0;
 }
 
-static int pm886_charger_probe(struct platform_device *pdev)
+static int pm88x_charger_probe(struct platform_device *pdev)
 {
-	struct pm886_charger_info *info;
-	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm88x_charger_info *info;
+	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct device_node *node = pdev->dev.of_node;
 	int ret = 0;
 	int i, j;
 
-	info = devm_kzalloc(&pdev->dev, sizeof(struct pm886_charger_info),
+	info = devm_kzalloc(&pdev->dev, sizeof(struct pm88x_charger_info),
 			GFP_KERNEL);
 	if (!info) {
 		dev_err(&pdev->dev, "Cannot allocate memory.\n");
@@ -852,7 +852,7 @@ static int pm886_charger_probe(struct platform_device *pdev)
 	info->dev = &pdev->dev;
 	info->chip = chip;
 
-	ret = pm886_charger_dt_init(node, info);
+	ret = pm88x_charger_dt_init(node, info);
 	if (ret)
 		return ret;
 
@@ -867,20 +867,20 @@ static int pm886_charger_probe(struct platform_device *pdev)
 	}
 	info->irq_nums = j;
 
-	ret = pm886_charger_init(info);
+	ret = pm88x_charger_init(info);
 	if (ret < 0) {
 		dev_err(info->dev, "initial charger fails.\n");
 		return ret;
 	}
 
-	ret = pm886_power_supply_register(info);
+	ret = pm88x_power_supply_register(info);
 	if (ret) {
 		dev_err(info->dev, "register power_supply fail!\n");
 		goto out;
 	}
 
 	/* register charger event notifier */
-	info->nb.notifier_call = pm886_charger_notifier_call;
+	info->nb.notifier_call = pm88x_charger_notifier_call;
 
 #ifdef CONFIG_USB_MV_UDC
 	ret = mv_udc_register_client(&info->nb);
@@ -890,15 +890,15 @@ static int pm886_charger_probe(struct platform_device *pdev)
 	}
 #endif
 
-	INIT_WORK(&info->chg_state_machine_work, pm886_chg_state_machine_work);
-	INIT_DELAYED_WORK(&info->restart_chg_work, pm886_restart_chg_work);
+	INIT_WORK(&info->chg_state_machine_work, pm88x_chg_state_machine_work);
+	INIT_DELAYED_WORK(&info->restart_chg_work, pm88x_restart_chg_work);
 
 	/* interrupt should be request in the last stage */
 	for (i = 0; i < info->irq_nums; i++) {
 		ret = devm_request_threaded_irq(info->dev, info->irq[i], NULL,
-						pm886_irq_descs[i].handler,
+						pm88x_irq_descs[i].handler,
 						IRQF_ONESHOT | IRQF_NO_SUSPEND,
-						pm886_irq_descs[i].name, info);
+						pm88x_irq_descs[i].name, info);
 		if (ret < 0) {
 			dev_err(info->dev, "failed to request IRQ: #%d: %d\n",
 				info->irq[i], ret);
@@ -926,19 +926,19 @@ out:
 	return ret;
 }
 
-static int pm886_charger_remove(struct platform_device *pdev)
+static int pm88x_charger_remove(struct platform_device *pdev)
 {
 	int i;
-	struct pm886_charger_info *info = platform_get_drvdata(pdev);
+	struct pm88x_charger_info *info = platform_get_drvdata(pdev);
 	if (!info)
 		return 0;
 
 	for (i = 0; i < info->irq_nums; i++) {
-		if (pm886_irq_descs[i].handler != NULL)
+		if (pm88x_irq_descs[i].handler != NULL)
 			devm_free_irq(info->dev, info->irq[i], info);
 	}
 
-	pm886_stop_charging(info);
+	pm88x_stop_charging(info);
 
 #ifdef CONFIG_USB_MV_UDC
 	mv_udc_unregister_client(&info->nb);
@@ -948,33 +948,33 @@ static int pm886_charger_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static void pm886_charger_shutdown(struct platform_device *pdev)
+static void pm88x_charger_shutdown(struct platform_device *pdev)
 {
-	pm886_charger_remove(pdev);
+	pm88x_charger_remove(pdev);
 	return;
 }
 
-static const struct of_device_id pm886_chg_dt_match[] = {
-	{ .compatible = "marvell,88pm886-charger", },
+static const struct of_device_id pm88x_chg_dt_match[] = {
+	{ .compatible = "marvell,88pm88x-charger", },
 	{ },
 };
-MODULE_DEVICE_TABLE(of, pm886_chg_dt_match);
+MODULE_DEVICE_TABLE(of, pm88x_chg_dt_match);
 
-static struct platform_driver pm886_charger_driver = {
-	.probe = pm886_charger_probe,
-	.remove = pm886_charger_remove,
-	.shutdown = pm886_charger_shutdown,
+static struct platform_driver pm88x_charger_driver = {
+	.probe = pm88x_charger_probe,
+	.remove = pm88x_charger_remove,
+	.shutdown = pm88x_charger_shutdown,
 	.driver = {
 		.owner = THIS_MODULE,
 		.name = "88pm886-charger",
-		.of_match_table = of_match_ptr(pm886_chg_dt_match),
+		.of_match_table = of_match_ptr(pm88x_chg_dt_match),
 	},
 };
 
-module_platform_driver(pm886_charger_driver);
+module_platform_driver(pm88x_charger_driver);
 
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("88pm886 Charger Driver");
-MODULE_ALIAS("platform:88pm886-charger");
+MODULE_DESCRIPTION("88pm88x Charger Driver");
+MODULE_ALIAS("platform:88pm88x-charger");
 MODULE_AUTHOR("Yi Zhang <yizhang@marvell.com>");
 MODULE_AUTHOR("Shay Pathov <shayp@marvell.com>");

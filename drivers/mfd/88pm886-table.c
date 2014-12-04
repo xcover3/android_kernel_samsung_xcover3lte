@@ -15,6 +15,7 @@
 #include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/mfd/88pm886-reg.h>
+#include <linux/mfd/88pm88x-reg.h>
 
 #include "88pm88x.h"
 
@@ -23,6 +24,9 @@
 #define PM886_LOWPOWER3			(0x22)
 #define PM886_BK_OSC_CTRL1		(0x50)
 #define PM886_BK_OSC_CTRL6		(0x55)
+
+#define PM886_BUCK_NAME		"88pm886-buck"
+#define PM886_LDO_NAME		"88pm886-ldo"
 
 static bool pm886_base_writeable_reg(struct device *dev, unsigned int reg)
 {
@@ -292,24 +296,24 @@ struct pmic_cell_info pm886_cell_info = {
 EXPORT_SYMBOL_GPL(pm886_cell_info);
 
 static const struct reg_default pm886_base_patch[] = {
-	{PM886_WDOG, 0x1},	 /* disable watchdog */
-	{PM886_GPIO_CTRL1, 0x40}, /* gpio1: dvc    , gpio0: input   */
-	{PM886_GPIO_CTRL2, 0x00}, /*               , gpio2: input   */
-	{PM886_GPIO_CTRL3, 0x44}, /* dvc2          , dvc1           */
-	{PM886_GPIO_CTRL4, 0x00}, /* gpio5v_1:input, gpio5v_2: input*/
-	{PM886_RTC_ALARM_CTRL1, 0x80}, /* USE_XO = 1 */
-	{PM886_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
+	{PM88X_WDOG, 0x1},	 /* disable watchdog */
+	{PM88X_GPIO_CTRL1, 0x40}, /* gpio1: dvc    , gpio0: input   */
+	{PM88X_GPIO_CTRL2, 0x00}, /*               , gpio2: input   */
+	{PM88X_GPIO_CTRL3, 0x44}, /* dvc2          , dvc1           */
+	{PM88X_GPIO_CTRL4, 0x00}, /* gpio5v_1:input, gpio5v_2: input*/
+	{PM88X_RTC_ALARM_CTRL1, 0x80}, /* USE_XO = 1 */
+	{PM88X_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
 	{PM886_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
 	{PM886_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
 	/* enable LPM for internal reference group in sleep */
-	{PM886_LOWPOWER4, 0xc0},
+	{PM88X_LOWPOWER4, 0xc0},
 };
 
 static const struct reg_default pm886_power_patch[] = {
 };
 
 static const struct reg_default pm886_gpadc_patch[] = {
-	{PM886_GPADC_CONFIG6, 0x03}, /* enable non-stop mode */
+	{PM88X_GPADC_CONFIG6, 0x03}, /* enable non-stop mode */
 };
 
 static const struct reg_default pm886_battery_patch[] = {
@@ -319,7 +323,7 @@ static const struct reg_default pm886_test_patch[] = {
 };
 
 /* 88pm886 chip itself related */
-int pm886_apply_patch(struct pm886_chip *chip)
+int pm886_apply_patch(struct pm88x_chip *chip)
 {
 	int ret, size;
 

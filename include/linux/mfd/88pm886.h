@@ -65,29 +65,4 @@ enum {
 #define PM886_GPADC_VOL_2_VALUE(v)	((v << 9) / 175)
 #define PM886_GPADC_VALUE_2_VOL(val)	((val * 175) >> 9)
 
-/* dvc external interface */
-#ifdef CONFIG_MFD_88PM88X
-int pm886_dvc_set_volt(u8 level, int uv);
-int pm886_dvc_get_volt(u8 level);
-struct regmap *get_companion(void);
-struct regmap *get_codec_companion(void);
-#else
-static inline int pm886_dvc_set_volt(u8 level, int uv)
-{
-	return 0;
-}
-static inline int pm886_dvc_get_volt(u8 level)
-{
-	return 0;
-}
-static inline struct regmap *get_companion(void)
-{
-	return NULL;
-}
-static inline struct regmap *get_codec_companion(void)
-{
-	return NULL;
-}
-#endif
-
 #endif /* __LINUX_MFD_88PM886_H */

@@ -25,8 +25,8 @@
 #include <linux/regulator/of_regulator.h>
 
 /* control section */
-#define PM886_LDO_EN1		(0x09)
-#define PM886_LDO_EN2		(0x0a)
+#define PM88X_LDO_EN1		(0x09)
+#define PM88X_LDO_EN2		(0x0a)
 
 /* max current in sleep */
 #define MAX_SLEEP_CURRENT	5000
@@ -35,22 +35,22 @@
  * ldo voltage:
  * ldox_set_slp[3: 0] ldox_set [3: 0]
  */
-#define PM886_LDO1_VOUT		(0x20)
-#define PM886_LDO2_VOUT		(0x26)
-#define PM886_LDO3_VOUT		(0x2c)
-#define PM886_LDO4_VOUT		(0x32)
-#define PM886_LDO5_VOUT		(0x38)
-#define PM886_LDO6_VOUT		(0x3e)
-#define PM886_LDO7_VOUT		(0x44)
-#define PM886_LDO8_VOUT		(0x4a)
-#define PM886_LDO9_VOUT		(0x50)
-#define PM886_LDO10_VOUT	(0x56)
-#define PM886_LDO11_VOUT	(0x5c)
-#define PM886_LDO12_VOUT	(0x62)
-#define PM886_LDO13_VOUT	(0x68)
-#define PM886_LDO14_VOUT	(0x6e)
-#define PM886_LDO15_VOUT	(0x74)
-#define PM886_LDO16_VOUT	(0x7a)
+#define PM88X_LDO1_VOUT		(0x20)
+#define PM88X_LDO2_VOUT		(0x26)
+#define PM88X_LDO3_VOUT		(0x2c)
+#define PM88X_LDO4_VOUT		(0x32)
+#define PM88X_LDO5_VOUT		(0x38)
+#define PM88X_LDO6_VOUT		(0x3e)
+#define PM88X_LDO7_VOUT		(0x44)
+#define PM88X_LDO8_VOUT		(0x4a)
+#define PM88X_LDO9_VOUT		(0x50)
+#define PM88X_LDO10_VOUT	(0x56)
+#define PM88X_LDO11_VOUT	(0x5c)
+#define PM88X_LDO12_VOUT	(0x62)
+#define PM88X_LDO13_VOUT	(0x68)
+#define PM88X_LDO14_VOUT	(0x6e)
+#define PM88X_LDO15_VOUT	(0x74)
+#define PM88X_LDO16_VOUT	(0x7a)
 
 /*
  * set ldo sleep voltage register is the same as the active registers;
@@ -69,25 +69,25 @@
  * For all the LDOes, there are too many ranges. Using volt_table will be
  * simpler and faster.
  */
-#define PM886_LDO(vreg, ereg, ebit, amax, ldo_volt_table)	\
+#define PM88X_LDO(vreg, ereg, ebit, amax, ldo_volt_table)	\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
-		.ops	= &pm886_volt_ldo_ops,				\
+		.ops	= &pm88x_volt_ldo_ops,				\
 		.type	= REGULATOR_VOLTAGE,				\
 		.id	= PM886_ID_##vreg,				\
 		.owner	= THIS_MODULE,					\
 		.n_voltages = ARRAY_SIZE(ldo_volt_table),		\
-		.vsel_reg	= PM886_##vreg##_VOUT,			\
+		.vsel_reg	= PM88X_##vreg##_VOUT,			\
 		.vsel_mask	= 0xf,					\
-		.enable_reg	= PM886_LDO_##ereg,			\
+		.enable_reg	= PM88X_LDO_##ereg,			\
 		.enable_mask	= 1 << (ebit),				\
 		.volt_table	= ldo_volt_table,			\
 	},								\
 	.max_ua			= (amax),				\
-	.sleep_vsel_reg		= PM886_##vreg##_VOUT,			\
+	.sleep_vsel_reg		= PM88X_##vreg##_VOUT,			\
 	.sleep_vsel_mask	= (0xf << 4),				\
-	.sleep_enable_reg	= PM886_##vreg##_SLP_CTRL,		\
+	.sleep_enable_reg	= PM88X_##vreg##_SLP_CTRL,		\
 	.sleep_enable_mask	= (0x3 << 4),				\
 }
 
@@ -105,7 +105,7 @@ static const unsigned int ldo_volt_table3[] = {
 	1700000, 1800000, 1900000, 2000000, 2100000, 2500000, 2700000, 2800000,
 };
 
-struct pm886_ldo_info {
+struct pm88x_ldo_info {
 	struct regulator_desc desc;
 	int max_ua;
 	u8 sleep_enable_mask;
@@ -114,17 +114,17 @@ struct pm886_ldo_info {
 	u8 sleep_vsel_mask;
 };
 
-struct pm886_ldos {
+struct pm88x_ldos {
 	struct regulator_dev *rdev;
-	struct pm886_chip *chip;
+	struct pm88x_chip *chip;
 	struct regmap *map;
 };
 
 #define USE_SLP_VOLT		(0x2 << 4)
 #define USE_ACTIVE_VOLT		(0x3 << 4)
-int pm886_ldo_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
+int pm88x_ldo_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
 {
-	struct pm886_ldo_info *info = rdev_get_drvdata(rdev);
+	struct pm88x_ldo_info *info = rdev_get_drvdata(rdev);
 	u8 val;
 	int ret;
 
@@ -137,11 +137,11 @@ int pm886_ldo_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
 	return ret;
 }
 
-static unsigned int pm886_ldo_get_optimum_mode(struct regulator_dev *rdev,
+static unsigned int pm88x_ldo_get_optimum_mode(struct regulator_dev *rdev,
 					   int input_uV, int output_uV,
 					   int output_uA)
 {
-	struct pm886_ldo_info *info = rdev_get_drvdata(rdev);
+	struct pm88x_ldo_info *info = rdev_get_drvdata(rdev);
 	if (!info)
 		return REGULATOR_MODE_IDLE;
 
@@ -154,18 +154,18 @@ static unsigned int pm886_ldo_get_optimum_mode(struct regulator_dev *rdev,
 		REGULATOR_MODE_IDLE : REGULATOR_MODE_NORMAL;
 }
 
-static int pm886_ldo_get_current_limit(struct regulator_dev *rdev)
+static int pm88x_ldo_get_current_limit(struct regulator_dev *rdev)
 {
-	struct pm886_ldo_info *info = rdev_get_drvdata(rdev);
+	struct pm88x_ldo_info *info = rdev_get_drvdata(rdev);
 	if (!info)
 		return 0;
 	return info->max_ua;
 }
 
-static int pm886_ldo_set_suspend_voltage(struct regulator_dev *rdev, int uv)
+static int pm88x_ldo_set_suspend_voltage(struct regulator_dev *rdev, int uv)
 {
 	int ret, sel;
-	struct pm886_ldo_info *info = rdev_get_drvdata(rdev);
+	struct pm88x_ldo_info *info = rdev_get_drvdata(rdev);
 	if (!info || !info->desc.ops)
 		return -EINVAL;
 	if (!info->desc.ops->set_suspend_mode)
@@ -188,7 +188,7 @@ static int pm886_ldo_set_suspend_voltage(struct regulator_dev *rdev, int uv)
 		return -EINVAL;
 
 	/* TODO: do we need this? */
-	ret = pm886_ldo_set_suspend_mode(rdev, REGULATOR_MODE_IDLE);
+	ret = pm88x_ldo_set_suspend_mode(rdev, REGULATOR_MODE_IDLE);
 	return ret;
 }
 
@@ -211,7 +211,7 @@ static int pm886_ldo_set_suspend_voltage(struct regulator_dev *rdev, int uv)
  *  set_suspend_mode() is used to switch between sleep voltage and active voltage
  *  get_optimum_mode() is used to get right mode
  */
-static struct regulator_ops pm886_volt_ldo_ops = {
+static struct regulator_ops pm88x_volt_ldo_ops = {
 	.list_voltage = regulator_list_voltage_table,
 	.map_voltage = regulator_map_voltage_iterate,
 	.set_voltage_sel = regulator_set_voltage_sel_regmap,
@@ -219,69 +219,69 @@ static struct regulator_ops pm886_volt_ldo_ops = {
 	.enable = regulator_enable_regmap,
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
-	.get_current_limit = pm886_ldo_get_current_limit,
-	.get_optimum_mode = pm886_ldo_get_optimum_mode,
-	.set_suspend_mode = pm886_ldo_set_suspend_mode,
-	.set_suspend_voltage = pm886_ldo_set_suspend_voltage,
+	.get_current_limit = pm88x_ldo_get_current_limit,
+	.get_optimum_mode = pm88x_ldo_get_optimum_mode,
+	.set_suspend_mode = pm88x_ldo_set_suspend_mode,
+	.set_suspend_voltage = pm88x_ldo_set_suspend_voltage,
 };
 
 /* The array is indexed by id(PM886_ID_XXX) */
-static struct pm886_ldo_info pm886_ldo_configs[] = {
-	PM886_LDO(LDO1, EN1, 0, 100000, ldo_volt_table1),
-	PM886_LDO(LDO2, EN1, 1, 100000, ldo_volt_table1),
-	PM886_LDO(LDO3, EN1, 2, 100000, ldo_volt_table1),
-	PM886_LDO(LDO4, EN1, 3, 400000, ldo_volt_table2),
-	PM886_LDO(LDO5, EN1, 4, 400000, ldo_volt_table2),
-	PM886_LDO(LDO6, EN1, 5, 400000, ldo_volt_table2),
-	PM886_LDO(LDO7, EN1, 6, 400000, ldo_volt_table2),
-	PM886_LDO(LDO8, EN1, 7, 400000, ldo_volt_table2),
-	PM886_LDO(LDO9, EN2, 0, 400000, ldo_volt_table2),
-	PM886_LDO(LDO10, EN2, 1, 200000, ldo_volt_table2),
-	PM886_LDO(LDO11, EN2, 2, 200000, ldo_volt_table2),
-	PM886_LDO(LDO12, EN2, 3, 200000, ldo_volt_table2),
-	PM886_LDO(LDO13, EN2, 4, 200000, ldo_volt_table2),
-	PM886_LDO(LDO14, EN2, 5, 200000, ldo_volt_table2),
-	PM886_LDO(LDO15, EN2, 6, 200000, ldo_volt_table2),
-	PM886_LDO(LDO16, EN2, 7, 200000, ldo_volt_table3),
+static struct pm88x_ldo_info pm88x_ldo_configs[] = {
+	PM88X_LDO(LDO1, EN1, 0, 100000, ldo_volt_table1),
+	PM88X_LDO(LDO2, EN1, 1, 100000, ldo_volt_table1),
+	PM88X_LDO(LDO3, EN1, 2, 100000, ldo_volt_table1),
+	PM88X_LDO(LDO4, EN1, 3, 400000, ldo_volt_table2),
+	PM88X_LDO(LDO5, EN1, 4, 400000, ldo_volt_table2),
+	PM88X_LDO(LDO6, EN1, 5, 400000, ldo_volt_table2),
+	PM88X_LDO(LDO7, EN1, 6, 400000, ldo_volt_table2),
+	PM88X_LDO(LDO8, EN1, 7, 400000, ldo_volt_table2),
+	PM88X_LDO(LDO9, EN2, 0, 400000, ldo_volt_table2),
+	PM88X_LDO(LDO10, EN2, 1, 200000, ldo_volt_table2),
+	PM88X_LDO(LDO11, EN2, 2, 200000, ldo_volt_table2),
+	PM88X_LDO(LDO12, EN2, 3, 200000, ldo_volt_table2),
+	PM88X_LDO(LDO13, EN2, 4, 200000, ldo_volt_table2),
+	PM88X_LDO(LDO14, EN2, 5, 200000, ldo_volt_table2),
+	PM88X_LDO(LDO15, EN2, 6, 200000, ldo_volt_table2),
+	PM88X_LDO(LDO16, EN2, 7, 200000, ldo_volt_table3),
 };
 
-#define PM886_LDO_OF_MATCH(comp, label) \
+#define PM88X_LDO_OF_MATCH(comp, label) \
 	{ \
 		.compatible = comp, \
-		.data = &pm886_ldo_configs[PM886_ID_##label], \
+		.data = &pm88x_ldo_configs[PM886_ID_##label], \
 	}
-static const struct of_device_id pm886_ldos_of_match[] = {
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo1", LDO1),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo2", LDO2),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo3", LDO3),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo4", LDO4),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo5", LDO5),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo6", LDO6),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo7", LDO7),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo8", LDO8),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo9", LDO9),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo10", LDO10),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo11", LDO11),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo12", LDO12),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo13", LDO13),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo14", LDO14),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo15", LDO15),
-	PM886_LDO_OF_MATCH("marvell,88pm886-ldo16", LDO16),
+static const struct of_device_id pm88x_ldos_of_match[] = {
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo1", LDO1),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo2", LDO2),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo3", LDO3),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo4", LDO4),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo5", LDO5),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo6", LDO6),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo7", LDO7),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo8", LDO8),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo9", LDO9),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo10", LDO10),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo11", LDO11),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo12", LDO12),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo13", LDO13),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo14", LDO14),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo15", LDO15),
+	PM88X_LDO_OF_MATCH("marvell,88pm886-ldo16", LDO16),
 };
 
-static int pm886_ldo_probe(struct platform_device *pdev)
+static int pm88x_ldo_probe(struct platform_device *pdev)
 {
-	struct pm886_chip *chip = dev_get_drvdata(pdev->dev.parent);
-	struct pm886_ldos *data;
+	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm88x_ldos *data;
 	struct regulator_config config = { };
 	struct regulator_init_data *init_data;
 	struct regulation_constraints *c;
 	const struct of_device_id *match;
-	const struct pm886_ldo_info *const_info;
-	struct pm886_ldo_info *info;
+	const struct pm88x_ldo_info *const_info;
+	struct pm88x_ldo_info *info;
 	int ret;
 
-	match = of_match_device(pm886_ldos_of_match, &pdev->dev);
+	match = of_match_device(pm88x_ldos_of_match, &pdev->dev);
 	if (match) {
 		const_info = match->data;
 		init_data = of_get_regulator_init_data(&pdev->dev,
@@ -295,10 +295,10 @@ static int pm886_ldo_probe(struct platform_device *pdev)
 	if (!info)
 		return -ENOMEM;
 
-	data = devm_kzalloc(&pdev->dev, sizeof(struct pm886_ldos),
+	data = devm_kzalloc(&pdev->dev, sizeof(struct pm88x_ldos),
 			    GFP_KERNEL);
 	if (!data) {
-		dev_err(&pdev->dev, "failed to allocate pm886_regualtors");
+		dev_err(&pdev->dev, "failed to allocate pm88x_regualtors");
 		return -ENOMEM;
 	}
 	data->map = chip->ldo_regmap;
@@ -330,36 +330,36 @@ static int pm886_ldo_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int pm886_ldo_remove(struct platform_device *pdev)
+static int pm88x_ldo_remove(struct platform_device *pdev)
 {
-	struct pm886_ldos *data = platform_get_drvdata(pdev);
+	struct pm88x_ldos *data = platform_get_drvdata(pdev);
 	devm_kfree(&pdev->dev, data);
 	return 0;
 }
 
-static struct platform_driver pm886_ldo_driver = {
+static struct platform_driver pm88x_ldo_driver = {
 	.driver		= {
-		.name	= "88pm886-ldo",
+		.name	= "88pm88x-ldo",
 		.owner	= THIS_MODULE,
-		.of_match_table = of_match_ptr(pm886_ldos_of_match),
+		.of_match_table = of_match_ptr(pm88x_ldos_of_match),
 	},
-	.probe		= pm886_ldo_probe,
-	.remove		= pm886_ldo_remove,
+	.probe		= pm88x_ldo_probe,
+	.remove		= pm88x_ldo_remove,
 };
 
-static int pm886_ldo_init(void)
+static int pm88x_ldo_init(void)
 {
-	return platform_driver_register(&pm886_ldo_driver);
+	return platform_driver_register(&pm88x_ldo_driver);
 }
-subsys_initcall(pm886_ldo_init);
+subsys_initcall(pm88x_ldo_init);
 
-static void pm886_ldo_exit(void)
+static void pm88x_ldo_exit(void)
 {
-	platform_driver_unregister(&pm886_ldo_driver);
+	platform_driver_unregister(&pm88x_ldo_driver);
 }
-module_exit(pm886_ldo_exit);
+module_exit(pm88x_ldo_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Yi Zhang<yizhang@marvell.com>");
 MODULE_DESCRIPTION("LDO Driver for Marvell 88PM886 PMIC");
-MODULE_ALIAS("platform:88pm886-ldo");
+MODULE_ALIAS("platform:88pm88x-ldo");
