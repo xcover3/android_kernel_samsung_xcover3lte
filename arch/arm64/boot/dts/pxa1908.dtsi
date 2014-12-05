@@ -399,6 +399,7 @@
 				 reg = <0xd420F000 0x2ff>;
 				 reg-names = "mmu-regs";
 				 interrupts = <0 15 0x4>;
+				 version = <1>;
 				 status = "disable";
 			};
 
