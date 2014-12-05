@@ -417,23 +417,15 @@ void DeInitImsChannel(void)
 ** 3	DATA_SIZE_EXCEED,
 ** 5	NO_CID,
 */
-static struct sk_buff *MallocCiSkb(const char *buf, int len, int flags)
+static struct sk_buff *MallocCiSkb(const char *buf, int len)
 {
 	struct sk_buff *skb;
 	struct shm_skhdr *hdr;
 	ShmApiMsg *pShm;
 	CiDatPduInfo *p_ciPdu;
 
-	bool block = flags == MSOCKET_KERNEL;
-
-	if (block)
-		skb =
-		    alloc_skb(len + sizeof(*hdr) + sizeof(*pShm) +
-			      sizeof(*p_ciPdu), GFP_KERNEL);
-	else
-		skb =
-		    alloc_skb(len + sizeof(*hdr) + sizeof(*pShm) +
-			      sizeof(*p_ciPdu), GFP_ATOMIC);
+	skb = alloc_skb(len + sizeof(*hdr) + sizeof(*pShm) + sizeof(*p_ciPdu),
+			GFP_ATOMIC);
 	if (!skb) {
 		pr_err("Data_channel: %s: out of memory.\n", __func__);
 		return NULL;
@@ -479,7 +471,7 @@ static int sendCsdData_ex(CiDatConnType connType, unsigned char cid,
 		return NO_CID;
 	}
 
-	skb = MallocCiSkb(buf, len, MSOCKET_ATOMIC);
+	skb = MallocCiSkb(buf, len);
 	if (NULL == skb) {
 		pr_err("Data_channel: %s: out of memory.\n", __func__);
 		spin_unlock_irqrestore(&data_handle_list_lock, flags);
