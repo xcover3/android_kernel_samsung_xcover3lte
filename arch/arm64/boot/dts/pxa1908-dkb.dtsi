@@ -772,10 +772,16 @@
 				senhb_irq_pins_def: senhb_irq_pins_def {
 					pinctrl-single,pins = <
 						GPIO11 AF0
-						GPIO10 AF0
 						GPIO91 AF3
 					>;
 					MFP_DEFAULT;
+				};
+
+				gpio10_pull_up: gpio10_pull_up {
+					pinctrl-single,pins = <
+						GPIO10 AF0
+					>;
+					MFP_LPM_PULL_UP;
 				};
 
 				dvc_pmx_func: dvc_pmx_func {
@@ -1266,7 +1272,7 @@
 		vccmain-supply = <&vccmain>;
 
 		pinctrl-names = "default", "poweron";
-		pinctrl-0 = <&gnss_pmx_def>;
+		pinctrl-0 = <&gnss_pmx_def &gpio10_pull_up>;
 		pinctrl-1 = <&gnss_pmx_power_on>;
 		status = "okay";
 	};
@@ -1282,7 +1288,8 @@
 		vccmain-supply = <&vccmain>;
 
 		pinctrl-names = "default", "poweron";
-		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
+		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def
+				&gpio10_pull_up>;
 		pinctrl-1 = <&gnss_pmx_power_on &twsi3_pmx_senhb>;
 		status = "okay";
 	};
