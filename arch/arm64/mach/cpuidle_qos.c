@@ -37,7 +37,7 @@
 #define PM_QOS_CPUIDLE_BLOCK_DDR	4
 
 #define APCR_PER_PORTS_SET	\
-	(PMUM_AXISD | PMUM_SLPEN | PMUM_DDRCORSD | PMUM_APBSD | PMUM_VCTCXOSD)
+	(PMUM_AXISD | PMUM_SLPEN | PMUM_DDRCORSD | PMUM_APBSD | PMUM_VCTCXOSD | PMUM_STBYEN)
 
 #define APCR_PER_PORTS_ALWAYS_ON \
 	(PMUM_DTCMSD | PMUM_BBSD | PMUM_MSASLPEN)
@@ -138,7 +138,6 @@ void lowpower_init(void)
 	apcr_per = readl_relaxed(mpmu_virt_addr + APCR_PER);
 	apcr_per |= APCR_PER_PORTS_ALWAYS_ON;
 	apcr_per |= APCR_PER_PORTS_SET;
-	apcr_per |= PMUM_STBYEN;
 	writel_relaxed(apcr_per, mpmu_virt_addr + APCR_PER);
 
 	apcr_cluster0 = readl_relaxed(mpmu_virt_addr + APCR_CLUSTER0);
