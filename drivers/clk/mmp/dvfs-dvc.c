@@ -332,13 +332,21 @@ static void __init hwdvc_enable_ap_dvc(void)
 /* vote active and LPM voltage level request for CP */
 static int __init hwdvc_enable_cpdp_dvc(void)
 {
-	unsigned int cp_pmudvc_lvl =
-		dvc_info->dvcplatinfo->cp_pmudvc_lvl;
-	unsigned int dp_pmudvc_lvl =
-		dvc_info->dvcplatinfo->dp_pmudvc_lvl;
+	unsigned int cp_pmudvc_lvl = 0;
+	unsigned int dp_pmudvc_lvl = 0;
 	int max_delay = DIV_ROUND_UP(0xFFFF * 8, 26);
 	union pmudvc_xp pmudvc_xp;
 	union pmudvc_imsr pmudvc_imsr;
+
+	if (dvc_info == NULL) {
+		pr_err("dvc_info is NULL, nodvfs!\n");
+		return -EINVAL;
+	} else {
+		cp_pmudvc_lvl =
+			dvc_info->dvcplatinfo->cp_pmudvc_lvl;
+		dp_pmudvc_lvl =
+			dvc_info->dvcplatinfo->dp_pmudvc_lvl;
+	}
 
 	/* unmask cp/msa DVC done int */
 	pmudvc_imsr.v = DVC_REG_READ(DVC_IMR);
@@ -714,7 +722,7 @@ EXPORT_SYMBOL(dvfs_get_dvcplatinfo);
 /* notifier for hwdvc */
 int hwdvc_notifier_register(struct notifier_block *n)
 {
-	if (!dvc_flag)
+	if (!dvc_flag || !dvc_info)
 		return 0;
 	return atomic_notifier_chain_register(&dvc_notifier, n);
 }
@@ -722,7 +730,7 @@ EXPORT_SYMBOL(hwdvc_notifier_register);
 
 int hwdvc_notifier_unregister(struct notifier_block *n)
 {
-	if (!dvc_flag)
+	if (!dvc_flag || !dvc_info)
 		return 0;
 	return atomic_notifier_chain_unregister(&dvc_notifier, n);
 }
