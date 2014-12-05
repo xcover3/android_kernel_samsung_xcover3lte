@@ -135,6 +135,9 @@ static int pm88x_gpadc_set_current_generator(struct pm88x_gpadc_info *info,
 	int ret;
 	u8 gp_bias_out, gp_bias_en, mask1, mask2;
 
+	if (!info || !info->chip)
+		return -EINVAL;
+
 	if (gpadc_number > GPADC_3_RES || gpadc_number < GPADC_0_RES)
 		return -EINVAL;
 
