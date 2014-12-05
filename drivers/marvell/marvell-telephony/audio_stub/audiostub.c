@@ -765,10 +765,10 @@ static void deinit_audioport(void)
 	skb_queue_purge(&ctl_rxq);
 }
 
-module_param_named(pcm_master, pcm_master, bool, 0);
+module_param_named(pcm_master, pcm_master, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(pcm_master, "CP is PCM master");
 
-module_param_named(handshake, audiostub_inited, invbool, 0);
+module_param_named(handshake, audiostub_inited, invbool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(handshake, "Perform handshake on startup");
 
 static int audiodev_setup_cdev(struct cdev *dev, int index)
