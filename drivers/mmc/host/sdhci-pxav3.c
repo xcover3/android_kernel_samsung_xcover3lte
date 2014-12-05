@@ -727,7 +727,7 @@ static void pxav3_hw_tuning_prepare(struct sdhci_host *host)
 	sdhci_writew(host, reg, RX_TUNING_CFG_REG);
 }
 
-static void pxav3_prepare_tuning(struct sdhci_host *host, u32 val)
+static void pxav3_prepare_tuning(struct sdhci_host *host, u32 val, bool done)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
@@ -749,6 +749,11 @@ static void pxav3_prepare_tuning(struct sdhci_host *host, u32 val)
 				reg &= ~(RX_SDCLK_SEL0_MASK << RX_SDCLK_SEL0_SHIFT);
 				reg |= (dtr_data->rx_sdclk_sel0 & RX_SDCLK_SEL0_MASK)
 						<< RX_SDCLK_SEL0_SHIFT;
+
+				if (done) {
+					dtr_data->rx_delay = val;
+					dtr_data->rx_sdclk_sel1 = 1;
+				}
 			}
 		}
 	}
@@ -972,7 +977,7 @@ static int pxav3_execute_tuning_nodvfs(struct sdhci_host *host, u32 opcode)
 	min = SD_RX_TUNE_MIN;
 	do {
 		while (min < regdata->SD_RX_TUNE_MAX) {
-			pxav3_prepare_tuning(host, min);
+			pxav3_prepare_tuning(host, min, false);
 			if (!pxav3_send_tuning_cmd(host, opcode, min, flags))
 				break;
 			min += SD_RX_TUNE_STEP;
@@ -981,7 +986,7 @@ static int pxav3_execute_tuning_nodvfs(struct sdhci_host *host, u32 opcode)
 		/* find the maxinum delay which can not pass tuning */
 		max = min + SD_RX_TUNE_STEP;
 		while (max < regdata->SD_RX_TUNE_MAX) {
-			pxav3_prepare_tuning(host, max);
+			pxav3_prepare_tuning(host, max, false);
 			if (pxav3_send_tuning_cmd(host, opcode, max, flags))
 				break;
 			max += SD_RX_TUNE_STEP;
@@ -996,7 +1001,7 @@ static int pxav3_execute_tuning_nodvfs(struct sdhci_host *host, u32 opcode)
 		min = max + SD_RX_TUNE_STEP;
 	} while (min < regdata->SD_RX_TUNE_MAX);
 
-	pxav3_prepare_tuning(host, avg);
+	pxav3_prepare_tuning(host, avg, true);
 	ret = pxav3_send_tuning_cmd(host, opcode, avg, flags);
 
 	if (host->quirks2 & SDHCI_QUIRK2_TUNING_ADMA_BROKEN) {
@@ -1155,7 +1160,7 @@ static void pxav3_execute_tuning_cycle(struct sdhci_host *host,
 		if (!test_bit(tune_value, bitmap))
 			continue;
 
-		pxav3_prepare_tuning(host, tune_value);
+		pxav3_prepare_tuning(host, tune_value, false);
 		if (pxav3_send_tuning_cmd(host, opcode, tune_value, flags))
 			bitmap_clear(bitmap, tune_value, SD_RX_TUNE_STEP);
 	}
@@ -1387,7 +1392,7 @@ static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
 #endif
 	/* FIXME: wait until all other SDHs finish tuning */
 prep_tuning:
-	pxav3_prepare_tuning(host, tuning_value);
+	pxav3_prepare_tuning(host, tuning_value, true);
 	pxa_sdh_request_dvfs_level(host, dvfs_level);
 
 out:
