@@ -173,6 +173,18 @@ static int psci_migrate(unsigned long cpuid)
 }
 
 #ifdef CONFIG_ARM64_CPU_SUSPEND
+/*
+ * use below formula to calculate low power state's bitmap:
+ * bitmap = (1 << state) - 1;
+ *
+ * so the low power state can map to bitmap as:
+ *  0 : b'0000_0000;	1 : b'0000_0001;
+ *  2 : b'0000_0011;	3 : b'0000_0111;
+ *  4 : b'0000_1111;	5 : b'0001_1111;
+ *  6 : b'0011_1111;	7 : b'0111_1111;
+ */
+#define _state2bit(val) ((1 << (val)) - 1)
+
 static int cpu_psci_cpu_suspend(unsigned long arg)
 {
 	int ret;
@@ -184,36 +196,38 @@ static int cpu_psci_cpu_suspend(unsigned long arg)
 	* the C-state index. The PSCI back-end has to translate it to a
 	* PSCI requested state using the following look-up.
 	*
-	* C1  - arg == 0 - standbywfi
-	* C2  - arg == 1 - CPU shutdown (affinity_level 0)
-	* MP2 - arg == 2 - CLUSTER shutdown (affinity_level 1)
-	* D1P - arg == 3 - D1P (affinity_level 2)
-	* D1  - arg == 4 - D1 (affinity_level 2)
-	* D2  - arg == 5 - D2 (affinity_level 2)
+	* C1  - arg == POWER_MODE_CORE_INTIDLE
+	* C2  - arg == POWER_MODE_CORE_POWERDOWN
+	* MP2 - arg == POWER_MODE_MP_POWERDOWN
+	* D1P - arg == POWER_MODE_APPS_IDLE
+	* D1  - arg == POWER_MODE_SYS_SLEEP
+	* D2  - arg == POWER_MODE_UDR
 	*/
 	state.type = index ? PSCI_POWER_STATE_TYPE_POWER_DOWN :
 			PSCI_POWER_STATE_TYPE_STANDBY;
-	if (index < 2)
-		state.affinity_level = 0;
-	else if (index == 2)
-		state.affinity_level = 1;
+
+	if (index < POWER_MODE_MP_POWERDOWN)
+		state.affinity_level = AFFINITY_LEVEL0;
+	else if (index == POWER_MODE_MP_POWERDOWN)
+		state.affinity_level = AFFINITY_LEVEL1;
 	else
-		state.affinity_level = 2;
+		state.affinity_level = AFFINITY_LEVEL2;
 
 	switch (index) {
-	case 0:
-	case 1:
-	case 2:
-		state.id = 0;
+	case POWER_MODE_CORE_INTIDLE:
+	case POWER_MODE_CORE_POWERDOWN:
+	case POWER_MODE_MP_POWERDOWN:
+		state.id = _state2bit(0);
 		break;
-	case 3:
-		state.id = 1;
+	case POWER_MODE_APPS_IDLE:
+		state.id = _state2bit(1);
 		break;
-	case 4:
-		state.id = 3;
+	case POWER_MODE_SYS_SLEEP:
+		state.id = _state2bit(2);
 		break;
-	case 5:
-		state.id = 7;
+	case POWER_MODE_UDR_VCTCXO: /* Not used in ATF */
+	case POWER_MODE_UDR:
+		state.id = _state2bit(3);
 		break;
 	default:
 		pr_err("unknown psci state: %u !\n", index);
@@ -329,6 +343,8 @@ static void cpu_psci_cpu_die(unsigned int cpu)
 	 */
 	struct psci_power_state state = {
 		.type = PSCI_POWER_STATE_TYPE_POWER_DOWN,
+		.affinity_level = AFFINITY_LEVEL2,
+		.id = _state2bit(3),
 	};
 
 	ret = psci_ops.cpu_off(state);

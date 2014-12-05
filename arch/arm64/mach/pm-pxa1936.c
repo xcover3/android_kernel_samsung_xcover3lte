@@ -560,7 +560,7 @@ static struct suspend_ops pxa1936_suspend_ops = {
 };
 
 static struct platform_suspend pxa1936_suspend = {
-	.suspend_state = 0x5,
+	.suspend_state = POWER_MODE_UDR,
 	.ops = &pxa1936_suspend_ops,
 };
 

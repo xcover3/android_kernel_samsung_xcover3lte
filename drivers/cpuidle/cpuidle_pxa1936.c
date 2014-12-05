@@ -16,6 +16,7 @@
 #include <linux/of.h>
 #include <asm/suspend.h>
 #include <asm/proc-fns.h>
+#include <asm/psci.h>
 
 static int arm64_enter_state(struct cpuidle_device *dev,
 			     struct cpuidle_driver *drv, int idx);
@@ -23,7 +24,7 @@ static int arm64_enter_state(struct cpuidle_device *dev,
 struct cpuidle_driver arm64_idle_driver = {
 	.name = "arm64_idle",
 	.owner = THIS_MODULE,
-	.states[0] = {
+	.states[POWER_MODE_CORE_INTIDLE] = {
 		      .enter = arm64_enter_state,
 		      .exit_latency = 18,
 		      .target_residency = 36,
@@ -36,7 +37,7 @@ struct cpuidle_driver arm64_idle_driver = {
 		      .name = "C1",
 		      .desc = "C1: Core internal clock gated",
 		      },
-	.states[1] = {
+	.states[POWER_MODE_CORE_POWERDOWN] = {
 		      .enter = arm64_enter_state,
 		      .exit_latency = 20,
 		      .target_residency = 40,
@@ -45,7 +46,7 @@ struct cpuidle_driver arm64_idle_driver = {
 		      .name = "C2",
 		      .desc = "C2: Core power down",
 		      },
-	.states[2] = {
+	.states[POWER_MODE_MP_POWERDOWN] = {
 		      .enter = arm64_enter_state,
 		      .exit_latency = 450,
 		      .target_residency = 900,
@@ -54,7 +55,7 @@ struct cpuidle_driver arm64_idle_driver = {
 		      .name = "MP2",
 		      .desc = "MP2: Core subsystem power down",
 		      },
-	.states[3] = {
+	.states[POWER_MODE_APPS_IDLE] = {
 		      .enter = arm64_enter_state,
 		      .exit_latency = 500,
 		      .target_residency = 1000,
@@ -63,7 +64,7 @@ struct cpuidle_driver arm64_idle_driver = {
 		      .name = "D1p",
 		      .desc = "D1p: AP idle state",
 		      },
-	.states[4] = {
+	.states[POWER_MODE_SYS_SLEEP] = {
 		      .enter = arm64_enter_state,
 		      .exit_latency = 600,
 		      .target_residency = 1200,
