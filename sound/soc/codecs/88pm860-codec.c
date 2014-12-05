@@ -476,11 +476,7 @@ static int pm860_set_dai_startup(struct snd_pcm_substream *substream,
 		tmp |= 1;
 		snd_soc_write(codec, PM860_DIG_BLOCK_EN_REG2, tmp);
 		/* apply tdm config */
-		tmp = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-		tmp |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
-		snd_soc_write(codec, PM860_TDM_APPLY_CONF, tmp);
-		/* the apply reg can not auto reset in current revision */
-		tmp &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
+		tmp = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 		snd_soc_write(codec, PM860_TDM_APPLY_CONF, tmp);
 	}
 
@@ -501,11 +497,7 @@ static void pm860_set_dai_shutdown(struct snd_pcm_substream *substream,
 		tmp &= 0xfe;
 		snd_soc_write(codec, PM860_DIG_BLOCK_EN_REG2, tmp);
 		/* apply tdm config */
-		tmp = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-		tmp |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
-		snd_soc_write(codec, PM860_TDM_APPLY_CONF, tmp);
-		/* the apply reg can not auto reset in current revision */
-		tmp &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
+		tmp = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 		snd_soc_write(codec, PM860_TDM_APPLY_CONF, tmp);
 	}
 
@@ -583,11 +575,7 @@ static int pm860_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_write(codec, PM860_TDM_SETTING17_1, tdm_ctrl_reg7);
 
 	/* apply tdm config */
-	tdm_ctrl_reg1 = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-	tdm_ctrl_reg1 |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
-	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_ctrl_reg1);
-	/* the apply reg can not auto reset in current revision */
-	tdm_ctrl_reg1 &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
+	tdm_ctrl_reg1 = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_ctrl_reg1);
 
 
@@ -620,13 +608,8 @@ static int pm860_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		return ret;
 
 	/* apply tdm config */
-	tdm_ctrl1 = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-	tdm_ctrl1 |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
+	tdm_ctrl1 = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_ctrl1);
-	/* the apply reg can not auto reset in current revision */
-	tdm_ctrl1 &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
-	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_ctrl1);
-
 
 	return ret;
 }
@@ -803,11 +786,7 @@ static int pm860_set_dai_mic1_channel_map(struct snd_soc_dai *dai,
 		}
 		tdm_dai_priv->tdm_out1_tx_num = 0;
 	}
-	tdm_apply_ctrl = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-	tdm_apply_ctrl |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
-	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
-	/* the apply reg can not auto reset in current revision */
-	tdm_apply_ctrl &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
+	tdm_apply_ctrl = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
 
 	return 0;
@@ -944,11 +923,7 @@ static int pm860_set_dai_mic2_channel_map(struct snd_soc_dai *dai,
 		}
 		tdm_dai_priv->tdm_out2_tx_num = 0;
 	}
-	tdm_apply_ctrl = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-	tdm_apply_ctrl |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
-	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
-	/* the apply reg can not auto reset in current revision */
-	tdm_apply_ctrl &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
+	tdm_apply_ctrl = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
 
 	return 0;
@@ -977,11 +952,7 @@ static int pm860_set_dai_out1_channel_map(struct snd_soc_dai *dai,
 	for (i = 0; i < rx_num; i++)
 		tdm_dai_priv->tdm_codec_in1_rx[i] = rx_slot[i];
 
-	tdm_apply_ctrl = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-	tdm_apply_ctrl |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
-	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
-	/* the apply reg can not auto reset in current revision */
-	tdm_apply_ctrl &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
+	tdm_apply_ctrl = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
 
 	return 0;
@@ -1010,11 +981,7 @@ static int pm860_set_dai_out2_channel_map(struct snd_soc_dai *dai,
 	for (i = 0; i < rx_num; i++)
 		tdm_dai_priv->tdm_codec_in2_rx[i] = rx_slot[i];
 
-	tdm_apply_ctrl = snd_soc_read(codec, PM860_TDM_APPLY_CONF);
-	tdm_apply_ctrl |= (APPLY_TDM_CONF | APPLY_CKG_CONF);
-	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
-	/* the apply reg can not auto reset in current revision */
-	tdm_apply_ctrl &= ~(APPLY_TDM_CONF | APPLY_CKG_CONF);
+	tdm_apply_ctrl = (APPLY_TDM_CONF | APPLY_CKG_CONF);
 	snd_soc_write(codec, PM860_TDM_APPLY_CONF, tdm_apply_ctrl);
 
 
