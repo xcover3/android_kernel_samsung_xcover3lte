@@ -20,5 +20,5 @@
 ./scripts/config --set-str HMP_FAST_CPU_MASK 4-7
 ./scripts/config --set-str HMP_SLOW_CPU_MASK 0-3
 ./scripts/config -e HMP_VARIABLE_SCALE
-./scripts/config -e HMP_FREQUENCY_INVARIANT_SCALE
+./scripts/config -d HMP_FREQUENCY_INVARIANT_SCALE
 ./scripts/config -e SCHED_HMP_LITTLE_PACKING
