@@ -34,6 +34,7 @@
 
 /* I2S1/I2S4/I2S3 use 44.1k sample rate by default */
 #define MAP_SR_HIFI SNDRV_PCM_RATE_44100
+#define MAP_SR_FM SNDRV_PCM_RATE_48000
 /* I2S2/I2S3 use 8K or 16K sample rate */
 #define MAP_SR_LOFI (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000)
 
@@ -44,6 +45,19 @@
 #define AUDIO_PLL                               3
 
 #define MAX_DAILINK_NUM				0xF
+
+static int map_startup_FM(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+
+	cpu_dai->driver->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
+	cpu_dai->driver->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
+	cpu_dai->driver->playback.rates = MAP_SR_FM;
+	cpu_dai->driver->capture.rates = MAP_SR_FM;
+
+	return 0;
+}
 
 static int map_startup_hifi(struct snd_pcm_substream *substream)
 {
@@ -476,6 +490,10 @@ static struct snd_soc_ops map_ops[] = {
 	 .hw_params = map_tdm_hs_hw_params,
 	 .shutdown = map_tdm_hs_shutdown,
 	},
+	{
+	 .startup = map_startup_FM,
+	 .hw_params = map_fe_hw_params,
+	},
 };
 
 static struct of_device_id dailink_matches[] = {
@@ -506,6 +524,10 @@ static struct of_device_id dailink_matches[] = {
 	{
 	.compatible = "marvell,map-dailink-6",
 	.data = (void *)&map_ops[6],
+	},
+	{
+	.compatible = "marvell,map-dailink-7",
+	.data = (void *)&map_ops[7],
 	},
 };
 
