@@ -30,6 +30,19 @@
 #include "sr544.h"
 #include <media/mv_sc2_twsi_conf.h>
 #include <linux/clk.h>
+struct regval_tab sr544_otp[] = {
+	{0x0F02, 0x00, 0xff},
+	{0x011A, 0x01, 0xff},
+	{0x011B, 0x09, 0xff},
+	{0x0d04, 0x01, 0xff},
+	{0x0d00, 0x07, 0xff},
+	{0x004C, 0x01, 0xff},
+	{0x003E, 0x01, 0xff},
+	{0x0118, 0x01, 0xff},
+	{0x010a, (0x0680>>8)&0xff, 0xff},
+	{0x010b, (0x0680)&0xff, 0xff},
+	{0x0102, 0x01, 0xff},
+};
 static int SR544_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
 
@@ -97,6 +110,29 @@ static void SR544_write_reg(struct v4l2_subdev *sd, short reg, char val)
 	tab.mask = 0xff;
 	b52_cmd_write_i2c(&data);
 }
+static int SR544_cmd_write(struct v4l2_subdev *sd, struct regval_tab *tab)
+{
+	const struct b52_sensor_i2c_attr attr = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x28,
+	};
+	struct b52_cmd_i2c_data data;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+
+	if (!tab) {
+		pr_err("%s, error param\n", __func__);
+		return -EINVAL;
+	}
+
+	data.attr = &attr;
+	data.tab = tab;
+	data.num = ARRAY_SIZE(sr544_otp);
+	data.pos  = sensor->pos;
+
+	/*FIXME:how to get completion*/
+	return b52_cmd_write_i2c(&data);
+}
 static char SR544_read_reg(struct v4l2_subdev *sd, short reg)
 {
 	const struct b52_sensor_i2c_attr attr = {
@@ -157,7 +193,6 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	int i, len, tmp_len = 0;
 	int flag, ret = 0;
 	char *paddr = NULL;
-	unsigned int sum;
 	ushort bank_addr;
 	ushort bank_map[3] = {BANK1_BASE, BANK2_BASE, BANK2_BASE};
 	ushort bank_base =  bank_map[0];
@@ -167,6 +202,8 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	char *bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
 	SR544_write_reg(sd, 0x0118,  0x00);
 	msleep(100);
+	SR544_cmd_write(sd, sr544_otp);
+#if 0
 	SR544_write_reg(sd, 0x0F02,  0x00);
 	SR544_write_reg(sd, 0x011A,  0x01);
 	SR544_write_reg(sd, 0x011B,  0x09);
@@ -179,6 +216,7 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	SR544_write_reg(sd, 0x010a, (0x0680>>8)&0xff);
 	SR544_write_reg(sd, 0x010b, (0x0680)&0xff);
 	SR544_write_reg(sd, 0x0102, 0x01);
+#endif
 	flag = SR544_read_reg(sd, 0x0108);
 	if (flag == 0x01)
 		bank_base =  bank_map[0];
@@ -193,17 +231,15 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	}
 	len = otp->user_otp->module_data_len;
 	if (len > 0) {
-		SR544_write_reg(sd, 0x010a, (bank_base>>8)&0xff);
-		SR544_write_reg(sd, 0x010b, (bank_base)&0xff);
+		SR544_write_reg(sd, 0x010a, ((bank_base
+					+ GROUP1_ID_OFFSET)>>8)&0xff);
+		SR544_write_reg(sd, 0x010b, (bank_base
+					+ GROUP1_ID_OFFSET)&0xff);
 		SR544_write_reg(sd, 0x0102, 0x01);
-		for (i = 0; i < GROUP1_LEN; i++)
+		for (i = 0; i < len; i++)
 			bank_grp1[i] = SR544_read_reg(sd, 0x0108);
-		sum = (bank_grp1[GROUP1_SUM_OFFSET] << 24)
-			| (bank_grp1[GROUP1_SUM_OFFSET+1] << 16)
-			| (bank_grp1[GROUP1_SUM_OFFSET+2] << 8)
-			| (bank_grp1[GROUP1_SUM_OFFSET+3] << 0);
 		paddr = otp->user_otp->module_data;
-		if (copy_to_user(paddr, &bank_grp1[GROUP1_ID_OFFSET],
+		if (copy_to_user(paddr, &bank_grp1[0],
 							len)) {
 			ret = -EIO;
 			goto err;
@@ -212,19 +248,17 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	len = otp->user_otp->vcm_otp_len;
 	if (len != 0 || otp->user_otp->wb_otp_len != 0) {
 		bank_addr = bank_base + GROUP2_OFFSET;
-		SR544_write_reg(sd, 0x010a, (bank_addr>>8)&0xff);
-		SR544_write_reg(sd, 0x010b, (bank_addr)&0xff);
+		SR544_write_reg(sd, 0x010a, ((bank_addr
+					+ GROUP2_AF_OFFSET)>>8)&0xff);
+		SR544_write_reg(sd, 0x010b, (bank_addr
+					+ GROUP2_AF_OFFSET)&0xff);
 		SR544_write_reg(sd, 0x0102, 0x01);
-		for (i = 0; i < GROUP2_LEN; i++)
+		for (i = 0; i < len; i++)
 			bank_grp2[i] = SR544_read_reg(sd, 0x0108);
-		sum = (bank_grp2[GROUP2_SUM_OFFSET] << 24)
-			| (bank_grp2[GROUP2_SUM_OFFSET+1] << 16)
-			| (bank_grp2[GROUP2_SUM_OFFSET+2] << 8)
-			| (bank_grp2[GROUP2_SUM_OFFSET+3] << 0);
 		if (len > 0) {
 			paddr = (char *)otp->user_otp->otp_data + tmp_len;
 			if (copy_to_user(paddr,
-					&bank_grp2[GROUP2_AF_OFFSET],
+					&bank_grp2[0],
 					len)) {
 				ret = -EIO;
 				goto err;
@@ -232,10 +266,17 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 			tmp_len += len;
 		}
 		len = otp->user_otp->wb_otp_len/2;
+		SR544_write_reg(sd, 0x010a, ((bank_addr
+					+ GROUP2_GOLDEN_OFFSET)>>8)&0xff);
+		SR544_write_reg(sd, 0x010b, (bank_addr
+					+ GROUP2_GOLDEN_OFFSET)&0xff);
+		SR544_write_reg(sd, 0x0102, 0x01);
+		for (i = 0; i < len; i++)
+			bank_grp2[i] = SR544_read_reg(sd, 0x0108);
 		if (len > 0) {
 			paddr = (char *) otp->user_otp->otp_data + tmp_len;
 			if (copy_to_user(paddr,
-				&bank_grp2[GROUP2_GOLDEN_OFFSET], len)) {
+				&bank_grp2[0], len)) {
 				ret = -EIO;
 				goto err;
 			}
@@ -245,18 +286,16 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	len = otp->user_otp->wb_otp_len/2;
 	if (len > 0) {
 		bank_addr = bank_base + GROUP3_OFFSET;
-		SR544_write_reg(sd, 0x010a, (bank_addr>>8)&0xff);
-		SR544_write_reg(sd, 0x010b, (bank_addr)&0xff);
+		SR544_write_reg(sd, 0x010a, ((bank_addr
+					+ GROUP3_CURRENT_OFFSET)>>8)&0xff);
+		SR544_write_reg(sd, 0x010b, (bank_addr
+					+ GROUP3_CURRENT_OFFSET)&0xff);
 		SR544_write_reg(sd, 0x0102, 0x01);
-		for (i = 0; i < GROUP3_LEN; i++)
+		for (i = 0; i < len; i++)
 			bank_grp3[i] = SR544_read_reg(sd, 0x0108);
-		sum = (bank_grp3[GROUP3_SUM_OFFSET] << 24)
-			| (bank_grp3[GROUP3_SUM_OFFSET+1] << 16)
-			| (bank_grp3[GROUP3_SUM_OFFSET+2] << 8)
-			| (bank_grp3[GROUP3_SUM_OFFSET+3] << 0);
 		paddr = (char *)otp->user_otp->otp_data + tmp_len;
 		if (copy_to_user(paddr,
-				&bank_grp3[GROUP3_CURRENT_OFFSET], len)) {
+				&bank_grp3[0], len)) {
 			ret = -EIO;
 			goto err;
 		}
@@ -265,17 +304,15 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	len = otp->user_otp->lsc_otp_len;
 	if (len > 0) {
 		bank_addr = bank_base + GROUP4_OFFSET;
-		SR544_write_reg(sd, 0x010a, (bank_addr>>8)&0xff);
-		SR544_write_reg(sd, 0x010b, (bank_addr)&0xff);
+		SR544_write_reg(sd, 0x010a, ((bank_addr
+					+ GROUP4_LSC_OFFSET)>>8)&0xff);
+		SR544_write_reg(sd, 0x010b, (bank_addr
+					+ GROUP4_LSC_OFFSET)&0xff);
 		SR544_write_reg(sd, 0x0102, 0x01);
-		for (i = 0; i < GROUP4_LEN; i++)
+		for (i = 0; i < len; i++)
 			bank_grp4[i] = SR544_read_reg(sd, 0x0108);
-		sum = (bank_grp4[GROUP4_SUM_OFFSET] << 24)
-			| (bank_grp4[GROUP4_SUM_OFFSET+1] << 16)
-			| (bank_grp4[GROUP4_SUM_OFFSET+2] << 8)
-			| (bank_grp4[GROUP4_SUM_OFFSET+3] << 0);
 		paddr = (char *)(otp->user_otp->otp_data + tmp_len);
-		if (copy_to_user(paddr, &bank_grp4[GROUP4_LSC_OFFSET], len)) {
+		if (copy_to_user(paddr, &bank_grp4[0], len)) {
 			ret = -EIO;
 			goto err;
 		}
