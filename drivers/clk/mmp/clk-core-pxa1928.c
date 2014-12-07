@@ -993,7 +993,7 @@ static void __init_cpufreq_table(void)
 	cpufreq_tbl[i].frequency = CPUFREQ_TABLE_END;
 
 	register_cpu_dcstat(cpu_dcstat_clk, num_possible_cpus(), pp, i,
-		pxa1928_powermode);
+		pxa1928_powermode, SINGLE_CLUSTER);
 
 	for_each_possible_cpu(i)
 		cpufreq_frequency_table_get_attr(cpufreq_tbl, i);

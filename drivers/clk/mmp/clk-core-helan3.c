@@ -1070,7 +1070,7 @@ static void clk_cpu_init(struct clk_hw *hw)
 			i++;
 		}
 		register_cpu_dcstat(hw->clk, CORES_PER_CLUSTER, pp, i,
-				    core->params->pxa_powermode);
+				    core->params->pxa_powermode, MULTI_CLUSTER);
 		cpu_dcstat_clk = hw->clk;
 	}
 

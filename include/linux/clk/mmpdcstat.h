@@ -22,9 +22,20 @@ enum lowpower_mode {
 	MAX_LPM_INDEX = 15,
 };
 
+#define PM_QOS_CPUIDLE_BLOCK_C1		0
+#define PM_QOS_CPUIDLE_BLOCK_C2		1
+#define PM_QOS_CPUIDLE_BLOCK_M2		2
+#define PM_QOS_CPUIDLE_BLOCK_AXI		3
+#define PM_QOS_CPUIDLE_BLOCK_DDR		4
+#define PM_QOS_CPUIDLE_BLOCK_UDR_VCTCXO	5
+#define PM_QOS_CPUIDLE_BLOCK_UDR		6
+
 #define MAX_BREAKDOWN_TIME 11
 /* use the largest possible number is 10 */
 #define MAX_LPM_INDEX_DC  10
+
+#define SINGLE_CLUSTER 0
+#define MULTI_CLUSTER 1
 
 struct op_dcstat_info {
 	unsigned int ppindex;
@@ -114,6 +125,12 @@ struct idle_dcstat_info {
 	u64 M2_idle_start;
 	u64 M2_idle_total;
 	u64 M2_count;
+	u64 M2_cluster0_idle_start;
+	u64 M2_cluster0_idle_total;
+	u64 M2_cluster0_count;
+	u64 M2_cluster1_idle_start;
+	u64 M2_cluster1_idle_total;
+	u64 M2_cluster1_count;
 	u64 D1P_idle_start;
 	u64 D1P_idle_total;
 	u64 D1p_count;
@@ -127,6 +144,7 @@ struct idle_dcstat_info {
 	u64 all_idle_op_total[MAX_LPM_INDEX_DC];
 	int all_idle_op_index;
 	u64 all_idle_count[MAX_LPM_INDEX_DC];
+	u32 init_flag;
 };
 
 #define CLK_DCSTAT_OPS(clk, name)					\
@@ -213,7 +231,7 @@ extern void clk_dcstat_event(struct clk *clk,
 extern void clk_dcstat_event_check(struct clk *clk,
 	enum clk_stat_msg msg, unsigned int tgtstate);
 extern int register_cpu_dcstat(struct clk *clk, unsigned int cpunum,
-	unsigned int *op_table, unsigned int opt_size, powermode func);
+	unsigned int *op_table, unsigned int opt_size, powermode func, unsigned int cluster);
 extern struct dentry *cpu_dcstat_file_create(const char *file_name,
 		struct dentry *parent);
 extern struct dentry *clk_dcstat_file_create(const char *file_name,
@@ -237,7 +255,7 @@ static inline void clk_dcstat_event_check(struct clk *clk,
 
 }
 static int register_cpu_dcstat(struct clk *clk, unsigned int cpunum,
-	unsigned int *op_table, unsigned int opt_size, powermode func);
+	unsigned int *op_table, unsigned int opt_size, powermode func, unsigned int cluster);
 {
 
 }
