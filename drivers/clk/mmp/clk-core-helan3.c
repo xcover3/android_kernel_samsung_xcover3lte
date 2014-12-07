@@ -1069,7 +1069,7 @@ static void clk_cpu_init(struct clk_hw *hw)
 			pp[i] = cop->pclk;
 			i++;
 		}
-		register_cpu_dcstat(hw->clk, num_possible_cpus(), pp, i,
+		register_cpu_dcstat(hw->clk, CORES_PER_CLUSTER, pp, i,
 				    core->params->pxa_powermode);
 		cpu_dcstat_clk = hw->clk;
 	}
@@ -1108,7 +1108,7 @@ static int clk_cpu_setrate(struct clk_hw *hw, unsigned long rate,
 	unsigned int index;
 	int ret = 0;
 	struct clk_core *core = to_clk_core(hw);
-	int cpu;
+	int cpu, j;
 	struct list_head *op_list = NULL;
 
 	if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME)) {
@@ -1166,9 +1166,19 @@ tmpout:
 	__clk_reparent(hw->clk, md_new->parent);
 
 	if (core->params->dcstat_support) {
-		for_each_possible_cpu(cpu)
-		    cpu_dcstat_event(cpu_dcstat_clk, cpu, CLK_RATE_CHANGE,
-				     index);
+		if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME)) {
+			for (j = 0; j < 4; j++) {
+				cpu = j;
+			    cpu_dcstat_event(hw->clk, cpu, CLK_RATE_CHANGE,
+					     index);
+			}
+		} else if (!strcmp(hw->clk->name, CLST1_CORE_CLK_NAME)) {
+			for (j = 4; j < 8; j++) {
+				cpu = j;
+			    cpu_dcstat_event(hw->clk, cpu, CLK_RATE_CHANGE,
+					     index);
+			}
+		}
 	}
 out:
 	return ret;

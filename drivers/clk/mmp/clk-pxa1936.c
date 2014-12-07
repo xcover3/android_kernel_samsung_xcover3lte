@@ -1152,7 +1152,7 @@ static struct core_params clst0_core_params = {
 	.cpu_rtcwtc_table_size = ARRAY_SIZE(clst0_cpu_rtcwtc_tbl),
 	.bridge_cpurate = 1248,
 	.max_cpurate = 1248,
-	.dcstat_support = false,
+	.dcstat_support = true,
 };
 
 static struct cpu_rtcwtc clst1_cpu_rtcwtc_tbl[] = {
@@ -1235,13 +1235,33 @@ static struct core_params clst1_core_params = {
 	.cpu_rtcwtc_table_size = ARRAY_SIZE(clst1_cpu_rtcwtc_tbl),
 	.bridge_cpurate = 1248,
 	.max_cpurate = 1803,
-	.dcstat_support = false,
+	.dcstat_support = true,
 };
 
 static struct pxa1936_clk_unit *globla_pxa_unit;
 static int pxa1936_powermode(u32 cpu)
 {
 	/* FIXME: register PMU_CORE_STATUS was changed on Helan3 */
+	unsigned status_temp = 0;
+	unsigned c1_offset = 0, c2_offset = 0;
+
+	if (cpu >= 0 && cpu < 4) {
+		c1_offset = 6;
+		c2_offset = 7;
+	} else if (cpu >= 4 && cpu < 8) {
+		c1_offset = 9;
+		c2_offset = 10;
+	}
+	status_temp = ((__raw_readl(globla_pxa_unit->apmu_base +
+			APMU_CORE_STATUS)) &
+			((1 << (c1_offset + 3 * cpu)) | (1 << (c2_offset + 3 * cpu))));
+	if (!status_temp)
+		return MAX_LPM_INDEX;
+	if (status_temp & (1 << (c1_offset + 3 * cpu)))
+		return LPM_C1;
+	else if (status_temp & (1 << (c2_offset + 3 * cpu)))
+		return LPM_C2;
+
 	return 0;
 }
 
@@ -1765,7 +1785,7 @@ CLK_DCSTAT_OPS(globla_pxa_unit->unit.clk_table[PXA1936_CLK_VPU], vpu);
 
 static int __init __init_pxa1936_dcstat_debugfs_node(void)
 {
-	struct dentry *clst0_dc_stat = NULL, *clst1_dc_stat = NULL;
+	struct dentry *cpu_dc_stat = NULL;
 	struct dentry *ddr_dc_stat = NULL, *axi_dc_stat = NULL;
 	struct dentry *gc_dc_stat = NULL, *vpu_dc_stat = NULL;
 	struct dentry *gc2d_dc_stat = NULL, *gcsh_dc_stat = NULL;
@@ -1774,13 +1794,9 @@ static int __init __init_pxa1936_dcstat_debugfs_node(void)
 	if (!stat)
 		return -ENOENT;
 
-	clst0_dc_stat = cpu_dcstat_file_create("clst0_dc_stat", stat);
-	if (!clst0_dc_stat)
-		goto err_clst0_dc_stat;
-
-	clst1_dc_stat = cpu_dcstat_file_create("clst1_dc_stat", stat);
-	if (!clst1_dc_stat)
-		goto err_clst1_dc_stat;
+	cpu_dc_stat = cpu_dcstat_file_create("cpu_dc_stat", stat);
+	if (!cpu_dc_stat)
+		goto err_cpu_dc_stat;
 
 	ddr_dc_stat = clk_dcstat_file_create("ddr_dc_stat", stat,
 			&ddr_dc_ops);
@@ -1825,10 +1841,8 @@ err_gc_dc_stat:
 err_axi_dc_stat:
 	debugfs_remove(ddr_dc_stat);
 err_ddr_dc_stat:
-	debugfs_remove(clst1_dc_stat);
-err_clst1_dc_stat:
-	debugfs_remove(clst0_dc_stat);
-err_clst0_dc_stat:
+	debugfs_remove(cpu_dc_stat);
+err_cpu_dc_stat:
 	debugfs_remove(stat);
 	return -ENOENT;
 
