@@ -25,6 +25,7 @@
 #include <asm/psci.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
+#include <linux/clk/mmpdcstat.h>
 
 #define PSCI_POWER_STATE_TYPE_STANDBY		0
 #define PSCI_POWER_STATE_TYPE_POWER_DOWN	1
@@ -190,6 +191,7 @@ static int cpu_psci_cpu_suspend(unsigned long arg)
 	int ret;
 	struct psci_power_state state;
 	unsigned int index = *(unsigned int *)arg;
+	int cpu = smp_processor_id();
 
 	/*
 	* The cpu_ops suspend back-end implementation defines arg as
@@ -233,6 +235,11 @@ static int cpu_psci_cpu_suspend(unsigned long arg)
 		pr_err("unknown psci state: %u !\n", index);
 		break;
 	};
+
+	if (index >= POWER_MODE_APPS_IDLE)
+		cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_M2_OR_DEEPER_ENTER, index);
+
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, index);
 
 	ret = psci_ops.cpu_suspend(state, virt_to_phys(cpu_resume));
 

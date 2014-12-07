@@ -17,6 +17,7 @@
 #include <asm/suspend.h>
 #include <asm/proc-fns.h>
 #include <asm/psci.h>
+#include <linux/clk/mmpdcstat.h>
 
 static int arm64_enter_state(struct cpuidle_device *dev,
 			     struct cpuidle_driver *drv, int idx);
@@ -91,13 +92,16 @@ static int arm64_enter_state(struct cpuidle_device *dev,
 			     struct cpuidle_driver *drv, int idx)
 {
 	int ret;
+	int cpu = dev->cpu;
 
 	if (!idx) {
 		/*
 		 * C1 is just standby wfi, does not require CPU
 		 * to be suspended
 		 */
+		cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, 0);
 		cpu_do_idle();
+		cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
 		return idx;
 	}
 
@@ -110,6 +114,9 @@ static int arm64_enter_state(struct cpuidle_device *dev,
 	if (ret)
 		pr_warn_once("returning from cpu_suspend %s %d\n",
 			     __func__, ret);
+
+	/* add cpuidle exit cpu_dc_stat */
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
 	/*
 	 * Trigger notifier only if cpu_suspend succeeded
 	 */
