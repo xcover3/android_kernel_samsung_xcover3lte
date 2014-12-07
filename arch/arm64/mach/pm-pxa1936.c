@@ -179,6 +179,7 @@ static int pxa1936_suspend_check(void)
 {
 	u32 ret, reg, irq;
 	void __iomem *icu_base = regs_addr_get_va(REGS_ADDR_ICU);
+	void __iomem *mpmu_base = regs_addr_get_va(REGS_ADDR_MPMU);
 
 	irq = IRQ_PXA1936_PMIC - IRQ_PXA1936_START;
 	reg = __raw_readl(icu_base + (irq << 2));
@@ -193,10 +194,11 @@ static int pxa1936_suspend_check(void)
 		return -EAGAIN;
 
 	ret = pxa1936_pm_check_constraint();
+	__raw_writel(0xFFFF, mpmu_base + PWRMODE_STATUS);
 	pr_info("========wake up events status =========\n");
-	pr_info("BEFORE SUSPEND AWUCRS:0x%x\n",
-		__raw_readl(regs_addr_get_va(REGS_ADDR_MPMU) + AWUCRS));
-
+	pr_info("BEFORE SUSPEND AWUCRS:0x%x, PWRMODE_STATUS: 0x%x\n",
+		__raw_readl(mpmu_base + AWUCRS),
+		__raw_readl(mpmu_base + PWRMODE_STATUS));
 	return ret;
 }
 
@@ -428,6 +430,7 @@ static u32 wakeup_source_check(void)
 	u32 apcr_per = __raw_readl(mpmu + APCR_PER);
 	u32 apslpw = __raw_readl(mpmu + APSLPW);
 	u32 cpcr = __raw_readl(mpmu + CPCR);
+	u32 pwrmode_status = __raw_readl(mpmu + PWRMODE_STATUS);
 
 	u32 sav_wucrs = awucrs | cwucrs;
 	u32 sav_wucrm = awucrm | cwucrm;
@@ -436,6 +439,7 @@ static u32 wakeup_source_check(void)
 	u32 real_wus = sav_wucrs & sav_wucrm & PMUM_AP_WAKEUP_MASK;
 
 	pr_info("After SUSPEND");
+	pr_info("PWRMODE_STAUTS: 0x%x\n", pwrmode_status);
 	pr_info("AWUCRS:0x%x, CWUCRS:0x%x\n", awucrs, cwucrs);
 	pr_info("General wakeup source status:0x%x\n", sav_wucrs);
 	pr_info("AWUCRM:0x%x, CWUCRM:0x%x\n", awucrm, cwucrm);
