@@ -20,8 +20,8 @@
 
 #include <media/b52socisp/b52socisp-vdev.h>
 #include <media/b52-sensor.h>
-
 #include "b52-reg.h"
+
 #include <linux/workqueue.h>
 
 static DEFINE_MUTEX(cmd_mutex);
@@ -2960,6 +2960,15 @@ static inline int b52_cmd_abort(void)
 	return wait_cmd_done(CMD_ABORT);
 }
 
+int b52_cmd_vcm(void)
+{
+	int ret;
+	mutex_lock(&cmd_mutex);
+	ret = wait_cmd_done(CMD_AF_MODE);
+	mutex_unlock(&cmd_mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(b52_cmd_vcm);
 
 static int __maybe_unused b52_cmd_still_hdr(struct b52isp_cmd *cmd)
 {

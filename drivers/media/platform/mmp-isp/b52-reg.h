@@ -130,6 +130,7 @@ int b52_read_pipeline_info(int pipe_id, u8 *buffer);
 int b52_read_debug_info(u8 *buffer);
 int b52_cmd_anti_shake(u16 block_size, int enable);
 int b52_cmd_zoom_in(int path, int zoom);
+int b52_cmd_vcm(void);
 int b52_set_focus_win(struct v4l2_rect *win, int id);
 struct plat_cam;
 extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
@@ -891,6 +892,7 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 	#define AF_5X5_WIN_DISABLE   (0x0)
 
 #define REG_FW_FOCUS_POS            (0x1ea)
+#define REG_FW_FOCUS_MAN_STATUS     (0x1dc)
 
 
 #define REG_HW_VERSION     (0x00bda)

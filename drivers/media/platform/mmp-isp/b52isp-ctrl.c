@@ -1264,10 +1264,12 @@ static int b52isp_af_run(struct v4l2_rect *r,
 	return 0;
 }
 
+#define TRY_TIMES_MAX 100
 /* only used in manual mode*/
-static int b52isp_set_focus_distance(u32 distance, int id)
+int b52isp_set_focus_distance(u32 distance, int id)
 {
 	u32 base = FW_P1_REG_AF_BASE + id * FW_P1_P2_AF_OFFSET;
+	int try_times = 0;
 
 	if (b52_readb(base + REG_FW_AF_ACIVE) == AF_START) {
 		pr_err("%s: warning still in focus\n", __func__);
@@ -1275,10 +1277,19 @@ static int b52isp_set_focus_distance(u32 distance, int id)
 	}
 
 	b52_writew(base + REG_FW_FOCUS_POS, distance);
-	b52_writeb(base + REG_FW_FOCUS_MAN_TRIGGER, FOCUS_MAN_TRIGGER);
+/*	b52_writeb(base + REG_FW_FOCUS_MAN_TRIGGER, FOCUS_MAN_TRIGGER);*/
+	do {
+		b52_cmd_vcm();
+		msleep(20);
+		try_times++;
+	} while ((!b52_readb(base + REG_FW_FOCUS_MAN_STATUS)) && (try_times < TRY_TIMES_MAX));
+
+	pr_info("%s: manual focus success, postion:0x%x\n",
+			__func__, b52_readw(base + REG_FW_AF_CURR_POS));
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(b52isp_set_focus_distance);
 
 static int b52isp_force_start(int start, int af_mode, int id)
 {

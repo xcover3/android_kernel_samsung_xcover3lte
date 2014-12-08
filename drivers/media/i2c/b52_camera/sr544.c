@@ -424,6 +424,12 @@ static int SR544_s_power(struct v4l2_subdev *sd, int on)
 
 		if (--power->ref_cnt > 0)
 			return 0;
+
+		{
+			int distance =  0x0;
+			b52isp_set_focus_distance(distance, 0);
+		}
+
 		if (sensor->i2c_dyn_ctrl) {
 			ret = sc2_select_pins_state(sensor->pos - 1,
 					SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);
