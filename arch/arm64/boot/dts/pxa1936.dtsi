@@ -991,6 +991,7 @@
 		clocks = <&soc_clocks PXA1936_CLK_SC2_AXI_CLK>,
 			<&soc_clocks PXA1936_CLK_SC2_MCLK>;
 		clock-names = "SC2AXICLK", "SC2MCLK";
+		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 		status = "disabled";
 		reg = <0x0 0x0>;
 	};
@@ -1000,6 +1001,7 @@
 		clocks = <&soc_clocks PXA1936_CLK_SC2_AXI_CLK>,
 			<&soc_clocks PXA1936_CLK_SC2_MCLK>;
 		clock-names = "SC2AXICLK", "SC2MCLK";
+		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 		status = "disabled";
 		reg = <0x1 0x0>;
 	};
