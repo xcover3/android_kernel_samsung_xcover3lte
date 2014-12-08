@@ -15,6 +15,16 @@
 	compatible = "marvell,pxa1908";
 
 	soc {
+		axi@d4200000 {  /* AXI */
+			/* SD card */
+			sdh0: sdh@d4280000 {
+				cd-gpios = <>;
+				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_52M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
+						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
+			};
+		};
+
 		apb@d4000000 {
 			pwm2: pwm@d401a400 {
 				compatible = "marvell,pxa25x-pwm";
