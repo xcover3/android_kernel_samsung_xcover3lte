@@ -2511,6 +2511,7 @@ static int b52_sensor_probe(struct i2c_client *client,
 	const struct of_device_id *of_id;
 	struct v4l2_subdev *sd;
 	struct device_node *np = dev->of_node;
+	u32 skip_detect;
 
 	of_id = of_match_node(b52_sensor_of_match, dev->of_node);
 	if (!of_id)
@@ -2584,9 +2585,15 @@ static int b52_sensor_probe(struct i2c_client *client,
 
 	b52_sensor_set_defalut(sensor);
 
+	ret = of_property_read_u32(np, "assume_exist", &skip_detect);
+	if ((!(ret < 0)) && skip_detect) {
+		dev_info(dev, "ASSUME %s detected\n", of_id->compatible);
+		goto detect_done;
+	}
 	ret = b52_detect_sensor(sensor);
 	if (ret)
 		return ret;
+detect_done:
 
 	ret = b52_sensor_alloc_fmt_regs(sensor);
 	if (ret)
