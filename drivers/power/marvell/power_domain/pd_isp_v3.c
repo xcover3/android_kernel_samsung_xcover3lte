@@ -164,6 +164,11 @@ static int mmp_pd_isp_v3_power_off(struct generic_pm_domain *domain)
 		return -EBUSY;
 	}
 
+	/* disable and reset AHB clock*/
+	val = __raw_readl(base + APMU_CCIC_CLK_RES_CTRL);
+	val &= ~ISP_AHB_EN;
+	__raw_writel(val, base + APMU_CCIC_CLK_RES_CTRL);
+
 	return 0;
 }
 
