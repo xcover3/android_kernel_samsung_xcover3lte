@@ -496,6 +496,11 @@ static void mv_otg_update_state(struct mv_otg *mvotg)
 	default:
 		break;
 	}
+
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	if (is_charge_only_mode() && (old_state == OTG_STATE_B_PERIPHERAL))
+		phy->state = OTG_STATE_B_IDLE;
+#endif
 }
 
 static void mv_otg_work(struct work_struct *work)
@@ -505,6 +510,9 @@ static void mv_otg_work(struct work_struct *work)
 	struct usb_otg *otg;
 	int old_state;
 
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	struct mv_otg_ctrl *otg_ctrl;
+#endif
 	mvotg = container_of(to_delayed_work(work), struct mv_otg, work);
 
 run:
@@ -519,6 +527,12 @@ run:
 	mv_otg_update_inputs(mvotg);
 	mv_otg_update_state(mvotg);
 
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	otg_ctrl = &mvotg->otg_ctrl;
+	if (is_charge_only_mode() &&
+		(!otg_ctrl->b_sess_vld || otg_ctrl->id == 0))
+		old_state = OTG_STATE_B_PERIPHERAL;
+#endif
 	if (old_state != phy->state) {
 		dev_info(&mvotg->pdev->dev, "change from state %s to %s\n",
 			 state_string[old_state],

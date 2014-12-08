@@ -1289,15 +1289,38 @@ static void uevent_worker(struct work_struct *work)
 
 	kobject_uevent_env(&udc->dev->dev.kobj, KOBJ_CHANGE,
 			udc->vbus_active ? connected : disconnected);
+
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	/* send fake usb connect uevent so that Android can handle it */
+	if (is_charge_only_mode() && (udc->charger_type != DCP_CHARGER)) {
+		if (udc->vbus_active) {
+			charge_only_send_uevent(1);
+			msleep(90);
+			charge_only_send_uevent(2);
+		} else
+			charge_only_send_uevent(3);
+	}
+#endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 }
 
 static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 {
 	struct mv_udc *udc;
 	unsigned long flags;
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	unsigned int vbus;
+#endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 	int retval = 0;
 
 	udc = container_of(gadget, struct mv_udc, gadget);
+
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	if (is_charge_only_mode()) {
+		pxa_usb_extern_call(udc->pdata->id, vbus, get_vbus, &vbus);
+		is_active = vbus;
+	}
+#endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
+
 	udc->vbus_active = (is_active != 0);
 
 	dev_dbg(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
@@ -1335,6 +1358,11 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	if (udc->charger_type == DEFAULT_CHARGER) {
 		int enum_delay  = ENUMERATION_DELAY;
 
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+		if (is_charge_only_mode())
+			enum_delay = HZ >> 3;
+#endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
+
 		dev_info(&udc->dev->dev, "1st stage charger type: %s\n",
 					charger_type(udc->charger_type));
 		call_charger_notifier(udc);
@@ -1362,7 +1390,6 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	}
 
 	spin_unlock_irqrestore(&udc->lock, flags);
-
 	if (!udc->vbus_active)
 		mv_udc_disable(udc);
 

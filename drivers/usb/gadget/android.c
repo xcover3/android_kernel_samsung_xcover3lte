@@ -43,6 +43,7 @@
 #include "f_rndis.c"
 #include "rndis.c"
 #include "u_ether.c"
+#include <linux/platform_data/mv_usb.h>
 
 USB_ETHERNET_MODULE_PARAMETERS();
 
@@ -356,6 +357,50 @@ static void adb_closed_callback(void)
 
 	mutex_unlock(&dev->mutex);
 }
+
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+static int charge_only_function_bind_config(struct android_usb_function *f,
+					    struct usb_configuration *c)
+{
+	return 0;
+}
+
+static struct android_usb_function charge_only_function = {
+	.name		= "charge_only",
+	.bind_config	= charge_only_function_bind_config,
+};
+
+void charge_only_send_uevent(int event)
+{
+	struct android_dev *dev = _android_dev;
+	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
+	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
+	char *configured[2]   = { "USB_STATE=CONFIGURED", NULL };
+
+	if (!dev)
+		return;
+
+	switch (event) {
+	case 1:
+		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, connected);
+		break;
+	case 2:
+		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, configured);
+		break;
+	case 3:
+		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, disconnected);
+		break;
+	default:
+		break;
+	}
+}
+
+static int charge_only_mode;
+int is_charge_only_mode(void)
+{
+	return charge_only_mode;
+}
+#endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 
 struct functionfs_config {
 	bool opened;
@@ -1137,6 +1182,9 @@ static struct android_usb_function *supported_functions[] = {
 	&mass_storage_function,
 	&accessory_function,
 	&audio_source_function,
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	&charge_only_function,
+#endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 	NULL
 };
 
@@ -1359,6 +1407,21 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	mutex_lock(&dev->mutex);
 
 	sscanf(buff, "%d", &enabled);
+
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+		if (strcmp(f->name, "charge_only") == 0) {
+			charge_only_mode = 1;
+			pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_VBUS, 0);
+			pr_info("android_usb: charge_only mode %s\n",
+				enabled ? "enabled" : "disabled");
+
+			mutex_unlock(&dev->mutex);
+			return size;
+		}
+	}
+	charge_only_mode = 0;
+#endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 	if (enabled && !dev->enabled) {
 		/*
 		 * Update values in composite driver's copy of
