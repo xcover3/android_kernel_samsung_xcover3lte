@@ -128,25 +128,26 @@ struct pxa28nm_thermal_device {
 	int hit_trip_cnt[TRIP_POINTS_NUM];
 	int irq;
 	int ttemp_table[3/*2.0G,1.8G,1.5G*/][4];
+	int cpu_num;
 };
 
 static struct pxa28nm_thermal_device thermal_dev;
 static int trips_temp[TRIP_POINTS_NUM] = {
-	70000, /* TRIP_POINT_0 */
-	80000, /* TRIP_POINT_1 */
+	85000, /* TRIP_POINT_1 */
 	90000, /* TRIP_POINT_2 */
 	95000, /* TRIP_POINT_3 */
 	100000, /* TRIP_POINT_4 */
-	105000, /* TRIP_POINT_5 */
+	115000, /* TRIP_POINT_5 */
+	120000, /* TRIP_POINT_5 */
 };
 
 static int trips_hyst[TRIP_POINTS_NUM] = {
-	65000, /* TRIP_POINT_0_D */
-	75000, /* TRIP_POINT_1_D */
-	85000, /* TRIP_POINT_2_D */
-	90000, /* TRIP_POINT_3_D */
-	95000, /* TRIP_POINT_4_D */
-	105000, /* TRIP_POINT_5_D */
+	80000, /* TRIP_POINT_0_D */
+	85000, /* TRIP_POINT_1_D */
+	90000, /* TRIP_POINT_2_D */
+	95000, /* TRIP_POINT_3_D */
+	110000, /* TRIP_POINT_4_D */
+	120000, /* TRIP_POINT_5_D */
 };
 
 
@@ -156,12 +157,12 @@ static int pxa1936_cluster0_freq_state[TRIP_POINTS_NUM] = {
 };
 
 static int pxa1936_cluster1_freq_state[TRIP_POINTS_NUM] = {
-	0, 1, 2, 3, 4, 5,
+	0, 2, 3, 4, 6, 7,
 };
 
 /* pxa1936 cpu num in every state */
 static int pxa1936_cpu_plug_state[TRIP_POINTS_NUM] = {
-	0, 0, 0, 0, 0, 0,
+	0, 1, 2, 3, 6, 7,
 };
 
 
@@ -388,8 +389,11 @@ static int combile_set_cur_state(struct thermal_cooling_device *cdev,
 	plug_state = pxa1936_cpu_plug_state[state];
 
 	cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
-	pr_info("Thermal cpu temp %dC, state %lu, cluster0freq qos %lu, cluster1freq qos %lu,core_num qos %lu\n",
-		temp / 1000, state, cluster0_freq_state, cluster1_freq_state, plug_state);
+	pr_info("Thermal cpu temp %dC, state %lu, cluster0freq qos %lu, cluster1freq qos %lu\n",
+		temp / 1000, state, cluster0_freq_state, cluster1_freq_state);
+	pr_info("core_num max qos %lu, core_num min qos %lu\n",
+		thermal_dev.cpu_num - plug_state,
+		thermal_dev.cpu_num - plug_state - 1);
 
 	if (cluster0_freq)
 		cluster0_freq->ops->set_cur_state(cluster0_freq, cluster0_freq_state);
@@ -397,6 +401,7 @@ static int combile_set_cur_state(struct thermal_cooling_device *cdev,
 		cluster1_freq->ops->set_cur_state(cluster1_freq, cluster1_freq_state);
 	if (c_plug)
 		c_plug->ops->set_cur_state(c_plug, plug_state);
+
 	return 0;
 }
 
@@ -519,9 +524,8 @@ static irqreturn_t pxa28nm_irq(int irq, void *devid)
 	u32 tmp, tmp_lc;
 	int temp;
 	tmp = reg_read(TSEN_LSTATUS);
-	reg_clr_set(TSEN_LSTATUS, 0, tmp);
-
 	tmp_lc = reg_read(TSEN_LCTRL);
+
 	if ((tmp_lc & TSEN_RDY_INT_ENABLE) && (tmp & TSEN_RDY_INT)) {
 		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
 		pr_info("in irq temp = %d\n", temp);
@@ -532,19 +536,18 @@ static irqreturn_t pxa28nm_irq(int irq, void *devid)
 		if (thermal_dev.trip_range > TRIP_POINTS_ACTIVE_NUM)
 			thermal_dev.trip_range = TRIP_POINTS_ACTIVE_NUM;
 		pxa28nm_set_threshold(thermal_dev.trip_range);
-
-	}
-	if ((tmp_lc & TSEN_INT1_ENABLE) && (tmp & TSEN_INT1)) {
+	} else if ((tmp_lc & TSEN_INT1_ENABLE) && (tmp & TSEN_INT1)) {
 		thermal_dev.trip_range--;
 		if (thermal_dev.trip_range < 0)
 			thermal_dev.trip_range = 0;
 		pxa28nm_set_threshold(thermal_dev.trip_range);
-	}
-	if ((tmp_lc & TSEN_INT2_ENABLE) && (tmp & TSEN_INT2)) {
+	} else if ((tmp_lc & TSEN_INT2_ENABLE) && (tmp & TSEN_INT2)) {
 		/* wait framework shutdown */
 		cpu_sys_get_temp(thermal_dev.therm_cpu, &temp);
 		pr_info("critical temp = %d\n", temp);
 	}
+	reg_clr_set(TSEN_LSTATUS, 0, TSEN_INT2 | TSEN_INT1 | TSEN_INT0 | TSEN_RDY_INT);
+
 	return IRQ_WAKE_THREAD;
 }
 
@@ -622,8 +625,9 @@ static int pxa1936_thermal_probe(struct platform_device *pdev)
 
 	/* init thermal framework */
 	pxa28nm_register_thermal();
+	thermal_dev.cpu_num = num_possible_cpus();
 
-	tmp = (millicelsius_encode(110000) << TSEN_WDT_THD_OFF) &
+	tmp = (millicelsius_encode(120000) << TSEN_WDT_THD_OFF) &
 					TSEN_WDT_THD_MASK;
 	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_WDT_DIRECTION | TSEN_WDT_ENABLE);
@@ -632,8 +636,8 @@ static int pxa1936_thermal_probe(struct platform_device *pdev)
 	reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT2_ENABLE | TSEN_INT2_DIRECTION);
 
-	reg_clr_set(TSEN_LCTRL, TSEN_INT0_ENABLE, TSEN_INT0_DIRECTION);
-	reg_clr_set(TSEN_LCTRL, TSEN_INT1_ENABLE | TSEN_INT1_DIRECTION, 0);
+	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE | TSEN_INT0_DIRECTION);
+	reg_clr_set(TSEN_LCTRL, TSEN_INT1_DIRECTION, TSEN_INT1_ENABLE);
 	thermal_dev.trip_range = 0;
 	pxa28nm_set_threshold(thermal_dev.trip_range);
 	/* set auto interval 200ms and start auto mode 2*/
