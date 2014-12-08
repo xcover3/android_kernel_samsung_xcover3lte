@@ -68,6 +68,7 @@
 				dphy3 = <0x1500>;
 				dphy5 = <0xff>;
 				dphy6 = <0x1001>;
+				assume_exist = <0x1>;
 				af_2v8-supply = <&ldo11>;
 				avdd_2v8-supply = <&ldo10>;
 				dovdd_1v8-supply = <&buck2>;
