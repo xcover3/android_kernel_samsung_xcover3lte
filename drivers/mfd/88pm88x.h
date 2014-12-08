@@ -36,4 +36,16 @@ extern struct pmic_cell_info pm886_cell_info;
 
 int pm886_apply_patch(struct pm88x_chip *chip);
 
+/* 88pm880 */
+extern const struct regmap_config pm880_base_i2c_regmap;
+extern const struct regmap_config pm880_power_i2c_regmap;
+extern const struct regmap_config pm880_gpadc_i2c_regmap;
+extern const struct regmap_config pm880_battery_i2c_regmap;
+extern const struct regmap_config pm880_test_i2c_regmap;
+
+extern const struct mfd_cell pm880_cell_devs[];
+extern struct pmic_cell_info pm880_cell_info;
+
+int pm880_apply_patch(struct pm88x_chip *chip);
+
 #endif

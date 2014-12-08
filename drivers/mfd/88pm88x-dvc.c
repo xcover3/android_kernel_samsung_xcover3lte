@@ -76,9 +76,9 @@ int pm88x_dvc_set_volt(u8 level, int uv)
 	}
 
 	if (level < 4)
-		buck1_volt_reg = PM88X_BUCK1_VOUT;
+		buck1_volt_reg = PM886_BUCK1_VOUT;
 	else {
-		buck1_volt_reg = PM88X_BUCK1_4_VOUT;
+		buck1_volt_reg = PM886_BUCK1_4_VOUT;
 		level -= 4;
 	}
 
@@ -107,9 +107,9 @@ int pm88x_dvc_get_volt(u8 level)
 	}
 
 	if (level < 4)
-		buck1_volt_reg = PM88X_BUCK1_VOUT;
+		buck1_volt_reg = PM886_BUCK1_VOUT;
 	else {
-		buck1_volt_reg = PM88X_BUCK1_4_VOUT;
+		buck1_volt_reg = PM886_BUCK1_4_VOUT;
 		level -= 4;
 	}
 

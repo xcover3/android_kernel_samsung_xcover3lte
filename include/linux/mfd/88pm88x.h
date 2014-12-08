@@ -38,6 +38,7 @@
 
 enum pm88x_type {
 	PM886 = 1,
+	PM880 = 2,
 };
 
 enum {

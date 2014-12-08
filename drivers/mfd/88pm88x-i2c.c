@@ -114,6 +114,7 @@ static int pm88x_i2c_remove(struct i2c_client *i2c)
 
 static const struct i2c_device_id pm88x_i2c_id[] = {
 	{ "88pm886", PM886 },
+	{ "88pm880", PM880 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, pm88x_i2c_id);

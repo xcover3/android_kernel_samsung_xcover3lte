@@ -132,6 +132,7 @@ static const struct mfd_cell common_cell_devs[] = {
 
 const struct of_device_id pm88x_of_match[] = {
 	{ .compatible = "marvell,88pm886", .data = (void *)PM886 },
+	{ .compatible = "marvell,88pm880", .data = (void *)PM880 },
 	{},
 };
 EXPORT_SYMBOL_GPL(pm88x_of_match);
@@ -309,6 +310,13 @@ int pm88x_init_pages(struct pm88x_chip *chip)
 		battery_regmap_config = &pm886_battery_i2c_regmap;
 		test_regmap_config = &pm886_test_i2c_regmap;
 		break;
+	case PM880:
+		base_regmap_config = &pm880_base_i2c_regmap;
+		power_regmap_config = &pm880_power_i2c_regmap;
+		gpadc_regmap_config = &pm880_gpadc_i2c_regmap;
+		battery_regmap_config = &pm880_battery_i2c_regmap;
+		test_regmap_config = &pm880_test_i2c_regmap;
+		break;
 	default:
 		return -ENODEV;
 	}
@@ -391,7 +399,7 @@ int pm88x_init_pages(struct pm88x_chip *chip)
 		/* buck page */
 		chip->buck_regmap = chip->power_regmap;
 		break;
-	default:
+	case PM880:
 		/* ldo page */
 		chip->ldo_page = chip->power_page;
 		chip->ldo_regmap = chip->power_regmap;
@@ -413,6 +421,9 @@ int pm88x_init_pages(struct pm88x_chip *chip)
 		}
 
 		break;
+	default:
+		ret = -EINVAL;
+		break;
 	}
 out:
 	return ret;
@@ -433,12 +444,14 @@ void pm800_exit_pages(struct pm88x_chip *chip)
 	switch (chip->type) {
 	case PM886:
 		break;
-	default:
+	case PM880:
 		if (chip->buck_page)
 			i2c_unregister_device(chip->buck_page);
+		break;
+	default:
+		break;
 	}
 }
-
 
 int pm88x_init_subdev(struct pm88x_chip *chip)
 {
@@ -458,6 +471,11 @@ int pm88x_init_subdev(struct pm88x_chip *chip)
 				      pm886_cell_info.cell_nr, NULL, 0,
 				      regmap_irq_get_domain(chip->irq_data));
 		break;
+	case PM880:
+		ret = mfd_add_devices(chip->dev, 0, pm880_cell_info.cells,
+				      pm880_cell_info.cell_nr, NULL, 0,
+				      regmap_irq_get_domain(chip->irq_data));
+		break;
 	default:
 		break;
 	}
@@ -475,6 +493,9 @@ int pm88x_apply_patch(struct pm88x_chip *chip)
 	switch (chip->type) {
 	case PM886:
 		apply_to_chip = pm88x_apply_patch;
+		break;
+	case PM880:
+		apply_to_chip = pm880_apply_patch;
 		break;
 	default:
 		break;

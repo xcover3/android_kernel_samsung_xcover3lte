@@ -1,5 +1,5 @@
 /*
- * Regulators driver for Marvell 88PM886
+ * Buck driver for Marvell 88PM88X
  *
  * Copyright (C) 2014 Marvell International Ltd.
  * Yi Zhang <yizhang@marvell.com>
@@ -18,30 +18,56 @@
 #include <linux/regulator/machine.h>
 #include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
+#include <linux/mfd/88pm880.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/regulator/of_regulator.h>
 
-/* control section */
-#define PM88X_BUCK_EN		(0x08)
-
 /* max current in sleep */
 #define MAX_SLEEP_CURRENT	5000
 
+/* ------------- 88pm886 buck registers --------------- */
+
 /* buck voltage */
-#define PM88X_BUCK2_VOUT	(0xb3)
-#define PM88X_BUCK3_VOUT	(0xc1)
-#define PM88X_BUCK4_VOUT	(0xcf)
-#define PM88X_BUCK5_VOUT	(0xdd)
+#define PM886_BUCK2_VOUT	(0xb3)
+#define PM886_BUCK3_VOUT	(0xc1)
+#define PM886_BUCK4_VOUT	(0xcf)
+#define PM886_BUCK5_VOUT	(0xdd)
 
 /* set buck sleep voltage */
-#define PM88X_BUCK1_SET_SLP	(0xa3)
-#define PM88X_BUCK2_SET_SLP	(0xb1)
-#define PM88X_BUCK3_SET_SLP	(0xbf)
-#define PM88X_BUCK4_SET_SLP	(0xcd)
-#define PM88X_BUCK5_SET_SLP	(0xdb)
+#define PM886_BUCK1_SET_SLP	(0xa3)
+#define PM886_BUCK2_SET_SLP	(0xb1)
+#define PM886_BUCK3_SET_SLP	(0xbf)
+#define PM886_BUCK4_SET_SLP	(0xcd)
+#define PM886_BUCK5_SET_SLP	(0xdb)
+
+/* control section */
+#define PM886_BUCK_EN		(0x08)
+
+/* ------------- 88pm880 buck registers --------------- */
+/* buck voltage */
+#define PM880_BUCK2_VOUT	(0x58)
+#define PM880_BUCK3_VOUT	(0x70)
+#define PM880_BUCK4_VOUT	(0x88)
+#define PM880_BUCK5_VOUT	(0x98)
+#define PM880_BUCK6_VOUT	(0xa8)
+
+/* set buck sleep voltage */
+#define PM880_BUCK1_SET_SLP	(0x26)
+#define PM880_BUCK1A_SET_SLP	(0x26)
+#define PM880_BUCK1B_SET_SLP	(0x3c)
+
+#define PM880_BUCK2_SET_SLP	(0x56)
+#define PM880_BUCK3_SET_SLP	(0x6e)
+#define PM880_BUCK4_SET_SLP	(0x86)
+#define PM880_BUCK5_SET_SLP	(0x96)
+#define PM880_BUCK6_SET_SLP	(0xa6)
+#define PM880_BUCK7_SET_SLP	(0xb6)
+
+/* control section */
+#define PM880_BUCK_EN		(0x08)
 
 /*
  * vreg - the buck regs string.
@@ -50,38 +76,49 @@
  * Buck has 2 kinds of voltage steps. It is easy to find voltage by ranges,
  * not the constant voltage table.
  */
-#define PM88X_BUCK(vreg, ebit, amax, volt_ranges, n_volt)		\
+#define PM88X_BUCK(_pmic, vreg, ebit, amax, volt_ranges, n_volt)		\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
 		.ops	= &pm88x_volt_buck_ops,				\
 		.type	= REGULATOR_VOLTAGE,				\
-		.id	= PM886_ID_##vreg,				\
+		.id	= _pmic##_ID_##vreg,				\
 		.owner	= THIS_MODULE,					\
 		.n_voltages		= n_volt,			\
 		.linear_ranges		= volt_ranges,			\
 		.n_linear_ranges	= ARRAY_SIZE(volt_ranges),	\
-		.vsel_reg	= PM88X_##vreg##_VOUT,			\
+		.vsel_reg	= _pmic##_##vreg##_VOUT,		\
 		.vsel_mask	= 0x7f,					\
-		.enable_reg	= PM88X_BUCK_EN,			\
+		.enable_reg	= _pmic##_BUCK_EN,			\
 		.enable_mask	= 1 << (ebit),				\
 	},								\
 	.max_ua			= (amax),				\
-	.sleep_vsel_reg		= PM88X_##vreg##_SET_SLP,		\
+	.sleep_vsel_reg		= _pmic##_##vreg##_SET_SLP,		\
 	.sleep_vsel_mask	= 0x7f,					\
-	.sleep_enable_reg	= PM88X_##vreg##_SLP_CTRL,		\
+	.sleep_enable_reg	= _pmic##_##vreg##_SLP_CTRL,		\
 	.sleep_enable_mask	= (0x3 << 4),				\
 }
 
-/* buck1 */
+#define PM886_BUCK(vreg, ebit, amax, volt_ranges, n_volt)		\
+	PM88X_BUCK(PM886, vreg, ebit, amax, volt_ranges, n_volt)
+
+#define PM880_BUCK(vreg, ebit, amax, volt_ranges, n_volt)		\
+	PM88X_BUCK(PM880, vreg, ebit, amax, volt_ranges, n_volt)
+
+/* buck1 has dvc function */
 static const struct regulator_linear_range buck_volt_range1[] = {
 	REGULATOR_LINEAR_RANGE(600000, 0, 0x4f, 12500),
 	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x54, 50000),
 };
-/* buck 2, 3, 4, 5 */
+
+/* 88pm886 buck 2, 3, 4, 5 */
 static const struct regulator_linear_range buck_volt_range2[] = {
 	REGULATOR_LINEAR_RANGE(600000, 0, 0x4f, 12500),
 	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x72, 50000),
+};
+/* 88pm880 buck 1, 2, 3, 4, 5, 6, 7 */
+static const struct regulator_linear_range buck_volt_range3[] = {
+	REGULATOR_LINEAR_RANGE(600000, 0, 0x19, 12500),
 };
 
 struct pm88x_buck_info {
@@ -173,7 +210,7 @@ static int pm88x_buck_set_suspend_voltage(struct regulator_dev *rdev, int uv)
 
 /*
  * about the get_optimum_mode()/set_suspend_mode()/set_suspend_voltage() interface:
- * - 88pm886 has two sets of registers to set and enable/disable regulators
+ * - 88pm88x has two sets of registers to set and enable/disable regulators
  *   in active and suspend(sleep) status:
  *   the following focues on the sleep part:
  *   - there are two control bits: 00-disable,
@@ -204,26 +241,51 @@ static struct regulator_ops pm88x_volt_buck_ops = {
 	.set_suspend_voltage = pm88x_buck_set_suspend_voltage,
 };
 
-/* The array is indexed by id(PM886_ID_XXX) */
-static struct pm88x_buck_info pm88x_buck_configs[] = {
-	PM88X_BUCK(BUCK1, 0, 3000000, buck_volt_range1, 0x55),
-	PM88X_BUCK(BUCK2, 1, 1200000, buck_volt_range2, 0x73),
-	PM88X_BUCK(BUCK3, 2, 1200000, buck_volt_range2, 0x73),
-	PM88X_BUCK(BUCK4, 3, 1200000, buck_volt_range2, 0x73),
-	PM88X_BUCK(BUCK5, 4, 1200000, buck_volt_range2, 0x73),
+/* The array is indexed by id(PM886_ID_BUCK*) */
+static struct pm88x_buck_info pm886_buck_configs[] = {
+	PM886_BUCK(BUCK1, 0, 3000000, buck_volt_range1, 0x55),
+	PM886_BUCK(BUCK2, 1, 1200000, buck_volt_range2, 0x73),
+	PM886_BUCK(BUCK3, 2, 1200000, buck_volt_range2, 0x73),
+	PM886_BUCK(BUCK4, 3, 1200000, buck_volt_range2, 0x73),
+	PM886_BUCK(BUCK5, 4, 1200000, buck_volt_range2, 0x73),
 };
 
-#define PM88X_BUCK_OF_MATCH(comp, label) \
+/* The array is indexed by id(PM880_ID_BUCK*) */
+static struct pm88x_buck_info pm880_buck_configs[] = {
+	PM880_BUCK(BUCK1A, 0, 3000000, buck_volt_range3, 0x20),
+	PM880_BUCK(BUCK2, 1, 1200000, buck_volt_range3, 0x20),
+	PM880_BUCK(BUCK3, 2, 1200000, buck_volt_range3, 0x20),
+	PM880_BUCK(BUCK4, 3, 1200000, buck_volt_range3, 0x20),
+	PM880_BUCK(BUCK5, 4, 1200000, buck_volt_range3, 0x20),
+	PM880_BUCK(BUCK6, 3, 1200000, buck_volt_range3, 0x20),
+	PM880_BUCK(BUCK7, 4, 1200000, buck_volt_range3, 0x20),
+};
+
+#define PM88X_BUCK_OF_MATCH(_pmic, id, comp, label) \
 	{ \
 		.compatible = comp, \
-		.data = &pm88x_buck_configs[PM886_ID_##label], \
+		.data = &_pmic##_buck_configs[id##_##label], \
 	}
+#define PM886_BUCK_OF_MATCH(comp, label) \
+	PM88X_BUCK_OF_MATCH(pm886, PM886_ID, comp, label)
+
+#define PM880_BUCK_OF_MATCH(comp, label) \
+	PM88X_BUCK_OF_MATCH(pm880, PM880_ID, comp, label)
+
 static const struct of_device_id pm88x_bucks_of_match[] = {
-	PM88X_BUCK_OF_MATCH("marvell,88pm886-buck1", BUCK1),
-	PM88X_BUCK_OF_MATCH("marvell,88pm886-buck2", BUCK2),
-	PM88X_BUCK_OF_MATCH("marvell,88pm886-buck3", BUCK3),
-	PM88X_BUCK_OF_MATCH("marvell,88pm886-buck4", BUCK4),
-	PM88X_BUCK_OF_MATCH("marvell,88pm886-buck5", BUCK5),
+	PM886_BUCK_OF_MATCH("marvell,88pm886-buck1", BUCK1),
+	PM886_BUCK_OF_MATCH("marvell,88pm886-buck2", BUCK2),
+	PM886_BUCK_OF_MATCH("marvell,88pm886-buck3", BUCK3),
+	PM886_BUCK_OF_MATCH("marvell,88pm886-buck4", BUCK4),
+	PM886_BUCK_OF_MATCH("marvell,88pm886-buck5", BUCK5),
+
+	PM880_BUCK_OF_MATCH("marvell,88pm880-buck1a", BUCK1A),
+	PM880_BUCK_OF_MATCH("marvell,88pm880-buck2", BUCK2),
+	PM880_BUCK_OF_MATCH("marvell,88pm880-buck3", BUCK3),
+	PM880_BUCK_OF_MATCH("marvell,88pm880-buck4", BUCK4),
+	PM880_BUCK_OF_MATCH("marvell,88pm880-buck5", BUCK5),
+	PM880_BUCK_OF_MATCH("marvell,88pm880-buck6", BUCK6),
+	PM880_BUCK_OF_MATCH("marvell,88pm880-buck7", BUCK7),
 };
 
 static int pm88x_buck_probe(struct platform_device *pdev)
