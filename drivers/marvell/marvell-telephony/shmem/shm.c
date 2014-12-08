@@ -397,6 +397,8 @@ static int shm_param_init(enum shm_grp_type grp_type,
 
 void shm_rb_data_init(struct shm_rbctl *rbctl)
 {
+	unsigned int network_mode;
+
 	rbctl->is_ap_xmit_stopped = false;
 	rbctl->is_cp_xmit_stopped = false;
 
@@ -405,7 +407,9 @@ void shm_rb_data_init(struct shm_rbctl *rbctl)
 	rbctl->cp_stopped_num = 0;
 	rbctl->cp_resumed_num = 0;
 
+	network_mode = rbctl->skctl_va->network_mode;
 	memset(rbctl->skctl_va, 0, sizeof(struct shm_skctl));
+	rbctl->skctl_va->network_mode = network_mode;
 	rbctl->skctl_va->ap_pcm_master = PMIC_MASTER_FLAG;
 }
 
