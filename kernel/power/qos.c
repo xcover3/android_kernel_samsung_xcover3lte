@@ -867,6 +867,7 @@ const struct file_operations cpuidle_block_stats_fops = {
 	.open = cpuidle_block_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
+	.release = single_release,
 };
 
 static int __init cpuidle_block_debugfs_init(void)
@@ -955,6 +956,7 @@ const struct file_operations cpufreq_qos_fops = {
 	.open = cpufreq_qos_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
+	.release = single_release,
 };
 
 static int __init cpufreq_qos_debugfs_init(void)
@@ -1020,6 +1022,7 @@ const struct file_operations cpu_num_qos_fops = {
 	.open = cpu_num_qos_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
+	.release = single_release,
 };
 
 static int __init cpu_num_qos_debugfs_init(void)
@@ -1085,6 +1088,7 @@ const struct file_operations ddrfreq_qos_fops = {
 	.open = ddrfreq_qos_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
+	.release = single_release,
 };
 
 static int __init ddrfreq_qos_debugfs_init(void)
@@ -1158,6 +1162,7 @@ const struct file_operations gpufreq_qos_fops = {
 	.open = gpufreq_qos_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
+	.release = single_release,
 };
 
 static int __init gpufreq_qos_debugfs_init(void)
