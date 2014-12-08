@@ -1433,6 +1433,9 @@ static int serial_pxa_suspend(struct device *dev)
 	struct uart_pxa_dma *pxa_dma = &sport->uart_dma;
 	struct dma_tx_state dma_state;
 
+	if (!console_suspend_enabled)
+		return 0;
+
 	if (sport && (sport->ier & UART_IER_DMAE)) {
 		int sent = 0;
 		unsigned long flags;
@@ -1481,6 +1484,9 @@ static int serial_pxa_resume(struct device *dev)
 {
         struct uart_pxa_port *sport = dev_get_drvdata(dev);
 	struct uart_pxa_dma *pxa_dma = &sport->uart_dma;
+
+	if (!console_suspend_enabled)
+		return 0;
 
         if (sport)
                 uart_resume_port(&serial_pxa_reg, &sport->port);
