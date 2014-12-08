@@ -1577,6 +1577,13 @@ static int map_i2s2_i2s3_active(struct map_private *map_priv)
 	return 0;
 }
 
+/* used to check whether map is lite version */
+bool map_get_lite_attr(void)
+{
+	return firmware_map_priv->map_lite;
+}
+EXPORT_SYMBOL(map_get_lite_attr);
+
 static int device_map_init(struct map_private *map_priv)
 {
 	int ret = 0;

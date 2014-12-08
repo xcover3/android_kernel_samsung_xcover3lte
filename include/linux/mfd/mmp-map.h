@@ -549,4 +549,5 @@ void mmp_map_dsp1a_mute(struct map_private *map_priv, int mute,
 int map_i2s_sysclk(u32 i2s_id, u32 clk_id);
 int map_enable_i2s_bclk(u32 i2s_id, u32 rate);
 int map_disable_i2s_bclk(u32 i2s_id);
+bool map_get_lite_attr(void);
 #endif /* __LINUX_MFD_MMP_MAP_H */
