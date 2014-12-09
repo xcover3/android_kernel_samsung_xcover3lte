@@ -88,6 +88,8 @@ static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 	u32 val;
 	int ret = 0, loop = MAX_TIMEOUT;
 
+	pm_qos_update_request(&pd->qos_idle, pd->lpm_qos);
+
 	if (pd->clk)
 		clk_prepare_enable(pd->clk);
 
@@ -180,7 +182,11 @@ static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
 		dev_err(pd->dev, "power off timeout\n");
 		return -EBUSY;
 	}
+
 	clk_dcstat_event_check(pd->clk, PWR_OFF, 0);
+
+	pm_qos_update_request(&pd->qos_idle,
+		PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 
 	return 0;
 }
@@ -266,6 +272,18 @@ static int mmp_pd_common_probe(struct platform_device *pdev)
 	pd->power_off_latency = latency;
 
 	pd->dev = &pdev->dev;
+	pd->lpm_qos = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
+
+	if (of_find_property(np, "lpm-qos", NULL)) {
+		ret = of_property_read_u32(np, "lpm-qos",
+				&pd->lpm_qos);
+		if (ret)
+			return ret;
+	}
+
+	pd->qos_idle.name = pd->data->name;
+	pm_qos_add_request(&pd->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 
 	pd->genpd.of_node = np;
 	pd->genpd.name = pd->data->name;

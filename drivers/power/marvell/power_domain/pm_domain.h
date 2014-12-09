@@ -1,5 +1,6 @@
 #ifndef __MMP_POWER_DOMAIN_H
 #define __MMP_POWER_DOMAIN_H
+#include <linux/pm_qos.h>
 
 int mmp_pd_init(struct generic_pm_domain *genpd,
 	struct dev_power_governor *gov, bool is_off);
@@ -24,6 +25,9 @@ struct mmp_pd_common {
 	u32 power_on_latency;
 	u32 power_off_latency;
 	const struct mmp_pd_common_data *data;
+
+	struct pm_qos_request qos_idle;
+	u32		lpm_qos;
 };
 
 extern struct list_head gpd_list;
