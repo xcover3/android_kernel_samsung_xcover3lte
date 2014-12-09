@@ -275,13 +275,11 @@ static int ccic_csi_set_stream(struct v4l2_subdev *sd, int enable)
 		ctrl_dev = ccic_dev_host->ctrl_dev;
 		ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_REPACK);
 		ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_REPACK_OTHER);
-		ctrl_dev->ops->irq_mask(ctrl_dev, 1);
 	}
 
 	ctrl_dev = ccic_csi->ccic_ctrl;
 	ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_REPACK);
 	ctrl_dev->ops->config_mbus(ctrl_dev, V4L2_MBUS_CSI2, 0, 1);
-	ctrl_dev->ops->irq_mask(ctrl_dev, 1);
 	return 0;
 
 stream_off:
@@ -296,11 +294,9 @@ stream_off:
 		msc2_get_ccic_dev(&ccic_dev_host, 0);
 		ctrl_dev = ccic_dev_host->ctrl_dev;
 		ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_NONE);
-		ctrl_dev->ops->irq_mask(ctrl_dev, 0);
 	}
 
 	ctrl_dev = ccic_csi->ccic_ctrl;
-	ctrl_dev->ops->irq_mask(ctrl_dev, 0);
 	ctrl_dev->ops->config_idi(ctrl_dev, SC2_IDI_SEL_NONE);
 	ctrl_dev->ops->config_mbus(ctrl_dev, V4L2_MBUS_CSI2, 0, 0);
 	return 0;
@@ -551,6 +547,27 @@ static const struct v4l2_ctrl_ops ccic_dma_ctrl_ops = {
 	.s_ctrl = ccic_dma_s_ctrl,
 };
 
+static inline void ccic_dma_enable_irq(struct v4l2_subdev *sd, int enable)
+{
+	struct media_pad *pad;
+	struct isp_subdev *isd;
+	struct ccic_csi *ccic_csi;
+
+	pad = media_entity_remote_pad(&sd->entity.pads[CCIC_DMA_PAD_IN]);
+	if (!pad) {
+		d_inf(1, "%s: unable to get remote pad", __func__);
+		return;
+	}
+	isd = v4l2_get_subdev_hostdata(
+				media_entity_to_v4l2_subdev(pad->entity));
+	ccic_csi = isd->drv_priv;
+
+	if (enable)
+		ccic_csi->ccic_ctrl->ops->irq_mask(ccic_csi->ccic_ctrl, 1);
+	else
+		ccic_csi->ccic_ctrl->ops->irq_mask(ccic_csi->ccic_ctrl, 0);
+}
+
 static int ccic_dma_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct isp_subdev *isd = v4l2_get_subdev_hostdata(sd);
@@ -619,11 +636,13 @@ static int ccic_dma_set_stream(struct v4l2_subdev *sd, int enable)
 	ccic_dma->vnode = vnode;
 
 	dma_dev->ops->ccic_enable(dma_dev);
+	ccic_dma_enable_irq(sd, 1);
 	return 0;
 
 stream_off:
 	if (atomic_dec_return(&ccic_dma->stream_cnt) > 0)
 		return 0;
+	ccic_dma_enable_irq(sd, 0);
 	dma_dev->ops->ccic_disable(dma_dev);
 free_mmu:
 	if (pvnode->free_mmu_chnl)
