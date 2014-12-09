@@ -18,9 +18,9 @@ static struct devfreq_dev_freq_info devices_freq_info[DEVFREQ_MAX_ID];
 void devfreq_frequency_table_register(struct devfreq_frequency_table *table,
 				      unsigned int dev_id)
 {
-	if (dev_id > DEVFREQ_MAX_ID) {
+	if (dev_id >= DEVFREQ_MAX_ID) {
 		pr_err("Invalid dev_id %d for devfreq! The max id = %d\n",
-				dev_id, DEVFREQ_MAX_ID);
+				dev_id, DEVFREQ_MAX_ID - 1);
 		BUG_ON(1);
 		return;
 	}
@@ -34,9 +34,9 @@ void devfreq_frequency_table_register(struct devfreq_frequency_table *table,
 
 struct devfreq_frequency_table *devfreq_frequency_get_table(unsigned int dev_id)
 {
-	if (dev_id > DEVFREQ_MAX_ID) {
+	if (dev_id >= DEVFREQ_MAX_ID) {
 		pr_err("Invalid dev_id for devfreq! The max id = %d\n",
-				DEVFREQ_MAX_ID);
+				DEVFREQ_MAX_ID - 1);
 		BUG_ON(1);
 		return NULL;
 	}
