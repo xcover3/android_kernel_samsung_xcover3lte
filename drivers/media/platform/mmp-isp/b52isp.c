@@ -545,7 +545,9 @@ int b52isp_idi_change_clock(struct isp_block *block,
 	struct clk *pipe_clk = block->clock[2];
 
 	/* Need to refine the frequency */
-	if (sz > 180000000)
+	if (sz > 300000000)
+		rate = 416000000;
+	else if (sz > 180000000)
 		rate = 312000000;
 	else if (sz > 100000000)
 		rate = 208000000;
@@ -553,6 +555,14 @@ int b52isp_idi_change_clock(struct isp_block *block,
 		rate = 156000000;
 
 	clk_set_rate(axi_clk, rate);
+	if (sz > 300000000)
+		rate = 499000000;
+	else if (sz > 180000000)
+		rate = 312000000;
+	else if (sz > 100000000)
+		rate = 208000000;
+	else
+		rate = 156000000;
 	clk_set_rate(pipe_clk, rate);
 	b52_set_sccb_clock_rate(clk_get_rate(pipe_clk), 400000);
 
