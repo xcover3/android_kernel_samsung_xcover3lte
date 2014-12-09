@@ -1467,9 +1467,13 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 	 * fix:
 	 * if the system is "charger wake-uped"
 	 * then if (abs(soc_from_vbat_slp - soc_from_vbat) > 40)
-	 * the initial_soc = soc_from_saved;
+	 *	then check whether battery is changed,
+	 *	if not,
+	 *		initial_soc = soc_from_saved;
+	 *	else,
+	 *		initial_soc = soc_from_vbat_active;
 	 * else
-	 * the initial_soc = soc_from_vbat_slp
+	 *	the initial_soc = soc_from_vbat_slp
 	 */
 	if (info->chip->powerup & 0x2) {
 		active_volt = pm886_get_batt_vol(info, 1);
@@ -1479,9 +1483,12 @@ static void pm886_init_soc_cycles(struct pm886_battery_info *info,
 		dev_info(info->dev, "---> %s: soc_from_vbat_active = %d\n",
 			 __func__, soc_from_vbat_active);
 
-		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40)
-			*initial_soc = soc_from_saved;
-		else
+		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40) {
+			if (abs(soc_from_vbat_active - soc_from_saved) > 20)
+				*initial_soc = soc_from_vbat_active;
+			else
+				*initial_soc = soc_from_saved;
+		} else
 			*initial_soc = soc_from_vbat_slp;
 
 		*initial_cycles = cycles_from_saved;
