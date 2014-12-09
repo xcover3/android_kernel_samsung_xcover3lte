@@ -1137,7 +1137,7 @@
 			marvell,dai-no-host-mode;
 		};
 		fe_i2s4: fe_i2s4 {
-			compatible = "marvell,map-dailink-1";
+			compatible = "marvell,map-dailink-7";
 			dai-name = "MAP I2S3 audio";
 			stream-name = "map i2s3";
 			marvell,cpu-dai = <&mmp_pcm_hostless 1>;
