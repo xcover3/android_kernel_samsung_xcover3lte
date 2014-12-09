@@ -445,6 +445,12 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 		return 0;
 
 	/*
+	 * Sandisk iNand 24nm High Speed switch errata
+	 */
+	if (index == EXT_CSD_HS_TIMING)
+		mdelay(2);
+
+	/*
 	 * Must check status to be sure of no errors
 	 * If CMD13 is to check the busy completion of the timing change,
 	 * disable the check of CRC error.
