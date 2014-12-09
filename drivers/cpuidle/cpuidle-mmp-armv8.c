@@ -19,6 +19,7 @@
 #include <asm/proc-fns.h>
 #include <asm/suspend.h>
 #include <asm/mcpm_plat.h>
+#include <asm/tlbflush.h>
 #include <linux/clk/mmpdcstat.h>
 
 static int mmp_enter_powerdown(struct cpuidle_device *dev,
@@ -65,6 +66,7 @@ static int mmp_enter_powerdown(struct cpuidle_device *dev,
 	ret = cpu_suspend((unsigned long)&idx);
 	if (ret)
 		pr_err("cpu%d failed to enter power down!", dev->cpu);
+	flush_tlb_all();
 
 	mcpm_cpu_powered_up();
 
