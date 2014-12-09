@@ -795,6 +795,8 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 #define REG_FW_SSOR_AEC_ADDR_5      (0x062)
 #define REG_FW_SSOR_AEC_ADDR_6      (0x064)
 #define REG_FW_SSOR_AEC_ADDR_7      (0x066)
+#define REG_FW_SSOR_AEC_ADDR_8      (0x068)
+#define REG_FW_SSOR_AEC_ADDR_9      (0x06a)
 
 #define REG_FW_SSOR_FRATIONAL_ADDR_0      (0x06c)
 #define REG_FW_SSOR_FRATIONAL_ADDR_1      (0x06d)
@@ -807,6 +809,8 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 #define REG_FW_SSOR_AEC_MSK_5       (0x075)
 #define REG_FW_SSOR_AEC_MSK_6       (0x076)
 #define REG_FW_SSOR_AEC_MSK_7       (0x077)
+#define REG_FW_SSOR_AEC_MSK_8       (0x078)
+#define REG_FW_SSOR_AEC_MSK_9       (0x079)
 
 #define REG_FW_AWB_TYPE             (0x088)
 	#define AWB_AUTO		(0x2)
