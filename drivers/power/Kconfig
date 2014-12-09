@@ -92,11 +92,11 @@ config BATTERY_88PM830
 	  voltage and current.
 	  The capacity of the battery is calculated via OCV and Culomb counter.
 
-config BATTERY_88PM886
-	tristate "Marvell 88PM886 battery driver"
+config BATTERY_88PM88X
+	tristate "Marvell 88PM88X battery driver"
 	depends on MFD_88PM88X
 	help
-	  Say Y here to enable fuelgauge for Marvell 88PM886 chip, which uses
+	  Say Y here to enable fuelgauge for Marvell 88PM88X chip, which uses
 	  the colume counter to calculate the battery capacity.
 
 config BATTERY_DS2760
@@ -254,11 +254,11 @@ config CHARGER_88PM860X
 	help
 	  Say Y here to enable charger for Marvell 88PM860x chip.
 
-config CHARGER_88PM886
-	tristate "Marvell 88PM886 Charger driver"
+config CHARGER_88PM88X
+	tristate "Marvell 88PM88X Charger driver"
 	depends on MFD_88PM88X
 	help
-	  Say Y here to enable charger for Marvell 88PM886 chip.
+	  Say Y here to enable charger for Marvell 88PM88X chip.
 
 config CHARGER_PCF50633
 	tristate "NXP PCF50633 MBC"

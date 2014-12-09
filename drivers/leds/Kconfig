@@ -35,23 +35,23 @@ config LEDS_88PM830
 	  corresponding to /sys/class/leds/flash/, and torch mode corresponding
 	  to /sys/class/leds/torch/.
 
-config LEDS_88PM886_RGB
-	tristate "RGB LED Support for Marvell 88PM886 PMIC"
+config LEDS_88PM88X_RGB
+	tristate "RGB LED Support for Marvell 88PM88X PMIC"
 	depends on LEDS_CLASS
 	depends on MFD_88PM88X
 	help
-	  This option enables rgb leds driver in Marvell Semiconductor 88PM886
+	  This option enables rgb leds driver in Marvell Semiconductor 88pm88x
 	  PMIC. The user can control rgb leds via /sys/class fs.
 	  It has two blinking modes: switch mode and fade in/out mode;
 	  the later can be used as breath leds.
 
-config LEDS_88PM886_CFD
-	tristate "LED Support for Marvell 88PM886 PMIC"
+config LEDS_88PM88X_CFD
+	tristate "LED Support for Marvell 88PM88X PMIC"
 	depends on LEDS_CLASS
 	depends on MFD_88PM88X
 	help
 	  This option enables camera torch/flash driver found on Marvell
-	  Semiconductor 88PM886 PMIC.
+	  Semiconductor 88PM88X PMIC.
 	  It enables both torch and flash mode via /sys/class fs. Flash mode
 	  corresponding to /sys/class/leds/flash/, and torch mode corresponding
 	  to /sys/class/leds/torch/.
