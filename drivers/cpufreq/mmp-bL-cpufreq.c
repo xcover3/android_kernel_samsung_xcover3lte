@@ -95,29 +95,17 @@ static struct pm_qos_request cpupolicy_qos_req_max[MAX_CLUSTERS] = {
 };
 
 static unsigned long pm_event;
-static struct mutex mmp_cpu_lock;
+static DEFINE_MUTEX(mmp_cpu_lock);
 
-static int get_clst_index(unsigned int cpu)
-{
-	int clst_index;
-
-	clst_index = cpu / CORES_PER_CLUSTER;
-	BUG_ON(clst_index >= MAX_CLUSTERS);
-	return clst_index;
-}
-
-static void set_clst_policy_info(struct cpufreq_policy *policy, int clst_index)
-{
-	int i;
-	cpumask_clear(policy->cpus);
-	for (i = clst_index * CORES_PER_CLUSTER;
-	     i < (clst_index + 1) * CORES_PER_CLUSTER; i++)
-		cpumask_set_cpu(i, policy->cpus);
-
-	policy->clk = clst_clk[clst_index];
-	policy->cpuinfo.transition_latency = 10 * 1000;
-	policy->cur = clk_get_rate(policy->clk) / 1000;
-}
+#define __DECLARE_PM_QOS_NOTIFIER(NAME, req)				\
+static int NAME##_cpufreq_##req##_notify(struct notifier_block *b,	\
+				unsigned long rate, void *v)		\
+{									\
+	return cpufreq_##req##_notify(NAME##_CLUSTER, b, rate, v);	\
+}									\
+static struct notifier_block NAME##_cpufreq_##req##_notifier = {	\
+	.notifier_call = NAME##_cpufreq_##req##_notify,			\
+};
 
 static int get_clst_rate_index(int clst_index,
 			       unsigned int target_freq,
@@ -193,36 +181,25 @@ static int cpufreq_min_notify(int clst_index, struct notifier_block *b,
 	return NOTIFY_OK;
 }
 
-static int l_cpufreq_min_notify(struct notifier_block *b,
-				unsigned long min, void *v)
-{
-	return cpufreq_min_notify(LITTLE_CLUSTER, b, min, v);
-}
-
-static int b_cpufreq_min_notify(struct notifier_block *b,
-				unsigned long min, void *v)
-{
-	return cpufreq_min_notify(BIG_CLUSTER, b, min, v);
-}
-
-static struct notifier_block l_cpufreq_min_notifier = {
-	.notifier_call = l_cpufreq_min_notify,
-};
-
-static struct notifier_block b_cpufreq_min_notifier = {
-	.notifier_call = b_cpufreq_min_notify,
-};
-
 static int cpufreq_max_notify(int clst_index, struct notifier_block *b,
 			      unsigned long max, void *v)
 {
-	int ret = -1;
+	int i, ret = -1;
 	unsigned int index = 0;
 	struct cpufreq_freqs freqs;
 	struct cpufreq_policy *policy;
 	unsigned long freq = 0;
 
-	policy = cpufreq_cpu_get(clst_index * CORES_PER_CLUSTER);
+	/* find the first online cpu in that cluster. */
+	for (i = clst_index * CORES_PER_CLUSTER; i < (clst_index + 1) * CORES_PER_CLUSTER; i++)
+		if (cpu_online(i))
+			break;
+
+	/* get cpufreq policy from that online cpu. otherwise, do nothing. */
+	if (i < (clst_index + 1) * CORES_PER_CLUSTER)
+		policy = cpufreq_cpu_get(i);
+	else
+		return NOTIFY_BAD;
 
 	if (!policy) {
 		pr_err("%s: policy is invalid or not available\n", __func__);
@@ -249,9 +226,9 @@ static int cpufreq_max_notify(int clst_index, struct notifier_block *b,
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
 
-	if (!clk_set_rate(policy->clk, freq))
+	if (!clk_set_rate(policy->clk, freq)) {
 		ret = NOTIFY_OK;
-	else {
+	} else {
 		freqs.new = freqs.old;
 		ret = NOTIFY_BAD;
 	}
@@ -263,25 +240,10 @@ static int cpufreq_max_notify(int clst_index, struct notifier_block *b,
 	return ret;
 }
 
-static int l_cpufreq_max_notify(struct notifier_block *b,
-				unsigned long max, void *v)
-{
-	return cpufreq_max_notify(LITTLE_CLUSTER, b, max, v);
-}
-
-static int b_cpufreq_max_notify(struct notifier_block *b,
-				unsigned long max, void *v)
-{
-	return cpufreq_max_notify(BIG_CLUSTER, b, max, v);
-}
-
-static struct notifier_block l_cpufreq_max_notifier = {
-	.notifier_call = l_cpufreq_max_notify,
-};
-
-static struct notifier_block b_cpufreq_max_notifier = {
-	.notifier_call = b_cpufreq_max_notify,
-};
+__DECLARE_PM_QOS_NOTIFIER(LITTLE, min);
+__DECLARE_PM_QOS_NOTIFIER(BIG, min);
+__DECLARE_PM_QOS_NOTIFIER(LITTLE, max);
+__DECLARE_PM_QOS_NOTIFIER(BIG, max);
 
 static int policy_limiter_notify(struct notifier_block *nb,
 				 unsigned long val, void *data)
@@ -337,7 +299,7 @@ static struct notifier_block mmp_cpu_pm_notifier = {
 
 static unsigned int mmp_bL_cpufreq_get(unsigned int cpu)
 {
-	int clst_index = get_clst_index(cpu);
+	int clst_index = topology_physical_package_id(cpu);
 
 	return clk_get_rate(clst_clk[clst_index]) / 1000;
 }
@@ -355,7 +317,7 @@ static int mmp_bL_cpufreq_target(struct cpufreq_policy *policy,
 		goto out;
 	}
 
-	clst_index = get_clst_index(policy->cpu);
+	clst_index = topology_physical_package_id(policy->cpu);
 	pm_qos_update_request(&cpufreq_qos_req_min[clst_index], target_freq / 1000);
 
 out:
@@ -371,27 +333,33 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 	if (policy->cpu >= num_possible_cpus())
 		return -EINVAL;
 
-	clst_index = get_clst_index(policy->cpu);
-	pr_info("%s: cpu-%d to manage policy on cluster-%d\n", __func__,
+	clst_index = topology_physical_package_id(policy->cpu);
+	pr_debug("%s: cpu-%d to manage policy on cluster-%d\n", __func__,
 		policy->cpu, clst_index);
 
-	clst_clk[clst_index] = __clk_lookup(clk_name[clst_index]);
 	if (!clst_clk[clst_index]) {
-		pr_err("%s: fail to get clock for cluster-%d\n", __func__,
-		       clst_index);
-		return -EINVAL;
+		clst_clk[clst_index] = __clk_lookup(clk_name[clst_index]);
+		if (!clst_clk[clst_index]) {
+			pr_err("%s: fail to get clock for cluster-%d\n", __func__,
+				clst_index);
+			return -EINVAL;
+		}
 	}
 
-	freq_table[clst_index] = cpufreq_frequency_get_table(policy->cpu);
+	if (!freq_table[clst_index])
+		freq_table[clst_index] = cpufreq_frequency_get_table(policy->cpu);
+
 	ret = cpufreq_table_validate_and_show(policy, freq_table[clst_index]);
 	if (ret) {
 		pr_err("%s: invalid frequency table\n", __func__);
 		return ret;
 	}
+	cpufreq_frequency_table_get_attr(freq_table[clst_index], policy->cpu);
 
-	mutex_init(&mmp_cpu_lock);
-
-	set_clst_policy_info(policy, clst_index);
+	cpumask_copy(policy->cpus, topology_core_cpumask(policy->cpu));
+	policy->clk = clst_clk[clst_index];
+	policy->cpuinfo.transition_latency = 10 * 1000;
+	policy->cur = clk_get_rate(policy->clk) / 1000;
 
 	if (!pm_qos_request_active(&cpufreq_qos_req_min[clst_index]))
 		pm_qos_add_request(&cpufreq_qos_req_min[clst_index],
@@ -407,14 +375,13 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 		pm_qos_add_request(&cpupolicy_qos_req_max[clst_index],
 				   cpufreq_qos_max_id[clst_index], policy->max / 1000);
 
-	pr_info("%s: finish initialization on cluster-%d\n", __func__, clst_index);
+	pr_debug("%s: finish initialization on cluster-%d\n", __func__, clst_index);
 
 	return 0;
 }
 
 static int mmp_bL_cpufreq_exit(struct cpufreq_policy *policy)
 {
-	mutex_destroy(&mmp_cpu_lock);
 	return 0;
 }
 
@@ -433,10 +400,10 @@ static int __init mmp_bL_cpufreq_register(void)
 	/* big/LITTLE cluster use the same pm notifier */
 	register_pm_notifier(&mmp_cpu_pm_notifier);
 
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_L_MIN, &l_cpufreq_min_notifier);
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_L_MAX, &l_cpufreq_max_notifier);
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_B_MIN, &b_cpufreq_min_notifier);
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_B_MAX, &b_cpufreq_max_notifier);
+	pm_qos_add_notifier(PM_QOS_CPUFREQ_L_MIN, &LITTLE_cpufreq_min_notifier);
+	pm_qos_add_notifier(PM_QOS_CPUFREQ_L_MAX, &LITTLE_cpufreq_max_notifier);
+	pm_qos_add_notifier(PM_QOS_CPUFREQ_B_MIN, &BIG_cpufreq_min_notifier);
+	pm_qos_add_notifier(PM_QOS_CPUFREQ_B_MAX, &BIG_cpufreq_max_notifier);
 
 	cpufreq_register_notifier(&policy_limiter_notifier,
 				  CPUFREQ_POLICY_NOTIFIER);
@@ -449,10 +416,10 @@ static void __exit mmp_bL_cpufreq_unregister(void)
 	cpufreq_unregister_notifier(&policy_limiter_notifier,
 				    CPUFREQ_POLICY_NOTIFIER);
 
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_L_MIN, &l_cpufreq_min_notifier);
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_L_MAX, &l_cpufreq_max_notifier);
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_B_MIN, &b_cpufreq_min_notifier);
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_B_MAX, &b_cpufreq_max_notifier);
+	pm_qos_remove_notifier(PM_QOS_CPUFREQ_L_MIN, &LITTLE_cpufreq_min_notifier);
+	pm_qos_remove_notifier(PM_QOS_CPUFREQ_L_MAX, &LITTLE_cpufreq_max_notifier);
+	pm_qos_remove_notifier(PM_QOS_CPUFREQ_B_MIN, &BIG_cpufreq_min_notifier);
+	pm_qos_remove_notifier(PM_QOS_CPUFREQ_B_MAX, &BIG_cpufreq_max_notifier);
 
 	unregister_pm_notifier(&mmp_cpu_pm_notifier);
 
