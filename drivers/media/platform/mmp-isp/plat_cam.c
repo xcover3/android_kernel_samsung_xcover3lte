@@ -1236,6 +1236,15 @@ static int plat_tune_power(struct isp_build *isb,
 	return 0;
 }
 
+int plat_tune_isp(int on)
+{
+	if (on)
+		return plat_tune_power(&plat_cam, SDCODE_B52ISP_IDI1, 1);
+	else
+		return plat_tune_power(&plat_cam, SDCODE_B52ISP_IDI1, 0);
+}
+EXPORT_SYMBOL(plat_tune_isp);
+
 static int plat_setup_sensor(struct isp_build *isb,
 		struct v4l2_subdev **sensor_sd)
 {

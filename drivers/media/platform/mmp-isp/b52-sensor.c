@@ -25,6 +25,8 @@
 #include <linux/clk.h>
 #include <media/mv_sc2_twsi_conf.h>
 
+#include "plat_cam.h"
+
 static int otp_ctrl = -1;
 module_param(otp_ctrl, int, 0644);
 
@@ -1404,8 +1406,20 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 	if (sensor->board_prop_id == 1)
 		b52_sensor_s_board_power(client, on);
 
-	if (sensor->drvdata->ops->s_power)
-		return sensor->drvdata->ops->s_power(sd, on);
+	if (sensor->drvdata->ops->s_power) {
+		/* hold isp power */
+		if (on) {
+			ret = plat_tune_isp(1);
+			if (ret < 0)
+				return ret;
+		}
+		ret = sensor->drvdata->ops->s_power(sd, on);
+		/* release isp power */
+		if ((ret < 0) || (!on))
+			WARN_ON(plat_tune_isp(0) < 0);
+		return ret;
+	}
+
 	power = (struct sensor_power *) &(sensor->power);
 
 	if (on) {

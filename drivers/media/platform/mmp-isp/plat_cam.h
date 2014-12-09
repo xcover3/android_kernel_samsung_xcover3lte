@@ -138,4 +138,5 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 				struct plat_pipeline *ppl);
 __u32 plat_get_src_tag(struct plat_pipeline *ppl);
 int b52isp_idi_change_clock(struct isp_block *block, int w, int h, int fps);
+int plat_tune_isp(int on);
 #endif	/* PLAT_CAM_H */
