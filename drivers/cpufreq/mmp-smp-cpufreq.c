@@ -197,19 +197,13 @@ out:
 static int mmp_pm_notify(struct notifier_block *nb, unsigned long event,
 	void *dummy)
 {
-	static unsigned int saved_cpuclk;
-
 	mutex_lock(&mmp_cpu_lock);
 	if (event == PM_SUSPEND_PREPARE) {
-		/* scaling to the min frequency before entering suspend */
-		saved_cpuclk = cpufreq_generic_get(0);
-		mmp_update_cpu_speed(freq_table[0].frequency);
 		is_suspended = true;
 		pr_info("%s: disable cpu freq-chg before suspend", __func__);
 		pr_info("cur rate %dKhz\n", cpufreq_generic_get(0));
 	} else if (event == PM_POST_SUSPEND) {
 		is_suspended = false;
-		mmp_update_cpu_speed(saved_cpuclk);
 		pr_info("%s: enable cpu freq-chg after resume", __func__);
 		pr_info("cur rate %dKhz\n", cpufreq_generic_get(0));
 	}
