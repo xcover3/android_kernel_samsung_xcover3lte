@@ -1302,7 +1302,8 @@
 	};
 };
 
+#include "88pm88x.dtsi"
 #include "88pm886.dtsi"
-#include "88pm886_battery_common.dtsi"
-#include "88pm886_sp4555557sa.dtsi"
+#include "88pm88x_battery_common.dtsi"
+#include "88pm88x_sp4555557sa.dtsi"
 #include "88pm886_pxa1908_dkb.dtsi"
