@@ -145,6 +145,7 @@ int pm8xx_dvc_getvolt(unsigned int buckid, unsigned int lvl, int *uv)
 	int ret = 0, regval = 0, idx;
 	u32 affectbuckbits = pm8xx_dvcdata->affectedbuck;
 	u32 regbase = PM8xx_BUCK1;
+	int chip_id;
 
 	*uv = 0;
 	if (!(affectbuckbits & (1 << buckid))) {
@@ -157,6 +158,27 @@ int pm8xx_dvc_getvolt(unsigned int buckid, unsigned int lvl, int *uv)
 		dev_err(&pdev->dev, "DVC lvl out of range\n");
 		return -EINVAL;
 	}
+
+	/*check chip id, 88pm860 support more dvc level than other pmic chip*/
+	chip_id = getchip_id();
+
+	if (chip_id == CHIP_PM86X_ID_Z3 || chip_id == CHIP_PM86X_ID_A0) {
+		/*88pm860 support 16 level dvc*/
+		if (lvl >= BUCK_MAX_DVC_LVL_16) {
+			dev_err(&pdev->dev, "PM860 DVC lvl out of range\n");
+			return -EINVAL;
+		}
+		/*88pm860 have two DVC control register
+		combine with four level registers to support 16 level voltage.
+		 need to set the DVC control register*/
+		set_dvc_control_register(lvl);
+
+	} else  /*other pmic chip: 800 and 820 support 4 level dvc*/
+		if (lvl >= BUCK_MAX_DVC_LVL) {
+			dev_err(&pdev->dev, "DVC lvl out of range\n");
+			return -EINVAL;
+		}
+
 
 	/*this change is for 88pm860 pmic 16 level dvc support*/
 	lvl = lvl % BUCK_MAX_DVC_LVL;
