@@ -348,7 +348,12 @@ static int vpu_devfreq_probe(struct platform_device *pdev)
 
 	/* save vpu frequency tbl */
 	i = 0;
-	of_property_read_u32(pdev->dev.of_node, "marvell,vpu-id", &index);
+	err = of_property_read_u32(pdev->dev.of_node, "marvell,vpu-id", &index);
+	if(err) {
+		dev_err(dev, "Read property value failed.\n");
+		goto out;
+	}
+
 	tbl = devfreq_frequency_get_table(DEVFREQ_VPU_BASE + index);
 	if (tbl) {
 		while (tbl->frequency != DEVFREQ_TABLE_END) {
