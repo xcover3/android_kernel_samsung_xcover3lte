@@ -777,6 +777,7 @@ static int shm_block_open(struct inode *inode, struct file *file)
 const struct file_operations amipc_shm_fops = {
 	.owner = THIS_MODULE,
 	.open = shm_block_open,
+	.release = single_release,
 	.read = seq_read,
 	.llseek = seq_lseek,
 };
@@ -805,6 +806,7 @@ static int pkgstat_block_open(struct inode *inode, struct file *file)
 const struct file_operations amipc_pkgstat_fops = {
 	.owner = THIS_MODULE,
 	.open = pkgstat_block_open,
+	.release = single_release,
 	.read = seq_read,
 	.llseek = seq_lseek,
 };
@@ -840,6 +842,7 @@ static int command_block_open(struct inode *inode, struct file *file)
 const struct file_operations amipc_command_fops = {
 	.owner = THIS_MODULE,
 	.open = command_block_open,
+	.release = single_release,
 	.read = seq_read,
 	.llseek = seq_lseek,
 };
