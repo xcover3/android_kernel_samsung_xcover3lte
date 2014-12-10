@@ -1977,11 +1977,13 @@ static int smmu_reg_open(struct inode *inode, struct file *file)
 const struct file_operations smmu_stat_fops = {
 	.open	= smmu_stat_open,
 	.read	= seq_read,
+	.release = single_release,
 };
 
 const struct file_operations smmu_reg_fops = {
 	.open	= smmu_reg_open,
 	.read	= seq_read,
+	.release = single_release,
 };
 
 static void arm_smmu_debugfs_delete(struct arm_smmu_device *smmu)
