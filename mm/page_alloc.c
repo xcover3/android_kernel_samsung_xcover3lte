@@ -1208,7 +1208,7 @@ static int try_to_steal_freepages(struct zone *zone, struct page *page,
 }
 
 #ifdef CONFIG_CMA
-int cma_balance_ratio = 50;
+int cma_balance_ratio = 25;
 static struct page *__rmqueue_cma_balance(struct zone *zone,
 	unsigned int order, int migratetype)
 {
