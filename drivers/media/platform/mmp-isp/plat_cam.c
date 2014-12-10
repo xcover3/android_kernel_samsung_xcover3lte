@@ -987,6 +987,15 @@ static int pcam_setup_links(struct isp_build *build,
 			CCIC_CSI_PAD_LOCAL,
 			&sd[SDCODE_CCICV2_DMA1]->subdev.entity,
 			CCIC_DMA_PAD_IN);
+
+#if 0
+	/*ULC1 will estabilish the path like:
+	* back sensor -> CSI0 -> DMA0
+	* front sensor -> CSI1 -> DMA1
+	* so the below two links are not needed,
+	* otherwise, it will cause wrong path
+	*/
+
 	/* CCIC: CSI #0 => DMA #1 */
 	pcam_add_link(&sd[SDCODE_CCICV2_CSI0]->subdev.entity,
 			CCIC_CSI_PAD_XFEED,
@@ -997,6 +1006,7 @@ static int pcam_setup_links(struct isp_build *build,
 			CCIC_CSI_PAD_XFEED,
 			&sd[SDCODE_CCICV2_DMA0]->subdev.entity,
 			CCIC_DMA_PAD_IN);
+#endif
 
 	/* CCIC: CSI #0 => ISP */
 	pcam_add_link(&sd[SDCODE_CCICV2_CSI0]->subdev.entity,
