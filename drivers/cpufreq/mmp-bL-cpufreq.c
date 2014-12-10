@@ -269,25 +269,7 @@ static struct notifier_block policy_limiter_notifier = {
 static int mmp_pm_notify(struct notifier_block *nb, unsigned long event,
 			 void *dummy)
 {
-	int i;
-	static unsigned int saved_clst_clk[MAX_CLUSTERS];
-
 	mutex_lock(&mmp_cpu_lock);
-
-	if (event == PM_SUSPEND_PREPARE) {
-		/* scaling to the min frequency before entering suspend */
-		for (i = 0; i < MAX_CLUSTERS; i++) {
-			saved_clst_clk[i] =
-			    cpufreq_generic_get(i * CORES_PER_CLUSTER);
-			pm_qos_update_request(&cpufreq_qos_req_min[i],
-					      freq_table[i][0].frequency / 1000);
-		}
-	} else if (event == PM_POST_SUSPEND) {
-		for (i = 0; i < MAX_CLUSTERS; i++)
-			pm_qos_update_request(&cpufreq_qos_req_min[i],
-					      saved_clst_clk[i] / 1000);
-	}
-
 	pm_event = event;
 	mutex_unlock(&mmp_cpu_lock);
 	return NOTIFY_OK;
