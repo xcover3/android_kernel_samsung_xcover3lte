@@ -100,6 +100,7 @@
 				compatible = "marvell,power-domain-common-vpu";
 				reg = <0xd4282800 0x1000>;
 				clocks = <&soc_clocks PXA1U88_CLK_VPU>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 			};
 
 			pd_smmu: pd_smmu@c0010000 {
