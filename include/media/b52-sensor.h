@@ -344,7 +344,8 @@ extern int b52_isp_read_i2c(const struct b52_sensor_i2c_attr *attr,
 		u16 reg, u16 *val, u8 pos);
 extern struct b52_sensor_data b52_ov5642;
 extern struct b52_sensor *b52_get_sensor(struct media_entity *entity);
-extern struct b52_sensor_data b52_ov13850;
+extern struct b52_sensor_data b52_ov13850_8M;
+extern struct b52_sensor_data b52_ov13850_13M;
 extern struct b52_sensor_data b52_imx219;
 extern struct b52_sensor_data b52_ov8858;
 extern struct b52_sensor_data b52_ov5648;

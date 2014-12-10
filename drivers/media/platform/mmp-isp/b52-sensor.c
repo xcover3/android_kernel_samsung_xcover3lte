@@ -2664,7 +2664,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 #ifdef CONFIG_B52_CAMERA_OV13850
 	{
 		.compatible	= "ovt,ov13850",
-		.data       = &b52_ov13850,
+
+#ifdef CONFIG_B52_CAMERA_OV13850_13M
+		.data       = &b52_ov13850_13M,
+#else
+		.data       = &b52_ov13850_8M,
+#endif
 	},
 #endif
 #ifdef CONFIG_B52_CAMERA_OV8858
