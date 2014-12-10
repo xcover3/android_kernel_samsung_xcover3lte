@@ -2242,6 +2242,7 @@ check_sof_irq:
 		(irqstatus & (VIRT_IRQ_FIFO | VIRT_IRQ_DONE)))
 		goto check_eof_irq;
 
+check_drop:
 	if (irqstatus & VIRT_IRQ_DROP) {
 		laxi->dma_state = B52DMA_IDLE;
 		irqstatus &= ~VIRT_IRQ_DROP;
@@ -2321,8 +2322,11 @@ recheck:
 	} else {
 		if (irqstatus & (VIRT_IRQ_FIFO | VIRT_IRQ_DONE))
 			goto check_eof_irq;
-		if (irqstatus & (VIRT_IRQ_START | VIRT_IRQ_DROP))
+		if (irqstatus & (VIRT_IRQ_START | VIRT_IRQ_DROP)) {
 			d_inf(1, "-----------unmatched SOF IRQ: %X", irqstatus);
+			if (irqstatus & VIRT_IRQ_DROP)
+				goto check_drop;
+		}
 	}
 
 	return ret;
