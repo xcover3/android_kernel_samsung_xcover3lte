@@ -329,6 +329,10 @@ static void otm8018b_set_brightness(struct mmp_panel *panel, int level)
 
 	/*Prepare cmds for brightness control*/
 	cmds[0] = 0x51;
+	/* birghtness 1~4 is too dark, add 5 to correctness */
+	if (level)
+		level += 5;
+
 	cmds[1] = level / 2;
 
 	/*Prepare dsi commands to send*/
