@@ -94,7 +94,7 @@ MODULE_PARM_DESC(output_mask,
 struct b52isp_hw_desc b52isp_hw_table[] = {
 	[B52ISP_SINGLE] = {
 		.idi_port	= 1,
-		.idi_dump	= 0,
+		.idi_dump	= 1,
 		.nr_pipe	= 1,
 		.nr_axi		= 2,
 	},
