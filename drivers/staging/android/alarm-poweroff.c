@@ -28,16 +28,16 @@ static unsigned long power_up_alarm_time;
 static int rtc_power_up_flag;
 
 static ssize_t alarm_read(struct file *file, char __user *buf, size_t count,
-			loff_t *ppos)
+			  loff_t *ppos)
 {
 	int ret = 0;
+	char str[10];
+	int len;
 
 	if (rtc_power_up_flag) {
-		ret = copy_to_user(buf, &power_up_alarm_time,
-				   sizeof(unsigned long));
-		if (ret)
-			return ret;
-		pr_info("%s,%s,%d\n", __func__, buf, ret);
+		len = snprintf(str, 10, "%lu", power_up_alarm_time);
+		ret = simple_read_from_buffer(buf, count, ppos, str, len);
+		pr_info("%s, %s, %d\n", __func__, buf, ret);
 	}
 
 	return ret;
