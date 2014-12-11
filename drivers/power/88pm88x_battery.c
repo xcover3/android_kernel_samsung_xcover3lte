@@ -70,6 +70,8 @@
 
 #define PM88X_VBAT_AVG_MSB		(0xa0)
 #define PM88X_VBAT_AVG_LSB		(0xa1)
+#define PM88X_BATTEMP_MON_EN		(1 << 4)
+#define PM88X_BATTEMP_MON2_DIS		(1 << 5)
 
 #define PM88X_VBAT_SLP_MSB		(0xb0)
 #define PM88X_VBAT_SLP_LSB		(0xb1)
@@ -457,11 +459,21 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 			}
 
 			if (info->chip->chip_id == PM886_A1) {
-				/* disable monitoring on GPADC1 */
+				/*
+				 * disable battery temperature monitoring:
+				 * clear bit4
+				 */
 				regmap_update_bits(info->chip->battery_regmap,
 						   PM88X_CHG_CONFIG1,
-						   PM88X_BATTEMP_MON,
-						   PM88X_BATTEMP_MON_GP3);
+						   PM88X_BATTEMP_MON_EN, 0);
+				/*
+				 * disable battery temperature monitoring2:
+				 * set bit5
+				 */
+				regmap_update_bits(info->chip->battery_regmap,
+						   PM88X_CHG_CONFIG1,
+						   PM88X_BATTEMP_MON2_DIS,
+						   PM88X_BATTEMP_MON2_DIS);
 				/*
 				 * select GPADC3 as external input for
 				 * battery tempeareure monitoring algorithm
@@ -478,6 +490,10 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 						   PM88X_GPADC_CONFIG8,
 						   PM88X_GPADC_BD_EN,
 						   PM88X_GPADC_BD_EN);
+				/* disable BD_EN */
+				regmap_update_bits(info->chip->gpadc_regmap,
+						   PM88X_GPADC_CONFIG8,
+						   PM88X_GPADC_BD_EN, 0);
 			}
 			/* enable bias current */
 			ret = extern_pm88x_gpadc_set_current_generator(gp, 1);
@@ -1616,10 +1632,7 @@ static void pm88x_pre_setup_fuelgauge(struct pm88x_battery_info *info)
 		}
 		/* 3. base page 0x1f.0 = 0 --> lock the test page */
 		regmap_write(info->chip->base_regmap, 0x1f, 0x0);
-	} else
-		/* disable automatic GPADC1 temperature handling */
-		regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
-				PM88X_AUTO_TEMP_MON_DIS, PM88X_AUTO_TEMP_MON_DIS);
+	}
 }
 
 static int pm88x_init_fuelgauge(struct pm88x_battery_info *info)
