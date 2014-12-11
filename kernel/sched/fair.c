@@ -2041,6 +2041,16 @@ static u32 __compute_runnable_contrib(u64 n)
 }
 
 #ifdef CONFIG_SCHED_HMP
+int __read_mostly hmp_enabled = 1;
+
+static int __init setup_no_hmp(char *str)
+{
+	hmp_enabled = 0;
+	return 1;
+}
+
+__setup("nohmp", setup_no_hmp);
+
 #define HMP_VARIABLE_SCALE_SHIFT 16ULL
 struct hmp_global_attr {
 	struct attribute attr;
@@ -2169,7 +2179,8 @@ static __always_inline int __update_entity_runnable_avg(u64 now,
 
 	delta = now - sa->last_runnable_update;
 #ifdef CONFIG_SCHED_HMP
-	delta = hmp_variable_scale_convert(delta);
+	if (hmp_enabled)
+		delta = hmp_variable_scale_convert(delta);
 #endif
 	/*
 	 * This should only happen when time goes backwards, which it
@@ -5040,6 +5051,12 @@ static void hmp_attr_add(
 static int hmp_attr_init(void)
 {
 	int ret;
+
+	if (!hmp_enabled) {
+		ret = 0;
+		return ret;
+	}
+
 	memset(&hmp_data, sizeof(hmp_data), 0);
 	hmp_attr_add("hmp_domains",
 		NULL,
@@ -5257,7 +5274,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 
 #ifdef CONFIG_SCHED_HMP
 	/* always put non-kernel forking tasks on a big domain */
-	if (unlikely(sd_flag & SD_BALANCE_FORK) && hmp_task_should_forkboost(p)) {
+	if (hmp_enabled && unlikely(sd_flag & SD_BALANCE_FORK) && hmp_task_should_forkboost(p)) {
 		new_cpu = hmp_select_faster_cpu(p, prev_cpu);
 		if (new_cpu != NR_CPUS) {
 			hmp_next_up_delay(&p->se, new_cpu);
@@ -5339,32 +5356,34 @@ unlock:
 	rcu_read_unlock();
 
 #ifdef CONFIG_SCHED_HMP
-	prev_cpu = task_cpu(p);
+	if (hmp_enabled) {
+		prev_cpu = task_cpu(p);
 
-	if (hmp_up_migration(prev_cpu, &new_cpu, &p->se)) {
-		hmp_next_up_delay(&p->se, new_cpu);
-		trace_sched_hmp_migrate(p, new_cpu, HMP_MIGRATE_WAKEUP);
-		return new_cpu;
-	}
-	if (hmp_down_migration(prev_cpu, &p->se)) {
-#ifdef CONFIG_SCHED_HMP_LITTLE_PACKING
-		new_cpu = hmp_best_little_cpu(p, prev_cpu);
-#else
-		new_cpu = hmp_select_slower_cpu(p, prev_cpu);
-#endif
-		/*
-		 * we might have no suitable CPU
-		 * in which case new_cpu == NR_CPUS
-		 */
-		if (new_cpu < NR_CPUS && new_cpu != prev_cpu) {
-			hmp_next_down_delay(&p->se, new_cpu);
+		if (hmp_up_migration(prev_cpu, &new_cpu, &p->se)) {
+			hmp_next_up_delay(&p->se, new_cpu);
 			trace_sched_hmp_migrate(p, new_cpu, HMP_MIGRATE_WAKEUP);
 			return new_cpu;
 		}
-	}
-	/* Make sure that the task stays in its previous hmp domain */
-	if (!cpumask_test_cpu(new_cpu, &hmp_cpu_domain(prev_cpu)->cpus))
-		return prev_cpu;
+		if (hmp_down_migration(prev_cpu, &p->se)) {
+#ifdef CONFIG_SCHED_HMP_LITTLE_PACKING
+			new_cpu = hmp_best_little_cpu(p, prev_cpu);
+#else
+			new_cpu = hmp_select_slower_cpu(p, prev_cpu);
+#endif
+			/*
+			 * we might have no suitable CPU
+			 * in which case new_cpu == NR_CPUS
+			 */
+			if (new_cpu < NR_CPUS && new_cpu != prev_cpu) {
+				hmp_next_down_delay(&p->se, new_cpu);
+				trace_sched_hmp_migrate(p, new_cpu, HMP_MIGRATE_WAKEUP);
+				return new_cpu;
+			}
+		}
+		/* Make sure that the task stays in its previous hmp domain */
+		if (!cpumask_test_cpu(new_cpu, &hmp_cpu_domain(prev_cpu)->cpus))
+		      return prev_cpu;
+	} /* hmp_enabled */
 #endif
 
 	return new_cpu;
@@ -7520,7 +7539,7 @@ void idle_balance(int this_cpu, struct rq *this_rq)
 	}
 	rcu_read_unlock();
 #ifdef CONFIG_SCHED_HMP
-	if (!pulled_task)
+	if (hmp_enabled && (!pulled_task))
 		pulled_task = hmp_idle_pull(this_cpu);
 #endif
 	raw_spin_lock(&this_rq->lock);
@@ -7548,7 +7567,8 @@ static int __do_active_load_balance_cpu_stop(void *data, bool check_sd_lb_flag)
 
 	raw_spin_lock_irq(&busiest_rq->lock);
 #ifdef CONFIG_SCHED_HMP
-	p = busiest_rq->migrate_task;
+	if (hmp_enabled)
+		p = busiest_rq->migrate_task;
 #endif
 	/* make sure the requested cpu hasn't gone down in the meantime */
 	if (unlikely(busiest_cpu != smp_processor_id() ||
@@ -7689,29 +7709,33 @@ static inline int find_new_ilb(int call_cpu)
 	int ilb_needed = 0;
 	int cpu;
 	struct cpumask* tmp = per_cpu(ilb_tmpmask, smp_processor_id());
+	if (hmp_enabled) {
+		/* restrict nohz balancing to occur in the same hmp domain */
+		ilb = cpumask_first_and(nohz.idle_cpus_mask,
+					&((struct hmp_domain *)hmp_cpu_domain(call_cpu))->cpus);
 
-	/* restrict nohz balancing to occur in the same hmp domain */
-	ilb = cpumask_first_and(nohz.idle_cpus_mask,
-			&((struct hmp_domain *)hmp_cpu_domain(call_cpu))->cpus);
-
-	/* check to see if it's necessary within this domain */
-	cpumask_andnot(tmp,
-			&((struct hmp_domain *)hmp_cpu_domain(call_cpu))->cpus,
-			nohz.idle_cpus_mask);
-	for_each_cpu(cpu, tmp) {
-		if (cpu_rq(cpu)->nr_running > 1) {
-			ilb_needed = 1;
-			break;
+		/* check to see if it's necessary within this domain */
+		cpumask_andnot(tmp,
+					&((struct hmp_domain *)hmp_cpu_domain(call_cpu))->cpus,
+					nohz.idle_cpus_mask);
+		for_each_cpu(cpu, tmp) {
+			if (cpu_rq(cpu)->nr_running > 1) {
+				ilb_needed = 1;
+				break;
+			}
 		}
-	}
 
 #ifdef CONFIG_SCHED_HMP_LITTLE_PACKING
-	if (ilb < nr_cpu_ids)
-		ilb_needed = hmp_packing_ilb_needed(ilb, ilb_needed);
+		if (ilb < nr_cpu_ids)
+		      ilb_needed = hmp_packing_ilb_needed(ilb, ilb_needed);
 #endif
 
-	if (ilb_needed && ilb < nr_cpu_ids && idle_cpu(ilb))
-		return ilb;
+		if (ilb_needed && ilb < nr_cpu_ids && idle_cpu(ilb))
+		      return ilb;
+	} else { /* !hmp_enabled */
+		if (ilb < nr_cpu_ids && idle_cpu(ilb))
+		      return ilb;
+	} /* hmp_enabled */
 #else
 	if (ilb < nr_cpu_ids && idle_cpu(ilb))
 		return ilb;
@@ -8023,7 +8047,7 @@ static inline int nohz_kick_needed(struct rq *rq)
 	 * domains through wakeup and force balancing
 	 * as necessary based upon task load.
 	 */
-	if (cpumask_first_and(nohz.idle_cpus_mask,
+	if (hmp_enabled && cpumask_first_and(nohz.idle_cpus_mask,
 			&((struct hmp_domain *)hmp_cpu_domain(cpu))->cpus) >= nr_cpu_ids)
 		return 0;
 #endif
@@ -8200,27 +8224,28 @@ static int hmp_can_migrate_task(struct task_struct *p, struct lb_env *env)
 static int move_specific_task(struct lb_env *env, struct task_struct *pm)
 {
 	struct task_struct *p, *n;
+	if (hmp_enabled) {
+		list_for_each_entry_safe(p, n, &env->src_rq->cfs_tasks, se.group_node) {
+			if (throttled_lb_pair(task_group(p), env->src_rq->cpu,
+							env->dst_cpu))
+			      continue;
 
-	list_for_each_entry_safe(p, n, &env->src_rq->cfs_tasks, se.group_node) {
-	if (throttled_lb_pair(task_group(p), env->src_rq->cpu,
-				env->dst_cpu))
-		continue;
+			if (!hmp_can_migrate_task(p, env))
+			      continue;
+			/* Check if we found the right task */
+			if (p != pm)
+			      continue;
 
-		if (!hmp_can_migrate_task(p, env))
-			continue;
-		/* Check if we found the right task */
-		if (p != pm)
-			continue;
-
-		move_task(p, env);
-		/*
-		 * Right now, this is only the third place move_task()
-		 * is called, so we can safely collect move_task()
-		 * stats here rather than inside move_task().
-		 */
-		schedstat_inc(env->sd, lb_gained[env->idle]);
-		return 1;
-	}
+			move_task(p, env);
+			/*
+			 * Right now, this is only the third place move_task()
+			 * is called, so we can safely collect move_task()
+			 * stats here rather than inside move_task().
+			 */
+			schedstat_inc(env->sd, lb_gained[env->idle]);
+			return 1;
+		}
+	} /* hmp_enabled */
 	return 0;
 }
 
@@ -8492,8 +8517,6 @@ done:
 	spin_unlock(&hmp_force_migration);
 	return force;
 }
-#else
-static void hmp_force_up_migration(int this_cpu) { }
 #endif /* CONFIG_SCHED_HMP */
 
 /*
@@ -8508,17 +8531,19 @@ static void run_rebalance_domains(struct softirq_action *h)
 
 #ifdef CONFIG_SCHED_HMP
 	/* shortcut for hmp idle pull wakeups */
-	if (unlikely(this_rq->wake_for_idle_pull)) {
-		this_rq->wake_for_idle_pull = 0;
-		if (hmp_idle_pull(cpu_of(this_rq))) {
-			/* break out unless running nohz idle as well */
-			if (idle != CPU_IDLE)
-				return;
+	if (hmp_enabled) {
+		if (unlikely(this_rq->wake_for_idle_pull)) {
+			this_rq->wake_for_idle_pull = 0;
+			if (hmp_idle_pull(cpu_of(this_rq))) {
+				/* break out unless running nohz idle as well */
+				if (idle != CPU_IDLE)
+				      return;
+			}
 		}
-	}
-#endif
 
-	hmp_force_up_migration(cpu_of(this_rq));
+		hmp_force_up_migration(cpu_of(this_rq));
+	} /* hmp_enabled */
+#endif
 
 	rebalance_domains(this_rq, idle);
 
@@ -8557,7 +8582,8 @@ void trigger_load_balance(struct rq *rq)
 static void rq_online_fair(struct rq *rq)
 {
 #ifdef CONFIG_SCHED_HMP
-	hmp_online_cpu(rq->cpu);
+	if (hmp_enabled)
+		hmp_online_cpu(rq->cpu);
 #endif
 	update_sysctl();
 }
@@ -8565,7 +8591,8 @@ static void rq_online_fair(struct rq *rq)
 static void rq_offline_fair(struct rq *rq)
 {
 #ifdef CONFIG_SCHED_HMP
-	hmp_offline_cpu(rq->cpu);
+	if (hmp_enabled)
+		hmp_offline_cpu(rq->cpu);
 #endif
 	update_sysctl();
 
@@ -9036,7 +9063,8 @@ __init void init_sched_fair_class(void)
 #endif
 
 #ifdef CONFIG_SCHED_HMP
-	hmp_cpu_mask_setup();
+	if (hmp_enabled)
+		hmp_cpu_mask_setup();
 #endif
 #endif /* SMP */
 

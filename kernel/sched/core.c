@@ -1506,7 +1506,7 @@ void scheduler_ipi(void)
 			&& !tick_nohz_full_cpu(smp_processor_id())
 			&& !got_nohz_idle_kick()
 #ifdef CONFIG_SCHED_HMP
-			&& !this_rq()->wake_for_idle_pull
+			&& (hmp_enabled ? (!this_rq()->wake_for_idle_pull) : 1)
 #endif
 			)
 		return;
@@ -1536,7 +1536,7 @@ void scheduler_ipi(void)
 		raise_softirq_irqoff(SCHED_SOFTIRQ);
 	}
 #ifdef CONFIG_SCHED_HMP
-	else if (unlikely(this_rq()->wake_for_idle_pull))
+	else if (hmp_enabled && unlikely(this_rq()->wake_for_idle_pull))
 		raise_softirq_irqoff(SCHED_SOFTIRQ);
 #endif
 
@@ -1725,16 +1725,18 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 #ifdef CONFIG_SCHED_HMP
 	/* keep LOAD_AVG_MAX in sync with fair.c if load avg series is changed */
 #define LOAD_AVG_MAX 47742
-	p->se.avg.hmp_last_up_migration = 0;
-	p->se.avg.hmp_last_down_migration = 0;
-	if (hmp_task_should_forkboost(p)) {
-		p->se.avg.load_avg_ratio = 1023;
-		p->se.avg.load_avg_contrib =
+	if (hmp_enabled) {
+		p->se.avg.hmp_last_up_migration = 0;
+		p->se.avg.hmp_last_down_migration = 0;
+		if (hmp_task_should_forkboost(p)) {
+			p->se.avg.load_avg_ratio = 1023;
+			p->se.avg.load_avg_contrib =
 				(1023 * scale_load_down(p->se.load.weight));
-		p->se.avg.runnable_avg_period = LOAD_AVG_MAX;
-		p->se.avg.runnable_avg_sum = LOAD_AVG_MAX;
-		p->se.avg.usage_avg_sum = LOAD_AVG_MAX;
-	}
+			p->se.avg.runnable_avg_period = LOAD_AVG_MAX;
+			p->se.avg.runnable_avg_sum = LOAD_AVG_MAX;
+			p->se.avg.usage_avg_sum = LOAD_AVG_MAX;
+		}
+	} /* hmp_enabled */
 #endif
 #ifdef CONFIG_SCHEDSTATS
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
@@ -3260,7 +3262,7 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 	else if (rt_prio(p->prio)) {
 		p->sched_class = &rt_sched_class;
 #ifdef CONFIG_SCHED_HMP
-		if (!cpumask_empty(&hmp_slow_cpu_mask))
+		if (hmp_enabled && !cpumask_empty(&hmp_slow_cpu_mask))
 			if (cpumask_equal(&p->cpus_allowed, cpu_all_mask)) {
 				p->nr_cpus_allowed =
 					cpumask_weight(&hmp_slow_cpu_mask);
@@ -5923,6 +5925,9 @@ sd_init_##type(struct sched_domain_topology_level *tl, int cpu) 	\
 }
 
 SD_INIT_FUNC(CPU)
+#ifdef CONFIG_SCHED_HMP
+SD_INIT_FUNC(HMP_CPU)
+#endif
 #ifdef CONFIG_SCHED_SMT
  SD_INIT_FUNC(SIBLING)
 #endif
@@ -5932,6 +5937,17 @@ SD_INIT_FUNC(CPU)
 #ifdef CONFIG_SCHED_BOOK
  SD_INIT_FUNC(BOOK)
 #endif
+
+static noinline struct sched_domain *
+sd_init_both_CPU(struct sched_domain_topology_level *tl, int cpu)
+{
+#ifdef CONFIG_SCHED_HMP
+	if (hmp_enabled)
+		return sd_init_HMP_CPU(tl, cpu);
+	else
+#endif
+		return sd_init_CPU(tl, cpu);
+}
 
 static int default_relax_domain_level = -1;
 int sched_domain_level_max;
@@ -6040,7 +6056,7 @@ static struct sched_domain_topology_level default_topology[] = {
 #ifdef CONFIG_SCHED_BOOK
 	{ sd_init_BOOK, cpu_book_mask, },
 #endif
-	{ sd_init_CPU, cpu_cpu_mask, },
+	{ sd_init_both_CPU, cpu_cpu_mask, },
 	{ NULL, },
 };
 

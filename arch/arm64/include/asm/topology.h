@@ -29,8 +29,8 @@ const struct cpumask *cpu_coregroup_mask(int cpu);
 
 #ifdef CONFIG_DISABLE_CPU_SCHED_DOMAIN_BALANCE
 /* Common values for CPUs */
-#ifndef SD_CPU_INIT
-#define SD_CPU_INIT (struct sched_domain) {				\
+#ifndef SD_HMP_CPU_INIT
+#define SD_HMP_CPU_INIT (struct sched_domain) {				\
 	.min_interval		= 1,					\
 	.max_interval		= 4,					\
 	.busy_factor		= 64,					\

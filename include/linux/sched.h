@@ -1051,6 +1051,7 @@ struct sched_avg {
  * We want to avoid boosting any processes forked from init (PID 1)
  * and kthreadd (assumed to be PID 2).
  */
+extern int hmp_enabled;
 #define hmp_task_should_forkboost(task) ((task->parent && task->parent->pid > 2))
 #endif
 
