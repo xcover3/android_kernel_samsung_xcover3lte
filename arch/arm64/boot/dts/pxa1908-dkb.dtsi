@@ -69,12 +69,14 @@
 				compatible = "marvell,power-domain-common-gc";
 				reg = <0xd4282800 0x1000>;
 				clocks = <&soc_clocks PXA1U88_CLK_GC3D>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 			};
 
 			pd_gc2d: pd_gc2d@d4282800 {
 				compatible = "marvell,power-domain-common-gc2d";
 				reg = <0xd4282800 0x1000>;
 				clocks = <&soc_clocks PXA1U88_CLK_GC2D>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 			};
 
 			gpu: gpu@C0400000 {
