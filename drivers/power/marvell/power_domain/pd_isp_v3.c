@@ -8,6 +8,7 @@
 #include <linux/of_device.h>
 #include <linux/pm_domain.h>
 #include <linux/platform_device.h>
+#include <linux/pm_qos.h>
 
 #include "pm_domain.h"
 
@@ -48,6 +49,8 @@ struct mmp_pd_isp {
 	u32 power_on_latency;
 	u32 power_off_latency;
 	const struct mmp_pd_isp_data *data;
+	struct pm_qos_request qos_idle;
+	u32 lpm_qos;
 };
 
 enum {
@@ -73,6 +76,8 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 	void __iomem *base = pd->reg_base;
 	u32 val;
 	int ret = 0, loop = MAX_TIMEOUT;
+
+	pm_qos_update_request(&pd->qos_idle, pd->lpm_qos);
 
 	if (pd->clk)
 		clk_prepare_enable(pd->clk);
@@ -169,6 +174,9 @@ static int mmp_pd_isp_v3_power_off(struct generic_pm_domain *domain)
 	val &= ~ISP_AHB_EN;
 	__raw_writel(val, base + APMU_CCIC_CLK_RES_CTRL);
 
+	pm_qos_update_request(&pd->qos_idle,
+		PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
 	return 0;
 }
 
@@ -236,6 +244,16 @@ static int mmp_pd_isp_v3_probe(struct platform_device *pdev)
 	pd->power_off_latency = latency;
 
 	pd->dev = &pdev->dev;
+
+	pd->lpm_qos = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
+	if (of_find_property(np, "lpm-qos", NULL)) {
+		ret = of_property_read_u32(np, "lpm-qos", &pd->lpm_qos);
+		if (ret)
+			return ret;
+	}
+	pd->qos_idle.name = pd->data->name;
+	pm_qos_add_request(&pd->qos_idle, PM_QOS_CPUIDLE_BLOCK,
+					   PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 
 	pd->genpd.of_node = np;
 	pd->genpd.name = pd->data->name;

@@ -47,9 +47,7 @@
 
 #define PATH_PER_PIPE 3
 
-static struct pm_qos_request b52isp_qos_idle;
 static struct pm_qos_request ddrfreq_qos_req_min;
-static int b52isp_req_qos;
 
 static void b52isp_tasklet(unsigned long data);
 
@@ -253,23 +251,6 @@ static struct isp_res_req b52axi_req[] = {
 /*	{ISP_RESRC_CLK, ISP_CLK_AXI},*/
 	{ISP_RESRC_END}
 };
-
-static void b52isp_lpm_update(int level)
-{
-	static atomic_t ref_cnt = ATOMIC_INIT(0);
-	if (level) {
-		if (atomic_inc_return(&ref_cnt) == 1) {
-			pm_qos_update_request(&b52isp_qos_idle,
-				b52isp_req_qos);
-		}
-	} else {
-		BUG_ON(atomic_read(&ref_cnt) == 0);
-		if (atomic_dec_return(&ref_cnt) == 0) {
-			pm_qos_update_request(&b52isp_qos_idle,
-				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
-		}
-	}
-}
 
 static void __maybe_unused dump_mac_reg(void __iomem *mac_base)
 {
@@ -494,13 +475,11 @@ err_exit:
 /********************************* IDI block *********************************/
 static int b52isp_idi_hw_open(struct isp_block *block)
 {
-	b52isp_lpm_update(1);
 	return 0;
 }
 
 static void b52isp_idi_hw_close(struct isp_block *block)
 {
-	b52isp_lpm_update(0);
 }
 static int b52isp_idi_set_power(struct isp_block *block, int level)
 {
@@ -3827,13 +3806,6 @@ static int b52isp_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = of_property_read_u32(np, "lpm-qos", &b52isp_req_qos);
-	if (ret)
-		return ret;
-	b52isp_qos_idle.name = B52ISP_DRV_NAME;
-	pm_qos_add_request(&b52isp_qos_idle, PM_QOS_CPUIDLE_BLOCK,
-			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
-
 	ddrfreq_qos_req_min.name = B52ISP_DRV_NAME;
 	pm_qos_add_request(&ddrfreq_qos_req_min,
 				PM_QOS_DDR_DEVFREQ_MIN,
@@ -3843,24 +3815,18 @@ static int b52isp_probe(struct platform_device *pdev)
 	if (unlikely(ret < 0)) {
 		dev_err(&pdev->dev, "failed to break down %s into isp-subdev\n",
 			B52ISP_NAME);
-		goto out;
+		return ret;
 	}
 
 	pm_runtime_enable(b52isp->dev);
 
 	return 0;
-
-out:
-	pm_qos_remove_request(&b52isp_qos_idle);
-
-	return ret;
 }
 
 static int b52isp_remove(struct platform_device *pdev)
 {
 	struct b52isp *b52isp = platform_get_drvdata(pdev);
 
-	pm_qos_remove_request(&b52isp_qos_idle);
 	pm_runtime_disable(b52isp->dev);
 	dmam_free_coherent(b52isp->dev, META_DATA_SIZE, meta_cpu, meta_dma);
 	devm_kfree(b52isp->dev, b52isp);
