@@ -355,6 +355,7 @@ extern struct b52_sensor_data b52_hi551;
 extern const struct b52_sensor_data *memory_sensor_match(char *sensor_name);
 extern void b52_init_workqueue(void *data);
 
-/* this api for SSG J1 only*/
+/* this two api for SSG J1 only*/
 int b52isp_set_focus_distance(u32 distance, int id);
+int check_load_firmware(void);
 #endif

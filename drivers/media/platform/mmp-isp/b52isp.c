@@ -813,6 +813,12 @@ fw_done:
 	return 0;
 }
 
+int check_load_firmware(void)
+{
+	return b52isp_pwr_enable;
+}
+EXPORT_SYMBOL_GPL(check_load_firmware);
+
 static void b52isp_path_hw_close(struct isp_block *block)
 {
 	b52_load_fw(block->dev, block->reg_base, 0, b52isp_pwr_enable);

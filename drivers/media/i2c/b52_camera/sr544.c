@@ -425,7 +425,7 @@ static int SR544_s_power(struct v4l2_subdev *sd, int on)
 		if (--power->ref_cnt > 0)
 			return 0;
 
-		{
+		if (check_load_firmware()) {
 			int distance =  0x0;
 			b52isp_set_focus_distance(distance, 0);
 		}
