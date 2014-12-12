@@ -54,6 +54,10 @@ static void msg2133_device_power_on(void);
 struct class *firmware_class;
 struct device *firmware_cmd_dev;
 
+/* Temp solution for special MENU/BACK coordinate */
+/* flag be used to identify DKB or FF             */
+static int virtual_key_cfg;
+
 static void msg2133_ts_init(struct msg2133_ts_data *msg2133_ts)
 {
 	struct msg2133_ts_platform_data *pdata = msg2133_ts->platform_data;
@@ -791,6 +795,11 @@ static int msg2133_probe_dt(struct device_node *np, struct device *dev,
 		return ret;
 	}
 
+	ret = of_property_read_u32(np,
+		"focaltech,virtual_key_cfg", &virtual_key_cfg);
+	if (ret)
+		virtual_key_cfg = 0;
+
 	pdata->irq_gpio_number =
 		of_get_named_gpio(np, "focaltech,irq-gpios", 0);
 	if (pdata->irq_gpio_number < 0) {
@@ -813,13 +822,23 @@ static int msg2133_probe_dt(struct device_node *np, struct device *dev,
 static ssize_t virtual_keys_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf,
-		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_MENU)
-		":300:900:135:100" ":"
-		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_HOMEPAGE)
-		":180:900:135:100" ":"
-		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_BACK)
-		":80:900:135:100\n");
+	if (0 == virtual_key_cfg) {
+		return sprintf(buf,
+				VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_MENU)
+				":300:900:135:100" ":"
+				VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_HOMEPAGE)
+				":180:900:135:100" ":"
+				VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_BACK)
+				":80:900:135:100\n");
+	} else {
+		return sprintf(buf,
+				VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_BACK)
+				":300:900:135:100" ":"
+				VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_HOMEPAGE)
+				":180:900:135:100" ":"
+				VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_MENU)
+				":80:900:135:100\n");
+	}
 }
 
 static struct kobj_attribute virtual_keys_attr = {
