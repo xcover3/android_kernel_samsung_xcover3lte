@@ -70,3 +70,9 @@ config MMP_PANEL_JD9161_HSD5
 	default n
 	help
 		MIPI panel JD9161_HSD5 support
+
+config MMP_PANEL_OTM1284
+	bool "MIPI panel OTM1284 support"
+	default n
+	help
+		MIPI panel OTM1284 support

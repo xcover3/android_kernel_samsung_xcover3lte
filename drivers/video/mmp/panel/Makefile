@@ -10,3 +10,4 @@ obj-$(CONFIG_MMP_PANEL_HX8394_IPS3P5071)     += mipi_hx8394_ips3p5071.o
 obj-$(CONFIG_MMP_PANEL_COMMON)     += mipi_panel.o
 obj-$(CONFIG_MMP_PANEL_JD9365)     += mipi_JD9365.o
 obj-$(CONFIG_MMP_PANEL_JD9161_HSD5)     += mipi_JD9161_HSD5.o
+obj-$(CONFIG_MMP_PANEL_OTM1284)     += mipi_otm1284.o
