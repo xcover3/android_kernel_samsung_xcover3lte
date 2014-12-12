@@ -290,7 +290,19 @@ static struct platform_driver pm800_regulator_driver = {
 	.remove		= pm800_regulator_remove,
 };
 
-module_platform_driver(pm800_regulator_driver);
+static int __init pm800_regulator_init(void)
+{
+	return platform_driver_register(&pm800_regulator_driver);
+}
+
+subsys_initcall(pm800_regulator_init);
+
+static void __exit pm800_regulator_exit(void)
+{
+	platform_driver_unregister(&pm800_regulator_driver);
+}
+
+module_exit(pm800_regulator_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Joseph(Yossi) Hanin <yhanin@marvell.com>");
