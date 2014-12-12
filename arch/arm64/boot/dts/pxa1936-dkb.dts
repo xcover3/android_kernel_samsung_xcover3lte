@@ -1444,7 +1444,7 @@
 	};
 
 	tzdd {
-		status = "disabled";
+		status = "okay";
 	};
 
 	dip {
