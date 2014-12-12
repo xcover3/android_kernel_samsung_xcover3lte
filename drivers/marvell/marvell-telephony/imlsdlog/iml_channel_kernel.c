@@ -26,7 +26,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/io.h>
-#include <linux/mutex.h>
+#include <linux/semaphore.h>
 #include <linux/platform_device.h>
 #include <asm/page.h>
 #include <linux/ratelimit.h>
@@ -68,6 +68,7 @@
 
 static int mem_size = -1;
 static int buffer_size = -1;
+static DEFINE_SEMAPHORE(dma_sem);
 module_param(mem_size, int, 0);
 MODULE_PARM_DESC(mem_size, " ");
 module_param(buffer_size, int, 0);
@@ -96,7 +97,6 @@ struct dma_req_arg {
 	dma_cookie_t tx_cookie;
 };
 
-static dma_addr_t mmap_addr;
 static u32 iml_block_num = 512;
 static void __iomem *p_sharemem;
 static struct msa_ap_shmem_head *p_share_mem;
@@ -110,8 +110,6 @@ static struct class *iml_dev_class;
 /*if the value of major is not zero, dynamic alloc will not be called */
 static int iml_module_major = RIPC_DMA_MAJOR;
 static int iml_module_minor;
-static unsigned char user_open_flag;	/*0:closed 1:open,2:open->closed */
-static bool handshake_flag;
 static dma_addr_t iml_dma_mask_set, iml_dma_mask_clear = (dma_addr_t)~0;
 
 
@@ -137,7 +135,6 @@ struct iml_pxa_dma {
 	struct dma_chan *dma_chan;
 	struct dma_async_tx_descriptor *desc;
 	struct tasklet_struct tsklet;
-	struct mutex lock;
 	atomic_t refcnt;
 };
 
@@ -148,7 +145,6 @@ struct iml_module_device {
 	u8 *virbuf_addr;		/* used for DMA alloc */
 	dma_addr_t phybuf_addr;	/* used for DMA alloc */
 	struct ring_ctl_head *ctl_head;
-	unsigned long open_device_map;
 	struct cdev cdev;
 	struct platform_device *pdev;
 };
@@ -170,7 +166,7 @@ static inline int phy_to_slot(unsigned long addr)
 }
 
 
-static bool iml_sd_log_pause(void)
+static bool iml_log_pause(void)
 {
 	debug_print("%s\n", __func__);
 
@@ -186,9 +182,6 @@ static void first_ripc_handshake(void)
 {
 	debug_print("%s\n", __func__);
 
-	if (user_open_flag != 1 || handshake_flag)
-		return;
-	handshake_flag = true;
 	init_ring_state();
 	request_ripc_interrupt();
 }
@@ -197,8 +190,6 @@ static void request_ripc_interrupt(void)
 {
 	irq_debug_print("%s\n", __func__);
 
-	if ((user_open_flag != 1))
-		return;
 	readl(ripc_base + RIPC_STATUS_REG);
 	/* when MSA frees the resource, AP will get a RIPC INT */
 	writel(0x1, ripc_base + RIPC_AP_INT_REQ);
@@ -296,15 +287,13 @@ static void schedule_rx(struct iml_module_device *dev)
 
 static inline void dma_cleanup(struct iml_module_device *dev)
 {
-	if (atomic_dec_and_test(&dev->iml_dma->refcnt)) {
-		mutex_lock(&dev->iml_dma->lock);
-		dma_free_coherent(&dev->pdev->dev,
-			IML_BLOCK_SIZE * iml_block_num,
-			dev->virbuf_addr - IML_BLOCK_SIZE,
-			dev->phybuf_addr - IML_BLOCK_SIZE);
-		mutex_unlock(&dev->iml_dma->lock);
-		dev_info(&dev->pdev->dev, "deallocate DMA region\n");
-	}
+	dma_free_coherent(&dev->pdev->dev,
+		IML_BLOCK_SIZE * iml_block_num,
+		dev->virbuf_addr - IML_BLOCK_SIZE,
+		dev->phybuf_addr - IML_BLOCK_SIZE);
+	dev->virbuf_addr = NULL;
+	dev->phybuf_addr = 0;
+	dev_info(&dev->pdev->dev, "deallocate DMA region\n");
 }
 
 static void dma_func_callback(void *arg)
@@ -330,7 +319,10 @@ static void dma_func_callback(void *arg)
 	block_write_mark_complete(iml_dev.ctl_head, block);
 	wake_up_interruptible(&iml_dev.rx_wq);
 	kfree(arg);
-	dma_cleanup(&iml_dev);
+	if (atomic_dec_and_test(&iml_dev.iml_dma->refcnt)) {
+		dma_cleanup(&iml_dev);
+		up(&dma_sem);
+	}
 }
 
 static void iml_dma_start_func(struct iml_module_device *dev)
@@ -406,37 +398,34 @@ static void rx_func(unsigned long arg)
 	iml_dma_start_func(dev);
 }
 
-static int iml_moudle_open(struct inode *inode, struct file *file)
+static int iml_module_open(struct inode *inode, struct file *file)
 {
-	struct iml_module_device *dev;
 	u8 *virt_addr;
 	dma_addr_t phy_addr;
 	int ddr_on = (file->f_flags & O_ACCMODE) == O_WRONLY;
 
-	dev = container_of(inode->i_cdev, struct iml_module_device, cdev);
-	if (test_and_set_bit(0, &dev->open_device_map))
-		return 0;
-	file->private_data = dev;
-	if (unlikely(cp_remap_reg != NULL)) {
-		cal_dma_mask();
-		cp_remap_reg = NULL; /* no need to read it anymore */
+	if (down_trylock(&dma_sem)) {
+		if (file->f_flags & O_NONBLOCK)
+			return -EAGAIN;
+		pr_warn("wait for DMA transaction to finish\n");
+		if (down_interruptible(&dma_sem))
+			return -ERESTARTSYS;
 	}
-	if (!ddr_on && atomic_add_return(1, &iml_dev.iml_dma->refcnt) == 1) {
-		mutex_lock(&iml_dev.iml_dma->lock);
+
+	if (!ddr_on) {
 		virt_addr = dma_alloc_coherent(&iml_dev.pdev->dev,
 			IML_BLOCK_SIZE * iml_block_num, &phy_addr, GFP_KERNEL);
-		mutex_unlock(&iml_dev.iml_dma->lock);
 		if (!virt_addr) {
-			atomic_dec(&iml_dev.iml_dma->refcnt);
+			up(&dma_sem);
 			dev_err(&iml_dev.pdev->dev, "IML_module can't malloc dma buffer\n");
 			return -ENOMEM;
 		}
 
-		dev_info(&iml_dev.pdev->dev,
-			"DMA alloc coherent virt 0x%p, phy 0x%p, mem size: 0x%x\n",
-			virt_addr, (void *)phy_addr,
-			IML_BLOCK_SIZE * iml_block_num);
-		mmap_addr = phy_addr;
+		if (unlikely(cp_remap_reg != NULL)) {
+			cal_dma_mask();
+			cp_remap_reg = NULL; /* no need to read it anymore */
+		}
+		atomic_set(&iml_dev.iml_dma->refcnt, 1);
 		iml_dev.ctl_head = (struct ring_ctl_head *)virt_addr;
 		iml_dev.ctl_head->signature = 0x12345678;
 		iml_dev.ctl_head->read_ptr = 0;
@@ -445,37 +434,35 @@ static int iml_moudle_open(struct inode *inode, struct file *file)
 		iml_dev.ctl_head->total_block = iml_block_num - 1;
 		iml_dev.virbuf_addr = virt_addr + IML_BLOCK_SIZE;
 		iml_dev.phybuf_addr = phy_addr + IML_BLOCK_SIZE;
-	}
+		dev_info(&iml_dev.pdev->dev,
+			"DMA alloc coherent virt 0x%p, phy 0x%p, mem size: 0x%x\n",
+			virt_addr, (void *)phy_addr,
+			IML_BLOCK_SIZE * iml_block_num);
 
-	if (user_open_flag == 0 || user_open_flag == 2) {
-		handshake_flag = false;
-		user_open_flag = 1;
-		if (ddr_on) {
-			p_share_mem->ripc_flag |= IML_FLAG_DDR;
-			pr_info("iml DDR on\n");
-		} else {
-			p_share_mem->ripc_flag |= IML_FLAG_RIPC;
-			pr_info("iml RIPC on\n");
-		}
+		p_share_mem->ripc_flag |= IML_FLAG_RIPC;
 		first_ripc_handshake();
-
+		pr_info("iml RIPC on\n");
+	} else {
+		p_share_mem->ripc_flag |= IML_FLAG_DDR;
+		pr_info("iml DDR on\n");
 	}
+	file->private_data = container_of(inode->i_cdev, struct iml_module_device, cdev);
 	return 0;
 }
 
-static ssize_t iml_moudle_read(struct file *file, char __user *buf,
+static ssize_t iml_module_read(struct file *file, char __user *buf,
 			       size_t count, loff_t *offset)
 {
 	return 0;
 }
 
-static ssize_t iml_moudle_write(struct file *file, const char __user *buf,
+static ssize_t iml_module_write(struct file *file, const char __user *buf,
 				size_t count, loff_t *offset)
 {
 	return 0;
 }
 
-static unsigned int iml_moudle_poll(struct file *filp, poll_table *wait)
+static unsigned int iml_module_poll(struct file *filp, poll_table *wait)
 {
 	int mask = 0;
 	int read_avaliable;
@@ -518,7 +505,8 @@ static int iml_mmap(struct file *filp, struct vm_area_struct *vma)
 	       (long unsigned int)vma->vm_page_prot);
 	if ((vma->vm_end - vma->vm_start) != IML_BLOCK_SIZE * iml_block_num)
 		return -EINVAL;
-	if (remap_pfn_range(vma, vma->vm_start, mmap_addr >> PAGE_SHIFT,
+	if (remap_pfn_range(vma, vma->vm_start,
+			(iml_dev.phybuf_addr - IML_BLOCK_SIZE) >> PAGE_SHIFT,
 			IML_BLOCK_SIZE * iml_block_num, vma->vm_page_prot)) {
 		return -EAGAIN;
 	}
@@ -526,30 +514,28 @@ static int iml_mmap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
-static int iml_moudle_release(struct inode *inode, struct file *file)
+static int iml_module_release(struct inode *inode, struct file *file)
 {
-	struct iml_module_device *dev =
-	    (struct iml_module_device *)file->private_data;
-	if (!test_bit(0, &dev->open_device_map))
-		return 0;
-
 	pr_info("iml off\n");
-	user_open_flag = 2;
-	iml_sd_log_pause();
-	if ((file->f_flags & O_ACCMODE) != O_WRONLY)
-		dma_cleanup(&iml_dev);
-	clear_bit(0, &dev->open_device_map);
+	iml_log_pause();
+	if ((file->f_flags & O_ACCMODE) != O_WRONLY) {
+		if (atomic_dec_and_test(&iml_dev.iml_dma->refcnt)) {
+			dma_cleanup(&iml_dev);
+			up(&dma_sem);
+		}
+	} else
+		up(&dma_sem);
 	return 0;
 }
 
 static const struct file_operations iml_dev_fops = {
 	.owner = THIS_MODULE,
 	.llseek = NULL,
-	.read = iml_moudle_read,
-	.write = iml_moudle_write,
-	.open = iml_moudle_open,
-	.release = iml_moudle_release,
-	.poll = iml_moudle_poll,
+	.read = iml_module_read,
+	.write = iml_module_write,
+	.open = iml_module_open,
+	.release = iml_module_release,
+	.poll = iml_module_poll,
 	.mmap = iml_mmap,
 };
 
@@ -782,7 +768,6 @@ static int iml_dma_probe(struct  platform_device *pdev)
 	}
 	tasklet_init(&iml_dev.iml_dma->tsklet,
 			rx_func, (unsigned long)&iml_dev);
-	mutex_init(&iml_dev.iml_dma->lock);
 	devres_remove_group(&pdev->dev, iml_dma_probe);
 
 	return 0;
