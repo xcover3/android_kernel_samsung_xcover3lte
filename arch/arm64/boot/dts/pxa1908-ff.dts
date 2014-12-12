@@ -1,0 +1,231 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Qiming Wu <wuqm@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "pxa1908-dkb.dtsi"
+
+/ {
+	model = "Marvell PXA1908 FF Development Board";
+	compatible = "marvell,pxa1908";
+
+	soc {
+		apb@d4000000 {
+			pwm2: pwm@d401a400 {
+				compatible = "marvell,pxa25x-pwm";
+				reg = <0xd401a400 0x10>;
+				#pwm-cells = <2>;
+				clocks = <&soc_clocks PXA1U88_CLK_PWM1>;
+				status = "okay";
+			};
+
+			keypad: keypad@d4012000 {
+				marvell,direct-key-map = < 0x72
+							   0x73>;
+			};
+
+			keyreset {
+				status = "disabled";
+			};
+
+			pmx: pinmux@d401e000 {
+				mfp_pins_group_0: mfp_pins_group_0 {
+					pinctrl-single,pins = <
+						DF_IO9 AF0
+						DF_IO10 AF0
+						DF_IO11 AF0
+						DF_IO12 AF0
+						DF_IO13 AF0
+						DF_IO15 AF0
+					>;
+					DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_NONE;
+				};
+
+				pwm2_pin: pwm2_pin {
+					pinctrl-single,pins = <
+						GPIO51 AF2
+					>;
+					MFP_DEFAULT;
+				};
+
+				lcd_bl_pin_func: lcd_bl_pin_func {
+                                        pinctrl-single,pins = <
+                                                DF_IO8 AF1
+                                        >;
+                                        MFP_DEFAULT;
+                                };
+
+				sspa1_func: sspa1_func {
+					pinctrl-single,pins = <
+						GPIO25 AF7
+						GPIO26 AF7
+						GPIO27 AF7
+						GPIO28 AF7
+					>;
+					DS_MEDIUM;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+			};
+
+			twsi1: i2c@d4010800 {
+				touch1: s3202@720p {
+					status = "disabled";
+				};
+
+				touch3: 88ms100@720p {
+					status = "disabled";
+				};
+			};
+
+			twsi2: i2c@d4037000 {
+				pmic0: 88pm886@30 {
+					headset {
+						marvell,headset-flag = <0>;
+					};
+				};
+			};
+
+			twsi3: i2c@d4013800 {
+				sensor1: apds9930@39 {
+					status = "disabled";
+				};
+
+				sensor2: bmi160@68 {
+					status = "disabled";
+				};
+
+				sensor3: bme280@76 {
+					status = "disabled";
+				};
+
+                                mc3xxx@4c {
+					compatible = "mc3, mc3xxx";
+					reg = <0x4c>;
+					interrupt-parent = <&gpio>;
+					interrupts = <91 0x1>;
+					irq-gpios = <&gpio 91 0>;
+					avdd-supply = <&ldo4>;
+				};
+			};
+		};
+	};
+
+	vibrator {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm2_pin>;
+		pwms = <&pwm2 0 1000>;
+	};
+
+	panel1: hx8394 {
+		status = "disabled";
+	};
+
+	panel2: otm8018b {
+		status = "disabled";
+	};
+
+	panel3: otm1283a {
+		status = "disabled";
+	};
+
+	panel4: fl10802 {
+		compatible = "marvell,mmp-fl10802";
+		marvell,path-name = "mmp_pnpath";
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_bl_pin_func>;
+		panel_esd = <0>;
+		rst_gpio = <&gpio 20 0>;
+		bl_gpio = <&gpio 100 0>;
+		avdd-supply = <&ldo11>;
+		status = "okay";
+	};
+
+	sd8x-rfkill {
+		rst-gpio = <>;
+	};
+
+	mcam0:mcam@0 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 68 0>;
+		reset-gpios = <&gpio 67 0>;
+		/*
+		af_2v8-supply = <&ldo10>;
+		avdd_2v8-supply = <&ldo11>;
+		dovdd_1v8-supply = <&voutsw>;
+		dvdd_1v2-supply = <&ldo12>;
+		*/
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "disable";
+	};
+
+	mcam1:mcam@1 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 70 0>;
+		reset-gpios = <&gpio 69 0>;
+
+		af_2v8-supply = <&ldo11>;
+		avdd_2v8-supply = <&ldo10>;
+		dovdd_1v8-supply = <&buck2>;
+		dvdd_1v2-supply = <&ldo8>;
+
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "okay";
+	};
+
+	soc-camera@0 {
+		status = "okay";
+	};
+
+	soc-camera@1 {
+		status = "okay";
+	};
+
+	plat_cam {
+		status = "okay";
+		backsensor {
+			compatible = "marvell,backsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			OV5670: sensor@0 {
+				compatible = "ovt,ov5670";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x36>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&ldo9>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+		};
+	};
+
+	b52isp_sc2_csi0 {
+	        status = "okay";
+	};
+	b52isp_sc2_csi1 {
+			csi_mux_repacked;
+	        status = "okay";
+	};
+	b52isp_sc2_dma0 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma1 {
+	        status = "okay";
+	};
+};
