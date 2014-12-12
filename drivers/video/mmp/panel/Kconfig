@@ -59,6 +59,12 @@ config MMP_PANEL_HX8394
 	help
 		MIPI panel hx8394 support
 
+config MMP_PANEL_FL10802
+	bool "MIPI panel fl10802 support"
+	default n
+	help
+		MIPI panel fl10802 support
+
 config MMP_PANEL_JD9365
 	bool "MIPI Fiti panel JD9365 support"
 	default n
