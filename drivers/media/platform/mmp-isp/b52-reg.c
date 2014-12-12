@@ -1098,12 +1098,13 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate)
 }
 EXPORT_SYMBOL_GPL(b52_set_sccb_clock_rate);
 
-int b52_load_fw(struct device *dev, void __iomem *base, int enable, int pwr)
+int b52_load_fw(struct device *dev, void __iomem *base, int enable,
+					int pwr, int fw_version)
 {
 	int ret, i;
 	const struct firmware *fw;
 	__u32 *src, *dst;
-
+	const char *fw_name;
 	if (!pwr)
 		return 0;
 
@@ -1126,8 +1127,20 @@ int b52_load_fw(struct device *dev, void __iomem *base, int enable, int pwr)
 	b52_writel(REG_ISP_INT_STAT, 0x0);
 
 	b52_writeb(0x63042, 0xf1);
-
-	ret = request_firmware(&fw, FW_FILE_NAME, dev);
+	switch (fw_version) {
+	case 1:
+		fw_name = FW_FILE_V324;
+		break;
+	case 2:
+		fw_name = FW_FILE_V325;
+		break;
+	case 3:
+		fw_name = FW_FILE_V326;
+		break;
+	default:
+		fw_name = NULL;
+	}
+	ret = request_firmware(&fw, fw_name, dev);
 	if (ret < 0) {
 		pr_err("request_firmware failed\n");
 		return ret;

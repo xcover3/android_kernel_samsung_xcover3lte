@@ -13,6 +13,7 @@ struct b52isp_hw_desc {
 	int idi_dump;	/* if IDI allow bypass ISP output? */
 	int nr_pipe;	/* Number of image process pipelines */
 	int nr_axi;	/* Number of AXI Masters */
+	int hw_version; /* Version of pipeline */
 };
 
 enum b52isp_hardware_state {

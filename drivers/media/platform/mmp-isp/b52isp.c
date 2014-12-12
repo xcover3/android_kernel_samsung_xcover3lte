@@ -97,18 +97,21 @@ struct b52isp_hw_desc b52isp_hw_table[] = {
 		.idi_dump	= 1,
 		.nr_pipe	= 1,
 		.nr_axi		= 2,
+		.hw_version	= 3,
 	},
 	[B52ISP_DOUBLE] = {
 		.idi_port	= 2,
 		.idi_dump	= 1,
 		.nr_pipe	= 2,
 		.nr_axi		= 3,
+		.hw_version	= 1,
 	},
 	[B52ISP_LITE] = {
 		.idi_port	= 1,
 		.idi_dump	= 0,
 		.nr_pipe	= 1,
 		.nr_axi		= 1,
+		.hw_version	= 2,
 	},
 };
 
@@ -795,7 +798,8 @@ static int b52isp_idi_create(struct b52isp *b52isp)
 static int b52isp_path_hw_open(struct isp_block *block)
 {
 	int ret;
-
+	struct b52isp_ppipe *ppipe = NULL;
+	int hw_version;
 	if (pm_runtime_suspended(block->dev)) {
 		d_inf(1, "ISP haven't been power on, it can't load firmware\n");
 		return 0;
@@ -803,8 +807,11 @@ static int b52isp_path_hw_open(struct isp_block *block)
 		goto fw_done;
 	else
 		b52isp_pwr_enable = 1;
-
-	ret = b52_load_fw(block->dev, block->reg_base, 1, b52isp_pwr_enable);
+	ppipe = container_of(block,
+			struct b52isp_ppipe, block);
+	hw_version = ppipe->parent->hw_desc->hw_version;
+	ret = b52_load_fw(block->dev, block->reg_base, 1,
+					b52isp_pwr_enable, hw_version);
 	if (ret < 0)
 		return ret;
 
@@ -821,7 +828,7 @@ EXPORT_SYMBOL_GPL(check_load_firmware);
 
 static void b52isp_path_hw_close(struct isp_block *block)
 {
-	b52_load_fw(block->dev, block->reg_base, 0, b52isp_pwr_enable);
+	b52_load_fw(block->dev, block->reg_base, 0, b52isp_pwr_enable, 0);
 }
 
 static int b52isp_path_s_clock(struct isp_block *block, int rate)

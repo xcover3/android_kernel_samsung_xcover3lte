@@ -22,7 +22,9 @@
 
 #include "b52isp.h"
 
-#define FW_FILE_NAME          "ispfw_v325.bin"
+#define FW_FILE_V324          "ispfw_v324.bin"
+#define FW_FILE_V325          "ispfw_v325.bin"
+#define FW_FILE_V326          "ispfw_v326.bin"
 
 enum mcu_cmd_name {
 	CMD_TEST = 0,
@@ -118,7 +120,8 @@ struct b52isp_cmd {
 int b52_rw_pipe_ctdata(int pipe_id, int write,
 			struct b52_regval *entry, u32 nr_entry);
 void b52_set_base_addr(void __iomem *base);
-int b52_load_fw(struct device *dev, void __iomem *base, int enable, int pwr);
+int b52_load_fw(struct device *dev, void __iomem *base, int enable,
+						int pwr, int hw_version);
 int b52_get_metadata_len(int path);
 int b52_hdl_cmd(struct b52isp_cmd *cmd);
 int b52_ctrl_mac_irq(u8 mac_id, u8 port_id, int enable);
