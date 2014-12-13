@@ -606,7 +606,7 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 	static struct regulator *c1_dovdd_1v8;
 	static struct regulator *c1_af_2v8;
 	static struct regulator *c1_dvdd_1v2;
-	int cam_enable, cam_reset;
+	int cam_enable, cam_reset, cam_main_enable, cam_main_reset;
 	int ret;
 
 	/* Get the regulators and never put it */
@@ -614,6 +614,10 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 	 * The regulators is for sensor and should be in sensor driver
 	 * As SoC camera does not support device tree,  leave it here
 	 */
+
+	mclk = devm_clk_get(dev, "SC2MCLK");
+	if (IS_ERR(mclk))
+		return PTR_ERR(mclk);
 
 	if (!c1_avdd_2v8) {
 		c1_avdd_2v8 = regulator_get(dev, "avdd_2v8");
@@ -658,6 +662,17 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 		goto cam_enable_failed;
 	}
 
+	cam_main_enable = of_get_named_gpio(dev->of_node, "main-pwdn-gpios", 0);
+	if (gpio_is_valid(cam_main_enable)) {
+		if (gpio_request(cam_main_enable, "CAM_POWER")) {
+			dev_err(dev, "Request GPIO %d failed\n", cam_main_enable);
+			goto cam_enable_failed;
+		}
+	} else {
+		dev_err(dev, "invalid pwdn gpio %d\n", cam_main_enable);
+		goto cam_enable_failed;
+	}
+
 	cam_reset = of_get_named_gpio(dev->of_node, "reset-gpios", 0);
 	if (gpio_is_valid(cam_reset)) {
 		if (gpio_request(cam_reset, "CAM2_RESET")) {
@@ -666,6 +681,17 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 		}
 	} else {
 		dev_err(dev, "invalid pwdn gpio %d\n", cam_reset);
+		goto cam_reset_failed;
+	}
+
+	cam_main_reset = of_get_named_gpio(dev->of_node, "main-reset-gpios", 0);
+	if (gpio_is_valid(cam_main_reset)) {
+		if (gpio_request(cam_main_reset, "CAM_RESET")) {
+			dev_err(dev, "Request GPIO %d failed\n", cam_main_reset);
+			goto cam_reset_failed;
+		}
+	} else {
+		dev_err(dev, "invalid pwdn gpio %d\n", cam_main_reset);
 		goto cam_reset_failed;
 	}
 
@@ -703,7 +729,10 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 				if (ret)
 					goto cam_regulator_enable_failed;
 			}
-
+		gpio_direction_output(cam_main_enable, 0);
+		gpio_direction_output(cam_main_reset, 0);
+		clk_set_rate(mclk, 26000000);
+		clk_prepare_enable(mclk);
 		gpio_direction_output(cam_reset, 0);
 		usleep_range(5000, 20000);
 		gpio_direction_output(cam_enable, 1);
@@ -718,6 +747,8 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 		gpio_direction_output(cam_enable, 0);
 		usleep_range(5000, 20000);
 		gpio_direction_output(cam_enable, 1);
+		clk_disable_unprepare(mclk);
+		devm_clk_put(dev, mclk);
 
 			if (c1_dovdd_1v8)
 				regulator_disable(c1_dovdd_1v8);
@@ -732,10 +763,13 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 
 	gpio_free(cam_enable);
 	gpio_free(cam_reset);
+	gpio_free(cam_main_enable);
+	gpio_free(cam_main_reset);
 
 	return 0;
 
 cam_reset_failed:
+	devm_clk_put(dev, mclk);
 	gpio_free(cam_enable);
 cam_enable_failed:
 	ret = -EIO;
@@ -766,6 +800,7 @@ static struct sensor_board_data sp0a20_data = {
 	.mount_pos	= SENSOR_USED | SENSOR_POS_FRONT | SENSOR_RES_LOW,
 	.bus_type	= V4L2_MBUS_CSI2,
 	.bus_flag	= V4L2_MBUS_CSI2_1_LANE,
+	.flags      = V4L2_MBUS_CSI2_1_LANE,
 	.dphy = {0x1806, 0x00011, 0xe00},
 };
 
