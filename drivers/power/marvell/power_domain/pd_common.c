@@ -159,10 +159,6 @@ static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
 	val &= ~(1 << data->bit_auto_pwr_on);
 	__raw_writel(val, base + APMU_PWR_CTRL_REG);
 
-	val = __raw_readl(base + data->reg_clk_res_ctrl);
-	val &= ~(1 << data->bit_hw_mode);
-	__raw_writel(val, base + data->reg_clk_res_ctrl);
-
 	spin_unlock(&mmp_pd_apmu_lock);
 
 	/*
@@ -187,6 +183,10 @@ static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
 
 	pm_qos_update_request(&pd->qos_idle,
 		PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
+	val = __raw_readl(base + data->reg_clk_res_ctrl);
+	val &= ~(1 << data->bit_hw_mode);
+	__raw_writel(val, base + data->reg_clk_res_ctrl);
 
 	return 0;
 }
