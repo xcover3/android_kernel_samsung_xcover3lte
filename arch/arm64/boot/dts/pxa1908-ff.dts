@@ -170,13 +170,15 @@
 		sc2-i2c-dyn-ctrl;
 		pwdn-gpios = <&gpio 70 0>;
 		reset-gpios = <&gpio 69 0>;
+		main-pwdn-gpios = <&gpio 68 1>;
+		main-reset-gpios = <&gpio 67 1>;
 
 		af_2v8-supply = <&ldo11>;
 		avdd_2v8-supply = <&ldo10>;
-		dovdd_1v8-supply = <&buck2>;
+		dovdd_1v8-supply = <&ldo9>;
 		dvdd_1v2-supply = <&ldo8>;
 
-		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		dphy_val = <0x1003 0x0011 0x1001>;
 		status = "okay";
 	};
 
@@ -185,6 +187,10 @@
 	};
 
 	soc-camera@1 {
+		status = "okay";
+	};
+
+	soc-camera@2 {
 		status = "okay";
 	};
 
