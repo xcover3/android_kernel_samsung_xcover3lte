@@ -5,6 +5,7 @@
 #include <asm/debug-monitors.h>
 #include <asm/pgtable.h>
 #include <asm/memory.h>
+#include <asm/mmu_context.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
 #include <asm/tlbflush.h>
@@ -88,7 +89,23 @@ int cpu_suspend(unsigned long arg)
 	 */
 	ret = __cpu_suspend(arg);
 	if (ret == 0) {
-		cpu_switch_mm(mm->pgd, mm);
+
+		/*
+		 * This code usually runs under the CPU startup "thread",
+		 * from cpu_idle_loop(), and active_mm *is* init_mm,
+		 * see secondary_start_kernel().
+		 * In arm64 init_mm.pgd refers to the kernel table
+		 * and can be used for TTBR1_EL1 only, not for TTBR0_EL1,
+		 * otherwise speculative accesses to user addresses
+		 * may fetch kernel translations into TLB for these addresses.
+		 * Such wrong entries may later hard user operation
+		 * because they have nG=0, so affect any ASID.
+		 * See also cpu_set_reserved_ttbr0 in secondary_start_kernel.
+		 */
+		if (mm != &init_mm)
+			cpu_switch_mm(mm->pgd, mm);
+		else
+			cpu_set_reserved_ttbr0();
 		flush_tlb_all();
 
 		/*
