@@ -76,6 +76,10 @@
 					status = "disabled";
 				};
 
+				touch2: msg2133@26 {
+					focaltech,virtual_key_cfg = <1>;
+				};
+
 				touch3: 88ms100@720p {
 					status = "disabled";
 				};
