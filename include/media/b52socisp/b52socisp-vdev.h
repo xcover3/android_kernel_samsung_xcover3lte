@@ -88,6 +88,7 @@ struct isp_vnode {
 	 */
 	struct mmu_chs_desc	mmu_ch_dsc;
 	bool mmu_enabled;
+	struct rcv_buffer	*rcv;
 
 	struct v4l2_ctrl_handler	ctrl_handler;
 };
@@ -137,4 +138,5 @@ int isp_video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
 				struct v4l2_pix_format_mplane *pix_mp);
 int isp_video_pix_to_mbus(struct v4l2_pix_format_mplane *pix_mp,
 			  struct v4l2_mbus_framefmt *mbus);
+int alloc_vnode_rcv_buffer(size_t size);
 #endif

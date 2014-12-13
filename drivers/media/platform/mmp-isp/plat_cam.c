@@ -35,6 +35,7 @@
 #include "ccicv2.h"
 
 #define PLAT_CAM_DRV	"platform-cam"
+#define _DEBUG_BUFFER_SIZE_	(2592 * 1944 * 2 + PAGE_SIZE)
 
 static int trace = 2;
 module_param(trace, int, 0644);
@@ -1343,6 +1344,7 @@ static int plat_cam_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	alloc_vnode_rcv_buffer(PAGE_ALIGN(_DEBUG_BUFFER_SIZE_));
 	return 0;
 }
 

@@ -8,8 +8,13 @@
 #include <media/videobuf2-dma-sg.h>
 #include <media/videobuf2-dma-contig.h>
 
+#include <linux/dma-contiguous.h>
+#include <asm/cacheflush.h>
+
 #include <media/b52socisp/b52socisp-mdev.h>
 #include <media/b52socisp/b52socisp-vdev.h>
+
+#define _SHARED_BUFFER_ 1
 
 static int trace = 1;
 module_param(trace, int, 0644);
@@ -34,6 +39,165 @@ static struct isp_format_desc isp_format_table[] = {
 	{ V4L2_MBUS_FMT_YUYV8_1_5X8,	V4L2_PIX_FMT_YUV420M,	12,	3},
 	{ V4L2_MBUS_FMT_YVYU8_1_5X8,	V4L2_PIX_FMT_YVU420M,	12,	3},
 };
+
+
+struct rcv_buffer {
+	struct list_head	hook;
+	phys_addr_t		pa;
+	void			*va;
+	struct page		*page;
+	size_t			size;
+};
+
+struct list_head __vnode_rcv_buffer_list = LIST_HEAD_INIT(__vnode_rcv_buffer_list);
+DEFINE_MUTEX(rcv_lock);
+
+static int __alloc_vnode_rcv_buffer(struct rcv_buffer *rcv, size_t size)
+{
+	struct page *page = NULL;
+	int order;
+
+	size = PAGE_ALIGN(size);
+	order = get_order(size);
+
+	if (IS_ENABLED(CONFIG_CMA))
+		page = dma_alloc_from_contiguous(NULL, size >> PAGE_SHIFT, order);
+
+	if (!page) {
+		rcv->size = 0;
+		rcv->pa = (phys_addr_t)NULL;
+		rcv->va = NULL;
+		return -ENOMEM;
+	}
+
+	rcv->pa = (phys_addr_t)page_to_phys(page);
+	rcv->va = (void *)phys_to_virt(rcv->pa);
+	__dma_flush_range(rcv->va, rcv->va + size);
+	rcv->size = size;
+
+	rcv->va = (void *)__phys_to_coherent_virt(rcv->pa);
+	return 0;
+}
+
+int alloc_vnode_rcv_buffer(size_t size)
+{
+	struct rcv_buffer *rcv;
+	int ret;
+
+	rcv = kzalloc(sizeof(rcv), GFP_KERNEL);
+	if (WARN_ON(rcv == NULL))
+		return -ENOMEM;
+	INIT_LIST_HEAD(&rcv->hook);
+
+	ret = __alloc_vnode_rcv_buffer(rcv, size);
+	if (WARN_ON(ret < 0))
+		return -ENOMEM;
+
+	mutex_lock(&rcv_lock);
+	list_add_tail(&rcv->hook, &__vnode_rcv_buffer_list);
+	mutex_unlock(&rcv_lock);
+	d_inf(1, "------Allocate debug buffe with size %lu", rcv->size);
+	return 0;
+}
+
+struct rcv_buffer *vnode_get_rcv_buffer(struct isp_vnode *vnode)
+{
+	struct rcv_buffer *rcv;
+	size_t	size = 0;
+	int i;
+
+	if (vnode->rcv)
+		return vnode->rcv;
+
+	for (i = 0; i < vnode->format.fmt.pix_mp.num_planes; i++)
+		size += vnode->format.fmt.pix_mp.plane_fmt[i].sizeimage;
+
+	mutex_lock(&rcv_lock);
+	if (list_empty(&__vnode_rcv_buffer_list)) {
+		mutex_unlock(&rcv_lock);
+		WARN_ON(1);
+		return NULL;
+	}
+
+	list_for_each_entry(rcv, &__vnode_rcv_buffer_list, hook)
+		if (size <= rcv->size)
+			goto find;
+
+	mutex_unlock(&rcv_lock);
+	WARN_ON(1);
+	return NULL;
+find:
+#if _SHARED_BUFFER_
+	/* If all vnode use the same reserve buffer, nothing to do */
+#else
+	/* If allocate reserve buffer for each vnode, enable this */
+	list_del_init(&rcv->hook);
+#endif
+	vnode->rcv = rcv;
+	mutex_unlock(&rcv_lock);
+	d_inf(2, "------Got buffer done for %s @ [%08llX - %08llX]",
+		vnode->vdev.name,
+		vnode->rcv->pa,
+		vnode->rcv->pa + vnode->rcv->size);
+	return rcv;
+}
+
+void vnode_put_rcv_buffer(struct isp_vnode *vnode)
+{
+	struct rcv_buffer *rcv = vnode->rcv;
+
+	if (rcv == NULL)
+		return;
+
+	mutex_lock(&rcv_lock);
+#if _SHARED_BUFFER_
+#else
+	list_add_tail(&rcv->hook, &__vnode_rcv_buffer_list);
+#endif
+	vnode->rcv = NULL;
+	mutex_unlock(&rcv_lock);
+	d_inf(2, "------Put buffer done for %s", vnode->vdev.name);
+}
+
+void vnode_format_rcv_buffer(struct isp_vnode *vnode)
+{
+	struct rcv_buffer *rcv = vnode->rcv;
+	memset(rcv->va, 0, rcv->size);
+	d_inf(3, "------Format buffer done for %s", vnode->vdev.name);
+}
+
+void vnode_verify_rcv_buffer(struct isp_vnode *vnode)
+{
+	size_t i, start, end;
+	__u64 *ptr;
+	int in_err = 0;
+
+	if (WARN_ON(vnode->rcv == NULL))
+		return;
+	ptr = vnode->rcv->va;
+
+	for (i = 0; i < vnode->rcv->size / sizeof(*ptr); i += 8) {
+		if ((ptr[i + 0] | ptr[i + 1] | ptr[i + 2] | ptr[i + 3]) ||
+			(ptr[i + 4] | ptr[i + 5] | ptr[i + 6] | ptr[i + 7]))  {
+			if (!in_err) {
+				in_err = 1;
+				start = i * sizeof(*ptr);
+			}
+		} else {
+			if (in_err) {
+				in_err = 0;
+				end = i * sizeof(*ptr);
+				d_inf(1, "YOU ARE LUCKY: %s error at [%08llX .. %08llX]",
+					vnode->vdev.name,
+					vnode->rcv->pa + start / sizeof(*ptr),
+					vnode->rcv->pa + end / sizeof(*ptr));
+				memset(rcv_va, 0, rcv->size);
+			}
+		}
+	}
+	d_inf(3, "---Verify Buffer Done for %s @ %08llX",
+		vnode->vdev.name, vnode->rcv->pa);
+}
 
 static int isp_video_calc_mplane_sizeimage(
 		struct v4l2_pix_format_mplane *pix_mp, int idx)
@@ -410,7 +574,7 @@ static int isp_vb_prepare(struct vb2_buffer *vb)
 		 * try that?
 		 */
 		if (vnode->mmu_enabled)
-			dma_handle = (i + 1) << 28;
+			dma_handle = vnode->rcv->pa;
 		else
 			dma_handle = vb2_dma_contig_plane_dma_addr(&isp_vb->vb, i) +
 				vb->v4l2_planes[i].data_offset;
@@ -810,6 +974,9 @@ static int isp_vnode_close(struct file *file)
 	/* OK, safe now, release graph lock */
 	mutex_unlock(&vnode->link_lock);
 	vnode->file = NULL;
+	vnode_verify_rcv_buffer(vnode);
+	vnode_put_rcv_buffer(vnode);
+
 exit:
 	mutex_unlock(&vnode->st_lock);
 	return 0;
@@ -870,6 +1037,8 @@ static int isp_vnode_open(struct file *file)
 	if (ret < 0)
 		goto err_handler;
 	mutex_unlock(&vnode->st_lock);
+	if (vnode_get_rcv_buffer(vnode))
+		vnode_format_rcv_buffer(vnode);
 	return ret;
 
 err_handler:
