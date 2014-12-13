@@ -2717,6 +2717,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 		.data = &b52_hi551,
 	},
 #endif
+#ifdef CONFIG_B52_CAMERA_OV5670
+       {
+               .compatible = "ovt,ov5670",
+               .data = &b52_ov5670,
+       },
+#endif
 	{  }
 };
 

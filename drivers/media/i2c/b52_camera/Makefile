@@ -5,3 +5,4 @@ obj-$(CONFIG_B52_CAMERA_OV5648)         += ov5648.o
 obj-$(CONFIG_B52_CAMERA_OV2680)         += ov2680.o
 obj-$(CONFIG_B52_CAMERA_SR544)		+= sr544.o
 obj-$(CONFIG_B52_CAMERA_HI551)		+= hi551.o
+obj-$(CONFIG_B52_CAMERA_OV5670)         += ov5670.o

@@ -47,3 +47,9 @@ config B52_CAMERA_HI551
        depends on VIDEO_MMPISP_B52 && I2C
        help
 	This is a V4L2 camera driver for the hi551 sensor
+
+config B52_CAMERA_OV5670
+       tristate "OV5670 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+       This is a V4L2 camera driver for the ov5670 sensor
