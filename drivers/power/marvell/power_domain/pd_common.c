@@ -79,6 +79,29 @@ static struct mmp_pd_common_data gc2d_data = {
 };
 
 
+static void mmp_pd_common_dumpregs(struct mmp_pd_common *pd)
+{
+	const struct mmp_pd_common_data *data = pd->data;
+	void __iomem *base = pd->reg_base;
+
+	dev_info(pd->dev, "======DUMP REGISTER=====\n");
+
+	pr_info("clk_res_ctrl(0x%x) is 0x08%x\n", data->reg_clk_res_ctrl,
+			__raw_readl(base + data->reg_clk_res_ctrl));
+	pr_info("APMU_PWR_CTRL_REG(0x%x)is 0x08%x\n", APMU_PWR_CTRL_REG,
+			__raw_readl(base + APMU_PWR_CTRL_REG));
+	pr_info("APMU_PWR_BLK_TMR_REG(0x%x)is 0x08%x\n", APMU_PWR_BLK_TMR_REG,
+			__raw_readl(base + APMU_PWR_BLK_TMR_REG));
+
+	if (data->id == MMP_PD_COMMON_ISP_V1) {
+		pr_info("APMU_CCIC_DBG(0x%x)is 0x08%x\n", APMU_CCIC_DBG,
+			__raw_readl(base + APMU_CCIC_DBG));
+	}
+
+	pr_info("APMU_PWR_STATUS_REG(0x%x) is 0x08%x\n", APMU_PWR_STATUS_REG,
+			__raw_readl(base + APMU_PWR_STATUS_REG));
+}
+
 static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 {
 	struct mmp_pd_common *pd = container_of(domain,
@@ -131,6 +154,7 @@ static int mmp_pd_common_power_on(struct generic_pm_domain *domain)
 
 	if (loop <= 0) {
 		dev_err(pd->dev, "power on timeout\n");
+		mmp_pd_common_dumpregs(pd);
 		ret = -EBUSY;
 		goto out;
 	}
@@ -176,6 +200,7 @@ static int mmp_pd_common_power_off(struct generic_pm_domain *domain)
 	}
 	if (loop <= 0) {
 		dev_err(pd->dev, "power off timeout\n");
+		mmp_pd_common_dumpregs(pd);
 		return -EBUSY;
 	}
 
