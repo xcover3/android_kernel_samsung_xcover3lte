@@ -3499,6 +3499,7 @@ EXPORT_SYMBOL(b52_ctrl_mac_irq);
  */
 void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 {
+	static int drop_cnt[MAX_MAC_NUM];
 	__u32 reg = b52_readl(REG_ISP_INT_STAT);
 	__u32 cmd_reg = b52_readb(REG_FW_CPU_CMD_ID);
 #ifdef CONFIG_ISP_USE_TWSI3
@@ -3548,6 +3549,8 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 				irq0 |= VIRT_IRQ_DROP;
 			if ((rdy & W_RDY_2) == 0)
 				irq1 |= VIRT_IRQ_DROP;
+
+			drop_cnt[i]++;
 		}
 		if (mac_irq & W_INT_DONE0) {
 			if (irq_src & INT_SRC_W1)
@@ -3561,6 +3564,14 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 			/* stop ouputting data, untill handle overflow */
 			if (rdy)
 				b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
+		}
+
+		if (mac_irq & (W_INT_DONE0 | W_INT_OVERFLOW0))
+			drop_cnt[i] = 0;
+		if (drop_cnt[i] >= 3) {
+			b52_writeb(mac_base[i] + REG_MAC_FRAME_CTRL0, FORCE_OVERFLOW
+				| b52_readb(mac_base[i] + REG_MAC_FRAME_CTRL0));
+			drop_cnt[i] = 0;
 		}
 
 		/* build up read port virtual IRQs */

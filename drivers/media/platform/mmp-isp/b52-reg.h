@@ -598,6 +598,7 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 	#define W_RDY_2                  (1 << 2)
 	#define W_RDY_3                  (1 << 3)
 #define REG_MAC_FRAME_CTRL0          (0x31)
+	#define FORCE_OVERFLOW           (1 << 0)
 	#define DROP_FLAG                (1 << 5)
 	#define RD_CYCLE                 (1 << 6)
 	#define WR_CYCLE                 (1 << 7)
