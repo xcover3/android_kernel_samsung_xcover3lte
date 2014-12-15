@@ -1,7 +1,7 @@
 #include "88pm8xx-debugfs.h"
 
 static int reg_pm800 = 0xffff;
-static int page_index;
+static int pm_page_index;
 
 ssize_t pm800_dump_read(struct file *file, char __user *buf,
 			size_t count, loff_t *ppos)
@@ -27,7 +27,7 @@ ssize_t pm800_dump_read(struct file *file, char __user *buf,
 			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
 		}
 	} else {
-		switch (page_index) {
+		switch (pm_page_index) {
 		case 0:
 			regmap_read(chip->regmap, reg_pm800, &reg_val);
 			break;
@@ -46,12 +46,12 @@ ssize_t pm800_dump_read(struct file *file, char __user *buf,
 			break;
 #endif
 		default:
-			pr_err("page_index error!\n");
+			pr_err("pm_page_index error!\n");
 			return 0;
 		}
 
-		pr_info("reg_pm800=0x%x, page_index=0x%x, val=0x%x\n",
-			reg_pm800, page_index, reg_val);
+		pr_info("reg_pm800=0x%x, pm_page_index=0x%x, val=0x%x\n",
+			reg_pm800, pm_page_index, reg_val);
 	}
 	return 0;
 }
@@ -78,10 +78,10 @@ ssize_t pm800_dump_write(struct file *file, const char __user *buff,
 		/* set the register index */
 		memcpy(index, messages + 1, 3);
 
-		if (kstrtoint(index, 16, &page_index) < 0)
+		if (kstrtoint(index, 16, &pm_page_index) < 0)
 			return -EINVAL;
 
-		pr_info("page_index = 0x%x\n", page_index);
+		pr_info("pm_page_index = 0x%x\n", pm_page_index);
 
 		memcpy(index, messages + 5, 4);
 		if (kstrtoint(index, 16, &reg_pm800) < 0)
@@ -101,7 +101,7 @@ ssize_t pm800_dump_write(struct file *file, const char __user *buff,
 		if (kstrtou8(messages, 16, &reg_val) < 0)
 			return -EINVAL;
 
-		switch (page_index) {
+		switch (pm_page_index) {
 		case 0:
 			regmap_write(chip->regmap, reg_pm800, reg_val & 0xff);
 			break;
@@ -120,7 +120,7 @@ ssize_t pm800_dump_write(struct file *file, const char __user *buff,
 			break;
 #endif
 		default:
-			pr_err("page_index error!\n");
+			pr_err("pm_page_index error!\n");
 			break;
 
 		}
