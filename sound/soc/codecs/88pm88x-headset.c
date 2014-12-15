@@ -660,9 +660,6 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	/* Hook:continue duty cycle */
 	regmap_update_bits(hs_info->map, PM886_MIC_CNTRL, MIC_DET_PRD,
 			   MIC_DET_PRD_CTN);
-	/* set GPADC_DIR to 1, set to 0 cause pop noise in recording */
-	regmap_update_bits(hs_info->map_gpadc, PM886_GPADC_CONFIG5,
-			   PM886_MIC_DET_RDIV_DIS, PM886_MIC_DET_RDIV_DIS);
 
 	disable_irq(hs_info->irq_headset);
 	regmap_update_bits(hs_info->map, PM886_HEADSET_CNTRL,
