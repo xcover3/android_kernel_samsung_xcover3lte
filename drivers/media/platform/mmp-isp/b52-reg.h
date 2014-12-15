@@ -134,6 +134,7 @@ int b52_read_debug_info(u8 *buffer);
 int b52_cmd_anti_shake(u16 block_size, int enable);
 int b52_cmd_zoom_in(int path, int zoom);
 int b52_cmd_vcm(void);
+int b52_cmd_effect(int reg_nums);
 int b52_set_focus_win(struct v4l2_rect *win, int id);
 struct plat_cam;
 extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
@@ -209,6 +210,7 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 #define CMD_PROCESS_RAW         (0x6)
 #define CMD_CHANGE_FMT          (0x7)
 #define CMD_HDR_STILL           (0x8)
+#define CMD_EFFECT              (0x8)
 #define CMD_UV_DENOISE          (0x9)
 #define CMD_ABORT               (0xf)
 #define CMD_AWB_MODE            (0x11)
@@ -485,17 +487,27 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 #define REG_SDE_YUVTHRE21           (SDE_REG_OFFSET + 0x05)
 #define REG_SDE_CTRL06              (SDE_REG_OFFSET + 0x06)
 #define REG_SDE_YGAIN               (SDE_REG_OFFSET + 0x07)
+#define REG_SDE_YGAIN_1             (SDE_REG_OFFSET + 0x08)
 #define REG_SDE_UV_M00              (SDE_REG_OFFSET + 0x09)
+#define REG_SDE_UV_M00_1            (SDE_REG_OFFSET + 0x0a)
 #define REG_SDE_UV_M01              (SDE_REG_OFFSET + 0x0b)
+#define REG_SDE_UV_M01_1            (SDE_REG_OFFSET + 0x0c)
 #define REG_SDE_UV_M10              (SDE_REG_OFFSET + 0x0d)
+#define REG_SDE_UV_M10_1            (SDE_REG_OFFSET + 0x0e)
 #define REG_SDE_UV_M11              (SDE_REG_OFFSET + 0x0f)
+#define REG_SDE_UV_M11_1            (SDE_REG_OFFSET + 0x10)
 #define REG_SDE_YOFFSET             (SDE_REG_OFFSET + 0x11)
+#define REG_SDE_YOFFSET_1           (SDE_REG_OFFSET + 0x12)
 #define REG_SDE_UVOFFSET0           (SDE_REG_OFFSET + 0x13)
+#define REG_SDE_UVOFFSET0_1         (SDE_REG_OFFSET + 0x14)
 #define REG_SDE_UVOFFSET1           (SDE_REG_OFFSET + 0x15)
+#define REG_SDE_UVOFFSET1_1         (SDE_REG_OFFSET + 0x16)
 #define REG_SDE_CTRL17	            (SDE_REG_OFFSET + 0x17)
 #define REG_SDE_HTHRE	            (SDE_REG_OFFSET + 0x18)
 #define REG_SDE_HGAIN	            (SDE_REG_OFFSET + 0x19)
 
+#define REG_SDE_BUF_BASE		(0x34800)
+	#define SED_EOF_EN          (0x1 << 3)
 /*
  * AWB Gain register
  */

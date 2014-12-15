@@ -3004,6 +3004,18 @@ b52_dump_cmd_setting();
 	return ret;
 }
 
+int b52_cmd_effect(int reg_nums)
+{
+	int ret;
+	mutex_lock(&cmd_mutex);
+	b52_writeb(CMD_REG5, SED_EOF_EN);
+	b52_writeb(CMD_REG3, reg_nums);
+	ret = wait_cmd_done(CMD_EFFECT);
+	mutex_unlock(&cmd_mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(b52_cmd_effect);
+
 static int __maybe_unused dump_cmd_ctx(struct b52isp_cmd *cmd)
 {
 	int i, j;
