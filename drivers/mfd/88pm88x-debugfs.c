@@ -500,7 +500,7 @@ static int pm88x_debug_remove(struct platform_device *pdev)
 
 static struct platform_driver pm88x_debug_driver = {
 	.driver = {
-		.name = "88pm886-debugfs",
+		.name = "88pm88x-debugfs",
 		.owner = THIS_MODULE,
 	},
 	.probe  = pm88x_debug_probe,
@@ -520,5 +520,5 @@ subsys_initcall(pm88x_debug_init);
 module_exit(pm88x_debug_exit);
 
 MODULE_AUTHOR("Yi Zhang <yizhang@marvell.com>");
-MODULE_DESCRIPTION("88pm886 debug interface");
+MODULE_DESCRIPTION("88pm88x debug interface");
 MODULE_LICENSE("GPL v2");
