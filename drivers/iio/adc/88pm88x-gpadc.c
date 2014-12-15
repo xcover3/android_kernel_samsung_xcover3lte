@@ -407,7 +407,7 @@ static int pm88x_gpadc_setup(struct pm88x_gpadc_info *gpadc)
 
 	/* enable all of the gpadc */
 	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG1, 0xff);
-	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, 0xff);
+	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, 0xfd);
 	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG3, 0x01);
 
 	return 0;
