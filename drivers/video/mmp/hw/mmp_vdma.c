@@ -278,7 +278,6 @@ static void vdma_set_decompress_en(struct mmp_vdma_info *vdma_info, int en)
 		/* FIXME: VDMA_DEC_CTRL register was not shadowed,
 		 * always enabled it with alpha mode. */
 		tmp = readl_relaxed(&vdma_reg->dec_ctrl);
-		tmp &= ~DEC_BYPASS_EN;
 		tmp |= DEC_HAS_COMP(vdma_info->vdma_id) |
 			DEC_HAS_ALPHA(vdma_info->vdma_id);
 		writel_relaxed(tmp, &vdma_reg->dec_ctrl);
@@ -290,7 +289,6 @@ static void vdma_set_decompress_en(struct mmp_vdma_info *vdma_info, int en)
 		 * stepping */
 		 if (DISP_GEN4_PLUS(vdma->version)) {
 			tmp = readl_relaxed(&vdma_reg->dec_ctrl);
-			tmp |= DEC_BYPASS_EN;
 			tmp &= ~(DEC_HAS_COMP(vdma_info->vdma_id) |
 			DEC_HAS_ALPHA(vdma_info->vdma_id));
 			writel_relaxed(tmp, &vdma_reg->dec_ctrl);
