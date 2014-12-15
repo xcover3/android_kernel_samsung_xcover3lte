@@ -1142,12 +1142,6 @@ static struct parents_table core_parent_table[] = {
  */
 static struct cpu_opt helan2_op_array[] = {
 	{
-		.pclk = 312,
-		.pdclk = 156,
-		.baclk = 156,
-		.ap_clk_sel = 0x0,
-	},
-	{
 		.pclk = 624,
 		.pdclk = 312,
 		.baclk = 156,
@@ -1188,7 +1182,6 @@ static struct cpu_opt helan2_op_array[] = {
 };
 
 static struct cpu_rtcwtc cpu_rtcwtc_1908sec[] = {
-	{.max_pclk = 312, .l1_xtc = 0x11111111, .l2_xtc = 0x00001111,},
 	{.max_pclk = 832, .l1_xtc = 0x55555555, .l2_xtc = 0x00005555,},
 	{.max_pclk = 1057, .l1_xtc = 0x55555555, .l2_xtc = 0x0000555A,},
 	{.max_pclk = 1526, .l1_xtc = 0xAAAAAAAA, .l2_xtc = 0x0000AAAA,},
