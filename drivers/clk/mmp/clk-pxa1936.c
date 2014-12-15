@@ -1412,7 +1412,7 @@ static struct ddr_opt lpddr800_op_array[] = {
 };
 
 static unsigned long hwdfc_freq_table[] = {
-	0, 312000, 416000, 528000, 528000, 624000, 667000, 667000
+	312000, 312000, 528000, 624000, 667000, 667000, 667000, 797000
 };
 
 static struct ddr_params ddr_params = {
