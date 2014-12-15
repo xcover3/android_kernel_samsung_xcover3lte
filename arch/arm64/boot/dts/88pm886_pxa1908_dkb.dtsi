@@ -139,7 +139,7 @@
 	       led-name = "led0";
 	       led-trigger-name = "timer";
 	       pm88x-rgb-breath-mode;
-	       pm88x-rgb-breath-speed = <1>;
+	       pm88x-rgb-breath-speed = /bits/ 8 <1>;
 
 	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
 	       pm88x-rgb-on-percent = /bits/ 8 <50>;
@@ -150,7 +150,7 @@
 	       led-name = "led1";
 	       led-trigger-name = "timer";
 	       pm88x-rgb-breath-mode;
-	       pm88x-rgb-breath-speed = <2>;
+	       pm88x-rgb-breath-speed = /bits/ 8 <2>;
 
 	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
 	       pm88x-rgb-on-percent = /bits/ 8 <50>;
@@ -160,7 +160,7 @@
 	       led-name = "led2";
 	       led-trigger-name = "timer";
 	       pm88x-rgb-breath-mode;
-	       pm88x-rgb-breath-speed = <2>;
+	       pm88x-rgb-breath-speed = /bits/ 8 <2>;
 
 	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
 	       pm88x-rgb-on-percent = /bits/ 8 <50>;
