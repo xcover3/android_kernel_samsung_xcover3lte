@@ -327,6 +327,11 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 	return;
 
 FAKE_HOOK:
+	if (value)
+		regmap_update_bits(info->map, PM886_INT_ENA_3,
+			PM886_MIC_INT_EN,
+			PM886_MIC_INT_EN);
+
 	dev_err(info->dev, "fake hook interupt\n");
 }
 
