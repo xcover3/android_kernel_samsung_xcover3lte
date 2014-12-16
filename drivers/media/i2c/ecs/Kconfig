@@ -1,7 +1,7 @@
 config ECS_DRIVER
 	bool "Essential Camera Sensor driver"
 	depends on VIDEO_V4L2 && SOC_CAMERA
-	default n
+	default y
 	help
 	  Essential Camera Sensor(AKA: ECS) is a abstract description of
 	  camera sensors. Can be used to creat a specific camera sensor
@@ -10,7 +10,7 @@ config ECS_DRIVER
 config ECS_DRIVER_SUBDEV
 	bool "Essential Camera Sensor V4L2-subdev interface"
 	select ECS_DRIVER
-	default n
+	default y
 	help
 	  V4L2 subdev helper functions to implement subdev-like sensor
 	  driver
@@ -25,6 +25,6 @@ config SOC_CAMERA_OV5640_ECS
 config SOC_CAMERA_SP0A20_ECS
 	tristate "sp0a20 support based on ECS"
 	depends on ECS_DRIVER_SUBDEV
-	default n
+	default y
 	help
 		Support for the sp0a20 0.3M camera sensor.
