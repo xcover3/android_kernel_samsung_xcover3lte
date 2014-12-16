@@ -692,10 +692,10 @@ static void core_fc_seq(struct clk_hw *hw, struct cpu_opt *cop,
 	void __iomem *apmu_base = core->params->apmu_base;
 
 	/* update L1/L2 rtc/wtc if neccessary, PP low -> high */
-	if ((cop->pclk < top->pclk) && (top->l1_xtc != cop->l1_xtc)) {
+	if ((cop->pclk < top->pclk) && (top->l1_xtc != cop->l1_xtc))
 		writel(top->l1_xtc, top->l1_xtc_addr);
+	if ((cop->pclk < top->pclk) && (top->l2_xtc != cop->l2_xtc))
 		writel(top->l2_xtc, top->l2_xtc_addr);
-	}
 
 	trace_pxa_core_clk_chg(CLK_CHG_ENTRY, cop->pclk, top->pclk);
 
@@ -706,10 +706,10 @@ static void core_fc_seq(struct clk_hw *hw, struct cpu_opt *cop,
 	trace_pxa_core_clk_chg(CLK_CHG_EXIT, cop->pclk, top->pclk);
 
 	/*  update L1/L2 rtc/wtc if neccessary, high -> low */
-	if ((cop->pclk > top->pclk) && (top->l1_xtc != cop->l1_xtc)) {
+	if ((cop->pclk > top->pclk) && (top->l1_xtc != cop->l1_xtc))
 		writel(top->l1_xtc, top->l1_xtc_addr);
+	if ((cop->pclk > top->pclk) && (top->l2_xtc != cop->l2_xtc))
 		writel(top->l2_xtc, top->l2_xtc_addr);
-	}
 }
 
 static int set_core_freq(struct clk_hw *hw, struct cpu_opt *old,
