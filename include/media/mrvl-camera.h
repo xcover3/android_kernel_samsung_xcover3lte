@@ -64,7 +64,7 @@ static inline int csi2phy_desc_to_mbus_cfg(struct csi_dphy_desc *dsc,
 		return -ERANGE;
 
 	cfg->type = V4L2_MBUS_CSI2;
-	cfg->flags = (V4L2_MBUS_CSI2_2_LANE << (dsc->nr_lane - 1));
+	cfg->flags = (V4L2_MBUS_CSI2_1_LANE << (dsc->nr_lane - 1));
 	return 0;
 }
 
