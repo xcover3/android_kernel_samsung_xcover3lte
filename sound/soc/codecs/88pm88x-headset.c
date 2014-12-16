@@ -712,7 +712,7 @@ static struct platform_driver pm886_headset_driver = {
 	.suspend = pm886_headset_suspend,
 	.resume = pm886_headset_resume,
 	.driver = {
-		   .name = "88pm886-headset",
+		   .name = "88pm88x-headset",
 		   .owner = THIS_MODULE,
 		   },
 };
