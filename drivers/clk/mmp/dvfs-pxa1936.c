@@ -50,15 +50,154 @@ enum dvfs_comp {
 
 /* Fuse information related register definition */
 #define APMU_GEU		0x068
-#define MANU_PARA_31_00		0x410
-#define MANU_PARA_63_32		0x414
-#define MANU_PARA_95_64		0x418
-#define BLOCK0_224_255		0x420
+#define MANU_PARA_31_00		0x110
+#define MANU_PARA_63_32		0x114
+#define MANU_PARA_95_64		0x118
 /* For chip unique ID */
-#define UID_H_32			0x48C
-#define UID_L_32			0x4A8
+#define UID_H_32			0x18C
+#define UID_L_32			0x1A8
 /* For chip DRO and profile */
 #define NUM_PROFILES	16
+#define BLOCK0_224_255		0x120
+#define BLOCK4_PARA_31_00	0x2B4
+
+static unsigned int uiprofile;
+static unsigned int uidro;
+static unsigned int uisvtdro;
+
+struct svtrng {
+	unsigned int min;
+	unsigned int max;
+	unsigned int profile;
+};
+
+static struct svtrng svtrngtb[] = {
+	{0, 310, 15},
+	{311, 322, 14},
+	{323, 335, 13},
+	{336, 348, 12},
+	{349, 360, 11},
+	{361, 373, 10},
+	{374, 379, 9},
+	{380, 386, 8},
+	{387, 392, 7},
+	{393, 398, 6},
+	{399, 405, 5},
+	{406, 411, 4},
+	{412, 417, 3},
+	{418, 424, 2},
+	{425, 0xffffffff, 1},
+};
+
+static u32 convert_svtdro2profile(unsigned int uisvtdro)
+{
+	unsigned int uiprofile = 0, idx;
+
+	for (idx = 0; idx < ARRAY_SIZE(svtrngtb); idx++) {
+		if (uisvtdro >= svtrngtb[idx].min &&
+			uisvtdro <= svtrngtb[idx].max) {
+			uiprofile = svtrngtb[idx].profile;
+			break;
+		}
+	}
+
+	pr_info("%s uisvtdro[%d]->profile[%d]\n", __func__, uisvtdro, uiprofile);
+	return uiprofile;
+}
+
+static int __init __init_read_droinfo(void)
+{
+	/*
+	 * Read out DRO value, need enable GEU clock, if already disable,
+	 * need enable it firstly
+	 */
+	unsigned int uimanupara_31_00 = 0;
+	unsigned int uimanupara_63_32 = 0;
+	unsigned int uimanupara_95_64 = 0;
+	unsigned int uiblk4para_95_64 = 0;
+	unsigned int uiallocrev = 0;
+	unsigned int uifab = 0;
+	unsigned int uirun = 0;
+	unsigned int uiwafer = 0;
+	unsigned int uix = 0;
+	unsigned int uiy = 0;
+	unsigned int uiparity = 0;
+	unsigned int __maybe_unused uigeustatus = 0;
+	unsigned int uifuses = 0;
+	u64 uluid = 0;
+	void __iomem *apmu_base, *geu_base;
+
+	apmu_base = ioremap(APMU_BASE, SZ_4K);
+	if (apmu_base == NULL) {
+		pr_err("error to ioremap APMU base\n");
+		return -EINVAL;
+	}
+
+	geu_base = ioremap(GEU_BASE, SZ_4K);
+	if (geu_base == NULL) {
+		pr_err("error to ioremap GEU base\n");
+		return -EINVAL;
+	}
+
+	uigeustatus = __raw_readl(apmu_base + APMU_GEU);
+	if (!(uigeustatus & 0x30)) {
+		__raw_writel((uigeustatus | 0x30), apmu_base + APMU_GEU);
+		udelay(10);
+	}
+
+	uimanupara_31_00 = __raw_readl(geu_base + MANU_PARA_31_00);
+	uimanupara_63_32 = __raw_readl(geu_base + MANU_PARA_63_32);
+	uimanupara_95_64 = __raw_readl(geu_base + MANU_PARA_95_64);
+	uiblk4para_95_64 = __raw_readl(geu_base + BLOCK4_PARA_31_00);
+	uifuses = __raw_readl(geu_base + BLOCK0_224_255);
+	uluid = __raw_readl(geu_base + UID_H_32);
+	uluid = (uluid << 32) | __raw_readl(geu_base + UID_L_32);
+
+	__raw_writel(uigeustatus, apmu_base + APMU_GEU);
+
+	pr_info("  0x%x   0x%x   0x%x 0x%x\n",
+	       uimanupara_31_00, uimanupara_63_32,
+	       uimanupara_95_64, uiblk4para_95_64);
+
+	uiallocrev	= uimanupara_31_00 & 0x7;
+	uifab		= (uimanupara_31_00 >>  3) & 0x1f;
+	uirun		= ((uimanupara_63_32 & 0x3) << 24)
+			| ((uimanupara_31_00 >> 8) & 0xffffff);
+	uiwafer		= (uimanupara_63_32 >>  2) & 0x1f;
+	uix		= (uimanupara_63_32 >>  7) & 0xff;
+	uiy		= (uimanupara_63_32 >> 15) & 0xff;
+	uiparity	= (uimanupara_63_32 >> 23) & 0x1;
+	uidro		= (uimanupara_95_64 >>  4) & 0x3ff;
+	uisvtdro	= uiblk4para_95_64 & 0x3ff;
+
+	/* bit 240 ~ 255 for Profile information */
+	uifuses = (uifuses >> 16) & 0x0000FFFF;
+
+	uiprofile = convert_svtdro2profile(uisvtdro);
+
+	pr_info(" ");
+	pr_info("	*********************************\n");
+	pr_info("	*	ULT: %08X%08X	*\n",
+	       uimanupara_63_32, uimanupara_31_00);
+	pr_info("	*********************************\n");
+	pr_info("	 ULT decoded below\n");
+	pr_info("		alloc_rev[2:0]	= %d\n", uiallocrev);
+	pr_info("		fab [ 7: 3]	= %d\n", uifab);
+	pr_info("		run [33: 8]	= %d (0x%X)\n", uirun, uirun);
+	pr_info("		wafer [38:34]	= %d\n", uiwafer);
+	pr_info("		x [46:39]	= %d\n", uix);
+	pr_info("		y [54:47]	= %d\n", uiy);
+	pr_info("		parity [55:55]	= %d\n", uiparity);
+	pr_info("	*********************************\n");
+	pr_info("	*********************************\n");
+	pr_info("		LVTDRO [77:68]	= %d\n", uidro);
+	pr_info("		SVTDRO [9:0]	= %d\n", uisvtdro);
+	pr_info("		Profile	= %d\n", uiprofile);
+	pr_info("		UID	= %llx\n", uluid);
+	pr_info("	*********************************\n");
+	pr_info("\n");
+	return 0;
+}
 
 /* components frequency combination */
 /* FIXME: adjust according to SVC */
@@ -179,11 +318,11 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 	struct dvc_plat_info *plat_info = &dvc_pxa1936_info;
 	unsigned long (*freqs_cmb)[VL_MAX];
 
-	/* we don't support get the fuse info now. will add it later.*/
+	__init_read_droinfo();
 
-	/* FIXME: Here may need to identify chip stepping and profile */
 	dvc_pxa1936_info.millivolts =
-		vm_millivolts_1936_svcumc[0];
+		vm_millivolts_1936_svcumc[uiprofile];
+
 	freqs_cmb = freqs_cmb_1936;
 	plat_set_vl_min(0);
 	plat_set_vl_max(dvc_pxa1936_info.num_volts);
