@@ -301,7 +301,6 @@ static const struct reg_default pm886_base_patch[] = {
 	{PM88X_GPIO_CTRL2, 0x00}, /*               , gpio2: input   */
 	{PM88X_GPIO_CTRL3, 0x44}, /* dvc2          , dvc1           */
 	{PM88X_GPIO_CTRL4, 0x00}, /* gpio5v_1:input, gpio5v_2: input*/
-	{PM88X_RTC_ALARM_CTRL1, 0x80}, /* USE_XO = 1 */
 	{PM88X_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
 	{PM886_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
 	{PM886_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
