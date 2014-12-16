@@ -637,8 +637,8 @@ static const char * const vpufclk_parent_names[] = {
 };
 
 static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
-	{.rate = 156000000, .parent_index = 1, .xtc = 0x00380454, },
-	{.rate = 208000000, .parent_index = 0, .xtc = 0x00385454, },
+	{.rate = 156000000, .parent_index = 1, .xtc = 0x00380404, },
+	{.rate = 208000000, .parent_index = 0, .xtc = 0x00380404, },
 	{.rate = 312000000, .parent_index = 1, .xtc = 0x00385404, },
 	{.rate = 416000000, .parent_index = 0, .xtc = 0x00B85454, },
 	{.rate = 499000000, .parent_index = 2, .xtc = 0x00B85454, },
