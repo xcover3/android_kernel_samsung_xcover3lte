@@ -292,6 +292,10 @@ struct mmc_host {
 				 MMC_CAP2_PACKED_WR)
 #define MMC_CAP2_NO_PRESCAN_POWERUP (1 << 14)	/* Don't power up before scan */
 #define MMC_CAP2_SANITIZE	(1 << 15)		/* Support Sanitize */
+#define MMC_CAP2_SKIP_MMC	(1 << 16)	/* If don't need to support emmc */
+#define MMC_CAP2_SKIP_SD	(1 << 17)	/* If don't need to support sd card */
+#define MMC_CAP2_SKIP_SDIO	(1 << 18)	/* If don't need to support sdio */
+
 /*
  * disable the block devices' pre/post feature
  * So that the next data transfer will only be perpared/triggered

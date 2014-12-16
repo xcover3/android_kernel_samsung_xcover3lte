@@ -81,6 +81,9 @@
 
 #define MMC_PM_KEEP_POWER       (1 << 0)
 
+#define MMC_CAP2_SKIP_MMC	(1 << 16)	/* If don't need to support emmc */
+#define MMC_CAP2_SKIP_SD	(1 << 17)	/* If don't need to support sd card */
+#define MMC_CAP2_SKIP_SDIO	(1 << 18)	/* If don't need to support sdio */
 /* Don't need voltage switch */
 #define MMC_CAP2_NO_VOLTAGE_SWITCH			(1 << 23)
 
