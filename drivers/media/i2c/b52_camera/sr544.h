@@ -2247,7 +2247,7 @@ struct b52_sensor_data b52_sr544 = {
 		[B52_SENSOR_AG] = {0x0010, 0x00ff},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
-	.expo_range = {0x00010, 0x07c8},
+	.expo_range = {0x0004, 0x07c8},
 	.frationalexp_range = {0x00000, 0x0b40},
 	.focus_range = {0x0010, 0x03ff},
 	.vts_reg = {
