@@ -443,12 +443,18 @@
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
 				pmic1_pins: pinmux_88pm830_pins {
-					pinctrl-single,pins = <GPIO4 GPIO19 GPIO124>;
+					pinctrl-single,pins = <
+						GPIO4   AF0
+						GPIO19  AF0
+						GPIO124 AF0
+					>;
 					MFP_DEFAULT;
 				};
 
 				pmic1_pins_sleep: pinmux_88pm830_pins_sleep {
-					pinctrl-single,pins = <GPIO4>;
+					pinctrl-single,pins = <
+						GPIO4 AF0
+					>;
 					DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
 				};
 
