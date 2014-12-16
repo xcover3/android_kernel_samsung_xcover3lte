@@ -39,27 +39,31 @@
 #define DDR_DEVFREQ_UPTHRESHOLD 65
 #define DDR_DEVFREQ_DOWNDIFFERENTIAL 5
 
+#define DDR_DEVFREQ_HIGHCPUFREQ 800000
+#define DDR_DEVFREQ_HIGHCPUFREQ_UPTHRESHOLD 30
+
 #define KHZ_TO_HZ   1000
 
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 static struct ddr_devfreq_data *ddrfreq_driver_data;
+
+/* default using 65% as upthreshold and 5% as downdifferential */
+static struct devfreq_throughput_data devfreq_throughput_data = {
+	.upthreshold = DDR_DEVFREQ_UPTHRESHOLD,
+	.downdifferential = DDR_DEVFREQ_DOWNDIFFERENTIAL,
+};
 
 static inline void __update_dev_upthreshold(unsigned int upthrd,
 		struct devfreq_throughput_data *gov_data)
 {
 	int i;
 
-	if (gov_data->upthreshold != upthrd) {
-		gov_data->upthreshold = upthrd;
-		for (i = 0; i < gov_data->table_len; i++) {
-			gov_data->throughput_table[i].up =
-				gov_data->upthreshold *
-				gov_data->freq_table[i] / 100;
-			gov_data->throughput_table[i].down =
-				(gov_data->upthreshold -
-				gov_data->downdifferential) *
-				gov_data->freq_table[i] / 100;
-		}
+	for (i = 0; i < gov_data->table_len; i++) {
+		gov_data->throughput_table[i].up =
+			upthrd * gov_data->freq_table[i] / 100;
+		gov_data->throughput_table[i].down =
+			(upthrd - gov_data->downdifferential) *
+			gov_data->freq_table[i] / 100;
 	}
 }
 
@@ -81,6 +85,7 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 		return NOTIFY_OK;
 
 	mutex_lock(&devfreq->lock);
+
 	gov_data = devfreq->data;
 
 	if (val == GPUFREQ_POSTCHANGE_UP)
@@ -97,12 +102,13 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 	if (evoc)
 		upthrd = cur_data->high_upthrd;
 	else
-		upthrd = DDR_DEVFREQ_UPTHRESHOLD;
+		upthrd = gov_data->upthreshold;
 
 	__update_dev_upthreshold(upthrd, gov_data);
+
 	mutex_unlock(&devfreq->lock);
 
-	trace_pxa_ddr_upthreshold(gov_data->upthreshold);
+	trace_pxa_ddr_upthreshold(upthrd);
 
 	return NOTIFY_OK;
 }
@@ -114,11 +120,6 @@ int gpufeq_register_dev_notifier(struct srcu_notifier_head *gpu_notifier_chain)
 }
 EXPORT_SYMBOL(gpufeq_register_dev_notifier);
 
-/* default using 65% as upthreshold and 5% as downdifferential */
-static struct devfreq_throughput_data devfreq_throughput_data = {
-	.upthreshold = DDR_DEVFREQ_UPTHRESHOLD,
-	.downdifferential = DDR_DEVFREQ_DOWNDIFFERENTIAL,
-};
 #endif /* CONFIG_DDR_DEVFREQ_GOV_THROUGHPUT */
 
 static void __iomem *iomap_register(const char *reg_name)
@@ -951,7 +952,6 @@ int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info)
 	/* ddr duty cycle show */
 	glob_ticks = 0;
 
-
 	spin_lock_irqsave(&data->lock, flags);
 
 	for (i = 0; i < data->ddr_freq_tbl_len; i++)
@@ -1067,18 +1067,100 @@ int ddr_profiling_store(int start)
 	return 0;
 }
 
+static ssize_t normal_upthrd_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%u\n", devfreq_throughput_data.upthreshold);
+}
+
+static ssize_t normal_upthrd_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t size)
+{
+	struct platform_device *pdev;
+	struct ddr_devfreq_data *data;
+	struct devfreq *devfreq;
+	unsigned int normal_upthrd;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	data = platform_get_drvdata(pdev);
+	devfreq = data->devfreq;
+
+	if (0x1 != sscanf(buf, "%u", &normal_upthrd)) {
+		dev_err(dev, "<ERR> wrong parameter\n");
+		return -E2BIG;
+	}
+
+	mutex_lock(&devfreq->lock);
+
+	devfreq_throughput_data.upthreshold = normal_upthrd;
+
+	if (!data->cpu_up)
+		__update_dev_upthreshold(normal_upthrd, devfreq->data);
+
+	mutex_unlock(&devfreq->lock);
+
+	return size;
+}
+
+static ssize_t upthrd_downdiff_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%u\n", devfreq_throughput_data.downdifferential);
+}
+
+static ssize_t upthrd_downdiff_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t size)
+{
+	struct platform_device *pdev;
+	struct ddr_devfreq_data *data;
+	struct devfreq *devfreq;
+	unsigned int upthrd_downdiff;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	data = platform_get_drvdata(pdev);
+	devfreq = data->devfreq;
+
+	if (0x1 != sscanf(buf, "%u", &upthrd_downdiff)) {
+		dev_err(dev, "<ERR> wrong parameter\n");
+		return -E2BIG;
+	}
+
+	mutex_lock(&devfreq->lock);
+
+	devfreq_throughput_data.downdifferential = upthrd_downdiff;
+
+	if (data->cpu_up)
+		__update_dev_upthreshold(data->high_upthrd, devfreq->data);
+	else
+		__update_dev_upthreshold(devfreq_throughput_data.upthreshold,
+			devfreq->data);
+
+	mutex_unlock(&devfreq->lock);
+
+	return size;
+}
+
 static struct pm_qos_request ddrfreq_qos_boot_max;
 static struct pm_qos_request ddrfreq_qos_boot_min;
 
 static DEVICE_ATTR(stop_perf_in_suspend, S_IRUGO | S_IWUSR,
 		stop_perf_show, stop_perf_store);
 static DEVICE_ATTR(high_upthrd_swp, S_IRUGO | S_IWUSR,
-	high_swp_show, high_swp_store);
+		high_swp_show, high_swp_store);
 static DEVICE_ATTR(high_upthrd, S_IRUGO | S_IWUSR,
-	high_upthrd_show, high_upthrd_store);
+		high_upthrd_show, high_upthrd_store);
 static DEVICE_ATTR(disable_ddr_fc, S_IRUGO | S_IWUSR,
 		disable_show, disable_store);
-static DEVICE_ATTR(ddr_freq, S_IRUGO | S_IWUSR, ddr_freq_show, ddr_freq_store);
+static DEVICE_ATTR(ddr_freq, S_IRUGO | S_IWUSR,
+		ddr_freq_show, ddr_freq_store);
+static DEVICE_ATTR(normal_upthrd, S_IRUGO | S_IWUSR,
+		normal_upthrd_show, normal_upthrd_store);
+static DEVICE_ATTR(upthrd_downdiff, S_IRUGO | S_IWUSR,
+		upthrd_downdiff_show, upthrd_downdiff_store);
 
 /*
  * Overflow interrupt handler
@@ -1338,8 +1420,8 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		goto err_devfreq_add;
 	}
 
-	data->high_upthrd_swp = 800000;
-	data->high_upthrd = 30;
+	data->high_upthrd_swp = DDR_DEVFREQ_HIGHCPUFREQ;
+	data->high_upthrd = DDR_DEVFREQ_HIGHCPUFREQ_UPTHRESHOLD;
 	data->cpu_up = 0;
 	data->gpu_up = 0;
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
@@ -1402,6 +1484,23 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 	cpufreq_register_notifier(&data->freq_transition,
 					CPUFREQ_TRANSITION_NOTIFIER);
 #endif
+
+	res = device_create_file(&pdev->dev, &dev_attr_normal_upthrd);
+	if (res) {
+		dev_err(dev,
+			"device attr normal_upthrd create fail: %d\n", res);
+		ret = -ENOENT;
+		goto err_file_create5;
+	}
+
+	res = device_create_file(&pdev->dev, &dev_attr_upthrd_downdiff);
+	if (res) {
+		dev_err(dev,
+			"device attr upthrd_downdiff create fail: %d\n", res);
+		ret = -ENOENT;
+		goto err_file_create6;
+	}
+
 	platform_set_drvdata(pdev, data);
 	ddr_perf_cnt_init(data);
 
@@ -1434,6 +1533,10 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 
 	return 0;
 
+err_file_create6:
+	device_remove_file(&pdev->dev, &dev_attr_normal_upthrd);
+err_file_create5:
+	device_remove_file(&pdev->dev, &dev_attr_high_upthrd);
 err_file_create4:
 	device_remove_file(&pdev->dev, &dev_attr_high_upthrd_swp);
 err_file_create3:
@@ -1461,8 +1564,12 @@ static int ddr_devfreq_remove(struct platform_device *pdev)
 
 	device_remove_file(&pdev->dev, &dev_attr_disable_ddr_fc);
 	device_remove_file(&pdev->dev, &dev_attr_ddr_freq);
+	device_remove_file(&pdev->dev, &dev_attr_stop_perf_in_suspend);
 	device_remove_file(&pdev->dev, &dev_attr_high_upthrd_swp);
 	device_remove_file(&pdev->dev, &dev_attr_high_upthrd);
+	device_remove_file(&pdev->dev, &dev_attr_normal_upthrd);
+	device_remove_file(&pdev->dev, &dev_attr_upthrd_downdiff);
+
 	devfreq_remove_device(data->devfreq);
 
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
@@ -1543,6 +1650,7 @@ static int mck_suspend(struct device *dev)
 	}
 
 	mutex_unlock(&data->devfreq->lock);
+
 	return 0;
 }
 
