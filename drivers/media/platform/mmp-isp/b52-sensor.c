@@ -934,6 +934,52 @@ static int b52_sensor_g_vcm_info(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int b52_sensor_s_vcm_lp(struct v4l2_subdev *sd)
+{
+	int ret;
+	struct b52_sensor_vcm vcm;
+	struct b52_sensor_i2c_attr attr  = {
+		.reg_len = I2C_8BIT,
+		.val_len = I2C_8BIT,
+	};
+	int vcm_type;
+	struct b52_cmd_i2c_data data;
+	struct regval_tab tab[2];
+	struct b52_sensor *sensor = to_b52_sensor(sd)
+	ret = b52_sensor_g_vcm_info(sd, &vcm);
+	vcm_type = vcm.type;
+	attr.addr = vcm.attr->addr;
+	data.attr = &attr;
+	data.tab = tab;
+	data.num = 1;
+	data.pos = sensor->pos;
+	tab[0].mask = 0xff;
+	tab[1].mask = 0xff;
+	switch (vcm_type) {
+	case DW9714:
+		tab[0].reg = 0x80;
+		tab[0].val = 0x00;
+		break;
+	case DW9804:
+		tab[0].reg = 0x03;
+		tab[0].val = 0x00;
+		tab[1].reg = 0x04;
+		tab[1].val = 0x00;
+		data.num = 2;
+		break;
+	case DW9718:
+		tab[0].reg = 0x00;
+		tab[0].val = 0x01;
+		break;
+	default:
+		pr_err("not support current vcm type\n");
+		ret = -EINVAL;
+		break;
+	}
+	b52_cmd_write_i2c(&data);
+	return 0;
+}
+
 static int b52_sensor_gain_to_iso(struct v4l2_subdev *sd,
 		u32 gain, u32 *iso)
 {
@@ -1510,7 +1556,8 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 
 		if (--power->ref_cnt > 0)
 			return 0;
-
+		if (check_load_firmware())
+			b52_sensor_s_vcm_lp(sd);
 		if (power->rst)
 			gpiod_set_value_cansleep(power->rst, 1);
 		if (power->dvdd_1v2)
@@ -1528,7 +1575,6 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			devm_gpiod_put(&client->dev, sensor->power.rst);
 		if (sensor->power.pwdn)
 			devm_gpiod_put(&client->dev, sensor->power.pwdn);
-
 		if (sensor->i2c_dyn_ctrl) {
 			ret = sc2_select_pins_state(sensor->pos - 1,
 					SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);

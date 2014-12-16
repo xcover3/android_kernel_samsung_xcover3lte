@@ -2252,7 +2252,7 @@ int b52_isp_read_i2c(const struct b52_sensor_i2c_attr *attr,
 EXPORT_SYMBOL_GPL(b52_isp_read_i2c);
 
 static int b52_fill_cmd_i2c_buf(const struct regval_tab *regs,
-		u8 addr, u16 num, u8 len, u8 pos, u16 written)
+		u8 addr, u16 num, u8 addr_len, u8 data_len, u8 pos, u16 written)
 {
 	int i = 0;
 	u8 val;
@@ -2264,24 +2264,33 @@ static int b52_fill_cmd_i2c_buf(const struct regval_tab *regs,
 		pr_err("%s: parameter error\n", __func__);
 		return -EINVAL;
 	}
-
-	if (len == I2C_8BIT) {
+	if (addr_len == I2C_8BIT) {
+		for (i = 0; i < num; i++) {
+			b52_writeb((CMD_BUF_D + 0 + 4 * (i + written)),
+					(0xff));
+			b52_writeb((CMD_BUF_D + 1 + 4 * (i + written)),
+					(regs[i].reg & 0xff));
+		}
+	} else if (addr_len == I2C_16BIT) {
 		for (i = 0; i < num; i++) {
 			b52_writeb((CMD_BUF_D + 0 + 4 * (i + written)),
 					((regs[i].reg & 0xff00) >> 8));
 			b52_writeb((CMD_BUF_D + 1 + 4 * (i + written)),
 					(regs[i].reg & 0xff));
+		}
+	} else {
+		pr_err("the length do not support");
+		return -EINVAL;
+	}
+	if (data_len == I2C_8BIT) {
+		for (i = 0; i < num; i++) {
 			b52_writeb((CMD_BUF_D + 2 + 4 * (i + written)),
 					regs[i].val & 0xff);
 			b52_writeb((CMD_BUF_D + 3 + 4 * (i + written)),
 					0xff);
 		}
-	} else if (len == I2C_16BIT) {
+	} else if (data_len == I2C_16BIT) {
 		for (i = 0; i < num; i++) {
-			b52_writeb((CMD_BUF_D + 0 + 4 * (i + written)),
-					((regs[i].reg & 0xff00) >> 8));
-			b52_writeb((CMD_BUF_D + 1 + 4 * (i + written)),
-					(regs[i].reg & 0xff));
 			b52_writeb((CMD_BUF_D + 2 + 4 * (i + written)),
 					((regs[i].val & 0xff00) >> 8));
 			b52_writeb((CMD_BUF_D + 3 + 4 * (i + written)),
@@ -2307,12 +2316,12 @@ static int b52_fill_cmd_i2c_buf(const struct regval_tab *regs,
 		return -EINVAL;
 	}
 
-	val |= I2C_WRITE | I2C_16BIT_ADDR |
-		((len == I2C_8BIT) ? I2C_8BIT_DATA : I2C_16BIT_DATA);
+	val |= I2C_WRITE |
+		((addr_len == I2C_8BIT) ? I2C_8BIT_ADDR : I2C_16BIT_ADDR) |
+		((data_len == I2C_8BIT) ? I2C_8BIT_DATA : I2C_16BIT_DATA);
 	b52_writeb(CMD_REG1, val);
 	b52_writeb(CMD_REG2, addr << 1);
 	b52_writeb(CMD_REG3, num);
-
 	return 0;
 }
 
@@ -2410,8 +2419,8 @@ int b52_cmd_write_i2c(struct b52_cmd_i2c_data *data)
 	mutex_lock(&cmd_mutex);
 	do {
 		write_num = (num < I2C_MAX_NUM) ? num : I2C_MAX_NUM;
-		b52_fill_cmd_i2c_buf(data->tab, attr->addr,
-				write_num, attr->val_len, data->pos, 0);
+		b52_fill_cmd_i2c_buf(data->tab, attr->addr, write_num,
+				attr->reg_len, attr->val_len, data->pos, 0);
 		ret = wait_cmd_done(CMD_I2C_GRP_WR);
 		if (ret) {
 			mutex_unlock(&cmd_mutex);
@@ -2605,8 +2614,8 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 		b52_basic_init(cmd);
 
 		b52_g_sensor_fmt_data(sd, &data);
-		b52_fill_cmd_i2c_buf(data.tab, data.attr->addr,
-				data.num, data.attr->val_len, data.pos, 0);
+		b52_fill_cmd_i2c_buf(data.tab, data.attr->addr, data.num,
+				data.attr->reg_len, data.attr->val_len, data.pos, 0);
 	}
 
 	val = b52_convert_mode_cfg(flags, 0);
@@ -2677,8 +2686,8 @@ static int b52_cmd_capture_img(struct b52isp_cmd *cmd)
 	struct v4l2_subdev *sd = cmd->sensor;
 
 	b52_g_sensor_fmt_data(sd, &data);
-	b52_fill_cmd_i2c_buf(data.tab, data.attr->addr,
-				data.num, data.attr->val_len, data.pos, 0);
+	b52_fill_cmd_i2c_buf(data.tab, data.attr->addr, data.num,
+			data.attr->reg_len, data.attr->val_len, data.pos, 0);
 	b52_writeb(CMD_REG4, 0);
 
 	val = b52_convert_mode_cfg(cmd->flags, cmd->output[0].nr_buffer);
