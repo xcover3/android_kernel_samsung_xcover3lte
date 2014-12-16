@@ -32,7 +32,6 @@
 #define PM88X_POWER_DOWN_LOG1		(0xe5)
 #define PM88X_POWER_DOWN_LOG2		(0xe6)
 #define PM88X_SW_PDOWN			(1 << 5)
-#define PM88X_CHGBK_CONFIG6		(0x50)
 
 /* don't export it at present */
 static struct pm88x_chip *pm88x_chip_priv;

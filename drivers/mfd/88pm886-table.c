@@ -24,6 +24,7 @@
 #define PM886_LOWPOWER3			(0x22)
 #define PM886_BK_OSC_CTRL1		(0x50)
 #define PM886_BK_OSC_CTRL6		(0x55)
+#define PM886_CHGBK_CONFIG6		(0x50)
 
 #define PM886_BUCK_NAME		"88pm886-buck"
 #define PM886_LDO_NAME		"88pm886-ldo"
@@ -316,6 +317,7 @@ static const struct reg_default pm886_gpadc_patch[] = {
 };
 
 static const struct reg_default pm886_battery_patch[] = {
+	{PM886_CHGBK_CONFIG6, 0xEA},	/* Improve Charging perf at Reduced VBUS*/
 };
 
 static const struct reg_default pm886_test_patch[] = {
