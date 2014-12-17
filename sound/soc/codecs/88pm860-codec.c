@@ -1080,7 +1080,7 @@ struct snd_soc_dai_driver pm860_dai[4] = {
 	{
 		.name = "88pm860-tdm-out1",
 		.id = 3,
-		.capture = {
+		.playback = {
 			.stream_name  = "Hifi Playback",
 			.channels_min = 1,
 			.channels_max = 2,
@@ -1093,7 +1093,7 @@ struct snd_soc_dai_driver pm860_dai[4] = {
 	{
 		.name = "88pm860-tdm-out2",
 		.id = 4,
-		.capture = {
+		.playback = {
 			.stream_name  = "Voice Playback",
 			.channels_min = 1,
 			.channels_max = 2,
