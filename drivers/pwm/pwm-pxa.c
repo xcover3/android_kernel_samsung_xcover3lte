@@ -22,8 +22,6 @@
 #include <linux/of_device.h>
 
 #include <asm/div64.h>
-#include <linux/clk-private.h>
-#include "../clk/mmp/clk.h"
 
 #define HAS_SECONDARY_PWM	0x10
 
@@ -170,15 +168,11 @@ pxa_pwm_of_xlate(struct pwm_chip *pc, const struct of_phandle_args *args)
 	return pwm;
 }
 
-#define to_clk_mmp_gate(hw)	container_of(hw, struct mmp_clk_gate, hw)
-#define PWM_APB_BUS_EN 	0x1
 static int pwm_probe(struct platform_device *pdev)
 {
 	const struct platform_device_id *id = platform_get_device_id(pdev);
 	struct pxa_pwm_chip *pwm;
 	struct resource *r;
-	struct clk_hw *hw;
-	struct mmp_clk_gate *gate;
 	int ret = 0;
 
 	if (IS_ENABLED(CONFIG_OF) && id == NULL)
@@ -196,14 +190,6 @@ static int pwm_probe(struct platform_device *pdev)
 	pwm->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(pwm->clk))
 		return PTR_ERR(pwm->clk);
-
-	/* enable APB bus clk */
-	/* Note: pwm0/1 and pwm2/3 share apb bus clk  */
-	hw = pwm->clk->hw;
-	gate = to_clk_mmp_gate(hw);
-	if (!strcmp(pwm->clk->name, "pwm3_clk")
-			|| !strcmp(pwm->clk->name, "pwm1_clk"))
-		writel(PWM_APB_BUS_EN, gate->reg - 0x4);
 
 	pwm->chip.dev = &pdev->dev;
 	pwm->chip.ops = &pxa_pwm_ops;
