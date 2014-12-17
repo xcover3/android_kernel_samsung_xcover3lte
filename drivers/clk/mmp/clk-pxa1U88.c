@@ -376,6 +376,9 @@ static void pxa1U88_pll_init(struct pxa1U88_clk_unit *pxa_unit)
 		pxa1U88_dynpll_init(pxa_unit);
 }
 
+static DEFINE_SPINLOCK(pwm0_lock);
+static DEFINE_SPINLOCK(pwm2_lock);
+
 static struct mmp_param_gate_clk apbc_gate_clks[] = {
 	{PXA1U88_CLK_TWSI0, "twsi0_clk", "pll1_13_1_5", CLK_SET_RATE_PARENT, APBC_TWSI0, 0x7, 0x3, 0x0, 0, NULL},
 	{PXA1U88_CLK_TWSI1, "twsi1_clk", "pll1_13_1_5", CLK_SET_RATE_PARENT, APBC_TWSI1, 0x7, 0x3, 0x0, 0, NULL},
@@ -383,10 +386,10 @@ static struct mmp_param_gate_clk apbc_gate_clks[] = {
 	{PXA1U88_CLK_GPIO, "gpio_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_GPIO, 0x7, 0x3, 0x0, 0, NULL},
 	{PXA1U88_CLK_KPC, "kpc_clk", "clk32", CLK_SET_RATE_PARENT, APBC_KPC, 0x7, 0x3, 0x0, MMP_CLK_GATE_NEED_DELAY, NULL},
 	{PXA1U88_CLK_RTC, "rtc_clk", "clk32", CLK_SET_RATE_PARENT, APBC_RTC, 0x87, 0x83, 0x0, MMP_CLK_GATE_NEED_DELAY, NULL},
-	{PXA1U88_CLK_PWM0, "pwm0_clk", "pll1_48", CLK_SET_RATE_PARENT, APBC_PWM0, 0x7, 0x3, 0x0, 0, NULL},
-	{PXA1U88_CLK_PWM1, "pwm1_clk", "pll1_48", CLK_SET_RATE_PARENT, APBC_PWM1, 0x7, 0x3, 0x0, 0, NULL},
-	{PXA1U88_CLK_PWM2, "pwm2_clk", "pll1_48", CLK_SET_RATE_PARENT, APBC_PWM2, 0x7, 0x3, 0x0, 0, NULL},
-	{PXA1U88_CLK_PWM3, "pwm3_clk", "pll1_48", CLK_SET_RATE_PARENT, APBC_PWM3, 0x7, 0x3, 0x0, 0, NULL},
+	{PXA1U88_CLK_PWM0, "pwm0_clk", "pwm01_apb_share", CLK_SET_RATE_PARENT, APBC_PWM0, 0x2, 0x2, 0x0, 0, &pwm0_lock},
+	{PXA1U88_CLK_PWM1, "pwm1_clk", "pwm01_apb_share", CLK_SET_RATE_PARENT, APBC_PWM1, 0x6, 0x2, 0x0, 0, NULL},
+	{PXA1U88_CLK_PWM2, "pwm2_clk", "pwm23_apb_share", CLK_SET_RATE_PARENT, APBC_PWM2, 0x2, 0x2, 0x0, 0, &pwm2_lock},
+	{PXA1U88_CLK_PWM3, "pwm3_clk", "pwm23_apb_share", CLK_SET_RATE_PARENT, APBC_PWM3, 0x6, 0x2, 0x0, 0, NULL},
 };
 
 static DEFINE_SPINLOCK(uart0_lock);
@@ -417,6 +420,16 @@ static void pxa1U88_apb_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 {
 	struct clk *clk;
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
+
+	clk = mmp_clk_register_gate(NULL, "pwm01_apb_share", "pll1_48",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apbc_base + APBC_PWM0,
+				0x5, 0x1, 0x0, 0, &pwm0_lock);
+
+	clk = mmp_clk_register_gate(NULL, "pwm23_apb_share", "pll1_48",
+				CLK_SET_RATE_PARENT,
+				pxa_unit->apbc_base + APBC_PWM2,
+				0x5, 0x1, 0x0, 0, &pwm2_lock);
 
 	mmp_register_gate_clks(unit, apbc_gate_clks, pxa_unit->apbc_base,
 				ARRAY_SIZE(apbc_gate_clks));
