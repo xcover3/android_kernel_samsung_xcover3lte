@@ -53,7 +53,7 @@ static void b52isp_tasklet(unsigned long data);
 
 static void *meta_cpu;
 static dma_addr_t meta_dma;
-#define META_DATA_SIZE  0x10080
+#define META_DATA_SIZE  0x81
 
 static int trace = 2;
 module_param(trace, int, 0644);
@@ -1693,14 +1693,16 @@ fail_double:
 		lpipe->meta_size = b52_get_metadata_len(B52ISP_ISD_PIPE1);
 		lpipe->meta_cpu = meta_cpu;
 		lpipe->meta_dma = meta_dma;
-		if (lpipe->meta_cpu == NULL) {
+		if ((lpipe->meta_cpu == NULL) ||
+			(lpipe->meta_size >= META_DATA_SIZE)) {
 			WARN_ON(1);
 			return -ENOMEM;
 		}
+
 		d_inf(4, "alloc meta data for %s with %d bytes, VA@%p, PA@%X",
 			lpipe->isd.subdev.name, lpipe->meta_size,
 			lpipe->meta_cpu, (u32)lpipe->meta_dma);
-		memset(lpipe->meta_cpu, 0xCD, lpipe->meta_size);
+		memset(lpipe->meta_cpu, 0xCD, lpipe->meta_size + 1);
 	}
 	if (lpipe->pinfo_buf == NULL) {
 		lpipe->pinfo_size = PIPE_INFO_SIZE;
@@ -2155,6 +2157,10 @@ static inline int b52isp_update_metadata(struct isp_subdev *isd,
 	} else if (type == V4L2_PLANE_SIGNATURE_PIPELINE_META) {
 		src = (u16 *)lpipe->meta_cpu;
 		size = lpipe->meta_size;
+
+		if (((u8 *)lpipe->meta_cpu)[size] != 0xCD)
+			d_inf(1, "%s:%d meta data cross the requested size",
+				isd->subdev.name, ((u8 *)lpipe->meta_cpu)[size]);
 	} else
 		return -EINVAL;
 
