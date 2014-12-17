@@ -71,6 +71,11 @@
 #define PM88X_CHG_TIMEOUT		(1 << 6)
 #define PM88X_OV_ITEMP			(1 << 7)
 
+enum {
+	AC_CHARGER_TYPE,
+	USB_CHARGER_TYPE,
+};
+
 struct pm88x_charger_info {
 	struct device *dev;
 	struct power_supply ac_chg;
@@ -80,6 +85,7 @@ struct pm88x_charger_info {
 	struct notifier_block nb;
 	int ac_chg_online;
 	int usb_chg_online;
+	int used_chg_type;	/* type of used power supply */
 
 	struct mutex lock;
 
@@ -570,22 +576,26 @@ static int pm88x_charger_notifier_call(struct notifier_block *nb,
 	case DEFAULT_CHARGER:
 		info->ac_chg_online = 0;
 		info->usb_chg_online = 1;
+		info->used_chg_type = USB_CHARGER_TYPE;
 		info->limit_cur = 500;
 		break;
 	case CDP_CHARGER:
 		info->ac_chg_online = 1;
 		info->usb_chg_online = 0;
+		info->used_chg_type = AC_CHARGER_TYPE;
 		/* the max current for CDP should be 1.5A */
 		info->limit_cur = 1500;
 		break;
 	case DCP_CHARGER:
 		info->ac_chg_online = 1;
 		info->usb_chg_online = 0;
+		info->used_chg_type = AC_CHARGER_TYPE;
 		info->limit_cur = info->dcp_limit;
 		break;
 	default:
 		info->ac_chg_online = 0;
 		info->usb_chg_online = 1;
+		info->used_chg_type = USB_CHARGER_TYPE;
 		info->limit_cur = 500;
 		break;
 	}
@@ -721,7 +731,10 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 		/* recharge done */
 		} else if (info->full) {
 			info->full = 0;
-			power_supply_changed(&info->ac_chg);
+			if (info->used_chg_type == USB_CHARGER_TYPE)
+				power_supply_changed(&info->usb_chg);
+			else
+				power_supply_changed(&info->ac_chg);
 		} else {
 			/* start recharge */
 			if (!info->charging && chg_allowed)
@@ -769,7 +782,10 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 	if (prev_status != info->pm88x_charger_status) {
 		dev_dbg(info->chip->dev, "charger status changed from %s to %s\n",
 			charger_status[prev_status], charger_status[info->pm88x_charger_status]);
-		power_supply_changed(&info->ac_chg);
+		if (info->used_chg_type == USB_CHARGER_TYPE)
+			power_supply_changed(&info->usb_chg);
+		else
+			power_supply_changed(&info->ac_chg);
 	}
 }
 
