@@ -50,20 +50,18 @@ enum dvfs_comp {
 
 /* Fuse information related register definition */
 #define APMU_GEU		0x068
-#define MANU_PARA_31_00		0x110
-#define MANU_PARA_63_32		0x114
-#define MANU_PARA_95_64		0x118
-/* For chip unique ID */
-#define UID_H_32			0x18C
-#define UID_L_32			0x1A8
 /* For chip DRO and profile */
 #define NUM_PROFILES	16
-#define BLOCK0_224_255		0x120
-#define BLOCK4_PARA_31_00	0x2B4
+
+#define GEU_FUSE_MANU_PARA_0 0x110
+#define GEU_FUSE_MANU_PARA_1 0x114
+#define GEU_FUSE_MANU_PARA_2 0x118
+#define GEU_AP_CP_MP_ECC 0x11C
+#define BLOCK0_RESERVED_1 0x120
+#define BLOCK4_MANU_PARA1_0 0x2b4
+#define BLOCK4_MANU_PARA1_1 0x2b8
 
 static unsigned int uiprofile;
-static unsigned int uidro;
-static unsigned int uisvtdro;
 
 struct svtrng {
 	unsigned int min;
@@ -105,26 +103,32 @@ static u32 convert_svtdro2profile(unsigned int uisvtdro)
 	return uiprofile;
 }
 
+unsigned int convertFusesToProfile_helan3(unsigned int uiFuses)
+{
+	unsigned int uiProfile = 0;
+	unsigned int uiTemp = 3, uiTemp2 = 1;
+	int i;
+
+	for (i = 1; i < NUM_PROFILES; i++) {
+		uiTemp |= uiTemp2<<(i);
+		if (uiTemp == uiFuses)
+			uiProfile = i;
+	}
+	pr_info("%s uiFuses[%d]->profile[%d]\n", __func__, uiFuses, uiProfile);
+	return uiProfile;
+}
+
 static int __init __init_read_droinfo(void)
 {
-	/*
-	 * Read out DRO value, need enable GEU clock, if already disable,
-	 * need enable it firstly
-	 */
-	unsigned int uimanupara_31_00 = 0;
-	unsigned int uimanupara_63_32 = 0;
-	unsigned int uimanupara_95_64 = 0;
-	unsigned int uiblk4para_95_64 = 0;
-	unsigned int uiallocrev = 0;
-	unsigned int uifab = 0;
-	unsigned int uirun = 0;
-	unsigned int uiwafer = 0;
-	unsigned int uix = 0;
-	unsigned int uiy = 0;
-	unsigned int uiparity = 0;
 	unsigned int __maybe_unused uigeustatus = 0;
-	unsigned int uifuses = 0;
-	u64 uluid = 0;
+	unsigned int uiProfileFuses, uiSVCRev, uiFabRev, guiProfile;
+	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_0, uiBlock0_GEU_FUSE_MANU_PARA_1;
+	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_2, uiBlock0_GEU_AP_CP_MP_ECC;
+	unsigned int  uiBlock0_BLOCK0_RESERVED_1, uiBlock4_MANU_PARA1_0, uiBlock4_MANU_PARA1_1;
+	unsigned int uiAllocRev, uiFab, uiRun, uiWafer, uiX, uiY, uiParity;
+	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0;
+	char cLot[7] = {0};
+
 	void __iomem *apmu_base, *geu_base;
 
 	apmu_base = ioremap(APMU_BASE, SZ_4K);
@@ -144,59 +148,84 @@ static int __init __init_read_droinfo(void)
 		__raw_writel((uigeustatus | 0x30), apmu_base + APMU_GEU);
 		udelay(10);
 	}
-
-	uimanupara_31_00 = __raw_readl(geu_base + MANU_PARA_31_00);
-	uimanupara_63_32 = __raw_readl(geu_base + MANU_PARA_63_32);
-	uimanupara_95_64 = __raw_readl(geu_base + MANU_PARA_95_64);
-	uiblk4para_95_64 = __raw_readl(geu_base + BLOCK4_PARA_31_00);
-	uifuses = __raw_readl(geu_base + BLOCK0_224_255);
-	uluid = __raw_readl(geu_base + UID_H_32);
-	uluid = (uluid << 32) | __raw_readl(geu_base + UID_L_32);
+	/* GEU_FUSE_MANU_PARA_0	0x110	Bank 0 [127: 96] */
+	uiBlock0_GEU_FUSE_MANU_PARA_0 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_0);
+	/* GEU_FUSE_MANU_PARA_1	0x114	Bank 0 [159:128] */
+	uiBlock0_GEU_FUSE_MANU_PARA_1 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_1);
+	/* GEU_FUSE_MANU_PARA_2	0x118	Bank 0 [191:160] */
+	uiBlock0_GEU_FUSE_MANU_PARA_2 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_2);
+	/* GEU_AP_CP_MP_ECC		0x11C	Bank 0 [223:192] */
+	uiBlock0_GEU_AP_CP_MP_ECC = __raw_readl(geu_base + GEU_AP_CP_MP_ECC);
+	/* BLOCK0_RESERVED_1 0x120	Bank 0 [255:224] */
+	uiBlock0_BLOCK0_RESERVED_1 = __raw_readl(geu_base + BLOCK0_RESERVED_1);
+	/* Fuse Block 4 191:160 */
+	uiBlock4_MANU_PARA1_0 = __raw_readl(geu_base + BLOCK4_MANU_PARA1_0);
+	/* Fuse Block 4 255:192 */
+	uiBlock4_MANU_PARA1_1  = __raw_readl(geu_base + BLOCK4_MANU_PARA1_1);
 
 	__raw_writel(uigeustatus, apmu_base + APMU_GEU);
 
-	pr_info("  0x%x   0x%x   0x%x 0x%x\n",
-	       uimanupara_31_00, uimanupara_63_32,
-	       uimanupara_95_64, uiblk4para_95_64);
+	uiAllocRev = uiBlock0_GEU_FUSE_MANU_PARA_0 & 0x7;
+	uiFab = (uiBlock0_GEU_FUSE_MANU_PARA_0 >>  3) & 0x1f;
+	uiRun = ((uiBlock0_GEU_FUSE_MANU_PARA_1 & 0x3) << 24) |
+		((uiBlock0_GEU_FUSE_MANU_PARA_0 >> 8) & 0xffffff);
+	uiWafer = (uiBlock0_GEU_FUSE_MANU_PARA_1 >>  2) & 0x1f;
+	uiX = (uiBlock0_GEU_FUSE_MANU_PARA_1 >>  7) & 0xff;
+	uiY = (uiBlock0_GEU_FUSE_MANU_PARA_1 >> 15) & 0xff;
+	uiParity = (uiBlock0_GEU_FUSE_MANU_PARA_1 >> 23) & 0x1;
+	uiSVCRev = (uiBlock0_BLOCK0_RESERVED_1    >> 13) & 0x3;
+	uiFabRev = (uiBlock0_BLOCK0_RESERVED_1    >> 11) & 0x3;
+	uiSVTDRO_Avg = ((uiBlock0_GEU_FUSE_MANU_PARA_2 & 0x3) << 8) |
+		((uiBlock0_GEU_FUSE_MANU_PARA_1 >> 24) & 0xff);
+	uiLVTDRO_Avg = (uiBlock0_GEU_FUSE_MANU_PARA_2 >>  4) & 0x3ff;
+	uiProfileFuses = (uiBlock0_BLOCK0_RESERVED_1    >> 16) & 0xffff;
+	uiSIDD1p05 = uiBlock4_MANU_PARA1_0 & 0x3ff;
+	uiSIDD1p30 = ((uiBlock4_MANU_PARA1_1 & 0x3) << 8) |
+		((uiBlock4_MANU_PARA1_0 >> 24) & 0xff);
 
-	uiallocrev	= uimanupara_31_00 & 0x7;
-	uifab		= (uimanupara_31_00 >>  3) & 0x1f;
-	uirun		= ((uimanupara_63_32 & 0x3) << 24)
-			| ((uimanupara_31_00 >> 8) & 0xffffff);
-	uiwafer		= (uimanupara_63_32 >>  2) & 0x1f;
-	uix		= (uimanupara_63_32 >>  7) & 0xff;
-	uiy		= (uimanupara_63_32 >> 15) & 0xff;
-	uiparity	= (uimanupara_63_32 >> 23) & 0x1;
-	uidro		= (uimanupara_95_64 >>  4) & 0x3ff;
-	uisvtdro	= uiblk4para_95_64 & 0x3ff;
+	guiProfile = convertFusesToProfile_helan3(uiProfileFuses);
 
-	/* bit 240 ~ 255 for Profile information */
-	uifuses = (uifuses >> 16) & 0x0000FFFF;
+	if (guiProfile == 0)
+		guiProfile = convert_svtdro2profile(uiSVTDRO_Avg);
 
-	uiprofile = convert_svtdro2profile(uisvtdro);
+	pr_info(" \n");
+	pr_info("     *************************** \n");
+	pr_info("     *  ULT: %08X%08X  * \n", uiBlock0_GEU_FUSE_MANU_PARA_1,
+		uiBlock0_GEU_FUSE_MANU_PARA_0);
+	pr_info("     *************************** \n");
+	pr_info("     ULT decoded below \n");
+	pr_info("     alloc_rev = %d\n", uiAllocRev);
+	pr_info("           fab = %d\n",      uiFab);
+	pr_info("           run = %d (0x%07X)\n", uiRun, uiRun);
+	pr_info("         wafer = %d\n",    uiWafer);
+	pr_info("             x = %d\n",        uiX);
+	pr_info("             y = %d\n",        uiY);
+	pr_info("        parity = %d\n",   uiParity);
+	pr_info("     *************************** \n");
+	if (0 == uiFabRev)
+		pr_info("     *  Fab   = TSMC 28LP (%d)\n",    uiFabRev);
+	else if (1 == uiFabRev)
+		pr_info("     *  Fab   = SEC 28LP (%d)\n",    uiFabRev);
+	else
+		pr_info("     *  FabRev (%d) not currently supported\n",    uiFabRev);
+	pr_info("     *  Lot   = %s\n",    cLot);
+	pr_info("     *  wafer = %d\n", uiWafer);
+	pr_info("     *  x     = %d\n",     uiX);
+	pr_info("     *  y     = %d\n",     uiY);
+	pr_info("     *************************** \n");
+	pr_info("     *  Iddq @ 1.05V = %dmA\n",   uiSIDD1p05);
+	pr_info("     *  Iddq @ 1.30V = %dmA\n",   uiSIDD1p30);
+	pr_info("     *************************** \n");
+	pr_info("     *  LVTDRO = %d\n",   uiLVTDRO_Avg);
+	pr_info("     *  SVTDRO = %d\n",   uiSVTDRO_Avg);
+	pr_info("     *  SVC Revision = %2d\n", uiSVCRev);
+	pr_info("     *  SVC Profile  = %2d\n", guiProfile);
+	pr_info("     *************************** \n");
+	pr_info(" \n");
 
-	pr_info(" ");
-	pr_info("	*********************************\n");
-	pr_info("	*	ULT: %08X%08X	*\n",
-	       uimanupara_63_32, uimanupara_31_00);
-	pr_info("	*********************************\n");
-	pr_info("	 ULT decoded below\n");
-	pr_info("		alloc_rev[2:0]	= %d\n", uiallocrev);
-	pr_info("		fab [ 7: 3]	= %d\n", uifab);
-	pr_info("		run [33: 8]	= %d (0x%X)\n", uirun, uirun);
-	pr_info("		wafer [38:34]	= %d\n", uiwafer);
-	pr_info("		x [46:39]	= %d\n", uix);
-	pr_info("		y [54:47]	= %d\n", uiy);
-	pr_info("		parity [55:55]	= %d\n", uiparity);
-	pr_info("	*********************************\n");
-	pr_info("	*********************************\n");
-	pr_info("		LVTDRO [77:68]	= %d\n", uidro);
-	pr_info("		SVTDRO [9:0]	= %d\n", uisvtdro);
-	pr_info("		Profile	= %d\n", uiprofile);
-	pr_info("		UID	= %llx\n", uluid);
-	pr_info("	*********************************\n");
-	pr_info("\n");
+	uiprofile = guiProfile;
 	return 0;
+
 }
 
 /* components frequency combination */
