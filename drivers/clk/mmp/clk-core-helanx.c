@@ -706,10 +706,10 @@ static void core_fc_seq(struct clk_hw *hw, struct cpu_opt *cop,
 	void __iomem *apmu_base = core->params->apmu_base;
 
 	/* update L1/L2 rtc/wtc if neccessary, PP low -> high */
-	if ((cop->pclk < top->pclk) && (top->l1_xtc != cop->l1_xtc)) {
+	if ((cop->pclk < top->pclk) && (top->l1_xtc != cop->l1_xtc))
 		writel_relaxed(top->l1_xtc, CIU_CPU_CONF_SRAM_0(core));
+	if ((cop->pclk < top->pclk) && (top->l2_xtc != cop->l2_xtc))
 		writel_relaxed(top->l2_xtc, CIU_CPU_CONF_SRAM_1(core));
-	}
 
 	trace_pxa_core_clk_chg(CLK_CHG_ENTRY, cop->pclk, top->pclk);
 
@@ -724,10 +724,10 @@ static void core_fc_seq(struct clk_hw *hw, struct cpu_opt *cop,
 	trace_pxa_core_clk_chg(CLK_CHG_EXIT, cop->pclk, top->pclk);
 
 	/*  update L1/L2 rtc/wtc if neccessary, high -> low */
-	if ((cop->pclk > top->pclk) && (top->l1_xtc != cop->l1_xtc)) {
+	if ((cop->pclk > top->pclk) && (top->l1_xtc != cop->l1_xtc))
 		writel_relaxed(top->l1_xtc, CIU_CPU_CONF_SRAM_0(core));
+	if ((cop->pclk > top->pclk) && (top->l2_xtc != cop->l2_xtc))
 		writel_relaxed(top->l2_xtc, CIU_CPU_CONF_SRAM_1(core));
-	}
 }
 
 static int set_core_freq(struct clk_hw *hw, struct cpu_opt *old,
