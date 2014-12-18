@@ -884,6 +884,8 @@ EXPORT_SYMBOL(dp_ready_cb_regist);
 struct data_path *data_path_open(enum data_path_type dp_type,
 				 struct data_path_callback *cbs)
 {
+	struct data_path *dp;
+
 	DP_ENTER();
 
 	if (dp_type >= dp_type_total_cnt || dp_type < 0) {
@@ -896,50 +898,52 @@ struct data_path *data_path_open(enum data_path_type dp_type,
 		return NULL;
 	}
 
-	if (atomic_cmpxchg(&data_path[dp_type].state, dp_state_idle,
+	dp = &data_path[dp_type];
+
+	if (atomic_cmpxchg(&dp->state, dp_state_idle,
 			   dp_state_opening) != dp_state_idle) {
 		DP_ERROR("%s: path is already opened(state %d)\n",
-			 __func__, atomic_read(&data_path[dp_type].state));
+			 __func__, atomic_read(&dp->state));
 		return NULL;
 	}
 
-	data_path[dp_type].tx_q_max_len = MAX_TX_Q_LEN;
-	data_path[dp_type].is_tx_stopped = false;
-	tx_q_init(&data_path[dp_type]);
-	data_path[dp_type].tx_wm[dp_priority_high] = 0;
-	data_path[dp_type].tx_wm[dp_priority_default]
-		= data_path[dp_type].rbctl->tx_skbuf_num / 10;
-	data_path[dp_type].tx_wm[dp_priority_low]
-		= data_path[dp_type].rbctl->tx_skbuf_num / 10;
+	dp->tx_q_max_len = MAX_TX_Q_LEN;
+	dp->is_tx_stopped = false;
+	tx_q_init(dp);
+	dp->tx_wm[dp_priority_high] = 0;
+	dp->tx_wm[dp_priority_default]
+		= dp->rbctl->tx_skbuf_num / 10;
+	dp->tx_wm[dp_priority_low]
+		= dp->rbctl->tx_skbuf_num / 10;
 
-	data_path[dp_type].enable_piggyback = true;
+	dp->enable_piggyback = true;
 
-	data_path[dp_type].max_tx_shots = MAX_TX_SHOTS;
-	data_path[dp_type].max_rx_shots = MAX_RX_SHOTS;
+	dp->max_tx_shots = MAX_TX_SHOTS;
+	dp->max_rx_shots = MAX_RX_SHOTS;
 
-	data_path[dp_type].tx_sched_delay_in_ms = TX_SCHED_DELAY;
-	data_path[dp_type].tx_q_min_sched_len = TX_MIN_SCHED_LEN;
+	dp->tx_sched_delay_in_ms = TX_SCHED_DELAY;
+	dp->tx_q_min_sched_len = TX_MIN_SCHED_LEN;
 
-	memset(&data_path[dp_type].stat, 0, sizeof(data_path[dp_type].stat));
+	memset(&dp->stat, 0, sizeof(dp->stat));
 
-	data_path[dp_type].cbs = cbs;
-	tasklet_init(&data_path[dp_type].tx_tl, data_path_tx_func,
-		     (unsigned long)&data_path[dp_type]);
-	tasklet_init(&data_path[dp_type].rx_tl, data_path_rx_func,
-		     (unsigned long)&data_path[dp_type]);
+	dp->cbs = cbs;
+	tasklet_init(&dp->tx_tl, data_path_tx_func,
+		     (unsigned long)dp);
+	tasklet_init(&dp->rx_tl, data_path_rx_func,
+		     (unsigned long)dp);
 
-	init_timer(&data_path[dp_type].tx_sched_timer);
-	data_path[dp_type].tx_sched_timer.function = tx_sched_timeout;
-	data_path[dp_type].tx_sched_timer.data =
-		(unsigned long)&data_path[dp_type];
+	init_timer(&dp->tx_sched_timer);
+	dp->tx_sched_timer.function = tx_sched_timeout;
+	dp->tx_sched_timer.data =
+		(unsigned long)dp;
 
-	dp_debugfs_init(&data_path[dp_type]);
+	dp_debugfs_init(dp);
 
-	atomic_set(&data_path[dp_type].state, dp_state_opened);
+	atomic_set(&dp->state, dp_state_opened);
 
 	DP_LEAVE();
 
-	return &data_path[dp_type];
+	return dp;
 }
 EXPORT_SYMBOL(data_path_open);
 
