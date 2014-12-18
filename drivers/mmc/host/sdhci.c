@@ -1691,6 +1691,7 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 	unsigned long flags;
 	int vdd_bit = -1;
 	u8 ctrl;
+	int set_clk_timing = 0;
 
 	if (ios->clock && ((ios->clock != host->clock) || (ios->timing != ios->old_timing))) {
 		if (host->ops->clk_prepare) {
@@ -1700,6 +1701,7 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 				host->max_clk = host->ops->get_max_clock(host);
 		}
 		ios->old_timing = ios->timing;
+		set_clk_timing = 1;
 	}
 
 	spin_lock_irqsave(&host->lock, flags);
@@ -1764,6 +1766,9 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 		}
 		sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 	}
+
+	if (!set_clk_timing)
+		goto set_clk_timing_end;
 
 	ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL);
 
@@ -1863,6 +1868,7 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 	} else
 		sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 
+set_clk_timing_end:
 	/*
 	 * Some (ENE) controllers go apeshit on some ios operation,
 	 * signalling timeout and CRC errors even on CMD0. Resetting
