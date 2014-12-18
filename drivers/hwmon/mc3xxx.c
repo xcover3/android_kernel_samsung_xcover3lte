@@ -199,7 +199,7 @@ struct mc3xxx_data {
  *** CONFIGURATIONS
  ******************************/
 #define MCUBE_DOT_CALIBRATION
-#define MCUBE_FUNC_DEBUG
+/* #define MCUBE_FUNC_DEBUG */
 /* #define I2C_BUS_NUM_STATIC_ALLOC */
 #define MCUBE_I2C_BURST_LIMIT_2_BYTES
 /* #define SUPPORT_VPROXIMITY_SENSOR */
