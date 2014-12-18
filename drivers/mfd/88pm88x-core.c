@@ -491,7 +491,7 @@ int pm88x_apply_patch(struct pm88x_chip *chip)
 	chip->type = pm88x_of_get_type(&chip->client->dev);
 	switch (chip->type) {
 	case PM886:
-		apply_to_chip = pm88x_apply_patch;
+		apply_to_chip = pm886_apply_patch;
 		break;
 	case PM880:
 		apply_to_chip = pm880_apply_patch;
@@ -499,7 +499,7 @@ int pm88x_apply_patch(struct pm88x_chip *chip)
 	default:
 		break;
 	}
-	if (!apply_to_chip)
+	if (apply_to_chip)
 		apply_to_chip(chip);
 	return 0;
 }
