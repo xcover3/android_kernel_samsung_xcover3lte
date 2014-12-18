@@ -310,13 +310,14 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 	 * SS hs: hook vol = ~50; false hook = ~35, so set false_th = 40
 	 * iphone hs: hook vol = 5; false_hook = ~33.
 	 * these value can be adjust for specific hs
+	 * on pxa1908 hook voltage is ~27.
 	 */
 	if (voltage < info->hook_press_th) {
 		if (info->hk_avg
 		    && (abs(info->hk_avg - voltage) > PM886_HK_DELTA))
 			goto FAKE_HOOK;
 		else if (!info->hk_avg)
-			if (voltage > 10 && voltage < info->hook_press_th - 20)
+			if (voltage > 35 && voltage < info->hook_press_th - 20)
 				goto FAKE_HOOK;
 	}
 
