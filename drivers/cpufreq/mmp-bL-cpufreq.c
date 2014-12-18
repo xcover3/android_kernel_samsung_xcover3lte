@@ -33,84 +33,114 @@
 
 /* Unit of various frequencies:
  * clock driver: Hz
- * cpufreq framework/driver: KHz
- * qos framework: MHz
+ * cpufreq framework/driver & QoS framework/interface: KHz
  */
 
-#define LITTLE_CLUSTER		0
-#define BIG_CLUSTER		1
-#define MAX_CLUSTERS		2
-#define CORES_PER_CLUSTER	4
+/* FIXME: too simple and may be conflicted with other clock names. */
+#define CLUSTER_CLOCK_NAME	"clst"
 
-static struct clk *clst_clk[MAX_CLUSTERS];
-static char *clk_name[MAX_CLUSTERS] = { "clst0", "clst1" };
-static struct cpufreq_frequency_table *freq_table[MAX_CLUSTERS];
+/*
+ * clients that requests cpufreq Qos min:
+ * cpufreq target callback, input boost, wifi/BT/..., policy->cpuinfo.min
+ * clients that requests cpufreq Qos max:
+ * cpufreq Qos min, thermal driver, policy->cpuinfo.max
+ */
+/* used to generate names to request cpufreq Qos min from profiler */
+#define PROFILER_REQ_MIN	"PROFILER_REQ_MIN_"
+/* used to generate names to request cpufreq Qos max from cpufreq Qos min notifier */
+#define QOSMIN_REQ_MAX		"QOSMIN_REQ_MAX_"
+/* used to generate names to request cpufreq Qos min/max from policy->cpuinfo.min/max */
+#define CPUFREQ_POLICY_REQ	"CPUFREQ_POLICY_REQ_"
+/* used to generate names to request voltage level Qos min */
+#define VL_REQ_MIN		"VL_REQ_MIN_"
 
-static int cpufreq_qos_min_id[MAX_CLUSTERS] = {
+/* NOTE:
+ * Here, we don't assume the cluster order in system as below, but just
+ * define what types of clusters we need handle.
+ */
+enum cluster_type {
+	LITTLE_CLST = 0,
+	BIG_CLST,
+	NR_CLST_TYPE,
+};
+
+static int cpufreq_qos_min_id[NR_CLST_TYPE] = {
 	PM_QOS_CPUFREQ_L_MIN,
 	PM_QOS_CPUFREQ_B_MIN,
 };
 
-static int cpufreq_qos_max_id[MAX_CLUSTERS] = {
+static int cpufreq_qos_max_id[NR_CLST_TYPE] = {
 	PM_QOS_CPUFREQ_L_MAX,
 	PM_QOS_CPUFREQ_B_MAX,
 };
 
-/* Qos min request clients: cpufreq, driver, policy->cpuinfo.min */
-static struct pm_qos_request cpufreq_qos_req_min[MAX_CLUSTERS] = {
-	{
-	 .name = "l_cpufreq_min",
-	 },
-	{
-	 .name = "b_cpufreq_min",
-	 },
+struct cpufreq_cluster {
+	int initialized; /* whether this struct has been initialized */
+	int clst_index;
+	int is_big; /* all cores in this cluster are big or not */
+	int nr_cores; /* core number in this cluster */
+
+	char *clk_name;
+	struct clk *clk;
+
+	struct cpufreq_policy *policy;
+	struct cpufreq_frequency_table *freq_table;
+	int freq_table_size;
+
+	int cpufreq_qos_max_id;
+	int cpufreq_qos_min_id;
+	int vl_qos_min_id;
+	struct pm_qos_request profiler_req_min;
+	struct pm_qos_request qosmin_req_max;
+	struct pm_qos_request cpufreq_policy_qos_req_min;
+	struct pm_qos_request cpufreq_policy_qos_req_max;
+	struct pm_qos_request vl_qos_req_min;
+
+	struct notifier_block cpufreq_min_notifier;
+	struct notifier_block cpufreq_max_notifier;
+	struct notifier_block cpufreq_policy_notifier;
+	struct notifier_block vl_min_notifier;
+
+	struct list_head node;
 };
+static LIST_HEAD(clst_list);
+#define min_nb_to_clst(ptr) (container_of(ptr, struct cpufreq_cluster, cpufreq_min_notifier))
+#define max_nb_to_clst(ptr) (container_of(ptr, struct cpufreq_cluster, cpufreq_max_notifier))
+#define policy_nb_to_clst(ptr) (container_of(ptr, struct cpufreq_cluster, cpufreq_policy_notifier))
+#define vl_nb_to_clst(ptr) (container_of(ptr, struct cpufreq_cluster, vl_min_notifier))
 
-static struct pm_qos_request cpupolicy_qos_req_min[MAX_CLUSTERS] = {
-	{
-	 .name = "l_cpupolicy_min",
-	 },
-	{
-	 .name = "b_cpupolicy_min",
-	 },
-};
+/* Save PM status and disable cpufreq before enter suspend. */
+static unsigned long mmp_pm_event;
+/* Locks used to sync cpufreq target request and suspend request. */
+static DEFINE_MUTEX(mmp_cpufreq_lock);
 
-/* Qos max request clients: Qos min, driver, policy->cpuinfo.max */
-static struct pm_qos_request qosmin_qos_req_max[MAX_CLUSTERS] = {
-	{
-	 .name = "l_cpuqos_min",
-	 },
-	{
-	 .name = "b_cpuqos_min",
-	 },
-};
-
-static struct pm_qos_request cpupolicy_qos_req_max[MAX_CLUSTERS] = {
-	{
-	 .name = "l_cpupolicy_max",
-	 },
-	{
-	 .name = "b_cpupolicy_max",
-	 },
-};
-
-static unsigned long pm_event;
-static DEFINE_MUTEX(mmp_cpu_lock);
-
-#define __DECLARE_PM_QOS_NOTIFIER(NAME, req)				\
-static int NAME##_cpufreq_##req##_notify(struct notifier_block *b,	\
-				unsigned long rate, void *v)		\
-{									\
-	return cpufreq_##req##_notify(NAME##_CLUSTER, b, rate, v);	\
-}									\
-static struct notifier_block NAME##_cpufreq_##req##_notifier = {	\
-	.notifier_call = NAME##_cpufreq_##req##_notify,			\
-};
-
-static int get_clst_rate_index(int clst_index,
-			       unsigned int target_freq,
-			       unsigned int relation, unsigned int *index)
+static char *__cpufreq_printf(const char *fmt, ...)
 {
+	va_list vargs;
+	char *buf;
+
+	va_start(vargs, fmt);
+	buf = kvasprintf(GFP_KERNEL, fmt, vargs);
+	va_end(vargs);
+
+	return buf;
+}
+
+/*
+ * This function comes from cpufreq_frequency_table_target, but remove
+ *         if ((freq < policy->min) || (freq > policy->max))
+ *             continue;
+ * to make sure critical setrate request will not be skipped.
+ * For example, thermal wants to set max qos to 312MHz, but
+ * policy->min is 624MHz. Then it fails to set rate to 312MHz.
+ */
+static int __cpufreq_frequency_table_target(
+			struct cpufreq_cluster *clst,
+			unsigned int target_freq,
+			unsigned int relation,
+			unsigned int *index)
+{
+	struct cpufreq_frequency_table *table = clst->freq_table;
 	struct cpufreq_frequency_table optimal = {
 		.driver_data = ~0,
 		.frequency = 0,
@@ -130,11 +160,14 @@ static int get_clst_rate_index(int clst_index,
 		break;
 	}
 
-	for (i = 0; (freq_table[clst_index][i].frequency != CPUFREQ_TABLE_END);
-	     i++) {
-		unsigned int freq = freq_table[clst_index][i].frequency;
+	for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
+		unsigned int freq = table[i].frequency;
 		if (freq == CPUFREQ_ENTRY_INVALID)
 			continue;
+/*
+		if ((freq < policy->min) || (freq > policy->max))
+			continue;
+*/
 		switch (relation) {
 		case CPUFREQ_RELATION_H:
 			if (freq <= target_freq) {
@@ -168,65 +201,146 @@ static int get_clst_rate_index(int clst_index,
 		if (suboptimal.driver_data > i)
 			return -EINVAL;
 		*index = suboptimal.driver_data;
-	} else
+	} else {
 		*index = optimal.driver_data;
+	}
 	return 0;
 }
 
-static int cpufreq_min_notify(int clst_index, struct notifier_block *b,
-			      unsigned long min, void *v)
+static void __cpufreq_update_clst_topology(struct cpufreq_cluster *clst)
 {
-	if (pm_qos_request_active(&qosmin_qos_req_max[clst_index]))
-		pm_qos_update_request(&qosmin_qos_req_max[clst_index], min);
+/* FIXME:
+ * Don't assume the cluster order and core number in each cluster.
+ * For example, Versatile Express TC2 has 2 Cortex-A15 and 3 Cortex-A7.
+ * Now we just add hardcode here, but we need retrieve the information
+ * from device tree or GTS configuration.
+ */
+	if (clst->clst_index == 1) {
+		clst->is_big = 1;
+		clst->nr_cores = 4;
+	} else {
+		clst->is_big = 0;
+		clst->nr_cores = 4;
+	}
+}
+
+/* map a target freq to its voltage level */
+static unsigned int __cpufreq_freq_2_vl(
+			struct cpufreq_cluster *clst,
+			unsigned int freq)
+{
+	int i;
+
+	if (freq >= clst->freq_table[clst->freq_table_size - 1].frequency)
+		return clst->freq_table[clst->freq_table_size - 1].driver_data;
+
+	for (i = clst->freq_table_size - 1; i >= 1; i--)
+		if ((clst->freq_table[i - 1].frequency < freq) && (freq <= clst->freq_table[i].frequency))
+			return clst->freq_table[i].driver_data;
+
+	/*
+	 * When target freq < all other freqs, or any other condition,
+	 * return the lowest volt level.
+	 */
+	return clst->freq_table[0].driver_data;
+}
+
+/* map a voltage level to the max freq it could support */
+static unsigned int __cpufreq_vl_2_max_freq(
+			struct cpufreq_cluster *clst,
+			unsigned int vl)
+{
+	int i;
+
+	for (i = clst->freq_table_size - 1; i >= 0; i--)
+		if (clst->freq_table[i].driver_data <= vl)
+			return clst->freq_table[i].frequency;
+	return clst->freq_table[0].frequency;
+}
+
+static int __cpufreq_freq_min_notify(
+			struct notifier_block *nb,
+			unsigned long min,
+			void *v)
+{
+	int ret, index;
+	unsigned int volt_level;
+	struct cpufreq_cluster *clst;
+
+	if (!nb)
+		return NOTIFY_BAD;
+	clst = min_nb_to_clst(nb);
+
+	/* CPUFREQ_RELATION_L means "at or above target":
+	 * i.e:
+	 * If target freq is 400MHz, we round up to the closest 416MHz in freq table.
+	 */
+	ret = __cpufreq_frequency_table_target(clst, min, CPUFREQ_RELATION_L, &index);
+	if (ret != 0) {
+		pr_err("%s: cannot get a valid index from freq_table\n", __func__);
+		return NOTIFY_BAD;
+	}
+
+	volt_level = __cpufreq_freq_2_vl(clst, clst->freq_table[index].frequency);
+	if (pm_qos_request_active(&clst->vl_qos_req_min))
+		pm_qos_update_request(&clst->vl_qos_req_min, volt_level);
+
 	return NOTIFY_OK;
 }
 
-static int cpufreq_max_notify(int clst_index, struct notifier_block *b,
-			      unsigned long max, void *v)
+static int __cpufreq_vl_min_notify(
+			struct notifier_block *nb,
+			unsigned long vl_min,
+			void *v)
 {
-	int i, ret = -1;
-	unsigned int index = 0;
+	unsigned long freq = 0;
+	struct cpufreq_cluster *clst;
+
+	if (!nb)
+		return NOTIFY_BAD;
+
+	if (!list_empty(&clst_list)) {
+		list_for_each_entry(clst, &clst_list, node) {
+			freq = __cpufreq_vl_2_max_freq(clst, vl_min);
+			if (pm_qos_request_active(&clst->qosmin_req_max))
+				pm_qos_update_request(&clst->qosmin_req_max, freq);
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
+static int __cpufreq_freq_max_notify(
+			struct notifier_block *nb,
+			unsigned long max,
+			void *v)
+{
+	int ret, index;
+	struct cpufreq_cluster *clst;
 	struct cpufreq_freqs freqs;
 	struct cpufreq_policy *policy;
-	unsigned long freq = 0;
 
-	/* find the first online cpu in that cluster. */
-	for (i = clst_index * CORES_PER_CLUSTER; i < (clst_index + 1) * CORES_PER_CLUSTER; i++)
-		if (cpu_online(i))
-			break;
-
-	/* get cpufreq policy from that online cpu. otherwise, do nothing. */
-	if (i < (clst_index + 1) * CORES_PER_CLUSTER)
-		policy = cpufreq_cpu_get(i);
-	else
+	if (!nb)
 		return NOTIFY_BAD;
+	clst = max_nb_to_clst(nb);
 
-	if (!policy) {
-		pr_err("%s: policy is invalid or not available\n", __func__);
-		return NOTIFY_BAD;
-	}
-	/*
-	 * find a frequency in table, we didn't use help function
-	 * cpufreq_frequency_table_target as it will consider policy->min
-	 * and policy->max, which it is not updated here yet, and also new
-	 * policy could not get here.
+	/* CPUFREQ_RELATION_H means "below or at target":
+	 * i.e:
+	 * If target freq is 400MHz, we round down to the closest 312MHz in freq table.
 	 */
-	ret = get_clst_rate_index(clst_index, max * 1000,
-				  CPUFREQ_RELATION_H, &index);
-
+	ret = __cpufreq_frequency_table_target(clst, max, CPUFREQ_RELATION_H, &index);
 	if (ret != 0) {
-		pr_err("%s: cannot get a valid index from freq_table\n",
-		       __func__);
+		pr_err("%s: cannot get a valid index from freq_table\n", __func__);
 		return NOTIFY_BAD;
 	}
 
-	freqs.old = clk_get_rate(policy->clk) / 1000;
-	freqs.new = freq_table[clst_index][index].frequency;
-	freq = freqs.new * 1000;
+	policy = clst->policy;
+	freqs.old = policy->cur;
+	freqs.new = clst->freq_table[index].frequency;
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
 
-	if (!clk_set_rate(policy->clk, freq)) {
+	if (!clk_set_rate(policy->clk, freqs.new * 1000)) {
 		ret = NOTIFY_OK;
 	} else {
 		freqs.new = freqs.old;
@@ -235,131 +349,228 @@ static int cpufreq_max_notify(int clst_index, struct notifier_block *b,
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 
-	pr_debug("%s: set cluster-%d rate to %lu, %s\n", __func__, clst_index,
-		freq, (ret == NOTIFY_OK) ? "ok" : "fail");
 	return ret;
 }
 
-__DECLARE_PM_QOS_NOTIFIER(LITTLE, min);
-__DECLARE_PM_QOS_NOTIFIER(BIG, min);
-__DECLARE_PM_QOS_NOTIFIER(LITTLE, max);
-__DECLARE_PM_QOS_NOTIFIER(BIG, max);
-
-static int policy_limiter_notify(struct notifier_block *nb,
-				 unsigned long val, void *data)
+static int __cpufreq_policy_notify(
+			struct notifier_block *nb,
+			unsigned long val,
+			void *data)
 {
-	int clst_index = 0;
 	struct cpufreq_policy *policy = data;
+	struct cpufreq_cluster *clst;
 
-	clst_index = policy->cpu / CORES_PER_CLUSTER;
+	if (!nb)
+		return NOTIFY_BAD;
+	clst = policy_nb_to_clst(nb);
 
 	if (val == CPUFREQ_ADJUST) {
-		pm_qos_update_request(&cpupolicy_qos_req_min[clst_index],
-				      policy->min / 1000);
-		pm_qos_update_request(&cpupolicy_qos_req_max[clst_index],
-				      policy->max / 1000);
+		pm_qos_update_request(&clst->cpufreq_policy_qos_req_min, policy->min);
+		pm_qos_update_request(&clst->cpufreq_policy_qos_req_max, policy->max);
 	}
 	return NOTIFY_OK;
 }
 
-static struct notifier_block policy_limiter_notifier = {
-	.notifier_call = policy_limiter_notify,
-};
-
-static int mmp_pm_notify(struct notifier_block *nb, unsigned long event,
-			 void *dummy)
+static int __cpufreq_pm_notify(
+			struct notifier_block *nb,
+			unsigned long val,
+			void *data)
 {
-	mutex_lock(&mmp_cpu_lock);
-	pm_event = event;
-	mutex_unlock(&mmp_cpu_lock);
+	mutex_lock(&mmp_cpufreq_lock);
+	mmp_pm_event = val;
+	mutex_unlock(&mmp_cpufreq_lock);
 	return NOTIFY_OK;
 }
-
-static struct notifier_block mmp_cpu_pm_notifier = {
-	.notifier_call = mmp_pm_notify,
+static struct notifier_block cpufreq_pm_notifier = {
+	.notifier_call = __cpufreq_pm_notify,
 };
 
 static unsigned int mmp_bL_cpufreq_get(unsigned int cpu)
 {
 	int clst_index = topology_physical_package_id(cpu);
+	struct cpufreq_cluster *clst;
 
-	return clk_get_rate(clst_clk[clst_index]) / 1000;
+	list_for_each_entry(clst, &clst_list, node)
+		if (clst->clst_index == clst_index)
+			break;
+	BUG_ON(!clst);
+	return clk_get_rate(clst->clk) / 1000;
 }
 
-static int mmp_bL_cpufreq_target(struct cpufreq_policy *policy,
-				 unsigned int target_freq,
-				 unsigned int relation)
+/*
+ * We don't handle param "relation" here, but use "CPUFREQ_RELATION_L" in
+ * cpufreq qos min notifier to round up and use "CPUFREQ_RELATION_H" in
+ * cpufreq qos max notifier to round down. This method can meet our
+ * requirement.
+ */
+static int mmp_bL_cpufreq_target(
+			struct cpufreq_policy *policy,
+			unsigned int target_freq,
+			unsigned int relation)
 {
-	int ret = 0, clst_index;
+	int ret = 0;
+	struct cpufreq_cluster *clst;
 
-	mutex_lock(&mmp_cpu_lock);
+	list_for_each_entry(clst, &clst_list, node)
+		if (clst->policy == policy)
+			break;
+	BUG_ON(!clst);
 
-	if (pm_event == PM_SUSPEND_PREPARE) {
+	mutex_lock(&mmp_cpufreq_lock);
+	if (mmp_pm_event == PM_SUSPEND_PREPARE)
 		ret = -EBUSY;
-		goto out;
-	}
+	else
+		pm_qos_update_request(&clst->profiler_req_min, target_freq);
+	mutex_unlock(&mmp_cpufreq_lock);
 
-	clst_index = topology_physical_package_id(policy->cpu);
-	pm_qos_update_request(&cpufreq_qos_req_min[clst_index], target_freq / 1000);
-
-out:
-	mutex_unlock(&mmp_cpu_lock);
 	return ret;
 }
 
 static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 {
-	int ret;
-	int clst_index;
+	int i = 0, ret, clst_index, found = 0;
+	unsigned long cur_freq;
+	struct cpufreq_cluster *clst;
 
 	if (policy->cpu >= num_possible_cpus())
 		return -EINVAL;
 
 	clst_index = topology_physical_package_id(policy->cpu);
-	pr_debug("%s: cpu-%d to manage policy on cluster-%d\n", __func__,
-		policy->cpu, clst_index);
+	pr_debug("%s: start initialization on cluster-%d\n", __func__, clst_index);
 
-	if (!clst_clk[clst_index]) {
-		clst_clk[clst_index] = __clk_lookup(clk_name[clst_index]);
-		if (!clst_clk[clst_index]) {
-			pr_err("%s: fail to get clock for cluster-%d\n", __func__,
-				clst_index);
-			return -EINVAL;
+	if (!list_empty(&clst_list))
+		list_for_each_entry(clst, &clst_list, node)
+			if (clst->clst_index == clst_index) {
+				found = 1;
+				break;
+			}
+
+	if (!found) {
+		clst = kzalloc(sizeof(struct cpufreq_cluster), GFP_KERNEL);
+		if (!clst) {
+			pr_err("%s: fail to allocate memory for clst.\n", __func__);
+			return -ENOMEM;
 		}
 	}
 
-	if (!freq_table[clst_index])
-		freq_table[clst_index] = cpufreq_frequency_get_table(policy->cpu);
+	if (!clst->initialized) {
+		char clst_id[2];
+		clst->clst_index = clst_index;
+		__cpufreq_update_clst_topology(clst);
 
-	ret = cpufreq_table_validate_and_show(policy, freq_table[clst_index]);
-	if (ret) {
-		pr_err("%s: invalid frequency table\n", __func__);
-		return ret;
+		clst->clk_name = __cpufreq_printf("%s%d", CLUSTER_CLOCK_NAME, clst_index);
+		if (!clst->clk_name) {
+			pr_err("%s: fail to allocate memory for clock name.\n", __func__);
+			goto err_out;
+		}
+
+		clst->clk = __clk_lookup(clst->clk_name);
+		if (!clst->clk) {
+			pr_err("%s: fail to get clock for cluster-%d\n", __func__, clst_index);
+			goto err_out;
+		}
+
+		clst->freq_table = cpufreq_frequency_get_table(policy->cpu);
+		ret = cpufreq_table_validate_and_show(policy, clst->freq_table);
+		if (ret) {
+			pr_err("%s: invalid frequency table for cluster-%d\n", __func__, clst_index);
+			goto err_out;
+		}
+
+		/* get freq table size from cpufreq_frequency_table structure. */
+		while (clst->freq_table[i++].frequency != CPUFREQ_TABLE_END)
+			;
+		/* driver_data in last entry save freq table size, but that of other entries store voltage level. */
+		clst->freq_table_size = clst->freq_table[i - 1].driver_data;
+
+		if (clst->is_big) {
+			strcpy(clst_id, "B");
+			clst->cpufreq_qos_min_id = cpufreq_qos_min_id[BIG_CLST];
+			clst->cpufreq_qos_max_id = cpufreq_qos_max_id[BIG_CLST];
+		} else {
+			strcpy(clst_id, "L");
+			clst->cpufreq_qos_min_id = cpufreq_qos_min_id[LITTLE_CLST];
+			clst->cpufreq_qos_max_id = cpufreq_qos_max_id[LITTLE_CLST];
+		}
+		clst->vl_qos_min_id = PM_QOS_CLST_VL_MIN;
+
+		clst->profiler_req_min.name = __cpufreq_printf("%s%s", PROFILER_REQ_MIN, clst_id);
+		if (!clst->profiler_req_min.name) {
+			pr_err("%s: no mem for profiler_req_min.name.\n", __func__);
+			goto err_out;
+		}
+
+		clst->qosmin_req_max.name = __cpufreq_printf("%s%s", QOSMIN_REQ_MAX, clst_id);
+		if (!clst->qosmin_req_max.name) {
+			pr_err("%s: no mem for qosmin_req_max.name.\n", __func__);
+			goto err_out;
+		}
+
+		clst->vl_qos_req_min.name = __cpufreq_printf("%s%s", VL_REQ_MIN, clst_id);
+		if (!clst->vl_qos_req_min.name) {
+			pr_err("%s: no mem for vl_qos_req_min.name.\n", __func__);
+			goto err_out;
+		}
+
+		clst->cpufreq_policy_qos_req_min.name = __cpufreq_printf("%s%s%s", CPUFREQ_POLICY_REQ, "MIN_", clst_id);
+		if (!clst->cpufreq_policy_qos_req_min.name) {
+			pr_err("%s: no mem for cpufreq_policy_qos_req_min.name.\n", __func__);
+			goto err_out;
+		}
+
+		clst->cpufreq_policy_qos_req_max.name = __cpufreq_printf("%s%s%s", CPUFREQ_POLICY_REQ, "MAX_", clst_id);
+		if (!clst->cpufreq_policy_qos_req_max.name) {
+			pr_err("%s: no mem for cpufreq_policy_qos_req_max.name.\n", __func__);
+			goto err_out;
+		}
+
+		clst->cpufreq_min_notifier.notifier_call = __cpufreq_freq_min_notify;
+		clst->cpufreq_max_notifier.notifier_call = __cpufreq_freq_max_notify;
+		clst->vl_min_notifier.notifier_call = __cpufreq_vl_min_notify;
+		clst->cpufreq_policy_notifier.notifier_call = __cpufreq_policy_notify;
+
+		pm_qos_add_notifier(clst->cpufreq_qos_min_id, &clst->cpufreq_min_notifier);
+		pm_qos_add_notifier(clst->cpufreq_qos_max_id, &clst->cpufreq_max_notifier);
+		pm_qos_add_notifier(clst->vl_qos_min_id, &clst->vl_min_notifier);
+		cpufreq_register_notifier(&clst->cpufreq_policy_notifier, CPUFREQ_POLICY_NOTIFIER);
+
 	}
-	cpufreq_frequency_table_get_attr(freq_table[clst_index], policy->cpu);
 
+	cpufreq_frequency_table_get_attr(clst->freq_table, policy->cpu);
 	cpumask_copy(policy->cpus, topology_core_cpumask(policy->cpu));
-	policy->clk = clst_clk[clst_index];
+	cur_freq = clk_get_rate(clst->clk) / 1000;
+	policy->clk = clst->clk;
 	policy->cpuinfo.transition_latency = 10 * 1000;
-	policy->cur = clk_get_rate(policy->clk) / 1000;
+	policy->cur = cur_freq;
+	clst->policy = policy;
 
-	if (!pm_qos_request_active(&cpufreq_qos_req_min[clst_index]))
-		pm_qos_add_request(&cpufreq_qos_req_min[clst_index],
-				   cpufreq_qos_min_id[clst_index], policy->cur / 1000);
-	if (!pm_qos_request_active(&cpupolicy_qos_req_min[clst_index]))
-		pm_qos_add_request(&cpupolicy_qos_req_min[clst_index],
-				   cpufreq_qos_min_id[clst_index], policy->min / 1000);
-	if (!pm_qos_request_active(&qosmin_qos_req_max[clst_index]))
-		pm_qos_add_request(&qosmin_qos_req_max[clst_index],
-				   cpufreq_qos_max_id[clst_index],
-				   pm_qos_request(cpufreq_qos_min_id[clst_index]));
-	if (!pm_qos_request_active(&cpupolicy_qos_req_max[clst_index]))
-		pm_qos_add_request(&cpupolicy_qos_req_max[clst_index],
-				   cpufreq_qos_max_id[clst_index], policy->max / 1000);
+	if (!clst->initialized) {
+		pm_qos_add_request(&clst->profiler_req_min, clst->cpufreq_qos_min_id, policy->cur);
+		pm_qos_add_request(&clst->qosmin_req_max, clst->cpufreq_qos_max_id, pm_qos_request(clst->cpufreq_qos_min_id));
+		pm_qos_add_request(&clst->vl_qos_req_min, clst->vl_qos_min_id, __cpufreq_freq_2_vl(clst, cur_freq));
+		pm_qos_add_request(&clst->cpufreq_policy_qos_req_min, clst->cpufreq_qos_min_id, policy->min);
+		pm_qos_add_request(&clst->cpufreq_policy_qos_req_max, clst->cpufreq_qos_max_id, policy->max);
+
+		clst->initialized = 1;
+		list_add_tail(&clst->node, &clst_list);
+	}
 
 	pr_debug("%s: finish initialization on cluster-%d\n", __func__, clst_index);
 
 	return 0;
+
+err_out:
+
+	if (clst) {
+		kfree(clst->clk_name);
+		kfree(clst->profiler_req_min.name);
+		kfree(clst->qosmin_req_max.name);
+		kfree(clst->vl_qos_req_min.name);
+		kfree(clst->cpufreq_policy_qos_req_min.name);
+		kfree(clst->cpufreq_policy_qos_req_max.name);
+		kfree(clst);
+	}
+	return -EINVAL;
 }
 
 static int mmp_bL_cpufreq_exit(struct cpufreq_policy *policy)
@@ -379,32 +590,13 @@ static struct cpufreq_driver mmp_bL_cpufreq_driver = {
 
 static int __init mmp_bL_cpufreq_register(void)
 {
-	/* big/LITTLE cluster use the same pm notifier */
-	register_pm_notifier(&mmp_cpu_pm_notifier);
-
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_L_MIN, &LITTLE_cpufreq_min_notifier);
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_L_MAX, &LITTLE_cpufreq_max_notifier);
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_B_MIN, &BIG_cpufreq_min_notifier);
-	pm_qos_add_notifier(PM_QOS_CPUFREQ_B_MAX, &BIG_cpufreq_max_notifier);
-
-	cpufreq_register_notifier(&policy_limiter_notifier,
-				  CPUFREQ_POLICY_NOTIFIER);
-
+	register_pm_notifier(&cpufreq_pm_notifier);
 	return cpufreq_register_driver(&mmp_bL_cpufreq_driver);
 }
 
 static void __exit mmp_bL_cpufreq_unregister(void)
 {
-	cpufreq_unregister_notifier(&policy_limiter_notifier,
-				    CPUFREQ_POLICY_NOTIFIER);
-
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_L_MIN, &LITTLE_cpufreq_min_notifier);
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_L_MAX, &LITTLE_cpufreq_max_notifier);
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_B_MIN, &BIG_cpufreq_min_notifier);
-	pm_qos_remove_notifier(PM_QOS_CPUFREQ_B_MAX, &BIG_cpufreq_max_notifier);
-
-	unregister_pm_notifier(&mmp_cpu_pm_notifier);
-
+	unregister_pm_notifier(&cpufreq_pm_notifier);
 	cpufreq_unregister_driver(&mmp_bL_cpufreq_driver);
 }
 
