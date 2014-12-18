@@ -232,11 +232,30 @@ void sdhci_reset(struct sdhci_host *host, u8 mask)
 {
 	unsigned long timeout;
 	u32 uninitialized_var(ier);
+	u32 reg_clk_ctrl;
 
 	if (host->quirks & SDHCI_QUIRK_NO_CARD_NO_RESET) {
 		if (!(sdhci_readl(host, SDHCI_PRESENT_STATE) &
 			SDHCI_CARD_PRESENT))
 			return;
+	}
+
+	if (host->clock <= 400000) {
+		/*
+		 * As HW design, doing reset would output some dummy clocks
+		 * in CLK pin, although the dummy clocks is not out of spec,
+		 * we can remove it by SW method:
+		 * Disable CLK before Reset and re-enable it after Reset.
+		 *
+		 * According to real test, these newly added operations is OK
+		 * without problem at 400KHz.
+		 * But it maybe not safe for high speed mode.
+		 *
+		 * So just do this operations for clock <= 400KHz at init stage.
+		 */
+		reg_clk_ctrl = sdhci_readl(host, SDHCI_CLOCK_CONTROL);
+		reg_clk_ctrl &= ~SDHCI_CLOCK_CARD_EN;
+		sdhci_writel(host, reg_clk_ctrl, SDHCI_CLOCK_CONTROL);
 	}
 
 	if (host->quirks & SDHCI_QUIRK_RESTORE_IRQS_AFTER_RESET)
@@ -281,6 +300,12 @@ void sdhci_reset(struct sdhci_host *host, u8 mask)
 	}
 
 	sdhci_waiting_dummy_clk(host);
+
+	if (host->clock <= 400000) {
+		reg_clk_ctrl = sdhci_readl(host, SDHCI_CLOCK_CONTROL);
+		reg_clk_ctrl |= SDHCI_CLOCK_CARD_EN;
+		sdhci_writel(host, reg_clk_ctrl, SDHCI_CLOCK_CONTROL);
+	}
 }
 
 static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
