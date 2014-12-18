@@ -451,7 +451,7 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 			int gp = info->gpadc_det_no;
 			int volt;
 
-			if (gp != 0 || gp != 2) {
+			if (gp != 0 && gp != 2) {
 				dev_err(info->dev,
 					"%s: wrong_gpadc = %d\n", __func__, gp);
 				present = true;
@@ -2020,11 +2020,6 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	if (info->alart_percent > 100 || info->alart_percent < 0)
 		info->alart_percent = 5;
 	ccnt_data.alart_cc = ccnt_data.max_cc * info->alart_percent / 100;
-
-	if (info->use_ntc) {
-		if (info->gpadc_det_no != 1 && info->gpadc_det_no != 3)
-			return -EINVAL;
-	}
 
 	info->chip = chip;
 	info->dev = &pdev->dev;
