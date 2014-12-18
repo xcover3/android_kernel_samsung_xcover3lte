@@ -115,6 +115,35 @@ static void sdhci_dumpregs(struct sdhci_host *host)
 	pr_info(DRIVER_NAME ": ===========================================\n");
 }
 
+/* TODO: move to sdhci-pxav3.c */
+#define DUMMY_CLKS_NUM	10
+#define DUMMY_CLK_IGNORE 13000000
+static void sdhci_waiting_dummy_clk(struct sdhci_host *host)
+{
+	int us_delay;
+
+	/*
+	 * if clock is fast, the dummy clock stage will pass very quickly
+	 * So it is safe no to wait
+	 */
+	if (host->clock >= DUMMY_CLK_IGNORE)
+		return;
+
+	if (host->clock == 0)
+		return;
+
+	us_delay = (1000000 * DUMMY_CLKS_NUM)/host->clock;
+
+	if (us_delay > 20 * DUMMY_CLKS_NUM) {
+		/* slowest speed is about 100KHz or 10usec per clock
+		 * But real clock maybe smaller, so slowest 20us is safe
+		 */
+		us_delay = 20 * DUMMY_CLKS_NUM;
+	}
+
+	udelay(us_delay);
+}
+
 /*****************************************************************************\
  *                                                                           *
  * Low level functions                                                       *
@@ -250,6 +279,8 @@ void sdhci_reset(struct sdhci_host *host, u8 mask)
 		if ((host->ops->enable_dma) && (mask & SDHCI_RESET_ALL))
 			host->ops->enable_dma(host);
 	}
+
+	sdhci_waiting_dummy_clk(host);
 }
 
 static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
@@ -1169,6 +1200,8 @@ static void sdhci_finish_command(struct sdhci_host *host)
 	}
 
 	host->cmd->error = 0;
+
+	sdhci_waiting_dummy_clk(host);
 
 	/* Finished CMD23, now send actual command. */
 	if (host->cmd == host->mrq->sbc) {
