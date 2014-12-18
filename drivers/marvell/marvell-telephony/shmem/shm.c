@@ -566,13 +566,6 @@ static int shm_rb_init(struct shm_rbctl *rbctl)
 	if (shm_rb_debugfs_init(rbctl) < 0)
 		goto exit4;
 
-	set_version_numb();
-	get_dvc_info();
-#if 0
-	read_mv_profile();
-	read_dvc_table();
-	read_dfc_table();
-#endif
 	return 0;
 
 exit4:
@@ -659,6 +652,16 @@ int tel_shm_init(enum shm_grp_type grp_type,
 			ret = shm_rb_init(rbctl);
 		if (ret < 0)
 			goto rb_exit;
+	}
+
+	if (grp_type == shm_grp_cp) {
+		set_version_numb();
+		get_dvc_info();
+#if 0
+		read_mv_profile();
+		read_dvc_table();
+		read_dfc_table();
+#endif
 	}
 
 	return 0;
