@@ -2367,11 +2367,13 @@ int b52_cmd_read_i2c(struct b52_cmd_i2c_data *data)
 	val |= (data->attr->val_len == I2C_8BIT) ?
 		I2C_8BIT_DATA : I2C_16BIT_DATA;
 
+	mutex_lock(&cmd_mutex);
 	b52_writeb(CMD_REG1, val);
 	b52_writeb(CMD_REG2, (data->attr->addr << 1));
 	b52_writeb(CMD_REG3, 1);
 
 	ret = wait_cmd_done(CMD_I2C_GRP_WR);
+	mutex_unlock(&cmd_mutex);
 	if (ret)
 		return ret;
 
@@ -2403,17 +2405,20 @@ int b52_cmd_write_i2c(struct b52_cmd_i2c_data *data)
 	}
 	attr = data->attr;
 	num = data->num;
+	mutex_lock(&cmd_mutex);
 	do {
 		write_num = (num < I2C_MAX_NUM) ? num : I2C_MAX_NUM;
 		b52_fill_cmd_i2c_buf(data->tab, attr->addr,
 				write_num, attr->val_len, data->pos, 0);
 		ret = wait_cmd_done(CMD_I2C_GRP_WR);
-		if (ret)
+		if (ret) {
+			mutex_unlock(&cmd_mutex);
 			return ret;
+		}
 		data->tab += write_num;
 		num -= write_num;
 	} while (num > 0);
-
+	mutex_unlock(&cmd_mutex);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(b52_cmd_write_i2c);
