@@ -118,16 +118,26 @@ unsigned int convertFusesToProfile_helan3(unsigned int uiFuses)
 	return uiProfile;
 }
 
+struct fuse_info {
+	u32 arg0;
+	u32 arg1;
+	u32 arg2;
+	u32 arg3;
+	u32 arg4;
+	u32 arg5;
+	u32 arg6;
+};
+
 static int __init __init_read_droinfo(void)
 {
+	struct fuse_info arg;
 	unsigned int __maybe_unused uigeustatus = 0;
 	unsigned int uiProfileFuses, uiSVCRev, uiFabRev, guiProfile;
 	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_0, uiBlock0_GEU_FUSE_MANU_PARA_1;
 	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_2, uiBlock0_GEU_AP_CP_MP_ECC;
 	unsigned int  uiBlock0_BLOCK0_RESERVED_1, uiBlock4_MANU_PARA1_0, uiBlock4_MANU_PARA1_1;
 	unsigned int uiAllocRev, uiFab, uiRun, uiWafer, uiX, uiY, uiParity;
-	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0;
-	char cLot[7] = {0};
+	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0, smc_ret = 0;
 
 	void __iomem *apmu_base, *geu_base;
 
@@ -148,22 +158,32 @@ static int __init __init_read_droinfo(void)
 		__raw_writel((uigeustatus | 0x30), apmu_base + APMU_GEU);
 		udelay(10);
 	}
-	/* GEU_FUSE_MANU_PARA_0	0x110	Bank 0 [127: 96] */
-	uiBlock0_GEU_FUSE_MANU_PARA_0 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_0);
-	/* GEU_FUSE_MANU_PARA_1	0x114	Bank 0 [159:128] */
-	uiBlock0_GEU_FUSE_MANU_PARA_1 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_1);
-	/* GEU_FUSE_MANU_PARA_2	0x118	Bank 0 [191:160] */
-	uiBlock0_GEU_FUSE_MANU_PARA_2 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_2);
-	/* GEU_AP_CP_MP_ECC		0x11C	Bank 0 [223:192] */
-	uiBlock0_GEU_AP_CP_MP_ECC = __raw_readl(geu_base + GEU_AP_CP_MP_ECC);
-	/* BLOCK0_RESERVED_1 0x120	Bank 0 [255:224] */
-	uiBlock0_BLOCK0_RESERVED_1 = __raw_readl(geu_base + BLOCK0_RESERVED_1);
-	/* Fuse Block 4 191:160 */
-	uiBlock4_MANU_PARA1_0 = __raw_readl(geu_base + BLOCK4_MANU_PARA1_0);
-	/* Fuse Block 4 255:192 */
-	uiBlock4_MANU_PARA1_1  = __raw_readl(geu_base + BLOCK4_MANU_PARA1_1);
 
-	__raw_writel(uigeustatus, apmu_base + APMU_GEU);
+	smc_ret = smc_get_fuse_info(0xc2003000, (void *)&arg);
+	if (smc_ret == 0) {
+		/* GEU_FUSE_MANU_PARA_0	0x110	Bank 0 [127: 96] */
+		uiBlock0_GEU_FUSE_MANU_PARA_0 = arg.arg0;
+		/* GEU_FUSE_MANU_PARA_1	0x114	Bank 0 [159:128] */
+		uiBlock0_GEU_FUSE_MANU_PARA_1 = arg.arg1;
+		/* GEU_FUSE_MANU_PARA_2	0x118	Bank 0 [191:160] */
+		uiBlock0_GEU_FUSE_MANU_PARA_2 = arg.arg2;
+		/* GEU_AP_CP_MP_ECC		0x11C	Bank 0 [223:192] */
+		uiBlock0_GEU_AP_CP_MP_ECC = arg.arg3;
+		/* BLOCK0_RESERVED_1 0x120	Bank 0 [255:224] */
+		uiBlock0_BLOCK0_RESERVED_1 = arg.arg4;
+		/* Fuse Block 4 191:160 */
+		uiBlock4_MANU_PARA1_0 = arg.arg5;
+		/* Fuse Block 4 255:192 */
+		uiBlock4_MANU_PARA1_1  = arg.arg6;
+	} else {
+		uiBlock0_GEU_FUSE_MANU_PARA_0 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_0);
+		uiBlock0_GEU_FUSE_MANU_PARA_1 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_1);
+		uiBlock0_GEU_FUSE_MANU_PARA_2 = __raw_readl(geu_base + GEU_FUSE_MANU_PARA_2);
+		uiBlock0_GEU_AP_CP_MP_ECC = __raw_readl(geu_base + GEU_AP_CP_MP_ECC);
+		uiBlock0_BLOCK0_RESERVED_1 = __raw_readl(geu_base + BLOCK0_RESERVED_1);
+		uiBlock4_MANU_PARA1_0 = __raw_readl(geu_base + BLOCK4_MANU_PARA1_0);
+		uiBlock4_MANU_PARA1_1  = __raw_readl(geu_base + BLOCK4_MANU_PARA1_1);
+	}
 
 	uiAllocRev = uiBlock0_GEU_FUSE_MANU_PARA_0 & 0x7;
 	uiFab = (uiBlock0_GEU_FUSE_MANU_PARA_0 >>  3) & 0x1f;
@@ -208,7 +228,6 @@ static int __init __init_read_droinfo(void)
 		pr_info("     *  Fab   = SEC 28LP (%d)\n",    uiFabRev);
 	else
 		pr_info("     *  FabRev (%d) not currently supported\n",    uiFabRev);
-	pr_info("     *  Lot   = %s\n",    cLot);
 	pr_info("     *  wafer = %d\n", uiWafer);
 	pr_info("     *  x     = %d\n",     uiX);
 	pr_info("     *  y     = %d\n",     uiY);
