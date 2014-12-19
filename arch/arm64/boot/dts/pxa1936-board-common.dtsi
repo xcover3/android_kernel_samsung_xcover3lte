@@ -1125,7 +1125,6 @@
 			stream-name = "map i2s1";
 			marvell,cpu-dai = <&sspa0 0>;
 			marvell,codec-dai = <&mmp_map_codec 1>;
-			marvell,dai-dynamic;
 		};
 		fe_i2s2: fe_i2s2 {
 			compatible = "marvell,map-dailink-1";
@@ -1133,7 +1132,6 @@
 			stream-name = "map i2s4";
 			marvell,cpu-dai = <&sspa1 1>;
 			marvell,codec-dai = <&mmp_map_codec 4>;
-			marvell,dai-dynamic;
 		};
 		fe_i2s3: fe_i2s3 {
 			compatible = "marvell,map-dailink-2";
@@ -1141,7 +1139,6 @@
 			stream-name = "map i2s2";
 			marvell,cpu-dai = <&mmp_pcm_hostless 0>;
 			marvell,codec-dai = <&mmp_map_codec 2>;
-			marvell,dai-dynamic;
 			marvell,dai-no-host-mode;
 		};
 		fe_i2s4: fe_i2s4 {
@@ -1150,7 +1147,6 @@
 			stream-name = "map i2s3";
 			marvell,cpu-dai = <&mmp_pcm_hostless 1>;
 			marvell,codec-dai = <&mmp_map_codec 3>;
-			marvell,dai-dynamic;
 			marvell,dai-no-host-mode;
 		};
 		be_i2s1: be_i2s1 {
