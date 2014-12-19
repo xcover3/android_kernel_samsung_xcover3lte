@@ -38,7 +38,7 @@
 
 static const char *const ccidatastub_name = "ccidatastub";
 int dataSvgHandle;
-DATAHANDLELIST *hDataList = NULL, *hCsdataList = NULL;
+DATAHANDLELIST *hCsdataList = NULL;
 int dataChannelInited;
 int csdChannelInited;
 int imsChannelInited;
@@ -160,13 +160,12 @@ static long ccidatastub_ioctl(struct file *filp,
 			return -EFAULT;
 		DPRINT("CCIDATASTUB_DATAHANDLE: cid =%d, type =%d\n",
 		       dataHandle.m_cid, dataHandle.m_connType);
+		if (dataHandle.m_connType == CI_DAT_CONNTYPE_PS)
+			break;
 
 		spin_lock_irq(&data_handle_list_lock);
 
-		if (dataHandle.m_connType == CI_DAT_CONNTYPE_PS)
-			plist = &hDataList;
-		else	/* dataHandle.m_connType == CI_DAT_CONNTYPE_CS */
-			plist = &hCsdataList;
+		plist = &hCsdataList;
 
 		if (!search_handlelist_by_cid(*plist, dataHandle.m_cid)) {
 			pNode = kmalloc(sizeof(*pNode), GFP_ATOMIC);
@@ -201,22 +200,11 @@ static long ccidatastub_ioctl(struct file *filp,
 	case CCIDATASTUB_CHNOK:
 		cid = (unsigned char)arg;
 		DPRINT("CCIDATASTUB_CHNOK: cid =%d\n", cid);
-
-		spin_lock_irq(&data_handle_list_lock);
-		remove_handle_by_cid(&hDataList, cid);
-		spin_unlock_irq(&data_handle_list_lock);
-
 		break;
 
 	case CCIDATASTUB_CHOK:
 		cid = (unsigned char)arg;
 		DPRINT("CCIDATASTUB_CHOK: cid =%d\n", cid);
-
-		spin_lock_irq(&data_handle_list_lock);
-		pNode = search_handlelist_by_cid(hDataList, cid);
-		if (pNode)
-			pNode->handle.chanState = DATA_CHAN_READY_STATE;
-		spin_unlock_irq(&data_handle_list_lock);
 
 		break;
 	case CCIDATASTUB_CS_CHNOK:
@@ -245,7 +233,6 @@ static long ccidatastub_ioctl(struct file *filp,
 		DPRINT("CCIDATASTUB_REMOVE_ALLCH\n");
 
 		spin_lock_irq(&data_handle_list_lock);
-		remove_handle_list(&hDataList);
 		remove_handle_list(&hCsdataList);
 		spin_unlock_irq(&data_handle_list_lock);
 

@@ -37,7 +37,6 @@ enum TXSTATUS {
 		SHM_HEADER_SIZE - SHM_SK_HEADER_SIZE)
 
 extern int csdChannelInited;
-extern DATAHANDLELIST *hDataList;
 extern DATAHANDLELIST *hCsdataList;
 extern int dataSvgHandle;
 extern spinlock_t data_handle_list_lock;
