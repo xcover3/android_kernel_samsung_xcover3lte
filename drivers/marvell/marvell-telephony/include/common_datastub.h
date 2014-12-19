@@ -73,7 +73,6 @@ typedef struct CiDatConnInfo_struct {
 				 * context id for PS connection */
 } CiDatConnInfo;
 typedef enum {
-	PDP_PPP = 0,
 	PDP_DIRECTIP = 1,
 	PSD_MODEM = 2,
 	CSD_RAW = 3,

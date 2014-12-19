@@ -538,17 +538,6 @@ static int sendImsData_ex(const char *buf, int len)
 	return TX_SUCCESS;
 }
 
-/*
- * TODO: remove this after clean cidatatty since some
- * application(like bluez) may use cidatatty to send
- * data, so this interface may be called.
- */
-int sendData(unsigned char cid, const char *buf, int len)
-{
-	return 0;
-}
-EXPORT_SYMBOL(sendData);
-
 int sendCSData(unsigned char cid, const char *buf, int len)
 {
 	if (csdChannelInited == 0) {

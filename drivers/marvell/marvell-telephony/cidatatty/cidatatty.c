@@ -41,23 +41,16 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
-/* Our fake UART values */
-#define MCR_DTR         0x01
-#define MCR_RTS         0x02
-#define MCR_LOOP        0x04
-#define MSR_CTS         0x08
-#define MSR_CD          0x10
-#define MSR_RI          0x20
-#define MSR_DSR         0x40
 #define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK | BRKINT | \
 			IGNPAR | PARMRK | INPCK))
 
 #define CIDATATTY_TTY_MAJOR             0	/* experimental range */
 #define CIDATATTY_TTY_MINORS            3
 #define CCTDATADEV_NR_DEVS 3
-#define PSDTTYINDEX		1
+
 #define CSDTTYINDEX			0
 #define IMSTTYINDEX			2
+
 int cctdatadev_major;
 int cctdatadev_minor;
 int cctdatadev_nr_devs = CCTDATADEV_NR_DEVS;
@@ -115,91 +108,11 @@ struct cctdatadev_dev {
 };
 
 static struct tty_driver *cidatatty_tty_driver;
-struct cctdatadev_dev *cctdatadev_devices;
+static struct cctdatadev_dev *cctdatadev_devices;
+
 /* int ttycurindex; */
 unsigned char currcid_cs = 0x1;
-unsigned char currcid_ps = 0xff;
 unsigned char currcid_ims = 0xff;
-
-/*
- * Prototypes for shared functions
- */
-int data_rx_ppp(char *packet, int len, unsigned char cid)
-{
-	struct tty_struct *tty = NULL;
-	struct cidatatty_port *cidatatty;
-	int remain = len;
-	int ret;
-
-	int c = -1;
-
-	F_ENTER();
-
-	if (!cidatatty_table[PSDTTYINDEX].data_port
-	    || cidatatty_table[PSDTTYINDEX].data_port->cid != cid
-	    || cidatatty_table[PSDTTYINDEX].data_port->devinuse != 1) {
-		pr_err("data_rx_ppp: not found tty device.\n ");
-		return 0;
-	} else {
-		tty = cidatatty_table[PSDTTYINDEX].data_port->port.tty;
-	}
-
-	if (!tty) {
-		pr_err("data_rx_ppp: not found PSD tty.\n ");
-		return 0;
-	}
-
-	cidatatty = tty->driver_data;
-	/* drop packets if nobody uses cidatatty */
-	if (cidatatty == NULL) {
-		pr_err(
-		       "data_rx_ppp: drop packets if nobody uses cidatatty.\n ");
-		return 0;
-	}
-
-	down(&cidatatty->sem_lock_tty);
-
-	if (cidatatty->port.count == 0) {
-		up(&cidatatty->sem_lock_tty);
-		pr_err("data_rx_ppp: cidatatty device is closed\n");
-		return 0;
-	}
-
-	while (remain > 0) {
-		/* PDEBUG( "data_rx_ppp: receive_room=0x%x\n ",
-		 * tty->ldisc.receive_room ); */
-		c = tty->receive_room;
-
-		/* give up if no room at all */
-		if (c == 0)
-			break;
-
-		if (c > len)
-			c = len;
-		/* PDEBUG( "data_rx_ppp: receive_buf=0x%x\n ",
-		 * tty->ldisc.receive_buf ) */
-		tty->ldisc->ops->receive_buf(tty, packet, NULL, c);
-		/* for N_TTY type */
-		/* if (tty->ldisc.ops->flush_buffer) */
-		/*      tty->ldisc.ops->flush_buffer(tty); */
-		wake_up_interruptible(&tty->read_wait);
-
-		remain -= c;
-		packet += c;
-	}
-
-	/* return the actual bytes got */
-	ret = len - remain;
-
-	up(&cidatatty->sem_lock_tty);
-
-	if (remain > 0 && c == 0)
-		pr_err(
-		       "data_rx_ppp: give up because receive_room left\n");
-
-	return ret;
-
-}
 
 int data_rx_csd(char *packet, int len, unsigned char cid)
 {
@@ -393,10 +306,7 @@ static int cidatatty_open(struct tty_struct *tty, struct file *file)
 	if (cidatatty->port.count == 1) {
 		/* this is the first time this port is opened */
 		/* do any hardware initialization needed here */
-		if (index == PSDTTYINDEX)
-			registerRxCallBack(PDP_PPP,
-					   (DataRxCallbackFunc) data_rx_ppp);
-		else if (index == CSDTTYINDEX)
+		if (index == CSDTTYINDEX)
 			registerRxCallBack(CSD_RAW,
 					   (DataRxCallbackFunc) data_rx_csd);
 		else if (index == IMSTTYINDEX)
@@ -413,9 +323,7 @@ static int cidatatty_open(struct tty_struct *tty, struct file *file)
 	}
 	cidatatty->writeokflag = 1;
 	cidatatty->devinuse = 1;
-	if (index == PSDTTYINDEX)
-		cidatatty->cid = currcid_ps;
-	else if (index == CSDTTYINDEX)
+	if (index == CSDTTYINDEX)
 		cidatatty->cid = currcid_cs;
 	else if (index == IMSTTYINDEX)
 		cidatatty->cid = currcid_ims;
@@ -443,9 +351,7 @@ static void do_close(struct cidatatty_port *cidatatty)
 	if (cidatatty->port.count <= 0) {
 		/* The port is being closed by the last user. */
 		/* Do any hardware specific stuff here */
-		if (cidatatty->port.tty->index == PSDTTYINDEX)
-			unregisterRxCallBack(PDP_PPP);
-		else if (cidatatty->port.tty->index == CSDTTYINDEX)
+		if (cidatatty->port.tty->index == CSDTTYINDEX)
 			unregisterRxCallBack(CSD_RAW);
 		else if (cidatatty->port.tty->index == IMSTTYINDEX)
 			unregisterRxCallBack(IMS_RAW);
@@ -517,9 +423,7 @@ static int cidatatty_write(struct tty_struct *tty, const unsigned char *buffer,
 #endif
 
 	if (writeokflag == 1) {
-		if (tty_index == PSDTTYINDEX) {
-			sendData(cid, (char *)buffer, count);
-		} else if (tty_index == CSDTTYINDEX) {
+		if (tty_index == CSDTTYINDEX) {
 			int sent = 0;
 			while (sent < count) {
 				int len = count - sent;
@@ -631,73 +535,6 @@ static int cidatatty_write_room(struct tty_struct *tty)
 	 */
 	return 2048;
 }
-
-#if 0
-static int cidatatty_tiocmget(struct tty_struct *tty, struct file *file)
-{
-	struct cidatatty_port *cidatatty = tty->driver_data;
-	unsigned int result = 0;
-	unsigned int msr = cidatatty->msr;
-	unsigned int mcr = cidatatty->mcr;
-
-	F_ENTER();
-
-	result = ((mcr & MCR_DTR)  ? TIOCM_DTR  : 0) |  /* DTR is set */
-		 ((mcr & MCR_RTS)  ? TIOCM_RTS  : 0) |  /* RTS is set */
-		 ((mcr & MCR_LOOP) ? TIOCM_LOOP : 0) |  /* LOOP is set */
-		 ((msr & MSR_CTS)  ? TIOCM_CTS  : 0) |  /* CTS is set */
-		 ((msr & MSR_CD)   ? TIOCM_CAR  : 0) |  /* CD is set*/
-		 ((msr & MSR_RI)   ? TIOCM_RI   : 0) |  /* RI is set */
-		 ((msr & MSR_DSR)  ? TIOCM_DSR  : 0);   /* DSR is set */
-
-	F_LEAVE();
-	return result;
-}
-
-static int cidatatty_tiocmset(struct tty_struct *tty, struct file *file,
-			      unsigned int set, unsigned int clear)
-{
-	struct cidatatty_port *cidatatty = tty->driver_data;
-	unsigned int mcr = cidatatty->mcr;
-
-	F_ENTER();
-	if (set & TIOCM_RTS)
-		mcr |= MCR_RTS;
-	if (set & TIOCM_DTR)
-		mcr |= MCR_RTS;
-	if (set & TIOCM_LOOP)
-		mcr |= MCR_RTS;
-	if (set & TIOCM_CTS)
-		mcr |= MCR_RTS;
-	if (set & TIOCM_RI)
-		mcr |= MCR_RTS;
-	if (set & TIOCM_DSR)
-		mcr |= MCR_RTS;
-	if (set & TIOCM_CAR)
-		mcr |= MCR_RTS;
-
-	if (clear & TIOCM_RTS)
-		mcr &= ~MCR_RTS;
-	if (clear & TIOCM_DTR)
-		mcr &= ~MCR_RTS;
-	if (clear & TIOCM_LOOP)
-		mcr &= ~MCR_RTS;
-	if (clear & TIOCM_CTS)
-		mcr &= ~MCR_RTS;
-	if (clear & TIOCM_CAR)
-		mcr &= ~MCR_RTS;
-	if (clear & TIOCM_RI)
-		mcr &= ~MCR_RTS;
-	if (clear & TIOCM_DSR)
-		mcr &= ~MCR_RTS;
-
-	/* set the new MCR value in the device */
-	cidatatty->mcr = mcr;
-
-	F_LEAVE();
-	return 0;
-}
-#endif
 
 static int cidatatty_ioctl_tiocgserial(struct tty_struct *tty,
 				       struct file *file, unsigned int cmd,
@@ -812,34 +649,6 @@ static int cidatatty_ioctl_tiocgicount(struct tty_struct *tty,
 	return -ENOIOCTLCMD;
 }
 
-int enable_datapath(struct tty_struct *tty)
-{
-	struct cidatatty_port *cidatatty = tty->driver_data;
-
-	if (!cidatatty)
-		return 0;
-
-	if (tty->index == PSDTTYINDEX)
-		registerRxCallBack(PDP_PPP, (DataRxCallbackFunc) data_rx_ppp);
-	else if (tty->index == CSDTTYINDEX)
-		registerRxCallBack(CSD_RAW, (DataRxCallbackFunc) data_rx_csd);
-	else if (tty->index == IMSTTYINDEX)
-		registerRxCallBack(IMS_RAW, (DataRxCallbackFunc)data_rx_ims);
-
-	return 0;
-}
-
-int disable_datapath(struct tty_struct *tty)
-{
-	if (tty->index == PSDTTYINDEX)
-		unregisterRxCallBack(PDP_PPP);
-	else if (tty->index == CSDTTYINDEX)
-		unregisterRxCallBack(CSD_RAW);
-	else if	(tty->index == IMSTTYINDEX)
-		unregisterRxCallBack(IMS_RAW);
-	return 0;
-}
-
 /*
  * the real cidatatty_ioctl function.
  * The above is done to get the small functions
@@ -916,19 +725,6 @@ static int cidatatty_chars_in_buffer(struct tty_struct *tty)
 	return 0;
 }
 
-#if 0
-static void cidatatty_flush_chars(struct tty_struct *tty)
-{
-	F_ENTER();
-	return;
-}
-
-static void cidatatty_wait_until_sent(struct tty_struct *tty, int timeout)
-{
-	F_ENTER();
-	return;
-}
-#endif
 static void cidatatty_throttle(struct tty_struct *tty)
 {
 	F_ENTER();
@@ -941,38 +737,11 @@ static void cidatatty_unthrottle(struct tty_struct *tty)
 	return;
 }
 
-#if 0
-static void cidatatty_stop(struct tty_struct *tty)
-{
-	F_ENTER();
-	return;
-}
-
-static void cidatatty_start(struct tty_struct *tty)
-{
-	F_ENTER();
-	return;
-}
-
-static void cidatatty_hangup(struct tty_struct *tty)
-{
-	F_ENTER();
-	return;
-}
-#endif
 static void cidatatty_flush_buffer(struct tty_struct *tty)
 {
 	F_ENTER();
 	return;
 }
-
-#if 0
-static void cidatatty_set_ldisc(struct tty_struct *tty)
-{
-	F_ENTER();
-	return;
-}
-#endif
 
 static const struct tty_operations serial_ops = {
 	.open = cidatatty_open,
@@ -1057,22 +826,8 @@ long cctdatadev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		pr_debug(
 		       "cctdatadev_ioctl: TIOPPPON: cid=%d, index=%d\n", cid,
 		       index);
-#if 0
-		for (i = 0; i < CIDATATTY_TTY_MINORS; i++) {
-			if ((cidatatty_table[i].data_port->cid == cid) &&
-			    (cidatatty_table[i].data_port->devinuse == 1)) {
-				cidatatty_table[i].data_port->writeokflag = 1;
-				break;
-			}
-		}
-#endif
-		/* if (cidatatty_table[index].data_port) */
-		/*      cidatatty_table[index].data_port->cid =
-		 *					(unsigned char)arg; */
 		if (index == CSDTTYINDEX)
 			currcid_cs = (unsigned char)arg;
-		else if (index == PSDTTYINDEX)
-			currcid_ps = (unsigned char)arg;
 		else if (index == IMSTTYINDEX)
 			currcid_ims = (unsigned char)arg;
 		break;
@@ -1084,8 +839,6 @@ long cctdatadev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		       index);
 		if (index == CSDTTYINDEX)
 			currcid_cs = 0xff;
-		else if (index == PSDTTYINDEX)
-			currcid_ps = 0xff;
 		else if (index == IMSTTYINDEX)
 			currcid_ims = 0xff;
 

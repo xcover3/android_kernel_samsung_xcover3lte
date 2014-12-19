@@ -55,7 +55,6 @@ extern int InitPsdChannel(void);
 extern void DeInitPsdChannel(void);
 extern void InitImsChannel(void);
 extern void DeInitImsChannel(void);
-extern int sendData(unsigned char cid, const char *buf, int len);
 extern int sendCSData(unsigned char cid, const char *buf, int len);
 extern int sendCSDataRemote(unsigned char cid, const char *buf, int len);
 extern int sendIMSData(unsigned char cid, const char *buf, int len);
