@@ -602,10 +602,6 @@ struct soc_camera_desc soc_camera_desc_3 = {
 #ifdef CONFIG_SOC_CAMERA_SP0A20_ECS
 static int sp0a20_sensor_power(struct device *dev, int on)
 {
-	static struct regulator *c1_avdd_2v8;
-	static struct regulator *c1_dovdd_1v8;
-	static struct regulator *c1_af_2v8;
-	static struct regulator *c1_dvdd_1v2;
 	int cam_enable, cam_reset;
 	int ret;
 
@@ -619,37 +615,37 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 	if (IS_ERR(mclk))
 		return PTR_ERR(mclk);
 
-	if (!c1_avdd_2v8) {
-		c1_avdd_2v8 = regulator_get(dev, "avdd_2v8");
-		if (IS_ERR(c1_avdd_2v8)) {
+	if (!avdd_2v8) {
+		avdd_2v8 = regulator_get(dev, "avdd_2v8");
+		if (IS_ERR(avdd_2v8)) {
 			dev_warn(dev, "Failed to get regulator avdd_2v8\n");
-			c1_avdd_2v8 = NULL;
+			avdd_2v8 = NULL;
 		}
 	}
 
-		if (!c1_dovdd_1v8) {
-			c1_dovdd_1v8 = regulator_get(dev, "dovdd_1v8");
-			if (IS_ERR(c1_dovdd_1v8)) {
-				dev_warn(dev, "Failed to get regulator dovdd_1v8\n");
-				c1_dovdd_1v8 = NULL;
-			}
+	if (!dovdd_1v8) {
+		dovdd_1v8 = regulator_get(dev, "dovdd_1v8");
+		if (IS_ERR(dovdd_1v8)) {
+			dev_warn(dev, "Failed to get regulator dovdd_1v8\n");
+			dovdd_1v8 = NULL;
 		}
+	}
 
-	if (!c1_af_2v8) {
-		c1_af_2v8 = regulator_get(dev, "af_2v8");
-		if (IS_ERR(c1_af_2v8)) {
+	if (!af_2v8) {
+		af_2v8 = regulator_get(dev, "af_2v8");
+		if (IS_ERR(af_2v8)) {
 			dev_warn(dev, "Failed to get regulator af_2v8\n");
-			c1_af_2v8 = NULL;
+			af_2v8 = NULL;
 		}
 	}
 
-		if (!c1_dvdd_1v2) {
-			c1_dvdd_1v2 = regulator_get(dev, "dvdd_1v2");
-			if (IS_ERR(c1_dvdd_1v2)) {
-				dev_warn(dev, "Failed to get regulator dvdd_1v2\n");
-				c1_dvdd_1v2 = NULL;
-			}
+	if (!dvdd_1v2) {
+		dvdd_1v2 = regulator_get(dev, "dvdd_1v2");
+		if (IS_ERR(dvdd_1v2)) {
+			dev_warn(dev, "Failed to get regulator dvdd_1v2\n");
+			dvdd_1v2 = NULL;
 		}
+	}
 
 	cam_enable = of_get_named_gpio(dev->of_node, "pwdn-gpios", 0);
 	if (gpio_is_valid(cam_enable)) {
@@ -677,36 +673,36 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 		gpio_direction_output(cam_enable, 0);
 		usleep_range(500, 1000);
 
-		if (c1_avdd_2v8) {
-			regulator_set_voltage(c1_avdd_2v8, 2800000, 2800000);
-			ret = regulator_enable(c1_avdd_2v8);
+		if (avdd_2v8) {
+			regulator_set_voltage(avdd_2v8, 2800000, 2800000);
+			ret = regulator_enable(avdd_2v8);
 			if (ret)
 				goto cam_regulator_enable_failed;
 		}
 
-		if (c1_af_2v8) {
-			regulator_set_voltage(c1_af_2v8, 2800000, 2800000);
-			ret = regulator_enable(c1_af_2v8);
+		if (af_2v8) {
+			regulator_set_voltage(af_2v8, 2800000, 2800000);
+			ret = regulator_enable(af_2v8);
 			if (ret)
 				goto cam_regulator_enable_failed;
 		}
 		usleep_range(500, 1000);
 
-			if (c1_dovdd_1v8) {
-				regulator_set_voltage(c1_dovdd_1v8,
-						1800000, 1800000);
-				ret = regulator_enable(c1_dovdd_1v8);
-				if (ret)
-					goto cam_regulator_enable_failed;
-			}
+		if (dovdd_1v8) {
+			regulator_set_voltage(dovdd_1v8,
+					1800000, 1800000);
+			ret = regulator_enable(dovdd_1v8);
+			if (ret)
+				goto cam_regulator_enable_failed;
+		}
 
-			if (c1_dvdd_1v2) {
-				regulator_set_voltage(c1_dvdd_1v2,
-						1200000, 1200000);
-				ret = regulator_enable(c1_dvdd_1v2);
-				if (ret)
-					goto cam_regulator_enable_failed;
-			}
+		if (dvdd_1v2) {
+			regulator_set_voltage(dvdd_1v2,
+					1200000, 1200000);
+			ret = regulator_enable(dvdd_1v2);
+			if (ret)
+				goto cam_regulator_enable_failed;
+		}
 		clk_set_rate(mclk, 26000000);
 		clk_prepare_enable(mclk);
 		gpio_direction_output(cam_reset, 0);
@@ -726,14 +722,14 @@ static int sp0a20_sensor_power(struct device *dev, int on)
 		clk_disable_unprepare(mclk);
 		devm_clk_put(dev, mclk);
 
-			if (c1_dovdd_1v8)
-				regulator_disable(c1_dovdd_1v8);
-			if (c1_dvdd_1v2)
-				regulator_disable(c1_dvdd_1v2);
-		if (c1_avdd_2v8)
-			regulator_disable(c1_avdd_2v8);
-		if (c1_af_2v8)
-			regulator_disable(c1_af_2v8);
+		if (dovdd_1v8)
+			regulator_disable(dovdd_1v8);
+		if (dvdd_1v2)
+			regulator_disable(dvdd_1v2);
+		if (avdd_2v8)
+			regulator_disable(avdd_2v8);
+		if (af_2v8)
+			regulator_disable(af_2v8);
 
 	}
 
@@ -748,24 +744,18 @@ cam_reset_failed:
 cam_enable_failed:
 	ret = -EIO;
 cam_regulator_enable_failed:
-	if (c1_dvdd_1v2)
-		regulator_put(c1_dvdd_1v2);
-	c1_dvdd_1v2 = NULL;
-	if (c1_af_2v8)
-		regulator_put(c1_af_2v8);
-	c1_af_2v8 = NULL;
-	if (c1_dovdd_1v8)
-		regulator_put(c1_dovdd_1v8);
-	c1_dovdd_1v8 = NULL;
-	if (c1_avdd_2v8)
-		regulator_put(c1_avdd_2v8);
-	c1_avdd_2v8 = NULL;
-	if (c1_dovdd_1v8)
-		regulator_put(c1_dovdd_1v8);
-	c1_dovdd_1v8 = NULL;
-	if (c1_avdd_2v8)
-		regulator_put(c1_avdd_2v8);
-	c1_avdd_2v8 = NULL;
+	if (dvdd_1v2)
+		regulator_put(dvdd_1v2);
+	dvdd_1v2 = NULL;
+	if (af_2v8)
+		regulator_put(af_2v8);
+	af_2v8 = NULL;
+	if (dovdd_1v8)
+		regulator_put(dovdd_1v8);
+	dovdd_1v8 = NULL;
+	if (avdd_2v8)
+		regulator_put(avdd_2v8);
+	avdd_2v8 = NULL;
 
 	return ret;
 }
