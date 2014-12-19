@@ -541,7 +541,8 @@ run:
 		switch (phy->state) {
 		case OTG_STATE_B_IDLE:
 			otg->default_a = 0;
-			if (old_state == OTG_STATE_B_PERIPHERAL)
+			if (old_state == OTG_STATE_B_PERIPHERAL ||
+					old_state == OTG_STATE_UNDEFINED)
 				mv_otg_start_periphrals(mvotg, 0);
 			mv_otg_reset(mvotg);
 			mv_otg_disable(mvotg);
