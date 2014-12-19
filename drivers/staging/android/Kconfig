@@ -117,6 +117,20 @@ config SW_SYNC_USER
 	  *WARNING* improper use of this can result in deadlocking kernel
 	  drivers from userspace.
 
+config RUNTIME_COMPCACHE
+	bool "Android rtcc v3"
+	default n
+	depends on ZRAM && ANDROID
+	help
+	   This option enables rtcc v3 for android
+
+config KSWAPD_NOSWAP
+	bool "Disable swap in kswapd"
+	default n
+	depends on RUNTIME_COMPCACHE
+	help
+	  This option disable swap in kswapd.
+
 source "drivers/staging/android/ion/Kconfig"
 
 source "drivers/staging/android/fiq_debugger/Kconfig"
