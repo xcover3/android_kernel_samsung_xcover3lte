@@ -176,6 +176,11 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 
 #define MAX_PIPE_NUM        (0x2)
 
+/*DATA set registers */
+#define DATA_BGAIN            (DATA_BUF_START + 0x232)
+#define DATA_GGAIN            (DATA_BUF_START + 0x234)
+#define DATA_RGAIN            (DATA_BUF_START + 0x236)
+
 /* CMD set registers */
 #define CMD_REG0            (0x63900)
 #define CMD_REG1            (CMD_REG0 + 0x1)
