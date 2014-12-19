@@ -180,8 +180,6 @@
 		sc2-i2c-dyn-ctrl;
 		pwdn-gpios = <&gpio 70 0>;
 		reset-gpios = <&gpio 69 0>;
-		main-pwdn-gpios = <&gpio 68 1>;
-		main-reset-gpios = <&gpio 67 1>;
 
 		af_2v8-supply = <&ldo11>;
 		avdd_2v8-supply = <&ldo10>;
