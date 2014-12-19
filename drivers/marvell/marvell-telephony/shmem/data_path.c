@@ -937,7 +937,11 @@ struct data_path *data_path_open(enum data_path_type dp_type,
 	dp->tx_sched_timer.data =
 		(unsigned long)dp;
 
-	dp_debugfs_init(dp);
+	if (dp_debugfs_init(dp) < 0) {
+		pr_err("%s: debugfs failed\n", __func__);
+		atomic_set(&dp->state, dp_state_idle);
+		return NULL;
+	}
 
 	atomic_set(&dp->state, dp_state_opened);
 
