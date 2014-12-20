@@ -194,7 +194,7 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	int flag, ret = 0;
 	char *paddr = NULL;
 	ushort bank_addr;
-	ushort bank_map[3] = {BANK1_BASE, BANK2_BASE, BANK2_BASE};
+	ushort bank_map[3] = {BANK1_BASE, BANK2_BASE, BANK3_BASE};
 	ushort bank_base =  bank_map[0];
 	char *bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
 	char *bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
