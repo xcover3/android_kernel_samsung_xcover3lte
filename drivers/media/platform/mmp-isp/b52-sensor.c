@@ -2044,6 +2044,9 @@ struct sensor_otp32 {
 	__u16   module_data_len;
 	compat_caddr_t	otp_data;
 	compat_caddr_t	module_data;
+	compat_caddr_t	full_otp;
+	__u16   full_otp_len;
+	compat_caddr_t	read_otp_len;
 };
 
 #define VIDIOC_PRIVATE_B52ISP_SENSOR_OTP32 \
@@ -2052,18 +2055,23 @@ struct sensor_otp32 {
 static int get_sensor_otp32(struct sensor_otp *kp,
 		struct sensor_otp32 __user *up)
 {
-	u32 tmp1, tmp2;
+	u32 tmp1, tmp2, tmp3, tmp4;
 	if (!access_ok(VERIFY_READ, up, sizeof(struct sensor_otp32)) ||
 			get_user(tmp1, &up->otp_data) ||
 			get_user(tmp2, &up->module_data) ||
+			get_user(tmp3, &up->full_otp) ||
+			get_user(tmp4, &up->read_otp_len) ||
 			get_user(kp->otp_type, &up->otp_type) ||
 			get_user(kp->lsc_otp_len, &up->lsc_otp_len) ||
 			get_user(kp->wb_otp_len, &up->wb_otp_len) ||
 			get_user(kp->vcm_otp_len, &up->vcm_otp_len) ||
-			get_user(kp->module_data_len, &up->module_data_len))
+			get_user(kp->module_data_len, &up->module_data_len) ||
+			get_user(kp->full_otp_len, &up->full_otp_len))
 		return -EFAULT;
 	kp->otp_data = compat_ptr(tmp1);
 	kp->module_data = compat_ptr(tmp2);
+	kp->full_otp = compat_ptr(tmp3);
+	kp->read_otp_len = compat_ptr(tmp4);
 	return 0;
 }
 

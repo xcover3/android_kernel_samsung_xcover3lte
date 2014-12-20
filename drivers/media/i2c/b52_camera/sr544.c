@@ -171,11 +171,13 @@ __maybe_unused int SR544_check_crc32(
 #define GROUP2_OFFSET 0x60
 #define GROUP3_OFFSET 0xe0
 #define GROUP4_OFFSET 0x120
+#define FULL_OTP_OFFSET 0
 
 #define GROUP1_LEN 0x60
 #define GROUP2_LEN 0x80
 #define GROUP3_LEN 0x40
 #define GROUP4_LEN 0xf0
+#define FULL_OTP_LEN 0x670
 
 #define GROUP1_SUM_OFFSET 0x5c
 #define GROUP2_SUM_OFFSET 0x7c
@@ -200,6 +202,7 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	char *bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
 	char *bank_grp3 = devm_kzalloc(sd->dev, GROUP3_LEN, GFP_KERNEL);
 	char *bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
+	char *full_otp = devm_kzalloc(sd->dev, FULL_OTP_LEN, GFP_KERNEL);
 	SR544_write_reg(sd, 0x0118,  0x00);
 	msleep(100);
 	SR544_cmd_write(sd, sr544_otp);
@@ -217,6 +220,25 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	SR544_write_reg(sd, 0x010b, (0x0680)&0xff);
 	SR544_write_reg(sd, 0x0102, 0x01);
 #endif
+	if (otp->user_otp->read_otp_len != NULL)
+		*(otp->user_otp->read_otp_len) = 0;
+	if (otp->user_otp->full_otp_len > 0) {
+		len = FULL_OTP_LEN;
+		if (otp->user_otp->read_otp_len != NULL)
+			*(otp->user_otp->read_otp_len) = FULL_OTP_LEN;
+		for (i = 0; i < len; i++)
+			full_otp[i] = SR544_read_reg(sd, 0x0108);
+		paddr = otp->user_otp->full_otp;
+		if (copy_to_user(paddr, &full_otp[FULL_OTP_OFFSET],
+							len)) {
+			ret = -EIO;
+			goto err;
+		}
+		SR544_write_reg(sd, 0x010a, (0x0680>>8)&0xff);
+		SR544_write_reg(sd, 0x010b, (0x0680)&0xff);
+		SR544_write_reg(sd, 0x0102, 0x01);
+	}
+
 	flag = SR544_read_reg(sd, 0x0108);
 	if (flag == 0x01)
 		bank_base =  bank_map[0];
@@ -325,6 +347,7 @@ err:
 	devm_kfree(sd->dev, bank_grp2);
 	devm_kfree(sd->dev, bank_grp3);
 	devm_kfree(sd->dev, bank_grp4);
+	devm_kfree(sd->dev, full_otp);
 	return ret;
 }
 static int SR544_update_otp(struct v4l2_subdev *sd,
