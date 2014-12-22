@@ -882,7 +882,7 @@
 				compatible = "marvell,cp_load";
 				cp-type = <3>; /* pxa1908 */
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-				remap-smc-funcid = <0xc2003000>;
+				remap-smc-funcid = <0xc2003001>;
 				status = "disabled";
 			};
 		};
