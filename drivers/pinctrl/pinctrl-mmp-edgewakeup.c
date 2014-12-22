@@ -161,6 +161,18 @@ void edge_wakeup_mfp_enable(void)
 			dev_err(e->dev, "Could not get pinctrl!\n");
 			continue;
 		}
+
+		/*
+		 * If the pin has already set to its sleep state, (done by
+		 * other pins in its group), then should not configure it
+		 * again or its e->state_name will get the "sleep" value
+		 * which is not expected.
+		 */
+		if (!strcmp(pinctrl->state->name, "sleep")) {
+			pinctrl_put(pinctrl);
+			continue;
+		}
+
 		pin_sleep = pinctrl_lookup_state(pinctrl, PINCTRL_STATE_SLEEP);
 		if (IS_ERR(pin_sleep)) {
 			dev_err(e->dev, "Could not get sleep pinstate!\n");
@@ -168,6 +180,7 @@ void edge_wakeup_mfp_enable(void)
 			continue;
 		}
 		e->state_name = pinctrl->state->name;
+
 		ret = pinctrl_select_state(pinctrl, pin_sleep);
 		if (ret)
 			dev_err(e->dev, "Could not set pins to sleep state!\n");
@@ -225,6 +238,17 @@ void edge_wakeup_mfp_disable(void)
 			dev_err(e->dev, "Could not get pinctrl!\n");
 			continue;
 		}
+		/*
+		 * If the pin has restored to its previous state before lpm
+		 * (done by other pins in its group), then should not restore
+		 * it again or it'll overwrite other pins' configurations in
+		 * its group.
+		 */
+		if (strcmp(pinctrl->state->name, "sleep")) {
+			pinctrl_put(pinctrl);
+			continue;
+		}
+
 		pin_def  = pinctrl_lookup_state(pinctrl, e->state_name);
 		if (IS_ERR(pin_def)) {
 			dev_err(e->dev, "Could not get default pinstate!\n");
