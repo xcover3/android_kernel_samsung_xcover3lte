@@ -131,6 +131,7 @@ struct temp_vs_ohm {
 struct pm88x_battery_info {
 	struct mutex		cycle_lock;
 	struct mutex		volt_lock;
+	struct mutex		update_lock;
 	struct pm88x_chip	*chip;
 	struct device	*dev;
 	struct notifier_block		nb;
@@ -1296,6 +1297,7 @@ static void pm88x_bat_update_status(struct pm88x_battery_info *info)
 {
 	int ibat;
 
+
 	info->bat_params.volt = pm88x_get_batt_vol(info, 1);
 
 	ibat = pm88x_get_ibat_cc(info);
@@ -1315,9 +1317,13 @@ static void pm88x_bat_update_status(struct pm88x_battery_info *info)
 	info->bat_params.temp = pm88x_get_batt_temp(info) * 10;
 	info->bat_params.health = pm88x_get_batt_health(info);
 
+	mutex_lock(&info->update_lock);
+
 	pm88x_battery_calc_ccnt(info, &ccnt_data);
 	pm88x_battery_correct_soc(info, &ccnt_data);
 	info->bat_params.soc = ccnt_data.soc / 10;
+
+	mutex_unlock(&info->update_lock);
 }
 
 static void pm88x_battery_monitor_work(struct work_struct *work)
@@ -2039,6 +2045,7 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	mutex_init(&info->cycle_lock);
 	mutex_init(&info->volt_lock);
+	mutex_init(&info->update_lock);
 
 	ret = pm88x_battery_setup_adc(info);
 	if (ret < 0)
