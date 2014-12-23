@@ -2464,7 +2464,6 @@ woal_check_fw_name(moal_handle *handle)
 			break;
 		}
 	}
-	PRINTM(MMSG, "woal_check_fw_name:[%s]\n", handle->drv_mode.fw_name);
 	return;
 }
 
@@ -5899,7 +5898,7 @@ woal_create_dump_dir(moal_handle *phandle, char *dir_buf, int buf_size)
 
 	moal_get_system_time(phandle, &sec, &usec);
 	memset(dir_buf, 0, buf_size);
-	sprintf(dir_buf, "%s%u", "/data/dump_", sec);
+	sprintf(dir_buf, "%s%u", "/data/log/dump_", sec);
 
 	dentry = kern_path_create(AT_FDCWD, dir_buf, &path, 1);
 	if (IS_ERR(dentry)) {

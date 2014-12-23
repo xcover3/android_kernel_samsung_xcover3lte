@@ -2049,7 +2049,7 @@ typedef struct _mlan_ds_power_cfg {
 #define HOST_SLEEP_COND_IPV6_PACKET     MBIT(31)
 
 /** Host sleep config conditions: Default */
-#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT)
+#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT | HOST_SLEEP_COND_IPV6_PACKET)
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO     0xff
 /** Host sleep config gap : Default */

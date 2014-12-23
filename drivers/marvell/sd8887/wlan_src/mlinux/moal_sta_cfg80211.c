@@ -5647,7 +5647,7 @@ woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 	}
 	if (bss_type == MLAN_BSS_TYPE_STA) {
 		wdev->iftype = NL80211_IFTYPE_STATION;
-		priv->roaming_enabled = MFALSE;
+		priv->roaming_enabled = MTRUE;
 		priv->roaming_required = MFALSE;
 	}
 #if defined(WIFI_DIRECT_SUPPORT)
