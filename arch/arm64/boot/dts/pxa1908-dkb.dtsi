@@ -995,7 +995,7 @@
 						axis_map_x = <1>;
 						negate_x = <0>;
 						axis_map_y = <0>;
-						negate_y = <0>;
+						negate_y = <1>;
 						axis_map_z = <2>;
 						negate_z = <1>;
 						inven,secondary_axis_map_x = <1>;
