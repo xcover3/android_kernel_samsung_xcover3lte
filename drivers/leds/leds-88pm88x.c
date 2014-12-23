@@ -241,6 +241,13 @@ static int pm88x_rgb_blink_set(struct led_classdev *cdev,
 				   PM88X_RGB_SPEED_MASK, info->breath_speed);
 		goto out;
 	}
+
+	/* Wer'e not in breathing mode, so, as a fixup,
+	 * we should set breath_speed to 0
+	 */
+	regmap_update_bits(info->map, PM88X_RGB_CTRL6,
+				   PM88X_RGB_SPEED_MASK, 0x0);
+
 	/*
 	 * the frequence of PWM is 128HZ, the period is 7.8125ms
 	 * then the blinking period is 7.8125 * LED_BLK_PER
