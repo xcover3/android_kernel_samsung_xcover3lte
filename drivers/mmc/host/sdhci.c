@@ -1951,10 +1951,14 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	struct sdhci_host *host = mmc_priv(mmc);
 	unsigned long flags;
 
+	sdhci_runtime_pm_get(host);
+
 	spin_lock_irqsave(&host->lock, flags);
 	sdhci_enable_sdio_irq_nolock(host, enable);
 	host->sdio_irq_enabled = !!(enable);
 	spin_unlock_irqrestore(&host->lock, flags);
+
+	sdhci_runtime_pm_get(host);
 }
 
 static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
@@ -2368,10 +2372,13 @@ static int sdhci_pre_busy_check(struct mmc_host *mmc, int signal_votage)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
 
+	sdhci_runtime_pm_get(host);
 	if ((host->ops->clk_gate_auto) &&
 		(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE)) {
 			host->ops->clk_gate_auto(host, 0);
 	}
+	sdhci_runtime_pm_put(host);
+
 	return 0;
 }
 
@@ -2379,10 +2386,13 @@ static int sdhci_post_busy_check(struct mmc_host *mmc, int signal_votage)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
 
+	sdhci_runtime_pm_get(host);
 	if ((host->ops->clk_gate_auto) &&
 		(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE)) {
 			host->ops->clk_gate_auto(host, 1);
 	}
+	sdhci_runtime_pm_put(host);
+
 	return 0;
 }
 
