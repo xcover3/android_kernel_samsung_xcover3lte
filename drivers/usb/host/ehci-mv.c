@@ -222,8 +222,12 @@ static int mv_ehci_probe(struct platform_device *pdev)
 		retval = PTR_ERR(ehci_mv->phy);
 		if (retval != -EPROBE_DEFER && retval != -ENODEV)
 			dev_err(&pdev->dev, "failed to get the outer phy\n");
-		else
+		else {
+			kfree(hcd->bandwidth_mutex);
+			kfree(hcd);
+
 			return -EPROBE_DEFER;
+		}
 		goto err_clear_drvdata;
 	}
 
