@@ -28,10 +28,17 @@
 #define STATE_HOLD_CTRL		0x88
 #define FABTIMEOUT_HELD_WSTATUS	0x78
 #define FABTIMEOUT_HELD_RSTATUS	0x80
-#define DVC_HELD_STATUS		0xB0
-#define FCDONE_HELD_STATUS	0xB8
-#define PMULPM_HELD_STATUS	0xC0
-#define CORELPM_HELD_STATUS	0xC8
+
+#define DVC_HELD_STATUS_V1	0xB0
+#define FCDONE_HELD_STATUS_V1	0xB8
+#define PMULPM_HELD_STATUS_V1	0xC0
+#define CORELPM_HELD_STATUS_V1	0xC8
+
+#define DVC_HELD_STATUS_V2	0xB8
+#define FCDONE_HELD_STATUS_V2	0xC0
+#define PMULPM_HELD_STATUS_V2	0xC8
+#define CORELPM_HELD_STATUS_V2	0x100
+#define PLL_HELD_STATUS_V2	0x108
 
 struct held_status {
 	u32 fabws;
@@ -40,11 +47,19 @@ struct held_status {
 	u32 fcdones;
 	u32 pmulpms;
 	u32 corelpms;
+	/* pll status is only supported on ULC1 */
+	u32 plls;
+};
+
+enum mmp_debug_version {
+	MMP_DEBUG_VERSION_1 = 1,
+	MMP_DEBUG_VERSION_2,
 };
 
 void __attribute__((weak)) set_emmd_indicator(void) { }
 
 static void __iomem *squ_base;
+static unsigned int version;
 
 static u32 timeout_write_addr, timeout_read_addr;
 static u32 finish_save_cpu_ctx;
@@ -92,10 +107,30 @@ static int __init mmp_dump_heldstatus(void __iomem *squ_base)
 		readl_relaxed(squ_base + FABTIMEOUT_HELD_WSTATUS);
 	recorded_helds.fabrs =
 		readl_relaxed(squ_base + FABTIMEOUT_HELD_RSTATUS);
-	recorded_helds.dvcs = readl_relaxed(squ_base + DVC_HELD_STATUS);
-	recorded_helds.fcdones = readl_relaxed(squ_base + FCDONE_HELD_STATUS);
-	recorded_helds.pmulpms = readl_relaxed(squ_base + PMULPM_HELD_STATUS);
-	recorded_helds.corelpms = readl_relaxed(squ_base + CORELPM_HELD_STATUS);
+
+	if (version == MMP_DEBUG_VERSION_1) {
+		recorded_helds.dvcs =
+			readl_relaxed(squ_base + DVC_HELD_STATUS_V1);
+		recorded_helds.fcdones =
+			readl_relaxed(squ_base + FCDONE_HELD_STATUS_V1);
+		recorded_helds.pmulpms =
+			readl_relaxed(squ_base + PMULPM_HELD_STATUS_V1);
+		recorded_helds.corelpms =
+			readl_relaxed(squ_base + CORELPM_HELD_STATUS_V1);
+	} else if (version == MMP_DEBUG_VERSION_2) {
+		recorded_helds.dvcs =
+			readl_relaxed(squ_base + DVC_HELD_STATUS_V2);
+		recorded_helds.fcdones =
+			readl_relaxed(squ_base + FCDONE_HELD_STATUS_V2);
+		recorded_helds.pmulpms =
+			readl_relaxed(squ_base + PMULPM_HELD_STATUS_V2);
+		recorded_helds.corelpms =
+			readl_relaxed(squ_base + CORELPM_HELD_STATUS_V2);
+		recorded_helds.plls =
+			readl_relaxed(squ_base + PLL_HELD_STATUS_V2);
+	} else
+		/* should never get here */
+		pr_err("Unsupported mmp-debug version!\n");
 
 	/* after register dump, then enable the held feature for debug */
 	writel_relaxed(0x1, squ_base + STATE_HOLD_CTRL);
@@ -115,6 +150,8 @@ static int __init mmp_dump_heldstatus(void __iomem *squ_base)
 	pr_info("FCDONE[%x]\n", recorded_helds.fcdones);
 	pr_info("PMULPM[%x]\n", recorded_helds.pmulpms);
 	pr_info("CORELPM[%x]\n", recorded_helds.corelpms);
+	if (version == MMP_DEBUG_VERSION_2)
+		pr_info("PLL[%x]\n", recorded_helds.plls);
 
 	pr_info("*************************************\n");
 	return 0;
@@ -123,12 +160,19 @@ static int __init mmp_dump_heldstatus(void __iomem *squ_base)
 static int __init mmp_debug_init(void)
 {
 	struct device_node *node;
+	int ret;
 	u32 tmp;
 
 	node = of_find_compatible_node(NULL, NULL, "marvell,mmp-debug");
 	if (!node) {
 		pr_info("This platform doesn't support debug feature!\n");
 		return -ENODEV;
+	}
+
+	ret = of_property_read_u32(node, "version", &version);
+	if (ret < 0) {
+		pr_err("get version failed, use version 1\n");
+		version = MMP_DEBUG_VERSION_1;
 	}
 
 	squ_base = of_iomap(node, 0);
