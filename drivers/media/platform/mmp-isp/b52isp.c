@@ -2224,15 +2224,6 @@ check_sof_irq:
 		laxi->dma_state = B52DMA_ACTIVE;
 		irqstatus &= ~VIRT_IRQ_START;
 
-		buffer = isp_vnode_find_busy_buffer(vnode, 1);
-		if (!buffer) {
-			buffer = isp_vnode_get_idle_buffer(vnode);
-			isp_vnode_put_busy_buffer(vnode, buffer);
-		}
-
-		if (buffer && laxi->stream)
-			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
-
 		d_inf(4, "%s receive start", isd->subdev.name);
 	}
 
@@ -2289,6 +2280,15 @@ check_eof_irq:
 		if (laxi->dma_state != B52DMA_ACTIVE)
 			goto recheck;
 		laxi->dma_state = B52DMA_IDLE;
+
+		buffer = isp_vnode_find_busy_buffer(vnode, 1);
+		if (!buffer) {
+			buffer = isp_vnode_get_idle_buffer(vnode);
+			isp_vnode_put_busy_buffer(vnode, buffer);
+		}
+
+		if (buffer && laxi->stream)
+			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
 
 		if ((paxi->r_type == B52AXI_REVENT_MEMSENSOR) &&
 			(port == B52AXI_PORT_R1)) {
