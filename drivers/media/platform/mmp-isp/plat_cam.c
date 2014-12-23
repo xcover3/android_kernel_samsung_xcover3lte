@@ -28,6 +28,8 @@
 #include <linux/i2c.h>
 #include <media/b52socisp/host_isd.h>
 #include <media/b52-sensor.h>
+#include <media/b52-vcm.h>
+#include <media/b52-flash.h>
 
 #include "plat_cam.h"
 #include "b52isp.h"
@@ -1270,6 +1272,10 @@ static int plat_setup_sensor(struct isp_build *isb,
 {
 	int ret;
 	struct b52_sensor *b52_sensor;
+	struct isp_host_subdev *hsd;
+	struct vcm_data vdata;
+	struct flash_data fdata;
+	char hostname[20];
 
 	ret = plat_tune_power(isb, SDCODE_B52ISP_IDI1, 1);
 	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 1);
@@ -1283,6 +1289,26 @@ static int plat_setup_sensor(struct isp_build *isb,
 	if (sensor_sd[0]) {
 		b52_sensor = container_of(sensor_sd[0], struct b52_sensor, sd);
 		blocking_notifier_chain_register(&b52_sensor->nh, &plat_sensor_nb);
+#ifdef CONFIG_HOST_SUBDEV
+		sprintf(hostname, "plat_host<%s>", sensor_sd[0]->name);
+		hsd = host_subdev_create(isb->dev, hostname, 3,
+							&hsd_bundle_behaviors);
+		hsd->isd.build = isb;
+		ret = v4l2_device_register_subdev(&isb->v4l2_dev,
+							&hsd->isd.subdev);
+		host_subdev_add_guest(hsd, sensor_sd[0]);
+#ifdef CONFIG_SUBDEV_VCM
+		vdata.hsd = hsd;
+		vdata.v4l2_dev = &isb->v4l2_dev;
+		vcm_subdev_create(isb->dev, NULL, 0, &vdata);
+#endif
+#ifdef CONFIG_SUBDEV_FLASH
+		fdata.hsd = hsd;
+		fdata.v4l2_dev = &isb->v4l2_dev;
+		flash_subdev_create(isb->dev, NULL, 0, &fdata);
+#endif
+#endif
+
 	} else
 		pr_info("plat detect back sensor failed\n");
 
@@ -1290,6 +1316,26 @@ static int plat_setup_sensor(struct isp_build *isb,
 	if (sensor_sd[1]) {
 		b52_sensor = container_of(sensor_sd[1], struct b52_sensor, sd);
 		blocking_notifier_chain_register(&b52_sensor->nh, &plat_sensor_nb);
+#ifdef CONFIG_HOST_SUBDEV
+		sprintf(hostname, "plat_host<%s>", sensor_sd[1]->name);
+		hsd = host_subdev_create(isb->dev, hostname,
+						4, &hsd_bundle_behaviors);
+		hsd->isd.build = isb;
+		ret = v4l2_device_register_subdev(&isb->v4l2_dev,
+							&hsd->isd.subdev);
+		host_subdev_add_guest(hsd, sensor_sd[1]);
+#ifdef CONFIG_SUBDEV_VCM
+		vdata.hsd = hsd;
+		vdata.v4l2_dev = &isb->v4l2_dev;
+		vcm_subdev_create(isb->dev, NULL, 0, &vdata);
+#endif
+#ifdef CONFIG_SUBDEV_FLASH
+		fdata.hsd = hsd;
+		fdata.v4l2_dev = &isb->v4l2_dev;
+		flash_subdev_create(isb->dev, NULL, 0, &fdata);
+#endif
+#endif
+
 	} else
 		pr_info("detect front sensor failed\n");
 

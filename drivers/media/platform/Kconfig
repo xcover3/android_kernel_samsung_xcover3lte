@@ -210,6 +210,22 @@ config HOST_SUBDEV
 	  if driver choose to expose a unified interface to user space for
 	  a raw camera sensor and its accessories(like VCM, OTP, etc).
 
+config SUBDEV_VCM
+	bool "v4l2 subdev vcm support"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  v4l2 subdev vcm is the subdev of the "host guest" framework, it's a way to
+	  control the vcm throgh the host handler.
+
+config SUBDEV_FLASH
+	bool "v4l2 subdev flash support"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  v4l2 subdev flash is the subdev of the "host guest" framework, it's a way to
+	  control the flash throgh the host handler.
+
 source "drivers/media/platform/soc_camera/Kconfig"
 source "drivers/media/platform/exynos4-is/Kconfig"
 source "drivers/media/platform/s5p-tv/Kconfig"

@@ -2,6 +2,8 @@
 
 # TODO: Add Camera/ISP IP driver below
 obj-$(CONFIG_VIDEO_MMPISP_B52SENSOR)	+= b52-sensor.o
+obj-$(CONFIG_SUBDEV_VCM)		+= b52-vcm.o
+obj-$(CONFIG_SUBDEV_FLASH)		+= b52-flash.o
 obj-$(CONFIG_VIDEO_MMPISP_B52)		+= b52-reg.o b52isp-ctrl.o b52isp.o
 obj-$(CONFIG_VIDEO_MMPISP_CCICV2)	+= ccicv2.o
 

@@ -6,6 +6,8 @@
  * Copyright:  (C) Copyright 2013 Marvell Technology Shanghai Ltd.
  *
  */
+#ifndef _HOST_ISD_H
+#define _HOST_ISD_H
 
 #include <media/b52socisp/b52socisp-mdev.h>
 
@@ -14,7 +16,6 @@ enum tlist_entry_type {
 	TLIST_ENTRY_MLINK,
 	TLIST_ENTRY_SUBDEV,
 };
-
 struct isp_host_subdev {
 	struct isp_subdev	isd;
 	struct device		*dev;
@@ -41,3 +42,5 @@ struct isp_host_subdev *host_subdev_create(struct device *dev,
 extern const struct v4l2_subdev_ops hsd_cascade_ops;
 extern struct host_subdev_pdata hsd_cascade_behaviors;
 extern const struct v4l2_subdev_ops hsd_bundle_ops;
+extern struct host_subdev_pdata hsd_bundle_behaviors;
+#endif

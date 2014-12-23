@@ -45,7 +45,6 @@ int host_subdev_add_guest(struct isp_host_subdev *hsd,
 		type = DEV_V4L2_SUBDEV;
 		ptr = guest;
 	}
-
 	ret = isp_subdev_add_guest(&hsd->isd, ptr, type);
 	if (ret < 0)
 		return ret;
@@ -689,7 +688,6 @@ struct host_subdev_pdata hsd_cascade_behaviors = {
 EXPORT_SYMBOL(hsd_cascade_behaviors);
 #endif
 
-
 /****************************** Bundle behavior ******************************/
 static long hsd_bundle_core_ioctl(struct v4l2_subdev *sd,
 					unsigned int cmd, void *arg)
@@ -996,7 +994,6 @@ const struct v4l2_subdev_ops hsd_bundle_ops = {
 	.video	= &hsd_bundle_video_ops,
 };
 EXPORT_SYMBOL(hsd_bundle_ops);
-
 static int hsd_bundle_group(struct isp_host_subdev *hsd, u32 group)
 {
 	struct v4l2_subdev *gsd = NULL;
@@ -1070,7 +1067,6 @@ un_group:
 	media_entity_cleanup(&hsd->isd.subdev.entity);
 	return 0;
 }
-
 struct host_subdev_pdata hsd_bundle_behaviors = {
 	.subdev_ops	= &hsd_bundle_ops,
 	.group		= &hsd_bundle_group,
@@ -1135,12 +1131,12 @@ static int host_subdev_probe(struct platform_device *pdev)
 
 	/* v4l2_subdev_init(sd, &host_subdev_ops); */
 	sd = &host->isd.subdev;
-	v4l2_subdev_init(sd, pdata->subdev_ops);
 	sd->internal_ops = &host_subdev_internal_ops;
 	v4l2_set_subdevdata(sd, host);
+	v4l2_subdev_init(sd, pdata->subdev_ops);
 	sd->grp_id = GID_ISP_SUBDEV;
-	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	strcpy(sd->name, pdata->name);
+	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	sd->entity.type = MEDIA_ENT_T_V4L2_SUBDEV;
 	d_inf(2, "host subdev \"%s\" created", sd->name);
 	return ret;
