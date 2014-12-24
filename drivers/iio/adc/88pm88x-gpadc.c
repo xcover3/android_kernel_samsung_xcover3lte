@@ -69,8 +69,6 @@ struct pm88x_gpadc_info {
 	struct iio_map *map;
 };
 
-extern struct iio_dev *iio_allocate_device(int sizeof_priv);
-
 /* used by external access */
 static struct pm88x_gpadc_info *g_gpadc;
 
@@ -123,7 +121,7 @@ static u8 pm88x_channel_to_reg(int channel)
 
 static u8 pm88x_channel_to_gpadc_num(int channel)
 {
-	return (channel - GPADC0_RES_CHAN);
+	return channel - GPADC0_RES_CHAN;
 }
 
 /*
@@ -288,7 +286,7 @@ static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 static int pm88x_gpadc_get_resistor(struct pm88x_gpadc_info *gpadc,
 				    int channel, int *res)
 {
-	int ret, bias_current, bias_voltage ;
+	int ret, bias_current, bias_voltage;
 
 	u8 gpadc_number = gpadc->channel_to_gpadc_num(channel);
 

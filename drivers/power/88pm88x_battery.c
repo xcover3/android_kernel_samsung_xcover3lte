@@ -691,7 +691,7 @@ static void find_match(struct pm88x_battery_info *info,
 
 	if (ohm <= info->temp_ohm_table[size - 1].ohm) {
 		*low = size - 1;
-		*high = size -1;
+		*high = size - 1;
 		return;
 	}
 
@@ -712,14 +712,14 @@ static void find_match(struct pm88x_battery_info *info,
 	if (ohm == info->temp_ohm_table[end].ohm)
 		*high = end;
 	else
-		*high = end -1;
+		*high = end - 1;
 }
 #endif
 
 static int pm88x_get_batt_temp(struct pm88x_battery_info *info)
 {
 #if 0
-	struct iio_channel *channel= info->chan[TEMP_CHAN];
+	struct iio_channel *channel = info->chan[TEMP_CHAN];
 	int ohm, ret, default_temp = 25;
 	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
 
@@ -1324,7 +1324,7 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 	struct pm88x_battery_info *info;
 	static int prev_cap = -1;
 	static int prev_volt = -1;
-	static int prev_status = -1;;
+	static int prev_status = -1;
 
 	info = container_of(work, struct pm88x_battery_info, monitor_work.work);
 
@@ -1473,7 +1473,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	realiable_from_saved = extern_data.ocv_is_realiable;
 	cycles_from_saved = extern_data.cycles;
 	dev_info(info->dev,
-		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n", \
+		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n",
 		 __func__, soc_from_saved, realiable_from_saved);
 	/*
 	 * here is a corner case:
