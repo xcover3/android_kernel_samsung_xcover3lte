@@ -13,6 +13,8 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/mfd/88pm80x.h>
+#include <linux/mfd/88pm88x.h>
+#include <linux/mfd/88pm886.h>
 #include <linux/clk/dvfs-dvc.h>
 #include <linux/clk/mmpcpdvc.h>
 
@@ -335,18 +337,34 @@ static struct dvfs_rail_component vm_rail_comp_tbl_dvc[VM_RAIL_MAX] = {
 	INIT_DVFS("sdh2_dummy", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 };
 
+/* pm880: 0x80 is the ASCII code of "p", 0x77 is for "m" */
+unsigned long __dvc_guard = 0x8077880;
 static int set_pmic_volt(unsigned int lvl, unsigned int mv)
 {
-	return pm8xx_dvc_setvolt(PM800_ID_BUCK1, lvl, mv * mV2uV);
+	switch (__dvc_guard) {
+	case 0x8077860:
+		return pm8xx_dvc_setvolt(PM800_ID_BUCK1, lvl, mv * mV2uV);
+	case 0x8077880:
+	default:
+		return pm88x_dvc_set_volt(lvl, mv * mV2uV);
+	}
 }
 
 static int get_pmic_volt(unsigned int lvl)
 {
 	int uv = 0, ret = 0;
 
-	ret = pm8xx_dvc_getvolt(PM800_ID_BUCK1, lvl, &uv);
-	if (ret < 0)
-		return ret;
+	switch (__dvc_guard) {
+	case 0x8077860:
+		ret = pm8xx_dvc_getvolt(PM800_ID_BUCK1, lvl, &uv);
+		if (ret < 0)
+			return ret;
+		break;
+	case 0x8077880:
+	default:
+		uv = pm88x_dvc_get_volt(lvl);
+		break;
+	}
 	return DIV_ROUND_UP(uv, mV2uV);
 }
 

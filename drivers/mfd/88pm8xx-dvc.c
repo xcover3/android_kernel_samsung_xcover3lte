@@ -47,6 +47,11 @@ struct pm8xx_dvc {
 
 static struct pm8xx_dvc *pm8xx_dvcdata;
 
+static void pm8xx_init_dvc_canary(void)
+{
+	__dvc_guard = 0x8077860;
+}
+
 static inline int volt_to_reg(int uv)
 {
 	return (uv - BUCK_MIN) / BUCK_STEP;
@@ -238,6 +243,9 @@ static int pm8xx_dvc_probe(struct platform_device *pdev)
 	regmap_read(chip->regmap, PM8xx_WAKEUP1, &val);
 	dev_info(&pdev->dev, "DVC power hold enabled %x! DVC buck %x\n",
 		 val, dvcdata->affectedbuck);
+
+	pm8xx_init_dvc_canary();
+
 	return 0;
 }
 

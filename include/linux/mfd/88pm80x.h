@@ -680,4 +680,6 @@ extern void extern_set_buck1_slp_volt(int on);
 extern int get_gpadc_volt(struct pm80x_chip *chip, int gpadc_id);
 extern int get_gpadc_bias_volt(struct pm80x_chip *chip, int gpadc_id, int bias);
 extern int extern_get_gpadc_bias_volt(int gpadc_id, int bias);
+
+extern unsigned long __dvc_guard;
 #endif /* __LINUX_MFD_88PM80X_H */
