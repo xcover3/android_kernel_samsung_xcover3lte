@@ -151,7 +151,7 @@
 		marvell,path-name = "mmp_pnpath";
 		pinctrl-names = "default";
 		pinctrl-0 = <&lcd_bl_pin_func>;
-		panel_esd = <0>;
+		panel_esd = <1>;
 		rst_gpio = <&gpio 20 0>;
 		bl_gpio = <&gpio 100 0>;
 		avdd-supply = <&ldo11>;
