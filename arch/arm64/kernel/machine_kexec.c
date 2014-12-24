@@ -48,6 +48,10 @@ static void machine_kexec_mask_interrupts(void)
 	unsigned int i;
 	struct irq_desc *desc;
 
+	/* Don't touch any regs when axi timeout occurs */
+	if (keep_silent)
+		return;
+
 	for_each_irq_desc(i, desc) {
 		struct irq_chip *chip;
 

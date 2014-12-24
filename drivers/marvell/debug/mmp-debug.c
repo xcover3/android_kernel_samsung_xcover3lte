@@ -48,8 +48,8 @@ static void __iomem *squ_base;
 
 static u32 timeout_write_addr, timeout_read_addr;
 static u32 finish_save_cpu_ctx;
-static u32 err_fsr;
-static u32 err_addr;
+static unsigned int  err_fsr;
+static unsigned long err_addr;
 
 static struct held_status recorded_helds;
 

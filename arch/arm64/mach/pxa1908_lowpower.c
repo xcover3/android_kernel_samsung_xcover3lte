@@ -495,6 +495,10 @@ void pxa1908_gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	int targ_cpu;
 
 	gic_raise_softirq(mask, irq);
+
+	/* Don't touch any reg when axi timeout occurs */
+	if (keep_silent)
+		return;
 	/*
 	 * Set the wakeup bits to make sure the core(s) can respond to
 	 * the IPI interrupt.

@@ -79,7 +79,7 @@ int console_printk[4] = {
 int oops_in_progress;
 EXPORT_SYMBOL(oops_in_progress);
 
-int keep_silent;
+int keep_silent = 0;
 EXPORT_SYMBOL(keep_silent);
 
 /*
