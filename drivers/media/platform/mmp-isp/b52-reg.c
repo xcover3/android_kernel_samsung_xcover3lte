@@ -17,6 +17,7 @@
 #include <linux/bitops.h>
 #include <linux/firmware.h>
 #include <linux/proc_fs.h>
+#include <linux/kernel.h>
 
 #include <media/b52socisp/b52socisp-vdev.h>
 #include <media/b52-sensor.h>
@@ -1090,8 +1091,9 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate)
 	/*
 	 * sccb_rate = input_rate/(64*reg0x63600)
 	 * value of 0x63600 = input_rate/sccb_rate/64
+	 * use DIV_ROUND_UP to keep SCCB clk below I2C clk
 	 */
-	u8 val = input_rate / sccb_rate >> 6;
+	u8 val = DIV_ROUND_UP(input_rate, sccb_rate << 6);
 
 	b52_writeb(SCCB_MASTER1_REG_BASE + REG_SCCB_SPEED, val);
 	b52_writeb(SCCB_MASTER2_REG_BASE + REG_SCCB_SPEED, val);
@@ -3013,7 +3015,10 @@ int b52_cmd_effect(int reg_nums)
 {
 	int ret;
 	mutex_lock(&cmd_mutex);
-	b52_writeb(CMD_REG5, SED_EOF_EN);
+	if (atomic_read(&streaming_state) == 0)
+		b52_writeb(CMD_REG5, SED_EOF_DIS);
+	else
+		b52_writeb(CMD_REG5, SED_EOF_EN);
 	b52_writeb(CMD_REG3, reg_nums);
 	ret = wait_cmd_done(CMD_EFFECT);
 	mutex_unlock(&cmd_mutex);

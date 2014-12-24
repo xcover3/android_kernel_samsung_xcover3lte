@@ -513,6 +513,7 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 
 #define REG_SDE_BUF_BASE		(0x34800)
 	#define SED_EOF_EN          (0x1 << 3)
+	#define SED_EOF_DIS         (0x0 << 3)
 /*
  * AWB Gain register
  */
