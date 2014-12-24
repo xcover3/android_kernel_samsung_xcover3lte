@@ -14,6 +14,7 @@
 #include <linux/io.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/clk/dvfs-dvc.h>
+#include <linux/clk/mmpcpdvc.h>
 
 #include <linux/cputype.h>
 #include "clk-plat.h"
@@ -307,6 +308,13 @@ static int vm_millivolts_1936_svcumc[][VL_MAX] = {
 	{975, 1000, 1100, 1200, 1225, 1300, 1300, 1300},/* Profile14 */
 };
 
+static struct cpmsa_dvc_info cpmsa_dvc_info_1936sec = {
+	.cpdvcinfo[0] = {416, VL2},
+	.cpdvcinfo[1] = {624, VL2},
+	.cpdvcinfo[2] = {832, VL3},
+	.msadvcvl = VL3,
+};
+
 /*
  * dvfs_rail_component.freqs is inited dynamicly, due to different stepping
  * may have different VL combination
@@ -374,6 +382,8 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 	freqs_cmb = freqs_cmb_1936;
 	plat_set_vl_min(0);
 	plat_set_vl_max(dvc_pxa1936_info.num_volts);
+
+	fillcpdvcinfo(&cpmsa_dvc_info_1936sec);
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
 	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);
