@@ -1,0 +1,158 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip: 88pm880
+ * header file for pxa1936_dkb
+ */
+
+&pmic0 {
+	/*
+	 * board specific configuration
+	 * use value directly, not use macro
+	 * <page reg-addr mask value>
+	 */
+	marvell,pmic-bd-cfg = <>;
+
+	/* ---buck--- */
+	vccmain: regulator-buck1a {
+	};
+	buck2: regulator-buck2 {
+	};
+	vddr: regulator-buck3 {
+	};
+	buck4: regulator-buck4 {
+	};
+	buck5: regulator-buck5 {
+	};
+	buck6: regulator-buck6 {
+	};
+	buck7: regulator-buck7 {
+	};
+
+	/* ---ldo--- */
+	ldo1: regulator-ldo1 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo2: regulator-ldo2 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo3: regulator-ldo3 {
+	};
+	ldo4: regulator-ldo4 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo5: regulator-ldo5 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo6: regulator-ldo6 {
+		regulator-boot-on;
+	};
+	ldo7: regulator-ldo7 {
+	};
+	ldo8: regulator-ldo8 {
+	};
+	ldo9: regulator-ldo9 {
+	};
+	ldo10: regulator-ldo10 {
+	};
+	ldo11: regulator-ldo11 { /* ldo11 is enabled in uboot for LCD */
+	        regulator-boot-on;
+	};
+	ldo12: regulator-ldo12 {
+	};
+	ldo13: regulator-ldo13 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo14: regulator-ldo14 {
+		regulator-boot-on;
+	};
+	ldo15: regulator-ldo15 {
+		regulator-always-on;
+	};
+	ldo16: regulator-ldo16 {
+	};
+	ldo17: regulator-ldo17 {
+	};
+	ldo18: regulator-ldo18 {
+	};
+
+	headset {
+		marvell,headset-flag = <1>;
+		marvell,hook-press-th = <60>;
+		marvell,vol-up-press-th = <175>;
+		marvell,vol-down-press-th = <500>;
+		marvell,mic-det-th = <600>;
+		marvell,press-release-th = <600>;
+		marvell,micbias-supply = <&ldo16>;
+		status = "okay";
+	};
+
+	battery {
+		bat-ntc-support;
+		gpadc-det-no = <3>;
+		gpadc-temp-no = <3>;
+
+		cc-fixup = <102>;
+	};
+
+	led {
+		gpio-en = <0>;
+		flash-en-gpio = <124>;
+		flash-txmsk-gpio = <19>;
+		flash-timer = <500>;	/* ms */
+		cls-ov-set = <4400>;	/* mV */
+		cls-uv-set = <1500>;	/* mV */
+		cfd-bst-vset = <4750>;	/* mV */
+		bst-uvvbat-set = <3100>;/* mV */
+		max-flash-current = <1200>;	/* mA */
+		max-torch-current = <200>;	/* mA */
+		torch-force-max-current = <0>;
+	};
+
+	red: led-rgb0 {
+	       led-name = "led0";
+	       led-trigger-name = "timer";
+	       pm88x-rgb-breath-mode;
+	       pm88x-rgb-breath-speed = /bits/ 8 <1>;
+
+	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm88x-rgb-on-percent = /bits/ 8 <50>;
+
+       };
+
+	green: led-rgb1 {
+	       led-name = "led1";
+	       led-trigger-name = "timer";
+	       pm88x-rgb-breath-mode;
+	       pm88x-rgb-breath-speed = /bits/ 8 <2>;
+
+	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm88x-rgb-on-percent = /bits/ 8 <50>;
+       };
+
+	blue: led-rgb2 {
+	       led-name = "led2";
+	       led-trigger-name = "timer";
+	       pm88x-rgb-breath-mode;
+	       pm88x-rgb-breath-speed = /bits/ 8 <2>;
+
+	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm88x-rgb-on-percent = /bits/ 8 <50>;
+       };
+
+	onkey {
+		marvell,pm88x-onkey-gpio-number = <0>;
+	};
+
+	vbus {
+		gpadc-number = <1>;
+	};
+};
