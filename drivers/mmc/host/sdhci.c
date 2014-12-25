@@ -1958,7 +1958,7 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	host->sdio_irq_enabled = !!(enable);
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	sdhci_runtime_pm_get(host);
+	sdhci_runtime_pm_put(host);
 }
 
 static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
