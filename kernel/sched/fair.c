@@ -5382,7 +5382,7 @@ unlock:
 		}
 		/* Make sure that the task stays in its previous hmp domain */
 		if (!cpumask_test_cpu(new_cpu, &hmp_cpu_domain(prev_cpu)->cpus))
-		      return prev_cpu;
+			return prev_cpu;
 	} /* hmp_enabled */
 #endif
 
@@ -7727,14 +7727,14 @@ static inline int find_new_ilb(int call_cpu)
 
 #ifdef CONFIG_SCHED_HMP_LITTLE_PACKING
 		if (ilb < nr_cpu_ids)
-		      ilb_needed = hmp_packing_ilb_needed(ilb, ilb_needed);
+			ilb_needed = hmp_packing_ilb_needed(ilb, ilb_needed);
 #endif
 
 		if (ilb_needed && ilb < nr_cpu_ids && idle_cpu(ilb))
-		      return ilb;
+			return ilb;
 	} else { /* !hmp_enabled */
 		if (ilb < nr_cpu_ids && idle_cpu(ilb))
-		      return ilb;
+			return ilb;
 	} /* hmp_enabled */
 #else
 	if (ilb < nr_cpu_ids && idle_cpu(ilb))
@@ -8228,13 +8228,13 @@ static int move_specific_task(struct lb_env *env, struct task_struct *pm)
 		list_for_each_entry_safe(p, n, &env->src_rq->cfs_tasks, se.group_node) {
 			if (throttled_lb_pair(task_group(p), env->src_rq->cpu,
 							env->dst_cpu))
-			      continue;
+				continue;
 
 			if (!hmp_can_migrate_task(p, env))
-			      continue;
+				continue;
 			/* Check if we found the right task */
 			if (p != pm)
-			      continue;
+				continue;
 
 			move_task(p, env);
 			/*
@@ -8537,7 +8537,7 @@ static void run_rebalance_domains(struct softirq_action *h)
 			if (hmp_idle_pull(cpu_of(this_rq))) {
 				/* break out unless running nohz idle as well */
 				if (idle != CPU_IDLE)
-				      return;
+					return;
 			}
 		}
 
