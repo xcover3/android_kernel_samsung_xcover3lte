@@ -13,6 +13,7 @@
 
 /* Configuration registers */
 #define ARM_SMMU_GR0_sCR0		0x0
+#define ARM_SMMU_GR0_sACR		0x10
 #define sCR0_CLIENTPD			(1 << 0)
 #define sCR0_GFRE			(1 << 1)
 #define sCR0_GFIE			(1 << 2)
@@ -24,6 +25,9 @@
 #define sCR0_FB				(1 << 13)
 #define sCR0_BSU_SHIFT			14
 #define sCR0_BSU_MASK			0x3
+#define sCR0_PREFETCHEN			(1 << 0)
+#define sCR0_WC1EN			(1 << 1)
+#define sCR0_WC2EN			(1 << 2)
 
 #define ARM_SMMU_GR0_sGFSR		0x48
 
@@ -221,6 +225,12 @@ static void arm_smmu_device_reset(struct mmp_pd_smmu *pd)
 	 * as device maybe use non-secure transaction like coda7542.
 	 */
 	writel_relaxed(reg, gr0_base + ARM_SMMU_NSCR0);
+
+	reg = readl_relaxed(gr0_base + ARM_SMMU_GR0_sACR);
+
+	/* Enable pre-fetch, walk cache 1, walk cache 2 */
+	reg |= (sCR0_PREFETCHEN | sCR0_WC1EN | sCR0_WC2EN);
+	writel(reg, gr0_base + ARM_SMMU_GR0_sACR);
 }
 
 static int mmp_pd_smmu_power_on(struct generic_pm_domain *domain)

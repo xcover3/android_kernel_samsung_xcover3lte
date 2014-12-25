@@ -110,6 +110,7 @@
 
 /* Configuration registers */
 #define ARM_SMMU_GR0_sCR0		0x0
+#define ARM_SMMU_GR0_sACR		0x10
 #define sCR0_CLIENTPD			(1 << 0)
 #define sCR0_GFRE			(1 << 1)
 #define sCR0_GFIE			(1 << 2)
@@ -121,6 +122,9 @@
 #define sCR0_FB				(1 << 13)
 #define sCR0_BSU_SHIFT			14
 #define sCR0_BSU_MASK			0x3
+#define sCR0_PREFETCHEN			(1 << 0)
+#define sCRO_WC1EN			(1 << 1)
+#define sCRO_WC2EN			(1 << 2)
 
 /* Identification registers */
 #define ARM_SMMU_GR0_ID0		0x20
@@ -1716,6 +1720,12 @@ static void arm_smmu_device_reset(struct arm_smmu_device *smmu)
 	/* Push the button */
 	arm_smmu_tlb_sync(smmu);
 	writel(reg, ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sCR0);
+
+	reg = readl_relaxed(ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sACR);
+
+	/* Enable pre-fetch, walk cache 1, walk cache 2 */
+	reg |= (sCR0_PREFETCHEN | sCRO_WC1EN | sCRO_WC2EN);
+	writel(reg, ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sACR);
 }
 
 static int arm_smmu_id_size_to_bits(int size)
@@ -1897,6 +1907,8 @@ static void smmu_debug_regdump(struct seq_file *s, struct arm_smmu_device *smmu,
 {
 	arm_smmu_power_switch(smmu, smmu->dev, 1);
 	seq_printf(s, "\n[iommu] virt(%p)\n", gr0_base);
+	seq_printf(s, "[%08x] %08x\n", 0x0010,
+			readl(gr0_base + 0x0010));
 	seq_printf(s, "[%08x] %08x\n", 0x0010 + 0x400,
 			readl(gr0_base + 0x0010 + 0x400));
 	seq_printf(s, "[%08x] %08x\n", 0x0800,
