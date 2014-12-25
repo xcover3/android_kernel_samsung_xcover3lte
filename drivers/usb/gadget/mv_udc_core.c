@@ -2334,12 +2334,12 @@ int mv_udc_register_client(struct notifier_block *nb)
 	struct mv_udc *udc = the_controller;
 	int ret = 0;
 
-	if (!udc)
-		return -ENODEV;
-
 	ret = blocking_notifier_chain_register(&mv_udc_notifier_list, nb);
 	if (ret)
 		return ret;
+
+	if (!udc)
+		return -ENODEV;
 
 	if (udc->charger_type)
 		call_charger_notifier(udc);
@@ -2386,6 +2386,9 @@ static void do_delayed_charger_work(struct work_struct *work)
 				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 		/* leave some delay for charger driver to do something */
 		pm_wakeup_event(&udc->dev->dev, 1000);
+
+		/* disable udc */
+		mv_udc_disable(udc);
 	}
 }
 

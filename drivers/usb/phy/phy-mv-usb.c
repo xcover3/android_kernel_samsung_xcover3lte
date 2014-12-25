@@ -644,6 +644,20 @@ static int mv_otg_notifier_callback(struct notifier_block *nb,
 	return 0;
 }
 
+static int mv_otg_notifier_charger_callback(struct notifier_block *nb,
+					unsigned long val, void *v)
+{
+	struct mv_otg *mvotg = container_of(nb, struct mv_otg, notifier_charger);
+
+	mvotg->charger_type = val;
+	if (mvotg->charger_type == DCP_CHARGER) {
+		mv_otg_reset(mvotg);
+		mv_otg_disable(mvotg);
+	}
+
+	return 0;
+}
+
 static ssize_t
 get_a_bus_req(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -992,6 +1006,9 @@ static int mv_otg_probe(struct platform_device *pdev)
 			pxa_usb_extern_call(mvotg->pdata->id, idpin, init);
 	}
 
+	mvotg->notifier_charger.notifier_call = mv_otg_notifier_charger_callback;
+	mv_udc_register_client(&mvotg->notifier_charger);
+
 	if (pdata->disable_otg_clock_gating)
 		mvotg->clock_gating = 0;
 
@@ -1090,6 +1107,11 @@ static int mv_otg_resume(struct platform_device *pdev)
 {
 	struct mv_otg *mvotg = platform_get_drvdata(pdev);
 	u32 otgsc;
+	static unsigned int charger_type;
+
+	if ((mvotg->charger_type == DCP_CHARGER) ||
+		(charger_type == mvotg->charger_type))
+		return 0;
 
 	mv_otg_enable_internal(mvotg);
 
@@ -1101,6 +1123,9 @@ static int mv_otg_resume(struct platform_device *pdev)
 		mv_otg_run_state_machine(mvotg, 0);
 		spin_unlock(&mvotg->wq_lock);
 	}
+
+	charger_type = mvotg->charger_type;
+
 	return 0;
 }
 #endif
