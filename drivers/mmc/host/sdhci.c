@@ -842,6 +842,9 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_command *cmd)
 	if (!data && !cmd->cmd_timeout_ms)
 		return 0xE;
 
+	if ((cmd->flags & MMC_RSP_BUSY) && (host->quirks2 & SDHCI_QUIRK2_TIMEOUT_SHORT))
+		return 0xE;
+
 	/* timeout in us */
 	if (!data)
 		target_timeout = cmd->cmd_timeout_ms * 1000;
