@@ -20,6 +20,8 @@
 #include "tel_trace.h"
 #include "debugfs.h"
 
+#define NETWORK_EMBMS_CID    0xFF
+
 #define IPV4_ACK_LENGTH_LIMIT 96
 #define IPV6_ACK_LENGTH_LIMIT 128
 
@@ -31,6 +33,10 @@ struct pduhdr {
 } __packed;
 
 struct data_path *psd_dp;
+
+static int embms_cid = 7;
+
+static struct psd_user __rcu *psd_users[MAX_CID_NUM];
 
 static u32 ack_opt = true;
 static u32 data_drop = true;
@@ -69,6 +75,31 @@ static inline enum data_path_priority packet_priority(int cid,
 
 	return prio;
 }
+
+int psd_register(const struct psd_user *user, int cid)
+{
+	DP_PRINT("%s: cid:%d,\n", __func__, cid);
+	return cmpxchg(&psd_users[cid], NULL, user) == NULL ? 0 : -EEXIST;
+}
+EXPORT_SYMBOL(psd_register);
+
+
+int psd_unregister(const struct psd_user *user, int cid)
+{
+	int ret;
+	DP_PRINT("%s: cid:%d,\n", __func__, cid);
+	ret =  cmpxchg(&psd_users[cid], user, NULL) == user ? 0 : -ENOENT;
+	synchronize_rcu();
+	return ret;
+}
+EXPORT_SYMBOL(psd_unregister);
+
+void set_embms_cid(int cid)
+{
+	embms_cid = cid;
+}
+EXPORT_SYMBOL(set_embms_cid);
+
 
 int sendPSDData(int cid, struct sk_buff *skb)
 {
@@ -162,10 +193,10 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 {
 	unsigned char *p = data;
 	unsigned int remains = length;
-	int ret = 0;
 	DP_ENTER();
 
 	while (remains > 0) {
+		struct psd_user *user;
 		struct pduhdr	*hdr = (void *)p;
 		u32				iplen, offset_len;
 		u32				tailpad;
@@ -185,10 +216,10 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 		sim_id = (hdr->cid >> 31) & 1;
 		hdr->cid &= ~(1 << 31);
 
-		DP_PRINT("%s: SIM%d remains, %d, iplen %ld,"
-			"offset %ld, cid %d, tailpad %d\n",
-			__func__, sim_id+1, remains, iplen, offset_len,
-			hdr->cid, tailpad);
+		DP_PRINT("%s: SIM%d remains %u, iplen %u," __func__,
+			sim_id+1, remains, iplen);
+		DP_PRINT("%s: offset %u, cid %d, tailpad %u\n", __func__,
+			offset_len, hdr->cid, tailpad);
 
 		if (unlikely(remains < (iplen + offset_len
 					+ sizeof(*hdr) + tailpad))) {
@@ -204,61 +235,59 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 		p += offset_len;
 		remains -= offset_len;
 
-		/*
-		 * Since we need to distinguish the received packets for
-		 * PPP or directly IP, so if PPP call back function registered,
-		 * first forward the packet to PPP call back function check, if
-		 * this packet is for PPP, the call back function will return 1,
-		 * otherwise return 0
-		 */
-		if (dataRxCbFunc[PSD_MODEM])
-			ret = dataRxCbFunc[PSD_MODEM] (p, iplen, hdr->cid);
-		if (ret == 0) {
-			if (dataRxCbFunc[PDP_DIRECTIP])
-				dataRxCbFunc[PDP_DIRECTIP] (p, iplen, hdr->cid);
-			else
-				return dp_rx_packet_dropped;
-		}
+		if (hdr->cid == NETWORK_EMBMS_CID)
+			hdr->cid = embms_cid;
+		if (likely(hdr->cid >= 0 && hdr->cid < MAX_CID_NUM)) {
+			rcu_read_lock();
+			user = rcu_dereference(psd_users[hdr->cid]);
+			if (user && user->on_receive)
+				user->on_receive(user->priv, p, iplen);
+			rcu_read_unlock();
+			if (!user)
+				pr_err_ratelimited(
+					"%s: no psd user for cid:%d,",
+					__func__, hdr->cid);
+		} else
+			pr_err_ratelimited(
+				"%s: invalid cid:%d, simid:%d\n",
+				__func__, hdr->cid, sim_id);
 
 		p += iplen + tailpad;
-
 		remains -= iplen + tailpad;
 	}
 	return dp_success;
 }
 
-void psd_tx_stop(void)
+static void psd_tx_traffic_control(bool is_throttle)
 {
 	int i;
-	DP_ENTER();
 
 	if (!ndev_fc)
 		return;
 
-	for (i = 0; i < SRV_MAX; ++i) {
-		if (psdFCCbFunc[i])
-			psdFCCbFunc[i](true);
+	for (i = 0; i < MAX_CID_NUM; ++i) {
+		struct psd_user *user;
+		rcu_read_lock();
+		user = rcu_dereference(psd_users[i]);
+		if (user && user->on_throttle)
+			user->on_throttle(user->priv, is_throttle);
+		rcu_read_unlock();
 	}
+}
 
+
+void psd_tx_stop(void)
+{
+	DP_ENTER();
+	psd_tx_traffic_control(true);
 	DP_LEAVE();
-	return;
 }
 
 void psd_tx_resume(void)
 {
-	int i;
 	DP_ENTER();
-
-	if (!ndev_fc)
-		return;
-
-	for (i = 0; i < SRV_MAX; ++i) {
-		if (psdFCCbFunc[i])
-			psdFCCbFunc[i](false);
-	}
-
+	psd_tx_traffic_control(false);
 	DP_LEAVE();
-	return;
 }
 
 void psd_rx_stop(void)

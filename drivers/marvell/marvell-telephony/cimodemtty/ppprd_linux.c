@@ -39,6 +39,7 @@
 #define READQ_MAX_LEN 32
 
 struct ppprd_dev {
+	struct psd_user psd_user;
 	struct device *dev;
 	spinlock_t read_spin;
 	struct sk_buff_head rx_q;
@@ -123,9 +124,8 @@ static struct miscdevice ppprd_miscdev = {
 #define DPRINT(fmt, args ...)	pr_info("PPPRD: " fmt, ## args)
 #endif
 
-int ppprd_relay_message_from_comm(const unsigned char *buf,
-				  unsigned int count,
-				  unsigned char cid)
+int ppprd_relay_message_from_comm(void *userobj, const unsigned char *buf,
+				  unsigned int count)
 {
 	struct route_header *hdr;
 	struct sk_buff *skb;
@@ -134,9 +134,8 @@ int ppprd_relay_message_from_comm(const unsigned char *buf,
 	ENTER();
 
 	/* means this packet with a wrong cid or we are in CONTROL MODE */
-	if (modem_current_cid == INVALID_CID || modem_current_cid != cid) {
-		DBGMSG("modem_current_cid is %02x, cid is %02x\n",
-			modem_current_cid, cid);
+	if (modem_current_cid == INVALID_CID) {
+		DBGMSG("modem_current_cid is %02x\n", modem_current_cid);
 		return 0; /* the packet is not for PPP */
 	} else if (skb_queue_len(&ppprd_dev->rx_q) > READQ_MAX_LEN) {
 		DBGMSG("rx_q is too long, drop this message\n");
@@ -213,7 +212,9 @@ static int ppprd_probe(struct platform_device *dev)
 	skb_queue_head_init(&ppprd_dev->rx_q);
 	ppprd_dev->have_data = 0;
 	ppprd_dev->dev = (struct device *)dev;
-
+	ppprd_dev->psd_user.priv = ppprd_dev;
+	ppprd_dev->psd_user.on_receive = ppprd_relay_message_from_comm;
+	ppprd_dev->psd_user.on_throttle = NULL;
 	ret = misc_register(&ppprd_miscdev);
 	if (ret) {
 		kfree(ppprd_dev);
@@ -427,17 +428,16 @@ static long ppprd_ioctl(struct file *filp,
 		break;
 	case PPPRD_IOCTL_TIOPPPON: /* enter DATA MODE */
 		modem_current_cid = (unsigned char)arg;
+		psd_register(&dev->psd_user, modem_current_cid);
 		break;
 	case PPPRD_IOCTL_TIOPPPOFF: /* fall back to CONTROL MODE */
-		modem_current_cid = INVALID_CID;
 		break;
 	case PPPRD_IOCTL_TIOPPPSETCB: /* register callback function */
-		registerRxCallBack(PSD_MODEM,
-			(DataRxCallbackFunc)ppprd_relay_message_from_comm);
 		DBGMSG("register COMM to PPP SRV callback functin\n");
 		break;
 	case PPPRD_IOCTL_TIOPPPRESETCB: /* unregister callback function */
-		registerRxCallBack(PSD_MODEM, NULL);
+		psd_unregister(&dev->psd_user, modem_current_cid);
+		modem_current_cid = INVALID_CID;
 		DBGMSG("unregister COMM to PPP SRV callback functin\n");
 		break;
 	}
