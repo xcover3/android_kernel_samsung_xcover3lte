@@ -1234,7 +1234,7 @@ static struct core_params clst1_core_params = {
 	.cpu_rtcwtc_table = clst1_cpu_rtcwtc_tbl,
 	.cpu_rtcwtc_table_size = ARRAY_SIZE(clst1_cpu_rtcwtc_tbl),
 	.bridge_cpurate = 1248,
-	.max_cpurate = 1803,
+	.max_cpurate = 1526,
 	.dcstat_support = true,
 };
 
