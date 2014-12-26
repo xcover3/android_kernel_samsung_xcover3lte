@@ -39,4 +39,6 @@ struct ion_pxa_cache_region {
 	unsigned int dir;
 };
 
+extern int arm_iommu_power_switch(struct device *dev, bool on);
+
 #endif /* _PXA_ION_H */

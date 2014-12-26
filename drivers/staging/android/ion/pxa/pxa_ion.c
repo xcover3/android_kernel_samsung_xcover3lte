@@ -74,11 +74,19 @@ static int pxa_ion_register_iommu(struct device *dev)
 		return -1;
 	}
 
-	ret = arm_iommu_attach_device(dev, pxa_ion_iommu_mapping);
-	if (ret < 0) {
-		dev_err(dev, "failed in iommu attach.\n");
-		return -ENOMEM;
+	ret = arm_iommu_power_switch(dev, 1);
+	if (!ret) {
+		ret = arm_iommu_attach_device(dev, pxa_ion_iommu_mapping);
+		if (ret < 0) {
+			arm_iommu_power_switch(dev, 0);
+			dev_err(dev, "failed in iommu attach.\n");
+			return -ENOMEM;
+		}
+	} else {
+		BUG_ON(1);
 	}
+
+	arm_iommu_power_switch(dev, 0);
 
 	dev->dma_parms = devm_kzalloc(dev, sizeof(*dev->dma_parms),
 					GFP_KERNEL);
@@ -148,13 +156,18 @@ int pxa_ion_iommu_meta_release(void *priv)
 	struct sg_table *st;
 	struct scatterlist *sg;
 	DEFINE_DMA_ATTRS(attrs);
+	int ret;
 
 	st = &(meta->sgtable);
 	sg = st->sgl;
 
-	dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
-	dma_unmap_sg_attrs(meta->dev, sg, st->nents,
-		DMA_BIDIRECTIONAL, &attrs);
+	ret = arm_iommu_power_switch(pxa_ion_platform_dev, 1);
+	if (!ret) {
+		dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
+		dma_unmap_sg_attrs(meta->dev, sg, st->nents,
+			DMA_BIDIRECTIONAL, &attrs);
+		arm_iommu_power_switch(pxa_ion_platform_dev, 0);
+	}
 
 	sg_free_table(st);
 	kfree(priv);
@@ -356,8 +369,8 @@ static int pxa_ion_probe(struct platform_device *pdev)
 	}
 	platform_set_drvdata(pdev, info);
 
-	pm_runtime_enable(&pdev->dev);
 #ifdef CONFIG_ARM_SMMU
+	pm_runtime_enable(&pdev->dev);
 	if (use_iommu)
 		pxa_ion_register_iommu(&pdev->dev);
 #endif

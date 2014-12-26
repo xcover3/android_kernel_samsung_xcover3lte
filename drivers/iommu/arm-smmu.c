@@ -603,6 +603,18 @@ static void arm_smmu_power_switch(struct arm_smmu_device *smmu, struct device *d
 	}
 }
 
+int arm_iommu_power_switch(struct device *dev, bool on)
+{
+	struct arm_smmu_device *smmu;
+
+	smmu = dev_get_master_dev(dev)->archdata.iommu;
+	if (!smmu)
+		return -ENXIO;
+
+	arm_smmu_power_switch(smmu, dev, on);
+	return 0;
+}
+
 /* Wait for any pending TLB invalidations to complete */
 static void arm_smmu_tlb_sync(struct arm_smmu_device *smmu)
 {
@@ -1230,9 +1242,6 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		return -ENXIO;
 	}
 
-	/* enable the power domain of the dev which will be attached */
-	arm_smmu_power_switch(smmu, dev, 1);
-
 	/*
 	 * Sanity check the domain. We don't support domains across
 	 * different SMMUs.
@@ -1264,7 +1273,6 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 
 	ret = arm_smmu_domain_add_master(smmu_domain, cfg);
 out:
-	arm_smmu_power_switch(smmu, dev, 0);
 	return ret;
 }
 
@@ -1529,13 +1537,10 @@ static size_t arm_smmu_unmap(struct iommu_domain *domain, unsigned long iova,
 {
 	int ret;
 	struct arm_smmu_domain *smmu_domain = domain->priv;
-	struct arm_smmu_device *smmu = smmu_domain->smmu;
 
 	ret = arm_smmu_handle_mapping(smmu_domain, iova, 0, size, 0);
 
-	arm_smmu_power_switch(smmu, smmu->dev, 1);
 	arm_smmu_tlb_inv_context(smmu_domain);
-	arm_smmu_power_switch(smmu, smmu->dev, 0);
 	return ret ? 0 : size;
 }
 
