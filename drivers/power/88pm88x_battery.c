@@ -109,6 +109,11 @@ enum {
 	MAX_CHAN = 3,
 };
 
+struct pm88x_bat_irq {
+	int		irq;
+	unsigned long disabled;
+};
+
 struct pm88x_battery_params {
 	int status;
 	int present;
@@ -161,7 +166,7 @@ struct pm88x_battery_info {
 	int			alart_percent;
 
 	int			irq_nums;
-	int			irq[7];
+	struct pm88x_bat_irq	irqs[7];
 
 	struct iio_channel	*chan[MAX_CHAN];
 	struct temp_vs_ohm	*temp_ohm_table;
@@ -223,6 +228,19 @@ struct save_buffer {
 static struct save_buffer extern_data;
 
 static int pm88x_get_batt_vol(struct pm88x_battery_info *info, int active);
+
+static void pm88x_bat_enable_irq(struct pm88x_bat_irq *irq)
+{
+	if (__test_and_clear_bit(0, &irq->disabled))
+		enable_irq(irq->irq);
+}
+
+static void pm88x_bat_disable_irq(struct pm88x_bat_irq *irq)
+{
+	if (!__test_and_set_bit(0, &irq->disabled))
+		disable_irq_nosync(irq->irq);
+}
+
 /*
  * - saved SoC
  * - ocv_is_realiable flag
@@ -1152,6 +1170,8 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		/* clear this flag once the charging begins */
 		mutex_lock(&info->volt_lock);
 		is_extreme_low = false;
+		/* battery voltage interrupt */
+		pm88x_bat_enable_irq(&info->irqs[1]);
 		mutex_unlock(&info->volt_lock);
 
 		dev_dbg(info->dev, "%s: after: charging-->capacity: %d%%\n",
@@ -1209,6 +1229,8 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		if (is_extreme_low) {
 			dev_info(info->dev, "%s: extreme_low : voltage = %d\n",
 				 __func__, info->bat_params.volt);
+			/* battery voltage interrupt */
+			pm88x_bat_disable_irq(&info->irqs[1]);
 			if (ccnt_val->soc >= 10)
 				ccnt_val->soc -= 10;
 		} else {
@@ -1230,6 +1252,8 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 					 __func__, info->bat_params.volt);
 				mutex_lock(&info->volt_lock);
 				is_extreme_low = true;
+				/* battery voltage interrupt */
+				pm88x_bat_disable_irq(&info->irqs[1]);
 				mutex_unlock(&info->volt_lock);
 			}
 		}
@@ -1797,10 +1821,17 @@ static irqreturn_t pm88x_battery_vbat_handler(int irq, void *data)
 		pr_err("%s: empty battery info.\n", __func__);
 		return IRQ_NONE;
 	}
+
 	dev_info(info->dev, "battery voltage interrupt is served\n");
 
 	mutex_lock(&info->volt_lock);
-	is_extreme_low = true;
+	if (!is_extreme_low) {
+		is_extreme_low = true;
+	} else {
+		mutex_unlock(&info->volt_lock);
+		dev_dbg(info->dev, "battery voltage low again!\n");
+		return IRQ_HANDLED;
+	}
 	mutex_unlock(&info->volt_lock);
 
 	/* update the battery status when this interrupt is triggered. */
@@ -2049,8 +2080,8 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, info);
 
 	for (i = 0, j = 0; i < pdev->num_resources; i++) {
-		info->irq[j] = platform_get_irq(pdev, i);
-		if (info->irq[j] < 0)
+		info->irqs[j].irq = platform_get_irq(pdev, i);
+		if (info->irqs[j].irq < 0)
 			continue;
 		j++;
 	}
@@ -2090,13 +2121,13 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	/* interrupt should be request in the last stage */
 	for (i = 0; i < info->irq_nums; i++) {
-		ret = devm_request_threaded_irq(info->dev, info->irq[i], NULL,
+		ret = devm_request_threaded_irq(info->dev, info->irqs[i].irq, NULL,
 						pm88x_irq_descs[i].handler,
 						IRQF_ONESHOT | IRQF_NO_SUSPEND,
 						pm88x_irq_descs[i].name, info);
 		if (ret < 0) {
 			dev_err(info->dev, "failed to request IRQ: #%d: %d\n",
-				info->irq[i], ret);
+				info->irqs[i].irq, ret);
 			if (!pm88x_irq_descs[i].handler)
 				goto out_irq;
 		}
@@ -2125,7 +2156,7 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 out_irq:
 	while (--i >= 0)
-		devm_free_irq(info->dev, info->irq[i], info);
+		devm_free_irq(info->dev, info->irqs[i].irq, info);
 out:
 	kfree(&info->temp_ohm_table);
 	power_supply_unregister(&info->battery);
@@ -2142,7 +2173,7 @@ static int pm88x_battery_remove(struct platform_device *pdev)
 
 	for (i = 0; i < info->irq_nums; i++) {
 		if (pm88x_irq_descs[i].handler != NULL)
-			devm_free_irq(info->dev, info->irq[i], info);
+			devm_free_irq(info->dev, info->irqs[i].irq, info);
 	}
 
 	cancel_delayed_work_sync(&info->monitor_work);
