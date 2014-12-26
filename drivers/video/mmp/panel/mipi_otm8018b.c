@@ -198,7 +198,7 @@ static char otm8018bb_dijin_reg_cmd_95[] = {0x00,0x00};
 static char otm8018bb_dijin_reg_cmd_96[] = {0xFF,0xFF,0xFF,0xFF};
 
 static char otm8018bb_dijin_reg_cmd_97[] = {0x35,0x00};
-static char otm8018bb_dijin_reg_cmd_98[] = {0x51, 0xff};
+static char otm8018bb_dijin_reg_cmd_98[] = {0x51, 0x00};
 
 static char otm8018bb_dijin_reg_cmd_99[] = {0x53, 0x24};
 
