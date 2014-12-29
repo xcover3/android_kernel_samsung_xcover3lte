@@ -146,13 +146,14 @@ int vm_swappiness = 60;
 unsigned long vm_total_pages;	/* The total number of pages which the VM controls */
 
 #ifdef CONFIG_RUNTIME_COMPCACHE
+extern int is_rtcc_enabled(void);
 extern int get_rtcc_status(void);
 atomic_t kswapd_running = ATOMIC_INIT(1);
 long nr_kswapd_swapped = 0;
 
 static bool rtcc_reclaim(struct scan_control *sc)
 {
-	return (sc->rc != NULL);
+	return (is_rtcc_enabled() && (sc->rc != NULL));
 }
 #endif /* CONFIG_RUNTIME_COMPCACHE */
 
@@ -2699,11 +2700,7 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 		.may_writepage = !laptop_mode,
 		.nr_to_reclaim = SWAP_CLUSTER_MAX,
 		.may_unmap = 1,
-#ifdef CONFIG_RUNTIME_COMPCACHE
-		.may_swap = 0,
-#else
 		.may_swap = 1,
-#endif /* CONFIG_RUNTIME_COMPCACHE */
 		.order = order,
 		.priority = DEF_PRIORITY,
 		.target_mem_cgroup = NULL,
@@ -2712,6 +2709,11 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 	struct shrink_control shrink = {
 		.gfp_mask = sc.gfp_mask,
 	};
+
+#ifdef CONFIG_RUNTIME_COMPCACHE
+	if (is_rtcc_enabled())
+		sc.may_swap = 0;
+#endif /* CONFIG_RUNTIME_COMPCACHE */
 
 	/*
 	 * Do not enter reclaim if fatal signal was delivered while throttled.
@@ -3783,11 +3785,7 @@ static int __zone_reclaim(struct zone *zone, gfp_t gfp_mask, unsigned int order)
 	struct scan_control sc = {
 		.may_writepage = !!(zone_reclaim_mode & RECLAIM_WRITE),
 		.may_unmap = !!(zone_reclaim_mode & RECLAIM_SWAP),
-#ifdef CONFIG_RUNTIME_COMPCACHE
-		.may_swap = 0,
-#else
 		.may_swap = 1,
-#endif /* CONFIG_RUNTIME_COMPCACHE */
 		.nr_to_reclaim = max(nr_pages, SWAP_CLUSTER_MAX),
 		.gfp_mask = (gfp_mask = memalloc_noio_flags(gfp_mask)),
 		.order = order,
@@ -3797,6 +3795,11 @@ static int __zone_reclaim(struct zone *zone, gfp_t gfp_mask, unsigned int order)
 		.gfp_mask = sc.gfp_mask,
 	};
 	unsigned long nr_slab_pages0, nr_slab_pages1;
+
+#ifdef CONFIG_RUNTIME_COMPCACHE
+	if (is_rtcc_enabled())
+		sc.may_swap = 0;
+#endif /* CONFIG_RUNTIME_COMPCACHE */
 
 	cond_resched();
 	/*

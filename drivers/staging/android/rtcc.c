@@ -37,6 +37,7 @@ extern long nr_kswapd_swapped;
 static long nr_krtccd_swapped;
 static atomic_t krtccd_running;
 static atomic_t need_to_reclaim;
+static atomic_t krtccd_enabled;
 static struct task_struct *krtccd;
 static unsigned long prev_jiffy;
 static unsigned long boost_end_jiffy;
@@ -55,6 +56,11 @@ static unsigned long boost_end_jiffy;
 #endif
 
 #define RTCC_DBG				0
+
+int is_rtcc_enabled(void)
+{
+	return atomic_read(&krtccd_enabled);
+}
 
 int get_rtcc_status(void)
 {
@@ -216,6 +222,37 @@ static void rtcc_dump(void)
 }
 
 /*
+ * RTCC disable/enable by framework code
+ */
+static ssize_t rtcc_enable_store(struct class *class, struct class_attribute *attr,
+		const char *buf, size_t count)
+{
+	int val;
+
+	sscanf(buf, "%d", &val);
+
+	if (val && atomic_read(&krtccd_enabled)) {
+		pr_info("rtcc has been enabled!\n");
+		return count;
+	}
+
+	if (!val && !atomic_read(&krtccd_enabled)) {
+		pr_info("rtcc has been disabled!\n");
+		return count;
+	}
+
+	if (val)
+		atomic_set(&krtccd_enabled, 1);
+	else
+		atomic_set(&krtccd_enabled, 0);
+
+	return count;
+}
+
+static CLASS_ATTR(rtcc_enable, 0200, NULL, rtcc_enable_store);
+
+
+/*
  * RTCC triggered by framework code
  */
 static ssize_t rtcc_trigger_store(struct class *class, struct class_attribute *attr,
@@ -224,6 +261,11 @@ static ssize_t rtcc_trigger_store(struct class *class, struct class_attribute *a
 	int val;
 
 	sscanf(buf, "%d", &val);
+
+	if (likely(!atomic_read(&krtccd_enabled))) {
+		pr_info("rtcc is disabled, please enable it firstly!");
+		return count;
+	}
 
 	if (likely(val == RTCC_MSG_ASYNC)) {
 		atomic_set(&need_to_reclaim, 1);
@@ -248,6 +290,9 @@ static struct class *rtcc_class;
  */
 static int rtcc_idle_handler(struct notifier_block *nb, unsigned long val, void *data)
 {
+	if (likely(!atomic_read(&krtccd_enabled)))
+		return 0;
+
 	if (likely(atomic_read(&need_to_reclaim) == 0))
 		return 0;
 
@@ -290,6 +335,8 @@ static int __init rtcc_init(void)
 	}
 
 	set_user_nice(krtccd, 5);
+
+	atomic_set(&krtccd_enabled, 0);
 	atomic_set(&need_to_reclaim, 1);
 	atomic_set(&krtccd_running, 0);
 	prev_jiffy = jiffies;
@@ -303,6 +350,11 @@ static int __init rtcc_init(void)
 	if (IS_ERR(rtcc_class)) {
 		pr_err("%s: couldn't create rtcc class.\n", __func__);
 		return 0;
+	}
+
+	if (class_create_file(rtcc_class, &class_attr_rtcc_enable) < 0) {
+		pr_err("%s: couldn't create rtcc enable file in sysfs.\n", __func__);
+		class_destroy(rtcc_class);
 	}
 
 	if (class_create_file(rtcc_class, &class_attr_rtcc_trigger) < 0) {
@@ -323,6 +375,7 @@ static void __exit rtcc_exit(void)
 	}
 
 	if (rtcc_class) {
+		class_remove_file(rtcc_class, &class_attr_rtcc_enable);
 		class_remove_file(rtcc_class, &class_attr_rtcc_trigger);
 		class_destroy(rtcc_class);
 	}
