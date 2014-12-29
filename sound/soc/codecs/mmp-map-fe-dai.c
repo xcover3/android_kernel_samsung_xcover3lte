@@ -1201,6 +1201,12 @@ static int map_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	if (map_fe_dai_priv->i2s_config[codec_dai->id - 1])
 		return 0;
 
+	/*
+	 * Per DE: need to set I2S_OUT bit clock for 48K sample rate
+	 * before configuring other I2S bit clock
+	 */
+	map_raw_write(map_priv, MAP_I2S_OUT_BCLK_DIV, 0x10010030);
+
 	switch (codec_dai->id) {
 	case 1:
 		reg =	MAP_I2S1_BCLK_DIV;

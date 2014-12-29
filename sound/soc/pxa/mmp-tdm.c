@@ -1087,12 +1087,6 @@ static int mmp_tdm_startup(struct snd_pcm_substream *substream,
 
 	map_be_active(map_priv);
 
-	/*
-	 * due to map reset, clock doesn't work
-	 * map_i2s_sysclk(tdm_dai_priv->i2s_id, APLL_32K);
-	 * map_enable_i2s_bclk(tdm_dai_priv->i2s_id, fclk_rate);
-	 */
-	map_raw_write(map_priv, 0x8c, 0x10010030);
 	return 0;
 }
 

@@ -346,8 +346,6 @@ static int mmp_map_be_startup(struct snd_pcm_substream *substream,
 	if (dai->id == 1 && map_priv->bt_fm_sel)
 		return 0;
 
-	map_raw_write(map_priv, 0x8c, 0x10010030);
-
 	return 0;
 }
 
