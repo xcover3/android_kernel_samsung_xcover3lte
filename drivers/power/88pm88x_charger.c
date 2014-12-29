@@ -156,16 +156,32 @@ static inline int get_fastchg_eoc(struct pm88x_charger_info *info)
 
 static inline int get_fastchg_cur(struct pm88x_charger_info *info)
 {
-	/* fastcharge current range is 300mA - 1500mA */
-	if (info->fastchg_cur > 1500)
-		info->fastchg_cur = 1500;
-	else if (info->fastchg_cur < 300)
-		info->fastchg_cur = 300;
+	int ret;
 
-	if (info->fastchg_cur == 300)
-		return 0x0;
-	else
-		return ((info->fastchg_cur - 450) / 50) + 1;
+	/* fastcharge current range is 300mA - 2000mA */
+	if (info->fastchg_cur >= 2000) {
+		info->fastchg_cur = 2000;
+		ret = 0x1F;
+	} else if (info->fastchg_cur >= 1900)
+		ret = 0x1E;
+	else if (info->fastchg_cur <= 300) {
+		info->fastchg_cur = 300;
+		ret = 0x0;
+	} else
+		ret = ((info->fastchg_cur - 450) / 50) + 1;
+
+	/*
+	 * in PM880 the first value is 0mA (for testing), so shift value by 1.
+	 * also value of 1950mA is supported, so another shift is needed
+	 */
+	if (info->chip->type == PM880) {
+		if (info->fastchg_cur >= 1950)
+			ret += 2;
+		else
+			ret++;
+	}
+
+	return ret;
 }
 
 static inline int get_fastchg_vol(struct pm88x_charger_info *info)
