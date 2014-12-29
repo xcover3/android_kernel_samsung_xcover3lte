@@ -751,6 +751,9 @@ static void mv_ep_fifo_flush(struct usb_ep *_ep)
 		return;
 
 	udc = ep->udc;
+	if (!udc->active)
+		return;
+
 	direction = ep_dir(ep);
 
 	if (ep->ep_num == 0)
