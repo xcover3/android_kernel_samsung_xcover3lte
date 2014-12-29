@@ -1114,6 +1114,7 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 
 		/* the column counter has reached 100% here, clamp it to 99% */
 		ccnt_val->soc = (ccnt_val->soc >= 1000) ? 990 : ccnt_val->soc;
+		ccnt_val->previous_soc = (ccnt_val->previous_soc >= 1000) ? 990 : ccnt_val->previous_soc;
 
 		/*
 		 * in supplement mode, if the load is so heavy that
@@ -1239,7 +1240,7 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 	}
 
 	if (old_soc != ccnt_val->soc) {
-		dev_info(info->dev, "%s: needs update: %d%% -> %d%%\n",
+		dev_info(info->dev, "%s: only CC needs update: %d%% -> %d%%\n",
 			 __func__, old_soc, ccnt_val->soc);
 		/*
 		 * rounded SoC is used by upper layer,
