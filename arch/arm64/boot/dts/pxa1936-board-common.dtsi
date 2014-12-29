@@ -255,7 +255,7 @@
 						)>;
 				marvell,sdh-quirks2 = <(
 						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
-						SDHCI_QUIRK2_BROKEN_HS200 |
+						/* SDHCI_QUIRK2_BROKEN_HS200 | */
 						SDHCI_QUIRK2_TIMEOUT_SHORT
 						)>;
 				marvell,sdh-host-caps = <(MMC_CAP_1_8V_DDR)>;
