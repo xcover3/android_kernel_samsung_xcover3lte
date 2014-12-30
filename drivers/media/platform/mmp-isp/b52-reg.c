@@ -3254,28 +3254,67 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_VTS, &reg);
 	if (ret < 0)
 		return ret;
-	b52_writew(base + REG_FW_SSOR_AEC_ADDR_4, reg.tab->reg);
-	b52_writew(base + REG_FW_SSOR_AEC_ADDR_5, reg.tab->reg + 1);
-	b52_writeb(base + REG_FW_SSOR_AEC_MSK_4, 0xff);
-	b52_writeb(base + REG_FW_SSOR_AEC_MSK_5, 0xff);
+	switch (reg.num) {
+	case 1:
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_4, reg.tab->reg);
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_5, reg.tab->reg);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_4, 0x00);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_5, 0xff);
+		break;
+	case 2:
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_4, reg.tab->reg);
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_5, reg.tab->reg + 1);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_4, 0xff);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_5, 0xff);
+		break;
+	default:
+		pr_err("%s: no again reg", __func__);
+		break;
+	}
 	b52_writeb(base + REG_FW_AEC_GAIN_SHIFT, gain_shift);
 
 	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_AGAIN, &reg);
 	if (ret < 0)
 		return ret;
-	b52_writew(base + REG_FW_SSOR_AEC_ADDR_6, reg.tab->reg);
-	b52_writew(base + REG_FW_SSOR_AEC_ADDR_7, reg.tab->reg + 1);
-	b52_writeb(base + REG_FW_SSOR_AEC_MSK_6, 0xff);
-	b52_writeb(base + REG_FW_SSOR_AEC_MSK_7, 0xff);
-
+	switch (reg.num) {
+	case 1:
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_6, reg.tab->reg);
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_7, reg.tab->reg);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_6, 0x00);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_7, 0xff);
+		break;
+	case 2:
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_6, reg.tab->reg);
+		b52_writew(base + REG_FW_SSOR_AEC_ADDR_7, reg.tab->reg + 1);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_6, 0xff);
+		b52_writeb(base + REG_FW_SSOR_AEC_MSK_7, 0xff);
+		break;
+	default:
+		pr_err("%s: no again reg", __func__);
+		break;
+	}
 	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_DGAIN, &reg);
 	if (ret < 0)
 		return ret;
 	if (reg.tab) {
-		b52_writew(base + REG_FW_SSOR_AEC_ADDR_8, reg.tab->reg);
-		b52_writew(base + REG_FW_SSOR_AEC_ADDR_9, reg.tab->reg + 1);
-		b52_writeb(base + REG_FW_SSOR_AEC_MSK_8, 0xff);
-		b52_writeb(base + REG_FW_SSOR_AEC_MSK_9, 0xff);
+		switch (reg.num) {
+		case 1:
+			b52_writew(base + REG_FW_SSOR_AEC_ADDR_8, reg.tab->reg);
+			b52_writew(base + REG_FW_SSOR_AEC_ADDR_9, reg.tab->reg);
+			b52_writeb(base + REG_FW_SSOR_AEC_MSK_8, 0x00);
+			b52_writeb(base + REG_FW_SSOR_AEC_MSK_9, 0xff);
+			break;
+		case 2:
+			b52_writew(base + REG_FW_SSOR_AEC_ADDR_8, reg.tab->reg);
+			b52_writew(base + REG_FW_SSOR_AEC_ADDR_9,
+							reg.tab->reg + 1);
+			b52_writeb(base + REG_FW_SSOR_AEC_MSK_8, 0xff);
+			b52_writeb(base + REG_FW_SSOR_AEC_MSK_9, 0xff);
+			break;
+		default:
+			pr_err("%s: no dgain reg", __func__);
+			break;
+		}
 	}
 #ifdef CONFIG_ISP_USE_TWSI3
 	b52_writeb(base + REG_FW_EXPO_GAIN_WR, EXPO_GAIN_HOST_WR);
