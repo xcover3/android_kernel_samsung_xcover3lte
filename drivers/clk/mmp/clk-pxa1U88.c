@@ -1394,10 +1394,6 @@ static struct axi_opt axi_oparray[] = {
 		.aclk = 208,
 		.axi_clk_sel = 0x0,
 	},
-	{
-		.aclk = 312,
-		.axi_clk_sel = 0x1,
-	},
 };
 
 static struct axi_params axi_params = {
@@ -1410,10 +1406,10 @@ static struct ddr_combclk_relation aclk_dclk_relationtbl_1U88[] = {
 	{.dclk_rate = 156000000, .combclk_rate = 156000000},
 	{.dclk_rate = 312000000, .combclk_rate = 156000000},
 	{.dclk_rate = 416000000, .combclk_rate = 208000000},
-	{.dclk_rate = 528000000, .combclk_rate = 312000000},
-	{.dclk_rate = 624000000, .combclk_rate = 312000000},
-	{.dclk_rate = 667000000, .combclk_rate = 312000000},
-	{.dclk_rate = 797000000, .combclk_rate = 312000000},
+	{.dclk_rate = 528000000, .combclk_rate = 208000000},
+	{.dclk_rate = 624000000, .combclk_rate = 208000000},
+	{.dclk_rate = 667000000, .combclk_rate = 208000000},
+	{.dclk_rate = 797000000, .combclk_rate = 208000000},
 };
 
 static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
