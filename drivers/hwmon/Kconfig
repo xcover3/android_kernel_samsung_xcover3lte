@@ -1530,6 +1530,13 @@ config SENSORS_WM8350
 	  This driver can also be built as a module.  If so, the module
 	  will be called wm8350-hwmon.
 
+config SENSORS_MMX3524X_MXC400X
+	tristate "Memsic MMX3524X mag sensor and MXC400X accel sensor"
+	depends on I2C && INPUT
+	help
+	This driver provides the support of MMX3524X and MXC400X deivce.If
+	you say yes here, you will get this support both MMX3524X and MXC400X.
+
 config SENSORS_ULTRA45
 	tristate "Sun Ultra45 PIC16F747"
 	depends on SPARC64
