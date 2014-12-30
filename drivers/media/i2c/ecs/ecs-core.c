@@ -183,8 +183,8 @@ inline int ecs_set_value(struct ecs_sensor *snsr,
 	} else {
 		/* the value is not integral, sensor driver knows what to do*/
 		if ((prop->speculate) && (prop->value_equal) &&
-			(*prop->value_equal)((void *)prop->value_now,
-						(void *)cfg->prop_val)) {
+			(*prop->value_equal)((void *)(uintptr_t)prop->value_now,
+						(void *)(uintptr_t)cfg->prop_val)) {
 			x_inf(0, "%10s needs no change\n", prop->name);
 			return 0;
 		}
