@@ -128,16 +128,16 @@
 #define PM880_LDO(vreg, ereg, ebit, amax, ldo_volt_table)	\
 	PM88X_LDO(PM880, vreg, ereg, ebit, amax, ldo_volt_table)
 
-/* ldo1~3 */
+/* 88pm886 ldo1~3, 88pm880 ldo1-3 */
 static const unsigned int ldo_volt_table1[] = {
 	1700000, 1800000, 1900000, 2500000, 2800000, 2900000, 3100000, 3300000,
 };
-/* ldo4~15, 88pm880 ldo17 */
+/* 88pm886 ldo4~15, 88pm880 ldo4-17 */
 static const unsigned int ldo_volt_table2[] = {
 	1200000, 1250000, 1700000, 1800000, 1850000, 1900000, 2500000, 2600000,
 	2700000, 2750000, 2800000, 2850000, 2900000, 3000000, 3100000, 3300000,
 };
-/* ldo16, 88pm880 ldo18 */
+/* 88pm886 ldo16, 88pm880 ldo18 */
 static const unsigned int ldo_volt_table3[] = {
 	1700000, 1800000, 1900000, 2000000, 2100000, 2500000, 2700000, 2800000,
 };
@@ -301,7 +301,7 @@ static struct pm88x_ldo_info pm880_ldo_configs[] = {
 	PM880_LDO(LDO13, EN2, 4, 200000, ldo_volt_table2),
 	PM880_LDO(LDO14, EN2, 5, 200000, ldo_volt_table2),
 	PM880_LDO(LDO15, EN2, 6, 200000, ldo_volt_table2),
-	PM880_LDO(LDO16, EN2, 7, 200000, ldo_volt_table3),
+	PM880_LDO(LDO16, EN2, 7, 200000, ldo_volt_table2),
 	PM880_LDO(LDO17, EN3, 0, 200000, ldo_volt_table2),
 	PM880_LDO(LDO18, EN3, 1, 200000, ldo_volt_table3),
 };
