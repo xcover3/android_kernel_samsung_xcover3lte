@@ -841,11 +841,17 @@ static const int ev_bias_offset[] = {
 	0x0C, 0x16, 0x20, 0x2A, 0x36, 0x3A
 };
 
+static const int ev_ext_offset[] = {
+	0x03, 0x05, 0x0B, 0x0F, 0x14, 0x1A, 0x20,
+	0x20, 0x20, 0x20, 0x20, 0x20, 0x20
+};
+
 static int b52isp_ctrl_set_expo_bias(int idx, int id)
 {
 	int low_target;
 	int high_target;
 	int offset;
+	char ev_ext;
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 
 	/* get the blue print value */
@@ -865,10 +871,10 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id)
 	low_target = ((low_def[id] + high_def[id]) >> 1) + offset;
 	low_target = clamp(low_target, 0, 0xFF);
 	high_target = low_target;
-
 	b52_writeb(base + REG_FW_AEC_TARGET_LOW, low_target);
 	b52_writeb(base + REG_FW_AEC_TARGET_HIGH, high_target);
-
+	ev_ext = ev_ext_offset[idx];
+	b52_writeb(base + REG_FW_AEC_TARGET_EV, ev_ext);
 	return 0;
 }
 

@@ -764,6 +764,7 @@ void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 #define REG_FW_AEC_EXP_SHIFT        (0x013)
 #define REG_FW_AEC_TARGET_LOW       (0x014)
 #define REG_FW_AEC_TARGET_HIGH      (0x015)
+#define REG_FW_AEC_TARGET_EV	(0x017)
 #define REG_FW_AEC_STABLE_RANGE0    (0x018)
 #define REG_FW_AEC_STABLE_RANGE1    (0x019)
 
