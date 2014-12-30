@@ -76,7 +76,7 @@
  * Buck has 2 kinds of voltage steps. It is easy to find voltage by ranges,
  * not the constant voltage table.
  */
-#define PM88X_BUCK(_pmic, vreg, ebit, amax, volt_ranges, n_volt)		\
+#define PM88X_BUCK(_pmic, vreg, ebit, amax, volt_ranges, n_volt)	\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
@@ -105,20 +105,24 @@
 #define PM880_BUCK(vreg, ebit, amax, volt_ranges, n_volt)		\
 	PM88X_BUCK(PM880, vreg, ebit, amax, volt_ranges, n_volt)
 
-/* buck1 has dvc function */
+/*
+ * 88pm886 buck1 and 88pm880 buck1. both have dvc function
+ * from 0x00 to 0x4F: step is 12.5mV, range is from 0.6V to 1.6V
+ * from 0x50 to 0x3F step is 50mV, range is from 1.6V to 1.8V
+ */
 static const struct regulator_linear_range buck_volt_range1[] = {
 	REGULATOR_LINEAR_RANGE(600000, 0, 0x4f, 12500),
 	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x54, 50000),
 };
 
-/* 88pm886 buck 2, 3, 4, 5 */
+/*
+ * 88pm886 buck 2-5, and 88pm880 buck 2-7
+ * from 0x00 to 0x4F VOUT step is 12.5mV, range is from 0.6V to 1.6V
+ * from 0x50 to 0x72 step is 50mV, range is from 1.6V to  3.3V
+ */
 static const struct regulator_linear_range buck_volt_range2[] = {
 	REGULATOR_LINEAR_RANGE(600000, 0, 0x4f, 12500),
 	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x72, 50000),
-};
-/* 88pm880 buck 1, 2, 3, 4, 5, 6, 7 */
-static const struct regulator_linear_range buck_volt_range3[] = {
-	REGULATOR_LINEAR_RANGE(600000, 0, 0x19, 12500),
 };
 
 struct pm88x_buck_info {
@@ -252,13 +256,13 @@ static struct pm88x_buck_info pm886_buck_configs[] = {
 
 /* The array is indexed by id(PM880_ID_BUCK*) */
 static struct pm88x_buck_info pm880_buck_configs[] = {
-	PM880_BUCK(BUCK1A, 0, 3000000, buck_volt_range3, 0x20),
-	PM880_BUCK(BUCK2, 1, 1200000, buck_volt_range3, 0x20),
-	PM880_BUCK(BUCK3, 2, 1200000, buck_volt_range3, 0x20),
-	PM880_BUCK(BUCK4, 3, 1200000, buck_volt_range3, 0x20),
-	PM880_BUCK(BUCK5, 4, 1200000, buck_volt_range3, 0x20),
-	PM880_BUCK(BUCK6, 3, 1200000, buck_volt_range3, 0x20),
-	PM880_BUCK(BUCK7, 4, 1200000, buck_volt_range3, 0x20),
+	PM880_BUCK(BUCK1A, 0, 3000000, buck_volt_range1, 0x55),
+	PM880_BUCK(BUCK2,  2, 1200000, buck_volt_range2, 0x73),
+	PM880_BUCK(BUCK3,  3, 1200000, buck_volt_range2, 0x73),
+	PM880_BUCK(BUCK4,  4, 1200000, buck_volt_range2, 0x73),
+	PM880_BUCK(BUCK5,  5, 1200000, buck_volt_range2, 0x73),
+	PM880_BUCK(BUCK6,  6, 1200000, buck_volt_range2, 0x73),
+	PM880_BUCK(BUCK7,  7, 1200000, buck_volt_range2, 0x73),
 };
 
 #define PM88X_BUCK_OF_MATCH(_pmic, id, comp, label) \
