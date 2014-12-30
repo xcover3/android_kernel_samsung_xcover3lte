@@ -1436,8 +1436,8 @@ static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 	if (ret < 0)
 		goto out;
 
-	/* 7. set the VBAT threashold as 3000mV: 0x900 * 1.367mV/LSB */
-	ret = regmap_write(info->chip->gpadc_regmap, PM88X_VBAT_LOW_TH, 0x90);
+	/* 7. set the VBAT threashold as 3000mV: 0x890 * 1.367mV/LSB = 2.996V */
+	ret = regmap_write(info->chip->gpadc_regmap, PM88X_VBAT_LOW_TH, 0x89);
 out:
 	return ret;
 }
