@@ -85,7 +85,7 @@ int alloc_vnode_rcv_buffer(size_t size)
 	struct rcv_buffer *rcv;
 	int ret;
 
-	rcv = kzalloc(sizeof(rcv), GFP_KERNEL);
+	rcv = kzalloc(sizeof(*rcv), GFP_KERNEL);
 	if (WARN_ON(rcv == NULL))
 		return -ENOMEM;
 	INIT_LIST_HEAD(&rcv->hook);
