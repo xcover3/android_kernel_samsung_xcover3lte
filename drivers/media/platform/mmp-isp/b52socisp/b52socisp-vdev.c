@@ -2,6 +2,7 @@
 #include <linux/export.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
+#include <linux/slab.h>
 #ifdef CONFIG_MARVELL_MEDIA_MMU
 #include <linux/m4u.h>
 #endif
@@ -191,7 +192,7 @@ void vnode_verify_rcv_buffer(struct isp_vnode *vnode)
 					vnode->vdev.name,
 					vnode->rcv->pa + start / sizeof(*ptr),
 					vnode->rcv->pa + end / sizeof(*ptr));
-				memset(rcv_va, 0, rcv->size);
+				memset(vnode->rcv->va, 0, vnode->rcv->size);
 			}
 		}
 	}
