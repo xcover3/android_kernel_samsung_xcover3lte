@@ -32,6 +32,8 @@
 		regulator-always-on;
 		regulator-boot-on;
 	};
+	buck3: regulator-buck3 { /* alias label for buck3 */
+	};
 	buck4: regulator-buck4 {
 		compatible = "marvell,88pm880-buck4";
 		regulator-min-microvolt = <600000>;
