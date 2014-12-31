@@ -1114,11 +1114,17 @@ static struct parents_table clst0_core_parent_table[] = {
 	},
 };
 
+/* NOTE: please update c0clk_cciclk_relationtbl as well if add new pp. */
 static struct cpu_opt clst0_op_array[] = {
 	{
 		.pclk = 312,
 		.core_aclk = 156,
 		.ap_clk_sel = 0x0,
+	},
+	{
+		.pclk = 416,
+		.core_aclk = 208,
+		.ap_clk_sel = 0x3,
 	},
 	{
 		.pclk = 624,
@@ -1185,11 +1191,17 @@ static struct parents_table clst1_core_parent_table[] = {
 	},
 };
 
+/* NOTE: please update c1clk_cciclk_relationtbl as well if add new pp. */
 static struct cpu_opt clst1_op_array[] = {
 	{
-		 .pclk = 312,
+		.pclk = 312,
 		.core_aclk = 156,
 		.ap_clk_sel = 0x1,
+	},
+	{
+		.pclk = 416,
+		.core_aclk = 208,
+		.ap_clk_sel = 0x0,
 	},
 	{
 		.pclk = 624,
@@ -1200,6 +1212,12 @@ static struct cpu_opt clst1_op_array[] = {
 		.pclk = 832,
 		.core_aclk = 416,
 		.ap_clk_sel = 0x0,
+	},
+	{
+		.pclk = 1057,
+		.core_aclk = 528,
+		.ap_clk_sel = 0x2,
+		.ap_clk_src = 1057,
 	},
 	{
 		.pclk = 1248,
@@ -1525,14 +1543,19 @@ static struct combclk_relation dclk_aclk_relationtbl[] = {
 
 static struct combclk_relation c0clk_cciclk_relationtbl[] = {
 	{.mclk_rate = 312000000, .sclk_rate = 156000000},
+	{.mclk_rate = 416000000, .sclk_rate = 208000000},
 	{.mclk_rate = 624000000, .sclk_rate = 312000000},
 	{.mclk_rate = 832000000, .sclk_rate = 416000000},
-	{.mclk_rate = 1066000000, .sclk_rate = 624000000},
+	{.mclk_rate = 1057000000, .sclk_rate = 624000000},
 	{.mclk_rate = 1248000000, .sclk_rate = 624000000},
 };
 
 static struct combclk_relation c1clk_cciclk_relationtbl[] = {
+	{.mclk_rate = 312000000, .sclk_rate = 156000000},
+	{.mclk_rate = 416000000, .sclk_rate = 208000000},
+	{.mclk_rate = 624000000, .sclk_rate = 312000000},
 	{.mclk_rate = 832000000, .sclk_rate = 416000000},
+	{.mclk_rate = 1057000000, .sclk_rate = 624000000},
 	{.mclk_rate = 1248000000, .sclk_rate = 624000000},
 	{.mclk_rate = 1526000000, .sclk_rate = 832000000},
 	{.mclk_rate = 1595000000, .sclk_rate = 832000000},
