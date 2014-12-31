@@ -943,6 +943,16 @@
 						inven,secondary_name = "ak09912";
 						inven,secondary_reg = <0x0D>;
 				};
+				sensor5: mxc400x@15 {
+					compatible = "memsic,mxc400x";
+					reg = <0x15>;
+					avdd-supply = <&ldo18>;
+				};
+				sensor6: mmc3524x@30 {
+					compatible = "memsic,mmc3524x";
+					reg = <0x30>;
+					avdd-supply = <&ldo18>;
+				};
 			};
 
 			/* SSPA port 0 */
