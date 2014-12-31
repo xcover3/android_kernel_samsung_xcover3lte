@@ -64,8 +64,10 @@ static inline void m4u_free_frame(struct m4u_frame *frm)
 			plane->bdt.dscr_cnt = 0;
 		}
 	}
-
-	kfree(frm->whole.dscr_cpu);
+	if (frm->whole.dscr_cnt * sizeof(struct m4u_dscr) <= PAGE_SIZE)
+		kfree(frm->whole.dscr_cpu);
+	else
+		vfree(frm->whole.dscr_cpu);
 	frm->whole.dscr_cpu = NULL;
 	frm->whole.dscr_cnt = 0;
 
@@ -80,6 +82,7 @@ static inline int m4u_fill_frame_by_sg(struct m4u_frame *frm,
 	struct m4u_dscr	*dscr_cpu;
 	dma_addr_t new_addr;
 	int nr_dscr = 0, size = 0, i, j;
+	int tb_sz;
 	unsigned long flag;
 
 	/* Find out the buffer size and dis-contiguous segments */
@@ -102,10 +105,17 @@ static inline int m4u_fill_frame_by_sg(struct m4u_frame *frm,
 	}
 
 	/* setup buffer descriptor table */
-	dscr_cpu = kzalloc(nr_dscr * sizeof(struct m4u_dscr), GFP_KERNEL);
-	if (unlikely(WARN_ON(dscr_cpu == NULL)))
-		return -ENOMEM;
-
+	tb_sz = nr_dscr * sizeof(struct m4u_dscr);
+	if (tb_sz <= PAGE_SIZE) {
+		dscr_cpu = kzalloc(tb_sz, GFP_KERNEL);
+		if (unlikely(WARN_ON(dscr_cpu == NULL)))
+			return -ENOMEM;
+	} else {
+		dscr_cpu = vmalloc(tb_sz);
+		if (unlikely(WARN_ON(dscr_cpu == NULL)))
+			return -ENOMEM;
+		memset(dscr_cpu, 0, tb_sz);
+	}
 	sg = sgt->sgl;
 	new_addr = sg_dma_address(sg) - 1;
 	for (i = 0, j = -1; i < sgt->nents; i++, sg = sg_next(sg)) {
