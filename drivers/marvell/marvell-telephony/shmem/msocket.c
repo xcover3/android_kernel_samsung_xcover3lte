@@ -598,13 +598,6 @@ static int msocket_seq_show(struct seq_file *s, void *v)
 			seq_printf(s, "rx_socket_free:         %d\n",
 				shm_free_rx_skbuf_safe(rbctl));
 
-			if (seq == portq_grp_cp_main) {
-				seq_printf(s, "NVM_wake_lock_num:       %d\n",
-					NVM_wake_lock_num);
-				seq_printf(s, "NVM_wake_unlock_num:     %d\n",
-					NVM_wake_unlock_num);
-			}
-
 			seq_printf(s, "rx_workq_sched_num:   %d\n",
 				pgrp->rx_workq_sched_num);
 
@@ -686,11 +679,6 @@ static void msocket_dump_port(enum portq_grp_type grp_type)
 	       rbctl->rx_skbuf_num);
 	pr_err("rx_socket_free:         %d\n",
 	       shm_free_rx_skbuf(rbctl));
-
-	if (pgrp->grp_type == portq_grp_cp_main) {
-		pr_err("NVM_wake_lock_num:      %d\n", NVM_wake_lock_num);
-		pr_err("NVM_wake_unlock_num:    %d\n", NVM_wake_unlock_num);
-	}
 
 	pr_err("\nport  tx_current  tx_request  tx_sent  tx_drop"
 	       "  tx_queue_max"

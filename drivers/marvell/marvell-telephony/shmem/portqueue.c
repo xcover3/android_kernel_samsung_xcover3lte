@@ -33,16 +33,8 @@
 #include "diag.h"
 #include "audio_stub.h"
 
-/*Note: nvm_shared.h contain same definition,
- * if want to modify, please modify both*/
-#define NVMReqProcId 0x0003
-#define NVMCnfProcId 0x0004
-
 static struct wakeup_source port_tx_wakeup;
 static struct wakeup_source port_rx_wakeup;
-static struct wakeup_source port_rx_nvm_wakeup;
-int NVM_wake_lock_num;
-int NVM_wake_unlock_num;
 
 /* forward static function prototype */
 static void portq_tx_worker(struct work_struct *work);
@@ -380,10 +372,6 @@ int portq_init(void)
 
 	wakeup_source_init(&port_tx_wakeup, "port_tx_wakeups");
 	wakeup_source_init(&port_rx_wakeup, "port_rx_wakeups");
-	wakeup_source_init(&port_rx_nvm_wakeup, "port_rx_nvm_wakeups");
-
-	NVM_wake_lock_num = 0;
-	NVM_wake_unlock_num = 0;
 
 	spin_lock_init(&portq_ap_port_fc_lock);
 
@@ -399,7 +387,6 @@ void portq_exit(void)
 {
 	wakeup_source_trash(&port_tx_wakeup);
 	wakeup_source_trash(&port_rx_wakeup);
-	wakeup_source_trash(&port_rx_nvm_wakeup);
 }
 
 static inline struct portq_group *__portq_get_group(int port)
@@ -889,8 +876,6 @@ void portq_flush_init(enum portq_grp_type grp_type)
 	if (grp_type == portq_grp_cp_main) {
 		portq_cp_port_fc = 0;
 		portq_ap_port_fc = 0;
-		NVM_wake_lock_num = 0;
-		NVM_wake_unlock_num = 0;
 	}
 }
 
@@ -931,7 +916,6 @@ static void portq_tx_worker(struct work_struct *work)
 	struct sk_buff *skb;
 	int num, total = 0;
 	int priority;
-	ShmApiMsg *pShmArgs;
 	while (1) {
 		/*
 		 * we do lock/unlock inner the loop, giving the other cpu(s) a
@@ -1026,15 +1010,6 @@ static void portq_tx_worker(struct work_struct *work)
 			}
 			shm_xmit(rbctl, skb);	/* write to rb */
 			data_dump(skb->data, skb->len, portq->port, DATA_TX);
-			pShmArgs =
-			    (ShmApiMsg *) skb_pull(skb,
-						   sizeof(struct shm_skhdr));
-			/* NVM server port */
-			if ((portq->port == NVMSRV_PORT) &&
-			    (pShmArgs->procId == NVMCnfProcId)) {
-				__pm_relax(&port_rx_nvm_wakeup);
-				NVM_wake_unlock_num++;
-			}
 			kfree_skb(skb);	/* free skb memory */
 			num++, total++;	/* count */
 
@@ -1100,7 +1075,6 @@ static void portq_rx_worker(struct work_struct *work)
 	struct portq *portq;
 	struct sk_buff *skb;
 	int i, port;
-	ShmApiMsg *pShmArgs;
 
 	pgrp->rx_workq_sched_num++;
 	for (i = 0; i < rbctl->rx_skbuf_num; i++) {
@@ -1172,17 +1146,7 @@ static void portq_rx_worker(struct work_struct *work)
 			     __func__, port);
 			continue;
 		}
-		pShmArgs =
-		    (ShmApiMsg *) skb_pull(skb, sizeof(struct shm_skhdr));
-		/* NVM server port */
-		if ((port == NVMSRV_PORT) &&
-		    (pShmArgs->procId == NVMReqProcId)) {
-			__pm_wakeup_event(&port_rx_nvm_wakeup, 8000);
-			NVM_wake_lock_num++;
-		} else {
-			__pm_wakeup_event(&port_rx_wakeup, 2000);
-		}
-		skb_push(skb, sizeof(struct shm_skhdr));
+		__pm_wakeup_event(&port_rx_wakeup, 2000);
 		data_dump(skb->data, skb->len, portq->port, DATA_RX);
 
 		spin_lock(&portq->lock);

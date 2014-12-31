@@ -59,9 +59,6 @@ extern struct completion cp_peer_sync;
 extern bool m3_is_synced;
 extern struct completion m3_peer_sync;
 
-extern int NVM_wake_lock_num;
-extern int NVM_wake_unlock_num;
-
 struct rm_m3_addr;
 extern int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos);
 extern void cp_shm_ch_deinit(void);
