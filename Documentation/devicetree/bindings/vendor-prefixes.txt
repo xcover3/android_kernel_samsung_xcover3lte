@@ -58,6 +58,7 @@ lsi	LSI Corp. (LSI Logic)
 marvell	Marvell Technology Group Ltd.
 mrvl	short for marvell
 maxim	Maxim Integrated Products
+memsic	MEMSIC, Inc.
 microchip	Microchip Technology Inc.
 mosaixtech	Mosaix Technologies, Inc.
 national	National Semiconductor
