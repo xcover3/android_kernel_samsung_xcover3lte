@@ -14,6 +14,7 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
 #include <linux/irqchip/arm-gic.h>
@@ -126,24 +127,39 @@ static int icu_set_affinity(struct irq_data *d,
 	const struct cpumask *mask_val, bool force)
 {
 	struct icu_chip_data *data = &icu_data[0];
+	struct irq_desc *desc = container_of(d, struct irq_desc, irq_data);
 	int hwirq = d->irq - data->virq_base;
-	u32 r, cpu, val;
+	u32 r, cpu;
 
 	if (irq_ignore_wakeup(data, hwirq))
 		return 0;
 
-	cpu = cpumask_first(mask_val);
-	if (cpu <= 3)
-		val = ICU_INT_CONF_AP(cpu);
-	else if ((cpu > 3) && (cpu <= 7))
-		val = ICU_INT_CONF_AP2(cpu);
-	else {
-		pr_err("Wrong CPU number: %d\n", cpu);
-		BUG_ON(1);
-	}
 	r = readl_relaxed(mmp_icu_base + (hwirq << 2));
 	r &= ~ICU_INT_CONF_AP_MASK;
-	r |= val;
+
+	if (unlikely(desc->action && desc->action->flags & IRQF_MULTI_CPUS)) {
+		for_each_cpu_and(cpu, mask_val, cpu_online_mask) {
+			if (cpu <= 3)
+				r |= ICU_INT_CONF_AP(cpu);
+			else if (cpu <= 7)
+				r |= ICU_INT_CONF_AP2(cpu);
+			else {
+				pr_err("Wrong CPU number: %d\n", cpu);
+				BUG_ON(1);
+			}
+		}
+	} else {
+		cpu = cpumask_first(mask_val);
+		if (cpu <= 3)
+			r |= ICU_INT_CONF_AP(cpu);
+		else if (cpu <= 7)
+			r |= ICU_INT_CONF_AP2(cpu);
+		else {
+			pr_err("Wrong CPU number: %d\n", cpu);
+			BUG_ON(1);
+		}
+	}
+
 	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
 
 	return 0;
