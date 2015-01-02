@@ -16,17 +16,6 @@
 
 int psci_init(void);
 
-enum lowpower_state {
-	POWER_MODE_CORE_INTIDLE,	/* used for C1 */
-	POWER_MODE_CORE_POWERDOWN,	/* used for C2 */
-	POWER_MODE_MP_POWERDOWN,	/* used for M2 */
-	POWER_MODE_APPS_IDLE,		/* used for D1P */
-	POWER_MODE_SYS_SLEEP,		/* used for non-udr chip sleep, D1 */
-	POWER_MODE_UDR_VCTCXO,		/* used for udr with vctcxo, D2 */
-	POWER_MODE_UDR,			/* used for udr D2, suspend */
-	POWER_MODE_MAX = 15,		/* maximum lowpower states */
-};
-
 enum affinity_level {
 	AFFINITY_LEVEL0,
 	AFFINITY_LEVEL1,

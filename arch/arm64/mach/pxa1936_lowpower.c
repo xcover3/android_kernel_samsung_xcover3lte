@@ -22,6 +22,7 @@
 #include <linux/clk/mmpdcstat.h>
 #include <linux/of.h>
 #include <linux/irqchip/arm-gic.h>
+#include <linux/pxa1936_powermode.h>
 #include <asm/mcpm.h>
 #include <asm/mcpm_plat.h>
 #include <asm/cputype.h>

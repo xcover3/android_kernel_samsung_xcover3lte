@@ -17,6 +17,7 @@
 #include <linux/edge_wakeup_mmp.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/gfp.h>
+#include <linux/pxa1936_powermode.h>
 #include "pxa1936_lowpower.h"
 #include "pm.h"
 #include "regs-addr.h"

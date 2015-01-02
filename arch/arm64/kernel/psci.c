@@ -26,6 +26,7 @@
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
 #include <linux/clk/mmpdcstat.h>
+#include <linux/pxa1936_powermode.h>
 
 #define PSCI_POWER_STATE_TYPE_STANDBY		0
 #define PSCI_POWER_STATE_TYPE_POWER_DOWN	1
@@ -205,8 +206,10 @@ static int cpu_psci_cpu_suspend(unsigned long arg)
 	* D1  - arg == POWER_MODE_SYS_SLEEP
 	* D2  - arg == POWER_MODE_UDR
 	*/
-	state.type = index ? PSCI_POWER_STATE_TYPE_POWER_DOWN :
-			PSCI_POWER_STATE_TYPE_STANDBY;
+	if (index >= POWER_MODE_CORE_POWERDOWN)
+		state.type = PSCI_POWER_STATE_TYPE_POWER_DOWN;
+	else
+		state.type = PSCI_POWER_STATE_TYPE_STANDBY;
 
 	if (index < POWER_MODE_MP_POWERDOWN)
 		state.affinity_level = AFFINITY_LEVEL0;
@@ -215,26 +218,7 @@ static int cpu_psci_cpu_suspend(unsigned long arg)
 	else
 		state.affinity_level = AFFINITY_LEVEL2;
 
-	switch (index) {
-	case POWER_MODE_CORE_INTIDLE:
-	case POWER_MODE_CORE_POWERDOWN:
-	case POWER_MODE_MP_POWERDOWN:
-		state.id = _state2bit(0);
-		break;
-	case POWER_MODE_APPS_IDLE:
-		state.id = _state2bit(1);
-		break;
-	case POWER_MODE_SYS_SLEEP:
-		state.id = _state2bit(2);
-		break;
-	case POWER_MODE_UDR_VCTCXO: /* Not used in ATF */
-	case POWER_MODE_UDR:
-		state.id = _state2bit(3);
-		break;
-	default:
-		pr_err("unknown psci state: %u !\n", index);
-		break;
-	};
+	state.id = _state2bit(index);
 
 	if (index >= POWER_MODE_APPS_IDLE)
 		cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_M2_OR_DEEPER_ENTER, index);

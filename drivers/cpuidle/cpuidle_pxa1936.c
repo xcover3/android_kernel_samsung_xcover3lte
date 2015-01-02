@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/pxa1936_powermode.h>
 #include <asm/suspend.h>
 #include <asm/proc-fns.h>
 #include <asm/psci.h>
@@ -26,56 +27,80 @@ struct cpuidle_driver arm64_idle_driver = {
 	.name = "arm64_idle",
 	.owner = THIS_MODULE,
 	.states[POWER_MODE_CORE_INTIDLE] = {
-		      .enter = arm64_enter_state,
-		      .exit_latency = 18,
-		      .target_residency = 36,
-		      /*
-		       * Use CPUIDLE_FLAG_TIMER_STOP flag to let the cpuidle
-		       * framework handle the CLOCK_EVENT_NOTIFY_BROADCAST_
-		       * ENTER/EXIT when entering idle states.
-		       */
-		      .flags = CPUIDLE_FLAG_TIME_VALID,
-		      .name = "C1",
-		      .desc = "C1: Core internal clock gated",
-		      },
+		.enter = arm64_enter_state,
+		.exit_latency = 18,
+		.target_residency = 36,
+		/*
+		 * Use CPUIDLE_FLAG_TIMER_STOP flag to let the cpuidle
+		 * framework handle the CLOCK_EVENT_NOTIFY_BROADCAST_
+		 * ENTER/EXIT when entering idle states.
+		 */
+		.flags = CPUIDLE_FLAG_TIME_VALID,
+		.name = "C1",
+		.desc = "C1: Core internal clock gated",
+	},
+	.states[POWER_MODE_CORE_EXTIDLE] = {
+		.disabled = 1,
+	},
 	.states[POWER_MODE_CORE_POWERDOWN] = {
-		      .enter = arm64_enter_state,
-		      .exit_latency = 20,
-		      .target_residency = 40,
-		      .flags = CPUIDLE_FLAG_TIME_VALID |
-		      CPUIDLE_FLAG_TIMER_STOP,
-		      .name = "C2",
-		      .desc = "C2: Core power down",
-		      },
-	.states[POWER_MODE_MP_POWERDOWN] = {
-		      .enter = arm64_enter_state,
-		      .exit_latency = 450,
-		      .target_residency = 900,
-		      .flags = CPUIDLE_FLAG_TIME_VALID |
-		      CPUIDLE_FLAG_TIMER_STOP,
-		      .name = "MP2",
-		      .desc = "MP2: Core subsystem power down",
-		      },
+		.enter = arm64_enter_state,
+		.exit_latency = 20,
+		.target_residency = 40,
+		.flags = CPUIDLE_FLAG_TIME_VALID |
+			 CPUIDLE_FLAG_TIMER_STOP,
+		.name = "C2",
+		.desc = "C2: Core power down",
+	},
+	.states[POWER_MODE_MP_IDLE_CORE_EXTIDLE] = {
+		.disabled = 1,
+	},
+	.states[POWER_MODE_MP_IDLE_CORE_POWERDOWN] = {
+		.disabled = 1,
+	},
+	.states[POWER_MODE_MP_POWERDOWN_L2_ON] = {
+		.disabled = 1,
+	},
+	.states[POWER_MODE_MP_POWERDOWN_L2_OFF] = {
+		.enter = arm64_enter_state,
+		.exit_latency = 450,
+		.target_residency = 900,
+		.flags = CPUIDLE_FLAG_TIME_VALID |
+			 CPUIDLE_FLAG_TIMER_STOP,
+		.name = "MP2",
+		.desc = "MP2: Core subsystem power down",
+	},
 	.states[POWER_MODE_APPS_IDLE] = {
-		      .enter = arm64_enter_state,
-		      .exit_latency = 500,
-		      .target_residency = 1000,
-		      .flags = CPUIDLE_FLAG_TIME_VALID |
-		      CPUIDLE_FLAG_TIMER_STOP,
-		      .name = "D1p",
-		      .desc = "D1p: AP idle state",
-		      },
-	.states[POWER_MODE_SYS_SLEEP] = {
-		      .enter = arm64_enter_state,
-		      .exit_latency = 600,
-		      .target_residency = 1200,
-		      .flags = CPUIDLE_FLAG_TIME_VALID |
-		      CPUIDLE_FLAG_TIMER_STOP,
-		      .name = "D1",
-		      .desc = "D1: Chip idle state",
-		      },
+		.enter = arm64_enter_state,
+		.exit_latency = 500,
+		.target_residency = 1000,
+		.flags = CPUIDLE_FLAG_TIME_VALID |
+			 CPUIDLE_FLAG_TIMER_STOP,
+		.name = "D1p",
+		.desc = "D1p: AP idle state",
+	},
+	.states[POWER_MODE_APPS_IDLE_DDR] = {
+		.disabled = 1,
+	},
+	.states[POWER_MODE_APPS_SLEEP] = {
+		.disabled = 1,
+	},
+	.states[POWER_MODE_APPS_SLEEP_UDR] = {
+		.disabled = 1,
+	},
+	.states[POWER_MODE_SYS_SLEEP_VCTCXO] = {
+		.disabled = 1,
+	},
+	.states[POWER_MODE_SYS_SLEEP_VCTCXO_OFF] = {
+		.enter = arm64_enter_state,
+		.exit_latency = 600,
+		.target_residency = 1200,
+		.flags = CPUIDLE_FLAG_TIME_VALID |
+			 CPUIDLE_FLAG_TIMER_STOP,
+		.name = "D1",
+		.desc = "D1: Chip idle state",
+	},
 
-	.state_count = 5,
+	.state_count = 13,
 };
 
 /*

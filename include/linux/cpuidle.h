@@ -15,7 +15,7 @@
 #include <linux/list.h>
 #include <linux/hrtimer.h>
 
-#define CPUIDLE_STATE_MAX	10
+#define CPUIDLE_STATE_MAX	20
 #define CPUIDLE_NAME_LEN	16
 #define CPUIDLE_DESC_LEN	32
 

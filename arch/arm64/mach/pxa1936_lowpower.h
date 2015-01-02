@@ -125,16 +125,5 @@
 #ifndef __ASSEMBLER__
 extern void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
 extern void __iomem *icu_get_base_addr(void);
-enum pxa1936_lowpower_state {
-	POWER_MODE_CORE_INTIDLE,	/* used for C1 */
-	POWER_MODE_CORE_POWERDOWN,	/* used for C2 */
-	POWER_MODE_MP_POWERDOWN,	/* used for MP2 */
-	POWER_MODE_APPS_IDLE,		/* used for D1P */
-	POWER_MODE_APPS_SLEEP,		/* used for non-udr chip sleep, D1 */
-	POWER_MODE_UDR_VCTCXO,		/* used for udr with vctcxo, D2 */
-	POWER_MODE_UDR,			/* used for udr D2, suspend */
-	POWER_MODE_MAX = 15,		/* maximum lowpower states */
-};
-
 #endif
 #endif
