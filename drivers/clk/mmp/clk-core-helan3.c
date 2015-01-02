@@ -22,6 +22,9 @@
 #include <linux/cpufreq.h>
 #include <linux/devfreq.h>
 #include <linux/clk-private.h>
+#ifdef CONFIG_PXA_DVFS
+#include <linux/clk/dvfs-dvc.h>
+#endif
 #define CREATE_TRACE_POINTS
 #include <trace/events/pxa.h>
 #include "clk.h"
@@ -833,8 +836,25 @@ static void __init __init_cpu_rtcwtc(struct clk_hw *hw, struct cpu_opt *cpu_opt)
 }
 
 #ifdef CONFIG_CPU_FREQ
+#ifdef CONFIG_PXA_DVFS
+static int core_get_dvc_level(unsigned int freq, const unsigned long *freq_volt_tbl, int nr_vl)
+{
+	int i;
+
+	for (i = 0; i < nr_vl; i++)
+		if (freq <= freq_volt_tbl[i])
+			return i;
+	WARN_ON("cannot find targe core freq in map table.");
+	return nr_vl - 1;
+}
+#endif
+
 static void __init_cpufreq_table(struct clk_hw *hw)
 {
+#ifdef CONFIG_PXA_DVFS
+	int nr_volt_level;
+	const unsigned long *freq_vl_tbl = NULL;
+#endif
 	struct cpu_opt *cop;
 	unsigned int cpu_opt_size = 0, i = 0, clst_index = 0;
 	struct clk_core *core = to_clk_core(hw);
@@ -856,11 +876,18 @@ static void __init_cpufreq_table(struct clk_hw *hw)
 	if (!cpufreq_tbl)
 		return;
 
+#ifdef CONFIG_PXA_DVFS
+	nr_volt_level = dvfs_get_svc_freq_table(&freq_vl_tbl, hw->clk->name);
+#endif
+
 	list_for_each_entry(cop, op_list, node) {
-		cpufreq_tbl[i].driver_data = i;
 		cpufreq_tbl[i].frequency = cop->pclk * MHZ_TO_KHZ;
+#ifdef CONFIG_PXA_DVFS
+		cpufreq_tbl[i].driver_data = core_get_dvc_level(cpufreq_tbl[i].frequency, freq_vl_tbl, nr_volt_level);
+#endif
 		i++;
 	}
+	/* driver_data in the last entry save the freq table size */
 	cpufreq_tbl[i].driver_data = i;
 	cpufreq_tbl[i].frequency = CPUFREQ_TABLE_END;
 
