@@ -922,41 +922,44 @@ late_initcall(pm_qos_power_init);
  */
 static int cpufreq_qos_show(struct seq_file *m, void *unused)
 {
+	int i;
 	unsigned long flags;
-	struct pm_qos_object *qos_min, *qos_max;
-	struct list_head *list_min, *list_max;
+	struct pm_qos_object *qos_obj;
+	struct list_head *req_list;
 	struct plist_node *node;
-	s32 target_min = 0, target_max = 0;
+	s32 target = 0;
 	struct pm_qos_request *req;
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	int cpufreq_qos_class_id[] = {
+		PM_QOS_CPUFREQ_L_MIN,
+		PM_QOS_CPUFREQ_L_MAX,
+		PM_QOS_CPUFREQ_B_MIN,
+		PM_QOS_CPUFREQ_B_MAX,
+		PM_QOS_CCI_MIN,
+		PM_QOS_CLST_VL_MIN};
+#else
+	int cpufreq_qos_class_id[] = {
+		PM_QOS_CPUFREQ_MIN,
+		PM_QOS_CPUFREQ_MAX};
+#endif
 
-	qos_min = pm_qos_array[PM_QOS_CPUFREQ_MIN];
-	list_min = &qos_min->constraints->list.node_list;
-	qos_max = pm_qos_array[PM_QOS_CPUFREQ_MAX];
-	list_max = &qos_max->constraints->list.node_list;
+	for (i = 0; i < ARRAY_SIZE(cpufreq_qos_class_id); i++) {
+		qos_obj = pm_qos_array[cpufreq_qos_class_id[i]];
+		req_list = &qos_obj->constraints->list.node_list;
+		rcu_read_lock();
+		spin_lock_irqsave(&pm_qos_lock, flags);
 
-	rcu_read_lock();
-	spin_lock_irqsave(&pm_qos_lock, flags);
+		target = pm_qos_read_value(qos_obj->constraints);
+		seq_printf(m, "%s: %d\n", qos_obj->name, target);
+		list_for_each_entry(node, req_list, node_list) {
+			req = container_of(node, struct pm_qos_request, node);
+			if (node->prio != PM_QOS_DEFAULT_VALUE)
+				seq_printf(m, "Req: %d\t Name: %s\n", node->prio, req->name);
+		}
 
-	target_min = pm_qos_read_value(qos_min->constraints);
-	target_max = pm_qos_read_value(qos_max->constraints);
-
-	seq_printf(m, "Target min %d\n", target_min);
-	list_for_each_entry(node, list_min, node_list) {
-		req = container_of(node, struct pm_qos_request, node);
-		if (node->prio != PM_QOS_DEFAULT_VALUE)
-			seq_printf(m, "Req: %d\t Name: %s\n",
-				node->prio, req->name);
+		spin_unlock_irqrestore(&pm_qos_lock, flags);
+		rcu_read_unlock();
 	}
-
-	seq_printf(m, "Target max %d\n", target_max);
-	list_for_each_entry(node, list_max, node_list) {
-		req = container_of(node, struct pm_qos_request, node);
-		if (node->prio != PM_QOS_DEFAULT_VALUE)
-			seq_printf(m, "Req: %d\t Name: %s\n",
-				node->prio, req->name);
-	}
-	spin_unlock_irqrestore(&pm_qos_lock, flags);
-	rcu_read_unlock();
 
 	return 0;
 }
