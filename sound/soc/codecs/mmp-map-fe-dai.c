@@ -48,6 +48,33 @@ struct map_fe_dai_private {
 	/* Indication if i2s need to be active/inactive */
 };
 
+static unsigned int map_read(struct snd_soc_codec *codec,
+				unsigned int reg)
+{
+	struct map_fe_dai_private *map_fe_dai_priv;
+	struct map_private *map_priv;
+
+	map_fe_dai_priv = snd_soc_codec_get_drvdata(codec);
+	map_priv = map_fe_dai_priv->map_priv;
+
+	return map_raw_read(map_priv, reg);
+}
+
+static int map_write(struct snd_soc_codec *codec, unsigned int reg,
+	unsigned int value)
+{
+	struct map_fe_dai_private *map_fe_dai_priv;
+	struct map_private *map_priv;
+	int ret = 0;
+
+	map_fe_dai_priv = snd_soc_codec_get_drvdata(codec);
+	map_priv = map_fe_dai_priv->map_priv;
+
+	ret = map_raw_write(map_priv, reg, value);
+
+	return ret;
+}
+
 static int map_bytes_get(struct snd_kcontrol *kcontrol,
 		      struct snd_ctl_elem_value *ucontrol)
 {
@@ -60,12 +87,9 @@ static int map_bytes_get(struct snd_kcontrol *kcontrol,
 	map_fe_dai_priv = snd_soc_codec_get_drvdata(codec);
 	map_priv = map_fe_dai_priv->map_priv;
 
-	if (codec->using_regmap)
-		ret = regmap_raw_read(codec->control_data, params->base,
-				      ucontrol->value.bytes.data,
-				      params->num_regs * codec->val_bytes);
-	else
-		ret = -EINVAL;
+	ret = map_raw_bulk_read(map_priv, params->base,
+			ucontrol->value.bytes.data,
+			params->num_regs);
 
 	if (params->base == MAP_DSP1_FW_REG)
 		*(u32 *)(&ucontrol->value.bytes.data) = map_priv->dsp1_sw_id;
@@ -98,10 +122,7 @@ int map_bytes_put(struct snd_kcontrol *kcontrol,
 	map_fe_dai_priv = snd_soc_codec_get_drvdata(codec);
 	map_priv = map_fe_dai_priv->map_priv;
 
-	if (!codec->using_regmap)
-		return -EINVAL;
-
-	len = params->num_regs * codec->val_bytes;
+	len = params->num_regs;
 
 	data = kmemdup(ucontrol->value.bytes.data, len, GFP_KERNEL | GFP_DMA);
 	if (!data)
@@ -149,9 +170,7 @@ int map_bytes_put(struct snd_kcontrol *kcontrol,
 	 * copy.
 	 */
 	if (params->mask) {
-		ret = regmap_read(codec->control_data, params->base, &val);
-		if (ret != 0)
-			goto out;
+		val = map_raw_read(map_priv, params->base);
 
 		/*
 		 * WA for map fix: no need to mask bit 4, so that mono mode
@@ -166,19 +185,8 @@ int map_bytes_put(struct snd_kcontrol *kcontrol,
 		val &= params->mask;
 
 		mask = ~params->mask;
-		/* Maybe need to do be/le translation  */
-		ret = regmap_parse_val(codec->control_data,
-						&mask, &mask);
-		if (ret != 0)
-			goto out;
 
 		((u32 *)data)[0] &= mask;
-
-		/* Maybe need to do be/le translation  */
-		ret = regmap_parse_val(codec->control_data,
-						&val, &val);
-		if (ret != 0)
-			goto out;
 
 		((u32 *)data)[0] |= val;
 	}
@@ -196,7 +204,7 @@ int map_bytes_put(struct snd_kcontrol *kcontrol,
 	} else if (params->base == MAP_TOP_CTRL_REG_1)
 		goto out;
 
-	ret = regmap_raw_write(codec->control_data, params->base,
+	ret = map_raw_bulk_write(map_priv, params->base,
 			       data, len);
 out:
 	kfree(data);
@@ -1333,8 +1341,9 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 	case 2:
 		addr =	MAP_I2S2_CTRL_REG;
 		/* i2s3's pcm width bit will affect i2s2 */
-		regmap_update_bits(map_priv->regmap, MAP_I2S3_CTRL_REG,
-			MAP_PCM_WIDTH_SEL, MAP_PCM_WIDTH_SEL);
+		inf = map_raw_read(map_priv, addr);
+		inf |= MAP_PCM_WIDTH_SEL;
+		map_raw_write(map_priv, addr, inf);
 		break;
 	case 3:
 		addr =	MAP_I2S3_CTRL_REG;
@@ -1721,13 +1730,8 @@ static int map_probe(struct snd_soc_codec *codec)
 	map_fe_dai_priv = snd_soc_codec_get_drvdata(codec);
 	map_fe_dai_priv->codec = codec;
 	codec->control_data = map_fe_dai_priv->regmap;
-
-	/*
-	 * Fixme: bypass codec cache due to cache only support 8/16 bits
-	 * Enabling it will result in BUG() (soc-cache:60)
-	 */
-	codec->cache_bypass = 1;
-	snd_soc_codec_set_cache_io(codec, 32, 32, SND_SOC_REGMAP);
+	/* map's register is 4 bytes */
+	codec->val_bytes = 4;
 
 	map_add_widgets(codec);
 	return 0;
@@ -1741,6 +1745,8 @@ static int map_remove(struct snd_soc_codec *codec)
 struct snd_soc_codec_driver soc_codec_dev_map = {
 	.probe   = map_probe,
 	.remove  = map_remove,
+	.read = map_read,
+	.write = map_write,
 	.reg_cache_size = MAP_CACHE_SIZE,
 	.reg_word_size = sizeof(u32),
 	.controls = map_snd_controls,
