@@ -129,6 +129,7 @@ struct b52isp_ppipe {
 enum b52_dma_state {
 	B52DMA_IDLE	= 0,
 	B52DMA_ACTIVE,
+	B52DMA_DROP,
 	B52DMA_HW_NO_STREAM,
 };
 

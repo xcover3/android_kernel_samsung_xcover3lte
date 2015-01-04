@@ -2233,7 +2233,8 @@ check_sof_irq:
 
 check_drop:
 	if (irqstatus & VIRT_IRQ_DROP) {
-		laxi->dma_state = B52DMA_IDLE;
+		if (laxi->stream)
+			laxi->dma_state = B52DMA_IDLE;
 		irqstatus &= ~VIRT_IRQ_DROP;
 
 		if (laxi->rdy_set) {
@@ -2254,10 +2255,12 @@ check_drop:
 		if (buffer && laxi->stream) {
 			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
 			laxi->rdy_set = 1;
+		} else {
+			if (laxi->dma_state == B52DMA_DROP)
+				laxi->dma_state = B52DMA_HW_NO_STREAM;
+			else
+				laxi->dma_state = B52DMA_DROP;
 		}
-		else
-			laxi->dma_state = B52DMA_HW_NO_STREAM;
-
 		d_inf(3, "%s receive drop frame", isd->subdev.name);
 	}
 
@@ -2498,10 +2501,6 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 	if (unlikely(ret < 0))
 		goto pwr_err;
 
-	ret = b52_ctrl_mac_irq(laxi->mac, laxi->port, 1);
-	if (unlikely(ret < 0))
-		goto mac_err;
-
 	if (pvnode->alloc_mmu_chnl) {
 		ret = pvnode->alloc_mmu_chnl(pcam, PCAM_IP_B52ISP,
 					paxi->blk.id.mod_id, laxi->port,
@@ -2511,11 +2510,16 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 			goto mmu_err;
 	}
 
+	ret = b52_ctrl_mac_irq(laxi->mac, laxi->port, 1);
+	if (unlikely(ret < 0))
+		goto mac_err;
+
 	return 0;
 
-mmu_err:
-	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
 mac_err:
+	if (pvnode->free_mmu_chnl)
+		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
+mmu_err:
 	isp_block_tune_power(&paxi->blk, 0);
 pwr_err:
 	atomic_dec(&laxi->en_cnt);
@@ -2525,21 +2529,20 @@ disable:
 	if (atomic_dec_return(&laxi->en_cnt) > 0)
 		return 0;
 
-	if (pvnode->free_mmu_chnl) {
-		b52_clear_mac_rdy_bit(laxi->mac, laxi->port);
-		while (laxi->dma_state != B52DMA_HW_NO_STREAM) {
-			usleep_range(1000, 1500);
-			if (cnt++ > 500) {
-				d_inf(1, "%s err wait HW_NO_STREAM",
-					  laxi->isd.subdev.name);
-				break;
-			}
+	b52_clear_mac_rdy_bit(laxi->mac, laxi->port);
+	while (laxi->dma_state != B52DMA_HW_NO_STREAM) {
+		usleep_range(1000, 1500);
+		if (cnt++ > 500) {
+			d_inf(1, "%s err wait HW_NO_STREAM",
+				  laxi->isd.subdev.name);
+			break;
 		}
-		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 	}
 
 	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
 	laxi->rdy_set = 0;
+	if (pvnode->free_mmu_chnl)
+		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 	isp_block_tune_power(&paxi->blk, 0);
 
 	return 0;
