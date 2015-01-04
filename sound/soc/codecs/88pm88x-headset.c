@@ -48,7 +48,7 @@
 #define PM886_GPADC_MEAS1		(0x5c)
 #define PM886_GPADC_CONFIG5		(0x05)
 
-#define PM886_INT_ENA_3			(0x0B)
+#define PM886_INT_ENA_3			(0x0C)
 #define PM886_MIC_INT_EN		(1 << 4)
 #define PM886_MIC_DET_RDIV_DIS		(1 << 6)
 
