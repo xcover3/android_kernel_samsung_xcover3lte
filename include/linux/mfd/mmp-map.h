@@ -536,8 +536,13 @@ void map_reset_port(struct map_private *map_priv, enum mmp_map_port port);
 void map_apply_change(struct map_private *map_priv);
 int map_raw_write(struct map_private *map_priv, unsigned int reg,
 					unsigned int value);
+
+int map_raw_bulk_write(struct map_private *map_priv, unsigned int reg,
+				void *val, int val_count);
 unsigned int map_raw_read(struct map_private *map_priv,
 					unsigned int reg);
+unsigned int map_raw_bulk_read(struct map_private *map_priv,
+		unsigned int reg, void *val, int val_count);
 void map_be_active(struct map_private *map_priv);
 void map_be_reset(struct map_private *map_priv);
 void mmp_map_dsp1_mute(struct map_private *map_priv, int mute,

@@ -38,7 +38,7 @@
 #define DRIVER_RELEASE_DATE     "Jun.17 2013"
 
 static int map_offset, aux_offset;
-static struct regmap *regmap_map;
+static struct map_private *audio_map_priv;
 static void *regmap_aux;
 
 #define to_clk_audio(clk) (container_of(clk, struct clk_audio, hw))
@@ -87,8 +87,6 @@ static struct regmap_config mmp_map_regmap_config = {
 };
 
 #define MAP_FW	"/data/log/audio/firmware"
-static struct map_private *firmware_map_priv;
-
 static u32 firmware_reg;
 
 static ssize_t firmware_update_show(struct device *dev,
@@ -97,7 +95,7 @@ static ssize_t firmware_update_show(struct device *dev,
 	u32 val;
 
 	if (firmware_reg != 0) {
-		regmap_read(firmware_map_priv->regmap, firmware_reg, &val);
+		val = map_raw_read(audio_map_priv, firmware_reg);
 		pr_info("firmware reg 0x%x, value 0x%x\n", firmware_reg, val);
 		return 0;
 	}
@@ -144,7 +142,7 @@ static ssize_t firmware_update_set(struct device *dev,
 	if (buf[0] != 'f')
 		return count;
 
-	if (firmware_map_priv == NULL)
+	if (audio_map_priv == NULL)
 		return -EINVAL;
 
 	/* currently our firmware file is 23k */
@@ -174,9 +172,9 @@ static ssize_t firmware_update_set(struct device *dev,
 
 	/* Load MAP DSP firmware */
 	reg = MAP_TOP_CTRL_REG_2;
-	regmap_read(firmware_map_priv->regmap, reg, &val);
+	val = map_raw_read(audio_map_priv, reg);
 	val &= ~(1 << 6); /* choose apb pclk */
-	regmap_write(firmware_map_priv->regmap, reg, val);
+	map_raw_write(audio_map_priv, reg, val);
 
 	while (tmp_buf - buffer < p->f_pos) {
 		memset(number, '\0', 20);
@@ -200,18 +198,18 @@ static ssize_t firmware_update_set(struct device *dev,
 		while (tmp_buf[0] == ' ' || tmp_buf[0] == '0')
 			tmp_buf++;
 
-		writel_relaxed(val, firmware_map_priv->regs_map + addr);
+		map_raw_write(audio_map_priv, addr, val);
 	}
 
-	firmware_map_priv->dsp1_sw_id =
-		readl_relaxed(firmware_map_priv->regs_map + MAP_DSP1_FW_LOCATE);
-	firmware_map_priv->dsp2_sw_id =
-		readl_relaxed(firmware_map_priv->regs_map + MAP_DSP2_FW_LOCATE);
-	firmware_map_priv->dsp1a_sw_id =
-	readl_relaxed(firmware_map_priv->regs_map + MAP_DSP1A_FW_LOCATE);
+	audio_map_priv->dsp1_sw_id =
+		map_raw_read(audio_map_priv, MAP_DSP1_FW_LOCATE);
+	audio_map_priv->dsp2_sw_id =
+		map_raw_read(audio_map_priv, MAP_DSP2_FW_LOCATE);
+	audio_map_priv->dsp1a_sw_id =
+		map_raw_read(audio_map_priv, MAP_DSP1A_FW_LOCATE);
 
 	val |= (1 << 6); /* choose dig_clk */
-	regmap_write(firmware_map_priv->regmap, reg, val);
+	map_raw_write(audio_map_priv, reg, val);
 
 	filp_close(p, NULL);
 	kfree(buffer);
@@ -295,24 +293,24 @@ static int map_32k_apll_enable(struct map_private *map_priv)
 	 * 1: Assert reset for the APLL and PU: apll1_config1
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL1_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	/* set power up, and also set reset */
 	val |= 3;
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 2: set ICP, REV_DIV, FBDIV_INT, FBDIV_DEC, ICP_PLL, KVCO
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL1_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	/* clear bits: [31-2] */
 	val &= 3;
 	val |=
 	    ((KVCO << 31) | (ICP << 27) | (fbdec_div << 23) | (fbdec_int << 15)
 	     | (refdiv << 6) | (FD_SEL << 4) | (CTUNE << 2));
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 3: Set the required POSTDIV_AUDIO value
@@ -320,40 +318,40 @@ static int map_32k_apll_enable(struct map_private *map_priv)
 	 */
 	/* 3.1: config apll1 fast clock: VCO_DIV = 1 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL1_CONF_4;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val &= ~(0xfff);
 	val |= vco_div;
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/* 3.2: config apll1 slow clock */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL1_CONF_2;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val &= (0xf << 28);
 	val |=
 	    ((TEST_MON << 24) | (vco_en << 23) | (post_div << 11) |
 	     (div_en << 10) | (ICP_DLL << 5) | (0x1 << 4) | VDDL);
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 4: de-assert reset
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL1_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	/* release reset */
 	val &= ~(0x1 << 1);
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 5: check DLL lock status
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL1_CONF_2;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	while ((!(val & (0x1 << 28))) && time_out) {
 		udelay(10);
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		time_out--;
 	}
 	if (time_out == 0) {
@@ -367,7 +365,7 @@ static int map_32k_apll_enable(struct map_private *map_priv)
 	time_out = 2000;
 	while ((!(val & (0x1 << 29))) && time_out) {
 		udelay(10);
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		time_out--;
 	}
 
@@ -386,11 +384,11 @@ static int map_32k_apll_disable(struct map_private *map_priv)
 	dspaux_base = map_priv->regs_aux;
 
 	reg_addr = dspaux_base + DSP_AUDIO_PLL1_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	/* reset & power off */
 	val &= ~0x1;
 	val |= (0x1 << 1);
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	/* power off audio island */
 	map_priv->poweron(map_priv->apmu_base, map_priv->puclk, 0);
@@ -455,76 +453,76 @@ static int map_26m_apll_enable(struct map_private *map_priv)
 	 * 1: power up and reset pll
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	/* set power up, and also set reset */
 	val |= 3;
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 2: set ICP, REV_DIV, FBDIV_IN, FBDIV_DEC, ICP_PLL, KVCO
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val &= 3;
 	val |=
 	    ((ICP << 27) | (fbdiv << 18) | (refdiv << 9) | (CLK_DET_EN << 8) |
 	     (INTPI << 6) | (FD_SEL << 4) | (CTUNE << 2));
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 3: enable clk_vco
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_3;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val &= ~(0x7ff << 14);
 	val |=
 	    ((vco_div_en << 24) | (vco_div << 15) | (vco_en << 14) |
 	     (TEST_MON << 0));
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 4: enable clk_audio
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_2;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val &= ~((0x7fffff << 4) | 0xf);
 	val |=
 	    ((post_div << 20) | (freq_off << 4) | (post_div_en << 0x1) |
 	     (PI_EN << 0));
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 5: de-assert reset
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	/* release reset */
 	val &= ~(0x1 << 1);
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 6: apply freq_offset_valid: wait 50us according to DE
 	 */
 	udelay(50);
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_2;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val |= (1 << 2);
-	writel_relaxed(val, reg_addr);
-	val = readl_relaxed(reg_addr);
+	writel(val, reg_addr);
+	val = readl(reg_addr);
 
 	/*
 	 * 7: check PLL lock status
 	 */
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	while (!(val & (0x1 << 31)) && time_out) {
 		udelay(10);
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		time_out--;
 	}
 	if (time_out == 0) {
@@ -547,11 +545,11 @@ static int map_26m_apll_disable(struct map_private *map_priv)
 	}
 
 	reg_addr = dspaux_base + DSP_AUDIO_PLL2_CONF_1;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	/* reset & power off */
 	val &= ~0x1;
 	val |= (0x1 << 1);
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	/* power off audio island */
 	map_priv->poweron(map_priv->apmu_base, map_priv->puclk, 0);
@@ -563,8 +561,7 @@ static int map_26m_apll_disable(struct map_private *map_priv)
 void map_set_port_freq(struct map_private *map_priv, enum mmp_map_port port,
 						unsigned int rate)
 {
-	struct regmap *regmap = map_priv->regmap;
-	unsigned int val = 0, reg;
+	unsigned int val = 0, reg, value;
 	unsigned int mask = 0;
 
 	/* sample rate */
@@ -595,74 +592,74 @@ void map_set_port_freq(struct map_private *map_priv, enum mmp_map_port port,
 	}
 
 	reg = MAP_LRCLK_RATE_REG;
-	val = val << ((I2S_OUT - port) * 0x4);
+	value = map_raw_read(map_priv, reg);
 	mask = 0xf << ((I2S_OUT - port) * 0x4);
-	regmap_update_bits(regmap, reg, mask, val);
+	value &= (~mask);
+	value |= (val << ((I2S_OUT - port) * 0x4));
+	map_raw_write(map_priv, reg, value);
 	return;
 }
 EXPORT_SYMBOL(map_set_port_freq);
 
 void map_reset_port(struct map_private *map_priv, enum mmp_map_port port)
 {
-	struct regmap *regmap = map_priv->regmap;
 	unsigned int reg, val = 0;
-	unsigned int mask = 0;
 
 	switch (port) {
 	case I2S1:
 		/* reset i2s1 interface(audio) */
 		reg = MAP_TOP_CTRL_REG_1;
-		val = I2S1_RESET | ASRC1_RESET;
-		mask = I2S1_RESET | ASRC1_RESET;
-		regmap_update_bits(regmap, reg, mask, val);
+		val = map_raw_read(map_priv, reg);
+		val |= (I2S1_RESET | ASRC1_RESET);
+		map_raw_write(map_priv, reg, val);
 
 		/* out of reset */
 		val &= ~(I2S1_RESET | ASRC1_RESET);
-		regmap_update_bits(regmap, reg, mask, val);
+		map_raw_write(map_priv, reg, val);
 		break;
 	case I2S2:
 		/* reset i2s2 interface(audio) */
 		reg = MAP_TOP_CTRL_REG_1;
-		val = I2S2_RESET | ASRC2_RESET;
-		mask = I2S2_RESET | ASRC2_RESET;
-		regmap_update_bits(regmap, reg, mask, val);
+		val = map_raw_read(map_priv, reg);
+		val |= (I2S2_RESET | ASRC2_RESET);
+		map_raw_write(map_priv, reg, val);
 
 		/* out of reset */
 		val &= ~(I2S2_RESET | ASRC2_RESET);
-		regmap_update_bits(regmap, reg, mask, val);
+		map_raw_write(map_priv, reg, val);
 		break;
 	case I2S3:
 		/* reset i2s3 interface(audio) */
 		reg = MAP_TOP_CTRL_REG_1;
-		val = I2S3_RESET | ASRC3_RESET;
-		mask = I2S3_RESET | ASRC3_RESET;
-		regmap_update_bits(regmap, reg, mask, val);
+		val = map_raw_read(map_priv, reg);
+		val |= (I2S3_RESET | ASRC3_RESET);
+		map_raw_write(map_priv, reg, val);
 
 		/* out of reset */
 		val &= ~(I2S3_RESET | ASRC3_RESET);
-		regmap_update_bits(regmap, reg, mask, val);
+		map_raw_write(map_priv, reg, val);
 		break;
 	case I2S4:
 		/* reset i2s4 interface (hifi) */
 		reg = MAP_TOP_CTRL_REG_1;
-		val = I2S4_RESET | ASRC4_RESET;
-		mask = I2S4_RESET | ASRC4_RESET;
-		regmap_update_bits(regmap, reg, mask, val);
+		val = map_raw_read(map_priv, reg);
+		val |= (I2S4_RESET | ASRC4_RESET);
+		map_raw_write(map_priv, reg, val);
 
 		/* out of reset */
 		val &= ~(I2S4_RESET | ASRC4_RESET);
-		regmap_update_bits(regmap, reg, mask, val);
+		map_raw_write(map_priv, reg, val);
 		break;
 	case I2S_OUT:
 		/* reset dei2s interface */
 		reg = MAP_TOP_CTRL_REG_1;
-		val = I2S_OUT_RESET;
-		mask = I2S_OUT_RESET;
-		regmap_update_bits(regmap, reg, mask, val);
+		val = map_raw_read(map_priv, reg);
+		val |= I2S_OUT_RESET;
+		map_raw_write(map_priv, reg, val);
 
 		/* out of reset */
 		val &= ~I2S_OUT_RESET;
-		regmap_update_bits(regmap, reg, mask, val);
+		map_raw_write(map_priv, reg, val);
 		break;
 	default:
 		return;
@@ -679,7 +676,7 @@ void map_apply_change(struct map_private *map_priv)
 
 	reg = MAP_DAC_ANA_MISC;
 	val = APPLY_CHANGES;
-	writel_relaxed(val, map_priv->regs_map + reg);
+	map_raw_write(map_priv, reg, val);
 	return;
 }
 EXPORT_SYMBOL(map_apply_change);
@@ -687,20 +684,46 @@ EXPORT_SYMBOL(map_apply_change);
 int map_raw_write(struct map_private *map_priv, unsigned int reg,
 					unsigned int value)
 {
-	writel_relaxed(value, map_priv->regs_map + reg);
+	writel(value, map_priv->regs_map + reg);
 	return 0;
 }
 EXPORT_SYMBOL(map_raw_write);
+
+int map_raw_bulk_write(struct map_private *map_priv, unsigned int reg,
+				void *val, int val_count)
+{
+	unsigned int ival, i;
+
+	for (i = 0; i < val_count; i++) {
+		ival = *(u32 *)(val + (i * 32));
+		writel(ival, map_priv->regs_map + reg);
+	}
+	return 0;
+}
+EXPORT_SYMBOL(map_raw_bulk_write);
 
 unsigned int map_raw_read(struct map_private *map_priv,
 					unsigned int reg)
 {
 	unsigned int value;
 
-	value = readl_relaxed(map_priv->regs_map + reg);
+	value = readl(map_priv->regs_map + reg);
 	return value;
 }
 EXPORT_SYMBOL(map_raw_read);
+
+unsigned int map_raw_bulk_read(struct map_private *map_priv,
+		unsigned int reg, void *val, int val_count)
+{
+	unsigned int i;
+
+	for (i = 0; i < val_count; i++) {
+		*(u32 *)(val + (i * 32))
+			= readl(map_priv->regs_map + reg + (i * 4));
+	}
+	return 0;
+}
+EXPORT_SYMBOL(map_raw_bulk_read);
 
 /*
  * Fixme: heat on pxa1928 A0 and helan2 Z1: if want to use dsp1a,
@@ -713,7 +736,6 @@ DEFINE_SPINLOCK(dsp1a_en_lock);
 static void mmp_map_dsp_mute(struct map_private *map_priv, int port,
 				int mute, int do_enable, int do_mute)
 {
-	struct regmap *regmap = map_priv->regmap;
 	unsigned int enable_reg, mute_reg, val, mask;
 	unsigned int reg;
 	bool mono_en = false;
@@ -724,13 +746,13 @@ static void mmp_map_dsp_mute(struct map_private *map_priv, int port,
 		/* reset dsp1 */
 		if ((mute == 0) && do_enable) {
 			reg = MAP_TOP_CTRL_REG_1;
-			val = 1 << 8;
-			mask = 1 << 8;
-			regmap_update_bits(regmap, reg, mask, val);
+			val = map_raw_read(map_priv, reg);
+			val |= (1 << 8);
+			map_raw_write(map_priv, reg, val);
 
-			val = 0;
 			mask = 1 << 8;
-			regmap_update_bits(regmap, reg, mask, val);
+			val &= (~mask);
+			map_raw_write(map_priv, reg, val);
 
 			if (map_priv->dsp1_mono_en)
 				mono_en = true;
@@ -741,13 +763,13 @@ static void mmp_map_dsp_mute(struct map_private *map_priv, int port,
 		/* reset dsp1 */
 		if ((mute == 0) && do_enable) {
 			reg = MAP_TOP_CTRL_REG_1;
-			val = 1 << 9;
-			mask = 1 << 9;
-			regmap_update_bits(regmap, reg, mask, val);
+			val = map_raw_read(map_priv, reg);
+			val |= (1 << 9);
+			map_raw_write(map_priv, reg, val);
 
-			val = 0;
 			mask = 1 << 9;
-			regmap_update_bits(regmap, reg, mask, val);
+			val &= (~mask);
+			map_raw_write(map_priv, reg, val);
 
 			if (map_priv->dsp2_mono_en)
 				mono_en = true;
@@ -758,13 +780,13 @@ static void mmp_map_dsp_mute(struct map_private *map_priv, int port,
 		/* reset dsp1 */
 		if ((mute == 0) && do_enable) {
 			reg = MAP_TOP_CTRL_REG_1;
-			val = 1 << 10;
-			mask = 1 << 10;
-			regmap_update_bits(regmap, reg, mask, val);
+			val = map_raw_read(map_priv, reg);
+			val |= (1 << 10);
+			map_raw_write(map_priv, reg, val);
 
-			val = 0;
 			mask = 1 << 10;
-			regmap_update_bits(regmap, reg, mask, val);
+			val &= (~mask);
+			map_raw_write(map_priv, reg, val);
 
 			if (map_priv->dsp1a_mono_en)
 				mono_en = true;
@@ -775,9 +797,10 @@ static void mmp_map_dsp_mute(struct map_private *map_priv, int port,
 	if (mute) {
 		/* mute dsp */
 		if (do_mute) {
-			val = 0x0;
+			val = map_raw_read(map_priv, mute_reg);
 			mask = 0x20;
-			regmap_update_bits(regmap, mute_reg, mask, val);
+			val &= (~mask);
+			map_raw_write(map_priv, mute_reg, val);
 
 			/*
 			 * Fixme: Per DE's suggestion, add two sample delay here
@@ -789,31 +812,34 @@ static void mmp_map_dsp_mute(struct map_private *map_priv, int port,
 
 		/* disable dsp */
 		if (do_enable) {
-			val = 0x0;
+			val = map_raw_read(map_priv, enable_reg);
 			if (!map_priv->b0_fix)
 				mask = 0x13;
 			else
 				mask = 0x3;
-			regmap_update_bits(regmap, enable_reg, mask, val);
+			val &= (~mask);
+			map_raw_write(map_priv, enable_reg, val);
 		}
 	} else {
 		/* enable dsp */
 		if (do_enable) {
-			val = 0x3;
+			val = map_raw_read(map_priv, enable_reg);
 			if (mono_en && !map_priv->b0_fix)
 				val |= 0x10;
 			if (!map_priv->b0_fix)
 				mask = 0x13;
 			else
 				mask = 0x3;
-			regmap_update_bits(regmap, enable_reg, mask, val);
+			val &= (~mask);
+			val |= 0x3;
+			map_raw_write(map_priv, enable_reg, val);
 		}
 
 		/* unmute dsp */
 		if (do_mute) {
-			val = 0x20;
-			mask = 0x20;
-			regmap_update_bits(regmap, mute_reg, mask, val);
+			val = map_raw_read(map_priv, mute_reg);
+			val |= 0x20;
+			map_raw_write(map_priv, mute_reg, val);
 		}
 	}
 }
@@ -988,41 +1014,41 @@ static int map_clk_src_switch(struct map_private *map_priv, u32 vctcxo)
 		/* restore dsp aux registers */
 		reg_addr = regs_aux + DSP_AUDIO_SRAM_CLK;
 		val = map_priv->sram;
-		writel_relaxed(val, reg_addr);
-		val = readl_relaxed(reg_addr);
+		writel(val, reg_addr);
+		val = readl(reg_addr);
 		while (!(val & 0x6))
-			val = readl_relaxed(reg_addr);
+			val = readl(reg_addr);
 
 		reg_addr = regs_aux + DSP_AUDIO_APB_CLK;
 		val = map_priv->apb;
-		writel_relaxed(val, reg_addr);
-		val = readl_relaxed(reg_addr);
+		writel(val, reg_addr);
+		val = readl(reg_addr);
 		while (!(val & 0x3))
-			val = readl_relaxed(reg_addr);
+			val = readl(reg_addr);
 
 		/* switch map_apb & sram clock source to apll */
 		if (map_priv->apll == APLL_32K) {
 			reg_addr = regs_apmu;
-			val = readl_relaxed(reg_addr);
+			val = readl(reg_addr);
 			val &= ~((1 << bit_sram) | (1 << bit_apb));
-			writel_relaxed(val, reg_addr);
+			writel(val, reg_addr);
 		}
 	} else {
 		/* switch map_apb & sram clock source to vctcxo */
 		reg_addr = regs_apmu;
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		val |= ((1 << bit_sram) | (1 << bit_apb));
-		writel_relaxed(val, reg_addr);
+		writel(val, reg_addr);
 
 		reg_addr = regs_aux + DSP_AUDIO_SRAM_CLK;
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		val &= ~0xf;
-		writel_relaxed(val, reg_addr);
+		writel(val, reg_addr);
 
 		reg_addr = regs_aux + DSP_AUDIO_APB_CLK;
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		val &= ~0x3;
-		writel_relaxed(val, reg_addr);
+		writel(val, reg_addr);
 	}
 
 	return 0;
@@ -1040,33 +1066,33 @@ static int map_save_aux_reg(struct map_private *map_priv)
 
 	/* save dsp aux register */
 	reg_addr = regs_aux + DSP_AUDIO_ADMA_CLK;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	map_priv->adma = val;
 
 	reg_addr = regs_aux + DSP_AUDIO_SSPA1_CLK;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	map_priv->sspa1 = val;
 
 	reg_addr = regs_aux + DSP_AUDIO_WAKEUP_MASK;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	map_priv->wakeup = val;
 
 	reg_addr = regs_aux + DSP_AUDIO_MAP_CONF;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	map_priv->conf = val;
 
 	/* map-lite doesn't have below reg */
 	if (!map_priv->map_lite) {
 		reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		map_priv->sspa2 = val;
 
 		reg_addr = regs_aux + DSP_AUDIO_SRAM_CLK;
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		map_priv->sram = val;
 
 		reg_addr = regs_aux + DSP_AUDIO_APB_CLK;
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		map_priv->apb = val;
 	}
 
@@ -1085,26 +1111,26 @@ static int map_restore_aux_reg(struct map_private *map_priv)
 	/* restore dsp aux registers */
 	reg_addr = regs_aux + DSP_AUDIO_ADMA_CLK;
 	val = map_priv->adma;
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	reg_addr = regs_aux + DSP_AUDIO_SSPA1_CLK;
 	val = map_priv->sspa1;
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	/* map-lite doesn't have sspa2 reg */
 	if (!map_priv->map_lite) {
 		reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
 		val = map_priv->sspa2;
-		writel_relaxed(val, reg_addr);
+		writel(val, reg_addr);
 	}
 
 	reg_addr = regs_aux + DSP_AUDIO_WAKEUP_MASK;
 	val = map_priv->wakeup;
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	reg_addr = regs_aux + DSP_AUDIO_MAP_CONF;
 	val = map_priv->conf;
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	map_clk_src_switch(map_priv, 0);
 
@@ -1131,7 +1157,7 @@ static int map_aux_clk_init(struct map_private *map_priv)
 		val = 0x13;
 	else if (map_priv->apll == APLL_26M)
 		val = 0x17;
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	/*
 	 * SSPA1 clock:
@@ -1143,13 +1169,13 @@ static int map_aux_clk_init(struct map_private *map_priv)
 	 * clock enable, out of reset
 	 */
 	reg_addr = regs_aux + DSP_AUDIO_SSPA1_CLK;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val &= ~0x3;
 	if (map_priv->apll == APLL_32K)
 		val |= 0x8000000c;
 	else if (map_priv->apll == APLL_26M)
 		val |= 0x8000000d;
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	/*
 	 * SSPA2 clock:
@@ -1163,13 +1189,13 @@ static int map_aux_clk_init(struct map_private *map_priv)
 	/* map-lite doesn't have below reg */
 	if (!map_priv->map_lite) {
 		reg_addr = regs_aux + DSP_AUDIO_SSPA2_CLK;
-		val = readl_relaxed(reg_addr);
+		val = readl(reg_addr);
 		val &= ~0x3;
 		if (map_priv->apll == APLL_32K)
 			val |= 0x8000000c;
 		else if (map_priv->apll == APLL_26M)
 			val |= 0x8000000d;
-		writel_relaxed(val, reg_addr);
+		writel(val, reg_addr);
 	}
 
 	/*
@@ -1181,10 +1207,10 @@ static int map_aux_clk_init(struct map_private *map_priv)
 	 * MAP: bit 13
 	 */
 	reg_addr = regs_aux + DSP_AUDIO_WAKEUP_MASK;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	val &= ~(0xf << 28);
 	val |= (0x7 << 13);
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	/*
 	 * MAP clock:
@@ -1194,12 +1220,12 @@ static int map_aux_clk_init(struct map_private *map_priv)
 	 * other bits are not configured here
 	 */
 	reg_addr = regs_aux + DSP_AUDIO_MAP_CONF;
-	val = readl_relaxed(reg_addr);
+	val = readl(reg_addr);
 	if (map_priv->apll == APLL_32K)
 		val |= (0x1 << 8);
 	else if (map_priv->apll == APLL_26M)
 		val &= ~(0x1 << 8);
-	writel_relaxed(val, reg_addr);
+	writel(val, reg_addr);
 
 	/* I2S_SYSCLK_1, I2S_SYSCLK_2 are not used */
 
@@ -1233,10 +1259,10 @@ static int map_internal_clk_init(struct map_private *map_priv)
 
 	/* Load MAP DSP firmware */
 	reg = MAP_TOP_CTRL_REG_2;
-	val = readl_relaxed(map_priv->regs_map + reg);
+	val = map_raw_read(map_priv, reg);
 	val &= ~0x7f;
 	val |= (0x4d | (map_priv->pll_sel << 1));
-	writel_relaxed(val, map_priv->regs_map + reg);
+	map_raw_write(map_priv, reg, val);
 
 	return 0;
 }
@@ -1248,14 +1274,14 @@ void map_load_dsp_pram(struct map_private *map_priv)
 
 	for (i = 0; i < ARRAY_SIZE(map_pram); i++) {
 		off = map_pram[i].addr;
-		writel_relaxed(map_pram[i].val, map_priv->regs_map + off);
+		map_raw_write(map_priv, off, map_pram[i].val);
 	}
 	map_priv->dsp1_sw_id =
-		readl_relaxed(map_priv->regs_map + MAP_DSP1_FW_LOCATE);
+		map_raw_read(map_priv, MAP_DSP1_FW_LOCATE);
 	map_priv->dsp2_sw_id =
-		readl_relaxed(map_priv->regs_map + MAP_DSP2_FW_LOCATE);
+		map_raw_read(map_priv, MAP_DSP2_FW_LOCATE);
 	map_priv->dsp1a_sw_id =
-		readl_relaxed(map_priv->regs_map + MAP_DSP1A_FW_LOCATE);
+		map_raw_read(map_priv, MAP_DSP1A_FW_LOCATE);
 
 }
 
@@ -1264,23 +1290,23 @@ static void map_reg_dump_all(void)
 	unsigned int i, reg_val = 0;
 
 	for (i = 0; i <= 0x8c; i += 4) {
-		regmap_read(regmap_map, i, &reg_val);
+		reg_val = map_raw_read(audio_map_priv, i);
 		pr_info("%3x = %x\n", i, reg_val);
 	}
 	for (i = 0x100; i <= 0x1b4; i += 4) {
-		regmap_read(regmap_map, i, &reg_val);
+		reg_val = map_raw_read(audio_map_priv, i);
 		pr_info("%3x = %x\n", i, reg_val);
 	}
 	for (i = 0x200; i <= 0x2b4; i += 4) {
-		regmap_read(regmap_map, i, &reg_val);
+		reg_val = map_raw_read(audio_map_priv, i);
 		pr_info("%3x = %x\n", i, reg_val);
 	}
 	for (i = 0x300; i <= 0x35c; i += 4) {
-		regmap_read(regmap_map, i, &reg_val);
+		reg_val = map_raw_read(audio_map_priv, i);
 		pr_info("%3x = %x\n", i, reg_val);
 	}
 	for (i = 0x400; i <= 0x40c; i += 4) {
-		regmap_read(regmap_map, i, &reg_val);
+		reg_val = map_raw_read(audio_map_priv, i);
 		pr_info("%3x = %x\n", i, reg_val);
 	}
 }
@@ -1300,7 +1326,7 @@ static ssize_t map_reg_show(struct device *dev,
 		return -EINVAL;
 	}
 
-	regmap_read(regmap_map, map_offset, &reg_val);
+	reg_val = map_raw_read(audio_map_priv, map_offset);
 
 	len = sprintf(buf, "map_offset=0x%x, val=0x%x\n", map_offset, reg_val);
 
@@ -1336,14 +1362,15 @@ static ssize_t map_reg_set(struct device *dev,
 			return -EINVAL;
 		reg_val &= 0xFFFFFFFF;
 
-		regmap_write(regmap_map, map_offset, reg_val);
+		map_raw_write(audio_map_priv, map_offset, reg_val);
 
 		pr_info("map_offset is 0x%x val 0x%x\n", map_offset, reg_val);
 
 		/* apply changes */
 		reg = MAP_DAC_ANA_MISC;
-		val = APPLY_CHANGES;
-		regmap_update_bits(regmap_map, reg, val, val);
+		val = map_raw_read(audio_map_priv, reg);
+		val |= APPLY_CHANGES;
+		map_raw_write(audio_map_priv, reg, val);
 	} else {
 		if (kstrtoint(buf, 16, &map_offset) < 0)
 			return -EINVAL;
@@ -1369,11 +1396,11 @@ static void dspaux_reg_dump_all(void)
 	unsigned int i, reg_val = 0;
 
 	for (i = 0; i <= 0x2c; i += 4) {
-		reg_val = readl_relaxed(regmap_aux + i);
+		reg_val = readl(regmap_aux + i);
 		pr_info("%2x = %x\n", i, reg_val);
 	}
 	for (i = 0x68; i <= 0x80; i += 4) {
-		reg_val = readl_relaxed(regmap_aux + i);
+		reg_val = readl(regmap_aux + i);
 		pr_info("%2x = %x\n", i, reg_val);
 	}
 }
@@ -1393,7 +1420,7 @@ static ssize_t dspaux_reg_show(struct device *dev,
 		return -EINVAL;
 	}
 
-	reg_val = readl_relaxed(regmap_aux + aux_offset);
+	reg_val = readl(regmap_aux + aux_offset);
 
 	len = sprintf(buf, "aux_offset=0x%x, val=0x%x\n", aux_offset, reg_val);
 
@@ -1429,7 +1456,7 @@ static ssize_t dspaux_reg_set(struct device *dev,
 			return -EINVAL;
 		reg_val &= 0xFFFFFFFF;
 
-		writel_relaxed(reg_val, regmap_aux + aux_offset);
+		writel(reg_val, regmap_aux + aux_offset);
 
 		pr_info("aux_offset is 0x%x val 0x%x\n", aux_offset, reg_val);
 	} else {
@@ -1462,36 +1489,36 @@ static int map_config(struct map_private *map_priv)
 	/* configure pad */
 #ifdef USE_3_WIRES_MODE
 	/* set 3 wires mode in MAP */
-	val = readl_relaxed(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	val = readl(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 	val |=  (1 << 10);
-	writel_relaxed(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	writel(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 #endif
-	val = readl_relaxed(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	val = readl(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 	val &=  ~MAP_RESET;
-	writel_relaxed(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
-	val = readl_relaxed(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	writel(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	val = readl(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 	val |=  MAP_RESET;
-	writel_relaxed(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	writel(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 
 #ifndef CONFIG_MAP_BYPASS
-	val = readl_relaxed(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	val = readl(map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 	val &= ~(SSPA1_PAD_OUT_SRC_MASK | SSPA2_PAD_OUT_SRC_MASK);
 	val |= TDM_DRIVE_SSPA1_PAD;
 	val |= I2S4_DRIVE_SSPA2_PAD;
 	val &= ~AUD_SSPA1_INPUT_SRC;
 	val &= ~AUD_SSPA2_INPUT_SRC;
 	val |= CP_GSSP_INPUT_FROM_I2S2;
-	writel_relaxed(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
+	writel(val, map_priv->regs_aux + DSP_AUDIO_MAP_CONF);
 #endif
 
 	/* Load MAP DSP firmware */
 	reg = MAP_TOP_CTRL_REG_2;
-	val = readl_relaxed(map_priv->regs_map + reg);
+	val = map_raw_read(map_priv, reg);
 	val &= ~(1 << 6); /* choose apb pclk */
-	writel_relaxed(val, map_priv->regs_map + reg);
+	map_raw_write(map_priv, reg, val);
 	map_load_dsp_pram(map_priv);
 	val |= (1 << 6); /* choose dig_clk */
-	writel_relaxed(val, map_priv->regs_map + reg);
+	map_raw_write(map_priv, reg, val);
 
 	return 0;
 }
@@ -1499,7 +1526,6 @@ static int map_config(struct map_private *map_priv)
 /* put map into active state*/
 void map_be_active(struct map_private *map_priv)
 {
-	struct regmap *regmap = map_priv->regmap;
 	unsigned int reg, val;
 
 	spin_lock(&map_priv->map_lock);
@@ -1511,16 +1537,16 @@ void map_be_active(struct map_private *map_priv)
 		/* put map into active state */
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0x3;
-		regmap_write(regmap, reg, val);
+		map_raw_write(map_priv, reg, val);
 
 		/* set clock here */
 		reg = MAP_TOP_CTRL_REG_2;
 		val = (0x4d | (map_priv->pll_sel << 1));
-		regmap_write(regmap, reg, val);
+		map_raw_write(map_priv, reg, val);
 
 		reg = MAP_ASRC_CTRL_REG;
 		val = 0xff;
-		regmap_write(regmap, reg, val);
+		map_raw_write(map_priv, reg, val);
 	}
 	map_priv->user_count++;
 	spin_unlock(&map_priv->map_lock);
@@ -1532,7 +1558,6 @@ EXPORT_SYMBOL(map_be_active);
 /* put map into reset state*/
 void map_be_reset(struct map_private *map_priv)
 {
-	struct regmap *regmap = map_priv->regmap;
 	unsigned int reg, val;
 
 	spin_lock(&map_priv->map_lock);
@@ -1541,11 +1566,11 @@ void map_be_reset(struct map_private *map_priv)
 		/* reset map */
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0xfff10;
-		regmap_write(regmap, reg, val);
+		map_raw_write(map_priv, reg, val);
 
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0x1;
-		regmap_write(regmap, reg, val);
+		map_raw_write(map_priv, reg, val);
 
 		/* release constaint to allow LPM if needed */
 		if (map_priv->lpm_qos >= 0)
@@ -1561,16 +1586,15 @@ EXPORT_SYMBOL(map_be_reset);
 /* check if map is used by CP(i2s2) or FM(i2s3) */
 static int map_i2s2_i2s3_active(struct map_private *map_priv)
 {
-	struct regmap *regmap = map_priv->regmap;
 	unsigned int reg, val;
 
 	reg = MAP_I2S2_CTRL_REG;
-	regmap_read(regmap, reg, &val);
+	val = map_raw_read(map_priv, reg);
 	if ((val & I2S_GEN_EN) || (val & I2S_REC_EN))
 		return 1;
 
 	reg = MAP_I2S3_CTRL_REG;
-	regmap_read(regmap, reg, &val);
+	val = map_raw_read(map_priv, reg);
 	if ((val & I2S_GEN_EN) || (val & I2S_REC_EN))
 		return 1;
 
@@ -1580,7 +1604,7 @@ static int map_i2s2_i2s3_active(struct map_private *map_priv)
 /* used to check whether map is lite version */
 bool map_get_lite_attr(void)
 {
-	return firmware_map_priv->map_lite;
+	return audio_map_priv->map_lite;
 }
 EXPORT_SYMBOL(map_get_lite_attr);
 
@@ -1693,8 +1717,6 @@ static int mmp_map_probe(struct platform_device *pdev)
 	if (map_priv == NULL)
 		return -ENOMEM;
 
-	firmware_map_priv = map_priv;
-
 	/* MAP AUX register area */
 	res0 = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res0 == NULL) {
@@ -1802,7 +1824,7 @@ static int mmp_map_probe(struct platform_device *pdev)
 	}
 
 	/* add debug interface */
-	regmap_map = map_priv->regmap;
+	audio_map_priv = map_priv;
 	regmap_aux = map_priv->regs_aux;
 	/* add map_reg sysfs entries */
 	ret = device_create_file(&pdev->dev, &dev_attr_map_reg);
