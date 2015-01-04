@@ -576,7 +576,6 @@ static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
 	{.rate = 416000000, .parent_index = 0,/* pll1_416_gate */},
 	{.rate = 624000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 705000000, .parent_index = 2, /* pll2p */},
 };
 
 static struct mmp_clk_mix_config gcsh_mix_config = {
