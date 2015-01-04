@@ -257,18 +257,18 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 /* pll default rate determined by ddr_mode */
 unsigned long pll_dfrate[DDR_TYPE_MAX][MAX_PLL_NUM][MAX_PLL_TYPE] = {
 	[DDR_533M] = {
-		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
 		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
 		/* for 533M case, reserve pll4 for LCD */
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
 	[DDR_667M] = {
-		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
 		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
 		{2670lu * MHZ, 1335 * MHZ, 667 * MHZ},
 	},
 	[DDR_800M] = {
-		{2115 * MHZ, 1057 * MHZ, 2115 * MHZ},
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
 		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
@@ -651,7 +651,7 @@ static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
 	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x00385454},
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00385454},
 	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */ .xtc = 0x00B85454},
-	{.rate = 528750000, .parent_index = 3, /* pll2p */ .xtc = 0x00B8A5A4},
+	{.rate = 528000000, .parent_index = 3, /* pll2p */ .xtc = 0x00B8A5A4},
 };
 
 static struct mmp_clk_mix_config vpufclk_mix_config = {
