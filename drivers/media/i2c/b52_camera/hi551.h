@@ -1879,7 +1879,7 @@ struct regval_tab hi551_res_init[] = {
 	{0x0918, 0x0f09},
 	{0x0F02, 0x0106},
 	{0x0C36, 0x0100},
-	{0x0000, 0x0000},
+	{0x0000, 0x0100},
 	{0x003C, 0x0000},
 	{0x003E, 0x0000},
 	{0x004C, 0x0100},
@@ -2066,7 +2066,7 @@ struct regval_tab hi551_vflip[] = {
 	{0x0000, 0x0100, 0x0100},
 };
 struct regval_tab hi551_hflip[] = {
-	{0x0000, 0x0200, 0x0200},
+	{0x0000, 0x0000, 0x0200},
 };
 struct b52_sensor_i2c_attr hi551_i2c_attr[] = {
 	[0] = {
@@ -2092,7 +2092,7 @@ struct b52_sensor_i2c_attr hi551_i2c_attr[] = {
 #define N_HI551_VFLIP ARRAY_SIZE(hi551_vflip)
 
 struct b52_sensor_mbus_fmt hi551_fmt = {
-	.mbus_code	= V4L2_MBUS_FMT_SRGGB10_1X10,
+	.mbus_code	= V4L2_MBUS_FMT_SGBRG10_1X10,
 	.colorspace	= V4L2_COLORSPACE_SRGB,
 	.regs = {
 		.tab = hi551_fmt_raw10,
