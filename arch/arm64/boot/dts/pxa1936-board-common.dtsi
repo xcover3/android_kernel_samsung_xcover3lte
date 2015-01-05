@@ -954,7 +954,6 @@
 				capture_period_bytes = <4096>;
 				capture_buffer_bytes = <8192>;
 				burst_size = <4>;
-				sleep_vol = <850>;
 				#dailink-cells = <1>;
 				status = "okay";
 			};
@@ -968,7 +967,6 @@
 				capture_period_bytes = <4096>;
 				capture_buffer_bytes = <8192>;
 				burst_size = <4>;
-				sleep_vol = <850>;
 				#dailink-cells = <1>;
 				status = "okay";
 			};
@@ -980,6 +978,7 @@
 				mmp_map_codec: mmp_map_codec {
 					compatible = "marvell,mmp-map-codec";
 					#dailink-cells = <1>;
+					sleep_vol = <800>;
 				};
 				mmp_map_be: mmp_map_be {
 					compatible = "marvell,mmp-map-be";
