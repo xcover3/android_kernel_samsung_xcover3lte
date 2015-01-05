@@ -988,7 +988,8 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 			0, pxa_unit->apmu_base + APMU_CCIC1,
 			22, 4, 0, &ccic1_lock);
 
-	clk = mmp_clk_register_gate(NULL, "isim_vclk_gate", "isim_vclk_div", 0,
+	clk = mmp_clk_register_gate(NULL, "isim_vclk_gate", "isim_vclk_div",
+			CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 			pxa_unit->apmu_base + APMU_CCIC1,
 			0x4000000, 0x4000000, 0x0, 0, &ccic1_lock);
 	mmp_clk_add(unit, PXA1936_CLK_SC2_MCLK, clk);
