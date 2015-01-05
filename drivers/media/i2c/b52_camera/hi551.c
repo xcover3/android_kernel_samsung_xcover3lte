@@ -53,7 +53,7 @@ static int HI551_get_dphy_desc(struct v4l2_subdev *sd,
 			struct csi_dphy_desc *dphy_desc, u32 mclk)
 {
 	HI551_get_mipiclock(sd, &dphy_desc->clk_freq, mclk);
-	dphy_desc->hs_prepare = 50;
+	dphy_desc->hs_prepare = 70;
 	dphy_desc->hs_zero  = 150;
 
 	return 0;
