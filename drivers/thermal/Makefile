@@ -19,6 +19,7 @@ thermal_sys-$(CONFIG_THERMAL_GOV_BI_DIRECTION)	+= bi_direction.o
 thermal_sys-$(CONFIG_CPU_THERMAL)	+= cpu_cooling.o
 # mrvl cooling devices
 thermal_sys-$(CONFIG_COOLING_DEV_MRVL)	+= cooling_dev_mrvl.o
+thermal_sys-$(CONFIG_COOLING_DEV_MRVL)  += voltage_mrvl.o
 
 # platform thermal drivers
 obj-$(CONFIG_SPEAR_THERMAL)	+= spear_thermal.o
