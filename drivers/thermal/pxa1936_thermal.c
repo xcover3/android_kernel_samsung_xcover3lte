@@ -36,6 +36,12 @@
 #include <linux/cpu.h>
 #include <linux/pm_qos.h>
 #include <linux/cputype.h>
+#include <linux/uaccess.h>
+
+#include <linux/devfreq.h>
+#include <linux/debugfs.h>
+#include "voltage_mrvl.h"
+
 
 #define APB_CLK_BASE (0xd4015000)
 #define TSEN_PCTRL (0x0)
@@ -92,6 +98,67 @@
 #define reg_clr_set(off, clr, set) \
 	reg_write(((reg_read(off) & ~(clr)) | (set)), off)
 
+unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
+	[THERMAL_POLICY_DKB_VL_MAXT] = {
+		[THROTTLE_VL]		= { 0,
+		0, 0, 0, 0, 0, 0, 0,
+		},
+		[THROTTLE_CORE]		= { 0,
+		0, 1, 2, 3, 4, 5, 6
+		},
+		[THROTTLE_CORE1]	= { 0,
+		0, 0, 0, 0, 0, 0, 0
+		},
+		[THROTTLE_HOTPLUG]	= { 0,
+		0, 0, 0, 0, 0, 0, 0
+		},
+		[THROTTLE_DDR]		= { 0,
+		0, 0, 0, 0, 0, 0, 0,
+		},
+		[THROTTLE_GC3D]		= { 1,
+		0, 1, 2, 3, 4, 5, 5,
+		},
+		[THROTTLE_GC2D]		= { 1,
+		0, 0, 1, 2, 3, 4, 5,
+		},
+		[THROTTLE_GCSH]		= { 1,
+		0, 1, 2, 3, 4, 5, 5,
+		},
+		[THROTTLE_VPU]	= { 0,
+		0, 0, 0, 0, 0, 0, 0,
+		},
+	},
+	[THERMAL_POLICY_FF_VL_MAXT] = {
+		[THROTTLE_VL]		= { 0,
+		0, 0, 0, 0, 0, 0, 0,
+		},
+		[THROTTLE_CORE]		= { 0,
+		0, 1, 2, 3, 4, 5, 6
+		},
+		[THROTTLE_CORE1]	= { 0,
+		0, 0, 0, 0, 0, 0, 0
+		},
+		[THROTTLE_HOTPLUG]	= { 0,
+		0, 0, 0, 0, 0, 0, 0
+		},
+		[THROTTLE_DDR]		= { 0,
+		0, 0, 0, 0, 0, 0, 0,
+		},
+		[THROTTLE_GC3D]		= { 1,
+		0, 1, 2, 3, 4, 5, 5,
+		},
+		[THROTTLE_GC2D]		= { 1,
+		0, 0, 1, 2, 3, 4, 5,
+		},
+		[THROTTLE_GCSH]		= { 1,
+		0, 1, 2, 3, 4, 5, 5,
+		},
+		[THROTTLE_VPU]	= { 0,
+		0, 0, 0, 0, 0, 0, 0,
+		},
+	},
+};
+
 enum trip_points {
 	TRIP_POINT_0,
 	TRIP_POINT_1,
@@ -101,11 +168,6 @@ enum trip_points {
 	TRIP_POINT_5,
 	TRIP_POINTS_NUM,
 	TRIP_POINTS_ACTIVE_NUM = TRIP_POINTS_NUM - 1,
-};
-
-struct uevent_msg_priv {
-	int cur_s;
-	int last_s;
 };
 
 struct cooling_device {
@@ -134,16 +196,20 @@ struct pxa28nm_thermal_device {
 	int irq;
 	int ttemp_table[3/*2.0G,1.8G,1.5G*/][4];
 	int cpu_num;
+	int temp_max;
+	struct tsen_cooling_device maxdev;
+	struct pxa_voltage_thermal thermal_volt;
 };
 
 static struct pxa28nm_thermal_device thermal_dev;
+
 static int trips_temp[TRIP_POINTS_NUM] = {
 	85000, /* TRIP_POINT_1 */
 	90000, /* TRIP_POINT_2 */
 	95000, /* TRIP_POINT_3 */
 	100000, /* TRIP_POINT_4 */
 	115000, /* TRIP_POINT_5 */
-	120000, /* TRIP_POINT_5 */
+	120000, /* TRIP_POINT_6 */
 };
 
 static int trips_hyst[TRIP_POINTS_NUM] = {
@@ -155,38 +221,11 @@ static int trips_hyst[TRIP_POINTS_NUM] = {
 	120000, /* TRIP_POINT_5_D */
 };
 
-
-/* pxa1936 limit cpu freq  */
-static int pxa1936_cluster0_freq_state[TRIP_POINTS_NUM] = {
-	0, 1, 2, 3, 4, 5,
-};
-
-static int pxa1936_cluster1_freq_state[TRIP_POINTS_NUM] = {
-	0, 2, 3, 4, 6, 7,
-};
-
-/* pxa1936 cpu num in every state */
-static int pxa1936_cpu_plug_state[TRIP_POINTS_NUM] = {
-	0, 1, 2, 3, 6, 7,
-};
-
-/* pxa1936 limit gc2d freq  */
-static int pxa1936_gpu_freq_state[TRIP_POINTS_NUM] = {
-	0, 1, 2, 3, 3, 3,
-};
-/* pxa1936 limit gc3d freq, limit a level gc3dfreq in every  thermal state*/
-static int pxa1936_gc3d_freq_state[TRIP_POINTS_NUM] = {
-	0, 2, 3, 4, 5, 5,
-};
-/* pxa1936 limit gcsh freq, limit a level gcshfreq in every thermal state */
-static int pxa1936_gcsh_freq_state[TRIP_POINTS_NUM] = {
-	0, 2, 3, 4, 5, 5,
-};
-
 #define THERMAL_SAFE_TEMP 80000
 
 #define THSEN_GAIN      3874
 #define THSEN_OFFSET    2821
+#define CONFIG_TSEN_MAX 1
 
 static int pxa28nm_set_threshold(int range);
 
@@ -267,7 +306,7 @@ static int cpu_sys_get_temp(struct thermal_zone_device *thermal,
 			*temp = 0;
 	} else
 		*temp = 0;
-
+	thermal_dev.temp_max = *temp;
 	return 0;
 }
 
@@ -369,6 +408,185 @@ static SIMPLE_DEV_PM_OPS(thermal_pm_ops,
 #define PXA_TMU_PM      NULL
 #endif
 
+
+static int pxa_register_cooling(void)
+{
+	thermal_dev.thermal_volt.cool_pxa.cool_cpufreq = cpufreq_cool_register("cluster0");
+	thermal_dev.thermal_volt.cool_pxa.cool_cpu1freq = cpufreq_cool_register("cluster1");
+	thermal_dev.thermal_volt.cool_pxa.cool_cpuhotplug = cpuhotplug_cool_register("helan3");
+	thermal_dev.thermal_volt.cool_pxa.cool_ddrfreq = ddrfreq_cool_register();
+	thermal_dev.thermal_volt.cool_pxa.cool_gc2dfreq = gpufreq_cool_register("gc2d");
+	thermal_dev.thermal_volt.cool_pxa.cool_gc3dfreq = gpufreq_cool_register("gc3d");
+	thermal_dev.thermal_volt.cool_pxa.cool_gcshfreq = gpufreq_cool_register("gcsh");
+	thermal_dev.thermal_volt.cool_pxa.cool_vpufreq = vpufreq_cool_register(DEVFREQ_VPU_0);
+	return 0;
+}
+
+static int max_get_max_state(struct thermal_cooling_device *cdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.maxdev.max_state;
+	return 0;
+}
+
+static int max_get_cur_state(struct thermal_cooling_device *cdev,
+		unsigned long *state)
+{
+	*state = thermal_dev.maxdev.cur_state;
+	return 0;
+}
+
+static int max_set_cur_state(struct thermal_cooling_device *cdev,
+		unsigned long state)
+{
+	struct thermal_cooling_device *c_freq = thermal_dev.thermal_volt.cool_pxa.cool_cpufreq;
+	struct thermal_cooling_device *core1_freq = thermal_dev.thermal_volt.cool_pxa.cool_cpu1freq;
+	struct thermal_cooling_device *c_plug =
+		thermal_dev.thermal_volt.cool_pxa.cool_cpuhotplug;
+	struct thermal_cooling_device *ddr_freq = thermal_dev.thermal_volt.cool_pxa.cool_ddrfreq;
+	struct thermal_cooling_device *gc2d_freq = thermal_dev.thermal_volt.cool_pxa.cool_gc2dfreq;
+	struct thermal_cooling_device *gc3d_freq = thermal_dev.thermal_volt.cool_pxa.cool_gc3dfreq;
+	struct thermal_cooling_device *gcsh_freq = thermal_dev.thermal_volt.cool_pxa.cool_gcshfreq;
+	struct thermal_cooling_device *vpu_freq = thermal_dev.thermal_volt.cool_pxa.cool_vpufreq;
+	unsigned long freq_state = 0, plug_state = 0, core1_freq_state = 0;
+	unsigned long ddr_freq_state;
+	unsigned long gc2d_freq_state = 0, gc3d_freq_state = 0, gcsh_freq_state = 0;
+	unsigned long vpu_freq_state = 0;
+	static u32 prev_state;
+	if (state > thermal_dev.maxdev.max_state)
+		return -EINVAL;
+	thermal_dev.maxdev.cur_state = state;
+
+	/* core related throttle */
+	freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_CORE][state + 1];
+	core1_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_CORE1][state + 1];
+	plug_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_HOTPLUG][state + 1];
+	if (c_freq)
+		c_freq->ops->set_cur_state(c_freq, freq_state);
+	if (core1_freq)
+		core1_freq->ops->set_cur_state(core1_freq, core1_freq_state);
+	if (c_plug)
+		c_plug->ops->set_cur_state(c_plug, plug_state);
+
+	pr_info("Thermal max temp: %d; CPU Throttle state %lu: cpu0freq qos %lu, cpu1freq qos %lu, core_num qos %lu\n",
+	thermal_dev.temp_max, state, freq_state, core1_freq_state, plug_state);
+
+	/* ddr related throttle */
+	ddr_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_DDR][state + 1];
+
+	if (ddr_freq)
+		ddr_freq->ops->set_cur_state(ddr_freq, ddr_freq_state);
+
+
+	pr_info("Thermal max temp: %d; DDR Throttle state %lu: ddrfreq qos %lu\n",
+	thermal_dev.temp_max, state, ddr_freq_state);
+
+	/* gc related throttle */
+	gc3d_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_GC3D][state + 1];
+	gc2d_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_GC2D][state + 1];
+	gcsh_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_GCSH][state + 1];
+	if (gc2d_freq)
+		gc2d_freq->ops->set_cur_state(gc2d_freq, gc2d_freq_state);
+	if (gc3d_freq)
+		gc3d_freq->ops->set_cur_state(gc3d_freq, gc3d_freq_state);
+	if (gcsh_freq)
+		gcsh_freq->ops->set_cur_state(gcsh_freq, gcsh_freq_state);
+	pr_info("Thermal max temp: %d: GC Throttle state %lu: gc2d qos %lu, gc3d qos %lu,gcsh qos %lu\n",
+			thermal_dev.temp_max, state, gc2d_freq_state, gc3d_freq_state,
+			gcsh_freq_state);
+
+	/* vpu related throttle */
+	vpu_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
+	[thermal_dev.thermal_volt.therm_policy][THROTTLE_VPU][state + 1];
+	if (vpu_freq)
+		vpu_freq->ops->set_cur_state(vpu_freq, vpu_freq_state);
+
+
+	pr_info("Thermal max temp: %d; VPU Throttle state %lu: vpu qos %lu\n",
+			thermal_dev.temp_max, state, vpu_freq_state);
+
+	if (prev_state < state)
+		pr_info("Thermal frequency limitation, performance impact expected!");
+	prev_state = state;
+	return 0;
+}
+
+static struct thermal_cooling_device_ops const max_cooling_ops = {
+	.get_max_state = max_get_max_state,
+	.get_cur_state = max_get_cur_state,
+	.set_cur_state = max_set_cur_state,
+};
+
+/* Register with the in-kernel thermal management */
+static int pxa_register_max_thermal(void)
+{
+	int i, trip_w_mask = 0;
+
+	thermal_dev.maxdev.cool_tsen = thermal_cooling_device_register(
+		"max-combine-cool", &thermal_dev, &max_cooling_ops);
+
+	thermal_dev.maxdev.max_state = TRIP_RANGE_MAX;
+	thermal_dev.maxdev.cur_state = 0;
+
+	for (i = 0; i < TRIP_POINTS_NUM; i++)
+		trip_w_mask |= (1 << i);
+
+	thermal_dev.thermal_volt.therm_max = thermal_zone_device_register(
+			"tsen_max", TRIP_POINTS_NUM, trip_w_mask,
+			&thermal_dev, &cpu_thermal_ops, NULL, 0, 0);
+	/*
+	 * enable bi_direction state machine, then it didn't care
+	 * whether up/down trip points are crossed or not
+	 */
+	thermal_dev.thermal_volt.therm_max->tzdctrl.state_ctrl = true;
+	/* bind combine cooling */
+
+		thermal_zone_bind_cooling_device(thermal_dev.thermal_volt.therm_max,
+			0, thermal_dev.maxdev.cool_tsen,
+			THERMAL_NO_LIMIT, THERMAL_NO_LIMIT);
+
+	i = sysfs_create_group(&((thermal_dev.thermal_volt.therm_max->device).kobj),
+			&thermal_attr_grp);
+	if (i < 0)
+		pr_err("Failed to register private thermal interface\n");
+
+	return 0;
+}
+
+#ifndef CONFIG_TSEN_MAX
+/* pxa1936 limit cpu freq  */
+static int pxa1936_cluster0_freq_state[TRIP_POINTS_NUM] = {
+	0, 1, 2, 3, 4, 5,
+};
+
+static int pxa1936_cluster1_freq_state[TRIP_POINTS_NUM] = {
+	0, 2, 3, 4, 6, 7,
+};
+
+/* pxa1936 cpu num in every state */
+static int pxa1936_cpu_plug_state[TRIP_POINTS_NUM] = {
+	0, 1, 2, 3, 6, 7,
+};
+
+/* pxa1936 limit gc2d freq  */
+static int pxa1936_gpu_freq_state[TRIP_POINTS_NUM] = {
+	0, 1, 2, 3, 3, 3,
+};
+/* pxa1936 limit gc3d freq, limit a level gc3dfreq in every  thermal state*/
+static int pxa1936_gc3d_freq_state[TRIP_POINTS_NUM] = {
+	0, 2, 3, 4, 5, 5,
+};
+/* pxa1936 limit gcsh freq, limit a level gcshfreq in every thermal state */
+static int pxa1936_gcsh_freq_state[TRIP_POINTS_NUM] = {
+	0, 2, 3, 4, 5, 5,
+};
 
 static int gpu_get_max_state(struct thermal_cooling_device *gdev,
 		unsigned long *state)
@@ -525,7 +743,6 @@ static struct thermal_cooling_device_ops const combile_cooling_ops = {
 	.set_cur_state = combile_set_cur_state,
 };
 
-
 static void pxa28nm_register_thermal(void)
 {
 	int i, trip_w_mask = 0;
@@ -569,6 +786,7 @@ static void pxa28nm_register_thermal(void)
 	if (i < 0)
 		pr_err("Failed to register private thermal interface\n");
 }
+#endif
 
 static int pxa28nm_set_threshold(int range)
 {
@@ -634,6 +852,9 @@ static irqreturn_t pxa28nm_thread_irq(int irq, void *devid)
 	if (thermal_dev.therm_gc)
 		thermal_zone_device_update(thermal_dev.therm_gc);
 
+	if (thermal_dev.thermal_volt.therm_max)
+		thermal_zone_device_update(thermal_dev.thermal_volt.therm_max);
+
 	return IRQ_HANDLED;
 }
 
@@ -668,6 +889,59 @@ static irqreturn_t pxa28nm_irq(int irq, void *devid)
 
 	return IRQ_WAKE_THREAD;
 }
+
+void pxa1936_register_initialize(void)
+{
+	u32 tmp;
+	thermal_dev.cpu_num = num_possible_cpus();
+
+	tmp = (millicelsius_encode(120000) << TSEN_WDT_THD_OFF) &
+					TSEN_WDT_THD_MASK;
+	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
+	reg_clr_set(TSEN_LCTRL, 0, TSEN_WDT_DIRECTION | TSEN_WDT_ENABLE);
+	tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
+			TSEN_THD2_OFF) & TSEN_THD2_MASK;
+	reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
+	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT2_ENABLE | TSEN_INT2_DIRECTION);
+
+	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE | TSEN_INT0_DIRECTION);
+	reg_clr_set(TSEN_LCTRL, TSEN_INT1_DIRECTION, TSEN_INT1_ENABLE);
+	thermal_dev.trip_range = 0;
+	pxa28nm_set_threshold(thermal_dev.trip_range);
+	/* set auto interval 200ms and start auto mode 2*/
+	pxa28nm_set_interval(200);
+	reg_clr_set(TSEN_PCTRL, TSEN_ISO_EN | TSEN_RESET, 0);
+	tmp = ((2 << TSEN_AUTO_MODE_OFF) & TSEN_AUTO_MODE_MASK);
+	reg_clr_set(TSEN_LCTRL, 0, tmp);
+	return;
+
+}
+
+void thermal_volt_init(void)
+{
+	int i;
+	thermal_dev.thermal_volt.tsen_throttle_tbl = pxa_tsen_throttle_tbl;
+	thermal_dev.thermal_volt.therm_policy = THERMAL_POLICY_DKB_VL_MAXT;
+	thermal_dev.thermal_volt.range_max = TRIP_RANGE_MAX;
+	strcpy(thermal_dev.thermal_volt.cpu_name, "helan3");
+
+	thermal_dev.thermal_volt.vl_master =  THROTTLE_CORE;
+	for (i = 0; i < TRIP_POINTS_NUM; i++) {
+		thermal_dev.thermal_volt.tsen_trips_temp[i] = trips_temp[i];
+		thermal_dev.thermal_volt.tsen_trips_temp_d[i] = trips_hyst[i];
+	}
+	mutex_init(&thermal_dev.thermal_volt.policy_lock);
+	voltage_mrvl_init(&(thermal_dev.thermal_volt));
+	tsen_update_policy();
+	pxa_register_cooling();
+
+	pxa_register_max_thermal();
+
+	register_debug_interface();
+	tsen_policy_dump(NULL, 0);
+	return;
+}
+
 
 static int pxa1936_thermal_probe(struct platform_device *pdev)
 {
@@ -741,32 +1015,10 @@ static int pxa1936_thermal_probe(struct platform_device *pdev)
 	} else
 		pr_info("thermal status fine\n");
 
-	/* init thermal framework */
-	pxa28nm_register_thermal();
+	thermal_volt_init();
 
-	/* gc thermal register */
-	pxa1936_register_gc_thermal();
+	pxa1936_register_initialize();
 
-	thermal_dev.cpu_num = num_possible_cpus();
-
-	tmp = (millicelsius_encode(120000) << TSEN_WDT_THD_OFF) &
-					TSEN_WDT_THD_MASK;
-	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
-	reg_clr_set(TSEN_LCTRL, 0, TSEN_WDT_DIRECTION | TSEN_WDT_ENABLE);
-	tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
-			TSEN_THD2_OFF) & TSEN_THD2_MASK;
-	reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
-	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT2_ENABLE | TSEN_INT2_DIRECTION);
-
-	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE | TSEN_INT0_DIRECTION);
-	reg_clr_set(TSEN_LCTRL, TSEN_INT1_DIRECTION, TSEN_INT1_ENABLE);
-	thermal_dev.trip_range = 0;
-	pxa28nm_set_threshold(thermal_dev.trip_range);
-	/* set auto interval 200ms and start auto mode 2*/
-	pxa28nm_set_interval(200);
-	reg_clr_set(TSEN_PCTRL, TSEN_ISO_EN | TSEN_RESET, 0);
-	tmp = ((2 << TSEN_AUTO_MODE_OFF) & TSEN_AUTO_MODE_MASK);
-	reg_clr_set(TSEN_LCTRL, 0, tmp);
 	pr_info("helan3 thermal probed\n");
 	return 0;
 }
@@ -775,12 +1027,25 @@ static int pxa1936_thermal_remove(struct platform_device *pdev)
 {
 	reg_clr_set(TSEN_PCTRL, 0, TSEN_RESET);
 	clk_disable_unprepare(thermal_dev.therm_clk);
-	cpufreq_cool_unregister(thermal_dev.cdev.cool_cpu_cluster0_freq);
-	cpufreq_cool_unregister(thermal_dev.cdev.cool_cpu_cluster1_freq);
-	cpuhotplug_cool_unregister(thermal_dev.cdev.cool_cpuhotplug);
-	thermal_cooling_device_unregister(thermal_dev.cdev.combile_cool);
-	thermal_zone_device_unregister(thermal_dev.therm_cpu);
-	thermal_zone_device_unregister(thermal_dev.therm_gc);
+	if (!CONFIG_TSEN_MAX) {
+		cpufreq_cool_unregister(thermal_dev.cdev.cool_cpu_cluster0_freq);
+		cpufreq_cool_unregister(thermal_dev.cdev.cool_cpu_cluster1_freq);
+		cpuhotplug_cool_unregister(thermal_dev.cdev.cool_cpuhotplug);
+		thermal_cooling_device_unregister(thermal_dev.cdev.combile_cool);
+		thermal_zone_device_unregister(thermal_dev.therm_cpu);
+		thermal_zone_device_unregister(thermal_dev.therm_gc);
+	}
+
+	cpufreq_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_cpufreq);
+	cpufreq_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_cpu1freq);
+	cpuhotplug_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_cpuhotplug);
+	ddrfreq_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_ddrfreq);
+	gpufreq_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_gc2dfreq);
+	gpufreq_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_gc3dfreq);
+	gpufreq_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_gcshfreq);
+	vpufreq_cool_unregister(thermal_dev.thermal_volt.cool_pxa.cool_vpufreq);
+	thermal_cooling_device_unregister(thermal_dev.maxdev.cool_tsen);
+
 	pr_info("Kernel Thermal management unregistered\n");
 	return 0;
 }
