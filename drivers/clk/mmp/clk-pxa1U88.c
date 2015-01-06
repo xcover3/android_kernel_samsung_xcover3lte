@@ -602,7 +602,6 @@ static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
 	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00000044},
 	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00055544},
 	{.rate = 416000000, .parent_index = 0,/* pll1_416_gate */ .xtc = 0x000AAA44},
-	{.rate = 624000000, .parent_index = 1, /* pll1_624_gate */ .xtc = 0x000AAA55},
 };
 
 static struct mmp_clk_mix_config gc2d_mix_config = {
