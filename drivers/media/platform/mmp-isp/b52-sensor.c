@@ -947,6 +947,8 @@ static int b52_sensor_s_vcm_lp(struct v4l2_subdev *sd)
 	struct regval_tab tab[2];
 	struct b52_sensor *sensor = to_b52_sensor(sd)
 	ret = b52_sensor_g_vcm_info(sd, &vcm);
+	if (ret)
+		return ret;
 	vcm_type = vcm.type;
 	attr.addr = vcm.attr->addr;
 	data.attr = &attr;
