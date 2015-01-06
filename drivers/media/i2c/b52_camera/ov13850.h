@@ -524,6 +524,7 @@ struct regval_tab ov13850_res_13M[] = {
 struct regval_tab ov13850_id[] = {
 	{0x300A, 0xd8, 0xff},
 	{0x300B, 0x50, 0xff},
+	{0x302A, 0xB1, 0xff},
 };
 struct regval_tab ov13850_vts[] = {
 	{0x380e, 0x0d, 0x7f},
@@ -556,7 +557,7 @@ struct regval_tab ov13850_hflip[] = {
 };
 struct b52_sensor_i2c_attr ov13850_i2c_attr[] = {
 	[0] = {
-		.reg_len = I2C_16BIT,
+		.reg_len = I2C_8BIT,
 		.val_len = I2C_8BIT,
 		.addr = 0x10,
 	},

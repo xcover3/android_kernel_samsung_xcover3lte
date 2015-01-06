@@ -346,6 +346,7 @@ extern struct b52_sensor_data b52_ov5642;
 extern struct b52_sensor *b52_get_sensor(struct media_entity *entity);
 extern struct b52_sensor_data b52_ov13850_8M;
 extern struct b52_sensor_data b52_ov13850_13M;
+extern struct b52_sensor_data b52_ov13850r2a_13M;
 extern struct b52_sensor_data b52_imx219;
 extern struct b52_sensor_data b52_ov8858;
 extern struct b52_sensor_data b52_ov5648;

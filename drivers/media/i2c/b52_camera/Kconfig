@@ -12,6 +12,12 @@ config B52_CAMERA_OV13850_13M
 	help
 	  This is a V4L2 camera driver for the ov13850 13M setting.
 
+config B52_CAMERA_OV13850R2A
+	tristate "OV13850R2A sensor support"
+	depends on VIDEO_MMPISP_B52SENSOR && I2C && B52_CAMERA_OV13850
+	help
+	  This is a V4L2 camera driver for the ov13850R2A 13M setting.
+
 config B52_CAMERA_IMX219
 	tristate "imx219 sensor support"
 	depends on VIDEO_MMPISP_B52SENSOR && I2C
