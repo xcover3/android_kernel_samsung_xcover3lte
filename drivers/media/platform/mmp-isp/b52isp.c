@@ -276,6 +276,12 @@ static void __maybe_unused dump_mac_reg(void __iomem *mac_base)
 	}
 }
 
+void b52isp_set_ddr_qos(s32 value)
+{
+	pm_qos_update_request(&ddrfreq_qos_req_min, value);
+}
+EXPORT_SYMBOL(b52isp_set_ddr_qos);
+
 static int b52isp_attach_blk_isd(struct isp_subdev *isd, struct isp_block *blk)
 {
 	struct isp_dev_ptr *desc = devm_kzalloc(blk->dev, sizeof(*desc),
@@ -490,8 +496,10 @@ static int b52isp_idi_set_power(struct isp_block *block, int level)
 
 	if (level)
 		ret = pm_runtime_get_sync(block->dev);
-	else
+	else {
+		b52isp_set_ddr_qos(PM_QOS_DEFAULT_VALUE);
 		ret = pm_runtime_put(block->dev);
+	}
 
 	return ret;
 }
@@ -2746,9 +2754,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 				}
 				if (lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS)) {
 					paxi->r_type = B52AXI_REVENT_MEMSENSOR;
-					pm_qos_update_request(
-							&ddrfreq_qos_req_min,
-							528000);
+					b52isp_set_ddr_qos(528000);
 					ret = b52isp_try_apply_cmd(lpipe);
 					if (ret < 0)
 						goto unlock;
@@ -2972,9 +2978,7 @@ stream_off:
 			ret = b52isp_try_apply_cmd(lpipe);
 			if (lpipe->cur_cmd->cmd_name == CMD_SET_FORMAT)
 				laxi->dma_state = B52DMA_HW_NO_STREAM;
-			if (lpipe->cur_cmd->flags & CMD_FLAG_MS)
-				pm_qos_update_request(&ddrfreq_qos_req_min,
-						PM_QOS_DEFAULT_VALUE);
+
 			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_STREAM_OFF);
 			if (ret < 0) {
 				d_inf(1, "apply change cmd failed on port:%d\n",

@@ -18,6 +18,7 @@
 #include <linux/firmware.h>
 #include <linux/proc_fs.h>
 #include <linux/kernel.h>
+#include <linux/pm_qos.h>
 
 #include <media/b52socisp/b52socisp-vdev.h>
 #include <media/b52-sensor.h>
@@ -1866,6 +1867,18 @@ static int b52_cfg_isp_ms(const struct b52_sensor_data *data, int path)
 	return 0;
 }
 
+static inline void b52_zoom_ddr_qos(int zoom)
+{
+	s32 freq;
+	if (zoom < 0x300)
+		freq = PM_QOS_DEFAULT_VALUE;
+	else if (zoom < 0x350)
+		freq = 312000;
+	else
+		freq = 416000;
+	b52isp_set_ddr_qos(freq);
+}
+
 static int b52_cfg_zoom(struct v4l2_rect *src,
 			struct v4l2_rect *dst)
 {
@@ -1881,6 +1894,8 @@ static int b52_cfg_zoom(struct v4l2_rect *src,
 		ratio = 0x100;
 	}
 	b52_set_zoom_in_ratio(ratio);
+
+	b52_zoom_ddr_qos(ratio);
 
 	return 0;
 }
@@ -2951,7 +2966,7 @@ int b52_cmd_zoom_in(int path, int zoom)
 		pr_err("zoom cmd: zoom error %x\n", zoom);
 		return -EINVAL;
 	}
-
+	b52_zoom_ddr_qos(zoom);
 	mutex_lock(&cmd_mutex);
 	val = b52_convert_work_mode(path, 0);
 	b52_writeb(CMD_REG1, val);
