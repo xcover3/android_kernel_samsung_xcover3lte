@@ -763,7 +763,7 @@ static void clk_pll_init(struct clk_hw *hw)
 	if (!(pll->flags & (HELANX_PLLOUT | HELANX_PLLOUTP)))
 		BUG_ON("unknow pll type!\n");
 
-	parent_rate = clk_get_rate(parent);
+	parent_rate = clk_get_rate(parent) / MHZ;
 
 	if (!(vco->flags & HELANX_PLL_40NM)) {
 		pllx_swcr.v = pll_readl_pll_swcr(pll);
@@ -779,7 +779,7 @@ static void clk_pll_init(struct clk_hw *hw)
 			div_hw = pll_swcr.b.diff_div_sel;
 	}
 	div = __pll_div_hwval2div(vco, div_hw);
-	hw->clk->rate = parent_rate / div;
+	hw->clk->rate = parent_rate / div * MHZ;
 	pr_info("%s is enabled @ %lu\n", hw->clk->name, hw->clk->rate);
 }
 
