@@ -1477,21 +1477,13 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n",
 		 __func__, soc_from_saved, realiable_from_saved);
 	/*
-	 * here is a corner case:
+	 * there are two cases:
 	 * a) plug into the charger cable first
 	 * b) then plug into the battery
 	 * in this case the vbat_slp is a random value, it's not realiable
-	 *
-	 * fix:
-	 * if the system is "charger wake-uped"
-	 * then if (abs(soc_from_vbat_slp - soc_from_vbat) > 40)
-	 *	then check whether battery is changed,
-	 *	if not,
-	 *		initial_soc = soc_from_saved;
-	 *	else,
-	 *		initial_soc = soc_from_vbat_active;
-	 * else
-	 *	the initial_soc = soc_from_vbat_slp
+	 * OR
+	 * a) plug into the battery first
+	 * b) then plug into the charger cable
 	 */
 	if (info->chip->powerup & 0x2) {
 		active_volt = pm88x_get_batt_vol(info, 1);
@@ -1502,12 +1494,17 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 			 __func__, soc_from_vbat_active);
 
 		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40) {
+			/* plug into the charger cable first */
 			if (abs(soc_from_vbat_active - soc_from_saved) > 20)
 				*initial_soc = soc_from_vbat_active;
 			else
 				*initial_soc = soc_from_saved;
-		} else
+		} else if (abs(soc_from_vbat_slp - soc_from_saved) < 60) {
+			/* plug into the battery first */
+			*initial_soc = soc_from_saved;
+		} else {
 			*initial_soc = soc_from_vbat_slp;
+		}
 
 		*initial_cycles = cycles_from_saved;
 
