@@ -759,12 +759,24 @@ static int acc_release(struct inode *ip, struct file *fp)
 	return 0;
 }
 
+/* for 64bit kernel & 32bit platform */
+#ifdef CONFIG_COMPAT
+static long acc_compat_ioctl(struct file *file,
+		unsigned int cmd, unsigned long arg)
+{
+	return acc_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
+}
+#endif
+
 /* file operations for /dev/usb_accessory */
 static const struct file_operations acc_fops = {
 	.owner = THIS_MODULE,
 	.read = acc_read,
 	.write = acc_write,
 	.unlocked_ioctl = acc_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl =   acc_compat_ioctl,
+#endif
 	.open = acc_open,
 	.release = acc_release,
 };
