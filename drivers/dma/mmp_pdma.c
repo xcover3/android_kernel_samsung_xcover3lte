@@ -468,6 +468,7 @@ static void mmp_pdma_free_chan_resources(struct dma_chan *dchan)
 	unsigned long flags;
 
 	spin_lock_irqsave(&chan->desc_lock, flags);
+	chan->status = DMA_COMPLETE;
 	mmp_pdma_free_desc_list(chan, &chan->chain_pending);
 	mmp_pdma_free_desc_list(chan, &chan->chain_running);
 	mmp_pdma_free_phy(chan);
@@ -475,7 +476,6 @@ static void mmp_pdma_free_chan_resources(struct dma_chan *dchan)
 
 	dma_pool_destroy(chan->desc_pool);
 	chan->desc_pool = NULL;
-	chan->status = DMA_COMPLETE;
 	chan->dir = 0;
 	chan->dcmd = 0;
 	chan->drcmr = DRCMR_INVALID;
@@ -743,15 +743,15 @@ static int mmp_pdma_control(struct dma_chan *dchan, enum dma_ctrl_cmd cmd,
 	switch (cmd) {
 	case DMA_TERMINATE_ALL:
 		spin_lock_irqsave(&chan->desc_lock, flags);
+		chan->status = DMA_COMPLETE;
 		disable_chan(chan->phy);
-		mmp_pdma_qos_put(chan);
 		mmp_pdma_free_phy(chan);
 		mmp_pdma_free_desc_list(chan, &chan->chain_pending);
 		mmp_pdma_free_desc_list(chan, &chan->chain_running);
 		chan->bytes_residue = 0;
 		spin_unlock_irqrestore(&chan->desc_lock, flags);
+		tasklet_kill(&chan->tasklet);
 		mmp_pdma_qos_put(chan);
-		chan->status = DMA_COMPLETE;
 		break;
 	case DMA_PAUSE:
 		disable_chan(chan->phy);
@@ -929,6 +929,14 @@ static void dma_do_tasklet(unsigned long data)
 	LIST_HEAD(chain_cleanup);
 	unsigned long flags;
 	int ret = 0;
+
+	/* return if this channel has been stopped */
+	spin_lock_irqsave(&chan->desc_lock, flags);
+	if (chan->status == DMA_COMPLETE) {
+		spin_unlock_irqrestore(&chan->desc_lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(&chan->desc_lock, flags);
 
 	if (chan->cyclic_first) {
 		dma_async_tx_callback cb = NULL;
