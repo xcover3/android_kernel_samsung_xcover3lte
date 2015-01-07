@@ -38,19 +38,6 @@
 #define pll_writel_ssccfg(val, ssc_params) \
 	pll_writel(val, ssc_params->ssc_cfg)
 
-/* old pll2_cr */
-union pll_cr {
-	struct {
-		unsigned int reserved:8;
-		unsigned int en:1;
-		unsigned int ctrl:1;
-		unsigned int fbdiv:9;
-		unsigned int refdiv:5;
-		unsigned int reserved1:8;
-	} b;
-	unsigned int v;
-};
-
 /* unified pllx_cr */
 union pllx_cr {
 	struct {
@@ -63,27 +50,7 @@ union pllx_cr {
 	unsigned int v;
 };
 
-/* old pll SW control register */
-union pll_swcr {
-	struct {
-		unsigned int lineupen:1;
-		unsigned int gatectl:1;
-		unsigned int bypassen:1;
-		unsigned int diff_en:1;
-		unsigned int se_div_sel:4;
-		unsigned int diff_div_sel:4;
-		unsigned int ctune:2;
-		unsigned int vcovnrg:3;
-		unsigned int kvco:4;
-		unsigned int icp:3;
-		unsigned int vreg_ivreg:2;
-		unsigned int vddl:4;
-		unsigned int vddm:2;
-	} b;
-	unsigned int v;
-};
-
-/* new pll SW control register */
+/* unified pll SW control register */
 union pllx_swcr {
 	struct {
 		unsigned int avvd1815_sel:1;
@@ -104,7 +71,7 @@ union pllx_swcr {
 	unsigned int v;
 };
 
-/* ssc related only used for 28nm pll, 40nm pll SSC is not supported */
+/* 28nm PLL ssc related */
 union pllx_ssc_ctrl {
 	struct {
 		unsigned int pi_en:1;
@@ -277,16 +244,6 @@ static void disable_pll_ssc(struct clk_vco *vco)
 	__disable_ssc(ssc_params);
 }
 
-static struct kvco_range kvco_rng_table_40nm[] = {
-	{2400, 2500, 7, 7},
-	{2150, 2400, 6, 6},
-	{1950, 2150, 5, 5},
-	{1750, 1950, 4, 4},
-	{1550, 1750, 3, 3},
-	{1350, 1550, 2, 2},
-	{1200, 1350, 1, 1},
-};
-
 static struct kvco_range kvco_rng_table_28nm[] = {
 	{2600, 3000, 0xf, 0},
 	{2400, 2600, 0xe, 0},
@@ -303,13 +260,9 @@ static void __clk_vco_rate2rng(struct clk_vco *vco, unsigned long rate,
 {
 	struct kvco_range *kvco_rng_tbl;
 	int i, size;
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		kvco_rng_tbl = kvco_rng_table_28nm;
-		size = ARRAY_SIZE(kvco_rng_table_28nm);
-	} else {
-		kvco_rng_tbl = kvco_rng_table_40nm;
-		size = ARRAY_SIZE(kvco_rng_table_40nm);
-	}
+
+	kvco_rng_tbl = kvco_rng_table_28nm;
+	size = ARRAY_SIZE(kvco_rng_table_28nm);
 
 	for (i = 0; i < size; i++) {
 		if (rate >= kvco_rng_tbl[i].vco_min &&
@@ -326,26 +279,15 @@ static void __clk_vco_rate2rng(struct clk_vco *vco, unsigned long rate,
 static int __pll_is_enabled(struct clk_hw *hw)
 {
 	struct clk_vco *vco = to_clk_vco(hw);
-	union pll_cr pll_cr;
 	union pllx_cr pllx_cr;
 
-	if (vco->flags & HELANX_PLL2CR_V1) {
-		pll_cr.v = pll_readl_cr(vco);
-		/* ctrl = 0(hw enable) or ctrl = 1&&en = 1(sw enable) */
-		/* ctrl = 1&&en = 0(sw disable) */
-		if (pll_cr.b.ctrl && (!pll_cr.b.en))
-			return 0;
-		else
-			return 1;
-	} else {
-		pllx_cr.v = pll_readl_cr(vco);
-		/*
-		 * PLLxCR[19:18] = 0x1, 0x2, 0x3 means PLL3 is enabled.
-		 * PLLxCR[19:18] = 0x0 means PLL3 is disabled
-		 */
-		if (pllx_cr.b.pu)
-			return 1;
-	}
+	pllx_cr.v = pll_readl_cr(vco);
+	/*
+	 * PLLxCR[19:18] = 0x1, 0x2, 0x3 means PLL3 is enabled.
+	 * PLLxCR[19:18] = 0x0 means PLL3 is disabled
+	 */
+	if (pllx_cr.b.pu)
+		return 1;
 	return 0;
 }
 
@@ -355,30 +297,19 @@ static unsigned int __get_vco_freq(struct clk_hw *hw)
 	u32 val;
 	unsigned int pllx_vco, pllxrefd, pllxfbd;
 	struct clk_vco *vco = to_clk_vco(hw);
-	union pll_cr pll_cr;
 	union pllx_cr pllx_cr;
 
-	/* return 0 if pll2 is disabled(ctrl = 1, en = 0) */
 	if (!__pll_is_enabled(hw))
 		return 0;
 
 	val = pll_readl_cr(vco);
-	if (vco->flags & HELANX_PLL2CR_V1) {
-		pll_cr.v = val;
-		pllxrefd = pll_cr.b.refdiv;
-		pllxfbd = pll_cr.b.fbdiv;
-	} else {
-		pllx_cr.v = val;
-		pllxrefd = pllx_cr.b.refdiv;
-		pllxfbd = pllx_cr.b.fbdiv;
-	}
+	pllx_cr.v = val;
+	pllxrefd = pllx_cr.b.refdiv;
+	pllxfbd = pllx_cr.b.fbdiv;
 
 	if (pllxrefd == 0)
 		pllxrefd = 1;
-	if (!(vco->flags & HELANX_PLL_40NM))
-		pllx_vco = DIV_ROUND_UP(4 * 26 * pllxfbd, pllxrefd);
-	else
-		pllx_vco = DIV_ROUND_UP(26 * pllxfbd, pllxrefd);
+	pllx_vco = DIV_ROUND_UP(4 * 26 * pllxfbd, pllxrefd);
 
 	hw->clk->rate = pllx_vco * MHZ;
 	return pllx_vco * MHZ;
@@ -387,30 +318,18 @@ static unsigned int __get_vco_freq(struct clk_hw *hw)
 static void __pll_vco_cfg(struct clk_vco *vco)
 {
 	union pllx_swcr pllx_swcr;
-	union pll_swcr pll_swcr;
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		pllx_swcr.v = pll_readl_pll_swcr(vco);
-		pllx_swcr.b.avvd1815_sel = 1;
-		pllx_swcr.b.vddm = 1;
-		pllx_swcr.b.vddl = 4;
-		pllx_swcr.b.icp = 3;
-		pllx_swcr.b.pll_bw_sel = 0;
-		pllx_swcr.b.ctune = 1;
-		pllx_swcr.b.diff_en = 1;
-		pllx_swcr.b.bypass_en = 0;
-		pllx_swcr.b.se_gating_en = 0;
-		pllx_swcr.b.fd = 4;
-		pll_writel_pll_swcr(pllx_swcr.v, vco);
-	} else {
-		pll_swcr.v = pll_readl_pll_swcr(vco);
-		pll_swcr.b.vddm = 1;
-		pll_swcr.b.vddl = 9;
-		pll_swcr.b.vreg_ivreg = 2;
-		pll_swcr.b.icp = 4;
-		pll_swcr.b.ctune = 1;
-		pll_swcr.b.diff_en = 1;
-		pll_writel_pll_swcr(pll_swcr.v, vco);
-	}
+	pllx_swcr.v = pll_readl_pll_swcr(vco);
+	pllx_swcr.b.avvd1815_sel = 1;
+	pllx_swcr.b.vddm = 1;
+	pllx_swcr.b.vddl = 4;
+	pllx_swcr.b.icp = 3;
+	pllx_swcr.b.pll_bw_sel = 0;
+	pllx_swcr.b.ctune = 1;
+	pllx_swcr.b.diff_en = 1;
+	pllx_swcr.b.bypass_en = 0;
+	pllx_swcr.b.se_gating_en = 0;
+	pllx_swcr.b.fd = 4;
+	pll_writel_pll_swcr(pllx_swcr.v, vco);
 }
 
 static void clk_pll_vco_init(struct clk_hw *hw)
@@ -454,26 +373,15 @@ static int clk_pll_vco_enable(struct clk_hw *hw)
 	unsigned long flags;
 	struct clk_vco *vco = to_clk_vco(hw);
 	struct mmp_vco_params *params = vco->params;
-	union pll_cr pll_cr;
 	union pllx_cr pllx_cr;
 
 	if (__pll_is_enabled(hw))
 		return 0;
 
 	spin_lock_irqsave(vco->lock, flags);
-	if (vco->flags & HELANX_PLL2CR_V1) {
-		pll_cr.v = pll_readl_cr(vco);
-		/* we must lock refd/fbd first before enabling PLL2 */
-		pll_cr.b.ctrl = 1;
-		pll_writel_cr(pll_cr.v, vco);
-		pll_cr.b.ctrl = 0;
-		/* Let HW control PLL2 */
-		pll_writel_cr(pll_cr.v, vco);
-	} else {
-		pllx_cr.v = pll_readl_cr(vco);
-		pllx_cr.b.pu = 1;
-		pll_writel_cr(pllx_cr.v, vco);
-	}
+	pllx_cr.v = pll_readl_cr(vco);
+	pllx_cr.b.pu = 1;
+	pll_writel_cr(pllx_cr.v, vco);
 	spin_unlock_irqrestore(vco->lock, flags);
 
 	/* check lock status */
@@ -502,20 +410,12 @@ static void clk_pll_vco_disable(struct clk_hw *hw)
 	unsigned long flags;
 	struct clk_vco *vco = to_clk_vco(hw);
 	struct mmp_vco_params *params = vco->params;
-	union pll_cr pll_cr;
 	union pllx_cr pllx_cr;
 
 	spin_lock_irqsave(vco->lock, flags);
-	if (vco->flags & HELANX_PLL2CR_V1) {
-		pll_cr.v = pll_readl_cr(vco);
-		pll_cr.b.ctrl = 1;
-		pll_cr.b.en = 0;
-		pll_writel_cr(pll_cr.v, vco);
-	} else {
-		pllx_cr.v = pll_readl_cr(vco);
-		pllx_cr.b.pu = 0;
-		pll_writel_cr(pllx_cr.v, vco);
-	}
+	pllx_cr.v = pll_readl_cr(vco);
+	pllx_cr.b.pu = 0;
+	pll_writel_cr(pllx_cr.v, vco);
 	spin_unlock_irqrestore(vco->lock, flags);
 	trace_clock_disable(hw->clk->name, 0, 0);
 
@@ -540,8 +440,6 @@ static int clk_pll_vco_setrate(struct clk_hw *hw, unsigned long rate,
 	struct clk_vco *vco = to_clk_vco(hw);
 	struct mmp_vco_params *params = vco->params;
 	union pllx_swcr pllx_swcr;
-	union pll_swcr pll_swcr;
-	union pll_cr pll_cr;
 	union pllx_cr pllx_cr;
 
 	if (__pll_is_enabled(hw)) {
@@ -569,36 +467,21 @@ static int clk_pll_vco_setrate(struct clk_hw *hw, unsigned long rate,
 		/* refd need be calculated by certain function
 		   other than a fixed number */
 		refd = 3;
-		if (!(vco->flags & HELANX_PLL_40NM))
-			fbd = rate * refd / 104;
-		else
-			fbd = rate * refd / 26;
+		fbd = rate * refd / 104;
 	}
 
 	spin_lock_irqsave(vco->lock, flags);
 	/* setp 2: set pll kvco setting */
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		pllx_swcr.v = pll_readl_pll_swcr(vco);
-		pllx_swcr.b.kvco = kvco;
-		pll_writel_pll_swcr(pllx_swcr.v, vco);
-	} else {
-		pll_swcr.v = pll_readl_pll_swcr(vco);
-		pll_swcr.b.kvco = kvco;
-		pll_writel_pll_swcr(pll_swcr.v, vco);
-	}
+	pllx_swcr.v = pll_readl_pll_swcr(vco);
+	pllx_swcr.b.kvco = kvco;
+	pll_writel_pll_swcr(pllx_swcr.v, vco);
 
 	/* setp 3: set pll fbd and refd setting */
-	if (vco->flags & HELANX_PLL2CR_V1) {
-		pll_cr.v = pll_readl_cr(vco);
-		pll_cr.b.refdiv = refd;
-		pll_cr.b.fbdiv = fbd;
-		pll_writel_cr(pll_cr.v, vco);
-	} else {
-		pllx_cr.v = pll_readl_cr(vco);
-		pllx_cr.b.refdiv = refd;
-		pllx_cr.b.fbdiv = fbd;
-		pll_writel_cr(pllx_cr.v, vco);
-	}
+	pllx_cr.v = pll_readl_cr(vco);
+	pllx_cr.b.refdiv = refd;
+	pllx_cr.b.fbdiv = fbd;
+	pll_writel_cr(pllx_cr.v, vco);
+
 	hw->clk->rate = new_rate;
 	spin_unlock_irqrestore(vco->lock, flags);
 
@@ -641,10 +524,7 @@ static long clk_vco_round_rate(struct clk_hw *hw, unsigned long rate,
 			}
 		}
 	} else {
-		if (!(vco->flags & HELANX_PLL_40NM))
-			div = 104;
-		else
-			div = 26;
+		div = 104;
 		rate = rate / MHZ;
 		fbd = rate * refd / div;
 		max_rate = DIV_ROUND_UP(div * fbd, refd);
@@ -661,17 +541,6 @@ static struct clk_ops clk_vco_ops = {
 	.recalc_rate = clk_vco_recalc_rate,
 	.round_rate = clk_vco_round_rate,
 	.is_enabled = __pll_is_enabled,
-};
-
-/* PLL post divider table for 40nm pll */
-static struct div_map pll_post_div_tbl_40nm[] = {
-	/* divider, reg vaule */
-	{1, 0},
-	{2, 2},
-	{3, 4},
-	{4, 5},
-	{6, 7},
-	{8, 8},
 };
 
 /* PLL post divider table for 28nm pll */
@@ -694,16 +563,9 @@ static unsigned int __clk_pll_calc_div(struct clk_pll *pll,
 {
 	struct div_map *div_map;
 	int i, size;
-	struct clk *parent = pll->hw.clk->parent;
-	struct clk_vco *vco = to_clk_vco(parent->hw);
 
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		div_map = pll_post_div_tbl_28nm;
-		size = ARRAY_SIZE(pll_post_div_tbl_28nm);
-	} else {
-		div_map = pll_post_div_tbl_40nm;
-		size = ARRAY_SIZE(pll_post_div_tbl_40nm);
-	}
+	div_map = pll_post_div_tbl_28nm;
+	size = ARRAY_SIZE(pll_post_div_tbl_28nm);
 
 	*div = 0;
 	rate /= MHZ;
@@ -729,13 +591,8 @@ static unsigned int __pll_div_hwval2div(struct clk_vco *vco,
 	struct div_map *div_map;
 	int i, size;
 
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		div_map = pll_post_div_tbl_28nm;
-		size = ARRAY_SIZE(pll_post_div_tbl_28nm);
-	} else {
-		div_map = pll_post_div_tbl_40nm;
-		size = ARRAY_SIZE(pll_post_div_tbl_40nm);
-	}
+	div_map = pll_post_div_tbl_28nm;
+	size = ARRAY_SIZE(pll_post_div_tbl_28nm);
 
 	for (i = 0; i < size; i++) {
 		if (hw_val == div_map[i].hw_val)
@@ -751,7 +608,6 @@ static void clk_pll_init(struct clk_hw *hw)
 	struct clk_pll *pll = to_clk_pll(hw);
 	int div, div_hw;
 	union pllx_swcr pllx_swcr;
-	union pll_swcr pll_swcr;
 	struct clk *parent = hw->clk->parent;
 	struct clk_vco *vco = to_clk_vco(parent->hw);
 
@@ -765,19 +621,11 @@ static void clk_pll_init(struct clk_hw *hw)
 
 	parent_rate = clk_get_rate(parent) / MHZ;
 
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		pllx_swcr.v = pll_readl_pll_swcr(pll);
-		if (pll->flags & HELANX_PLLOUT)
-			div_hw = pllx_swcr.b.se_div_sel;
-		else
-			div_hw = pllx_swcr.b.diff_div_sel;
-	} else {
-		pll_swcr.v = pll_readl_pll_swcr(pll);
-		if (pll->flags & HELANX_PLLOUT)
-			div_hw = pll_swcr.b.se_div_sel;
-		else
-			div_hw = pll_swcr.b.diff_div_sel;
-	}
+	pllx_swcr.v = pll_readl_pll_swcr(pll);
+	if (pll->flags & HELANX_PLLOUT)
+		div_hw = pllx_swcr.b.se_div_sel;
+	else
+		div_hw = pllx_swcr.b.diff_div_sel;
 	div = __pll_div_hwval2div(vco, div_hw);
 	hw->clk->rate = parent_rate / div * MHZ;
 	pr_info("%s is enabled @ %lu\n", hw->clk->name, hw->clk->rate);
@@ -790,9 +638,7 @@ static int clk_pll_setrate(struct clk_hw *hw, unsigned long new_rate,
 	unsigned long flags, old_rate = hw->clk->rate;
 	struct clk_pll *pll = to_clk_pll(hw);
 	struct clk *parent = hw->clk->parent;
-	struct clk_vco *vco = to_clk_vco(parent->hw);
 	union pllx_swcr pllx_swcr;
-	union pll_swcr pll_swcr;
 
 	if (__pll_is_enabled(parent->hw)) {
 		pr_info("%s %s is enabled, ignore the setrate!\n",
@@ -806,21 +652,12 @@ static int clk_pll_setrate(struct clk_hw *hw, unsigned long new_rate,
 	div_hwval = __clk_pll_calc_div(pll, new_rate, best_parent_rate, &div);
 
 	spin_lock_irqsave(pll->lock, flags);
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		pllx_swcr.v = pll_readl_pll_swcr(pll);
-		if (pll->flags & HELANX_PLLOUT)
-			pllx_swcr.b.se_div_sel = div_hwval;
-		else
-			pllx_swcr.b.diff_div_sel = div_hwval;
-		swcr = pllx_swcr.v;
-	} else {
-		pll_swcr.v = pll_readl_pll_swcr(pll);
-		if (pll->flags & HELANX_PLLOUT)
-			pll_swcr.b.se_div_sel = div_hwval;
-		else
-			pll_swcr.b.diff_div_sel = div_hwval;
-		swcr = pll_swcr.v;
-	}
+	pllx_swcr.v = pll_readl_pll_swcr(pll);
+	if (pll->flags & HELANX_PLLOUT)
+		pllx_swcr.b.se_div_sel = div_hwval;
+	else
+		pllx_swcr.b.diff_div_sel = div_hwval;
+	swcr = pllx_swcr.v;
 	pll_writel_pll_swcr(swcr, pll);
 	hw->clk->rate = new_rate;
 	spin_unlock_irqrestore(pll->lock, flags);
@@ -849,15 +686,9 @@ static long clk_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 	u32 div_map_size;
 	struct div_map *div_map;
 
-	if (!(vco->flags & HELANX_PLL_40NM)) {
-		div_map = pll_post_div_tbl_28nm;
-		div_map_size = ARRAY_SIZE(pll_post_div_tbl_28nm);
-		delta = 104 / 3;
-	} else {
-		div_map = pll_post_div_tbl_40nm;
-		div_map_size = ARRAY_SIZE(pll_post_div_tbl_40nm);
-		delta = 26 / 3;
-	}
+	div_map = pll_post_div_tbl_28nm;
+	div_map_size = ARRAY_SIZE(pll_post_div_tbl_28nm);
+	delta = 104 / 3;
 
 	parent_rate = *prate / MHZ;
 	rate /= MHZ;
