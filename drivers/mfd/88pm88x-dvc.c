@@ -57,16 +57,17 @@ static struct pm88x_dvc *g_dvc;
 static inline int map_volt_to_reg(int uv)
 {
 	if (uv >= g_dvc->desc.mid_uV)
-		return (uv - g_dvc->desc.mid_uV) / (g_dvc->desc.uV_step2);
+		return (uv - g_dvc->desc.mid_uV) / (g_dvc->desc.uV_step2) + g_dvc->desc.mid_reg_val;
 	else
 		return (uv - g_dvc->desc.min_uV) / (g_dvc->desc.uV_step1);
 }
 
 static inline int list_volt_from_reg(int reg_val)
 {
-	if (reg_val >= g_dvc->desc.mid_reg_val)
+	if (reg_val >= g_dvc->desc.mid_reg_val) {
+		reg_val -= g_dvc->desc.mid_reg_val;
 		return reg_val * (g_dvc->desc.uV_step2) + g_dvc->desc.mid_uV;
-	else
+	} else
 		return reg_val * (g_dvc->desc.uV_step1) + g_dvc->desc.min_uV;
 }
 
@@ -186,7 +187,7 @@ static int pm88x_dvc_chip_init(struct pm88x_dvc *dvc)
 		break;
 	case PM880:
 		/* TODO: configure gpio to dvc function for 88pm880 */
-		dvc->desc.current_reg = PM886_BUCK1_VOUT;
+		dvc->desc.current_reg = PM880_BUCK1_VOUT;
 		dvc->desc.mid_reg_val = 0x50;
 		dvc->desc.max_level = 16;
 		dvc->desc.uV_step1 = 12500;
