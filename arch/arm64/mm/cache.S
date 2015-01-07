@@ -210,7 +210,13 @@ __dma_clean_range:
 	dcache_line_size x2, x3
 	sub	x3, x2, #1
 	bic	x0, x0, x3
+#if	defined(CONFIG_ARM64_ERRATUM_826319) || \
+        defined(CONFIG_ARM64_ERRATUM_827319) || \
+        defined(CONFIG_ARM64_ERRATUM_824069)
+1:	dc	civac, x0			// clean D / U line
+#else
 1:	dc	cvac, x0			// clean D / U line
+#endif
 	add	x0, x0, x2
 	cmp	x0, x1
 	b.lo	1b
