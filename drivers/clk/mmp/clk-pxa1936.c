@@ -642,7 +642,7 @@ static struct mmp_clk_mix_clk_table vpufclk_pptbl[] = {
 	{.rate = 312000000, .parent_index = 1, .xtc = 0x00385404, },
 	{.rate = 416000000, .parent_index = 0, .xtc = 0x00B85454, },
 	{.rate = 499000000, .parent_index = 2, .xtc = 0x00B85454, },
-	{.rate = 528750000, .parent_index = 3, .xtc = 0x00B855A4, },
+	{.rate = 528000000, .parent_index = 3, .xtc = 0x00B855A4, },
 };
 
 static struct mmp_clk_mix_config vpufclk_mix_config = {
@@ -1373,13 +1373,13 @@ static struct ddr_opt lpddr667_op_array[] = {
 	},
 	{
 		.dclk = 528,
-		.ddr_tbl_index = 10,
+		.ddr_tbl_index = 8,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x4,
 	},
 	{
 		.dclk = 624,
-		.ddr_tbl_index = 8,
+		.ddr_tbl_index = 10,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x6,
 	},
