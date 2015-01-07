@@ -15,6 +15,12 @@ ARCH ?= arm
 ifeq ($(ARCH),arm64)
 export PATH:=$(ANDROID_BUILD_TOP)/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.8/bin:$(PATH)
 KERNEL_CROSS_COMPILE := aarch64-linux-android-
+# This offset must be synced with TEXT_OFFSET in arch/arm64/Makefile
+TEXT_OFFSET := 0x00080000
+SECURITY_REGION_SIZE_MB ?= 8
+
+KERNEL_LOAD := $(shell /bin/bash -c 'printf "0x%08x" \
+               $$[$(SECURITY_REGION_SIZE_MB) * 0x100000 + $(TEXT_OFFSET)]')
 else
 KERNEL_CROSS_COMPILE := $(CROSS_COMPILE)
 endif
@@ -165,7 +171,7 @@ endif
 
 	if [ -e $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/zImage ]; then cp -u $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/zImage $(PRODUCT_OUT); fi
 ifeq ($(ARCH),arm64)
-	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a 0x0880000 -e 0x0880000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
+	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a $(KERNEL_LOAD) -e $(KERNEL_LOAD) -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 else
 	$(MAKE) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
 endif
@@ -226,7 +232,7 @@ else
 	@echo Skipping building of kernel modules, KERNEL_NO_MODULES set
 endif
 ifeq ($(ARCH),arm64)
-	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a 0x0880000 -e 0x0880000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
+	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a $(KERNEL_LOAD) -e $(KERNEL_LOAD) -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 else
 	$(MAKE) -j$(MAKE_JOBS) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
 endif
