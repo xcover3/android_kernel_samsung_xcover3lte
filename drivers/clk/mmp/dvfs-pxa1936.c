@@ -121,16 +121,6 @@ unsigned int convertFusesToProfile_helan3(unsigned int uiFuses)
 	return uiProfile;
 }
 
-struct fuse_info {
-	u32 arg0;
-	u32 arg1;
-	u32 arg2;
-	u32 arg3;
-	u32 arg4;
-	u32 arg5;
-	u32 arg6;
-};
-
 static int __init __init_read_droinfo(void)
 {
 	struct fuse_info arg;

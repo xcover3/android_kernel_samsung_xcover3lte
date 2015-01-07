@@ -47,6 +47,16 @@ static int smc_get_fuse_info(u64 function_id, void *arg)
 { return 0; }
 #endif
 
+struct fuse_info {
+	unsigned int arg0;
+	unsigned int arg1;
+	unsigned int arg2;
+	unsigned int arg3;
+	unsigned int arg4;
+	unsigned int arg5;
+	unsigned int arg6;
+};
+
 /*
  * fuse related information, shared via plat,
  * please extend if necessary.

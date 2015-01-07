@@ -129,15 +129,6 @@ static u32 convert_fuse2profile(unsigned int uiprofilefuses)
 	return uiprofile;
 }
 
-struct fuse_info {
-	u32 arg0;
-	u32 arg1;
-	u32 arg2;
-	u32 arg3;
-	u32 arg4;
-	u32 arg5;
-};
-
 static int __init __init_read_droinfo(void)
 {
 	struct fuse_info arg;
