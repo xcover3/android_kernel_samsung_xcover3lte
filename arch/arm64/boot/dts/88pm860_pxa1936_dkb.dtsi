@@ -26,7 +26,7 @@
 		ldo2: LDO2 {regulator-boot-on;regulator-always-on;};
 		ldo3: LDO3 {regulator-boot-on;regulator-always-on;};
 		ldo4: LDO4 {regulator-boot-on;regulator-always-on;};
-		ldo5: LDO5 {regulator-boot-on;regulator-always-on;};
+		ldo5: LDO5 {regulator-boot-on;};
 		ldo6: LDO6 {regulator-boot-on;regulator-always-on;};
 		ldo7: LDO7 {regulator-boot-on;regulator-always-on;};
 		ldo8: LDO8 {regulator-boot-on;regulator-always-on;};
@@ -38,7 +38,7 @@
 		ldo14: LDO14 {regulator-boot-on;regulator-always-on;};
 		ldo15: LDO15 {regulator-boot-on;regulator-always-on;};
 		ldo16: LDO16 {regulator-boot-on;regulator-always-on;};
-		ldo17: LDO17 {regulator-boot-on;regulator-always-on;};
+		ldo17: LDO17 {regulator-boot-on;};
 		ldo18: LDO18 {regulator-boot-on;regulator-always-on;};
 		ldo19: LDO19 {regulator-boot-on;};
 	};
