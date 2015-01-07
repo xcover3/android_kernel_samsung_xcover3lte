@@ -16,11 +16,6 @@ struct b52isp_hw_desc {
 	int hw_version; /* Version of pipeline */
 };
 
-enum b52isp_hardware_state {
-	ISPDMA_STATE_IDLE	= 0,
-	ISPDMA_STATE_WORK,
-};
-
 enum b52isp_blk_id {
 	B52ISP_BLK_IDI	= 0,
 	B52ISP_BLK_PIPE1,
@@ -61,13 +56,6 @@ enum b52isp_isd_id {
 struct b52isp {
 	struct device			*dev;
 	const struct b52isp_hw_desc	*hw_desc;
-
-	struct b52isp_path		*paths;
-	struct b52isp_axi		*axis;
-	struct b52isp_base		*base;
-
-	enum b52isp_hardware_state	state;
-	struct mutex			b52isp_mutex;
 
 	/* must hold this lock when change p_dev<=>l_dev mapping relation */
 	struct mutex			mac_map_lock;
@@ -126,6 +114,7 @@ struct b52isp_lpipe {
 	unsigned long	output_sel;
 	unsigned long	enable_map;
 	struct b52isp_path_arg	path_arg;
+	struct plat_topology	*plat_topo;
 };
 
 /* B52ISP physical pipeline */

@@ -265,7 +265,7 @@ static int plat_mmu_reset_channel(struct plat_cam *pcam,
 			pvnode->mmu_ch_dsc.tid, num_planes);
 }
 
-__u32 plat_get_src_tag(struct plat_pipeline *ppl)
+__u32 plat_get_src_tag(struct plat_topology *ppl)
 {
 	if (unlikely(ppl == NULL))
 		return -EINVAL;
@@ -280,15 +280,15 @@ __u32 plat_get_src_tag(struct plat_pipeline *ppl)
 	}
 }
 
-int plat_vdev_get_pipeline(struct isp_vnode *vnode,
-				struct plat_pipeline *ppl)
+int plat_vnode_get_topology(struct plat_vnode *pvnode, struct plat_topology *topo)
 {
+	struct isp_vnode *vnode = &pvnode->vnode;
 	struct media_pad *pad;
 	struct isp_subdev *isd;
-	int i, ret = 0, id, out;
+	int ret = 0;
 
-	if (unlikely(vnode == NULL || ppl == NULL))
-		return -EINVAL;
+	if (pvnode->plat_topo)
+		return 0;
 
 	/* mutex_lock(&vnode->vdev.entity.parent->graph_mutex); */
 
@@ -320,7 +320,7 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 			ret = -EPIPE;
 			goto unlock;
 		}
-		ppl->path = isd;
+		topo->path = isd;
 
 		/* get pre-scalar subdev */
 		pad = media_entity_remote_pad(isd->pads + B52PAD_PIPE_IN);
@@ -334,23 +334,23 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 			ret = -EPIPE;
 			goto unlock;
 		}
-		ppl->scalar_a = isd;
+		topo->scalar_a = isd;
 
 		switch (isd->sd_code) {
 		/* In case of Memory-To-Memory process */
 		case SDCODE_B52ISP_A1R1:
 		case SDCODE_B52ISP_A2R1:
 		case SDCODE_B52ISP_A3R1:
-			ppl->crop_a = isd->crop_pad + B52PAD_AXI_OUT;
-			ppl->src_type = PLAT_SRC_T_VDEV;
+			topo->crop_a = isd->crop_pad + B52PAD_AXI_OUT;
+			topo->src_type = PLAT_SRC_T_VDEV;
 			pad = media_entity_remote_pad(
 				isd->pads + B52PAD_AXI_IN);
 			if (WARN_ON(pad == NULL)) {
 				ret = -EPIPE;
 				goto unlock;
 			}
-			ppl->src.vnode = me_to_vnode(pad->entity);
-			if (WARN_ON(ppl->src.vnode == NULL)) {
+			topo->src.vnode = me_to_vnode(pad->entity);
+			if (WARN_ON(topo->src.vnode == NULL)) {
 				ret = -EPIPE;
 				goto unlock;
 			}
@@ -358,8 +358,8 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		/* In case of Sensor-To-Memory process */
 		case SDCODE_B52ISP_IDI1:
 		case SDCODE_B52ISP_IDI2:
-			ppl->src_type = PLAT_SRC_T_SNSR;
-			ppl->crop_a = isd->crop_pad + pad->index;
+			topo->src_type = PLAT_SRC_T_SNSR;
+			topo->crop_a = isd->crop_pad + pad->index;
 
 			/* get CCIC-CTRL */
 			pad = media_entity_remote_pad(
@@ -380,9 +380,9 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 				ret = -EPIPE;
 				goto unlock;
 			}
-			ppl->src.sensor =
+			topo->src.sensor =
 				media_entity_to_v4l2_subdev(pad->entity);
-			if (WARN_ON(ppl->src.sensor == NULL)) {
+			if (WARN_ON(topo->src.sensor == NULL)) {
 				ret = -EPIPE;
 				goto unlock;
 			}
@@ -399,8 +399,8 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 		}
 	} else {
 		/* input vdev*/
-		ppl->src_type = PLAT_SRC_T_VDEV;
-		ppl->src.vnode = vnode;
+		topo->src_type = PLAT_SRC_T_VDEV;
+		topo->src.vnode = vnode;
 
 		/* get input AXI subdev */
 		pad = media_entity_remote_pad(&vnode->pad);
@@ -414,8 +414,8 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 			ret = -EPIPE;
 			goto unlock;
 		}
-		ppl->scalar_a = isd;
-		ppl->crop_a = isd->crop_pad + B52PAD_AXI_OUT;
+		topo->scalar_a = isd;
+		topo->crop_a = isd->crop_pad + B52PAD_AXI_OUT;
 
 		/* get path subdev */
 		pad = media_entity_remote_pad(isd->pads + B52PAD_AXI_OUT);
@@ -429,16 +429,31 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 			ret = -EPIPE;
 			goto unlock;
 		}
-		ppl->path = isd;
+		topo->path = isd;
 	}
 
-	ppl->crop_b = ppl->path->crop_pad + B52PAD_PIPE_OUT;
+	topo->crop_b = topo->path->crop_pad + B52PAD_PIPE_OUT;
+	return 0;
+
+unlock:
+	/* mutex_unlock(&vnode->vdev.entity.parent->graph_mutex); */
+	return ret;
+}
+
+int plat_topo_get_output(struct plat_topology *ppl)
+{
+	struct media_device *mdev = &ppl->path->build->media_dev;
+	struct isp_subdev *isd;
+	struct media_pad *pad;
+	int ret = MAX_OUTPUT_PER_PIPELINE, out = 0, i, id;
+
 	ppl->dst_map = 0;
-	out = -1;
 	for (i = 0; i < MAX_OUTPUT_PER_PIPELINE; i++) {
 		ppl->scalar_b[i] = NULL;
 		ppl->dst[i] = NULL;
 	}
+
+	mutex_lock(&mdev->graph_mutex);
 
 	/* Figure out outputs */
 	for (i = 0, id = 0; i < ppl->path->subdev.entity.num_links; i++) {
@@ -479,15 +494,10 @@ int plat_vdev_get_pipeline(struct isp_vnode *vnode,
 
 		ppl->dst_map |= BIT(out);
 		ppl->dst[id] = dst;
-		if (dst == vnode)
-			ret = id;
 		id++;
 	}
-
 unlock:
-	/* mutex_unlock(&vnode->vdev.entity.parent->graph_mutex); */
-	if ((ppl->src_type == PLAT_SRC_T_VDEV) && (vnode == ppl->src.vnode))
-		ret = MAX_OUTPUT_PER_PIPELINE;
+	mutex_unlock(&mdev->graph_mutex);
 	return ret;
 }
 

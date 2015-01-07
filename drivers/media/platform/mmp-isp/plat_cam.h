@@ -54,6 +54,7 @@ struct plat_vnode {
 					struct isp_vnode *vnode, int num_planes);
 	__u16			(*get_axi_id)(__u8 port_id, __u8 yuv_id);
 	struct isp_vnode	vnode;
+	struct plat_topology	*plat_topo;
 };
 
 #define MAX_OUTPUT_PER_PIPELINE	6
@@ -62,7 +63,7 @@ enum plat_src_type {
 	PLAT_SRC_T_VDEV,
 	PLAT_SRC_T_CNT,
 };
-struct plat_pipeline {
+struct plat_topology {
 	struct media_pipeline	mpipe;
 	enum plat_src_type	src_type;
 	union {
@@ -134,9 +135,10 @@ void plat_ispsd_unregister(struct isp_subdev *ispsd);
 int plat_resrc_register(struct device *dev, struct resource *res,
 	const char *name, struct block_id mask,
 	int res_id, void *handle, void *priv);
-int plat_vdev_get_pipeline(struct isp_vnode *vnode,
-				struct plat_pipeline *ppl);
-__u32 plat_get_src_tag(struct plat_pipeline *ppl);
+int plat_vnode_get_topology(struct plat_vnode *pvnode,
+				struct plat_topology *topo);
+int plat_topo_get_output(struct plat_topology *ppl);
+__u32 plat_get_src_tag(struct plat_topology *ppl);
 int b52isp_idi_change_clock(struct isp_block *block, int w, int h, int fps);
 int plat_tune_isp(int on);
 #endif	/* PLAT_CAM_H */

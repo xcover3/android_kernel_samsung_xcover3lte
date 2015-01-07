@@ -2355,7 +2355,7 @@ static struct notifier_block b52isp_mac_irq_nb = {
  * Select a physc port for a logic dev
  */
 static int b52_map_axi_port(struct b52isp_laxi *laxi, int map,
-			struct plat_pipeline *ppl)
+			struct plat_topology *topo)
 {
 	struct b52isp *b52 = laxi->parent;
 	struct isp_block *blk;
@@ -2374,7 +2374,7 @@ static int b52_map_axi_port(struct b52isp_laxi *laxi, int map,
 
 	/* Actually map logic dev to physc dev */
 	mutex_lock(&b52->mac_map_lock);
-	tag = plat_get_src_tag(ppl);
+	tag = plat_get_src_tag(topo);
 	idle_map = output_mask[laxi->isd.sd_code - SDCODE_B52ISP_A1W1]
 		& (~b52->mac_map);
 	fit_bit = ok_bit = -1;
@@ -2566,7 +2566,7 @@ do {	\
 		for (i = 0; i < B52_OUTPUT_PER_PIPELINE; i++) {	\
 			if (!test_bit(i, &lpipe->cur_cmd->output_map))	\
 				continue;	\
-			lpipe->cur_cmd->output[i].vnode = ppl.dst[i];	\
+			lpipe->cur_cmd->output[i].vnode = topo->dst[i];	\
 			lpipe->cur_cmd->output[i].pix_mp =	\
 				vnode->format.fmt.pix_mp;	\
 		}	\
@@ -2574,19 +2574,18 @@ do {	\
 } while (0)
 
 static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
-		struct isp_vnode *vnode, int stream)
+		struct plat_vnode *pvnode, int stream)
 {
 	int ret = 0, port, out_id, sid;
 	static int mm_stream;
 	struct isp_subdev *pipe;
 	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
 						struct isp_build, media_dev);
-	struct plat_vnode *pvnode = container_of(vnode,
-						struct plat_vnode, vnode);
+	struct isp_vnode *vnode = &pvnode->vnode;
 	struct plat_cam *pcam = build->plat_priv;
 	int num_planes = vnode->format.fmt.pix_mp.num_planes;
 	struct b52isp_paxi *paxi;
-	struct plat_pipeline ppl;
+	struct plat_topology *topo;
 	struct b52isp_lpipe *lpipe;
 
 	d_inf(3, "%s: handling the stream %d event from %s",
@@ -2597,13 +2596,13 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		return 0;
 	}
 
-	ret = plat_vdev_get_pipeline(vnode, &ppl);
-	if (WARN_ON(ret < 0))
-		return ret;
-	pipe = ppl.path;
+	topo = pvnode->plat_topo;
+	pipe = topo->path;
 	if (WARN_ON(pipe == NULL))
 		return -ENODEV;
-	out_id = ret;
+	for (out_id = 0; out_id < MAX_OUTPUT_PER_PIPELINE; out_id++)
+		if (&pvnode->vnode == topo->dst[out_id])
+			break;
 	lpipe = pipe->drv_priv;
 
 	laxi->stream = stream;
@@ -2612,14 +2611,15 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		goto stream_off;
 
 	/* Map / Unmap Logical AXI and Physical AXI */
-	if (laxi == ppl.scalar_a->drv_priv) {
-		ret = b52_map_axi_port(laxi, 1, &ppl);
+	if (laxi == topo->scalar_a->drv_priv) {
+		ret = b52_map_axi_port(laxi, 1, topo);
 		if (unlikely(WARN_ON(ret < 0)))
 			return ret;
 	} else {
 		sid = 0;
-		while (ppl.scalar_b[sid]) {
-			ret = b52_map_axi_port(ppl.scalar_b[sid]->drv_priv, 1, &ppl);
+		while (topo->scalar_b[sid]) {
+			ret = b52_map_axi_port(topo->scalar_b[sid]->drv_priv,
+						1, topo);
 			if (unlikely(WARN_ON(ret < 0)))
 				goto unmap_scalar_b;
 			sid++;
@@ -2683,7 +2683,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		case CMD_CHG_FORMAT:
 		case CMD_SET_FORMAT:
 			lpipe->cur_cmd->nr_mac = paxi->parent->hw_desc->nr_axi;
-			lpipe->cur_cmd->output_map = ppl.dst_map;
+			lpipe->cur_cmd->output_map = topo->dst_map;
 			if (vnode->buf_type ==
 				V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 
@@ -2752,7 +2752,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			}
 			break;
 		case CMD_IMG_CAPTURE:
-			lpipe->cur_cmd->output_map = ppl.dst_map;
+			lpipe->cur_cmd->output_map = topo->dst_map;
 			for (i = 0; i < lpipe->path_arg.nr_frame; i++) {
 				isp_vb = isp_vnode_get_idle_buffer(vnode);
 				if (isp_vb == NULL) {
@@ -2856,15 +2856,15 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			/* Check if all output and input are ready */
 			if (lpipe->cur_cmd->mem.vnode == NULL) {
 				d_inf(3, "%s: input not ready",
-					ppl.path->subdev.name);
+					topo->path->subdev.name);
 				ret = 0;
 				goto unlock;
 			}
 
-			for (i = 0; ppl.dst[i]; i++) {
-				if (ppl.dst[i]->state < ISP_VNODE_ST_WORK)
+			for (i = 0; topo->dst[i]; i++) {
+				if (topo->dst[i]->state < ISP_VNODE_ST_WORK)
 					continue;
-				if (ppl.dst[i] == vnode)
+				if (topo->dst[i] == vnode)
 					continue;
 				nr_out--;
 			}
@@ -2874,7 +2874,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			 */
 			if (nr_out) {
 				d_inf(3, "%s: at least one output not ready",
-					ppl.path->subdev.name);
+					topo->path->subdev.name);
 				ret = 0;
 				goto unlock;
 			}
@@ -3030,47 +3030,76 @@ disable_axi:
 
 unmap_scalar:
 	/* Unmap Logical AXI and Physical AXI */
-	if (laxi == ppl.scalar_a->drv_priv)
-		ret |= b52_map_axi_port(laxi, 0, &ppl);
+	if (laxi == topo->scalar_a->drv_priv)
+		ret |= b52_map_axi_port(laxi, 0, topo);
 	else {
 		/* If all output mapped, find the last post scalar */
 		sid = 0;
-		while (ppl.scalar_b[sid])
+		while (topo->scalar_b[sid])
 			sid++;
 unmap_scalar_b:
 		for (sid--; sid >= 0; sid--)
-			ret |= b52_map_axi_port(ppl.scalar_b[sid]->drv_priv,
-					 0, &ppl);
+			ret |= b52_map_axi_port(topo->scalar_b[sid]->drv_priv,
+					 0, topo);
 	}
 
 	return ret;
 }
 
 static int b52isp_laxi_close_handler(struct b52isp_laxi *laxi,
-					struct isp_vnode *vnode)
+					struct plat_vnode *pvnode)
 {
-	d_inf(3, "close %s", vnode->vdev.name);
+	struct b52isp_lpipe *pipe = pvnode->plat_topo->path->drv_priv;
+
+	mutex_lock(&pipe->state_lock);
+
+	BUG_ON(atomic_read(&pipe->cmd_ref) == 0);
+	if (atomic_dec_return(&pipe->cmd_ref) == 0) {
+		kfree(pipe->plat_topo);
+		pipe->plat_topo = NULL;
+	}
+	pvnode->plat_topo = NULL;
+
+	mutex_unlock(&pipe->state_lock);
+
+	d_inf(3, "close %s", pvnode->vnode.vdev.name);
 	return 0;
 }
 
 static int b52isp_laxi_open_handler(struct b52isp_laxi *laxi,
-					struct isp_vnode *vnode)
+					struct plat_vnode *pvnode)
 {
-	struct plat_pipeline ppl;
 	struct b52isp_lpipe *pipe = NULL;
 	struct b52isp_cmd_mapping_item *item;
+	struct isp_vnode *vnode = &pvnode->vnode;
+	struct plat_topology topo;
 	int ret;
 
-	ret = plat_vdev_get_pipeline(vnode, &ppl);
+	ret = plat_vnode_get_topology(pvnode, &topo);
 	if (ret < 0)
 		return ret;
-	pipe = ppl.path->drv_priv;
+	pipe = topo.path->drv_priv;
+
+	mutex_lock(&pipe->state_lock);
+
+	if (atomic_inc_return(&pipe->cmd_ref) == 1) {
+		pipe->plat_topo = kzalloc(sizeof(topo), GFP_KERNEL);
+		if (unlikely(WARN_ON(pipe->plat_topo == NULL))) {
+			ret = -ENOMEM;
+			goto err_alloc;
+		}
+		/* continue to setup pipeline outputs */
+		plat_topo_get_output(&topo);
+		*pipe->plat_topo = topo;
+	} else
+		BUG_ON(pipe->plat_topo->path != topo.path);
+
+	pvnode->plat_topo = pipe->plat_topo;
 
 	WARN_ON(pipe->cur_cmd == NULL);
-
 	/* setup MCU command for vdev part */
 	if (pipe->isd.sd_code < B52ISP_ISD_HS) {
-		item = &b52_scmd_table[ppl.src_type][pipe->path_arg.aeag]
+		item = &b52_scmd_table[topo.src_type][pipe->path_arg.aeag]
 				[pipe->isd.sd_code - SDCODE_B52ISP_PIPE1];
 		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 			/* output vdev */
@@ -3083,7 +3112,7 @@ static int b52isp_laxi_open_handler(struct b52isp_laxi *laxi,
 			vnode->hw_min_buf = item->input_min_buf;
 		}
 	} else {
-		item = &b52_dcmd_table[ppl.src_type][pipe->path_arg.combo];
+		item = &b52_dcmd_table[topo.src_type][pipe->path_arg.combo];
 		if (vnode->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 			/* output vdev */
 			vnode->hw_min_buf = item->output_min_buf;
@@ -3093,31 +3122,39 @@ static int b52isp_laxi_open_handler(struct b52isp_laxi *laxi,
 		}
 	}
 
+	mutex_unlock(&pipe->state_lock);
+
 	d_inf(3, "open %s (path:%s, hw_min_buf:%d)", vnode->vdev.name,
-		ppl.path->subdev.name, vnode->hw_min_buf);
+		topo.path->subdev.name, vnode->hw_min_buf);
 
 	return 0;
+
+err_alloc:
+	atomic_dec(&pipe->cmd_ref);
+	mutex_unlock(&pipe->state_lock);
+	return ret;
 }
 
 static int b52isp_video_event(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
-	struct isp_vnode *vnode = data;
-	struct b52isp_laxi *laxi = vnode->notifier.priv;
+	struct plat_vnode *pvnode = container_of(data,
+					struct plat_vnode, vnode);
+	struct b52isp_laxi *laxi = pvnode->vnode.notifier.priv;
 	int ret = 0;
 
 	switch (event) {
 	case VDEV_NOTIFY_STM_ON:
-		ret = b52isp_laxi_stream_handler(laxi, vnode, 1);
+		ret = b52isp_laxi_stream_handler(laxi, pvnode, 1);
 		break;
 	case VDEV_NOTIFY_STM_OFF:
-		ret = b52isp_laxi_stream_handler(laxi, vnode, 0);
+		ret = b52isp_laxi_stream_handler(laxi, pvnode, 0);
 		break;
 	case VDEV_NOTIFY_OPEN:
-		ret = b52isp_laxi_open_handler(laxi, vnode);
+		ret = b52isp_laxi_open_handler(laxi, pvnode);
 		break;
 	case VDEV_NOTIFY_CLOSE:
-		ret = b52isp_laxi_close_handler(laxi, vnode);
+		ret = b52isp_laxi_close_handler(laxi, pvnode);
 		break;
 	case VDEV_NOTIFY_S_FMT:
 		break;
