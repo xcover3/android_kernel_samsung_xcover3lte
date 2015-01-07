@@ -76,24 +76,33 @@ unsigned long mmp_clk_mix_get_oprate(struct clk *clk,
 #ifdef CONFIG_PM_DEVFREQ
 void __init_comp_devfreq_table(struct clk *clk, unsigned int dev_id)
 {
-	unsigned int freq_num = 0, i = 0;
+	unsigned int freq_num = 0, i = 0, j = 0, nr_valid_freq = 0, freq;
 	struct devfreq_frequency_table *devfreq_tbl;
 
 	freq_num = mmp_clk_mix_get_opnum(clk);
+	for (i = 0; i < freq_num; i++)
+		/* skip invalid op */
+		if (mmp_clk_mix_get_oprate(clk, i) > 0)
+			nr_valid_freq++;
+	WARN_ON(freq_num != nr_valid_freq);
+
 	devfreq_tbl =
 		kmalloc(sizeof(struct devfreq_frequency_table)
-			* (freq_num + 1), GFP_KERNEL);
+			* (nr_valid_freq + 1), GFP_KERNEL);
 	if (!devfreq_tbl)
 		return;
 
 	for (i = 0; i < freq_num; i++) {
-		devfreq_tbl[i].index = i;
-		devfreq_tbl[i].frequency =
-			mmp_clk_mix_get_oprate(clk, i) / MHZ_TO_KHZ;
+		freq = mmp_clk_mix_get_oprate(clk, i) / MHZ_TO_KHZ;
+		if (freq > 0) {
+			devfreq_tbl[j].index = j;
+			devfreq_tbl[j].frequency = freq;
+			j++;
+		}
 	}
 
-	devfreq_tbl[i].index = i;
-	devfreq_tbl[i].frequency = DEVFREQ_TABLE_END;
+	devfreq_tbl[j].index = j;
+	devfreq_tbl[j].frequency = DEVFREQ_TABLE_END;
 
 	devfreq_frequency_table_register(devfreq_tbl, dev_id);
 }
