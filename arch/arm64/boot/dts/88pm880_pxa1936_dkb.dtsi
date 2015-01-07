@@ -97,8 +97,8 @@
 
 	battery {
 		bat-ntc-support;
-		gpadc-det-no = <3>;
-		gpadc-temp-no = <3>;
+		gpadc-det-no = <1>;
+		gpadc-temp-no = <1>;
 
 		cc-fixup = <102>;
 	};
@@ -153,6 +153,6 @@
 	};
 
 	vbus {
-		gpadc-number = <1>;
+		gpadc-number = <3>;
 	};
 };
