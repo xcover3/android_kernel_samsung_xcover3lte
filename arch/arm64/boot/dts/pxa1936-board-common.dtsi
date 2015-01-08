@@ -203,9 +203,8 @@
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
-				clocks = <&soc_clocks PXA1936_CLK_DISP1>,
-					<&soc_clocks PXA1936_CLK_DISP4>;
-				clock-names = "disp1_clk", "dsipll_clk";
+				clocks = <&soc_clocks PXA1936_CLK_DISP1>;
+				clock-names = "disp1_clk";
 				status = "okay";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
