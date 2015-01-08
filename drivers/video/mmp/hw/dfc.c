@@ -52,16 +52,21 @@
 #define	CLK_INT_DIV_MASK				0x000000FF
 
 /*
- * MAX_STATE: max numbers of parent clk;
- * MAX_STR_LEN: the max length of string of clk name;
+ * - MAX_RATE_NUM: max numbers of rate from lcd&dsi's parent clk;
+ * - MAX_CLK_NUM: max numbers of rate from lcd&dsi's parent1 and parent2 clk;
+ *		  parent1 is parent of parent0, parent2 is parent of parent1;
+ * - MAX_PARENT_CLK_NUM: max number of all lcd&dsi's parent clk;
  */
-#define MAX_STATE 8
-#define MAX_STR_LEN 16
-static unsigned int parent_clk_tbl[8];
-static int parent_clk_count;
+#define MAX_RATE_NUM 8
+#define MAX_CLK_NUM 8
+#define MAX_PARENT_CLK_NUM 16
+static unsigned int parent_rate_tbl[MAX_RATE_NUM];
+static int parent_rate_count;
 static const char * const parent0_clk_tbl[] = {"dsi_sclk"};
-static char parent1_clk_tbl[MAX_STATE][MAX_STR_LEN];
-static char parent2_clk_tbl[MAX_STATE][MAX_STR_LEN];
+static struct clk *parent1_clk_tbl[MAX_CLK_NUM];
+static struct clk *parent2_clk_tbl[MAX_CLK_NUM];
+static struct clk *parent_clk_tbl[MAX_PARENT_CLK_NUM];
+static int parent_clk_count;
 unsigned char parent2_count;
 static unsigned long pll3_vco_default;
 static unsigned long pll3_default;
@@ -69,6 +74,11 @@ static unsigned int lcd_clk_en;
 static unsigned int plat;
 static unsigned long original_rate;
 static unsigned int sclk_div;
+
+static struct clk *hclk;
+static struct clk *pll3;
+static struct clk *pll3_vco;
+static struct clk *clk_parent0;
 
 #if 0
 /* PLL post divider table */
@@ -176,7 +186,7 @@ static void get_parent_index(unsigned long rate, struct parent_index *index)
 	struct clk *clk;
 
 	for (i = 0; i < parent2_count; i++) {
-		clk = __clk_lookup(parent2_clk_tbl[i]);
+		clk = parent2_clk_tbl[i];
 		if ((!IS_ERR(clk)) && (rate == (clk->rate / MHZ_TO_HZ)))
 			index->parent2 = i + DFC_FREQ_PARENT2_PLL1_624M;
 	}
@@ -191,21 +201,24 @@ static void get_parent_index(unsigned long rate, struct parent_index *index)
 		index->parent1 = DFC_FREQ_PARENT1_DSIPLL;
 }
 
-static void add_to_parent_tbl(unsigned long rate)
+static void add_to_parent_rate_tbl(unsigned long rate)
 {
 	int i;
 
-	rate /= 1000000;
+	rate /= MHZ_TO_HZ;
 	if (rate > 1600)
 		return;
-	for (i = 0; i < 8; i++) {
-		if (parent_clk_tbl[i] == rate)
+	for (i = 0; i < MAX_RATE_NUM; i++) {
+		if (parent_rate_tbl[i] == rate)
 			return;
 	}
-	parent_clk_tbl[parent_clk_count] = rate;
-	parent_clk_count++;
+	parent_rate_tbl[parent_rate_count] = rate;
+	parent_rate_count++;
 }
 
+/*
+ * create clk table for lcd&dsi's parent clk in init stage;
+ */
 static void create_parent_tbl(struct clk *clk11)
 {
 	int i;
@@ -214,9 +227,30 @@ static void create_parent_tbl(struct clk *clk11)
 	for (i = 0; i < clk11->num_parents; i++) {
 		clk1 = __clk_lookup(clk11->parent_names[i]);
 		if (clk1) {
-			add_to_parent_tbl(clk1->rate);
+			parent_clk_tbl[parent_clk_count++] = clk1;
+			add_to_parent_rate_tbl(clk1->rate);
 			create_parent_tbl(clk1);
 		}
+	}
+}
+
+/*
+ * For each dfc, first update parent_rate_tbl from clk of parent_clk_table;
+ */
+static void update_rate_tbl(void)
+{
+	int i;
+	struct clk *clk;
+
+	for (i = 0; i < MAX_RATE_NUM; i++) {
+		parent_rate_tbl[i] = 0x0;
+		parent_rate_count = 0;
+	}
+
+	for (i = 0; i < parent_clk_count; i++) {
+		clk = parent_clk_tbl[i];
+		if (clk)
+			add_to_parent_rate_tbl(clk->rate);
 	}
 }
 
@@ -227,9 +261,9 @@ static int find_best_parent(unsigned int rate, unsigned int *count)
 	unsigned int real_rate;
 	int ret = 0;
 
-	for (i = 0; i < parent_clk_count; i++) {
+	for (i = 0; i < parent_rate_count; i++) {
 		for (j = 1; j < 15; j++) {
-			real_rate = parent_clk_tbl[i] / j;
+			real_rate = parent_rate_tbl[i] / j;
 			if (rate > real_rate + ROUND_RATE_RANGE_MHZ)
 				break;
 			else if ((rate <= (real_rate + ROUND_RATE_RANGE_MHZ)) &&
@@ -257,7 +291,7 @@ static void get_current_parent_index(struct clk *clk,
 
 	while (!IS_ERR_OR_NULL(temp)) {
 		for (i = 0; i < parent2_count; i++) {
-			if (!strcmp(temp->name, parent2_clk_tbl[i])) {
+			if (!strcmp(temp->name, parent2_clk_tbl[i]->name)) {
 				index->parent2 = i + DFC_FREQ_PARENT2_PLL1_624M;
 				break;
 			}
@@ -302,23 +336,23 @@ static void calculate_reg_value(struct mmphw_ctrl *ctrl)
 	sclk |= DSI1_BITCLK_DIV(bclk_div) | CLK_INT_DIV(pclk_div);
 
 	if (!strcmp(dfc->parent2->name,
-		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_624M - 1])) {
+		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_624M - 1]->name)) {
 		apmu = 0x9003f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(0);
 	} else if (!strcmp(dfc->parent2->name,
-		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_832M - 1])) {
+		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_832M - 1]->name)) {
 		apmu = 0x9023f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(0);
 	} else if (!strcmp(dfc->parent2->name,
-		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_499M - 1])) {
+		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_499M - 1]->name)) {
 		apmu = 0x9043f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(0);
 	} else if (!strcmp(dfc->parent2->name,
-		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1])) {
+		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1]->name)) {
 		apmu = 0x9011f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(3);
 	} else if (!strcmp(dfc->parent2->name,
-		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4_DIV3 - 1])) {
+		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4_DIV3 - 1]->name)) {
 		apmu = 0x9411f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(3);
 	}
@@ -326,15 +360,10 @@ static void calculate_reg_value(struct mmphw_ctrl *ctrl)
 	dfc->sclk_value = sclk;
 }
 
-
 /* rate unit is Mhz */
 static void dynamic_change_pll3(unsigned int rate, int type)
 {
-	struct clk *pll3, *pll3_vco;
 	unsigned long i, pll3_rate, pll3vco_rate = 0;
-
-	pll3 = __clk_lookup("pll4");
-	pll3_vco = __clk_lookup("pll4_vco");
 
 	switch (type) {
 	case DFC_RESTORE_PLL3:
@@ -384,8 +413,8 @@ static int dynamic_change_lcd(struct mmphw_ctrl *ctrl, struct mmp_dfc *dfc)
 
 	memset(&source, 0, sizeof(source));
 	get_current_parent_index(dsi_clk, &source);
-	dfc->current_parent1 = __clk_lookup(parent1_clk_tbl[source.parent1-1]);
-	dfc->current_parent2 = __clk_lookup(parent2_clk_tbl[source.parent2-1]);
+	dfc->current_parent1 = parent1_clk_tbl[source.parent1-1];
+	dfc->current_parent2 = parent2_clk_tbl[source.parent2-1];
 	memcpy(&ctrl->dfc, dfc, sizeof(*dfc));
 
 	calculate_reg_value(ctrl);
@@ -422,14 +451,13 @@ static int dynamic_change_lcd(struct mmphw_ctrl *ctrl, struct mmp_dfc *dfc)
 static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 {
 	struct mmp_path *path = ctrl->path_plats[0].path;
-	struct clk *path_clk = path_to_path_plat(path)->clk;
 	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
 	struct parent_index target, source;
 	int best_parent_count = 0;
 	struct clk *dsi_clk = dsi->clk;
 	struct mmp_dfc *dfc;
 	struct mmp_dfc temp;
-	int i, ret = 0;
+	int ret = 0;
 
 	memset(&target, 0, sizeof(target));
 	memset(&temp, 0, sizeof(temp));
@@ -438,27 +466,22 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 	temp.dsi_rate = rate * MHZ_TO_HZ;
 	temp.path_rate = set_pixel_clk(dsi, temp.dsi_rate);
 
-	temp.parent0 = __clk_lookup(parent0_clk_tbl[0]);
+	temp.parent0 = clk_parent0;
 
-	for (i = 0; i < 8; i++) {
-		parent_clk_tbl[i] = 0x0;
-		parent_clk_count = 0;
-	}
-
-	create_parent_tbl(path_clk);
+	update_rate_tbl();
 	if (!find_best_parent(rate, &best_parent_count))
 		temp.best_parent = DFC_FREQ_PARENT2_PLL_NONE;
 	else {
-		get_parent_index(parent_clk_tbl[best_parent_count], &target);
+		get_parent_index(parent_rate_tbl[best_parent_count], &target);
 		temp.best_parent = target.parent2;
 	}
 
 	memset(&source, 0, sizeof(source));
 	get_current_parent_index(dsi_clk, &source);
 	temp.current_parent1 =
-		__clk_lookup(parent1_clk_tbl[source.parent1-1]);
+		parent1_clk_tbl[source.parent1-1];
 	temp.current_parent2 =
-		__clk_lookup(parent2_clk_tbl[source.parent2-1]);
+		parent2_clk_tbl[source.parent2-1];
 	while (!list_empty(&ctrl->dfc_list.queue)) {
 		/* free the waitlist elements if any */
 		dfc = list_first_entry(&ctrl->dfc_list.queue,
@@ -473,9 +496,9 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 	case DFC_FREQ_PARENT2_PLL1_499M:
 		/* prepare the first change */
 		temp.parent2 =
-			__clk_lookup(parent2_clk_tbl[target.parent2-1]);
+			parent2_clk_tbl[target.parent2-1];
 		temp.parent1 =
-			__clk_lookup(parent1_clk_tbl[target.parent1-1]);
+			parent1_clk_tbl[target.parent1-1];
 
 		/* add dfc request to list */
 		dfc = kzalloc(sizeof(struct mmp_dfc),	GFP_KERNEL);
@@ -502,9 +525,9 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 
 		/* prepare the first change */
 		temp.parent2 =
-			__clk_lookup(parent2_clk_tbl[target.parent2-1]);
+			parent2_clk_tbl[target.parent2-1];
 		temp.parent1 =
-			__clk_lookup(parent1_clk_tbl[target.parent1-1]);
+			parent1_clk_tbl[target.parent1-1];
 
 		/* add dfc reqyest to list */
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
@@ -523,14 +546,14 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 		break;
 	case DFC_FREQ_PARENT2_PLL_NONE:
 		if (!strcmp(temp.current_parent2->name,
-					parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1]) ||
+					parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1]->name) ||
 				!strcmp(temp.current_parent2->name,
-					parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4_DIV3 - 1])) {
+					parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4_DIV3 - 1]->name)) {
 			/* prepare the first change */
 			temp.parent2 =
-				__clk_lookup(parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_832M - 1]);
+				parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_832M - 1];
 			temp.parent1 =
-				__clk_lookup(parent1_clk_tbl[DFC_FREQ_PARENT1_DISPLAY1 - 1]);
+				parent1_clk_tbl[DFC_FREQ_PARENT1_DISPLAY1 - 1];
 			temp.dsi_rate = temp.parent2->rate/2;
 			temp.path_rate = set_pixel_clk(dsi, temp.dsi_rate);
 			/* add dfc reqyest to list */
@@ -561,9 +584,9 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 
 		/* prepare the third change */
 		temp.parent2 =
-			__clk_lookup(parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1]);
+			parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1];
 		temp.parent1 =
-			__clk_lookup(parent1_clk_tbl[DFC_FREQ_PARENT1_DSIPLL - 1]);
+			parent1_clk_tbl[DFC_FREQ_PARENT1_DSIPLL - 1];
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
 		if (dfc == NULL)
 			goto prepare_fail;
@@ -661,7 +684,7 @@ static int dfc_set_rate(struct mmp_path *path, unsigned long rate)
 		 * FIXME: enable hclk to do register operation.
 		 * TODO: Better use power domain on off
 		 */
-		clk_prepare_enable(__clk_lookup("LCDCIHCLK"));
+		clk_prepare_enable(hclk);
 		writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
 				ctrl->reg_base + LCD_SCLK_DIV);
 	}
@@ -681,7 +704,7 @@ static int dfc_set_rate(struct mmp_path *path, unsigned long rate)
 
 	if (!path->status) {
 		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
-		clk_disable_unprepare(__clk_lookup("LCDCIHCLK"));
+		clk_disable_unprepare(hclk);
 	}
 
 	mutex_unlock(&ctrl->access_ok);
@@ -696,7 +719,7 @@ static unsigned long dfc_get_rate(struct mmp_path *path)
 
 	mutex_lock(&ctrl->access_ok);
 	if (!path->status) {
-		clk_prepare_enable(__clk_lookup("LCDCIHCLK"));
+		clk_prepare_enable(hclk);
 		writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
 				ctrl->reg_base + LCD_SCLK_DIV);
 	}
@@ -706,7 +729,7 @@ static unsigned long dfc_get_rate(struct mmp_path *path)
 	 * upper side can get this rate directly by read
 	 * sysfs node.
 	 */
-	rate = clk_get_rate(__clk_lookup("dsi_sclk"));
+	rate = clk_get_rate(clk_parent0);
 	val = sclk_div;
 	val &= DSI1_BITCLK_DIV_MASK;
 	val = val >> 8;
@@ -714,7 +737,7 @@ static unsigned long dfc_get_rate(struct mmp_path *path)
 
 	if (!path->status) {
 		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
-		clk_disable_unprepare(__clk_lookup("LCDCIHCLK"));
+		clk_disable_unprepare(hclk);
 	}
 	mutex_unlock(&ctrl->access_ok);
 	return rate;
@@ -838,7 +861,7 @@ void ctrl_dfc_init(struct device *dev)
 		for (i = 0; i < count; i++) {
 			if (of_property_read_string_index(np, "parent1-clk-tbl", i, &clk_name))
 				continue;
-			strcpy(parent1_clk_tbl[i], clk_name);
+			parent1_clk_tbl[i] = __clk_lookup(clk_name);
 		}
 
 		parent2_count = of_property_count_strings(np, "parent2-clk-tbl");
@@ -849,7 +872,7 @@ void ctrl_dfc_init(struct device *dev)
 		for (i = 0; i < parent2_count; i++) {
 			if (of_property_read_string_index(np, "parent2-clk-tbl", i, &clk_name))
 				continue;
-			strcpy(parent2_clk_tbl[i], clk_name);
+			parent2_clk_tbl[i] = __clk_lookup(clk_name);
 		}
 	} else {
 		pr_err("%s: dts is not suport, or disp_apmu_ver missing\n", __func__);
@@ -875,8 +898,13 @@ void ctrl_dfc_init(struct device *dev)
 	ctrl->dfc.sclk_reg = ctrl->reg_base + LCD_PN_SCLK;
 
 	sclk_div = readl_relaxed(ctrl->dfc.sclk_reg);
-	pll3_vco_default = clk_get_rate(__clk_lookup("pll4_vco"));
-	pll3_default = clk_get_rate(__clk_lookup("pll4"));
+	clk_parent0 = __clk_lookup(parent0_clk_tbl[0]);
+	pll3 = __clk_lookup("pll4");
+	pll3_vco = __clk_lookup("pll4_vco");
+	hclk = __clk_lookup("LCDCIHCLK");
+
+	pll3_vco_default = clk_get_rate(pll3_vco);
+	pll3_default = clk_get_rate(pll3);
 
 	device_create_file(dev, &dev_attr_freq);
 
@@ -887,7 +915,7 @@ void ctrl_dfc_init(struct device *dev)
 	 * FIXME: get original rate before dfc, so we can
 	 * set the original rate after dfc.
 	 */
-	original_rate = clk_get_rate(__clk_lookup("dsi_sclk"));
+	original_rate = clk_get_rate(clk_parent0);
 	val = sclk_div;
 	val &= DSI1_BITCLK_DIV_MASK;
 	val = val >> 8;
