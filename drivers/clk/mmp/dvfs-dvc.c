@@ -719,6 +719,28 @@ int dvfs_get_dvcplatinfo(struct dvc_plat_info *platinfo)
 }
 EXPORT_SYMBOL(dvfs_get_dvcplatinfo);
 
+/* return value is dvc_info->dvcplatinfo->num_volts */
+int dvfs_get_svc_freq_table(unsigned long const **freq, const char *name)
+{
+	struct dvfs_rail_component *comps_tbl;
+	int idx, num_comps;
+
+	if (likely(dvc_info && dvc_info->dvcplatinfo)) {
+		comps_tbl = dvc_info->dvcplatinfo->comps;
+		num_comps = dvc_info->dvcplatinfo->num_comps;
+		for (idx = 0; idx < num_comps; idx++)
+			if (!strcmp(name, comps_tbl[idx].clk_name)) {
+				*freq = comps_tbl[idx].freqs;
+				return dvc_info->dvcplatinfo->num_volts;
+			}
+	}
+
+	pr_err("dvfs_get_svc_freq_table failed to get %s freq table\n", name);
+	return -EINVAL;
+}
+EXPORT_SYMBOL(dvfs_get_svc_freq_table);
+
+
 /* notifier for hwdvc */
 int hwdvc_notifier_register(struct notifier_block *n)
 {

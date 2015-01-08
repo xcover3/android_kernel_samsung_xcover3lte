@@ -1773,6 +1773,13 @@ static void __init pxa1936_clk_init(struct device_node *np)
 		return;
 	}
 
+/* init clock and ddr will use the dvfs_platinfo.
+ * make sure initialize dvfs_platinfo before clock and ddr init.
+ */
+#if defined(CONFIG_PXA_DVFS)
+	setup_pxa1936_dvfs_platinfo();
+#endif
+
 	mmp_clk_init(np, &pxa_unit->unit, PXA1936_NR_CLKS);
 
 	pxa1936_misc_init(pxa_unit);
@@ -1784,10 +1791,6 @@ static void __init pxa1936_clk_init(struct device_node *np)
 #ifdef CONFIG_SMC91X
 	if (board_is_fpga())
 		smc91x_clk_init(pxa_unit->apmu_base);
-#endif
-
-#if defined(CONFIG_PXA_DVFS)
-	setup_pxa1936_dvfs_platinfo();
 #endif
 
 #ifdef CONFIG_DEBUG_FS
