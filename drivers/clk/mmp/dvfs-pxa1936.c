@@ -391,6 +391,12 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 	plat_set_vl_min(0);
 	plat_set_vl_max(dvc_pxa1936_info.num_volts);
 
+	/* optimize the CP power,use the MSA LV2 voltage when profile >=9 */
+	if (uiprofile >= 9) {
+		cpmsa_dvc_info_1936sec.msadvcvl = VL2;
+		dvc_pxa1936_info.dp_pmudvc_lvl = VL2;
+	}
+
 	fillcpdvcinfo(&cpmsa_dvc_info_1936sec);
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
