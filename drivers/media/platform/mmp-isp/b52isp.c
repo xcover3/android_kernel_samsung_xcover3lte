@@ -2265,8 +2265,11 @@ check_eof_irq:
 			d_inf(3, "%s: Start_FIFO at same time\n", isd->subdev.name);
 		}
 
-		if (pvnode->reset_mmu_chnl)
+		if (pvnode->reset_mmu_chnl) {
+			/* wait the AXI outstanding to finish*/
+			udelay(500);
 			pvnode->reset_mmu_chnl(pcam, vnode, num_planes);
+		}
 
 		buffer = isp_vnode_find_busy_buffer(vnode, 0);
 		if (buffer && laxi->stream)
@@ -2276,6 +2279,7 @@ check_eof_irq:
 	}
 
 	if (irqstatus & VIRT_IRQ_DONE) {
+		struct plat_vnode *pvnode = container_of(vnode, struct plat_vnode, vnode);
 		irqstatus &= ~VIRT_IRQ_DONE;
 		if (laxi->dma_state != B52DMA_ACTIVE)
 			goto recheck;
@@ -2287,6 +2291,8 @@ check_eof_irq:
 			isp_vnode_put_busy_buffer(vnode, buffer);
 		}
 
+		if (pvnode->reset_mmu_chnl)
+			pvnode->reset_mmu_chnl(pcam, vnode, num_planes);
 		if (buffer && laxi->stream)
 			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
 
