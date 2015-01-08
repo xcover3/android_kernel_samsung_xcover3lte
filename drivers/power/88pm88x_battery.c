@@ -2107,6 +2107,7 @@ out_irq:
 	while (--i >= 0)
 		devm_free_irq(info->dev, info->irq[i], info);
 out:
+	kfree(&info->temp_ohm_table);
 	power_supply_unregister(&info->battery);
 
 	return ret;
@@ -2129,6 +2130,7 @@ static int pm88x_battery_remove(struct platform_device *pdev)
 	flush_workqueue(info->bat_wqueue);
 
 	power_supply_unregister(&info->battery);
+	kfree(&info->temp_ohm_table);
 	pm88x_battery_release_adc(info);
 
 #ifdef CONFIG_USB_MV_UDC
