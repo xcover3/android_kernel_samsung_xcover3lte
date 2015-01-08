@@ -68,16 +68,16 @@ static struct clk *parent2_clk_tbl[MAX_CLK_NUM];
 static struct clk *parent_clk_tbl[MAX_PARENT_CLK_NUM];
 static int parent_clk_count;
 unsigned char parent2_count;
-static unsigned long pll3_vco_default;
-static unsigned long pll3_default;
+static unsigned long dsipll_vco_default;
+static unsigned long dsipll_default;
 static unsigned int lcd_clk_en;
 static unsigned int plat;
 static unsigned long original_rate;
 static unsigned int sclk_div;
 
 static struct clk *hclk;
-static struct clk *pll3;
-static struct clk *pll3_vco;
+static struct clk *dsipll;
+static struct clk *dsipll_vco;
 static struct clk *clk_parent0;
 
 #if 0
@@ -122,8 +122,8 @@ enum {
 	DFC_FREQ_PARENT2_PLL1_624M,
 	DFC_FREQ_PARENT2_PLL1_832M,
 	DFC_FREQ_PARENT2_PLL1_499M,
-	DFC_FREQ_PARENT2_PLL4,
-	DFC_FREQ_PARENT2_PLL4_DIV3,
+	DFC_FREQ_PARENT2_DSIPLL,
+	DFC_FREQ_PARENT2_DSIPLL_DIV3,
 };
 
 enum {
@@ -134,10 +134,10 @@ enum {
 
 enum {
 	DFC_CHANGE_LCD,
-	DFC_DISABLE_PLL3,
-	DFC_ENABLE_PLL3,
-	DFC_CHANGE_PLL3,
-	DFC_RESTORE_PLL3,
+	DFC_DISABLE_DSIPLL,
+	DFC_ENABLE_DSIPLL,
+	DFC_CHANGE_DSIPLL,
+	DFC_RESTORE_DSIPLL,
 };
 
 static u32 dsi_get_bpp_from_inputfmt(int fmt)
@@ -196,8 +196,8 @@ static void get_parent_index(unsigned long rate, struct parent_index *index)
 		(index->parent2 == DFC_FREQ_PARENT2_PLL1_499M))
 		index->parent1 = DFC_FREQ_PARENT1_DISPLAY1;
 
-	if ((index->parent2 == DFC_FREQ_PARENT2_PLL4) ||
-		(index->parent2 == DFC_FREQ_PARENT2_PLL4_DIV3))
+	if ((index->parent2 == DFC_FREQ_PARENT2_DSIPLL) ||
+		(index->parent2 == DFC_FREQ_PARENT2_DSIPLL_DIV3))
 		index->parent1 = DFC_FREQ_PARENT1_DSIPLL;
 }
 
@@ -304,8 +304,8 @@ static void get_current_parent_index(struct clk *clk,
 		(index->parent2 == DFC_FREQ_PARENT2_PLL1_499M))
 		index->parent1 = DFC_FREQ_PARENT1_DISPLAY1;
 
-	if ((index->parent2 == DFC_FREQ_PARENT2_PLL4) ||
-		(index->parent2 == DFC_FREQ_PARENT2_PLL4_DIV3))
+	if ((index->parent2 == DFC_FREQ_PARENT2_DSIPLL) ||
+		(index->parent2 == DFC_FREQ_PARENT2_DSIPLL_DIV3))
 		index->parent1 = DFC_FREQ_PARENT1_DSIPLL;
 }
 
@@ -348,11 +348,11 @@ static void calculate_reg_value(struct mmphw_ctrl *ctrl)
 		apmu = 0x9043f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(0);
 	} else if (!strcmp(dfc->parent2->name,
-		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1]->name)) {
+		parent2_clk_tbl[DFC_FREQ_PARENT2_DSIPLL - 1]->name)) {
 		apmu = 0x9011f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(3);
 	} else if (!strcmp(dfc->parent2->name,
-		parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4_DIV3 - 1]->name)) {
+		parent2_clk_tbl[DFC_FREQ_PARENT2_DSIPLL_DIV3 - 1]->name)) {
 		apmu = 0x9411f;
 		sclk |= SCLK_SOURCE_SELECT_DC4_LITE(3);
 	}
@@ -361,39 +361,39 @@ static void calculate_reg_value(struct mmphw_ctrl *ctrl)
 }
 
 /* rate unit is Mhz */
-static void dynamic_change_pll3(unsigned int rate, int type)
+static void dynamic_change_dsipll(unsigned int rate, int type)
 {
-	unsigned long i, pll3_rate, pll3vco_rate = 0;
+	unsigned long i, dsipll_rate, dsipllvco_rate = 0;
 
 	switch (type) {
-	case DFC_RESTORE_PLL3:
-		if (!(clk_get_rate(pll3) == pll3_default)) {
-			pll3_rate = pll3_default;
-			clk_set_rate(pll3, pll3_rate);
+	case DFC_RESTORE_DSIPLL:
+		if (!(clk_get_rate(dsipll) == dsipll_default)) {
+			dsipll_rate = dsipll_default;
+			clk_set_rate(dsipll, dsipll_rate);
 		}
 		break;
-	case DFC_DISABLE_PLL3:
-		clk_disable_unprepare(pll3);
+	case DFC_DISABLE_DSIPLL:
+		clk_disable_unprepare(dsipll);
 		break;
-	case DFC_ENABLE_PLL3:
-		clk_prepare_enable(pll3);
+	case DFC_ENABLE_DSIPLL:
+		clk_prepare_enable(dsipll);
 		break;
 	default:
 		if (PXA1928 != plat) {
 			for (i = 0; i < ARRAY_SIZE(pll_post_div_tbl); i++) {
-				pll3vco_rate = rate * pll_post_div_tbl[i].div;
-				if ((pll3vco_rate > 1500) &&
-						(pll3vco_rate < 3000))
+				dsipllvco_rate = rate * pll_post_div_tbl[i].div;
+				if ((dsipllvco_rate > 1500) &&
+						(dsipllvco_rate < 3000))
 					break;
 			}
 
 			if (i == ARRAY_SIZE(pll_post_div_tbl))
 				BUG_ON("Multiplier is out of range\n");
 
-			pll3_rate = rate * MHZ_TO_HZ;
-			pll3vco_rate *= MHZ_TO_HZ;
-			clk_set_rate(pll3_vco, pll3vco_rate);
-			clk_set_rate(pll3, pll3_rate);
+			dsipll_rate = rate * MHZ_TO_HZ;
+			dsipllvco_rate *= MHZ_TO_HZ;
+			clk_set_rate(dsipll_vco, dsipllvco_rate);
+			clk_set_rate(dsipll, dsipll_rate);
 		}
 		break;
 	}
@@ -512,15 +512,15 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
 		if (dfc == NULL)
 			goto prepare_fail;
-		dfc->name = DFC_RESTORE_PLL3;
+		dfc->name = DFC_RESTORE_DSIPLL;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 		break;
-	case DFC_FREQ_PARENT2_PLL4:
-		/* prepare enable pll3 change */
+	case DFC_FREQ_PARENT2_DSIPLL:
+		/* prepare enable dsipll change */
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
 		if (dfc == NULL)
 			return -EFAULT;
-		dfc->name = DFC_ENABLE_PLL3;
+		dfc->name = DFC_ENABLE_DSIPLL;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 
 		/* prepare the first change */
@@ -537,18 +537,18 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 		dfc->name = DFC_CHANGE_LCD;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 
-		/* prepare disable pll3 change */
+		/* prepare disable dsipll change */
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
 		if (dfc == NULL)
 			goto prepare_fail;
-		dfc->name = DFC_DISABLE_PLL3;
+		dfc->name = DFC_DISABLE_DSIPLL;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 		break;
 	case DFC_FREQ_PARENT2_PLL_NONE:
 		if (!strcmp(temp.current_parent2->name,
-					parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1]->name) ||
+					parent2_clk_tbl[DFC_FREQ_PARENT2_DSIPLL - 1]->name) ||
 				!strcmp(temp.current_parent2->name,
-					parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4_DIV3 - 1]->name)) {
+					parent2_clk_tbl[DFC_FREQ_PARENT2_DSIPLL_DIV3 - 1]->name)) {
 			/* prepare the first change */
 			temp.parent2 =
 				parent2_clk_tbl[DFC_FREQ_PARENT2_PLL1_832M - 1];
@@ -572,19 +572,19 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 		if (dfc == NULL)
 			goto prepare_fail;
 		memcpy(dfc, &temp, sizeof(*dfc));
-		dfc->name = DFC_CHANGE_PLL3;
+		dfc->name = DFC_CHANGE_DSIPLL;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 
-		/* prepare enable pll3 change */
+		/* prepare enable dsipll change */
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
 		if (dfc == NULL)
 			return -EFAULT;
-		dfc->name = DFC_ENABLE_PLL3;
+		dfc->name = DFC_ENABLE_DSIPLL;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 
 		/* prepare the third change */
 		temp.parent2 =
-			parent2_clk_tbl[DFC_FREQ_PARENT2_PLL4 - 1];
+			parent2_clk_tbl[DFC_FREQ_PARENT2_DSIPLL - 1];
 		temp.parent1 =
 			parent1_clk_tbl[DFC_FREQ_PARENT1_DSIPLL - 1];
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
@@ -594,11 +594,11 @@ static int dfc_prepare(struct mmphw_ctrl *ctrl, unsigned int rate)
 		dfc->name = DFC_CHANGE_LCD;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 
-		/* prepare disable pll3 change */
+		/* prepare disable dsipll change */
 		dfc = kzalloc(sizeof(struct mmp_dfc), GFP_KERNEL);
 		if (dfc == NULL)
 			goto prepare_fail;
-		dfc->name = DFC_DISABLE_PLL3;
+		dfc->name = DFC_DISABLE_DSIPLL;
 		list_add_tail(&dfc->queue, &ctrl->dfc_list.queue);
 		break;
 	default:
@@ -630,11 +630,11 @@ static int dfc_commit(struct mmphw_ctrl *ctrl)
 		case DFC_CHANGE_LCD:
 			ret = dynamic_change_lcd(ctrl, dfc);
 			break;
-		case DFC_DISABLE_PLL3:
-		case DFC_ENABLE_PLL3:
-		case DFC_CHANGE_PLL3:
-		case DFC_RESTORE_PLL3:
-			dynamic_change_pll3(dfc->dsi_rate / MHZ_TO_HZ, dfc->name);
+		case DFC_DISABLE_DSIPLL:
+		case DFC_ENABLE_DSIPLL:
+		case DFC_CHANGE_DSIPLL:
+		case DFC_RESTORE_DSIPLL:
+			dynamic_change_dsipll(dfc->dsi_rate / MHZ_TO_HZ, dfc->name);
 			break;
 		default:
 			break;
@@ -899,12 +899,17 @@ void ctrl_dfc_init(struct device *dev)
 
 	sclk_div = readl_relaxed(ctrl->dfc.sclk_reg);
 	clk_parent0 = __clk_lookup(parent0_clk_tbl[0]);
-	pll3 = __clk_lookup("pll4");
-	pll3_vco = __clk_lookup("pll4_vco");
+
+	/*
+	 * When other platforms add dedicate dsi pll like pll3,
+	 * please add "if (plat == PXAxxx)" to update dsipll;
+	 */
+	dsipll = __clk_lookup("pll4");
+	dsipll_vco = __clk_lookup("pll4_vco");
 	hclk = __clk_lookup("LCDCIHCLK");
 
-	pll3_vco_default = clk_get_rate(pll3_vco);
-	pll3_default = clk_get_rate(pll3);
+	dsipll_vco_default = clk_get_rate(dsipll_vco);
+	dsipll_default = clk_get_rate(dsipll);
 
 	device_create_file(dev, &dev_attr_freq);
 
