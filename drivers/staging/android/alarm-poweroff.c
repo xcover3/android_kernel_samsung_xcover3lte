@@ -31,13 +31,13 @@ static ssize_t alarm_read(struct file *file, char __user *buf, size_t count,
 			  loff_t *ppos)
 {
 	int ret = 0;
-	char str[10];
+	char str[11];
 	int len;
 
 	if (rtc_power_up_flag) {
-		len = snprintf(str, 10, "%lu", power_up_alarm_time);
+		len = snprintf(str, 11, "%lu", power_up_alarm_time);
 		ret = simple_read_from_buffer(buf, count, ppos, str, len);
-		pr_info("%s, %s, %d\n", __func__, buf, ret);
+		pr_info("%s, %s, %d, %d\n", __func__, buf, ret, len);
 	}
 
 	return ret;
