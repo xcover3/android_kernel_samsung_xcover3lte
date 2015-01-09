@@ -8,7 +8,7 @@
  */
 
 /dts-v1/;
-#include "pxa1908-dkb.dtsi"
+#include "pxa1908-board-common.dtsi"
 
 / {
 	model = "Marvell PXA1908 FF Development Board";
@@ -23,6 +23,22 @@
 						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
 			};
+
+			usbphy: usbphy@d4207000 {
+				status = "okay";
+			};
+
+			udc: udc@d4208100 {
+				status = "okay";
+			};
+
+			ehci: ehci@d4208100 {
+				status = "okay";
+			};
+
+			otg: otg@d4208100 {
+				status = "okay";
+			};
 		};
 
 		apb@d4000000 {
@@ -35,12 +51,17 @@
 			};
 
 			keypad: keypad@d4012000 {
+				marvell,direct-keys;
+				marvell,direct-key-low-active;
+				marvell,keypad-lpm-mod;
+				marvell,direct-key-count = <2>;
+				marvell,direct-key-mask = <0xff>;
 				marvell,direct-key-map = < 0x72
 							   0x73>;
-			};
-
-			keyreset {
-				status = "disabled";
+				marvell,debounce-interval = <30>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&keypad_in_func>;
+				status = "okay";
 			};
 
 			pmx: pinmux@d401e000 {
@@ -82,21 +103,15 @@
 			};
 
 			twsi1: i2c@d4010800 {
-				touch1: s3202@720p {
-					status = "disabled";
-				};
-
 				touch2: msg2133@26 {
 					focaltech,virtual_key_cfg = <1>;
-				};
-
-				touch3: 88ms100@720p {
-					status = "disabled";
+					status = "okay";
 				};
 			};
 
 			twsi2: i2c@d4037000 {
 				pmic0: 88pm886@30 {
+					status = "okay";
 					headset {
 						marvell,headset-flag = <0>;
 					};
@@ -104,18 +119,6 @@
 			};
 
 			twsi3: i2c@d4013800 {
-				sensor1: apds9930@39 {
-					status = "disabled";
-				};
-
-				sensor2: bmi160@68 {
-					status = "disabled";
-				};
-
-				sensor3: bme280@76 {
-					status = "disabled";
-				};
-
                                 mc3xxx@4c {
 					compatible = "mc3, mc3xxx";
 					reg = <0x4c>;
@@ -123,30 +126,23 @@
 					interrupts = <91 0x1>;
 					irq-gpios = <&gpio 91 0>;
 					avdd-supply = <&ldo4>;
+					status = "okay";
 				};
 			};
 		};
 	};
 
 	vibrator {
+		compatible = "marvell,pwm-vibrator";
+		pwms = <&pwm2 0 1000>;
+		min_timeout = <0>;
+		duty_cycle = <800>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pwm2_pin>;
-		pwms = <&pwm2 0 1000>;
+		vibrator-supply = <&ldo9>;
 	};
 
-	panel1: hx8394 {
-		status = "disabled";
-	};
-
-	panel2: otm8018b {
-		status = "disabled";
-	};
-
-	panel3: otm1283a {
-		status = "disabled";
-	};
-
-	panel4: fl10802 {
+	panel1: fl10802 {
 		compatible = "marvell,mmp-fl10802";
 		marvell,path-name = "mmp_pnpath";
 		pinctrl-names = "default";
@@ -159,7 +155,13 @@
 	};
 
 	sd8x-rfkill {
-		rst-gpio = <>;
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio 7 0>;
+		wib_3v3-supply = <&ldo15>;
+		wib_1v8-supply = <&buck2>;
+		3v3-ldo-gpio = <&gpio 14 0>;
+		edge-wakeup-gpio = <&gpio 39 0>;
+		status = "okay";
 	};
 
 	mcam0:mcam@0 {
@@ -247,3 +249,8 @@
 	        status = "okay";
 	};
 };
+#include "88pm88x.dtsi"
+#include "88pm886.dtsi"
+#include "88pm88x_battery_common.dtsi"
+#include "88pm88x_sp4555557sa.dtsi"
+#include "88pm886_pxa1908_dkb.dtsi"
