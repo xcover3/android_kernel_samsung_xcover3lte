@@ -7,13 +7,11 @@
 
 #define MHZ (1000000)
 #define MHZ_TO_KHZ (1000)
+#define MHZ_TO_HZ (1000000)
+#define KHZ_TO_HZ (1000)
 
 #define APBC_NO_BUS_CTRL	BIT(0)
 #define APBC_POWER_CTRL		BIT(1)
-
-#define MHZ_TO_HZ (1000000)
-#define MHZ_TO_KHZ (1000)
-#define MHZ (1000000)
 
 /* Clock type "dummy" */
 #define DUMMY_VL_TO_KHZ(level) (((level)+1)*1000)

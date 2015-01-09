@@ -283,7 +283,14 @@ static struct cpu_opt *clst0_bridge_op;
 static struct cpu_opt *clst1_bridge_op;
 static struct ddr_opt *cur_ddr_op;
 static struct axi_opt *cur_axi_op;
-static struct pm_qos_request cci_qos_req_min[2];
+static struct pm_qos_request cci_qos_req_min[2] = {
+	{
+		.name = "CCI_MIN_L",
+	},
+	{
+		.name = "CCI_MIN_B",
+	},
+};
 
 static struct clk *clk_dclk;
 
@@ -517,7 +524,7 @@ static int trigger_slave_clk_fc(int mclk_type, unsigned long mclk_rate)
 			}
 		} else {
 			pm_qos_update_request(&cci_qos_req_min[mclk_type],
-				comclk->relation_tbl[i].sclk_rate / MHZ_TO_HZ);
+				comclk->relation_tbl[i].sclk_rate / MHZ_TO_KHZ);
 		}
 	}
 
@@ -1009,6 +1016,7 @@ static struct clk *hwsel2parent(struct parents_table *parent_table,
 
 static void clk_cpu_init(struct clk_hw *hw)
 {
+	int mclk_type = 0;
 	unsigned int op_index;
 	struct clk *parent;
 	struct parents_table *parent_table;
@@ -1018,10 +1026,13 @@ static void clk_cpu_init(struct clk_hw *hw)
 	unsigned int pp[MAX_OP_NUM];
 	struct list_head *op_list = NULL;
 
-	if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME))
+	if (!strcmp(hw->clk->name, CLST0_CORE_CLK_NAME)) {
 		op_list = &apc0_core_op_list;
-	else if (!strcmp(hw->clk->name, CLST1_CORE_CLK_NAME))
+		mclk_type = CLST0;
+	} else if (!strcmp(hw->clk->name, CLST1_CORE_CLK_NAME)) {
 		op_list = &apc1_core_op_list;
+		mclk_type = CLST1;
+	}
 
 	parent_table = core->params->parent_table;
 	parent_table_size = core->params->parent_table_size;
@@ -1104,6 +1115,11 @@ static void clk_cpu_init(struct clk_hw *hw)
 #ifdef CONFIG_CPU_FREQ
 	__init_cpufreq_table(hw);
 #endif
+
+	/* we call *clk_set_rate* in cci_min_notify defined in clk-pxa1936.c */
+	pm_qos_add_request(&cci_qos_req_min[mclk_type], PM_QOS_CCI_MIN,
+			   PM_QOS_DEFAULT_VALUE);
+	trigger_slave_clk_fc(mclk_type, hw->clk->rate);
 
 	pr_info("%s boot up @%luHZ\n", core->hw.clk->name, hw->clk->rate);
 }
@@ -1263,7 +1279,6 @@ struct clk *mmp_clk_register_core(const char *name, const char **parent_name,
 				  u32 core_flags, spinlock_t *lock,
 				  struct core_params *params)
 {
-	static int i;
 	struct clk_core *core;
 	struct clk *clk;
 	struct clk_init_data init;
@@ -1286,10 +1301,6 @@ struct clk *mmp_clk_register_core(const char *name, const char **parent_name,
 	clk = clk_register(NULL, &core->hw);
 	if (IS_ERR(clk))
 		kfree(core);
-
-	/* we call *clk_set_rate* in cci_min_notify defined in clk-pxa1936.c */
-	pm_qos_add_request(&cci_qos_req_min[i++], PM_QOS_CCI_MIN,
-			   PM_QOS_DEFAULT_VALUE);
 
 	return clk;
 }

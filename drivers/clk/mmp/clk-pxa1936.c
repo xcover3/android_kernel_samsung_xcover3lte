@@ -1571,13 +1571,13 @@ static int cci_min_notify(struct notifier_block *b,
 {
 	int ret = 0;
 
-	ret = clk_set_rate(clk_cci_mem, min * MHZ_TO_HZ);
+	ret = clk_set_rate(clk_cci_mem, min * KHZ_TO_HZ);
 	if (ret) {
 		pr_err("%s failed to change cci mem_clk to %lu MHz\n", __func__, min);
 		return NOTIFY_BAD;
 	} else {
-		min = ((min == 832) ? (min / 4) : (min / 2));
-		ret = clk_set_rate(clk_cci_bus, min * MHZ_TO_HZ);
+		min = ((min == 832000) ? (min / 4) : (min / 2));
+		ret = clk_set_rate(clk_cci_bus, min * KHZ_TO_HZ);
 		if (ret) {
 			pr_err("%s failed to change cci bus_clk to %lu MHz\n", __func__, min);
 			return NOTIFY_BAD;
@@ -1594,6 +1594,47 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 {
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
 	struct clk *clk;
+
+	/* make sure cci-400 clock & QoS notifier ready before core clocks */
+	cci_memclk_mix_config.reg_info.reg_clk_ctrl =
+				pxa_unit->apmu_base + APMU_CCI;
+	clk = mmp_clk_register_mix(NULL, "cci_mem_mix_clk",
+				(const char **)cci_parent_names, ARRAY_SIZE(cci_parent_names),
+				0, &cci_memclk_mix_config, NULL);
+
+	clk = mmp_clk_register_gate(NULL, "cci_memclk", "cci_mem_mix_clk",
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+				pxa_unit->apmu_base + APMU_CCI,
+				(1 << 13), (1 << 13), 0x0, 0, NULL);
+	clk_cci_mem = clk;
+	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1936_CLK_CCI_MEM, clk);
+
+	register_slave_clock(clk, CLST0,
+		cci_memclk_pptbl[ARRAY_SIZE(cci_memclk_pptbl) - 1].rate,
+		c0clk_cciclk_relationtbl,
+		ARRAY_SIZE(c0clk_cciclk_relationtbl));
+
+	cci_busclk_mix_config.reg_info.reg_clk_ctrl =
+				pxa_unit->apmu_base + APMU_CCI;
+	clk = mmp_clk_register_mix(NULL, "cci_bus_mix_clk",
+				(const char **)cci_parent_names, ARRAY_SIZE(cci_parent_names),
+				0, &cci_busclk_mix_config, NULL);
+
+	clk = mmp_clk_register_gate(NULL, "cci_busclk", "cci_bus_mix_clk",
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
+				pxa_unit->apmu_base + APMU_CCI,
+				(1 << 13), (1 << 13), 0x0, 0, NULL);
+	clk_cci_bus = clk;
+	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1936_CLK_CCI_BUS, clk);
+
+	register_slave_clock(clk, CLST1,
+		cci_memclk_pptbl[ARRAY_SIZE(cci_memclk_pptbl) - 1].rate,
+		c1clk_cciclk_relationtbl,
+		ARRAY_SIZE(c1clk_cciclk_relationtbl));
+
+	pm_qos_add_notifier(PM_QOS_CCI_MIN, &cci_min_notifier);
 
 	clst0_core_params.apmu_base = pxa_unit->apmu_base;
 	clst0_core_params.mpmu_base = pxa_unit->mpmu_base;
@@ -1651,46 +1692,6 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 		axi_params.axi_opt[axi_params.axi_opt_size - 1].aclk * MHZ,
 		dclk_aclk_relationtbl,
 		ARRAY_SIZE(dclk_aclk_relationtbl));
-
-	cci_memclk_mix_config.reg_info.reg_clk_ctrl =
-				pxa_unit->apmu_base + APMU_CCI;
-	clk = mmp_clk_register_mix(NULL, "cci_mem_mix_clk",
-				(const char **)cci_parent_names, ARRAY_SIZE(cci_parent_names),
-				0, &cci_memclk_mix_config, NULL);
-
-	clk = mmp_clk_register_gate(NULL, "cci_memclk", "cci_mem_mix_clk",
-				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
-				pxa_unit->apmu_base + APMU_CCI,
-				(1 << 13), (1 << 13), 0x0, 0, NULL);
-	clk_cci_mem = clk;
-	clk_prepare_enable(clk);
-	mmp_clk_add(unit, PXA1936_CLK_CCI_MEM, clk);
-
-	register_slave_clock(clk, CLST0,
-		cci_memclk_pptbl[ARRAY_SIZE(cci_memclk_pptbl) - 1].rate,
-		c0clk_cciclk_relationtbl,
-		ARRAY_SIZE(c0clk_cciclk_relationtbl));
-
-	cci_busclk_mix_config.reg_info.reg_clk_ctrl =
-				pxa_unit->apmu_base + APMU_CCI;
-	clk = mmp_clk_register_mix(NULL, "cci_bus_mix_clk",
-				(const char **)cci_parent_names, ARRAY_SIZE(cci_parent_names),
-				0, &cci_busclk_mix_config, NULL);
-
-	clk = mmp_clk_register_gate(NULL, "cci_busclk", "cci_bus_mix_clk",
-				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
-				pxa_unit->apmu_base + APMU_CCI,
-				(1 << 13), (1 << 13), 0x0, 0, NULL);
-	clk_cci_bus = clk;
-	clk_prepare_enable(clk);
-	mmp_clk_add(unit, PXA1936_CLK_CCI_BUS, clk);
-
-	register_slave_clock(clk, CLST1,
-		cci_memclk_pptbl[ARRAY_SIZE(cci_memclk_pptbl) - 1].rate,
-		c1clk_cciclk_relationtbl,
-		ARRAY_SIZE(c1clk_cciclk_relationtbl));
-
-	pm_qos_add_notifier(PM_QOS_CCI_MIN, &cci_min_notifier);
 }
 
 static void __init pxa1936_misc_init(struct pxa1936_clk_unit *pxa_unit)
