@@ -123,20 +123,79 @@ void register_mixclk_dcstatinfo(struct clk *clk)
 }
 
 enum comp {
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	CLST0,
+	CLST1,
+#else
 	CORE,
+#endif
 	DDR,
 	AXI,
 	BOOT_DVFS_MAX,
 };
 
-static unsigned long minfreq[BOOT_DVFS_MAX] = { 0, 0, 0 };
 static unsigned long bootfreq[BOOT_DVFS_MAX];
 static struct clk *clk[BOOT_DVFS_MAX];
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+static char *clk_name[BOOT_DVFS_MAX] = {"clst0", "clst1", "ddr", "axi"};
+static struct pm_qos_request sdh_core_clst0_qos_max;
+static struct pm_qos_request sdh_core_clst1_qos_max;
+static unsigned long minfreq[BOOT_DVFS_MAX] = {0, 0, 0, 0};
+#else
 static char *clk_name[BOOT_DVFS_MAX] = {"cpu", "ddr", "axi"};
-
 static struct pm_qos_request sdh_core_qos_max;
+static unsigned long minfreq[BOOT_DVFS_MAX] = {0, 0, 0};
+#endif
+
 static struct pm_qos_request sdh_ddr_qos_max;
 
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+#define CLUSTER0_POLICY_CPU 0
+#define CLUSTER1_POLICY_CPU 4
+static int __init sdh_tuning_init(void)
+{
+#if defined(CONFIG_CPU_FREQ) && defined(CONFIG_PM_DEVFREQ)
+	struct cpufreq_frequency_table *cpufreq_table_clst0 =
+		cpufreq_frequency_get_table(CLUSTER0_POLICY_CPU);
+	struct cpufreq_frequency_table *cpufreq_table_clst1 =
+		cpufreq_frequency_get_table(CLUSTER1_POLICY_CPU);
+	struct devfreq_frequency_table *ddrfreq_table =
+		devfreq_frequency_get_table(DEVFREQ_DDR);
+
+	if (cpufreq_table_clst0)
+		minfreq[CLST0] = cpufreq_table_clst0[0].frequency;
+	else
+		pr_err("%s cpufreq_table_clst0 get failed, use 0 to set!\n", __func__);
+
+	if (cpufreq_table_clst1)
+		minfreq[CLST1] = cpufreq_table_clst1[0].frequency;
+	else
+		pr_err("%s cpufreq_table_clst1 get failed, use 0 to set!\n", __func__);
+
+	if (ddrfreq_table)
+		minfreq[DDR] = ddrfreq_table[0].frequency;
+	else
+		pr_err("%s ddrfreq_table get failed, use 0 to set!\n", __func__);
+#else
+	pr_info("%s CONFIG_CPU_FREQ & CONFIG_PM_DEVFREQ not defined!\n", __func__);
+	minfreq[CLST0] = minfreq[CLST1] = 0;
+	minfreq[DDR] = 0;
+#endif
+	sdh_core_clst0_qos_max.name = "clst0_4_sdh_tuning";
+	pm_qos_add_request(&sdh_core_clst0_qos_max,
+		PM_QOS_CPUFREQ_L_MAX, INT_MAX);
+
+	sdh_core_clst1_qos_max.name = "clst1_4_sdh_tuning";
+	pm_qos_add_request(&sdh_core_clst1_qos_max,
+		PM_QOS_CPUFREQ_B_MAX, INT_MAX);
+
+	sdh_ddr_qos_max.name = "ddr_4_sdh_tunin";
+	pm_qos_add_request(&sdh_ddr_qos_max,
+		PM_QOS_DDR_DEVFREQ_MAX, INT_MAX);
+
+	return 0;
+}
+#else
 static int __init sdh_tuning_init(void)
 {
 #if defined(CONFIG_CPU_FREQ) && defined(CONFIG_PM_DEVFREQ)
@@ -159,16 +218,17 @@ static int __init sdh_tuning_init(void)
 	minfreq[CORE] = 0;
 	minfreq[DDR] = 0;
 #endif
-	sdh_core_qos_max.name = "sdh_tuning";
+	sdh_core_qos_max.name = "core_4_sdh_tuning";
 	pm_qos_add_request(&sdh_core_qos_max,
 		PM_QOS_CPUFREQ_MAX, PM_QOS_DEFAULT_VALUE);
 
-	sdh_ddr_qos_max.name = "sdh_tuning";
+	sdh_ddr_qos_max.name = "ddr_4_tuning";
 	pm_qos_add_request(&sdh_ddr_qos_max,
 		PM_QOS_DDR_DEVFREQ_MAX, PM_QOS_DEFAULT_VALUE);
 
 	return 0;
 }
+#endif
 arch_initcall(sdh_tuning_init);
 
 int sdh_tunning_scaling2minfreq(void)
@@ -189,7 +249,15 @@ int sdh_tunning_scaling2minfreq(void)
 	}
 
 	clk_set_rate(clk[AXI], minfreq[AXI]);
+
+#ifdef CONFIG_CPU_FREQ
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	pm_qos_update_request(&sdh_core_clst0_qos_max, minfreq[CLST0]);
+	pm_qos_update_request(&sdh_core_clst1_qos_max, minfreq[CLST1]);
+#else
 	pm_qos_update_request(&sdh_core_qos_max, minfreq[CORE]);
+#endif
+#endif
 	pm_qos_update_request(&sdh_ddr_qos_max, minfreq[DDR]);
 
 	return 0;
@@ -199,7 +267,14 @@ int sdh_tunning_restorefreq(void)
 {
 	int i;
 
+#ifdef CONFIG_CPU_FREQ
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	pm_qos_update_request(&sdh_core_clst0_qos_max, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&sdh_core_clst1_qos_max, PM_QOS_DEFAULT_VALUE);
+#else
 	pm_qos_update_request(&sdh_core_qos_max, PM_QOS_DEFAULT_VALUE);
+#endif
+#endif
 	pm_qos_update_request(&sdh_ddr_qos_max, PM_QOS_DEFAULT_VALUE);
 
 	for (i = 0; i < BOOT_DVFS_MAX; i++) {
