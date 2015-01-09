@@ -136,43 +136,6 @@ void isp_build_exit(struct isp_build *mngr);
 int isp_build_init(struct isp_build *mngr);
 int isp_build_attach_ispsd(struct isp_build *mngr);
 
-/*
- * isp_event is used to provide a method for isp-subdevs to sync action between
- * each other, can be useful for shared IRQ, etc.
- */
-struct isp_event;
-typedef int __must_check (*event_handler_t)
-	(struct isp_subdev *receiver, struct isp_event *event);
-struct isp_dispatch_entry {
-	struct list_head	hook;
-	struct isp_subdev	*ispsd;
-	event_handler_t		handler;
-};
-
-/*
- * @owenr:	sender of this event
- * @type:	event type, sender must set it
- * @msg:	event message, that sender wants receiver to be aware
- * @hook:	used to mount on the event pool
- * @dispatch entry:	where receiver and its handle is saved
- */
-struct isp_event {
-	char			name[V4L2_SUBDEV_NAME_SIZE * 2];
-	void			*owner;
-	u32			type;
-	void			*msg;
-	struct list_head	hook;
-	struct list_head	dispatch_list;
-};
-
-int isp_event_register(struct isp_build *build, const char *name);
-int isp_event_unregister(struct isp_build *build, const char *name);
-struct isp_event *isp_event_find(struct isp_build *build, const char *name);
-int isp_event_subscribe(struct isp_event *event, struct isp_subdev *rx_sd,
-			event_handler_t handler);
-int isp_event_unsubscribe(struct isp_event *event, struct isp_subdev *rx_sd);
-int isp_event_dispatch(struct isp_event *event);
-
 #define subdev_has_fn(sd, o, f) ((sd) && (sd->ops) && (sd->ops->o) && \
 				(sd->ops->o->f))
 
