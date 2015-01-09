@@ -50,16 +50,17 @@
 static void __iomem *mpmu_virt_addr;
 
 /* sync hotplug policy and qos request */
-static DEFINE_MUTEX(cpuidle_apcr_qos_lock);
+static DEFINE_SPINLOCK(cpuidle_apcr_qos_lock);
+
 
 void cpuidle_qos_lock(void)
 {
-	mutex_lock(&cpuidle_apcr_qos_lock);
+	spin_lock(&cpuidle_apcr_qos_lock);
 }
 
 void cpuidle_qos_unlock(void)
 {
-	mutex_unlock(&cpuidle_apcr_qos_lock);
+	spin_unlock(&cpuidle_apcr_qos_lock);
 }
 
 int cpuidle_setmode(int qos_min)
