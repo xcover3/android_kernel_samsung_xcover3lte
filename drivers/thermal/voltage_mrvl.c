@@ -31,7 +31,7 @@ static int vl2therml_state(int vl, const unsigned long *vl_freq_tbl,
 {
 	int freq;
 	int i = 0;
-	freq = vl_freq_tbl[vl];
+	freq = vl_freq_tbl[vl] * KHZ_TO_HZ;
 
 	for (i = 0; i < state_freq_tbl->freq_num; i++) {
 		if (freq >= (state_freq_tbl->freq_tbl[i]))
@@ -49,7 +49,7 @@ static int freq2vl(int freq, const unsigned long *vl_freq_tbl)
 {
 	int i;
 	for (i = 0; i < VL_MAX; i++) {
-		if (freq <= vl_freq_tbl[i])
+		if (freq <= (vl_freq_tbl[i] * KHZ_TO_HZ))
 			break;
 	}
 		return i;

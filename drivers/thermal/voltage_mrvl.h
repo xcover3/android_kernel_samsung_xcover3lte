@@ -6,7 +6,7 @@
 
 #define CPU_MAX_NUM	num_possible_cpus()
 #define MAX_FREQ_PP	20
-#define KHZ_TO_HZ	1
+#define KHZ_TO_HZ	1000
 #define VL_MAX	8
 #define CMD_BUF_SIZE	120
 

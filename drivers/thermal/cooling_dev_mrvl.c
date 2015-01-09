@@ -153,12 +153,7 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 
 	cpufreq_device->cur_state = state;
 
-	if ((!strcmp(cdev->type, "cluster0-freq-cool")) ||
-		(!strcmp(cdev->type, "cluster1-freq-cool"))) {
-		pm_qos_update_request(&cpufreq_device->qos_max,
-		cpufreq_device->freqs[state]/1000);
-	} else
-		pm_qos_update_request(&cpufreq_device->qos_max,
+	pm_qos_update_request(&cpufreq_device->qos_max,
 			cpufreq_device->freqs[state]);
 
 	return 0;
