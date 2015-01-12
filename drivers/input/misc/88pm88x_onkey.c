@@ -157,12 +157,6 @@ static int pm88x_onkey_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	info->pm88x = chip;
 
-	/* give the gpio number as a default value */
-	info->gpio_number = -1;
-	err = pm88x_onkey_dt_init(node, info);
-	if (err < 0)
-		return -ENODEV;
-
 	info->irq = platform_get_irq(pdev, 0);
 	if (info->irq < 0) {
 		dev_err(&pdev->dev, "No IRQ resource!\n");
@@ -190,6 +184,14 @@ static int pm88x_onkey_probe(struct platform_device *pdev)
 	info->idev->dev.parent = &pdev->dev;
 	info->idev->evbit[0] = BIT_MASK(EV_KEY);
 	__set_bit(KEY_POWER, info->idev->keybit);
+
+	/* give the gpio number as a default value */
+	info->gpio_number = -1;
+	err = pm88x_onkey_dt_init(node, info);
+	if (err < 0) {
+		err = -ENODEV;
+		goto out_register;
+	}
 
 	err = devm_request_threaded_irq(&pdev->dev, info->irq, NULL,
 					pm88x_onkey_handler,
