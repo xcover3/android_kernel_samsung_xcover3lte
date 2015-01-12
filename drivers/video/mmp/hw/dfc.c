@@ -653,9 +653,10 @@ static void dfc_handle(void *data)
 	struct mmphw_ctrl *ctrl = dev_get_drvdata(dev);
 
 	if (atomic_read(&ctrl->dfc.commit)) {
-		/* disable sclk firstly */
+		/* disable lcd&dsi sclk firstly */
 		temp = readl_relaxed(ctrl->dfc.sclk_reg);
 		temp |= 0x1<<28;
+		temp &= ~(0xf<<8);
 		writel_relaxed(temp, ctrl->dfc.sclk_reg);
 		/* change the source */
 		writel_relaxed(ctrl->dfc.apmu_value, ctrl->dfc.apmu_reg);
@@ -663,7 +664,7 @@ static void dfc_handle(void *data)
 		writel_relaxed(ctrl->dfc.sclk_value, ctrl->dfc.sclk_reg);
 
 		sclk_div = ctrl->dfc.sclk_value;
-		/* enable sclk end */
+		/* enable lcd&dsi sclk end */
 		temp = readl_relaxed(ctrl->dfc.sclk_reg);
 		temp &= ~(0x1<<28);
 		writel_relaxed(temp, ctrl->dfc.sclk_reg);
