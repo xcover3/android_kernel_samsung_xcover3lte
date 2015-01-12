@@ -48,36 +48,35 @@
 		regulator-boot-on;
 	};
 	ldo5: regulator-ldo5 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo6: regulator-ldo6 {
-		regulator-boot-on;
 	};
 	ldo7: regulator-ldo7 {
 	};
 	ldo8: regulator-ldo8 {
 	};
 	ldo9: regulator-ldo9 {
+		regulator-always-on;
+		regulator-boot-on;
 	};
 	ldo10: regulator-ldo10 {
+		regulator-boot-on;
 	};
-	ldo11: regulator-ldo11 { /* ldo11 is enabled in uboot for LCD */
-	        regulator-boot-on;
+	ldo11: regulator-ldo11 {
 	};
 	ldo12: regulator-ldo12 {
 	};
 	ldo13: regulator-ldo13 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo14: regulator-ldo14 {
 		regulator-boot-on;
 	};
 	ldo15: regulator-ldo15 {
 		regulator-always-on;
+		regulator-boot-on;
 	};
 	ldo16: regulator-ldo16 {
+		regulator-boot-on;
 	};
 	ldo17: regulator-ldo17 {
 	};
