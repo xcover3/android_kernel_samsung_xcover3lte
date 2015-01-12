@@ -23,7 +23,6 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/pm_runtime.h>
-#include <linux/devfreq-vpu.h>
 
 #ifdef CONFIG_ARM_SMMU
 #include <linux/iommu.h>
@@ -94,7 +93,6 @@ static int coda7542_power_on(struct uio_coda7542_dev *cdev)
 	if (cdev->power_status == 1)
 		return 0;
 
-	vpu_power_notify(VPU_POWER_ON, 0);
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	pm_runtime_get_sync(cdev->dev);
 #endif
@@ -125,7 +123,6 @@ static int coda7542_power_off(struct uio_coda7542_dev *cdev)
 #endif
 	cdev->power_status = 0;
 
-	vpu_power_notify(VPU_POWER_OFF, 0);
 	return 0;
 }
 

@@ -24,7 +24,6 @@
 #include <linux/pm_qos.h>
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
-#include <linux/devfreq-vpu.h>
 
 #define VPU_FREQ_MAX	8
 #define KHZ_TO_HZ	1000
@@ -47,8 +46,6 @@ struct vpu_dc_stat_info {
 };
 
 #define nb_to_devfreq_data(_nb) container_of(_nb, struct vpu_devfreq_data, nb)
-#define qos_nb_to_devfreq_data(_nb) \
-		container_of(_nb, struct vpu_devfreq_data, qos_nb)
 
 struct vpu_devfreq_data {
 	struct devfreq *devfreq;
@@ -66,22 +63,12 @@ struct vpu_devfreq_data {
 
 	/* clk notifier for dc state */
 	struct notifier_block nb;
-
-	/* qos notifier*/
-	struct notifier_block qos_nb;
-
 	/* used for dc stat for simple ondemand governor */
 	struct vpu_dc_stat_info dc_info;
 	struct timespec last_pts;/* record last polling ts */
-	/* target frequency, unit in khz */
-	atomic_t target_freq;
 
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	struct generic_pm_domain *pd_vpu;
-#endif
-#ifdef CONFIG_DDR_DEVFREQ
-	struct pm_qos_request ddrfreq_qos_req_min;
-	unsigned int ddrfreq_qos;
 #endif
 };
 
@@ -91,30 +78,6 @@ static struct devfreq_simple_ondemand_data ondemand_gov_data = {
 	.downdifferential = VPU_DEVFREQ_DOWNDIFFERENTIAL,
 };
 #endif
-
-static BLOCKING_NOTIFIER_HEAD(vpu_notifier_list);
-
-/* For any user that care about power status*/
-static int vpu_register_notifier(struct notifier_block *nb)
-{
-	int ret = 0;
-
-	ret = blocking_notifier_chain_register(&vpu_notifier_list, nb);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
-static int vpu_unregister_notifier(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_unregister(&vpu_notifier_list, nb);
-}
-
-void vpu_power_notify(unsigned long status, void *value)
-{
-	blocking_notifier_call_chain(&vpu_notifier_list, status, value);
-}
 
 static int vpu_get_cur_freq(struct device *dev, unsigned long *freq)
 {
@@ -186,7 +149,7 @@ static int vpu_target(struct device *dev, unsigned long *freq, u32 flags)
 	struct platform_device *pdev = container_of(dev, struct platform_device,
 						    dev);
 	struct vpu_devfreq_data *data = platform_get_drvdata(pdev);
-	unsigned long target_freq, cmb_freq = 0;
+	unsigned long cmb_freq = 0;
 	int ret = 0;
 
 	find_best_freq(data, freq, flags);
@@ -196,25 +159,9 @@ static int vpu_target(struct device *dev, unsigned long *freq, u32 flags)
 	if (data->pd_vpu)
 		mutex_lock(&data->pd_vpu->lock);
 #endif
-	target_freq = atomic_read(&data->target_freq);
-
-	if ((*freq) >= target_freq) {
-		atomic_set(&data->target_freq, *freq);
-		vpu_power_notify(VPU_TARGET_SET, 0);
-	}
 	ret = clk_set_rate(data->fclk, *freq * KHZ_TO_HZ);
-
-	if (ret && ((*freq) >= target_freq)) {
-		atomic_set(&data->target_freq, target_freq);
-		vpu_power_notify(VPU_TARGET_SET, 0);
-	} else if (!ret && ((*freq) < target_freq)) {
-		atomic_set(&data->target_freq, *freq);
-		vpu_power_notify(VPU_TARGET_SET, 0);
-	}
-
 	if (!ret && (cmb_freq != 0))
 		ret = clk_set_rate(data->bclk, cmb_freq * KHZ_TO_HZ);
-
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	if (data->pd_vpu)
 		mutex_unlock(&data->pd_vpu->lock);
@@ -352,39 +299,6 @@ static int __maybe_unused vpu_devfreq_clk_ntfhandler(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-static int vpu_devfreq_clk_constrain(struct notifier_block *qos_nb,
-		unsigned long notify_msg, void *value)
-{
-	struct vpu_devfreq_data *vdata = qos_nb_to_devfreq_data(qos_nb);
-	unsigned long target_freq;
-	static int power_state;
-	struct device *dev = &vdata->devfreq->dev;
-
-	target_freq = atomic_read(&vdata->target_freq);
-
-	switch (notify_msg) {
-	case VPU_POWER_OFF:
-		power_state = 0;
-		pm_qos_update_request(&vdata->ddrfreq_qos_req_min,
-			PM_QOS_DEFAULT_VALUE);
-		break;
-	case VPU_POWER_ON:
-		power_state = 1;
-		pm_qos_update_request(&vdata->ddrfreq_qos_req_min,
-			target_freq);
-		break;
-	case VPU_TARGET_SET:
-		if (power_state)
-			pm_qos_update_request(&vdata->ddrfreq_qos_req_min,
-				target_freq);
-		break;
-	default:
-		dev_err(dev, "notify message invalid\n");
-	}
-
-	return NOTIFY_OK;
-}
-
 static int vpu_devfreq_probe(struct platform_device *pdev)
 {
 	int err = 0;
@@ -396,7 +310,6 @@ static int vpu_devfreq_probe(struct platform_device *pdev)
 	unsigned int index, size, freq_qos = 0;
 	const __be32 *prop;
 	unsigned int proplen;
-	unsigned long target_freq;
 
 	/* by default use userspace governor */
 	const char *governor_name = "userspace";
@@ -559,11 +472,6 @@ cont:
 		goto out;
 	}
 
-	data->qos_nb.notifier_call = vpu_devfreq_clk_constrain;
-	err = vpu_register_notifier(&data->qos_nb);
-	if (err)
-		goto out;
-
 	dev_info(dev, "use govenor %s!\n", governor_name);
 
 	/* init default devfreq min_freq and max_freq */
@@ -574,20 +482,12 @@ cont:
 			data->vpu_freq_tbl[data->vpu_freq_tbl_len - 1];
 	}
 
-	data->ddrfreq_qos_req_min.name = "devfreq-vpu";
-	pm_qos_add_request(&data->ddrfreq_qos_req_min,
-		PM_QOS_DDR_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
-
 #ifdef CONFIG_MMP_PM_DOMAIN_COMMON
 	data->pd_vpu = dev_to_genpd(dev);
 	if (IS_ERR(data->pd_vpu))
 		data->pd_vpu = NULL;
 	pm_runtime_enable(dev);
 #endif
-
-	target_freq = clk_get_rate(data->fclk) / KHZ_TO_HZ;
-	atomic_set(&data->target_freq, target_freq);
-
 	return 0;
 
 out:
@@ -604,7 +504,6 @@ static int vpu_devfreq_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	pm_runtime_disable(dev);
 #endif
-	vpu_unregister_notifier(&data->qos_nb);
 	devfreq_remove_device(data->devfreq);
 	kfree(data);
 	return 0;
