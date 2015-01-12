@@ -538,11 +538,24 @@ out:
 	return present;
 }
 
-static bool system_is_reboot(struct pm88x_battery_info *info)
+/*
+ * if the power down log is empty or the FAULT_WAKEUP is set,
+ * we consider it's software-reboot;
+ */
+static bool system_may_reboot(struct pm88x_battery_info *info)
 {
 	if (!info || !info->chip)
 		return true;
-	return !((info->chip->powerdown1) || (info->chip->powerdown2));
+
+	dev_info(info->dev, "%s: powerdown1 = 0x%x\n", __func__, info->chip->powerdown1);
+	dev_info(info->dev, "%s: powerdown2 = 0x%x\n", __func__, info->chip->powerdown2);
+	dev_info(info->dev, "%s: powerup = 0x%x\n", __func__, info->chip->powerup);
+
+	/* FAULT_WAKEUP */
+	if (info->chip->powerup & (1 << 5))
+		return true;
+	else
+		return !(info->chip->powerdown1 || info->chip->powerdown2);
 }
 
 static bool check_battery_change(struct pm88x_battery_info *info,
@@ -1468,6 +1481,13 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	dev_info(info->dev, "---> %s: soc_from_vbat_slp = %d\n",
 		 __func__, soc_from_vbat_slp);
 
+	active_volt = pm88x_get_batt_vol(info, 1);
+	dev_info(info->dev, "---> %s: active_volt = %dmV\n",
+		 __func__, active_volt);
+	soc_from_vbat_active = pm88x_get_soc_from_ocv(active_volt);
+	dev_info(info->dev, "---> %s: soc_from_vbat_active = %d\n",
+		 __func__, soc_from_vbat_active);
+
 	/* 2. read saved SoC: soc_from_saved */
 	/*
 	 *  if system comes here because of software reboot
@@ -1492,13 +1512,6 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	 * b) then plug into the charger cable
 	 */
 	if (info->chip->powerup & 0x2) {
-		active_volt = pm88x_get_batt_vol(info, 1);
-		dev_info(info->dev, "---> %s: active_volt = %dmV\n",
-			 __func__, active_volt);
-		soc_from_vbat_active = pm88x_get_soc_from_ocv(active_volt);
-		dev_info(info->dev, "---> %s: soc_from_vbat_active = %d\n",
-			 __func__, soc_from_vbat_active);
-
 		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40) {
 			/* plug into the charger cable first */
 			if (abs(soc_from_vbat_active - soc_from_saved) > 20)
@@ -1517,11 +1530,11 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 		goto end;
 	}
 
-	if (system_is_reboot(info)) {
+	if (system_may_reboot(info)) {
 		dev_info(info->dev,
 			 "---> %s: arrive here from reboot.\n", __func__);
 		if (saved_is_valid < 0) {
-			*initial_soc = soc_from_vbat_slp;
+			*initial_soc = soc_from_vbat_active;
 			info->ocv_is_realiable = false;
 		} else {
 			*initial_soc = soc_from_saved;
