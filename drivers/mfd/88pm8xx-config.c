@@ -402,6 +402,15 @@ void buck1_audio_mode_ctrl(int on)
 	int data;
 	static int refcount;
 
+	if (!chip_g) {
+		pr_err("%s: global pmic chip point if NULL!\n", __func__);
+		return;
+	}
+
+	if (chip_g->chip_id != CHIP_PM86X_ID_A0 &&
+	    chip_g->chip_id != CHIP_PM86X_ID_Z3)
+		return;
+
 	mutex_lock(&audio_mode_mutex);
 	if (on) {
 		if (refcount == 0) {
@@ -425,10 +434,20 @@ void buck1_audio_mode_ctrl(int on)
 }
 EXPORT_SYMBOL(buck1_audio_mode_ctrl);
 
-/* set buck1 audio mode voltage */
+/* set buck1 audio mode voltage -- only used by 88pm860 */
 void set_buck1_audio_mode_vol(int uv)
 {
 	unsigned int data, val, mask = 0x7f;
+
+	if (!chip_g) {
+		pr_err("%s: global pmic chip point if NULL!\n", __func__);
+		return;
+	}
+
+	if (chip_g->chip_id != CHIP_PM86X_ID_A0 &&
+	    chip_g->chip_id != CHIP_PM86X_ID_Z3)
+		return;
+
 	/* the proper range is 0~0x54, corresponding voltage is 0.6v~1.8v */
 	if ((uv > 1800) || (uv < 600)) {
 		pr_err("expected voltage range: [600mv, 1800mv]\n");
@@ -451,6 +470,7 @@ void extern_set_buck1_slp_volt(int on)
 	int data;
 	static int data_old;
 	static bool get_data_old;
+
 	/*
 	 * needs to set buck1 sleep voltage as 0.95v if gps is powered on,
 	 * and set it back when gps is powered off;
