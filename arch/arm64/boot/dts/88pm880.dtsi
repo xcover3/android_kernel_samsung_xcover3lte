@@ -139,7 +139,7 @@
 	};
 	ldo16: regulator-ldo16 {
 		compatible = "marvell,88pm880-ldo16";
-		regulator-min-microvolt = <1700000>;
+		regulator-min-microvolt = <1200000>;
 		regulator-max-microvolt = <3300000>;
 	};
 	ldo17: regulator-ldo17 {
