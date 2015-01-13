@@ -1474,6 +1474,10 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 		if (power->ref_cnt++ > 0)
 			return 0;
 
+		ret = plat_tune_isp(1);
+		if (ret < 0)
+			goto isppw_err;
+
 		if (sensor->i2c_dyn_ctrl) {
 			ret = sc2_select_pins_state(sensor->pos - 1,
 					SC2_PIN_ST_SCCB, SC2_MOD_B52ISP);
@@ -1584,6 +1588,9 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 				pr_err("b52 sensor gpio pin is not configured\n");
 		}
 		clk_disable_unprepare(sensor->clk);
+
+		WARN_ON(plat_tune_isp(0) < 0);
+
 		sensor->sensor_init = 0;
 	}
 
@@ -1610,6 +1617,8 @@ i2c_err:
 		ret = sc2_select_pins_state(sensor->pos - 1,
 				SC2_PIN_ST_GPIO, SC2_MOD_B52ISP);
 st_err:
+	WARN_ON(plat_tune_isp(0) < 0);
+isppw_err:
 	power->ref_cnt--;
 
 	return ret;
