@@ -65,10 +65,10 @@
 #define PM880_BUCK2_SLP_CTRL	(0x54)
 #define PM880_BUCK3_SLP_CTRL	(0x6c)
 /* TODO: there are 7 controls bit for buck4~7 */
-#define PM880_BUCK4_SLP_CTRL	(0x86)
-#define PM880_BUCK5_SLP_CTRL	(0x96)
-#define PM880_BUCK6_SLP_CTRL	(0xa6)
-#define PM880_BUCK7_SLP_CTRL	(0xb6)
+#define PM880_BUCK4_SLP_CTRL	(0x84)
+#define PM880_BUCK5_SLP_CTRL	(0x94)
+#define PM880_BUCK6_SLP_CTRL	(0xa4)
+#define PM880_BUCK7_SLP_CTRL	(0xb4)
 
 /*
  * ldo sleep mode control registers:
