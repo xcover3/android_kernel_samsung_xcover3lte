@@ -233,6 +233,7 @@ static TEEC_Result _teec_map_memory(
 	return tee_msg_stat;
 }
 
+#ifndef CONFIG_MINI_TZDD
 static uid_t _get_current_uid(void)
 {
 	kuid_t uid;
@@ -259,6 +260,7 @@ static uid_t _get_current_euid(void)
 
 	return __kuid_val(euid);
 }
+#endif
 
 static void _teec_generate_connection_data(uint32_t connectionMethod,
 		tee_set_cmd_open_ss_arg_t *tee_msg_set_cmd_open_ss_arg)
@@ -438,9 +440,6 @@ TEEC_Result TEEC_RegisterSharedMemory(TEEC_Context *context,
 	if (sharedMem->size >= TEEC_CONFIG_SHAREDMEM_MAX_SIZE)
 		return TEEC_ERROR_OUT_OF_MEMORY;
 
-	if (sharedMem->size == 0)
-		return TEEC_SUCCESS;
-
 	osa_atomic_inc(&(_teec_mrvl_context->count));
 
 	sharedMem->imp = osa_kmem_alloc(sizeof(_TEEC_MRVL_SharedMemory));
@@ -452,12 +451,17 @@ TEEC_Result TEEC_RegisterSharedMemory(TEEC_Context *context,
 	_teec_mrvl_sharedMem->flag = CA_AOLLC_BUF;
 	osa_atomic_set(&(_teec_mrvl_sharedMem->count), 0);
 
-	tee_msg_stat = _teec_map_memory(context, sharedMem, &tee_get_ret);
-	if (tee_msg_stat != TEEC_SUCCESS)
-		OSA_ASSERT(0);
+    if (sharedMem->size != 0) {
+		tee_msg_stat = _teec_map_memory(context, sharedMem, &tee_get_ret);
+		if (tee_msg_stat != TEEC_SUCCESS)
+			OSA_ASSERT(0);
 
-	_teec_mrvl_sharedMem->vaddr_tw = tee_get_ret.vaddr_tw;
-	tee_result = tee_get_ret.ret;
+		_teec_mrvl_sharedMem->vaddr_tw = tee_get_ret.vaddr_tw;
+		tee_result = tee_get_ret.ret;
+	} else {
+		_teec_mrvl_sharedMem->vaddr_tw = NULL;
+		tee_result = TEEC_SUCCESS;
+    }
 
 	INIT_MAGIC(_teec_mrvl_sharedMem->magic);
 
@@ -504,9 +508,6 @@ TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
-	if (sharedMem->size == 0)
-		return TEEC_SUCCESS;
-
 	sharedMem->buffer = osa_kmem_alloc(sharedMem->size);
 	if (!sharedMem->buffer)
 		return TEEC_ERROR_OUT_OF_MEMORY;
@@ -522,14 +523,19 @@ TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 	_teec_mrvl_sharedMem->flag = DRV_AOLLC_BUF;
 	osa_atomic_set(&(_teec_mrvl_sharedMem->count), 0);
 
-	tee_msg_stat = _teec_map_memory(context, sharedMem, &tee_get_ret);
-	if (tee_msg_stat != TEEC_SUCCESS)
-		OSA_ASSERT(0);
+	if (sharedMem->size != 0) {
+		tee_msg_stat = _teec_map_memory(context, sharedMem, &tee_get_ret);
+		if (tee_msg_stat != TEEC_SUCCESS)
+			OSA_ASSERT(0);
 
-	_teec_mrvl_sharedMem->vaddr_tw = tee_get_ret.vaddr_tw;
-	tee_result = tee_get_ret.ret;
+		_teec_mrvl_sharedMem->vaddr_tw = tee_get_ret.vaddr_tw;
+		tee_result = tee_get_ret.ret;
+	} else {
+		_teec_mrvl_sharedMem->vaddr_tw = NULL;
+		tee_result = TEEC_SUCCESS;
+	}
 
-	INIT_MAGIC(_teec_mrvl_sharedMem->magic);
+    INIT_MAGIC(_teec_mrvl_sharedMem->magic);
 
 	if (tee_result != TEEC_SUCCESS)
 		sharedMem->buffer = NULL;
@@ -560,9 +566,6 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 	if (!sharedMem)
 		return;
 
-	if (sharedMem->size == 0)
-		return;
-
 	_teec_mrvl_sharedMem = (_TEEC_MRVL_SharedMemory *) (sharedMem->imp);
 
 	if (!(IS_MAGIC_VALID(_teec_mrvl_sharedMem->magic)))
@@ -583,6 +586,9 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 	count = osa_atomic_read(&(_teec_mrvl_sharedMem->count));
 	if (count != 0)
 		OSA_ASSERT(0);
+
+	if (sharedMem->size == 0)
+		goto exit;
 
 	/* prepare the request, create the msg and add it to the msgQ */
 	tee_msgm_handle = tee_msgm_create_inst();
@@ -631,6 +637,7 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 	tee_msgm_destroy_inst(tee_msgm_handle);
 	osa_kmem_free(tee_msg_buf);
 
+exit:
 	teec_context =
 		container_of(_teec_mrvl_sharedMem->tee_ctx_ntw, TEEC_Context, imp);
 	_teec_mrvl_context = (_TEEC_MRVL_Context *) (teec_context->imp);

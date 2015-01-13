@@ -222,7 +222,8 @@ tee_stat_t tee_memm_set_phys_pages(tee_memm_ss_t tee_memm_ss,
 		num ++;
 
 	/* NOTE: num >= count, so alloc enough memory. !!!FIXME!!! */
-	buf = osa_kmem_alloc(num * sizeof(tee_mem_page_t));
+	buf = osa_vmem_alloc(
+            num * sizeof(tee_mem_page_t), OSA_MEM_READ_WRITE);
 	OSA_ASSERT(buf != NULL);
 
 	memset(buf, 0, sizeof(num * sizeof(tee_mem_page_t)));
@@ -270,7 +271,7 @@ tee_stat_t tee_memm_set_phys_pages(tee_memm_ss_t tee_memm_ss,
 
 	if (pages)
 		memcpy(pages, buf, count * sizeof(tee_mem_page_t));
-	osa_kmem_free(buf);
+	osa_vmem_free(buf);
 
 	return TEEC_SUCCESS;
 }
