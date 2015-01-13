@@ -196,6 +196,7 @@ __v7_cr7mp_setup:
 	b	1f
 __v7_ca7mp_setup:
 __v7_ca15mp_setup:
+__v7_ca53mp_setup:
 	mov	r10, #0
 1:
 #ifdef CONFIG_SMP
@@ -493,6 +494,12 @@ __v7_ca15mp_proc_info:
 	.long	0xff0ffff0
 	__v7_proc __v7_ca15mp_setup
 	.size	__v7_ca15mp_proc_info, . - __v7_ca15mp_proc_info
+
+__v7_ca53mp_proc_info:
+	.long	0x410fd030
+	.long	0xff0ffff0
+	__v7_proc __v7_ca53mp_setup
+	.size	__v7_ca53mp_proc_info, . - __v7_ca53mp_proc_info
 
 	/*
 	 * Qualcomm Inc. Krait processors.
