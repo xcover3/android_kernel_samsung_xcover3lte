@@ -12,7 +12,7 @@
 #ifndef _PSD_DATA_CHANNEL_H_
 #define _PSD_DATA_CHANNEL_H_
 
-#define MAX_CID_NUM    8
+#define MAX_CID_NUM    15
 
 #define PSD_DATA_SEND_OK 0
 #define PSD_DATA_SEND_BUSY -1

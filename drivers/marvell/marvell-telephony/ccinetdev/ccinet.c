@@ -6,78 +6,46 @@
  * (C) Copyright 2006 Marvell International Ltd.
  * All Rights Reserved
  */
-#include <linux/version.h>
+
 #include <linux/kernel.h>
-#include <linux/jiffies.h>
 #include <linux/module.h>
-#include <linux/interrupt.h>
-#include <linux/fs.h>
-#include <linux/types.h>
-#include <linux/string.h>
-#include <linux/socket.h>
 #include <linux/errno.h>
-#include <linux/fcntl.h>
-#include <linux/in.h>
-#include <linux/init.h>
-#include <linux/miscdevice.h>
-#include <linux/platform_device.h>
-
-#include <linux/uaccess.h>
-#include <linux/io.h>
-
-#include <linux/inet.h>
 #include <linux/netdevice.h>
-#include <linux/etherdevice.h>
 #include <linux/skbuff.h>
-#include <linux/ethtool.h>
-#include <net/sock.h>
-#include <net/checksum.h>
-#include <linux/if_ether.h>
 #include <linux/if_arp.h>
 #include <linux/ip.h>
-#include <linux/tcp.h>
-#include <linux/percpu.h>
-#include <linux/cdev.h>
-#include <linux/platform_device.h>
-#include <linux/kthread.h>
 #include <linux/debugfs.h>
+
+#include <net/checksum.h>
 
 #include "common_datastub.h"
 #include "data_channel_kernel.h"
 #include "psd_data_channel.h"
 #include "debugfs.h"
 
+#define PERSIST_DEVICE_NUM    8
+
 #define CCINET_IOCTL_AQUIRE SIOCDEVPRIVATE
 #define CCINET_IOCTL_RELEASE (SIOCDEVPRIVATE+1)
 #define CCINET_IOCTL_SET_V6_CID (SIOCDEVPRIVATE+2)
 #define CCINET_IOCTL_SET_EMBMS_CID (SIOCDEVPRIVATE+3)
+#define CCINET_IOCTL_IF_ENABLE (SIOCDEVPRIVATE+4)
+#define CCINET_IOCTL_IF_DISABLE (SIOCDEVPRIVATE+5)
 
 struct ccinet_priv {
 	struct psd_user psd_user;
 	unsigned char is_used;
 	unsigned char sim_id;
-	int cid;
-	int v6_cid;
+	unsigned char cid;
+	signed char v6_cid;
 	spinlock_t lock;	/* use to protect critical session */
 	struct net_device_stats net_stats; /* status of the network device */
 };
 static struct net_device *net_devices[MAX_CID_NUM];
 
-#if  1
-#define DPRINT(fmt, args ...)     printk(fmt, ## args)
-#define DBGMSG(fmt, args ...)     pr_debug("CIN: " fmt, ## args)
-#define ENTER()         pr_debug("CIN: ENTER %s\n", __func__)
-#define LEAVE()         pr_debug("CIN: LEAVE %s\n", __func__)
-#define FUNC_EXIT()     pr_debug("CIN: EXIT %s\n", __func__)
-#else
-#define DPRINT(fmt, args ...)     pr_info("CIN: " fmt, ## args)
-#define DBGMSG(fmt, args ...)     do {} while (0)
-#define ENTER()                 do {} while (0)
-#define LEAVE()                 do {} while (0)
-#define FUNC_EXIT()                     do {} while (0)
-#endif
-
 static u32 checksum_enable = true;
+
+static void ccinet_setup(struct net_device *netdev);
 
 /**********************************************************/
 /* Network Operations */
@@ -87,21 +55,18 @@ static int ccinet_open(struct net_device *netdev)
 	struct ccinet_priv *devobj;
 	int rc;
 
-	ENTER();
 	devobj = netdev_priv(netdev);
 	rc = psd_register(&devobj->psd_user, devobj->cid);
 	if (rc == 0) {
 		/* netif_carrier_on(netdev); */
 		netif_start_queue(netdev);
 	}
-	LEAVE();
 	return rc;
 }
 
 static int ccinet_stop(struct net_device *netdev)
 {
 	struct ccinet_priv *devobj = netdev_priv(netdev);
-	ENTER();
 	netif_stop_queue(netdev);
 	/* netif_carrier_off(netdev); */
 	memset(&devobj->net_stats, 0, sizeof(devobj->net_stats));
@@ -110,7 +75,6 @@ static int ccinet_stop(struct net_device *netdev)
 		devobj->v6_cid = -1;
 	}
 	psd_unregister(&devobj->psd_user, devobj->cid);
-	LEAVE();
 	return 0;
 }
 
@@ -146,8 +110,8 @@ static netdev_tx_t ccinet_tx(struct sk_buff *skb, struct net_device *netdev)
 static void ccinet_fc_cb(void *user_obj, bool is_throttle)
 {
 	struct net_device *dev = (struct net_device *)user_obj;
-	DBGMSG("ccinet_fc_cb(%s): is_throttle=%d\n", dev->name, is_throttle);
 
+	netdev_notice(dev, "ccinet_fc_cb(is_throttle:%d)\n", is_throttle);
 	if (is_throttle)
 		netif_stop_queue(dev);
 	else
@@ -158,7 +122,7 @@ static void ccinet_tx_timeout(struct net_device *netdev)
 {
 	struct ccinet_priv *devobj = netdev_priv(netdev);
 
-	pr_warn("%s: on %s\n", __func__, netdev->name);
+	netdev_warn(netdev, "%s\n", __func__);
 	devobj->net_stats.tx_errors++;
 	/* netif_wake_queue(netdev); */   /* Resume tx */
 	return;
@@ -192,7 +156,7 @@ static int ccinet_rx(void *user_obj, const unsigned char *packet,
 	} else if (ip_header->version == 6) {
 		protocol = htons(ETH_P_IPV6);
 	} else {
-		pr_err("ccinet_rx: invalid ip version: %d\n",
+		netdev_err(netdev, "ccinet_rx: invalid ip version: %d\n",
 		       ip_header->version);
 		priv->net_stats.rx_dropped++;
 		goto out;
@@ -231,6 +195,64 @@ static int ccinet_rx(void *user_obj, const unsigned char *packet,
 
 out:
 	return -1;
+}
+
+static int create_ccinet_netdev(unsigned char cid, bool locked)
+{
+	char ifname[32];
+	struct net_device *dev;
+	struct ccinet_priv *priv;
+	int ret;
+
+	if (net_devices[cid])
+		return -EEXIST;
+
+	sprintf(ifname, "ccinet%d", cid);
+	dev =
+	    alloc_netdev(sizeof(struct ccinet_priv), ifname,
+			 ccinet_setup);
+	if (!dev) {
+		pr_err("%s: alloc_netdev for %s fail\n",
+		       __func__, ifname);
+		return -ENOMEM;
+	}
+	ret = locked ? register_netdevice(dev) : register_netdev(dev);
+	if (ret) {
+		pr_err("%s: register_netdev for %s fail\n",
+		       __func__, ifname);
+		free_netdev(dev);
+		return ret;
+	}
+	priv = netdev_priv(dev);
+	memset(priv, 0, sizeof(struct ccinet_priv));
+	spin_lock_init(&priv->lock);
+	priv->psd_user.priv = dev;
+	priv->psd_user.on_receive = ccinet_rx;
+	priv->psd_user.on_throttle = ccinet_fc_cb;
+	priv->cid = cid;
+	priv->v6_cid = -1;
+	net_devices[cid] = dev;
+	return 0;
+}
+
+static int destroy_ccinet_netdev(int cid, bool locked)
+{
+	struct net_device *dev;
+
+	dev = net_devices[cid];
+	if (!dev)
+		return -ENOENT;
+
+	if (dev->flags & IFF_UP)
+		ccinet_stop(dev);
+
+	if (locked)
+		unregister_netdevice(dev);
+	else
+		unregister_netdev(dev);
+	net_devices[cid] = NULL;
+
+	return 0;
 }
 
 static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
@@ -301,6 +323,29 @@ static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		set_embms_cid(rq->ifr_ifru.ifru_ivalue);
 		break;
 	}
+	case CCINET_IOCTL_IF_ENABLE:
+	{
+		int cid;
+		cid = rq->ifr_ifru.ifru_ivalue;
+		if (cid < PERSIST_DEVICE_NUM || cid >= MAX_CID_NUM) {
+			err = -EINVAL;
+			break;
+		}
+		err = create_ccinet_netdev((unsigned char)cid, true);
+		break;
+	}
+	case CCINET_IOCTL_IF_DISABLE:
+	{
+		int cid;
+		cid = rq->ifr_ifru.ifru_ivalue;
+		if (cid < PERSIST_DEVICE_NUM || cid >= MAX_CID_NUM) {
+			err = -EINVAL;
+			break;
+		}
+		destroy_ccinet_netdev((unsigned char)cid, true);
+		break;
+	}
+
 	default:
 		err = -EOPNOTSUPP;
 		break;
@@ -323,7 +368,6 @@ static const struct net_device_ops cci_netdev_ops = {
 
 static void ccinet_setup(struct net_device *netdev)
 {
-	ENTER();
 	netdev->netdev_ops	= &cci_netdev_ops;
 	netdev->type		= ARPHRD_VOID;
 	netdev->mtu		= 1500;
@@ -332,8 +376,7 @@ static void ccinet_setup(struct net_device *netdev)
 	netdev->flags		= IFF_NOARP;
 	netdev->hard_header_len	= 16;
 	netdev->priv_flags	&= ~IFF_XMIT_DST_RELEASE;
-
-	LEAVE();
+	netdev->destructor	= free_netdev;
 }
 
 static struct dentry *tel_debugfs_root_dir;
@@ -375,43 +418,13 @@ static int ccinet_debugfs_exit(void)
 
 static int __init ccinet_init(void)
 {
-	int i;
-	for (i = 0; i < MAX_CID_NUM; i++) {
-		char ifname[32];
-		struct net_device *dev;
-		struct ccinet_priv *priv;
-		int ret;
-
-		sprintf(ifname, "ccinet%d", i);
-		dev =
-		    alloc_netdev(sizeof(struct ccinet_priv), ifname,
-				 ccinet_setup);
-
-		if (!dev) {
-			pr_err("%s: alloc_netdev for %s fail\n",
-			       __func__, ifname);
-			return -ENOMEM;
-		}
-		ret = register_netdev(dev);
-		if (ret) {
-			pr_err("%s: register_netdev for %s fail\n",
-			       __func__, ifname);
-			free_netdev(dev);
+	int i, ret;
+	for (i = 0; i < PERSIST_DEVICE_NUM; i++) {
+		ret = create_ccinet_netdev(i, false);
+		if (ret < 0)
 			return ret;
-		}
-		priv = netdev_priv(dev);
-		memset(priv, 0, sizeof(struct ccinet_priv));
-		spin_lock_init(&priv->lock);
-		priv->psd_user.priv = dev;
-		priv->psd_user.on_receive = ccinet_rx;
-		priv->psd_user.on_throttle = ccinet_fc_cb;
-		priv->cid = i;
-		priv->v6_cid = -1;
-		net_devices[i] = dev;
 	}
-
 	ccinet_debugfs_init();
-
 	return 0;
 };
 
@@ -420,9 +433,7 @@ static void __exit ccinet_exit(void)
 	int i;
 	ccinet_debugfs_exit();
 	for (i = 0; i < MAX_CID_NUM; i++) {
-		unregister_netdev(net_devices[i]);
-		free_netdev(net_devices[i]);
-		net_devices[i] = NULL;
+		destroy_ccinet_netdev(i, false);
 	}
 }
 
