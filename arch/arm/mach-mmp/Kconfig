@@ -120,6 +120,17 @@ config MACH_MMPX_DT
 	  Include support for Marvell MMP2 based platforms using
 	  the device tree. It targets at pxa988/pxa1088/pxa1U88
 	  and etc.
+
+config MACH_HELANX_DT
+	bool "Support ARMv8 platforms from device tree"
+	depends on !CPU_MOHAWK && !CPU_PJ4
+	select CPU_PXA1908
+	select USE_OF
+	select PINCTRL
+	select PINCTRL_SINGLE
+	help
+	  Include support for Marvell MMP2 based platforms using
+	  the device tree. It targets at pxa1908  and etc.
 endmenu
 
 config CPU_PXA168
@@ -163,6 +174,25 @@ config CPU_PXA988
 	  platforms.
 	  PXA988 is an SoC with dual-core Cotex-A9 and comunication
 	  processor, code name "Emei".
+
+config CPU_PXA1908
+	bool
+	select CPU_V7
+	select ARM_GIC
+	select HAVE_SMP
+	select HAVE_ARM_SCU
+	select LOCAL_TIMERS
+	select HAVE_ARM_TWD
+	select COMMON_CLK
+	select CLKSRC_OF
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARM_HAS_SG_CHAIN
+	select ARCH_HAS_OPP
+	help
+	  Say 'Y' here if you want to support the Marvell pxa1908-base
+	  platforms.
+	  PXA1908 is an SoC with 4 Cotext-A53 and comunication
+	  processor, code name "ULC".
 
 config MMP_SRAM
 	bool
