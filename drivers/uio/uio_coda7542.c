@@ -40,6 +40,7 @@ extern struct dma_iommu_mapping *pxa_ion_iommu_mapping;
 #define BIT_INT_CLEAR		(0xC)
 #define BIT_BUSY_FLAG		(0x160)
 #define BIT_INT_ENABLE		(0x170)
+#define BIT_INT_REASON		(0x174)
 
 struct uio_coda7542_dev {
 	struct uio_info uio_info;
@@ -176,8 +177,22 @@ static int active_coda7542(struct uio_coda7542_dev *cdev, int on)
 
 static void coda7542_cleanup(struct uio_coda7542_dev *cdev)
 {
-	pr_info("%s: process was killed abnormal\n", __func__);
+	int i;
+
+	pr_info("%s: clean and disable irq\n", __func__);
 	coda7542_clk_on(cdev);
+
+	pr_info("register IntReason: %x, BusyFlag: %x\n",
+		__raw_readl(cdev->reg_base + BIT_INT_REASON),
+			__raw_readl(cdev->reg_base + BIT_BUSY_FLAG));
+
+	pr_info("id, occupied, gotsemaphore, vpuslotidx, slotusing, codectypeid\n");
+	for (i = 0; i < MAX_NUM_VPUSLOT; i++)
+		pr_info("%d \t%d\t  %d\t\t%d\t\t%d \t%d\n", i,
+		fd_codecinst_arr[i].occupied, fd_codecinst_arr[i].gotsemaphore,
+			fd_codecinst_arr[i].vpuslotidx,
+		fd_codecinst_arr[i].slotusing, fd_codecinst_arr[i].codectypeid);
+
 	__raw_writel(0x0, cdev->reg_base + BIT_INT_ENABLE);
 	__raw_writel(0x1, cdev->reg_base + BIT_INT_CLEAR);
 	coda7542_clk_off(cdev);
@@ -283,6 +298,7 @@ static int coda7542_release(struct uio_info *info, struct inode *inode,
 			}
 			if (i == 30)
 				pr_info("%s: VPU could not stop, will force clean\n", __func__);
+			pr_info("%s: process was killed abnormal\n", __func__);
 			coda7542_cleanup(cdev);
 		}
 		up(&cdev->sema);
@@ -310,6 +326,21 @@ static int coda7542_release(struct uio_info *info, struct inode *inode,
 static irqreturn_t coda7542_irq_handler(int irq, struct uio_info *dev_info)
 {
 	struct uio_coda7542_dev *cdev = dev_info->priv;
+
+	if (cdev->power_status == 0) {
+		pr_info("%s: VPU power is stopped, but still there is irq\n",
+			__func__);
+		return IRQ_NONE;
+	}
+
+	if (cdev->clk_status == 0) {
+		pr_info("%s: VPU power is on, clock is off, but still there is irq\n",
+			__func__);
+
+		coda7542_cleanup(cdev);
+		return IRQ_NONE;
+	}
+
 	/* clear the interrupt */
 	__raw_writel(0x1, cdev->reg_base + BIT_INT_CLEAR);
 
