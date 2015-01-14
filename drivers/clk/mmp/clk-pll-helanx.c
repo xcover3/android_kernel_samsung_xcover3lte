@@ -724,11 +724,18 @@ static long clk_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 	return rate * MHZ;
 }
 
+static int clk_pll_is_enabled(struct clk_hw *hw)
+{
+	struct clk *parent = hw->clk->parent;
+	return __pll_is_enabled(parent->hw);
+}
+
 static struct clk_ops clk_pll_ops = {
 	.init = clk_pll_init,
 	.set_rate = clk_pll_setrate,
 	.recalc_rate = clk_pll_recalc_rate,
 	.round_rate = clk_pll_round_rate,
+	.is_enabled = clk_pll_is_enabled,
 };
 
 struct clk *helanx_clk_register_vco(const char *name,
