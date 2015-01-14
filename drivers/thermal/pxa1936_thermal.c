@@ -101,60 +101,60 @@
 unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 	[POWER_SAVING_MODE] = {
 		[THROTTLE_VL]		= { 0,
-		0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_CORE]		= { 0,
-		0, 1, 2, 3, 4, 5, 6
+		[THROTTLE_CORE]		= { 1,
+		0, 2, 2, 3, 4, 4, 5, 5, 5, 5,
 		},
-		[THROTTLE_CORE1]	= { 0,
-		0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_CORE1]	= { 1,
+		0, 0, 1, 2, 2, 3, 4, 5, 6, 6,
 		},
-		[THROTTLE_HOTPLUG]	= { 0,
-		0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_HOTPLUG]	= { 1,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 		[THROTTLE_DDR]		= { 0,
-		0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_GC3D]		= { 1,
-		0, 1, 2, 3, 4, 5, 5,
+		[THROTTLE_GC3D]		= { 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_GC2D]		= { 1,
-		0, 0, 1, 2, 3, 4, 5,
+		[THROTTLE_GC2D]		= { 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_GCSH]		= { 1,
-		0, 1, 2, 3, 4, 5, 5,
+		[THROTTLE_GCSH]		= { 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 		[THROTTLE_VPU]	= { 0,
-		0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 	},
 	[BENCHMARK_MODE] = {
 		[THROTTLE_VL]		= { 0,
-		0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_CORE]		= { 0,
-		0, 1, 2, 3, 4, 5, 6
+		[THROTTLE_CORE]		= { 1,
+		0, 2, 2, 3, 4, 4, 5, 5, 5, 5,
 		},
-		[THROTTLE_CORE1]	= { 0,
-		0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_CORE1]	= { 1,
+		0, 0, 1, 2, 2, 3, 4, 5, 6, 6,
 		},
-		[THROTTLE_HOTPLUG]	= { 0,
-		0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_HOTPLUG]	= { 1,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 		[THROTTLE_DDR]		= { 0,
-		0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_GC3D]		= { 1,
-		0, 1, 2, 3, 4, 5, 5,
+		[THROTTLE_GC3D]		= { 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_GC2D]		= { 1,
-		0, 0, 1, 2, 3, 4, 5,
+		[THROTTLE_GC2D]		= { 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[THROTTLE_GCSH]		= { 1,
-		0, 1, 2, 3, 4, 5, 5,
+		[THROTTLE_GCSH]		= { 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 		[THROTTLE_VPU]	= { 0,
-		0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 	},
 };
@@ -166,6 +166,10 @@ enum trip_points {
 	TRIP_POINT_3,
 	TRIP_POINT_4,
 	TRIP_POINT_5,
+	TRIP_POINT_6,
+	TRIP_POINT_7,
+	TRIP_POINT_8,
+	TRIP_POINT_9,
 	TRIP_POINTS_NUM,
 	TRIP_POINTS_ACTIVE_NUM = TRIP_POINTS_NUM - 1,
 };
@@ -203,25 +207,58 @@ struct pxa28nm_thermal_device {
 
 static struct pxa28nm_thermal_device thermal_dev;
 
-static int trips_temp[TRIP_POINTS_NUM] = {
-	85000, /* TRIP_POINT_1 */
-	90000, /* TRIP_POINT_2 */
-	95000, /* TRIP_POINT_3 */
-	100000, /* TRIP_POINT_4 */
-	115000, /* TRIP_POINT_5 */
-	120000, /* TRIP_POINT_6 */
+static int trips_temp_benchmark[TRIP_POINTS_NUM] = {
+	78000, /* TRIP_POINT_0 */
+	79000, /* TRIP_POINT_1 */
+	80000, /* TRIP_POINT_2 */
+	81000, /* TRIP_POINT_3 */
+	82000, /* TRIP_POINT_4 */
+	83000, /* TRIP_POINT_5 */
+	84000, /* TRIP_POINT_6 */
+	85000, /* TRIP_POINT_7 */
+	87000, /* TRIP_POINT_8 */
+	110000, /* TRIP_POINT_9 */
 };
 
-static int trips_hyst[TRIP_POINTS_NUM] = {
-	80000, /* TRIP_POINT_0_D */
-	85000, /* TRIP_POINT_1_D */
-	90000, /* TRIP_POINT_2_D */
-	95000, /* TRIP_POINT_3_D */
-	110000, /* TRIP_POINT_4_D */
-	120000, /* TRIP_POINT_5_D */
+static int trips_hyst_benchmark[TRIP_POINTS_NUM] = {
+	76000, /* TRIP_POINT_0_D */
+	77000, /* TRIP_POINT_1_D */
+	78000, /* TRIP_POINT_2_D */
+	79000, /* TRIP_POINT_3_D */
+	80000, /* TRIP_POINT_4_D */
+	81000, /* TRIP_POINT_5_D */
+	82000, /* TRIP_POINT_6_D */
+	83000, /* TRIP_POINT_7_D */
+	85000, /* TRIP_POINT_8_D */
+	110000, /* TRIP_POINT_9_D */
 };
 
-#define THERMAL_SAFE_TEMP 80000
+static int trips_temp_powersave[TRIP_POINTS_NUM] = {
+	60000, /* TRIP_POINT_0 */
+	64000, /* TRIP_POINT_1 */
+	68000, /* TRIP_POINT_2 */
+	72000, /* TRIP_POINT_3 */
+	75000, /* TRIP_POINT_4 */
+	78000, /* TRIP_POINT_5 */
+	81000, /* TRIP_POINT_6 */
+	85000, /* TRIP_POINT_7 */
+	87000, /* TRIP_POINT_8 */
+	110000, /* TRIP_POINT_9 */
+};
+
+static int trips_hyst_powersave[TRIP_POINTS_NUM] = {
+	57000, /* TRIP_POINT_0_D */
+	61000, /* TRIP_POINT_1_D */
+	65000, /* TRIP_POINT_2_D */
+	69000, /* TRIP_POINT_3_D */
+	72000, /* TRIP_POINT_4_D */
+	75000, /* TRIP_POINT_5_D */
+	78000, /* TRIP_POINT_6_D */
+	83000, /* TRIP_POINT_7_D */
+	85000, /* TRIP_POINT_8_D */
+	110000, /* TRIP_POINT_9_D */
+};
+
 
 #define THSEN_GAIN      3874
 #define THSEN_OFFSET    2821
@@ -278,7 +315,8 @@ static ssize_t hit_trip_status_get(struct device *dev,
 			TSEN_THD2_MASK) >> TSEN_THD2_OFF));
 	for (i = 0; i < TRIP_POINTS_NUM; i++) {
 		ret += sprintf(buf + ret, "trip %d: %d hits\n",
-				trips_temp[i],
+				thermal_dev.thermal_volt.tsen_trips_temp
+				[thermal_dev.thermal_volt.therm_policy][i],
 				thermal_dev.hit_trip_cnt[i]);
 	}
 	return ret;
@@ -326,7 +364,8 @@ static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 		int *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		*temp = trips_temp[trip];
+		*temp = thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][trip];
 	else
 		*temp = -1;
 	return 0;
@@ -336,7 +375,8 @@ static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
 		int trip, int *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		*temp = trips_hyst[trip];
+		*temp = thermal_dev.thermal_volt.tsen_trips_temp_d
+		[thermal_dev.thermal_volt.therm_policy][trip];
 	else
 		*temp = -1;
 	return 0;
@@ -348,9 +388,11 @@ static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
 	u32 tmp;
 	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		trips_temp[trip] = temp;
+		thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip) {
-		tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][TRIP_POINTS_NUM - 1]) <<
 					TSEN_THD2_OFF) & TSEN_THD2_MASK;
 		reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
 	} else
@@ -363,7 +405,8 @@ static int cpu_sys_set_trip_hyst(struct thermal_zone_device *thermal,
 {
 	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
 	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
-		trips_hyst[trip] = temp;
+		thermal_dev.thermal_volt.tsen_trips_temp_d
+		[thermal_dev.thermal_volt.therm_policy][trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip)
 		pr_warn("critical down doesn't used\n");
 	else
@@ -374,7 +417,8 @@ static int cpu_sys_set_trip_hyst(struct thermal_zone_device *thermal,
 static int cpu_sys_get_crit_temp(struct thermal_zone_device *thermal,
 		int *temp)
 {
-	return trips_temp[TRIP_POINTS_NUM - 1];
+	return thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][TRIP_POINTS_NUM - 1];
 }
 
 static struct thermal_zone_device_ops cpu_thermal_ops = {
@@ -788,7 +832,7 @@ static void pxa28nm_register_thermal(void)
 }
 #endif
 
-static int pxa28nm_set_threshold(int range)
+int pxa28nm_set_threshold(int range)
 {
 	u32 tmp;
 
@@ -798,29 +842,35 @@ static int pxa28nm_set_threshold(int range)
 	}
 
 	if (0 == range) {
-		tmp = (millicelsius_encode(trips_temp[0]) << TSEN_THD0_OFF) &
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][0]) << TSEN_THD0_OFF) &
 							TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_hyst[0]) << TSEN_THD1_OFF) &
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp_d
+		[thermal_dev.thermal_volt.therm_policy][0]) << TSEN_THD1_OFF) &
 							TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
 		reg_clr_set(TSEN_LCTRL, TSEN_INT1_ENABLE, 0);
 
 	} else if (TRIP_POINTS_ACTIVE_NUM == range) {
-		tmp = (millicelsius_encode(trips_temp[range - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][range - 1]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_hyst[range - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp_d
+		[thermal_dev.thermal_volt.therm_policy][range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, TSEN_INT0_ENABLE, 0);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT1_ENABLE);
 	} else {
-		tmp = (millicelsius_encode(trips_temp[range]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][range]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_hyst[range - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp_d
+		[thermal_dev.thermal_volt.therm_policy][range]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
@@ -899,7 +949,8 @@ void pxa1936_register_initialize(void)
 					TSEN_WDT_THD_MASK;
 	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_WDT_DIRECTION | TSEN_WDT_ENABLE);
-	tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
+	tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][TRIP_POINTS_NUM - 1]) <<
 			TSEN_THD2_OFF) & TSEN_THD2_MASK;
 	reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT2_ENABLE | TSEN_INT2_DIRECTION);
@@ -917,21 +968,33 @@ void pxa1936_register_initialize(void)
 
 }
 
-void thermal_volt_init(void)
+void update_trip_temp(void)
 {
 	int i;
+	for (i = 0; i < TRIP_POINTS_NUM; i++) {
+		thermal_dev.thermal_volt.tsen_trips_temp[POWER_SAVING_MODE][i]
+		= trips_temp_powersave[i];
+		thermal_dev.thermal_volt.tsen_trips_temp_d[POWER_SAVING_MODE][i]
+		= trips_hyst_powersave[i];
+		thermal_dev.thermal_volt.tsen_trips_temp[BENCHMARK_MODE][i]
+		= trips_temp_benchmark[i];
+		thermal_dev.thermal_volt.tsen_trips_temp_d[BENCHMARK_MODE][i]
+		= trips_hyst_benchmark[i];
+	}
+	return;
+}
+
+void thermal_volt_init(void)
+{
 	thermal_dev.thermal_volt.tsen_throttle_tbl = pxa_tsen_throttle_tbl;
 	thermal_dev.thermal_volt.therm_policy = BENCHMARK_MODE;
-	thermal_dev.thermal_volt.range_max = TRIP_RANGE_MAX;
+	thermal_dev.thermal_volt.range_max = TRIP_POINTS_ACTIVE_NUM;
 	strcpy(thermal_dev.thermal_volt.cpu_name, "helan3");
+	thermal_dev.thermal_volt.set_threshold = pxa28nm_set_threshold;
 
-	thermal_dev.thermal_volt.vl_master =  THROTTLE_CORE;
-	for (i = 0; i < TRIP_POINTS_NUM; i++) {
-		thermal_dev.thermal_volt.tsen_trips_temp
-		[thermal_dev.thermal_volt.therm_policy][i] = trips_temp[i];
-		thermal_dev.thermal_volt.tsen_trips_temp_d
-		[thermal_dev.thermal_volt.therm_policy][i] = trips_hyst[i];
-	}
+	thermal_dev.thermal_volt.vl_master =  THROTTLE_CORE1;
+	update_trip_temp();
+
 	mutex_init(&thermal_dev.thermal_volt.policy_lock);
 	voltage_mrvl_init(&(thermal_dev.thermal_volt));
 	tsen_update_policy();
