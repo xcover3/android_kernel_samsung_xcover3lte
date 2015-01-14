@@ -5,24 +5,24 @@
  * License Terms: GNU General Public License v2
  */
 /*
- * 88pm886 register access
+ * 88pm88x register access
  *
  * read:
- * # echo -0x[page] 0x[reg] > <debugfs>/pm886/compact_addr
- * # cat <debugfs>/pm886/page-address   ---> get page address
- * # cat <debugfs>/pm886/register-value ---> get register address
+ * # echo -0x[page] 0x[reg] > <debugfs>/pm88x/compact_addr
+ * # cat <debugfs>/pm88x/page-address   ---> get page address
+ * # cat <debugfs>/pm88x/register-value ---> get register address
  * or:
- * # echo page > <debugfs>/pm886/page-address
- * # echo addr > <debugfs>/pm886/register-address
- * # cat <debugfs>/pm886/register-value
+ * # echo page > <debugfs>/pm88x/page-address
+ * # echo addr > <debugfs>/pm88x/register-address
+ * # cat <debugfs>/pm88x/register-value
  *
  * write:
- * # echo -0x[page] 0x[reg] > <debugfs>/pm886/compact_addr
- * # echo value > <debugfs>/pm886/register-value ---> set value
+ * # echo -0x[page] 0x[reg] > <debugfs>/pm88x/compact_addr
+ * # echo value > <debugfs>/pm88x/register-value ---> set value
  * or:
- * # echo page > <debugfs>/pm886/page-address
- * # echo addr > <debugfs>/pm886/register-address
- * # cat <debugfs>/pm886/register-value
+ * # echo page > <debugfs>/pm88x/page-address
+ * # echo addr > <debugfs>/pm88x/register-address
+ * # cat <debugfs>/pm88x/register-value
  *
  */
 
@@ -45,7 +45,7 @@
 #include <linux/ctype.h>
 #endif
 
-#define PM88X_NAME		"88pm886"
+#define PM88X_NAME		"88pm88x"
 #define PM88X_PAGES_NUM		(0x8)
 
 static struct dentry *pm88x_dir;
@@ -331,7 +331,7 @@ static int pm88x_print_whole_page(struct seq_file *s, void *p)
 	struct pm88x_chip *chip = s->private;
 	u8 page_addr = debug_page_addr;
 
-	seq_puts(s, "88pm886 register values:\n");
+	seq_puts(s, "88pm88x register values:\n");
 	seq_printf(s, " page 0x%02x:\n", page_addr);
 
 	pm88x_registers_print(chip, debug_page_addr, s);
