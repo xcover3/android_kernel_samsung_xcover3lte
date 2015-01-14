@@ -17,6 +17,7 @@
 #include <linux/string.h>
 #include <linux/power_supply.h>
 #include <linux/mfd/88pm88x.h>
+#include <linux/mfd/88pm880.h>
 #include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 #include <linux/math64.h>
@@ -485,14 +486,6 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 				regmap_update_bits(info->chip->battery_regmap,
 						   PM88X_CHG_CONFIG1,
 						   PM88X_BATTEMP_MON_EN, 0);
-				/*
-				 * disable battery temperature monitoring2:
-				 * set bit5
-				 */
-				regmap_update_bits(info->chip->battery_regmap,
-						   PM88X_CHG_CONFIG1,
-						   PM88X_BATTEMP_MON2_DIS,
-						   PM88X_BATTEMP_MON2_DIS);
 				/*
 				 * select GPADC3 as external input for
 				 * battery tempeareure monitoring algorithm
@@ -1716,6 +1709,16 @@ static int pm88x_init_fuelgauge(struct pm88x_battery_info *info)
 	/* 4. hardcode type[Lion] */
 	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
+	/*
+	 * 5. disable battery temperature monitoring2 for 88pm886 A1 and 88pm880 A0:
+	 * set bit5
+	 */
+	if (info->chip->chip_id == PM886_A1 || info->chip->chip_id == PM880_A0)
+		regmap_update_bits(info->chip->battery_regmap,
+				   PM88X_CHG_CONFIG1,
+				   PM88X_BATTEMP_MON2_DIS,
+				   PM88X_BATTEMP_MON2_DIS);
+
 	return 0;
 }
 
@@ -2158,7 +2161,7 @@ out_irq:
 	while (--i >= 0)
 		devm_free_irq(info->dev, info->irqs[i].irq, info);
 out:
-	kfree(&info->temp_ohm_table);
+	kfree(info->temp_ohm_table);
 	power_supply_unregister(&info->battery);
 
 	return ret;
@@ -2181,7 +2184,7 @@ static int pm88x_battery_remove(struct platform_device *pdev)
 	flush_workqueue(info->bat_wqueue);
 
 	power_supply_unregister(&info->battery);
-	kfree(&info->temp_ohm_table);
+	kfree(info->temp_ohm_table);
 	pm88x_battery_release_adc(info);
 
 #ifdef CONFIG_USB_MV_UDC

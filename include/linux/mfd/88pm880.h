@@ -23,7 +23,7 @@
 
 /* for chip stepping */
 enum {
-	PM880_A1 = 0xa1,
+	PM880_A0 = 0xb0,
 };
 
 enum {
