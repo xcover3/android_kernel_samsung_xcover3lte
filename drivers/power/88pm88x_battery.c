@@ -316,9 +316,16 @@ static void set_extern_data(struct pm88x_battery_info *info, int flag, int data)
 static int pm88x_battery_write_buffer(struct pm88x_battery_info *info,
 				      struct save_buffer *value)
 {
-	int data;
+	int data, tmp_soc;
+
+	/* convert 0% as 128% */
+	if (value->soc == 0)
+		tmp_soc = 0x7f;
+	else
+		tmp_soc = value->soc;
+
 	/* save values in RTC registers */
-	data = (value->soc & 0x7f) | (value->ocv_is_realiable << 7);
+	data = (tmp_soc & 0x7f) | (value->ocv_is_realiable << 7);
 
 	/* bits 0 is used for other purpose, so give up it */
 	data |= (value->cycles & 0xfe) << 8;
@@ -334,7 +341,12 @@ static int pm88x_battery_read_buffer(struct pm88x_battery_info *info,
 
 	/* read values from RTC registers */
 	data = get_extern_data(info, ALL_SAVED_DATA);
+
 	value->soc = data & 0x7f;
+	/* check whether the capacity is 0% */
+	if (value->soc == 0x7f)
+		value->soc = 0;
+
 	value->ocv_is_realiable = (data & 0x80) >> 7;
 	value->cycles = (data >> 8) & 0xfe;
 	if (value->cycles < 0)
