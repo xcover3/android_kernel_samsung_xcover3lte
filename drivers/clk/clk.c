@@ -1735,7 +1735,13 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 	if (rate == clk_get_rate(clk))
 		goto out;
 
-	if ((clk->flags & CLK_SET_RATE_GATE) && clk->prepare_count) {
+	/*
+	 * sometimes clock is enabled by bootloader instead of kernel,
+	 * so here we check two conditions for clock enable status, one
+	 * is prepare count, the other is enable count/real clcok status
+	 */
+	if ((clk->flags & CLK_SET_RATE_GATE) &&
+		(clk->prepare_count || __clk_is_enabled(clk))) {
 		ret = -EBUSY;
 		goto out;
 	}
