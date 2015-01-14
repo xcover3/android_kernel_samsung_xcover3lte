@@ -40,7 +40,11 @@
 #define PORTQ_STATUS_XMIT_QUEUED	(1 << 1)	/* tx_q queued */
 #define PORTQ_STATUS_RECV_EMPTY		(1 << 2)	/* rx_q empty */
 
+#ifdef CONFIG_SSIPC_SUPPORT
+#define PORTQ_CP_NUM_MAX		32
+#else
 #define PORTQ_CP_NUM_MAX		16
+#endif
 #define PORTQ_M3_NUM_MAX		5
 #define PORTQ_M3_PORT_OFFSET	64
 #define PORTQ_NUM_MAX			(PORTQ_M3_PORT_OFFSET + PORTQ_M3_NUM_MAX)

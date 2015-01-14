@@ -57,9 +57,32 @@ static const int portq_cp_priority[PORTQ_CP_NUM_MAX] = {
 	60,			/* 4: DIAG_PORT */
 	30,			/* 5: AUDIOSTUB_PORT */
 	40,			/* 6: CICSDSTUB_PORT */
+#ifdef CONFIG_SSIPC_SUPPORT
+	70,			/* 7: RAW_AT_PORT */
+#else
 	0,			/* 7: NOT USED */
+#endif
 	70,			/* 8: TEST_PORT */
 	40,			/* 9: CIIMSSTUB_PORT */
+#ifdef CONFIG_SSIPC_SUPPORT
+	70,			/*10: RAW_AT_DUN_PORT */
+	70,			/*11: RAW_AT_PROD_PORT */
+	70,			/*12: RAW_AT_SIMAL_PORT */
+	70,			/*13: RAW_AT_CLIENT_SOL_PORT */
+	70,			/*14: RAW_AT_CLIENT_UNSOL_PORT */
+	70,			/*15: RAW_AT_RESERVERED_PORT */
+	70,			/*16: RAW_AT_GPS_PORT */
+	70,			/*17: RAW_AT_RESERVERED2_PORT */
+	70,			/*20: TEST_PORT2 */
+	70,			/*21: RAW_AT_DUN_PORT2 */
+	70,			/*22: RAW_AT_PROD_PORT2 */
+	70,			/*23: RAW_AT_SIMAL_PORT2 */
+	70,			/*24: RAW_AT_CLIENT_SOL_PORT2 */
+	70,			/*25: RAW_AT_CLIENT_UNSOL_PORT2 */
+	70,			/*26: RAW_AT_RESERVERED_PORT2 */
+	70,			/*27: RAW_AT_RESERVERED2_PORT2 */
+	70,			/*28: RAW_AT_GPS_PORT2 */
+#endif
 };
 
 /* port queue priority definition */
