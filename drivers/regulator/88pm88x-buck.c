@@ -140,8 +140,11 @@ struct pm88x_regulators {
 	struct regmap *map;
 };
 
-#define USE_SLP_VOLT		(0x2 << 4)
-#define USE_ACTIVE_VOLT		(0x3 << 4)
+#define BUCK_OFF		(0x0 << 4)
+#define BUCK_ACTIVE_VOLT_SLP	(0x1 << 4)
+#define BUCK_SLP_VOLT_SLP	(0x2 << 4)
+#define BUCK_ACTIVE_VOLT_ACTIVE	(0x3 << 4)
+
 int pm88x_buck_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
 {
 	struct pm88x_buck_info *info = rdev_get_drvdata(rdev);
@@ -151,7 +154,25 @@ int pm88x_buck_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
 	if (!info)
 		return -EINVAL;
 
-	val = (mode == REGULATOR_MODE_IDLE) ? USE_SLP_VOLT : USE_ACTIVE_VOLT;
+	switch (mode) {
+	case REGULATOR_MODE_NORMAL:
+		/* regulator will be active with normal voltage */
+		val = BUCK_ACTIVE_VOLT_ACTIVE;
+		break;
+	case REGULATOR_MODE_IDLE:
+		/* regulator will be in sleep with sleep voltage */
+		val = BUCK_SLP_VOLT_SLP;
+		break;
+	case REGULATOR_MODE_STANDBY:
+		/* regulator will be off */
+		val = BUCK_OFF;
+		break;
+	default:
+		/* regulator will be active with sleep voltage */
+		val = BUCK_ACTIVE_VOLT_SLP;
+		break;
+	}
+
 	ret = regmap_update_bits(rdev->regmap, info->sleep_enable_reg,
 				 info->sleep_enable_mask, val);
 	return ret;
