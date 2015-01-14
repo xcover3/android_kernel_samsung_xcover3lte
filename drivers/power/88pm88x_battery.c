@@ -1097,6 +1097,7 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 	 */
 	if (temp_is_fine && temp_ever_low) {
 		if (ccnt_val->real_soc <= ccnt_val->soc) {
+			ccnt_val->previous_soc = ccnt_val->real_soc;
 			ccnt_val->soc = ccnt_val->real_soc;
 			temp_ever_low = false;
 			ccnt_val->bypass_cc = false;
@@ -1111,6 +1112,10 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 
 	ccnt_val->soc = ccnt_val->real_soc * times;
 	ccnt_val->soc -= offset;
+
+	/* correct the previous_soc */
+	if (!temp_is_fine)
+		ccnt_val->previous_soc = ccnt_val->soc;
 }
 
 /* correct SoC according to user scenario */
