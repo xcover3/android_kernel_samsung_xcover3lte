@@ -557,7 +557,7 @@ struct regval_tab ov13850_hflip[] = {
 };
 struct b52_sensor_i2c_attr ov13850_i2c_attr[] = {
 	[0] = {
-		.reg_len = I2C_8BIT,
+		.reg_len = I2C_16BIT,
 		.val_len = I2C_8BIT,
 		.addr = 0x10,
 	},
@@ -624,7 +624,7 @@ struct b52_sensor_resolution ov13850_13M_res[] = {
 	},
 };
 static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_16BIT,
+	.reg_len = I2C_8BIT,
 	.val_len = I2C_8BIT,
 	.addr = 0x0c,
 };
