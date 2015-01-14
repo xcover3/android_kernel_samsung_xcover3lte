@@ -91,16 +91,14 @@ struct clk_pll {
 /**
  * VCO Flags:
  */
-#define HELANX_PLL2CR_V1		BIT(0)	/* only for old pll2 config */
-#define HELANX_PLL_SSC_FEAT		BIT(1)
-#define HELANX_PLL_SSC_AON		BIT(2)
-#define HELANX_PLL_28NM			BIT(3)
-#define HELANX_PLL_40NM			BIT(4)
+#define HELANX_PLL_SSC_FEAT		BIT(0)
+#define HELANX_PLL_SSC_AON		BIT(1)
+#define HELANX_PLL_28NM			BIT(2)
 /*
  * For specific pll such as pll3p, don't check default rate to support
  * more boot up op.
  */
-#define HELANX_PLL_SKIP_DEF_RATE	BIT(5)
+#define HELANX_PLL_SKIP_DEF_RATE	BIT(3)
 
 extern struct clk *helanx_clk_register_vco(const char *name,
 					   const char *parent_name,

@@ -8,7 +8,7 @@ ifneq ($(CONFIG_OF),)
 ifeq ($(CONFIG_PXA1936_CLK), y)
 obj-y += clk-core-helan3.o clk-pxa1936.o
 else
-obj-y += clk-core-helanx.o clk-pxa1L88.o clk-pxa1U88.o
+obj-y += clk-core-helanx.o clk-pxa1U88.o
 endif
 obj-y += clk-pxa1928.o clk-core-pxa1928.o
 endif
