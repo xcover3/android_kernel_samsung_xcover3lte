@@ -246,6 +246,7 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 		.outp_name = "pll4p",
 		.vco_div3_name = "pll4_div3",
 		.vcoclk_flag = CLK_IS_ROOT,
+		.vco_flag = HELANX_PLL_SKIP_DEF_RATE,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
 		.outdtidx = PXA1U88_CLK_PLL4,
