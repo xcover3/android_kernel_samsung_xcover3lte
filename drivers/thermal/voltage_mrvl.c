@@ -409,10 +409,13 @@ int update_policy_throttle_tbl(void)
 int tsen_policy_dump(char *buf, int size)
 {
 	int i, s = 0, vl;
-	int state_cpu, state_cpu1 = 0, state_ddr, state_gc3d;
+	int state_cpu, state_ddr, state_gc3d;
 	int state_gc2d, state_gcsh, state_vpu;
 	char buf_name[20];
 	unsigned int (*throttle_tbl)[THROTTLE_NUM][THERMAL_MAX_TRIPS + 1];
+#ifdef CONFIG_PXA1936_THERMAL
+	int state_cpu1 = 0;
+#endif
 
 	throttle_tbl = thermal_voltage->tsen_throttle_tbl;
 	for (i = TRIP_RANGE_0; i <= thermal_voltage->range_max; i++) {
@@ -432,19 +435,31 @@ int tsen_policy_dump(char *buf, int size)
 		if (NULL == buf) {
 			if (i == TRIP_RANGE_0) {
 				pr_info("*************THERMAL RANG & POLICY*********************\n");
-				pr_info("* Thermal Stage:%d(up:Temp <%dC; down:Temp<%dC)\n",
-					i, thermal_voltage->tsen_trips_temp[i],
-					thermal_voltage->tsen_trips_temp_d[i]);
+				if (thermal_voltage->therm_policy == POWER_SAVING_MODE)
+					pr_info("*************THERMAL POLICY POWER_SAVING_MODE********\n");
+				else if	(thermal_voltage->therm_policy == BENCHMARK_MODE)
+					pr_info("*************THERMAL POLICY BENCHMARK_MODE********\n");
+					pr_info("* Thermal Stage:%d(up:Temp <%dC; down:Temp<%dC)\n",
+						i, thermal_voltage->tsen_trips_temp
+						[thermal_voltage->therm_policy][i],
+						thermal_voltage->tsen_trips_temp_d
+						[thermal_voltage->therm_policy][i]);
 			} else if (i == thermal_voltage->range_max) {
 				pr_info("* Thermal Stage:%d(up:Temp>%dC; down:Temp>%dC)\n",
-					i, thermal_voltage->tsen_trips_temp[i - 1],
-					 thermal_voltage->tsen_trips_temp_d[i - 1]);
+					i, thermal_voltage->tsen_trips_temp
+					[thermal_voltage->therm_policy][i - 1],
+					 thermal_voltage->tsen_trips_temp_d
+					 [thermal_voltage->therm_policy][i - 1]);
 			} else {
 				pr_info("* Thermal Stage:%d(up:%d<Temp<%dC; down:%d<Temp<%dC)\n",
-					i, thermal_voltage->tsen_trips_temp[i - 1],
-					thermal_voltage->tsen_trips_temp[i],
-					thermal_voltage->tsen_trips_temp_d[i - 1],
-					thermal_voltage->tsen_trips_temp_d[i]);
+					i, thermal_voltage->tsen_trips_temp
+					[thermal_voltage->therm_policy][i - 1],
+					thermal_voltage->tsen_trips_temp
+					[thermal_voltage->therm_policy][i],
+					thermal_voltage->tsen_trips_temp_d
+					[thermal_voltage->therm_policy][i - 1],
+					thermal_voltage->tsen_trips_temp_d
+					[thermal_voltage->therm_policy][i]);
 			}
 
 			if (thermal_voltage->vl_master == THROTTLE_VL)
@@ -540,22 +555,36 @@ int tsen_policy_dump(char *buf, int size)
 			if (i == TRIP_RANGE_0) {
 				s += snprintf(buf + s, size - s,
 					"*************THERMAL RANG & POLICY*********************\n");
+			if (thermal_voltage->therm_policy == POWER_SAVING_MODE)
+				s += snprintf(buf + s, size - s,
+					"*************THERMAL POLICY POWER_SAVING_MODE**********\n");
+			else if	(thermal_voltage->therm_policy == BENCHMARK_MODE)
+				s += snprintf(buf + s, size - s,
+					"*************THERMAL POLICY BENCHMARK_MODE**********\n");
 				s += snprintf(buf + s, size - s,
 					"* Thermal Stage:%d(up:Temp <%dC; down:Temp<%dC)\n",
-					i, thermal_voltage->tsen_trips_temp[i],
-					thermal_voltage->tsen_trips_temp_d[i]);
+					i, thermal_voltage->tsen_trips_temp
+					[thermal_voltage->therm_policy][i],
+					thermal_voltage->tsen_trips_temp_d
+					[thermal_voltage->therm_policy][i]);
 			} else if (i == thermal_voltage->range_max) {
 				s += snprintf(buf + s, size - s,
 					"* Thermal Stage:%d(up:Temp>%dC; down:Temp>%dC)\n",
-					i, thermal_voltage->tsen_trips_temp[i - 1],
-					 thermal_voltage->tsen_trips_temp_d[i - 1]);
+					i, thermal_voltage->tsen_trips_temp
+					[thermal_voltage->therm_policy][i - 1],
+					 thermal_voltage->tsen_trips_temp_d
+					 [thermal_voltage->therm_policy][i - 1]);
 			} else {
 				s += snprintf(buf + s, size - s,
 					"* Thermal Stage:%d(up:%d<Temp<%dC; down:%d<Temp<%dC)\n",
-					i, thermal_voltage->tsen_trips_temp[i - 1],
-					thermal_voltage->tsen_trips_temp[i],
-					thermal_voltage->tsen_trips_temp_d[i - 1],
-					thermal_voltage->tsen_trips_temp_d[i]);
+					i, thermal_voltage->tsen_trips_temp
+					[thermal_voltage->therm_policy][i - 1],
+					thermal_voltage->tsen_trips_temp
+					[thermal_voltage->therm_policy][i],
+					thermal_voltage->tsen_trips_temp_d
+					[thermal_voltage->therm_policy][i - 1],
+					thermal_voltage->tsen_trips_temp_d
+					[thermal_voltage->therm_policy][i]);
 			}
 
 			if (thermal_voltage->vl_master == THROTTLE_VL)
@@ -690,10 +719,10 @@ static ssize_t debug_read(struct file *filp,
 		char __user *buffer, size_t count, loff_t *ppos)
 {
 	char *buf;
-	size_t size = PAGE_SIZE - 1;
+	size_t size = 2 * PAGE_SIZE - 1;
 	int s;
 
-	buf = (char *)__get_free_pages(GFP_KERNEL, 0);
+	buf = (char *)__get_free_pages(GFP_KERNEL, 1);
 	if (!buf) {
 		pr_err("memory alloc for therm policy dump is failed!!\n");
 		return -ENOMEM;
@@ -707,18 +736,20 @@ static ssize_t debug_write(struct file *filp,
 {
 	char buf[CMD_BUF_SIZE] = { 0 };
 	char buf_name[20];
-	unsigned int max_state;
+	unsigned int max_state = 0;
 	unsigned int vl_master_en, vl_master, private_en, state0, state1,
-	state2, state3, state4, state5, state6;
-	int throttle_type;
+	state2, state3, state4, state5, state6, state7, state8, state9;
+	int throttle_type = 0;
 
 	vl_master = thermal_voltage->vl_master;
 	if (copy_from_user(buf, buffer, count))
 		return -EFAULT;
 
-	if (sscanf(buf, "%s %u %u %u %u %u %u %u %u %u", buf_name, &vl_master_en, &private_en,
-		&state0, &state1, &state2, &state3, &state4, &state5, &state6) != 10) {
-		pr_info("format error: component vl_master private_en state0 state1 state2 state3 state4 state5 state6\n");
+	if (sscanf(buf, "%s %u %u %u %u %u %u %u %u %u %u %u %u",
+		buf_name, &vl_master_en, &private_en,
+		&state0, &state1, &state2, &state3, &state4, &state5, &state6,
+		&state7, &state8, &state9) != 13) {
+		pr_info("format error: component vl_master private_en state0 state1 state2 state3 state4 state5 state6 state7 state8 state9\n");
 		return -EINVAL;
 	}
 
@@ -732,16 +763,15 @@ static ssize_t debug_write(struct file *filp,
 		throttle_type = THROTTLE_CORE;
 		if (vl_master_en)
 			vl_master = THROTTLE_CORE;
-	}
+	} else if ((!strcmp(buf_name, "CORE1")) && (!strcmp("helan3", thermal_voltage->cpu_name))) {
 #ifdef CONFIG_PXA1936_THERMAL
-	if ((!strcmp(buf_name, "CORE1")) && (!strcmp("helan3", thermal_voltage->cpu_name))) {
+
 		max_state = thermal_voltage->cpu1freq_tbl.freq_num - 1;
 		throttle_type = THROTTLE_CORE1;
 		if (vl_master_en)
 			vl_master = THROTTLE_CORE1;
-	}
 #endif
-	if (!strcmp(buf_name, "HOTPLUG")) {
+	} else if (!strcmp(buf_name, "HOTPLUG")) {
 		max_state = CPU_MAX_NUM - 1;
 		throttle_type = THROTTLE_HOTPLUG;
 	} else if (!strcmp(buf_name, "DDR")) {
@@ -801,6 +831,15 @@ static ssize_t debug_write(struct file *filp,
 	} else if (state6 > max_state) {
 		pr_info("format error: state should be 6 to %d\n", max_state);
 		return -EINVAL;
+	} else if (state7 > max_state) {
+		pr_info("format error: state should be 7 to %d\n", max_state);
+		return -EINVAL;
+	} else if (state8 > max_state) {
+		pr_info("format error: state should be 8 to %d\n", max_state);
+		return -EINVAL;
+	} else if (state9 > max_state) {
+		pr_info("format error: state should be 9 to %d\n", max_state);
+		return -EINVAL;
 	}
 
 	mutex_lock(&thermal_voltage->policy_lock);
@@ -822,7 +861,12 @@ static ssize_t debug_write(struct file *filp,
 	[thermal_voltage->therm_policy][throttle_type][TRIP_RANGE_5 + 1] = state5;
 	thermal_voltage->tsen_throttle_tbl
 	[thermal_voltage->therm_policy][throttle_type][TRIP_RANGE_6 + 1] = state6;
-
+	thermal_voltage->tsen_throttle_tbl
+	[thermal_voltage->therm_policy][throttle_type][TRIP_RANGE_7 + 1] = state7;
+	thermal_voltage->tsen_throttle_tbl
+	[thermal_voltage->therm_policy][throttle_type][TRIP_RANGE_8 + 1] = state8;
+	thermal_voltage->tsen_throttle_tbl
+	[thermal_voltage->therm_policy][throttle_type][TRIP_RANGE_9 + 1] = state9;
 	tsen_update_policy();
 	tsen_cdev_update(thermal_voltage->therm_max);
 	mutex_unlock(&thermal_voltage->policy_lock);
@@ -836,10 +880,60 @@ static const struct file_operations reg_opt_ops = {
 	.write = debug_write,
 };
 
+static ssize_t policy_debug_write(struct file *filp,
+		const char __user *buffer, size_t count, loff_t *ppos)
+{
+	char buf[CMD_BUF_SIZE] = { 0 };
+	char buf_name[20];
+
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	if (sscanf(buf, "%s", buf_name) != 1) {
+		pr_info("format error: input benchmark or powersave mode\n");
+		return -EINVAL;
+	}
+	if (!strcmp(buf_name, "benchmark"))
+		thermal_voltage->therm_policy = BENCHMARK_MODE;
+	else if (!strcmp(buf_name, "powersave"))
+		thermal_voltage->therm_policy = POWER_SAVING_MODE;
+
+	if (thermal_voltage->set_threshold)
+		thermal_voltage->set_threshold(0);
+	tsen_update_policy();
+	tsen_cdev_update(thermal_voltage->therm_max);
+
+	return count;
+}
+
+
+static ssize_t policy_debug_read(struct file *filp,
+		char __user *buffer, size_t count, loff_t *ppos)
+{
+	char *buf;
+	size_t size = 2 * PAGE_SIZE - 1;
+	int s;
+
+	buf = (char *)__get_free_pages(GFP_KERNEL, 1);
+	if (!buf) {
+		pr_err("memory alloc for therm policy dump is failed!!\n");
+		return -ENOMEM;
+	}
+	s = tsen_policy_dump(buf, size);
+	return simple_read_from_buffer(buffer, count, ppos, buf, strlen(buf));
+}
+
+static const struct file_operations policy_reg_opt_ops = {
+	.owner = THIS_MODULE,
+	.read = policy_debug_read,
+	.write = policy_debug_write,
+};
+
 int register_debug_interface(void)
 {
 	struct dentry *sysset;
 	struct dentry *pxa_reg;
+	struct dentry *pxa_policy_reg;
 	sysset = debugfs_create_dir("pxa_thermal", NULL);
 	if (!sysset)
 		return -ENOENT;
@@ -847,8 +941,16 @@ int register_debug_interface(void)
 					NULL, &reg_opt_ops);
 	if (!pxa_reg) {
 		pr_err("debugfs entry created failed in %s\n", __func__);
-	return -ENOENT;
+		return -ENOENT;
 	}
+
+	pxa_policy_reg = debugfs_create_file("policy_switch", 0664, sysset,
+					NULL, &policy_reg_opt_ops);
+	if (!pxa_policy_reg) {
+		pr_err("policy_switch debugfs entry created failed in %s\n", __func__);
+		return -ENOENT;
+	}
+
 	return 0;
 }
 

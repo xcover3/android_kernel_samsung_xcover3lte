@@ -4,7 +4,7 @@
 #include <linux/thermal.h>
 #include <linux/cpumask.h>
 
-#define CPU_MAX_NUM	8
+#define CPU_MAX_NUM	num_possible_cpus()
 #define MAX_FREQ_PP	20
 #define KHZ_TO_HZ	1
 #define VL_MAX	8
@@ -18,7 +18,10 @@ enum trip_range {
 	TRIP_RANGE_4,
 	TRIP_RANGE_5,
 	TRIP_RANGE_6,
-	TRIP_RANGE_MAX = TRIP_RANGE_6,
+	TRIP_RANGE_7,
+	TRIP_RANGE_8,
+	TRIP_RANGE_9,
+	TRIP_RANGE_MAX = TRIP_RANGE_9,
 	TRIP_RANGE_NUM = TRIP_RANGE_MAX + 1,
 };
 
@@ -59,17 +62,18 @@ struct freq_cooling_device {
 };
 
 enum thermal_policy {
-	THERMAL_POLICY_DKB_VL_MAXT = 0,
-	THERMAL_POLICY_FF_VL_MAXT = 1,
-	THERMAL_POLICY_NUM,
+	POWER_SAVING_MODE,
+	BENCHMARK_MODE,
+	POLICY_NUMBER,
 };
 
 struct pxa_voltage_thermal {
 	struct freq_cooling_device cool_pxa;
 	struct thermal_zone_device *therm_max;
-	int tsen_trips_temp[THERMAL_MAX_TRIPS];
-	int tsen_trips_temp_d[THERMAL_MAX_TRIPS];
+	int tsen_trips_temp[POLICY_NUMBER][THERMAL_MAX_TRIPS];
+	int tsen_trips_temp_d[POLICY_NUMBER][THERMAL_MAX_TRIPS];
 	unsigned int (*tsen_throttle_tbl)[THROTTLE_NUM][THERMAL_MAX_TRIPS+1];
+	int (*set_threshold)(int range);
 	int profile;
 	enum thermal_policy therm_policy;
 	int vl_master;

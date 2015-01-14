@@ -99,7 +99,7 @@
 	reg_write(((reg_read(off) & ~(clr)) | (set)), off)
 
 unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
-	[THERMAL_POLICY_DKB_VL_MAXT] = {
+	[POWER_SAVING_MODE] = {
 		[THROTTLE_VL]		= { 0,
 		0, 0, 0, 0, 0, 0, 0,
 		},
@@ -128,7 +128,7 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 		0, 0, 0, 0, 0, 0, 0,
 		},
 	},
-	[THERMAL_POLICY_FF_VL_MAXT] = {
+	[BENCHMARK_MODE] = {
 		[THROTTLE_VL]		= { 0,
 		0, 0, 0, 0, 0, 0, 0,
 		},
@@ -921,14 +921,16 @@ void thermal_volt_init(void)
 {
 	int i;
 	thermal_dev.thermal_volt.tsen_throttle_tbl = pxa_tsen_throttle_tbl;
-	thermal_dev.thermal_volt.therm_policy = THERMAL_POLICY_DKB_VL_MAXT;
+	thermal_dev.thermal_volt.therm_policy = BENCHMARK_MODE;
 	thermal_dev.thermal_volt.range_max = TRIP_RANGE_MAX;
 	strcpy(thermal_dev.thermal_volt.cpu_name, "helan3");
 
 	thermal_dev.thermal_volt.vl_master =  THROTTLE_CORE;
 	for (i = 0; i < TRIP_POINTS_NUM; i++) {
-		thermal_dev.thermal_volt.tsen_trips_temp[i] = trips_temp[i];
-		thermal_dev.thermal_volt.tsen_trips_temp_d[i] = trips_hyst[i];
+		thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][i] = trips_temp[i];
+		thermal_dev.thermal_volt.tsen_trips_temp_d
+		[thermal_dev.thermal_volt.therm_policy][i] = trips_hyst[i];
 	}
 	mutex_init(&thermal_dev.thermal_volt.policy_lock);
 	voltage_mrvl_init(&(thermal_dev.thermal_volt));

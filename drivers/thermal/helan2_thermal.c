@@ -108,12 +108,6 @@ enum trip_points {
 	TRIP_POINTS_ACTIVE_NUM = TRIP_POINTS_NUM - 1,
 };
 
-enum cooling_policy {
-	POWER_SAVING_MODE,
-	BENCHMARK_MODE,
-	POLICY_NUMBER,
-};
-
 struct cooling_device {
 	struct thermal_cooling_device *combile_cool;
 	int max_state, cur_state;
@@ -616,8 +610,10 @@ static void mapping_cooling_dev(struct device_node *np)
 
 	thermal_dev.thermal_volt.vl_master = THROTTLE_CORE;
 	for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-		thermal_dev.thermal_volt.tsen_trips_temp[i] = trips_temp[i];
-		thermal_dev.thermal_volt.tsen_trips_temp_d[i] = trips_hyst[i];
+		thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][i] = trips_temp[i];
+		thermal_dev.thermal_volt.tsen_trips_temp_d
+		[thermal_dev.thermal_volt.therm_policy][i] = trips_hyst[i];
 	}
 	mutex_init(&thermal_dev.thermal_volt.policy_lock);
 	voltage_mrvl_init(&(thermal_dev.thermal_volt));
