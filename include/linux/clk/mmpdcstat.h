@@ -11,6 +11,19 @@
 #include <linux/kernel_stat.h>
 #include <linux/tick.h>
 
+#ifdef CONFIG_PXA1936_CLK
+#include <linux/pxa1936_powermode.h>
+enum lowpower_mode {
+	LPM_C1 = POWER_MODE_CORE_INTIDLE,
+	LPM_C2 = POWER_MODE_CORE_POWERDOWN,
+	LPM_MP2 = POWER_MODE_MP_POWERDOWN_L2_OFF,
+	LPM_D1P = POWER_MODE_APPS_IDLE,
+	LPM_D1 = POWER_MODE_SYS_SLEEP_VCTCXO_OFF,
+	LPM_D2 = POWER_MODE_UDR_VCTCXO,
+	LPM_D2_UDR = POWER_MODE_UDR,
+	MAX_LPM_INDEX = 15,
+};
+#else
 enum lowpower_mode {
 	LPM_C1,
 	LPM_C2,
@@ -21,6 +34,7 @@ enum lowpower_mode {
 	LPM_D2_UDR,
 	MAX_LPM_INDEX = 15,
 };
+#endif
 
 #define PM_QOS_CPUIDLE_BLOCK_C1		0
 #define PM_QOS_CPUIDLE_BLOCK_C2		1
