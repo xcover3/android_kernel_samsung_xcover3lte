@@ -156,10 +156,10 @@ static int pm88x_reg_val_get(struct seq_file *s, void *p)
 		 debug_page_addr, debug_reg_addr);
 	switch (debug_page_addr) {
 	case 0:
-		map = chip->ldo_regmap;
+		map = chip->base_regmap;
 		break;
 	case 1:
-		map = chip->power_regmap;
+		map = chip->ldo_regmap;
 		break;
 	case 2:
 		map = chip->gpadc_regmap;
@@ -174,6 +174,7 @@ static int pm88x_reg_val_get(struct seq_file *s, void *p)
 		map = chip->test_regmap;
 		break;
 	default:
+		pr_err("unsupported pages.\n");
 		return -EINVAL;
 	}
 
@@ -231,7 +232,7 @@ static ssize_t pm88x_reg_val_write(struct file *file,
 		map = chip->test_regmap;
 		break;
 	default:
-		pr_err("unsported pages.\n");
+		pr_err("unsupported pages.\n");
 		return -EINVAL;
 	}
 
