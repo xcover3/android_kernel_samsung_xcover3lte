@@ -734,6 +734,18 @@ static void __init smc91x_clk_init(void __iomem *apmu_base)
 }
 #endif
 
+struct pxa1936_clk_disp {
+	struct mmp_clk_gate gate;
+	struct clk_mux mux;
+	struct clk_divider divider;
+	const struct clk_ops *mux_ops;
+	const struct clk_ops *div_ops;
+	const struct clk_ops *gate_ops;
+};
+
+static struct pxa1936_clk_disp disp1_clks;
+static struct pxa1936_clk_disp disp4_clks;
+
 static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -907,19 +919,25 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 			0xf, 0xc, 0x0, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1936_CLK_DSI_ESC, clk);
 
-	clk = clk_register_mux(NULL, "disp1_sel_clk",
-			(const char **)disp1_parent_names, ARRAY_SIZE(disp1_parent_names),
-			CLK_SET_RATE_PARENT,
-			pxa_unit->apmu_base + APMU_DISP1,
-			9, 2, 0, &disp_lock);
+	disp1_clks.mux_ops = &clk_mux_ops;
+	disp1_clks.mux.mask = 0x2;
+	disp1_clks.mux.shift = 9;
+	disp1_clks.mux.reg = pxa_unit->apmu_base + APMU_DISP1;
+	disp1_clks.gate.mask = 0x20;
+	disp1_clks.gate.reg = pxa_unit->apmu_base + APMU_DISP1;
+	disp1_clks.gate.val_disable = 0x0;
+	disp1_clks.gate.val_enable = 0x20;
+	disp1_clks.gate.flags = 0x0;
+	disp1_clks.gate_ops = &mmp_clk_gate_ops;
+
+	clk = clk_register_composite(NULL, "disp1_sel_clk", (const char **)disp1_parent_names,
+				ARRAY_SIZE(disp1_parent_names),
+				&disp1_clks.mux.hw, disp1_clks.mux_ops,
+				NULL, NULL,
+				&disp1_clks.gate.hw, disp1_clks.gate_ops,
+				CLK_SET_RATE_PARENT);
 	mmp_clk_add(unit, PXA1936_CLK_DISP1, clk);
 	clk_register_clkdev(clk, "disp1_sel_clk", NULL);
-
-	clk = mmp_clk_register_gate(NULL, "dsip1_clk", "disp1_sel_clk",
-			CLK_SET_RATE_PARENT,
-			pxa_unit->apmu_base + APMU_DISP1,
-			0x20, 0x20, 0x0, 0, &disp_lock);
-	mmp_clk_add(unit, PXA1936_CLK_DISP1_EN, clk);
 
 	clk = clk_register_mux(NULL, "disp2_sel_clk",
 			(const char **)disp2_parent_names, ARRAY_SIZE(disp2_parent_names),
@@ -947,19 +965,25 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 			0x80, 0x80, 0x0, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1936_CLK_DISP3_EN, clk);
 
-	clk = clk_register_mux(NULL, "dsi_pll", disp4_parent_names,
-			ARRAY_SIZE(disp4_parent_names),
-			CLK_SET_RATE_PARENT,
-			pxa_unit->apmu_base + APMU_DISP1,
-			14, 1, 0, &disp_lock);
+	disp4_clks.mux_ops = &clk_mux_ops;
+	disp4_clks.mux.mask = 0x1;
+	disp4_clks.mux.shift = 14;
+	disp4_clks.mux.reg = pxa_unit->apmu_base + APMU_DISP1;
+	disp4_clks.gate.mask = 0x100;
+	disp4_clks.gate.reg = pxa_unit->apmu_base + APMU_DISP1;
+	disp4_clks.gate.val_disable = 0x0;
+	disp4_clks.gate.val_enable = 0x100;
+	disp4_clks.gate.flags = 0x0;
+	disp4_clks.gate_ops = &mmp_clk_gate_ops;
+
+	clk = clk_register_composite(NULL, "dsi_pll", (const char **)disp4_parent_names,
+				ARRAY_SIZE(disp4_parent_names),
+				&disp4_clks.mux.hw, disp4_clks.mux_ops,
+				NULL, NULL,
+				&disp4_clks.gate.hw, disp4_clks.gate_ops,
+				CLK_SET_RATE_PARENT);
 	mmp_clk_add(unit, PXA1936_CLK_DISP4, clk);
 	clk_register_clkdev(clk, "dsi_pll", NULL);
-
-	clk = mmp_clk_register_gate(NULL, "dsip4_en_clk", "dsi_pll",
-			CLK_SET_RATE_PARENT,
-			pxa_unit->apmu_base + APMU_DISP1,
-			0x100, 0x100, 0x0, 0, &disp_lock);
-	mmp_clk_add(unit, PXA1936_CLK_DISP4_EN, clk);
 
 	disp_axi_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_DISP1;
 	clk = mmp_clk_register_mix(NULL, "disp_axi_sel_clk",
