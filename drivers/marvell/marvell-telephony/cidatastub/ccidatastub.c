@@ -325,9 +325,44 @@ static struct miscdevice ccidatastub_miscdev = {
 	&ccidatastub_fops,
 };
 
+#ifdef CONFIG_SSIPC_SUPPORT
+static int set_csd_init_cfg(void)
+{
+	struct datahandle_obj dataHandle;
+	DATAHANDLELIST *pNode, **plist;
+	spin_lock_irq(&data_handle_list_lock);
+	plist = &hCsdataList;
+	dataHandle.m_connType = CI_DAT_CONNTYPE_CS;
+	dataHandle.connectionType = ATCI_LOCAL;
+	dataHandle.m_cid = 0x1;
+
+	if (!search_handlelist_by_cid(*plist, dataHandle.m_cid)) {
+		pNode = kmalloc(sizeof(*pNode), GFP_ATOMIC);
+		if (!pNode) {
+			spin_unlock_irq(&data_handle_list_lock);
+			return -ENOMEM;
+		}
+		pNode->handle = dataHandle;
+		pNode->next = NULL;
+		add_to_handle_list(plist, pNode);
+	} else
+		DPRINT("%s: cid already exist\n", __func__);
+
+	spin_unlock_irq(&data_handle_list_lock);
+	dataSvgHandle = 0x10000008;
+	DPRINT("%s done\n", __func__);
+	return 0;
+}
+#endif
+
 static void ccidatastub_ready_cb(void)
 {
 	DPRINT("%s executed\n", __func__);
+
+#ifdef CONFIG_SSIPC_SUPPORT
+	set_csd_init_cfg();
+#endif
+
 	InitPsdChannel();
 	InitCsdChannel();
 	InitImsChannel();

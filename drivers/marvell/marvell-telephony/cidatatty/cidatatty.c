@@ -117,7 +117,7 @@ struct cctdatadev_dev {
 static struct tty_driver *cidatatty_tty_driver;
 struct cctdatadev_dev *cctdatadev_devices;
 /* int ttycurindex; */
-unsigned char currcid_cs = 0xff;
+unsigned char currcid_cs = 0x1;
 unsigned char currcid_ps = 0xff;
 unsigned char currcid_ims = 0xff;
 
