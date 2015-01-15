@@ -63,6 +63,19 @@
 			};
 		};
 	};
+	panel1: r63311 {
+		rst_gpio = <&gpio 98 0>;
+		power_gpio = <&gpio 96 0>;
+	};
+	panel2: hx8394 {
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo6>;
+	};
+
+	panel3: lg4591 {
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo6>;
+	};
 };
 
 #include "88pm88x.dtsi"
