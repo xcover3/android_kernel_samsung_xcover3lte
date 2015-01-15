@@ -3,21 +3,8 @@
 
 #include <linux/clk/mmpdcstat.h>
 
-/* flag for different FC version */
-/* V1 for helanLTE */
+/* reserved flag for different FC version */
 #define HELANX_FC_V1	BIT(0)
-/* V2 for helan2&ULC */
-#define HELANX_FC_V2	BIT(1)
-
-/* CORE */
-struct core_reg_offset {
-	/* core clk src sel set register bit*/
-	u32 set_sel_shift;
-	u32 set_sel_width;
-	/* core clk src sel status bit */
-	u32 get_sel_shift;
-	u32 get_sel_width;
-};
 
 /* RTC/WTC table used for solution change rtc/wtc on the fly */
 struct cpu_rtcwtc {
@@ -70,7 +57,6 @@ struct core_params {
 	void __iomem			*apmu_base;
 	void __iomem			*mpmu_base;
 	void __iomem			*ciu_base;
-	struct core_reg_offset		*core_offset;
 	struct parents_table	*parent_table;
 	int				parent_table_size;
 	struct cpu_opt			*cpu_opt;
@@ -160,26 +146,9 @@ struct axi_opt {
 	unsigned int aclk_div;		/* axi clk divider */
 };
 
-struct axi_reg_offset {
-	/* axi clk src sel set register */
-	u32		fcaclk_off;
-	u32		clk_sel0_shift;
-	u32		clk_sel0_width;
-	u32		clk_sel1_shift;
-	u32		clk_sel1_width;
-
-	/* core clk src sel set register bit*/
-	u32	set_sel_shift;
-	u32	set_sel_width;
-	/* core clk src sel status bit */
-	u32 get_sel_shift;
-	u32 get_sel_width;
-};
-
 struct axi_params {
 	void __iomem			*apmu_base;
 	void __iomem			*mpmu_base;
-	struct axi_reg_offset		*axi_offset;
 	struct parents_table		*parent_table;
 	int				parent_table_size;
 	struct axi_opt			*axi_opt;
@@ -187,8 +156,6 @@ struct axi_params {
 	/* dynamic dc stat support? */
 	bool				dcstat_support;
 };
-
-
 
 struct clk *mmp_clk_register_axi(const char *name, const char **parent_name,
 		u8 num_parents, unsigned long flags, u32 axi_flags,

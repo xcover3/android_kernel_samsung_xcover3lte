@@ -71,12 +71,6 @@ struct clk_axi {
 
 #define MPMU_REG(mpmu_base, x)	(mpmu_base + (x))
 
-/* V1 AP/DDR/AXI src sel register */
-#define MPMU_FCCR(m)	MPMU_REG(m->params->mpmu_base, 0x0008)
-#define MPMU_PLL3CR(m)	MPMU_REG(m->params->mpmu_base, 0x001c)
-#define PLL1_PLL3_SWBIT	(1 << 18)
-
-/* V2 AP/DDR/AXI src sel register */
 #define MPMU_FCAP(m)	\
 	MPMU_REG(m->params->mpmu_base, 0x0054)
 #define MPMU_FCDCLK(m)	\
@@ -101,26 +95,7 @@ enum fc_type {
 	AXI_FC,
 };
 
-/* core,ddr,axi clk src sel set register desciption V1 */
-union pmum_fccr {
-	struct {
-		unsigned int pll1fbd:9;
-		unsigned int pll1refd:5;
-		unsigned int pll1cen:1;
-		unsigned int mfc:1;
-		unsigned int reserved0:3;
-		unsigned int axiclksel0:1;
-		unsigned int reserved1:3;
-		unsigned int ddrclksel:2;
-		unsigned int axiclksel1:1;
-		unsigned int seaclksel:2;
-		unsigned int i2sclksel:1;
-		unsigned int mohclksel:3;
-	} b;
-	unsigned int v;
-};
-
-/* core,ddr,axi clk src sel register description - V2 */
+/* core,ddr,axi clk src sel register description */
 union pmum_fcapclk {
 	struct {
 		unsigned int apclksel:3;
@@ -145,14 +120,13 @@ union pmum_fcaclk {
 	unsigned int v;
 };
 
-/* core,ddr,axi clk src sel status register description V1 & V2 */
+/* core,ddr,axi clk src sel status register description */
 union pmua_pllsel {
 	struct {
 		unsigned int cpclksel:2;
 		unsigned int apclksel:2;
 		unsigned int ddrclksel:2;
 		unsigned int axiclksel:2;
-		/* only for V2 -- helan2/ULC */
 		unsigned int apclksel_bit3:1;
 		unsigned int ddrclksel_bit3:1;
 		unsigned int reserved0:22;
@@ -160,7 +134,7 @@ union pmua_pllsel {
 	unsigned int v;
 };
 
-/* core,ddr,axi clk div and fc trigger register description, V1&V2 */
+/* core,ddr,axi clk div and fc trigger register description */
 union pmua_cc {
 	struct {
 		unsigned int core_clk_div:3;
@@ -280,17 +254,6 @@ union dfc_status {
 	unsigned int v;
 };
 
-union dfc_lvl_v1 {
-	struct {
-		unsigned int dclksrcsel:2;
-		unsigned int dclkdiv:3;
-		unsigned int mctblnum:3;
-		unsigned int reqvl:3;
-		unsigned int reserved:21;
-	} b;
-	unsigned int v;
-};
-
 union dfc_lvl {
 	struct {
 		unsigned int dclksrcsel:3;
@@ -298,7 +261,6 @@ union dfc_lvl {
 		unsigned int dclkdiv:3;
 		unsigned int mctblnum:5;
 		unsigned int reqvl:3;
-		/* for ulc/helan3 */
 		unsigned int mclpmtblnum:2;
 		unsigned int reserved:15;
 	} b;
@@ -382,64 +344,32 @@ static inline void pre_fc(void __iomem *apmu_base)
 	prefc_check_isr(apmu_base);
 }
 
-int get_fc_lock(void __iomem *apmu_base, int has_hwdfcwr)
+int get_fc_lock(void __iomem *apmu_base)
 {
 	union pmua_dm_cc dm_cc_ap;
-	union dfc_status status;
-	int max_loop, timeout;
+	int timeout = 100000;
 
 	if (atomic_inc_return(&fc_lock_ref_cnt) == 1) {
-		max_loop = 100;
-		while (1) {
-			timeout = 100000;
-			if (unlikely(max_loop <= 0)) {
-				pr_err("%s: AP cannot get out of ", __func__);
-				pr_err("loop as HWDFC is ongoing always!\n");
-				return -EAGAIN;
-			}
-			/*
-			* AP-CP FC mutual exclusion,
-			* APMU_DM_CC_AP cp_rd_status = 0, ap_rd_status = 1
-			*/
-			dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
-			while (timeout) {
-				if (!dm_cc_ap.b.cp_rd_status &&
+		/*
+		 * AP-CP FC mutual exclusion,
+		 * APMU_DM_CC_AP cp_rd_status = 0, ap_rd_status = 1
+		 */
+		dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
+		while (timeout) {
+			if (!dm_cc_ap.b.cp_rd_status &&
 					dm_cc_ap.b.ap_rd_status)
-					break;
-				dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
-				timeout--;
-			}
+				break;
+			dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
+			timeout--;
+		}
 
-			if (unlikely(timeout <= 0)) {
-				pr_err("%s can't get AP lock: CCSR:%x CCR:%x\n",
-				       __func__,
-				       __raw_readl(APMU_CCSR(apmu_base)),
-				       __raw_readl(APMU_CCR(apmu_base)));
-				WARN_ON(1);
-				return -EAGAIN;
-			}
-
-			if (!has_hwdfcwr)
-				return 0;
-			/*
-			 * HLTE-36: avoid AP/CP issue DFC the same time
-			 * If hwdfc is ongoing, ap gives up lock and let
-			 * hwdfc go first
-			 */
-			status.v = __raw_readl(DFC_STATUS(apmu_base));
-			if (status.b.dfc_status) {
-				clr_aprd_status(apmu_base);
-				max_loop--;
-			} else {
-				/*
-				 * Maybe hwdfc is done and clear lock
-				 * AP needs to get lock again
-				 */
-				dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
-				dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
-
-				return 0;
-			}
+		if (unlikely(timeout <= 0)) {
+			pr_err("%s can't get AP lock: CCSR:%x CCR:%x\n",
+					__func__,
+					__raw_readl(APMU_CCSR(apmu_base)),
+					__raw_readl(APMU_CCR(apmu_base)));
+			WARN_ON(1);
+			return -EAGAIN;
 		}
 	}
 	return 0;
@@ -499,11 +429,7 @@ static struct clk *__get_core_parent(struct clk_hw *hw, struct cpu_opt *cop)
 	src_sel = pllsel.b.apclksel;
 
 	if (src_sel == AP_CLK_SRC_PLL1_1248) {
-		if (core->flags & HELANX_FC_V1)
-			pll1_pll3_sel = __raw_readl(MPMU_PLL3CR(core))
-				& PLL1_PLL3_SWBIT;
-		else if (core->flags & HELANX_FC_V2)
-			pll1_pll3_sel = pllsel.b.apclksel_bit3;
+		pll1_pll3_sel = pllsel.b.apclksel_bit3;
 		if (pll1_pll3_sel)
 			src_sel = AP_CLK_SRC_PLL3P;
 	}
@@ -545,102 +471,41 @@ static void get_cur_cpu_op(struct clk_hw *hw, struct cpu_opt *cop)
 	}
 }
 
-static void wait_for_fc_done(enum fc_type comp, int hwdfc_flag,
-			     void __iomem *apmu_base)
+static void wait_for_fc_done(enum fc_type comp, void __iomem *apmu_base)
 {
-	int timeout = 100;
-	int dfc_timeout;
-	union dfc_status status;
-	union pmua_dm_cc dm_cc_ap;
+	int timeout = 1000;
 
 	/* polling ISR */
 	while (!((1 << 1) & __raw_readl(APMU_ISR(apmu_base))) && timeout)
 		timeout--;
 
-	if (!hwdfc_flag) {
-		if (timeout <= 0) {
-			if (comp == DDR_FC) {
-				/* enhancement to check DFC related status */
-				pr_err("APMU_ISR %x, CUR_DLV %d, DFC_AP %x, DFC_CP %x, DFC_STATUS %x\n",
+	if (timeout <= 0) {
+		if (comp == DDR_FC) {
+			/* enhancement to check DFC related status */
+			pr_err("APMU_ISR %x, CUR_DLV %d, DFC_AP %x, DFC_CP %x, DFC_STATUS %x\n",
 				__raw_readl(APMU_ISR(apmu_base)),
 				cur_ddr_op->ddr_freq_level,
 				__raw_readl(DFC_AP(apmu_base)),
 				__raw_readl(DFC_CP(apmu_base)),
 				__raw_readl(DFC_STATUS(apmu_base)));
-			}
-			WARN(1, "AP frequency change timeout!\n");
-			pr_err("APMU_ISR %x, fc_type %u\n",
-				__raw_readl(APMU_ISR(apmu_base)), comp);
 		}
-		/* only clear AP fc done signal */
-		__raw_writel(__raw_readl(APMU_ISR(apmu_base)) & ~(1 << 1),
-				APMU_ISR(apmu_base));
-		return;
+		WARN(1, "AP frequency change timeout!\n");
+		pr_err("APMU_ISR %x, fc_type %u\n",
+				__raw_readl(APMU_ISR(apmu_base)), comp);
 	}
-
-	status.v = __raw_readl(DFC_STATUS(apmu_base));
-	if (!status.b.dfc_status)
-		goto out;
-	/* DFC in progress, try to get ap lock */
-	dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
-	dm_cc_ap.v = __raw_readl(APMU_CCSR(apmu_base));
-	/* Cannot get lock, means CP HWDFC gets it, just go out */
-	if (!dm_cc_ap.b.ap_rd_status && dm_cc_ap.b.cp_rd_status)
-		goto out;
-
-	/* polling hwdfc and may timeout */
-	dfc_timeout = 6;
-	while (status.b.dfc_status && dfc_timeout) {
-		dfc_timeout--;
-		udelay(10);
-		status.v = __raw_readl(DFC_STATUS(apmu_base));
-	}
-out:
-	/* Clear ap lock always */
-	clr_aprd_status(apmu_base);
 	/* only clear AP fc done signal */
 	__raw_writel(__raw_readl(APMU_ISR(apmu_base)) & ~(1 << 1),
 			APMU_ISR(apmu_base));
-}
-
-static void pll1_pll3_switch(struct clk_core *core, enum ap_clk_sel sel)
-{
-	unsigned int regval;
-	unsigned long flags = 0;
-
-	if ((sel != AP_CLK_SRC_PLL3P) &&
-		(sel != AP_CLK_SRC_PLL1_1248))
-		return;
-	if (core->params->shared_lock)
-		spin_lock_irqsave(core->params->shared_lock, flags);
-	regval = __raw_readl(MPMU_PLL3CR(core));
-	if (sel == AP_CLK_SRC_PLL1_1248)
-		regval &= ~(1 << 18);
-	else
-		regval |= (1 << 18);
-	__raw_writel(regval, MPMU_PLL3CR(core));
-	if (core->params->shared_lock)
-		spin_unlock_irqrestore(core->params->shared_lock, flags);
+	return;
 }
 
 static void set_ap_clk_sel(struct clk_core *core, struct cpu_opt *top)
 {
 	u32 src_sel_val = 0, value;
-	union pmum_fccr fccr;
 	void __iomem *src_sel_reg = MPMU_FCAP(core);
 
-	if (core->flags & HELANX_FC_V1) {
-		src_sel_reg = MPMU_FCCR(core);
-		/* only for V1, separate pll1_1248 & pll3 switch */
-		pll1_pll3_switch(core, top->ap_clk_sel);
-		fccr.v = __raw_readl(src_sel_reg);
-		fccr.b.mohclksel = top->ap_clk_sel;
-		src_sel_val = fccr.v;
-		__raw_writel(fccr.v, src_sel_reg);
-	} else if (core->flags & HELANX_FC_V2) {
-		src_sel_val = top->ap_clk_sel;
-		__raw_writel(src_sel_val, src_sel_reg);
-	}
+	src_sel_val = top->ap_clk_sel;
+	__raw_writel(src_sel_val, src_sel_reg);
 
 	value = __raw_readl(src_sel_reg);
 	if (value != src_sel_val)
@@ -653,7 +518,6 @@ static void trigger_ap_fc(struct clk_core *core, struct cpu_opt *top)
 	union pmua_cc cc_ap;
 	void __iomem *apmu_base = core->params->apmu_base;
 	void __iomem *apmuccr = APMU_CCR(apmu_base);
-	int hwdfcwr_flag = core->flags & HELANX_FC_V1;
 
 	/* 2.2) AP votes allow FC */
 	cc_ap.v = __raw_readl(apmuccr);
@@ -668,7 +532,7 @@ static void trigger_ap_fc(struct clk_core *core, struct cpu_opt *top)
 	pr_debug("CORE FC APMU_CCR[%x]\n", cc_ap.v);
 	__raw_writel(cc_ap.v, apmuccr);
 	/* 2.5) wait for core fc is done */
-	wait_for_fc_done(CORE_FC, hwdfcwr_flag, apmu_base);
+	wait_for_fc_done(CORE_FC, apmu_base);
 	/* 3) Post FC : AP clear allow FC REQ */
 	cc_ap.v = __raw_readl(apmuccr);
 	cc_ap.b.core_freq_chg_req = 0;
@@ -739,7 +603,6 @@ static int set_core_freq(struct clk_hw *hw, struct cpu_opt *old,
 	unsigned long flags;
 	struct clk_core *core = to_clk_core(hw);
 	void __iomem *apmu_base = core->params->apmu_base, *srcreg;
-	int has_hwdfcwr = core->flags & HELANX_FC_V1;
 
 	pr_debug("CORE set_freq start: old %u, new %u\n",
 		old->pclk, new->pclk);
@@ -765,7 +628,7 @@ static int set_core_freq(struct clk_hw *hw, struct cpu_opt *old,
 
 	/* Get lock in irq disable status to short AP hold lock time */
 	local_irq_save(flags);
-	ret = get_fc_lock(apmu_base, has_hwdfcwr);
+	ret = get_fc_lock(apmu_base);
 	if (ret) {
 		put_fc_lock(apmu_base);
 		local_irq_restore(flags);
@@ -788,8 +651,7 @@ static int set_core_freq(struct clk_hw *hw, struct cpu_opt *old,
 		       cop.pclk, cop.pdclk, cop.baclk);
 		pr_err("NEW %d %d %d %d\n", new->ap_clk_src,
 			new->pclk, new->pdclk, new->baclk);
-		srcreg = (core->flags & HELANX_FC_V1) ?
-			MPMU_FCCR(core) : MPMU_FCAP(core);
+		srcreg =  MPMU_FCAP(core);
 		pr_err("FCAP %x, CCAP %x, PLLSEL %x, DMCCAP %x, CCCP %x\n",
 			__raw_readl(srcreg),
 			__raw_readl(APMU_CCR(apmu_base)),
@@ -1117,47 +979,23 @@ static int clk_cpu_setrate(struct clk_hw *hw, unsigned long rate,
 
 	get_fc_spinlock();
 
-	/*
-	 * Switching pll1_1248 and pll3p may generate glitch
-	 * step 1),2),3) is neccessary
-	 */
-	if ((core->flags & HELANX_FC_V1) &&
-		(((md_old->ap_clk_sel == AP_CLK_SRC_PLL3P) &&
-		(md_new->ap_clk_sel == AP_CLK_SRC_PLL1_1248)) ||
-		((md_old->ap_clk_sel == AP_CLK_SRC_PLL1_1248) &&
-		(md_new->ap_clk_sel == AP_CLK_SRC_PLL3P)))) {
-		/* 1) op0 as bridge, must from pll1_624 */
+	if ((md_old->ap_clk_sel == md_new->ap_clk_sel) &&
+		(md_new->ap_clk_src != md_old->ap_clk_src)) {
+		/* 1) if undefined bridge_op, set op0 as bridge */
 		if (unlikely(!bridge_op))
 			bridge_op = list_first_entry(&core_op_list,
-			 struct cpu_opt, node);
-		BUG_ON(bridge_op->ap_clk_sel != AP_CLK_SRC_PLL1_624);
-		/* 2) use startup op(op0) as a bridge */
+					struct cpu_opt, node);
+		/* 2) change core to bridge_op */
 		ret = set_core_freq(hw, md_old, bridge_op);
 		if (ret)
 			goto tmpout;
-		/* 3) change PLL3_CR[18] to select pll1_1248 or pll3p */
-		pll1_pll3_switch(core, md_new->ap_clk_sel);
-		/* 4) switch to op which uses pll1_1248/pll3p */
+		/* 3) change parent's rate */
+		clk_set_rate(md_new->parent, md_new->ap_clk_src * MHZ);
+		/* 4) switch to target op */
 		ret = set_core_freq(hw, bridge_op, md_new);
 	} else {
-		if ((md_old->ap_clk_sel == md_new->ap_clk_sel) &&
-			(md_new->ap_clk_src != md_old->ap_clk_src)) {
-			/* 1) if undefined bridge_op, set op0 as bridge */
-			if (unlikely(!bridge_op))
-				bridge_op = list_first_entry(&core_op_list,
-				 struct cpu_opt, node);
-			/* 2) change core to bridge_op */
-			ret = set_core_freq(hw, md_old, bridge_op);
-			if (ret)
-				goto tmpout;
-			/* 3) change parent's rate */
-			clk_set_rate(md_new->parent, md_new->ap_clk_src * MHZ);
-			/* 4) switch to target op */
-			ret = set_core_freq(hw, bridge_op, md_new);
-		} else {
-			clk_set_rate(md_new->parent, md_new->ap_clk_src * MHZ);
-			ret = set_core_freq(hw, md_old, md_new);
-		}
+		clk_set_rate(md_new->parent, md_new->ap_clk_src * MHZ);
+		ret = set_core_freq(hw, md_old, md_new);
 	}
 
 tmpout:
@@ -1292,13 +1130,6 @@ static inline bool check_hwdfc_inpro(void __iomem *apmu_base,
 		max_delay--;
 	}
 
-	/* only for HLTE WR path */
-	if (max_delay <= 0) {
-		status.v = __raw_readl(DFC_STATUS(apmu_base));
-		if ((expected_lvl <= status.b.cfl) && status.b.dfc_status &&
-			(status.b.dfc_cause != AP_ACTIVE_DFC))
-			return false;
-	}
 	return true;
 }
 
@@ -1339,7 +1170,7 @@ static int ddr_hwdfc_seq(struct clk_hw *hw, unsigned int level)
 	/* Check dfc status and done */
 	inpro = check_hwdfc_inpro(apmu_base, level);
 	if (likely(!inpro))
-		wait_for_fc_done(DDR_FC, 0, apmu_base);
+		wait_for_fc_done(DDR_FC, apmu_base);
 	else {
 		WARN(1, "HW-DFC failed! expect LV %d\n", level);
 		pr_err("DFCAP %x, DFCCP %x, DFCSTATUS %x, PLLSEL %x, DMCCAP %x\n",
@@ -1393,9 +1224,7 @@ static inline void get_ddr_srcdiv(struct clk_ddr *ddr,
 	dm_cc_ap.v = get_dm_cc_ap(apmu_base);
 	pr_debug("div%x sel%x\n", dm_cc_ap.v, pllsel.v);
 
-	src_sel = pllsel.b.ddrclksel;
-	if (ddr->flags & HELANX_FC_V2)
-		src_sel = pllsel.b.ddrclksel | (pllsel.b.ddrclksel_bit3 << 2);
+	src_sel = pllsel.b.ddrclksel | (pllsel.b.ddrclksel_bit3 << 2);
 
 	*srcsel = src_sel;
 	*div = dm_cc_ap.b.ddr_clk_div + 1;
@@ -1465,25 +1294,16 @@ static inline void hwdfc_init(struct clk_ddr *ddr,
 {
 	u32 regval;
 	void __iomem *reg = DFC_LEVEL(ddr->params->apmu_base, lvlx);
-	union dfc_lvl_v1 dfc_lvl_v1;
 	union dfc_lvl dfc_lvl;
 
-	if (ddr->flags & HELANX_FC_V1) {
-		dfc_lvl_v1.v = __raw_readl(reg);
-		dfc_lvl_v1.b.dclksrcsel = cop->ddr_clk_sel;
-		dfc_lvl_v1.b.dclkdiv = cop->dclk_div;
-		dfc_lvl_v1.b.mctblnum = cop->ddr_tbl_index;
-		dfc_lvl_v1.b.reqvl = 0;
-		regval = dfc_lvl_v1.v;
-	} else {
-		dfc_lvl.v = __raw_readl(reg);
-		dfc_lvl.b.dclksrcsel = cop->ddr_clk_sel;
-		dfc_lvl.b.dclkdiv = cop->dclk_div;
-		dfc_lvl.b.mctblnum = cop->ddr_tbl_index;
-		dfc_lvl.b.mclpmtblnum = cop->ddr_lpmtbl_index;
-		dfc_lvl.b.reqvl = 0;
-		regval = dfc_lvl.v;
-	}
+	dfc_lvl.v = __raw_readl(reg);
+	dfc_lvl.b.dclksrcsel = cop->ddr_clk_sel;
+	dfc_lvl.b.dclkdiv = cop->dclk_div;
+	dfc_lvl.b.mctblnum = cop->ddr_tbl_index;
+	dfc_lvl.b.mclpmtblnum = cop->ddr_lpmtbl_index;
+	dfc_lvl.b.reqvl = 0;
+	regval = dfc_lvl.v;
+
 	__raw_writel(regval, reg);
 }
 
@@ -1492,18 +1312,12 @@ static inline void hwdfc_initvl(struct clk_ddr *ddr,
 {
 	u32 regval;
 	void __iomem *reg = DFC_LEVEL(ddr->params->apmu_base, lvlx);
-	union dfc_lvl_v1 dfc_lvl_v1;
 	union dfc_lvl dfc_lvl;
 
-	if (ddr->flags & HELANX_FC_V1) {
-		dfc_lvl_v1.v = __raw_readl(reg);
-		dfc_lvl_v1.b.reqvl = cop->ddr_volt_level;
-		regval = dfc_lvl_v1.v;
-	} else {
-		dfc_lvl.v = __raw_readl(reg);
-		dfc_lvl.b.reqvl = cop->ddr_volt_level;
-		regval = dfc_lvl.v;
-	}
+	dfc_lvl.v = __raw_readl(reg);
+	dfc_lvl.b.reqvl = cop->ddr_volt_level;
+	regval = dfc_lvl.v;
+
 	__raw_writel(regval, reg);
 }
 
@@ -1813,20 +1627,10 @@ static inline void set_axi_clk_sel(struct clk_axi *axi, struct axi_opt *top)
 {
 	void __iomem *selreg;
 	unsigned int selvalue, value;
-	union pmum_fccr fccr;
 
-	if (axi->flags & HELANX_FC_V1) {
-		selreg = MPMU_FCCR(axi);
-		fccr.v = __raw_readl(selreg);
-		fccr.b.axiclksel0 = top->axi_clk_sel & 0x1;
-		fccr.b.axiclksel1 = (top->axi_clk_sel & 0x2) >> 1;
-		selvalue = fccr.v;
-		__raw_writel(selvalue, selreg);
-	} else {
-		selreg = MPMU_FCACLK(axi);
-		selvalue = top->axi_clk_sel;
-		__raw_writel(selvalue, selreg);
-	}
+	selreg = MPMU_FCACLK(axi);
+	selvalue = top->axi_clk_sel;
+	__raw_writel(selvalue, selreg);
 
 	value = __raw_readl(selreg);
 	if (value != selvalue)
@@ -1839,7 +1643,6 @@ static inline void trigger_axi_fc(struct clk_axi *axi, struct axi_opt *top)
 	union pmua_cc cc_ap;
 	void __iomem *apmu_base = axi->params->apmu_base;
 	void __iomem *apmuccr = APMU_CCR(apmu_base);
-	int hwdfcwr_flag = axi->flags & HELANX_FC_V1;
 
 	cc_ap.v = __raw_readl(apmuccr);
 	cc_ap.b.bus_clk_div = top->aclk_div;
@@ -1847,7 +1650,7 @@ static inline void trigger_axi_fc(struct clk_axi *axi, struct axi_opt *top)
 	pr_debug("AXI FC APMU_CCR[%x]\n", cc_ap.v);
 	__raw_writel(cc_ap.v, apmuccr);
 
-	wait_for_fc_done(AXI_FC, hwdfcwr_flag, apmu_base);
+	wait_for_fc_done(AXI_FC, apmu_base);
 
 	cc_ap.v = __raw_readl(apmuccr);
 	cc_ap.b.bus_freq_chg_req = 0;
@@ -1944,7 +1747,6 @@ static int set_axi_freq(struct clk_hw *hw, struct axi_opt *old,
 	unsigned long flags;
 	struct clk_axi *axi = to_clk_axi(hw);
 	void __iomem *apmu_base = axi->params->apmu_base, *srcreg;
-	int has_hwdfcwr = axi->flags & HELANX_FC_V1;
 
 	pr_debug("AXI set_freq start: old %u, new %u\n",
 		old->aclk, new->aclk);
@@ -1965,7 +1767,7 @@ static int set_axi_freq(struct clk_hw *hw, struct axi_opt *old,
 
 	/* Get lock in irq disable status to short AP hold lock time */
 	local_irq_save(flags);
-	ret = get_fc_lock(apmu_base, has_hwdfcwr);
+	ret = get_fc_lock(apmu_base);
 	if (ret) {
 		put_fc_lock(apmu_base);
 		local_irq_restore(flags);
@@ -1986,8 +1788,7 @@ static int set_axi_freq(struct clk_hw *hw, struct axi_opt *old,
 		pr_err(" asrc aclk");
 		pr_err("CUR %d %d\n", cop.axi_clk_src, cop.aclk);
 		pr_err("NEW %d %d\n", new->axi_clk_src, new->aclk);
-		srcreg = (axi->flags & HELANX_FC_V1) ?
-			MPMU_FCCR(axi) : MPMU_FCACLK(axi);
+		srcreg = MPMU_FCACLK(axi);
 		pr_err("FCACLK %x, CCAP %x, PLLSEL %x, DMCCAP %x, CCCP %x\n",
 			__raw_readl(srcreg),
 			__raw_readl(APMU_CCR(apmu_base)),
@@ -2243,7 +2044,6 @@ static ssize_t dfcstatus_read(struct file *filp,
 	union dfc_status dfcstatus;
 	union dfc_cp dfc_cp;
 	union dfc_ap dfc_ap;
-	union dfc_lvl_v1 dfc_lvl_v1;
 	union dfc_lvl dfc_lvl;
 	unsigned int conf, src, div, tblnum, vl;
 	size_t size = sizeof(buf) - 1;
@@ -2273,19 +2073,12 @@ static ssize_t dfcstatus_read(struct file *filp,
 
 	for (idx = 0; idx < ddr_opt_size; idx++) {
 		conf = __raw_readl(DFC_LEVEL(apmu_base, idx));
-		if (dclk->flags & HELANX_FC_V1) {
-			dfc_lvl_v1.v = conf;
-			src = dfc_lvl_v1.b.dclksrcsel;
-			div = dfc_lvl_v1.b.dclkdiv;
-			tblnum = dfc_lvl.b.mctblnum;
-			vl = dfc_lvl_v1.b.reqvl;
-		} else {
-			dfc_lvl.v = conf;
-			src = dfc_lvl.b.dclksrcsel;
-			div = dfc_lvl.b.dclkdiv;
-			tblnum = dfc_lvl.b.mctblnum;
-			vl = dfc_lvl.b.reqvl;
-		}
+		dfc_lvl.v = conf;
+		src = dfc_lvl.b.dclksrcsel;
+		div = dfc_lvl.b.dclkdiv;
+		tblnum = dfc_lvl.b.mctblnum;
+		vl = dfc_lvl.b.reqvl;
+
 		len += snprintf(buf + len, size,
 			"|%u\t|%u\t|%u\t|%u\t|%u\t|%u\t|\n", idx,
 			ddr_opt[idx].dclk, src, div, tblnum, vl);
