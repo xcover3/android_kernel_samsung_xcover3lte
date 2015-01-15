@@ -33,9 +33,8 @@
 			compatible = "marvell,power-domain-display-pxa1u88";
 			reg = <0xd4282800 0x1000>;
 			clocks = <&soc_clocks PXA1936_CLK_DISP_HCLK>,
-				<&soc_clocks PXA1936_CLK_DSI_ESC>,
-				<&soc_clocks PXA1936_CLK_DISP1_EN>;
-			clock-names = "LCDCIHCLK", "esc_clk", "disp1_clk_gate";
+				<&soc_clocks PXA1936_CLK_DSI_ESC>;
+			clock-names = "LCDCIHCLK", "esc_clk";
 		};
 
 		smmu {  /* iommu in vpu */
@@ -200,8 +199,9 @@
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
-				clocks = <&soc_clocks PXA1936_CLK_DISP1>;
-				clock-names = "disp1_clk";
+				clocks = <&soc_clocks PXA1936_CLK_DISP1>,
+					<&soc_clocks PXA1936_CLK_DISP4>;
+				clock-names = "disp1_clk", "dsipll_clk";
 				status = "okay";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
