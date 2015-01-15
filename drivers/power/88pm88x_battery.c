@@ -578,7 +578,8 @@ static bool system_may_reboot(struct pm88x_battery_info *info)
 	if (info->chip->powerup & (1 << 5))
 		return true;
 	else
-		return !(info->chip->powerdown1 || info->chip->powerdown2);
+		/* delete HYB_DONE */
+		return !(info->chip->powerdown1 || (info->chip->powerdown2 & 0xfe));
 }
 
 static bool check_battery_change(struct pm88x_battery_info *info,
@@ -1100,6 +1101,10 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 		temp_is_fine = true;
 	}
 
+	/* bit 0, 0xc0 register in gpadc page: cleared in boot up stage */
+	if (info->bat_params.temp < 0)
+		regmap_update_bits(info->chip->gpadc_regmap, 0xc0, 0x1, 0x1);
+
 	/*
 	 * now the temperature resumes back,
 	 * but the temperature is low in the previous point,
@@ -1501,7 +1506,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 {
 	int slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
 	int active_volt, soc_from_vbat_active;
-	int cycles_from_saved, saved_is_valid;
+	int cycles_from_saved, saved_is_valid, ever_low_temp;
 	bool battery_is_changed, soc_in_good_range, realiable_from_saved;
 
 	/*---------------- the following gets the initial_soc --------------*/
@@ -1536,6 +1541,38 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	dev_info(info->dev,
 		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n",
 		 __func__, soc_from_saved, realiable_from_saved);
+
+	/* ---------------------------------------------------------------- */
+	if (info->chip->powerdown2 & 0x2) {
+		/* UV_VSYS2 = 1 and UV_VSY1 = 1 shows the battery is plugged out */
+		if (info->chip->powerdown1 & 0x2)
+			goto skip1;
+		else {
+		/* UV_VSYS2 = 1 only shows the system is powered down by HW suddenly */
+			*initial_soc = 0;
+			*initial_cycles = cycles_from_saved;
+			goto end;
+		}
+	}
+
+	/*
+	 * get low_temp_flag: bit 0, 0xc0 register of gpadc page
+	 * TODO: switch to a uniform interface
+	 */
+skip1:
+	regmap_read(info->chip->gpadc_regmap, 0xc0, &ever_low_temp);
+	if (ever_low_temp & 0x1) {
+		if (soc_from_saved == 0)
+			*initial_soc = 1;
+		else
+			*initial_soc = soc_from_saved;
+		*initial_cycles = cycles_from_saved;
+
+		/* clear this flag */
+		regmap_update_bits(info->chip->gpadc_regmap, 0xc0, 0x1, 0);
+		goto end;
+	}
+
 	/*
 	 * there are two cases:
 	 * a) plug into the charger cable first
