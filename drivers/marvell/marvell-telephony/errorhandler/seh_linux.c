@@ -752,7 +752,6 @@ static long seh_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case SEH_IOCTL_CP_SILENT_RESET:
 		{
 			EehCpSilentResetParam param;
-			struct eeh_msg_list_struct *msg;
 			if (copy_from_user
 			    (&param, (EehCpSilentResetParam *) arg,
 			     sizeof(EehCpSilentResetParam)))
@@ -761,32 +760,7 @@ static long seh_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			DPRINT("Receive SEH_IOCTL_CP_SILENT_RESET:%s\n",
 			       param.msgDesc);
 
-			if (down_interruptible(&seh_dev->read_sem))
-				return -EFAULT;
-
-			msg = kzalloc(sizeof(*msg), GFP_KERNEL);
-			if (!msg) {
-				up(&seh_dev->read_sem);
-				DPRINT("malloc error\n");
-				return -ENOMEM;
-			}
-			if (bCpResetOnReq) {
-				pr_info("CP already in the process"
-				    " of reset on requested\n");
-				up(&seh_dev->read_sem);
-				kfree(msg);
-				return -EFAULT;
-			}
-			bCpResetOnReq = true;
-			disable_irq(cp_watchdog->irq);
-			msg->msg.msgId = EEH_CP_SILENT_RESET_MSG;
-			strcpy(msg->msg.msgDesc, param.msgDesc);
-			msg->msg.force = param.force;
-			list_add_tail(&msg->msg_list, &seh_dev->msg_head);
-
-			up(&seh_dev->read_sem);
-			wake_up_interruptible(&seh_dev->readq);
-
+			ret = trigger_modem_crash(param.force, param.msgDesc);
 			break;
 		}
 	case SEH_IOCTL_APP_CRASH:
@@ -1169,6 +1143,40 @@ static void EehSaveErrorInfo(EehErrorInfo *info)
 {
 }
 #endif
+
+int trigger_modem_crash(int force_reset, const char *disc)
+{
+	struct eeh_msg_list_struct *msg;
+
+	if (seh_dev == NULL)
+		return -EFAULT;
+
+	if (down_interruptible(&seh_dev->read_sem))
+		return -EFAULT;
+
+	if (bCpResetOnReq) {
+		pr_info("CP already in the process of reset\n");
+		up(&seh_dev->read_sem);
+		return -EFAULT;
+	}
+
+	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (!msg) {
+		up(&seh_dev->read_sem);
+		DPRINT("malloc error\n");
+		return -ENOMEM;
+	}
+	bCpResetOnReq = true;
+	disable_irq(cp_watchdog->irq);
+	msg->msg.msgId = EEH_CP_SILENT_RESET_MSG;
+	strcpy(msg->msg.msgDesc, disc);
+	msg->msg.force = force_reset;
+	list_add_tail(&msg->msg_list, &seh_dev->msg_head);
+	up(&seh_dev->read_sem);
+	wake_up_interruptible(&seh_dev->readq);
+	return 0;
+}
+EXPORT_SYMBOL(trigger_modem_crash);
 
 module_init(seh_init);
 module_exit(seh_exit);

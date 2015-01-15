@@ -52,4 +52,5 @@ struct EehErrorInfo32 {
 #endif
 
 int read_ee_config_b_cp_reset(void);
+int trigger_modem_crash(int force_reset, const char *disc);
 #endif
