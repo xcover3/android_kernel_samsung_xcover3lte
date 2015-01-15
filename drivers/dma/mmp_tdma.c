@@ -138,6 +138,7 @@ struct mmp_tdma_chan {
 	size_t				pos;
 
 	struct gen_pool			*pool;
+	spinlock_t lock;
 };
 
 #define TDMA_CHANNEL_NUM 2
@@ -183,7 +184,6 @@ static void mmp_tdma_disable_chan(struct mmp_tdma_chan *tdmac)
 	writel(tdcr, tdmac->reg_base + TDCR);
 
 	tdmac->dma_state = TDMA_COMPLETE;
-	tdmac->status = DMA_COMPLETE;
 }
 
 static void mmp_tdma_resume_chan(struct mmp_tdma_chan *tdmac)
@@ -303,7 +303,15 @@ static int mmp_tdma_clear_chan_irq(struct mmp_tdma_chan *tdmac)
 
 static void dma_do_tasklet(unsigned long data)
 {
+	unsigned long flags;
 	struct mmp_tdma_chan *tdmac = (struct mmp_tdma_chan *)data;
+
+	spin_lock_irqsave(&tdmac->lock, flags);
+	if (tdmac->status == DMA_COMPLETE) {
+		spin_unlock_irqrestore(&tdmac->lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(&tdmac->lock, flags);
 
 	if (tdmac->desc.callback)
 		tdmac->desc.callback(tdmac->desc.callback_param);
@@ -492,13 +500,18 @@ static int mmp_tdma_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
 	struct mmp_tdma_chan *tdmac = to_mmp_tdma_chan(chan);
 	struct dma_slave_config *dmaengine_cfg = (void *)arg;
 	int ret = 0;
+	unsigned long flags;
 
 	switch (cmd) {
 	case DMA_TERMINATE_ALL:
+		spin_lock_irqsave(&tdmac->lock, flags);
+		tdmac->status = DMA_COMPLETE;
+		spin_unlock_irqrestore(&tdmac->lock, flags);
 		mmp_tdma_disable_chan(tdmac);
 
 		/* disable interrupt */
 		mmp_tdma_enable_irq(tdmac, false);
+		tasklet_kill(&tdmac->tasklet);
 		/*
 		 * need to free descriptor as audio HAL doesn't close the
 		 * stream when audio stream ends
@@ -593,6 +606,7 @@ static int mmp_tdma_chan_init(struct mmp_tdma_device *tdev,
 	tdmac->status = DMA_COMPLETE;
 	tdmac->dma_state = TDMA_COMPLETE;
 	tdev->tdmac[tdmac->idx] = tdmac;
+	spin_lock_init(&tdmac->lock);
 	tasklet_init(&tdmac->tasklet, dma_do_tasklet, (unsigned long)tdmac);
 
 	/* add the channel to tdma_chan list */
