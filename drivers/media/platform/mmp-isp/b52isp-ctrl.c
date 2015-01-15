@@ -924,11 +924,12 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 		if (ctrls->exposure->is_new) {
 			if (!sensor)
 				return -EINVAL;
-
 			expo = ctrls->exposure->val;
 			ret = b52_sensor_call(sensor, to_expo_line, expo, &lines);
 			if (ret < 0)
 				return ret;
+			if ((lines + 16) > sensor->drvdata->vts_range.min)
+				b52_writew(base + REG_FW_VTS, lines + 16);
 			if (ctrls->aec_manual_mode->val ==
 						CID_AEC_AUTO_THRESHOLD) {
 				b52_writel(base + REG_FW_MAX_CAM_EXP, lines);
@@ -936,11 +937,13 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 			} else
 				b52_writel(base + REG_FW_AEC_MAN_EXP, lines);
 		} else if (ctrls->expo_line->is_new) {
-			expo = ctrls->expo_line->val;
+			expo = (ctrls->expo_line->val >> 4);
+			if ((expo + 16) > sensor->drvdata->vts_range.min)
+				b52_writew(base + REG_FW_VTS, expo + 16);
 			if (ctrls->aec_manual_mode->val ==
 						CID_AEC_AUTO_THRESHOLD) {
-				b52_writel(base + REG_FW_MAX_CAM_EXP, expo >> 4);
-				b52_writel(base + REG_FW_MIN_CAM_EXP, expo >> 4);
+				b52_writel(base + REG_FW_MAX_CAM_EXP, expo);
+				b52_writel(base + REG_FW_MIN_CAM_EXP, expo);
 			} else
 				b52_writel(base + REG_FW_AEC_MAN_EXP, expo);
 		}
