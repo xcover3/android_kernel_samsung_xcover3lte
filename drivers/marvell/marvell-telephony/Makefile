@@ -27,3 +27,5 @@ obj-$(CONFIG_MRVL_MMP_MODEM) += cidatatty/
 obj-$(CONFIG_MRVL_MMP_MODEM) += cimodemtty/
 
 obj-$(CONFIG_MRVL_MMP_MODEM) += audio_stub/
+
+obj-$(CONFIG_MRVL_MMP_MODEM) += ssipc_misc/
