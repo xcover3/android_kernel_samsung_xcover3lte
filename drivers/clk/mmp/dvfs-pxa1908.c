@@ -77,6 +77,8 @@ static unsigned int uisidd1p05;
 static unsigned int uisidd1p30;
 static struct comm_fuse_info fuseinfo;
 
+#define CHIP_PROFILE_15   (15)
+
 struct svtrng {
 	unsigned int min;
 	unsigned int max;
@@ -212,6 +214,9 @@ static int __init __init_read_droinfo(void)
 	pr_info("		SIDD1P05 = %d\n", uisidd1p05);
 	pr_info("	*********************************\n");
 	pr_info("\n");
+
+	if (CHIP_PROFILE_15 == uiprofile)
+		panic("!!!!!!profile 15 chip not support on ULC1!!!!!!\n");
 
 	return 0;
 }
