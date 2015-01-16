@@ -140,10 +140,11 @@ struct b52isp_laxi {
 	int			mac;
 	int			port;
 	int			stream:1;
-	int			rdy_set;
 	atomic_t		map_cnt;
 	atomic_t		en_cnt;
 	enum b52_dma_state	dma_state;
+	int overflow;
+	int drop_cnt;
 };
 
 /* B52ISP physical axi master */
