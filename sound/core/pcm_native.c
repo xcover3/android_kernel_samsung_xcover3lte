@@ -862,15 +862,21 @@ static int snd_pcm_pre_start(struct snd_pcm_substream *substream, int state)
 
 static int snd_pcm_do_start(struct snd_pcm_substream *substream, int state)
 {
+	int ret;
 	if (substream->runtime->trigger_master != substream)
 		return 0;
-	return substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_START);
+	ret = substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_START);
+	if (ret == 0)
+		substream->running = 1;
+
+	return ret;
 }
 
 static void snd_pcm_undo_start(struct snd_pcm_substream *substream, int state)
 {
 	if (substream->runtime->trigger_master == substream)
 		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_STOP);
+	substream->running = 0;
 }
 
 static void snd_pcm_post_start(struct snd_pcm_substream *substream, int state)
@@ -929,6 +935,9 @@ static int snd_pcm_do_stop(struct snd_pcm_substream *substream, int state)
 	if (substream->runtime->trigger_master == substream &&
 	    snd_pcm_running(substream))
 		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_STOP);
+
+	substream->running = 0;
+
 	return 0; /* unconditonally stop all substreams */
 }
 
@@ -1002,6 +1011,7 @@ static int snd_pcm_pre_pause(struct snd_pcm_substream *substream, int push)
 
 static int snd_pcm_do_pause(struct snd_pcm_substream *substream, int push)
 {
+	int ret;
 	if (substream->runtime->trigger_master != substream)
 		return 0;
 	/* some drivers might use hw_ptr to recover from the pause -
@@ -1013,9 +1023,12 @@ static int snd_pcm_do_pause(struct snd_pcm_substream *substream, int push)
 	 * delta, effectively to skip the check once.
 	 */
 	substream->runtime->hw_ptr_jiffies = jiffies - HZ * 1000;
-	return substream->ops->trigger(substream,
+	ret = substream->ops->trigger(substream,
 				       push ? SNDRV_PCM_TRIGGER_PAUSE_PUSH :
 					      SNDRV_PCM_TRIGGER_PAUSE_RELEASE);
+	if (ret == 0)
+		substream->running = push ? 0 : 1;
+	return ret;
 }
 
 static void snd_pcm_undo_pause(struct snd_pcm_substream *substream, int push)
@@ -1024,6 +1037,7 @@ static void snd_pcm_undo_pause(struct snd_pcm_substream *substream, int push)
 		substream->ops->trigger(substream,
 					push ? SNDRV_PCM_TRIGGER_PAUSE_RELEASE :
 					SNDRV_PCM_TRIGGER_PAUSE_PUSH);
+	substream->running = push ? 1 : 0;
 }
 
 static void snd_pcm_post_pause(struct snd_pcm_substream *substream, int push)

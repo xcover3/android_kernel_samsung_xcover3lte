@@ -158,7 +158,7 @@ static void dmaengine_pcm_dma_complete(void *arg)
 
 	snd_pcm_stream_lock(substream);
 	if (!substream || !substream->runtime ||
-			!substream->dmaengine_running) {
+			!substream->running) {
 		snd_pcm_stream_unlock(substream);
 		return;
 	}
@@ -234,21 +234,17 @@ int snd_dmaengine_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		if (ret)
 			return ret;
 		dma_async_issue_pending(prtd->dma_chan);
-		substream->dmaengine_running = 1;
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		dmaengine_resume(prtd->dma_chan);
-		substream->dmaengine_running = 1;
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		dmaengine_pause(prtd->dma_chan);
-		substream->dmaengine_running = 0;
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 		dmaengine_terminate_all(prtd->dma_chan);
-		substream->dmaengine_running = 0;
 		break;
 	default:
 		return -EINVAL;

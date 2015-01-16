@@ -1844,7 +1844,7 @@ void snd_pcm_period_elapsed(struct snd_pcm_substream *substream)
 
 	snd_pcm_stream_lock_irqsave(substream, flags);
 	if (!substream || !substream->runtime ||
-			!substream->dmaengine_running) {
+			!substream->running) {
 		snd_pcm_stream_unlock_irqrestore(substream, flags);
 		return;
 	}
@@ -1864,7 +1864,7 @@ void snd_pcm_period_elapsed(struct snd_pcm_substream *substream)
 		runtime->transfer_ack_end(substream);
 	snd_pcm_stream_unlock_irqrestore(substream, flags);
 	if (substream && substream->runtime &&
-			substream->dmaengine_running)
+			substream->running)
 		kill_fasync(&runtime->fasync, SIGIO, POLL_IN);
 }
 
