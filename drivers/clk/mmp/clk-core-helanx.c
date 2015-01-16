@@ -68,6 +68,7 @@ struct clk_axi {
 #define APMU_IMR(c)		APMU_REG(c, 0x0098)
 #define APMU_CP_CCR(c)		APMU_REG(c, 0x0000)
 #define APMU_MC_HW_SLP_TYPE(c)	APMU_REG(c, 0x00b0)
+#define APMU_FCLOCKSTATUS(c)	APMU_REG(c, 0x01f0)
 
 #define MPMU_REG(mpmu_base, x)	(mpmu_base + (x))
 
@@ -482,12 +483,13 @@ static void wait_for_fc_done(enum fc_type comp, void __iomem *apmu_base)
 	if (timeout <= 0) {
 		if (comp == DDR_FC) {
 			/* enhancement to check DFC related status */
-			pr_err("APMU_ISR %x, CUR_DLV %d, DFC_AP %x, DFC_CP %x, DFC_STATUS %x\n",
+			pr_err("APMU_ISR %x, CUR_DLV %d, DFC_AP %x, DFC_CP %x, DFC_STATUS %x, FCLOCK_STATUS %x\n",
 				__raw_readl(APMU_ISR(apmu_base)),
 				cur_ddr_op->ddr_freq_level,
 				__raw_readl(DFC_AP(apmu_base)),
 				__raw_readl(DFC_CP(apmu_base)),
-				__raw_readl(DFC_STATUS(apmu_base)));
+				__raw_readl(DFC_STATUS(apmu_base)),
+				__raw_readl(APMU_FCLOCKSTATUS(apmu_base)));
 		}
 		WARN(1, "AP frequency change timeout!\n");
 		pr_err("APMU_ISR %x, fc_type %u\n",
@@ -1173,12 +1175,14 @@ static int ddr_hwdfc_seq(struct clk_hw *hw, unsigned int level)
 		wait_for_fc_done(DDR_FC, apmu_base);
 	else {
 		WARN(1, "HW-DFC failed! expect LV %d\n", level);
-		pr_err("DFCAP %x, DFCCP %x, DFCSTATUS %x, PLLSEL %x, DMCCAP %x\n",
+		pr_err("DFCAP %x, DFCCP %x, DFCSTATUS %x, FCLOCKSTATUS %x, PLLSEL %x, DMCCAP %x\n",
 			__raw_readl(DFC_AP(apmu_base)),
 			__raw_readl(DFC_CP(apmu_base)),
 			__raw_readl(DFC_STATUS(apmu_base)),
+			__raw_readl(APMU_FCLOCKSTATUS(apmu_base)),
 			__raw_readl(APMU_PLL_SEL_STATUS(apmu_base)),
 			get_dm_cc_ap(apmu_base));
+		return -EAGAIN;
 	}
 	return 0;
 }
