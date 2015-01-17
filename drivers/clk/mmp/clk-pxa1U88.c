@@ -430,16 +430,7 @@ static void pxa1U88_apb_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	mmp_register_gate_clks(unit, apbc_gate_clks, pxa_unit->apbc_base,
 				ARRAY_SIZE(apbc_gate_clks));
 
-	if (cpu_is_pxa1U88()) {
-		/*
-		 * since ts clk register on 1U88 is different with regular apb_clock register,
-		 * bit 0 is enalbe bit and bit1 is reset bit
-		 */
-		clk = mmp_clk_register_gate(NULL, "ts_clk", NULL, 0,
-				pxa_unit->apbc_base + APBC_TERMAL,
-				0x3, 0x1, 0x0, 0, NULL);
-	} else
-		clk = mmp_clk_register_gate(NULL, "ts_clk", NULL, 0,
+	clk = mmp_clk_register_gate(NULL, "ts_clk", NULL, 0,
 				pxa_unit->apbc_base + APBC_TERMAL, 0x7, 0x3, 0x0, 0, NULL);
 	mmp_clk_add(unit, PXA1U88_CLK_THERMAL, clk);
 
@@ -560,10 +551,6 @@ static struct mmp_clk_mix_config gc3d_mix_config = {
 };
 
 /* GC shader */
-static const char * const gcsh_parent_names_1u88[] = {
-	"pll1_416_gate", "pll1_624_gate",  "pll2p", "pll3p",
-};
-
 static const char * const gcsh_parent_names[] = {
 	"pll1_832_gate", "pll1_624_gate",  "pll2p", "pll3p",
 };
@@ -587,14 +574,6 @@ static const char *gc2d_parent_names[] = {
 	"pll1_416_gate", "pll1_624_gate",  "pll2", "pll2p",
 };
 
-static struct mmp_clk_mix_clk_table gc2d_pptbl_1u88[] = {
-	{.rate = 78000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
-	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
-};
-
 /* ulc GC2D has no compress feature, adjust the PP */
 static struct mmp_clk_mix_clk_table gc2d_pptbl[] = {
 	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */ .xtc = 0x00000044},
@@ -611,13 +590,6 @@ static struct mmp_clk_mix_config gc2d_mix_config = {
 /* GC bus(shared by GC 3D and 2D) */
 static const char *gcbus_parent_names[] = {
 	"pll1_416_gate", "pll1_624_gate", "pll2", "pll4",
-};
-
-static struct mmp_clk_mix_clk_table gcbus_pptbl_1u88[] = {
-	{.rate = 156000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 208000000, .parent_index = 0,/* pll1_416_gate */},
-	{.rate = 312000000, .parent_index = 1,/* pll1_624_gate */},
-	{.rate = 416000000, .parent_index = 0, /* pll1_416_gate */},
 };
 
 /* ulc GCbus adjusted from 128bit to 64bit, adjust the PP */
@@ -836,10 +808,6 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 	gcsh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
 	parent_names = (const char **)gcsh_parent_names;
 	parent_num = ARRAY_SIZE(gcsh_parent_names);
-	if (cpu_is_pxa1U88()) {
-		parent_names = (const char **)gcsh_parent_names_1u88;
-		parent_num = ARRAY_SIZE(gcsh_parent_names_1u88);
-	}
 	clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk", parent_names,
 				parent_num,
 				0, &gcsh_mix_config, &gc_lock);
@@ -856,10 +824,6 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	gc2d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC2D;
 	gc2d_mix_config.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU2D_XTC;
-	if (cpu_is_pxa1U88()) {
-		gc2d_mix_config.table = gc2d_pptbl_1u88;
-		gc2d_mix_config.table_size = ARRAY_SIZE(gc2d_pptbl_1u88);
-	}
 	clk = mmp_clk_register_mix(NULL, "gc2d_mix_clk", gc2d_parent_names,
 				ARRAY_SIZE(gc2d_parent_names),
 				0, &gc2d_mix_config, &gc2d_lock);
@@ -876,10 +840,6 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 
 	gcbus_mix_config.reg_info.reg_clk_ctrl =
 				pxa_unit->apmu_base + APMU_GC2D;
-	if (cpu_is_pxa1U88()) {
-		gcbus_mix_config.table = gcbus_pptbl_1u88;
-		gcbus_mix_config.table_size = ARRAY_SIZE(gcbus_pptbl_1u88);
-	}
 	mmp_clk_register_mix(NULL, "gcbus_mix_clk", gcbus_parent_names,
 				ARRAY_SIZE(gcbus_parent_names),
 				0, &gcbus_mix_config, &gc2d_lock);
@@ -1312,40 +1272,7 @@ static struct ddr_opt lpddr533_oparray[] = {
 	},
 };
 
-static struct ddr_opt lpddr667_oparray_pxa1u88[] = {
-	{
-		.dclk = 156,
-		.ddr_tbl_index = 2,
-		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x0,
-	},
-	{
-		.dclk = 312,
-		.ddr_tbl_index = 4,
-		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x0,
-	},
-	{
-		.dclk = 416,
-		.ddr_tbl_index = 6,
-		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x1,
-	},
-	{
-		.dclk = 528,
-		.ddr_tbl_index = 8,
-		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x4,
-	},
-	{
-		.dclk = 667,
-		.ddr_tbl_index = 10,
-		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x5,
-	},
-};
-
-static struct ddr_opt lpddr667_oparray_pxa1908[] = {
+static struct ddr_opt lpddr667_oparray[] = {
 	{
 		.dclk = 156,
 		.ddr_tbl_index = 2,
@@ -1473,16 +1400,9 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 	ddr_params.ddr_opt = lpddr533_oparray;
 	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr533_oparray);
 	if (ddr_mode == DDR_667M) {
-		if (cpu_is_pxa1U88()) {
-			ddr_params.ddr_opt = lpddr667_oparray_pxa1u88;
-			ddr_params.ddr_opt_size =
-				ARRAY_SIZE(lpddr667_oparray_pxa1u88);
-		} else {
-			/* use ulc PP by default */
-			ddr_params.ddr_opt = lpddr667_oparray_pxa1908;
-			ddr_params.ddr_opt_size =
-				ARRAY_SIZE(lpddr667_oparray_pxa1908);
-		}
+		ddr_params.ddr_opt = lpddr667_oparray;
+		ddr_params.ddr_opt_size =
+			ARRAY_SIZE(lpddr667_oparray);
 	} else if (ddr_mode == DDR_800M) {
 		ddr_params.ddr_opt = lpddr800_oparray;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_oparray);
@@ -1604,11 +1524,7 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 #endif
 
 #if defined(CONFIG_PXA_DVFS)
-	/* For fpga/ulc bring up don't enable dvfs */
-	if (cpu_is_pxa1U88())
-		setup_pxa1u88_dvfs_platinfo();
-	else
-		setup_pxa1908_dvfs_platinfo();
+	setup_pxa1908_dvfs_platinfo();
 #endif
 
 #ifdef CONFIG_DEBUG_FS
@@ -1639,7 +1555,7 @@ static int __init __init_pxa1u88_dcstat_debugfs_node(void)
 	struct dentry *gc_dc_stat = NULL, *vpu_dc_stat = NULL;
 	struct dentry *gc2d_dc_stat = NULL, *gcsh_dc_stat = NULL;
 
-	if ((!cpu_is_pxa1U88()) && (!cpu_is_pxa1908()))
+	if (!cpu_is_pxa1908())
 		return 0;
 
 	stat = debugfs_create_dir("stat", pxa);
