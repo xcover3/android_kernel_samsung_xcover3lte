@@ -108,23 +108,6 @@ DATAHANDLELIST *search_handlelist_by_cid(DATAHANDLELIST *pHeader,
 	return pCurrNode;
 }
 
-static void remove_handle_list(DATAHANDLELIST **plist)
-{
-	DATAHANDLELIST *next, *pCurrNode = *plist;
-
-	ENTER();
-	/* loop and free all nodes */
-	while (pCurrNode) {
-		next = pCurrNode->next;
-		kfree(pCurrNode);
-		pCurrNode = next;
-	}
-
-	/* set header pointer to NULL */
-	*plist = NULL;
-	LEAVE();
-}
-
 static int ccidatastub_open(struct inode *inode, struct file *filp)
 {
 	ENTER();
@@ -149,9 +132,6 @@ static long ccidatastub_ioctl(struct file *filp,
 
 	DBGMSG("ccidatastub_ioctl,cmd=0x%x\n", cmd);
 	switch (cmd) {
-	case CCIDATASTUB_START:
-		break;
-
 	case CCIDATASTUB_DATAHANDLE:
 		if (copy_from_user(&dataHandle, (struct datahandle_obj *)arg,
 				   sizeof(dataHandle)))
@@ -185,26 +165,8 @@ static long ccidatastub_ioctl(struct file *filp,
 	case CCIDATASTUB_DATASVGHANDLE:
 		dataSvgHandle = arg;
 		DBGMSG("ccidatastub_ioctl,dataSvgHandle=0x%x\n", dataSvgHandle);
-
 		break;
 
-	case CCIDATASTUB_LINKSTATUS:
-		/* gDlLinkStatusFlag = arg; */
-		/* DBGMSG("ccidatastub_ioctl,DL link status=%d\n",
-		 * gDlLinkStatusFlag); */
-
-		break;
-
-	case CCIDATASTUB_CHNOK:
-		cid = (unsigned char)arg;
-		DPRINT("CCIDATASTUB_CHNOK: cid =%d\n", cid);
-		break;
-
-	case CCIDATASTUB_CHOK:
-		cid = (unsigned char)arg;
-		DPRINT("CCIDATASTUB_CHOK: cid =%d\n", cid);
-
-		break;
 	case CCIDATASTUB_CS_CHNOK:
 		cid = (unsigned char)arg;
 		DPRINT("CCIDATASTUB_CS_CHNOK: cid =%d\n", cid);
@@ -212,32 +174,9 @@ static long ccidatastub_ioctl(struct file *filp,
 		spin_lock_irq(&data_handle_list_lock);
 		remove_handle_by_cid(&hCsdataList, cid);
 		spin_unlock_irq(&data_handle_list_lock);
-
 		break;
 
-	case CCIDATASTUB_CS_CHOK:
-		cid = (unsigned char)arg;
-		DPRINT("CCIDATASTUB_CS_CHOK: cid =%d\n", cid);
-
-		spin_lock_irq(&data_handle_list_lock);
-		pNode = search_handlelist_by_cid(hCsdataList, cid);
-		if (pNode)
-			pNode->handle.chanState = DATA_CHAN_READY_STATE;
-		spin_unlock_irq(&data_handle_list_lock);
-
-		break;
-
-	case CCIDATASTUB_REMOVE_ALLCH:
-		DPRINT("CCIDATASTUB_REMOVE_ALLCH\n");
-
-		spin_lock_irq(&data_handle_list_lock);
-		remove_handle_list(&hCsdataList);
-		spin_unlock_irq(&data_handle_list_lock);
-
-		break;
-
-	case CCIDATASTUB_GCFDATA:	/* For local CGSEND and TGSINK */
-	case CCIDATASTUB_GCFDATA_REMOTE: /* For remote CGSEND and TGSINK */
+	case CCIDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
 		if (copy_from_user(&gcfdata, (GCFDATA *) arg, sizeof(GCFDATA)))
 			return -EFAULT;
 		gcfbuf = alloc_skb(gcfdata.len, GFP_KERNEL);
@@ -298,8 +237,7 @@ static long compat_ccidatastub_ioctl(struct file *filp,
 		return -ENOTTY;
 	}
 	switch (cmd) {
-	case CCIDATASTUB_GCFDATA:	/* For local CGSEND and TGSINK */
-	case CCIDATASTUB_GCFDATA_REMOTE: /* For remote CGSEND and TGSINK */
+	case CCIDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
 		ret = compat_cgfdata_handle(filp, cmd, arg);
 		break;
 	default:
