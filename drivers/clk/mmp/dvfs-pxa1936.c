@@ -65,6 +65,7 @@ enum dvfs_comp {
 #define BLOCK4_MANU_PARA1_1 0x2b8
 
 static unsigned int uiprofile;
+static unsigned int helan3_maxfreq;
 
 struct svtrng {
 	unsigned int min;
@@ -89,6 +90,40 @@ static struct svtrng svtrngtb[] = {
 	{418, 424, 2},
 	{425, 0xffffffff, 1},
 };
+
+void convert_max_freq(unsigned int uiCpuFreq)
+{
+	switch (uiCpuFreq) {
+	case 0x0:
+	case 0x5:
+	case 0x6:
+		pr_info("%s Part SKU is 1.5GHz; FuseBank0[179:174] = 0x%X", __func__, uiCpuFreq);
+		helan3_maxfreq = CORE_1p5G;
+		break;
+	case 0x1:
+	case 0xA:
+		pr_info("%s Part SKU is 1.8GHz; FuseBank0[179:174] = 0x%X", __func__, uiCpuFreq);
+		helan3_maxfreq = CORE_1p8G;
+		break;
+	case 0x2:
+	case 0x3:
+		pr_info("%s Part SKU is 2GHz; FuseBank0[179:174] = 0x%X", __func__, uiCpuFreq);
+		helan3_maxfreq = CORE_2p0G;
+		break;
+	default:
+		pr_info("%s ERROR: Fuse value (0x%X) not supported,default max freq 1.5G",
+		__func__, uiCpuFreq);
+		helan3_maxfreq = CORE_1p5G;
+		break;
+	}
+	return;
+}
+
+
+unsigned int get_helan3_max_freq(void)
+{
+	return helan3_maxfreq;
+}
 
 static u32 convert_svtdro2profile(unsigned int uisvtdro)
 {
@@ -131,7 +166,7 @@ static int __init __init_read_droinfo(void)
 	unsigned int  uiBlock0_BLOCK0_RESERVED_1, uiBlock4_MANU_PARA1_0, uiBlock4_MANU_PARA1_1;
 	unsigned int uiAllocRev, uiFab, uiRun, uiWafer, uiX, uiY, uiParity;
 	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0, smc_ret = 0;
-
+	unsigned int uiCpuFreq;
 	void __iomem *apmu_base, *geu_base;
 
 	apmu_base = ioremap(APMU_BASE, SZ_4K);
@@ -195,12 +230,13 @@ static int __init __init_read_droinfo(void)
 	uiSIDD1p05 = uiBlock4_MANU_PARA1_0 & 0x3ff;
 	uiSIDD1p30 = ((uiBlock4_MANU_PARA1_1 & 0x3) << 8) |
 		((uiBlock4_MANU_PARA1_0 >> 24) & 0xff);
+	uiCpuFreq = (uiBlock0_GEU_FUSE_MANU_PARA_2 >>  14) & 0x3f;
 
 	guiProfile = convertFusesToProfile_helan3(uiProfileFuses);
 
 	if (guiProfile == 0)
 		guiProfile = convert_svtdro2profile(uiSVTDRO_Avg);
-
+	convert_max_freq(uiCpuFreq);
 	pr_info(" \n");
 	pr_info("     *************************** \n");
 	pr_info("     *  ULT: %08X%08X  * \n", uiBlock0_GEU_FUSE_MANU_PARA_1,

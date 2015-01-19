@@ -21,7 +21,9 @@ enum ddr_type {
 enum {
 	CORE_1p2G = 1183,
 	CORE_1p25G = 1248,
-	CORE_1p5G = 1482,
+	CORE_1p5G = 1526,
+	CORE_1p8G = 1803,
+	CORE_2p0G = 2000,
 };
 
 extern unsigned long max_freq;
