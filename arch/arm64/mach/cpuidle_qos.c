@@ -29,12 +29,8 @@
 #include <asm/mcpm_plat.h>
 #include "regs-addr.h"
 #include "pxa1936_lowpower.h"
+#include <linux/pxa1936_powermode.h>
 
-#define PM_QOS_CPUIDLE_BLOCK_C1		0
-#define PM_QOS_CPUIDLE_BLOCK_C2		1
-#define PM_QOS_CPUIDLE_BLOCK_M2		2
-#define PM_QOS_CPUIDLE_BLOCK_AXI	3
-#define PM_QOS_CPUIDLE_BLOCK_DDR	4
 
 #define APCR_PER_PORTS_SET	\
 	(PMUM_AXISD | PMUM_SLPEN | PMUM_DDRCORSD | PMUM_APBSD | PMUM_VCTCXOSD | PMUM_STBYEN)

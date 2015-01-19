@@ -765,7 +765,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			}
 			if (mark_keytime) {
 				if (cpuidle_qos_min == PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE ||
-					cpuidle_qos_min < PM_QOS_CPUIDLE_BLOCK_M2) {
+					cpuidle_qos_min < LPM_MP2) {
 					if (cpuid < 4)
 						idle_dcstat_info.M2_cluster0_idle_start = ktime_temp;
 					else if (cpuid >= 4 && cpuid < 8)

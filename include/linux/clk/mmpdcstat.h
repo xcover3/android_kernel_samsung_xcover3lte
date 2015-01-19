@@ -36,14 +36,6 @@ enum lowpower_mode {
 };
 #endif
 
-#define PM_QOS_CPUIDLE_BLOCK_C1		0
-#define PM_QOS_CPUIDLE_BLOCK_C2		1
-#define PM_QOS_CPUIDLE_BLOCK_M2		2
-#define PM_QOS_CPUIDLE_BLOCK_AXI		3
-#define PM_QOS_CPUIDLE_BLOCK_DDR		4
-#define PM_QOS_CPUIDLE_BLOCK_UDR_VCTCXO	5
-#define PM_QOS_CPUIDLE_BLOCK_UDR		6
-
 #define MAX_BREAKDOWN_TIME 11
 /* use the largest possible number is 10 */
 #define MAX_LPM_INDEX_DC  10
