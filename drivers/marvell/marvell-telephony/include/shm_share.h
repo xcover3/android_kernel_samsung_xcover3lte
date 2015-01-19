@@ -18,16 +18,17 @@
 #define DiagSvc_Id 4
 #define AudioStubSvc_Id 5
 #define CiCsdStubSvc_Id 6
+#define TestPortSvc_Id 8
 #define CiImsStubSvc_Id 9
+
 #define CISTUB_PORT 1
 #define NVMSRV_PORT 2
 #define CIDATASTUB_PORT 3	/* ttc */
 #define DIAG_PORT 4
 #define AUDIOSTUB_PORT 5
 #define CICSDSTUB_PORT 6
-#define CIIMSSTUB_PORT 9
 #define TEST_PORT 8
-#define TestPortSvc_Id 8
+#define CIIMSSTUB_PORT 9
 
 #ifdef CONFIG_SSIPC_SUPPORT
 #define RAW_AT_PORT 7
