@@ -79,6 +79,7 @@ struct cpufreq_cluster {
 	int clst_index;
 	int is_big; /* all cores in this cluster are big or not */
 	int nr_cores; /* core number in this cluster */
+	int first_cpu_id; /* the first cpu id in this cluster */
 
 	char *clk_name;
 	struct clk *clk;
@@ -207,6 +208,18 @@ static int __cpufreq_frequency_table_target(
 	return 0;
 }
 
+/* check whether all cores in a cluster are offline. */
+static int __cpufreq_clst_allcores_off(struct cpufreq_cluster *clst)
+{
+	int i;
+
+	for (i = clst->first_cpu_id; i < (clst->first_cpu_id + clst->nr_cores); i++) {
+		if (cpu_online(i))
+			return 0;
+	}
+	return 1;
+}
+
 static void __cpufreq_update_clst_topology(struct cpufreq_cluster *clst)
 {
 /* FIXME:
@@ -218,9 +231,11 @@ static void __cpufreq_update_clst_topology(struct cpufreq_cluster *clst)
 	if (clst->clst_index == 1) {
 		clst->is_big = 1;
 		clst->nr_cores = 4;
+		clst->first_cpu_id = 4;
 	} else {
 		clst->is_big = 0;
 		clst->nr_cores = 4;
+		clst->first_cpu_id = 0;
 	}
 }
 
@@ -323,6 +338,9 @@ static int __cpufreq_freq_max_notify(
 	if (!nb)
 		return NOTIFY_BAD;
 	clst = max_nb_to_clst(nb);
+
+	if(__cpufreq_clst_allcores_off(clst))
+		return NOTIFY_BAD;
 
 	/* CPUFREQ_RELATION_H means "below or at target":
 	 * i.e:
