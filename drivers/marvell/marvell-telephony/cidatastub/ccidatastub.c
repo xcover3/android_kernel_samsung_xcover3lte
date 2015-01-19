@@ -40,7 +40,7 @@
 static const char *const ccidatastub_name = "ccidatastub";
 int dataSvgHandle;
 DATAHANDLELIST *hCsdataList = NULL;
-int dataChannelInited;
+
 int csdChannelInited;
 int imsChannelInited;
 DEFINE_SPINLOCK(data_handle_list_lock);

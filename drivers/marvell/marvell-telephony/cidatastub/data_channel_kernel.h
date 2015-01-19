@@ -45,9 +45,6 @@ extern int imsChannelInited;
 extern int gCcinetDataEnabled;
 
 typedef int (*DataRxCallbackFunc) (char *packet, int len, unsigned char cid);
-typedef void (*PSDFCCallbackFunc) (bool is_throttle);
-extern DataRxCallbackFunc dataRxCbFunc[];
-extern PSDFCCallbackFunc psdFCCbFunc[];
 
 extern void InitCsdChannel(void);
 extern void DeInitCsdChannel(void);
@@ -56,12 +53,9 @@ extern void DeInitPsdChannel(void);
 extern void InitImsChannel(void);
 extern void DeInitImsChannel(void);
 extern int sendCSData(unsigned char cid, const char *buf, int len);
-extern int sendCSDataRemote(unsigned char cid, const char *buf, int len);
 extern int sendIMSData(unsigned char cid, const char *buf, int len);
 extern int registerRxCallBack(SVCTYPE pdpTye, DataRxCallbackFunc callback);
 extern int unregisterRxCallBack(SVCTYPE pdpTye);
-extern int registerPSDFCCallBack(SVCTYPE pdpTye, PSDFCCallbackFunc callback);
-extern int unregisterPSDFCCallBack(SVCTYPE pdpTye);
 extern DATAHANDLELIST *search_handlelist_by_cid(DATAHANDLELIST *pHeader,
 					 unsigned char cid);
 

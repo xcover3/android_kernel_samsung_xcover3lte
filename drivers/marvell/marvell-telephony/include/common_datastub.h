@@ -73,12 +73,9 @@ typedef struct CiDatConnInfo_struct {
 				 * context id for PS connection */
 } CiDatConnInfo;
 typedef enum {
-	PDP_DIRECTIP = 1,
-	PSD_MODEM = 2,
-	CSD_RAW = 3,
-	CSD_MODEM = 4,
-	IMS_RAW = 5,
-	SRV_MAX = 6,
+	CSD_RAW,
+	IMS_RAW,
+	SRV_MAX
 } SVCTYPE;
 
 typedef enum ATCI_CONNECTION_TYPE {

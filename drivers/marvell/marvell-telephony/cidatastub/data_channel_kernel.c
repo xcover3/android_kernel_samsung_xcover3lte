@@ -32,10 +32,7 @@ static int csd_package_lose_counter;
 
 static int cicsdstubsockfd = -1;
 static int ciimsstubsockfd = -1;
-DataRxCallbackFunc dataRxCbFunc[SRV_MAX] = {
-	NULL, NULL, NULL, NULL, NULL, NULL};
-PSDFCCallbackFunc psdFCCbFunc[SRV_MAX] = {
-	NULL, NULL, NULL, NULL, NULL, NULL};
+static DataRxCallbackFunc dataRxCbFunc[SRV_MAX];
 
 struct task_struct *ciCsdRcvTaskRef;
 struct task_struct *ciCsdInitTaskRef;
@@ -123,9 +120,7 @@ int clientCiDataIndicateCallback(UINT8 *dataIndArgs)
 		return ERR_NO_HANDLER;
 	}
 
-	if (pNode->handle.connectionType == ATCI_REMOTE)
-		index = CSD_MODEM;
-	else if (pNode->handle.connectionType == ATCI_LOCAL)
+	if (pNode->handle.connectionType == ATCI_LOCAL)
 		index = CSD_RAW;
 	else {
 		spin_unlock_irq(&data_handle_list_lock);
@@ -549,17 +544,6 @@ int sendCSData(unsigned char cid, const char *buf, int len)
 }
 EXPORT_SYMBOL(sendCSData);
 
-int sendCSDataRemote(unsigned char cid, const char *buf, int len)
-{
-	if (csdChannelInited == 0) {
-		DBGMSG("sendCSDataReq: CI_INTERLINK_FAIL\n");
-		return CI_INTERLINK_FAIL;
-	}
-
-	return sendCsdData_ex(CI_DAT_CONNTYPE_CS, cid, buf, len, ATCI_REMOTE);
-}
-EXPORT_SYMBOL(sendCSDataRemote);
-
 int sendIMSData(unsigned char cid, const char *buf, int len)
 {
 	if (imsChannelInited == 0) {
@@ -573,40 +557,15 @@ EXPORT_SYMBOL(sendIMSData);
 
 int registerRxCallBack(SVCTYPE pdpTye, DataRxCallbackFunc callback)
 {
-	spin_lock_irq(&data_handle_list_lock);
 	dataRxCbFunc[pdpTye] = callback;
-	spin_unlock_irq(&data_handle_list_lock);
-
 	return TRUE;
 }
 EXPORT_SYMBOL(registerRxCallBack);
 
 int unregisterRxCallBack(SVCTYPE pdpTye)
 {
-	spin_lock_irq(&data_handle_list_lock);
 	dataRxCbFunc[pdpTye] = NULL;
-	spin_unlock_irq(&data_handle_list_lock);
-
 	return TRUE;
 }
 EXPORT_SYMBOL(unregisterRxCallBack);
 
-int registerPSDFCCallBack(SVCTYPE pdpTye, PSDFCCallbackFunc callback)
-{
-	spin_lock_irq(&data_handle_list_lock);
-	psdFCCbFunc[pdpTye] = callback;
-	spin_unlock_irq(&data_handle_list_lock);
-
-	return TRUE;
-}
-EXPORT_SYMBOL(registerPSDFCCallBack);
-
-int unregisterPSDFCCallBack(SVCTYPE pdpTye)
-{
-	spin_lock_irq(&data_handle_list_lock);
-	psdFCCbFunc[pdpTye] = NULL;
-	spin_unlock_irq(&data_handle_list_lock);
-
-	return TRUE;
-}
-EXPORT_SYMBOL(unregisterPSDFCCallBack);
