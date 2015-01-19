@@ -10,7 +10,7 @@
 
 /include/ "skeleton.dtsi"
 #include "pxa1908-pinfunc.h"
-#include "pxa1908-pm.h"
+#include "pxa1936-pm.h"
 #include "../../../../include/dt-bindings/clock/marvell-pxa1936.h"
 #include <dt-bindings/clock/marvell-audio-map.h>
 #include "../../../../include/dt-bindings/interrupt-controller/irq.h"
