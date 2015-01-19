@@ -268,7 +268,7 @@ static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 		ret = pm88x_gpadc_get_processed(info, channel, bias_voltage);
 		if (ret < 0)
 			return ret;
-		if (*bias_voltage > 50000 && *bias_voltage < 1350000) {
+		if (*bias_voltage > 300000 && *bias_voltage < 1250000) {
 			dev_dbg(info->chip->dev,
 				"hit: current = %duA, voltage = %duV\n",
 				*bias_current, *bias_voltage);
