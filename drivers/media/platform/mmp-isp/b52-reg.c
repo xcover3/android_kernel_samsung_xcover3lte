@@ -29,6 +29,10 @@
 static DEFINE_MUTEX(cmd_mutex);
 static void __iomem *b52_base;
 static atomic_t streaming_state = ATOMIC_INIT(0);
+static DEFINE_SPINLOCK(mac_overflow_lock);
+static atomic_t mac_overflow[] = {
+	ATOMIC_INIT(0),  ATOMIC_INIT(0),  ATOMIC_INIT(0)
+};
 static u32 mac_base[MAX_MAC_NUM] = {
 	MAC1_REG_BASE, MAC2_REG_BASE, MAC3_REG_BASE
 };
@@ -3398,6 +3402,7 @@ int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta_addr,
 	int i;
 	u32 reg = 0;
 	u8 val = 0;
+	unsigned long irq_flags;
 
 	if (!addr || plane >= MAX_MAC_ADDR_NUM ||
 			mac >= MAX_MAC_NUM || port >= MAX_PORT_NUM) {
@@ -3437,7 +3442,13 @@ int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta_addr,
 		return -EINVAL;
 	}
 
+	spin_lock_irqsave(&mac_overflow_lock, irq_flags);
+	if (atomic_read(&mac_overflow[mac])) {
+		spin_unlock_irqrestore(&mac_overflow_lock, irq_flags);
+		return 0;
+	}
 	b52_writeb(reg, val | b52_readb(reg));
+	spin_unlock_irqrestore(&mac_overflow_lock, irq_flags);
 
 	return 0;
 }
@@ -3635,6 +3646,7 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 			if ((rdy & W_RDY_2) == 0)
 				irq1 |= VIRT_IRQ_DROP;
 
+			atomic_set(&mac_overflow[i], 0);
 			drop_cnt[i]++;
 		}
 		if (mac_irq & W_INT_DONE0) {
@@ -3646,9 +3658,12 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 		if (mac_irq & W_INT_OVERFLOW0) {
 			irq0 |= VIRT_IRQ_FIFO;
 			irq1 |= VIRT_IRQ_FIFO;
+			spin_lock(&mac_overflow_lock);
+			atomic_set(&mac_overflow[i], 1);
 			/* stop ouputting data, untill handle overflow */
 			if (rdy)
 				b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
+			spin_unlock(&mac_overflow_lock);
 		}
 
 		if (mac_irq & (W_INT_DONE0 | W_INT_OVERFLOW0))
