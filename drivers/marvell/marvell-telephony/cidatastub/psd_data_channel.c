@@ -216,7 +216,7 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 		sim_id = (hdr->cid >> 31) & 1;
 		hdr->cid &= ~(1 << 31);
 
-		DP_PRINT("%s: SIM%d remains %u, iplen %u," __func__,
+		DP_PRINT("%s: SIM%d remains %u, iplen %u\n" __func__,
 			sim_id+1, remains, iplen);
 		DP_PRINT("%s: offset %u, cid %d, tailpad %u\n", __func__,
 			offset_len, hdr->cid, tailpad);
@@ -245,7 +245,7 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 			rcu_read_unlock();
 			if (!user)
 				pr_err_ratelimited(
-					"%s: no psd user for cid:%d,",
+					"%s: no psd user for cid:%d\n",
 					__func__, hdr->cid);
 		} else
 			pr_err_ratelimited(
