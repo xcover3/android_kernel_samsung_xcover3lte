@@ -275,7 +275,7 @@ static int pm80x_vbus_probe(struct platform_device *pdev)
 			goto out;
 		}
 
-		ret = request_threaded_irq(vbus->irq, NULL, vbus_irq,
+		ret = pm80x_request_irq(vbus->chip, vbus->irq, vbus_irq,
 					   IRQF_ONESHOT | IRQF_NO_SUSPEND, "88pm800-vbus", vbus);
 		if (ret) {
 			dev_info(&pdev->dev,
@@ -292,7 +292,7 @@ static int pm80x_vbus_probe(struct platform_device *pdev)
 			ret = -ENXIO;
 			goto out;
 		}
-		ret = request_threaded_irq(vbus->id_irq, NULL, vbus_id_irq,
+		ret = pm80x_request_irq(vbus->chip, vbus->id_irq, vbus_id_irq,
 				IRQF_ONESHOT | IRQF_NO_SUSPEND, "88pm800-vbus-id", vbus);
 		if (ret)
 			dev_info(&pdev->dev, "Can not request irq for VBUS id\n");
