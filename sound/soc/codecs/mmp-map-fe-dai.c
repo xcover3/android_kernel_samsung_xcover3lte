@@ -339,6 +339,14 @@ out:
 		((unsigned long)&(struct soc_bytes)           \
 		{.base = xbase, .num_regs = xregs }) }
 
+#define SND_SOC_BYTES_MAP_MASK(xname, xbase, xregs, xmask)	      \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname,   \
+	.info = snd_soc_bytes_info, .get = map_snd_soc_bytes_get, \
+	.put = map_snd_soc_bytes_put, .private_value =	      \
+		((unsigned long)&(struct soc_bytes)           \
+		{.base = xbase, .num_regs = xregs,	      \
+		 .mask = xmask }) }
+
 
 static const struct snd_kcontrol_new map_snd_controls[] = {
 	/*
@@ -395,7 +403,7 @@ static const struct snd_kcontrol_new map_snd_controls[] = {
 	SND_SOC_BYTES_MAP("MAP_I2S3_BCLK_DIV", MAP_I2S3_BCLK_DIV, 1),
 	SND_SOC_BYTES_MAP("MAP_I2S4_BCLK_DIV", MAP_I2S4_BCLK_DIV, 1),
 	SND_SOC_BYTES_MAP("MAP_I2S_OUT_BCLK_DIV", MAP_I2S_OUT_BCLK_DIV, 1),
-	SND_SOC_BYTES_MASK("MAP_DSP1_DAC_PROCESSING_REG",
+	SND_SOC_BYTES_MAP_MASK("MAP_DSP1_DAC_PROCESSING_REG",
 			MAP_DSP1_DAC_PROCESSING_REG, 1, 0x3e20),
 	SND_SOC_BYTES_INFO_MASK("MAP_DSP1_DAC_CTRL_REG", MAP_DSP1_DAC_CTRL_REG,
 				1, 0x13, map_bytes_get, map_bytes_put),
@@ -487,7 +495,7 @@ static const struct snd_kcontrol_new map_snd_controls[] = {
 			MAP_DSP1_DUMMY_5, 1),
 	SND_SOC_BYTES_MAP("MAP_DSP1_DSM_SCALING_REG",
 			MAP_DSP1_DSM_SCALING_REG, 1),
-	SND_SOC_BYTES_MASK("MAP_DSP2_DAC_PROCESSING_REG",
+	SND_SOC_BYTES_MAP_MASK("MAP_DSP2_DAC_PROCESSING_REG",
 			MAP_DSP2_DAC_PROCESSING_REG, 1, 0x3e20),
 	SND_SOC_BYTES_INFO_MASK("MAP_DSP2_DAC_CTRL_REG", MAP_DSP2_DAC_CTRL_REG,
 				1, 0x13, map_bytes_get, map_bytes_put),
@@ -579,7 +587,7 @@ static const struct snd_kcontrol_new map_snd_controls[] = {
 			MAP_DSP2_DUMMY_5, 1),
 	SND_SOC_BYTES_MAP("MAP_DSP2_DSM_SCALING_REG",
 			MAP_DSP2_DSM_SCALING_REG, 1),
-	SND_SOC_BYTES_MASK("MAP_ADC_PROCESSING_REG",
+	SND_SOC_BYTES_MAP_MASK("MAP_ADC_PROCESSING_REG",
 			MAP_ADC_PROCESSING_REG, 1, 0x2420),
 	SND_SOC_BYTES_INFO_MASK("MAP_ADC_CTRL_REG", MAP_ADC_CTRL_REG,
 				1, 0x13, map_bytes_get, map_bytes_put),
