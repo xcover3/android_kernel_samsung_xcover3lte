@@ -786,7 +786,7 @@ ssize_t freq_show(struct device *dev, struct device_attribute *attr,
 	clk = path_clk;
 	while (!IS_ERR_OR_NULL(clk)) {
 		rate = clk_get_rate(clk);
-		pr_info("current clk parent : %s ...num:%d...rate: %lu..count : %d.\n",
+		dev_dbg(path->dev, "current clk parent : %s ...num:%d...rate: %lu..count : %d.\n",
 			clk->name, clk->num_parents, rate, clk->enable_count);
 		clk = clk_get_parent(clk);
 	}
