@@ -716,6 +716,7 @@ static int pxa910_gs_start_io(struct pxa910_gs_port *port)
 {
 	struct list_head	*head = &port->read_pool;
 	struct usb_ep		*ep = port->port_usb->out;
+	struct pxa910_gserial	*gser = port->port_usb;
 	int			status;
 	unsigned		started;
 
@@ -730,7 +731,7 @@ static int pxa910_gs_start_io(struct pxa910_gs_port *port)
 	if (status)
 		return status;
 
-	status = pxa910_gs_alloc_requests(port->port_usb->in, &port->write_pool,
+	status = pxa910_gs_alloc_requests(gser->in, &port->write_pool,
 			pxa910_gs_write_complete, &port->write_allocated);
 	if (status) {
 		pxa910_gs_free_requests(ep, head, &port->read_allocated);
@@ -746,7 +747,7 @@ static int pxa910_gs_start_io(struct pxa910_gs_port *port)
 		tty_wakeup(port->port.tty);
 	} else {
 		pxa910_gs_free_requests(ep, head, &port->read_allocated);
-		pxa910_gs_free_requests(port->port_usb->in, &port->write_pool,
+		pxa910_gs_free_requests(gser->in, &port->write_pool,
 			&port->write_allocated);
 		status = -EIO;
 	}
