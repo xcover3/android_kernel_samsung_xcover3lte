@@ -42,6 +42,12 @@
 #include <video/mmp_disp.h>
 #include <video/mipi_display.h>
 
+/* set r63311 max brightness level received from user space */
+#define R6311_BACKLIGHT_MAX_BRIGHTNESS	100
+
+/* define min brightness level to avoid blank screen for user */
+#define R6311_BACKLIGHT_MIN_BRIGHTNESS_DEFAULT	1
+
 struct r63311_plat_data {
 	struct mmp_panel *panel;
 	void (*plat_onoff)(int status);
@@ -79,27 +85,33 @@ static struct mmp_dsi_cmd_desc r63311_display_on_cmds[] = {
 		exit_sleep},
 };
 
-static void r63311_panel_on(struct mmp_panel *panel)
-{
-	mmp_panel_dsi_tx_cmd_array(panel, r63311_display_on_cmds,
-		ARRAY_SIZE(r63311_display_on_cmds));
-}
-
 static void r63311_set_brightness(struct mmp_panel *panel, int level)
 {
 	struct mmp_dsi_cmd_desc brightness_cmds;
+	unsigned int modified_level;
 	char cmds[3];
 
 	/*Prepare cmds for brightness control*/
 	cmds[0] = 0x51;
-	/* birghtness 1~20 is too dark, add 20 to correctness */
-	if (level)
-		level += 20;
-	cmds[2] = ((unsigned int)(level * 20)) & 0xFF;
-	cmds[1] = ((unsigned int)(level * 20)) >> 8;
+
+	/* brightness level smaller than min_brightness is not allowed */
+	if (level < panel->min_brightness)
+		level = panel->min_brightness;
+	/*
+	 * input brightness level from upper layer ranges from 0-100.
+	 * to convert to HW level (range 0- 4095) we need to perform few steps
+	 * 1. scale the level to meet the power constraints according to the
+	 *    parameter max_brightness (note the max_brightness <= 100)
+	 *    scaled_level = (level * max_brightness) / 100
+	 * 2. convert the scaled level to HW level by
+	 *    hw_level = (scaled_level * 4095) / 100
+	 */
+	modified_level = (4095 * panel->max_brightness * level) / 10000;
+	cmds[1] = (modified_level & 0xf00) >> 8;
+	cmds[2] = modified_level & 0xff;
 
 	/*Prepare dsi commands to send*/
-	brightness_cmds.data_type = MIPI_DSI_DCS_SHORT_WRITE_PARAM;
+	brightness_cmds.data_type = MIPI_DSI_DCS_LONG_WRITE;
 	brightness_cmds.lp = 0;
 	brightness_cmds.delay = 0;
 	brightness_cmds.length = sizeof(cmds);
@@ -108,6 +120,11 @@ static void r63311_set_brightness(struct mmp_panel *panel, int level)
 	mmp_panel_dsi_tx_cmd_array(panel, &brightness_cmds, 1);
 }
 
+static void r63311_panel_on(struct mmp_panel *panel)
+{
+	mmp_panel_dsi_tx_cmd_array(panel, r63311_display_on_cmds,
+		ARRAY_SIZE(r63311_display_on_cmds));
+}
 
 #ifdef CONFIG_OF
 static void r63311_panel_power(struct mmp_panel *panel, int skip_on, int on)
@@ -428,6 +445,24 @@ static int r63311_probe(struct platform_device *pdev)
 			pr_debug("panel %s has ddrfreq min request: %u\n",
 				 panel_r63311.name, panel_r63311.ddrfreq_qos);
 		}
+		ret = of_property_read_u32(np, "mipi-backlight-max_brightness",
+				&panel_r63311.max_brightness);
+		if (ret < 0) {
+			panel_r63311.max_brightness =
+					R6311_BACKLIGHT_MAX_BRIGHTNESS;
+			dev_info(&pdev->dev,
+			"max brightness not found, set default as %u\n",
+					panel_r63311.max_brightness);
+		}
+		ret = of_property_read_u32(np, "mipi-backlight-min_brightness",
+				&panel_r63311.min_brightness);
+		if (ret < 0) {
+			panel_r63311.min_brightness =
+					R6311_BACKLIGHT_MIN_BRIGHTNESS_DEFAULT;
+			dev_info(&pdev->dev,
+			"min brightness not found, set default as %u\n",
+					panel_r63311.min_brightness);
+		}
 #endif
 	} else {
 		/* get configs from platform data */
@@ -457,7 +492,7 @@ static int r63311_probe(struct platform_device *pdev)
 		return 0;
 
 	memset(&props, 0, sizeof(struct backlight_properties));
-	props.max_brightness = 100;
+	props.max_brightness = R6311_BACKLIGHT_MAX_BRIGHTNESS;
 	props.type = BACKLIGHT_RAW;
 
 	bl = backlight_device_register("lcd-bl", &pdev->dev, plat_data,

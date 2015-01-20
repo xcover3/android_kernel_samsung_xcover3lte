@@ -523,6 +523,9 @@ struct mmp_panel {
 	struct pm_qos_request ddrfreq_qos_req_min;
 	u32 ddrfreq_qos;
 #endif
+	/* brightness */
+	u32 max_brightness;
+	u32 min_brightness;
 	int (*get_modelist)(struct mmp_panel *panel,
 			struct mmp_mode **modelist);
 	void (*set_mode)(struct mmp_panel *panel,
