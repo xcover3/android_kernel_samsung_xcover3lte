@@ -52,17 +52,6 @@ static void __iomem *mpmu_virt_addr;
 /* sync hotplug policy and qos request */
 static DEFINE_SPINLOCK(cpuidle_apcr_qos_lock);
 
-
-void cpuidle_qos_lock(void)
-{
-	spin_lock(&cpuidle_apcr_qos_lock);
-}
-
-void cpuidle_qos_unlock(void)
-{
-	spin_unlock(&cpuidle_apcr_qos_lock);
-}
-
 int cpuidle_setmode(int qos_min)
 {
 	u32 apcr_per = readl_relaxed(mpmu_virt_addr + APCR_PER);
@@ -121,10 +110,11 @@ int cpuidle_setmode(int qos_min)
 static int cpuidle_notify(struct notifier_block *b, unsigned long val, void *v)
 {
 	s32 ret;
+	unsigned long flags = 0;
 
-	cpuidle_qos_lock();
+	spin_lock_irqsave(&cpuidle_apcr_qos_lock, flags);
 	ret = cpuidle_setmode(val);
-	cpuidle_qos_unlock();
+	spin_unlock_irqrestore(&cpuidle_apcr_qos_lock, flags);
 	return NOTIFY_OK;
 }
 
