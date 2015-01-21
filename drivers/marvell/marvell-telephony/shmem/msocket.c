@@ -347,8 +347,21 @@ struct sk_buff *mrecvskb(int sock, int len, int flags)
 }
 EXPORT_SYMBOL(mrecvskb);
 
+static void (*cp_synced_callback)(void);
+
+void register_first_cp_synced(void (*ready_cb)(void))
+{
+	cp_synced_callback = ready_cb;
+}
+EXPORT_SYMBOL(register_first_cp_synced);
+
+
 static void cp_sync_worker(struct work_struct *work)
 {
+	bool cb_notify;
+
+	cb_notify = false;
+
 	/* acquire lock first */
 	spin_lock(&cp_sync_lock);
 
@@ -378,6 +391,8 @@ static void cp_sync_worker(struct work_struct *work)
 					direct_rb_broadcast_msg
 					    (MsocketLinkupProcId);
 					cp_recv_up_ioc = false;
+				} else {
+					cb_notify  = true;
 				}
 			}
 			break;
@@ -388,6 +403,9 @@ static void cp_sync_worker(struct work_struct *work)
 
 	/* unlock before return */
 	spin_unlock(&cp_sync_lock);
+
+	if (cb_notify && cp_synced_callback)
+		cp_synced_callback();
 }
 
 /* thottle portq receive by msocket */
@@ -1336,8 +1354,6 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 
 	pr_info("%s: shm channel init success\n", __func__);
 
-	data_path_ready();
-
 	return 0;
 
 acipc_err:
@@ -1358,8 +1374,6 @@ void cp_shm_ch_deinit(void)
 	if (!cp_shm_ch_inited)
 		return;
 	cp_shm_ch_inited = 0;
-
-	data_path_delete();
 
 	/* reverse order of initialization */
 	msocket_disconnect(portq_grp_cp_main);

@@ -306,14 +306,6 @@ static void ccidatastub_ready_cb(void)
 	InitImsChannel();
 }
 
-static void ccidatastub_delete_cb(void)
-{
-	DPRINT("%s executed\n", __func__);
-	DeInitPsdChannel();
-	DeInitCsdChannel();
-	DeInitImsChannel();
-}
-
 static int ccidatastub_probe(struct platform_device *dev)
 {
 	int ret;
@@ -324,8 +316,7 @@ static int ccidatastub_probe(struct platform_device *dev)
 	if (ret)
 		pr_err("register misc device error\n");
 
-	dp_ready_cb_regist(ccidatastub_ready_cb,
-			ccidatastub_delete_cb);
+	register_first_cp_synced(ccidatastub_ready_cb);
 
 	LEAVE();
 
