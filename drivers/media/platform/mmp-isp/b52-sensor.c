@@ -2025,21 +2025,71 @@ struct v4l2_subdev_sensor_ops b52_sensor_sensor_ops = {
 	.g_skip_top_lines = b52_sensor_g_skip_top_lines,
 	.g_skip_frames    = b52_sensor_g_skip_frames,
 };
+
+static int b52_sensor_reinit(struct b52_sensor *sensor)
+{
+	int cnt = 0;
+	int ori_cnt;
+	int ret = 0;
+	const struct b52_sensor_regs *regs;
+	const struct b52_sensor_i2c_attr *attr;
+
+	if (!sensor)
+		return -EINVAL;
+
+	ori_cnt = sensor->power.ref_cnt;
+	if (!ori_cnt) {
+		pr_err("%s, not pwr on, no need to re-init\n", __func__);
+		return 0;
+	}
+
+	cnt = ori_cnt;
+	while (cnt--)
+		v4l2_subdev_call(&sensor->sd, core, s_power, 0);
+	msleep(100);
+	cnt = ori_cnt;
+	while (cnt--) {
+		ret |= v4l2_subdev_call(&sensor->sd, core, s_power, 1);
+		if (ret != 0)
+			pr_err("%s, unable to pwr on\n", __func__);
+	}
+
+	b52_sensor_call(sensor, init);
+
+	if (!atomic_read(&sensor->stream_cnt)) {
+		pr_err("%s, no need to stm on\n", __func__);
+		return 0;
+	}
+
+	regs = &sensor->drvdata->streamon;
+	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
+	ret |= __b52_sensor_cmd_write(attr, regs, sensor->pos);
+
+	return ret;
+}
+
 /* ioctl(subdev, IOCTL_XXX, arg) is handled by this one */
 static long b52_sensor_ioctl(struct v4l2_subdev *sd,
 				unsigned int cmd, void *arg)
 {
+	int ret;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
+
 	switch (cmd) {
 	case VIDIOC_PRIVATE_B52ISP_SENSOR_OTP:
 		sensor->otp.user_otp = (struct sensor_otp *)arg;
-		return	b52_sensor_call(sensor, update_otp, &sensor->otp);
+		ret = b52_sensor_call(sensor, update_otp, &sensor->otp);
+		break;
+	case VIDIOC_PRIVATE_B52ISP_SENSOR_REINIT:
+		ret = b52_sensor_reinit(sensor);
+		break;
 	default:
 		pr_err("unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",
 			_IOC_TYPE(cmd), _IOC_DIR(cmd), _IOC_NR(cmd), cmd);
 		return -ENXIO;
 	}
-	return 0;
+
+	return ret;
 }
 #ifdef CONFIG_COMPAT
 /*FIXME: need to refine return val*/
@@ -2138,11 +2188,14 @@ static long b52_sensor_ioctl32(struct v4l2_subdev *sd,
 	int ret = 0;
 	struct sensor_otp karg;
 	int compatible_arg = 1;
+
 	switch (cmd) {
 	case VIDIOC_PRIVATE_B52ISP_SENSOR_OTP32:
 		cmd = VIDIOC_PRIVATE_B52ISP_SENSOR_OTP;
 		get_sensor_otp32(&karg, arg);
 		compatible_arg = 0;
+		break;
+	case VIDIOC_PRIVATE_B52ISP_SENSOR_REINIT:
 		break;
 	default:
 		pr_err("unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",

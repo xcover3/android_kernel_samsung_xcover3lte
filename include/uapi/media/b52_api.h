@@ -265,4 +265,6 @@ enum v4l2_priv_colorfx {
 	_IOW('V', BASE_VIDIOC_PRIVATE + 10, struct b52isp_anti_shake_arg)
 #define VIDIOC_PRIVATE_B52ISP_SENSOR_OTP\
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct sensor_otp)
+#define VIDIOC_PRIVATE_B52ISP_SENSOR_REINIT\
+	_IO('V', BASE_VIDIOC_PRIVATE + 12)
 #endif /* _B52_API_H */
