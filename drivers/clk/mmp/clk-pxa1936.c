@@ -1718,6 +1718,7 @@ static void __init pxa1936_misc_init(struct pxa1936_clk_unit *pxa_unit)
 
 static void __init pxa1936_clk_init(struct device_node *np)
 {
+	unsigned int max_freq = 0;
 	struct pxa1936_clk_unit *pxa_unit;
 
 	pxa_unit = kzalloc(sizeof(*pxa_unit), GFP_KERNEL);
@@ -1773,7 +1774,17 @@ static void __init pxa1936_clk_init(struct device_node *np)
  */
 #if defined(CONFIG_PXA_DVFS)
 	setup_pxa1936_dvfs_platinfo();
+	/* get big cluster max freq */
+	max_freq = get_helan3_max_freq();
+	if (max_freq <= 0)
+		max_freq = CORE_1p5G;
+	/* for safety, just limit the max freq to 1526MHz. */
+	if (max_freq > CORE_1p5G)
+		max_freq = CORE_1p5G;
+	clst1_core_params.max_cpurate = max_freq;
 #endif
+	pr_info("little cluster max rate: %dMHz\n", clst0_core_params.max_cpurate);
+	pr_info("big cluster max rate: %dMHz\n", clst1_core_params.max_cpurate);
 
 	mmp_clk_init(np, &pxa_unit->unit, PXA1936_NR_CLKS);
 
