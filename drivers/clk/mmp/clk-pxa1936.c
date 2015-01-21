@@ -555,9 +555,7 @@ static const char * const gc3d_parent_names[] = {
 static struct mmp_clk_mix_clk_table gc3d_pptbl[] = {
 	{.rate = 156000000, .parent_index = 1, .xtc = 0x00000044, },
 	{.rate = 312000000, .parent_index = 1, .xtc = 0x00000044, },
-	{.rate = 416000000, .parent_index = 0, .xtc = 0x00055544, },
 	{.rate = 624000000, .parent_index = 1, .xtc = 0x00055555, },
-	{.rate = 705000000, .parent_index = 3, .xtc = 0x00066655, },
 	{.rate = 832000000, .parent_index = 0, .xtc = 0x00066655, },
 };
 
@@ -575,9 +573,7 @@ static const char * const gcsh_parent_names[] = {
 static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
 	{.rate = 156000000, .parent_index = 1, },
 	{.rate = 312000000, .parent_index = 1, },
-	{.rate = 416000000, .parent_index = 0, },
 	{.rate = 624000000, .parent_index = 1, },
-	{.rate = 705000000, .parent_index = 3, },
 	{.rate = 832000000, .parent_index = 0, },
 };
 
@@ -617,7 +613,6 @@ static struct mmp_clk_mix_clk_table gcbus_pptbl[] = {
 	{.rate = 78000000, .parent_index = 1, },
 	{.rate = 156000000, .parent_index = 1, },
 	{.rate = 208000000, .parent_index = 0, },
-	{.rate = 266000000, .parent_index = 2, },
 	{.rate = 312000000, .parent_index = 1, },
 	{.rate = 416000000, .parent_index = 0, },
 };
@@ -825,7 +820,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC,
 				(3 << 4), (3 << 4), 0x0, 0, &gc_lock);
-	clk_set_rate(clk, 416000000);
+	clk_set_rate(clk, 312000000);
 	mmp_clk_add(unit, PXA1936_CLK_GC3D, clk);
 	register_mixclk_dcstatinfo(clk);
 
@@ -843,7 +838,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC,
 				(1 << 25), (1 << 25), 0x0, 0, &gc_lock);
-	clk_set_rate(clk, 416000000);
+	clk_set_rate(clk, 312000000);
 	mmp_clk_add(unit, PXA1936_CLK_GCSH, clk);
 	register_mixclk_dcstatinfo(clk);
 
@@ -872,7 +867,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC2D,
 				(1 << 3), (1 << 3), 0x0, 0, &gc2d_lock);
-	clk_set_rate(clk, 416000000);
+	clk_set_rate(clk, 156000000);
 	mmp_clk_add(unit, PXA1936_CLK_GCBUS, clk);
 
 	vpufclk_mix_config.reg_info.reg_clk_ctrl =
@@ -1710,10 +1705,7 @@ static void __init pxa1936_misc_init(struct pxa1936_clk_unit *pxa_unit)
 	val |= (1 << 5);
 	writel(val, pxa_unit->apmu_base + APMU_DVC_DFC_DEBUG);
 
-	/* init rtc/wtc settings */
-	writel(0x00055555, pxa_unit->ciu_base + GPU2D_XTC);
-	writel(0x00055555, pxa_unit->ciu_base + GPU_XTC);
-	writel(0x00B85544, pxa_unit->ciu_base + VPU_XTC);
+	/* NOTE: not init GPU/VPU xtc here as we will set rate after register those clocks. */
 }
 
 static void __init pxa1936_clk_init(struct device_node *np)
