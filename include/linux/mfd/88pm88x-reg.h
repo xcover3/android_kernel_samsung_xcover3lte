@@ -60,6 +60,7 @@
 #define PM88X_AON_CTRL2			(0xe2)
 #define PM88X_AON_CTRL3			(0xe3)
 #define PM88X_AON_CTRL4			(0xe4)
+#define PM88X_AON_CTRL7			(0xe7)
 
 /* 0xea, 0xeb, 0xec, 0xed are reserved by RTC */
 #define PM88X_RTC_SPARE5		(0xee)

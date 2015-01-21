@@ -42,9 +42,12 @@
 #define PM88X_LONG_KEY_DELAY		(16)	/* 1 .. 16 seconds */
 #define PM88X_LONKEY_PRESS_TIME		((PM88X_LONG_KEY_DELAY-1) << 4)
 #define PM88X_LONKEY_RESTOUTN_PULSE_MSK (0x3)
+#define PM88X_LONKEY_RESTOUTN_PULSE_1S	(0x1 << 0)
 
 #define PM88X_LONG_ONKEY_EN1           (0 << 1)
 #define PM88X_LONG_ONKEY_EN2           (1 << 1)
+
+#define PM88X_FAULT_WU_EN		(1 << 2)
 
 struct pm88x_onkey_info {
 	struct input_dev *idev;
@@ -83,18 +86,20 @@ static int pm88x_config_gpio(struct pm88x_onkey_info *info)
 	regmap_update_bits(info->map, PM88X_AON_CTRL2,
 			   PM88X_HWRST_DB_MSK , PM88X_HWRST_DB_7S);
 
-	/* 0xe3: set debounce period of ONKEY as 16s */
-	regmap_update_bits(info->map, PM88X_AON_CTRL3,
-			   PM88X_LONKEY_PRESS_TIME_MSK,
-			   PM88X_LONKEY_PRESS_TIME);
+	return 0;
+}
 
-	/* 0xe3: set duration of RESETOUTN pulse as 1s */
+static int pm88x_config_long_onkey(struct pm88x_onkey_info *info)
+{
+	/* 0xe3: set debounce period of ONKEY as 16s and set duration of RESETOUTN pulse as 1s */
 	regmap_update_bits(info->map, PM88X_AON_CTRL3,
-			   PM88X_LONKEY_RESTOUTN_PULSE_MSK, 1);
+			   (PM88X_LONKEY_PRESS_TIME_MSK | PM88X_LONKEY_RESTOUTN_PULSE_MSK),
+			   (PM88X_LONKEY_PRESS_TIME | PM88X_LONKEY_RESTOUTN_PULSE_1S));
 
 	/* 0xe4: enable LONG_ONKEY_DETECT2, onkey reset system */
 	regmap_update_bits(info->map, PM88X_AON_CTRL4,
 			   PM88X_LONG_ONKEY_EN2, PM88X_LONG_ONKEY_EN2);
+
 	return 0;
 }
 
@@ -218,6 +223,13 @@ static int pm88x_onkey_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Can't configure gpio: %d\n", err);
 		goto out_register;
 	}
+
+	err = pm88x_config_long_onkey(info);
+
+	/* 0xe7: enable fault wakeup */
+	regmap_update_bits(info->map, PM88X_AON_CTRL7,
+			   PM88X_FAULT_WU_EN, PM88X_FAULT_WU_EN);
+
 	return 0;
 
 out_register:
