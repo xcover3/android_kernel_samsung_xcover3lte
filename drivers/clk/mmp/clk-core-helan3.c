@@ -619,6 +619,19 @@ static void wait_for_fc_done(enum fc_type comp, void __iomem *apmu_base)
 	return;
 }
 
+#ifdef CONFIG_PXA_DVFS
+static int get_dvc_level(unsigned int freq, const unsigned long *freq_volt_tbl, int nr_vl)
+{
+	int i;
+
+	for (i = 0; i < nr_vl; i++)
+		if (freq <= freq_volt_tbl[i])
+			return i;
+	WARN_ON("cannot find targe freq in map table.");
+	return nr_vl - 1;
+}
+#endif
+
 static void set_ap_clk_sel(struct clk_core *core, struct cpu_opt *top)
 {
 	union pmum_fcapclk fcap;
@@ -843,18 +856,6 @@ static void __init __init_cpu_rtcwtc(struct clk_hw *hw, struct cpu_opt *cpu_opt)
 }
 
 #ifdef CONFIG_CPU_FREQ
-#ifdef CONFIG_PXA_DVFS
-static int core_get_dvc_level(unsigned int freq, const unsigned long *freq_volt_tbl, int nr_vl)
-{
-	int i;
-
-	for (i = 0; i < nr_vl; i++)
-		if (freq <= freq_volt_tbl[i])
-			return i;
-	WARN_ON("cannot find targe core freq in map table.");
-	return nr_vl - 1;
-}
-#endif
 
 static void __init_cpufreq_table(struct clk_hw *hw)
 {
@@ -890,7 +891,7 @@ static void __init_cpufreq_table(struct clk_hw *hw)
 	list_for_each_entry(cop, op_list, node) {
 		cpufreq_tbl[i].frequency = cop->pclk * MHZ_TO_KHZ;
 #ifdef CONFIG_PXA_DVFS
-		cpufreq_tbl[i].driver_data = core_get_dvc_level(cpufreq_tbl[i].frequency, freq_vl_tbl, nr_volt_level);
+		cpufreq_tbl[i].driver_data = get_dvc_level(cpufreq_tbl[i].frequency, freq_vl_tbl, nr_volt_level);
 #endif
 		i++;
 	}
@@ -1325,19 +1326,6 @@ static unsigned int ddr_rate2_op_index(struct clk_hw *hw,
 	return index;
 }
 
-static int get_ddr_volt_level(struct clk_ddr *ddr, unsigned long freq)
-{
-	int i;
-	unsigned long *array = ddr->params->hwdfc_freq_table;
-	int table_size = ddr->params->hwdfc_table_size;
-	for (i = 0; i < table_size; i++)
-		if (freq <= array[i])
-			break;
-	if (i == table_size)
-		i--;
-	return i;
-}
-
 static inline bool check_hwdfc_inpro(void __iomem *apmu_base,
 				     unsigned int expected_lvl)
 {
@@ -1548,6 +1536,10 @@ static void clk_ddr_init(struct clk_hw *hw)
 	struct parents_table *parent_table = ddr->params->parent_table;
 	int parent_table_size = ddr->params->parent_table_size;
 	unsigned long op[MAX_OP_NUM], idx;
+#ifdef CONFIG_PXA_DVFS
+	int nr_volt_level;
+	const unsigned long *freq_vl_tbl = NULL;
+#endif
 
 	ddr_opt = ddr->params->ddr_opt;
 	ddr_opt_size = ddr->params->ddr_opt_size;
@@ -1599,11 +1591,14 @@ static void clk_ddr_init(struct clk_hw *hw)
 	 * Fill dvc level in DFC_LEVEL, this will not trigger dvc
 	 * Level change since default level is 0 for all DFC_LEVEL regs
 	 */
+#ifdef CONFIG_PXA_DVFS
+	nr_volt_level = dvfs_get_svc_freq_table(&freq_vl_tbl, hw->clk->name);
+#endif
 	for (i = 0; i < ddr_opt_size; i++) {
 		cop = &ddr_opt[i];
-		cop->ddr_volt_level = get_ddr_volt_level(ddr,
-							 cop->dclk *
-							 MHZ_TO_KHZ);
+#ifdef CONFIG_PXA_DVFS
+		cop->ddr_volt_level = get_dvc_level(cop->dclk *  MHZ_TO_KHZ, freq_vl_tbl, nr_volt_level);
+#endif
 		hwdfc_initvl(ddr, cop, i);
 	}
 

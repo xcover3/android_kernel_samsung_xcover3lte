@@ -95,8 +95,6 @@ struct ddr_params {
 	int parent_table_size;
 	struct ddr_opt *ddr_opt;
 	int ddr_opt_size;
-	unsigned long *hwdfc_freq_table;
-	int hwdfc_table_size;
 	/* dynamic dc stat support? */
 	bool dcstat_support;
 };

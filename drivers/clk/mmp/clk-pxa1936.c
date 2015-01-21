@@ -1430,15 +1430,9 @@ static struct ddr_opt lpddr800_op_array[] = {
 	},
 };
 
-static unsigned long hwdfc_freq_table[] = {
-	312000, 312000, 528000, 624000, 667000, 667000, 667000, 797000
-};
-
 static struct ddr_params ddr_params = {
 	.parent_table = ddr_parent_table,
 	.parent_table_size = ARRAY_SIZE(ddr_parent_table),
-	.hwdfc_freq_table = hwdfc_freq_table,
-	.hwdfc_table_size = ARRAY_SIZE(hwdfc_freq_table),
 	.dcstat_support = true,
 };
 
