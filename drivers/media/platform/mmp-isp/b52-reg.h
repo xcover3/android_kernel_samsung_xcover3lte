@@ -126,6 +126,7 @@ int b52_get_metadata_len(int path);
 int b52_hdl_cmd(struct b52isp_cmd *cmd);
 int b52_ctrl_mac_irq(u8 mac_id, u8 port_id, int enable);
 void b52_clear_mac_rdy_bit(u8 mac, u8 port);
+void b52_clear_overflow_flag(u8 mac, u8 port);
 int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta,
 			u8 plane, u8 mac, u8 port);
 void b52_ack_xlate_irq(__u32 *events, int max_mac_num);

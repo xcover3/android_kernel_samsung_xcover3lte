@@ -30,8 +30,10 @@ static DEFINE_MUTEX(cmd_mutex);
 static void __iomem *b52_base;
 static atomic_t streaming_state = ATOMIC_INIT(0);
 static DEFINE_SPINLOCK(mac_overflow_lock);
-static atomic_t mac_overflow[] = {
-	ATOMIC_INIT(0),  ATOMIC_INIT(0),  ATOMIC_INIT(0)
+static int mac_overflow[MAX_MAC_NUM][MAX_PORT_NUM] = {
+	{0, 0, 0},
+	{0, 0, 0},
+	{0, 0, 0},
 };
 static u32 mac_base[MAX_MAC_NUM] = {
 	MAC1_REG_BASE, MAC2_REG_BASE, MAC3_REG_BASE
@@ -1877,9 +1879,9 @@ static inline void b52_zoom_ddr_qos(int zoom)
 	if (zoom < 0x300)
 		freq = PM_QOS_DEFAULT_VALUE;
 	else if (zoom < 0x350)
-		freq = 312000;
-	else
 		freq = 416000;
+	else
+		freq = 528000;
 	b52isp_set_ddr_qos(freq);
 }
 
@@ -2601,6 +2603,7 @@ static int b52_cfg_pixel_order(struct v4l2_pix_format *fmt, int path)
 
 static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 {
+	int i;
 	u8 val;
 	int ret;
 	u32 flags = cmd->flags;
@@ -2608,6 +2611,10 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	struct v4l2_subdev *sd = cmd->sensor;
 	const struct b52_sensor_data *sensordata = cmd->memory_sensor_data;
 
+	for (i = 0; i < cmd->nr_mac; i++) {
+		b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
+		b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR1, 0);
+	}
 	if (cmd->flags & BIT(CMD_FLAG_STREAM_OFF)) {
 		atomic_set(&streaming_state, 0);
 
@@ -2620,14 +2627,10 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 			msleep(60);
 			b52_writeb(mac_base[0] + REG_MAC_RDY_ADDR0, 0);
 		}
-	} else {
-		int i;
-		for (i = 0; i < cmd->nr_mac; i++) {
-			b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
-			b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR1, 0);
-		}
-	}
 
+		b52_writeb(mac_base[0] + REG_MAC_FRAME_CTRL0, FORCE_OVERFLOW |
+			b52_readb(mac_base[0] + REG_MAC_FRAME_CTRL0));
+	}
 	if (!(flags & BIT(CMD_FLAG_MS)) &&
 		!(flags & BIT(CMD_FLAG_STREAM_OFF))) {
 		b52_basic_init(cmd);
@@ -3396,6 +3399,20 @@ int b52_set_focus_win(struct v4l2_rect *win, int id)
 }
 EXPORT_SYMBOL_GPL(b52_set_focus_win);
 
+void b52_clear_overflow_flag(u8 mac, u8 port)
+{
+	unsigned long irq_flags;
+
+	if (mac >= MAX_MAC_NUM || port >= MAX_PORT_NUM) {
+		pr_err("%s param error\n", __func__);
+		return;
+	}
+
+	spin_lock_irqsave(&mac_overflow_lock, irq_flags);
+	mac_overflow[mac][port] = 0;
+	spin_unlock_irqrestore(&mac_overflow_lock, irq_flags);
+}
+
 int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta_addr,
 			u8 plane, u8 mac, u8 port)
 {
@@ -3443,7 +3460,7 @@ int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta_addr,
 	}
 
 	spin_lock_irqsave(&mac_overflow_lock, irq_flags);
-	if (atomic_read(&mac_overflow[mac])) {
+	if (mac_overflow[mac][port]) {
 		spin_unlock_irqrestore(&mac_overflow_lock, irq_flags);
 		return 0;
 	}
@@ -3646,7 +3663,6 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 			if ((rdy & W_RDY_2) == 0)
 				irq1 |= VIRT_IRQ_DROP;
 
-			atomic_set(&mac_overflow[i], 0);
 			drop_cnt[i]++;
 		}
 		if (mac_irq & W_INT_DONE0) {
@@ -3659,7 +3675,8 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 			irq0 |= VIRT_IRQ_FIFO;
 			irq1 |= VIRT_IRQ_FIFO;
 			spin_lock(&mac_overflow_lock);
-			atomic_set(&mac_overflow[i], 1);
+			mac_overflow[i][MAC_PORT_W0] = 1;
+			mac_overflow[i][MAC_PORT_W1] = 1;
 			/* stop ouputting data, untill handle overflow */
 			if (rdy)
 				b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);

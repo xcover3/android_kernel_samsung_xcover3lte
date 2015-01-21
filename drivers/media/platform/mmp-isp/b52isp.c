@@ -2271,6 +2271,7 @@ check_drop:
 				pvnode->reset_mmu_chnl(pcam, vnode, num_planes);
 				d_inf(3, "%s reset", isd->subdev.name);
 			}
+			b52_clear_overflow_flag(laxi->mac, laxi->port);
 		}
 
 		buffer = isp_vnode_find_busy_buffer(vnode, 0);
@@ -2586,6 +2587,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		struct plat_vnode *pvnode, int stream)
 {
 	int ret = 0, port, out_id, sid;
+	unsigned long irq_flags;
 	static int mm_stream;
 	struct isp_subdev *pipe;
 	struct isp_build *build = container_of(laxi->isd.subdev.entity.parent,
@@ -2903,28 +2905,26 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 		}
 
 		/* Begin to accept H/W IRQ */
+		local_irq_save(irq_flags);
 		switch (port) {
 		case B52AXI_PORT_W1:
 			ret = atomic_notifier_chain_register(
 					&paxi->irq_w1.head, &b52isp_mac_irq_nb);
-			if (ret < 0)
-				goto unlock;
 			break;
 		case B52AXI_PORT_W2:
 			ret = atomic_notifier_chain_register(
 					&paxi->irq_w2.head, &b52isp_mac_irq_nb);
-			if (ret < 0)
-				goto unlock;
 			break;
 		case B52AXI_PORT_R1:
 			ret = atomic_notifier_chain_register(
 					&paxi->irq_r1.head, &b52isp_mac_irq_nb);
-			if (ret < 0)
-				goto unlock;
 			break;
 		default:
 			WARN_ON(1);
+			break;
 		}
+		b52_clear_overflow_flag(laxi->mac, laxi->port);
+		local_irq_restore(irq_flags);
 unlock:
 		mutex_unlock(&lpipe->state_lock);
 	}
