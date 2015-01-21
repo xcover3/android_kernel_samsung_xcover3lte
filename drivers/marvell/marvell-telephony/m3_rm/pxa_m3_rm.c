@@ -495,7 +495,7 @@ static long m3_ioctl(struct file *filp,
 		   unsigned int cmd, unsigned long arg)
 {
 	int flag, status = 0;
-	int len, is_pm2;
+	int len, is_pm2, cpuid;
 	int cons_on = 0;
 	phys_addr_t ipc_base;
 
@@ -631,6 +631,21 @@ static long m3_ioctl(struct file *filp,
 		} else {
 			pm_qos_update_request(&ddr_qos_min, PM_QOS_DEFAULT_VALUE);
 		}
+	break;
+	case RM_IOC_M3_QUERY_CPUID:
+		cpuid = CPUID_INVALID; /* set invalid CPU ID by default */
+		if (cpu_is_pxa1U88())
+			cpuid = CPUID_PXA1U88;
+		else if (cpu_is_pxa1908())
+			cpuid = CPUID_PXA1908;
+		else if (cpu_is_pxa1936())
+			cpuid = CPUID_PXA1936;
+		pr_info("RM M3: RM_IOC_M3_QUERY_CPUID: %d!\n", cpuid);
+		if (copy_to_user((void *)arg,
+				&cpuid, sizeof(int)))
+			return -1;
+		else
+			return 0;
 	break;
 	default:
 	return -EOPNOTSUPP;
