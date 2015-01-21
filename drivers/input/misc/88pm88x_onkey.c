@@ -39,8 +39,8 @@
 #define PM88X_HWRST_DB_7S		(0x1 << 7)
 
 #define PM88X_LONKEY_PRESS_TIME_MSK	(0xf0)
-#define PM88X_LONG_KEY_DELAY		(16)	/* 1 .. 16 seconds */
-#define PM88X_LONKEY_PRESS_TIME		((PM88X_LONG_KEY_DELAY-1) << 4)
+#define PM88X_LONG_KEY_DELAY		(10)	/* 1 .. 14 seconds */
+#define PM88X_LONKEY_PRESS_TIME		((PM88X_LONG_KEY_DELAY) << 4)
 #define PM88X_LONKEY_RESTOUTN_PULSE_MSK (0x3)
 #define PM88X_LONKEY_RESTOUTN_PULSE_1S	(0x1 << 0)
 
@@ -91,7 +91,7 @@ static int pm88x_config_gpio(struct pm88x_onkey_info *info)
 
 static int pm88x_config_long_onkey(struct pm88x_onkey_info *info)
 {
-	/* 0xe3: set debounce period of ONKEY as 16s and set duration of RESETOUTN pulse as 1s */
+	/* 0xe3: set debounce period of ONKEY as 10s and set duration of RESETOUTN pulse as 1s */
 	regmap_update_bits(info->map, PM88X_AON_CTRL3,
 			   (PM88X_LONKEY_PRESS_TIME_MSK | PM88X_LONKEY_RESTOUTN_PULSE_MSK),
 			   (PM88X_LONKEY_PRESS_TIME | PM88X_LONKEY_RESTOUTN_PULSE_1S));
