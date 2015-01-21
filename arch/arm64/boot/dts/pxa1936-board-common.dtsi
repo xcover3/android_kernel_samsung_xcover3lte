@@ -282,8 +282,6 @@
 				pinctrl-names = "default", "fast";
 				pinctrl-0 = <&sdh0_pmx_func1 &sdh0_pmx_func2 &sdh0_pmx_func3>;
 				pinctrl-1 = <&sdh0_pmx_func1 &sdh0_pmx_func2_fast &sdh0_pmx_func3_fast>;
-				vqmmc-supply	= <&ldo17>;
-				vmmc-supply	= <&ldo5>;
 				cd-gpios = <&gpio 92 0>;
 				cd-inverted;
 				bus-width = <4>;

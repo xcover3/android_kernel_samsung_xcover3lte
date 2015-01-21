@@ -62,6 +62,14 @@
 				};
 			};
 		};
+
+		axi@d4200000 {  /* AXI */
+			/* SD card */
+			sdh0: sdh@d4280000 {
+			      vqmmc-supply    = <&ldo10>;
+			      vmmc-supply     = <&ldo14>;
+			};
+		};
 	};
 	panel1: r63311 {
 		rst_gpio = <&gpio 98 0>;
