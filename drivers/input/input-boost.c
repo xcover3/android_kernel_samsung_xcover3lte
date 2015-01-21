@@ -26,12 +26,18 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 
-#define CPU_BOOST_TIME		200000
+#define DEFAULT_BOOST_TIME		200000
 #define MAX_FREQ		0x7FFFFFFF
 
 struct input_boost_config {
 	unsigned long boost_cpu_freq;
 	unsigned long boost_cpu_time;
+
+/* above code is used for little cluster */
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+        unsigned long boost_big_cpu_freq;
+        unsigned long boost_big_cpu_time;
+#endif
 
 	unsigned long boost_ddr_freq;
 	unsigned long boost_ddr_time;
@@ -50,17 +56,26 @@ struct input_boost_config {
 };
 
 static struct input_boost_config boost_config = {
-	MAX_FREQ, CPU_BOOST_TIME,
-	MAX_FREQ, CPU_BOOST_TIME,
-	MAX_FREQ, CPU_BOOST_TIME,
-	MAX_FREQ, CPU_BOOST_TIME,
-	MAX_FREQ, CPU_BOOST_TIME,
-	MAX_FREQ, CPU_BOOST_TIME,
+	MAX_FREQ, DEFAULT_BOOST_TIME,
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	MAX_FREQ, DEFAULT_BOOST_TIME,
+#endif
+	MAX_FREQ, DEFAULT_BOOST_TIME,
+	MAX_FREQ, DEFAULT_BOOST_TIME,
+	MAX_FREQ, DEFAULT_BOOST_TIME,
+	MAX_FREQ, DEFAULT_BOOST_TIME,
+	MAX_FREQ, DEFAULT_BOOST_TIME,
 };
 
 static struct pm_qos_request inputboost_cpu_qos_min = {
 	.name = "input_boost",
 };
+
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+static struct pm_qos_request inputboost_big_cpu_qos_min = {
+	.name = "input_boost",
+};
+#endif
 
 #ifdef CONFIG_DDR_DEVFREQ
 static struct pm_qos_request touchboost_ddr_qos_min = {
@@ -104,6 +119,12 @@ static void inputboost_work(struct work_struct *w)
 	if (boost_config.boost_cpu_time)
 		pm_qos_update_request_timeout(&inputboost_cpu_qos_min,
 				boost_config.boost_cpu_freq, boost_config.boost_cpu_time);
+
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	if (boost_config.boost_big_cpu_time)
+		pm_qos_update_request_timeout(&inputboost_big_cpu_qos_min,
+				boost_config.boost_big_cpu_freq, boost_config.boost_big_cpu_time);
+#endif
 
 #ifdef CONFIG_DDR_DEVFREQ
 	/* boost ddr to a limit frequency */
@@ -263,6 +284,11 @@ INPUT_BOOST_CONFIG_OPS(ddr_time);
 INPUT_BOOST_CONFIG_OPS(cpu_freq);
 INPUT_BOOST_CONFIG_OPS(cpu_time);
 
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+INPUT_BOOST_CONFIG_OPS(big_cpu_freq);
+INPUT_BOOST_CONFIG_OPS(big_cpu_time);
+#endif
+
 INPUT_BOOST_CONFIG_OPS(gc2d_freq);
 INPUT_BOOST_CONFIG_OPS(gc2d_time);
 
@@ -298,14 +324,25 @@ static int __init boost_init(void)
 	int ret1, ret2;
 	struct dentry *boost_node = NULL;
 	struct dentry *cpu_freq = NULL, *cpu_time = NULL;
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	struct dentry *big_cpu_freq = NULL, *big_cpu_time = NULL;
+#endif
 	struct dentry *ddr_freq = NULL, *ddr_time = NULL;
 	struct dentry *gc2d_freq = NULL, *gc2d_time = NULL;
 	struct dentry *gc3d_freq = NULL, *gc3d_time = NULL;
 	struct dentry *gcsh_freq = NULL, *gcsh_time = NULL;
 	struct dentry *vpu_freq = NULL, *vpu_time = NULL;
 
+#ifndef CONFIG_ARM_MMP_BL_CPUFREQ
 	pm_qos_add_request(&inputboost_cpu_qos_min,
 		PM_QOS_CPUFREQ_MIN, PM_QOS_DEFAULT_VALUE);
+#else
+	pm_qos_add_request(&inputboost_cpu_qos_min,
+		PM_QOS_CPUFREQ_L_MIN, PM_QOS_DEFAULT_VALUE);
+
+	pm_qos_add_request(&inputboost_big_cpu_qos_min,
+		PM_QOS_CPUFREQ_B_MIN, PM_QOS_DEFAULT_VALUE);
+#endif
 
 #ifdef CONFIG_DDR_DEVFREQ
 	pm_qos_add_request(&touchboost_ddr_qos_min,
@@ -346,6 +383,18 @@ static int __init boost_init(void)
 		pr_err("debugfs inputbst_config created failed in %s\n", __func__);
 		return -ENOENT;
 	}
+
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	big_cpu_freq = debugfs_create_file("big_cpu_freq",
+			S_IRUGO | S_IWUSR | S_IWGRP, boost_node, NULL, &big_cpu_freq_ops);
+	if (!big_cpu_freq)
+		goto err_big_cpu_freq;
+
+	big_cpu_time = debugfs_create_file("big_cpu_time",
+			S_IRUGO | S_IWUSR | S_IWGRP, boost_node, NULL, &big_cpu_time_ops);
+	if (!big_cpu_time)
+		goto err_big_cpu_time;
+#endif
 
 	cpu_freq = debugfs_create_file("cpu_freq",
 			S_IRUGO | S_IWUSR | S_IWGRP, boost_node, NULL, &cpu_freq_ops);
@@ -434,6 +483,12 @@ err_gc2d_freq:
 err_ddr_freq:
 	debugfs_remove(cpu_freq);
 err_cpu_freq:
+#if CONFIG_ARM_MMP_BL_CPUFREQ
+	debugfs_remove(big_cpu_time);
+err_big_cpu_time:
+	debugfs_remove(big_cpu_freq);
+err_big_cpu_freq:
+#endif
 	debugfs_remove(boost_node);
 	pr_err("debugfs entry created failed in %s\n", __func__);
 	return -ENOENT;
