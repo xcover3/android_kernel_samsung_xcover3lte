@@ -59,7 +59,7 @@
 #define LOOPS_USEC_SHIFT	1
 #define LOOPS_USEC		(1 << LOOPS_USEC_SHIFT)
 #define LOOPS(timeout)		((timeout) >> LOOPS_USEC_SHIFT)
-#define	ENUMERATION_DELAY	(2 * HZ)
+#define	ENUMERATION_DELAY	(4 * HZ)
 
 static DECLARE_COMPLETION(release_done);
 
@@ -2390,8 +2390,9 @@ static void do_delayed_charger_work(struct work_struct *work)
 		/* leave some delay for charger driver to do something */
 		pm_wakeup_event(&udc->dev->dev, 1000);
 
-		/* disable udc */
-		mv_udc_disable(udc);
+		/* disable udc for DCP charger */
+		if (udc->charger_type == DCP_CHARGER)
+			mv_udc_disable(udc);
 	}
 }
 
