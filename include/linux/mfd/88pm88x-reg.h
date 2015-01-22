@@ -28,6 +28,7 @@
 
 #define PM88X_WDOG			(0x1d)
 
+#define PM88X_LOWPOWER2			(0x21)
 #define PM88X_LOWPOWER4			(0x23)
 
 /* clk control register */
@@ -52,6 +53,9 @@
 #define PM88X_GPIO5V_1_MODE_MSK		(0x7 << 1)
 #define PM88X_GPIO5V_2_VAL_MSK		(0x1 << 4)
 #define PM88X_GPIO5V_2_MODE_MSK		(0x7 << 5)
+
+#define PM88X_BK_OSC_CTRL1		(0x50)
+#define PM88X_BK_OSC_CTRL3		(0x52)
 
 #define PM88X_RTC_ALARM_CTRL1		(0xd0)
 #define PM88X_ALARM_WAKEUP		(1 << 4)

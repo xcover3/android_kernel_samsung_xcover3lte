@@ -104,12 +104,20 @@ struct pmic_cell_info pm880_cell_info = {
 EXPORT_SYMBOL_GPL(pm880_cell_info);
 
 static const struct reg_default pm880_base_patch[] = {
+	{PM88X_WDOG, 0x1},	 /* disable watchdog */
+	{PM88X_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
+	{PM88X_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
+	{PM88X_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
+	/* enable LPM for internal reference group in sleep */
+	{PM88X_LOWPOWER4, 0xc0},
+	{PM88X_BK_OSC_CTRL3, 0xc0}, /* set the duty cycle of charger DC/DC to max */
 };
 
 static const struct reg_default pm880_power_patch[] = {
 };
 
 static const struct reg_default pm880_gpadc_patch[] = {
+	{PM88X_GPADC_CONFIG6, 0x03}, /* enable non-stop mode */
 };
 
 static const struct reg_default pm880_battery_patch[] = {

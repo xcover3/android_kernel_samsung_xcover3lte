@@ -19,13 +19,6 @@
 
 #include "88pm88x.h"
 
-#define PM886_LOWPOWER1			(0x20)
-#define PM886_LOWPOWER2			(0x21)
-#define PM886_LOWPOWER3			(0x22)
-#define PM886_BK_OSC_CTRL1		(0x50)
-#define PM886_BK_OSC_CTRL6		(0x55)
-#define PM886_CHGBK_CONFIG6		(0x50)
-
 #define PM886_BUCK_NAME		"88pm886-buck"
 #define PM886_LDO_NAME		"88pm886-ldo"
 
@@ -303,10 +296,11 @@ static const struct reg_default pm886_base_patch[] = {
 	{PM88X_GPIO_CTRL3, 0x44}, /* dvc2          , dvc1           */
 	{PM88X_GPIO_CTRL4, 0x00}, /* gpio5v_1:input, gpio5v_2: input*/
 	{PM88X_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
-	{PM886_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
-	{PM886_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
+	{PM88X_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
+	{PM88X_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
 	/* enable LPM for internal reference group in sleep */
 	{PM88X_LOWPOWER4, 0xc0},
+	{PM88X_BK_OSC_CTRL3, 0xc0}, /* set the duty cycle of charger DC/DC to max */
 };
 
 static const struct reg_default pm886_power_patch[] = {
@@ -317,7 +311,6 @@ static const struct reg_default pm886_gpadc_patch[] = {
 };
 
 static const struct reg_default pm886_battery_patch[] = {
-	{PM886_CHGBK_CONFIG6, 0xEA},	/* Improve Charging perf at Reduced VBUS*/
 };
 
 static const struct reg_default pm886_test_patch[] = {
