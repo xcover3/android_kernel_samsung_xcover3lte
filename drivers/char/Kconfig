@@ -647,6 +647,17 @@ config VBUS_88PM88X
 	  This driver can be used by vbus detection and otg booster for usb
 	  subsystem.
 
+config VIBRATOR_DRV2604
+	tristate "drv2604 based vibrator"
+	depends on I2C=y
+	depends on ANDROID_TIMED_OUTPUT
+	default n
+	help
+		Say Y here if you want to enable drv2604 vibrator driver
+		DRV2604 is an I2c device responsible to controll the vibration
+		actuator.
+		It can be activated by internal trigger or by GPIO trigger.
+
 config TILE_SROM
 	bool "Character-device access via hypervisor to the Tilera SPI ROM"
 	depends on TILE

@@ -60,6 +60,7 @@ obj-$(CONFIG_VIBRATOR_88PM80X)  += 88pm80x_vibrator.o
 obj-$(CONFIG_VBUS_88PM80X)  	+= 88pm80x_vbus.o mv-usb-connector.o
 obj-$(CONFIG_VBUS_88PM830)	+= 88pm830_vbus.o mv-usb-connector.o
 obj-$(CONFIG_VBUS_88PM88X)	+= 88pm88x_vbus.o mv-usb-connector.o
+obj-$(CONFIG_VIBRATOR_DRV2604)  += drv2604_vibrator.o
 obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
 obj-$(CONFIG_VIBRATOR_PWM)      += pwm_vibrator.o
 
