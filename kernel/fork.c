@@ -145,7 +145,7 @@ void __weak arch_release_thread_info(struct thread_info *ti)
  * Allocate pages if THREAD_SIZE is >= PAGE_SIZE, otherwise use a
  * kmemcache based allocator.
  */
-# if THREAD_SIZE >= PAGE_SIZE
+# if THREAD_SIZE >= PAGE_SIZE && !CONFIG_ARM64_THREADINFO_SLABCACHE
 static struct thread_info *alloc_thread_info_node(struct task_struct *tsk,
 						  int node)
 {
@@ -160,17 +160,34 @@ static inline void free_thread_info(struct thread_info *ti)
 	free_memcg_kmem_pages((unsigned long)ti, THREAD_SIZE_ORDER);
 }
 # else
+
+#if defined(CONFIG_THREADINFO_MEMPOOL)
+static mempool_t	*thread_info_pool;
+#endif
+
 static struct kmem_cache *thread_info_cache;
 
 static struct thread_info *alloc_thread_info_node(struct task_struct *tsk,
 						  int node)
 {
+#if defined(CONFIG_THREADINFO_MEMPOOL)
+	return mempool_alloc(thread_info_pool, THREADINFO_GFP_ACCOUNTED);
+#else
+#ifdef CONFIG_ARM64_THREADINFO_SLABCACHE
+	return kmem_cache_alloc_node(thread_info_cache, THREADINFO_GFP_ACCOUNTED, node)
+#else
 	return kmem_cache_alloc_node(thread_info_cache, THREADINFO_GFP, node);
+#endif
+#endif
 }
 
 static void free_thread_info(struct thread_info *ti)
 {
+#if defined(CONFIG_THREADINFO_MEMPOOL)
+	mempool_free(ti, thread_info_pool);
+#else
 	kmem_cache_free(thread_info_cache, ti);
+#endif
 }
 
 void thread_info_cache_init(void)
@@ -178,6 +195,20 @@ void thread_info_cache_init(void)
 	thread_info_cache = kmem_cache_create("thread_info", THREAD_SIZE,
 					      THREAD_SIZE, 0, NULL);
 	BUG_ON(thread_info_cache == NULL);
+
+#if defined(CONFIG_THREADINFO_MEMPOOL)
+#define MAX_MEMPOOL_THREADS 50
+	{
+		int min_nr;
+
+		min_nr = MAX_MEMPOOL_THREADS;
+		pr_info("thread_info mempool reserved : %d \n", min_nr);
+
+		thread_info_pool = mempool_create(min_nr, mempool_alloc_slab,
+				mempool_free_slab, thread_info_cache);
+		BUG_ON(thread_info_pool == NULL);
+	}
+#endif
 }
 # endif
 #endif
