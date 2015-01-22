@@ -218,6 +218,9 @@ void __init helanx_timer_init(void)
 
 	enable_soc_timer();
 
+#ifdef CONFIG_ARM
+	of_clk_init(NULL);
+#endif
 	clocksource_of_init();
 
 	pxa1908_sdhc_reset_all();

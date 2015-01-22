@@ -175,7 +175,7 @@ endif
 ifeq ($(ARCH),arm64)
 	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a $(KERNEL_LOAD) -e $(KERNEL_LOAD) -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 else
-	$(MAKE) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
+	$(UBOOT_OUTPUT)/tools/mkimage -A arm -O linux -C gzip -a 0x01208000 -e 0x01208000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/compressed/piggy.gzip  $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/uImage
 endif
 	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) /dev/zero|head -c `expr \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` + 2048 - \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` % 2048` > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded
 	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded ${local_dtb_files_padded} > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
