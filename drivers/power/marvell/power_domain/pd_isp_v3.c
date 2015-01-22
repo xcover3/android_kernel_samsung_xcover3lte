@@ -57,8 +57,6 @@ enum {
 	MMP_PD_COMMON_ISP_V3,
 };
 
-static DEFINE_SPINLOCK(mmp_pd_apmu_lock);
-
 static struct mmp_pd_isp_data isp_v3_data = {
 	.id			= MMP_PD_COMMON_ISP_V3,
 	.name			= "power-domain-common-isp-v3",
@@ -77,21 +75,24 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 	u32 val;
 	int ret = 0, loop = MAX_TIMEOUT;
 
+	val = readl(pd->reg_base + APMU_PWR_STATUS_REG);
+	if ((val & (1 << data->bit_pwr_stat)))
+		dev_err(pd->dev, "ISP pwr on status is abnormal, it need to check\n");
+
 	pm_qos_update_request(&pd->qos_idle, pd->lpm_qos);
 
 	if (pd->clk)
 		clk_prepare_enable(pd->clk);
 
-	val = __raw_readl(base + APMU_CCIC_CLK_RES_CTRL);
+	val = readl(base + APMU_CCIC_CLK_RES_CTRL);
 	val |= ISP_AHB_EN;
-	__raw_writel(val, base + APMU_CCIC_CLK_RES_CTRL);
+	writel(val, base + APMU_CCIC_CLK_RES_CTRL);
 
 	/* set ISP HW on/off mode  */
-	val = __raw_readl(base + data->reg_clk_res_ctrl);
+	val = readl(base + data->reg_clk_res_ctrl);
 	val |= (1 << data->bit_hw_mode);
-	__raw_writel(val, base + data->reg_clk_res_ctrl);
+	writel(val, base + data->reg_clk_res_ctrl);
 
-	spin_lock(&mmp_pd_apmu_lock);
 	/* on1, on2, off timer */
 	/*
 	 * keep this, ISP need wait HW stable
@@ -100,11 +101,9 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 	 * __raw_writel(0x28207, base + APMU_PWR_STBL_TMR_REG);
 	 */
 	/* auto power on */
-	val = __raw_readl(base + APMU_PWR_CTRL_REG);
+	val = readl(base + APMU_PWR_CTRL_REG);
 	val |= (1 << data->bit_auto_pwr_on);
-	__raw_writel(val, base + APMU_PWR_CTRL_REG);
-
-	spin_unlock(&mmp_pd_apmu_lock);
+	writel(val, base + APMU_PWR_CTRL_REG);
 
 	/*
 	 * power on takes 316us, usleep_range(280,290) takes about
@@ -114,7 +113,7 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 
 	/* polling PWR_STAT bit */
 	for (loop = MAX_TIMEOUT; loop > 0; loop--) {
-		val = __raw_readl(base + APMU_PWR_STATUS_REG);
+		val = readl(base + APMU_PWR_STATUS_REG);
 		if (val & (1 << data->bit_pwr_stat))
 			break;
 		usleep_range(4, 6);
@@ -140,16 +139,18 @@ static int mmp_pd_isp_v3_power_off(struct generic_pm_domain *domain)
 	const struct mmp_pd_isp_data *data = pd->data;
 	void __iomem *base = pd->reg_base;
 	u32 val;
-	int loop;
+	int loop, ret = 0;
+	int retry_times = 0;
 
-	spin_lock(&mmp_pd_apmu_lock);
+	val = readl(pd->reg_base + APMU_PWR_STATUS_REG);
+	if (!(val & (1 << data->bit_pwr_stat)))
+		dev_err(pd->dev, "ISP pwr off status is abnormal, it need to check\n");
 
+retry:
 	/* auto power off */
-	val = __raw_readl(base + APMU_PWR_CTRL_REG);
+	val = readl(base + APMU_PWR_CTRL_REG);
 	val &= ~(1 << data->bit_auto_pwr_on);
-	__raw_writel(val, base + APMU_PWR_CTRL_REG);
-
-	spin_unlock(&mmp_pd_apmu_lock);
+	writel(val, base + APMU_PWR_CTRL_REG);
 
 	/*
 	 * power off takes 23us, add a pre-delay to reduce the
@@ -159,25 +160,30 @@ static int mmp_pd_isp_v3_power_off(struct generic_pm_domain *domain)
 
 	/* polling PWR_STAT bit */
 	for (loop = MAX_TIMEOUT; loop > 0; loop--) {
-		val = __raw_readl(pd->reg_base + APMU_PWR_STATUS_REG);
+		val = readl(pd->reg_base + APMU_PWR_STATUS_REG);
 		if (!(val & (1 << data->bit_pwr_stat)))
 			break;
 		usleep_range(4, 6);
 	}
 	if (loop <= 0) {
 		dev_err(pd->dev, "power off timeout\n");
-		return -EBUSY;
+		if (retry_times++ <= 3) {
+			dev_err(pd->dev, "power off retrying %d times\n", retry_times);
+			goto retry;
+		}
+		dev_err(pd->dev, "power off retrying 3 times failed\n");
+		ret = -EBUSY;
 	}
 
 	/* disable and reset AHB clock*/
-	val = __raw_readl(base + APMU_CCIC_CLK_RES_CTRL);
+	val = readl(base + APMU_CCIC_CLK_RES_CTRL);
 	val &= ~ISP_AHB_EN;
-	__raw_writel(val, base + APMU_CCIC_CLK_RES_CTRL);
+	writel(val, base + APMU_CCIC_CLK_RES_CTRL);
 
 	pm_qos_update_request(&pd->qos_idle,
 		PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 
-	return 0;
+	return ret;
 }
 
 static const struct of_device_id of_mmp_pd_match[] = {
