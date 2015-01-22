@@ -1,0 +1,375 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Yoav Gvili <ygvili@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+#define GPIO(n)		GPIO##n AF0
+
+#define TP_INT			72
+#define TP_RESET		75
+#define BACKLIGHT_EN	32
+
+#define CAM_MAIN_PWDN_N		68
+#define CAM1_RST_N			67
+
+#define CF_MASK				19
+#define CF_EN				124
+
+#define ALS_INT				20
+#define KEY_MENU	139	/* Menu (show menu) */
+#define KEY_HOMEPAGE	172	/* AC Home */
+#define KEY_BACK	158	/* AC Back */
+
+#define GSEN_DRDY	91
+/dts-v1/;
+#include "pxa1936-board-common.dtsi"
+
+&pmx {
+	pmic1_charger_pins: pinmux_88pm880_pins {
+		pinctrl-single,pins = <
+			GPIO19  AF0
+			GPIO124 AF0
+		>;
+		MFP_DEFAULT;
+	};
+
+	pmic1_charger_pins_sleep: pinmux_88pm880_pins_sleep {
+		pinctrl-single,pins = <>;
+		DS_MEDIUM;PULL_NONE;EDGE_BOTH;LPM_NONE;
+	};
+
+	apds990x_pins: pinmux_apds990x_pins {
+		/*pinctrl-single,pins = <GPIO(ALS_INT)>;*/
+		pinctrl-single,pins = <GPIO20 AF0>;
+		MFP_PULL_UP;
+	};
+	motion_sensor_pins: pinmux_motion_sensor_pins {
+		/* pinctrl-single,pins = <GPIO(GSEN_DRDY)>;*/
+		pinctrl-single,pins = <GPIO91 AF0>;
+		MFP_PULL_LOW;
+	};
+
+
+};
+/ {
+	compatible = "marvell,pxa1936-ff", "marvell,pxa1936";
+	soc {
+		apb@d4000000 {
+			twsi0: i2c@d4011000 {
+				vibrator: vibrator@5a {
+					compatible = "ti,drv2604-vibrator";
+					reg = <0x5a>;
+					vibrator-supply = <&ldo11>;
+				};
+				backlight1: lm3532@38 {
+					compatible = "bl,lm3532";
+					reg = <0x38>;
+					flags = <0>;
+					ramp_time = <0>;
+					ctrl_a_fs_current = <0x13>;
+					ctrl_a_mapping_mode = <0x2>;
+					ctrl_a_pwm = <0x86>;
+					rst_gpio = <&gpio BACKLIGHT_EN 0>;
+					/* set ldo9 , since driver requires an ldo/buck and the driver
+					* set it value to 2.8V. ldo9 is always ON
+					*/
+					avdd-supply = <&ldo9>;
+					feedback_en_val = <0x03>;
+					output_cfg_val = <0x0>;
+				};
+				board_eeprom1:24aa025t@50 {
+					compatible = "at24,24c02";
+					reg = <0x50>;
+				};
+
+			};
+
+			twsi1: i2c@d4010800 {
+				/* ToDo: Need to remove from common file disable items in DTS */
+				touch1: s3202@720p{
+					status = "disabled";
+				};
+
+				/* ToDo: Need to remove from common file disable items in DTS */
+				touch2: s3202@1080p{
+					status = "disabled";
+				};
+
+				/* touch screen */
+				touch3: s3202@20 {
+					compatible = "synaptics,s3202-touch";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+					reg = <0x20>;
+					interrupt-parent = <&gpio>;
+					interrupts = <72 0x1>;
+					/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+					synaptics,irq-flags =  <0x2002>;
+					synaptics,irq-gpios = <&gpio TP_INT 0>;
+					synaptics,reset-gpios = <&gpio TP_RESET 0>;
+					synaptics,sensor_res_x = <1080>;
+					synaptics,sensor_res_y = <1920>;
+					synaptics,sensor_max_x = <1080>;
+					synaptics,sensor_max_y = <1920>;
+					synaptics,sensor_margin_x = <0>;
+					synaptics,sensor_margin_y = <0>;
+					avdd-supply = <&ldo16>;
+					synaptics,button_maps = /bits/ 8 <KEY_MENU KEY_HOMEPAGE KEY_BACK>;
+					synaptics,num_button = <3>;
+				};
+			};
+
+
+			twsi2: i2c@d4037000 {
+				status = "okay";
+
+				pmic0: 88pm880@30 {
+					reg = <0x30>;
+					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-parent = <&gic>;
+
+					onkey {
+						onkey-gpio-number = <1>;
+						/* hardware reset: just reset */
+						hw-rst-type = <1>;
+						/* long onkey: power down */
+						long-onkey-type = <1>;
+					};
+
+					vbus {
+						vbus-gpio = <0xff>;
+						id-gpadc = <3>;
+					};
+
+					dvc {
+						pinctrl-names = "default";
+						pinctrl-0 = <&dvc_pmx_func>;
+					};
+
+					/*
+					 * TODO: remove later, fake ldo,
+					 * to pass compile
+					 */
+					ldo19: regulator-ldo19 {
+					};
+				};
+				pmic1: 88pm880@33 {
+					/* gpio 19, 124 */
+					pinctrl-names = "default","sleep";
+					pinctrl-0 = <&pmic1_charger_pins>;
+					pinctrl-1 = <&pmic1_charger_pins_sleep>;
+
+				        led {
+					        flash-en-gpio = <124>;
+					        flash-txmsk-gpio = <19>;
+						status = "okay";
+				        };
+					vbus {
+						status = "okay";
+					};
+				        debug {
+				        };
+			       };
+
+				pmic2: 88pm880@38 {
+					compatible = "marvell,88pm860";
+					reg = <0x38>;
+					marvell,pmic-type = <0>;
+					/* no codec_int currently, comment out now */
+					/*
+					interrupt-parent = <&gpio>;
+					interrupts = <124 0x1>;
+					marvell,88pm805-irq-write-clear;
+					*/
+					pm860_codec: pm860_codec {
+						compatible = "marvell,88pm860-codec";
+						#dailink-cells = <1>;
+					};
+				};
+
+
+
+			};
+			twsi3: i2c@d4013800 {
+				sensor7: apds990x@39 {
+					pinctrl-names = "default"; pinctrl-0 = <&apds990x_pins>;
+					compatible = "avago,apds990x";
+					reg = <0x39>;
+					interrupt-parent = <&gpio>;
+					interrupts = <ALS_INT 0x1>;
+					irq-gpios = <&gpio ALS_INT 0>;
+					avdd-supply = <&ldo16>;
+				};
+				motion: icm20628@68 {
+						pinctrl-names = "default"; pinctrl-0 = <&motion_sensor_pins>;
+						compatible = "invensense,icm20628";
+						reg = <0x68>;
+						interrupt-parent = <&gpio>;
+						interrupts = <GSEN_DRDY 0x1>;
+						inven,irq-gpios = <&gpio GSEN_DRDY 0x00>;
+						avdd-supply = <&ldo16>;
+						axis_map_x = <1>;
+						negate_x = <0>;
+						axis_map_y = <0>;
+						negate_y = <1>;
+						axis_map_z = <2>;
+						negate_z = <1>;
+						inven,secondary_axis_map_x = <1>;
+						inven,secondary_negate_x = <0>;
+						inven,secondary_axis_map_y = <0>;
+						inven,secondary_negate_y = <0>;
+						inven,secondary_axis_map_z = <2>;
+						inven,secondary_negate_z = <1>;
+						inven,secondary_type = "compass";
+						inven,secondary_name = "ak09911";
+						inven,secondary_reg = <0x0c>;
+				};
+
+			};
+
+		};
+
+		axi@d4200000 {  /* AXI */
+			/* SD card */
+			sdh0: sdh@d4280000 {
+				vqmmc-supply	= <&ldo10>;
+				vmmc-supply	= <&ldo14>;
+			};
+		};
+
+		/* sensors */
+		/* gps */
+		/* camera */
+	};
+
+	/* virtual keypad backlight */
+	keypad-bl {
+		compatible = "regulator-leds";
+		vled-supply = <&ldo6>;
+		status = "okay";
+	};
+
+	mcam0:mcam@0 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 68 0>;
+		reset-gpios = <&gpio 67 0>;
+		/*
+		af_2v8-supply = <&ldo8>;
+		avdd_2v8-supply = <&ldo7>;
+		dovdd_1v8-supply = <&buck2>;
+		dvdd_1v2-supply = <&buck3>;
+		*/
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "disable";
+	};
+
+	mcam1:mcam@1 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 70 0>;
+
+		af_2v8-supply = <&ldo8>;
+		avdd_2v8-supply = <&ldo7>;
+		dovdd_1v8-supply = <&buck2>;
+		dvdd_1v2-supply = <&buck3>;
+
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "okay";
+	};
+
+	soc-camera@0 {
+		status = "okay";
+	};
+
+	soc-camera@1 {
+		status = "okay";
+	};
+
+	plat_cam {
+		status = "okay";
+		backsensor {
+			/* ToDo: Need to remove from common file disable items in DTS */
+
+			compatible = "marvell,backsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			OV5642: sensor@0 {
+
+				status = "disabled";
+			};
+
+			OV13850: sensor@1 {
+				compatible = "ovt,ov13850";
+				sc2-i2c-dyn-ctrl;
+				reg = <0x10>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				adapter = <0x1>;
+				status = "okay";
+				sensor-pos = <1>;
+				mclk = <24000000>;
+				dphy3 = <0xff4115>;
+				dphy5 = <0x247ff>;
+				dphy6 = <0x4001001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&buck3>;
+				pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
+				reset-gpios = <&gpio CAM1_RST_N 1>;
+			};
+
+			/* ToDo: Need to remove from common file disable items in DTS */
+			SR544: sensor@2 {
+				status = "disabled";
+			};
+
+			imx219: sensor@3 {
+				status = "disabled";
+			};
+		};
+	};
+
+	/* SENSOR HUB */
+	mmp_m3_2: cm3senhb {
+		compatible = "marvell,mmp-m3";
+		pmicver = <2>;
+		/* 950000 for CM3 on, 800000 for CM3 off */
+		vccmain = <950000 800000>;
+		vm3pwr-supply = <&ldo3>;
+		antpwr-supply = <&ldo16>;
+		senpwr-supply = <&ldo16>;
+		vccmain-supply = <&buck1a>;
+
+		pinctrl-names = "default", "poweron";
+		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
+		pinctrl-1 = <&gnss_pmx_power_on &twsi3_pmx_senhb>;
+		status = "okay";
+	};
+
+
+	b52isp_sc2_csi0 {
+	        status = "okay";
+	};
+	b52isp_sc2_csi1 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma0 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma1 {
+	        status = "okay";
+	};
+
+/* main node */
+};
+
+#include "88pm88x.dtsi"
+#include "88pm880_pxa1936_ff.dtsi"
+#include "88pm880.dtsi"
+#include "88pm88x_battery_common.dtsi"
+#include "88pm88x_battery_485760ar.dtsi"

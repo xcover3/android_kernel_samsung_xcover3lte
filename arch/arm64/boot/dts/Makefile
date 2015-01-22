@@ -1,7 +1,7 @@
 dtb-$(CONFIG_ARCH_VEXPRESS) += rtsm_ve-aemv8a.dtb foundation-v8.dtb
 dtb-$(CONFIG_ARCH_XGENE) += apm-mustang.dtb
 dtb-$(CONFIG_ARCH_MMP) += pxa1928concord.dtb pxa1928-psci.dtb pxa1928concord-discrete.dtb \
-			  pxa1908-fpga.dtb pxa1908-dkb.dtb pxa1908-cmtb.dtb pxa1908-ff.dtb pxa1936-qt.dtb pxa1936-fpga.dtb pxa1936-dkb-v10.dtb pxa1936-dkb-v20.dtb
+			  pxa1908-fpga.dtb pxa1908-dkb.dtb pxa1908-cmtb.dtb pxa1908-ff.dtb pxa1936-qt.dtb pxa1936-fpga.dtb pxa1936-dkb-v10.dtb pxa1936-dkb-v20.dtb pxa1936-ff.dtb
 
 targets += dtbs
 
