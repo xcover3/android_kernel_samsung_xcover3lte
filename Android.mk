@@ -142,6 +142,8 @@ else
 	$(MAKE) $(PRIVATE_KERNEL_ARGS) $(KERNEL_DEFCONFIG)
 ifeq ($(TARGET_USES_64_BIT_BINDER),true)
 	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -d CONFIG_ANDROID_BINDER_IPC_32BIT
+else
+	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -e CONFIG_ANDROID_BINDER_IPC_32BIT
 endif
 ifeq ($(HAVE_SECURITY_TZ_FEATURE),true)
 	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -e CONFIG_TZ_HYPERVISOR
@@ -222,6 +224,8 @@ ifeq ($(HAVE_SECURITY_TZ_FEATURE),true)
 endif
 ifeq ($(TARGET_USES_64_BIT_BINDER),true)
 	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -d CONFIG_ANDROID_BINDER_IPC_32BIT
+else
+	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -e CONFIG_ANDROID_BINDER_IPC_32BIT
 endif
 endif
 	$(MAKE) -j$(MAKE_JOBS) $(PRIVATE_KERNEL_ARGS)
