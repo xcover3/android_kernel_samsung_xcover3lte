@@ -421,7 +421,7 @@ static int dynamic_change_lcd(struct mmphw_ctrl *ctrl, struct mmp_dfc *dfc)
 	if (path->status) {
 		atomic_set(&ctrl->dfc.commit, 1);
 		do {
-			mmp_path_wait_special_vsync(path);
+			mmp_wait_vsync(&dsi->special_vsync);
 			count++;
 		} while (atomic_read(&ctrl->dfc.commit) && (count < DFC_RETRY_TIMEOUT));
 	} else {
@@ -649,8 +649,7 @@ static void dfc_handle(void *data)
 {
 	u32 temp;
 
-	struct device *dev = (struct device *)data;
-	struct mmphw_ctrl *ctrl = dev_get_drvdata(dev);
+	struct mmphw_ctrl *ctrl = (struct mmphw_ctrl *)data;
 
 	if (atomic_read(&ctrl->dfc.commit)) {
 		/* disable lcd&dsi sclk firstly */
@@ -829,12 +828,39 @@ static ssize_t freq_store(
 }
 DEVICE_ATTR(freq, S_IRUGO | S_IWUSR, freq_show, freq_store);
 
-void ctrl_dfc_init(struct device *dev)
+void mmp_register_dfc_handler(struct device *dev,
+	struct mmp_vsync *vsync)
+{
+	struct mmp_vsync_notifier_node *dfc_notifier_node1 = NULL;
+	struct mmp_path *path = NULL;
+	struct mmphw_ctrl *ctrl = NULL;
+
+	if (vsync->type == DSI_SPECIAL_VSYNC) {
+		struct mmp_dsi *dsi = vsync->dsi;
+		path = mmp_get_path(dsi->plat_path_name);
+	} else if (vsync->type == LCD_SPECIAL_VSYNC)
+		path = vsync->path;
+	else
+		BUG();
+
+	ctrl = path_to_ctrl(path);
+
+	dfc_notifier_node1 = devm_kzalloc(dev, sizeof(*dfc_notifier_node1), GFP_KERNEL);
+	if (dfc_notifier_node1 == NULL) {
+		pr_err("dfc alloc failure\n");
+		return;
+	}
+
+	dfc_notifier_node1->cb_notify = dfc_handle;
+	dfc_notifier_node1->cb_data = ctrl;
+	mmp_register_vsync_cb(vsync, dfc_notifier_node1);
+}
+
+void mmp_dfc_init(struct device *dev)
 {
 	struct mmphw_ctrl *ctrl = dev_get_drvdata(dev);
 	struct mmp_path *path = ctrl->path_plats[0].path;
 	struct clk *path_clk = path_to_path_plat(path)->clk;
-	struct mmp_vsync_notifier_node *dfc_notifier_node = NULL;
 	unsigned int apmu_lcd;
 	int count, i, val;
 	struct device_node *np = of_find_node_by_name(NULL, "disp_apmu");
@@ -879,16 +905,6 @@ void ctrl_dfc_init(struct device *dev)
 		pr_err("%s: dts is not suport, or disp_apmu_ver missing\n", __func__);
 		return;
 	}
-
-	dfc_notifier_node = devm_kzalloc(dev, sizeof(*dfc_notifier_node), GFP_KERNEL);
-	if (dfc_notifier_node == NULL) {
-		pr_err("dfc alloc failure\n");
-		return;
-	}
-
-	dfc_notifier_node->cb_notify = dfc_handle;
-	dfc_notifier_node->cb_data = dev;
-	mmp_path_register_special_vsync_cb(path, dfc_notifier_node);
 
 	create_parent_tbl(path_clk);
 	atomic_set(&ctrl->dfc.commit, 0);

@@ -1182,7 +1182,7 @@ static int overlay_set_surface(struct mmp_overlay *overlay,
 
 	if (unlikely(atomic_read(&path->commit))) {
 		while (atomic_read(&path->commit) && count < 10) {
-			mmp_path_wait_vsync(path);
+			mmp_wait_vsync(&path->vsync);
 			count++;
 		}
 		if (count >= 10)
@@ -1528,7 +1528,7 @@ static int path_set_commit(struct mmp_path *path)
 	if (unlikely(atomic_read(&path->commit))) {
 		while (atomic_read(&path->commit)) {
 			trace_commit(path, 2);
-			mmp_path_wait_vsync(path);
+			mmp_wait_vsync(&path->vsync);
 		}
 		if (!atomic_read(&path->commit)) {
 			spin_lock_irqsave(&path->commit_lock, flags);
@@ -1626,7 +1626,12 @@ static int path_init(struct mmphw_path_plat *path_plat,
 	pm_qos_add_request(&path_plat->qos_idle, PM_QOS_CPUIDLE_BLOCK,
 				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	/* add operations after path set */
-	mmp_vsync_init(path);
+	path->vsync.path = path;
+	path->vsync.type = LCD_VSYNC;
+	mmp_vsync_init(&path->vsync);
+	path->special_vsync.path = path;
+	path->special_vsync.type = LCD_SPECIAL_VSYNC;
+	mmp_vsync_init(&path->special_vsync);
 	path->ops.set_mode = path_set_mode;
 	path->ops.set_irq = path_set_irq;
 	path->ops.set_gamma = path_set_gamma;
@@ -1653,7 +1658,8 @@ static void path_deinit(struct mmphw_path_plat *path_plat)
 		devm_clk_put(path_plat->ctrl->dev, path_plat->clk);
 
 	if (path_plat->path) {
-		mmp_vsync_deinit(path_plat->path);
+		mmp_vsync_deinit(&path_plat->path->vsync);
+		mmp_vsync_deinit(&path_plat->path->special_vsync);
 		mmp_unregister_path(path_plat->path);
 	}
 
@@ -1928,7 +1934,7 @@ static int mmphw_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_MMP_DISP_DFC
-	ctrl_dfc_init(&pdev->dev);
+	mmp_dfc_init(&pdev->dev);
 #endif
 	dev_info(ctrl->dev, "device init done\n");
 

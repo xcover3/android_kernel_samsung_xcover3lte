@@ -442,7 +442,7 @@ int mmpfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 		enable_commit(info, arg);
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		mmp_path_wait_vsync(fbi->path);
+		mmp_wait_vsync(&fbi->path->vsync);
 		break;
 	case FB_IOCTL_FLIP_USR_BUF:
 #ifdef CONFIG_MMP_FENCE

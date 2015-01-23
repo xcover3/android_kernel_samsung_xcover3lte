@@ -40,7 +40,7 @@ void mmpfb_wait_vsync(struct mmpfb_info *fbi)
 	if (atomic_read(&fbi->vsync.vcnt))
 		if (!atomic_dec_and_test(&fbi->vsync.vcnt))
 			return;
-	mmp_path_wait_vsync(fbi->path);
+	mmp_wait_vsync(&fbi->path->vsync);
 }
 
 static void mmpfb_vcnt_clean(struct mmpfb_info *fbi)
@@ -147,7 +147,7 @@ int mmpfb_overlay_vsync_notify_init(struct mmpfb_info *fbi)
 	notifier_node->cb_notify = mmpfb_overlay_vsync_cb;
 	notifier_node->cb_data = (void *)fbi;
 
-	mmp_path_register_vsync_cb(fbi->path,
+	mmp_register_vsync_cb(&fbi->path->vsync,
 			notifier_node);
 	return ret;
 }
@@ -182,7 +182,7 @@ int mmpfb_vsync_notify_init(struct mmpfb_info *fbi)
 	INIT_WORK(&fbi->vsync.fence_work, mmpfb_overlay_fence_work);
 	notifier_node->cb_notify = mmpfb_vsync_cb;
 	notifier_node->cb_data = (void *)fbi;
-	mmp_path_register_vsync_cb(fbi->path,
+	mmp_register_vsync_cb(&fbi->path->vsync,
 				notifier_node);
 
 	mmpfb_vcnt_clean(fbi);
@@ -192,8 +192,7 @@ int mmpfb_vsync_notify_init(struct mmpfb_info *fbi)
 
 void mmpfb_vsync_notify_deinit(struct mmpfb_info *fbi)
 {
-	mmp_path_unregister_vsync_cb(fbi->path,
-			&fbi->vsync.notifier_node);
+	mmp_unregister_vsync_cb(&fbi->vsync.notifier_node);
 	device_remove_file(fbi->dev, &dev_attr_vsync_ts);
 	destroy_workqueue(fbi->vsync.wq);
 }

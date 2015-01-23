@@ -622,6 +622,38 @@ struct mmp_dsi_setting {
 	u32 eotp_en:1;
 };
 
+enum {
+	/* VSYNC for LCD */
+	LCD_VSYNC,
+	/* Special VSYNC for LCD */
+	LCD_SPECIAL_VSYNC,
+	/* VSYNC for DSI */
+	DSI_VSYNC,
+	/* Special VSYNC for DSI */
+	DSI_SPECIAL_VSYNC,
+};
+
+struct mmp_vsync {
+	int type;
+	atomic_t ready;
+	union {
+		struct mmp_path *path;
+		struct mmp_dsi *dsi;
+	};
+	wait_queue_head_t waitqueue;
+	void (*set_irq)(struct mmp_vsync *vsync, int on);
+	void (*wait_vsync)(struct mmp_vsync *vsync);
+	void (*handle_irq)(struct mmp_vsync *vsync);
+	struct list_head	notifier_list;
+};
+
+struct mmp_mach_debug_irq_count {
+	int irq_count;
+	int dispd_count;
+	int vsync_count;
+	int vsync_check;
+};
+
 struct mmp_dsi {
 	struct device *dev;
 	struct mutex lock;
@@ -642,27 +674,19 @@ struct mmp_dsi {
 	u32 version;
 	struct mmp_dsi_setting setting;
 
+	/* vsync for dsi*/
+	struct mmp_vsync vsync;
+	struct mmp_vsync special_vsync;
+	atomic_t irq_en_ref;
+
 	/* ops could be added here */
 	void (*set_mode)(struct mmp_dsi *dsi, struct mmp_mode *mode);
 	void (*set_status)(struct mmp_dsi *dsi, int status);
+	int (*set_irq)(struct mmp_dsi *dsi, int on);
 	unsigned int (*get_sync_val)(struct mmp_dsi *dsi, int val_type);
 
 	/* output dsi port */
 	struct mmp_dsi_port dsi_port;
-};
-
-struct mmp_vsync {
-	atomic_t ready;
-	wait_queue_head_t waitqueue;
-	void (*handle_irq)(struct mmp_vsync *vsync);
-	struct list_head	notifier_list;
-};
-
-struct mmp_mach_debug_irq_count {
-	int irq_count;
-	int dispd_count;
-	int vsync_count;
-	int vsync_check;
 };
 
 /* path is main part of mmp-disp */
@@ -715,6 +739,23 @@ struct mmp_path {
 };
 
 extern struct mmp_path *mmp_get_path(const char *name);
+
+static inline void mmp_register_vsync_cb(
+		struct mmp_vsync *vsync,
+		struct mmp_vsync_notifier_node *notifier_node)
+{
+	list_add_tail(&notifier_node->node,
+			&vsync->notifier_list);
+}
+
+static inline void mmp_unregister_vsync_cb(
+		struct mmp_vsync_notifier_node *notifier_node)
+{
+	notifier_node->cb_notify = NULL;
+	notifier_node->cb_data = NULL;
+	list_del(&notifier_node->node);
+}
+
 static inline void mmp_path_set_mode(struct mmp_path *path,
 		struct mmp_mode *mode)
 {
@@ -733,18 +774,7 @@ static inline int mmp_path_get_modelist(struct mmp_path *path,
 		return path->ops.get_modelist(path, modelist);
 	return 0;
 }
-static inline int mmp_path_wait_vsync(struct mmp_path *path)
-{
-	if (path && path->ops.wait_vsync)
-		return path->ops.wait_vsync(path);
-	return 0;
-}
-static inline int mmp_path_wait_special_vsync(struct mmp_path *path)
-{
-	if (path && path->ops.wait_special_vsync)
-		return path->ops.wait_special_vsync(path);
-	return 0;
-}
+
 static inline int mmp_path_set_dfc_rate(struct mmp_path *path, unsigned long rate)
 {
 	if (path && path->ops.set_dfc_rate)
@@ -770,39 +800,33 @@ static inline int mmp_path_set_irq(struct mmp_path *path, int on)
 		return path->ops.set_irq(path, on);
 	return 0;
 }
+
+static inline int mmp_dsi_set_irq(struct mmp_dsi *dsi, int on)
+{
+	if (dsi && dsi->set_irq)
+		return dsi->set_irq(dsi, on);
+	return 0;
+}
+
 static inline int mmp_path_get_irq_state(struct mmp_path *path)
 {
 	if (path)
 		return atomic_read(&path->irq_en_ref) > 0;
 	return 0;
 }
-static inline void mmp_path_register_vsync_cb(
-		struct mmp_path *path,
-		struct mmp_vsync_notifier_node *notifier_node)
-{
-	if (path)
-		list_add_tail(&notifier_node->node,
-				&path->vsync.notifier_list);
-}
 
-static inline void mmp_path_unregister_vsync_cb(
-		struct mmp_path *path,
-		struct mmp_vsync_notifier_node *notifier_node)
+static inline int mmp_wait_vsync(struct mmp_vsync *vsync)
 {
-	if (path) {
-		notifier_node->cb_notify = NULL;
-		notifier_node->cb_data = NULL;
-		list_del(&notifier_node->node);
-	}
-}
+	if (vsync->set_irq)
+		vsync->set_irq(vsync, 1);
 
-static inline void mmp_path_register_special_vsync_cb(
-		struct mmp_path *path,
-		struct mmp_vsync_notifier_node *notifier_node)
-{
-	if (path)
-		list_add_tail(&notifier_node->node,
-				&path->special_vsync.notifier_list);
+	if (vsync->wait_vsync)
+		vsync->wait_vsync(vsync);
+
+	if (vsync->set_irq)
+		vsync->set_irq(vsync, 0);
+
+	return 0;
 }
 
 static inline struct mmp_overlay *mmp_path_get_overlay(

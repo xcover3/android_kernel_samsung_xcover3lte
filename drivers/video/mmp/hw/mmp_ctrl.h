@@ -1290,8 +1290,8 @@ extern int lcd_spi_register(struct mmphw_ctrl *ctrl);
 #endif
 
 extern int dip_register_notifier(struct notifier_block *nb, unsigned int list);
-extern int mmp_vsync_init(struct mmp_path *path);
-extern void mmp_vsync_deinit(struct mmp_path *path);
+extern int mmp_vsync_init(struct mmp_vsync *vsync);
+extern void mmp_vsync_deinit(struct mmp_vsync *vsync);
 extern int ctrl_dbg_init(struct device *dev);
 extern int phy_dsi_register(void);
 extern void phy_dsi_unregister(void);

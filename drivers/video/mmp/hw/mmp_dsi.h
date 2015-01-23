@@ -208,6 +208,7 @@ struct mmp_dsi_regs {
 #define DSI_CTRL_1_CFG_LCD1_VCH_NO_SHIFT	0
 
 /* DSI_IRQ_ST 0x0010 DSI Interrupt Status Register */
+#define IRQ_VPN_VSYNC				(1<<31)
 #define IRQ_TA_TIMEOUT				(1<<29)
 #define IRQ_RX_TIMEOUT				(1<<28)
 #define IRQ_TX_TIMEOUT				(1<<27)
@@ -216,6 +217,7 @@ struct mmp_dsi_regs {
 #define IRQ_RX_FIFO_FULL_ERR			(1<<24)
 #define IRQ_PHY_FIFO_UNDERRUN			(1<<23)
 #define IRQ_REQ_CNT_ERR				(1<<22)
+#define IRQ_VACT_DONE					(1<<15)
 #define IRQ_DPHY_ERR_SYNC_ESC			(1<<10)
 #define IRQ_DPHY_ERR_ESC			(1<<9)
 #define IRQ_DPHY_RX_LINE_ERR			(1<<8)

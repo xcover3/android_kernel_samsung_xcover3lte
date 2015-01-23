@@ -32,43 +32,32 @@ static void mmp_overlay_vsync_cb(void *data)
 		vdma->ops->vsync_cb(vdma);
 }
 
-static void mmp_overlay_vsync_notify_init(struct mmp_overlay *overlay)
+static void mmp_overlay_vsync_notify_init(struct mmp_vsync *vsync, struct mmp_overlay *overlay)
 {
 	struct mmp_vsync_notifier_node *notifier_node;
 
 	notifier_node = &overlay->notifier_node;
 	notifier_node->cb_notify = mmp_overlay_vsync_cb;
 	notifier_node->cb_data = (void *)overlay;
-	mmp_path_register_special_vsync_cb(overlay->path, notifier_node);
+	mmp_register_vsync_cb(vsync, notifier_node);
 }
 
-static int path_wait_vsync(struct mmp_path *path)
+static void mmp_set_irq(struct mmp_vsync *vsync, int on)
 {
-	struct mmp_vsync *vsync = &path->vsync;
+	if (vsync->type == LCD_VSYNC || vsync->type == LCD_SPECIAL_VSYNC)
+		mmp_path_set_irq(vsync->path, on);
+	else if (vsync->type == DSI_VSYNC || vsync->type == DSI_SPECIAL_VSYNC)
+		mmp_dsi_set_irq(vsync->dsi, on);
+}
 
-	mmp_path_set_irq(path, 1);
+static void mmp_vsync_wait(struct mmp_vsync *vsync)
+{
 	atomic_set(&vsync->ready, 0);
 	wait_event_interruptible_timeout(vsync->waitqueue,
 		atomic_read(&vsync->ready), HZ / 20);
-	mmp_path_set_irq(path, 0);
-
-	return 0;
 }
 
-static int path_wait_special_vsync(struct mmp_path *path)
-{
-	struct mmp_vsync *vsync = &path->special_vsync;
-
-	mmp_path_set_irq(path, 1);
-	atomic_set(&vsync->ready, 0);
-	wait_event_interruptible_timeout(vsync->waitqueue,
-		atomic_read(&vsync->ready), HZ / 20);
-	mmp_path_set_irq(path, 0);
-
-	return 0;
-}
-
-static void path_handle_irq(struct mmp_vsync *vsync)
+static void mmp_handle_irq(struct mmp_vsync *vsync)
 {
 	struct mmp_vsync_notifier_node *notifier_node;
 	if (!atomic_read(&vsync->ready)) {
@@ -82,46 +71,32 @@ static void path_handle_irq(struct mmp_vsync *vsync)
 	}
 }
 
-void mmp_vsync_init(struct mmp_path *path)
+void mmp_vsync_init(struct mmp_vsync *vsync)
 {
-	struct mmp_vsync *vsync = &path->vsync;
-	struct mmp_vsync *special_vsync = &path->special_vsync;
 	int i;
 
 	init_waitqueue_head(&vsync->waitqueue);
-	path->ops.wait_vsync = path_wait_vsync;
-	vsync->handle_irq = path_handle_irq;
+	vsync->handle_irq = mmp_handle_irq;
+	vsync->wait_vsync = mmp_vsync_wait;
+	vsync->set_irq = mmp_set_irq;
 	INIT_LIST_HEAD(&vsync->notifier_list);
 
-	init_waitqueue_head(&special_vsync->waitqueue);
-	path->ops.wait_special_vsync = path_wait_special_vsync;
-	special_vsync->handle_irq = path_handle_irq;
-	INIT_LIST_HEAD(&special_vsync->notifier_list);
-
-	for (i = 0; i < path->overlay_num; i++)
-		mmp_overlay_vsync_notify_init(&path->overlays[i]);
+	if (vsync->type == LCD_VSYNC) {
+		struct mmp_path *path = vsync->path;
+		for (i = 0; i < path->overlay_num; i++)
+			mmp_overlay_vsync_notify_init(vsync, &path->overlays[i]);
+	}
 }
 
-void mmp_vsync_deinit(struct mmp_path *path)
+void mmp_vsync_deinit(struct mmp_vsync *vsync)
 {
-	struct mmp_vsync *vsync = &path->vsync;
-	struct mmp_vsync *special_vsync = &path->special_vsync;
 	struct mmp_vsync_notifier_node *notifier_node;
 
 	list_for_each_entry(notifier_node, &vsync->notifier_list,
-			node) {
-		mmp_path_unregister_vsync_cb(path,
-			notifier_node);
-	}
+			node)
+		mmp_unregister_vsync_cb(notifier_node);
 
-	list_for_each_entry(notifier_node, &special_vsync->notifier_list,
-			node) {
-		mmp_path_unregister_vsync_cb(path,
-			notifier_node);
-	}
-
-	path->ops.wait_vsync = NULL;
-	path->vsync.handle_irq = NULL;
-	path->ops.wait_special_vsync = NULL;
-	path->special_vsync.handle_irq = NULL;
+	vsync->handle_irq = NULL;
+	vsync->wait_vsync = NULL;
+	vsync->set_irq = NULL;
 }

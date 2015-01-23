@@ -1156,6 +1156,33 @@ static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 
 }
 
+static int dsi_irq_set(struct mmp_dsi *dsi, int on)
+{
+	struct mmp_dsi_regs *dsi_regs = dsi->reg_base;
+	u32 mask = IRQ_VPN_VSYNC | IRQ_VACT_DONE;
+	u32 reg = readl_relaxed(&dsi_regs->irq_mask);
+
+	if (!on) {
+		if (atomic_read(&dsi->irq_en_ref))
+			if (atomic_dec_and_test(&dsi->irq_en_ref)) {
+				if (!DISP_GEN4(dsi->version))
+					writel_relaxed(reg | mask , &dsi_regs->irq_mask);
+				else
+					writel_relaxed(reg & (~mask) , &dsi_regs->irq_mask);
+			}
+	} else {
+		if (!atomic_read(&dsi->irq_en_ref)) {
+			if (!DISP_GEN4(dsi->version))
+				writel_relaxed(reg & ~mask , &dsi_regs->irq_mask);
+			else
+				writel_relaxed(reg | mask , &dsi_regs->irq_mask);
+		}
+		atomic_inc(&dsi->irq_en_ref);
+	}
+
+	return atomic_read(&dsi->irq_en_ref) > 0;
+}
+
 static u32 dsi_get_sync_val(struct mmp_dsi *dsi, int type)
 {
 	u32 x, bpp = dsi_get_rgb_type_from_inputfmt(
@@ -1200,6 +1227,16 @@ static irqreturn_t dsi_handle_irq(int irq, void *dev_id)
 		 */
 		isr_en = irq_status & irq_mask;
 		writel_relaxed(isr_en, &dsi_regs->irq_status);
+	}
+
+	if (isr_en & IRQ_VACT_DONE) {
+		if (!(isr_en & IRQ_VPN_VSYNC)) {
+			if (dsi->special_vsync.handle_irq)
+				dsi->special_vsync.handle_irq(&dsi->special_vsync);
+		}
+
+		if (dsi->vsync.handle_irq)
+			dsi->vsync.handle_irq(&dsi->vsync);
 	}
 
 	if (isr_en & IRQ_CPU_TX_DONE) {
@@ -1328,10 +1365,18 @@ static int mmp_dsi_probe(struct platform_device *pdev)
 	dsi->set_status = dsi_set_status;
 	dsi->set_mode = dsi_set_mode;
 	dsi->get_sync_val = dsi_get_sync_val;
+	dsi->set_irq = dsi_irq_set;
 	dsi->status = MMP_OFF;
 	mutex_init(&dsi->lock);
 	platform_set_drvdata(pdev, dsi);
 	mmp_dsi_create_dsi_port(dsi);
+
+	dsi->vsync.dsi = dsi;
+	dsi->vsync.type = DSI_VSYNC;
+	mmp_vsync_init(&dsi->vsync);
+	dsi->special_vsync.dsi = dsi;
+	dsi->special_vsync.type = DSI_SPECIAL_VSYNC;
+	mmp_vsync_init(&dsi->special_vsync);
 
 	/* map registers.*/
 	if (!devm_request_mem_region(dsi->dev, res->start,
@@ -1381,6 +1426,10 @@ static int mmp_dsi_probe(struct platform_device *pdev)
 		dev_err(dsi->dev, "%s: Failed to register dsi dbg interface\n", __func__);
 		goto failed;
 	}
+
+#ifdef CONFIG_MMP_DISP_DFC
+	mmp_register_dfc_handler(dsi->dev, &dsi->special_vsync);
+#endif
 
 	return 0;
 failed:

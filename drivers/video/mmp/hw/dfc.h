@@ -47,5 +47,7 @@ struct mmp_dfc_list {
 	struct list_head queue;
 };
 
-extern void ctrl_dfc_init(struct device *dev);
+extern void mmp_dfc_init(struct device *dev);
+extern void mmp_register_dfc_handler(struct device *dev,
+	struct mmp_vsync *vsync);
 #endif	/* _MMP_DFC_H_ */
