@@ -34,7 +34,7 @@ struct pxa_ion_info {
 };
 
 u32 use_iommu = 1;
-int num_extra_pages = 1;
+int num_extra_pages = 0;
 struct page *page_pad;
 struct ion_device *pxa_ion_dev;
 EXPORT_SYMBOL(pxa_ion_dev);
