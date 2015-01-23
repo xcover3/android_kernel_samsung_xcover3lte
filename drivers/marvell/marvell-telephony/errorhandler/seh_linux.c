@@ -57,6 +57,8 @@
 #include <linux/notifier.h>
 #include <linux/reboot.h>
 
+#include <linux/cputype.h>
+
 #include "seh_linux.h"
 #include "watchdog.h"
 #include "pxa_cp_load.h"
@@ -194,6 +196,34 @@ void reset_ripc_lock(void)
 	pr_info("%s: reset ripc lock\n", __func__);
 }
 
+static void reset_fc_lock(void)
+{
+	if (cpu_is_pxa1908() ||
+		cpu_is_pxa1936()) {
+		int value;
+
+		value = __raw_readl(APMU_FC_LOCK_STATUS);
+
+		if (value & APMU_FC_LOCK_STATUS_CP_RD_STATUS) {
+			/* CP got the lock */
+
+			pr_info("%s: APMU_FC_LOCK_STATUS before: %08x\n",
+				__func__, value);
+
+			/* clear CP_RD_STATUS */
+			value = __raw_readl(APMU_PMU_CC_CP);
+			value |= APMU_PMU_CC_CP_CP_RD_ST_CLEAR;
+			__raw_writel(value, APMU_PMU_CC_CP);
+			value &= ~APMU_PMU_CC_CP_CP_RD_ST_CLEAR;
+			__raw_writel(value, APMU_PMU_CC_CP);
+			pr_info("%s: clear CP_RD_STATUS\n", __func__);
+
+			pr_info("%s: APMU_FC_LOCK_STATUS after: %08x\n",
+				__func__, __raw_readl(APMU_FC_LOCK_STATUS));
+		}
+	}
+}
+
 /*
  * The top part for SEH interrupt handler.
  */
@@ -215,6 +245,7 @@ irqreturn_t seh_int_handler_low(int irq, void *dev_id)
 	__pm_wakeup_event(&seh_wakeup, 10000);
 	watchdog_deactive();
 	reset_ripc_lock();
+	reset_fc_lock();
 	acipc_ap_block_cpuidle_axi(false);
 	pr_info("%s: APMU_DEBUG 0x%08x\n", __func__,
 	       __raw_readl(APMU_DEBUG));
@@ -316,6 +347,7 @@ int seh_api_ioctl_handler(unsigned long arg)
 		}
 		cp_holdcp();
 		reset_ripc_lock();
+		reset_fc_lock();
 		acipc_ap_block_cpuidle_axi(false);
 
 		if (copy_to_user
@@ -515,6 +547,7 @@ static int reboot_notifier_func(struct notifier_block *this,
 	pr_info("reboot notifier, hold CP and reset ripc\n");
 	cp_holdcp();
 	reset_ripc_lock();
+	reset_fc_lock();
 	return 0;
 }
 

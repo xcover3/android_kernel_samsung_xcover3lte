@@ -31,6 +31,14 @@ extern void unmap_apbs_base_va(void);
 #define APMU_DEBUG_CP_HALT        (1 << 0)
 #define APMU_DEBUG_CP_CLK_OFF_ACK (1 << 3)
 
+/* FC lock status register */
+#define APMU_FC_LOCK_STATUS              APMU_REG(0x1F0)
+#define APMU_FC_LOCK_STATUS_CP_RD_STATUS (1 << 1)
+
+/* CP clock control register */
+#define APMU_PMU_CC_CP                   APMU_REG(0x000)
+#define APMU_PMU_CC_CP_CP_RD_ST_CLEAR    (1 << 31)
+
 
 /* MPMU regs */
 #define MPMU_VIR_BASE	(get_mpmu_base_va())
