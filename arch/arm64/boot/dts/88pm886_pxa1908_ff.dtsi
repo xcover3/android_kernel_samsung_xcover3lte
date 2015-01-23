@@ -124,12 +124,12 @@
 		gpio-en = <0>;
 		flash-en-gpio = <124>;
 		flash-txmsk-gpio = <19>;
-		flash-timer = <500>;	/* ms */
+		flash-timer = <400>;	/* ms */
 		cls-ov-set = <4400>;	/* mV */
 		cls-uv-set = <1500>;	/* mV */
 		cfd-bst-vset = <4750>;	/* mV */
 		bst-uvvbat-set = <3100>;/* mV */
-		max-flash-current = <1200>;	/* mA */
+		max-flash-current = <500>;	/* mA */
 		max-torch-current = <200>;	/* mA */
 		torch-force-max-current = <0>;
 	};
