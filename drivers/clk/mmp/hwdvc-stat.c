@@ -211,7 +211,7 @@ int register_vldcstatinfo(int *vol, u32 vlnum)
 		return -ENOMEM;
 	}
 
-	vol_dcstat.vc_count = kzalloc(vlnum * vlnum, GFP_KERNEL);
+	vol_dcstat.vc_count = kzalloc(vlnum * vlnum * sizeof(u32), GFP_KERNEL);
 	if (!vol_dcstat.vc_count) {
 		pr_err("%s vc_count info malloc failed!\n", __func__);
 		kfree(vol_dcstat.vlts);
