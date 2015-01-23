@@ -260,6 +260,13 @@ config SND_MMP_MAP_DUMP
 	  Currently it dumps audio data from audio buffer in
 	  sram and save it in file under /data/log/audio/.
 
+config SND_TDM_STATIC_ALLOC
+	bool "TDM Slot Static Allocation"
+	depends on SND_MMP_TDM
+	help
+	  Say Y if you want to enable TDM slot static allocation.
+	  Don't choose it if you want to use dynamic allocation.
+
 config SND_SOC_PXA_88PM805
 	bool "SoC Audio support for PXA 88PM805"
 	depends on ARCH_MMP && SND && MFD_88PM805

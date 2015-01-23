@@ -289,10 +289,11 @@ static int map_tdm_spkr_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int freq_in, freq_out, sspa_mclk, sysclk, sspa_div;
-	int channel;
-#ifdef USE_STATIC_SLOT_ALLOC
-	int tx[2] = {4, 5};
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	int tx[2] = {1, 2};
 	int tx_num = 2;
+#else
+	int channel;
 #endif
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
@@ -314,7 +315,7 @@ static int map_tdm_spkr_hw_params(struct snd_pcm_substream *substream,
 
 	snd_soc_dai_set_sysclk(cpu_dai, APLL_32K, freq_out, 0);
 
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	mmp_tdm_static_slot_alloc(substream, tx, tx_num, NULL, 0);
 	snd_soc_dai_set_channel_map(cpu_dai, tx_num, tx, 0, NULL);
 	snd_soc_dai_set_channel_map(codec_dai, 0, NULL, tx_num, tx);
@@ -328,7 +329,7 @@ static int map_tdm_spkr_hw_params(struct snd_pcm_substream *substream,
 
 void map_tdm_spkr_shutdown(struct snd_pcm_substream *substream)
 {
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
@@ -336,7 +337,7 @@ void map_tdm_spkr_shutdown(struct snd_pcm_substream *substream)
 	int tx_num = 2;
 #endif
 
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	snd_soc_dai_set_channel_map(codec_dai, 0, NULL, tx_num, tx);
 	snd_soc_dai_set_channel_map(cpu_dai, tx_num, tx, 0, NULL);
 	mmp_tdm_static_slot_free(substream);
@@ -352,10 +353,11 @@ static int map_tdm_hs_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int freq_in, freq_out, sspa_mclk, sysclk, sspa_div;
-	int channel;
-#ifdef USE_STATIC_SLOT_ALLOC
-	int tx[2] = {1, 2};
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	int tx[2] = {3, 4};
 	int tx_num = 2;
+#else
+	int channel;
 #endif
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
@@ -377,7 +379,7 @@ static int map_tdm_hs_hw_params(struct snd_pcm_substream *substream,
 
 	snd_soc_dai_set_sysclk(cpu_dai, APLL_32K, freq_out, 0);
 
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	mmp_tdm_static_slot_alloc(substream, tx, tx_num, NULL, 0);
 	snd_soc_dai_set_channel_map(cpu_dai, tx_num, tx, 0, NULL);
 	snd_soc_dai_set_channel_map(codec_dai, 0, NULL, tx_num, tx);
@@ -391,7 +393,7 @@ static int map_tdm_hs_hw_params(struct snd_pcm_substream *substream,
 
 void map_tdm_hs_shutdown(struct snd_pcm_substream *substream)
 {
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
@@ -399,7 +401,7 @@ void map_tdm_hs_shutdown(struct snd_pcm_substream *substream)
 	int tx_num = 2;
 #endif
 
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	snd_soc_dai_set_channel_map(codec_dai, 0, NULL, tx_num, tx);
 	snd_soc_dai_set_channel_map(cpu_dai, tx_num, tx, 0, NULL);
 	mmp_tdm_static_slot_free(substream);
@@ -415,10 +417,11 @@ static int map_tdm_mic_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int freq_in, freq_out, sspa_mclk, sysclk, sspa_div;
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	int tx[2] = {1, 2};
+	int tx_num = 2;
+#else
 	int channel;
-#ifdef USE_STATIC_SLOT_ALLOC
-	int tx[1] = {3};
-	int tx_num = 1;
 #endif
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
@@ -440,8 +443,8 @@ static int map_tdm_mic_hw_params(struct snd_pcm_substream *substream,
 
 	snd_soc_dai_set_sysclk(cpu_dai, APLL_32K, freq_out, 0);
 
-#ifdef USE_STATIC_SLOT_ALLOC
-	mmp_tdm_static_slot_alloc(substream, 0, NULL, tx, tx_num);
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	mmp_tdm_static_slot_alloc(substream, NULL, 0, tx, tx_num);
 	snd_soc_dai_set_channel_map(cpu_dai, 0, NULL, tx_num, tx);
 	snd_soc_dai_set_channel_map(codec_dai, tx_num, tx, 0, NULL);
 #else
@@ -454,7 +457,7 @@ static int map_tdm_mic_hw_params(struct snd_pcm_substream *substream,
 
 void map_tdm_mic_shutdown(struct snd_pcm_substream *substream)
 {
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
@@ -462,7 +465,7 @@ void map_tdm_mic_shutdown(struct snd_pcm_substream *substream)
 	int tx_num = 1;
 #endif
 
-#ifdef USE_STATIC_SLOT_ALLOC
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
 	snd_soc_dai_set_channel_map(codec_dai, tx_num, tx, 0, NULL);
 	snd_soc_dai_set_channel_map(cpu_dai, 0, NULL, tx_num, tx);
 	mmp_tdm_static_slot_free(substream);
