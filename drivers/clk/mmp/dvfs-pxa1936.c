@@ -66,6 +66,7 @@ enum dvfs_comp {
 
 static unsigned int uiprofile;
 static unsigned int helan3_maxfreq;
+static struct comm_fuse_info fuseinfo;
 
 struct svtrng {
 	unsigned int min;
@@ -236,7 +237,18 @@ static int __init __init_read_droinfo(void)
 
 	if (guiProfile == 0)
 		guiProfile = convert_svtdro2profile(uiSVTDRO_Avg);
+
 	convert_max_freq(uiCpuFreq);
+
+	fuseinfo.fab = uiFab;
+	fuseinfo.lvtdro = uiLVTDRO_Avg;
+	fuseinfo.svtdro = uiSVTDRO_Avg;
+
+	fuseinfo.profile = guiProfile;
+	fuseinfo.iddq_1050 = uiSIDD1p05;
+	fuseinfo.iddq_1030 = uiSIDD1p30;
+	plat_fill_fuseinfo(&fuseinfo);
+
 	pr_info(" \n");
 	pr_info("     *************************** \n");
 	pr_info("     *  ULT: %08X%08X  * \n", uiBlock0_GEU_FUSE_MANU_PARA_1,
