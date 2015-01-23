@@ -2095,15 +2095,15 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 	blk_start_plug(&plug);
 	while (nr[LRU_INACTIVE_ANON] || nr[LRU_ACTIVE_FILE] ||
 					nr[LRU_INACTIVE_FILE]) {
+		unsigned long nr_anon, nr_file, percentage;
+		unsigned long nr_scanned;
+
 #ifdef CONFIG_RUNTIME_COMPCACHE
 		if (rtcc_reclaim(sc)) {
 			if (rc->nr_swapped >= rc->nr_anon)
 				nr[LRU_INACTIVE_ANON] = nr[LRU_ACTIVE_ANON] = 0;
 		}
 #endif /* CONFIG_RUNTIME_COMPCACHE */
-
-		unsigned long nr_anon, nr_file, percentage;
-		unsigned long nr_scanned;
 
 		for_each_evictable_lru(lru) {
 			if (nr[lru]) {
