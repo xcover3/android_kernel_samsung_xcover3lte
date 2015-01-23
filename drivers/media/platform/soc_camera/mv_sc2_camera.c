@@ -576,8 +576,6 @@ static int mccic_vb2_stop_streaming(struct vb2_queue *vq)
 		/* nothing to do here */
 	} else if (mcam_dev->buffer_mode == B_DMA_SG) {
 		u32 i, tid[mcam_dev->mbuf->vb2_buf.num_planes];
-		/* wait the AXI outstanding to finish*/
-		udelay(500);
 		for (i = 0; i < mcam_dev->mbuf->vb2_buf.num_planes; i++)
 			tid[i] = mcam_dev->mbuf->ch_info[i].tid;
 		msc2_mmu->ops->disable_ch(msc2_mmu, tid,

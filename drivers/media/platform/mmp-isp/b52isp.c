@@ -2224,6 +2224,15 @@ check_sof_irq:
 		laxi->dma_state = B52DMA_ACTIVE;
 		irqstatus &= ~VIRT_IRQ_START;
 
+		buffer = isp_vnode_find_busy_buffer(vnode, 1);
+		if (!buffer) {
+			buffer = isp_vnode_get_idle_buffer(vnode);
+			isp_vnode_put_busy_buffer(vnode, buffer);
+		}
+
+		if (buffer && laxi->stream)
+			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
+
 		d_inf(4, "%s receive start", isd->subdev.name);
 	}
 
@@ -2233,8 +2242,7 @@ check_sof_irq:
 
 check_drop:
 	if (irqstatus & VIRT_IRQ_DROP) {
-		if (laxi->stream)
-			laxi->dma_state = B52DMA_IDLE;
+		laxi->dma_state = B52DMA_IDLE;
 		irqstatus &= ~VIRT_IRQ_DROP;
 
 		buffer = isp_vnode_find_busy_buffer(vnode, 0);
@@ -2248,12 +2256,9 @@ check_drop:
 				  vnode->idle_buf_cnt, vnode->busy_buf_cnt);
 		if (buffer && laxi->stream)
 			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
-		else {
-			if (laxi->dma_state == B52DMA_STM_OFF_DROP)
-				laxi->dma_state = B52DMA_HW_NO_STREAM;
-			else
-				laxi->dma_state = B52DMA_STM_OFF_DROP;
-		}
+		else
+			laxi->dma_state = B52DMA_HW_NO_STREAM;
+
 		d_inf(3, "%s receive drop frame", isd->subdev.name);
 	}
 
@@ -2269,11 +2274,8 @@ check_eof_irq:
 			d_inf(3, "%s: Start_FIFO at same time\n", isd->subdev.name);
 		}
 
-		if (pvnode->reset_mmu_chnl) {
-			/* wait the AXI outstanding to finish*/
-			udelay(500);
+		if (pvnode->reset_mmu_chnl)
 			pvnode->reset_mmu_chnl(pcam, vnode, num_planes);
-		}
 
 		buffer = isp_vnode_find_busy_buffer(vnode, 0);
 		if (buffer && laxi->stream)
@@ -2283,22 +2285,10 @@ check_eof_irq:
 	}
 
 	if (irqstatus & VIRT_IRQ_DONE) {
-		struct plat_vnode *pvnode = container_of(vnode, struct plat_vnode, vnode);
 		irqstatus &= ~VIRT_IRQ_DONE;
 		if (laxi->dma_state != B52DMA_ACTIVE)
 			goto recheck;
 		laxi->dma_state = B52DMA_IDLE;
-
-		buffer = isp_vnode_find_busy_buffer(vnode, 1);
-		if (!buffer) {
-			buffer = isp_vnode_get_idle_buffer(vnode);
-			isp_vnode_put_busy_buffer(vnode, buffer);
-		}
-
-		if (pvnode->reset_mmu_chnl)
-			pvnode->reset_mmu_chnl(pcam, vnode, num_planes);
-		if (buffer && laxi->stream)
-			b52_fill_buf(buffer, pcam, num_planes, mac_id, port);
 
 		if ((paxi->r_type == B52AXI_REVENT_MEMSENSOR) &&
 			(port == B52AXI_PORT_R1)) {
@@ -2489,6 +2479,10 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 	if (unlikely(ret < 0))
 		goto pwr_err;
 
+	ret = b52_ctrl_mac_irq(laxi->mac, laxi->port, 1);
+	if (unlikely(ret < 0))
+		goto mac_err;
+
 	if (pvnode->alloc_mmu_chnl) {
 		ret = pvnode->alloc_mmu_chnl(pcam, PCAM_IP_B52ISP,
 					paxi->blk.id.mod_id, laxi->port,
@@ -2498,16 +2492,11 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 			goto mmu_err;
 	}
 
-	ret = b52_ctrl_mac_irq(laxi->mac, laxi->port, 1);
-	if (unlikely(ret < 0))
-		goto mac_err;
-
 	return 0;
 
-mac_err:
-	if (pvnode->free_mmu_chnl)
-		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 mmu_err:
+	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
+mac_err:
 	isp_block_tune_power(&paxi->blk, 0);
 pwr_err:
 	atomic_dec(&laxi->en_cnt);
@@ -2517,19 +2506,20 @@ disable:
 	if (atomic_dec_return(&laxi->en_cnt) > 0)
 		return 0;
 
-	b52_clear_mac_rdy_bit(laxi->mac, laxi->port);
-	while (laxi->dma_state != B52DMA_HW_NO_STREAM) {
-		usleep_range(1000, 1500);
-		if (cnt++ > 500) {
-			d_inf(1, "%s err wait HW_NO_STREAM",
-				  laxi->isd.subdev.name);
-			break;
+	if (pvnode->free_mmu_chnl) {
+		b52_clear_mac_rdy_bit(laxi->mac, laxi->port);
+		while (laxi->dma_state != B52DMA_HW_NO_STREAM) {
+			usleep_range(1000, 1500);
+			if (cnt++ > 500) {
+				d_inf(1, "%s err wait HW_NO_STREAM",
+					  laxi->isd.subdev.name);
+				break;
+			}
 		}
+		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 	}
 
 	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
-	if (pvnode->free_mmu_chnl)
-		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 	isp_block_tune_power(&paxi->blk, 0);
 
 	return 0;
