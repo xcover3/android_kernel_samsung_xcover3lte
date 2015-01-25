@@ -22,11 +22,8 @@
 #include <linux/gpio.h>
 #include <linux/delay.h>
 
+/* common register PM886 and PM880 */
 #define PM88X_CFD_CONFIG1		(0x60)
-#define PM88X_CFD_CONFIG2		(0x61)
-#define PM88X_CFD_CONFIG3		(0x62)
-#define PM88X_CFD_CONFIG4		(0x63)
-#define PM88X_CFD_LOG1			(0x65)
 #define PM88X_CLS_CONFIG1		(0x71)
 
 #define PM88X_BST_CONFIG1		(0x6B)
@@ -48,11 +45,6 @@
 #define PM88X_CF_EN_HIGH		(1 << 3)
 #define PM88X_CFD_ENABLED		(1 << 2)
 #define PM88X_CFD_MASKED		(0 << 2)
-#define PM88X_BOOST_MODE		(0x1 << 1)
-#define PM88X_OV_SET_OFFSET	(4)
-#define PM88X_OV_SET_MASK		(0x3 << PM88X_OV_SET_OFFSET)
-#define PM88X_UV_SET_OFFSET	(1)
-#define PM88X_UV_SET_MASK		(0x3 << PM88X_UV_SET_OFFSET)
 
 #define PM88X_BST_HSOC_OFFSET		(5)
 #define PM88X_BST_HSOC_MASK		(0x7 << PM88X_BST_HSOC_OFFSET)
@@ -63,8 +55,8 @@
 #define PM88X_BST_VSET_OFFSET		(4)
 #define PM88X_BST_VSET_MASK		(0x7 << PM88X_BST_VSET_OFFSET)
 #define PM88X_BST_UVVBAT_OFFSET	(0)
-#define PM88X_BST_UVVBAT_MASK		(0x7 << PM88X_BST_UVVBAT_OFFSET)
-#define PM88X_BST_UVVBAT_EN_MASK	(0x1 << 3)
+#define PM88X_BST_UVVBAT_MASK		(0x3 << PM88X_BST_UVVBAT_OFFSET)
+
 #define PM88X_BST_ILIM_DIS		(0x1 << 7)
 
 #define PM88X_LED_ISET(x)		(((x) - 50) / 50)
@@ -76,6 +68,7 @@
 #define PM88X_MIN_CURRENT		(50)		/* mA */
 #define PM88X_MAX_FLASH_CURRENT		(1600)		/* mA */
 #define PM88X_MAX_SAFE_FLASH_CURRENT	(PM88X_MAX_FLASH_CURRENT - 600)		/* mA */
+
 #define PM88X_MAX_TORCH_CURRENT		(400)		/* mA */
 #define PM88X_MAX_SAFE_TORCH_CURRENT	(PM88X_MAX_TORCH_CURRENT - 200)		/* mA */
 
@@ -84,6 +77,39 @@
 #define CFD_MIN_BOOST_VOUT		3750
 #define CFD_MAX_BOOST_VOUT		5500
 #define CFD_VOUT_GAP_LEVEL		250
+
+/* PM886 specific register */
+#define PM886_CFD_CONFIG2		(0x61)
+#define PM886_CFD_CONFIG3		(0x62)
+#define PM886_CFD_CONFIG4		(0x63)
+#define PM886_CFD_LOG1			(0x65)
+
+#define PM886_BOOST_MODE		(1 << 1)
+
+#define PM886_OV_SET_OFFSET	(4)
+#define PM886_OV_SET_MASK		(0x3 << PM886_OV_SET_OFFSET)
+#define PM886_UV_SET_OFFSET	(1)
+#define PM886_UV_SET_MASK		(0x3 << PM886_UV_SET_OFFSET)
+
+#define PM886_BST_UVVBAT_EN_MASK	(0x1 << 3)
+
+/* PM880 specific register */
+#define PM880_CFD_CONFIG12		(0x61)
+#define PM880_CFD_CONFIG2		(0x62)
+#define PM880_CFD_CONFIG3		(0x63)
+#define PM880_CFD_CONFIG4		(0x64)
+#define PM880_CFD_LOG1			(0x66)
+#define PM880_CFD_LOG12			(0x67)
+#define PM880_CLS_CONFIG2		(0x72)
+
+#define PM880_CL1_EN		(1 << 5)
+#define PM880_CL2_EN		(1 << 6)
+
+#define PM880_OV_SET_OFFSET	(6)
+#define PM880_OV_SET_MASK		(0x3 << PM880_OV_SET_OFFSET)
+#define PM880_UV_SET_OFFSET	(2)
+#define PM880_UV_SET_MASK		(0x1 << PM880_UV_SET_OFFSET)
+#define PM880_BST_UVVBAT_EN_MASK	(0x1 << 2)
 
 static int gpio_en;
 static unsigned int dev_num;
@@ -118,14 +144,24 @@ static unsigned int clear_errors(struct pm88x_led *led)
 	/*!!! mutex must be locked upon entering this function */
 
 	chip = led->chip;
-	regmap_read(chip->battery_regmap, PM88X_CFD_LOG1, &reg);
 
-	if (reg) {
-		dev_err(led->cdev.dev, "flash/torch fail. error log=0x%x\n", reg);
-		/* clear all errors, write 1 to clear */
-		regmap_write(chip->battery_regmap, PM88X_CFD_LOG1, reg);
+	if (chip->type == PM886) {
+		regmap_read(chip->battery_regmap, PM886_CFD_LOG1, &reg);
+
+		if (reg) {
+			dev_err(led->cdev.dev, "flash/torch fail. error log=0x%x\n", reg);
+			/* clear all errors, write 1 to clear */
+			regmap_write(chip->battery_regmap, PM886_CFD_LOG1, reg);
+		}
+	} else {
+		regmap_read(chip->battery_regmap, PM880_CFD_LOG1, &reg);
+
+		if (reg) {
+			dev_err(led->cdev.dev, "flash/torch fail. error log=0x%x\n", reg);
+			/* clear all errors, write 1 to clear */
+			regmap_write(chip->battery_regmap, PM880_CFD_LOG1, reg);
+		}
 	}
-
 	return reg;
 }
 
@@ -141,7 +177,12 @@ static void pm88x_led_delayed_work(struct work_struct *work)
 	ret = clear_errors(led);
 	/* set TRCH_TIMER_RESET to reset torch timer so
 	 * led won't turn off */
-	regmap_update_bits(led->chip->battery_regmap, PM88X_CFD_CONFIG4,
+	if (led->chip->type == PM886)
+		regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG4,
+			PM88X_CF_BITMASK_TRCH_RESET,
+			PM88X_CF_BITMASK_TRCH_RESET);
+	else
+		regmap_update_bits(led->chip->battery_regmap, PM880_CFD_CONFIG4,
 			PM88X_CF_BITMASK_TRCH_RESET,
 			PM88X_CF_BITMASK_TRCH_RESET);
 	mutex_unlock(&led->lock);
@@ -172,30 +213,56 @@ static void torch_on(struct pm88x_led *led)
 	chip = led->chip;
 	mutex_lock(&led->lock);
 	if (!gpio_en) {
-		/* clear CFD_PLS_ON to disable */
-		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG4,
+		if (chip->type == PM886)
+			/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
+					   PM88X_CF_CFD_PLS_ON, 0);
+		else
+			/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
 				   PM88X_CF_CFD_PLS_ON, 0);
 	} else {
 		gpio_direction_output(led->cf_en, 0);
 	}
-	/* set TRCH_TIMER_RESET to reset torch timer so
-	 * led won't turn off */
-	regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG4,
-			PM88X_CF_BITMASK_TRCH_RESET,
-			PM88X_CF_BITMASK_TRCH_RESET);
-	clear_errors(led);
-	/* set torch mode & boost voltage mode */
-	regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG3,
-			(PM88X_CF_BITMASK_MODE | PM88X_BOOST_MODE), (PM88X_BOOST_MODE));
+
+	if (chip->type == PM886) {
+		/* set TRCH_TIMER_RESET to reset torch timer so
+		 * led won't turn off */
+		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
+				PM88X_CF_BITMASK_TRCH_RESET,
+				PM88X_CF_BITMASK_TRCH_RESET);
+		clear_errors(led);
+
+		/* set torch mode & boost voltage mode */
+		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+				(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
+				PM88X_SELECT_TORCH_MODE | PM886_BOOST_MODE);
+	} else {
+		/* set TRCH_TIMER_RESET to reset torch timer so
+		 * led won't turn off */
+		regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
+				PM88X_CF_BITMASK_TRCH_RESET,
+				PM88X_CF_BITMASK_TRCH_RESET);
+		clear_errors(led);
+		/* set torch mode & boost voltage mode */
+		regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
+				(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
+				PM88X_SELECT_TORCH_MODE | PM880_CL1_EN);
+	}
 	/* disable booster HS current limit */
 	regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 			PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
+
 	/* automatic booster mode */
 	torch_set_current(led);
 	if (!gpio_en) {
-		/* set CFD_PLS_ON to enable */
-		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG4,
-				   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+		if (chip->type == PM886)
+			/* set CFD_PLS_ON to enable */
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
+					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+		else
+			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
+					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
 	} else {
 		gpio_direction_output(led->cf_en, 1);
 	}
@@ -215,13 +282,18 @@ static void torch_off(struct pm88x_led *led)
 	chip = led->chip;
 	cancel_delayed_work_sync(&led->delayed_work);
 	mutex_lock(&led->lock);
-	if (!gpio_en)
-		/* clear CFD_PLS_ON to disable */
-		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG4,
+	if (!gpio_en) {
+		if (chip->type == PM886)
+			/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM88X_CF_CFD_PLS_ON, 0);
-	else {
+		else
+			/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
+				   PM88X_CF_CFD_PLS_ON, 0);
+	} else
 		gpio_direction_output(led->cf_en, 0);
-	}
+
 	mutex_unlock(&led->lock);
 }
 
@@ -232,11 +304,16 @@ static void strobe_flash(struct pm88x_led *led)
 	chip = led->chip;
 
 	mutex_lock(&led->lock);
-	if (!gpio_en)
-		/* clear CFD_PLS_ON to disable */
-		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG4,
+	if (!gpio_en) {
+		if (chip->type == PM886)
+			/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM88X_CF_CFD_PLS_ON, 0);
-	else {
+		else
+		/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
+				   PM88X_CF_CFD_PLS_ON, 0);
+	} else {
 		gpio_direction_output(led->cf_en, 0);
 	}
 	clear_errors(led);
@@ -247,28 +324,44 @@ static void strobe_flash(struct pm88x_led *led)
 	 * otherwise set booster mode to voltage regulation mode and disable booster HS current
 	 * limit
 	 */
-	if (led->brightness > 400) {
-		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG3,
-				(PM88X_CF_BITMASK_MODE | PM88X_BOOST_MODE), PM88X_CF_BITMASK_MODE);
-		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
-				PM88X_BST_ILIM_DIS, 0);
+	if (chip->type == PM886) {
+		if (led->brightness > 400) {
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+					(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
+					PM88X_SELECT_FLASH_MODE);
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
+					PM88X_BST_ILIM_DIS, 0);
+		} else {
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+					(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
+					(PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE));
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
+					PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
+		}
 	} else {
-		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG3,
-				(PM88X_CF_BITMASK_MODE | PM88X_BOOST_MODE),
-				(PM88X_CF_BITMASK_MODE | PM88X_BOOST_MODE));
+		regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
+				(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
+				(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
+
 		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 				PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
 	}
+
 	/* automatic booster enable mode*/
 	/* set flash current */
 	regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG1,
 			   PM88X_FLASH_ISET_MASK,
 			   ((PM88X_LED_ISET(led->brightness)) << PM88X_FLASH_ISET_OFFSET));
 	/* trigger flash */
-	if (!gpio_en)
-		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG4,
-				   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
-	else {
+	if (!gpio_en) {
+		if (chip->type == PM886) {
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
+					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+		} else {
+			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
+			   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+		}
+	} else {
 		gpio_direction_output(led->cf_en, 1);
 	}
 	mutex_unlock(&led->lock);
@@ -370,21 +463,39 @@ static ssize_t gpio_ctrl_store(
 
 	gpio_en = gpio_state;
 
-	/* clear CFD_PLS_ON to disable */
-	ret = regmap_update_bits(led->chip->battery_regmap, PM88X_CFD_CONFIG4,
-				PM88X_CF_CFD_PLS_ON, 0);
-	if (ret)
-		goto error;
+	if (led->chip->type == PM886) {
+		/* clear CFD_PLS_ON to disable */
+		ret = regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG4,
+					PM88X_CF_CFD_PLS_ON, 0);
+		if (ret)
+			goto error;
 
-	if (gpio_en)
-		/* high active */
-		ret = regmap_update_bits(led->chip->battery_regmap, PM88X_CFD_CONFIG3,
-					 (PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
-					 (PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED));
-	else
-		ret = regmap_update_bits(led->chip->battery_regmap, PM88X_CFD_CONFIG3,
-					(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
-					PM88X_CFD_MASKED);
+		if (gpio_en)
+			/* high active */
+			ret = regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG3,
+						 (PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
+						 (PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED));
+		else
+			ret = regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG3,
+						(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
+						PM88X_CFD_MASKED);
+	} else {
+		/* clear CFD_PLS_ON to disable */
+		ret = regmap_update_bits(led->chip->battery_regmap, PM880_CFD_CONFIG4,
+					PM88X_CF_CFD_PLS_ON, 0);
+		if (ret)
+			goto error;
+
+		if (gpio_en)
+			/* high active */
+			ret = regmap_update_bits(led->chip->battery_regmap, PM880_CFD_CONFIG3,
+						 (PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
+						 (PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED));
+		else
+			ret = regmap_update_bits(led->chip->battery_regmap, PM880_CFD_CONFIG3,
+						(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
+						PM88X_CFD_MASKED);
+	}
 	if (ret) {
 		dev_err(dev, "gpio configure fail: ret = %d\n", ret);
 		goto error;
@@ -422,7 +533,7 @@ static void convert_flash_timer_val_to_reg(unsigned int *flash_timer)
 }
 
 /* convert dts voltage value to register value, values in mv */
-static void convert_cls_ov_set_val_to_reg(unsigned int *cls_ov_set)
+static void convert_cls_ov_set_val_to_reg_pm886(unsigned int *cls_ov_set)
 {
 	switch (*cls_ov_set) {
 	case 0 ... 3500:
@@ -441,9 +552,26 @@ static void convert_cls_ov_set_val_to_reg(unsigned int *cls_ov_set)
 		*cls_ov_set = 0x3;
 	}
 }
+/* convert dts voltage value to register value, values in mv */
+static void convert_cls_ov_set_val_to_reg_pm880(unsigned int *cls_ov_set)
+{
+	switch (*cls_ov_set) {
+	case 0 ... 4000:
+		*cls_ov_set = 0x1;
+		break;
+	case 4001 ... 4500:
+		*cls_ov_set = 0x2;
+		break;
+	case 4501 ... 5000:
+		*cls_ov_set = 0x0;
+		break;
+	default:
+		*cls_ov_set = 0x0;
+	}
+}
 
 /* convert dts voltage value to register value, values in mv */
-static void convert_cls_uv_set_val_to_reg(unsigned int *cls_uv_set)
+static void convert_cls_uv_set_val_to_reg_pm886(unsigned int *cls_uv_set)
 {
 	switch (*cls_uv_set) {
 	case 0 ... 1500:
@@ -462,6 +590,14 @@ static void convert_cls_uv_set_val_to_reg(unsigned int *cls_uv_set)
 		*cls_uv_set = 0x3;
 	}
 }
+/* convert dts voltage value to register value, values in mv */
+static void convert_cls_uv_set_val_to_reg_pm880(unsigned int *cls_uv_set)
+{
+	if (*cls_uv_set <= 1200)
+		*cls_uv_set = 0x0;
+	else
+		*cls_uv_set = 0x1;
+}
 
 /* convert dts voltage value to register value, values in mv */
 static void convert_cfd_bst_vset_val_to_reg(unsigned int *cfd_bst_vset)
@@ -475,7 +611,7 @@ static void convert_cfd_bst_vset_val_to_reg(unsigned int *cfd_bst_vset)
 }
 
 /* convert dts voltage value to register value, values in mv */
-static void convert_cfd_bst_uvvbat_set_val_to_reg(unsigned int *bst_uvvbat_set)
+static void convert_cfd_bst_uvvbat_set_val_to_reg_pm886(unsigned int *bst_uvvbat_set)
 {
 	switch (*bst_uvvbat_set) {
 	case 0 ... 3100:
@@ -494,12 +630,34 @@ static void convert_cfd_bst_uvvbat_set_val_to_reg(unsigned int *bst_uvvbat_set)
 		*bst_uvvbat_set = 0x3;
 	}
 }
+/* convert dts voltage value to register value, values in mv */
+static void convert_cfd_bst_uvvbat_set_val_to_reg_pm880(unsigned int *bst_uvvbat_set)
+{
+	switch (*bst_uvvbat_set) {
+	case 0 ... 3200:
+		*bst_uvvbat_set = 0x0;
+		break;
+	case 3201 ... 3300:
+		*bst_uvvbat_set = 0x1;
+		break;
+	case 3301 ... 3400:
+		*bst_uvvbat_set = 0x2;
+		break;
+	case 3401 ... 3500:
+		*bst_uvvbat_set = 0x3;
+		break;
+	default:
+		*bst_uvvbat_set = 0x3;
+	}
+}
 
 static int pm88x_led_dt_init(struct device_node *np,
 			 struct device *dev,
-			 struct pm88x_led_pdata *pdata)
+			 struct pm88x_led_pdata *pdata,
+			 struct pm88x_chip *chip)
 {
 	int ret;
+
 	ret = of_property_read_u32(np,
 				   "gpio-en", &pdata->gpio_en);
 	if (ret)
@@ -522,14 +680,19 @@ static int pm88x_led_dt_init(struct device_node *np,
 				   "cls-ov-set", &pdata->cls_ov_set);
 	if (ret)
 		return ret;
-
-	convert_cls_ov_set_val_to_reg(&pdata->cls_ov_set);
+	if (chip->type == PM886)
+		convert_cls_ov_set_val_to_reg_pm886(&pdata->cls_ov_set);
+	else
+		convert_cls_ov_set_val_to_reg_pm880(&pdata->cls_ov_set);
 
 	ret = of_property_read_u32(np,
 				   "cls-uv-set", &pdata->cls_uv_set);
 	if (ret)
 		return ret;
-	convert_cls_uv_set_val_to_reg(&pdata->cls_uv_set);
+	if (chip->type == PM886)
+		convert_cls_uv_set_val_to_reg_pm886(&pdata->cls_uv_set);
+	else
+		convert_cls_uv_set_val_to_reg_pm880(&pdata->cls_uv_set);
 
 	ret = of_property_read_u32(np,
 				   "cfd-bst-vset", &pdata->cfd_bst_vset);
@@ -543,7 +706,10 @@ static int pm88x_led_dt_init(struct device_node *np,
 	if (ret)
 		return ret;
 
-	convert_cfd_bst_uvvbat_set_val_to_reg(&pdata->bst_uvvbat_set);
+	if (chip->type == PM886)
+		convert_cfd_bst_uvvbat_set_val_to_reg_pm886(&pdata->bst_uvvbat_set);
+	else
+		convert_cfd_bst_uvvbat_set_val_to_reg_pm880(&pdata->bst_uvvbat_set);
 
 	ret = of_property_read_u32(np,
 				   "max-flash-current", &pdata->max_flash_current);
@@ -575,9 +741,14 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 
 	if (gpio_en) {
 		/* high active */
-		ret = regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG3,
-				(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
-				(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED));
+		if (chip->type == PM886)
+			ret = regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+					(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
+					(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED));
+		else
+			ret = regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
+						(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED),
+						(PM88X_CF_EN_HIGH | PM88X_CFD_ENABLED));
 		if (ret)
 			return ret;
 		gpio_direction_output(led->cf_en, 0);
@@ -594,11 +765,21 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 
 	}
 
-	/* set FLASH_TIMER as configured in DT */
-	ret = regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG2,
-			PM88X_FLASH_TIMER_MASK, (pdata->flash_timer << PM88X_FLASH_TIMER_OFFSET));
-	if (ret)
-		return ret;
+	if (chip->type == PM886) {
+		/* set FLASH_TIMER as configured in DT */
+		ret = regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG2,
+				PM88X_FLASH_TIMER_MASK,
+				(pdata->flash_timer << PM88X_FLASH_TIMER_OFFSET));
+		if (ret)
+			return ret;
+	} else {
+		/* set FLASH_TIMER as configured in DT */
+		ret = regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG2,
+				PM88X_FLASH_TIMER_MASK,
+				(pdata->flash_timer << PM88X_FLASH_TIMER_OFFSET));
+		if (ret)
+			return ret;
+	}
 	/* set booster high-side to 3.5A and low-side to 4.5A */
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG4,
 			PM88X_BST_HSOC_MASK, PM88X_BST_HSOC_MASK);
@@ -613,11 +794,19 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 			PM88X_BST_HSZC_MASK, 0);
 	if (ret)
 		return ret;
-	/* set over & under voltage protection as configured in DT */
-	ret = regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
-			(PM88X_OV_SET_MASK | PM88X_UV_SET_MASK),
-			((pdata->cls_ov_set << PM88X_OV_SET_OFFSET) |
-			(pdata->cls_uv_set << PM88X_UV_SET_OFFSET)));
+
+	if (chip->type == PM886)
+		/* set over & under voltage protection as configured in DT */
+		ret = regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
+				(PM886_OV_SET_MASK | PM886_UV_SET_MASK),
+				((pdata->cls_ov_set << PM886_OV_SET_OFFSET) |
+				(pdata->cls_uv_set << PM886_UV_SET_OFFSET)));
+	else
+		/* set over & under voltage protection as configured in DT */
+		ret = regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
+			(PM880_OV_SET_MASK | PM880_UV_SET_MASK),
+			((pdata->cls_ov_set << PM880_OV_SET_OFFSET) |
+			(pdata->cls_uv_set << PM880_UV_SET_OFFSET)));
 	if (ret)
 		return ret;
 	/* set booster voltage as configured in DT */
@@ -633,7 +822,7 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 	/* if A0, disable UVVBAT due to comparator faults in silicon */
 	if (chip->chip_id == PM886_A0) {
 		ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
-				PM88X_BST_UVVBAT_EN_MASK, 0);
+				PM886_BST_UVVBAT_EN_MASK, 0);
 		if (ret)
 			return ret;
 	}
@@ -666,7 +855,7 @@ static int pm88x_led_probe(struct platform_device *pdev)
 			if (!pdata)
 				return -ENOMEM;
 		}
-		ret = pm88x_led_dt_init(node, &pdev->dev, pdata);
+		ret = pm88x_led_dt_init(node, &pdev->dev, pdata, chip);
 		if (ret)
 			return ret;
 	} else if (!pdata) {
