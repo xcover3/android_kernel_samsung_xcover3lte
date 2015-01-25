@@ -158,6 +158,7 @@ obj-$(CONFIG_SENSOR_EPL2182)	+= epl2182.o
 obj-$(CONFIG_PMBUS)		+= pmbus/
 obj-y				+= bmi160/
 
+obj-y				+= bmp280/
 obj-y				+= bme280/
 obj-$(CONFIG_SENSORS_MMX3524X_MXC400X)	+= memsic/mxc400x.o memsic/ptaccs.o memsic/mmc3524x.o memsic/mecs.o
 ccflags-$(CONFIG_HWMON_DEBUG_CHIP) := -DDEBUG
