@@ -483,7 +483,7 @@ err_gc2d_freq:
 err_ddr_freq:
 	debugfs_remove(cpu_freq);
 err_cpu_freq:
-#if CONFIG_ARM_MMP_BL_CPUFREQ
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
 	debugfs_remove(big_cpu_time);
 err_big_cpu_time:
 	debugfs_remove(big_cpu_freq);
