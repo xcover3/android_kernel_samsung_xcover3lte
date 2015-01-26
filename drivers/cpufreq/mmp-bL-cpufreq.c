@@ -382,7 +382,7 @@ static int __cpufreq_policy_notify(
 		return NOTIFY_BAD;
 	clst = policy_nb_to_clst(nb);
 
-	if (val == CPUFREQ_ADJUST) {
+	if ((policy->clk == clst->clk) && (val == CPUFREQ_ADJUST)) {
 		pm_qos_update_request(&clst->cpufreq_policy_qos_req_min, policy->min);
 		pm_qos_update_request(&clst->cpufreq_policy_qos_req_max, policy->max);
 	}
