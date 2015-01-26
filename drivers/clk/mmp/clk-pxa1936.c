@@ -1710,7 +1710,7 @@ static void __init pxa1936_misc_init(struct pxa1936_clk_unit *pxa_unit)
 
 static void __init pxa1936_clk_init(struct device_node *np)
 {
-	unsigned int max_freq = 0;
+	unsigned int max_freq = 0, profile = 0;
 	struct pxa1936_clk_unit *pxa_unit;
 
 	pxa_unit = kzalloc(sizeof(*pxa_unit), GFP_KERNEL);
@@ -1774,6 +1774,17 @@ static void __init pxa1936_clk_init(struct device_node *np)
 	if (max_freq > CORE_1p5G)
 		max_freq = CORE_1p5G;
 	clst1_core_params.max_cpurate = max_freq;
+
+	profile = get_helan3_profile();
+	if ((profile >= 13) && (ddr_mode == DDR_800M)
+		&& (max_freq == CORE_1p5G))
+		panic("1.5GHz SKU chip Don't support DDR 800 mode when profile >= 13 , will panic.\n");
+
+	if ((profile >= 13) && (max_freq == CORE_1p5G)) {
+		clst0_core_params.max_cpurate = 1057;
+		pr_info("1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 13\n");
+	}
+
 #endif
 	pr_info("little cluster max rate: %dMHz\n", clst0_core_params.max_cpurate);
 	pr_info("big cluster max rate: %dMHz\n", clst1_core_params.max_cpurate);
