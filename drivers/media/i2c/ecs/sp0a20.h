@@ -419,35 +419,6 @@ static struct reg_tab_bb sp0a20_fmt_vyuy[] = {
 	{0x35, 0x01},
 };
 
-static struct reg_tab_bb sp0a20_res_qcif[] = {
-	{0xfd, 0x00},
-	{0xa2, 0xb0},
-	{0xa3, 0x00},
-	{0xa4, 0x90},
-	{0xa5, 0x00},
-	{0xfd, 0x01},
-	{0x4a, 0xa8},
-	{0x4b, 0x00},
-	{0x4c, 0x90},
-	{0x4d, 0xe8},
-	{0x4e, 0x00},
-	{0x4f, 0xb0},
-};
-static struct reg_tab_bb sp0a20_res_qvga[] = {
-	{0xfd, 0x00},
-	{0xa2, 0x40},
-	{0xa3, 0x01},
-	{0xa4, 0xf0},
-	{0xa5, 0x00},
-	{0xfd, 0x01},
-	{0x4a, 0x78},
-	{0x4b, 0x00},
-	{0x4c, 0xf0},
-	{0x4d, 0xa0},
-	{0x4e, 0x01},
-	{0x4f, 0x40},
-};
-
 static struct reg_tab_bb sp0a20_res_vga[] = {
 	{0xfd, 0x00},
 	{0xa2, 0x80},
@@ -506,9 +477,7 @@ enum {
 };
 
 enum {
-	SP0A20_RES_QCIF = 0,
-	SP0A20_RES_QVGA,
-	SP0A20_RES_VGA,
+	SP0A20_RES_VGA = 0,
 	SP0A20_RES_END,	/* don't use it*/
 };
 
@@ -524,8 +493,6 @@ enum {	/* P3:021x~0x2b */
 
 enum {
 	SP0A20_ST_INVALID	= 0, /* place holder, don't use 0 as state id*/
-	SP0A20_ST_UYVY_QCIF,
-	SP0A20_ST_UYVY_QVGA,
 	SP0A20_ST_UYVY_VGA,
 	SP0A20_ST_END,	/* don't use it*/
 };
@@ -554,14 +521,6 @@ static struct ecs_default_fmt_info sp0a20_fmt_info_table[] = {
 };
 
 static struct ecs_default_res_info sp0a20_res_info_table[] = {
-	[SP0A20_RES_QCIF] = {
-		.h_act = 176,
-		.v_act = 144,
-	},
-	[SP0A20_RES_QVGA] = {
-		.h_act = 320,
-		.v_act = 240,
-	},
 	[SP0A20_RES_VGA] = {
 		.h_act = 640,
 		.v_act = 480,
@@ -611,8 +570,6 @@ static struct ecs_setting sp0a20_fmt_stn_table[SP0A20_FMT_END] = {
 #define SP0A20_DECLARE_RES_SETTING(VAL, val) \
 	__DECLARE_SETTING_VS_INFO(SP0A20, sp0a20, RES, res, VAL, val)
 static struct ecs_setting sp0a20_res_stn_table[SP0A20_RES_END] = {
-	SP0A20_DECLARE_RES_SETTING(QCIF, qcif),
-	SP0A20_DECLARE_RES_SETTING(QVGA, qvga),
 	SP0A20_DECLARE_RES_SETTING(VGA, vga),
 };
 
@@ -683,18 +640,6 @@ static struct ecs_property sp0a20_property_table[SP0A20_PROP_END] = {
 
 /*********************************** state ***********************************/
 /* Default global init sequence */
-static struct ecs_state_cfg sp0a20_state_uyvy_qcif[] = {
-	{SP0A20_PROP_FMT,	SP0A20_FMT_UYVY},
-	{SP0A20_PROP_RES,	SP0A20_RES_QCIF},
-	{SP0A20_PROP_IF,	SP0A20_IF_LD},
-};
-
-static struct ecs_state_cfg sp0a20_state_uyvy_qvga[] = {
-	{SP0A20_PROP_FMT,	SP0A20_FMT_UYVY},
-	{SP0A20_PROP_RES,	SP0A20_RES_QVGA},
-	{SP0A20_PROP_IF,	SP0A20_IF_LD},
-};
-
 static struct ecs_state_cfg sp0a20_state_uyvy_vga[] = {
 	{SP0A20_PROP_FMT,	SP0A20_FMT_UYVY},
 	{SP0A20_PROP_RES,	SP0A20_RES_VGA},
@@ -705,8 +650,6 @@ static struct ecs_state_cfg sp0a20_state_uyvy_vga[] = {
 #define SP0A20_DECLARE_STATE(VAL, val) \
 	__DECLARE_STATE(SP0A20, sp0a20, VAL, val)
 static struct ecs_state sp0a20_state_table[SP0A20_ST_END] = {
-	SP0A20_DECLARE_STATE(UYVY_QCIF, uyvy_qcif),
-	SP0A20_DECLARE_STATE(UYVY_QVGA, uyvy_qvga),
 	SP0A20_DECLARE_STATE(UYVY_VGA, uyvy_vga),
 };
 
@@ -787,8 +730,6 @@ static struct ecs_sensor pxa98x_spec = {
 };
 
 static __attribute__((unused)) int sp0a20_state_list[] = {
-	SP0A20_ST_UYVY_QCIF,
-	SP0A20_ST_UYVY_QVGA,
 	SP0A20_ST_UYVY_VGA,
 };
 
