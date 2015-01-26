@@ -128,6 +128,26 @@ static char *__cpufreq_printf(const char *fmt, ...)
 }
 
 /*
+ * We have two modes to handle cpufreq on dual clusters:
+ * 1. When there are no limitations from policy, thermal, etc, frequencies
+ *    of dual clusters are always aligned to the same voltage level.
+ * 2. Each cluster can change its frequency freely.
+ *
+ * By default we enable mode-1 and we can append "vl_cpufreq=0"
+ * to uboot cmdline to enable mode-2.
+ */
+static int vl_cpufreq_enable = 1;
+static int __init __cpufreq_mode_setup(char *str)
+{
+	int n;
+	if (!get_option(&str, &n))
+		return 0;
+	vl_cpufreq_enable = n;
+	return 1;
+}
+__setup("vl_cpufreq=", __cpufreq_mode_setup);
+
+/*
  * This function comes from cpufreq_frequency_table_target, but remove
  *         if ((freq < policy->min) || (freq > policy->max))
  *             continue;
@@ -296,10 +316,14 @@ static int __cpufreq_freq_min_notify(
 		return NOTIFY_BAD;
 	}
 
-	volt_level = __cpufreq_freq_2_vl(clst, clst->freq_table[index].frequency);
-	if (pm_qos_request_active(&clst->vl_qos_req_min))
-		pm_qos_update_request(&clst->vl_qos_req_min, volt_level);
-
+	if (vl_cpufreq_enable) {
+		volt_level = __cpufreq_freq_2_vl(clst, clst->freq_table[index].frequency);
+		if (pm_qos_request_active(&clst->vl_qos_req_min))
+			pm_qos_update_request(&clst->vl_qos_req_min, volt_level);
+	} else {
+		if (pm_qos_request_active(&clst->qosmin_req_max))
+			pm_qos_update_request(&clst->qosmin_req_max, clst->freq_table[index].frequency);
+	}
 	return NOTIFY_OK;
 }
 
@@ -524,10 +548,12 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 			goto err_out;
 		}
 
-		clst->vl_qos_req_min.name = __cpufreq_printf("%s%s", VL_REQ_MIN, clst_id);
-		if (!clst->vl_qos_req_min.name) {
-			pr_err("%s: no mem for vl_qos_req_min.name.\n", __func__);
-			goto err_out;
+		if (vl_cpufreq_enable) {
+			clst->vl_qos_req_min.name = __cpufreq_printf("%s%s", VL_REQ_MIN, clst_id);
+			if (!clst->vl_qos_req_min.name) {
+				pr_err("%s: no mem for vl_qos_req_min.name.\n", __func__);
+				goto err_out;
+			}
 		}
 
 		clst->cpufreq_policy_qos_req_min.name = __cpufreq_printf("%s%s%s", CPUFREQ_POLICY_REQ, "MIN_", clst_id);
@@ -544,12 +570,14 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 
 		clst->cpufreq_min_notifier.notifier_call = __cpufreq_freq_min_notify;
 		clst->cpufreq_max_notifier.notifier_call = __cpufreq_freq_max_notify;
-		clst->vl_min_notifier.notifier_call = __cpufreq_vl_min_notify;
+		if (vl_cpufreq_enable)
+			clst->vl_min_notifier.notifier_call = __cpufreq_vl_min_notify;
 		clst->cpufreq_policy_notifier.notifier_call = __cpufreq_policy_notify;
 
 		pm_qos_add_notifier(clst->cpufreq_qos_min_id, &clst->cpufreq_min_notifier);
 		pm_qos_add_notifier(clst->cpufreq_qos_max_id, &clst->cpufreq_max_notifier);
-		pm_qos_add_notifier(clst->vl_qos_min_id, &clst->vl_min_notifier);
+		if (vl_cpufreq_enable)
+			pm_qos_add_notifier(clst->vl_qos_min_id, &clst->vl_min_notifier);
 		cpufreq_register_notifier(&clst->cpufreq_policy_notifier, CPUFREQ_POLICY_NOTIFIER);
 
 	}
@@ -565,12 +593,15 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 	if (!clst->initialized) {
 		pm_qos_add_request(&clst->profiler_req_min, clst->cpufreq_qos_min_id, policy->cur);
 		pm_qos_add_request(&clst->qosmin_req_max, clst->cpufreq_qos_max_id, pm_qos_request(clst->cpufreq_qos_min_id));
-		pm_qos_add_request(&clst->vl_qos_req_min, clst->vl_qos_min_id, __cpufreq_freq_2_vl(clst, cur_freq));
+		if (vl_cpufreq_enable)
+			pm_qos_add_request(&clst->vl_qos_req_min, clst->vl_qos_min_id, __cpufreq_freq_2_vl(clst, cur_freq));
 		pm_qos_add_request(&clst->cpufreq_policy_qos_req_min, clst->cpufreq_qos_min_id, policy->min);
 		pm_qos_add_request(&clst->cpufreq_policy_qos_req_max, clst->cpufreq_qos_max_id, policy->max);
 
 		clst->initialized = 1;
 		list_add_tail(&clst->node, &clst_list);
+
+		pr_info("vl_cpufreq %s\n", (vl_cpufreq_enable == 1) ? "enabled" : "disabled");
 	}
 
 	pr_debug("%s: finish initialization on cluster-%d\n", __func__, clst_index);
@@ -583,7 +614,8 @@ err_out:
 		kfree(clst->clk_name);
 		kfree(clst->profiler_req_min.name);
 		kfree(clst->qosmin_req_max.name);
-		kfree(clst->vl_qos_req_min.name);
+		if (vl_cpufreq_enable)
+			kfree(clst->vl_qos_req_min.name);
 		kfree(clst->cpufreq_policy_qos_req_min.name);
 		kfree(clst->cpufreq_policy_qos_req_max.name);
 		kfree(clst);
