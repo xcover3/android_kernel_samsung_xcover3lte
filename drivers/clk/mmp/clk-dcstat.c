@@ -987,6 +987,16 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			else if (LPM_D2 == lpm_min)
 				idle_dcstat_info.D2_idle_start = ktime_temp;
 
+#ifdef CONFIG_VOLDC_STAT
+			if (LPM_MP2 == lpm_min)
+				vol_dcstat_event(VLSTAT_LPM_ENTRY, 2, 0);
+			else if (LPM_D1P == lpm_min)
+				vol_dcstat_event(VLSTAT_LPM_ENTRY, 3, 0);
+			else if (LPM_D1 == lpm_min)
+				vol_dcstat_event(VLSTAT_LPM_ENTRY, 4, 0);
+			else if (LPM_D2 == lpm_min)
+				vol_dcstat_event(VLSTAT_LPM_ENTRY, 5, 0);
+#endif
 			if (cpuidle_qos == LPM_MP2) {
 				lpm_min = MAX_LPM_INDEX;
 				for (cpu_i = 0 + 4 * cluster_flag; cpu_i < 4 + 4 * cluster_flag;

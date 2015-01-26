@@ -142,6 +142,9 @@ static int arm64_enter_state(struct cpuidle_device *dev,
 
 	/* add cpuidle exit cpu_dc_stat */
 	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
+#ifdef CONFIG_VOLDC_STAT
+	vol_dcstat_event(VLSTAT_LPM_EXIT, 0, 0);
+#endif
 	/*
 	 * Trigger notifier only if cpu_suspend succeeded
 	 */

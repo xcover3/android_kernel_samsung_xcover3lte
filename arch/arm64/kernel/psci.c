@@ -220,6 +220,13 @@ static int cpu_psci_cpu_suspend(unsigned long arg)
 
 	state.id = _state2bit(index);
 
+#ifdef CONFIG_VOLDC_STAT
+	if (index == POWER_MODE_CORE_INTIDLE)
+		vol_dcstat_event(VLSTAT_LPM_ENTRY, 0, 0);
+	else if (index == POWER_MODE_CORE_POWERDOWN)
+		vol_dcstat_event(VLSTAT_LPM_ENTRY, 1, 0);
+#endif
+
 	if (index >= POWER_MODE_MP_POWERDOWN_L2_ON)
 		cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_M2_OR_DEEPER_ENTER, index);
 
