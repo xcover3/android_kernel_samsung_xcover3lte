@@ -30,12 +30,6 @@
 
 #include "ov5670.h"
 
-static int OV5670_get_dphy_desc(struct v4l2_subdev *sd,
-			struct csi_dphy_desc *dphy_desc, u32 mclk)
-{
-	return 0;
-}
-
 static void OV5670_write_i2c(struct b52_sensor *sensor, u16 reg, u8 val)
 {
 	b52_sensor_call(sensor, i2c_write, reg, val, 1);
@@ -48,16 +42,12 @@ static u8 OV5670_read_i2c(struct b52_sensor *sensor, u16 reg)
 	return temp1;
 }
 
-static int OV5670_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
+static int OV5670_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
 	/*calculate sysclk*/
 	int temp1, temp2;
 	int pll2_prediv0, pll2_prediv2x, pll2_mult;
-	int  pll2_sys_prediv, pll2_sys_divider2x;
-	int VCO, sys_prediv, sclk_pdiv;
 	int pll2_prediv2x_map[] = {2, 3, 4, 5, 6, 8, 12, 16};
-	int pll2_sys_divider2x_map[] = {2, 3, 4, 5, 6, 7, 8, 10};
-	int sys_prediv_map[] = {1, 2, 4, 1};
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 
 	temp1 = OV5670_read_i2c(sensor, 0x0312);
@@ -73,7 +63,31 @@ static int OV5670_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 	temp1 = OV5670_read_i2c(sensor, 0x030d);
 	temp2 = OV5670_read_i2c(sensor, 0x030c);
 	pll2_mult = ((temp2 & 0x03) << 8) + temp1;
-	VCO = mclk * 2 / pll2_prediv0 / pll2_prediv2x * pll2_mult;
+	*rate = mclk * 2 / pll2_prediv0 / pll2_prediv2x * pll2_mult;
+
+	return 0;
+}
+
+static int OV5670_get_dphy_desc(struct v4l2_subdev *sd,
+			struct csi_dphy_desc *dphy_desc, u32 mclk)
+{
+	OV5670_get_mipiclock(sd, &dphy_desc->clk_freq, mclk);
+	dphy_desc->hs_prepare = 26;
+	dphy_desc->hs_zero  = 125;
+	return 0;
+}
+static int OV5670_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
+{
+	/*calculate sysclk*/
+	int temp1, temp2;
+	int pll2_sys_prediv, pll2_sys_divider2x;
+	int sys_prediv, sclk_pdiv;
+	u32 mipi_clk;
+	int pll2_sys_divider2x_map[] = {2, 3, 4, 5, 6, 7, 8, 10};
+	int sys_prediv_map[] = {1, 2, 4, 1};
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+
+	OV5670_get_mipiclock(sd, &mipi_clk, mclk);
 	temp1 = OV5670_read_i2c(sensor, 0x030f);
 	temp2 = temp1 & 0x0f;
 	pll2_sys_prediv = temp2 + 1;
@@ -90,7 +104,7 @@ static int OV5670_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 	else
 		sclk_pdiv = 1;
 
-	*rate = VCO * 2 / pll2_sys_prediv / pll2_sys_divider2x
+	*rate = mipi_clk * 2 / pll2_sys_prediv / pll2_sys_divider2x
 			/ sys_prediv / sclk_pdiv;
 	*rate = *rate * 2;
 	return 0;
@@ -180,7 +194,7 @@ static int OV5670_update_wb(struct b52_sensor *sensor,
 			else
 				base_gain = b_gain;
 		} else
-			base_gain = b_gain;
+			base_gain = g_gain;
 		/*set min gain to 0x400*/
 		r_gain = 0x400 * r_gain / base_gain;
 		g_gain = 0x400 * g_gain / base_gain;
@@ -227,24 +241,27 @@ static int OV5670_update_otp(struct v4l2_subdev *sd,
 	int flag = 0;
 
 	struct b52_sensor *sensor = to_b52_sensor(sd);
-	/*access otp data start*/
-	OV5670_otp_access_start(sensor);
+	if (otp->user_otp->otp_type ==  SENSOR_TO_SENSOR) {
+		/*access otp data start*/
+		OV5670_otp_access_start(sensor);
 
-	/*read otp data firstly*/
-	ret = OV5670_read_OTP(sensor, otp, &flag);
+		/*read otp data firstly*/
+		ret = OV5670_read_OTP(sensor, otp, &flag);
 
-	/*access otp data end*/
-	OV5670_otp_access_end(sensor);
+		/*access otp data end*/
+		OV5670_otp_access_end(sensor);
 
-	if (ret < 0)
-		goto fail;
-	/*apply some otp data, include awb*/
-	if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_WB) {
-		ret = OV5670_update_wb(sensor, otp, &flag);
 		if (ret < 0)
 			goto fail;
+		/*apply some otp data, include awb*/
+		if (otp->otp_ctrl & V4L2_CID_SENSOR_OTP_CONTROL_WB) {
+			ret = OV5670_update_wb(sensor, otp, &flag);
+			if (ret < 0)
+				goto fail;
+		}
+		return 0;
 	}
-	return 0;
+	return -1;
 fail:
 	pr_err("otp update fail\n");
 	return ret;
