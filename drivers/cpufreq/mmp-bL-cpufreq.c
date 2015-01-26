@@ -598,6 +598,7 @@ static int mmp_bL_cpufreq_exit(struct cpufreq_policy *policy)
 
 static struct cpufreq_driver mmp_bL_cpufreq_driver = {
 	.name = "mmp-bL-cpufreq",
+	.flags = CPUFREQ_HAVE_GOVERNOR_PER_POLICY,
 	.verify = cpufreq_generic_frequency_table_verify,
 	.get = mmp_bL_cpufreq_get,
 	.target = mmp_bL_cpufreq_target,
