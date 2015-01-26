@@ -581,13 +581,13 @@ static struct b52_sensor_module ov8858r2a_SUNNY = {
 static int OV8858R2A_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
 static int OV8858R2A_get_dphy_desc(struct v4l2_subdev *sd,
 			struct csi_dphy_desc *dphy_desc, u32 mclk);
-/*static int OV8858R2A_update_otp(struct v4l2_subdev *sd,
-				struct b52_sensor_otp *opt);*/
+static int OV8858R2A_update_otp(struct v4l2_subdev *sd,
+				struct b52_sensor_otp *opt);
 
 struct b52_sensor_spec_ops ov8858r2a_ops = {
 	.get_pixel_rate = OV8858R2A_get_pixelclock,
 	.get_dphy_desc = OV8858R2A_get_dphy_desc,
-/*	.update_otp = OV8858R2A_update_otp,*/
+	.update_otp = OV8858R2A_update_otp,
 };
 struct b52_sensor_data b52_ov8858 = {
 	.name = "ovt.ov8858r2a",
@@ -658,7 +658,7 @@ struct b52_sensor_data b52_ov8858 = {
 	.flip_change_phase = 0,
 	.gain_shift = 0x00,
 	.expo_shift = 0x08,
-/*	.calc_dphy = 1, */
+	.calc_dphy = 1,
 	.nr_lane = 4,
 	.mipi_clk_bps = 988000000,
 	.ops = &ov8858r2a_ops,
