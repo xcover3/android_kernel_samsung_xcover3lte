@@ -571,8 +571,10 @@ out:
 }
 
 /*
- * if the power down log is empty or the FAULT_WAKEUP is set,
- * we consider it's software-reboot;
+ * the following cases are considered as software-reboot:
+ * 1. power down log is empty
+ * 2. FAULT_WAKEUP is set
+ * 3. HW_RESET1 is set
  */
 static bool system_may_reboot(struct pm88x_battery_info *info)
 {
@@ -586,9 +588,13 @@ static bool system_may_reboot(struct pm88x_battery_info *info)
 	/* FAULT_WAKEUP */
 	if (info->chip->powerup & (1 << 5))
 		return true;
-	else
-		/* delete HYB_DONE */
-		return !(info->chip->powerdown1 || (info->chip->powerdown2 & 0xfe));
+
+	/* HW_RESET1 */
+	if (info->chip->powerdown2 & (1 << 5))
+		return true;
+
+	/* delete HYB_DONE */
+	return !(info->chip->powerdown1 || (info->chip->powerdown2 & 0xfe));
 }
 
 static bool check_battery_change(struct pm88x_battery_info *info,
