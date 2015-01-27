@@ -289,6 +289,32 @@
 
 	plat_cam {
 		status = "okay";
+		frontsensor {
+			compatible = "marvell,frontsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			OV2680f: sensor@0 {
+				compatible = "ovt,ov2680";
+				status = "okay";
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x36>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1900>;
+				dphy5 = <0x4711>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&buck3>;
+				pwdn-gpios = <&gpio 70 1>;
+				reset-gpios = <&gpio 69 1>;
+			};
+		};
 		backsensor {
 			/* ToDo: Need to remove from common file disable items in DTS */
 
@@ -356,6 +382,7 @@
 	        status = "okay";
 	};
 	b52isp_sc2_csi1 {
+			csi_mux_repacked;
 	        status = "okay";
 	};
 	b52isp_sc2_dma0 {
