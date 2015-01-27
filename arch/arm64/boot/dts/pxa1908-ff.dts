@@ -116,9 +116,9 @@
 			twsi2: i2c@d4037000 {
 				pmic0: 88pm886@30 {
 					status = "okay";
-					headset {
-						marvell,headset-flag = <0>;
-					};
+				};
+				pmic2: 88pm860@38 {
+					status = "okay";
 				};
 			};
 
@@ -257,4 +257,4 @@
 #include "88pm886.dtsi"
 #include "88pm88x_battery_common.dtsi"
 #include "88pm88x_445457plg.dtsi"
-#include "88pm886_pxa1908_dkb.dtsi"
+#include "88pm886_pxa1908_ff.dtsi"
