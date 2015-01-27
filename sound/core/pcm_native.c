@@ -883,6 +883,7 @@ static void snd_pcm_post_start(struct snd_pcm_substream *substream, int state)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	/* for hw_no_buffer substream, trigger dai directly */
+	runtime->status->state = state;
 	if (substream->hw_no_buffer)
 		return;
 
@@ -890,7 +891,6 @@ static void snd_pcm_post_start(struct snd_pcm_substream *substream, int state)
 	runtime->hw_ptr_jiffies = jiffies;
 	runtime->hw_ptr_buffer_jiffies = (runtime->buffer_size * HZ) / 
 							    runtime->rate;
-	runtime->status->state = state;
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
 	    runtime->silence_size > 0)
 		snd_pcm_playback_silence(substream, ULONG_MAX);
