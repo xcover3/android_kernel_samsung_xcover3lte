@@ -63,6 +63,7 @@ enum dvfs_comp {
 #define BLOCK0_RESERVED_1 0x120
 #define BLOCK4_MANU_PARA1_0 0x2b4
 #define BLOCK4_MANU_PARA1_1 0x2b8
+#define CONFIG_SVC_TSMC 1
 
 static unsigned int uiprofile;
 static unsigned int helan3_maxfreq;
@@ -288,6 +289,7 @@ static int __init __init_read_droinfo(void)
 
 }
 
+#ifndef CONFIG_SVC_TSMC
 /* components frequency combination */
 /* FIXME: adjust according to SVC */
 static unsigned long freqs_cmb_1936[VM_RAIL_MAX][VL_MAX] = {
@@ -346,6 +348,65 @@ static int vm_millivolts_1936_svcumc[][VL_MAX] = {
 	{975,  1000, 1075, 1125, 1175, 1275, 1300, 1300},/* Profile13 */
 	{975,  1013, 1100, 1125, 1175, 1275, 1300, 1300},/* Profile14 */
 	{975,  1038, 1125, 1150, 1200, 1300, 1300, 1300},/* Profile15 */
+};
+#endif
+
+static unsigned long freqs_cmb_1936_tsmc[VM_RAIL_MAX][VL_MAX] = {
+	/*LV0,     LV1,     LV2,    LV3,    LV4,     LV5,     LV6,     LV7  */
+	/* CLST0 */
+	{ 312000, 416000, 624000, 624000, 832000, 832000, 1057000, 1248000 },
+	/* CLST1 */
+	{ 312000, 416000, 832000, 1057000, 1248000, 1526000, 1595000, 1803000 },
+	/* DDR */
+	{ 312000,  312000, 528000, 528000, 624000, 667000, 667000, 797000},
+	/* AXI */
+	{ 208000,  208000, 312000, 312000, 312000, 312000, 312000, 312000 },
+	/* GC3D */
+	{      0,  312000, 624000, 624000, 832000, 832000, 832000, 832000 },
+	/* GC2D */
+	{      0,  208000, 312000, 312000, 416000,  416000, 416000, 416000 },
+	/* GCSHADER */
+	{      0,  312000, 624000, 624000, 832000, 832000, 832000, 832000 },
+	/* GC ACLK */
+	{      0,  312000, 416000, 416000, 416000, 528000, 528000, 528000 },
+	/* VPU */
+	{ 208000,  312000, 416000, 528000, 528000, 528000, 528000, 528000 },
+	/* ISP */
+	{      0,  208000, 312000, 312000, 499000, 499000, 499000, 499000 },
+	/* SDH0 dummy dvfs clk*/
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1), DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3),
+	  DUMMY_VL_TO_KHZ(4), DUMMY_VL_TO_KHZ(5), DUMMY_VL_TO_KHZ(6), DUMMY_VL_TO_KHZ(7)
+	},
+	/* SDH1 dummy dvfs clk*/
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1), DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3),
+	  DUMMY_VL_TO_KHZ(4), DUMMY_VL_TO_KHZ(5), DUMMY_VL_TO_KHZ(6), DUMMY_VL_TO_KHZ(7)
+	},
+	/* SDH2 dummy dvfs clk*/
+	{ DUMMY_VL_TO_KHZ(0), DUMMY_VL_TO_KHZ(1), DUMMY_VL_TO_KHZ(2), DUMMY_VL_TO_KHZ(3),
+	  DUMMY_VL_TO_KHZ(4), DUMMY_VL_TO_KHZ(5), DUMMY_VL_TO_KHZ(6), DUMMY_VL_TO_KHZ(7)
+	},
+};
+
+/* 8 VLs PMIC setting */
+/* FIXME: adjust according to SVC */
+static int vm_millivolts_1936_svc_tsmc[][VL_MAX] = {
+	/*LV0, LV1,  LV2,  LV3,  LV4,  LV5,  LV6,  LV7  */
+	{975, 1038,  1125, 1150, 1200, 1275, 1300, 1300},/* Profile0 */
+	{975,  975,  1000, 1000, 1050, 1050, 1100, 1175},/* Profile1 */
+	{975,  975,  1000, 1000, 1050, 1063, 1113, 1188},/* Profile2 */
+	{975,  975,  1000, 1000, 1050, 1063, 1113, 1200},/* Profile3 */
+	{975,  975,  1000, 1013, 1063, 1063, 1125, 1213},/* Profile4 */
+	{975,  975,  1000, 1013, 1063, 1075, 1138, 1225},/* Profile5 */
+	{975,  975,  1000, 1025, 1075, 1088, 1150, 1238},/* Profile6 */
+	{975,  975,  1013, 1038, 1075, 1100, 1150, 1250},/* Profile7 */
+	{975,  975,  1013, 1038, 1088, 1113, 1163, 1250},/* Profile8 */
+	{975,  975,  1025, 1050, 1088, 1125, 1175, 1263},/* Profile9 */
+	{975,  975,  1050, 1075, 1125, 1150, 1200, 1288},/* Profile10 */
+	{975,  975,  1050, 1075, 1125, 1175, 1225, 1300},/* Profile11 */
+	{975,  988,  1075, 1100, 1150, 1200, 1250, 1300},/* Profile12 */
+	{975,  1000, 1075, 1125, 1175, 1225, 1300, 1300},/* Profile13 */
+	{975,  1013, 1100, 1125, 1175, 1250, 1300, 1300},/* Profile14 */
+	{975,  1038, 1125, 1150, 1200, 1275, 1300, 1300},/* Profile15 */
 };
 
 static struct cpmsa_dvc_info cpmsa_dvc_info_1936sec = {
@@ -433,9 +494,9 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 	__init_read_droinfo();
 
 	dvc_pxa1936_info.millivolts =
-		vm_millivolts_1936_svcumc[uiprofile];
+		vm_millivolts_1936_svc_tsmc[uiprofile];
 
-	freqs_cmb = freqs_cmb_1936;
+	freqs_cmb = freqs_cmb_1936_tsmc;
 	plat_set_vl_min(0);
 	plat_set_vl_max(dvc_pxa1936_info.num_volts);
 
