@@ -353,7 +353,7 @@ static ssize_t pm88x_read_power_down(struct file *file, char __user *user_buf,
 	char buf[100];
 	char *powerdown1_name[] = {
 		"OVER_TEMP",
-		"UV_VSYS1",
+		"UV_VANA5",
 		"SW_PDOWN",
 		"FL_ALARM",
 		"WD",
@@ -363,10 +363,11 @@ static ssize_t pm88x_read_power_down(struct file *file, char __user *user_buf,
 	};
 	char *powerdown2_name[] = {
 		"HYB_DONE",
-		"UV_VSYS2",
-		"HW_RESET",
+		"UV_VBAT",
+		"HW_RESET2",
 		"PGOOD_PDOWN",
-		"LONKEY_RTC"
+		"LONKEY_RTC",
+		"HW_RESET1",
 	};
 
 	if (!chip)
@@ -417,7 +418,7 @@ static ssize_t pm88x_read_power_up(struct file *file, char __user *user_buf,
 		"ALARM_WAKEUP",
 		"FAULT_WAKEUP",
 		"BAT_WAKEUP",
-		"RESERVED",
+		"WLCHG_WAKEUP",
 	};
 
 	if (!chip)

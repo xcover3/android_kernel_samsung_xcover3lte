@@ -177,6 +177,7 @@ int pm88x_parse_dt(struct device_node *np, struct pm88x_chip *chip)
 static void parse_powerup_down_log(struct pm88x_chip *chip)
 {
 	int powerup, powerdown1, powerdown2, bit;
+	int powerup_bits, powerdown1_bits, powerdown2_bits;
 	static const char * const powerup_name[] = {
 		"ONKEY_WAKEUP	",
 		"CHG_WAKEUP	",
@@ -185,11 +186,11 @@ static void parse_powerup_down_log(struct pm88x_chip *chip)
 		"ALARM_WAKEUP	",
 		"FAULT_WAKEUP	",
 		"BAT_WAKEUP	",
-		"RESERVED	",
+		"WLCHG_WAKEUP	",
 	};
 	static const char * const powerdown1_name[] = {
 		"OVER_TEMP ",
-		"UV_VSYS1  ",
+		"UV_VANA5  ",
 		"SW_PDOWN  ",
 		"FL_ALARM  ",
 		"WD        ",
@@ -199,59 +200,78 @@ static void parse_powerup_down_log(struct pm88x_chip *chip)
 	};
 	static const char * const powerdown2_name[] = {
 		"HYB_DONE   ",
-		"UV_VSYS2   ",
-		"HW_RESET   ",
+		"UV_VBAT    ",
+		"HW_RESET2  ",
 		"PGOOD_PDOWN",
-		"LONKEY_RTC "
+		"LONKEY_RTC ",
+		"HW_RESET1  ",
 	};
 
-	/*power up log*/
 	regmap_read(chip->base_regmap, PM88X_POWER_UP_LOG, &powerup);
-	dev_info(chip->dev, "powerup log 0x%x: 0x%x\n",
-		 PM88X_POWER_UP_LOG, powerup);
-	dev_info(chip->dev, " -------------------------------\n");
-	dev_info(chip->dev, "|     name(power up) |  status  |\n");
-	dev_info(chip->dev, "|--------------------|----------|\n");
-	for (bit = 0; bit < 7; bit++)
-		dev_info(chip->dev, "|  %s  |    %x     |\n",
-			powerup_name[bit], (powerup >> bit) & 1);
-	dev_info(chip->dev, " -------------------------------\n");
-
-	/*power down log1*/
 	regmap_read(chip->base_regmap, PM88X_POWER_DOWN_LOG1, &powerdown1);
-	dev_info(chip->dev, "PowerDW Log1 0x%x: 0x%x\n",
-		PM88X_POWER_DOWN_LOG1, powerdown1);
-	dev_info(chip->dev, " -------------------------------\n");
-	dev_info(chip->dev, "| name(power down1)  |  status  |\n");
-	dev_info(chip->dev, "|--------------------|----------|\n");
-	for (bit = 0; bit < 8; bit++)
-		dev_info(chip->dev, "|    %s      |    %x     |\n",
-			powerdown1_name[bit], (powerdown1 >> bit) & 1);
-	dev_info(chip->dev, " -------------------------------\n");
-
-	/*power down log2*/
 	regmap_read(chip->base_regmap, PM88X_POWER_DOWN_LOG2, &powerdown2);
-	dev_info(chip->dev, "PowerDW Log2 0x%x: 0x%x\n",
-		PM88X_POWER_DOWN_LOG2, powerdown2);
-	dev_info(chip->dev, " -------------------------------\n");
-	dev_info(chip->dev, "|  name(power down2) |  status  |\n");
-	dev_info(chip->dev, "|--------------------|----------|\n");
-	for (bit = 0; bit < 5; bit++)
-		dev_info(chip->dev, "|    %s     |    %x     |\n",
-			powerdown2_name[bit], (powerdown2 >> bit) & 1);
-	dev_info(chip->dev, " -------------------------------\n");
 
-	/* write to clear */
-	regmap_write(chip->base_regmap, PM88X_POWER_DOWN_LOG1, 0xff);
-	regmap_write(chip->base_regmap, PM88X_POWER_DOWN_LOG2, 0xff);
-
-	/* mask reserved bits and sleep indication */
-	powerdown2 &= 0x1e;
+	/*
+	 * mask reserved bits
+	 *
+	 * note: HYB_DONE and HW_RESET1 are kept,
+	 *       but should not be considered as power down events
+	 */
+	if (chip->type == PM886) {
+		powerup &= 0x7f;
+		powerdown2 &= 0x1f;
+		powerup_bits = 7;
+		powerdown1_bits = 8;
+		powerdown2_bits = 5;
+	} else {
+		powerdown2 &= 0x3f;
+		powerup_bits = 8;
+		powerdown1_bits = 8;
+		powerdown2_bits = 6;
+	}
 
 	/* keep globals for external usage */
 	chip->powerup = powerup;
 	chip->powerdown1 = powerdown1;
 	chip->powerdown2 = powerdown2;
+
+	/* power up log */
+	dev_info(chip->dev, "powerup log 0x%x: 0x%x\n",
+		 PM88X_POWER_UP_LOG, powerup);
+	dev_info(chip->dev, " ----------------------------\n");
+	dev_info(chip->dev, "|  name(power up) |  status  |\n");
+	dev_info(chip->dev, "|-----------------|----------|\n");
+	for (bit = 0; bit < powerup_bits; bit++)
+		dev_info(chip->dev, "|  %s  |    %x     |\n",
+			powerup_name[bit], (powerup >> bit) & 1);
+	dev_info(chip->dev, " ----------------------------\n");
+
+	/* power down log1 */
+	dev_info(chip->dev, "PowerDW Log1 0x%x: 0x%x\n",
+		PM88X_POWER_DOWN_LOG1, powerdown1);
+	dev_info(chip->dev, " -------------------------------\n");
+	dev_info(chip->dev, "| name(power down1)  |  status  |\n");
+	dev_info(chip->dev, "|--------------------|----------|\n");
+	for (bit = 0; bit < powerdown1_bits; bit++)
+		dev_info(chip->dev, "|    %s      |    %x     |\n",
+			powerdown1_name[bit], (powerdown1 >> bit) & 1);
+	dev_info(chip->dev, " -------------------------------\n");
+
+	/* power down log2 */
+	dev_info(chip->dev, "PowerDW Log2 0x%x: 0x%x\n",
+		PM88X_POWER_DOWN_LOG2, powerdown2);
+	dev_info(chip->dev, " -------------------------------\n");
+	dev_info(chip->dev, "|  name(power down2) |  status  |\n");
+	dev_info(chip->dev, "|--------------------|----------|\n");
+	for (bit = 0; bit < powerdown2_bits; bit++)
+		dev_info(chip->dev, "|    %s     |    %x     |\n",
+			powerdown2_name[bit], (powerdown2 >> bit) & 1);
+	dev_info(chip->dev, " -------------------------------\n");
+
+	/* write to clear */
+	regmap_write(chip->base_regmap, PM88X_POWER_UP_LOG, 0xff);
+	regmap_write(chip->base_regmap, PM88X_POWER_DOWN_LOG1, 0xff);
+	regmap_write(chip->base_regmap, PM88X_POWER_DOWN_LOG2, 0xff);
 }
 
 int pm88x_post_init_chip(struct pm88x_chip *chip)
@@ -271,7 +291,7 @@ int pm88x_post_init_chip(struct pm88x_chip *chip)
 	}
 	chip->chip_id = val;
 
-	dev_info(chip->dev, "PM886 chip ID = 0x%x\n", val);
+	dev_info(chip->dev, "PM88X chip ID = 0x%x\n", val);
 
 	/* read before alarm wake up bit before initialize interrupt */
 	ret = regmap_read(chip->base_regmap, PM88X_RTC_ALARM_CTRL1, &val);
