@@ -217,6 +217,7 @@
 
 /* virtual reg for indicating bt wb& nb mode */
 #define MAP_BT_WORK_MODE		0x41c
+#define TDM_CLK_ENABLE			0x420
 
 /*TDM interface reg*/
 #define MAP_TDM_CTRL_REG_1		0x3c
@@ -461,6 +462,7 @@ struct map_private {
 	unsigned int dsp1a_sw_id;
 	/* add for map reset */
 	unsigned int user_count;
+	unsigned int tdm_clk_cnt;
 	spinlock_t map_lock;
 	void __iomem *regs_apmu;
 	void __iomem *apmu_base;

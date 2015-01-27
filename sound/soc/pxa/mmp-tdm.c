@@ -294,6 +294,10 @@ static inline int mmp_tdm_slot_config(struct tdm_manage_private *tdm_man_priv,
 		mask = TDM_APPLY_CKG_CONF | TDM_APPLY_TDM_CONF;
 		tdm_reg_update(tdm_man_priv->dev, addr, mask, mask);
 	} else {
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+		if (map_priv->tdm_clk_cnt)
+			return slot;
+#endif
 		tdm_ctrl1 = TDM_EN | TDM_MNT_FIFO_EN;
 		map_raw_write(map_priv, TDM_CTRL_REG1, tdm_ctrl1);
 		map_raw_write(map_priv, TDM_CTRL_REG2, 0);
@@ -956,6 +960,42 @@ out:
 	return 0;
 }
 
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+void tdm_clk_enable(struct map_private *map_priv, bool enable)
+{
+	u32 data;
+	if (enable) {
+		spin_lock(&map_priv->map_lock);
+		map_priv->tdm_clk_cnt++;
+		spin_unlock(&map_priv->map_lock);
+		if (map_priv->tdm_clk_cnt > 1)
+			return;
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_1, 0x1a0120);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_2, 0x21);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_6, 0x5);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_8, 0x500bfc);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_9, 0x48);
+		/* apply change */
+		data = map_raw_read(map_priv, MAP_TDM_CTRL_REG_1);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_1, data | 0x6000);
+	} else {
+		spin_lock(&map_priv->map_lock);
+		if (map_priv->tdm_clk_cnt > 0)
+			map_priv->tdm_clk_cnt--;
+		spin_unlock(&map_priv->map_lock);
+		if (map_priv->tdm_clk_cnt)
+			return;
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_2, 0);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_6, 0);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_8, 0);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_9, 0);
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_1, 0);
+		/* apply change */
+		map_raw_write(map_priv, MAP_TDM_CTRL_REG_1, 0x6000);
+	}
+}
+#endif
+
 /* Set SYSCLK */
 static int mmp_set_tdm_dai_sysclk(struct snd_soc_dai *cpu_dai,
 				    int clk_id, unsigned int freq, int dir)
@@ -1084,7 +1124,11 @@ static int mmp_tdm_startup(struct snd_pcm_substream *substream,
 	 * tdm rate is fixed at 48K
 	 * u32 fclk_rate = tdm_dai_priv->tdm_fclk;
 	 */
-
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	spin_lock(&map_priv->map_lock);
+	map_priv->tdm_clk_cnt++;
+	spin_unlock(&map_priv->map_lock);
+#endif
 	map_be_active(map_priv);
 
 	return 0;
@@ -1100,6 +1144,11 @@ static void mmp_tdm_shutdown(struct snd_pcm_substream *substream,
 	 * due to map reset, clock doesn't work
 	 * map_disable_i2s_bclk(tdm_dai_priv->i2s_id);
 	 */
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	spin_lock(&map_priv->map_lock);
+	map_priv->tdm_clk_cnt--;
+	spin_unlock(&map_priv->map_lock);
+#endif
 	map_be_reset(map_priv);
 
 	return;

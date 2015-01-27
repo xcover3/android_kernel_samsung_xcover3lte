@@ -35,6 +35,8 @@
 #include <linux/mfd/mmp-map.h>
 #include <linux/mfd/88pm80x.h>
 
+#include "../pxa/mmp-tdm.h"
+
 struct map_fe_dai_private {
 	struct snd_soc_codec *codec;
 	struct regmap *regmap;
@@ -255,7 +257,7 @@ static int map_snd_soc_bytes_put(struct snd_kcontrol *kcontrol,
 {
 	struct soc_bytes *params = (void *)kcontrol->private_value;
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	int ret, len;
+	int ret = 0, len;
 	unsigned int val, mask;
 	void *data;
 	struct map_fe_dai_private *map_fe_dai_priv;
@@ -269,6 +271,26 @@ static int map_snd_soc_bytes_put(struct snd_kcontrol *kcontrol,
 	data = kmemdup(ucontrol->value.bytes.data, len, GFP_KERNEL | GFP_DMA);
 	if (!data)
 		return -ENOMEM;
+
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	val = ((u32 *)data)[0];
+	if ((params->base == TDM_CLK_ENABLE) && val) {
+		/* enable TDM clock */
+		if (!map_priv->user_count)
+			pr_info("MAP is reset, will not enable TDM clk.\n");
+		else
+			tdm_clk_enable(map_priv, 1);
+		goto out;
+
+	} else if ((params->base == TDM_CLK_ENABLE) && (!val)) {
+		/* disable TDM clock */
+		if (!map_priv->user_count)
+			pr_info("MAP is reset, will not disable TDM clk.\n");
+		else
+			tdm_clk_enable(map_priv, 0);
+		goto out;
+	}
+#endif
 
 	/*
 	 * If we've got a mask then we need to preserve the register
@@ -363,8 +385,11 @@ static const struct snd_kcontrol_new map_snd_controls[] = {
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG12", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG13", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG14", 0, 0),
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	SND_SOC_BYTES_MAP("TDM_CLK_ENABLE", TDM_CLK_ENABLE, 1),
+#else
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG15", 0, 0),
-
+#endif
 	SND_SOC_BYTES_MAP("MAP_REVISION", MAP_REV, 1),
 	SND_SOC_BYTES_MAP("MAP_LRCLK_RATE_REG", MAP_LRCLK_RATE_REG, 1),
 	SND_SOC_BYTES_MAP("MAP_I2S1_CTRL_REG", MAP_I2S1_CTRL_REG, 1),

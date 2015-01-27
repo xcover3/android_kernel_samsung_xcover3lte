@@ -16,6 +16,7 @@
 #ifndef _MMP_TDM_H
 #define _MMP_TDM_H
 
+#include <linux/mfd/mmp-map.h>
 /*
  * TDM Registers
  */
@@ -130,4 +131,5 @@ unsigned int mmp_tdm_free_slot(struct snd_pcm_substream *substream);
 int mmp_tdm_static_slot_alloc(struct snd_pcm_substream *substream,
 				int *tx, int tx_num, int *rx, int rx_num);
 int mmp_tdm_static_slot_free(struct snd_pcm_substream *substream);
+void tdm_clk_enable(struct map_private *map_priv, bool enable);
 #endif /* _MMP_TDM_H */
