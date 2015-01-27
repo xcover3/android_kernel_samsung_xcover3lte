@@ -240,6 +240,15 @@ static void pm88x_bat_disable_irq(struct pm88x_bat_irq *irq)
 {
 	if (!__test_and_set_bit(0, &irq->disabled))
 		disable_irq_nosync(irq->irq);
+
+}
+
+/* pay attention that we enlarge the capacity to 1000% */
+static int clamp_soc(int soc)
+{
+	soc = max(0, soc);
+	soc = min(1000, soc);
+	return soc;
 }
 
 /*
@@ -1273,8 +1282,8 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 			}
 		}
 
-		if (ccnt_val->soc <= 0)
-			ccnt_val->soc = 0;
+		ccnt_val->soc = clamp_soc(ccnt_val->soc);
+		ccnt_val->previous_soc = clamp_soc(ccnt_val->soc);
 		/*
 		 * clamp the capacity can only decrease in discharging scenario;
 		 * just in case it happens
@@ -1338,6 +1347,8 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 	 * previous_soc is used for calculation,
 	 * it reflects the delta in one round: real_value + protected_value
 	 */
+
+	ccnt_val->soc = clamp_soc(ccnt_val->soc);
 	ccnt_val->previous_soc = ccnt_val->soc;
 
 	ccnt_val->soc = ROUND_SOC(ccnt_val->soc);
