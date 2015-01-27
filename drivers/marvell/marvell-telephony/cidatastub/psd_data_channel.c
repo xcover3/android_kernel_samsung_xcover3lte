@@ -89,7 +89,8 @@ int psd_unregister(const struct psd_user *user, int cid)
 	int ret;
 	DP_PRINT("%s: cid:%d,\n", __func__, cid);
 	ret =  cmpxchg(&psd_users[cid], user, NULL) == user ? 0 : -ENOENT;
-	synchronize_rcu();
+	if (ret == 0)
+		synchronize_net();
 	return ret;
 }
 EXPORT_SYMBOL(psd_unregister);
