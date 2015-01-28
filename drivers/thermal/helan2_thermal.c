@@ -37,7 +37,6 @@
 #include <linux/pm_qos.h>
 #include <linux/cputype.h>
 #include <linux/devfreq.h>
-#include "helan2_thermal.h"
 #include "voltage_mrvl.h"
 
 #define APB_CLK_BASE (0xd4015000)
@@ -144,16 +143,16 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 		0, 0, 0, 0, 0, 0, 0, 0
 		},
 		[THROTTLE_CORE] = { 0,
-		0, 0, 1, 2, 3, 3, 3, 3
+		0, 0, 1, 2, 3, 4, 5, 5
 		},
 		[THROTTLE_HOTPLUG] = { 0,
 		0, 0, 0, 0, 0, 0, 1, 2
 		},
-		[THROTTLE_DDR] = { 0,
-		0, 0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_DDR] = { 1,
+		0, 0, 0, 1, 1, 2, 3, 3
 		},
-		[THROTTLE_GC3D] = { 0,
-		0, 0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_GC3D] = { 1,
+		0, 0, 0, 2, 3, 3, 4, 4
 		},
 		[THROTTLE_GC2D] = { 0,
 		0, 0, 0, 0, 0, 0, 0, 0
@@ -170,16 +169,16 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 		0, 0, 0, 0, 0, 0, 0, 0
 		},
 		[THROTTLE_CORE] = { 0,
-		0, 0, 1, 2, 3, 3, 3, 3
+		0, 0, 1, 2, 3, 4, 5, 5
 		},
 		[THROTTLE_HOTPLUG] = { 0,
 		0, 0, 0, 0, 0, 0, 1, 2
 		},
-		[THROTTLE_DDR] = { 0,
-		0, 0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_DDR] = { 1,
+		0, 0, 0, 1, 1, 2, 3, 3
 		},
-		[THROTTLE_GC3D] = { 0,
-		0, 0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_GC3D] = { 1,
+		0, 0, 0, 2, 3, 3, 4, 4
 		},
 		[THROTTLE_GC2D] = { 0,
 		0, 0, 0, 0, 0, 0, 0, 0
@@ -193,7 +192,29 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 	},
 };
 
-static int trips_temp[TRIP_POINTS_NUM] = {
+static int trips_temp_benchmark[TRIP_POINTS_NUM] = {
+	79000, /* TRIP_POINT_0 */
+	80000, /* TRIP_POINT_1 */
+	81000, /* TRIP_POINT_2 */
+	82000, /* TRIP_POINT_3 */
+	83000, /* TRIP_POINT_4 */
+	84000, /* TRIP_POINT_5 */
+	85000, /* TRIP_POINT_6 */
+	105000, /* TRIP_POINT_7 */
+};
+
+static int trips_hyst_benchmark[TRIP_POINTS_NUM] = {
+	77000, /* TRIP_POINT_0 */
+	78000, /* TRIP_POINT_1 */
+	79000, /* TRIP_POINT_2 */
+	80000, /* TRIP_POINT_3 */
+	81000, /* TRIP_POINT_4 */
+	82000, /* TRIP_POINT_5 */
+	83000, /* TRIP_POINT_6 */
+	105000, /* TRIP_POINT_7 */
+};
+
+static int trips_temp_powersave[TRIP_POINTS_NUM] = {
 	64000, /* TRIP_POINT_0 */
 	68000, /* TRIP_POINT_1 */
 	72000, /* TRIP_POINT_2 */
@@ -204,7 +225,7 @@ static int trips_temp[TRIP_POINTS_NUM] = {
 	105000, /* TRIP_POINT_7 */
 };
 
-static int trips_hyst[TRIP_POINTS_NUM] = {
+static int trips_hyst_powersave[TRIP_POINTS_NUM] = {
 	61000, /* TRIP_POINT_0_D */
 	65000, /* TRIP_POINT_1_D */
 	69000, /* TRIP_POINT_2_D */
@@ -278,7 +299,8 @@ static ssize_t hit_trip_status_get(struct device *dev,
 			TSEN_THD2_MASK) >> TSEN_THD2_OFF));
 	for (i = 0; i < TRIP_POINTS_NUM; i++) {
 		ret += sprintf(buf + ret, "trip %d: %d hits\n",
-				trips_temp[i],
+				thermal_dev.thermal_volt.tsen_trips_temp
+				[thermal_dev.thermal_volt.therm_policy][i],
 				thermal_dev.hit_trip_cnt[i]);
 	}
 	return ret;
@@ -326,7 +348,8 @@ static int cpu_sys_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 		int *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		*temp = trips_temp[trip];
+		*temp = thermal_dev.thermal_volt.tsen_trips_temp
+			[thermal_dev.thermal_volt.therm_policy][trip];
 	else
 		*temp = -1;
 	return 0;
@@ -336,7 +359,8 @@ static int cpu_sys_get_trip_hyst(struct thermal_zone_device *thermal,
 		int trip, int *temp)
 {
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		*temp = trips_hyst[trip];
+		*temp = thermal_dev.thermal_volt.tsen_trips_temp_d
+			[thermal_dev.thermal_volt.therm_policy][trip];
 	else
 		*temp = -1;
 	return 0;
@@ -348,9 +372,11 @@ static int cpu_sys_set_trip_temp(struct thermal_zone_device *thermal, int trip,
 	u32 tmp;
 	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
 	if ((trip >= 0) && (trip < TRIP_POINTS_NUM))
-		trips_temp[trip] = temp;
+		thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip) {
-		tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+			[thermal_dev.thermal_volt.therm_policy][TRIP_POINTS_NUM - 1]) <<
 					TSEN_THD2_OFF) & TSEN_THD2_MASK;
 		reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
 	} else
@@ -363,7 +389,8 @@ static int cpu_sys_set_trip_hyst(struct thermal_zone_device *thermal,
 {
 	struct pxa28nm_thermal_device *cpu_thermal = thermal->devdata;
 	if ((trip >= 0) && (trip < TRIP_POINTS_ACTIVE_NUM))
-		trips_hyst[trip] = temp;
+		thermal_dev.thermal_volt.tsen_trips_temp_d
+			[thermal_dev.thermal_volt.therm_policy][trip] = temp;
 	if ((TRIP_POINTS_NUM - 1) == trip)
 		pr_warn("critical down doesn't used\n");
 	else
@@ -374,7 +401,8 @@ static int cpu_sys_set_trip_hyst(struct thermal_zone_device *thermal,
 static int cpu_sys_get_crit_temp(struct thermal_zone_device *thermal,
 		int *temp)
 {
-	return trips_temp[TRIP_POINTS_NUM - 1];
+	return thermal_dev.thermal_volt.tsen_trips_temp
+		[thermal_dev.thermal_volt.therm_policy][TRIP_POINTS_NUM - 1];
 }
 
 static struct thermal_zone_device_ops cpu_thermal_ops = {
@@ -561,29 +589,35 @@ static int pxa28nm_set_threshold(int range)
 	}
 
 	if (0 == range) {
-		tmp = (millicelsius_encode(trips_temp[0]) << TSEN_THD0_OFF) &
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+			[thermal_dev.thermal_volt.therm_policy][0]) << TSEN_THD0_OFF) &
 							TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_hyst[0]) << TSEN_THD1_OFF) &
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp_d
+			[thermal_dev.thermal_volt.therm_policy][0]) << TSEN_THD1_OFF) &
 							TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
 		reg_clr_set(TSEN_LCTRL, TSEN_INT1_ENABLE, 0);
 
 	} else if (TRIP_POINTS_ACTIVE_NUM == range) {
-		tmp = (millicelsius_encode(trips_temp[range - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+			[thermal_dev.thermal_volt.therm_policy][range - 1]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_hyst[range - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp_d
+			[thermal_dev.thermal_volt.therm_policy][range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, TSEN_INT0_ENABLE, 0);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT1_ENABLE);
 	} else {
-		tmp = (millicelsius_encode(trips_temp[range]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+			[thermal_dev.thermal_volt.therm_policy][range]) <<
 						TSEN_THD0_OFF) & TSEN_THD0_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD0_MASK, tmp);
-		tmp = (millicelsius_encode(trips_hyst[range - 1]) <<
+		tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp_d
+			[thermal_dev.thermal_volt.therm_policy][range - 1]) <<
 						TSEN_THD1_OFF) & TSEN_THD1_MASK;
 		reg_clr_set(TSEN_THD01, TSEN_THD1_MASK, tmp);
 		reg_clr_set(TSEN_LCTRL, 0, TSEN_INT0_ENABLE);
@@ -607,13 +641,20 @@ static void mapping_cooling_dev(struct device_node *np)
 	thermal_dev.thermal_volt.therm_policy = POWER_SAVING_MODE;
 	thermal_dev.thermal_volt.range_max = TRIP_POINTS_ACTIVE_NUM;
 	strcpy(thermal_dev.thermal_volt.cpu_name, "ulc");
+	thermal_dev.thermal_volt.set_threshold = pxa28nm_set_threshold;
 
 	thermal_dev.thermal_volt.vl_master = THROTTLE_CORE;
-	for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
+	for (i = 0; i < TRIP_POINTS_NUM; i++) {
 		thermal_dev.thermal_volt.tsen_trips_temp
-		[thermal_dev.thermal_volt.therm_policy][i] = trips_temp[i];
+		[POWER_SAVING_MODE][i] = trips_temp_powersave[i];
 		thermal_dev.thermal_volt.tsen_trips_temp_d
-		[thermal_dev.thermal_volt.therm_policy][i] = trips_hyst[i];
+		[POWER_SAVING_MODE][i] = trips_hyst_powersave[i];
+
+		thermal_dev.thermal_volt.tsen_trips_temp
+		[BENCHMARK_MODE][i] = trips_temp_benchmark[i];
+		thermal_dev.thermal_volt.tsen_trips_temp_d
+		[BENCHMARK_MODE][i] = trips_hyst_benchmark[i];
+
 	}
 	mutex_init(&thermal_dev.thermal_volt.policy_lock);
 	voltage_mrvl_init(&(thermal_dev.thermal_volt));
@@ -621,185 +662,6 @@ static void mapping_cooling_dev(struct device_node *np)
 	register_debug_interface();
 	tsen_policy_dump(NULL, 0);
 	return;
-}
-
-#define PP_CARE_NUM 4
-static void pxa28nm_mapping_cooling_dev(struct device_node *np)
-{
-	unsigned int profile = 0, iddq105 = 0;
-	int i, j;
-	u32 cur_t = 0, old_t = 0, x = 0, y = 0;
-	int fake_t = 0;
-	char dt_name[20];
-	u32 ctable[PP_CARE_NUM][4] = {{0} };
-	struct cpufreq_frequency_table *table =
-		cpufreq_frequency_get_table(0);
-	unsigned int freq_max = 0;
-	u32 tsafe_freq, tsafe_plug;
-
-	profile = get_chipprofile();
-	iddq105 = get_iddq_105();
-
-	if (10 == profile || 12 == profile || 14 == profile)
-		profile++;
-
-	if (0 != iddq105 && profile < 16) {
-		getThermalLimitsPerPP(profile, iddq105, (int **)thermal_dev.ttemp_table);
-
-		sprintf(dt_name, "core-p%d", profile);
-		if (!of_property_read_bool(np, dt_name))
-			sprintf(dt_name, "core-p0");
-
-		of_property_read_u32_array(np, dt_name, (u32 *)ctable, PP_CARE_NUM * 4);
-		old_t = 0;
-		cur_t = 1;
-		thermal_dev.cdev.cpufreq_cstate[0] = 0;
-		thermal_dev.cdev.hotplug_cstate[0] = 0;
-		while (1) {
-f_next:
-			if (cur_t == old_t || cur_t > TRIP_POINTS_ACTIVE_NUM) {
-				/* keep the remaining cooling as the last one */
-				for (i = (cur_t + 1); i < THERMAL_MAX_TRIPS; i++) {
-					thermal_dev.cdev.cpufreq_cstate[i] =
-						thermal_dev.cdev.cpufreq_cstate[cur_t];
-					thermal_dev.cdev.hotplug_cstate[i] =
-						thermal_dev.cdev.hotplug_cstate[cur_t];
-				}
-				break;
-			}
-			old_t = cur_t;
-			for (i = 0; i < PP_CARE_NUM; i++) {
-				for (j = 0; j < 4; j++) {
-					if (ctable[i][j] == cur_t) {
-						thermal_dev.cdev.cpufreq_cstate[cur_t] = i;
-						thermal_dev.cdev.hotplug_cstate[cur_t] = j;
-						x = thermal_dev.cdev.cpufreq_cstate[cur_t - 1];
-						y = thermal_dev.cdev.hotplug_cstate[cur_t - 1];
-						trips_temp[cur_t-1] = thermal_dev.ttemp_table[x][y]
-							* 1000;
-						/*
-						 * get to 1.2G row, we can't find a temperture
-						 * to go out from SV table anymore, so get out
-						 */
-						if (i == PP_CARE_NUM - 1)
-							goto f_next;
-						cur_t++;
-						goto f_next;
-					}
-				}
-			}
-		}
-		pr_info("|----raw mapping----|\n");
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			pr_info("%dmC==>%ld %ld\n", trips_temp[i],
-					thermal_dev.cdev.cpufreq_cstate[i+1],
-					thermal_dev.cdev.hotplug_cstate[i+1]);
-		}
-		/*
-		 * for -1000mC, set fake temp from 15C; for same temperature,
-		 * sub a 10C for the former one, thus to keep trip point different and satisfy
-		 * thermal framework
-		 */
-		pr_info("|----refine temp----|\n");
-		fake_t = 15000;
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			if (-1000 == trips_temp[i]) {
-				trips_temp[i] = fake_t;
-				fake_t += 5000;
-			} else
-				break;
-		}
-		for (i = TRIP_POINTS_ACTIVE_NUM - 1; i > 0; i--) {
-			if (trips_temp[i] <= trips_temp[i - 1])
-				trips_temp[i - 1] = trips_temp[i] - 10000;
-		}
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			pr_info("%dmC==>%ld %ld\n", trips_temp[i],
-					thermal_dev.cdev.cpufreq_cstate[i+1],
-					thermal_dev.cdev.hotplug_cstate[i+1]);
-		}
-		/* Apply THERMAL_SAFE_TEMP */
-		pr_info("|----apply thermal safe----|\n");
-		sprintf(dt_name, "thermal_safe-p%d", profile);
-		if (!of_property_read_bool(np, dt_name))
-			sprintf(dt_name, "thermal_safe-p0");
-		of_property_read_u32_index(np, dt_name, 0, &tsafe_freq);
-		of_property_read_u32_index(np, dt_name, 1, &tsafe_plug);
-
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			if (THERMAL_SAFE_TEMP == trips_temp[i]) {
-				j = i;
-				goto find_tsen_safe;
-			}
-		}
-		/* if don't find, we need assign one */
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			if (trips_temp[i] > THERMAL_SAFE_TEMP) {
-				trips_temp[i] = THERMAL_SAFE_TEMP;
-				j = i;
-				break;
-			}
-		}
-
-find_tsen_safe:
-		thermal_dev.cdev.cpufreq_cstate[j + 1] = tsafe_freq;
-		thermal_dev.cdev.hotplug_cstate[j + 1] = tsafe_plug;
-		for (i = j + 1; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			thermal_dev.cdev.cpufreq_cstate[i + 1] =
-				thermal_dev.cdev.cpufreq_cstate[i];
-			thermal_dev.cdev.hotplug_cstate[i + 1] =
-				thermal_dev.cdev.hotplug_cstate[i];
-		}
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			pr_info("%dmC==>%ld %ld\n", trips_temp[i],
-				thermal_dev.cdev.cpufreq_cstate[i+1],
-				thermal_dev.cdev.hotplug_cstate[i+1]);
-		}
-
-		/* The table from SV is from 2.0G, we have to tune index */
-		for (i = 0; table[i].frequency != CPUFREQ_TABLE_END; i++) {
-			if (table[i].frequency > freq_max)
-				freq_max = table[i].frequency;
-		}
-		pr_info("|----tune for %dkHz chip----|\n", freq_max);
-		if (1700 * 1000 < freq_max && freq_max < 1900 * 1000) {
-			for (i = 0; i < THERMAL_MAX_TRIPS; i++)
-				if (thermal_dev.cdev.cpufreq_cstate[i])
-					thermal_dev.cdev.cpufreq_cstate[i]--;
-		} else if (1400 * 1000 < freq_max && freq_max < 1600 * 1000) {
-			for (i = 0; i < THERMAL_MAX_TRIPS; i++) {
-				if (1 == thermal_dev.cdev.cpufreq_cstate[i])
-					thermal_dev.cdev.cpufreq_cstate[i] = 0;
-				else if (thermal_dev.cdev.cpufreq_cstate[i] >= 2)
-					thermal_dev.cdev.cpufreq_cstate[i] -= 2;
-			}
-		} else if (freq_max < 1400 * 1000) {
-			for (i = 0; i < THERMAL_MAX_TRIPS; i++)
-				thermal_dev.cdev.cpufreq_cstate[i] = 0;
-		}
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			pr_info("%dmC==>%ld %ld(state %d)\n", trips_temp[i],
-					thermal_dev.cdev.cpufreq_cstate[i+1],
-					thermal_dev.cdev.hotplug_cstate[i+1], i + 1);
-		}
-		/* set to down threshold */
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++)
-			trips_hyst[i] = trips_temp[i] - 10000;
-	} else {
-		thermal_dev.cdev.cpufreq_cstate[0] = 0;
-		thermal_dev.cdev.hotplug_cstate[0] = 0;
-		for (i = 1; i <= TRIP_POINTS_ACTIVE_NUM; i++) {
-			thermal_dev.cdev.cpufreq_cstate[i] = i;
-			thermal_dev.cdev.hotplug_cstate[i] = 0;
-		}
-		pr_warn("thermal iddq unfused chip, use default policy for profile(%d) iddq(%d)\n",
-				profile, iddq105);
-		for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-			pr_info("%dmC==>%ld %ld(state %d)\n", trips_temp[i],
-					thermal_dev.cdev.cpufreq_cstate[i+1],
-					thermal_dev.cdev.hotplug_cstate[i+1], i + 1);
-		}
-	}
 }
 
 static irqreturn_t pxa28nm_thread_irq(int irq, void *devid)
@@ -928,18 +790,17 @@ static int pxa28nm_thermal_probe(struct platform_device *pdev)
 	} else
 		pr_info("thermal status fine\n");
 
+	/* init threshold */
+	mapping_cooling_dev(pdev->dev.of_node);
 	/* init thermal framework */
 	pxa28nm_register_thermal();
-	/* init threshold */
-	if (cpu_is_pxa1U88())
-		pxa28nm_mapping_cooling_dev(pdev->dev.of_node);
-	else
-		mapping_cooling_dev(pdev->dev.of_node);
+
 	tmp = (millicelsius_encode(110000) << TSEN_WDT_THD_OFF) &
 					TSEN_WDT_THD_MASK;
 	reg_clr_set(TSEN_THD23, TSEN_WDT_THD_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_WDT_DIRECTION | TSEN_WDT_ENABLE);
-	tmp = (millicelsius_encode(trips_temp[TRIP_POINTS_NUM - 1]) <<
+	tmp = (millicelsius_encode(thermal_dev.thermal_volt.tsen_trips_temp
+			[thermal_dev.thermal_volt.therm_policy][TRIP_POINTS_NUM - 1]) <<
 			TSEN_THD2_OFF) & TSEN_THD2_MASK;
 	reg_clr_set(TSEN_THD23, TSEN_THD2_MASK, tmp);
 	reg_clr_set(TSEN_LCTRL, 0, TSEN_INT2_ENABLE | TSEN_INT2_DIRECTION);
