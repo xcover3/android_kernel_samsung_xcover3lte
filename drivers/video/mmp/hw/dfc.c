@@ -672,6 +672,52 @@ static void dfc_handle(void *data)
 	}
 }
 
+static int dfc_set_rate_no_reparent(struct mmphw_ctrl *ctrl, unsigned int rate)
+{
+	struct mmp_path *path = ctrl->path_plats[0].path;
+	struct mmp_dfc *dfc = &ctrl->dfc;
+	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
+	struct parent_index source;
+	int count = 0;
+	struct clk *dsi_clk = dsi->clk;
+	unsigned long flags;
+	int ret = 0;
+
+	dfc->dsi_rate = rate * MHZ_TO_HZ;
+	dfc->path_rate = set_pixel_clk(dsi, dfc->dsi_rate);
+
+	memset(&source, 0, sizeof(source));
+	get_current_parent_index(dsi_clk, &source);
+	dfc->parent0 = clk_parent0;
+	dfc->current_parent1 = parent1_clk_tbl[source.parent1-1];
+	dfc->current_parent2 = parent2_clk_tbl[source.parent2-1];
+	dfc->parent1 = dfc->current_parent1;
+	dfc->parent2 = dfc->current_parent2;
+
+	calculate_reg_value(ctrl);
+	if (path->status) {
+		atomic_set(&ctrl->dfc.commit, 1);
+		do {
+			mmp_wait_vsync(&dsi->special_vsync);
+			count++;
+		} while (atomic_read(&ctrl->dfc.commit) && (count < DFC_RETRY_TIMEOUT));
+	} else {
+		writel_relaxed(ctrl->dfc.apmu_value, ctrl->dfc.apmu_reg);
+		writel_relaxed(ctrl->dfc.sclk_value, ctrl->dfc.sclk_reg);
+		sclk_div = ctrl->dfc.sclk_value;
+	}
+
+	spin_lock_irqsave(&ctrl->dfc.lock, flags);
+	if (unlikely(count == DFC_RETRY_TIMEOUT)
+		&& atomic_read(&ctrl->dfc.commit)) {
+		atomic_set(&ctrl->dfc.commit, 0);
+		ret = -EFAULT;
+	}
+	spin_unlock_irqrestore(&ctrl->dfc.lock, flags);
+
+	return ret;
+}
+
 static int dfc_set_rate(struct mmp_path *path, unsigned long rate, unsigned long req)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
@@ -706,19 +752,27 @@ static int dfc_set_rate(struct mmp_path *path, unsigned long rate, unsigned long
 				ctrl->reg_base + LCD_SCLK_DIV);
 	}
 
-	ret = dfc_prepare(ctrl, rate);
-	if (ret < 0) {
-		pr_err("dfc prepare failure\n");
-		mutex_unlock(&ctrl->access_ok);
-		return -1;
+	if (req == GC_REQUEST) {
+		ret = dfc_set_rate_no_reparent(ctrl, rate);
+		if (ret < 0) {
+			pr_err("dfc prepare failure\n");
+			mutex_unlock(&ctrl->access_ok);
+			return -1;
+		}
+	} else {
+		ret = dfc_prepare(ctrl, rate);
+		if (ret < 0) {
+			pr_err("dfc prepare failure\n");
+			mutex_unlock(&ctrl->access_ok);
+			return -1;
+		}
+		ret = dfc_commit(ctrl);
+		if (ret < 0) {
+			pr_err("dfc commit failure\n");
+			mutex_unlock(&ctrl->access_ok);
+			return -1;
+		}
 	}
-	ret = dfc_commit(ctrl);
-	if (ret < 0) {
-		pr_err("dfc commit failure\n");
-		mutex_unlock(&ctrl->access_ok);
-		return -1;
-	}
-
 	if (!path->status) {
 		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
 		clk_disable_unprepare(hclk);
