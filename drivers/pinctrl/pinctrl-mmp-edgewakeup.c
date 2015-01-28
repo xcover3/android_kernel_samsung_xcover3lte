@@ -106,6 +106,32 @@ int request_mfp_edge_wakeup(int gpio, edge_handler handler, \
 }
 EXPORT_SYMBOL_GPL(request_mfp_edge_wakeup);
 
+int edge_wakeup_mfp_status(unsigned long *edge_reg)
+{
+	int i;
+
+	for (i = 0; i < (info->num / BITS_PER_LONG); i++) {
+		/*
+		 * 64 and 32bits have different bytes length for "unsigned
+		 * *long". For 64bits, need to combine regs value for edgew
+		 * _rer[i]. Otherwise, the upper 32bits of edgew_rer[i]
+		 * would be zero and test_and_clear_bit(e->gpio, edgew_rer)
+		 * will find the wrong bit.
+		 */
+#ifdef CONFIG_64BIT
+		unsigned long low_bits, high_bits;
+		low_bits = readl_relaxed(info->base + (2 * i) * 4);
+		high_bits = readl_relaxed(info->base + (2 * i + 1) * 4);
+		edge_reg[i] = low_bits | high_bits << 32;
+#else
+		edge_reg[i] = readl_relaxed(info->base + i * 4);
+#endif
+	}
+
+	return info->num / BITS_PER_LONG;
+}
+EXPORT_SYMBOL_GPL(edge_wakeup_mfp_status);
+
 int remove_mfp_edge_wakeup(int gpio)
 {
 	struct edge_wakeup_desc *e;
@@ -198,36 +224,32 @@ void edge_wakeup_mfp_disable(void)
 	struct edge_wakeup_desc *e;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pin_def;
-	unsigned long edgew_rer[8];
+	unsigned long *edgew_rer;
 	int i, ret;
-#ifdef	CONFIG_64BIT
-	unsigned long low_bits, high_bits;
-#endif
-
 	/*
 	 * check info when board boots up, at which point edge wakeup driver
 	 * is not ready yet.
 	 */
-	if (info == NULL)
+	if (info == NULL) {
+		pr_err("Edge wakeup driver is not initilized!\n");
 		return;
+	}
+
+	edgew_rer = kzalloc(info->num / 8 , GFP_KERNEL);
+	if (!edgew_rer) {
+		pr_err("Can't allocate enough memory for edge detection status!\n");
+		return;
+	}
 
 	spin_lock(&info->lock);
 
 	if (!info->enabled) {
 		spin_unlock(&info->lock);
+		kfree(edgew_rer);
 		return;
 	}
 
-#ifdef	CONFIG_64BIT
-	for (i = 0; i <= (info->num / 64); i++) {
-		low_bits = readl_relaxed(info->base + (2 * i) * 4);
-		high_bits = readl_relaxed(info->base + (2 * i + 1) * 4);
-		edgew_rer[i] = low_bits | high_bits << 32;
-	}
-#else
-	for (i = 0; i <= (info->num / 32); i++)
-		edgew_rer[i] = readl_relaxed(info->base + i * 4);
-#endif
+	edge_wakeup_mfp_status(edgew_rer);
 
 	list_for_each_entry(e, &info->list, list) {
 		if (test_and_clear_bit(e->gpio, edgew_rer) && e->handler)
@@ -271,17 +293,10 @@ void edge_wakeup_mfp_disable(void)
 		i = find_next_bit(edgew_rer, info->num, i + 1);
 	}
 
+	kfree(edgew_rer);
 	return;
 }
 EXPORT_SYMBOL_GPL(edge_wakeup_mfp_disable);
-
-int edge_wakeup_mfp_status(unsigned long *edge_reg)
-{
-	int i;
-	for (i = 0; i <= (info->num / 32); i++)
-		edge_reg[i] = readl_relaxed(info->base + i * 4);
-	return i;
-}
 
 static int edge_wakeup_mfp_probe(struct platform_device *pdev)
 {
