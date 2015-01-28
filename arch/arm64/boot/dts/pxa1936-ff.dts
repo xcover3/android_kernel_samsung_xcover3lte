@@ -161,6 +161,12 @@
 			};
 
 			twsi3: i2c@d4013800 {
+				sensor8: bmp280@76 {
+					compatible = "bosch-sensortec,bmp280";
+					reg = <0x76>;
+					avdd-supply = <&ldo16>;
+					status = "okay";
+				};
 				sensor7: apds990x@39 {
 					pinctrl-names = "default"; pinctrl-0 = <&apds990x_pins>;
 					compatible = "avago,apds990x";
