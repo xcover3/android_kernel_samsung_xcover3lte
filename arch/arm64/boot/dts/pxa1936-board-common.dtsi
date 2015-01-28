@@ -16,9 +16,6 @@
 #include <dt-bindings/mmc/pxa_sdhci.h>
 
 / {
-	model = "Marvell PXA1936 DKB Development Board";
-	compatible = "marvell,pxa1936-dkb", "marvell,pxa1936";
-
 	chosen {
 		bootargs = "console=ttyS0,115200 root=/dev/nfs nfsroot=192.168.1.100:/nfsroot/ ip=192.168.1.101:192.168.1.100::255.255.255.0::eth0:on";
 	};

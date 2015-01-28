@@ -56,6 +56,7 @@
 
 };
 / {
+	model = "Marvell PXA1936 FF Development Board";
 	compatible = "marvell,pxa1936-ff", "marvell,pxa1936";
 	soc {
 		apb@d4000000 {

@@ -11,6 +11,7 @@
 #include "pxa1936-board-common.dtsi"
 
 / {
+	model = "Marvell PXA1936 DKB V10 Development Board";
 	compatible = "marvell,pxa1936-dkb", "marvell,pxa1936";
 	soc {
 		apb@d4000000 {
