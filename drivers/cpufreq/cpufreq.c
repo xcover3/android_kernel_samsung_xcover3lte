@@ -861,6 +861,8 @@ static int cpufreq_add_dev_interface(struct cpufreq_policy *policy,
 	if (ret)
 		return ret;
 
+	policy->kobj.kset = cpufreq_kset;
+
 	/* set up files for this cpu device */
 	drv_attr = cpufreq_driver->attr;
 	while ((drv_attr) && (*drv_attr)) {
@@ -1111,7 +1113,9 @@ static int __cpufreq_add_dev(struct device *dev, struct subsys_interface *sif,
 	 */
 	if (frozen && cpu != policy->cpu) {
 		update_policy_cpu(policy, cpu);
+		policy->kobj.kset = NULL;
 		WARN_ON(kobject_move(&policy->kobj, &dev->kobj));
+		policy->kobj.kset = cpufreq_kset;
 	} else {
 		policy->cpu = cpu;
 	}
@@ -1287,6 +1291,7 @@ static int cpufreq_nominate_new_policy_cpu(struct cpufreq_policy *policy,
 	cpu_dev = get_cpu_device(cpumask_any_but(policy->cpus, old_cpu));
 
 	sysfs_remove_link(&cpu_dev->kobj, "cpufreq");
+	policy->kobj.kset = NULL;
 	ret = kobject_move(&policy->kobj, &cpu_dev->kobj);
 	if (ret) {
 		pr_err("%s: Failed to move kobj: %d", __func__, ret);
@@ -1300,7 +1305,7 @@ static int cpufreq_nominate_new_policy_cpu(struct cpufreq_policy *policy,
 
 		return -EINVAL;
 	}
-
+	policy->kobj.kset = cpufreq_kset;
 	return cpu_dev->id;
 }
 
