@@ -38,7 +38,7 @@
 #define PXA1936_CLK_PLL4			34
 #define PXA1936_CLK_PLL4P			35
 #define PXA1936_CLK_PLL4VCODIV3		36
-
+#define PXA1936_CLK_PLL1_499_GATE	37
 /* ddr/axi etc */
 #define PXA1936_CLK_DDR			40
 #define PXA1936_CLK_AXI			41

@@ -173,6 +173,8 @@ static struct mmp_param_general_gate_clk pll1_gate_clks[] = {
 		APMU_CLK_GATE_CTRL, 28, 0, &pll1_lock},
 	{PXA1936_CLK_PLL1_312_GATE, "pll1_312_gate", "pll1_2", 0,
 		APMU_CLK_GATE_CTRL, 29, 0, &pll1_lock},
+	{PXA1936_CLK_PLL1_499_GATE, "pll1_499_gate", "pll1_499_en", 0,
+		APMU_CLK_GATE_CTRL, 31, 0, &pll1_lock},
 };
 
 enum pll {
@@ -686,7 +688,7 @@ static const char *sc2_4x_parent_names[] = {"pll1_832_gate", "pll1_624_gate",
 		"pll2_div3", "pll2p", "pll4_div3"};
 static int sc2_4x_mux_table[] = {0x0, 0x1, 0x02, 0x82, 0x03};
 static struct mmp_clk_mix_config sc2_4x_mix_config = {
-	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 2, 16, 15),
+	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 2, 23, 15),
 	.mux_table = sc2_4x_mux_table,
 };
 
@@ -707,7 +709,7 @@ static struct mmp_clk_mix_config sc2_axi_mix_config = {
 static const char *sc2_phy_parent_names[] = {"pll1_6", "pll1_12"};
 
 static const char *isp_pipe_parent_names[] = {"pll1_416_gate", "pll1_624_gate",
-			"pll4_div3", "pll1_499_en",};
+			"pll4_div3", "pll1_499_gate",};
 static struct mmp_clk_mix_config isp_pipe_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 4, 2, 2, 7),
 };
