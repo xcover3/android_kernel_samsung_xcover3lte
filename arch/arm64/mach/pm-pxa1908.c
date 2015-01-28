@@ -374,12 +374,12 @@ static int check_mfp_wakeup_stat(char *buf, int len, size_t size)
 	mfp_edge_array_num = edge_wakeup_mfp_status(mfp_wp_stat);
 
 	for (i = 0; i < mfp_edge_array_num; i++) {
-		bit = find_first_bit(&mfp_wp_stat[i], 32);
-		while (bit < 32) {
+		bit = find_first_bit(mfp_wp_stat + i, BITS_PER_LONG);
+		while (bit < BITS_PER_LONG) {
 			if (tmp_len == len)
 				len += snprintf(buf + len, size - len, "MFP_PAD");
-			len += snprintf(buf + len, size - len, "-%d", bit + i * 32);
-			bit = find_next_bit(&mfp_wp_stat[i], 32, bit + 1);
+			len += snprintf(buf + len, size - len, "-%d", bit + i * BITS_PER_LONG);
+			bit = find_next_bit(mfp_wp_stat + i, BITS_PER_LONG, bit + 1);
 		}
 	}
 
