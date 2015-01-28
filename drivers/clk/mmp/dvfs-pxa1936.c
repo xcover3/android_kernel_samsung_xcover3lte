@@ -76,7 +76,7 @@ struct svtrng {
 };
 
 static struct svtrng svtrngtb[] = {
-	{0, 310, 15},
+	{290, 310, 15},
 	{311, 322, 14},
 	{323, 335, 13},
 	{336, 348, 12},
@@ -90,7 +90,7 @@ static struct svtrng svtrngtb[] = {
 	{406, 411, 4},
 	{412, 417, 3},
 	{418, 424, 2},
-	{425, 0xffffffff, 1},
+	{425, 440, 1},
 };
 
 void convert_max_freq(unsigned int uiCpuFreq)
@@ -131,12 +131,18 @@ static u32 convert_svtdro2profile(unsigned int uisvtdro)
 {
 	unsigned int uiprofile = 0, idx;
 
-	for (idx = 0; idx < ARRAY_SIZE(svtrngtb); idx++) {
-		if (uisvtdro >= svtrngtb[idx].min &&
-			uisvtdro <= svtrngtb[idx].max) {
-			uiprofile = svtrngtb[idx].profile;
-			break;
+	if (uisvtdro >= 290 && uisvtdro <= 440) {
+		for (idx = 0; idx < ARRAY_SIZE(svtrngtb); idx++) {
+			if (uisvtdro >= svtrngtb[idx].min &&
+				uisvtdro <= svtrngtb[idx].max) {
+				uiprofile = svtrngtb[idx].profile;
+				break;
+			}
 		}
+	} else {
+		uiprofile = 0;
+		pr_info("SVTDRO is either not programmed or outside of the SVC spec range: %d",
+			uisvtdro);
 	}
 
 	pr_info("%s uisvtdro[%d]->profile[%d]\n", __func__, uisvtdro, uiprofile);
@@ -146,15 +152,16 @@ static u32 convert_svtdro2profile(unsigned int uisvtdro)
 unsigned int convertFusesToProfile_helan3(unsigned int uiFuses)
 {
 	unsigned int uiProfile = 0;
-	unsigned int uiTemp = 3, uiTemp2 = 1;
+	unsigned int uiTemp = 1, uiTemp2 = 1;
 	int i;
 
 	for (i = 1; i < NUM_PROFILES; i++) {
-		uiTemp |= uiTemp2<<(i);
 		if (uiTemp == uiFuses)
 			uiProfile = i;
+		uiTemp |= uiTemp2 << (i);
 	}
-	pr_info("%s uiFuses[%d]->profile[%d]\n", __func__, uiFuses, uiProfile);
+
+	pr_info("%s uiFuses[0x%x]->profile[%d]\n", __func__, uiFuses, uiProfile);
 	return uiProfile;
 }
 
