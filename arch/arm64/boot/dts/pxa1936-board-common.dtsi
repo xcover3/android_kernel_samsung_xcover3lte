@@ -132,6 +132,7 @@
 				marvell,dsi-lanes = <4>;
 				marvell,burst-mode = <2>;
 				marvell,hbp-en;
+				dsi_avdd-supply = <&buck3>;
 				status = "okay";
 			};
 
