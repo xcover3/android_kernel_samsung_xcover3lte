@@ -282,6 +282,9 @@ static void pxa_reserve_cp_memblock(void)
 static void __init helanx_reserve(void)
 {
 	pxa_reserve_cp_memblock();
+#ifdef CONFIG_MRVL_LOG
+	pxa_reserve_logmem();
+#endif
 }
 
 static const char * const pxa1908_dt_board_compat[] __initconst = {

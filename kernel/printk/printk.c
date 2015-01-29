@@ -341,6 +341,21 @@ static bool printk_comm;
 #endif
 module_param_named(comm, printk_comm, bool, S_IRUGO | S_IWUSR);
 
+#ifdef CONFIG_MRVL_LOG
+static void (*log_text_hook)(char *text, unsigned int size);
+static char mmp_text[1024]; /* buffer size: LOG_LINE_MAX + PREFIX_MAX */
+void register_log_text_hook(void (*f)(char *text, unsigned int size),
+							char *buf, unsigned int bufsize)
+{
+	if (buf && bufsize) {
+		log_text_hook = f;
+	}
+}
+EXPORT_SYMBOL(register_log_text_hook);
+static size_t msg_print_text(const struct printk_log *msg, enum log_flags prev,
+							bool syslog, char *buf, size_t size);
+#endif
+
 /* insert record into the buffer, discard old ones, update heads */
 static void log_store(int facility, int level,
 		      enum log_flags flags, u64 ts_nsec,
@@ -409,6 +424,14 @@ static void log_store(int facility, int level,
 	memset(log_dict(msg) + dict_len, 0, pad_len);
 	msg->len = sizeof(struct printk_log) + msg->text_len + dict_len + pad_len;
 
+#ifdef CONFIG_MRVL_LOG
+	if (log_text_hook) {
+		size = msg_print_text(msg, msg->flags, true,
+				mmp_text, 1024);
+
+		log_text_hook(mmp_text, size);
+	}
+#endif
 	/* insert message */
 	log_next_idx += msg->len;
 	log_next_seq++;

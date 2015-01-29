@@ -57,6 +57,12 @@ config MRVL_DEBUG
 	---help---
 	  This will enable Marvell debug features.
 
+config MRVL_LOG
+	tristate "Support Marvell non-cacheable buffer"
+	default y
+	---help---
+	  This will enable Marvell non-cacheable buffer shared between kernel and bootloader.
+
 config MRVL_TZDD
 	tristate "Marvell Trust Zone Device Driver"
 	default n
