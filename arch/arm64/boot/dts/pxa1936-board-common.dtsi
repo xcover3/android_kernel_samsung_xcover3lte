@@ -1204,7 +1204,7 @@
 	mmp_m3_1: apsenhb {
 		compatible = "marvell,mmp-m3";
 		/* 975000 for CM3 on, 700000 for CM3 off */
-		vccmain = <975000 700000>;
+		vccmain = <700000 700000>;
 		vccmain-supply = <&buck1a>;
 
 		pinctrl-names = "default", "poweron";
@@ -1216,7 +1216,7 @@
 	mmp_m3_2: cm3senhb {
 		compatible = "marvell,mmp-m3";
 		/* 975000 for CM3 on, 700000 for CM3 off */
-		vccmain = <975000 700000>;
+		vccmain = <700000 700000>;
 		vccmain-supply = <&buck1a>;
 
 		pinctrl-names = "default", "poweron";
