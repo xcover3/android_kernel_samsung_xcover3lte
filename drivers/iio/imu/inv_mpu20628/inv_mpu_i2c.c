@@ -261,9 +261,13 @@ static int inv_mpu_probe(struct i2c_client *client,
 	struct inv_mpu_state *st;
 	struct iio_dev *indio_dev;
 	int result = 0;
-	int irq_gpio = 0;//added by zhuxf
-	//added by zhuxf
-	client->addr = 0x69;
+	int irq_gpio = 0;
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		pr_err("i2c_check_functionality error!");
+		return -EIO;
+	}
+
 	irq_gpio = of_get_named_gpio(client->dev.of_node, "inven,irq-gpios", 0);
 	if(irq_gpio < 0)
 	{
