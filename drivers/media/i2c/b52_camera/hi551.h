@@ -1902,7 +1902,7 @@ struct regval_tab hi551_res_init[] = {
 	{0x0026, 0x0028},
 	{0x002C, 0x07CF},
 	{0x0032, 0x0101},
-	{0x0006, 0x07D0},
+	{0x0006, 0x07D4},
 	{0x0008, 0x0B7C},
 	{0x0020, 0x0700},
 	{0x0034, 0x0700},
@@ -1997,7 +1997,7 @@ struct regval_tab hi551_res_5M[] = {
 	{0x002C, 0x07C7},
 	{0x0112, 0x0A20},
 	{0x0114, 0x0798},
-	{0x0006, 0x07D0},
+	{0x0006, 0x07D4},
 	{0x0008, 0x0B7C},
 	{0x0032, 0x0101},
 	{0x0118, 0x0100},
@@ -2024,7 +2024,7 @@ struct regval_tab hi551_res_quarter_5M[] = {
 	{0x002C, 0x07C7},
 	{0x0112, 0x0510},
 	{0x0114, 0x03CC},
-	{0x0006, 0x07D0},
+	{0x0006, 0x07D4},
 	{0x0008, 0x0B7C},
 	{0x0032, 0x0101},
 	{0x0118, 0x0100},
@@ -2035,7 +2035,7 @@ struct regval_tab hi551_id[] = {
 };
 struct regval_tab hi551_vts[] = {
 	{0x0006, 0x07, 0x7f},
-	{0x0007, 0xd0, 0xff},
+	{0x0007, 0xd4, 0xff},
 };
 struct regval_tab hi551_expo[] = {
 	{0x0004, 0x00, 0xff},
@@ -2104,7 +2104,7 @@ struct b52_sensor_resolution hi551_res[] = {
 		 .width = 2592,
 		 .height = 1944,
 		 .hts = 0x0b7c,
-		 .min_vts = 0x07d0,
+		 .min_vts = 0x07d4,
 		 .prop = SENSOR_RES_BINING1,
 		 .regs = {
 			.tab = hi551_res_5M,
@@ -2115,7 +2115,7 @@ struct b52_sensor_resolution hi551_res[] = {
 		 .width = 1296,
 		 .height = 972,
 		 .hts = 0x0b7c,
-		 .min_vts = 0x07d0,
+		 .min_vts = 0x07d4,
 		 .prop = SENSOR_RES_BINING2,
 		 .regs = {
 			.tab = hi551_res_quarter_5M,
@@ -2176,12 +2176,12 @@ struct b52_sensor_data b52_hi551 = {
 		.numerator = 100,
 		.denominator = 0x10,
 	},
-	.vts_range = {0x07d0, 0x7fff},
+	.vts_range = {0x07d4, 0x7fff},
 	.gain_range = {
 		[B52_SENSOR_AG] = {0x0010, 0xffff},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
-	.expo_range = {0x0010, 0x07d0},
+	.expo_range = {0x0010, 0x07d4},
 	.frationalexp_range = {0x0000, 0x0b7c},
 	.focus_range = {0x0010, 0x03ff},
 	.vts_reg = {
