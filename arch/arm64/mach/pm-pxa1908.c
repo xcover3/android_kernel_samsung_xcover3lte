@@ -189,8 +189,7 @@ static int pxa1908_suspend_check(void)
 	 * and the PMIC interrupt is enabled before entering suspend,
 	 * other wise, the suspend may NOT be woken up any more.
 	 */
-	if ((reg & 0x3) == 0)
-		return -EAGAIN;
+	WARN_ON((reg & 0x3) == 0);
 
 	ret = pxa1908_pm_check_constraint();
 	pr_info("========wake up events status =========\n");
