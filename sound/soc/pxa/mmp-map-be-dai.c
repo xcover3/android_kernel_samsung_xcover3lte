@@ -247,7 +247,7 @@ static int mmp_map_set_be_dai_fmt(struct snd_soc_dai *cpu_dai,
 		inf &= ~MAP_I2S_MODE_I2S_FORMAT;
 		break;
 	}
-	regmap_update_bits(map_priv->regmap, addr, inf, inf);
+	map_raw_write(map_priv, addr, inf);
 	return 0;
 }
 

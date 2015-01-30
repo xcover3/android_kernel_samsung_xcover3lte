@@ -1460,9 +1460,9 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 	case 2:
 		addr =	MAP_I2S2_CTRL_REG;
 		/* i2s3's pcm width bit will affect i2s2 */
-		inf = map_raw_read(map_priv, addr);
+		inf = map_raw_read(map_priv, MAP_I2S3_CTRL_REG);
 		inf |= MAP_PCM_WIDTH_SEL;
-		map_raw_write(map_priv, addr, inf);
+		map_raw_write(map_priv, MAP_I2S3_CTRL_REG, inf);
 		break;
 	case 3:
 		addr =	MAP_I2S3_CTRL_REG;
