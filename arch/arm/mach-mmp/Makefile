@@ -39,7 +39,7 @@ obj-$(CONFIG_MACH_MMP_DT)	+= mmp-dt.o
 obj-$(CONFIG_MACH_MMP2_DT)	+= mmp2-dt.o
 obj-$(CONFIG_MACH_MMPX_DT)	+= mmpx-dt.o regs-addr.o v7_pm_setup.o mmp_cpuidle.o reset.o platsmp.o pxa988_lowpower.o restart.o
 
-obj-$(CONFIG_MACH_HELANX_DT)	+= $(ARM64)/helanx-dt.o $(ARM64)/regs-addr.o $(ARM64)/pm-pxa1908.o $(ARM64)/soc_camera_dkb.o $(ARM64)/cpuidle_qos.o
+obj-$(CONFIG_MACH_HELANX_DT)	+= $(ARM64)/helanx-dt.o $(ARM64)/regs-addr.o $(ARM64)/soc_camera_dkb.o $(ARM64)/cpuidle_qos.o $(ARM64)/pm-pxa1908.o $(ARM64)/pxa1908_lowpower.o $(ARM64)/../mcpm/mcpm_plat.o
 
 ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_ARCH_MMP)		+= pm.o pm-pxa1L88.o

@@ -20,6 +20,7 @@
 #include <linux/memblock.h>
 
 #include <asm/mach/arch.h>
+#include <asm/mcpm.h>
 
 #include "regs-addr.h"
 #include "mmpx-dt.h"
@@ -232,6 +233,15 @@ void __init helanx_init_machine(void)
 			     helanx_auxdata_lookup, &platform_bus);
 }
 
+#ifdef CONFIG_ARM
+bool __init helanx_smp_init_ops(void)
+{
+	mcpm_smp_set_ops();
+
+	return true;
+}
+#endif
+
 static u32 cp_area_size = 0x02000000;
 static u32 cp_area_addr = 0x06000000;
 static int __init early_cpmem(char *p)
@@ -268,6 +278,9 @@ static const char * const pxa1908_dt_board_compat[] __initconst = {
 };
 
 DT_MACHINE_START(PXA1908_DT, "PXA1908")
+#ifdef CONFIG_ARM
+	.smp_init	= smp_init_ops(helanx_smp_init_ops),
+#endif
 	.init_time      = helanx_timer_init,
 	.init_irq	= helanx_irq_init,
 	.init_machine   = helanx_init_machine,

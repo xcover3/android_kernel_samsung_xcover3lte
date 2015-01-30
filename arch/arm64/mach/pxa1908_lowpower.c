@@ -21,7 +21,9 @@
 #include <linux/of.h>
 #include <asm/mcpm.h>
 #include <asm/mcpm_plat.h>
-
+#ifdef CONFIG_ARM
+#include <asm/cpuidle.h>
+#endif
 #include "regs-addr.h"
 #include "pxa1908_lowpower.h"
 
@@ -42,7 +44,11 @@ static struct cpuidle_state pxa1908_modes[] = {
 		.flags			= CPUIDLE_FLAG_TIME_VALID,
 		.name			= "C1",
 		.desc			= "C1: Core internal clock gated",
+#ifdef CONFIG_ARM64
 		.enter			= cpuidle_simple_enter,
+#else
+		.enter			= arm_cpuidle_simple_enter,
+#endif
 	},
 	[1] = {
 		.exit_latency		= 350,

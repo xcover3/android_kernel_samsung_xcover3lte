@@ -20,7 +20,12 @@
 #include <asm/compiler.h>
 #include <asm/io.h>
 #include <asm/smp_plat.h>
+#ifdef CONFIG_ARM64
 #include <asm/cpu_ops.h>
+#else
+#include <asm/opcodes-sec.h>
+#include <asm/opcodes-virt.h>
+#endif
 #include <asm/errno.h>
 #include <asm/cputype.h>
 #include <asm/mcpm.h>
@@ -36,7 +41,7 @@ static int mcpm_plat_pm_use_count[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
 static unsigned int mcpm_plat_enter_lpm[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
 static struct platform_idle *mcpm_plat_idle;
 
-static int (*invoke_mcpm_fn)(u64, u64, u64, u64);
+static int (*invoke_mcpm_fn)(unsigned long, unsigned long, unsigned long, unsigned long);
 
 enum mcpm_plat_function {
 	MCPM_FN_CPU_ON,
@@ -218,35 +223,53 @@ void mcpm_dump_dbg_info(int cpu, int cluster)
 
 #endif
 
-
 /*
  * The following two functions are invoked via the invoke_psci_fn pointer
  * and will not be inlined, allowing us to piggyback on the AAPCS.
  */
-static noinline int __invoke_mcpm_fn_hvc(u64 function_id, u64 arg0, u64 arg1,
-					 u64 arg2)
+static noinline int __invoke_mcpm_fn_hvc(unsigned long function_id, unsigned long arg0,
+					 unsigned long arg1, unsigned long arg2)
 {
+#ifdef CONFIG_ARM64
 	asm volatile(
 			__asmeq("%0", "x0")
 			__asmeq("%1", "x1")
 			__asmeq("%2", "x2")
 			__asmeq("%3", "x3")
 			"hvc	#0\n"
+#else
+	asm volatile(
+			__asmeq("%0", "r0")
+			__asmeq("%1", "r1")
+			__asmeq("%2", "r2")
+			__asmeq("%3", "r3")
+			__HVC(0)
+#endif
 		: "+r" (function_id)
 		: "r" (arg0), "r" (arg1), "r" (arg2));
 
 	return function_id;
 }
 
-static noinline int __invoke_mcpm_fn_smc(u64 function_id, u64 arg0, u64 arg1,
-					 u64 arg2)
+static noinline int __invoke_mcpm_fn_smc(unsigned long function_id, unsigned long arg0,
+					 unsigned long arg1, unsigned long arg2)
+
 {
+#ifdef CONFIG_ARM64
 	asm volatile(
 			__asmeq("%0", "x0")
 			__asmeq("%1", "x1")
 			__asmeq("%2", "x2")
 			__asmeq("%3", "x3")
 			"smc	#0\n"
+#else
+	asm volatile(
+			__asmeq("%0", "r0")
+			__asmeq("%1", "r1")
+			__asmeq("%2", "r2")
+			__asmeq("%3", "r3")
+			__SMC(0)
+#endif
 		: "+r" (function_id)
 		: "r" (arg0), "r" (arg1), "r" (arg2));
 
@@ -254,10 +277,10 @@ static noinline int __invoke_mcpm_fn_smc(u64 function_id, u64 arg0, u64 arg1,
 }
 
 static int __maybe_unused
-mcpm_plat_cpu_power_down(u64 entry_point,
+mcpm_plat_cpu_power_down(unsigned long entry_point,
 			bool l2ram_shutdown)
 {
-	u64 id = mcpm_function_id[MCPM_FN_CPU_OFF];
+	unsigned long id = mcpm_function_id[MCPM_FN_CPU_OFF];
 
 	return invoke_mcpm_fn(id, entry_point, l2ram_shutdown, 0);
 }
@@ -271,9 +294,9 @@ static int __init __init_up(char *arg)
 __setup("up_mode", __init_up);
 
 static int mcpm_plat_cpu_power_up(unsigned int cpu, unsigned int cluster,
-			     u64 entry_point)
+			     unsigned long entry_point)
 {
-	u64 id = mcpm_function_id[MCPM_FN_CPU_ON];
+	unsigned long id = mcpm_function_id[MCPM_FN_CPU_ON];
 
 	unsigned int hwid = (cpu<<MPIDR_LEVEL_SHIFT(0))
 			    | (cluster<<MPIDR_LEVEL_SHIFT(1));
@@ -435,7 +458,7 @@ static void mcpm_plat_pm_suspend(unsigned long addr)
 
 static void mcpm_plat_pm_powered_up(void)
 {
-	u64 mpidr;
+	unsigned long mpidr;
 	unsigned int cpu, cluster, cluster_off;
 	unsigned long flags;
 	unsigned int calc_state;
@@ -479,6 +502,20 @@ static void mcpm_plat_pm_powered_up(void)
 	mcpm_dump_dbg_info(cpu, cluster);
 }
 
+#ifdef CONFIG_ARM
+/*
+ * The function is used in the last step of cpu_hotplug if mcpm_smp_ops.cpu_kill
+ * is defined (We don't need it in 3.10 kernel since cpu_kill is undefined). It
+ * can be used to do the powering off and/or cutting of clocks to the dying cpu.
+ * Currently we do nothing in it. In the future, maybe it can be used to check
+ * if the cpu is trully powered off.
+ */
+static int mcpm_plat_pm_power_down_finish(unsigned int cpu, unsigned int cluster)
+{
+	return 0;
+}
+#endif
+
 /**
  * mmp_platform_power_register - register platform power ops
  *
@@ -511,15 +548,18 @@ int __init mcpm_plat_get_cpuidle_states(struct cpuidle_state *states)
 }
 
 static const struct mcpm_platform_ops mcpm_plat_pm_power_ops = {
-	.power_up	= mcpm_plat_pm_power_up,
-	.power_down	= mcpm_plat_pm_power_down,
-	.suspend	= mcpm_plat_pm_suspend,
-	.powered_up	= mcpm_plat_pm_powered_up,
+	.power_up		= mcpm_plat_pm_power_up,
+	.power_down		= mcpm_plat_pm_power_down,
+	.suspend		= mcpm_plat_pm_suspend,
+	.powered_up		= mcpm_plat_pm_powered_up,
+#ifdef CONFIG_ARM
+	.power_down_finish	= mcpm_plat_pm_power_down_finish,
+#endif
 };
 
 static void __init mcpm_plat_pm_usage_count_init(void)
 {
-	u64 mpidr;
+	unsigned long mpidr;
 	unsigned int cpu, cluster;
 
 	mpidr = read_cpuid_mpidr();
