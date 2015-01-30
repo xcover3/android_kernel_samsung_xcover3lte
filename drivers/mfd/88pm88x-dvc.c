@@ -122,7 +122,13 @@ int pm88x_dvc_set_volt(u8 level, int uv)
 				 map_volt_to_reg(uv));
 	return ret;
 };
+EXPORT_SYMBOL(pm88x_dvc_set_volt);
 
+/*
+ * Example for usage: get buck1 voltage for special level
+ * volt = pm88x_dvc_get_volt(level);
+ * level begins with 0
+ */
 int pm88x_dvc_get_volt(u8 level)
 {
 	struct regmap *regmap;
@@ -154,6 +160,7 @@ int pm88x_dvc_get_volt(u8 level)
 
 	return volt;
 }
+EXPORT_SYMBOL(pm88x_dvc_get_volt);
 
 /* configure according to chip type */
 static int pm88x_dvc_chip_init(struct pm88x_dvc *dvc)
