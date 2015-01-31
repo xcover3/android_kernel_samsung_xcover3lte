@@ -46,3 +46,4 @@ obj-$(CONFIG_ARCH_MMP)		+= pm.o pm-pxa1L88.o
 endif
 obj-$(CONFIG_MACH_TETON_BGA)	+= teton_bga.o
 obj-$(CONFIG_MACH_GPLUGD)	+= gplugd.o
+obj-$(CONFIG_MACH_PXA1978_DT)	+= pxa1978-dt.o regs-addr.o pxa1978-platsmp.o mmp_cpuidle.o v7_pm_setup.o pxa1978-reset.o pxa1978_lowpower.o

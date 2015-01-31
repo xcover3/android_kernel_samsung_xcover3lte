@@ -131,6 +131,19 @@ config MACH_HELANX_DT
 	help
 	  Include support for Marvell MMP2 based platforms using
 	  the device tree. It targets at pxa1908  and etc.
+
+config MACH_PXA1978_DT
+	bool "Support PXA1978 (SBNB) with device tree"
+	depends on !CPU_MOHAWK && !CPU_PJ4
+	select CPU_PXA988
+	select USE_OF
+	select PINCTRL
+	select PINCTRL_SINGLE
+	help
+	  Include support for PXA1978 (SBNB) platforms using
+	  the device tree. This SoC has Marvell Whitney ARMv7
+	  core. PXA988 is selected for compatibility.
+
 endmenu
 
 config CPU_PXA168
