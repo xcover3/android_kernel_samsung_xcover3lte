@@ -233,8 +233,10 @@ static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 					   int gpadc_number,
 					   int *bias_current, int *bias_voltage)
 {
-	int ret, i, channel;
+	int ret, channel, index;
+	static int prev_index = -1;
 	u8 reg;
+
 	switch (gpadc_number) {
 	case GPADC_0_RES:
 		reg = PM88X_GAPDC_CONFIG11;
@@ -257,30 +259,54 @@ static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < 16; i++) {
-		/* uA */
-		*bias_current = 1 + i * 5;
-		ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, i);
-		if (ret < 0)
-			return ret;
-		msleep(20);
+	/*
+	 * if it is the first time here,
+	 * set an inital bias 31uA (index=6) which should cover most cases
+	 */
+	if (prev_index == -1)
+		index = 6;
+	else
+		index = prev_index;
 
+	do {
+		if (index != prev_index) {
+			ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, index);
+			if (ret < 0)
+				return ret;
+			msleep(20);
+		}
+		/* uA */
+		*bias_current = 1 + index * 5;
 		ret = pm88x_gpadc_get_processed(info, channel, bias_voltage);
 		if (ret < 0)
 			return ret;
-		if (*bias_voltage > 300000 && *bias_voltage < 1250000) {
+
+		prev_index = index;
+		/* voltage too low, need to increase bias */
+		if (*bias_voltage < 300000) {
+			dev_dbg(info->chip->dev,
+				"not a good bias! current = %duA, voltage = %duV\n",
+				*bias_current, *bias_voltage);
+			index++;
+		/* voltage too high, need to decrease bias */
+		} else if (*bias_voltage > 1250000) {
+			dev_dbg(info->chip->dev,
+				"not a good bias! current = %duA, voltage = %duV\n",
+				*bias_current, *bias_voltage);
+			index--;
+		/* voltage is inside the valid range */
+		} else {
 			dev_dbg(info->chip->dev,
 				"hit: current = %duA, voltage = %duV\n",
 				*bias_current, *bias_voltage);
 			break;
 		}
-		dev_dbg(info->chip->dev,
-			"%s: bias_current index: %d\n", __func__, i);
-	}
+	} while (index >= 0 && index <= 15);
 
-	if (i == 16) {
-		dev_err(info->chip->dev, "cannot get right bias current!\n");
-		return -EINVAL;
+	if (index < 0 || index > 15) {
+		dev_err(info->chip->dev,
+			"reached the boundery, no more biases left! (%duA, %duV)\n",
+			*bias_current, *bias_voltage);
 	}
 
 	return 0;
