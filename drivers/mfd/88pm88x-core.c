@@ -112,6 +112,12 @@ static const struct resource gpadc_resources[] = {
 	},
 };
 
+static const struct resource vr_resources[] = {
+	{
+	.name = PM88X_VIRTUAL_REGULATOR_NAME,
+	},
+};
+
 static const struct mfd_cell common_cell_devs[] = {
 	CELL_DEV(PM88X_RTC_NAME, rtc_resources, "marvell,88pm88x-rtc", -1),
 	CELL_DEV(PM88X_ONKEY_NAME, onkey_resources, "marvell,88pm88x-onkey", -1),
@@ -127,6 +133,7 @@ static const struct mfd_cell common_cell_devs[] = {
 	CELL_DEV(PM88X_RGB_NAME, rgb_resources, "marvell,88pm88x-rgb2", PM88X_RGB_LED2),
 	CELL_DEV(PM88X_DEBUGFS_NAME, debugfs_resources, "marvell,88pm88x-debugfs", -1),
 	CELL_DEV(PM88X_GPADC_NAME, gpadc_resources, "marvell,88pm88x-gpadc", -1),
+	CELL_DEV(PM88X_VIRTUAL_REGULATOR_NAME, vr_resources, "marvell,88pm88x-votg", -1),
 };
 
 const struct of_device_id pm88x_of_match[] = {

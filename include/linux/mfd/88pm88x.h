@@ -35,10 +35,15 @@
 #define PM88X_GPADC_NAME	"88pm88x-gpadc"
 #define PM88X_HWMON_NAME	"88pm88x-hwmon"
 #define PM88X_DVC_NAME		"88pm88x-dvc"
+#define PM88X_VIRTUAL_REGULATOR_NAME "88pm88x-vr"
 
 enum pm88x_type {
 	PM886 = 1,
 	PM880 = 2,
+};
+
+enum {
+	PM88X_ID_VOTG = 0,
 };
 
 enum {
