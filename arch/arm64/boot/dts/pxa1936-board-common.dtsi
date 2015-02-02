@@ -578,10 +578,10 @@
 				/* no pull, no LPM */
 				sdh2_pmx_func1: sdh2_pmx_func1 {
 					pinctrl-single,pins = <
-						ND_IO7 AF0
-						ND_IO6 AF0
-						ND_IO5 AF0
-						ND_IO4 AF0
+						ND_IO7 AF1
+						ND_IO6 AF1
+						ND_IO5 AF1
+						ND_IO4 AF1
 						ND_IO3 AF1
 						ND_IO2 AF1
 						ND_IO1 AF1
