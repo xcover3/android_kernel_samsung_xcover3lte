@@ -1428,8 +1428,16 @@ static int sdhci_set_power(struct sdhci_host *host, unsigned short power)
 			break;
 		case MMC_VDD_29_30:
 		case MMC_VDD_30_31:
+#ifdef CONFIG_MMC_SDHCI_PXAV3
+			/*
+			 * Set SDHCI_POWER_330 instead for Pxa V3 SDH
+			 * As SDHCI_CAN_VDD_300 is not supported by Pxav3 host
+			 * set SDHCI_POWER_300 would cause -110(timeout) issue
+			 */
+#else
 			pwr = SDHCI_POWER_300;
 			break;
+#endif
 		case MMC_VDD_32_33:
 		case MMC_VDD_33_34:
 			pwr = SDHCI_POWER_330;
