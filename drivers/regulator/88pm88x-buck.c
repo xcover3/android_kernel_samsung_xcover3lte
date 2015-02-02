@@ -37,7 +37,7 @@
 #define PM886_BUCK5_VOUT	(0xdd)
 
 /* set buck sleep voltage */
-#define PM886_BUCK1_SET_SLP	(0xa3)
+#define PM886_BUCK1_SET_SLP	(0xa4)
 #define PM886_BUCK2_SET_SLP	(0xb1)
 #define PM886_BUCK3_SET_SLP	(0xbf)
 #define PM886_BUCK4_SET_SLP	(0xcd)
@@ -55,8 +55,8 @@
 #define PM880_BUCK6_VOUT	(0xa8)
 
 /* set buck sleep voltage */
-#define PM880_BUCK1_SET_SLP	(0x26)
-#define PM880_BUCK1A_SET_SLP	(0x26)
+#define PM880_BUCK1_SET_SLP	(0x27)
+#define PM880_BUCK1A_SET_SLP	(0x27)
 #define PM880_BUCK1B_SET_SLP	(0x3c)
 
 #define PM880_BUCK2_SET_SLP	(0x56)
@@ -76,7 +76,7 @@
  * Buck has 2 kinds of voltage steps. It is easy to find voltage by ranges,
  * not the constant voltage table.
  */
-#define PM88X_BUCK(_pmic, vreg, ebit, amax, volt_ranges, n_volt)	\
+#define PM88X_BUCK(_pmic, vreg, ebit, amax, volt_ranges, n_volt, slp_en_msk, slp_en_off)	\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
@@ -96,14 +96,21 @@
 	.sleep_vsel_reg		= _pmic##_##vreg##_SET_SLP,		\
 	.sleep_vsel_mask	= 0x7f,					\
 	.sleep_enable_reg	= _pmic##_##vreg##_SLP_CTRL,		\
-	.sleep_enable_mask	= (0x3 << 4),				\
+	.sleep_enable_mask	= (slp_en_msk << slp_en_off),		\
+	.sleep_enable_off	= (slp_en_off),				\
 }
 
 #define PM886_BUCK(vreg, ebit, amax, volt_ranges, n_volt)		\
-	PM88X_BUCK(PM886, vreg, ebit, amax, volt_ranges, n_volt)
+	PM88X_BUCK(PM886, vreg, ebit, amax, volt_ranges, n_volt, 0x3, 4)
 
 #define PM880_BUCK(vreg, ebit, amax, volt_ranges, n_volt)		\
-	PM88X_BUCK(PM880, vreg, ebit, amax, volt_ranges, n_volt)
+	PM88X_BUCK(PM880, vreg, ebit, amax, volt_ranges, n_volt, 0x3, 4)
+
+#define PM886_BUCK_AUDIO(vreg, ebit, amax, volt_ranges, n_volt)		\
+	PM88X_BUCK(PM886, vreg, ebit, amax, volt_ranges, n_volt, 0x1, 7)
+
+#define PM880_BUCK_AUDIO(vreg, ebit, amax, volt_ranges, n_volt)		\
+	PM88X_BUCK(PM880, vreg, ebit, amax, volt_ranges, n_volt, 0x1, 7)
 
 /*
  * 88pm886 buck1 and 88pm880 buck1. both have dvc function
@@ -130,6 +137,7 @@ struct pm88x_buck_info {
 	int max_ua;
 	u8 sleep_enable_mask;
 	u8 sleep_enable_reg;
+	u8 sleep_enable_off;
 	u8 sleep_vsel_reg;
 	u8 sleep_vsel_mask;
 };
@@ -140,41 +148,57 @@ struct pm88x_regulators {
 	struct regmap *map;
 };
 
-#define BUCK_OFF		(0x0 << 4)
-#define BUCK_ACTIVE_VOLT_SLP	(0x1 << 4)
-#define BUCK_SLP_VOLT_SLP	(0x2 << 4)
-#define BUCK_ACTIVE_VOLT_ACTIVE	(0x3 << 4)
+#define BUCK_OFF		(0x0)
+#define BUCK_ACTIVE_VOLT_SLP	(0x1)
+#define BUCK_SLP_VOLT_SLP	(0x2)
+#define BUCK_ACTIVE_VOLT_ACTIVE	(0x3)
+#define BUCK_AUDIO_MODE_EN	(0x1)
 
 int pm88x_buck_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
 {
 	struct pm88x_buck_info *info = rdev_get_drvdata(rdev);
 	u8 val;
-	int ret;
+	int ret, rid;
 
 	if (!info)
 		return -EINVAL;
 
-	switch (mode) {
-	case REGULATOR_MODE_NORMAL:
-		/* regulator will be active with normal voltage */
-		val = BUCK_ACTIVE_VOLT_ACTIVE;
-		break;
-	case REGULATOR_MODE_IDLE:
-		/* regulator will be in sleep with sleep voltage */
-		val = BUCK_SLP_VOLT_SLP;
-		break;
-	case REGULATOR_MODE_STANDBY:
-		/* regulator will be off */
-		val = BUCK_OFF;
-		break;
-	default:
-		/* regulator will be active with sleep voltage */
-		val = BUCK_ACTIVE_VOLT_SLP;
-		break;
+	rid = rdev_get_id(rdev);
+	/* we enabled buck1 audio mode enable/disable for 88pm886 and 88pm880 */
+	if (rid == PM886_ID_BUCK1 || rid == PM880_ID_BUCK1A) {
+		switch (mode) {
+		case REGULATOR_MODE_NORMAL:
+			val = 0;
+			break;
+		case REGULATOR_MODE_IDLE:
+			val = BUCK_AUDIO_MODE_EN;
+			break;
+		default:
+			return -EINVAL;
+		}
+	} else {
+		switch (mode) {
+		case REGULATOR_MODE_NORMAL:
+			/* regulator will be active with normal voltage */
+			val = BUCK_ACTIVE_VOLT_ACTIVE;
+			break;
+		case REGULATOR_MODE_IDLE:
+			/* regulator will be in sleep with sleep voltage */
+			val = BUCK_SLP_VOLT_SLP;
+			break;
+		case REGULATOR_MODE_STANDBY:
+			/* regulator will be off */
+			val = BUCK_OFF;
+			break;
+		default:
+			/* regulator will be active with sleep voltage */
+			val = BUCK_ACTIVE_VOLT_SLP;
+			break;
+		}
 	}
 
 	ret = regmap_update_bits(rdev->regmap, info->sleep_enable_reg,
-				 info->sleep_enable_mask, val);
+				 info->sleep_enable_mask, (val << info->sleep_enable_off));
 	return ret;
 }
 
@@ -268,7 +292,7 @@ static struct regulator_ops pm88x_volt_buck_ops = {
 
 /* The array is indexed by id(PM886_ID_BUCK*) */
 static struct pm88x_buck_info pm886_buck_configs[] = {
-	PM886_BUCK(BUCK1, 0, 3000000, buck_volt_range1, 0x55),
+	PM886_BUCK_AUDIO(BUCK1, 0, 3000000, buck_volt_range1, 0x55),
 	PM886_BUCK(BUCK2, 1, 1200000, buck_volt_range2, 0x73),
 	PM886_BUCK(BUCK3, 2, 1200000, buck_volt_range2, 0x73),
 	PM886_BUCK(BUCK4, 3, 1200000, buck_volt_range2, 0x73),
@@ -277,7 +301,7 @@ static struct pm88x_buck_info pm886_buck_configs[] = {
 
 /* The array is indexed by id(PM880_ID_BUCK*) */
 static struct pm88x_buck_info pm880_buck_configs[] = {
-	PM880_BUCK(BUCK1A, 0, 3000000, buck_volt_range1, 0x55),
+	PM880_BUCK_AUDIO(BUCK1A, 0, 3000000, buck_volt_range1, 0x55),
 	PM880_BUCK(BUCK2,  2, 1200000, buck_volt_range2, 0x73),
 	PM880_BUCK(BUCK3,  3, 1200000, buck_volt_range2, 0x73),
 	PM880_BUCK(BUCK4,  4, 1200000, buck_volt_range2, 0x73),

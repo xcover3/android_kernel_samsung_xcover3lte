@@ -60,7 +60,7 @@
  * 01/10-sleep voltage,
  * 11-active voltage
  */
-#define PM880_BUCK1A_SLP_CTRL	(0x24)
+#define PM880_BUCK1A_SLP_CTRL	(0x27)
 #define PM880_BUCK1B_SLP_CTRL	(0x3c)
 #define PM880_BUCK2_SLP_CTRL	(0x54)
 #define PM880_BUCK3_SLP_CTRL	(0x6c)
