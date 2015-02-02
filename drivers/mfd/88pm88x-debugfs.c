@@ -260,26 +260,20 @@ static ssize_t pm88x_compact_addr_write(struct file *file,
 				size_t count, loff_t *ppos)
 {
 	struct pm88x_chip *chip = file->private_data;
-	int err;
+	int err, index1, index2;
 
-	static char msg[20], index[20];
+	char msg[20] = { 0 };
 	err = copy_from_user(msg, user_buf, count);
 	if (err)
 		return err;
-	if (msg[0] != '-') {
+	err = sscanf(msg, "-0x%x 0x%x", &index1, &index2);
+	if (err != 2) {
 		dev_err(chip->dev,
 			"right format: -0x[page_addr] 0x[reg_addr]\n");
 		return count;
 	}
-	memcpy(index, msg + 1, 3);
-	err = kstrtou8(index, 16, &debug_page_addr);
-	if (err)
-		return err;
-
-	memcpy(index, msg + 5, 4);
-	err = kstrtou8(index, 16, &debug_reg_addr);
-	if (err)
-		return err;
+	debug_page_addr = (u8)index1;
+	debug_reg_addr = (u8)index2;
 
 	return count;
 }
