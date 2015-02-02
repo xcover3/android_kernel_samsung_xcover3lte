@@ -1165,6 +1165,8 @@ wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 		MNULL;
 	MrvlIEtypes_dtim_period_t *dtim_pd_tlv = MNULL, *pdat_tlv_dtimpd =
 		MNULL;
+	MrvlIEtypes_wmm_parameter_t *tlv_wmm_parameter = MNULL;
+	t_u8 ac = 0;
 	mlan_ds_misc_custom_ie *cust_ie = MNULL;
 	mlan_ds_misc_cfg *misc = MNULL;
 	MrvlIEtypesHeader_t *ie_header =
@@ -1366,6 +1368,46 @@ wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 				memcpy(pmpriv->adapter, mac_tlv->mac,
 				       &bss->param.mac_addr,
 				       MLAN_MAC_ADDR_LENGTH);
+		} else if (bss->sub_command == MLAN_OID_UAP_CFG_WMM_PARAM) {
+			tlv_wmm_parameter =
+				(MrvlIEtypes_wmm_parameter_t *)sys_config->
+				tlv_buffer;
+			cmd->size =
+				wlan_cpu_to_le16(sizeof(HostCmd_DS_SYS_CONFIG) -
+						 1 + S_DS_GEN +
+						 sizeof
+						 (MrvlIEtypes_wmm_parameter_t));
+			tlv_wmm_parameter->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_AP_WMM_PARAM);
+			tlv_wmm_parameter->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (bss->param.ap_wmm_para));
+			if (cmd_action == HostCmd_ACT_GEN_SET) {
+				for (ac = 0; ac < 4; ac++) {
+					tlv_wmm_parameter->wmm_para.
+						ac_params[ac].aci_aifsn.aifsn =
+						bss->param.ap_wmm_para.
+						ac_params[ac].aci_aifsn.aifsn;
+					tlv_wmm_parameter->wmm_para.
+						ac_params[ac].aci_aifsn.aci =
+						bss->param.ap_wmm_para.
+						ac_params[ac].aci_aifsn.aci;
+					tlv_wmm_parameter->wmm_para.
+						ac_params[ac].ecw.ecw_max =
+						bss->param.ap_wmm_para.
+						ac_params[ac].ecw.ecw_max;
+					tlv_wmm_parameter->wmm_para.
+						ac_params[ac].ecw.ecw_min =
+						bss->param.ap_wmm_para.
+						ac_params[ac].ecw.ecw_min;
+					tlv_wmm_parameter->wmm_para.
+						ac_params[ac].tx_op_limit =
+						wlan_cpu_to_le16(bss->param.
+								 ap_wmm_para.
+								 ac_params[ac].
+								 tx_op_limit);
+				}
+			}
 		} else if ((bss->sub_command == MLAN_OID_UAP_BSS_CONFIG) &&
 			   (cmd_action == HostCmd_ACT_GEN_SET)) {
 			ret = wlan_uap_cmd_ap_config(pmpriv, cmd, cmd_action,
@@ -1912,6 +1954,9 @@ wlan_uap_ret_sys_config(IN pmlan_private pmpriv,
 		(MrvlIEtypes_MacAddr_t *)sys_config->tlv_buffer;
 	mlan_ds_misc_custom_ie *cust_ie = MNULL;
 	tlvbuf_max_mgmt_ie *max_mgmt_ie = MNULL;
+	MrvlIEtypes_wmm_parameter_t *tlv_wmm_parameter =
+		(MrvlIEtypes_wmm_parameter_t *)sys_config->tlv_buffer;
+	t_u8 ac = 0;
 	MrvlIEtypes_channel_band_t *tlv_cb = MNULL;
 	MrvlIEtypes_beacon_period_t *tlv_bcnpd = MNULL;
 	MrvlIEtypes_dtim_period_t *tlv_dtimpd = MNULL;
@@ -1926,6 +1971,84 @@ wlan_uap_ret_sys_config(IN pmlan_private pmpriv,
 					memcpy(pmpriv->adapter,
 					       &bss->param.mac_addr, tlv->mac,
 					       MLAN_MAC_ADDR_LENGTH);
+				}
+			} else if (bss->sub_command ==
+				   MLAN_OID_UAP_CFG_WMM_PARAM) {
+				if (TLV_TYPE_AP_WMM_PARAM ==
+				    wlan_le16_to_cpu(tlv_wmm_parameter->header.
+						     type)) {
+					if (wlan_le16_to_cpu
+					    (tlv_wmm_parameter->header.len) <
+					    sizeof(bss->param.ap_wmm_para)) {
+						PRINTM(MCMND,
+						       "FW don't support AP WMM PARAM\n");
+					} else {
+						bss->param.ap_wmm_para.
+							reserved =
+							MLAN_STATUS_COMPLETE;
+						for (ac = 0; ac < 4; ac++) {
+							bss->param.ap_wmm_para.
+								ac_params[ac].
+								aci_aifsn.
+								aifsn =
+								tlv_wmm_parameter->
+								wmm_para.
+								ac_params[ac].
+								aci_aifsn.aifsn;
+							bss->param.ap_wmm_para.
+								ac_params[ac].
+								aci_aifsn.aci =
+								tlv_wmm_parameter->
+								wmm_para.
+								ac_params[ac].
+								aci_aifsn.aci;
+							bss->param.ap_wmm_para.
+								ac_params[ac].
+								ecw.ecw_max =
+								tlv_wmm_parameter->
+								wmm_para.
+								ac_params[ac].
+								ecw.ecw_max;
+							bss->param.ap_wmm_para.
+								ac_params[ac].
+								ecw.ecw_min =
+								tlv_wmm_parameter->
+								wmm_para.
+								ac_params[ac].
+								ecw.ecw_min;
+							bss->param.ap_wmm_para.
+								ac_params[ac].
+								tx_op_limit =
+								wlan_le16_to_cpu
+								(tlv_wmm_parameter->
+								 wmm_para.
+								 ac_params[ac].
+								 tx_op_limit);
+							PRINTM(MCMND,
+							       "ac=%d, aifsn=%d, aci=%d, ecw_max=%d, ecw_min=%d, tx_op=%d\n",
+							       ac,
+							       bss->param.
+							       ap_wmm_para.
+							       ac_params[ac].
+							       aci_aifsn.aifsn,
+							       bss->param.
+							       ap_wmm_para.
+							       ac_params[ac].
+							       aci_aifsn.aci,
+							       bss->param.
+							       ap_wmm_para.
+							       ac_params[ac].
+							       ecw.ecw_max,
+							       bss->param.
+							       ap_wmm_para.
+							       ac_params[ac].
+							       ecw.ecw_min,
+							       bss->param.
+							       ap_wmm_para.
+							       ac_params[ac].
+							       tx_op_limit);
+						}
+					}
 				}
 			} else if ((bss->sub_command == MLAN_OID_UAP_BSS_CONFIG)
 				   && (pioctl_buf->action == MLAN_ACT_GET)) {
@@ -3223,6 +3346,7 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	switch (cmdresp_no) {
 	case HOST_CMD_APCMD_BSS_STOP:
 		pmpriv->uap_bss_started = MFALSE;
+
 		wlan_11h_check_update_radar_det_state(pmpriv);
 
 		if (pmpriv->adapter->state_rdh.stage == RDH_STOP_INTFS)
@@ -3655,6 +3779,11 @@ wlan_ops_uap_process_event(IN t_void *priv)
 		PRINTM(MINFO, "EVENT: TX_STATUS\n");
 		pevent->event_id = MLAN_EVENT_ID_FW_TX_STATUS;
 		break;
+	case EVENT_BT_COEX_WLAN_PARA_CHANGE:
+		PRINTM(MEVENT, "EVENT: BT coex wlan param update\n");
+		wlan_bt_coex_wlan_param_update_event(pmpriv, pmbuf);
+		break;
+
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		break;

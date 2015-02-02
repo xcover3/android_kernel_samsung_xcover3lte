@@ -64,6 +64,10 @@ Change log:
 
 #define UAP_TX_RATE_CFG         14
 
+#define UAP_CAC_TIMER_STATUS	17
+
+#define UAP_HT_TX_CFG           19
+
 /** Private command ID to Power Mode */
 #define	UAP_POWER_MODE			(SIOCDEVPRIVATE + 3)
 
@@ -110,6 +114,16 @@ typedef struct _tx_rate_cfg_t {
     /** Rate bitmap */
 	t_u16 bitmap_rates[MAX_BITMAP_RATES_SIZE];
 } tx_rate_cfg_t;
+
+/* */
+typedef struct _cac_timer_status {
+	/** subcmd */
+	t_u32 subcmd;
+	/** set/get */
+	t_u32 action;
+	/** mode */
+	t_u32 mode;
+} cac_timer_status;
 
 /** Private command ID to set wapi info */
 #define	UAP_WAPI_MSG		(SIOCDEVPRIVATE + 10)
@@ -264,7 +278,16 @@ typedef struct _fw_info {
 	t_u8 hw_dev_mcs_support;
     /** Region Code */
 	t_u16 region_code;
+    /** 802.11n device capabilities */
+	t_u32 hw_dot_11n_dev_cap;
 } fw_info;
+
+typedef struct _ht_tx_cfg_para_hdr {
+    /** Sub command */
+	t_u32 subcmd;
+    /** Action: Set/Get */
+	t_u32 action;
+} ht_tx_cfg_para_hdr;
 
 /** sdcmd52rw parameters */
 typedef struct _sdcmd52_para {
@@ -390,6 +413,9 @@ void woal_set_sys_config_invalid_data(mlan_uap_bss_param *config);
 mlan_status woal_set_get_sys_config(moal_private *priv,
 				    t_u16 action, t_u8 wait_option,
 				    mlan_uap_bss_param *sys_cfg);
+/** Set get AP wmm parameter */
+mlan_status woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
+				     wmm_parameter_t *ap_wmm_para);
 int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
 mlan_status woal_uap_set_11n_status(mlan_uap_bss_param *sys_cfg, t_u8 action);
 #ifdef UAP_WEXT

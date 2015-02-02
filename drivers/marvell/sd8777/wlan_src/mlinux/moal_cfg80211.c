@@ -155,6 +155,162 @@ extern const struct net_device_ops woal_netdev_ops;
 /********************************************************
 				Global Functions
 ********************************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+/**marvell vendor command and event*/
+#define MRVL_VENDOR_ID  0x005043
+/** vendor events */
+const struct nl80211_vendor_cmd_info vendor_events[] = {
+	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_hang,},	/* event_id 0 */
+	/**add vendor event here*/
+};
+
+/**
+ * @brief get the event id of the events array
+ *
+ * @param event     vendor event
+ *
+ * @return    index of events array
+ */
+int
+woal_get_event_id(int event)
+{
+	int i = 0;
+
+	for (i = 0; i < ARRAY_SIZE(vendor_events); i++) {
+		if (vendor_events[i].subcmd == event)
+			return i;
+	}
+
+	return event_max;
+}
+
+/**
+ * @brief send vendor event to kernel
+ *
+ * @param priv       A pointer to moal_private
+ * @param event    vendor event
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  1: fail
+ */
+int
+woal_cfg80211_vendor_event(IN moal_private *priv,
+			   IN int event, IN t_u8 *data, IN int len)
+{
+	struct wiphy *wiphy = priv->wdev->wiphy;
+	struct sk_buff *skb = NULL;
+	int event_id = 0;
+	t_u8 *pos = NULL;
+	int ret = 0;
+
+	ENTER();
+
+	PRINTM(MEVENT, "vendor event :0x%x\n", event);
+	event_id = woal_get_event_id(event);
+	if (event_max == event_id) {
+		PRINTM(MERROR, "Not find this event %d \n", event_id);
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+
+	/**allocate skb*/
+	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, GFP_KERNEL);
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor event\n");
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+	pos = skb_put(skb, len);
+	memcpy(pos, data, len);
+	/**send event*/
+	cfg80211_vendor_event(skb, GFP_KERNEL);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to set drvdbg
+ *
+ * @param wiphy       A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  1: fail
+ */
+static int
+woal_cfg80211_subcmd_set_drvdbg(struct wiphy *wiphy,
+				struct wireless_dev *wdev,
+				const void *data, int data_len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct sk_buff *skb = NULL;
+	t_u8 *pos = NULL;
+	int ret = 0;
+
+	ENTER();
+	/**handle this sub command*/
+	DBG_HEXDUMP(MCMD_D, "Vendor drvdbg", (t_u8 *)data, data_len);
+
+	if (data_len) {
+		/* Get the driver debug bit masks from user */
+		drvdbg = *((t_u32 *)data);
+		PRINTM(MIOCTL, "new drvdbg %x\n", drvdbg);
+		/* Set the driver debug bit masks into mlan */
+		if (woal_set_drvdbg(priv, drvdbg)) {
+			PRINTM(MERROR, "Set drvdbg failed!\n");
+			ret = 1;
+		}
+	}
+	/** Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(drvdbg));
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor cmd\n");
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+	pos = skb_put(skb, sizeof(drvdbg));
+	memcpy(pos, &drvdbg, sizeof(drvdbg));
+	ret = cfg80211_vendor_cmd_reply(skb);
+	LEAVE();
+	return ret;
+}
+
+const struct wiphy_vendor_command vendor_commands[] = {
+	{
+	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd = sub_cmd_set_drvdbg,},
+	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+	 WIPHY_VENDOR_CMD_NEED_NETDEV | WIPHY_VENDOR_CMD_NEED_RUNNING,
+	 .doit = woal_cfg80211_subcmd_set_drvdbg,
+	 },
+
+};
+
+/**
+ * @brief register vendor commands and events
+ *
+ * @param wiphy       A pointer to wiphy struct
+ *
+ * @return
+ */
+void
+woal_register_cfg80211_vendor_command(struct wiphy *wiphy)
+{
+	ENTER();
+	wiphy->vendor_commands = vendor_commands;
+	wiphy->n_vendor_commands = ARRAY_SIZE(vendor_commands);
+	wiphy->vendor_events = vendor_events;
+	wiphy->n_vendor_events = ARRAY_SIZE(vendor_events);
+	LEAVE();
+}
+#endif
+
 /**
  * @brief Get the private structure from wiphy
  *
@@ -209,6 +365,27 @@ woal_is_any_interface_active(moal_handle *handle)
 	}
 	return MFALSE;
 }
+
+#ifdef STA_SUPPORT
+/**
+ *  @brief Check if any interface has pending scan req
+ *
+ *  @param handle        A pointer to moal_handle
+ *
+ *
+ *  @return              MTRUE/MFALSE;
+ */
+moal_private *
+woal_get_scan_interface(moal_handle *handle)
+{
+	int i;
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i] && handle->priv[i]->scan_request)
+			return handle->priv[i];
+	}
+	return NULL;
+}
+#endif
 
 /**
  *  @brief Get current frequency of active interface
@@ -490,17 +667,19 @@ woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key, int key_len,
  * @brief clear all mgmt ies
  *
  * @param priv              A pointer to moal private structure
+ * @param wait_option       wait_option
  * @return                  N/A
  */
 void
-woal_clear_all_mgmt_ies(moal_private *priv)
+woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option)
 {
 	t_u16 mask = 0;
 	/* clear BEACON WPS/P2P IE */
 	if (priv->beacon_wps_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK) {
 		PRINTM(MCMND, "Clear BEACON WPS ie\n");
 		woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0, NULL, 0,
-					    NULL, 0, MGMT_MASK_BEACON_WPS_P2P);
+					    NULL, 0, MGMT_MASK_BEACON_WPS_P2P,
+					    wait_option);
 	}
 	/* clear mgmt frame ies */
 	if (priv->probereq_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK)
@@ -516,7 +695,7 @@ woal_clear_all_mgmt_ies(moal_private *priv)
 		       priv->beacon_index, priv->probereq_index,
 		       priv->proberesp_index, priv->assocresp_index);
 		woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0, NULL, 0,
-					    NULL, 0, mask);
+					    NULL, 0, mask, wait_option);
 	}
 }
 
@@ -552,7 +731,7 @@ woal_cfg80211_bss_role_cfg(moal_private *priv, t_u16 action, t_u8 *bss_role)
 		/* set back the mac address */
 		woal_request_set_mac_address(priv);
 		/* clear the mgmt ies */
-		woal_clear_all_mgmt_ies(priv);
+		woal_clear_all_mgmt_ies(priv, MOAL_IOCTL_WAIT);
 		/* Initialize private structures */
 		woal_init_priv(priv, MOAL_IOCTL_WAIT);
 
@@ -1089,7 +1268,8 @@ woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 			    MLAN_CUSTOM_IE_AUTO_IDX_MASK)
 				woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL,
 							    0, NULL, 0, NULL, 0,
-							    MGMT_MASK_PROBE_REQ);
+							    MGMT_MASK_PROBE_REQ,
+							    MOAL_IOCTL_WAIT);
 			bss_role = MLAN_BSS_ROLE_UAP;
 			woal_cfg80211_bss_role_cfg(priv, MLAN_ACT_SET,
 						   &bss_role);
@@ -1251,6 +1431,10 @@ woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(netdev);
 
 	ENTER();
+	if (priv->ft_pre_connect) {
+		PRINTM(MINFO, "Skip set keys during ft connecting\n");
+		return -EFAULT;
+	}
 	if (woal_cfg80211_set_key(priv, 0, params->cipher, params->key,
 				  params->key_len, params->seq, params->seq_len,
 				  key_index, mac_addr, 0, MOAL_IOCTL_WAIT)) {
@@ -1840,7 +2024,8 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 	unsigned long flags;
-	t_u8 *last_tx_buf;
+	struct sk_buff *skb = NULL;
+	struct tx_status_info *tx_info = NULL;
 #endif
 #endif
 
@@ -1877,29 +2062,6 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			woal_cancel_timer(&priv->phandle->remain_timer);
 			woal_remain_timer_func(priv->phandle);
 		}
-	/** report previous tx status */
-		spin_lock_irqsave(&priv->tx_stat_lock, flags);
-		if (priv->last_tx_buf && priv->last_tx_cookie) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
-			cfg80211_mgmt_tx_status(dev, priv->last_tx_cookie,
-						priv->last_tx_buf,
-						priv->last_tx_buf_len, true,
-						GFP_ATOMIC);
-#else
-			cfg80211_mgmt_tx_status(priv->wdev,
-						priv->last_tx_cookie,
-						priv->last_tx_buf,
-						priv->last_tx_buf_len, true,
-						GFP_ATOMIC);
-#endif
-#endif
-			kfree(priv->last_tx_buf);
-			priv->last_tx_buf = NULL;
-			priv->last_tx_cookie = 0;
-		}
-		spin_unlock_irqrestore(&priv->tx_stat_lock, flags);
-
 		/* With sd8777 We have difficulty to receive response packet in
 		   500ms */
 #define MGMT_TX_DEFAULT_WAIT_TIME	   1500
@@ -2058,14 +2220,25 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	if (ieee80211_is_action(((struct ieee80211_mgmt *)buf)->frame_control)) {
 		pmbuf->flags = MLAN_BUF_FLAG_TX_STATUS;
 		pmbuf->tx_seq_num = ++priv->tx_seq_num;
-		last_tx_buf = kmalloc(len, GFP_KERNEL);
-		if (last_tx_buf) {
-			memcpy(last_tx_buf, buf, len);
-			spin_lock_irqsave(&priv->tx_stat_lock, flags);
-			priv->last_tx_cookie = *cookie;
-			priv->last_tx_buf = last_tx_buf;
-			priv->last_tx_buf_len = len;
-			spin_unlock_irqrestore(&priv->tx_stat_lock, flags);
+		tx_info = kzalloc(sizeof(struct tx_status_info), GFP_ATOMIC);
+		if (tx_info) {
+			skb = alloc_skb(len, GFP_ATOMIC);
+			if (skb) {
+				memcpy(skb->data, buf, len);
+				skb_put(skb, len);
+				spin_lock_irqsave(&priv->tx_stat_lock, flags);
+				tx_info->tx_cookie = *cookie;
+				tx_info->tx_skb = skb;
+				tx_info->tx_seq_num = pmbuf->tx_seq_num;
+				INIT_LIST_HEAD(&tx_info->link);
+				list_add_tail(&tx_info->link,
+					      &priv->tx_stat_queue);
+				spin_unlock_irqrestore(&priv->tx_stat_lock,
+						       flags);
+			} else {
+				kfree(tx_info);
+				tx_info = NULL;
+			}
 		}
 	}
 #endif
@@ -2086,7 +2259,7 @@ woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		   necessary for P2P action handshake to wait 30ms. */
 		if (ieee80211_is_action
 		    (((struct ieee80211_mgmt *)buf)->frame_control)) {
-			if (priv->last_tx_buf && priv->last_tx_cookie)
+			if (tx_info)
 				break;
 			else
 				woal_sched_timeout(30);
@@ -2119,13 +2292,9 @@ done:
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 	if (status != MLAN_STATUS_PENDING) {
-		spin_lock_irqsave(&priv->tx_stat_lock, flags);
-		if (priv->last_tx_buf) {
-			kfree(priv->last_tx_buf);
-			priv->last_tx_buf = NULL;
-			priv->last_tx_cookie = 0;
-		}
-		spin_unlock_irqrestore(&priv->tx_stat_lock, flags);
+		if (tx_info)
+			woal_remove_tx_info(priv, tx_info->tx_seq_num);
+
 	}
 #endif
 #endif
@@ -2144,7 +2313,8 @@ done:
  * @param assocresp_ies_data    Assoc resp ie
  * @param assocresp_index       The index for assoc resp when auto index
  * @param probereq_ies_data     Probe req ie
- * @param probereq_index        The index for probe req when auto index *
+ * @param probereq_index        The index for probe req when auto index
+ * @param wait_option           wait option
  *
  * @return              0 -- success, otherwise fail
  */
@@ -2153,7 +2323,8 @@ woal_cfg80211_custom_ie(moal_private *priv,
 			custom_ie *beacon_ies_data, t_u16 *beacon_index,
 			custom_ie *proberesp_ies_data, t_u16 *proberesp_index,
 			custom_ie *assocresp_ies_data, t_u16 *assocresp_index,
-			custom_ie *probereq_ies_data, t_u16 *probereq_index)
+			custom_ie *probereq_ies_data, t_u16 *probereq_index,
+			t_u8 wait_option)
 {
 	mlan_ioctl_req *ioctl_req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
@@ -2217,7 +2388,7 @@ woal_cfg80211_custom_ie(moal_private *priv,
 
 	memcpy(&misc->param.cust_ie, custom_ie, sizeof(mlan_ds_misc_custom_ie));
 
-	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	status = woal_request_ioctl(priv, ioctl_req, wait_option);
 	if (MLAN_STATUS_SUCCESS != status) {
 		ret = -EFAULT;
 		goto done;
@@ -2314,17 +2485,54 @@ woal_get_first_p2p_ie(const t_u8 *ie, int len, t_u8 *ie_out)
 }
 
 /**
+ * @brief Find specific IE from IE buffer
+ *
+ * @param ie              Pointer to IEs
+ * @param len             Total length of ie
+ * @param spec_ie         Pointer to specific IE buffer
+ * @param spec_len        Total length of specifc IE
+ *
+ * @return                out IE length
+ */
+static t_u8
+woal_find_ie(const t_u8 *ie, int len, const t_u8 *spec_ie, int spec_len)
+{
+	int left_len = len;
+	const t_u8 *pos = ie;
+	int length;
+	t_u8 id = 0;
+
+	while (left_len >= 2) {
+		length = *(pos + 1);
+		id = *pos;
+		if ((length + 2) > left_len)
+			break;
+		if ((length + 2) == spec_len) {
+			if (!memcmp(pos, spec_ie, spec_len)) {
+				return MTRUE;
+			}
+		}
+		pos += (length + 2);
+		left_len -= (length + 2);
+	}
+	return MFALSE;
+}
+
+/**
  * @brief Filter specific IE in ie buf
  *
  * @param ie              Pointer to IEs
  * @param len             Total length of ie
  * @param ie_out		  Pointer to out IE buf
  * @param wps_flag	      flag for wps/p2p
+ * @param dup_ie          Pointer to duplicate ie
+ * @param dup_ie_len 	  duplicate IE len
  *
  * @return                out IE length
  */
 static t_u16
-woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag)
+woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag,
+		       const t_u8 *dup_ie, int dup_ie_len)
 {
 	int left_len = len;
 	const t_u8 *pos = ie;
@@ -2345,6 +2553,13 @@ woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag)
 		id = *pos;
 		if ((length + 2) > left_len)
 			break;
+		if (dup_ie && dup_ie_len &&
+		    woal_find_ie(dup_ie, dup_ie_len, pos, length + 2)) {
+			PRINTM(MIOCTL, "skip duplicate IE\n");
+			pos += (length + 2);
+			left_len -= (length + 2);
+			continue;
+		}
 		switch (id) {
 		case EXTENDED_SUPPORTED_RATES:
 		case WLAN_EID_ERP_INFO:
@@ -2492,6 +2707,7 @@ woal_is_selected_registrar_on(const t_u8 *ie, int len)
  * @param probereq_ies          A pointer to probe req ies
  * @param probereq_ies_len      Probe req ies length *
  * @param mask					Mgmt frame mask
+ * @param wait_option           wait_option
  *
  * @return                      0 -- success, otherwise fail
  */
@@ -2501,7 +2717,7 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 			    const t_u8 *proberesp_ies, size_t proberesp_ies_len,
 			    const t_u8 *assocresp_ies, size_t assocresp_ies_len,
 			    const t_u8 *probereq_ies, size_t probereq_ies_len,
-			    t_u16 mask)
+			    t_u16 mask, t_u8 wait_option)
 {
 	int ret = 0;
 	t_u8 *pos = NULL;
@@ -2563,7 +2779,7 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 					    &proberesp_index,
 					    assocresp_ies_data,
 					    &assocresp_index, probereq_ies_data,
-					    &probereq_index)) {
+					    &probereq_index, wait_option)) {
 			PRINTM(MERROR, "Fail to set beacon wps IE\n");
 			ret = -EFAULT;
 		}
@@ -2625,7 +2841,9 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 						       beacon_ies_data->
 						       ie_buffer,
 						       IE_MASK_WPS | IE_MASK_WFD
-						       | IE_MASK_P2P);
+						       | IE_MASK_P2P,
+						       proberesp_ies,
+						       proberesp_ies_len);
 		} else {
 			/* clear the beacon ies */
 			if (beacon_index > MAX_MGMT_IE_INDEX) {
@@ -2671,7 +2889,7 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 					    proberesp_ies_data,
 					    &proberesp_p2p_index, NULL,
 					    &assocresp_index, NULL,
-					    &probereq_index)) {
+					    &probereq_index, wait_option)) {
 			PRINTM(MERROR, "Fail to set proberesp p2p IE\n");
 			ret = -EFAULT;
 			goto done;
@@ -2691,7 +2909,8 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 				woal_filter_beacon_ies(proberesp_ies,
 						       proberesp_ies_len,
 						       proberesp_ies_data->
-						       ie_buffer, IE_MASK_P2P);
+						       ie_buffer, IE_MASK_P2P,
+						       NULL, 0);
 		} else {
 			/* clear the probe response ies */
 			if (proberesp_index > MAX_MGMT_IE_INDEX) {
@@ -2747,7 +2966,8 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 							       probereq_ies_data->
 							       ie_buffer,
 							       IE_MASK_P2P |
-							       IE_MASK_WFD);
+							       IE_MASK_WFD,
+							       NULL, 0);
 			} else {
 #endif /* KERNEL_VERSION */
 #endif /* WIFI_DIRECT_SUPPORT && V14_FEATURE */
@@ -2778,7 +2998,8 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 	    woal_cfg80211_custom_ie(priv, beacon_ies_data, &beacon_index,
 				    proberesp_ies_data, &proberesp_index,
 				    assocresp_ies_data, &assocresp_index,
-				    probereq_ies_data, &probereq_index)) {
+				    probereq_ies_data, &probereq_index,
+				    wait_option)) {
 		PRINTM(MERROR,
 		       "Fail to set beacon proberesp assoc probereq IES\n");
 		ret = -EFAULT;

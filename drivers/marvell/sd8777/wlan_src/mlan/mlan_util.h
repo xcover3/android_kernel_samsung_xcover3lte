@@ -515,4 +515,23 @@ util_scalar_conditional_write(t_void *pmoal_handle,
 	return (update) ? MTRUE : MFALSE;
 }
 
+/**
+ *  @brief This function counts the bits of unsigned int number
+ *
+ *  @param num  number
+ *  @return     number of bits
+ */
+static t_u32 INLINE
+bitcount(t_u32 num)
+{
+	t_u32 count = 0;
+	static t_u32 nibblebits[] = {
+		0, 1, 1, 2, 1, 2, 2, 3,
+		1, 2, 2, 3, 2, 3, 3, 4
+	};
+	for (; num != 0; num >>= 4)
+		count += nibblebits[num & 0x0f];
+	return count;
+}
+
 #endif /* !_MLAN_UTIL_H_ */

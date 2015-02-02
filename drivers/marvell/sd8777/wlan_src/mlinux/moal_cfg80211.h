@@ -67,6 +67,10 @@ void *woal_get_wiphy_priv(struct wiphy *wiphy);
 
 /* Get the private structure from net device */
 void *woal_get_netdev_priv(struct net_device *dev);
+#ifdef STA_SUPPORT
+/** get scan interface */
+moal_private *woal_get_scan_interface(moal_handle *handle);
+#endif
 
 t_u8 woal_band_cfg_to_ieee_band(t_u32 band);
 
@@ -172,6 +176,22 @@ extern struct ieee80211_supported_band cfg80211_band_2ghz;
 extern struct ieee80211_supported_band cfg80211_band_5ghz;
 extern const u32 cfg80211_cipher_suites[10];
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+/**vendor event*/
+enum vendor_event {
+	event_hang = 0,
+	event_max,
+};
+/**vendor sub command*/
+enum vendor_sub_command {
+	sub_cmd_set_drvdbg = 0,
+	sub_cmd_max,
+};
+void woal_register_cfg80211_vendor_command(struct wiphy *wiphy);
+int woal_cfg80211_vendor_event(IN moal_private *priv,
+			       IN int event, IN t_u8 *data, IN int len);
+#endif
+
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 int woal_cfg80211_bss_role_cfg(moal_private *priv, t_u16 action,
 			       t_u8 *bss_role);
@@ -263,7 +283,12 @@ int woal_cfg80211_remain_on_channel_cfg(moal_private *priv,
 					enum nl80211_channel_type channel_type,
 					t_u32 duration);
 int woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
-				  u8 *mac, struct station_info *stainfo);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+				  const u8 *mac,
+#else
+				  u8 *mac,
+#endif
+				  struct station_info *stainfo);
 
 void woal_remove_virtual_interface(moal_handle *handle);
 
@@ -271,6 +296,15 @@ void woal_remove_virtual_interface(moal_handle *handle);
 #endif /* WIFI_DIRECT_SUPPORT && V14_FEATURE */
 
 #ifdef UAP_CFG80211
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+int woal_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
+			      const struct cfg80211_acl_data *params);
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)|| defined(COMPAT_WIRELESS)
+int woal_cfg80211_set_txq_params(struct wiphy *wiphy, struct net_device *dev,
+				 struct ieee80211_txq_params *params);
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 int woal_cfg80211_add_beacon(struct wiphy *wiphy,
 			     struct net_device *dev,
@@ -290,10 +324,15 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy,
 #endif
 
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev);
-int woal_cfg80211_del_station(struct wiphy *wiphy,
-			      struct net_device *dev, u8 *mac_addr);
+int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+			      const u8 *mac_addr);
+#else
+			      u8 *mac_addr);
 #endif
-void woal_clear_all_mgmt_ies(moal_private *priv);
+#endif /* UAP_CFG80211 */
+
+void woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option);
 int woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 				const t_u8 *beacon_ies, size_t beacon_ies_len,
 				const t_u8 *proberesp_ies,
@@ -301,7 +340,8 @@ int woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 				const t_u8 *assocresp_ies,
 				size_t assocresp_ies_len,
 				const t_u8 *probereq_ies,
-				size_t probereq_ies_len, t_u16 mask);
+				size_t probereq_ies_len, t_u16 mask,
+				t_u8 wait_option);
 
 t_u8 woal_is_any_interface_active(moal_handle *handle);
 

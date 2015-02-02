@@ -614,7 +614,7 @@ register_char_dev(struct char_dev *dev, struct class *char_class,
 		ret = register_chrdev_region(dev_num, 1, mod_name);
 	} else {
 		PRINTM(INFO, "chardev: no major # yet\n");
-		ret = alloc_chrdev_region(&dev_num, dev->minor, 1, mod_name);
+		ret = alloc_chrdev_region((dev_t *) & dev_num, dev->minor, 1, mod_name);
 	}
 
 	if (ret) {

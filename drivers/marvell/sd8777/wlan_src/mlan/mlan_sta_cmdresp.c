@@ -46,6 +46,84 @@ Change log:
 /********************************************************
 			Local Functions
 ********************************************************/
+/**
+ *  @brief This function handles the command response error for TDLS operation
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *
+ *  @return             N/A
+ */
+static void
+wlan_process_cmdreps_error_tdls_operation(mlan_private *pmpriv,
+					  HostCmd_DS_COMMAND *resp)
+{
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	HostCmd_DS_TDLS_OPER *ptdls_oper_data = &(resp->params.tdls_oper_data);
+	sta_node *sta_ptr = MNULL;
+	t_u16 reason;
+
+	ENTER();
+	ptdls_oper_data->tdls_action =
+		wlan_le16_to_cpu(ptdls_oper_data->tdls_action);
+	reason = wlan_le16_to_cpu(ptdls_oper_data->reason);
+	sta_ptr = wlan_get_station_entry(pmpriv, ptdls_oper_data->peer_mac);
+	switch (ptdls_oper_data->tdls_action) {
+	case TDLS_CREATE:
+		/* TDLS create command error */
+		PRINTM(MERROR,
+		       "TDLS CREATE operation: command error, reason %d\n",
+		       reason);
+		if (reason != TDLS_LINK_EXISTS && sta_ptr)
+			sta_ptr->status = TDLS_SETUP_FAILURE;
+		break;
+	case TDLS_CONFIG:
+		/* TDLS config command error */
+		PRINTM(MERROR,
+		       "TDLS CONFIG operation: command error, reason %d\n",
+		       reason);
+		if (sta_ptr)
+			sta_ptr->status = TDLS_SETUP_FAILURE;
+		break;
+	case TDLS_DELETE:
+		/* TDLS delete command error */
+		wlan_restore_tdls_packets(pmpriv, ptdls_oper_data->peer_mac,
+					  TDLS_TEAR_DOWN);
+		if (sta_ptr) {
+			if (sta_ptr->is_11n_enabled) {
+				wlan_cleanup_reorder_tbl(pmpriv,
+							 ptdls_oper_data->
+							 peer_mac);
+				pmadapter->callbacks.moal_spin_lock(pmadapter->
+								    pmoal_handle,
+								    pmpriv->wmm.
+								    ra_list_spinlock);
+				wlan_11n_cleanup_txbastream_tbl(pmpriv,
+								ptdls_oper_data->
+								peer_mac);
+				pmadapter->callbacks.
+					moal_spin_unlock(pmadapter->
+							 pmoal_handle,
+							 pmpriv->wmm.
+							 ra_list_spinlock);
+			}
+			if (sta_ptr->status >= TDLS_SETUP_INPROGRESS)
+				wlan_delete_station_entry(pmpriv,
+							  ptdls_oper_data->
+							  peer_mac);
+		}
+		if (MTRUE == wlan_is_station_list_empty(pmpriv))
+			pmadapter->tdls_status = TDLS_NOT_SETUP;
+		else
+			pmadapter->tdls_status = TDLS_IN_BASE_CHANNEL;
+		PRINTM(MERROR,
+		       "TDLS DELETE operation: command error, reason %d\n",
+		       reason);
+		break;
+	}
+	LEAVE();
+	return;
+}
 
 /**
  *  @brief This function handles the command response error
@@ -63,6 +141,9 @@ wlan_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	pmlan_ioctl_req pscan_ioctl_req = MNULL;
 	mlan_callbacks *pcb = MNULL;
+	tdls_all_config *tdls_all_cfg = MNULL;
+	HostCmd_DS_TDLS_CONFIG *ptdls_config_data =
+		&(resp->params.tdls_config_data);
 
 	ENTER();
 
@@ -114,6 +195,38 @@ wlan_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 		break;
 
 	case HostCmd_CMD_MAC_CONTROL:
+		break;
+
+	case HostCmd_CMD_TDLS_CONFIG:
+		ptdls_config_data->tdls_info.tdls_action =
+			wlan_le16_to_cpu(ptdls_config_data->tdls_info.
+					 tdls_action);
+		switch (ptdls_config_data->tdls_info.tdls_action) {
+		case WLAN_TDLS_SETUP_REQ:
+			/* TDLS link setup error ;display error in logs */
+			tdls_all_cfg =
+				(tdls_all_config *)ptdls_config_data->tdls_info.
+				tdls_data;
+			PRINTM(MERROR, "TDLS Setup Failed, error %d\n",
+			       wlan_le16_to_cpu(tdls_all_cfg->u.tdls_cmd_resp.
+						reason_code));
+			break;
+		case WLAN_TDLS_INIT_CHAN_SWITCH:
+			tdls_all_cfg =
+				(tdls_all_config *)ptdls_config_data->tdls_info.
+				tdls_data;
+			PRINTM(MERROR,
+			       "TDLS init channel switch failed," MACSTR
+			       ": reason=%d\n",
+			       MAC2STR(tdls_all_cfg->u.tdls_cmd_resp.
+				       peer_mac_addr),
+			       wlan_le16_to_cpu(tdls_all_cfg->u.tdls_cmd_resp.
+						reason_code));
+			break;
+		}
+		break;
+	case HostCmd_CMD_TDLS_OPERATION:
+		wlan_process_cmdreps_error_tdls_operation(pmpriv, resp);
 		break;
 
 	case HostCmd_CMD_802_11_ASSOCIATE:
@@ -709,6 +822,7 @@ wlan_ret_802_11_sleep_period(IN pmlan_private pmpriv,
 			+ MLAN_SUB_COMMAND_SIZE;
 	}
 	pmpriv->adapter->sleep_period.period = sleep_pd;
+	pmpriv->adapter->saved_sleep_period.period = sleep_pd;
 
 	pmpriv->adapter->pps_uapsd_mode = MFALSE;
 	if ((pmpriv->adapter->sleep_period.period != 0) &&
@@ -1200,6 +1314,386 @@ wlan_ret_mgmt_ie_list(IN pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function enable/disable tdls powermode
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param powermode    1--enable, 0--disable
+ *
+ *  @return             N/A
+ */
+static void
+wlan_set_tdls_powermode(IN pmlan_private pmpriv, t_u8 powermode)
+{
+	ENTER();
+
+	if (powermode) {
+		pmpriv->wmm_qosinfo = DEFAULT_TDLS_WMM_QOS_INFO;
+		if (!pmpriv->adapter->sleep_period.period)
+			pmpriv->adapter->sleep_period.period =
+				DEFAULT_TDLS_SLEEP_PERIOD;
+	} else {
+		pmpriv->wmm_qosinfo = pmpriv->saved_wmm_qosinfo;
+		pmpriv->adapter->sleep_period.period =
+			pmpriv->adapter->saved_sleep_period.period;
+	}
+	pmpriv->adapter->pps_uapsd_mode = MFALSE;
+	if ((pmpriv->adapter->sleep_period.period != 0) &&
+	    (pmpriv->adapter->sleep_period.period !=
+	     SLEEP_PERIOD_RESERVED_FF)) {
+		pmpriv->adapter->gen_null_pkt = MTRUE;
+	} else {
+		pmpriv->adapter->delay_null_pkt = MFALSE;
+		pmpriv->adapter->gen_null_pkt = MFALSE;
+	}
+	LEAVE();
+	return;
+}
+
+/**
+ *  @brief This function handles the command response of TDLS_CONFIG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status
+wlan_ret_tdls_config(IN pmlan_private pmpriv,
+		     IN HostCmd_DS_COMMAND *resp,
+		     OUT mlan_ioctl_req *pioctl_buf)
+{
+	t_u8 i = 0;
+	t_u16 link_length = 0, final_data_rate = 0;
+	mlan_ds_misc_cfg *misc = MNULL;
+	tdls_all_config *tdls_all_cfg = MNULL;
+	sta_node *sta_ptr = MNULL;
+	HostCmd_DS_TDLS_CONFIG *ptdls_config_data =
+		&(resp->params.tdls_config_data);
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	tdls_each_link_status *link_ptr = MNULL;
+
+	ENTER();
+
+	ptdls_config_data->tdls_info.tdls_action =
+		wlan_le16_to_cpu(ptdls_config_data->tdls_info.tdls_action);
+	switch (ptdls_config_data->tdls_info.tdls_action) {
+	case WLAN_TDLS_CONFIG:
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		if (wlan_le16_to_cpu(tdls_all_cfg->u.tdls_config.enable) == 0) {
+			PRINTM(MINFO, "TDLS disable successful.\n");
+			wlan_delete_station_list(pmpriv);
+			pmadapter->tdls_status = TDLS_NOT_SETUP;
+			if (pmpriv->saved_wmm_qosinfo)
+				pmpriv->wmm_qosinfo = pmpriv->saved_wmm_qosinfo;
+			if (pmadapter->saved_sleep_period.period)
+				pmadapter->sleep_period.period =
+					pmadapter->saved_sleep_period.period;
+		}
+		break;
+
+	case WLAN_TDLS_SET_INFO:
+		break;
+
+	case WLAN_TDLS_DISCOVERY_REQ:
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		tdls_all_cfg->u.tdls_discovery_resp.payload_len =
+			wlan_le16_to_cpu(tdls_all_cfg->u.tdls_discovery_resp.
+					 payload_len);
+		tdls_all_cfg->u.tdls_discovery_resp.cap_info =
+			wlan_le16_to_cpu(tdls_all_cfg->u.tdls_discovery_resp.
+					 cap_info);
+		memcpy(pmpriv->adapter, &misc->param.tdls_config,
+		       &ptdls_config_data->tdls_info,
+		       MIN(sizeof(mlan_ds_misc_tdls_config),
+			   (resp->size - S_DS_GEN)));
+		PRINTM(MCMND, "TDLS_DISCOVERY_REQ: " MACSTR "\n",
+		       MAC2STR(tdls_all_cfg->u.tdls_discovery_resp.
+			       peer_mac_addr));
+		break;
+
+	case WLAN_TDLS_SETUP_REQ:
+		/*
+		 * TDLS link being setup, block all data for this Peer
+		 */
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		PRINTM(MCMND, "TDLS_SETUP_REQ: " MACSTR "\n",
+		       MAC2STR(tdls_all_cfg->u.tdls_setup.peer_mac_addr));
+		sta_ptr =
+			wlan_get_station_entry(pmpriv,
+					       tdls_all_cfg->u.tdls_setup.
+					       peer_mac_addr);
+		if (!sta_ptr) {
+			sta_ptr =
+				wlan_add_station_entry(pmpriv,
+						       tdls_all_cfg->u.
+						       tdls_setup.
+						       peer_mac_addr);
+			if (sta_ptr) {
+				sta_ptr->status = TDLS_SETUP_INPROGRESS;
+				wlan_hold_tdls_packets(pmpriv,
+						       tdls_all_cfg->u.
+						       tdls_setup.
+						       peer_mac_addr);
+			}
+		}
+		break;
+
+	case WLAN_TDLS_TEAR_DOWN_REQ:
+		/*
+		 * TDLS link torn down, open data ports if blocked
+		 */
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		wlan_restore_tdls_packets(pmpriv,
+					  tdls_all_cfg->u.tdls_tear_down.
+					  peer_mac_addr, TDLS_TEAR_DOWN);
+		PRINTM(MCMND, "TDLS_TEARDOWN_REQ: " MACSTR "\n",
+		       MAC2STR(tdls_all_cfg->u.tdls_tear_down.peer_mac_addr));
+		sta_ptr =
+			wlan_get_station_entry(pmpriv,
+					       tdls_all_cfg->u.tdls_tear_down.
+					       peer_mac_addr);
+		if (sta_ptr) {
+
+			if (sta_ptr->is_11n_enabled) {
+				wlan_cleanup_reorder_tbl(pmpriv,
+							 tdls_all_cfg->u.
+							 tdls_tear_down.
+							 peer_mac_addr);
+				pmadapter->callbacks.moal_spin_lock(pmadapter->
+								    pmoal_handle,
+								    pmpriv->wmm.
+								    ra_list_spinlock);
+				wlan_11n_cleanup_txbastream_tbl(pmpriv,
+								tdls_all_cfg->u.
+								tdls_tear_down.
+								peer_mac_addr);
+				pmadapter->callbacks.
+					moal_spin_unlock(pmadapter->
+							 pmoal_handle,
+							 pmpriv->wmm.
+							 ra_list_spinlock);
+			}
+			wlan_delete_station_entry(pmpriv,
+						  tdls_all_cfg->u.
+						  tdls_tear_down.peer_mac_addr);
+			if (MTRUE == wlan_is_station_list_empty(pmpriv))
+				pmadapter->tdls_status = TDLS_NOT_SETUP;
+			else
+				pmadapter->tdls_status = TDLS_IN_BASE_CHANNEL;
+		}
+		break;
+	case WLAN_TDLS_INIT_CHAN_SWITCH:
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		PRINTM(MCMND,
+		       "TDLS_INIT_CHANNEL_SWITCH: " MACSTR
+		       " chan=%d periodicity=%d\n",
+		       MAC2STR(tdls_all_cfg->u.tdls_chan_switch.peer_mac_addr),
+		       (int)tdls_all_cfg->u.tdls_chan_switch.primary_channel,
+		       (int)tdls_all_cfg->u.tdls_chan_switch.periodicity);
+		break;
+
+	case WLAN_TDLS_LINK_STATUS:
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		tdls_all_cfg->u.tdls_link_status_resp.payload_len =
+			wlan_le16_to_cpu(tdls_all_cfg->u.tdls_link_status_resp.
+					 payload_len);
+		link_ptr = tdls_all_cfg->u.tdls_link_status_resp.link_stats;
+		for (i = 0;
+		     i < tdls_all_cfg->u.tdls_link_status_resp.active_links;
+		     i++) {
+			link_ptr->active_channel =
+				wlan_le32_to_cpu(link_ptr->active_channel);
+			link_ptr->data_rssi_last =
+				wlan_le16_to_cpu(link_ptr->data_rssi_last);
+			link_ptr->data_nf_last =
+				wlan_le16_to_cpu(link_ptr->data_nf_last);
+			link_ptr->data_rssi_avg =
+				wlan_le16_to_cpu(link_ptr->data_rssi_avg);
+			link_ptr->data_nf_avg =
+				wlan_le16_to_cpu(link_ptr->data_nf_avg);
+			link_length = sizeof(tdls_each_link_status);
+			/* adjust as per open or secure network */
+			if (link_ptr->link_flags & 0x02) {
+				link_ptr->key_lifetime =
+					wlan_le32_to_cpu(link_ptr->
+							 key_lifetime);
+				link_length += link_ptr->key_length;
+			} else {
+				link_length -=
+					sizeof(link_ptr->security_method) +
+					sizeof(link_ptr->key_lifetime) +
+					sizeof(link_ptr->key_length);
+			}
+			final_data_rate =
+				(t_u16)wlan_index_to_data_rate(pmadapter,
+							       link_ptr->u.
+							       rate_info.
+							       tx_data_rate,
+							       link_ptr->u.
+							       rate_info.
+							       tx_rate_htinfo);
+			link_ptr->u.final_data_rate = final_data_rate / 2;
+
+			link_ptr =
+				(tdls_each_link_status *)(((t_u8 *)link_ptr) +
+							  link_length);
+		}
+		memcpy(pmpriv->adapter, &misc->param.tdls_config,
+		       &ptdls_config_data->tdls_info,
+		       MIN(sizeof(mlan_ds_misc_tdls_config),
+			   (resp->size - S_DS_GEN)));
+		break;
+	case WLAN_TDLS_POWER_MODE:
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		wlan_set_tdls_powermode(pmpriv,
+					(t_u8)tdls_all_cfg->u.tdls_power_mode.
+					power_mode);
+		break;
+	case WLAN_TDLS_STOP_CHAN_SWITCH:
+		tdls_all_cfg =
+			(tdls_all_config *)ptdls_config_data->tdls_info.
+			tdls_data;
+		PRINTM(MCMND, "TDLS_STOP_CHANNEL_SWITCH: " MACSTR "\n",
+		       MAC2STR(tdls_all_cfg->u.tdls_stop_chan_switch.
+			       peer_mac_addr));
+		break;
+	case WLAN_TDLS_CS_PARAMS:
+	case WLAN_TDLS_CS_DISABLE:
+	case WLAN_TDLS_DEBUG_STOP_RX:
+	case WLAN_TDLS_DEBUG_ALLOW_WEAK_SECURITY:
+	case WLAN_TDLS_DEBUG_SETUP_SAME_LINK:
+	case WLAN_TDLS_DEBUG_FAIL_SETUP_CONFIRM:
+	case WLAN_TDLS_DEBUG_WRONG_BSS:
+	case WLAN_TDLS_DEBUG_SETUP_PROHIBITED:
+	case WLAN_TDLS_DEBUG_HIGHER_LOWER_MAC:
+	case WLAN_TDLS_DEBUG_IGNORE_KEY_EXPIRY:
+	case WLAN_TDLS_DEBUG_CS_RET_IM:
+		break;
+	default:
+		if (pioctl_buf)
+			pioctl_buf->status_code = MLAN_ERROR_CMD_RESP_FAIL;
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of TDLS_OPERATION
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status
+wlan_ret_tdls_oper(IN pmlan_private pmpriv,
+		   IN HostCmd_DS_COMMAND *resp, OUT mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_TDLS_OPER *ptdls_oper = &(resp->params.tdls_oper_data);
+	sta_node *sta_ptr = MNULL;
+	t_u16 reason = 0;
+	pmlan_adapter pmadapter = pmpriv->adapter;
+
+	ENTER();
+
+	ptdls_oper->tdls_action = wlan_le16_to_cpu(ptdls_oper->tdls_action);
+
+	sta_ptr = wlan_get_station_entry(pmpriv, ptdls_oper->peer_mac);
+	reason = wlan_le16_to_cpu(ptdls_oper->reason);
+	switch (ptdls_oper->tdls_action) {
+	case TDLS_CREATE:
+		if (reason) {
+			PRINTM(MMSG,
+			       "TDLS: create link " MACSTR " fail, reason=%d\n",
+			       MAC2STR(ptdls_oper->peer_mac), reason);
+			if (reason != TDLS_LINK_EXISTS && sta_ptr)
+				sta_ptr->status = TDLS_SETUP_FAILURE;
+		} else {
+			PRINTM(MMSG, "TDLS: create link " MACSTR " success\n",
+			       MAC2STR(ptdls_oper->peer_mac), reason);
+		}
+		break;
+	case TDLS_CONFIG:
+		if (reason) {
+			PRINTM(MMSG,
+			       "TDLS: Config link " MACSTR " fail, reason=%d\n",
+			       MAC2STR(ptdls_oper->peer_mac), reason);
+			if (sta_ptr)
+				sta_ptr->status = TDLS_SETUP_FAILURE;
+		} else {
+			PRINTM(MMSG, "TDLS: Config link " MACSTR " success\n",
+			       MAC2STR(ptdls_oper->peer_mac));
+		}
+		break;
+	case TDLS_DELETE:
+		wlan_restore_tdls_packets(pmpriv, ptdls_oper->peer_mac,
+					  TDLS_TEAR_DOWN);
+		if (sta_ptr) {
+			if (sta_ptr->is_11n_enabled) {
+				wlan_cleanup_reorder_tbl(pmpriv,
+							 ptdls_oper->peer_mac);
+				pmadapter->callbacks.moal_spin_lock(pmadapter->
+								    pmoal_handle,
+								    pmpriv->wmm.
+								    ra_list_spinlock);
+				wlan_11n_cleanup_txbastream_tbl(pmpriv,
+								ptdls_oper->
+								peer_mac);
+				pmadapter->callbacks.
+					moal_spin_unlock(pmadapter->
+							 pmoal_handle,
+							 pmpriv->wmm.
+							 ra_list_spinlock);
+			}
+			if (sta_ptr->status >= TDLS_SETUP_INPROGRESS)
+				wlan_delete_station_entry(pmpriv,
+							  ptdls_oper->peer_mac);
+		}
+		if (MTRUE == wlan_is_station_list_empty(pmpriv))
+			pmadapter->tdls_status = TDLS_NOT_SETUP;
+		else
+			pmadapter->tdls_status = TDLS_IN_BASE_CHANNEL;
+
+		if (reason)
+			PRINTM(MMSG,
+			       "TDLS: Delete link " MACSTR " fail, reason=%d\n",
+			       MAC2STR(ptdls_oper->peer_mac), reason);
+		else
+			PRINTM(MMSG, "TDLS: Delete link " MACSTR " success\n",
+			       MAC2STR(ptdls_oper->peer_mac));
+		break;
+	default:
+		break;
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function handles the command response of sysclock
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -1556,6 +2050,12 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 		break;
 	case HostCmd_CMD_MGMT_IE_LIST:
 		ret = wlan_ret_mgmt_ie_list(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_TDLS_CONFIG:
+		ret = wlan_ret_tdls_config(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_TDLS_OPERATION:
+		ret = wlan_ret_tdls_oper(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_11N_CFG:
 		ret = wlan_ret_11n_cfg(pmpriv, resp, pioctl_buf);

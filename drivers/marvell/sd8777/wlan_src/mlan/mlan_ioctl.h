@@ -66,6 +66,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_BSS_LISTEN_INTERVAL = 0x00020011,
 #endif
 	MLAN_OID_BSS_REMOVE = 0x00020014,
+#ifdef UAP_SUPPORT
+	MLAN_OID_UAP_CFG_WMM_PARAM = 0x00020015,
+#endif
 
 	/* Radio Configuration Group */
 	MLAN_IOCTL_RADIO_CFG = 0x00030000,
@@ -166,6 +169,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_11N_CFG_TX_BF_CAP = 0x000C0009,
 	MLAN_OID_11N_CFG_DELBA = 0x000C000C,
 	MLAN_OID_11N_CFG_REJECT_ADDBA_REQ = 0x000C000D,
+	MLAN_OID_11N_CFG_TX_AGGR_CTRL = 0x000C000F,
 
 	/* 802.11d Configuration Group */
 	MLAN_IOCTL_11D_CFG = 0x000D0000,
@@ -191,6 +195,7 @@ enum _mlan_ioctl_req_id {
 #if defined(DFS_TESTING_SUPPORT)
 	MLAN_OID_11H_DFS_TESTING = 0x00110003,
 #endif
+	MLAN_OID_11H_CHAN_REPORT_REQUEST = 0x00110004,
 
 	/* Miscellaneous Configuration Group */
 	MLAN_IOCTL_MISC_CFG = 0x00200000,
@@ -207,6 +212,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_ASSOC_RSP = 0x0020000C,
 	MLAN_OID_MISC_INIT_SHUTDOWN = 0x0020000D,
 	MLAN_OID_MISC_CUSTOM_IE = 0x0020000F,
+	MLAN_OID_MISC_TDLS_CONFIG = 0x00200010,
 	MLAN_OID_MISC_TX_DATAPAUSE = 0x00200012,
 	MLAN_OID_MISC_IP_ADDR = 0x00200013,
 	MLAN_OID_MISC_MAC_CONTROL = 0x00200014,
@@ -231,6 +237,8 @@ enum _mlan_ioctl_req_id {
 #ifdef WIFI_DIRECT_SUPPORT
 	MLAN_OID_MISC_WIFI_DIRECT_CONFIG = 0x00200025,
 #endif
+	MLAN_OID_MISC_TDLS_OPER = 0x00200026,
+	MLAN_OID_MISC_GET_TDLS_IES = 0x00200027,
 #ifdef RX_PACKET_COALESCE
 	MLAN_OID_MISC_RX_PACKET_COALESCE = 0x0020002C,
 #endif
@@ -530,6 +538,12 @@ typedef struct _mlan_ssid_bssid {
 	t_u32 idx;
     /** Receive signal strength in dBm */
 	t_s32 rssi;
+    /**mobility domain value*/
+	t_u16 ft_md;
+    /**ft capability*/
+	t_u8 ft_cap;
+    /**channel*/
+	t_u16 channel;
 } mlan_ssid_bssid;
 
 #ifdef UAP_SUPPORT
@@ -936,6 +950,8 @@ typedef struct _mlan_ds_bss {
 		mlan_uap_bss_param bss_config;
 	/** deauth param for MLAN_OID_UAP_DEAUTH_STA */
 		mlan_deauth_param deauth_param;
+	/** AP Wmm parameters for MLAN_OID_UAP_CFG_WMM_PARAM */
+		wmm_parameter_t ap_wmm_para;
 #endif
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	/** BSS role for MLAN_OID_BSS_ROLE */
@@ -1287,6 +1303,10 @@ typedef struct _mlan_bss_info {
     /** AP/Peer supported rates */
 	t_u8 peer_supp_rates[MLAN_SUPPORTED_RATES];
 #endif				/* STA_SUPPORT */
+    /** Mobility Domain ID */
+	t_u16 mdid;
+    /** FT Capability policy */
+	t_u8 ft_cap;
 } mlan_bss_info, *pmlan_bss_info;
 
 /** MAXIMUM number of TID */
@@ -1332,6 +1352,22 @@ typedef struct {
 /** Maximum size of IEEE Information Elements */
 #define IEEE_MAX_IE_SIZE      256
 
+/** support up to 8 TDLS peer */
+#define MLAN_MAX_TDLS_PEER_SUPPORTED     8
+/** TDLS peer info */
+typedef struct _tdls_peer_info {
+    /** station mac address */
+	t_u8 mac_addr[MLAN_MAC_ADDR_LENGTH];
+    /** SNR */
+	t_s8 snr;
+    /** Noise Floor */
+	t_s8 nf;
+	/** Extended Capabilities IE */
+	t_u8 ext_cap[IEEE_MAX_IE_SIZE];
+    /** HT Capabilities IE */
+	t_u8 ht_cap[IEEE_MAX_IE_SIZE];
+} tdls_peer_info;
+
 /** max ralist num */
 #define MLAN_MAX_RALIST_NUM  8
 /** ralist info */
@@ -1370,6 +1406,10 @@ typedef struct _mlan_debug_info {
 	t_u32 rx_tbl_num;
     /** Rx reorder table*/
 	rx_reorder_tbl rx_tbl[MLAN_MAX_RX_BASTREAM_SUPPORTED];
+    /** TDLS peer number */
+	t_u32 tdls_peer_num;
+    /** TDLS peer list*/
+	tdls_peer_info tdls_peer_list[MLAN_MAX_TDLS_PEER_SUPPORTED];
     /** ralist num */
 	t_u32 ralist_num;
     /** ralist info */
@@ -1874,7 +1914,7 @@ typedef struct _mlan_ds_power_cfg {
 #define HOST_SLEEP_COND_IPV6_PACKET     MBIT(31)
 
 /** Host sleep config conditions: Default */
-#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT)
+#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT | HOST_SLEEP_COND_IPV6_PACKET)
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO     0xff
 /** Host sleep config gap : Default */
@@ -2470,6 +2510,8 @@ typedef struct _mlan_ds_11n_cfg {
 		mlan_ds_11n_delba del_ba;
 	/** Reject Addba Req for MLAN_OID_11N_CFG_REJECT_ADDBA_REQ */
 		mlan_ds_reject_addba_req reject_addba_req;
+	/** Control TX AMPDU configuration */
+		t_u32 txaggrctrl;
 	} param;
 } mlan_ds_11n_cfg, *pmlan_ds_11n_cfg;
 
@@ -2610,6 +2652,14 @@ typedef struct _mlan_ds_11h_dfs_testing {
 } mlan_ds_11h_dfs_testing, *pmlan_ds_11h_dfs_testing;
 #endif
 
+typedef struct _mlan_ds_11h_chan_rep_req {
+	t_u16 startFreq;
+	t_u8 chanWidth;
+	t_u8 chanNum;
+	t_u32 millisec_dwell_time;
+				/**< Channel dwell time in milliseconds */
+} mlan_ds_11h_chan_rep_req;
+
 /** Type definition of mlan_ds_11h_cfg for MLAN_IOCTL_11H_CFG */
 typedef struct _mlan_ds_11h_cfg {
     /** Sub-command */
@@ -2621,6 +2671,7 @@ typedef struct _mlan_ds_11h_cfg {
 	/** User-configuation for MLAN_OID_11H_DFS_TESTING */
 		mlan_ds_11h_dfs_testing dfs_testing;
 #endif
+		mlan_ds_11h_chan_rep_req chan_rpt_req;
 	} param;
 } mlan_ds_11h_cfg, *pmlan_ds_11h_cfg;
 
@@ -2948,6 +2999,61 @@ typedef struct _mlan_ds_wifi_direct_config {
 } mlan_ds_wifi_direct_config;
 #endif
 
+/**Action ID for TDLS disable link*/
+#define WLAN_TDLS_DISABLE_LINK           0x00
+/**Action ID for TDLS enable link*/
+#define WLAN_TDLS_ENABLE_LINK            0x01
+/**Action ID for TDLS create link*/
+#define WLAN_TDLS_CREATE_LINK            0x02
+/**Action ID for TDLS config link*/
+#define WLAN_TDLS_CONFIG_LINK            0x03
+/*reason code*/
+#define WLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED 26
+/** TDLS operation buffer */
+typedef struct _mlan_ds_misc_tdls_oper {
+    /** TDLS Action */
+	t_u16 tdls_action;
+    /** TDLS peer address */
+	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
+    /** peer capability */
+	t_u16 capability;
+	/** peer qos info */
+	t_u8 qos_info;
+	/** peer extend capability */
+	t_u8 *ext_capab;
+	/** extend capability len */
+	t_u8 ext_capab_len;
+	/** support rates */
+	t_u8 *supported_rates;
+	/** supported rates len */
+	t_u8 supported_rates_len;
+	/** peer ht_cap */
+	t_u8 *ht_capa;
+} mlan_ds_misc_tdls_oper;
+
+/** flag for TDLS extcap */
+#define TDLS_IE_FLAGS_EXTCAP     0x0001
+/** flag for TDLS HTCAP */
+#define TDLS_IE_FLAGS_HTCAP      0x0002
+/** flag for TDLS HTINFO */
+#define TDLS_IE_FLAGS_HTINFO     0x0004
+/** flag for TDLS Supported channels and regulatory class IE*/
+#define TDLS_IE_FLAGS_SUPP_CS_IE        0x0040
+
+/** TDLS ie buffer */
+typedef struct _mlan_ds_misc_tdls_ies {
+    /** TDLS peer address */
+	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
+    /** flags for request IEs */
+	t_u16 flags;
+    /** Extended Capabilities IE */
+	t_u8 ext_cap[IEEE_MAX_IE_SIZE];
+    /** HT Capabilities IE */
+	t_u8 ht_cap[IEEE_MAX_IE_SIZE];
+    /** HT Information IE */
+	t_u8 ht_info[IEEE_MAX_IE_SIZE];
+} mlan_ds_misc_tdls_ies;
+
 #ifdef RX_PACKET_COALESCE
 typedef struct _mlan_ds_misc_rx_packet_coalesce {
 	/** packet threshold */
@@ -2983,6 +3089,12 @@ typedef struct _mlan_ds_misc_cfg {
 		t_u32 func_init_shutdown;
 	/** Custom IE for MLAN_OID_MISC_CUSTOM_IE */
 		mlan_ds_misc_custom_ie cust_ie;
+	/** TDLS configuration for MLAN_OID_MISC_TDLS_CONFIG */
+		mlan_ds_misc_tdls_config tdls_config;
+	/** TDLS operation for MLAN_OID_MISC_TDLS_OPER */
+		mlan_ds_misc_tdls_oper tdls_oper;
+	/** TDLS ies for  MLAN_OID_MISC_GET_TDLS_IES */
+		mlan_ds_misc_tdls_ies tdls_ies;
 	/** Tx data pause for MLAN_OID_MISC_TX_DATAPAUSE */
 		mlan_ds_misc_tx_datapause tx_datapause;
 	/** IP address configuration */

@@ -38,8 +38,6 @@ Change log:
 /********************************************************
 			Local Variables
 ********************************************************/
-/* CAC Measure report default time 60 seconds */
-#define MEAS_REPORT_TIME (60 * HZ)
 #define MRVL_TLV_HEADER_SIZE            4
 /* Marvell Channel config TLV ID */
 #define MRVL_CHANNELCONFIG_TLV_ID       (0x0100 + 0x2a)	/* 0x012a */
@@ -333,6 +331,8 @@ woal_wait_ioctl_complete(moal_private *priv, mlan_ioctl_req *req,
 
 	ENTER();
 
+	priv->phandle->ioctl_timeout = MFALSE;
+
 	switch (wait_option) {
 	case MOAL_NO_WAIT:
 		break;
@@ -368,10 +368,19 @@ woal_wait_ioctl_complete(moal_private *priv, mlan_ioctl_req *req,
 	}
 	spin_lock_irqsave(&priv->phandle->driver_lock, flags);
 	if (wait->condition == MFALSE) {
-		PRINTM(MMSG,
-		       "wlan: IOCTL by signal %p id=0x%x, sub_id=0x%x, wait_option=%d, action=%d\n",
-		       req, req->req_id, (*(t_u32 *)req->pbuf), wait_option,
-		       (int)req->action);
+		if ((wait_option == MOAL_IOCTL_WAIT_TIMEOUT) ||
+		    (wait_option == MOAL_CMD_WAIT_TIMEOUT)) {
+			priv->phandle->ioctl_timeout = MTRUE;
+			PRINTM(MMSG,
+			       "wlan: IOCTL timeout %p id=0x%x, sub_id=0x%x, wait_option=%d, action=%d\n",
+			       req, req->req_id, (*(t_u32 *)req->pbuf),
+			       wait_option, (int)req->action);
+		} else {
+			PRINTM(MMSG,
+			       "wlan: IOCTL by signal %p id=0x%x, sub_id=0x%x, wait_option=%d, action=%d\n",
+			       req, req->req_id, (*(t_u32 *)req->pbuf),
+			       wait_option, (int)req->action);
+		}
 		req->reserved_1 = 0;
 		status = MLAN_STATUS_PENDING;
 	} else {
@@ -1927,6 +1936,88 @@ woal_set_get_custom_ie(moal_private *priv, t_u16 mask, t_u8 *ie, int ie_len)
 #endif /* defined(HOST_TXRX_MGMT_FRAME) && defined(UAP_WEXT) */
 
 /**
+ *  @brief TDLS configuration ioctl handler
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *  @return         0 --success, otherwise fail
+ */
+int
+woal_tdls_config_ioctl(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ds_misc_tdls_config *tdls_data = NULL;
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	gfp_t flag;
+
+	ENTER();
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "woal_tdls_config_ioctl() corrupt data\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	flag = (in_atomic() || irqs_disabled())? GFP_ATOMIC : GFP_KERNEL;
+	tdls_data = kzalloc(sizeof(mlan_ds_misc_tdls_config), flag);
+	if (!tdls_data) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	if (copy_from_user
+	    (tdls_data, req->ifr_data, sizeof(mlan_ds_misc_tdls_config))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_TDLS_CONFIG;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+	if (tdls_data->tdls_action == WLAN_TDLS_DISCOVERY_REQ
+	    || tdls_data->tdls_action == WLAN_TDLS_LINK_STATUS)
+		ioctl_req->action = MLAN_ACT_GET;
+	else
+		ioctl_req->action = MLAN_ACT_SET;
+
+	memcpy(&misc->param.tdls_config, tdls_data,
+	       sizeof(mlan_ds_misc_tdls_config));
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (tdls_data->tdls_action == WLAN_TDLS_DISCOVERY_REQ
+	    || tdls_data->tdls_action == WLAN_TDLS_LINK_STATUS) {
+		if (copy_to_user(req->ifr_data, &misc->param.tdls_config,
+				 sizeof(mlan_ds_misc_tdls_config))) {
+			PRINTM(MERROR, "Copy to user failed!\n");
+			ret = -EFAULT;
+			goto done;
+		}
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	kfree(tdls_data);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief ioctl function get BSS type
  *
  *  @param dev      A pointer to net_device structure
@@ -2120,7 +2211,7 @@ woal_set_get_bss_role(moal_private *priv, struct iwreq *wrq)
 	} else {
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
-			woal_clear_all_mgmt_ies(priv);
+			woal_clear_all_mgmt_ies(priv, MOAL_IOCTL_WAIT);
 #endif
 		/* Initialize private structures */
 		woal_init_priv(priv, MOAL_IOCTL_WAIT);
@@ -2972,6 +3063,8 @@ done:
 	return ret;
 }
 
+extern int woal_11h_cancel_chan_report_ioctl(moal_private *priv,
+					     t_u8 wait_option);
 /**
  *  @brief Cancel CAC period block
  *
@@ -2985,6 +3078,8 @@ woal_cancel_cac_block(moal_private *priv)
 	ENTER();
 	/* if during CAC period, wake up wait queue */
 	if (priv->phandle->cac_period == MTRUE) {
+		/* Make sure Chan Report is cancelled */
+		woal_11h_cancel_chan_report_ioctl(priv, MOAL_CMD_WAIT);
 		priv->phandle->cac_period = MFALSE;
 		priv->phandle->meas_start_jiffies = 0;
 		if (priv->phandle->delay_bss_start == MTRUE)
@@ -3027,6 +3122,53 @@ woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	ds_11hcfg->sub_command = MLAN_OID_11H_CHANNEL_CHECK;
 	req->req_id = MLAN_IOCTL_11H_CFG;
 	req->action = MLAN_ACT_SET;
+	/* Send Channel Check command and wait until the report is ready */
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* set flag from here */
+	priv->phandle->cac_period = MTRUE;
+	priv->phandle->meas_start_jiffies = jiffies;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Issue MLAN_OID_11H_CHAN_REPORT_REQUEST ioctl to cancel dozer
+ *
+ *  @param priv     Pointer to the moal_private driver data struct
+ *  @param wait_option wait option
+ *
+ *  @return         0 --success, otherwise fail
+ */
+int
+woal_11h_cancel_chan_report_ioctl(moal_private *priv, t_u8 wait_option)
+{
+	int ret = 0;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11h_cfg *ds_11hcfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	ds_11hcfg = (mlan_ds_11h_cfg *)req->pbuf;
+
+	ds_11hcfg->sub_command = MLAN_OID_11H_CHAN_REPORT_REQUEST;
+	req->req_id = MLAN_IOCTL_11H_CFG;
+	req->action = MLAN_ACT_SET;
+	ds_11hcfg->param.chan_rpt_req.millisec_dwell_time = 0;
 	/* Send Channel Check command and wait until the report is ready */
 	status = woal_request_ioctl(priv, req, wait_option);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -4074,6 +4216,14 @@ woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
+#ifdef STA_CFG80211
+	if (priv->ft_pre_connect) {
+	/** skip check the scan age out */
+		ret = woal_find_best_network(priv, wait_option, ssid_bssid);
+		LEAVE();
+		return ret;
+	}
+#endif
 	do_gettimeofday(&t);
 /** scan result timeout value */
 #define SCAN_RESULT_AGEOUT      10

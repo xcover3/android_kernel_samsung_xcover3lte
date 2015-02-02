@@ -165,7 +165,8 @@ woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len)
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_mgmt_frame_ie(priv, pos, ie_len, NULL, 0,
 						NULL, 0, NULL, 0,
-						MGMT_MASK_BEACON_WPS_P2P)) {
+						MGMT_MASK_BEACON_WPS_P2P,
+						MOAL_IOCTL_WAIT)) {
 			PRINTM(MERROR, "Failed to set beacon wps/p2p ie\n");
 			ret = -EFAULT;
 			goto done;
@@ -176,7 +177,8 @@ woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len)
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, pos, ie_len,
 						NULL, 0, NULL, 0,
-						MGMT_MASK_PROBE_RESP)) {
+						MGMT_MASK_PROBE_RESP,
+						MOAL_IOCTL_WAIT)) {
 			PRINTM(MERROR, "Failed to set probe resp ie\n");
 			ret = -EFAULT;
 			goto done;
@@ -187,7 +189,8 @@ woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len)
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0, pos,
 						ie_len, NULL, 0,
-						MGMT_MASK_ASSOC_RESP)) {
+						MGMT_MASK_ASSOC_RESP,
+						MOAL_IOCTL_WAIT)) {
 			PRINTM(MERROR, "Failed to set assoc resp ie\n");
 			ret = -EFAULT;
 			goto done;
@@ -8485,6 +8488,144 @@ done:
 #endif
 
 /**
+ * @brief               Set/Get control to TX AMPDU configuration on infra link
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_txaggrctrl(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	int ret = 0;
+	int user_data_len = 0, header_len = 0, data;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11n_cfg *cfg_11n = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_TX_AGGR_CTRL);
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11n_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	req->req_id = MLAN_IOCTL_11N_CFG;
+	cfg_11n = (mlan_ds_11n_cfg *)req->pbuf;
+	cfg_11n->sub_command = MLAN_OID_11N_CFG_TX_AGGR_CTRL;
+
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, &data,
+				sizeof(data) / sizeof(int), &user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((data != MTRUE) && (data != MFALSE)) {
+			PRINTM(MERROR, "Invalid txaggrctrl parameter %d\n",
+			       data);
+			ret = -EINVAL;
+			goto done;
+		}
+		cfg_11n->param.txaggrctrl = data;
+		req->action = MLAN_ACT_SET;
+	}
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (!user_data_len) {
+		memcpy(respbuf, (t_u8 *)&cfg_11n->param.txaggrctrl,
+		       sizeof(t_u32));
+		ret = sizeof(t_u32);
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief               Set/Get control to enable/disable auto TDLS
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_auto_tdls(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	int ret = 0;
+	int user_data_len = 0, header_len = 0, data;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_AUTO_TDLS);
+
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		data = priv->enable_auto_tdls;
+		memcpy(respbuf, (t_u8 *)&data, sizeof(data));
+		ret = sizeof(data);
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, &data,
+				sizeof(data) / sizeof(int), &user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((data != MTRUE) && (data != MFALSE)) {
+			PRINTM(MERROR, "Invalid autotdls parameter %d\n", data);
+			ret = -EINVAL;
+			goto done;
+		}
+		priv->enable_auto_tdls = (t_u8)data;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
  *  @param req          A pointer to ifreq structure
@@ -8954,6 +9095,16 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_hotspotcfg(priv, buf,
 						   priv_cmd.total_len);
 			goto handled;
+#ifdef RX_PACKET_COALESCE
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_RX_COAL_CFG,
+			    strlen(PRIV_CMD_RX_COAL_CFG)) == 0) {
+			/* RX packet coalescing Configuration */
+			len = woal_priv_rx_pkt_coalesce_cfg(priv, buf,
+							    priv_cmd.total_len);
+			goto handled;
+#endif
+
 		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_MGMT_FRAME_CTRL,
 			    strlen(PRIV_CMD_MGMT_FRAME_CTRL)) == 0) {
@@ -9290,6 +9441,20 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			goto handled;
 #endif
 #endif
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_TX_AGGR_CTRL,
+			    strlen(PRIV_CMD_TX_AGGR_CTRL)) == 0) {
+			/* Set/Get control to TX AMPDU on infra link */
+			len = woal_priv_txaggrctrl(priv, buf,
+						   priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_AUTO_TDLS,
+			    strlen(PRIV_CMD_AUTO_TDLS)) == 0) {
+			/* Set/Get control to enable/disable auto TDLS */
+			len = woal_priv_auto_tdls(priv, buf,
+						  priv_cmd.total_len);
+			goto handled;
 		} else {
 			/* Fall through, after stripping off the custom header */
 			buf += strlen(CMD_MARVELL);
@@ -9969,6 +10134,9 @@ woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		break;
 	case WOAL_MGMT_FRAME_TX:
 		ret = woal_send_host_packet(dev, req);
+		break;
+	case WOAL_TDLS_CONFIG:
+		ret = woal_tdls_config_ioctl(dev, req);
 		break;
 	case WOAL_ANDROID_PRIV_CMD:
 		ret = woal_android_priv_cmd(dev, req);

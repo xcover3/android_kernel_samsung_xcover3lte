@@ -25,6 +25,8 @@
 
 #include "bt_drv.h"
 
+extern int bt_req_fw_nowait;
+
 #define isxdigit(c)	(('0' <= (c) && (c) <= '9') \
 			 || ('a' <= (c) && (c) <= 'f') \
 			 || ('A' <= (c) && (c) <= 'F'))
@@ -136,19 +138,33 @@ bt_atox(const char *a)
  *  @return	N/A
  */
 static void
-bt_mac2u8(u8 * mac_addr, char *buf)
+bt_mac2u8(u8 *mac_addr, char *buf)
 {
-	char *begin = buf, *end;
+	char *begin, *end, *mac_buff;
 	int i;
 
 	ENTER();
 
+	if (!buf) {
+		LEAVE();
+		return;
+	}
+
+	mac_buff = kzalloc(strlen(buf) + 1, GFP_KERNEL);
+	if (!mac_buff) {
+		LEAVE();
+		return;
+	}
+	memcpy(mac_buff, buf, strlen(buf));
+
+	begin = mac_buff;
 	for (i = 0; i < ETH_ALEN; ++i) {
 		end = bt_strsep(&begin, ':', '/');
 		if (end)
 			mac_addr[i] = bt_atox(end);
 	}
 
+	kfree(mac_buff);
 	LEAVE();
 }
 
@@ -200,7 +216,7 @@ bt_atoi(int *data, char *a)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 static int
-bt_parse_cal_cfg(const u8 * src, u32 len, u8 * dst, u32 * dst_size)
+bt_parse_cal_cfg(const u8 *src, u32 len, u8 *dst, u32 *dst_size)
 {
 	const u8 *ptr;
 	u8 *dptr;
@@ -222,7 +238,7 @@ bt_parse_cal_cfg(const u8 * src, u32 len, u8 * dst, u32 * dst_size)
 				PRINTM(ERROR, "cal_file size too big!!!\n");
 				goto done;
 			}
-			*dptr++ = bt_atox(ptr);
+			*dptr++ = bt_atox((const char *)ptr);
 			ptr += 2;
 			count++;
 		} else {
@@ -250,7 +266,7 @@ done:
  *    @return             -1 or length of the line
  */
 int
-parse_cfg_get_line(u8 * data, u32 size, u8 * line_pos)
+parse_cfg_get_line(u8 *data, u32 size, u8 *line_pos)
 {
 	static s32 pos;
 	u8 *src, *dest;
@@ -273,7 +289,7 @@ parse_cfg_get_line(u8 * data, u32 size, u8 * line_pos)
 	*dest = '\0';
 	/* parse new line */
 	pos++;
-	return strlen(line_pos);
+	return strlen((const char *)line_pos);
 }
 
 /**
@@ -285,7 +301,7 @@ parse_cfg_get_line(u8 * data, u32 size, u8 * line_pos)
  *    @return              BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
+bt_process_init_cfg(bt_private *priv, u8 *data, u32 size)
 {
 	u8 *pos;
 	u8 *intf_s, *intf_e;
@@ -315,10 +331,10 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 			continue;	/* Need n't process this line */
 
 		/* Process MAC addr */
-		if (strncmp(pos, "mac_addr", 8) == 0) {
-			intf_s = strchr(pos, '=');
+		if (strncmp((char *)pos, "mac_addr", 8) == 0) {
+			intf_s = (u8 *)strchr((const char *)pos, '=');
 			if (intf_s != NULL)
-				intf_e = strchr(intf_s, ':');
+				intf_e = (u8 *)strchr((const char *)intf_s,':');
 			else
 				intf_e = NULL;
 			if (intf_s != NULL && intf_e != NULL) {
@@ -328,18 +344,18 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 					       __LINE__);
 					goto done;
 				}
-				strncpy(dev_name, intf_s + 1,
+				strncpy(dev_name, (const char *)intf_s + 1,
 					intf_e - intf_s - 1);
 				dev_name[intf_e - intf_s - 1] = '\0';
 				if (strcmp
 				    (dev_name,
 				     priv->bt_dev.m_dev[BT_SEQ].name) == 0) {
 					/* found hci device */
-					strncpy(bt_addr, intf_e + 1,
+					strncpy((char *)bt_addr, (const char *)intf_e + 1,
 						MAX_MAC_ADDR_LEN - 1);
 					bt_addr[MAX_MAC_ADDR_LEN - 1] = '\0';
 					/* Convert MAC format */
-					bt_mac2u8(bt_mac, bt_addr);
+					bt_mac2u8(bt_mac, (char *)bt_addr);
 					PRINTM(CMD,
 					       "HCI: %s new BT Address " MACSTR
 					       "\n", dev_name, MAC2STR(bt_mac));
@@ -358,19 +374,19 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 			}
 		}
 		/* Process REG value */
-		else if (strncmp(pos, "bt_reg", 6) == 0) {
-			intf_s = strchr(pos, '=');
+		else if (strncmp((char *)pos, "bt_reg", 6) == 0) {
+			intf_s = (u8 *)strchr((const char *)pos, '=');
 			if (intf_s != NULL)
-				intf_e = strchr(intf_s, ',');
+				intf_e = (u8 *)strchr((const char *)intf_s, ',');
 			else
 				intf_e = NULL;
 			if (intf_s != NULL && intf_e != NULL) {
 				/* Copy type */
 				memset(buf, 0, sizeof(buf));
-				strncpy(buf, intf_s + 1, 1);
+				strncpy((char *)buf, (const char *)intf_s + 1, 1);
 				buf[1] = '\0';
-				if (0 == bt_atoi(&setting, buf))
-					type = (u8) setting;
+				if (0 == bt_atoi(&setting, (char *)buf))
+					type = (u8)setting;
 				else {
 					PRINTM(ERROR,
 					       "BT: Fail to parse reg type\n");
@@ -383,7 +399,7 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 				goto done;
 			}
 			intf_s = intf_e + 1;
-			intf_e = strchr(intf_s, ',');
+			intf_e = (u8 *)strchr((const char *)intf_s, ',');
 			if (intf_e != NULL) {
 				if ((intf_e - intf_s) >= MAX_PARAM_LEN) {
 					PRINTM(ERROR,
@@ -393,10 +409,10 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 				}
 				/* Copy offset */
 				memset(buf, 0, sizeof(buf));
-				strncpy(buf, intf_s, intf_e - intf_s);
+				strncpy((char *)buf, (const char *)intf_s, intf_e - intf_s);
 				buf[intf_e - intf_s] = '\0';
-				if (0 == bt_atoi(&setting, buf))
-					offset = (u32) setting;
+				if (0 == bt_atoi(&setting, (char *)buf))
+					offset = (u32)setting;
 				else {
 					PRINTM(ERROR,
 					       "BT: Fail to parse reg offset\n");
@@ -409,7 +425,7 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 				goto done;
 			}
 			intf_s = intf_e + 1;
-			if ((strlen(intf_s) >= MAX_PARAM_LEN)) {
+			if ((strlen((const char *)intf_s) >= MAX_PARAM_LEN)) {
 				PRINTM(ERROR,
 				       "BT: Regsier value is too long %d\n",
 				       __LINE__);
@@ -417,8 +433,8 @@ bt_process_init_cfg(bt_private * priv, u8 * data, u32 size)
 			}
 			/* Copy value */
 			memset(buf, 0, sizeof(buf));
-			strncpy(buf, intf_s, sizeof(buf));
-			if (0 == bt_atoi(&setting, buf))
+			strncpy((char *)buf, (const char *)intf_s, sizeof(buf));
+			if (0 == bt_atoi(&setting, (char *)buf))
 				value = (u16) setting;
 			else {
 				PRINTM(ERROR, "BT: Fail to parse reg value\n");
@@ -445,6 +461,34 @@ done:
 }
 
 /**
+ * @brief BT request init conf firmware callback
+ *        This function is invoked by request_firmware_nowait system call
+ *
+ * @param firmware  A pointer to firmware image
+ * @param context   A pointer to bt_private structure
+ *
+ * @return          N/A
+ */
+static void
+bt_request_init_user_conf_callback(const struct firmware *firmware,
+				   void *context)
+{
+	bt_private *priv = (bt_private *)context;
+
+	ENTER();
+
+	if (!firmware)
+		PRINTM(ERROR, "BT user init config request firmware failed\n");
+
+	priv->init_user_cfg = firmware;
+	priv->init_user_conf_wait_flag = TRUE;
+	wake_up_interruptible(&priv->init_user_conf_wait_q);
+
+	LEAVE();
+	return;
+}
+
+/**
  *    @brief BT set user defined init data and param
  *
  *    @param priv     BT private handle
@@ -452,7 +496,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_init_config(bt_private * priv, char *cfg_file)
+bt_init_config(bt_private *priv, char *cfg_file)
 {
 	const struct firmware *cfg = NULL;
 	int ret = BT_STATUS_SUCCESS;
@@ -464,7 +508,7 @@ bt_init_config(bt_private * priv, char *cfg_file)
 		goto done;
 	}
 	if (cfg)
-		ret = bt_process_init_cfg(priv, (u8 *) cfg->data, cfg->size);
+		ret = bt_process_init_cfg(priv, (u8 *)cfg->data, cfg->size);
 	else
 		ret = BT_STATUS_FAILURE;
 done:
@@ -484,7 +528,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_process_cal_cfg(bt_private * priv, u8 * data, u32 size, char *mac)
+bt_process_cal_cfg(bt_private *priv, u8 *data, u32 size, char *mac)
 {
 	u8 bt_mac[ETH_ALEN];
 	u8 cal_data[32];
@@ -526,7 +570,7 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_process_cal_cfg_ext(bt_private * priv, u8 * data, u32 size)
+bt_process_cal_cfg_ext(bt_private *priv, u8 *data, u32 size)
 {
 	u8 cal_data[128];
 	u32 cal_data_len;
@@ -558,20 +602,51 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_cal_config(bt_private * priv, char *cal_file, char *mac)
+bt_cal_config(bt_private *priv, char *cal_file, char *mac)
 {
 	const struct firmware *cfg = NULL;
 	int ret = BT_STATUS_SUCCESS;
 
 	ENTER();
-	if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) < 0) {
-		PRINTM(FATAL, "BT: request_firmware() %s failed\n", cal_file);
-		ret = BT_STATUS_FAILURE;
-		goto done;
+	if (bt_req_fw_nowait) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
+		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+					      cal_file, priv->hotplug_device,
+					      GFP_KERNEL, priv,
+					      bt_request_init_user_conf_callback);
+#else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 13)
+		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+					      cal_file, priv->hotplug_device,
+					      priv,
+					      bt_request_init_user_conf_callback);
+#else
+		ret = request_firmware_nowait(THIS_MODULE,
+					      cal_file, priv->hotplug_device,
+					      priv,
+					      bt_request_init_user_conf_callback);
+#endif
+#endif
+		if (ret < 0) {
+			PRINTM(FATAL,
+			       "BT: bt_cal_config() failed, error code = %#x cal_file=%s\n",
+			       ret, cal_file);
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+		priv->init_user_conf_wait_flag = FALSE;
+		wait_event_interruptible(priv->init_user_conf_wait_q,
+					 priv->init_user_conf_wait_flag);
+		cfg = priv->init_user_cfg;
+	} else {
+		if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) < 0) {
+			PRINTM(FATAL, "BT: request_firmware() %s failed\n", cal_file);
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
 	}
 	if (cfg)
-		ret = bt_process_cal_cfg(priv, (u8 *) cfg->data, cfg->size,
-					 mac);
+		ret = bt_process_cal_cfg(priv, (u8 *)cfg->data, cfg->size, mac);
 	else
 		ret = BT_STATUS_FAILURE;
 done:
@@ -590,19 +665,51 @@ done:
  *    @return         BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_cal_config_ext(bt_private * priv, char *cal_file)
+bt_cal_config_ext(bt_private *priv, char *cal_file)
 {
 	const struct firmware *cfg = NULL;
 	int ret = BT_STATUS_SUCCESS;
 
 	ENTER();
-	if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) < 0) {
-		PRINTM(FATAL, "BT: request_firmware() %s failed\n", cal_file);
-		ret = BT_STATUS_FAILURE;
-		goto done;
+	if (bt_req_fw_nowait) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
+		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+					      cal_file, priv->hotplug_device,
+					      GFP_KERNEL, priv,
+					      bt_request_init_user_conf_callback);
+#else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 13)
+		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+					      cal_file, priv->hotplug_device,
+					      priv,
+					      bt_request_init_user_conf_callback);
+#else
+		ret = request_firmware_nowait(THIS_MODULE,
+					      cal_file, priv->hotplug_device,
+					      priv,
+					      bt_request_init_user_conf_callback);
+#endif
+#endif
+		if (ret < 0) {
+			PRINTM(FATAL,
+			       "BT: bt_cal_config_ext() failed, error code = %#x cal_file=%s\n",
+			       ret, cal_file);
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+		priv->init_user_conf_wait_flag = FALSE;
+		wait_event_interruptible(priv->init_user_conf_wait_q,
+					 priv->init_user_conf_wait_flag);
+		cfg = priv->init_user_cfg;
+	} else {
+		if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) < 0) {
+			PRINTM(FATAL, "BT: request_firmware() %s failed\n", cal_file);
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
 	}
 	if (cfg)
-		ret = bt_process_cal_cfg_ext(priv, (u8 *) cfg->data, cfg->size);
+		ret = bt_process_cal_cfg_ext(priv, (u8 *)cfg->data, cfg->size);
 	else
 		ret = BT_STATUS_FAILURE;
 done:
@@ -620,7 +727,7 @@ done:
  *    @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_init_mac_address(bt_private * priv, char *mac)
+bt_init_mac_address(bt_private *priv, char *mac)
 {
 	u8 bt_mac[ETH_ALEN];
 	int ret = BT_STATUS_FAILURE;

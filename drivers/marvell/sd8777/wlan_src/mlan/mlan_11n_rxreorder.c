@@ -508,7 +508,11 @@ wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta, int tid,
 			PRINTM(MINFO, "UAP/ADHOC:last_seq=%d start_win=%d\n",
 			       last_seq, new_node->start_win);
 		} else {
-			last_seq = priv->rx_seq[tid];
+			sta_ptr = wlan_get_station_entry(priv, ta);
+			if (sta_ptr)
+				last_seq = sta_ptr->rx_seq[tid];
+			else
+				last_seq = priv->rx_seq[tid];
 		}
 		new_node->last_seq = last_seq;
 		new_node->win_size = win_size;
@@ -1013,7 +1017,7 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 		cleanup_rx_reorder_tbl = (initiator) ? MFALSE : MTRUE;
 
 	PRINTM(MEVENT, "delete_bastream_tbl: " MACSTR " tid=%d, type=%d"
-	       "initiator=%d\n", MAC2STR(peer_mac), tid, initiator, type);
+	       "initiator=%d\n", MAC2STR(peer_mac), tid, type, initiator);
 
 	if (cleanup_rx_reorder_tbl) {
 		rx_reor_tbl_ptr =

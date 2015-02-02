@@ -567,7 +567,7 @@ moal_ioctl_complete(IN t_void *pmoal_handle,
 		return MLAN_STATUS_SUCCESS;
 	}
 
-	if (status != MLAN_STATUS_SUCCESS)
+	if (status != MLAN_STATUS_SUCCESS && status != MLAN_STATUS_COMPLETE)
 		PRINTM(MERROR,
 		       "IOCTL failed: %p id=0x%x, sub_id=0x%x action=%d, status_code=0x%x\n",
 		       pioctl_req, pioctl_req->req_id,
@@ -736,8 +736,12 @@ moal_send_packet_complete(IN t_void *pmoal_handle,
 #endif /* #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29) */
 			}
 		}
-		if (skb)
+		if (skb) {
+			if (pmbuf != (mlan_buffer *)skb->head)
+				kfree(pmbuf);
 			dev_kfree_skb_any(skb);
+
+		}
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -893,6 +897,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 	int custom_len = 0;
 #ifdef STA_CFG80211
 	unsigned long flags;
+	moal_private *scan_priv = NULL;
 #endif
 #endif
 	moal_private *priv = NULL;
@@ -990,11 +995,14 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 
 	case MLAN_EVENT_ID_DRV_SCAN_REPORT:
 		PRINTM(MINFO, "Scan report\n");
+
 		if (priv->report_scan_result) {
 			priv->report_scan_result = MFALSE;
 #ifdef STA_CFG80211
 			if (IS_STA_CFG80211(cfg80211_wext)) {
-				if (priv->scan_request) {
+				scan_priv =
+					woal_get_scan_interface(priv->phandle);
+				if (scan_priv && scan_priv->scan_request) {
 					PRINTM(MINFO,
 					       "Reporting scan results\n");
 					woal_inform_bss_from_scan_result(priv,
@@ -1008,16 +1016,16 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 								   PASSIVE_SCAN_CHAN_TIME,
 								   SPECIFIC_SCAN_CHAN_TIME);
 					}
-				}
-				spin_lock_irqsave(&priv->scan_req_lock, flags);
-				if (priv->scan_request) {
-					cfg80211_scan_done(priv->scan_request,
+					cfg80211_scan_done(scan_priv->
+							   scan_request,
 							   MFALSE);
-					priv->scan_request = NULL;
+					spin_lock_irqsave(&scan_priv->
+							  scan_req_lock, flags);
+					scan_priv->scan_request = NULL;
+					spin_unlock_irqrestore(&scan_priv->
+							       scan_req_lock,
+							       flags);
 				}
-				spin_unlock_irqrestore(&priv->scan_req_lock,
-						       flags);
-
 			}
 #endif /* STA_CFG80211 */
 
@@ -1348,6 +1356,13 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
 				     strlen(CUS_EVT_DRIVER_HANG));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#ifdef STA_CFG80211
+		woal_cfg80211_vendor_event(priv, event_hang,
+					   CUS_EVT_DRIVER_HANG,
+					   strlen(CUS_EVT_DRIVER_HANG));
+#endif
+#endif
 		woal_process_hang(priv->phandle);
 		break;
 	case MLAN_EVENT_ID_FW_BG_SCAN:
@@ -1865,46 +1880,108 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 			}
 		}
 		break;
+	case MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#ifdef STA_CFG80211
+		if (IS_STA_CFG80211(cfg80211_wext)) {
+			tdls_tear_down_event *tdls_event =
+				(tdls_tear_down_event *)pmevent->event_buf;
+			cfg80211_tdls_oper_request(priv->netdev,
+						   tdls_event->peer_mac_addr,
+						   NL80211_TDLS_TEARDOWN,
+						   tdls_event->reason_code,
+						   GFP_KERNEL);
+		}
+#endif
+#endif
+		break;
 	case MLAN_EVENT_ID_FW_TX_STATUS:
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
 			unsigned long flag;
 			tx_status_event *tx_status =
 				(tx_status_event *)(pmevent->event_buf + 4);
+			struct tx_status_info *tx_info = NULL;
 			PRINTM(MINFO,
 			       "Receive Tx status: tx_token=%d, pkt_type=0x%x, status=%d tx_seq_num=%d\n",
 			       tx_status->tx_token_id, tx_status->packet_type,
 			       tx_status->status, priv->tx_seq_num);
 			spin_lock_irqsave(&priv->tx_stat_lock, flag);
-			if (priv->last_tx_buf && priv->last_tx_cookie &&
-			    (tx_status->tx_token_id == priv->tx_seq_num)) {
+			tx_info =
+				woal_get_tx_info(priv, tx_status->tx_token_id);
+			if (tx_info) {
 				bool ack;
+				struct sk_buff *skb =
+					(struct sk_buff *)tx_info->tx_skb;
 				if (!tx_status->status)
 					ack = true;
 				else
 					ack = false;
-				PRINTM(MEVENT, "Wlan: P2P Tx status=%d\n", ack);
+				PRINTM(MEVENT, "Wlan: Tx status=%d\n", ack);
+				if (tx_info->tx_cookie) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
-				cfg80211_mgmt_tx_status(priv->netdev,
-							priv->last_tx_cookie,
-							priv->last_tx_buf,
-							priv->last_tx_buf_len,
-							ack, GFP_ATOMIC);
+					cfg80211_mgmt_tx_status(priv->netdev,
+								tx_info->
+								tx_cookie,
+								skb->data,
+								skb->len, ack,
+								GFP_ATOMIC);
 #else
-				cfg80211_mgmt_tx_status(priv->wdev,
-							priv->last_tx_cookie,
-							priv->last_tx_buf,
-							priv->last_tx_buf_len,
-							ack, GFP_ATOMIC);
+					cfg80211_mgmt_tx_status(priv->wdev,
+								tx_info->
+								tx_cookie,
+								skb->data,
+								skb->len, ack,
+								GFP_ATOMIC);
 #endif
 #endif
-				kfree(priv->last_tx_buf);
-				priv->last_tx_buf = NULL;
-				priv->last_tx_cookie = 0;
+				}
+				list_del(&tx_info->link);
+				dev_kfree_skb_any(skb);
+				kfree(tx_info);
 			}
 			spin_unlock_irqrestore(&priv->tx_stat_lock, flag);
 		}
+#endif
+		break;
+	case MLAN_EVENT_ID_DRV_FT_RESPONSE:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#ifdef STA_CFG80211
+		if (IS_STA_CFG80211(cfg80211_wext)) {
+			struct cfg80211_ft_event_params ft_event;
+			if (priv->ft_pre_connect)
+				break;
+			memset(&ft_event, 0,
+			       sizeof(struct cfg80211_ft_event_params));
+			PRINTM(MMSG,
+			       "wlan : FT response  target AP " MACSTR "\n",
+			       MAC2STR((t_u8 *)pmevent->event_buf));
+			DBG_HEXDUMP(MDAT_D, "FT-event ", pmevent->event_buf,
+				    pmevent->event_len);
+			memcpy(priv->target_ap_bssid, pmevent->event_buf,
+			       ETH_ALEN);
+			ft_event.target_ap = priv->target_ap_bssid;
+			ft_event.ies = pmevent->event_buf + ETH_ALEN;
+			ft_event.ies_len = pmevent->event_len - ETH_ALEN;
+			/* TSPEC info is needed by RIC, However the TS
+			   operation is configured by mlanutl */
+			/* So do not add RIC temporally */
+			/* when add RIC, 1. query TS status, 2. copy tspec from
+			   addts command */
+			ft_event.ric_ies = NULL;
+			ft_event.ric_ies_len = 0;
+
+			cfg80211_ft_event(priv->netdev, &ft_event);
+			priv->ft_pre_connect = MTRUE;
+
+			if (priv->ft_roaming_triggered_by_driver ||
+			    !(priv->ft_cap & MBIT(0))) {
+				priv->ft_wait_condition = MTRUE;
+				wake_up(&priv->ft_wait_q);
+			}
+		}
+#endif
 #endif
 		break;
 	default:
@@ -2007,5 +2084,36 @@ moal_assert(IN t_void *pmoal_handle, IN t_u32 cond)
 {
 	if (!cond) {
 		panic("Assert failed: Panic!");
+	}
+}
+
+/**
+ *  @brief This function update the peer signal
+ *
+ *  @param pmoal_handle     A pointer to moal_private structure
+ *  @param bss_index        BSS index
+ *  @param snr              snr
+ *  @param nflr             noise floor
+ *
+ *  @return                 N/A
+ */
+t_void
+moal_updata_peer_signal(IN t_void *pmoal_handle, IN t_u32 bss_index,
+			IN t_u8 *peer_addr, IN t_s8 snr, IN t_s8 nflr)
+{
+	moal_private *priv = NULL;
+	struct tdls_peer *peer = NULL;
+	unsigned long flags;
+	priv = woal_bss_index_to_priv(pmoal_handle, bss_index);
+	if (priv && priv->enable_auto_tdls) {
+		spin_lock_irqsave(&priv->tdls_lock, flags);
+		list_for_each_entry(peer, &priv->tdls_list, link) {
+			if (!memcmp(peer->peer_addr, peer_addr, ETH_ALEN)) {
+				peer->rssi = nflr - snr;
+				peer->rssi_jiffies = jiffies;
+				break;
+			}
+		}
+		spin_unlock_irqrestore(&priv->tdls_lock, flags);
 	}
 }

@@ -101,7 +101,7 @@ EXTRA_CFLAGS += -DLINUX
 # Alternatively KERNELDIR can be set in the environment.
 # Default value for KERNELDIR is set below.
 CROSS_COMPILE ?= /usr/local/arm-eabi-4.6/bin/arm-eabi-
-KERNELDIR ?= /usr/src/arm/linux-3.10.0-pxa1088-kk44
+KERNELDIR ?= /usr/src/arm/linux-3.10.33-pxa1088-kk44
 
 # CROSS_COMPILE specify the prefix used for all executables used
 # during compilation. Only gcc and related bin-utils executables
@@ -228,6 +228,7 @@ endif
 ifdef CONFIG_MRVL_SKMALLOC_WIRELESS_EN
 	EXTRA_CFLAGS += -DSUPPER_KMALLOC
 endif
+
 
 #############################################################################
 # Make Targets
@@ -382,11 +383,6 @@ ifeq ($(CONFIG_PROC_DEBUG),y)
 MOALOBJS += mlinux/moal_debug.o
 endif
 endif
-
-
-
-
-
 
 
 obj-$(CONFIG_MRVL_WL_BUILD_TYPE) := mlan8777.o

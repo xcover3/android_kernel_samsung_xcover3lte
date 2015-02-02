@@ -80,7 +80,7 @@ struct proc_data {
 
 static struct item_data config_items[] = {
 #ifdef	DEBUG_LEVEL1
-	{"drvdbg", sizeof(u32), (t_ptr) & mbt_drvdbg, 0, SHOW_HEX}
+	{"drvdbg", sizeof(u32), (t_ptr)&mbt_drvdbg, 0, SHOW_HEX}
 	,
 #endif
 	{"idle_timeout", item_dev_size(idle_timeout), 0,
@@ -145,7 +145,7 @@ static struct item_data status_items[] = {
 };
 
 static struct item_data debug_items[] = {
-	{"sdcmd52rw", 0, (t_ptr) cmd52_string, 0, SHOW_STRING},
+	{"sdcmd52rw", 0, (t_ptr)cmd52_string, 0, SHOW_STRING},
 };
 
 /**
@@ -192,7 +192,7 @@ string_to_number(char *s)
  *  @return	BT_STATUS_SUCCESS
  */
 static int
-form_cmd52_string(bt_private * priv)
+form_cmd52_string(bt_private *priv)
 {
 	ENTER();
 
@@ -374,14 +374,14 @@ proc_on_close(struct inode *inode, struct file *file)
 			     strlen(priv->pdata[i].name))) {
 				line += strlen(priv->pdata[i].name) + 1;
 				if (priv->pdata[i].size == 1)
-					*((u8 *) priv->pdata[i].addr) =
-						(u8) string_to_number(line);
+					*((u8 *)priv->pdata[i].addr) =
+						(u8)string_to_number(line);
 				else if (priv->pdata[i].size == 2)
 					*((u16 *) priv->pdata[i].addr) =
 						(u16) string_to_number(line);
 				else if (priv->pdata[i].size == 4)
-					*((u32 *) priv->pdata[i].addr) =
-						(u32) string_to_number(line);
+					*((u32 *)priv->pdata[i].addr) =
+						(u32)string_to_number(line);
 			}
 		}
 		while (line[0] && line[0] != '\n')
@@ -449,11 +449,11 @@ proc_open(struct inode *inode, struct file *file)
 	p = pdata->rdbuf;
 	for (i = 0; i < priv->num_items; i++) {
 		if (priv->pdata[i].size == 1)
-			val = *((u8 *) priv->pdata[i].addr);
+			val = *((u8 *)priv->pdata[i].addr);
 		else if (priv->pdata[i].size == 2)
 			val = *((u16 *) priv->pdata[i].addr);
 		else if (priv->pdata[i].size == 4)
-			val = *((u32 *) priv->pdata[i].addr);
+			val = *((u32 *)priv->pdata[i].addr);
 		if (priv->pdata[i].flag & SHOW_INT)
 			p += sprintf(p, "%s=%d\n", priv->pdata[i].name, val);
 		else if (priv->pdata[i].flag & SHOW_HEX)
@@ -512,7 +512,7 @@ static struct proc_private_data proc_files[] = {
  *  @return	BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_proc_init(bt_private * priv, struct m_dev *m_dev, int seq)
+bt_proc_init(bt_private *priv, struct m_dev *m_dev, int seq)
 {
 	int ret = BT_STATUS_SUCCESS;
 	struct proc_dir_entry *entry;
@@ -537,7 +537,7 @@ bt_proc_init(bt_private * priv, struct m_dev *m_dev, int seq)
 			ret = BT_STATUS_FAILURE;
 			goto done;
 		}
-		memcpy((u8 *) priv->dev_proc[seq].pfiles, (u8 *) proc_files,
+		memcpy((u8 *)priv->dev_proc[seq].pfiles, (u8 *)proc_files,
 		       sizeof(proc_files));
 		priv->dev_proc[seq].num_proc_files = ARRAY_SIZE(proc_files);
 		for (j = 0; j < priv->dev_proc[seq].num_proc_files; j++)
@@ -553,8 +553,8 @@ bt_proc_init(bt_private * priv, struct m_dev *m_dev, int seq)
 				ret = BT_STATUS_FAILURE;
 				goto done;
 			}
-			memcpy((u8 *) priv->dev_proc[seq].pfiles[j].pdata,
-			       (u8 *) proc_files[j].pdata,
+			memcpy((u8 *)priv->dev_proc[seq].pfiles[j].pdata,
+			       (u8 *)proc_files[j].pdata,
 			       priv->dev_proc[seq].pfiles[j].num_items *
 			       sizeof(struct item_data));
 			for (i = 0; i < priv->dev_proc[seq].pfiles[j].num_items;
@@ -565,14 +565,14 @@ bt_proc_init(bt_private * priv, struct m_dev *m_dev, int seq)
 						addr =
 						priv->dev_proc[seq].pfiles[j].
 						pdata[i].offset +
-						(t_ptr) & priv->bt_dev;
+						(t_ptr)&priv->bt_dev;
 				if (priv->dev_proc[seq].pfiles[j].
 				    pdata[i].flag & OFFSET_BT_ADAPTER)
 					priv->dev_proc[seq].pfiles[j].pdata[i].
 						addr =
 						priv->dev_proc[seq].pfiles[j].
 						pdata[i].offset +
-						(t_ptr) priv->adapter;
+						(t_ptr)priv->adapter;
 			}
 			priv->dev_proc[seq].pfiles[j].pbt = priv;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
@@ -632,7 +632,7 @@ done:
  *  @return	N/A
  */
 void
-bt_proc_remove(bt_private * priv)
+bt_proc_remove(bt_private *priv)
 {
 	int j, i;
 	ENTER();

@@ -45,7 +45,6 @@ Change log:
 /********************************************************
 			Local Functions
 ********************************************************/
-
 /**
  *  @brief Aggregate individual packets into one AMSDU packet
  *
@@ -131,6 +130,8 @@ wlan_11n_form_amsdu_txpd(mlan_private *priv, mlan_buffer *mbuf)
 	/* Always zero as the data is followed by TxPD */
 	ptx_pd->tx_pkt_offset = sizeof(TxPD);
 	ptx_pd->tx_pkt_type = PKT_TYPE_AMSDU;
+	if (mbuf->flags & MLAN_BUF_FLAG_TDLS)
+		ptx_pd->flags = MRVDRV_TxPD_FLAGS_TDLS_PACKET;
 	if (ptx_pd->tx_control == 0)
 		/* TxCtrl set by user or default */
 		ptx_pd->tx_control = priv->pkt_tx_ctrl;
@@ -384,6 +385,8 @@ wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		pmbuf_aggr->data_offset = 0;
 		pmbuf_aggr->in_ts_sec = pmbuf_src->in_ts_sec;
 		pmbuf_aggr->in_ts_usec = pmbuf_src->in_ts_usec;
+		if (pmbuf_src->flags & MLAN_BUF_FLAG_TDLS)
+			pmbuf_aggr->flags |= MLAN_BUF_FLAG_TDLS;
 
 		/* Form AMSDU */
 		wlan_11n_form_amsdu_txpd(priv, pmbuf_aggr);

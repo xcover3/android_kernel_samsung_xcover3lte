@@ -160,6 +160,7 @@ proc command to enable BT test mode
     Usage:
         echo "test_mode=1" > /proc/mbt/mbtcharx/config   #enable BT test mode
 
+
 ==============================================================================
 			U S E R  M A N U A L  F O R  F M A P P
 

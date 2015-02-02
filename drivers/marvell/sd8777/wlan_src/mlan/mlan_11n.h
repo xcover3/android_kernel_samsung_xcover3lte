@@ -106,6 +106,8 @@ int wlan_get_rxreorder_tbl(mlan_private *priv, rx_reorder_tbl *buf);
 int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf);
 /** send delba */
 void wlan_11n_delba(mlan_private *priv, int tid);
+/** update amdpdu tx win size */
+void wlan_update_ampdu_txwinsize(pmlan_adapter pmadapter);
 /** Minimum number of AMSDU */
 #define MIN_NUM_AMSDU 2
 /** AMSDU Aggr control cmd resp */
@@ -258,6 +260,10 @@ wlan_is_ampdu_allowed(mlan_private *priv, raListTbl *ptr, int tid)
 		return is_station_ampdu_allowed(priv, ptr, tid);
 #endif /* UAP_SUPPORT */
 	if (priv->sec_info.wapi_enabled && !priv->sec_info.wapi_key_on)
+		return MFALSE;
+	if (ptr->is_tdls_link)
+		return is_station_ampdu_allowed(priv, ptr, tid);
+	if (priv->adapter->tdls_status != TDLS_NOT_SETUP && !priv->txaggrctrl)
 		return MFALSE;
 
 	return (priv->aggr_prio_tbl[tid].ampdu_ap != BA_STREAM_NOT_ALLOWED)

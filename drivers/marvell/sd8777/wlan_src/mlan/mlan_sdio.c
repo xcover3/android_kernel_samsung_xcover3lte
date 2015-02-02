@@ -60,27 +60,6 @@ static t_u8 fw_crc_header_rb2[FW_CRC_HEADER_RB2] = {
 		Local Functions
 ********************************************************/
 
-#if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
-/**
- *  @brief This function counts the bits of unsigned int number
- *
- *  @param num  number
- *  @return     number of bits
- */
-static t_u32 INLINE
-bitcount(t_u32 num)
-{
-	t_u32 count = 0;
-	static t_u32 nibblebits[] = {
-		0, 1, 1, 2, 1, 2, 2, 3,
-		1, 2, 2, 3, 2, 3, 3, 4
-	};
-	for (; num != 0; num >>= 4)
-		count += nibblebits[num & 0x0f];
-	return count;
-}
-#endif
-
 /**
  *  @brief This function initialize the SDIO port
  *
@@ -1434,6 +1413,7 @@ wlan_interrupt(pmlan_adapter pmadapter)
 	t_u8 host_int_status_reg = HOST_INT_STATUS_REG;
 
 	ENTER();
+
 	memset(pmadapter, &mbuf, 0, sizeof(mlan_buffer));
 	mbuf.pbuf = pmadapter->mp_regs;
 	mbuf.data_len = max_mp_regs;

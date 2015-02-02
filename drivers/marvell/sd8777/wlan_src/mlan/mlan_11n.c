@@ -254,6 +254,86 @@ wlan_11n_ioctl_tx_bf_cap(IN pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief This function will send delba request to
+ *          the peer in the TxBAStreamTbl
+ *
+ *  @param priv     A pointer to mlan_private
+ *  @param ra       MAC Address to send DELBA
+ *
+ *  @return         N/A
+ */
+void
+wlan_11n_send_delba_to_peer(mlan_private *priv, t_u8 *ra)
+{
+
+	TxBAStreamTbl *ptx_tbl;
+
+	ENTER();
+
+	ptx_tbl = (TxBAStreamTbl *)util_peek_list(priv->adapter->pmoal_handle,
+						  &priv->tx_ba_stream_tbl_ptr,
+						  priv->adapter->callbacks.
+						  moal_spin_lock,
+						  priv->adapter->callbacks.
+						  moal_spin_unlock);
+	if (!ptx_tbl) {
+		LEAVE();
+		return;
+	}
+
+	while (ptx_tbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
+		if (!memcmp
+		    (priv->adapter, ptx_tbl->ra, ra, MLAN_MAC_ADDR_LENGTH)) {
+			PRINTM(MIOCTL, "Tx:Send delba to tid=%d, " MACSTR "\n",
+			       ptx_tbl->tid, MAC2STR(ptx_tbl->ra));
+			wlan_send_delba(priv, MNULL, ptx_tbl->tid, ptx_tbl->ra,
+					1);
+		}
+		ptx_tbl = ptx_tbl->pnext;
+	}
+	/* Signal MOAL to trigger mlan_main_process */
+	wlan_recv_event(priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING, MNULL);
+	LEAVE();
+	return;
+}
+
+/**
+ *  @brief Set/Get control to TX AMPDU configuration on infra link
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
+ */
+static mlan_status
+wlan_11n_ioctl_txaggrctrl(IN pmlan_adapter pmadapter,
+			  IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_11n_cfg *cfg = MNULL;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+
+	ENTER();
+
+	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cfg->param.txaggrctrl = pmpriv->txaggrctrl;
+	else if (pioctl_req->action == MLAN_ACT_SET)
+		pmpriv->txaggrctrl = (t_u8)cfg->param.txaggrctrl;
+
+	if (pmpriv->media_connected == MTRUE) {
+		if (pioctl_req->action == MLAN_ACT_SET
+		    && !pmpriv->txaggrctrl
+		    && pmpriv->adapter->tdls_status != TDLS_NOT_SETUP)
+			wlan_11n_send_delba_to_peer(pmpriv,
+						    pmpriv->curr_bss_params.
+						    bss_descriptor.mac_address);
+	}
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function will resend addba request to all
  *          the peer in the TxBAStreamTbl
  *
@@ -864,6 +944,63 @@ wlan_11n_ioctl_aggr_prio_tbl(IN pmlan_adapter pmadapter,
 
 	LEAVE();
 	return ret;
+}
+
+/**
+ *  @brief This function update all the tx_win_size
+ *
+ *  @param pmadapter    A pointer to mlan_adapter
+ *
+ *
+ *  @return             N/A
+ */
+void
+wlan_update_ampdu_txwinsize(pmlan_adapter pmadapter)
+{
+	t_u8 i;
+	t_u32 tx_win_size = 0;
+	pmlan_private priv = MNULL;
+
+	ENTER();
+
+	for (i = 0; i < pmadapter->priv_num; i++) {
+		if (pmadapter->priv[i]) {
+			priv = pmadapter->priv[i];
+			tx_win_size = priv->add_ba_param.tx_win_size;
+#ifdef STA_SUPPORT
+			if (priv->bss_type == MLAN_BSS_TYPE_STA)
+				priv->add_ba_param.tx_win_size =
+					MLAN_STA_AMPDU_DEF_TXWINSIZE;
+#endif
+#ifdef WIFI_DIRECT_SUPPORT
+			if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
+				priv->add_ba_param.tx_win_size =
+					MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
+#endif
+#ifdef UAP_SUPPORT
+			if (priv->bss_type == MLAN_BSS_TYPE_UAP)
+				priv->add_ba_param.tx_win_size =
+					MLAN_UAP_AMPDU_DEF_TXWINSIZE;
+#endif
+			if (pmadapter->coex_win_size &&
+			    pmadapter->coex_tx_win_size)
+				priv->add_ba_param.tx_win_size =
+					pmadapter->coex_tx_win_size;
+
+			if (tx_win_size != priv->add_ba_param.tx_win_size) {
+				if (priv->media_connected == MTRUE) {
+					for (i = 0; i < MAX_NUM_TID; i++)
+						wlan_send_delba_txbastream_tbl
+							(priv, i);
+					wlan_recv_event(priv,
+							MLAN_EVENT_ID_DRV_DEFER_HANDLING,
+							MNULL);
+				}
+			}
+		}
+	}
+	LEAVE();
+	return;
 }
 
 /**
@@ -1692,6 +1829,58 @@ wlan_get_second_channel_offset(int chan)
 #ifdef STA_SUPPORT
 
 /**
+ *  @brief This function check if ht40 is allowed in current region
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param pbss_desc    A pointer to BSSDescriptor_t structure
+ *
+ *  @return MTRUE/MFALSE
+ */
+static int
+wlan_check_chan_width_ht40_by_region(IN mlan_private *pmpriv,
+				     IN BSSDescriptor_t *pbss_desc)
+{
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	int i = 0;
+	int cover_pri_chan = MFALSE;
+	t_u8 pri_chan = pbss_desc->pht_info->ht_info.pri_chan;
+	t_u8 chan_offset =
+		GET_SECONDARYCHAN(pbss_desc->pht_info->ht_info.field2);
+	t_u8 num_cfp = pmadapter->region_channel[0].num_cfp;
+
+	ENTER();
+
+	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
+	    pmadapter->region_channel && pmadapter->region_channel[0].valid) {
+		for (i = 0; i < num_cfp; i++) {
+			if (pri_chan ==
+			    pmadapter->region_channel[0].pcfp[i].channel) {
+				cover_pri_chan = MTRUE;
+				break;
+			}
+		}
+		if (!cover_pri_chan) {
+			LEAVE();
+			return MFALSE;
+		}
+
+		if (chan_offset == SEC_CHANNEL_ABOVE) {
+			if (pri_chan > num_cfp - 4) {
+				LEAVE();
+				return MFALSE;
+			}
+		} else if (chan_offset == SEC_CHANNEL_BELOW) {
+			if (pri_chan < 5) {
+				LEAVE();
+				return MFALSE;
+			}
+		}
+	}
+	LEAVE();
+	return MTRUE;
+}
+
+/**
  *  @brief This function append the 802_11N tlv
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -1787,8 +1976,9 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		pchan_list->chan_scan_param[0].radio_type =
 			wlan_band_to_radio_type((t_u8)pbss_desc->bss_band);
 		if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
-		    ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.
-					  field2)) {
+		    ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.field2)
+		    && wlan_check_chan_width_ht40_by_region(pmpriv,
+							    pbss_desc)) {
 			SET_SECONDARYCHAN(pchan_list->chan_scan_param[0].
 					  radio_type,
 					  GET_SECONDARYCHAN(pbss_desc->
@@ -1911,6 +2101,9 @@ wlan_11n_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		break;
 	case MLAN_OID_11N_CFG_TX_BF_CAP:
 		status = wlan_11n_ioctl_tx_bf_cap(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_11N_CFG_TX_AGGR_CTRL:
+		status = wlan_11n_ioctl_txaggrctrl(pmadapter, pioctl_req);
 		break;
 	default:
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;

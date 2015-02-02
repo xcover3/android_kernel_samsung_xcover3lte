@@ -542,6 +542,15 @@ out:
 /** Custom event : DRIVER HANG */
 #define CUS_EVT_DRIVER_HANG	            "EVENT=DRIVER_HANG"
 
+/** TDLS connected event */
+#define CUS_EVT_TDLS_CONNECTED           "EVENT=TDLS_CONNECTED"
+/** TDLS tear down event */
+#define CUS_EVT_TDLS_TEARDOWN            "EVENT=TDLS_TEARDOWN"
+/** wmm info */
+#define WMM_TYPE_INFO                     0
+/** wmm parameter */
+#define WMM_TYPE_PARAMETER                1
+
 /** AP connected event */
 #define CUS_EVT_AP_CONNECTED           "EVENT=AP_CONNECTED"
 
@@ -642,6 +651,11 @@ out:
 #define NL_MULTICAST_GROUP  1
 
 #define MAX_RX_PENDING_THRHLD	50
+
+/** high rx pending packets */
+#define HIGH_RX_PENDING         100
+/** low rx pending packets */
+#define LOW_RX_PENDING          80
 
 /** MAX Tx Pending count */
 #define MAX_TX_PENDING      100
@@ -812,6 +826,54 @@ struct tcp_sess {
 	t_u32 ack_cnt;
 };
 
+struct tx_status_info {
+	struct list_head link;
+    /** cookie */
+	t_u64 tx_cookie;
+    /** seq_num */
+	t_u8 tx_seq_num;
+	/**          skb */
+	void *tx_skb;
+};
+
+/** default rssi low threshold */
+#define TDLS_RSSI_LOW_THRESHOLD 55
+/** default rssi high threshold */
+#define TDLS_RSSI_HIGH_THRESHOLD 50
+/** TDLS idle time */
+#define TDLS_IDLE_TIME			(10*HZ)
+/** TDLS max failure count */
+#define TDLS_MAX_FAILURE_COUNT	 4
+/** TDLS tear down reason */
+#define TDLS_TEARN_DOWN_REASON_UNSPECIFIC	26
+
+/** TDLS status */
+typedef enum _tdlsStatus_e {
+	TDLS_NOT_SETUP = 0,
+	TDLS_SETUP_INPROGRESS,
+	TDLS_SETUP_COMPLETE,
+	TDLS_SETUP_FAILURE,
+	TDLS_TEAR_DOWN,
+	TDLS_SWITCHING_CHANNEL,
+	TDLS_IN_BASE_CHANNEL,
+	TDLS_IN_OFF_CHANNEL,
+} tdlsStatus_e;
+
+/** tdls peer_info */
+struct tdls_peer {
+	struct list_head link;
+	/** MAC address information */
+	t_u8 peer_addr[ETH_ALEN];
+	/** rssi */
+	int rssi;
+    /** jiffies with rssi */
+	long rssi_jiffies;
+    /** link status */
+	tdlsStatus_e link_status;
+    /** num of set up failure */
+	t_u8 num_failure;
+};
+
 /** Private structure for MOAL */
 struct _moal_private {
 	/** Handle structure */
@@ -936,6 +998,24 @@ struct _moal_private {
 	u32 last_event;
 	/** fake scan flag */
 	u8 fake_scan_complete;
+	/**ft ie*/
+	t_u8 ft_ie[MAX_IE_SIZE];
+    /**ft ie len*/
+	t_u8 ft_ie_len;
+    /**mobility domain value*/
+	t_u16 ft_md;
+    /**ft capability*/
+	t_u8 ft_cap;
+    /**set true during ft connection*/
+	t_bool ft_pre_connect;
+    /**ft roaming triggered by driver or not*/
+	t_bool ft_roaming_triggered_by_driver;
+    /**target ap mac address for Fast Transition*/
+	t_u8 target_ap_bssid[ETH_ALEN];
+    /** IOCTL wait queue for FT*/
+	wait_queue_head_t ft_wait_q __ATTRIB_ALIGN__;
+	/** ft wait condition */
+	t_bool ft_wait_condition;
 #endif				/* STA_SUPPORT */
 #endif				/* STA_CFG80211 */
 	/** IOCTL wait queue */
@@ -1009,6 +1089,14 @@ struct _moal_private {
 	t_u8 enable_tcp_ack_enh;
     /** TCP session spin lock */
 	spinlock_t tcp_sess_lock;
+    /** tcp list */
+	struct list_head tdls_list;
+	/** tdls spin lock */
+	spinlock_t tdls_lock;
+	/** auto tdls  flag */
+	t_u8 enable_auto_tdls;
+    /** check tx packet for tdls peer */
+	t_u8 tdls_check_tx;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	atomic_t wmm_tx_pending[4];
 #endif
@@ -1018,14 +1106,9 @@ struct _moal_private {
 	spinlock_t tx_stat_lock;
     /** tx_seq_num */
 	t_u8 tx_seq_num;
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-    /** tx_buf */
-	t_u8 *last_tx_buf;
-    /** tx_buf_len */
-	t_u8 last_tx_buf_len;
-    /** cookie */
-	t_u64 last_tx_cookie;
-#endif
+    /** tx status queue */
+	struct list_head tx_stat_queue;
+
 };
 
 /** Handle data structure for MOAL */
@@ -1052,6 +1135,10 @@ struct _moal_handle {
 	struct timeval req_fw_time;
 	/** Init config file */
 	const struct firmware *user_data;
+	/** Init user configure wait queue token */
+	t_u16 init_user_conf_wait_flag;
+	/** Init user configure file wait queue */
+	wait_queue_head_t init_user_conf_wait_q __ATTRIB_ALIGN__;
 	/** Hotplug device */
 	struct device *hotplug_device;
     /** STATUS variables */
@@ -1203,6 +1290,8 @@ struct _moal_handle {
 	t_u8 main_state;
     /** driver state */
 	t_u8 driver_state;
+    /** ioctl timeout */
+	t_u8 ioctl_timeout;
     /** FW dump state */
 	t_u8 fw_dump;
 	/** cmd52 function */
@@ -1559,6 +1648,9 @@ woal_get_priv_bss_type(moal_handle *handle, mlan_bss_type bss_type)
 	return NULL;
 }
 
+/* CAC Measure report default time 60 seconds */
+#define MEAS_REPORT_TIME (60 * HZ)
+
 /** Max line length allowed in init config file */
 #define MAX_LINE_LEN        256
 /** Max MAC address string length allowed */
@@ -1870,6 +1962,8 @@ int woal_custom_ie_ioctl(struct net_device *dev, struct ifreq *req);
 int woal_send_host_packet(struct net_device *dev, struct ifreq *req);
 /** Private command ID to pass mgmt frame */
 #define WOAL_MGMT_FRAME_TX_IOCTL          (SIOCDEVPRIVATE + 12)
+/** common ioctl for TDLS */
+int woal_tdls_config_ioctl(struct net_device *dev, struct ifreq *req);
 
 int woal_get_bss_type(struct net_device *dev, struct ifreq *req);
 #if defined(STA_WEXT) || defined(UAP_WEXT)
@@ -1998,6 +2092,7 @@ mlan_status woal_request_bgscan(moal_private *priv, t_u8 wait_option,
 #endif
 
 void woal_flush_tcp_sess_queue(moal_private *priv);
+void woal_flush_tdls_list(moal_private *priv);
 void wlan_scan_create_brief_table_entry(t_u8 **ppbuffer,
 					BSSDescriptor_t *pbss_desc);
 int wlan_get_scan_table_ret_entry(BSSDescriptor_t *pbss_desc, t_u8 **ppbuffer,
@@ -2005,6 +2100,9 @@ int wlan_get_scan_table_ret_entry(BSSDescriptor_t *pbss_desc, t_u8 **ppbuffer,
 BOOLEAN woal_ssid_valid(mlan_802_11_ssid *pssid);
 int woal_is_connected(moal_private *priv, mlan_ssid_bssid *ssid_bssid);
 int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen);
+void woal_flush_tx_stat_queue(moal_private *priv);
+struct tx_status_info *woal_get_tx_info(moal_private *priv, t_u8 tx_seq_num);
+void woal_remove_tx_info(moal_private *priv, t_u8 tx_seq_num);
 mlan_status woal_request_country_power_table(moal_private *priv, char *region);
 #ifdef RX_PACKET_COALESCE
 mlan_status woal_rx_pkt_coalesce_cfg(moal_private *priv, t_u16 *enable,

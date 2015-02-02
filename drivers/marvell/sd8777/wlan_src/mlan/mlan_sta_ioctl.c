@@ -282,6 +282,10 @@ wlan_get_info_bss_info(IN pmlan_adapter pmadapter,
 	       pbss_desc->supported_rates,
 	       MIN(sizeof(info->param.bss_info.peer_supp_rates),
 		   sizeof(pbss_desc->supported_rates)));
+	if (pbss_desc->pmd_ie) {
+		info->param.bss_info.mdid = pbss_desc->pmd_ie->mdid;
+		info->param.bss_info.ft_cap = pbss_desc->pmd_ie->ft_cap;
+	}
 	pioctl_req->data_read_written =
 		sizeof(mlan_bss_info) + MLAN_SUB_COMMAND_SIZE;
 
@@ -2755,7 +2759,19 @@ wlan_sec_ioctl_set_wep_key(IN pmlan_adapter pmadapter,
 		}
 		if (sec->param.encrypt_key.key_flags && pwep_key->key_length) {
 			pmpriv->wep_key_curr_index = (t_u16)index;
-			pmpriv->sec_info.wep_status = Wlan802_11WEPEnabled;
+			// Only do this if the key is an xmit key.  If the key
+			// is a group key,
+			// we might be in wpa/wep mixed mode in which case we
+			// don't want to
+			// set wep_status = Wlan802_11WEPEnabled because that
+			// enables WEP
+			// at the MAC controller level and WPA stops working
+			// properly.
+			if (sec->param.encrypt_key.
+			    key_flags & KEY_FLAG_SET_TX_KEY) {
+				pmpriv->sec_info.wep_status =
+					Wlan802_11WEPEnabled;
+			}
 		}
 	}
 	if (pmpriv->sec_info.wep_status == Wlan802_11WEPEnabled)
@@ -3819,7 +3835,6 @@ wlan_misc_ioctl_warm_reset(IN pmlan_adapter pmadapter,
 	t_s32 i = 0;
 
 	ENTER();
-
     /** Init all the head nodes and free all the locks here */
 	for (i = 0; i < pmadapter->priv_num; i++)
 		wlan_free_priv(pmadapter->priv[i]);
@@ -4745,6 +4760,15 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		status = wlan_misc_ioctl_custom_ie_list(pmadapter, pioctl_req,
 							MTRUE);
 		break;
+	case MLAN_OID_MISC_TDLS_CONFIG:
+		status = wlan_misc_ioctl_tdls_config(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_TDLS_OPER:
+		status = wlan_misc_ioctl_tdls_oper(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_GET_TDLS_IES:
+		status = wlan_misc_ioctl_tdls_get_ies(pmadapter, pioctl_req);
+		break;
 
 	case MLAN_OID_MISC_MAC_CONTROL:
 		status = wlan_misc_ioctl_mac_control(pmadapter, pioctl_req);
@@ -5065,6 +5089,12 @@ wlan_find_bss(mlan_private *pmpriv, pmlan_ioctl_req pioctl_req)
 		memcpy(pmadapter, &bss->param.ssid_bssid.ssid, &pbss_desc->ssid,
 		       sizeof(mlan_802_11_ssid));
 		bss->param.ssid_bssid.rssi = pbss_desc->rssi;
+		bss->param.ssid_bssid.channel = (t_u16)pbss_desc->channel;
+		if (pbss_desc->pmd_ie) {
+			bss->param.ssid_bssid.ft_md = pbss_desc->pmd_ie->mdid;
+			bss->param.ssid_bssid.ft_cap =
+				pbss_desc->pmd_ie->ft_cap;
+		}
 		/* index in bss list,start from 1 */
 		bss->param.ssid_bssid.idx = i + 1;
 	} else if (bss->param.ssid_bssid.ssid.ssid_len) {
@@ -5081,6 +5111,12 @@ wlan_find_bss(mlan_private *pmpriv, pmlan_ioctl_req pioctl_req)
 		memcpy(pmadapter, (t_u8 *)&bss->param.ssid_bssid.bssid,
 		       (t_u8 *)&pbss_desc->mac_address, MLAN_MAC_ADDR_LENGTH);
 		bss->param.ssid_bssid.rssi = pbss_desc->rssi;
+		bss->param.ssid_bssid.channel = (t_u16)pbss_desc->channel;
+		if (pbss_desc->pmd_ie) {
+			bss->param.ssid_bssid.ft_md = pbss_desc->pmd_ie->mdid;
+			bss->param.ssid_bssid.ft_cap =
+				pbss_desc->pmd_ie->ft_cap;
+		}
 		/* index in bss list, start from 1 */
 		bss->param.ssid_bssid.idx = i + 1;
 	} else {

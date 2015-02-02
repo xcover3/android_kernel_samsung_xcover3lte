@@ -386,9 +386,9 @@ do {                                    \
 #define MRVDRV_MAX_CFP_CODE_A           5
 
 /** high rx pending packets */
-#define HIGH_RX_PENDING         50
+#define HIGH_RX_PENDING         100
 /** low rx pending packets */
-#define LOW_RX_PENDING          20
+#define LOW_RX_PENDING          80
 
 /** Default region code */
 #define MRVDRV_DEFAULT_REGION_CODE      0x10
@@ -484,12 +484,12 @@ do {                                    \
 
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 /** Multi port TX aggregation buffer size */
-#define SDIO_MP_TX_AGGR_DEF_BUF_SIZE        (16384)	/* 16K */
+#define SDIO_MP_TX_AGGR_DEF_BUF_SIZE        (16384 - DMA_ALIGNMENT) /* 16K */
 #endif /* SDIO_MULTI_PORT_TX_AGGR */
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
 /** Multi port RX aggregation buffer size */
-#define SDIO_MP_RX_AGGR_DEF_BUF_SIZE        (16384)	/* 16K */
+#define SDIO_MP_RX_AGGR_DEF_BUF_SIZE        (16384 - DMA_ALIGNMENT) /* 16K */
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
 /** High threshold at which to start drop packets */
@@ -639,6 +639,8 @@ struct _raListTbl {
 	t_u8 is_11n_enabled;
 	/** max amsdu size */
 	t_u16 max_amsdu;
+	/** tdls flag */
+	t_u8 is_tdls_link;
 	/** tx_pause flag */
 	t_u8 tx_pause;
 };
@@ -1059,6 +1061,8 @@ typedef struct _mlan_private {
 	t_u8 osen_ie_len;
     /** Pointer to the station table */
 	mlan_list_head sta_list;
+    /** tdls pending queue */
+	mlan_list_head tdls_pending_txq;
 
     /** MGMT IE */
 	custom_ie mgmt_ie[MAX_MGMT_IE_INDEX];
@@ -1072,6 +1076,8 @@ typedef struct _mlan_private {
 	t_u8 wmm_enabled;
     /** WMM qos info */
 	t_u8 wmm_qosinfo;
+    /** saved WMM qos info */
+	t_u8 saved_wmm_qosinfo;
     /** WMM related variable*/
 	wmm_desc_t wmm;
 
@@ -1132,6 +1138,8 @@ typedef struct _mlan_private {
 #ifdef STA_SUPPORT
 	ExtCap_t ext_cap;
 #endif
+    /** Control TX AMPDU on infra link */
+	t_u8 txaggrctrl;
 } mlan_private, *pmlan_private;
 
 /** BA stream status */
@@ -1252,6 +1260,22 @@ struct _cmd_ctrl_node {
 	mlan_buffer *pmbuf;
 };
 
+/** default tdls wmm qosinfo */
+#define DEFAULT_TDLS_WMM_QOS_INFO        15
+/** default tdls sleep period */
+#define DEFAULT_TDLS_SLEEP_PERIOD   30
+
+/** TDLS status */
+typedef enum _tdlsStatus_e {
+	TDLS_NOT_SETUP = 0,
+	TDLS_SETUP_INPROGRESS,
+	TDLS_SETUP_COMPLETE,
+	TDLS_SETUP_FAILURE,
+	TDLS_TEAR_DOWN,
+	TDLS_SWITCHING_CHANNEL,
+	TDLS_IN_BASE_CHANNEL,
+	TDLS_IN_OFF_CHANNEL,
+} tdlsStatus_e;
 /** station node */
 typedef struct _sta_node sta_node;
 
@@ -1273,6 +1297,34 @@ struct _sta_node {
 	t_u16 rx_seq[MAX_NUM_TID];
     /** max amsdu size */
 	t_u16 max_amsdu;
+    /** tdls status */
+	tdlsStatus_e status;
+    /** SNR */
+	t_s8 snr;
+    /** Noise Floor */
+	t_s8 nf;
+    /** flag for host based tdls */
+	t_u8 external_tdls;
+    /** peer capability */
+	t_u16 capability;
+    /** peer support rates */
+	t_u8 support_rate[32];
+    /** rate size */
+	t_u8 rate_len;
+	/* Qos capability info */
+	t_u8 qos_info;
+    /** HT cap */
+	IEEEtypes_HTCap_t HTcap;
+    /** HT info in TDLS setup confirm*/
+	IEEEtypes_HTInfo_t HTInfo;
+    /** peer BSSCO_20_40*/
+	IEEEtypes_2040BSSCo_t BSSCO_20_40;
+	/* Extended capability */
+	IEEEtypes_ExtCap_t ExtCap;
+	/* RSN IE */
+	IEEEtypes_Generic_t rsn_ie;
+    /**Link ID*/
+	IEEEtypes_LinkIDElement_t link_ie;
     /** wapi key on off flag */
 	t_u8 wapi_key_on;
     /** tx pause status */
@@ -1703,7 +1755,18 @@ typedef struct _mlan_adapter {
 	mlan_list_head scan_pending_q;
     /** mlan_processing */
 	t_u32 scan_processing;
-
+    /** coex scan flag */
+	t_u8 coex_scan;
+    /** coex min scan time */
+	t_u8 coex_min_scan_time;
+    /** coex max scan time */
+	t_u8 coex_max_scan_time;
+    /** coex win size flag */
+	t_u8 coex_win_size;
+    /** coex amdpdu tx win size */
+	t_u8 coex_tx_win_size;
+    /** coex ampdu rx win size */
+	t_u8 coex_rx_win_size;
     /** Region code */
 	t_u16 region_code;
     /** Region Channel data */
@@ -1742,6 +1805,8 @@ typedef struct _mlan_adapter {
 	ChanStatistics_t *pchan_stats;
     /** Number of records in the chan_stats */
 	t_u32 num_in_chan_stats;
+    /** index of chan stats */
+	t_u32 idx_chan_stats;
 	t_u8 bgscan_reported;
 
     /** Number of records in the scan table */
@@ -1787,6 +1852,8 @@ typedef struct _mlan_adapter {
 	sleep_params_t sleep_params;
     /** sleep_period_t (Enhanced Power Save) */
 	sleep_period_t sleep_period;
+    /** saved sleep_period_t (Enhanced Power Save) */
+	sleep_period_t saved_sleep_period;
 
     /** Power Save mode */
     /**
@@ -1899,6 +1966,9 @@ typedef struct _mlan_adapter {
 	t_u8 *pcal_data;
     /** Cal data length  */
 	t_u32 cal_data_len;
+    /** tdls status */
+	/* TDLS_NOT_SETUP|TDLS_SWITCHING_CHANNEL|TDLS_IN_BASE_CHANNEL|TDLS_IN_SWITCH_CHANNEL */
+	tdlsStatus_e tdls_status;
 
 } mlan_adapter, *pmlan_adapter;
 
@@ -2491,6 +2561,79 @@ t_u8 *wlan_get_specific_ie(pmlan_private priv, t_u8 *ie_buf, t_u8 ie_len,
 t_u8 wlan_is_wmm_ie_present(pmlan_adapter pmadapter, t_u8 *pbuf, t_u16 buf_len);
 
 /**
+ *  @brief This function checks whether a station TDLS link is enabled or not
+ *
+ *  @param priv     A pointer to mlan_private
+ *  @param mac      station mac address
+ *  @return         TDLS_NOT_SETUP/TDLS_SETUP_INPROGRESS/TDLS_SETUP_COMPLETE/TDLS_SETUP_FAILURE/TDLS_TEAR_DOWN
+ */
+static INLINE tdlsStatus_e
+wlan_get_tdls_link_status(mlan_private *priv, t_u8 *mac)
+{
+	sta_node *sta_ptr = MNULL;
+	sta_ptr = wlan_get_station_entry(priv, mac);
+	if (sta_ptr)
+		return sta_ptr->status;
+	return TDLS_NOT_SETUP;
+}
+
+/**
+ *  @brief This function checks if TDLS link is in channel switching
+ *
+ *  @param status     tdls link status
+ *  @return         MTRUE/MFALSE
+ */
+static INLINE int
+wlan_is_tdls_link_chan_switching(tdlsStatus_e status)
+{
+	return (status == TDLS_SWITCHING_CHANNEL) ? MTRUE : MFALSE;
+}
+
+/**
+ *  @brief This function checks if send command to firmware is allowed
+ *
+ *  @param status     tdls link status
+ *  @return         MTRUE/MFALSE
+ */
+static INLINE int
+wlan_is_send_cmd_allowed(tdlsStatus_e status)
+{
+	int ret = MTRUE;
+	switch (status) {
+	case TDLS_SWITCHING_CHANNEL:
+	case TDLS_IN_OFF_CHANNEL:
+		ret = MFALSE;
+		break;
+	default:
+		break;
+	}
+	return ret;
+}
+
+/**
+ *  @brief This function checks if TDLS link is setup
+ *
+ *  @param status     tdls link status
+ *  @return         MTRUE/MFALSE
+ */
+static INLINE int
+wlan_is_tdls_link_setup(tdlsStatus_e status)
+{
+	int ret = MFALSE;
+	switch (status) {
+	case TDLS_SWITCHING_CHANNEL:
+	case TDLS_IN_OFF_CHANNEL:
+	case TDLS_IN_BASE_CHANNEL:
+	case TDLS_SETUP_COMPLETE:
+		ret = MTRUE;
+		break;
+	default:
+		break;
+	}
+	return ret;
+}
+
+/**
  *  @brief This function checks tx_pause flag for peer
  *
  *  @param priv     A pointer to mlan_private
@@ -2576,6 +2719,23 @@ mlan_status wlan_cmd_reg_access(IN HostCmd_DS_COMMAND *cmd,
 mlan_status wlan_cmd_mem_access(IN HostCmd_DS_COMMAND *cmd,
 				IN t_u16 cmd_action, IN t_void *pdata_buf);
 
+int wlan_get_tdls_list(mlan_private *priv, tdls_peer_info *buf);
+t_void wlan_hold_tdls_packets(pmlan_private priv, t_u8 *mac);
+t_void wlan_restore_tdls_packets(pmlan_private priv, t_u8 *mac,
+				 tdlsStatus_e status);
+t_void wlan_update_non_tdls_ralist(mlan_private *priv, t_u8 *mac,
+				   t_u8 tx_pause);
+mlan_status wlan_misc_ioctl_tdls_config(IN pmlan_adapter pmadapter,
+					IN pmlan_ioctl_req pioctl_req);
+void wlan_11n_send_delba_to_peer(mlan_private *priv, t_u8 *ra);
+mlan_status wlan_misc_ioctl_tdls_oper(IN pmlan_adapter pmadapter,
+				      IN pmlan_ioctl_req pioctl_req);
+
+mlan_status
+
+wlan_misc_ioctl_tdls_get_ies(IN pmlan_adapter pmadapter,
+			     IN pmlan_ioctl_req pioctl_req);
+
 mlan_status wlan_get_info_ver_ext(IN pmlan_adapter pmadapter,
 				  IN pmlan_ioctl_req pioctl_req);
 
@@ -2612,6 +2772,9 @@ mlan_status
 wlan_misc_ioctl_rx_pkt_coalesce_config(IN pmlan_adapter pmadapter,
 				       IN pmlan_ioctl_req pioctl_req);
 #endif
+
+void wlan_bt_coex_wlan_param_update_event(pmlan_private priv,
+					  pmlan_buffer pevent);
 
 /**
  *  @brief RA based queueing
