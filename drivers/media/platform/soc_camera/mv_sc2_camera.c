@@ -508,6 +508,12 @@ static int mccic_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 		return -EINVAL; /* reconsiderate it, TBD */
 	}
 
+	/* disable/enable SC2 clks to reset SC2 */
+	ctrl_dev->ops->clk_disable(ctrl_dev);
+	clk_disable_unprepare(mcam_dev->axi_clk);
+	ctrl_dev->ops->clk_enable(ctrl_dev);
+	clk_prepare_enable(mcam_dev->axi_clk);
+
 	ret = mccic_acquire_sc2_chs(mcam_dev, mcam_dev->mp.num_planes);
 	if (ret)
 		return ret;
