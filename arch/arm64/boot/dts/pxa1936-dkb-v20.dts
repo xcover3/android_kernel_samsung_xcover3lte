@@ -62,6 +62,29 @@
 					};
 				};
 			};
+			twsi3: i2c@d4013800 {
+				status = "okay";
+				sensor1: apds9930@39 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor2: bmi160@68 {
+					avdd-supply = <&ldo16>;
+					};
+
+				sensor3: bme280@76 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor4: icm20628@69 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor5: mxc400x@15 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor6: mmc3524x@30 {
+					avdd-supply = <&ldo16>;
+					};
+			};
+
 		};
 
 		axi@d4200000 {  /* AXI */
