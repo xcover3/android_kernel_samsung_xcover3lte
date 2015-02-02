@@ -319,6 +319,56 @@ static int pm88x_rgb_setup(struct pm88x_rgb_info *info)
 	return 0;
 }
 
+static ssize_t led_mode_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct pm88x_rgb_info *info;
+	struct led_classdev *cdev;
+	int s;
+
+	cdev = dev_get_drvdata(dev);
+	info = container_of(cdev, struct pm88x_rgb_info, cdev);
+
+	s = sprintf(buf, "led mode: %s\n", info->mode == BREATH_MODE ? "breath" : "switch");
+	return s;
+}
+
+static ssize_t led_mode_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	struct pm88x_rgb_info *info;
+	struct led_classdev *cdev;
+	int ret, led_mode, tmp;
+
+	cdev = dev_get_drvdata(dev);
+	info = container_of(cdev, struct pm88x_rgb_info, cdev);
+
+	ret = sscanf(buf, "%d", &tmp);
+	if (ret < 0) {
+		dev_dbg(dev, "%s: get led mode error, set to breath mode as default\n", __func__);
+		led_mode = BREATH_MODE;
+	} else
+		led_mode = tmp ? BREATH_MODE : SWITCH_MODE;
+
+	mutex_lock(&info->lock);
+	/* set the rgb working mode */
+	if (info->mode == SWITCH_MODE && led_mode == BREATH_MODE) {
+		regmap_update_bits(info->map, PM88X_RGB_CTRL7,
+				   PM88X_RGB_MODE_MASK, PM88X_RGB_BREATH_MODE);
+		regmap_update_bits(info->map, PM88X_RGB_CTRL6,
+				   PM88X_RGB_SPEED_MASK, info->breath_speed);
+	} else if (info->mode == BREATH_MODE && led_mode == SWITCH_MODE) {
+		regmap_update_bits(info->map, PM88X_RGB_CTRL7,
+				   PM88X_RGB_MODE_MASK, PM88X_RGB_SWITCH_MODE);
+	}
+	info->mode = led_mode;
+	mutex_unlock(&info->lock);
+
+	return size;
+}
+
+static DEVICE_ATTR(led_mode, S_IRUGO | S_IWUSR, led_mode_show, led_mode_store);
+
 static int pm88x_rgb_probe(struct platform_device *pdev)
 {
 	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -377,7 +427,16 @@ static int pm88x_rgb_probe(struct platform_device *pdev)
 	}
 	pm88x_rgb_bright_set(&info->cdev, 0);
 
+	ret = device_create_file(info->cdev.dev, &dev_attr_led_mode);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "device attr create fail: %d\n", ret);
+		goto DEV_FAIL;
+	}
 	return 0;
+
+DEV_FAIL:
+	led_classdev_unregister(&info->cdev);
+	return ret;
 }
 
 static int pm88x_rgb_remove(struct platform_device *pdev)
