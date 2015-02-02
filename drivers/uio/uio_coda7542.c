@@ -402,6 +402,7 @@ static int coda7542_ioctl(struct uio_info *info, unsigned int cmd,
 		if (pinst->gotsemaphore == 0) {
 			value = down_timeout(&cdev->sema,
 					msecs_to_jiffies(vpu_info.off));
+			uio_event_sync(listener);
 			if (value == 0)
 				pinst->gotsemaphore = 1;
 		} else
