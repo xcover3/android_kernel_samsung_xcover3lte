@@ -2711,6 +2711,7 @@ done:
  *
  *  @param priv     A pointer to moal_private structure
  *  @param action   MLAN_ACT_DISABLE or MLAN_ACT_ENABLE
+ *  @param vht20_40 Enable VHT 20 MHz or 40 MHz band
  *
  *  @return         0--success, otherwise failure
  */
@@ -3344,6 +3345,58 @@ woal_uap_get_stats(moal_private *priv, t_u8 wait_option,
 		kfree(req);
 	LEAVE();
 	return status;
+}
+
+/**
+ *  @brief Set/Get system configuration parameters
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param action           MLAN_ACT_SET or MLAN_ACT_GET
+ *  @param ap_wmm_para      A pointer to wmm_parameter_t structure
+ *
+ *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
+			 wmm_parameter_t *ap_wmm_para)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_bss *bss = NULL;
+	mlan_ioctl_req *req = NULL;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	bss = (mlan_ds_bss *)req->pbuf;
+	bss->sub_command = MLAN_OID_UAP_CFG_WMM_PARAM;
+	req->req_id = MLAN_IOCTL_BSS;
+	req->action = action;
+
+	if (action == MLAN_ACT_SET)
+		memcpy(&bss->param.ap_wmm_para, ap_wmm_para,
+		       sizeof(wmm_parameter_t));
+
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (ret != MLAN_STATUS_SUCCESS)
+		goto done;
+	if (bss->param.ap_wmm_para.reserved != MLAN_STATUS_COMPLETE) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	if (action == MLAN_ACT_GET)
+		memcpy(ap_wmm_para, &bss->param.ap_wmm_para,
+		       sizeof(wmm_parameter_t));
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
 }
 
 /**

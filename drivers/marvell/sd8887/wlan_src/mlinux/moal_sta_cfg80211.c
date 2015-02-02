@@ -241,6 +241,9 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 	.del_beacon = woal_cfg80211_del_beacon,
 #endif
 	.del_station = woal_cfg80211_del_station,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0) || defined(COMPAT_WIRELESS)
+	.set_txq_params = woal_cfg80211_set_txq_params,
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	.set_mac_acl = woal_cfg80211_set_mac_acl,
 #endif
@@ -2310,7 +2313,8 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 #endif
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #ifdef WIFI_DIRECT_SUPPORT
-	if (priv->phandle->is_go_timer_set) {
+	if (priv->phandle->is_go_timer_set &&
+	    priv->wdev->iftype != NL80211_IFTYPE_P2P_GO) {
 		PRINTM(MCMND, "block scan in go timer....\n");
 		LEAVE();
 		return -EAGAIN;
@@ -3037,7 +3041,13 @@ woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 		LEAVE();
 		return -EFAULT;
 	}
+
 	priv->cfg_disconnect = MFALSE;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+	if (priv->wdev->iftype == NL80211_IFTYPE_STATION)
+		cfg80211_disconnected(priv->netdev, 0, NULL, 0, GFP_KERNEL);
+#endif
 
 	memset(priv->cfg_bssid, 0, ETH_ALEN);
 	if (priv->bss_type == MLAN_BSS_TYPE_STA)

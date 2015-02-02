@@ -2229,17 +2229,15 @@ wlan_check_chan_width_ht40_by_region(IN mlan_private *pmpriv,
 			}
 		}
 		if (!cover_pri_chan) {
+			PRINTM(MERROR, "Invalid channel, force use HT20\n");
 			LEAVE();
 			return MFALSE;
 		}
 
 		if (chan_offset == SEC_CHANNEL_ABOVE) {
 			if (pri_chan > num_cfp - 4) {
-				LEAVE();
-				return MFALSE;
-			}
-		} else if (chan_offset == SEC_CHANNEL_BELOW) {
-			if (pri_chan < 5) {
+				PRINTM(MERROR,
+				       "Invalid second channel offset, force use HT20\n");
 				LEAVE();
 				return MFALSE;
 			}
@@ -2268,7 +2266,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 	MrvlIEtypes_ChanListParamSet_t *pchan_list;
 	MrvlIETypes_2040BSSCo_t *p2040_bss_co;
 	MrvlIETypes_ExtCap_t *pext_cap;
-	t_u32 usr_dot_11n_dev_cap;
+	t_u32 usr_dot_11n_dev_cap, orig_usr_dot_11n_dev_cap = 0;
 	t_u32 usr_vht_cap_info;
 	int ret_len = 0;
 
@@ -2293,7 +2291,15 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_a;
 	else
 		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_bg;
-
+	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
+	    ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
+	    !wlan_check_chan_width_ht40_by_region(pmpriv, pbss_desc)) {
+		orig_usr_dot_11n_dev_cap = usr_dot_11n_dev_cap;
+		RESETSUPP_CHANWIDTH40(usr_dot_11n_dev_cap);
+		RESET_40MHZ_INTOLARENT(usr_dot_11n_dev_cap);
+		RESETSUPP_SHORTGI40(usr_dot_11n_dev_cap);
+		pmadapter->usr_dot_11n_dev_cap_bg = usr_dot_11n_dev_cap;
+	}
 	if (pbss_desc->pht_cap) {
 		pht_cap = (MrvlIETypes_HTCap_t *)*ppbuffer;
 		memset(pmadapter, pht_cap, 0, sizeof(MrvlIETypes_HTCap_t));
@@ -2432,6 +2438,8 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		wlan_add_ext_capa_info_ie(pmpriv, ppbuffer);
 		ret_len += sizeof(MrvlIETypes_ExtCap_t);
 	}
+	if (orig_usr_dot_11n_dev_cap)
+		pmadapter->usr_dot_11n_dev_cap_bg = orig_usr_dot_11n_dev_cap;
 	LEAVE();
 	return ret_len;
 }

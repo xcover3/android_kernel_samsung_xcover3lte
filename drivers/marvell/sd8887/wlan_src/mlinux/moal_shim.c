@@ -736,12 +736,8 @@ moal_send_packet_complete(IN t_void *pmoal_handle,
 #endif /* #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29) */
 			}
 		}
-		if (skb) {
-			if (pmbuf != (mlan_buffer *)skb->head)
-				kfree(pmbuf);
+		if (skb)
 			dev_kfree_skb_any(skb);
-
-		}
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;

@@ -1029,7 +1029,7 @@ wlan_11h_is_dfs_slave(mlan_private *priv)
  *
  *  @return             MTRUE or MFALSE
  */
-static t_bool
+t_bool
 wlan_is_intf_active(mlan_private *pmpriv)
 {
 	t_bool ret = MFALSE;

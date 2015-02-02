@@ -1866,14 +1866,6 @@ woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 	t_u32 last_mgmt_subtype_mask = priv->mgmt_subtype_mask;
 
 	ENTER();
-#ifdef UAP_SUPPORT
-	if ((priv->bss_type == MLAN_BSS_TYPE_UAP) &&
-	    (frame_type == IEEE80211_STYPE_PROBE_REQ)) {
-		PRINTM(MIOCTL, "Skip register PROBE_REQ in UAP mode\n");
-		LEAVE();
-		return;
-	}
-#endif
 	if (reg == MTRUE) {
 		/* set mgmt_subtype_mask based on origin value */
 		mgmt_subtype_mask =
@@ -2525,17 +2517,54 @@ woal_get_first_p2p_ie(const t_u8 *ie, int len, t_u8 *ie_out)
 }
 
 /**
+ * @brief Find specific IE from IE buffer
+ *
+ * @param ie              Pointer to IEs
+ * @param len             Total length of ie
+ * @param spec_ie         Pointer to specific IE buffer
+ * @param spec_len        Total length of specifc IE
+ *
+ * @return                out IE length
+ */
+static t_u8
+woal_find_ie(const t_u8 *ie, int len, const t_u8 *spec_ie, int spec_len)
+{
+	int left_len = len;
+	const t_u8 *pos = ie;
+	int length;
+	t_u8 id = 0;
+
+	while (left_len >= 2) {
+		length = *(pos + 1);
+		id = *pos;
+		if ((length + 2) > left_len)
+			break;
+		if ((length + 2) == spec_len) {
+			if (!memcmp(pos, spec_ie, spec_len)) {
+				return MTRUE;
+			}
+		}
+		pos += (length + 2);
+		left_len -= (length + 2);
+	}
+	return MFALSE;
+}
+
+/**
  * @brief Filter specific IE in ie buf
  *
  * @param ie              Pointer to IEs
  * @param len             Total length of ie
  * @param ie_out		  Pointer to out IE buf
  * @param wps_flag	      flag for wps/p2p
+ * @param dup_ie          Pointer to duplicate ie
+ * @param dup_ie_len 	  duplicate IE len
  *
  * @return                out IE length
  */
 static t_u16
-woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag)
+woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag,
+		       const t_u8 *dup_ie, int dup_ie_len)
 {
 	int left_len = len;
 	const t_u8 *pos = ie;
@@ -2556,6 +2585,13 @@ woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag)
 		id = *pos;
 		if ((length + 2) > left_len)
 			break;
+		if (dup_ie && dup_ie_len &&
+		    woal_find_ie(dup_ie, dup_ie_len, pos, length + 2)) {
+			PRINTM(MIOCTL, "skip duplicate IE\n");
+			pos += (length + 2);
+			left_len -= (length + 2);
+			continue;
+		}
 		switch (id) {
 		case EXTENDED_SUPPORTED_RATES:
 		case WLAN_EID_ERP_INFO:
@@ -2839,7 +2875,9 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 						       beacon_ies_data->
 						       ie_buffer,
 						       IE_MASK_WPS | IE_MASK_WFD
-						       | IE_MASK_P2P);
+						       | IE_MASK_P2P,
+						       proberesp_ies,
+						       proberesp_ies_len);
 		} else {
 			/* clear the beacon ies */
 			if (beacon_index > MAX_MGMT_IE_INDEX) {
@@ -2905,7 +2943,8 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 				woal_filter_beacon_ies(proberesp_ies,
 						       proberesp_ies_len,
 						       proberesp_ies_data->
-						       ie_buffer, IE_MASK_P2P);
+						       ie_buffer, IE_MASK_P2P,
+						       NULL, 0);
 		} else {
 			/* clear the probe response ies */
 			if (proberesp_index > MAX_MGMT_IE_INDEX) {
@@ -2961,7 +3000,8 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 							       probereq_ies_data->
 							       ie_buffer,
 							       IE_MASK_P2P |
-							       IE_MASK_WFD);
+							       IE_MASK_WFD,
+							       NULL, 0);
 			} else {
 #endif /* KERNEL_VERSION */
 #endif /* WIFI_DIRECT_SUPPORT && V14_FEATURE */

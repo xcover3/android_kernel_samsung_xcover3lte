@@ -458,6 +458,9 @@ void woal_set_sys_config_invalid_data(mlan_uap_bss_param *config);
 mlan_status woal_set_get_sys_config(moal_private *priv,
 				    t_u16 action, t_u8 wait_option,
 				    mlan_uap_bss_param *sys_cfg);
+/** Set get AP wmm parameter */
+mlan_status woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
+				     wmm_parameter_t *ap_wmm_para);
 int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
 int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40);
 mlan_status woal_uap_set_11n_status(mlan_uap_bss_param *sys_cfg, t_u8 action);

@@ -35,7 +35,7 @@ static char *fw_name;
 /** fw serial download flag */
 static int bt_fw_serial = 1;
 /** request firmware nowait */
-int req_fw_nowait;
+int bt_req_fw_nowait;
 static int multi_fn = BIT(2);
 
 #define DEFAULT_FW_NAME ""
@@ -783,7 +783,7 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 			   priv->firmware->size)) {
 		PRINTM(ERROR,
 		       "BT: sd_init_fw_dpc failed (download fw with nowait: %d). Terminating download\n",
-		       req_fw_nowait);
+		       bt_req_fw_nowait);
 		sdio_release_host(card->func);
 		ret = BT_STATUS_FAILURE;
 		goto done;
@@ -806,7 +806,7 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 	}
 	if (fw_firmware) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-		if (!req_fw_nowait)
+		if (!bt_req_fw_nowait)
 #endif
 			release_firmware(fw_firmware);
 	}
@@ -816,12 +816,12 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 done:
 	if (fw_firmware) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-		if (!req_fw_nowait)
+		if (!bt_req_fw_nowait)
 #endif
 			release_firmware(fw_firmware);
 	}
 	/* For synchronous download cleanup will be done in add_card */
-	if (!req_fw_nowait)
+    	if (!bt_req_fw_nowait)
 		return ret;
 	PRINTM(INFO, "unregister device\n");
 	sbi_unregister_dev(priv);
@@ -899,7 +899,7 @@ sd_download_firmware_w_helper(bt_private *priv)
 			cur_fw_name = DEFAULT_FW_NAME_8797;
 	}
 
-	if (req_fw_nowait) {
+	if (bt_req_fw_nowait) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 					      cur_fw_name, priv->hotplug_device,
@@ -2106,8 +2106,8 @@ bt_dump_sdio_regs(bt_private *priv)
 
 module_param(fw_name, charp, 0);
 MODULE_PARM_DESC(fw_name, "Firmware name");
-module_param(req_fw_nowait, int, 0);
-MODULE_PARM_DESC(req_fw_nowait,
+module_param(bt_req_fw_nowait, int, 0);
+MODULE_PARM_DESC(bt_req_fw_nowait,
 		 "0: Use request_firmware API; 1: Use request_firmware_nowait API");
 module_param(multi_fn, int, 0);
 MODULE_PARM_DESC(multi_fn, "Bit 2: FN2;");

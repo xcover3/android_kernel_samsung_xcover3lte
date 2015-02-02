@@ -66,6 +66,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_BSS_LISTEN_INTERVAL = 0x00020011,
 #endif
 	MLAN_OID_BSS_REMOVE = 0x00020014,
+#ifdef UAP_SUPPORT
+	MLAN_OID_UAP_CFG_WMM_PARAM = 0x00020015,
+#endif
 
 	/* Radio Configuration Group */
 	MLAN_IOCTL_RADIO_CFG = 0x00030000,
@@ -962,6 +965,8 @@ typedef struct _mlan_ds_bss {
 		mlan_uap_bss_param bss_config;
 	/** deauth param for MLAN_OID_UAP_DEAUTH_STA */
 		mlan_deauth_param deauth_param;
+	/** AP Wmm parameters for MLAN_OID_UAP_CFG_WMM_PARAM */
+		wmm_parameter_t ap_wmm_para;
 #endif
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	/** BSS role for MLAN_OID_BSS_ROLE */
@@ -3335,7 +3340,7 @@ typedef MLAN_PACK_START struct _mlan_ds_multi_chan_cfg {
 /**Action ID for TDLS config link*/
 #define WLAN_TDLS_CONFIG_LINK            0x03
 /*reason code*/
-#define WLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED 26
+#define MLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED 26
 /** TDLS operation buffer */
 typedef struct _mlan_ds_misc_tdls_oper {
     /** TDLS Action */

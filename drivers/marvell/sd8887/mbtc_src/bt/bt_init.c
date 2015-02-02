@@ -25,7 +25,7 @@
 
 #include "bt_drv.h"
 
-extern int req_fw_nowait;
+extern int bt_req_fw_nowait;
 
 #define isxdigit(c)	(('0' <= (c) && (c) <= '9') \
 			 || ('a' <= (c) && (c) <= 'f') \
@@ -613,7 +613,7 @@ bt_cal_config(bt_private *priv, char *cal_file, char *mac)
 	int ret = BT_STATUS_SUCCESS;
 
 	ENTER();
-	if (req_fw_nowait) {
+	if (bt_req_fw_nowait) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 					      cal_file, priv->hotplug_device,
@@ -678,7 +678,7 @@ bt_cal_config_ext(bt_private *priv, char *cal_file)
 	int ret = BT_STATUS_SUCCESS;
 
 	ENTER();
-	if (req_fw_nowait) {
+	if (bt_req_fw_nowait) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 					      cal_file, priv->hotplug_device,

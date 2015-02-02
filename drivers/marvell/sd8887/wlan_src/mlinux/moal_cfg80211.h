@@ -300,6 +300,11 @@ void woal_remove_virtual_interface(moal_handle *handle);
 int woal_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
 			      const struct cfg80211_acl_data *params);
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)|| defined(COMPAT_WIRELESS)
+int woal_cfg80211_set_txq_params(struct wiphy *wiphy, struct net_device *dev,
+				 struct ieee80211_txq_params *params);
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 int woal_cfg80211_add_beacon(struct wiphy *wiphy,
 			     struct net_device *dev,

@@ -2482,7 +2482,11 @@ woal_request_fw(moal_handle *handle)
 
 	ENTER();
 
-	if (!fw_name && handle->card_type == CARD_TYPE_SD8887)
+	if (
+#ifdef MFG_CMD_SUPPORT
+	    mfg_mode != MLAN_INIT_PARA_ENABLED &&
+#endif
+	    !fw_name && handle->card_type == CARD_TYPE_SD8887)
 		woal_check_fw_name(handle);
 
 	if (req_fw_nowait) {
@@ -2627,15 +2631,10 @@ woal_fill_mlan_buffer(moal_private *priv,
 #else
 	memcpy(&skb->stamp, &tstamp, sizeof(skb->stamp));
 #endif
+
 	pmbuf->pdesc = skb;
-	if (pmbuf == (mlan_buffer *)skb->head) {
-		pmbuf->pbuf = skb->head + sizeof(mlan_buffer);
-		pmbuf->data_offset =
-			skb->data - (skb->head + sizeof(mlan_buffer));
-	} else {
-		pmbuf->pbuf = skb->head;
-		pmbuf->data_offset = skb->data - skb->head;
-	}
+	pmbuf->pbuf = skb->head + sizeof(mlan_buffer);
+	pmbuf->data_offset = skb->data - (skb->head + sizeof(mlan_buffer));
 	pmbuf->data_len = skb->len;
 	pmbuf->priority = skb->priority;
 	pmbuf->buf_type = 0;
@@ -3357,6 +3356,11 @@ woal_close(struct net_device *dev)
 		priv->scan_request = NULL;
 	}
 	spin_unlock_irqrestore(&priv->scan_req_lock, flags);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+	if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev->current_bss)
+		cfg80211_disconnected(priv->netdev, 0, NULL, 0, GFP_KERNEL);
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) || defined(COMPAT_WIRELESS)
 	if (IS_STA_CFG80211(cfg80211_wext) && priv->sched_scanning) {
@@ -4169,9 +4173,9 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		priv->stats.tx_dropped++;
 		goto done;
 	}
-
-	if (skb_headroom(skb) <
-	    (MLAN_MIN_DATA_HEADER_LEN + priv->extra_tx_head_len)) {
+	if (skb_headroom(skb) < (MLAN_MIN_DATA_HEADER_LEN +
+				 sizeof(mlan_buffer) +
+				 priv->extra_tx_head_len)) {
 		PRINTM(MWARN, "Tx: Insufficient skb headroom %d\n",
 		       skb_headroom(skb));
 		/* Insufficient skb headroom - allocate a new skb */
@@ -4187,22 +4191,9 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		if (new_skb != skb)
 			dev_kfree_skb_any(skb);
 		skb = new_skb;
-		pmbuf = (mlan_buffer *)skb->head;
 		PRINTM(MINFO, "new skb headroom %d\n", skb_headroom(skb));
-	} else if (skb_headroom(skb) < (MLAN_MIN_DATA_HEADER_LEN +
-					sizeof(mlan_buffer) +
-					priv->extra_tx_head_len)) {
-		pmbuf = kzalloc(sizeof(mlan_buffer), GFP_ATOMIC);
-		if (!pmbuf) {
-			PRINTM(MERROR,
-			       "Fail to allocate pmbuf in woal_hard_start_xmit\n");
-			dev_kfree_skb_any(skb);
-			priv->stats.tx_dropped++;
-			goto done;
-		}
-	} else {
-		pmbuf = (mlan_buffer *)skb->head;
 	}
+	pmbuf = (mlan_buffer *)skb->head;
 	memset((t_u8 *)pmbuf, 0, sizeof(mlan_buffer));
 	pmbuf->bss_index = priv->bss_index;
 	woal_fill_mlan_buffer(priv, pmbuf, skb);
@@ -4239,15 +4230,11 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	case MLAN_STATUS_SUCCESS:
 		priv->stats.tx_packets++;
 		priv->stats.tx_bytes += skb->len;
-		if (pmbuf != (mlan_buffer *)skb->head)
-			kfree(pmbuf);
 		dev_kfree_skb_any(skb);
 		break;
 	case MLAN_STATUS_FAILURE:
 	default:
 		priv->stats.tx_dropped++;
-		if (pmbuf != (mlan_buffer *)skb->head)
-			kfree(pmbuf);
 		dev_kfree_skb_any(skb);
 		break;
 	}

@@ -919,6 +919,7 @@ wlan_cmd_802_11_associate(IN mlan_private *pmpriv,
 
 	if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info)
 	    && (!pbss_desc->disable_11n)
+	    && (pbss_desc->bss_band & BAND_A)
 	    && (pmpriv->config_bands & BAND_GAC
 		|| pmpriv->config_bands & BAND_AAC))
 		wlan_cmd_append_11ac_tlv(pmpriv, pbss_desc, &pos);

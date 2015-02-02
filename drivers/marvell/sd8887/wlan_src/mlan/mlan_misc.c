@@ -1844,7 +1844,7 @@ wlan_misc_ioctl_tdls_oper(IN pmlan_adapter pmadapter,
 				       ptdls_oper->peer_mac,
 				       MLAN_MAC_ADDR_LENGTH);
 				tdls_evt->reason_code =
-					WLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED;
+					MLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED;
 				wlan_recv_event(pmpriv,
 						MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ,
 						ptdls_event);

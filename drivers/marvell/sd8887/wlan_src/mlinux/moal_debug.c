@@ -481,6 +481,7 @@ woal_histogram_write(struct file *f, const char __user * buf, size_t count,
 static int
 woal_log_read(struct seq_file *sfp, void *data)
 {
+#ifdef STA_SUPPORT
 	moal_private *priv = (moal_private *)sfp->private;
 	mlan_ds_get_stats stats;
 	ENTER();
@@ -492,12 +493,19 @@ woal_log_read(struct seq_file *sfp, void *data)
 		LEAVE();
 		return -EFAULT;
 	}
+	if (GET_BSS_ROLE(priv) != MLAN_BSS_ROLE_STA) {
+		MODULE_PUT;
+		LEAVE();
+		return 0;
+	}
 
 	memset(&stats, 0x00, sizeof(stats));
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
 		PRINTM(MERROR,
 		       "woal_log_read: Get log: Failed to get stats info!");
+		MODULE_PUT;
+		LEAVE();
 		return -EFAULT;
 	}
 
@@ -521,6 +529,7 @@ woal_log_read(struct seq_file *sfp, void *data)
 	seq_printf(sfp, "beacon_mcnt = %d\n", stats.bcn_miss_cnt);
 
 	MODULE_PUT;
+#endif
 	LEAVE();
 	return 0;
 }
@@ -541,23 +550,6 @@ woal_log_proc_open(struct inode *inode, struct file *file)
 #else
 	return single_open(file, woal_log_read, PDE(inode)->data);
 #endif
-}
-
-/**
- *  @brief Proc write function for log
- *
- *  @param f       file pointer
- *  @param buf     pointer to data buffer
- *  @param count   data number to write
- *  @param off     Offset
- *
- *  @return        number of data
- */
-static ssize_t
-woal_log_write(struct file *f, const char __user * buf, size_t count,
-	       loff_t * off)
-{
-	return count;
 }
 
 /********************************************************
@@ -874,7 +866,6 @@ static const struct file_operations log_proc_fops = {
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
-	.write = woal_log_write,
 };
 
 /********************************************************
@@ -976,7 +967,8 @@ woal_debug_entry(moal_private *priv)
 		}
 	}
 
-	if (priv->bss_type == MLAN_BSS_TYPE_STA) {
+	if (priv->bss_type == MLAN_BSS_TYPE_STA ||
+	    priv->bss_type == MLAN_BSS_TYPE_UAP) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 		r = proc_create_data("log", 0644, priv->proc_entry,
 				     &log_proc_fops, priv);
@@ -1016,7 +1008,8 @@ woal_debug_remove(moal_private *priv)
 	if (priv->bss_type == MLAN_BSS_TYPE_STA ||
 	    priv->bss_type == MLAN_BSS_TYPE_UAP)
 		remove_proc_entry("histogram", priv->proc_entry);
-	if (priv->bss_type == MLAN_BSS_TYPE_STA)
+	if (priv->bss_type == MLAN_BSS_TYPE_STA ||
+	    priv->bss_type == MLAN_BSS_TYPE_UAP)
 		remove_proc_entry("log", priv->proc_entry);
 
 	LEAVE();

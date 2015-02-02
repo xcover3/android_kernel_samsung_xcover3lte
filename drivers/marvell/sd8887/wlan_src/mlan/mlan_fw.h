@@ -546,6 +546,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define ISSUPP_TXSTBC(Dot11nDevCap) (Dot11nDevCap & MBIT(25))
 /** HW_SPEC Dot11nDevCap : Short GI @ 40Mhz support */
 #define ISSUPP_SHORTGI40(Dot11nDevCap) (Dot11nDevCap & MBIT(24))
+/** HW_SPEC Dot11nDevCap : Reset Short GI @ 40Mhz support */
+#define RESETSUPP_SHORTGI40(Dot11nDevCap) (Dot11nDevCap &= ~MBIT(24))
 /** HW_SPEC Dot11nDevCap : Short GI @ 20Mhz support */
 #define ISSUPP_SHORTGI20(Dot11nDevCap) (Dot11nDevCap & MBIT(23))
 /** HW_SPEC Dot11nDevCap : Rx LDPC support */
@@ -564,6 +566,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define ISSUPP_CHANWIDTH10(Dot11nDevCap) (Dot11nDevCap & MBIT(15))
 /** Dot11nUsrCap : 40Mhz intolarance enabled */
 #define ISENABLED_40MHZ_INTOLARENT(Dot11nDevCap) (Dot11nDevCap & MBIT(8))
+/** Dot11nUsrCap : Reset 40Mhz intolarance enabled */
+#define RESET_40MHZ_INTOLARENT(Dot11nDevCap) (Dot11nDevCap &= ~MBIT(8))
 /** HW_SPEC Dot11nDevCap : Rx AntennaD support */
 #define ISSUPP_RXANTENNAD(Dot11nDevCap) (Dot11nDevCap & MBIT(7))
 /** HW_SPEC Dot11nDevCap : Rx AntennaC support */
@@ -3984,6 +3988,18 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_psk_t {
 } MLAN_PACK_END MrvlIEtypes_psk_t;
 #endif /* WIFI_DIRECT_SUPPORT */
 
+/** Data structure for Link ID */
+typedef MLAN_PACK_START struct _MrvlIETypes_LinkIDElement_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Bssid */
+	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
+    /** initial sta address*/
+	t_u8 init_sta[MLAN_MAC_ADDR_LENGTH];
+    /** respose sta address */
+	t_u8 resp_sta[MLAN_MAC_ADDR_LENGTH];
+} MLAN_PACK_END MrvlIETypes_LinkIDElement_t;
+
 /** MrvlIEtypes_PMK_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_PMK_t {
     /** Header */
@@ -4047,18 +4063,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Bssid_t {
     /** Bssid */
 	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
 } MLAN_PACK_END MrvlIEtypes_Bssid_t;
-
-/** Data structure for Link ID */
-typedef MLAN_PACK_START struct _MrvlIETypes_LinkIDElement_t {
-    /** Header */
-	MrvlIEtypesHeader_t header;
-    /** Bssid */
-	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
-    /** initial sta address*/
-	t_u8 init_sta[MLAN_MAC_ADDR_LENGTH];
-    /** respose sta address */
-	t_u8 resp_sta[MLAN_MAC_ADDR_LENGTH];
-} MLAN_PACK_END MrvlIETypes_LinkIDElement_t;
 
 /*
  * This struct will handle GET,SET,CLEAR function for embedded
@@ -4443,6 +4447,9 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_MacAddr_t {
 /** TLV type : BSS Status */
 #define TLV_TYPE_BSS_STATUS\
 		(PROPRIETARY_TLV_BASE_ID + 0x93)	/* 0x0193 */
+/** TLV type :  AP WMM params */
+#define TLV_TYPE_AP_WMM_PARAM\
+		(PROPRIETARY_TLV_BASE_ID + 0xd0)	/* 0x01d0 */
 
 /** MrvlIEtypes_beacon_period_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_beacon_period_t {

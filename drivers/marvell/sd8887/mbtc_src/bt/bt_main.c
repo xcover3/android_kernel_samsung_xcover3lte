@@ -653,7 +653,7 @@ typedef struct {
 	u8 done_flag;
 } memory_type_mapping;
 
-memory_type_mapping mem_type_mapping_tbl[] = {
+memory_type_mapping bt_mem_type_mapping_tbl[] = {
 	{"ITCM", NULL, NULL, 0xF0},
 	{"DTCM", NULL, NULL, 0xF1},
 	{"SQRAM", NULL, NULL, 0xF2},
@@ -685,7 +685,7 @@ typedef enum {
  *  @return         MLAN_STATUS_SUCCESS
  */
 rdwr_status
-woal_cmd52_rdwr_firmware(bt_private *priv, u8 doneflag)
+bt_cmd52_rdwr_firmware(bt_private *priv, u8 doneflag)
 {
 	int ret = 0;
 	int tries = 0;
@@ -790,7 +790,7 @@ bt_dump_firmware_info_v2(bt_private *priv)
 	/* start dump fw memory */
 	PRINTM(MSG, "==== DEBUG MODE OUTPUT START ====\n");
 	/* read the number of the memories which will dump */
-	if (RDWR_STATUS_FAILURE == woal_cmd52_rdwr_firmware(priv, doneflag))
+	if (RDWR_STATUS_FAILURE == bt_cmd52_rdwr_firmware(priv, doneflag))
 		goto done;
 	reg = dbg_dump_start_reg;
 	dump_num =
@@ -804,7 +804,7 @@ bt_dump_firmware_info_v2(bt_private *priv)
 	/* read the length of every memory which will dump */
 	for (idx = 0; idx < dump_num; idx++) {
 		if (RDWR_STATUS_FAILURE ==
-		    woal_cmd52_rdwr_firmware(priv, doneflag))
+		    bt_cmd52_rdwr_firmware(priv, doneflag))
 			goto done;
 		memory_size = 0;
 		reg = dbg_dump_start_reg;
@@ -824,24 +824,24 @@ bt_dump_firmware_info_v2(bt_private *priv)
 			break;
 		} else {
 			PRINTM(MSG, "%s_SIZE=0x%x\n",
-			       mem_type_mapping_tbl[idx].mem_name, memory_size);
-			mem_type_mapping_tbl[idx].mem_Ptr =
+			       bt_mem_type_mapping_tbl[idx].mem_name, memory_size);
+			bt_mem_type_mapping_tbl[idx].mem_Ptr =
 				vmalloc(memory_size + 1);
 			if ((ret != BT_STATUS_SUCCESS) ||
-			    !mem_type_mapping_tbl[idx].mem_Ptr) {
+			    !bt_mem_type_mapping_tbl[idx].mem_Ptr) {
 				PRINTM(ERROR,
 				       "Error: vmalloc %s buffer failed!!!\n",
-				       mem_type_mapping_tbl[idx].mem_name);
+				       bt_mem_type_mapping_tbl[idx].mem_name);
 				goto done;
 			}
-			dbg_ptr = mem_type_mapping_tbl[idx].mem_Ptr;
+			dbg_ptr = bt_mem_type_mapping_tbl[idx].mem_Ptr;
 			end_ptr = dbg_ptr + memory_size;
 		}
-		doneflag = mem_type_mapping_tbl[idx].done_flag;
+		doneflag = bt_mem_type_mapping_tbl[idx].done_flag;
 		PRINTM(MSG, "Start %s output, please wait...\n",
-		       mem_type_mapping_tbl[idx].mem_name);
+		       bt_mem_type_mapping_tbl[idx].mem_name);
 		do {
-			stat = woal_cmd52_rdwr_firmware(priv, doneflag);
+			stat = bt_cmd52_rdwr_firmware(priv, doneflag);
 			if (RDWR_STATUS_FAILURE == stat)
 				goto done;
 
@@ -865,24 +865,24 @@ bt_dump_firmware_info_v2(bt_private *priv)
 			if (RDWR_STATUS_DONE == stat) {
 				PRINTM(MSG, "%s done:"
 				       "size = 0x%x\n",
-				       mem_type_mapping_tbl[idx].mem_name,
+				       bt_mem_type_mapping_tbl[idx].mem_name,
 				       (unsigned int)(dbg_ptr -
-						      mem_type_mapping_tbl[idx].
+						      bt_mem_type_mapping_tbl[idx].
 						      mem_Ptr));
 				memset(file_name, 0, sizeof(file_name));
 				sprintf((char *)file_name, "%s%s", "file_bt_",
-					mem_type_mapping_tbl[idx].mem_name);
+					bt_mem_type_mapping_tbl[idx].mem_name);
 				if (BT_STATUS_SUCCESS !=
 				    bt_save_dump_info_to_file((char *)path_name,
 							      (char *)file_name,
-							      mem_type_mapping_tbl
+							      bt_mem_type_mapping_tbl
 							      [idx].mem_Ptr,
 							      memory_size))
 					PRINTM(MSG,
 					       "Can't save dump file %s in %s\n",
 					       file_name, path_name);
-				vfree(mem_type_mapping_tbl[idx].mem_Ptr);
-				mem_type_mapping_tbl[idx].mem_Ptr = NULL;
+				vfree(bt_mem_type_mapping_tbl[idx].mem_Ptr);
+				bt_mem_type_mapping_tbl[idx].mem_Ptr = NULL;
 				break;
 			}
 		} while (1);
@@ -892,9 +892,9 @@ bt_dump_firmware_info_v2(bt_private *priv)
 done:
 	sdio_release_host(((struct sdio_mmc_card *)priv->bt_dev.card)->func);
 	for (idx = 0; idx < dump_num; idx++) {
-		if (mem_type_mapping_tbl[idx].mem_Ptr) {
-			vfree(mem_type_mapping_tbl[idx].mem_Ptr);
-			mem_type_mapping_tbl[idx].mem_Ptr = NULL;
+		if (bt_mem_type_mapping_tbl[idx].mem_Ptr) {
+			vfree(bt_mem_type_mapping_tbl[idx].mem_Ptr);
+			bt_mem_type_mapping_tbl[idx].mem_Ptr = NULL;
 		}
 	}
 	PRINTM(MSG, "==== DEBUG MODE END ====\n");
@@ -2532,6 +2532,96 @@ bt_priv_put(bt_private *priv)
 	kobject_put(&priv->kobj);
 }
 
+int
+bt_reinit_fw(bt_private *priv)
+{
+	int ret = BT_STATUS_SUCCESS;
+	priv->adapter->tx_lock = FALSE;
+	priv->adapter->ps_state = PS_AWAKE;
+	priv->adapter->suspend_fail = FALSE;
+	priv->adapter->is_suspended = FALSE;
+	priv->adapter->hs_skip = 0;
+	priv->adapter->num_cmd_timeout = 0;
+	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
+	if (ret < 0) {
+		PRINTM(FATAL, "Module cfg command send failed!\n");
+		goto done;
+	}
+	ret = bt_set_ble_deepsleep(priv, TRUE);
+	if (ret < 0) {
+		PRINTM(FATAL, "Enable BLE deepsleep failed!\n");
+		goto done;
+	}
+	if (psmode) {
+		priv->bt_dev.psmode = TRUE;
+		priv->bt_dev.idle_timeout = DEFAULT_IDLE_TIME;
+		ret = bt_enable_ps(priv);
+		if (ret < 0) {
+			PRINTM(FATAL, "Enable PS mode failed!\n");
+			goto done;
+		}
+	}
+#ifdef SDIO_SUSPEND_RESUME
+	priv->bt_dev.gpio_gap = 0xffff;
+	ret = bt_send_hscfg_cmd(priv);
+	if (ret < 0) {
+		PRINTM(FATAL, "Send HSCFG failed!\n");
+		goto done;
+	}
+#endif
+	priv->bt_dev.sdio_pull_cfg = 0xffffffff;
+	priv->bt_dev.sdio_pull_ctrl = 0;
+	wake_up_interruptible(&priv->MainThread.waitQ);
+	/* block all the packet from bluez */
+	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext)
+		priv->adapter->tx_lock = TRUE;
+
+	if (init_cfg)
+		if (BT_STATUS_SUCCESS != bt_init_config(priv, init_cfg)) {
+			PRINTM(FATAL,
+			       "BT: Set user init data and param failed\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+
+	if (cal_cfg) {
+		if (BT_STATUS_SUCCESS != bt_cal_config(priv, cal_cfg, bt_mac)) {
+			PRINTM(FATAL, "BT: Set cal data failed\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+	}
+
+	if (bt_mac) {
+		PRINTM(INFO,
+		       "Set BT mac_addr from insmod parametre bt_mac = %s\n",
+		       bt_mac);
+		if (BT_STATUS_SUCCESS != bt_init_mac_address(priv, bt_mac)) {
+			PRINTM(FATAL,
+			       "BT: Fail to set mac address from insmod parametre\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+	}
+
+	if (cal_cfg_ext) {
+		if (BT_STATUS_SUCCESS != bt_cal_config_ext(priv, cal_cfg_ext)) {
+			PRINTM(FATAL, "BT: Set cal ext data failed\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+	}
+	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext) {
+		priv->adapter->tx_lock = FALSE;
+		bt_restore_tx_queue(priv);
+	}
+	bt_get_fw_version(priv);
+	snprintf((char *)priv->adapter->drv_ver, MAX_VER_STR_LEN,
+		 mbt_driver_version, fw_version);
+done:
+	return ret;
+}
+
 /**
  *  @brief Module configuration and register device
  *
@@ -2556,6 +2646,7 @@ sbi_register_conf_dpc(bt_private *priv)
 	priv->bt_dev.tx_dnld_rdy = TRUE;
 
 	if (priv->fw_reload) {
+		bt_reinit_fw(priv);
 		LEAVE();
 		return ret;
 	}
@@ -3179,7 +3270,7 @@ module_param(cal_cfg, charp, 0);
 MODULE_PARM_DESC(cal_cfg, "BT calibrate file name");
 module_param(cal_cfg_ext, charp, 0);
 MODULE_PARM_DESC(cal_cfg_ext, "BT calibrate ext file name");
-module_param(bt_mac, charp, 0);
+module_param(bt_mac, charp, 0660);
 MODULE_PARM_DESC(bt_mac, "BT init mac address");
 module_param(drv_mode, int, 0);
 MODULE_PARM_DESC(drv_mode, "Bit 0: BT/AMP/BLE; Bit 1: FM; Bit 2: NFC");

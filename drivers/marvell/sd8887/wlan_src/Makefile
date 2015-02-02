@@ -454,7 +454,7 @@ build:		echo default
 	fi
 
 	cp -f mlan.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
-	cp -f sd8xxx.$(MODEXT) $(BINDIR)/sd8xxx$(DBG).$(MODEXT)
+	cp -f sd8887.$(MODEXT) $(BINDIR)/sd8887$(DBG).$(MODEXT)
 
 ifeq ($(CONFIG_STA_SUPPORT),y)
 	cp -f README $(BINDIR)
