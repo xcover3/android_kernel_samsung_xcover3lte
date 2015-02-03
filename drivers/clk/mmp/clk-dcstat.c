@@ -588,7 +588,8 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 	unsigned int cpu_i;
 	bool mark_keytime;
 	u64 ktime_temp, temp_time = 0;
-	u32 i, j, lpm_min, cpuidle_qos, cluster_flag = 0;
+	u32 i, j, lpm_min, cpuidle_qos, cluster_flag = 0, cluster_flag1 = 0,
+	mp2_flag = 0, mp2_flag1 = 0, active_flag = 0;
 	u32 cpuidle_qos_min = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
 	struct core_dcstat *op;
 
@@ -611,10 +612,14 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		struct pm_qos_object *pm_qos_cpuidle;
 		pm_qos_cpuidle = pm_qos_array[PM_QOS_CPUIDLE_BLOCK];
 		cpuidle_qos_min = pm_qos_read_value(pm_qos_cpuidle->constraints);
-		if (cpuid < 4)
+		/* cluster_flag1 is used for other cluster */
+		if (cpuid < 4) {
 			cluster_flag = 0;
-		else if (cpuid >= 4 && cpuid < 8)
+			cluster_flag1 = 1;
+		} else if (cpuid >= 4 && cpuid < 8) {
 			cluster_flag = 1;
+			cluster_flag1 = 0;
+		}
 	}
 
 	switch (msg) {
@@ -938,6 +943,32 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			idle_dcstat_info.D1P_idle_start = 0;
 			idle_dcstat_info.D1_idle_start = 0;
 			idle_dcstat_info.D2_idle_start = 0;
+
+			if (multi_cluster) {
+				active_flag = 0;
+				lpm_min = MAX_LPM_INDEX;
+				for (cpu_i = 0 + 4 * cluster_flag1; cpu_i < 4 + 4 * cluster_flag1;
+					cpu_i++) {
+					dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
+					if (MAX_LPM_INDEX != dc_stat_info->power_mode) {
+						if (lpm_min > dc_stat_info->power_mode)
+							lpm_min = dc_stat_info->power_mode;
+						} else {
+							active_flag = 1;
+							break;
+						}
+				}
+				if (active_flag == 0 && lpm_min >= LPM_MP2) {
+					if ((cluster_flag1 == 0) &&
+					((u64) 0 == idle_dcstat_info.M2_cluster0_idle_start))
+						idle_dcstat_info.M2_cluster0_idle_start
+							= ktime_temp;
+					if ((cluster_flag1 == 1) &&
+					((u64) 0 == idle_dcstat_info.M2_cluster1_idle_start))
+						idle_dcstat_info.M2_cluster1_idle_start
+							= ktime_temp;
+				}
+			}
 		}
 		spin_unlock(&allidle_lock);
 		mark_keytime = true;
@@ -960,14 +991,18 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			dc_stat_info = &per_cpu(cpu_dc_stat, cpuid);
 			dc_stat_info->power_mode = tgtop;
 			lpm_min = MAX_LPM_INDEX;
-			for_each_possible_cpu(cpu_i) {
+			active_flag = 0;
+			for_each_online_cpu(cpu_i) {
 				dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
 				if (MAX_LPM_INDEX != dc_stat_info->power_mode) {
 					if (lpm_min > dc_stat_info->power_mode)
 						lpm_min = dc_stat_info->power_mode;
-				} else
-					return;
+				} else {
+					active_flag = 1;
+					break;
+				}
 			}
+
 			cpuidle_qos = MAX_LPM_INDEX;
 			if (cpuidle_qos_min != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE) {
 				if (cpuidle_qos_min == LPM_D2)
@@ -977,42 +1012,65 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				else if (cpuidle_qos_min == LPM_D1P)
 					cpuidle_qos = LPM_MP2;
 			}
-			if (cpuidle_qos  < lpm_min)
+
+			if (cpuidle_qos < lpm_min)
 				lpm_min = cpuidle_qos;
 
-			if (LPM_D1P == lpm_min)
-				idle_dcstat_info.D1P_idle_start = ktime_temp;
-			else if (LPM_D1 == lpm_min)
-				idle_dcstat_info.D1_idle_start = ktime_temp;
-			else if (LPM_D2 == lpm_min)
-				idle_dcstat_info.D2_idle_start = ktime_temp;
+			if (active_flag == 0) {
+				dc_stat_info = &per_cpu(cpu_dc_stat, cpuid);
+				if (LPM_D1P == lpm_min)
+					idle_dcstat_info.D1P_idle_start = ktime_temp;
+				else if (LPM_D1 == lpm_min)
+					idle_dcstat_info.D1_idle_start = ktime_temp;
+				else if (LPM_D2 == lpm_min)
+					idle_dcstat_info.D2_idle_start = ktime_temp;
 
 #ifdef CONFIG_VOLDC_STAT
-			if (LPM_MP2 == lpm_min)
-				vol_dcstat_event(VLSTAT_LPM_ENTRY, 2, 0);
-			else if (LPM_D1P == lpm_min)
-				vol_dcstat_event(VLSTAT_LPM_ENTRY, 3, 0);
-			else if (LPM_D1 == lpm_min)
-				vol_dcstat_event(VLSTAT_LPM_ENTRY, 4, 0);
-			else if (LPM_D2 == lpm_min)
-				vol_dcstat_event(VLSTAT_LPM_ENTRY, 5, 0);
+				if (LPM_MP2 == lpm_min)
+					vol_dcstat_event(VLSTAT_LPM_ENTRY, 2, 0);
+				else if (LPM_D1P == lpm_min)
+					vol_dcstat_event(VLSTAT_LPM_ENTRY, 3, 0);
+				else if (LPM_D1 == lpm_min)
+					vol_dcstat_event(VLSTAT_LPM_ENTRY, 4, 0);
+				else if (LPM_D2 == lpm_min)
+					vol_dcstat_event(VLSTAT_LPM_ENTRY, 5, 0);
 #endif
-			if (cpuidle_qos == LPM_MP2) {
+			}
+			if (cpuidle_qos >= LPM_MP2) {
+
+				for (cpu_i = 0 + 4 * cluster_flag1; cpu_i < 4 + 4 * cluster_flag1;
+					cpu_i++) {
+					dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
+					if (MAX_LPM_INDEX == dc_stat_info->power_mode ||
+						(LPM_C1 <= dc_stat_info->power_mode &&
+						LPM_C2 >= dc_stat_info->power_mode))
+						mp2_flag = 1;
+						break;
+				}
+
+				if (mp2_flag == 1 && lpm_min >= LPM_MP2)
+					mp2_flag1 = 1;
+
 				lpm_min = MAX_LPM_INDEX;
 				for (cpu_i = 0 + 4 * cluster_flag; cpu_i < 4 + 4 * cluster_flag;
 					cpu_i++) {
 					dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
-					if (MAX_LPM_INDEX != dc_stat_info->power_mode &&
-						lpm_min > dc_stat_info->power_mode)
-						lpm_min = dc_stat_info->power_mode;
+					if (MAX_LPM_INDEX != dc_stat_info->power_mode) {
+						if (lpm_min > dc_stat_info->power_mode)
+							lpm_min = dc_stat_info->power_mode;
+					} else
+						return;
 				}
 				if (cpuidle_qos  < lpm_min)
 					lpm_min = cpuidle_qos;
-				if (LPM_MP2 == lpm_min) {
-					if (cluster_flag == 0)
+
+				if (mp2_flag1 == 1 || lpm_min >= LPM_MP2) {
+					if ((cluster_flag == 0) &&
+					((u64) 0 == idle_dcstat_info.M2_cluster0_idle_start))
 						idle_dcstat_info.M2_cluster0_idle_start
 							= ktime_temp;
-					else if (cluster_flag == 1)
+					if ((cluster_flag == 1) &&
+					((u64) 0 == idle_dcstat_info.M2_cluster1_idle_start))
 						idle_dcstat_info.M2_cluster1_idle_start
 							= ktime_temp;
 				}
