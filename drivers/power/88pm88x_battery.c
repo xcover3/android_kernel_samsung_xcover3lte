@@ -1910,30 +1910,12 @@ static irqreturn_t pm88x_battery_vbat_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-/* this interrupt may not need to be handled */
-static irqreturn_t pm88x_battery_detect_handler(int irq, void *data)
-{
-	struct pm88x_battery_info *info = data;
-	if (!info) {
-		pr_err("%s: empty battery info.\n", __func__);
-		return IRQ_NONE;
-	}
-	dev_info(info->dev, "battery detection interrupt is served\n");
-
-	/* check whether the battery is present */
-	info->bat_params.present = pm88x_check_battery_present(info);
-	power_supply_changed(&info->battery);
-
-	return IRQ_HANDLED;
-}
-
 static struct pm88x_irq_desc {
 	const char *name;
 	irqreturn_t (*handler)(int irq, void *data);
 } pm88x_irq_descs[] = {
 	{"columb counter", pm88x_battery_cc_handler},
 	{"battery voltage", pm88x_battery_vbat_handler},
-	{"battery detection", pm88x_battery_detect_handler},
 };
 
 static int pm88x_battery_dt_init(struct device_node *np,
@@ -2190,15 +2172,17 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	/* interrupt should be request in the last stage */
 	for (i = 0; i < info->irq_nums; i++) {
-		ret = devm_request_threaded_irq(info->dev, info->irqs[i].irq, NULL,
-						pm88x_irq_descs[i].handler,
-						IRQF_ONESHOT | IRQF_NO_SUSPEND,
-						pm88x_irq_descs[i].name, info);
-		if (ret < 0) {
-			dev_err(info->dev, "failed to request IRQ: #%d: %d\n",
-				info->irqs[i].irq, ret);
-			if (!pm88x_irq_descs[i].handler)
+		if (!pm88x_irq_descs[i].handler) {
+			ret = devm_request_threaded_irq(info->dev,
+							info->irqs[i].irq, NULL,
+							pm88x_irq_descs[i].handler,
+							IRQF_ONESHOT | IRQF_NO_SUSPEND,
+							pm88x_irq_descs[i].name, info);
+			if (ret < 0) {
+				dev_err(info->dev, "failed to request IRQ: #%d: %d\n",
+					info->irqs[i].irq, ret);
 				goto out_irq;
+			}
 		}
 	}
 
