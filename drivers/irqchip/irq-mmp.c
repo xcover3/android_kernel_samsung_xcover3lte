@@ -321,12 +321,6 @@ static struct mmp_intc_conf mmp2_conf = {
 	.conf_mask	= 0x7f,
 };
 
-static struct mmp_intc_conf pxa1928_conf = {
-	.conf_enable	= 0x41,
-	.conf_disable	= 0x0,
-	.conf_mask	= 0x1fff,
-};
-
 static asmlinkage void __exception_irq_entry
 mmp_handle_irq(struct pt_regs *regs)
 {
@@ -352,20 +346,6 @@ mmp2_handle_irq(struct pt_regs *regs)
 	irq = irq_find_mapping(icu_data[0].domain, hwirq);
 	handle_IRQ(irq, regs);
 }
-
-static asmlinkage void __exception_irq_entry
-pxa1928_handle_irq(struct pt_regs *regs)
-{
-	int irq, hwirq;
-
-	hwirq = readl_relaxed(mmp_icu_base + PXA1928_INT_SEL);
-	if (!(hwirq & SEL_INT_PENDING))
-		return;
-	hwirq &= SEL_INT_NUM_MASK;
-	irq = irq_find_mapping(icu_data[0].domain, hwirq);
-	handle_IRQ(irq, regs);
-}
-
 
 /* MMP (ARMv5) */
 void __init icu_init_irq(void)
@@ -570,24 +550,6 @@ static int __init mmp2_of_init(struct device_node *node,
 	return 0;
 }
 
-static int __init pxa1928_of_init(struct device_node *node,
-			       struct device_node *parent)
-{
-	int ret;
-
-	ret = mmp_init_bases(node);
-	if (ret < 0)
-		return ret;
-
-	icu_data[0].conf_enable = pxa1928_conf.conf_enable;
-	icu_data[0].conf_disable = pxa1928_conf.conf_disable;
-	icu_data[0].conf_mask = pxa1928_conf.conf_mask;
-	irq_set_default_host(icu_data[0].domain);
-	set_handle_irq(pxa1928_handle_irq);
-	max_icu_nr = 1;
-	return 0;
-}
-
 static int __init mmp2_mux_of_init(struct device_node *node,
 				   struct device_node *parent)
 {
@@ -760,5 +722,4 @@ void __init mmp_of_wakeup_init(void)
 	return;
 }
 
-IRQCHIP_DECLARE(pxa1928_intc, "marvell,pxa1928-intc", pxa1928_of_init);
 #endif
