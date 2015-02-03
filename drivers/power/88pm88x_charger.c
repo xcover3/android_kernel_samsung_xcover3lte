@@ -377,6 +377,9 @@ static int pm88x_start_charging(struct pm88x_charger_info *info)
 	regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
 			   PM88X_CHG_ENABLE, PM88X_CHG_ENABLE);
 
+	/* need to wait before reseting the values */
+	usleep_range(3000, 4000);
+
 	/* clear the previous settings */
 	regmap_write(info->chip->test_regmap, 0x40, 0x00);
 	regmap_write(info->chip->test_regmap, 0x43, 0x00);
@@ -680,7 +683,7 @@ static irqreturn_t pm88x_chg_fail_handler(int irq, void *data)
 	if (value & PM88X_CHG_TIMEOUT) {
 		dev_err(info->chip->dev, "charge timeout.\n");
 		info->allow_chg_after_tout = 0;
-		dev_err(info->dev, "charger tomeout! restart charging in %d min\n",
+		dev_err(info->dev, "charger timeout! restart charging in %d min\n",
 				CHG_RESTART_DELAY);
 		schedule_delayed_work(&info->restart_chg_work,
 				CHG_RESTART_DELAY * 60 * HZ);
