@@ -2665,9 +2665,8 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			if ((lpipe->cur_cmd->cmd_name == CMD_SET_FORMAT) ||
 					(lpipe->cur_cmd->cmd_name == CMD_RAW_DUMP))
 				b52_sensor_call(sensor, init);
-
-			v4l2_subdev_call(sd, video, s_stream, 1);
 			v4l2_subdev_call(csi_sd, video, s_stream, 1);
+			v4l2_subdev_call(sd, video, s_stream, 1);
 		}
 		/*
 		 * This is just a W/R. Eventually, all command will be decided

@@ -1629,7 +1629,8 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 	const struct b52_sensor_regs *regs;
 	const struct b52_sensor_i2c_attr *attr;
 	struct b52_sensor *sensor = to_b52_sensor(sd)
-
+	int try_count = 3;
+	int ret = 0;
 	if (enable) {
 		if (atomic_inc_return(&sensor->stream_cnt) > 1)
 			return 0;
@@ -1644,7 +1645,14 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 	}
 
 	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
-	return __b52_sensor_cmd_write(attr, regs, sensor->pos);
+	while (try_count-- > 0) {
+		ret = __b52_sensor_cmd_write(attr, regs, sensor->pos);
+		if (ret != 0)
+			pr_err("sensor set stream:%d fail\n", enable);
+		else
+			break;
+	}
+	return ret;
 }
 
 static enum v4l2_mbus_pixelcode b52_sensor_get_real_mbus(
