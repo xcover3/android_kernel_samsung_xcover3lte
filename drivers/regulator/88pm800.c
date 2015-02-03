@@ -132,6 +132,75 @@ static int pm800_get_current_limit(struct regulator_dev *rdev)
 	return info->max_ua;
 }
 
+static int pm800_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
+{
+	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
+	struct pm80x_chip *chip = info->chip;
+	unsigned int val, sleep_bit, sleep_enable_mask, reg, rid;
+
+	if (!info)
+		return -EINVAL;
+
+	rid = rdev_get_id(rdev);
+	/* only handle 88pm860 buck1 audio mode */
+	if ((rid != PM800_ID_BUCK1) && (rid != PM800_ID_BUCK1A))
+		return -EINVAL;
+
+	sleep_bit = info->sleep_enable_bit;
+	sleep_enable_mask = (0x1 << sleep_bit);
+	reg = info->sleep_enable_reg;
+
+	switch (mode) {
+	case REGULATOR_MODE_NORMAL:
+		val = 0;
+		break;
+	case REGULATOR_MODE_IDLE:
+		val = (0x1 << sleep_bit);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return regmap_update_bits(chip->regmap, reg, sleep_enable_mask, val);
+}
+
+static int pm800_set_suspend_voltage(struct regulator_dev *rdev, int uv)
+{
+	int ret, sel, rid;
+	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
+
+	if (!info || !info->desc.ops)
+		return -EINVAL;
+
+	if (!info->desc.ops->set_suspend_mode)
+		return 0;
+
+	/* only handle pm860 buck1 audio mode */
+	rid = rdev_get_id(rdev);
+	if ((rid != PM800_ID_BUCK1) && (rid != PM800_ID_BUCK1A))
+		return -EINVAL;
+
+	/*
+	 * two steps:
+	 * 1) set the suspend voltage to *_set_slp register
+	 * 2) set regulator mode via set_suspend_mode() interface to enable output
+	 */
+	sel = regulator_map_voltage_linear_range(rdev, uv, uv);
+	if (sel < 0)
+		return -EINVAL;
+
+	sel <<= ffs(PM800_BUCK1_AUDIO_SET_MSK) - 1;
+
+	ret = regmap_update_bits(rdev->regmap, PM800_BUCK1_AUDIO_SET,
+				PM800_BUCK1_AUDIO_SET_MSK, sel);
+	if (ret < 0)
+		return -EINVAL;
+
+	/* TODO: do we need this? */
+	ret = pm800_set_suspend_mode(rdev, REGULATOR_MODE_IDLE);
+	return ret;
+}
+
 struct regulator_ops pm800_volt_range_ops = {
 	.list_voltage = regulator_list_voltage_linear_range,
 	.set_voltage = pm800_set_voltage,
@@ -142,6 +211,8 @@ struct regulator_ops pm800_volt_range_ops = {
 	.get_current_limit = pm800_get_current_limit,
 	.get_optimum_mode = pm800_get_optimum_mode,
 	.set_mode = pm800_set_mode,
+	.set_suspend_mode = pm800_set_suspend_mode,
+	.set_suspend_voltage = pm800_set_suspend_voltage,
 };
 
 struct regulator_ops pm800_volt_table_ops = {
@@ -239,6 +310,7 @@ static int pm800_regulator_probe(struct platform_device *pdev)
 			continue;
 		}
 		info = regulator_matches->driver_data;
+		info->chip = chip;
 		config.dev = &pdev->dev;
 		config.init_data = init_data;
 		config.driver_data = info;

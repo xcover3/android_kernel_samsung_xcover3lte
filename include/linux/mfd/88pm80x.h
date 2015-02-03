@@ -272,6 +272,9 @@ enum {
 #define PM800_LDO17_19_EN1		(0x53)
 
 #define PM800_BUCK1_MISC	(0x8E)
+#define PM800_BUCK1_AUDIO	(0x24)
+#define PM800_BUCK1_AUDIO_SET	(0x38)
+#define PM800_BUCK1_AUDIO_SET_MSK	(0x7f)
 
 /* BUCK Sleep Mode Register 1: BUCK[1..4] */
 #define PM800_BUCK_SLP1		(0x5A)
@@ -673,8 +676,6 @@ extern int pm80x_deinit(void);
 
 extern int pm8xx_dvc_setvolt(unsigned int buckid, unsigned int lvl, int uv);
 extern int pm8xx_dvc_getvolt(unsigned int buckid, unsigned int lvl, int *uv);
-extern void buck1_audio_mode_ctrl(int on);
-extern void set_buck1_audio_mode_vol(int vol);
 extern void extern_set_buck1_slp_volt(int on);
 
 extern int get_gpadc_volt(struct pm80x_chip *chip, int gpadc_id);

@@ -138,7 +138,7 @@ struct pm800_regulator_info pm822_regulator_info[] = {
 };
 
 struct pm800_regulator_info pm86x_regulator_info[] = {
-	PM800_BUCK(BUCK1A, BUCK_ENA, 0, 3000000, 0, BUCK_SLP1, buck_volt_range1, 0x55),
+	PM800_BUCK(BUCK1A, BUCK_ENA, 0, 3000000, 0, BUCK1_AUDIO, buck_volt_range1, 0x55),
 	PM800_BUCK(BUCK2, BUCK_ENA, 1, 750000, 2, BUCK_SLP1, buck_volt_range2, 0x73),
 	PM800_BUCK(BUCK3, BUCK_ENA, 2, 1500000, 4, BUCK_SLP1, buck_volt_range2, 0x73),
 	PM800_BUCK(BUCK4, BUCK_ENA, 3, 750000, 6, BUCK_SLP1, buck_volt_range2, 0x73),

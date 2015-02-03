@@ -83,6 +83,7 @@
 
 struct pm800_regulator_info {
 	struct regulator_desc desc;
+	struct pm80x_chip *chip;
 	int max_ua;
 	unsigned int sleep_enable_bit;
 	unsigned int sleep_enable_reg;
