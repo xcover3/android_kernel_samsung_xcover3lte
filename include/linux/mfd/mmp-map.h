@@ -442,6 +442,8 @@ struct map_private {
 	void *regs_map;
 
 	struct regmap *regmap;
+	/* for audio mode */
+	struct regulator *vccmain;
 	/* clock */
 	struct clk *map_tdm;
 	struct clk *map_bclk;

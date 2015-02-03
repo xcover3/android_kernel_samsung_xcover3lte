@@ -1621,8 +1621,12 @@ static int mmp_map_startup(struct snd_pcm_substream *substream,
 		map_priv->bt_fm_sel = true;
 
 	/* enable audio mode for all audio scenarios*/
-	if (map_priv->sleep_vol > 0)
-		buck1_audio_mode_ctrl(1);
+	if (map_priv->sleep_vol > 0) {
+		if (!map_priv->vccmain)
+			pr_info("please set regulator vccmain in fe device node.\n");
+		else
+			regulator_set_suspend_mode(map_priv->vccmain, REGULATOR_MODE_IDLE);
+	}
 	return 0;
 }
 
@@ -1664,8 +1668,12 @@ static void mmp_map_shutdown(struct snd_pcm_substream *substream,
 		map_priv->bt_fm_sel = false;
 
 	/* disable audio mode */
-	if (map_priv->sleep_vol > 0)
-		buck1_audio_mode_ctrl(0);
+	if (map_priv->sleep_vol > 0) {
+		if (!map_priv->vccmain)
+			pr_info("please set regulator vccmain in fe device node.\n");
+		else
+			regulator_set_suspend_mode(map_priv->vccmain, REGULATOR_MODE_NORMAL);
+	}
 	return;
 }
 
@@ -1889,8 +1897,14 @@ static int mmp_map_fe_dai_probe(struct platform_device *pdev)
 	/* if sleep_vol is not specificed, do not set audio mode voltage */
 	if (ret >= 0) {
 		/* set audio mode voltage */
-		set_buck1_audio_mode_vol(sleep_vol);
-		map_priv->sleep_vol = sleep_vol;
+		map_priv->vccmain = regulator_get(&pdev->dev, "vccmain");
+		if (IS_ERR(map_priv->vccmain)) {
+			map_priv->vccmain = NULL;
+			dev_err(&pdev->dev, "no vccmain set for audio mdoe\n");
+		} else {
+			regulator_set_suspend_voltage(map_priv->vccmain, sleep_vol);
+			map_priv->sleep_vol = sleep_vol;
+		}
 	} else
 		map_priv->sleep_vol = 0;
 
