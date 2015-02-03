@@ -155,6 +155,11 @@ static bool rtcc_reclaim(struct scan_control *sc)
 {
 	return (is_rtcc_enabled() && (sc->rc != NULL));
 }
+#else
+static inline int is_rtcc_enabled(void)
+{
+	return false;
+}
 #endif /* CONFIG_RUNTIME_COMPCACHE */
 
 static LIST_HEAD(shrinker_list);
@@ -179,9 +184,11 @@ static unsigned long zone_reclaimable_pages(struct zone *zone)
 	nr = zone_page_state(zone, NR_ACTIVE_FILE) +
 	     zone_page_state(zone, NR_INACTIVE_FILE);
 
-	if (get_nr_swap_pages() > 0)
-		nr += zone_page_state(zone, NR_ACTIVE_ANON) +
-		      zone_page_state(zone, NR_INACTIVE_ANON);
+	if (!is_rtcc_enabled()) {
+		if (get_nr_swap_pages() > 0)
+			nr += zone_page_state(zone, NR_ACTIVE_ANON) +
+				zone_page_state(zone, NR_INACTIVE_ANON);
+	}
 
 	return nr;
 }
@@ -2717,10 +2724,8 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 		.gfp_mask = sc.gfp_mask,
 	};
 
-#ifdef CONFIG_RUNTIME_COMPCACHE
 	if (is_rtcc_enabled())
 		sc.may_swap = 0;
-#endif /* CONFIG_RUNTIME_COMPCACHE */
 
 	/*
 	 * Do not enter reclaim if fatal signal was delivered while throttled.
@@ -3805,10 +3810,8 @@ static int __zone_reclaim(struct zone *zone, gfp_t gfp_mask, unsigned int order)
 	};
 	unsigned long nr_slab_pages0, nr_slab_pages1;
 
-#ifdef CONFIG_RUNTIME_COMPCACHE
 	if (is_rtcc_enabled())
 		sc.may_swap = 0;
-#endif /* CONFIG_RUNTIME_COMPCACHE */
 
 	cond_resched();
 	/*
