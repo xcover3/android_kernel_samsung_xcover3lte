@@ -560,7 +560,7 @@ static void pxa28nm_register_thermal(void)
 	for (i = 0; i < TRIP_POINTS_NUM; i++)
 		trip_w_mask |= (1 << i);
 	thermal_dev.therm_cpu = thermal_zone_device_register(
-			"thsens_cpu", TRIP_POINTS_NUM, trip_w_mask,
+			"tsen_max", TRIP_POINTS_NUM, trip_w_mask,
 			&thermal_dev, &cpu_thermal_ops, NULL, 0, 0);
 	thermal_dev.thermal_volt.therm_max = thermal_dev.therm_cpu;
 	/*
