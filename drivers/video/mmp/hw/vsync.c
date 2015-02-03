@@ -62,14 +62,23 @@ static void mmp_vsync_wait(struct mmp_vsync *vsync)
 static void mmp_handle_irq(struct mmp_vsync *vsync)
 {
 	struct mmp_vsync_notifier_node *notifier_node;
-	if (!atomic_read(&vsync->ready)) {
-		atomic_set(&vsync->ready, 1);
-		wake_up_all(&vsync->waitqueue);
-	}
 
+	/*
+	 * The cb_notify will do some work like init vcnt,
+	 * so make it called before wake_up_all to make vcnt
+	 * operation be after vcnt init.
+	 */
 	list_for_each_entry(notifier_node, &vsync->notifier_list,
 			node) {
 		notifier_node->cb_notify(notifier_node->cb_data);
+	}
+
+	/*
+	 * wake up waitqueue after all cb notifier done;
+	 */
+	if (!atomic_read(&vsync->ready)) {
+		atomic_set(&vsync->ready, 1);
+		wake_up_all(&vsync->waitqueue);
 	}
 }
 
