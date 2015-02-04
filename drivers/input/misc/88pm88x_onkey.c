@@ -18,7 +18,6 @@
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/mfd/88pm88x.h>
-#include <linux/mfd/88pm88x.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
 #include <linux/of.h>
@@ -35,19 +34,37 @@
 #define PM88X_GPIO2_HW_RST2		(0x7 << 1)
 
 #define PM88X_HWRST_DB_MSK		(0x1 << 7)
-#define PM88X_HWRST_DB_2S		(0x0 << 7)
-#define PM88X_HWRST_DB_7S		(0x1 << 7)
+#define PM88X_HWRST_DB_SHIFT		(7)
 
 #define PM88X_LONKEY_PRESS_TIME_MSK	(0xf0)
-#define PM88X_LONG_KEY_DELAY		(10)	/* 1 .. 14 seconds */
-#define PM88X_LONKEY_PRESS_TIME		((PM88X_LONG_KEY_DELAY) << 4)
+#define PM88X_LONKEY_PRESS_TIME_SHIFT	(4)
 #define PM88X_LONKEY_RESTOUTN_PULSE_MSK (0x3)
 #define PM88X_LONKEY_RESTOUTN_PULSE_1S	(0x1 << 0)
 
-#define PM88X_LONG_ONKEY_EN1           (0 << 1)
-#define PM88X_LONG_ONKEY_EN2           (1 << 1)
+#define PM88X_LONG_ONKEY_EN_MSK		(0x3)
 
 #define PM88X_FAULT_WU_EN		(1 << 2)
+
+enum {
+	PM88X_LONG_ONKEY_DETECT_RTC,
+	PM88X_LONG_ONKEY_DETECT1,
+	PM88X_LONG_ONKEY_DETECT2,
+};
+
+enum {
+	PM88X_HWRST_DB_2S,
+	PM88X_HWRST_DB_7S,
+};
+
+enum {
+	PM88X_HW_RESET_DETECT1 = 1,
+	PM88X_HW_RESET_DETECT2,
+};
+
+enum {
+	PM88X_HW_RESET_DETECT1_N = 1,
+	PM88X_HW_RESET_DETECT2_N,
+};
 
 struct pm88x_onkey_info {
 	struct input_dev *idev;
@@ -55,10 +72,16 @@ struct pm88x_onkey_info {
 	struct regmap *map;
 	int irq;
 	int gpio_number;
+	int long_onkey_type;
+	int disable_long_key_rst;
+	int long_key_press_time;
+	int hwrst_db_period;	/* hardware reset debounce period */
+	int hwrst_type;
 };
 
 static int pm88x_config_gpio(struct pm88x_onkey_info *info)
 {
+	int gpio_mode;
 	if (!info || !info->map) {
 		pr_err("%s: No chip information!\n", __func__);
 		return -ENODEV;
@@ -67,25 +90,30 @@ static int pm88x_config_gpio(struct pm88x_onkey_info *info)
 	/* choose HW_RST1_N for GPIO, only toggle RESETOUTN */
 	switch (info->gpio_number) {
 	case 0:
+		gpio_mode = (info->hwrst_type == PM88X_HW_RESET_DETECT1_N ?
+			     PM88X_GPIO0_HW_RST1_N : PM88X_GPIO0_HW_RST2_N);
 		regmap_update_bits(info->map, PM88X_GPIO_CTRL1,
-				   PM88X_GPIO0_MODE_MSK, PM88X_GPIO0_HW_RST1_N);
+				   PM88X_GPIO0_MODE_MSK, gpio_mode);
 		break;
 	case 1:
+		gpio_mode = (info->hwrst_type == PM88X_HW_RESET_DETECT1_N ?
+			     PM88X_GPIO1_HW_RST1_N : PM88X_GPIO1_HW_RST2_N);
 		regmap_update_bits(info->map, PM88X_GPIO_CTRL1,
-				   PM88X_GPIO1_MODE_MSK, PM88X_GPIO1_HW_RST1_N);
+				   PM88X_GPIO1_MODE_MSK, gpio_mode);
 		break;
 	case 2:
+		gpio_mode = (info->hwrst_type == PM88X_HW_RESET_DETECT1 ?
+			     PM88X_GPIO2_HW_RST1 : PM88X_GPIO2_HW_RST2);
 		regmap_update_bits(info->map, PM88X_GPIO_CTRL2,
-				   PM88X_GPIO2_MODE_MSK, PM88X_GPIO2_HW_RST1);
+				   PM88X_GPIO2_MODE_MSK, gpio_mode);
 		break;
 	default:
 		dev_err(info->idev->dev.parent, "use the wrong GPIO, exit 0\n");
 		return 0;
 	}
-	/* 0xe2: set debounce period of ONKEY as 7s, when used with GPIO */
+	/* 0xe2: set debounce period of ONKEY, when used with GPIO */
 	regmap_update_bits(info->map, PM88X_AON_CTRL2,
-			   PM88X_HWRST_DB_MSK , PM88X_HWRST_DB_7S);
-
+			   PM88X_HWRST_DB_MSK , info->hwrst_db_period << PM88X_HWRST_DB_SHIFT);
 	return 0;
 }
 
@@ -94,11 +122,12 @@ static int pm88x_config_long_onkey(struct pm88x_onkey_info *info)
 	/* 0xe3: set debounce period of ONKEY as 10s and set duration of RESETOUTN pulse as 1s */
 	regmap_update_bits(info->map, PM88X_AON_CTRL3,
 			   (PM88X_LONKEY_PRESS_TIME_MSK | PM88X_LONKEY_RESTOUTN_PULSE_MSK),
-			   (PM88X_LONKEY_PRESS_TIME | PM88X_LONKEY_RESTOUTN_PULSE_1S));
+			   ((info->long_key_press_time << PM88X_LONKEY_PRESS_TIME_SHIFT) |
+			   PM88X_LONKEY_RESTOUTN_PULSE_1S));
 
-	/* 0xe4: enable LONG_ONKEY_DETECT2, onkey reset system */
+	/* 0xe4: enable LONG_ONKEY_DETECT, onkey reset system */
 	regmap_update_bits(info->map, PM88X_AON_CTRL4,
-			   PM88X_LONG_ONKEY_EN2, PM88X_LONG_ONKEY_EN2);
+			   PM88X_LONG_ONKEY_EN_MSK, info->long_onkey_type);
 
 	return 0;
 }
@@ -109,7 +138,7 @@ static irqreturn_t pm88x_onkey_handler(int irq, void *data)
 	int ret = 0;
 	unsigned int val;
 
-	/* reset the LONGKEY reset time */
+	/* reset the LONKEY reset time */
 	regmap_update_bits(info->map, PM88X_MISC_CONFIG1,
 			   PM88X_LONKEY_RST, PM88X_LONKEY_RST);
 
@@ -138,11 +167,51 @@ static int pm88x_onkey_dt_init(struct device_node *np,
 		return -ENODEV;
 	}
 
-	ret = of_property_read_u32(np, "marvell,pm88x-onkey-gpio-number",
+	ret = of_property_read_u32(np, "pm88x-onkey-gpio-number",
 				   &info->gpio_number);
 	if (ret < 0) {
+		/* give the gpio number as a default value */
+		info->gpio_number = -1;
 		dev_warn(info->idev->dev.parent, "No GPIO for long onkey.\n");
-		return 0;
+	}
+
+	ret = of_property_read_u32(np, "pm88x-onkey-long-onkey-type",
+				   &info->long_onkey_type);
+	if (ret < 0) {
+		/* LONG_ONKEY_DETECT2 is enabled by default */
+		info->long_onkey_type = PM88X_LONG_ONKEY_DETECT2;
+		dev_warn(info->idev->dev.parent, "Not select LONG ONKEY function.\n");
+	}
+
+	ret = of_property_read_u32(np, "pm88x-onkey-disable-long-key-rst",
+				   &info->disable_long_key_rst);
+	if (ret < 0) {
+		/* LONKEY reset function is enabled by default */
+		info->disable_long_key_rst = 0;
+		dev_warn(info->idev->dev.parent, "LONKEY disable function is not set.\n");
+	}
+
+	ret = of_property_read_u32(np, "pm88x-onkey-long-key-press-time",
+				   &info->long_key_press_time);
+	if (ret < 0) {
+		/* LONKEY press time is 10s by default */
+		info->long_key_press_time = 10;
+		dev_warn(info->idev->dev.parent, "LONKEY press time is not set.\n");
+	}
+
+	ret = of_property_read_u32(np, "pm88x-onkey-hwrst-db-period",
+				   &info->hwrst_db_period);
+	if (ret < 0) {
+		/* hw reset db period is 7s by default */
+		info->hwrst_db_period = PM88X_HWRST_DB_7S;
+		dev_warn(info->idev->dev.parent, "HW reset db period is not set.\n");
+	}
+
+	ret = of_property_read_u32(np, "pm88x-onkey-hwrst-type", &info->hwrst_type);
+	if (ret < 0) {
+		/* HWRST_DETECT1 is default */
+		info->hwrst_type = PM88X_HW_RESET_DETECT1;
+		dev_warn(info->idev->dev.parent, "HW reset type is not set.\n");
 	}
 
 	return 0;
@@ -190,8 +259,6 @@ static int pm88x_onkey_probe(struct platform_device *pdev)
 	info->idev->evbit[0] = BIT_MASK(EV_KEY);
 	__set_bit(KEY_POWER, info->idev->keybit);
 
-	/* give the gpio number as a default value */
-	info->gpio_number = -1;
 	err = pm88x_onkey_dt_init(node, info);
 	if (err < 0) {
 		err = -ENODEV;
