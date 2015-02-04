@@ -2061,7 +2061,7 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
 
 		if (host->vqmmc) {
-			ret = regulator_set_voltage(host->vqmmc, 2700000, 3600000);
+			ret = regulator_set_voltage(host->vqmmc, 3300000, 3300000);
 			if (!ret && !host->mmc->regulator_vqmmc_enabled)
 				if (!regulator_enable(host->vqmmc))
 					host->mmc->regulator_vqmmc_enabled = true;
@@ -2086,7 +2086,7 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 	case MMC_SIGNAL_VOLTAGE_180:
 		if (host->vqmmc) {
 			ret = regulator_set_voltage(host->vqmmc,
-					1700000, 1950000);
+					1800000, 1800000);
 			if (!ret && !host->mmc->regulator_vqmmc_enabled)
 				if (!regulator_enable(host->vqmmc))
 					host->mmc->regulator_vqmmc_enabled =
