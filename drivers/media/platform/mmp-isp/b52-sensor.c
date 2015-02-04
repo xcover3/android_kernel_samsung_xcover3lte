@@ -2850,10 +2850,16 @@ static const struct of_device_id b52_sensor_of_match[] = {
 	},
 #endif
 #ifdef CONFIG_B52_CAMERA_OV5670
-       {
-               .compatible = "ovt,ov5670",
-               .data = &b52_ov5670,
-       },
+	{
+		.compatible = "ovt,ov5670",
+		.data = &b52_ov5670,
+	},
+#endif
+#ifdef CONFIG_B52_CAMERA_S5K3L2
+	{
+		.compatible = "samsung,s5k3l2",
+		.data = &b52_s5k3l2,
+	},
 #endif
 	{  }
 };
