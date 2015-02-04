@@ -152,6 +152,7 @@ struct pm88x_battery_info {
 	int			total_capacity;
 
 	bool			use_ntc;
+	bool			bat_temp_monitor_en;
 	bool			use_sw_bd;
 	int			gpadc_det_no;
 	int			gpadc_temp_no;
@@ -728,7 +729,6 @@ out:
 	return data;
 }
 
-#if 0
 static void find_match(struct pm88x_battery_info *info,
 		       unsigned int ohm, int *low, int *high)
 {
@@ -767,14 +767,15 @@ static void find_match(struct pm88x_battery_info *info,
 	else
 		*high = end - 1;
 }
-#endif
 
 static int pm88x_get_batt_temp(struct pm88x_battery_info *info)
 {
-#if 0
 	struct iio_channel *channel = info->chan[TEMP_CHAN];
 	int ohm, ret, default_temp = 25;
 	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
+
+	if (!info->bat_temp_monitor_en)
+		return default_temp;
 
 	if (!channel) {
 		pr_err("%s: cannot get useable channel.\n", __func__);
@@ -802,9 +803,8 @@ static int pm88x_get_batt_temp(struct pm88x_battery_info *info)
 	}
 	dev_dbg(info->dev, "ohm = %d, low_index = %d, high_index = %d, temp = %d\n",
 		ohm, low, high, temp);
-#endif
 
-	return 25;
+	return temp;
 }
 
 /*	Temperature ranges:
@@ -1934,6 +1934,8 @@ static int pm88x_battery_dt_init(struct device_node *np,
 		if (ret)
 			return ret;
 	}
+
+	info->bat_temp_monitor_en = of_property_read_bool(np, "bat-temp-monitor-en");
 
 	if (of_get_property(np, "bat-software-battery-detection", NULL))
 		info->use_sw_bd = true;
