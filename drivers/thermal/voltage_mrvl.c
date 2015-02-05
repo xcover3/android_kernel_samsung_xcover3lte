@@ -691,11 +691,14 @@ int tsen_policy_dump(char *buf, int size)
 
 }
 
+
 int tsen_update_policy(void)
 {
-	init_policy_state2freq_tbl();
-	update_policy_vl_tbl();
-	update_policy_throttle_tbl();
+	if (!get_nodvfs()) {
+		init_policy_state2freq_tbl();
+		update_policy_vl_tbl();
+		update_policy_throttle_tbl();
+	}
 	return 0;
 }
 

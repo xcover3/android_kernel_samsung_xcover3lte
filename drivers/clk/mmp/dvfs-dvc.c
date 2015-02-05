@@ -78,6 +78,10 @@ static int __init nodvfs_setup(char *str)
 }
 __setup("nodvfs", nodvfs_setup);
 
+int get_nodvfs(void)
+{
+	return nodvfs;
+}
 
 /* sw triggered active&lpm dvc register */
 union pmudvc_cr {
