@@ -84,9 +84,11 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 	if (pd->clk)
 		clk_prepare_enable(pd->clk);
 
-	val = readl(base + APMU_CCIC_CLK_RES_CTRL);
-	val |= ISP_AHB_EN;
-	writel(val, base + APMU_CCIC_CLK_RES_CTRL);
+	/*
+	 * val = readl(base + APMU_CCIC_CLK_RES_CTRL);
+	 * val |= ISP_AHB_EN;
+	 * writel(val, base + APMU_CCIC_CLK_RES_CTRL);
+	 */
 
 	/* set ISP HW on/off mode  */
 	val = readl(base + data->reg_clk_res_ctrl);
@@ -175,13 +177,12 @@ retry:
 		ret = -EBUSY;
 	}
 
-	/* disable and reset AHB clock*/
-	val = readl(base + APMU_CCIC_CLK_RES_CTRL);
-	val &= ~ISP_AHB_EN;
-	writel(val, base + APMU_CCIC_CLK_RES_CTRL);
-
 	pm_qos_update_request(&pd->qos_idle,
 		PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+
+	val = __raw_readl(base + data->reg_clk_res_ctrl);
+	val &= ~(1 << data->bit_hw_mode);
+	__raw_writel(val, base + data->reg_clk_res_ctrl);
 
 	return ret;
 }
