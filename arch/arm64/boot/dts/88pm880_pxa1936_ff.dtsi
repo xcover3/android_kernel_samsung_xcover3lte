@@ -118,6 +118,7 @@
 
 	battery {
 		bat-ntc-support;
+		bat-temp-monitor-en;
 		gpadc-det-no = <1>;
 		gpadc-temp-no = <1>;
 
