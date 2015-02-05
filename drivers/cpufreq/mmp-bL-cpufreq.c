@@ -518,11 +518,6 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 		}
 
 		clst->freq_table = cpufreq_frequency_get_table(policy->cpu);
-		ret = cpufreq_table_validate_and_show(policy, clst->freq_table);
-		if (ret) {
-			pr_err("%s: invalid frequency table for cluster-%d\n", __func__, clst_index);
-			goto err_out;
-		}
 
 		/* get freq table size from cpufreq_frequency_table structure. */
 		while (clst->freq_table[i++].frequency != CPUFREQ_TABLE_END)
@@ -588,7 +583,11 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 
 	}
 
-	cpufreq_frequency_table_get_attr(clst->freq_table, policy->cpu);
+	ret = cpufreq_table_validate_and_show(policy, clst->freq_table);
+	if (ret) {
+		pr_err("%s: invalid frequency table for cluster-%d\n", __func__, clst_index);
+		goto err_out;
+	}
 	cpumask_copy(policy->cpus, topology_core_cpumask(policy->cpu));
 	cur_freq = clk_get_rate(clst->clk) / 1000;
 	policy->clk = clst->clk;
