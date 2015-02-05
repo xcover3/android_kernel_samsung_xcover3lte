@@ -595,7 +595,6 @@ config ARCH_MMP
 	select PINCTRL
 	select PLAT_PXA
 	select SPARSE_IRQ
-	select ARM_PATCH_PHYS_VIRT if CPU_PXA1908
 	select NEED_MACH_MEMORY_H if !CPU_PXA1908
 	help
 	  Support for Marvell's PXA168/PXA910(MMP) and MMP2 processor line.
