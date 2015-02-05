@@ -15,15 +15,20 @@ ARCH ?= arm
 ifeq ($(ARCH),arm64)
 export PATH:=$(ANDROID_BUILD_TOP)/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.8/bin:$(PATH)
 KERNEL_CROSS_COMPILE := aarch64-linux-android-
+else
+KERNEL_CROSS_COMPILE := $(CROSS_COMPILE)
+endif
+
 # This offset must be synced with TEXT_OFFSET in arch/arm64/Makefile
+ifeq ($(ARCH),arm64)
 TEXT_OFFSET := 0x00080000
+else
+TEXT_OFFSET := 0x00008000
+endif
 SECURITY_REGION_SIZE_MB ?= 8
 
 KERNEL_LOAD := $(shell /bin/bash -c 'printf "0x%08x" \
                $$[$(SECURITY_REGION_SIZE_MB) * 0x100000 + $(TEXT_OFFSET)]')
-else
-KERNEL_CROSS_COMPILE := $(CROSS_COMPILE)
-endif
 
 PRIVATE_KERNEL_ARGS := -C kernel ARCH=$(ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE)
 
@@ -175,7 +180,7 @@ endif
 ifeq ($(ARCH),arm64)
 	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a $(KERNEL_LOAD) -e $(KERNEL_LOAD) -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 else
-	$(UBOOT_OUTPUT)/tools/mkimage -A arm -O linux -C gzip -a 0x01208000 -e 0x01208000 -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/compressed/piggy.gzip  $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/uImage
+	$(UBOOT_OUTPUT)/tools/mkimage -A arm -O linux -C gzip -a $(KERNEL_LOAD) -e $(KERNEL_LOAD) -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/compressed/piggy.gzip  $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 endif
 	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) /dev/zero|head -c `expr \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` + 2048 - \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` % 2048` > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded
 	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded ${local_dtb_files_padded} > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
@@ -239,7 +244,7 @@ endif
 ifeq ($(ARCH),arm64)
 	$(UBOOT_OUTPUT)/tools/mkimage -A arm64 -O linux -C gzip -a $(KERNEL_LOAD) -e $(KERNEL_LOAD) -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/Image.gz $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 else
-	$(MAKE) -j$(MAKE_JOBS) $(PRIVATE_KERNEL_ARGS) $(KERNEL_IMAGE)
+	$(UBOOT_OUTPUT)/tools/mkimage -A arm -O linux -C gzip -a $(KERNEL_LOAD) -e $(KERNEL_LOAD) -n "$(TARGET_DEVICE) linux" -d $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/compressed/piggy.gzip  $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
 endif
 	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) /dev/zero|head -c `expr \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` + 2048 - \`ls -l $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE) | awk -F' ' '{print $$5}'\` % 2048` > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded
 	cat $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE).padded ${local_dtb_files_padded} > $(KERNEL_OUTPUT)/arch/$(ARCH)/boot/$(KERNEL_IMAGE)
