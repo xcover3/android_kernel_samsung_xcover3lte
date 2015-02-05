@@ -266,7 +266,7 @@
 				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_52M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_MMC_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_UHS_DDR50 PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
-						<PXA_MMC_TIMING_MMC_HS200 PXA_SDH_DTR_208M PXA_SDH_DTR_208M 0 0 3 0 0>,
+						<PXA_MMC_TIMING_MMC_HS200 PXA_SDH_DTR_156M PXA_SDH_DTR_156M 0 0 3 0 0>,
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
 				marvell,sdh-tuning-win-limit = <100>;
 				marvell,sdh-dvfs-levels = <1 7>; /* tuning from dvfs level 1 to 7 */
