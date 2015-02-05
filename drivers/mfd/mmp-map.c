@@ -130,7 +130,7 @@ static ssize_t firmware_update_set(struct device *dev,
 	if (buf[0] == '0' && buf[1] == 'x') {
 		memset(number, '\0', 20);
 		memcpy(number, buf, find_number_end(buf));
-		ret = kstrtoint((const char *)number, 16, &addr);
+		ret = kstrtouint((const char *)number, 16, &addr);
 		firmware_reg = addr;
 		if (firmware_reg < 0x2000 || firmware_reg > 0x7ffc) {
 			pr_info("It's not a valid reg value\n");
@@ -179,7 +179,7 @@ static ssize_t firmware_update_set(struct device *dev,
 	while (tmp_buf - buffer < p->f_pos) {
 		memset(number, '\0', 20);
 		memcpy(number, tmp_buf, find_number_end(tmp_buf));
-		ret = kstrtoint((const char *)number, 16, &addr);
+		ret = kstrtouint((const char *)number, 16, &addr);
 		if (ret < 0)
 			return ret;
 
@@ -189,7 +189,7 @@ static ssize_t firmware_update_set(struct device *dev,
 
 		memset(number, '\0', 20);
 		memcpy(number, tmp_buf, find_number_end(tmp_buf));
-		ret = kstrtoint((const char *)number, 16, &val);
+		ret = kstrtouint((const char *)number, 16, &val);
 		if (ret < 0)
 			return ret;
 
@@ -1348,7 +1348,7 @@ static ssize_t map_reg_set(struct device *dev,
 		/* set the register index */
 		memcpy(index, buf, (val_str - buf));
 
-		if (kstrtoint(index, 16, &map_offset) < 0)
+		if (kstrtouint(index, 16, &map_offset) < 0)
 			return -EINVAL;
 
 		if (map_offset > 0x40c) {
@@ -1358,7 +1358,7 @@ static ssize_t map_reg_set(struct device *dev,
 
 		memcpy(index, val_str + 1, (strlen(val_str) - 1));
 
-		if (kstrtoint(index, 16, &reg_val) < 0)
+		if (kstrtouint(index, 16, &reg_val) < 0)
 			return -EINVAL;
 		reg_val &= 0xFFFFFFFF;
 
@@ -1372,7 +1372,7 @@ static ssize_t map_reg_set(struct device *dev,
 		val |= APPLY_CHANGES;
 		map_raw_write(audio_map_priv, reg, val);
 	} else {
-		if (kstrtoint(buf, 16, &map_offset) < 0)
+		if (kstrtouint(buf, 16, &map_offset) < 0)
 			return -EINVAL;
 
 		if (map_offset == 0xfff) {
@@ -1442,7 +1442,7 @@ static ssize_t dspaux_reg_set(struct device *dev,
 		/* set the register index */
 		memcpy(index, buf, (val_str - buf));
 
-		if (kstrtoint(index, 16, &aux_offset) < 0)
+		if (kstrtouint(index, 16, &aux_offset) < 0)
 			return -EINVAL;
 
 		if (aux_offset > 0x80) {
@@ -1452,7 +1452,7 @@ static ssize_t dspaux_reg_set(struct device *dev,
 
 		memcpy(index, val_str + 1, (strlen(val_str) - 1));
 
-		if (kstrtoint(index, 16, &reg_val) < 0)
+		if (kstrtouint(index, 16, &reg_val) < 0)
 			return -EINVAL;
 		reg_val &= 0xFFFFFFFF;
 
@@ -1460,7 +1460,7 @@ static ssize_t dspaux_reg_set(struct device *dev,
 
 		pr_info("aux_offset is 0x%x val 0x%x\n", aux_offset, reg_val);
 	} else {
-		if (kstrtoint(buf, 16, &aux_offset) < 0)
+		if (kstrtouint(buf, 16, &aux_offset) < 0)
 			return -EINVAL;
 
 		if (aux_offset == 0xfff) {
