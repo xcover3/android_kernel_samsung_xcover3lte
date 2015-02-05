@@ -67,14 +67,20 @@ static int therml_state2vl(int state, const unsigned long *vl_freq_tbl,
 
 int init_policy_state2freq_tbl(void)
 {
-	int i, max_level = 0, freq, index = 0, descend = -1;
+	int max_level = 0, freq, descend = -1;
+#ifdef CONFIG_CPU_FREQ
 	struct cpufreq_frequency_table *cpufreq_table;
+#endif
+#ifdef CONFIG_PM_DEVFREQ
+	int i, index = 0;
 	struct devfreq_frequency_table *devfreq_table;
+#endif
 
 	/*  cpu freq table init  */
 	freq = CPUFREQ_ENTRY_INVALID;
 	max_level = 0;
 	descend = -1;
+#ifdef CONFIG_CPU_FREQ
 	cpufreq_table = cpufreq_frequency_get_table(0);
 	/* get frequency number and order*/
 	for (i = 0; cpufreq_table[i].frequency != CPUFREQ_TABLE_END; i++) {
@@ -124,6 +130,8 @@ int init_policy_state2freq_tbl(void)
 				(cpufreq_table[i].frequency * KHZ_TO_HZ);
 		}
 	}
+#endif
+#ifdef CONFIG_PM_DEVFREQ
 	/*  ddr freq table init  */
 	freq = 0;
 	max_level = 0;
@@ -221,6 +229,7 @@ int init_policy_state2freq_tbl(void)
 			(devfreq_table[i].frequency * KHZ_TO_HZ);
 	}
 
+#endif
 	return 0;
 }
 
