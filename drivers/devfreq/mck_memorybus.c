@@ -745,7 +745,7 @@ static ssize_t high_upthrd_store(struct device *dev,
 
 	mutex_lock(&devfreq->lock);
 	data->high_upthrd = high_upthrd;
-	if (data->cpu_up)
+	if (data->cpu_up | data->gpu_up)
 		__update_dev_upthreshold(high_upthrd, devfreq->data);
 	mutex_unlock(&devfreq->lock);
 
@@ -1096,7 +1096,7 @@ static ssize_t normal_upthrd_store(struct device *dev,
 
 	devfreq_throughput_data.upthreshold = normal_upthrd;
 
-	if (!data->cpu_up)
+	if (!(data->cpu_up | data->gpu_up))
 		__update_dev_upthreshold(normal_upthrd, devfreq->data);
 
 	mutex_unlock(&devfreq->lock);
@@ -1133,7 +1133,7 @@ static ssize_t upthrd_downdiff_store(struct device *dev,
 
 	devfreq_throughput_data.downdifferential = upthrd_downdiff;
 
-	if (data->cpu_up)
+	if (data->cpu_up | data->gpu_up)
 		__update_dev_upthreshold(data->high_upthrd, devfreq->data);
 	else
 		__update_dev_upthreshold(devfreq_throughput_data.upthreshold,
