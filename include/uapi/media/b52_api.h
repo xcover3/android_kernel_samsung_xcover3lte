@@ -119,6 +119,26 @@ struct b52isp_anti_shake_arg {
 	int			enable;
 };
 
+enum type_brightness_ops {
+	TYPE_READ = 0,
+	TYPE_WRITE,
+};
+
+struct b52isp_brightness {
+	enum type_brightness_ops op;
+	__u8    ygain_h;
+	__u8    ygain_l;
+	__u8    uv_matrix_00_h;
+	__u8    uv_matrix_00_l;
+	__u8    uv_matrix_01_h;
+	__u8    uv_matrix_01_l;
+	__u8    uv_matrix_10_h;
+	__u8    uv_matrix_10_l;
+	__u8    uv_matrix_11_h;
+	__u8    uv_matrix_11_l;
+	__u8    hgain;
+};
+
 enum v4l2_priv_colorfx {
 	V4L2_PRIV_COLORFX_NONE          = 0,
 	V4L2_PRIV_COLORFX_MONO_CHROME   = 1,
@@ -267,4 +287,6 @@ enum v4l2_priv_colorfx {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct sensor_otp)
 #define VIDIOC_PRIVATE_B52ISP_SENSOR_REINIT\
 	_IO('V', BASE_VIDIOC_PRIVATE + 12)
+#define VIDIOC_PRIVATE_B52ISP_BRIGHTNESS\
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct b52isp_brightness)
 #endif /* _B52_API_H */
