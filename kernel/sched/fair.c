@@ -2064,7 +2064,7 @@ struct hmp_global_attr {
 	ssize_t (*to_sysfs_text)(char *buf, int buf_size);
 };
 
-#define HMP_DATA_SYSFS_MAX 8
+#define HMP_DATA_SYSFS_MAX 26
 
 struct hmp_data_struct {
 #ifdef CONFIG_HMP_FREQUENCY_INVARIANT_SCALE
@@ -4694,8 +4694,13 @@ static struct sched_entity *hmp_get_lightest_task(
  * hmp_packing_enabled: runtime control over pack/spread
  * hmp_full_threshold: Consider a CPU with this much unweighted load full
  */
+extern int cpufreq_lfreq_index;
+extern int cpufreq_lfreq_table_size;
+static int hmp_thresholds_ready;
 unsigned int hmp_up_threshold = 700;
 unsigned int hmp_down_threshold = 512;
+unsigned int *hmp_up_thresholds;
+unsigned int *hmp_down_thresholds;
 #ifdef CONFIG_SCHED_HMP_PRIO_FILTER
 unsigned int hmp_up_prio = NICE_TO_PRIO(CONFIG_SCHED_HMP_PRIO_FILTER_VAL);
 #endif
@@ -4987,6 +4992,30 @@ static ssize_t hmp_print_domains(char *outbuf, int outbufsize)
 	return outpos+1;
 }
 
+static ssize_t hmp_print_up_thresholds(char *outbuf, int outbufsize)
+{
+	int outpos = 0;
+	int n;
+
+	for (n = 0; n < cpufreq_lfreq_table_size; n++)
+		outpos += sprintf(outbuf+outpos, "%d ", hmp_up_thresholds[n]);
+
+	strcat(outbuf, "\n");
+	return outpos+1;
+}
+
+static ssize_t hmp_print_down_thresholds(char *outbuf, int outbufsize)
+{
+	int outpos = 0;
+	int n;
+
+	for (n = 0; n < cpufreq_lfreq_table_size; n++)
+		outpos += sprintf(outbuf+outpos, "%d ", hmp_down_thresholds[n]);
+
+	strcat(outbuf, "\n");
+	return outpos+1;
+}
+
 #ifdef CONFIG_HMP_VARIABLE_SCALE
 static int hmp_period_tofrom_sysfs(int value)
 {
@@ -5048,6 +5077,70 @@ static void hmp_attr_add(
 	hmp_data.attributes[i + 1] = NULL;
 }
 
+/* create upx interfaces */
+#define HMP_ATTR_ADD_UP_THRESHOLD(n)		\
+{						\
+	hmp_attr_add("up"__stringify(n),	\
+		&hmp_up_thresholds[n],		\
+		NULL,				\
+		hmp_theshold_from_sysfs,	\
+		NULL,				\
+		0);				\
+}
+
+/* create downx interfaces */
+#define HMP_ATTR_ADD_DOWN_THRESHOLD(n)		\
+{						\
+	hmp_attr_add("down"__stringify(n),	\
+		&hmp_down_thresholds[n],	\
+		NULL,				\
+		hmp_theshold_from_sysfs,	\
+		NULL,				\
+		0);				\
+}
+
+static void hmp_thresholds_attr(int size)
+{
+	switch (size) {
+	case 8:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(7);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(7);
+	case 7:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(6);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(6);
+	case 6:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(5);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(5);
+	case 5:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(4);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(4);
+	case 4:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(3);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(3);
+	case 3:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(2);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(2);
+	case 2:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(1);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(1);
+	case 1:
+		/* fallthrough */
+		HMP_ATTR_ADD_UP_THRESHOLD(0);
+		HMP_ATTR_ADD_DOWN_THRESHOLD(0);
+	case 0:
+		break;
+	default:
+		pr_warn("HMP cannot create multi-threshold!\n");
+	}
+}
+
 static int hmp_attr_init(void)
 {
 	int ret;
@@ -5056,6 +5149,16 @@ static int hmp_attr_init(void)
 		ret = 0;
 		return ret;
 	}
+
+	/* create upx/downx interface */
+	hmp_up_thresholds = kmalloc(sizeof(unsigned int) * cpufreq_lfreq_table_size, GFP_KERNEL);
+	hmp_down_thresholds = kmalloc(sizeof(unsigned int) * cpufreq_lfreq_table_size, GFP_KERNEL);
+	for (ret = 0; ret < cpufreq_lfreq_table_size; ret++) {
+		hmp_up_thresholds[ret] =  hmp_up_threshold;
+		hmp_down_thresholds[ret] =  hmp_down_threshold;
+	}
+	hmp_thresholds_attr(cpufreq_lfreq_table_size);
+	hmp_thresholds_ready = 1;
 
 	memset(&hmp_data, sizeof(hmp_data), 0);
 	hmp_attr_add("hmp_domains",
@@ -5076,6 +5179,18 @@ static int hmp_attr_init(void)
 		hmp_theshold_from_sysfs,
 		NULL,
 		0);
+	hmp_attr_add("up_thresholds",
+		NULL,
+		NULL,
+		NULL,
+		hmp_print_up_thresholds,
+		0444);
+	hmp_attr_add("down_thresholds",
+		NULL,
+		NULL,
+		NULL,
+		hmp_print_down_thresholds,
+		0444);
 #ifdef CONFIG_HMP_VARIABLE_SCALE
 	/* by default load_avg_period_ms == LOAD_AVG_PERIOD
 	 * meaning no change
@@ -8088,8 +8203,10 @@ static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle) { }
 static unsigned int hmp_task_eligible_for_up_migration(struct sched_entity *se)
 {
 	/* below hmp_up_threshold, never eligible */
-	if (se->avg.load_avg_ratio < hmp_up_threshold)
-		return 0;
+	if ((hmp_thresholds_ready &&
+	     (se->avg.load_avg_ratio < hmp_up_thresholds[cpufreq_lfreq_index])) ||
+	    (!hmp_thresholds_ready && (se->avg.load_avg_ratio < hmp_up_threshold)))
+			return 0;
 	return 1;
 }
 
@@ -8162,10 +8279,11 @@ static unsigned int hmp_down_migration(int cpu, struct sched_entity *se)
 					< hmp_next_down_threshold)
 		return 0;
 
-	if (cpumask_intersects(&hmp_slower_domain(cpu)->cpus,
-					tsk_cpus_allowed(p))
-		&& se->avg.load_avg_ratio < hmp_down_threshold) {
-		return 1;
+	if (cpumask_intersects(&hmp_slower_domain(cpu)->cpus, tsk_cpus_allowed(p))) {
+		if ((hmp_thresholds_ready &&
+		     (se->avg.load_avg_ratio < hmp_down_thresholds[cpufreq_lfreq_index])) ||
+		    (!hmp_thresholds_ready && se->avg.load_avg_ratio < hmp_down_threshold))
+			return 1;
 	}
 	return 0;
 }

@@ -349,6 +349,9 @@ static int __cpufreq_vl_min_notify(
 	return NOTIFY_OK;
 }
 
+int cpufreq_lfreq_index;
+int cpufreq_lfreq_table_size;
+
 static int __cpufreq_freq_max_notify(
 			struct notifier_block *nb,
 			unsigned long max,
@@ -384,6 +387,8 @@ static int __cpufreq_freq_max_notify(
 
 	if (!clk_set_rate(policy->clk, freqs.new * 1000)) {
 		ret = NOTIFY_OK;
+		if (clst->clst_index == 0)
+			cpufreq_lfreq_index = index;
 	} else {
 		freqs.new = freqs.old;
 		ret = NOTIFY_BAD;
@@ -533,6 +538,7 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 			strcpy(clst_id, "L");
 			clst->cpufreq_qos_min_id = cpufreq_qos_min_id[LITTLE_CLST];
 			clst->cpufreq_qos_max_id = cpufreq_qos_max_id[LITTLE_CLST];
+			cpufreq_lfreq_table_size = clst->freq_table_size;
 		}
 		clst->vl_qos_min_id = PM_QOS_CLST_VL_MIN;
 
