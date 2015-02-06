@@ -70,10 +70,12 @@ struct pm88x_onkey_info {
 	struct input_dev *idev;
 	struct pm88x_chip *pm88x;
 	struct regmap *map;
+	struct delayed_work long_onkey_rst_work;
 	int irq;
 	int gpio_number;
 	int long_onkey_type;
 	int disable_long_key_rst;
+	int long_key_rst_delay_time;
 	int long_key_press_time;
 	int hwrst_db_period;	/* hardware reset debounce period */
 	int hwrst_type;
@@ -132,24 +134,55 @@ static int pm88x_config_long_onkey(struct pm88x_onkey_info *info)
 	return 0;
 }
 
+static int pm88x_onkey_rst_and_get_sts(struct pm88x_onkey_info *info, unsigned int *val)
+{
+	int ret;
+
+	/* reset the LONKEY reset time */
+	regmap_update_bits(info->map, PM88X_MISC_CONFIG1,
+			   PM88X_LONKEY_RST, PM88X_LONKEY_RST);
+
+	ret = regmap_read(info->map, PM88X_STATUS1, val);
+	if (ret < 0) {
+		dev_err(info->idev->dev.parent,
+			"failed to read status: %d\n", ret);
+		return ret;
+	}
+
+	*val &= PM88X_ONKEY_STS1;
+
+	return ret;
+}
+
+static void pm88x_onkey_rst_work(struct work_struct *work)
+{
+	struct pm88x_onkey_info *info =
+		container_of(work, struct pm88x_onkey_info,
+			     long_onkey_rst_work.work);
+	unsigned int val;
+
+	pm88x_onkey_rst_and_get_sts(info, &val);
+	if (val)
+		schedule_delayed_work(&info->long_onkey_rst_work, info->long_key_rst_delay_time);
+}
+
 static irqreturn_t pm88x_onkey_handler(int irq, void *data)
 {
 	struct pm88x_onkey_info *info = data;
 	int ret = 0;
 	unsigned int val;
 
-	/* reset the LONKEY reset time */
-	regmap_update_bits(info->map, PM88X_MISC_CONFIG1,
-			   PM88X_LONKEY_RST, PM88X_LONKEY_RST);
-
-	ret = regmap_read(info->map, PM88X_STATUS1, &val);
-	if (ret < 0) {
-		dev_err(info->idev->dev.parent,
-			"failed to read status: %d\n", ret);
+	ret = pm88x_onkey_rst_and_get_sts(info, &val);
+	if (ret < 0)
 		return IRQ_NONE;
-	}
-	val &= PM88X_ONKEY_STS1;
 
+	if (info->disable_long_key_rst) {
+		if (val)
+			schedule_delayed_work(&info->long_onkey_rst_work,
+					      info->long_key_rst_delay_time);
+		else
+			cancel_delayed_work(&info->long_onkey_rst_work);
+	}
 	input_report_key(info->idev, KEY_POWER, val);
 	input_sync(info->idev);
 
@@ -162,6 +195,7 @@ static int pm88x_onkey_dt_init(struct device_node *np,
 			       struct pm88x_onkey_info *info)
 {
 	int ret;
+
 	if (!info) {
 		pr_err("%s: No chip information!\n", __func__);
 		return -ENODEV;
@@ -293,6 +327,16 @@ static int pm88x_onkey_probe(struct platform_device *pdev)
 
 	err = pm88x_config_long_onkey(info);
 
+	if (info->disable_long_key_rst) {
+		INIT_DELAYED_WORK(&info->long_onkey_rst_work, pm88x_onkey_rst_work);
+
+		if (info->long_key_press_time > 1)
+			info->long_key_rst_delay_time = msecs_to_jiffies
+					((info->long_key_press_time - 1) * 1000);
+		else
+			info->long_key_rst_delay_time = msecs_to_jiffies(500);
+	}
+
 	/* 0xe7: enable fault wakeup */
 	regmap_update_bits(info->map, PM88X_AON_CTRL7,
 			   PM88X_FAULT_WU_EN, PM88X_FAULT_WU_EN);
@@ -308,6 +352,9 @@ out:
 static int pm88x_onkey_remove(struct platform_device *pdev)
 {
 	struct pm88x_onkey_info *info = platform_get_drvdata(pdev);
+
+	if (info->disable_long_key_rst)
+		cancel_delayed_work(&info->long_onkey_rst_work);
 
 	device_init_wakeup(&pdev->dev, 0);
 	devm_free_irq(&pdev->dev, info->irq, info);
