@@ -482,6 +482,15 @@ extern void b52isp_set_ddr_qos(s32 value);
 #define REG_CIP_MAX_SHARPEN         (CIP_REG_OFFSET + 0x0d)
 
 /*
+*Contrast register
+*/
+#define REG_CONTRAST_BASE1			(0x67000)
+#define REG_CONTRAST_OFFSET			(REG_CONTRAST_BASE1 - ISP1_REG_BASE)
+#define REG_CONTRAST_MIN			(REG_CONTRAST_OFFSET + 0x9)
+#define REG_CONTRAST_MAX			(REG_CONTRAST_OFFSET + 0xa)
+
+
+/*
  * SDE register
  */
 #define SDE_REG_BASE1               (0x65b00)

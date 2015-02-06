@@ -1248,6 +1248,40 @@ static int b52isp_anti_shake(struct isp_subdev *isd,
 	return b52_cmd_anti_shake(arg->block_size, arg->enable);
 }
 
+static int b52isp_brightness(struct isp_subdev *isd,
+	struct b52isp_brightness *arg)
+{
+	switch (arg->op) {
+	case TYPE_READ:
+		arg->ygain_h = b52_readb(0x65b07);
+		arg->ygain_l = b52_readb(0x65b08);
+		arg->uv_matrix_00_h = b52_readb(0x65b09);
+		arg->uv_matrix_00_l = b52_readb(0x65b0a);
+		arg->uv_matrix_01_h = b52_readb(0x65b0b);
+		arg->uv_matrix_01_l = b52_readb(0x65b0c);
+		arg->uv_matrix_10_h = b52_readb(0x65b0d);
+		arg->uv_matrix_10_l = b52_readb(0x65b0e);
+		arg->uv_matrix_11_h = b52_readb(0x65b0f);
+		arg->uv_matrix_11_l = b52_readb(0x65b10);
+		arg->hgain = b52_readb(0x65b19);
+		break;
+	case TYPE_WRITE:
+		b52_writeb(0x65b07, arg->ygain_h);
+		b52_writeb(0x65b08, arg->ygain_l);
+		b52_writeb(0x65b09, arg->uv_matrix_00_h);
+		b52_writeb(0x65b0a, arg->uv_matrix_00_l);
+		b52_writeb(0x65b0b, arg->uv_matrix_01_h);
+		b52_writeb(0x65b0c, arg->uv_matrix_01_l);
+		b52_writeb(0x65b0d, arg->uv_matrix_10_h);
+		b52_writeb(0x65b0e, arg->uv_matrix_10_l);
+		b52_writeb(0x65b0f, arg->uv_matrix_11_h);
+		b52_writeb(0x65b10, arg->uv_matrix_11_l);
+		b52_writeb(0x65b19, arg->hgain);
+		break;
+	}
+	return 0;
+}
+
 /* ioctl(subdev, IOCTL_XXX, arg) is handled by this one */
 static long b52isp_path_ioctl(struct v4l2_subdev *sd,
 				unsigned int cmd, void *arg)
@@ -1295,6 +1329,9 @@ static long b52isp_path_ioctl(struct v4l2_subdev *sd,
 		break;
 	case VIDIOC_PRIVATE_B52ISP_ANTI_SHAKE:
 		ret = b52isp_anti_shake(isd, (struct b52isp_anti_shake_arg *)arg);
+		break;
+	case VIDIOC_PRIVATE_B52ISP_BRIGHTNESS:
+		ret = b52isp_brightness(isd, (struct b52isp_brightness *)arg);
 		break;
 	default:
 		d_inf(1, "unknown ioctl '%c', dir=%d, #%d (0x%08x)\n",
@@ -1437,6 +1474,7 @@ static long b52isp_compat_ioctl32(struct v4l2_subdev *sd,
 	case VIDIOC_PRIVATE_B52ISP_CONFIG_ADV_DNS:
 	case VIDIOC_PRIVATE_B52ISP_SET_PATH_ARG:
 	case VIDIOC_PRIVATE_B52ISP_ANTI_SHAKE:
+	case VIDIOC_PRIVATE_B52ISP_BRIGHTNESS:
 		break;
 	default:
 		d_inf(1, "unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",

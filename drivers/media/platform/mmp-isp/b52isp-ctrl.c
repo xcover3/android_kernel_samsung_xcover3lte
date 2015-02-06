@@ -751,6 +751,16 @@ void b52isp_ctrl_reset_bp_val(void)
 }
 EXPORT_SYMBOL(b52isp_ctrl_reset_bp_val);
 
+static int b52isp_ctrl_set_contrast(struct v4l2_ctrl *ctrl, int id)
+{
+	u32 base = ISP1_REG_BASE + id * ISP1_ISP2_OFFSER;
+
+	b52_writeb(base + REG_CONTRAST_MIN, ctrl->val & 0xFF);
+	b52_writeb(base + REG_CONTRAST_MAX, (ctrl->val >> 8) & 0xFF);
+
+	return 0;
+}
+
 static int b52isp_ctrl_set_saturation(struct v4l2_ctrl *ctrl, int id)
 {
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
@@ -1766,6 +1776,7 @@ static int b52isp_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_CONTRAST:
+		ret = b52isp_ctrl_set_contrast(ctrl, id);
 		break;
 
 	case V4L2_CID_SATURATION:
@@ -1860,13 +1871,13 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	v4l2_ctrl_handler_init(handler, 36);
 
 	ctrls->saturation = v4l2_ctrl_new_std(handler, ops,
-			V4L2_CID_SATURATION, 0, 0xFF, 1, 0);
+			V4L2_CID_SATURATION, 0, 0xFFFF, 1, 0);
 	ctrls->brightness = v4l2_ctrl_new_std(handler, ops,
-			V4L2_CID_BRIGHTNESS, 0, 0xFFF, 1, 0);
+			V4L2_CID_BRIGHTNESS, 0, 0xFFFFFF, 1, 0);
 	ctrls->contrast = v4l2_ctrl_new_std(handler, ops,
-			V4L2_CID_CONTRAST, -2, 2, 1, 0);
+			V4L2_CID_CONTRAST, 0, 0xFFFF, 1, 0);
 	ctrls->sharpness = v4l2_ctrl_new_std(handler, ops,
-			V4L2_CID_SHARPNESS, 0, 0xFF, 1, 0);
+			V4L2_CID_SHARPNESS, 0, 0xFFFF, 1, 0);
 	ctrls->hue = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_HUE, -2, 2, 1, 0);
 
