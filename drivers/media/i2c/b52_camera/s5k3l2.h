@@ -936,25 +936,32 @@ struct regval_tab  S5K3L2_vts[] = {
 	{0x0340, 0x0c76, 0xffff},
 };
 struct regval_tab  S5K3L2_stream_on[] = {
-	{0x0100, 0x0101, 0xffff},
+	{0x0100, 0x0100, 0xff00},
 };
 struct regval_tab  S5K3L2_stream_off[] = {
-	{0x0100, 0x0100, 0xffff},
+	{0x0100, 0x0000, 0xff00},
 };
 struct regval_tab  S5K3L2_expo[] = {
-	{0x1004, 0x0004, 0xff},
+	{0x0202, 0x00, 0xff},
+	{0x0203, 0x10, 0xff},
+};
+struct regval_tab S5K3L2_frationalexp[] = {
+	{0x0200, 0x00, 0xff},
+	{0x0201, 0x00, 0xff},
 };
 struct regval_tab  S5K3L2_ag[] = {
-	{0x0204, 0x0020, 0xff},
+	{0x0204, 0x00, 0xff},
+	{0x0205, 0x20, 0xff},
 };
 struct regval_tab  S5K3L2_dg[] = {
-	{0x1080, 0x0001, 0xff},
+	{0x1080, 0x00, 0xff},
+	{0x1081, 0x01, 0xff},
 };
 struct regval_tab S5K3L2_vflip[] = {
-	{0x0100, 0x0200, 0x0200},
+	{0x0100, 0x0000, 0x0002},
 };
 struct regval_tab S5K3L2_hflip[] = {
-	{0x0100, 0x0100, 0x0000},
+	{0x0100, 0x0000, 0x0001},
 };
 struct b52_sensor_i2c_attr S5K3L2_i2c_attr[] = {
 	[0] = {
@@ -978,7 +985,7 @@ struct b52_sensor_i2c_attr S5K3L2_i2c_attr[] = {
 #define N_S5K3L2_STREAM_ON ARRAY_SIZE(S5K3L2_stream_on)
 #define N_S5K3L2_STREAM_OFF ARRAY_SIZE(S5K3L2_stream_off)
 struct b52_sensor_mbus_fmt S5K3L2_fmt = {
-	.mbus_code	= V4L2_MBUS_FMT_SRGGB10_1X10,
+	.mbus_code	= V4L2_MBUS_FMT_SGRBG10_1X10,
 	.colorspace	= V4L2_COLORSPACE_SRGB,
 	.regs = {
 		.tab = S5K3L2_fmt_raw10,
@@ -1059,7 +1066,7 @@ struct b52_sensor_data b52_s5k3l2 = {
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
 	.expo_range = {0x0004, 0x0c76},
-	.frationalexp_range = {0x00000, 0x0b40},
+	.frationalexp_range = {0x00000, 0x11a0},
 	.focus_range = {0x0010, 0x03ff},
 	.vts_reg = {
 		.tab = S5K3L2_vts,
@@ -1068,6 +1075,10 @@ struct b52_sensor_data b52_s5k3l2 = {
 	.expo_reg = {
 		.tab = S5K3L2_expo,
 		.num = N_S5K3L2_EXPO,
+	},
+	.frationalexp_reg = {
+		.tab = S5K3L2_frationalexp,
+		.num = N_S5K3L2_FRATIONALEXPO,
 	},
 	.gain_reg = {
 		[B52_SENSOR_AG] = {
@@ -1088,7 +1099,9 @@ struct b52_sensor_data b52_s5k3l2 = {
 		.num = N_S5K3L2_VFLIP,
 	},
 	.flip_change_phase =  0,
-	.gain_shift = 0x08,
+	/* A gain format is 8.5 */
+	.gain_shift = 0x00,
+	/* A expo format is 2 byte */
 	.expo_shift = 0x00,
 	.calc_dphy = 0,
 	.nr_lane = 4,
