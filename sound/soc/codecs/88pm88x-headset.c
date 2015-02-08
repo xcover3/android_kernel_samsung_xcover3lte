@@ -23,6 +23,7 @@
 #include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 
+
 #define PM886_HEADSET_CNTRL		(0x38)
 #define PM886_HEADSET_DET_EN		(1 << 7)
 #define PM886_HSDET_SLP			(1 << 1)
@@ -41,6 +42,10 @@
 #define PM886_MIC_DET_MEAS_EN		(1 << 6)
 #define PM860_SHORT_DETECT_REG		(0x37)
 #define PM860_SHORT_DETECT_BIT		(0x3)
+
+
+#define PM880_HEADSET_CNTRL3		(0x3C)
+#define PM880_MIC_BIAS_AUTO_MUTE_EN		(1 << 4)
 
 #define PM886_GPADC_AVG1		(0xAC)
 #define PM886_GPADC_MIN1		(0x89)
@@ -671,6 +676,12 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	regmap_update_bits(hs_info->map, PM886_HEADSET_CNTRL,
 			   PM886_HEADSET_DET_EN, PM886_HEADSET_DET_EN);
 	enable_irq(hs_info->irq_headset);
+
+	if (chip->type == PM880) {
+		/* enable MIC bias auto mechanism */
+		regmap_update_bits(hs_info->map, PM880_HEADSET_CNTRL3,
+				PM880_MIC_BIAS_AUTO_MUTE_EN, PM880_MIC_BIAS_AUTO_MUTE_EN);
+	}
 
 	device_init_wakeup(&pdev->dev, 1);
 
