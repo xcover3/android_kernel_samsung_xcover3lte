@@ -149,7 +149,7 @@ static int icu_set_affinity(struct irq_data *d,
 			}
 		}
 	} else {
-		cpu = cpumask_first(mask_val);
+		cpu = cpumask_any_and(mask_val, cpu_online_mask);
 		if (cpu <= 3)
 			r |= ICU_INT_CONF_AP(cpu);
 		else if (cpu <= 7)
@@ -310,9 +310,9 @@ const struct irq_domain_ops mmp_irq_domain_ops = {
 };
 
 static struct mmp_intc_conf mmp_conf = {
-	.conf_enable	= 0x51,
+	.conf_enable	= 0x11,
 	.conf_disable	= 0x0,
-	.conf_mask	= 0x7fff,
+	.conf_mask	= 0x1f,
 };
 
 static struct mmp_intc_conf mmp2_conf = {
