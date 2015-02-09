@@ -27,7 +27,7 @@
  * 01/10-sleep voltage,
  * 11-active voltage
  */
-#define PM886_BUCK1_SLP_CTRL	(0xa4)
+#define PM886_BUCK1_SLP_CTRL	(0xa2)
 #define PM886_BUCK2_SLP_CTRL	(0xb0)
 #define PM886_BUCK3_SLP_CTRL	(0xbe)
 #define PM886_BUCK4_SLP_CTRL	(0xcc)

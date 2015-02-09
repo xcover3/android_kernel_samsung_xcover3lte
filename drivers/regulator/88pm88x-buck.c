@@ -37,7 +37,7 @@
 #define PM886_BUCK5_VOUT	(0xdd)
 
 /* set buck sleep voltage */
-#define PM886_BUCK1_SET_SLP	(0xa4)
+#define PM886_BUCK1_SET_SLP	(0xa3)
 #define PM886_BUCK2_SET_SLP	(0xb1)
 #define PM886_BUCK3_SET_SLP	(0xbf)
 #define PM886_BUCK4_SET_SLP	(0xcd)
@@ -165,7 +165,7 @@ int pm88x_buck_set_suspend_mode(struct regulator_dev *rdev, unsigned int mode)
 
 	rid = rdev_get_id(rdev);
 	/* we enabled buck1 audio mode enable/disable for 88pm886 and 88pm880 */
-	if (rid == PM886_ID_BUCK1 || rid == PM880_ID_BUCK1A) {
+	if (rid == PM880_ID_BUCK1A) {
 		switch (mode) {
 		case REGULATOR_MODE_NORMAL:
 			val = 0;
@@ -292,7 +292,7 @@ static struct regulator_ops pm88x_volt_buck_ops = {
 
 /* The array is indexed by id(PM886_ID_BUCK*) */
 static struct pm88x_buck_info pm886_buck_configs[] = {
-	PM886_BUCK_AUDIO(BUCK1, 0, 3000000, buck_volt_range1, 0x55),
+	PM886_BUCK(BUCK1, 0, 3000000, buck_volt_range1, 0x55),
 	PM886_BUCK(BUCK2, 1, 1200000, buck_volt_range2, 0x73),
 	PM886_BUCK(BUCK3, 2, 1200000, buck_volt_range2, 0x73),
 	PM886_BUCK(BUCK4, 3, 1200000, buck_volt_range2, 0x73),
