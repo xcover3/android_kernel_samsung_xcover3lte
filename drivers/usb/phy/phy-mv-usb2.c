@@ -124,7 +124,6 @@
 /* For UTMI_OTG_ADDON Register. Only for pxa168 */
 #define PHY_55NM_OTG_ADDON_OTG_ON			(1 << 0)
 
-
 /* For pxa988 the register mapping are changed*/
 #define PHY_40NM_PLL0		0x4
 #define PHY_40NM_PLL1		0x8
@@ -405,6 +404,8 @@
 
 #define PHY_28NM_CTRL1_CHRG_DTC_OUT_SHIFT_28	4
 #define PHY_28NM_CTRL1_VBUSDTC_OUT_SHIFT_28		2
+#define PHY_28NM_RX_SQCAL_START_SHIFT		4
+#define PHY_28NM_RX_SQCAL_START_MASK		(0x1 << 4)
 
 #define PHY_28NM_CTRL_REG0_SHIFT	12
 static int _mv_usb2_phy_55nm_init(struct mv_usb2_phy *mv_phy)
@@ -822,26 +823,71 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 	*  CAL_DONE    ___________|
 	*		  | 400us |
 	*/
+
+	/* IMP Calibrate */
+	writel(readl(base + PHY_28NM_CAL_REG) |
+		1 << PHY_28NM_IMPCAL_START_SHIFT,
+		base + PHY_28NM_CAL_REG);
 	/* Wait For Calibrate PHY */
 	udelay(400);
-
 	/* Make sure PHY Calibration is ready */
 	loops = 0;
 	do {
 		tmp = readl(base + PHY_28NM_CAL_REG);
-		val = (PHY_28NM_PLL_PLLCAL_DONE_MASK
-			| PHY_28NM_PLL_IMPCAL_DONE_MASK);
+		val = PHY_28NM_PLL_IMPCAL_DONE_MASK;
 		tmp &= val;
-		if (tmp == val) {
-			tmp = readl(base + PHY_28NM_RX_REG1);
-			if (tmp & PHY_28NM_RX_SQCAL_DONE_MASK)
-				break;
-		}
-
+		if (tmp == val)
+			break;
 		udelay(1000);
 	} while ((loops++) && (loops < 100));
 	if (loops >= 100)
 		dev_warn(&pdev->dev, "USB PHY Calibrate not done after 100mS.");
+	writel(readl(base + PHY_28NM_CAL_REG) &
+		~(1 << PHY_28NM_IMPCAL_START_SHIFT),
+		base + PHY_28NM_CAL_REG);
+
+	/* PLL Calibrate */
+	writel(readl(base + PHY_28NM_CAL_REG) |
+		1 << PHY_28NM_PLLCAL_START_SHIFT,
+		base + PHY_28NM_CAL_REG);
+	udelay(400);
+	loops = 0;
+	do {
+		tmp = readl(base + PHY_28NM_CAL_REG);
+		val = PHY_28NM_PLL_PLLCAL_DONE_MASK;
+		tmp &= val;
+		if (tmp == val)
+			break;
+		udelay(1000);
+	} while ((loops++) && (loops < 100));
+	if (loops >= 100)
+		dev_warn(&pdev->dev, "USB PHY Calibrate not done after 100mS.");
+	writel(readl(base + PHY_28NM_CAL_REG) &
+		~(1 << PHY_28NM_PLLCAL_START_SHIFT),
+		base + PHY_28NM_CAL_REG);
+
+	/* SQ Calibrate */
+	writel(readl(base + PHY_28NM_RX_REG1) |
+		1 << PHY_28NM_RX_SQCAL_START_SHIFT,
+		base + PHY_28NM_RX_REG1);
+	/* Wait For Calibrate PHY */
+	udelay(400);
+	/* Make sure PHY Calibration is ready */
+	loops = 0;
+	do {
+		tmp = readl(base + PHY_28NM_RX_REG1);
+		val = PHY_28NM_RX_SQCAL_DONE_MASK;
+		tmp &= val;
+		if (tmp == val)
+			break;
+		udelay(1000);
+	} while ((loops++) && (loops < 100));
+	if (loops >= 100)
+		dev_warn(&pdev->dev, "USB PHY Calibrate not done after 100mS.");
+	writel(readl(base + PHY_28NM_RX_REG1) &
+		~(1 << PHY_28NM_RX_SQCAL_START_SHIFT),
+		base + PHY_28NM_RX_REG1);
+
 
 	/* Make sure PHY PLL is ready */
 	loops = 0;
