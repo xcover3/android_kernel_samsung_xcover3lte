@@ -248,4 +248,10 @@ static inline struct regmap *get_codec_companion(void)
 }
 #endif
 
+static const struct resource vr_resources[] = {
+	{
+	.name = PM88X_VIRTUAL_REGULATOR_NAME,
+	},
+};
+
 #endif /* __LINUX_MFD_88PM88X_H */

@@ -94,6 +94,8 @@ const struct mfd_cell pm880_cell_devs[] = {
 	CELL_DEV(PM880_LDO_NAME, ldo_resources, "marvell,88pm880-ldo16", 22),
 	CELL_DEV(PM880_LDO_NAME, ldo_resources, "marvell,88pm880-ldo17", 23),
 	CELL_DEV(PM880_LDO_NAME, ldo_resources, "marvell,88pm880-ldo18", 24),
+	CELL_DEV(PM88X_VIRTUAL_REGULATOR_NAME, vr_resources, "marvell,88pm880-buck1a-slp", 25),
+	CELL_DEV(PM88X_VIRTUAL_REGULATOR_NAME, vr_resources, "marvell,88pm880-buck1a-audio", 26),
 };
 EXPORT_SYMBOL_GPL(pm880_cell_devs);
 

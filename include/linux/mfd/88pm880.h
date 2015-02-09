@@ -61,4 +61,15 @@ enum {
 
 	PM880_ID_LDO_MAX = 18,
 };
+
+enum {
+	PM880_ID_BUCK1A_SLP = 0,
+	PM880_ID_BUCK1B_SLP,
+};
+
+enum {
+	PM880_ID_BUCK1A_AUDIO = 0,
+	PM880_ID_BUCK1B_AUDIO,
+};
+
 #endif /* __LINUX_MFD_88PM880_H */

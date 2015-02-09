@@ -27,6 +27,16 @@
 
 #define PM88X_VR_EN		(0x28)
 
+#define PM880_BUCK1A_SLP_VOUT	(0x26)
+#define PM880_BUCK1A_SLP_EN	(0x24)
+#define PM880_BUCK1B_SLP_VOUT	(0x3e)
+#define PM880_BUCK1B_SLP_EN	(0x3c)
+
+#define PM880_BUCK1A_AUDIO_VOUT (0x27)
+#define PM880_BUCK1A_AUDIO_EN	(0x27)
+#define PM880_BUCK1B_AUDIO_EN	(0x3f)
+#define PM880_BUCK1B_AUDIO_VOUT (0x3f)
+
 #define PM88X_VR(vreg, ebit, nr)					\
 {									\
 	.desc	= {							\
@@ -41,7 +51,94 @@
 	.page_nr = nr,							\
 }
 
+#define PM88X_BUCK_SLP(_pmic, vreg, ebit, nr, volt_ranges, n_volt)	\
+{									\
+	.desc	= {							\
+		.name	= #vreg,					\
+		.ops	= &pm88x_buck_slp_ops,				\
+		.type	= REGULATOR_VOLTAGE,				\
+		.id	= _pmic##_ID_##vreg,				\
+		.owner	= THIS_MODULE,					\
+		.n_voltages		= n_volt,			\
+		.linear_ranges		= volt_ranges,			\
+		.n_linear_ranges	= ARRAY_SIZE(volt_ranges),	\
+		.vsel_reg	= _pmic##_##vreg##_VOUT,		\
+		.vsel_mask	= 0x7f,					\
+		.enable_reg	= _pmic##_##vreg##_EN,			\
+		.enable_mask	= (0x3) << (ebit),			\
+	},								\
+	.page_nr = nr,							\
+}
+
+#define PM88X_BUCK_AUDIO(_pmic, vreg, ebit, nr, volt_ranges, n_volt)	\
+{									\
+	.desc	= {							\
+		.name	= #vreg,					\
+		.ops	= &pm88x_buck_audio_ops,			\
+		.type	= REGULATOR_VOLTAGE,				\
+		.id	= _pmic##_ID_##vreg,				\
+		.owner	= THIS_MODULE,					\
+		.n_voltages		= n_volt,			\
+		.linear_ranges		= volt_ranges,			\
+		.n_linear_ranges	= ARRAY_SIZE(volt_ranges),	\
+		.vsel_reg	= _pmic##_##vreg##_VOUT,		\
+		.vsel_mask	= 0x7f,					\
+		.enable_reg	= _pmic##_##vreg##_EN,			\
+		.enable_mask	= (0x1) << (ebit),			\
+	},								\
+	.page_nr = nr,							\
+}
+
+#define PM880_BUCK_SLP(vreg, ebit, nr, volt_ranges, n_volt)		\
+	PM88X_BUCK_SLP(PM880, vreg, ebit, nr, volt_ranges, n_volt)
+
+#define PM880_BUCK_AUDIO(vreg, ebit, nr, volt_ranges, n_volt)		\
+	PM88X_BUCK_AUDIO(PM880, vreg, ebit, nr, volt_ranges, n_volt)
+
+#define PM88X_VR_OF_MATCH(comp, label) \
+	{ \
+		.compatible = comp, \
+		.data = &pm88x_vr_configs[PM88X_ID##_##label], \
+	}
+
+#define PM88X_BUCK_SLP_OF_MATCH(_pmic, id, comp, label) \
+	{ \
+		.compatible = comp, \
+		.data = &_pmic##_buck_slp_configs[id##_##label], \
+	}
+
+#define PM88X_BUCK_AUDIO_OF_MATCH(_pmic, id, comp, label) \
+	{ \
+		.compatible = comp, \
+		.data = &_pmic##_buck_audio_configs[id##_##label], \
+	}
+
+#define PM880_BUCK_SLP_OF_MATCH(comp, label) \
+	PM88X_BUCK_SLP_OF_MATCH(pm880, PM880_ID, comp, label)
+
+#define PM880_BUCK_AUDIO_OF_MATCH(comp, label) \
+	PM88X_BUCK_AUDIO_OF_MATCH(pm880, PM880_ID, comp, label)
+
+static const struct regulator_linear_range buck_slp_volt_range1[] = {
+	REGULATOR_LINEAR_RANGE(600000, 0, 0x4f, 12500),
+	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x54, 50000),
+};
+
+static const struct regulator_linear_range buck_audio_volt_range1[] = {
+	REGULATOR_LINEAR_RANGE(600000, 0, 0x54, 12500),
+};
+
 struct pm88x_vr_info {
+	struct regulator_desc desc;
+	unsigned int page_nr;
+};
+
+struct pm88x_buck_slp_info {
+	struct regulator_desc desc;
+	unsigned int page_nr;
+};
+
+struct pm88x_buck_audio_info {
 	struct regulator_desc desc;
 	unsigned int page_nr;
 };
@@ -58,18 +155,87 @@ static struct regulator_ops pm88x_virtual_regulator_ops = {
 	.is_enabled = regulator_is_enabled_regmap,
 };
 
-/* The array is indexed by id(PM886_ID_BUCK*) */
+static int pm88x_buck_slp_enable(struct regulator_dev *rdev)
+{
+	return regmap_update_bits(rdev->regmap, rdev->desc->enable_reg,
+				  rdev->desc->enable_mask, 0x2);
+}
+
+static int pm88x_buck_slp_disable(struct regulator_dev *rdev)
+{
+	dev_info(&rdev->dev, "%s: this buck is _off_ in suspend.\n", __func__);
+	return regmap_update_bits(rdev->regmap, rdev->desc->enable_reg,
+				  rdev->desc->enable_mask, 0x0);
+}
+
+static int pm88x_buck_slp_is_enabled(struct regulator_dev *rdev)
+{
+	unsigned int val;
+	int ret;
+
+	ret = regmap_read(rdev->regmap, rdev->desc->enable_reg, &val);
+	if (ret != 0)
+		return ret;
+
+	return !!((val & rdev->desc->enable_mask) == (0x2 << 5));
+}
+
+static struct regulator_ops pm88x_buck_slp_ops = {
+	.enable = pm88x_buck_slp_enable,
+	.disable = pm88x_buck_slp_disable,
+	.is_enabled = pm88x_buck_slp_is_enabled,
+	.set_voltage_sel = regulator_set_voltage_sel_regmap,
+	.get_voltage_sel = regulator_get_voltage_sel_regmap,
+};
+
+static int pm88x_buck_audio_enable(struct regulator_dev *rdev)
+{
+	dev_info(&rdev->dev, "%s is empty.\n", __func__);
+	return 0;
+}
+
+static int pm88x_buck_audio_disable(struct regulator_dev *rdev)
+{
+	dev_info(&rdev->dev, "%s is empty.\n", __func__);
+	return 0;
+}
+
+static int pm88x_buck_audio_is_enabled(struct regulator_dev *rdev)
+{
+	dev_info(&rdev->dev, "%s is empty.\n", __func__);
+	return 0;
+}
+
+static struct regulator_ops pm88x_buck_audio_ops = {
+	.enable = pm88x_buck_audio_enable,
+	.disable = pm88x_buck_audio_disable,
+	.is_enabled = pm88x_buck_audio_is_enabled,
+	.set_voltage_sel = regulator_set_voltage_sel_regmap,
+	.get_voltage_sel = regulator_get_voltage_sel_regmap,
+};
+
 static struct pm88x_vr_info pm88x_vr_configs[] = {
 	PM88X_VR(VOTG, 7, 3),
 };
 
-#define PM88X_VR_OF_MATCH(comp, label) \
-	{ \
-		.compatible = comp, \
-		.data = &pm88x_vr_configs[PM88X_ID##_##label], \
-	}
+static struct pm88x_buck_slp_info pm880_buck_slp_configs[] = {
+	PM880_BUCK_SLP(BUCK1A_SLP, 4, 4, buck_slp_volt_range1, 0x55),
+	PM880_BUCK_SLP(BUCK1B_SLP, 4, 4, buck_slp_volt_range1, 0x55),
+};
+
+static struct pm88x_buck_audio_info pm880_buck_audio_configs[] = {
+	PM880_BUCK_AUDIO(BUCK1A_AUDIO, 7, 4, buck_audio_volt_range1, 0x50),
+	PM880_BUCK_AUDIO(BUCK1B_AUDIO, 7, 4, buck_audio_volt_range1, 0x50),
+};
+
 static const struct of_device_id pm88x_vrs_of_match[] = {
 	PM88X_VR_OF_MATCH("marvell,88pm88x-votg", VOTG),
+
+	PM880_BUCK_SLP_OF_MATCH("marvell,88pm880-buck1a-slp", BUCK1A_SLP),
+	PM880_BUCK_SLP_OF_MATCH("marvell,88pm880-buck1b-slp", BUCK1B_SLP),
+
+	PM880_BUCK_AUDIO_OF_MATCH("marvell,88pm880-buck1a-audio", BUCK1A_AUDIO),
+	PM880_BUCK_AUDIO_OF_MATCH("marvell,88pm880-buck1b-audio", BUCK1B_AUDIO),
 };
 
 static struct regmap *nr_to_regmap(struct pm88x_chip *chip, unsigned int nr)
@@ -143,7 +309,10 @@ static int pm88x_virtual_regulator_probe(struct platform_device *pdev)
 	}
 
 	c = data->rdev->constraints;
-	c->valid_ops_mask |= REGULATOR_CHANGE_STATUS;
+	if (info->desc.ops->enable)
+		c->valid_ops_mask |= REGULATOR_CHANGE_STATUS;
+	if (info->desc.ops->set_voltage_sel)
+		c->valid_ops_mask |= REGULATOR_CHANGE_VOLTAGE;
 
 	platform_set_drvdata(pdev, data);
 
