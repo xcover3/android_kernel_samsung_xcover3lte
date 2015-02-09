@@ -27,4 +27,13 @@
 			reg = <3>;
 		};
 	};
+
+	soc {
+		apb@d4000000 {	/* APB */
+
+			cp-load {
+				remap-smc-funcid = <0x90002001>;
+			};
+		};
+	};
 };
