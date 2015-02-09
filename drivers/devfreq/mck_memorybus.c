@@ -34,12 +34,15 @@
 #include <linux/platform_data/gpu4dev.h>
 #endif
 #include <linux/clk/mmpdcstat.h>
+#include <linux/clk-provider.h>
 
 
 #define DDR_DEVFREQ_UPTHRESHOLD 65
 #define DDR_DEVFREQ_DOWNDIFFERENTIAL 5
 
 #define DDR_DEVFREQ_HIGHCPUFREQ 800000
+#define DDR_DEVFREQ_HIGHCPUFREQ_CLST0 800000
+#define DDR_DEVFREQ_HIGHCPUFREQ_CLST1 800000
 #define DDR_DEVFREQ_HIGHCPUFREQ_UPTHRESHOLD 30
 
 #define KHZ_TO_HZ   1000
@@ -76,8 +79,10 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 		container_of(nb, struct ddr_devfreq_data, freq_transition);
 	struct devfreq *devfreq = cur_data->devfreq;
 	struct devfreq_throughput_data *gov_data;
+	struct clk *clk;
 	int evoc = 0;
 	unsigned int upthrd;
+	unsigned int cur_freq;
 
 	if (val != CPUFREQ_POSTCHANGE &&
 	    val != GPUFREQ_POSTCHANGE_UP &&
@@ -92,10 +97,30 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 		cur_data->gpu_up = 1;
 	else if (val == GPUFREQ_POSTCHANGE_DOWN)
 		cur_data->gpu_up = 0;
-	else if (freq->new >= cur_data->high_upthrd_swp)
-		cur_data->cpu_up = 1;
-	else
-		cur_data->cpu_up = 0;
+
+	/* multi-cluster case*/
+	if (cur_data->multi_clst == 1) {
+		clk = __clk_lookup("clst0");
+		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		if (cur_freq >= cur_data->high_upthrd_swp_clst0)
+			cur_data->cpu_up = 1;
+		else
+			cur_data->cpu_up = 0;
+
+		clk = __clk_lookup("clst1");
+		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		if (cur_freq >= cur_data->high_upthrd_swp_clst1)
+			cur_data->cpu_up |= 1;
+		else
+			cur_data->cpu_up |= 0;
+	} else { /* single cluster case */
+		clk = __clk_lookup("cpu");
+		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		if (cur_freq >= cur_data->high_upthrd_swp)
+			cur_data->cpu_up = 1;
+		else
+			cur_data->cpu_up = 0;
+	}
 
 	evoc = generate_evoc(cur_data->gpu_up, cur_data->cpu_up);
 
@@ -694,20 +719,81 @@ static ssize_t high_swp_store(struct device *dev, struct device_attribute *attr,
 	struct platform_device *pdev;
 	struct ddr_devfreq_data *data;
 	struct devfreq *devfreq;
-	unsigned int swp;
+	struct clk *clk;
+	unsigned int swp, swp_clst0, swp_clst1;
+	unsigned int cur_freq;
+	unsigned int upthrd;
+	unsigned int up_flag_ori;
 
 	pdev = container_of(dev, struct platform_device, dev);
 	data = platform_get_drvdata(pdev);
 	devfreq = data->devfreq;
 
-	if (0x1 != sscanf(buf, "%u", &swp)) {
-		dev_err(dev, "<ERR> wrong parameter\n");
-		return -E2BIG;
+	if (data->multi_clst) {
+		if (0x2 != sscanf(buf, "%u,%u", &swp_clst0, &swp_clst1)) {
+			dev_err(dev, "<ERR> wrong parameter\n");
+			return -E2BIG;
+		}
+	} else {
+		if (0x1 != sscanf(buf, "%u", &swp)) {
+			dev_err(dev, "<ERR> wrong parameter\n");
+			return -E2BIG;
+		}
 	}
 
+	upthrd = 0;
+
 	mutex_lock(&devfreq->lock);
-	data->high_upthrd_swp = swp;
+
+	up_flag_ori = data->cpu_up | data->gpu_up;
+
+	if (data->multi_clst) {
+		data->high_upthrd_swp_clst0 = swp_clst0;
+		data->high_upthrd_swp_clst1 = swp_clst1;
+
+		clk = __clk_lookup("clst0");
+		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		if (cur_freq >= data->high_upthrd_swp_clst0)
+			data->cpu_up = 1;
+		else
+			data->cpu_up = 0;
+
+		dev_dbg(dev, "clst0, swp: threshold = %u, freq = %u, cpu_up = %d\n",
+			data->high_upthrd_swp_clst0, cur_freq, data->cpu_up);
+
+		clk = __clk_lookup("clst1");
+		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		if (cur_freq >= data->high_upthrd_swp_clst1)
+			data->cpu_up |= 1;
+		else
+			data->cpu_up |= 0;
+
+		dev_dbg(dev, "clst1, swp: threshold = %u, freq = %u, cpu_up = %d\n",
+			data->high_upthrd_swp_clst1, cur_freq, data->cpu_up);
+	} else {
+		data->high_upthrd_swp = swp;
+
+		clk = __clk_lookup("cpu");
+		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		if (cur_freq >= data->high_upthrd_swp)
+			data->cpu_up = 1;
+		else
+			data->cpu_up = 0;
+	}
+
+	if (up_flag_ori != (data->cpu_up | data->gpu_up)) {
+		if (data->cpu_up | data->gpu_up)
+			upthrd = data->high_upthrd;
+		else
+			upthrd = devfreq_throughput_data.upthreshold;
+
+		__update_dev_upthreshold(upthrd, devfreq->data);
+	}
+
 	mutex_unlock(&devfreq->lock);
+
+	if(upthrd)
+		trace_pxa_ddr_upthreshold(upthrd);
 
 	return size;
 }
@@ -721,7 +807,12 @@ static ssize_t high_swp_show(struct device *dev,
 
 	pdev = container_of(dev, struct platform_device, dev);
 	data = platform_get_drvdata(pdev);
-	return sprintf(buf, "%u\n", data->high_upthrd_swp);
+
+	if (data->multi_clst) {
+		return sprintf(buf, "%u,%u\n", data->high_upthrd_swp_clst0,
+			data->high_upthrd_swp_clst1);
+	} else
+		return sprintf(buf, "%u\n", data->high_upthrd_swp);
 }
 
 /* interface to change the aggresive upthreshold value */
@@ -1423,7 +1514,18 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		goto err_devfreq_add;
 	}
 
-	data->high_upthrd_swp = DDR_DEVFREQ_HIGHCPUFREQ;
+	if (__clk_lookup("clst0") && __clk_lookup("clst1")) {
+		data->multi_clst = 1;
+		data->high_upthrd_swp = 0xffffffff;
+		data->high_upthrd_swp_clst0= DDR_DEVFREQ_HIGHCPUFREQ_CLST0;
+		data->high_upthrd_swp_clst1= DDR_DEVFREQ_HIGHCPUFREQ_CLST1;
+	} else {
+		data->multi_clst = 0;
+		data->high_upthrd_swp = DDR_DEVFREQ_HIGHCPUFREQ;
+		data->high_upthrd_swp_clst0= 0xffffffff;
+		data->high_upthrd_swp_clst1= 0xffffffff;
+	}
+
 	data->high_upthrd = DDR_DEVFREQ_HIGHCPUFREQ_UPTHRESHOLD;
 	data->cpu_up = 0;
 	data->gpu_up = 0;

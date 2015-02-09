@@ -133,6 +133,9 @@ struct ddr_devfreq_data {
 	spinlock_t lock;
 
 	/* used for performance optimization */
+	u32 multi_clst;
+	u32 high_upthrd_swp_clst0;
+	u32 high_upthrd_swp_clst1;
 	u32 high_upthrd_swp;
 	u32 high_upthrd;
 	u32 cpu_up;
