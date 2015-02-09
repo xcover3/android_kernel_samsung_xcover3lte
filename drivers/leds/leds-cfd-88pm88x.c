@@ -59,20 +59,24 @@
 
 #define PM88X_BST_ILIM_DIS		(0x1 << 7)
 
-#define PM88X_LED_ISET(x)		(((x) - 50) / 50)
+#define PM88X_CURRENT_DIV(x, y)		DIV_ROUND_UP(256, (x / y))
 #define PM88X_FLASH_ISET_OFFSET	(0)
 #define PM88X_FLASH_ISET_MASK		(0x1f << PM88X_FLASH_ISET_OFFSET)
 #define PM88X_TORCH_ISET_OFFSET	(5)
 #define PM88X_TORCH_ISET_MASK		(0x7 << PM88X_TORCH_ISET_OFFSET)
+#define PM88X_LED_TORCH_ISET(x, y)	((((x) - y) / y) << PM88X_TORCH_ISET_OFFSET)
+#define PM88X_LED_FLASH_ISET(x, y)	((((x) - y) / y) << PM88X_FLASH_ISET_OFFSET)
 
-#define PM88X_MIN_CURRENT		(50)		/* mA */
+
+#define PM88X_NUM_FLASH_CURRENT_LEVELS	0x20
+#define PM88X_NUM_TORCH_CURRENT_LEVELS	0x8
+
 #define PM88X_MAX_FLASH_CURRENT		(1600)		/* mA */
 #define PM88X_MAX_SAFE_FLASH_CURRENT	(PM88X_MAX_FLASH_CURRENT - 600)		/* mA */
 
 #define PM88X_MAX_TORCH_CURRENT		(400)		/* mA */
 #define PM88X_MAX_SAFE_TORCH_CURRENT	(PM88X_MAX_TORCH_CURRENT - 200)		/* mA */
 
-#define PM88X_CURRENT_DIV(x)		DIV_ROUND_UP(256, (x / 50))
 
 #define CFD_MIN_BOOST_VOUT		3750
 #define CFD_MAX_BOOST_VOUT		5500
@@ -93,6 +97,8 @@
 
 #define PM886_BST_UVVBAT_EN_MASK	(0x1 << 3)
 
+#define PM886_CURRENT_LEVEL_STEPS	50
+
 /* PM880 specific register */
 #define PM880_CFD_CONFIG12		(0x61)
 #define PM880_CFD_CONFIG2		(0x62)
@@ -111,6 +117,9 @@
 #define PM880_UV_SET_MASK		(0x1 << PM880_UV_SET_OFFSET)
 #define PM880_BST_UVVBAT_EN_MASK	(0x1 << 2)
 
+
+#define PM880_CURRENT_LEVEL_STEPS	25
+
 static int gpio_en;
 static unsigned int dev_num;
 
@@ -126,6 +135,7 @@ struct pm88x_led {
 	unsigned int brightness;
 	unsigned int current_brightness;
 	unsigned int max_current_div;
+	unsigned int iset_step;
 	unsigned int force_max_current;
 
 	int id;
@@ -200,8 +210,8 @@ static void torch_set_current(struct pm88x_led *led)
 	chip = led->chip;
 	/* set torch current */
 	regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG1,
-			   PM88X_TORCH_ISET_MASK,
-			   ((PM88X_LED_ISET(led->brightness)) << PM88X_TORCH_ISET_OFFSET));
+		PM88X_TORCH_ISET_MASK,
+		PM88X_LED_TORCH_ISET(led->brightness, led->iset_step));
 }
 
 
@@ -350,8 +360,8 @@ static void strobe_flash(struct pm88x_led *led)
 	/* automatic booster enable mode*/
 	/* set flash current */
 	regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG1,
-			   PM88X_FLASH_ISET_MASK,
-			   ((PM88X_LED_ISET(led->brightness)) << PM88X_FLASH_ISET_OFFSET));
+			PM88X_FLASH_ISET_MASK,
+			PM88X_LED_FLASH_ISET(led->brightness, led->iset_step));
 	/* trigger flash */
 	if (!gpio_en) {
 		if (chip->type == PM886) {
@@ -399,7 +409,8 @@ static void pm88x_led_bright_set(struct led_classdev *cdev,
 	else {
 		if (led->force_max_current)
 			value = LED_FULL;
-		led->brightness = ((value / led->max_current_div) + 1) * 50;
+		led->brightness = ((value / led->max_current_div) + 1)
+				* led->iset_step;
 	}
 
 	dev_dbg(led->cdev.dev, "value = %d, brightness = %d\n",
@@ -842,6 +853,7 @@ static int pm88x_led_probe(struct platform_device *pdev)
 	struct device_node *node = pdev->dev.of_node;
 	unsigned int max_current;
 	int ret;
+	int min_current_step, max_current_step;
 
 	led = devm_kzalloc(&pdev->dev, sizeof(struct pm88x_led),
 			    GFP_KERNEL);
@@ -862,18 +874,27 @@ static int pm88x_led_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	if (chip->type == PM886)
+		led->iset_step = PM886_CURRENT_LEVEL_STEPS;
+	else
+		led->iset_step = PM880_CURRENT_LEVEL_STEPS;
+
 	if (pdev->id == PM88X_FLASH_LED) {
 		strncpy(led->name, "flash", MFD_NAME_SIZE - 1);
-		pdata->max_flash_current = (pdata->max_flash_current < PM88X_MIN_CURRENT) ?
-				PM88X_MIN_CURRENT : pdata->max_flash_current;
-		max_current = (pdata->max_flash_current > PM88X_MAX_FLASH_CURRENT) ?
-				PM88X_MAX_FLASH_CURRENT : pdata->max_flash_current;
+		min_current_step = led->iset_step;
+		max_current_step = led->iset_step * PM88X_NUM_FLASH_CURRENT_LEVELS;
+		pdata->max_flash_current = (pdata->max_flash_current < min_current_step) ?
+				min_current_step : pdata->max_flash_current;
+		max_current = (pdata->max_flash_current > max_current_step) ?
+				max_current_step : pdata->max_flash_current;
 	} else {
 		strncpy(led->name, "torch", MFD_NAME_SIZE - 1);
-		pdata->max_torch_current = (pdata->max_torch_current < PM88X_MIN_CURRENT) ?
-				PM88X_MIN_CURRENT : pdata->max_torch_current;
-		max_current = (pdata->max_torch_current > PM88X_MAX_TORCH_CURRENT) ?
-				PM88X_MAX_TORCH_CURRENT : pdata->max_torch_current;
+		min_current_step = led->iset_step;
+		max_current_step = led->iset_step * PM88X_NUM_TORCH_CURRENT_LEVELS;
+		pdata->max_torch_current = (pdata->max_torch_current < min_current_step) ?
+				min_current_step : pdata->max_torch_current;
+		max_current = (pdata->max_torch_current > max_current_step) ?
+				max_current_step : pdata->max_torch_current;
 		/*
 		 * Allow to force a constant current regardless of upper
 		 * layer request
@@ -883,7 +904,7 @@ static int pm88x_led_probe(struct platform_device *pdev)
 
 	led->chip = chip;
 	led->id = pdev->id;
-	led->max_current_div = PM88X_CURRENT_DIV(max_current);
+	led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step);
 	led->cf_en = pdata->cf_en;
 	led->cf_txmsk = pdata->cf_txmsk;
 	gpio_en = pdata->gpio_en;
