@@ -491,7 +491,7 @@
 						MMC1_DAT0 AF0
 						MMC1_CMD AF0
 					>;
-					DS_SLOW0;PULL_NONE;EDGE_NONE;LPM_NONE;
+					MFP_DEFAULT;
 				};
 
 				/* MFP_LPM_DRIVE_LOW */
@@ -499,7 +499,7 @@
 					pinctrl-single,pins = <
 						MMC1_CLK AF0
 					>;
-					DS_SLOW0;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
+					MFP_LPM_DRIVE_LOW;
 				};
 
 				/* ds fast, no pull, no LPM */
