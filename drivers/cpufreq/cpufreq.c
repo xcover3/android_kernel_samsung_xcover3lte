@@ -782,7 +782,13 @@ struct kobject *cpufreq_global_kobject;
 struct kset *cpufreq_kset;
 static int cpufreq_uevent_filter(struct kset *kset, struct kobject *kobj)
 {
-	return 1;
+	struct kobj_type *ktype = get_ktype(kobj);
+
+	if (ktype == &ktype_cpufreq) {
+		if (!cpufreq_suspended)
+			return 1;
+	}
+	return 0;
 }
 
 static const struct kset_uevent_ops cpufreq_uevent_ops = {
@@ -1013,6 +1019,7 @@ static void cpufreq_policy_put_kobj(struct cpufreq_policy *policy)
 			CPUFREQ_REMOVE_POLICY, policy);
 
 	down_read(&policy->rwsem);
+	policy->kobj.kset = NULL;
 	kobj = &policy->kobj;
 	cmp = &policy->kobj_unregister;
 	up_read(&policy->rwsem);
@@ -1116,9 +1123,7 @@ static int __cpufreq_add_dev(struct device *dev, struct subsys_interface *sif,
 	 */
 	if (frozen && cpu != policy->cpu) {
 		update_policy_cpu(policy, cpu);
-		policy->kobj.kset = NULL;
 		WARN_ON(kobject_move(&policy->kobj, &dev->kobj));
-		policy->kobj.kset = cpufreq_kset;
 	} else {
 		policy->cpu = cpu;
 	}
@@ -1294,7 +1299,6 @@ static int cpufreq_nominate_new_policy_cpu(struct cpufreq_policy *policy,
 	cpu_dev = get_cpu_device(cpumask_any_but(policy->cpus, old_cpu));
 
 	sysfs_remove_link(&cpu_dev->kobj, "cpufreq");
-	policy->kobj.kset = NULL;
 	ret = kobject_move(&policy->kobj, &cpu_dev->kobj);
 	if (ret) {
 		pr_err("%s: Failed to move kobj: %d", __func__, ret);
@@ -1308,7 +1312,6 @@ static int cpufreq_nominate_new_policy_cpu(struct cpufreq_policy *policy,
 
 		return -EINVAL;
 	}
-	policy->kobj.kset = cpufreq_kset;
 	return cpu_dev->id;
 }
 
