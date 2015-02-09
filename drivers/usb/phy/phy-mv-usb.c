@@ -651,7 +651,12 @@ static int mv_otg_notifier_charger_callback(struct notifier_block *nb,
 	struct mv_otg *mvotg = container_of(nb, struct mv_otg, notifier_charger);
 
 	mvotg->charger_type = val;
+#ifdef CONFIG_USB_GADGET_CHARGE_ONLY
+	if (!(is_charge_only_mode()) &&
+			(mvotg->charger_type == DCP_CHARGER)) {
+#else
 	if (mvotg->charger_type == DCP_CHARGER) {
+#endif
 		mv_otg_reset(mvotg);
 		mv_otg_disable(mvotg);
 	}
