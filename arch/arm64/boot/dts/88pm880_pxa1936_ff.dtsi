@@ -169,7 +169,12 @@
        };
 
 	onkey {
-		marvell,pm88x-onkey-gpio-number = <1>;
+		pm88x-onkey-gpio-number = <1>;
+		pm88x-onkey-long-onkey-type = <2>;
+		pm88x-onkey-disable-long-key-rst = <0>;
+		pm88x-onkey-long-key-press-time = <10>;
+		pm88x-onkey-hwrst-db-period = <1>;
+		pm88x-onkey-hwrst-type = <1>;
 	};
 
 	vbus {
