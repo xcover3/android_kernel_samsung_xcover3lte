@@ -304,6 +304,9 @@ static int pm88x_registers_print(struct pm88x_chip *chip, u8 page,
 	case 3:
 		map = chip->battery_regmap;
 		break;
+	case 4:
+		map = chip->buck_regmap;
+		break;
 	case 7:
 		map = chip->test_regmap;
 		break;
