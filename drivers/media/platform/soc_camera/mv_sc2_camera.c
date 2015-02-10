@@ -532,8 +532,6 @@ static int mccic_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 /* +	/\* ccic_reg_set_bit(mcam_dev, REG_CTRL1, C1_PWRDWN) *\/ */
 
 	msc2_setup_buffer(mcam_dev);
-	ctrl_dev->ops->irq_mask(ctrl_dev, 1);
-	dma_dev->ops->ccic_enable(dma_dev);
 
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG) {
 		/* nothing to do here */
@@ -553,8 +551,11 @@ static int mccic_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 		spin_unlock_irqrestore(&mcam_dev->mcam_lock, flags);
 		return -EINVAL;
 	}
-	mcam_dev->state = S_STREAMING;
+
 	dma_dev->ops->shadow_ready(dma_dev);
+	ctrl_dev->ops->irq_mask(ctrl_dev, 1);
+	dma_dev->ops->ccic_enable(dma_dev);
+	mcam_dev->state = S_STREAMING;
 
 	spin_unlock_irqrestore(&mcam_dev->mcam_lock, flags);
 	return 0;

@@ -532,7 +532,7 @@ static void ccic_shadow_ready(struct ccic_dma_dev *dma_dev)
 {
 	unsigned long flags = 0;
 	spin_lock_irqsave(&dma_dev->ccic_dev->ccic_lock, flags);
-	ccic_reg_set_bit(dma_dev->ccic_dev, REG_CTRL1, 0x8000000 | C1_SHADOW_RDY);
+	ccic_reg_set_bit(dma_dev->ccic_dev, REG_CTRL1, C1_SHADOW_RDY);
 	spin_unlock_irqrestore(&dma_dev->ccic_dev->ccic_lock, flags);
 }
 
@@ -746,29 +746,7 @@ static void ccic_config_mbus(struct ccic_ctrl_dev *ctrl_dev,
 			ccic_reg_set_bit(ccic_dev, REG_CTRL0, C0_VCLK_LOW);
 		else
 			ccic_reg_clear_bit(ccic_dev, REG_CTRL0, C0_VCLK_LOW);
-	}
-
-	if (bus_type == V4L2_MBUS_CSI2 && enable) {
-		/*
-		 * 0x41 actives 1 lane
-		 * 0x43 actives 2 lanes
-		 * 0x47 actives 4 lanes
-		 * There is no 3 lanes case
-		 */
-		if (mbus_flags == 2)
-			ccic_reg_write(ccic_dev, REG_CSI2_CTRL0, 0x43);
-		else if (mbus_flags == 4)
-			ccic_reg_write(ccic_dev, REG_CSI2_CTRL0, 0x47);
-		else
-			ccic_reg_write(ccic_dev, REG_CSI2_CTRL0, 0x41);
-	} else {
-		ccic_reg_write(ccic_dev, REG_CSI2_DPHY3, 0x0);
-		ccic_reg_write(ccic_dev, REG_CSI2_DPHY6, 0x0);
-		ccic_reg_write(ccic_dev, REG_CSI2_DPHY5, 0x0);
-		ccic_reg_write(ccic_dev, REG_CSI2_CTRL0, 0x0);
-	}
-
-	if (bus_type == V4L2_MBUS_CSI2)
+	} else if (bus_type == V4L2_MBUS_CSI2)
 		ccic_config_mipi(ccic_dev, &ctrl_dev->csi, enable);
 }
 
