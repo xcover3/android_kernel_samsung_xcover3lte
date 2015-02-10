@@ -442,6 +442,92 @@ static const struct file_operations pm88x_power_up_fops = {
 	.owner = THIS_MODULE,
 };
 
+static ssize_t pm88x_buck1_info_read(struct file *file, char __user *user_buf,
+				   size_t count, loff_t *ppos)
+{
+	struct pm88x_chip *chip = file->private_data;
+	struct pm88x_dvc *dvc = chip->dvc;
+	int uv, i, len = 0;
+	char str[1000];
+
+	for (i = 0; i < dvc->desc.max_level; i++) {
+		uv = pm88x_dvc_get_volt(i);
+		if (uv < dvc->desc.min_uV)
+			dev_err(chip->dev, "get buck 1 voltage failed of level %d.\n", i);
+		else
+			len += snprintf(str + len, sizeof(str),
+					"buck 1, level %d, voltage %duV.\n", i, uv);
+	}
+
+	return simple_read_from_buffer(user_buf, count, ppos, str, len);
+}
+
+static ssize_t pm88x_buck1_info_write(struct file *file, const char __user *user_buf,
+				      size_t count, loff_t *ppos)
+{
+	struct pm88x_chip *chip = file->private_data;
+	struct pm88x_dvc *dvc = chip->dvc;
+	int i, ret, lvl, volt, uv;
+	char arg;
+
+	ret = sscanf(user_buf, "-%c", &arg);
+	if (ret < 1) {
+		ret = sscanf(user_buf, "%d\n", &volt);
+		if (ret < 1) {
+			pr_err("Type \"echo -h > <debugfs>/88pm88x/buck1_info\" for help.\n");
+		} else {
+			for (i = 0; i < dvc->desc.max_level; i++) {
+				pm88x_dvc_set_volt(i, volt);
+				uv = pm88x_dvc_get_volt(i);
+				pr_info("buck 1, level %d, voltage %d uV\n", i, uv);
+			}
+		}
+	} else {
+		switch (arg) {
+		case 'l':
+			ret = sscanf(user_buf, "-%c %d %d", &arg, &lvl, &volt);
+			if (ret >= 2) {
+				if (lvl > dvc->desc.max_level) {
+					pr_err("Please check voltage level.\n");
+					return count;
+				}
+				if (ret == 3)
+					pm88x_dvc_set_volt(lvl, volt);
+				uv = pm88x_dvc_get_volt(lvl);
+				pr_info("buck 1, level %d, voltage %d uV\n", lvl, uv);
+			} else {
+				pr_err("Type \"echo -h > ");
+				pr_err("<debugfs>/88pm88x/buck1_info\" for help.\n");
+			}
+			break;
+		case 'h':
+			pr_info("Usage of buck1_info:\n");
+			pr_info("1: cat <debugfs>/88pm88x/buck1_info\n");
+			pr_info("   dump voltages for all levels.\n");
+			pr_info("2: echo [voltage-in-uV] > <debugfs>/88pm88x/buck1_info\n");
+			pr_info("   set same voltages for all levels.\n");
+			pr_info("3: echo -l [level] > <debugfs>/88pm88x/buck1_info\n");
+			pr_info("   dump voltage of [level].\n");
+			pr_info("4: echo -l [level] [voltage-in-uV] > ");
+			pr_info("<debugfs>/88pm88x/buck1_info\n");
+			pr_info("   set voltage of [level].\n");
+			break;
+		default:
+			pr_err("Type \"echo -h > <debugfs>/88pm88x/buck1_info\" for help.\n");
+			break;
+		}
+	}
+
+	return count;
+}
+
+static const struct file_operations pm88x_buck1_info_fops = {
+	.open = simple_open,
+	.read = pm88x_buck1_info_read,
+	.write = pm88x_buck1_info_write,
+	.owner = THIS_MODULE,
+};
+
 static int pm88x_debug_probe(struct platform_device *pdev)
 {
 	struct dentry *file;
@@ -480,6 +566,10 @@ static int pm88x_debug_probe(struct platform_device *pdev)
 		goto err;
 	file = debugfs_create_file("power-up-log", (S_IRUGO | S_IRUSR | S_IRGRP),
 		pm88x_dir, chip, &pm88x_power_up_fops);
+	if (!file)
+		goto err;
+	file = debugfs_create_file("buck1_info", (S_IRUGO | S_IWUSR | S_IWGRP),
+		pm88x_dir, chip, &pm88x_buck1_info_fops);
 	if (!file)
 		goto err;
 	return 0;

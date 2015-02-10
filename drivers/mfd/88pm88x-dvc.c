@@ -31,27 +31,6 @@
 #define BUCK_MAX_VOLT			(1587500)
 #define BUCK_STEP			(12500)
 
-struct pm88x_dvc_ops {
-	void (*level_to_reg)(u8 level);
-};
-
-struct pm88x_buck1_dvc_desc {
-	u8 current_reg;
-	int max_level;
-	int uV_step1;
-	int uV_step2;
-	int min_uV;
-	int mid_uV;
-	int max_uV;
-	int mid_reg_val;
-};
-
-struct pm88x_dvc {
-	struct device *dev;
-	struct pm88x_chip *chip;
-	struct pm88x_dvc_ops ops;
-	struct pm88x_buck1_dvc_desc desc;
-};
 static struct pm88x_dvc *g_dvc;
 
 static inline int map_volt_to_reg(int uv)
@@ -230,6 +209,8 @@ static int pm88x_dvc_probe(struct platform_device *pdev)
 	g_dvc = dvcdata;
 	g_dvc->chip = chip;
 	g_dvc->dev = &pdev->dev;
+
+	chip->dvc = g_dvc;
 
 	ret = pm88x_dvc_chip_init(g_dvc);
 	if (ret < 0) {

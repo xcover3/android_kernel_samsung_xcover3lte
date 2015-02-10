@@ -122,6 +122,28 @@ struct pm88x_led_pdata {
 	unsigned int torch_force_max_current;
 };
 
+struct pm88x_dvc_ops {
+	void (*level_to_reg)(u8 level);
+};
+
+struct pm88x_buck1_dvc_desc {
+	u8 current_reg;
+	int max_level;
+	int uV_step1;
+	int uV_step2;
+	int min_uV;
+	int mid_uV;
+	int max_uV;
+	int mid_reg_val;
+};
+
+struct pm88x_dvc {
+	struct device *dev;
+	struct pm88x_chip *chip;
+	struct pm88x_dvc_ops ops;
+	struct pm88x_buck1_dvc_desc desc;
+};
+
 struct pm88x_chip {
 	struct i2c_client *client;
 	struct device *dev;
@@ -163,6 +185,7 @@ struct pm88x_chip {
 
 	struct notifier_block reboot_notifier;
 	struct notifier_block cb_nb;
+	struct pm88x_dvc *dvc;
 };
 
 struct pm88x_chip *pm88x_init_chip(struct i2c_client *client);
