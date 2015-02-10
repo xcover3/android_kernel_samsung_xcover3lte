@@ -112,6 +112,7 @@
 		marvell,mic-det-th = <600>;
 		marvell,press-release-th = <600>;
 		marvell,micbias-supply = <&ldo18>;
+		marvell,micbias-volt = <1700>;
 		status = "okay";
 	};
 
