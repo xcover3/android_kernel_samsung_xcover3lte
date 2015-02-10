@@ -89,6 +89,7 @@ struct clk_axi {
 	DCIU_REG(c->params->dciu_base, (0x14 + 0x40 * (i)))
 #define DCIU_CPU_CONF_SRAM_1(c, i)	\
 	DCIU_REG(c->params->dciu_base, (0x18 + 0x40 * (i)))
+#define DCIU_CKG(c)	DCIU_REG(c, 0x88)
 
 #define CIU_REG(ciu_base, x)	(ciu_base + (x))
 #define CIU_TOP_MEM_XTC(c)	CIU_REG(c->params->ciu_base, 0x0044)
@@ -967,10 +968,12 @@ static bool __is_cpu_op_invalid(struct clk_core *core, struct cpu_opt *cop)
 	return false;
 }
 
-static void __init_fc_setting(void *apmu_base)
+static void __init_fc_setting(struct core_params *core_params)
 {
 	unsigned int regval;
 	union pmua_cc_cp cc_cp;
+	void __iomem *apmu_base = core_params->apmu_base;
+	void __iomem *dciu_base = core_params->dciu_base;
 	/*
 	 * enable AP FC done interrupt for one step,
 	 * while not use three interrupts by three steps
@@ -1001,6 +1004,10 @@ static void __init_fc_setting(void *apmu_base)
 	regval = readl(APMU_DEBUG2(apmu_base));
 	regval |= (0xFFFF << 16);
 	writel(regval, APMU_DEBUG2(apmu_base));
+
+	/* clock dynamic gate enable in CKG_CTRL */
+	regval = readl(DCIU_CKG(dciu_base));
+	writel(regval | 0xF, DCIU_CKG(dciu_base));
 }
 
 static struct clk *hwsel2parent(struct parents_table *parent_table,
@@ -1082,7 +1089,7 @@ static void clk_cpu_init(struct clk_hw *hw)
 	op = list_first_entry(op_list, struct cpu_opt, node);
 	cur_op = *op;
 	get_cur_cpu_op(hw, &cur_op);
-	__init_fc_setting(core->params->apmu_base);
+	__init_fc_setting(core->params);
 	cur_cpu_op = cpu_rate2_op_ptr(cur_op.pclk, &op_index, op_list);
 	if ((cur_op.ap_clk_src != cur_cpu_op->ap_clk_src) ||
 	    (cur_op.pclk != cur_cpu_op->pclk))
