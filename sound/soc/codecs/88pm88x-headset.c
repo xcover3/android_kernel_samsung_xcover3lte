@@ -78,6 +78,7 @@ struct pm886_hs_info {
 	struct snd_soc_jack *hs_jack, *hk_jack;
 
 	struct regulator *mic_bias;
+	int mic_bias_volt;
 	int headset_flag;
 	int hook_press_th;
 	int vol_up_press_th;
@@ -225,6 +226,21 @@ static int pm886_handle_voltage(struct pm886_hs_info *info, int voltage)
 	trace_printk("%s to %d\n", pm886_jk_btn[button], (report > 0));
 
 	return 0;
+}
+
+static void mic_set_volt_micbias(int volt_mv, struct pm886_hs_info *info)
+{
+	int ret = 0;
+
+	ret = regulator_set_voltage(info->mic_bias,
+			volt_mv * 1000,
+			volt_mv * 1000);
+
+	if (ret) {
+		dev_err(info->dev,
+			"failed to set voltage to regulator: %d\n", ret);
+		return;
+	}
 }
 
 static void mic_set_power(int on, struct pm886_hs_info *info)
@@ -377,8 +393,11 @@ static void pm886_headset_work(struct pm886_hs_info *info)
 		report = SND_JACK_HEADSET;
 		/* for telephony */
 		kobject_uevent(&info->hsdetect_dev->kobj, KOBJ_ADD);
-		if (info->mic_bias)
+		if (info->mic_bias) {
 			mic_set_power(1, info);
+			/* for enable iphone headset, it need higher voltage */
+			mic_set_volt_micbias(2500, info);
+		}
 		/* enable MIC detection also enable measurement */
 		regmap_update_bits(info->map, PM886_MIC_CNTRL, PM886_MICDET_EN,
 				   PM886_MICDET_EN);
@@ -422,6 +441,7 @@ static void pm886_headset_work(struct pm886_hs_info *info)
 		check_headset_short(info);
 	}
 
+	mic_set_volt_micbias(info->mic_bias_volt, info);
 	snd_soc_jack_report(info->hs_jack, report, SND_JACK_HEADSET);
 	trace_printk("hs status: %d\n", report);
 
@@ -610,12 +630,16 @@ static int pm886_headset_probe(struct platform_device *pdev)
 			"marvell,press-release-th", &hs_info->press_release_th))
 			dev_dbg(&pdev->dev,
 				"Do not get press release threshold\n");
+		if (of_property_read_u32(pdev->dev.of_node,
+			"marvell,micbias-volt", &hs_info->mic_bias_volt))
+			dev_dbg(&pdev->dev, "Do not get micbias voltage\n");
 	} else {
 		hs_info->hook_press_th = PM886_HOOK_PRESS_TH;
 		hs_info->vol_up_press_th = PM886_VOL_UP_PRESS_TH;
 		hs_info->vol_down_press_th = PM886_VOL_DOWN_PRESS_TH;
 		hs_info->mic_det_th = PM886_MIC_DET_TH;
 		hs_info->press_release_th = PM886_PRESS_RELEASE_TH;
+		hs_info->mic_bias_volt = 1700;
 	}
 
 	hs_info->map = chip->base_regmap;
