@@ -191,8 +191,10 @@ static int pxa1936_suspend_check(void)
 	 * and the PMIC interrupt is enabled before entering suspend,
 	 * other wise, the suspend may NOT be woken up any more.
 	 */
-	if ((reg & 0x3) == 0)
+	if ((reg & 0x3) == 0) {
+		WARN_ONCE(1, "PMIC interrupt is not enabled, quit suspend!\n");
 		return -EAGAIN;
+	}
 
 	ret = pxa1936_pm_check_constraint();
 	__raw_writel(0xFFFF, mpmu_base + PWRMODE_STATUS);
