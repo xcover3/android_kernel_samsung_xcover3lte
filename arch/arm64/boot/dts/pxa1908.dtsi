@@ -137,6 +137,8 @@
 			pd_isp: pd_sc2@d4282800 {
 				compatible = "marvell,power-domain-common-isp-v3";
 				reg = <0xd4282800 0x1000>;
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_AHB_CLK>;
+				clock-names = "SC2AHBCLK";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 			};
 
