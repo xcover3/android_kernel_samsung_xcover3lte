@@ -236,7 +236,7 @@
 		dvdd_1v2-supply = <&buck3>;
 		*/
 		dphy_val = <0xff1d00 0x00024733 0x04001001>;
-		status = "disable";
+		status = "disabled";
 	};
 
 	mcam1:mcam@1 {
@@ -249,15 +249,15 @@
 		dvdd_1v2-supply = <&buck3>;
 
 		dphy_val = <0xff1d00 0x00024733 0x04001001>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	soc-camera@0 {
-		status = "okay";
+		status = "disabled";
 	};
 
 	soc-camera@1 {
-		status = "okay";
+		status = "disabled";
 	};
 
 	plat_cam {
