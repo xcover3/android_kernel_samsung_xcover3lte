@@ -160,5 +160,7 @@
 		compatible = "marvell,88pm880-buck1a-slp";
 		regulator-min-microvolt = <600000>;
 		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
 	};
 };
