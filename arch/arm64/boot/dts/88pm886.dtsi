@@ -128,4 +128,12 @@
 		regulator-min-microvolt = <1700000>;
 		regulator-max-microvolt = <2800000>;
 	};
+
+	/* virtual regulator */
+	buck1slp: regulator-buck1-slp {
+		compatible = "marvell,88pm886-buck1-slp";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
 };
