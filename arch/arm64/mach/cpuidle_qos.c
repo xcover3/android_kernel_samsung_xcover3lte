@@ -65,9 +65,9 @@ int cpuidle_setmode(int qos_min)
 			apcr_clear |= PMUM_SLPEN;
 			apcr_clear |= PMUM_DDRCORSD;
 			apcr_clear |= PMUM_APBSD;
-			/* D2 mode, POWER_MODE_UDR_VCTCXO */
+			/* UDR mode, POWER_MODE_UDR*/
 			apcr_clear |= PMUM_STBYEN;
-			/* UDR mode, POWER_MODE_UDR */
+			/* D2 mode, POWER_MODE_UDR_VCTCXO */
 			apcr_clear |= PMUM_VCTCXOSD;
 			break;
 			/* disable D1 mode POWER_MODE_SYS_SLEEP */
@@ -75,12 +75,23 @@ int cpuidle_setmode(int qos_min)
 			apcr_clear |= PMUM_SLPEN;
 			apcr_clear |= PMUM_DDRCORSD;
 			apcr_clear |= PMUM_APBSD;
-			/* D2 mode, POWER_MODE_UDR_VCTCXO */
-			apcr_clear |= PMUM_STBYEN;
 			/* UDR mode, POWER_MODE_UDR */
+			apcr_clear |= PMUM_STBYEN;
+			/* D2 mode, POWER_MODE_UDR_VCTCXO */
 			apcr_clear |= PMUM_VCTCXOSD;
 
 			/* if only disable D1 mode, set the AXISD bit */
+			apcr_set |= PMUM_AXISD;
+			break;
+			/* disable D2 mode, PM_QOS_CPUIDLE_BLOCK_UDR */
+	case PM_QOS_CPUIDLE_BLOCK_UDR:
+			/* UDR mode, POWER_MODE_UDR */
+			apcr_clear |= PMUM_STBYEN;
+			/* disable D2 mode */
+			apcr_set |= PMUM_VCTCXOSD;
+			apcr_set |= PMUM_DDRCORSD;
+			apcr_set |= PMUM_SLPEN;
+			apcr_set |= PMUM_APBSD;
 			apcr_set |= PMUM_AXISD;
 			break;
 		    /* set all need vote apcr_per bit  */

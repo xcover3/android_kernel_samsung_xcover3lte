@@ -1005,7 +1005,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 
 			cpuidle_qos = MAX_LPM_INDEX;
 			if (cpuidle_qos_min != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE) {
-				if (cpuidle_qos_min == LPM_D2)
+				if (cpuidle_qos_min == LPM_D2_UDR)
 					cpuidle_qos = LPM_D1;
 				else if (cpuidle_qos_min == LPM_D1)
 					cpuidle_qos = LPM_D1P;
