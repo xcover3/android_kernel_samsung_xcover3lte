@@ -121,8 +121,6 @@ static void ion_carveout_heap_free(struct ion_buffer *buffer)
 	struct page *page = sg_page(table->sgl);
 	ion_phys_addr_t paddr = PFN_PHYS(page_to_pfn(page));
 
-	ion_heap_buffer_zero(buffer);
-
 	if (ion_buffer_cached(buffer))
 		dma_sync_sg_for_device(NULL, table->sgl, table->nents,
 							DMA_BIDIRECTIONAL);
