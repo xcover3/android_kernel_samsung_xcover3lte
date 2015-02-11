@@ -1216,7 +1216,6 @@
 		compatible = "marvell,mmp-m3";
 		/* 975000 for CM3 on, 700000 for CM3 off */
 		vccmain = <975000 700000>;
-		vccmain-supply = <&buck1a>;
 
 		pinctrl-names = "default", "poweron";
 		pinctrl-0 = <&gnss_pmx_def>;
@@ -1228,7 +1227,6 @@
 		compatible = "marvell,mmp-m3";
 		/* 975000 for CM3 on, 700000 for CM3 off */
 		vccmain = <975000 700000>;
-		vccmain-supply = <&buck1a>;
 
 		pinctrl-names = "default", "poweron";
 		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def>;

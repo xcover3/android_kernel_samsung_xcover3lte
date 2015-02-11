@@ -349,7 +349,7 @@
 		vm3pwr-supply = <&ldo3>;
 		antpwr-supply = <&ldo16>;
 		senpwr-supply = <&ldo16>;
-		vccmain-supply = <&buck1a>;
+		vccmain-supply = <&buck1aslp>;
 
 		pinctrl-names = "default", "poweron";
 		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def>;

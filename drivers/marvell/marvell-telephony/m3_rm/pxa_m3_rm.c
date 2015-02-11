@@ -378,10 +378,16 @@ static int m3_open(struct inode *inode, struct file *filp)
 		if (1 == pmic_ver)
 			extern_set_buck1_slp_volt(1);
 		else if (2 == pmic_ver) {
+			m3_regulator.reg_vccm = regulator_get(m3rm_dev, "vccmain");
+			if (IS_ERR(m3_regulator.reg_vccm)) {
+				pr_err("get vccmain ldo fail\n");
+				m3_regulator.reg_vccm = NULL;
+			}
+
 			if (m3_regulator.reg_vccm) {
 				pr_info("set vccmain to %duV\n", vccm_vol.cm3_on);
-				regulator_set_suspend_voltage(m3_regulator.reg_vccm,
-						vccm_vol.cm3_on);
+				regulator_set_voltage(m3_regulator.reg_vccm,
+						      vccm_vol.cm3_on, vccm_vol.cm3_on);
 			}
 		}
 		if (!IS_ERR(m3_pctrl.pwron))
@@ -481,9 +487,8 @@ static int m3_close(struct inode *inode, struct file *filp)
 			extern_set_buck1_slp_volt(0);
 		else if (2 == pmic_ver) {
 			if (m3_regulator.reg_vccm) {
-				pr_info("set vccmain to %duV\n", vccm_vol.cm3_off);
-				regulator_set_suspend_voltage(m3_regulator.reg_vccm,
-						vccm_vol.cm3_off);
+				pr_info("%s: put vccmain.\n", __func__);
+				regulator_put(m3_regulator.reg_vccm);
 			}
 		}
 	}
@@ -901,11 +906,6 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 		pr_err("get antenna do fail!\n");
 		m3_regulator.reg_ant = NULL;
 	}
-	m3_regulator.reg_vccm = regulator_get(m3rm_dev, "vccmain");
-	if (IS_ERR(m3_regulator.reg_vccm)) {
-		pr_err("get vccmain ldo fail\n");
-		m3_regulator.reg_vccm = NULL;
-	}
 
 	if (of_property_read_u32(np, "ipver", &m3_ip_ver))
 		m3_ip_ver = 1;
@@ -935,8 +935,6 @@ static int pxa_m3rm_remove(struct platform_device *pdev)
 		regulator_put(m3_regulator.reg_sen);
 	if (m3_regulator.reg_ant)
 		regulator_put(m3_regulator.reg_ant);
-	if (m3_regulator.reg_vccm)
-		regulator_put(m3_regulator.reg_vccm);
 	deinit_gnss_base_addr();
 	crmdev_cleanup_module(crmdev_nr_devs);
 	pr_info("crmdev module exit finished\n");

@@ -114,6 +114,7 @@
 		pmicver = <2>;
 		vm3pwr-supply = <&ldo3>;
 		antpwr-supply = <&ldo4>;
+		vccmain-supply = <&buck1aslp>;
 	};
 
 	mmp_m3_2: cm3senhb {
@@ -121,6 +122,7 @@
 		vm3pwr-supply = <&ldo3>;
 		antpwr-supply = <&ldo4>;
 		senpwr-supply = <&ldo16>;
+		vccmain-supply = <&buck1aslp>;
 	};
 
 	mcam0:mcam@0 {
