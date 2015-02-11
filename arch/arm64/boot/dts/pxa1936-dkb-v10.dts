@@ -132,6 +132,10 @@
 			      vmmc-supply     = <&ldo5>;
 			};
 		};
+		map@d1200000 {
+				pmic-name = "88pm860";
+				vccmain-supply = <&buck1a>;
+		};
 	};
 	panel1: r63311 {
 		rst_gpio = <&gpio 98 0>;

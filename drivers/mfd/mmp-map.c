@@ -40,6 +40,7 @@
 static int map_offset, aux_offset;
 static struct map_private *audio_map_priv;
 static void *regmap_aux;
+static bool pmic_is_88pm880;
 
 #define to_clk_audio(clk) (container_of(clk, struct clk_audio, hw))
 
@@ -1523,6 +1524,51 @@ static int map_config(struct map_private *map_priv)
 	return 0;
 }
 
+void map_set_sleep_vol(struct map_private *map_priv, int on)
+{
+	int ret = 0;
+
+	if (map_priv->sleep_vol <= 0)
+		return;
+
+	/* enable audio mode for all audio scenarios*/
+	if (on) {
+		if (pmic_is_88pm880) {
+			if (!map_priv->vccmain) {
+				map_priv->vccmain =
+					regulator_get(map_priv->dev,
+						      "vccmain");
+				ret = regulator_set_voltage(map_priv->vccmain,
+							    map_priv->sleep_vol,
+							    map_priv->sleep_vol);
+				if (ret) {
+					pr_err("%s: set vccmain fails: %d\n",
+					       __func__, ret);
+					map_priv->vccmain = NULL;
+					return;
+				}
+			}
+		} else {
+			regulator_set_suspend_mode(map_priv->vccmain,
+						   REGULATOR_MODE_IDLE);
+		}
+	} else {
+		if (pmic_is_88pm880) {
+			if (map_priv->vccmain) {
+				regulator_put(map_priv->vccmain);
+				map_priv->vccmain = NULL;
+			}
+			return;
+		} else {
+			if (!map_priv->vccmain)
+				pr_info("please set regulator vccmain.\n");
+			else
+				regulator_set_suspend_mode(map_priv->vccmain,
+							   REGULATOR_MODE_NORMAL);
+		}
+	}
+}
+
 /* put map into active state*/
 void map_be_active(struct map_private *map_priv)
 {
@@ -1551,6 +1597,10 @@ void map_be_active(struct map_private *map_priv)
 	map_priv->user_count++;
 	spin_unlock(&map_priv->map_lock);
 
+	/* set vol should out of spinlock status, it may sleep */
+	if (map_priv->user_count == 1)
+		map_set_sleep_vol(map_priv, 1);
+
 	return;
 }
 EXPORT_SYMBOL(map_be_active);
@@ -1578,6 +1628,9 @@ void map_be_reset(struct map_private *map_priv)
 				    PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	}
 	spin_unlock(&map_priv->map_lock);
+
+	if (map_priv->user_count == 0)
+		map_set_sleep_vol(map_priv, 0);
 
 	return;
 }
@@ -1654,6 +1707,8 @@ static int mmp_map_parse_dt(struct platform_device *pdev,
 {
 	struct device_node *np = pdev->dev.of_node;
 	u32 pmu_audio_reg, bit_sram, bit_apb, pll_sel;
+	const char *pmic_name;
+	int sleep_vol;
 	int ret = 0;
 
 	if (!np) {
@@ -1699,7 +1754,33 @@ static int mmp_map_parse_dt(struct platform_device *pdev,
 	else
 		map_priv->b0_fix = false;
 
-	return ret;
+	ret = of_property_read_u32(np, "sleep_vol", &sleep_vol);
+	/* if sleep_vol is not specificed, do not set audio mode voltage */
+	if (ret >= 0) {
+		map_priv->sleep_vol = sleep_vol;
+
+		of_property_read_string(np, "pmic-name", &pmic_name);
+		if (!strcmp(pmic_name, "88pm880"))
+			pmic_is_88pm880 = true;
+		else
+			pmic_is_88pm880 = false;
+		pr_info("pmic_name = %s\n", pmic_name);
+
+		/* set audio mode voltage */
+		if (!pmic_is_88pm880) {
+			map_priv->vccmain = regulator_get(&pdev->dev, "vccmain");
+			if (IS_ERR(map_priv->vccmain)) {
+				map_priv->vccmain = NULL;
+				dev_err(&pdev->dev, "no vccmain set for audio mdoe\n");
+			} else {
+				regulator_set_suspend_voltage(map_priv->vccmain,
+							      sleep_vol);
+			}
+		}
+	} else
+		map_priv->sleep_vol = 0;
+
+	return 0;
 }
 
 static int mmp_map_probe(struct platform_device *pdev)

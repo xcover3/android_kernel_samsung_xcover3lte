@@ -979,11 +979,10 @@
 				marvell,apll = <0>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_UDR>;
 				status = "okay";
+				sleep_vol = <975000>;
 				mmp_map_codec: mmp_map_codec {
 					compatible = "marvell,mmp-map-codec";
 					#dailink-cells = <1>;
-					vccmain-supply = <&buck1a>;
-					sleep_vol = <800000>;
 				};
 				mmp_map_be: mmp_map_be {
 					compatible = "marvell,mmp-map-be";
