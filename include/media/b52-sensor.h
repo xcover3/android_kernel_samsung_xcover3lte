@@ -190,7 +190,7 @@ struct b52_sensor_data {
 
 	struct b52_sensor_regs streamon;
 	struct b52_sensor_regs streamoff;
-
+	struct b52_sensor_regs esd;
 	/*
 	 *gain unit 0x10: 1 gain = 0x10;
 	 *the precision is for B52 ISP: Q4

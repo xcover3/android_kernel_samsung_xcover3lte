@@ -139,6 +139,12 @@ struct b52isp_brightness {
 	__u8    hgain;
 };
 
+enum SENSOR_ESD_STATUS {
+	SENSOR_ESD_ST_DAMAGED = 0,
+	SENSOR_ESD_ST_WORKING = 1,
+	SENSOR_ESD_ST_UNKNOWN = 2,
+};
+
 enum v4l2_priv_colorfx {
 	V4L2_PRIV_COLORFX_NONE          = 0,
 	V4L2_PRIV_COLORFX_MONO_CHROME   = 1,
@@ -289,4 +295,6 @@ enum v4l2_priv_colorfx {
 	_IO('V', BASE_VIDIOC_PRIVATE + 12)
 #define VIDIOC_PRIVATE_B52ISP_BRIGHTNESS\
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct b52isp_brightness)
+#define VIDIOC_PRIVATE_B52ISP_SENSOR_ESD_STATUS\
+	_IOR('V', BASE_VIDIOC_PRIVATE + 14, int)
 #endif /* _B52_API_H */

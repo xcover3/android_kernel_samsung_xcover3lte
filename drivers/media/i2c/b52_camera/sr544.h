@@ -2116,6 +2116,11 @@ struct regval_tab sr544_stream_on[] = {
 struct regval_tab sr544_stream_off[] = {
 	{0x0118, 0x0000, 0xffff},
 };
+struct regval_tab sr544_esd[] = {
+	{0xb14, 0x430f, 0xffff},
+	{0xa, 0xdb0, 0xffff},
+	{0x116, 0x24, 0xffff},
+};
 struct regval_tab sr544_expo[] = {
 	{0x0004, 0x00, 0xff},
 	{0x0005, 0x00, 0xff},
@@ -2155,6 +2160,7 @@ struct b52_sensor_i2c_attr sr544_i2c_attr[] = {
 #define N_SR544_HFLIP ARRAY_SIZE(sr544_hflip)
 #define N_SR544_STREAM_ON ARRAY_SIZE(sr544_stream_on)
 #define N_SR544_STREAM_OFF ARRAY_SIZE(sr544_stream_off)
+#define N_SR544_ESD ARRAY_SIZE(sr544_esd)
 struct b52_sensor_mbus_fmt sr544_fmt = {
 	.mbus_code	= V4L2_MBUS_FMT_SRGGB10_1X10,
 	.colorspace	= V4L2_COLORSPACE_SRGB,
@@ -2237,6 +2243,10 @@ struct b52_sensor_data b52_sr544 = {
 	.streamoff = {
 		.tab = sr544_stream_off,
 		.num = N_SR544_STREAM_OFF,
+	},
+	.esd = {
+		.tab = sr544_esd,
+		.num = N_SR544_ESD,
 	},
 	.gain2iso_ratio = {
 		.numerator = 100,

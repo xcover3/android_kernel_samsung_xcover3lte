@@ -2076,6 +2076,38 @@ static int b52_sensor_reinit(struct b52_sensor *sensor)
 	return ret;
 }
 
+static int b52_sensor_esd_status(struct b52_sensor *sensor, int *status)
+{
+	int i;
+	int ret;
+	u32 val;
+	const struct b52_sensor_regs *esd;
+
+	if (!sensor || !status)
+		return -EINVAL;
+
+	esd = &sensor->drvdata->esd;
+
+	if (!esd->num) {
+		*status = SENSOR_ESD_ST_UNKNOWN;
+		return 0;
+	}
+
+	for (i = 0; i < esd->num; i++) {
+		ret = b52_sensor_call(sensor, i2c_read,
+					  esd->tab[i].reg, &val, 1);
+
+		if (ret || val != esd->tab[i].val) {
+			*status = SENSOR_ESD_ST_DAMAGED;
+			return 0;
+		}
+	}
+
+	*status = SENSOR_ESD_ST_WORKING;
+
+	return 0;
+}
+
 /* ioctl(subdev, IOCTL_XXX, arg) is handled by this one */
 static long b52_sensor_ioctl(struct v4l2_subdev *sd,
 				unsigned int cmd, void *arg)
@@ -2090,6 +2122,9 @@ static long b52_sensor_ioctl(struct v4l2_subdev *sd,
 		break;
 	case VIDIOC_PRIVATE_B52ISP_SENSOR_REINIT:
 		ret = b52_sensor_reinit(sensor);
+		break;
+	case VIDIOC_PRIVATE_B52ISP_SENSOR_ESD_STATUS:
+		ret = b52_sensor_esd_status(sensor, (int *)arg);
 		break;
 	default:
 		pr_err("unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",
@@ -2204,6 +2239,7 @@ static long b52_sensor_ioctl32(struct v4l2_subdev *sd,
 		compatible_arg = 0;
 		break;
 	case VIDIOC_PRIVATE_B52ISP_SENSOR_REINIT:
+	case VIDIOC_PRIVATE_B52ISP_SENSOR_ESD_STATUS:
 		break;
 	default:
 		pr_err("unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",
