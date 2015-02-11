@@ -40,6 +40,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/clk-private.h>
 
 #include "mmp_ctrl.h"
 #define CREATE_TRACE_POINTS
@@ -898,6 +899,7 @@ static void path_set_timing(struct mmp_path *path)
 	struct clk *clk = path_to_path_plat(path)->clk;
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
+	u32 value;
 
 	if (PATH_OUT_DSI == path->output_type
 			&& (!dsi || !dsi->get_sync_val)) {
@@ -1009,8 +1011,21 @@ static void path_set_timing(struct mmp_path *path)
 	writel_relaxed(vsync_ctrl, &regs->vsync_ctrl);
 
 	/* set path_clk */
-	if (clk && path_clk_req)
+	if (clk && path_clk_req) {
 		clk_set_rate(clk, path_clk_req);
+		if (DISP_GEN4(ctrl->version)) {
+			/*
+			 * clk_set_rate use ROUND_UP to round rate, the final
+			 * rate may be less than ESC_52M, so need to check it
+			 * and set it again to ensure the path_clk is bigger than
+			 * ESC_52M, or the panel init cmd may be failed.
+			 */
+			while (clk->rate < ESC_52M) {
+				path_clk_req += ESC_STEP_4M;
+				clk_set_rate(clk, path_clk_req);
+			}
+		}
+	}
 }
 
 static void path_onoff(struct mmp_path *path, int on)

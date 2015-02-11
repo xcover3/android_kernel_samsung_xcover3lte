@@ -333,6 +333,15 @@ static void calculate_reg_value(struct mmphw_ctrl *ctrl)
 			CLK_INT_DIV_MASK);
 	bclk_div = (dfc->parent2->rate + dfc->dsi_rate / 2) / dfc->dsi_rate;
 	pclk_div = (dfc->parent2->rate + dfc->path_rate / 2) / dfc->path_rate;
+	if (dfc->parent2->rate / pclk_div < ESC_52M)
+		/*
+		 * For GEN4 and GEN4_PLUS, it has requirement that need
+		 * path_clk > ESC_clk,when we set PATH_CLK = ESC_CLK, pclk_div
+		 * is calculated by ROUND_UP, so the final path_clk rate may be
+		 * less than ESC_CLK, need to check here and round down.
+		 */
+		pclk_div = (dfc->parent2->rate - dfc->path_rate / 2) / dfc->path_rate;
+
 	sclk |= DSI1_BITCLK_DIV(bclk_div) | CLK_INT_DIV(pclk_div);
 
 	if (!strcmp(dfc->parent2->name,
