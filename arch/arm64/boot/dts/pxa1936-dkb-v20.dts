@@ -311,7 +311,7 @@
 				af_2v8-supply = <&ldo8>;
 				avdd_2v8-supply = <&ldo7>;
 				dovdd_1v8-supply = <&buck2>;
-				dvdd_1v2-supply = <&ldo19>;
+				dvdd_1v2-supply = <&ldo17>;
 				pwdn-gpios = <&gpio 68 1>;
 				reset-gpios = <&gpio 67 1>;
 			};
