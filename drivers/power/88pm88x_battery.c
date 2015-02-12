@@ -975,19 +975,21 @@ static void check_set_ocv_flag(struct pm88x_battery_info *info,
 	low_th = info->range_low_th;
 	high_th = info->range_high_th;
 
-	if (info->ocv_is_realiable)
-		return;
-
-	/* check if battery is relaxed enough */
+	/*
+	 * check if battery is relaxed enough
+	 * *_get_slp_cnt() sets SLP_CNT_RST to clear the sleep counter
+	 */
 	slp_cnt = pm88x_battery_get_slp_cnt(info);
-	dev_dbg(info->dev, "%s: slp_cnt = %d seconds\n", __func__, slp_cnt);
-
 	if (slp_cnt < info->sleep_counter_th) {
-		dev_dbg(info->dev, "battery is not relaxed.\n");
+		dev_info(info->dev, "battery is not relaxed.\n");
 		return;
 	}
+	dev_info(info->dev, "%s: battery has slept %d seconds.\n", __func__, slp_cnt);
 
-	dev_dbg(info->dev, "battery has slept %d second.\n", slp_cnt);
+	if (info->ocv_is_realiable) {
+		dev_info(info->dev, "%s: ocv_is_realiable is true.\n", __func__);
+		return;
+	}
 
 	/* read last sleep voltage and calc new SOC */
 	vol = pm88x_get_batt_vol(info, 0);
