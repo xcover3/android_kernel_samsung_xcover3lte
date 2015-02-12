@@ -165,7 +165,10 @@ static int pxa1936_pm_check_constraint(void)
 		 * is released by the user then finally entering
 		 * the Suspend + Chip sleep mode.
 		 */
-		if (node->prio != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE) {
+		if (node->prio == PM_QOS_CPUIDLE_BLOCK_UDR) {
+			pr_info("****pm_check_constraint PM_QOS_CPUIDLE_BLOCK_UDR %s\n",
+				req->name);
+		} else if (node->prio != PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE) {
 			pr_info("****************************************\n");
 			pr_err("%s lpm constraint before Suspend", req->name);
 			pr_info("*****************************************\n");
