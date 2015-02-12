@@ -7,6 +7,9 @@ else
 ifdef CONFIG_TZ_HYPERVISOR
 	obj-y += security/mmp-tzdd/src/
 endif
+ifdef CONFIG_CPU_PXA1908
+	obj-y += security/mmp-tzdd/src/
+endif
 endif
 obj-$(CONFIG_MRVL_WL_SD8887) += sd8887/
 obj-$(CONFIG_MRVL_WL_SD8777) += sd8777/
