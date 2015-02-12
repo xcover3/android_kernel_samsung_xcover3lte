@@ -1562,23 +1562,10 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 		 __func__, soc_from_saved, realiable_from_saved);
 
 	/* ---------------------------------------------------------------- */
-	if (info->chip->powerdown2 & 0x2) {
-		/* UV_VSYS2 = 1 and UV_VSY1 = 1 shows the battery is plugged out */
-		if (info->chip->powerdown1 & 0x2)
-			goto skip1;
-		else {
-		/* UV_VSYS2 = 1 only shows the system is powered down by HW suddenly */
-			*initial_soc = 0;
-			*initial_cycles = cycles_from_saved;
-			goto end;
-		}
-	}
-
 	/*
 	 * get low_temp_flag: bit 0, 0xc0 register of gpadc page
 	 * TODO: switch to a uniform interface
 	 */
-skip1:
 	regmap_read(info->chip->gpadc_regmap, 0xc0, &ever_low_temp);
 	if (ever_low_temp & 0x1) {
 		if (soc_from_saved == 0)
