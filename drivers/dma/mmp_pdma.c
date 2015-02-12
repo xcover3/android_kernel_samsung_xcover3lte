@@ -119,8 +119,6 @@ struct mmp_pdma_chan {
 	enum dma_status status; /* channel state machine */
 	bool byte_align;
 	u32 bytes_residue;
-
-	struct dma_pool *desc_pool;	/* Descriptors pool */
 };
 
 struct mmp_pdma_phy {
@@ -138,6 +136,7 @@ struct mmp_pdma_device {
 	spinlock_t phy_lock; /* protect alloc/free phy channels */
 	s32				lpm_qos;
 	struct pm_qos_request		qos_idle;
+	struct dma_pool *desc_pool;	/* Descriptors pool */
 };
 
 #define tx_to_mmp_pdma_desc(tx)					\
@@ -297,9 +296,9 @@ out_unlock:
 
 static void mmp_pdma_free_phy(struct mmp_pdma_chan *pchan)
 {
-	struct mmp_pdma_device *pdev = to_mmp_pdma_dev(pchan->chan.device);
 	unsigned long flags;
 	u32 reg;
+	struct mmp_pdma_device *pdev = to_mmp_pdma_dev(pchan->chan.device);
 
 	if (!pchan->phy)
 		return;
@@ -399,9 +398,10 @@ static struct mmp_pdma_desc_sw *
 mmp_pdma_alloc_descriptor(struct mmp_pdma_chan *chan)
 {
 	struct mmp_pdma_desc_sw *desc;
+	struct mmp_pdma_device *pdev = to_mmp_pdma_dev(chan->chan.device);
 	dma_addr_t pdesc;
 
-	desc = dma_pool_alloc(chan->desc_pool, GFP_ATOMIC, &pdesc);
+	desc = dma_pool_alloc(pdev->desc_pool, GFP_ATOMIC, &pdesc);
 	if (!desc) {
 		dev_err(chan->dev, "out of memory for link descriptor\n");
 		return NULL;
@@ -429,20 +429,6 @@ static int mmp_pdma_alloc_chan_resources(struct dma_chan *dchan)
 {
 	struct mmp_pdma_chan *chan = to_mmp_pdma_chan(dchan);
 
-	if (chan->desc_pool)
-		return 1;
-
-	chan->desc_pool = dma_pool_create(dev_name(&dchan->dev->device),
-					  chan->dev,
-					  sizeof(struct mmp_pdma_desc_sw),
-					  __alignof__(struct mmp_pdma_desc_sw),
-					  0);
-	if (!chan->desc_pool) {
-		dev_err(chan->dev, "unable to allocate descriptor pool\n");
-		return -ENOMEM;
-	}
-
-	mmp_pdma_free_phy(chan);
 	chan->status = DMA_COMPLETE;
 	chan->dir = 0;
 	chan->dcmd = 0;
@@ -455,27 +441,21 @@ static void mmp_pdma_free_desc_list(struct mmp_pdma_chan *chan,
 				    struct list_head *list)
 {
 	struct mmp_pdma_desc_sw *desc, *_desc;
+	struct mmp_pdma_device *pdev = to_mmp_pdma_dev(chan->chan.device);
 
 	list_for_each_entry_safe(desc, _desc, list, node) {
 		list_del(&desc->node);
-		dma_pool_free(chan->desc_pool, desc, desc->async_tx.phys);
+		dma_pool_free(pdev->desc_pool, desc, desc->async_tx.phys);
 	}
 }
 
 static void mmp_pdma_free_chan_resources(struct dma_chan *dchan)
 {
 	struct mmp_pdma_chan *chan = to_mmp_pdma_chan(dchan);
-	unsigned long flags;
 
-	spin_lock_irqsave(&chan->desc_lock, flags);
-	chan->status = DMA_COMPLETE;
-	mmp_pdma_free_desc_list(chan, &chan->chain_pending);
-	mmp_pdma_free_desc_list(chan, &chan->chain_running);
-	mmp_pdma_free_phy(chan);
-	spin_unlock_irqrestore(&chan->desc_lock, flags);
+	/* wait until task ends if necessary */
+	tasklet_kill(&chan->tasklet);
 
-	dma_pool_destroy(chan->desc_pool);
-	chan->desc_pool = NULL;
 	chan->dir = 0;
 	chan->dcmd = 0;
 	chan->drcmr = DRCMR_INVALID;
@@ -750,7 +730,6 @@ static int mmp_pdma_control(struct dma_chan *dchan, enum dma_ctrl_cmd cmd,
 		mmp_pdma_free_desc_list(chan, &chan->chain_running);
 		chan->bytes_residue = 0;
 		spin_unlock_irqrestore(&chan->desc_lock, flags);
-		tasklet_kill(&chan->tasklet);
 		mmp_pdma_qos_put(chan);
 		break;
 	case DMA_PAUSE:
@@ -925,6 +904,7 @@ static void mmp_pdma_issue_pending(struct dma_chan *dchan)
 static void dma_do_tasklet(unsigned long data)
 {
 	struct mmp_pdma_chan *chan = (struct mmp_pdma_chan *)data;
+	struct mmp_pdma_device *pdev = to_mmp_pdma_dev(chan->chan.device);
 	struct mmp_pdma_desc_sw *desc, *_desc;
 	LIST_HEAD(chain_cleanup);
 	unsigned long flags;
@@ -1011,7 +991,7 @@ static void dma_do_tasklet(unsigned long data)
 		if (txd->callback)
 			txd->callback(txd->callback_param);
 
-		dma_pool_free(chan->desc_pool, desc, txd->phys);
+		dma_pool_free(pdev->desc_pool, desc, txd->phys);
 	}
 }
 
@@ -1024,7 +1004,8 @@ static int mmp_pdma_remove(struct platform_device *op)
 #endif
 
 	dma_async_device_unregister(&pdev->device);
-
+	dma_pool_destroy(pdev->desc_pool);
+	pdev->desc_pool = NULL;
 	platform_set_drvdata(op, NULL);
 	return 0;
 }
@@ -1219,6 +1200,16 @@ static int mmp_pdma_probe(struct platform_device *op)
 	if (ret) {
 		dev_err(pdev->device.dev, "unable to register\n");
 		return ret;
+	}
+
+	pdev->desc_pool = dma_pool_create(dev_name(pdev->dev),
+					  pdev->dev,
+					  sizeof(struct mmp_pdma_desc_sw),
+					  __alignof__(struct mmp_pdma_desc_sw),
+					  0);
+	if (!pdev->desc_pool) {
+		dev_err(pdev->dev, "unable to allocate descriptor pool\n");
+		return -ENOMEM;
 	}
 
 	if (op->dev.of_node) {
