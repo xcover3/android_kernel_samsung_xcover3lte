@@ -21,14 +21,12 @@
 #include <linux/of.h>
 #include <asm-generic/uaccess.h>
 
+#include <video/mmp_disp.h>
 #define DRV_NAME	"simple_dip"
 #define MISCDEV_MINOR	100
 #define MAX_NUM		10
 #define CLK_CPU		"cpu"
 #define CLK_DDR		"ddr"
-
-#define	DIP_START	1
-#define	DIP_END		0
 
 enum comp {
 	CPU,

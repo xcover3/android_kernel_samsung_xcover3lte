@@ -28,7 +28,6 @@
 #include <video/mmpfb.h>
 #include "mmpfb.h"
 
-static unsigned long initial_rate;
 void check_pitch(struct mmp_surface *surface)
 {
 	struct mmp_win *win = &surface->win;
@@ -389,37 +388,33 @@ static int set_dfc_rate(struct fb_info *info, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	struct mmpfb_info *fbi = info->par;
+	struct mmp_path *path = fbi->path;
 	unsigned int fps;
-	unsigned long rate;
-	static int initial_once = 1;
 
 	if (copy_from_user(&fps, argp, sizeof(unsigned int)))
 		return -EFAULT;
 
-	if (initial_once) {
-		initial_rate = mmp_path_get_dfc_rate(fbi->path);
-		initial_once = 0;
-	}
-
-	rate = initial_rate * fps/60;
-	return mmp_path_set_dfc_rate(fbi->path, rate);
+	path->rate = path->original_rate * fps / FPS_60;
+	queue_work(path->vsync.dfc_wq, &path->vsync.dfc_work);
+	return 0;
 }
 
 static int get_dfc_rate(struct fb_info *info, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	struct mmpfb_info *fbi = info->par;
+	struct mmp_path *path = fbi->path;
 	unsigned int fps;
 	unsigned int rate;
 
 	rate = mmp_path_get_dfc_rate(fbi->path);
-	fps = rate * 60 / initial_rate;
+	fps = rate * FPS_60 / path->original_rate;
 	if (rate == 0) {
 		dev_dbg(info->dev, "Invalid dfc rate\n");
 		return -EFAULT;
 	}
 
-	if (copy_to_user(argp, &rate, sizeof(sizeof(unsigned int))))
+	if (copy_to_user(argp, &fps, sizeof(sizeof(unsigned int))))
 		return -EFAULT;
 
 	return 0;

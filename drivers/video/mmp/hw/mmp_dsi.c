@@ -1122,6 +1122,7 @@ static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 {
 	struct mmp_path *path = mmp_get_path(dsi->plat_path_name);
 	unsigned long clk_rate;
+	static unsigned char initial_once = 1;
 	u32 tmp, value;
 
 	if (check_mode_is_changed(&dsi->mode, mode)) {
@@ -1152,8 +1153,15 @@ static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 		}
 
 		dsi->set_status(dsi, MMP_RESET);
-	}
 
+		/*
+		 * FIXME: save bit clk rate as path original rate.
+		 */
+		if (initial_once) {
+			path->original_rate = clk_get_rate(dsi->clk) / 1000000;
+			initial_once = 0;
+		}
+	}
 }
 
 static int dsi_irq_set(struct mmp_dsi *dsi, int on)

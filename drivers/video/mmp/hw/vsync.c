@@ -71,6 +71,16 @@ static void mmp_handle_irq(struct mmp_vsync *vsync)
 	}
 }
 
+static void mmp_vsync_dfc_work(struct work_struct *work)
+{
+	struct mmp_vsync *vsync =
+		container_of(work, struct mmp_vsync, dfc_work);
+	struct mmp_path *path =
+		container_of(vsync, struct mmp_path, vsync);
+
+	mmp_path_set_dfc_rate(path, path->rate, GC_REQUEST);
+}
+
 void mmp_vsync_init(struct mmp_vsync *vsync)
 {
 	int i;
@@ -80,6 +90,14 @@ void mmp_vsync_init(struct mmp_vsync *vsync)
 	vsync->wait_vsync = mmp_vsync_wait;
 	vsync->set_irq = mmp_set_irq;
 	INIT_LIST_HEAD(&vsync->notifier_list);
+
+	vsync->dfc_wq =
+		alloc_workqueue("LCD_DFC_WQ", WQ_HIGHPRI |
+				WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	if (!vsync->dfc_wq)
+		pr_err("dfc: alloc_workqueue failed\n");
+
+	INIT_WORK(&vsync->dfc_work, mmp_vsync_dfc_work);
 
 	if (vsync->type == LCD_VSYNC) {
 		struct mmp_path *path = vsync->path;

@@ -30,6 +30,17 @@
 
 #define DISP_GEN4(version)	((version) == 4 || (version) == 0x14 || (version) == 0x24)
 #define DISP_GEN4_LITE(version)	((version) == 0x14)
+
+/* for dfc */
+#define	DIP_START	1
+#define	DIP_END		0
+
+#define	GC_REQUEST	3
+#define	LCD_FREQ	2
+
+#define FPS_60	60
+void dfc_gc_request(unsigned long val, unsigned int fps);
+
 enum {
 	PIXFMT_UYVY = 0,
 	PIXFMT_VYUY,
@@ -539,7 +550,7 @@ struct mmp_path_ops {
 	int (*set_commit)(struct mmp_path *path);
 	int (*get_version)(struct mmp_path *path);
 	void (*set_trigger)(struct mmp_path *path);
-	int (*set_dfc_rate)(struct mmp_path *path, unsigned long rate);
+	int (*set_dfc_rate)(struct mmp_path *path, unsigned long rate, unsigned long req);
 	unsigned long (*get_dfc_rate)(struct mmp_path *path);
 	/* todo: add query */
 };
@@ -645,6 +656,8 @@ struct mmp_vsync {
 	void (*wait_vsync)(struct mmp_vsync *vsync);
 	void (*handle_irq)(struct mmp_vsync *vsync);
 	struct list_head	notifier_list;
+	struct work_struct	dfc_work;
+	struct workqueue_struct	*dfc_wq;
 };
 
 struct mmp_mach_debug_irq_count {
@@ -728,6 +741,10 @@ struct mmp_path {
 	atomic_t irq_en_ref;
 	atomic_t irq_en_count;
 
+	/* rate */
+	unsigned long rate;
+	unsigned long original_rate;
+
 	/* debug */
 	struct mmp_mach_debug_irq_count irq_count;
 
@@ -775,10 +792,11 @@ static inline int mmp_path_get_modelist(struct mmp_path *path,
 	return 0;
 }
 
-static inline int mmp_path_set_dfc_rate(struct mmp_path *path, unsigned long rate)
+static inline int mmp_path_set_dfc_rate(struct mmp_path *path, unsigned long rate,
+		unsigned long val)
 {
 	if (path && path->ops.set_dfc_rate)
-		return path->ops.set_dfc_rate(path, rate);
+		return path->ops.set_dfc_rate(path, rate, val);
 	return 0;
 }
 static inline int mmp_path_get_dfc_rate(struct mmp_path *path)

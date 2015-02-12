@@ -72,8 +72,8 @@ static unsigned long dsipll_vco_default;
 static unsigned long dsipll_default;
 static unsigned int lcd_clk_en;
 static unsigned int plat;
-static unsigned long original_rate;
 static unsigned int sclk_div;
+static unsigned int current_dip_status;
 
 static struct clk *hclk;
 static struct clk *dsipll;
@@ -167,12 +167,12 @@ static unsigned long set_pixel_clk(struct mmp_dsi *dsi, unsigned long dsi_rate)
 	x = bpp / dsi->setting.lanes;
 	pixel_rate = dsi_rate / x;
 	/*
-	 * FIXME: On ULC:
+	 * FIXME: On ULC&helan3:
 	 * For WVGA with 2 lanes whose pixel_clk is lower than
 	 * esc clk, we need to set pixel >= esc clk, so that LP
 	 * cmd and video mode cna work.
 	 */
-	if (DISP_GEN4_LITE(dsi->version)) {
+	if (DISP_GEN4_LITE(dsi->version) || DISP_GEN4_PLUS(dsi->version)) {
 		if (pixel_rate < ESC_52M)
 			pixel_rate = ESC_52M;
 	}
@@ -672,12 +672,29 @@ static void dfc_handle(void *data)
 	}
 }
 
-static int dfc_set_rate(struct mmp_path *path, unsigned long rate)
+static int dfc_set_rate(struct mmp_path *path, unsigned long rate, unsigned long req)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	int ret;
 
 	mutex_lock(&ctrl->access_ok);
+
+	/*
+	 * record the dip channel request
+	 */
+	if (req == DIP_START || req == DIP_END)
+		current_dip_status = req;
+	/*
+	 * If dip start has been working, others request won't
+	 * work until dip end works. so DIP_START is first priority;
+	 * DIP_END is the second priority, other requests is lower
+	 * priority.
+	 */
+	if (current_dip_status == DIP_START && req != DIP_START) {
+		dev_dbg(path->dev, "Dip channel is working, ignore other request!\n");
+		mutex_unlock(&ctrl->access_ok);
+		return 0;
+	}
 
 	if (!path->status) {
 		/*
@@ -733,7 +750,7 @@ static unsigned long dfc_get_rate(struct mmp_path *path)
 	val = sclk_div;
 	val &= DSI1_BITCLK_DIV_MASK;
 	val = val >> 8;
-	rate = rate/val/1000000;
+	rate = rate / val / MHZ_TO_HZ;
 
 	if (!path->status) {
 		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
@@ -742,9 +759,6 @@ static unsigned long dfc_get_rate(struct mmp_path *path)
 	mutex_unlock(&ctrl->access_ok);
 	return rate;
 }
-
-#define    DIP_START   1
-#define    DIP_END     0
 
 int dfc_request(struct notifier_block *b, unsigned long val, void *v)
 {
@@ -759,9 +773,9 @@ int dfc_request(struct notifier_block *b, unsigned long val, void *v)
 			return NOTIFY_DONE;
 		}
 	} else
-		rate = original_rate / MHZ_TO_HZ;
+		rate = path->original_rate;
 
-	ret = dfc_set_rate(path, (unsigned long)rate);
+	ret = dfc_set_rate(path, (unsigned long)rate, val);
 	if (ret < 0)
 		return NOTIFY_BAD;
 
@@ -771,6 +785,17 @@ int dfc_request(struct notifier_block *b, unsigned long val, void *v)
 static struct notifier_block dip_disp_notifier = {
 	.notifier_call = dfc_request,
 };
+
+void dfc_gc_request(unsigned long val, unsigned int fps)
+{
+	struct mmp_path *path = mmp_get_path("mmp_pnpath");
+
+	path->rate = path->original_rate * fps / 60;
+	queue_work(path->vsync.dfc_wq, &path->vsync.dfc_work);
+
+	return;
+}
+EXPORT_SYMBOL(dfc_gc_request);
 
 ssize_t freq_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
@@ -820,7 +845,7 @@ static ssize_t freq_store(
 		pr_err("LCD DFC Failed: The rate is 0\n");
 		return -1;
 	}
-	ret = dfc_set_rate(path, rate);
+	ret = dfc_set_rate(path, rate, LCD_FREQ);
 	if (ret < 0)
 		return ret;
 
@@ -862,7 +887,7 @@ void mmp_dfc_init(struct device *dev)
 	struct mmp_path *path = ctrl->path_plats[0].path;
 	struct clk *path_clk = path_to_path_plat(path)->clk;
 	unsigned int apmu_lcd;
-	int count, i, val;
+	int count, i;
 	struct device_node *np = of_find_node_by_name(NULL, "disp_apmu");
 	const char *clk_name = NULL;
 
@@ -932,16 +957,6 @@ void mmp_dfc_init(struct device *dev)
 
 	path->ops.set_dfc_rate = dfc_set_rate;
 	path->ops.get_dfc_rate = dfc_get_rate;
-
-	/*
-	 * FIXME: get original rate before dfc, so we can
-	 * set the original rate after dfc.
-	 */
-	original_rate = clk_get_rate(clk_parent0);
-	val = sclk_div;
-	val &= DSI1_BITCLK_DIV_MASK;
-	val = val >> 8;
-	original_rate = original_rate/val;
 
 	dip_register_notifier(&dip_disp_notifier, 0);
 }
