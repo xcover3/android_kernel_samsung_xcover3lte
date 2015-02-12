@@ -172,19 +172,20 @@ static void __init pxa1978_init_machine(void)
 			     mmpx_auxdata_lookup, &platform_bus);
 }
 
-static void pxa_reserve_obmmem(void)
+static void pxa_reserve_secmem(void)
 {
-	/* Reserve 1MB memory for obm */
-	BUG_ON(memblock_reserve(PLAT_PHYS_OFFSET, 0x100000) != 0);
-	memblock_free(PLAT_PHYS_OFFSET, 0x100000);
-	memblock_remove(PLAT_PHYS_OFFSET, 0x100000);
-	pr_info("Reserved OBM memory: 0x%x@0x%lx\n",
-		0x100000, PLAT_PHYS_OFFSET);
+	unsigned long start = PLAT_PHYS_OFFSET;
+	unsigned size = CONFIG_TEXT_OFFSET & ~((1<<21) - 1);
+	/* Reserve memory for secure state */
+	BUG_ON(memblock_reserve(start, size) != 0);
+	memblock_free(start, size);
+	memblock_remove(start, size);
+	pr_info("Reserved secure memory: 0x%x@0x%lx\n", size, start);
 }
 
 static void __init pxa1978_reserve(void)
 {
-	pxa_reserve_obmmem();
+	pxa_reserve_secmem();
 
 	pxa_reserve_cp_memblock();
 }
