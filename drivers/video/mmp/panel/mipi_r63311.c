@@ -281,7 +281,7 @@ static void r63311_set_status(struct mmp_panel *panel, int status)
 static struct mmp_mode mmp_modes_r63311[] = {
 	[0] = {
 		.pixclock_freq = 148455600,
-		.refresh = 60,
+		.refresh = 57,
 		.real_xres = 1080,
 		.real_yres = 1920,
 		.hsync_len = 2,
