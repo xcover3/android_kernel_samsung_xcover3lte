@@ -1877,8 +1877,8 @@ static inline void b52_zoom_ddr_qos(int zoom)
 {
 	s32 freq;
 	if (zoom < 0x300)
-		freq = PM_QOS_DEFAULT_VALUE;
-	else if (zoom < 0x350)
+		freq = 312000;
+	else if (zoom < 0x380) /* 0x380 is 3.5x zoom */
 		freq = 416000;
 	else
 		freq = 528000;
@@ -2668,8 +2668,10 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	} else
 		b52_cfg_isp(sd);
 	ret = wait_cmd_done(CMD_SET_FMT);
-	if (ret < 0)
+	if (ret < 0) {
+		b52_dump_isp_cnt(); /* dump ISP cnt to check */
 		return ret;
+	}
 
 	if (!(flags & BIT(CMD_FLAG_MS)) &&
 		(flags & BIT(CMD_FLAG_STREAM_OFF)))
@@ -2696,6 +2698,8 @@ static int b52_cmd_chg_fmt(struct b52isp_cmd *cmd)
 	b52_cfg_output(cmd->output, cmd->output_map);
 
 	ret = wait_cmd_done(CMD_CHANGE_FMT);
+	if (ret < 0)
+		b52_dump_isp_cnt(); /* dump ISP cnt to check */
 	return ret;
 }
 
