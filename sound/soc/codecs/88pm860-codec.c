@@ -48,6 +48,8 @@
 #define USE_DAPM_CTRL_88PM860
 
 static atomic_t tdm_count = ATOMIC_INIT(0);
+/* check whether user space need codec on */
+static int codec_on;
 
 struct tdm_manage_private {
 	/*tdm mode select*/
@@ -226,9 +228,14 @@ static int pm860_write(struct snd_soc_codec *codec, unsigned int reg,
 	int ret = 0;
 
 	/* when tdm dai is open, we can't let codec power off */
-	if (reg == PM860_MAIN_POWER_REG	&& value == 0
-		&& atomic_read(&tdm_count) > 0)
-		return ret;
+	if (reg == PM860_MAIN_POWER_REG) {
+		if (value == 0 && atomic_read(&tdm_count) > 0) {
+			codec_on = 0;
+			return ret;
+		} else {
+			codec_on = 1;
+		}
+	}
 
 	value &= 0xff;
 
@@ -505,8 +512,10 @@ static void pm860_set_dai_shutdown(struct snd_pcm_substream *substream,
 	atomic_dec(&tdm_count);
 
 	/* if all TDM dai are disabled, codec can be disabled */
-	if (atomic_read(&tdm_count) == 0)
+	if (atomic_read(&tdm_count) <= 0 && !codec_on) {
+		atomic_set(&tdm_count, 0);
 		snd_soc_write(codec, PM860_MAIN_POWER_REG, 0x0);
+	}
 
 	return;
 }
