@@ -136,6 +136,7 @@ ENDPROC(cpu_v7_set_pte_ext)
 	 * identity mapping set up in TTBR0.
 	 */
 	orrls	\tmp, \tmp, #TTBR1_SIZE				@ TTBCR.T1SZ
+	and 	\tmp, \tmp, #0xfffffff8				@ TTBCR.T0SZ
 	mcr	p15, 0, \tmp, c2, c0, 2				@ TTBCR
 	mov	\tmp, \ttbr1, lsr #(32 - ARCH_PGD_SHIFT)	@ upper bits
 	mov	\ttbr1, \ttbr1, lsl #ARCH_PGD_SHIFT		@ lower bits
