@@ -1149,7 +1149,8 @@ static void dsi_set_mode(struct mmp_dsi *dsi, struct mmp_mode *mode)
 				value = tmp & SCLK_SOURCE_SELECT_DC4_LITE_MASK;
 			value >>= (SCLK_SOURCE_SELECT_OFFSET - DSI1_BITCLK_SOURCE_SELECT_OFFSET);
 			value &= DSI1_BITCLK_SROUCE_SELECT_MASK;
-			writel_relaxed(tmp | value, ctrl_regs(path) + LCD_SCLK_DIV);
+			tmp &= ~(DSI1_BITCLK_SROUCE_SELECT_MASK);
+			writel_relaxed(tmp  | value, ctrl_regs(path) + LCD_SCLK_DIV);
 		}
 
 		dsi->set_status(dsi, MMP_RESET);
