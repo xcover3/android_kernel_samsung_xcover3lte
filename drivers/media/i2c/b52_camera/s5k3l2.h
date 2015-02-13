@@ -906,12 +906,12 @@ struct regval_tab S5K3L2_res_init[] = {
 	{0x030E, 0x014D},
 	{0x0342, 0x11A0},
 	{0x0340, 0x0C76},
-	{0x034C, 0x1030},
-	{0x034E, 0x0C22},
-	{0x0344, 0x0024},
-	{0x0346, 0x000B},
-	{0x0348, 0x1053},
-	{0x034A, 0x0C2C},
+	{0x034C, 0x1020},
+	{0x034E, 0x0C18},
+	{0x0344, 0x002C},
+	{0x0346, 0x0011},
+	{0x0348, 0x104B},
+	{0x034A, 0x0C28},
 	{0x0386, 0x0001},
 	{0x0900, 0x0011},
 	{0x0400, 0x0000},
@@ -994,8 +994,8 @@ struct b52_sensor_mbus_fmt S5K3L2_fmt = {
 };
 struct b52_sensor_resolution S5K3L2_res[] = {
 	[0] = {
-		 .width = 4144,
-		 .height = 3106,
+		 .width = 4128,
+		 .height = 3096,
 		 .hts = 0x11a0,
 		 .min_vts = 0x0c76,
 		 .prop = SENSOR_RES_BINING1,
@@ -1060,7 +1060,7 @@ struct b52_sensor_data b52_s5k3l2 = {
 		.numerator = 100,
 		.denominator = 0x10,
 	},
-	.vts_range = {0x07c8, 0x7fff},
+	.vts_range = {0x0c76, 0x7fff},
 	.gain_range = {
 		[B52_SENSOR_AG] = {0x0010, 0x00ff},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
