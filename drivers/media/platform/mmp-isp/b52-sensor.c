@@ -12,7 +12,6 @@
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/delay.h>
-
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/regulator/driver.h>
@@ -24,7 +23,6 @@
 #include <uapi/media/b52_api.h>
 #include <linux/clk.h>
 #include <media/mv_sc2_twsi_conf.h>
-
 #include "plat_cam.h"
 
 static int otp_ctrl = -1;
@@ -1991,7 +1989,7 @@ static int b52_sensor_g_skip_frames(struct v4l2_subdev *sd, u32 *frames)
 }
 
 static int b52_sensor_sd_open(struct v4l2_subdev *sd,
-				struct v4l2_subdev_fh *fh)
+		struct v4l2_subdev_fh *fh)
 {
 	int ret;
 	/*FIXME: not need put power on here*/
@@ -2731,7 +2729,8 @@ static int b52_sensor_probe(struct i2c_client *client,
 	sensor->csi.dphy_desc.clk_freq = sensor->drvdata->mipi_clk_bps >> 1;
 	if (sensor->csi.dphy_desc.clk_freq > 1500 * MHZ ||
 		sensor->csi.dphy_desc.clk_freq < MHZ) {
-		dev_err(dev, "the mipi clock maybe wrong\n");
+		dev_err(dev, "the mipi clock maybe wrong %s\n",
+				sensor->drvdata->name);
 		return -EINVAL;
 	}
 	sensor->csi.calc_dphy = sensor->drvdata->calc_dphy;
@@ -2883,6 +2882,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 	{
 		.compatible = "hynix,hi551",
 		.data = &b52_hi551,
+	},
+#endif
+#ifdef CONFIG_B52_CAMERA_S5K5E3
+	{
+		.compatible = "marvell,s5k5e3",
+		.data = &b52_s5k5e3,
 	},
 #endif
 #ifdef CONFIG_B52_CAMERA_OV5670
