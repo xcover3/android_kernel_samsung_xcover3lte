@@ -74,7 +74,6 @@ static inline void __update_dev_upthreshold(unsigned int upthrd,
 static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 		unsigned long val, void *data)
 {
-	struct cpufreq_freqs *freq = data;
 	struct ddr_devfreq_data *cur_data =
 		container_of(nb, struct ddr_devfreq_data, freq_transition);
 	struct devfreq *devfreq = cur_data->devfreq;
