@@ -139,6 +139,7 @@ config MACH_PXA1978_DT
 	select USE_OF
 	select PINCTRL
 	select PINCTRL_SINGLE
+	select ARM_DC_DIS_NOHIT
 	help
 	  Include support for PXA1978 (SBNB) platforms using
 	  the device tree. This SoC has Marvell Whitney ARMv7
@@ -210,4 +211,12 @@ config CPU_PXA1908
 config MMP_SRAM
 	bool
 
+config ARM_DC_DIS_NOHIT
+	bool
+	depends on CPU_V7
+	default n
+	help
+	  Say 'Y' if your ARMv7 CPU has non-cached access enforced
+	  when SCTLR.C=0. This requires special handling when
+	  disabling D-Cache.
 endif
