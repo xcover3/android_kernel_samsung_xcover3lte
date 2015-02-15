@@ -30,6 +30,14 @@
 #include <linux/sd8x_rfkill.h>
 #endif
 
+#ifdef CONFIG_LEDS_REGULATOR
+
+static struct platform_device keypad_backlight = {
+	.name = "button-backlight",
+};
+
+#endif
+
 unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
@@ -53,6 +61,10 @@ static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
 	OF_DEV_AUXDATA("mrvl,sd8x-rfkill", 0, "sd8x-rfkill", NULL),
 #endif
 	OF_DEV_AUXDATA("marvell,pxa27x-keypad", 0xd4012000, "pxa27x-keypad", NULL),
+#ifdef CONFIG_LEDS_REGULATOR
+	OF_DEV_AUXDATA("regulator-leds", 0, "leds-regulator",
+						&keypad_backlight),
+#endif
 	{}
 };
 
