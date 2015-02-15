@@ -441,6 +441,9 @@ EXPORT_SYMBOL(msocket_recv_unthrottled);
 /* start msocket sync */
 static void msocket_connect(enum portq_grp_type grp_type)
 {
+	/* initialize the key section and shm */
+	shm_rb_data_init(portq_grp[grp_type].rbctl);
+
 	if (grp_type == portq_grp_cp_main) {
 		spin_lock(&cp_sync_lock);
 		cp_is_sync_canceled = false;
@@ -475,7 +478,6 @@ static void msocket_disconnect(enum portq_grp_type grp_type)
 	 * cleanup any packet queued and initialize some key data
 	 * structure to the beginning state
 	 */
-	shm_rb_data_init(portq_grp[grp_type].rbctl);
 	portq_flush_init(grp_type);
 
 }
