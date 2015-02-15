@@ -19,6 +19,7 @@
 #include <linux/leds-regulator.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+#include <linux/of_platform.h>
 
 #define to_regulator_led(led_cdev) \
 	container_of(led_cdev, struct regulator_led, cdev)
@@ -218,10 +219,20 @@ static int regulator_led_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id of_regulator_leds_match[] = {
+	{ .compatible = "regulator-leds", },
+	{},
+};
+#endif
+
 static struct platform_driver regulator_led_driver = {
 	.driver = {
 		   .name  = "leds-regulator",
 		   .owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		   .of_match_table = of_match_ptr(of_regulator_leds_match),
+#endif
 		   },
 	.probe  = regulator_led_probe,
 	.remove = regulator_led_remove,
