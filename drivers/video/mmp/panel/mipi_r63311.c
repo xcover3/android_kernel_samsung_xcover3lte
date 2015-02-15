@@ -54,7 +54,7 @@ static char manufacturer_cmd_access_protect[] = {0xB0, 0x04};
 static char backlight_ctrl[] = {0xCE, 0x00, 0x01, 0x88, 0xC1, 0x00, 0x1E, 0x04};
 static char nop[] = {0x0};
 static char seq_test_ctrl[] = {0xD6, 0x01};
-static char write_display_brightness[] = {0x51, 0x0F, 0xFF};
+static char write_display_brightness[] = {0x51, 0x00, 0x00};
 static char write_ctrl_display[] = {0x53, 0x24};
 
 static struct mmp_dsi_cmd_desc r63311_display_on_cmds[] = {
@@ -84,6 +84,30 @@ static void r63311_panel_on(struct mmp_panel *panel)
 	mmp_panel_dsi_tx_cmd_array(panel, r63311_display_on_cmds,
 		ARRAY_SIZE(r63311_display_on_cmds));
 }
+
+static void r63311_set_brightness(struct mmp_panel *panel, int level)
+{
+	struct mmp_dsi_cmd_desc brightness_cmds;
+	char cmds[3];
+
+	/*Prepare cmds for brightness control*/
+	cmds[0] = 0x51;
+	/* birghtness 1~20 is too dark, add 20 to correctness */
+	if (level)
+		level += 20;
+	cmds[2] = ((unsigned int)(level * 20)) & 0xFF;
+	cmds[1] = ((unsigned int)(level * 20)) >> 8;
+
+	/*Prepare dsi commands to send*/
+	brightness_cmds.data_type = MIPI_DSI_DCS_SHORT_WRITE_PARAM;
+	brightness_cmds.lp = 0;
+	brightness_cmds.delay = 0;
+	brightness_cmds.length = sizeof(cmds);
+	brightness_cmds.data = cmds;
+
+	mmp_panel_dsi_tx_cmd_array(panel, &brightness_cmds, 1);
+}
+
 
 #ifdef CONFIG_OF
 static void r63311_panel_power(struct mmp_panel *panel, int skip_on, int on)
@@ -313,6 +337,7 @@ static struct mmp_panel panel_r63311 = {
 	.is_avdd = 0,
 	.get_modelist = r63311_get_modelist,
 	.set_status = r63311_set_status,
+	.set_brightness = r63311_set_brightness,
 };
 
 static int r63311_ls_bl_update_status(struct backlight_device *bl)
