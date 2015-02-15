@@ -64,7 +64,7 @@ static char cpt_cmd2[] = {0xB2, 0x22};
 static char cpt_cmd3[] = {0xB3, 0x01, 0x00, 0x06, 0x06, 0x18, 0x13, 0x39, 0x35};
 static char cpt_cmd4[] = {
 	0xBA, 0x31, 0x00, 0x44, 0x25,
-	0x91, 0x0A, 0x00, 0x00, 0xC1,
+	0xC1, 0x0A, 0x00, 0x00, 0xC1,
 	0x00, 0x00, 0x00, 0x0D, 0x02,
 	0x4F, 0xB9, 0xEE
 };
@@ -287,22 +287,14 @@ static void fl10802_esd_recover(struct mmp_panel *panel)
  */
 static u8 fl10802a_pkt_size_cmd[] = {0x06};
 static char cpt_cmd_B9[] = {0xB9, 0xF1, 0x08, 0x01};
-static char cpt_cmd_BA[] = {
-	0xBA, 0x31, 0x00, 0x44, 0x25,
-	0xC1, 0x0A, 0x00, 0x00, 0xC1,
-	0x00, 0x00, 0x00, 0x0D, 0x02,
-	0x4F, 0xB9, 0xEE
-};
 
 static u8 read_id_0xfl10802a[] = {0xD0};
 static struct mmp_dsi_cmd_desc fl10802a_read_id_cmds[] = {
-	{MIPI_DSI_GENERIC_LONG_WRITE, 1, 0, sizeof(cpt_cmd_B9),
+	{MIPI_DSI_GENERIC_LONG_WRITE, 0, 0, sizeof(cpt_cmd_B9),
 		cpt_cmd_B9},
-	{MIPI_DSI_GENERIC_LONG_WRITE, 1, 0, sizeof(cpt_cmd_BA),
-		cpt_cmd_BA},
-	{MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE, 1, 0,
+	{MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE, 0, 0,
 		sizeof(fl10802a_pkt_size_cmd), fl10802a_pkt_size_cmd},
-	{MIPI_DSI_DCS_READ, 1, 0,
+	{MIPI_DSI_DCS_READ, 0, 0,
 		sizeof(read_id_0xfl10802a), read_id_0xfl10802a},
 };
 
