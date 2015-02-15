@@ -129,7 +129,7 @@ void b52_clear_mac_rdy_bit(u8 mac, u8 port);
 void b52_clear_overflow_flag(u8 mac, u8 port);
 int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta,
 			u8 plane, u8 mac, u8 port);
-void b52_ack_xlate_irq(__u32 *events, int max_mac_num);
+void b52_ack_xlate_irq(__u32 *events, int max_mac_num, struct work_struct *work);
 int b52_read_pipeline_info(int pipe_id, u8 *buffer);
 int b52_read_debug_info(u8 *buffer);
 int b52_cmd_anti_shake(u16 block_size, int enable);
@@ -142,6 +142,7 @@ extern int b52_fill_mmu_chnl(struct plat_cam *pcam,
 			struct isp_videobuf *buf, int num_planes);
 void b52_set_sccb_clock_rate(u32 input_rate, u32 sccb_rate);
 extern void b52isp_set_ddr_qos(s32 value);
+extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 
 /* isp MCU memory layout */
 /* 1. PROGREM BUFFER(136KB):0x0    ~ 0x021FFF */

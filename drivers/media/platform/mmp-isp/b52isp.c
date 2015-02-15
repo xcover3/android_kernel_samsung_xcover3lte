@@ -35,6 +35,10 @@
 #include <media/mrvl-camera.h>
 #include <media/b52-sensor.h>
 #include <uapi/media/b52_api.h>
+#include <linux/workqueue.h>
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+#include <linux/platform_data/camera.h>
+#endif
 
 #include "plat_cam.h"
 #include "b52isp.h"
@@ -281,6 +285,44 @@ void b52isp_set_ddr_qos(s32 value)
 	pm_qos_update_request(&ddrfreq_qos_req_min, value);
 }
 EXPORT_SYMBOL(b52isp_set_ddr_qos);
+
+static void b52isp_ddr_threshold_work(struct work_struct *work)
+{
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	unsigned long val;
+	u32 threshold;
+	struct b52isp *b52isp = container_of(work, struct b52isp, work);
+
+	if (b52isp->ddr_threshold_up) {
+		val = CAMFREQ_POSTCHANGE_UP;
+		threshold = 30;
+	} else {
+		threshold = 0;
+		val = CAMFREQ_POSTCHANGE_DOWN;
+	}
+
+	/* Need to call DDR threshold notifier in process context */
+	srcu_notifier_call_chain(&b52isp->nh, val, &threshold);
+#endif
+}
+
+void b52isp_set_ddr_threshold(struct work_struct *work, int up)
+{
+	unsigned long irq_flags;
+	static DEFINE_SPINLOCK(lock);
+	struct b52isp *b52isp = container_of(work, struct b52isp, work);
+
+	spin_lock_irqsave(&lock, irq_flags);
+	if (up == b52isp->ddr_threshold_up) {
+		spin_unlock_irqrestore(&lock, irq_flags);
+		return;
+	}
+	b52isp->ddr_threshold_up = up;
+	spin_unlock_irqrestore(&lock, irq_flags);
+
+	schedule_work(&b52isp->work);
+}
+EXPORT_SYMBOL(b52isp_set_ddr_threshold);
 
 static int b52isp_attach_blk_isd(struct isp_subdev *isd, struct isp_block *blk)
 {
@@ -2317,7 +2359,7 @@ check_drop:
 			buffer = isp_vnode_get_idle_buffer(vnode);
 			isp_vnode_put_busy_buffer(vnode, buffer);
 		} else if (laxi->stream)
-			d_inf(1, "%s: buffer in the BusyQ when drop! idle:%d, busy:%d",
+			d_inf(3, "%s: buffer in the BusyQ when drop! idle:%d, busy:%d",
 				  vnode->vdev.name,
 				  vnode->idle_buf_cnt, vnode->busy_buf_cnt);
 		if (buffer && laxi->stream)
@@ -3022,6 +3064,7 @@ stream_data_off:
 
 disable_axi:
 		b52_enable_axi_port(laxi, 0, vnode);
+		b52isp_set_ddr_threshold(&laxi->parent->work, 0);
 
 		/* stream off sensor and csi */
 		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
@@ -3769,7 +3812,7 @@ static irqreturn_t b52isp_irq_handler(int irq, void *data)
 	struct b52isp *b52isp = data;
 	struct b52isp_paxi *paxi;
 
-	b52_ack_xlate_irq(event, b52isp->hw_desc->nr_axi);
+	b52_ack_xlate_irq(event, b52isp->hw_desc->nr_axi, &b52isp->work);
 
 	for (i = 0; i < b52isp->hw_desc->nr_axi; i++) {
 		if (event[i] == 0)
@@ -3927,6 +3970,12 @@ static int b52isp_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	srcu_init_notifier_head(&b52isp->nh);
+	INIT_WORK(&b52isp->work, b52isp_ddr_threshold_work);
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	camfeq_register_dev_notifier(&b52isp->nh);
+#endif
+
 	pm_runtime_enable(b52isp->dev);
 
 	return 0;
@@ -3936,6 +3985,7 @@ static int b52isp_remove(struct platform_device *pdev)
 {
 	struct b52isp *b52isp = platform_get_drvdata(pdev);
 
+	cancel_work_sync(&b52isp->work);
 	pm_runtime_disable(b52isp->dev);
 	dmam_free_coherent(b52isp->dev, META_DATA_SIZE, meta_cpu, meta_dma);
 	devm_kfree(b52isp->dev, b52isp);

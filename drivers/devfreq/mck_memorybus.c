@@ -32,6 +32,7 @@
 #include <trace/events/pxa.h>
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 #include <linux/platform_data/gpu4dev.h>
+#include <linux/platform_data/camera.h>
 #endif
 #include <linux/clk/mmpdcstat.h>
 #include <linux/clk-provider.h>
@@ -138,6 +139,13 @@ int gpufeq_register_dev_notifier(struct srcu_notifier_head *gpu_notifier_chain)
 					&ddrfreq_driver_data->freq_transition);
 }
 EXPORT_SYMBOL(gpufeq_register_dev_notifier);
+
+int camfeq_register_dev_notifier(struct srcu_notifier_head *cam_notifier_chain)
+{
+	return srcu_notifier_chain_register(cam_notifier_chain,
+					&ddrfreq_driver_data->freq_transition);
+}
+EXPORT_SYMBOL(camfeq_register_dev_notifier);
 
 #endif /* CONFIG_DDR_DEVFREQ_GOV_THROUGHPUT */
 

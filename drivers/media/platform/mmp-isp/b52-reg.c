@@ -26,6 +26,8 @@
 
 #include <linux/workqueue.h>
 
+static u64 of_jiffies;
+static u8 of;
 static DEFINE_MUTEX(cmd_mutex);
 static void __iomem *b52_base;
 static atomic_t streaming_state = ATOMIC_INIT(0);
@@ -3618,7 +3620,7 @@ EXPORT_SYMBOL(b52_ctrl_mac_irq);
 /*
  * Acknowledge IRQ, and translate them into bits
  */
-void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
+void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 {
 	static int drop_cnt[MAX_MAC_NUM];
 	__u32 reg = b52_readl(REG_ISP_INT_STAT);
@@ -3689,6 +3691,12 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 			if (rdy)
 				b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
 			spin_unlock(&mac_overflow_lock);
+
+			of_jiffies = get_jiffies_64();
+			if (atomic_read(&streaming_state)) {
+				b52isp_set_ddr_threshold(work, 1);
+				of = 1;
+			}
 		}
 
 		if (mac_irq & (W_INT_DONE0 | W_INT_OVERFLOW0))
@@ -3706,6 +3714,11 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num)
 
 		event[i] |= virt_irq(0, irq0) | virt_irq(1, irq1) |
 				virt_irq(2, irqr);
+
+		if (of && time_before64(of_jiffies + 2 * HZ, get_jiffies_64())) {
+			b52isp_set_ddr_threshold(work, 0);
+			of = 0;
+		}
 	}
 }
 
