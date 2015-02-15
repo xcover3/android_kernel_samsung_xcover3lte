@@ -899,7 +899,6 @@ static void path_set_timing(struct mmp_path *path)
 	struct clk *clk = path_to_path_plat(path)->clk;
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
-	u32 value;
 
 	if (PATH_OUT_DSI == path->output_type
 			&& (!dsi || !dsi->get_sync_val)) {
