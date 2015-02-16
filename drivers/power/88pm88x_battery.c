@@ -938,8 +938,9 @@ static int pm88x_cycles_notifier_call(struct notifier_block *nb,
 
 static int pm88x_battery_get_slp_cnt(struct pm88x_battery_info *info)
 {
-	int buf[2], ret, cnt;
-	unsigned int mask, data;
+	int ret;
+	unsigned char buf[2];
+	unsigned int cnt, mask, data;
 
 	ret = regmap_bulk_read(info->chip->base_regmap, PM88X_SLP_CNT1, buf, 2);
 	if (ret) {
