@@ -1009,6 +1009,7 @@ static const struct snd_kcontrol_new out1_spkr_en_control =
 	SOC_DAPM_SINGLE_VIRTUAL("Switch", 0, 0, 1, 0);
 
 static const struct snd_soc_dapm_widget map_dapm_widgets[] = {
+	SND_SOC_DAPM_ADC("AOUT3 record", NULL, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_VIRT_SWITCH("out1_hs_en", SND_SOC_NOPM, 0, 0,
 				&out1_hs_en_control),
 
@@ -1160,7 +1161,7 @@ static const struct snd_soc_dapm_route map_intercon[] = {
 	/* AIN1 mux */
 	{"ADC output ain1", "D1AOUT", "ADC out"},
 	{"ADC output ain1", "AOUT1", "MM_DL1"},
-	{"ADC output ain1", "AOUT3", "ADC input3"},
+	{"ADC output ain1", "AOUT3", "AOUT3 record"},
 	{"ADC output ain1", "AOUT2", "VC_DL"},
 	{"ADC output ain1", "AOUT4", "MM_DL2"},
 	{"ADC output ain1", "MIC1", "ADC input1"},
@@ -1171,7 +1172,7 @@ static const struct snd_soc_dapm_route map_intercon[] = {
 	/* AIN2 mux */
 	{"ADC output ain2", "D1AOUT", "ADC out"},
 	{"ADC output ain2", "AOUT1", "MM_DL1"},
-	{"ADC output ain2", "AOUT3", "ADC input3"},
+	{"ADC output ain2", "AOUT3", "AOUT3 record"},
 	{"ADC output ain2", "AOUT2", "VC_DL"},
 	{"ADC output ain2", "AOUT4", "MM_DL2"},
 	{"ADC output ain2", "MIC1", "ADC input1"},
@@ -1182,7 +1183,7 @@ static const struct snd_soc_dapm_route map_intercon[] = {
 	/* AIN3 mux */
 	{"ADC output ain3", "D1AOUT", "ADC out"},
 	{"ADC output ain3", "AOUT1", "MM_DL1"},
-	{"ADC output ain3", "AOUT3", "ADC input3"},
+	{"ADC output ain3", "AOUT3", "AOUT3 record"},
 	{"ADC output ain3", "AOUT2", "VC_DL"},
 	{"ADC output ain3", "AOUT4", "MM_DL2"},
 	{"ADC output ain3", "MIC1", "ADC input1"},
@@ -1193,7 +1194,7 @@ static const struct snd_soc_dapm_route map_intercon[] = {
 	/* AIN4 mux */
 	{"ADC output ain4", "D1AOUT", "ADC out"},
 	{"ADC output ain4", "AOUT1", "MM_DL1"},
-	{"ADC output ain4", "AOUT3", "ADC input3"},
+	{"ADC output ain4", "AOUT3", "AOUT3 record"},
 	{"ADC output ain4", "AOUT2", "VC_DL"},
 	{"ADC output ain4", "AOUT4", "MM_DL2"},
 	{"ADC output ain4", "MIC1", "ADC input1"},
