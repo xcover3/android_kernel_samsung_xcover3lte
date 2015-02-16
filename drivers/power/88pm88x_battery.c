@@ -1539,6 +1539,12 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	dev_info(info->dev, "---> %s: soc_from_vbat_active = %d\n",
 		 __func__, soc_from_vbat_active);
 
+	/*
+	 * need to reset sleep counter to apply sleep_cnt_hold configuration,
+	 * so reading here the slp_cnt and reset the counter.
+	 */
+	slp_cnt = pm88x_battery_get_slp_cnt(info);
+
 	/* 2. read saved SoC: soc_from_saved */
 	/*
 	 *  if system comes here because of software reboot
@@ -1665,7 +1671,6 @@ skip1:
 
 	/* battery unchanged */
 	*initial_cycles = cycles_from_saved;
-	slp_cnt = pm88x_battery_get_slp_cnt(info);
 	dev_info(info->dev, "----> %s: battery is unchanged:\n", __func__);
 	dev_info(info->dev, "\t\t slp_cnt = %d\n", slp_cnt);
 
