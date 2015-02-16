@@ -387,6 +387,7 @@ static int r63311_probe(struct platform_device *pdev)
 	struct backlight_properties props;
 	struct backlight_device *bl;
 	int ret;
+	int mipi_backlight = 0;
 
 	plat_data = kzalloc(sizeof(*plat_data), GFP_KERNEL);
 	if (!plat_data)
@@ -404,6 +405,9 @@ static int r63311_probe(struct platform_device *pdev)
 
 		if (of_find_property(np, "avdd-supply", NULL))
 			panel_r63311.is_avdd = 1;
+
+		if (of_find_property(np, "marvell,mipi-backlight", NULL))
+			mipi_backlight = 1;
 
 		if (of_get_named_gpio(np, "bl_gpio", 0) < 0)
 			pr_debug("%s: get bl_gpio failed\n", __func__);
@@ -446,6 +450,9 @@ static int r63311_probe(struct platform_device *pdev)
 	 * if no panel or plat associate backlight control,
 	 * don't register backlight device here.
 	 */
+	if (!mipi_backlight)
+		return 0;
+
 	if (!panel_r63311.set_brightness && !plat_data->plat_set_backlight)
 		return 0;
 
