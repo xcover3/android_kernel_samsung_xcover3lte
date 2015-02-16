@@ -14,8 +14,8 @@
 #include <media/b52-sensor.h>
 
 /*chang by customer's typical value*/
-#define rg_ratio_typical 0x138
-#define bg_ratio_typical 0x12D
+#define rg_ratio_typical 0x131
+#define bg_ratio_typical 0x11F
 
 /* raw10_default */
 struct regval_tab ov5670_res_init[] = {

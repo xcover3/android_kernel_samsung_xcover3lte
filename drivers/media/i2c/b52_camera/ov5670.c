@@ -119,7 +119,7 @@ static int OV5670_read_OTP(struct b52_sensor *sensor,
 	OV5670_write_i2c(sensor, 0x3d88, 0x70); /*OTP start address*/
 	OV5670_write_i2c(sensor, 0x3d89, 0x10);
 	OV5670_write_i2c(sensor, 0x3d8A, 0x70); /*OTP end address*/
-	OV5670_write_i2c(sensor, 0x3d8B, 0x9B);
+	OV5670_write_i2c(sensor, 0x3d8B, 0x29);
 	OV5670_write_i2c(sensor, 0x3d81, 0x01); /*load otp into buffer*/
 	usleep_range(5000, 5010);
 
@@ -129,44 +129,47 @@ static int OV5670_read_OTP(struct b52_sensor *sensor,
 	if ((otp_flag & 0xc0) == 0x40)
 		otp_base = 0x7011;/*base address of info group 1*/
 	else if ((otp_flag & 0x30) == 0x10)
-		otp_base = 0x7021;/*base address of info group 2*/
+		otp_base = 0x7016;/*base address of info group 2*/
 	else if ((otp_flag & 0x0c) == 0x04)
-		otp_base = 0x7031;/*base address of info group 3*/
+		otp_base = 0x701b;/*base address of info group 3*/
 
 	if (otp_base != 0) {
 		*flag = 0x80; /*valid info in OTP*/
 		(*otp).module_id = OV5670_read_i2c(sensor, otp_base);
-		(*otp).lens_id = OV5670_read_i2c(sensor, otp_base + 6);
+		(*otp).lens_id = OV5670_read_i2c(sensor, otp_base + 1);
 	} else {
 		*flag = 0x00; /*not info in OTP*/
 		(*otp).module_id = 0;
 		(*otp).lens_id = 0;
 	}
+	pr_err("Marvell_Unifiled_OTP_ID_INF for OV5670: Module=0x%x, Lens=0x%x\n",
+		(*otp).module_id, (*otp).lens_id);
 	/*OTP WB Calibration*/
-	otp_flag = OV5670_read_i2c(sensor, 0x7041);
+	otp_flag = OV5670_read_i2c(sensor, 0x7020);
 	otp_base = 0;
 	if ((otp_flag & 0xc0) == 0x40)
-		otp_base = 0x7042; /*base address of WB Calibration group 1*/
+		otp_base = 0x7021; /*base address of WB Calibration group 1*/
 	else if ((otp_flag & 0x30) == 0x10)
-		otp_base = 0x705F; /*base address of WB Calibration group 2*/
+		otp_base = 0x7024; /*base address of WB Calibration group 2*/
 	else if ((otp_flag & 0x0c) == 0x04)
-		otp_base = 0x707c; /*base address of WB Calibration group 3*/
+		otp_base = 0x7027; /*base address of WB Calibration group 3*/
 
 	if (otp_base != 0) {
 		*flag |= 0x40;
-		temp = OV5670_read_i2c(sensor, otp_base + 1);
+		temp = OV5670_read_i2c(sensor, otp_base + 2);
 		(*otp).rg_ratio = (OV5670_read_i2c(sensor, otp_base)<<2)
 					 + ((temp>>6) & 0x03);
-		temp = OV5670_read_i2c(sensor, otp_base + 3);
-		(*otp).bg_ratio = (OV5670_read_i2c(sensor, otp_base + 2)<<2)
-					 + ((temp>>6) & 0x03);
+		(*otp).bg_ratio = (OV5670_read_i2c(sensor, otp_base + 1)<<2)
+					 + ((temp>>4) & 0x03);
 	} else {
 		(*otp).rg_ratio = 0;
 		(*otp).bg_ratio = 0;
 	}
+	pr_err("Marvell_Unifiled_OTP_ID_INF for OV5670: rg_ratio=0x%x, bg_ratio=0x%x\n",
+		(*otp).rg_ratio, (*otp).bg_ratio);
 	/*Post-processing*/
 	if ((*flag) != 0) {
-		for (i = 0x7010; i <= 0x709B; i++) {
+		for (i = 0x7010; i <= 0x7029; i++) {
 			OV5670_write_i2c(sensor, i, 0);
 			/*clear OTP buffer,recommended use
 				continuous write to accelarate*/
