@@ -36,12 +36,20 @@ struct keyreset_state {
 	int key_up;
 	int restart_disabled;
 	int need_panic;
+	unsigned int press_time_msec;
+	struct timer_list press_duration_timer;
 	int (*reset_fn)(void);
 	int (*dump_fn)(int);
 	int dump_pressed;
 };
 
 int restart_requested;
+
+static void press_time_expired_callback(unsigned long data)
+{
+	panic("Kernel Panic trigger by keyboard!!!\n");
+}
+
 static void deferred_restart(struct work_struct *dummy)
 {
 	restart_requested = 2;
@@ -54,6 +62,7 @@ static DECLARE_WORK(restart_work, deferred_restart);
 static void keyreset_event(struct input_handle *handle, unsigned int type,
 			   unsigned int code, int value)
 {
+	int ret;
 	unsigned long flags;
 	struct keyreset_state *state = handle->private;
 
@@ -85,6 +94,10 @@ static void keyreset_event(struct input_handle *handle, unsigned int type,
 	if (state->key_down == 0 && state->key_up == 0)
 		state->restart_disabled = 0;
 
+	/* check if one of keys is released- in which case reset the timer */
+	if (state->key_down != state->key_down_target)
+		del_timer(&state->press_duration_timer);
+
 	pr_debug("reset key changed %d %d new state %d-%d-%d\n", code, value,
 		 state->key_down, state->key_up, state->restart_disabled);
 
@@ -92,18 +105,24 @@ static void keyreset_event(struct input_handle *handle, unsigned int type,
 	    state->key_down == state->key_down_target) {
 		state->restart_disabled = 1;
 		if (state->need_panic) {
-			panic("Kernel Panic trigger by keyboard!!!\n");
-			while (1)
-				;
-		}
-		if (restart_requested)
-			panic("keyboard reset failed, %d", restart_requested);
-		if (state->reset_fn) {
-			restart_requested = state->reset_fn();
+			ret = mod_timer(&state->press_duration_timer, jiffies +
+				msecs_to_jiffies(state->press_time_msec));
+			if (ret) {
+				pr_err("%s(%d): error to modify timer\n",
+					__func__, __LINE__);
+			}
 		} else {
-			pr_info("keyboard reset\n");
-			schedule_work(&restart_work);
-			restart_requested = 1;
+			if (restart_requested) {
+				panic("keyboard reset failed, %d",
+							restart_requested);
+			}
+			if (state->reset_fn) {
+				restart_requested = state->reset_fn();
+			} else {
+				pr_info("keyboard reset\n");
+				schedule_work(&restart_work);
+				restart_requested = 1;
+			}
 		}
 	}
 
@@ -251,7 +270,17 @@ static int keyreset_probe(struct platform_device *pdev)
 	}
 	state->need_panic = of_property_read_bool(np,
 					"keyreset-need-panic");
+
+	ret = of_property_read_u32(np, "keyreset-press-msec",
+						&state->press_time_msec);
+	if (ret < 0) {
+		pr_warn("NO keyreset-press-msec! set 0 as default\n");
+		state->press_time_msec = 0;
+	}
 #endif
+	setup_timer(&state->press_duration_timer,
+			press_time_expired_callback, 0);
+
 	state->input_handler.event = keyreset_event;
 	state->input_handler.connect = keyreset_connect;
 	state->input_handler.disconnect = keyreset_disconnect;
