@@ -411,11 +411,13 @@
 				status = "okay";
 			};
 
-			keyreset {
+			keypanic1 {
 				compatible = "marvell,keyreset";
+				/* 73- volume-up, 72- volume-down */
 				keys-down = <0x73 0x72>;
 				keyreset-need-panic;
 				status = "okay";
+				keyreset-press-msec = <2000>;
 			};
 
 			pmx: pinmux@d401e000 {
@@ -849,7 +851,7 @@
 
 			twsi0: i2c@d4011000 {
 				status = "okay";
-		     };
+			};
 
 			twsi1: i2c@d4010800 {
 				pinctrl-names = "default","gpio";

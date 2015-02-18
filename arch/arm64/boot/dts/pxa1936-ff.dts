@@ -60,6 +60,15 @@
 	compatible = "marvell,pxa1936-ff", "marvell,pxa1936";
 	soc {
 		apb@d4000000 {
+			keypanic2 {
+				compatible = "marvell,keyreset";
+				/* 74- onkey, 72- volume-down */
+				keys-down = <0x74 0x72>;
+				keyreset-need-panic;
+				status = "okay";
+				keyreset-press-msec = <2000>;
+			};
+
 			twsi0: i2c@d4011000 {
 				vibrator: vibrator@5a {
 					compatible = "ti,drv2604-vibrator";
