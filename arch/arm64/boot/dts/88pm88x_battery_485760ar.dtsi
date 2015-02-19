@@ -40,8 +40,8 @@
 		abs-lowest-temp = <20>;
 		t1-degree = <0>;	/* -20C */
 		t2-degree = <20>;	/* 0C */
-		t3-degree = <50>;	/* 30C */
-		t4-degree = <65>;	/* 45C */
+		t3-degree = <65>;	/* 45C */
+		t4-degree = <83>;	/* 63C */
 
 		times-in-minus-ten = <2>;
 		offset-in-minus-ten = <100>;
