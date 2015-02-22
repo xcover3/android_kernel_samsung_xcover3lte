@@ -156,6 +156,13 @@
 #define LM3532_HAS_WEBTOP       0x8
 #define LM3532_CONFIG_MAP_ALL_CTRL_A	0x10
 
+/* define default registers value */
+#define LM3532_OUTPUT_CFG_REG_DEFAULT			0x0
+#define LM3532_CTRL_A_FS_CURR_REG_DEFAULT_20p2MA	0x13
+#define LM3532_CTRL_A_BR_CFG_REG_MAP_DEFAULT		0x0
+#define LM3532_CTRL_A_PWM_REG_DEFAULT			0x1
+#define LM3532_FEEDBACK_ENABLE_REG_DEFAULT		0x7
+
 #ifdef __KERNEL__
 
 struct lm3532_platform_data {
@@ -173,6 +180,12 @@ struct lm3532_platform_data {
 	unsigned ctrl_b_mapping_mode; /* Control B Mapping mode (linear/exp) */
 	unsigned ctrl_c_mapping_mode; /* Control C Mapping mode (linear/exp) */
 	unsigned ctrl_a_pwm;
+	unsigned feedback_en_val;	/*
+					 * Controlls which current sinks are
+					 * part of boost controll loop
+					 */
+	unsigned output_cfg_val;
+	unsigned ctrl_a_current_ctrl; /* choose ALS or I2C current control */
 };
 #endif
 

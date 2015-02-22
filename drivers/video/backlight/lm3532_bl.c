@@ -312,8 +312,7 @@ static int lm3532_bl_brightness_set(struct backlight_device *bl)
 			  value, nsteps, total_time);
 	}
 
-	lm3532_write_reg(client, LM3532_CTRL_A_ZT3_REG, value,
-			 __func__);
+	lm3532_write_reg(client, LM3532_CTRL_A_ZT1_REG, value, __func__);
 	driver_data->bvalue = value;
 
 	mutex_unlock(&lm3532_mutex);
@@ -381,7 +380,7 @@ static int lm3532_bl_get_brightness(struct backlight_device *bl)
 	driver_data = container_of(&bl, struct lm3532_data, bl);
 	client = driver_data->client;
 
-	lm3532_read_reg(client, LM3532_CTRL_A_ZT3_REG, &value);
+	lm3532_read_reg(client, LM3532_CTRL_A_ZT1_REG, &value);
 
 	return value;
 }
@@ -476,17 +475,18 @@ static int lm3532_configure(struct lm3532_data *driver_data)
 	} else {
 		/* Revision 1 and above */
 		lm3532_write_reg(driver_data->client,
-				 LM3532_FEEDBACK_ENABLE_REG, 0x01, __func__);
+				 LM3532_FEEDBACK_ENABLE_REG,
+				 driver_data->pdata->feedback_en_val,
+				 __func__);
 		lm3532_write_reg(driver_data->client,
 				 LM3532_CTRL_A_PWM_REG,
 				 driver_data->pdata->ctrl_a_pwm, __func__);
-		/* Map ILED1 to CTRL A, ILED2 to CTRL B, ILED3 to CTRL B */
 		lm3532_write_reg(driver_data->client,
-				 LM3532_OUTPUT_CFG_REG, 0x14, __func__);
+				 LM3532_OUTPUT_CFG_REG,
+				 driver_data->pdata->output_cfg_val, __func__);
 		lm3532_write_reg(driver_data->client,
 				LM3532_CTRL_A_BR_CFG_REG,
-				LM3532_I2C_CONTROL |
-				LM3532_CTRL_A_ZONE_2 |
+				driver_data->pdata->ctrl_a_current_ctrl |
 				driver_data->pdata->ctrl_a_mapping_mode,
 				 __func__);
 
@@ -496,7 +496,8 @@ static int lm3532_configure(struct lm3532_data *driver_data)
 				 __func__);
 
 		ret = lm3532_write_reg(driver_data->client,
-				       LM3532_CTRL_B_ZT1_REG, 0, __func__);
+				LM3532_CTRL_A_ZT1_REG,
+				LM3532_BL_MAX_BRIGHTNESS, __func__);
 	}
 	if (driver_data->pdata->ramp_time == 0) {
 		lm3532_write_reg(driver_data->client,
@@ -582,28 +583,50 @@ static int lm3532_probe_dt(struct i2c_client *client)
 	client->dev.platform_data = pdata;
 
 	if (of_property_read_u32(np, "flags", &pdata->flags)) {
-		dev_err(&client->dev, "failed to get flags property\n");
-		return -EINVAL;
+		dev_info(&client->dev,
+		"failed to get flags property, set with default register value\n");
+		pdata->flags = 0;
 	}
 	if (of_property_read_u32(np, "ramp_time", &pdata->ramp_time)) {
-		dev_err(&client->dev, "failed to get ramp_time property\n");
-		return -EINVAL;
+		dev_info(&client->dev, "failed to get ramp_time property, set as 0\n");
+		pdata->ramp_time = 0;
 	}
 	if (of_property_read_u32(np, "ctrl_a_fs_current",
 				 &pdata->ctrl_a_fs_current)) {
-		dev_err(&client->dev,
-			"failed to get ctrl_a_fs_current property\n");
-		return -EINVAL;
+		dev_info(&client->dev,
+			"failed to get ctrl_a_fs_current property, set as default\n");
+		pdata->ctrl_a_fs_current =
+			LM3532_CTRL_A_FS_CURR_REG_DEFAULT_20p2MA;
 	}
 	if (of_property_read_u32(np, "ctrl_a_mapping_mode",
 				 &pdata->ctrl_a_mapping_mode)) {
-		dev_err(&client->dev,
-			"failed to get ctrl_a_mapping_mode property\n");
-		return -EINVAL;
+		dev_info(&client->dev,
+			"failed to get ctrl_a_mapping_mode property, set_as default\n");
+		pdata->ctrl_a_mapping_mode =
+				LM3532_CTRL_A_BR_CFG_REG_MAP_DEFAULT;
 	}
 	if (of_property_read_u32(np, "ctrl_a_pwm", &pdata->ctrl_a_pwm)) {
-		dev_err(&client->dev, "failed to get ctrl_a_pwm property\n");
-		return -EINVAL;
+		dev_info(&client->dev,
+			"failed to get ctrl_a_pwm property, set as default\n");
+		pdata->ctrl_a_pwm = LM3532_CTRL_A_PWM_REG_DEFAULT;
+	}
+	if (of_property_read_u32(np, "feedback_en_val",
+					&pdata->feedback_en_val)) {
+		dev_info(&client->dev,
+			"failed to get feedback_en_val property, set as default\n");
+		pdata->feedback_en_val = LM3532_FEEDBACK_ENABLE_REG_DEFAULT;
+	}
+	if (of_property_read_u32(np, "output_cfg_val",
+					&pdata->output_cfg_val)) {
+		dev_info(&client->dev,
+			"failed to get output_cfg_val property, set as default\n");
+		pdata->output_cfg_val = LM3532_OUTPUT_CFG_REG_DEFAULT;
+	}
+	if (of_property_read_u32(np, "ctrl_a_current_ctrl",
+					&pdata->ctrl_a_current_ctrl)) {
+		dev_info(&client->dev,
+			"failed to get ctrl_a_current_ctrl property, set as default\n");
+		pdata->ctrl_a_current_ctrl = LM3532_I2C_CONTROL;
 	}
 
 	return 0;
@@ -797,7 +820,7 @@ static UNIVERSAL_DEV_PM_OPS(lm3532_pm_ops, lm3532_runtime_suspend,
 			    lm3532_runtime_resume, NULL);
 
 static struct of_device_id lm3532_dt_ids[] = {
-	{.compatible = "bl,lm3532",},
+	{.compatible = "ti,lm3532",},
 	{}
 };
 
