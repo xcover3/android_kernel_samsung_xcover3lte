@@ -105,6 +105,7 @@ struct pm88x_charger_info {
 	unsigned int allow_recharge;
 	unsigned int allow_chg_after_tout;
 	unsigned int allow_chg_after_overvoltage;
+	unsigned int allow_chg_ext;
 
 	unsigned int charging;
 	unsigned int full;
@@ -119,7 +120,10 @@ struct pm88x_charger_info {
 static enum power_supply_property pm88x_props[] = {
 	POWER_SUPPLY_PROP_STATUS, /* Charger status output */
 	POWER_SUPPLY_PROP_ONLINE, /* External power source */
+	POWER_SUPPLY_PROP_CHARGE_ENABLED,
 };
+
+static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status);
 
 static inline int get_prechg_cur(struct pm88x_charger_info *info)
 {
@@ -249,6 +253,9 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 	if (!info->allow_chg_after_tout)
 		return false;
 
+	if (!info->allow_chg_ext)
+		return false;
+
 	if (!psy || !psy->get_property) {
 		psy = power_supply_get_by_name(info->usb_chg.supplied_to[0]);
 		if (!psy || !psy->get_property) {
@@ -307,6 +314,38 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 	}
 
 	return true;
+}
+
+static int pm88x_property_is_writeable(struct power_supply *psy,
+		enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static int pm88x_charger_set_property(struct power_supply *psy,
+		enum power_supply_property psp,
+		const union power_supply_propval *val)
+{
+	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
+
+	if (!info) {
+		pr_err("%s: charger chip info is empty!\n", __func__);
+		return -EINVAL;
+	}
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
+		pm88x_change_chg_status(info, val->intval);
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
 }
 
 static int pm88x_charger_get_property(struct power_supply *psy,
@@ -412,6 +451,43 @@ static int pm88x_stop_charging(struct pm88x_charger_info *info)
 	return 0;
 }
 
+
+static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status)
+{
+	int chg_online = (info->ac_chg_online || info->usb_chg_online);
+	int charging;
+
+	if (status == 1) {
+		/* allow charging */
+		dev_info(info->dev, "%s, allow charging\n", __func__);
+		info->allow_chg_ext = 1;
+
+		/*
+		 * start charging only if usb is connected and charging was enable
+		 * while calling for stop charging
+		 */
+		if (chg_online && info->charging) {
+			pm88x_start_charging(info);
+			dev_info(info->dev, "%s, charging is resumed\n", __func__);
+		}
+	} else {
+		charging = info->charging;
+		/* block charging */
+		dev_info(info->dev, "%s, block charging\n", __func__);
+		info->allow_chg_ext = 0;
+
+		if (chg_online) {
+			pm88x_stop_charging(info);
+			dev_info(info->dev, "%s, charging is paused\n", __func__);
+			/*
+			 * override charging flag in order to know if to
+			 * restart charging while status = POWER_SUPPLY_STATUS_CHARGING
+			 */
+			info->charging = charging;
+		}
+	}
+}
+
 static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 {
 	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
@@ -469,6 +545,8 @@ static int pm88x_power_supply_register(struct pm88x_charger_info *info)
 	info->ac_chg.properties = pm88x_props;
 	info->ac_chg.num_properties = ARRAY_SIZE(pm88x_props);
 	info->ac_chg.get_property = pm88x_charger_get_property;
+	info->ac_chg.set_property = pm88x_charger_set_property;
+	info->ac_chg.property_is_writeable = pm88x_property_is_writeable;
 	info->ac_chg.external_power_changed = pm88x_chg_ext_power_changed;
 
 	ret = power_supply_register(info->dev, &info->ac_chg);
@@ -481,6 +559,8 @@ static int pm88x_power_supply_register(struct pm88x_charger_info *info)
 	info->usb_chg.properties = pm88x_props;
 	info->usb_chg.num_properties = ARRAY_SIZE(pm88x_props);
 	info->usb_chg.get_property = pm88x_charger_get_property;
+	info->usb_chg.set_property = pm88x_charger_set_property;
+	info->usb_chg.property_is_writeable = pm88x_property_is_writeable;
 	info->usb_chg.external_power_changed = pm88x_chg_ext_power_changed;
 
 	ret = power_supply_register(info->dev, &info->usb_chg);
@@ -502,6 +582,7 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 	info->allow_recharge = 1;
 	info->allow_chg_after_tout = 1;
 	info->allow_chg_after_overvoltage = 1;
+	info->allow_chg_ext = 1;
 
 	info->ac_chg_online = 0;
 	info->usb_chg_online = 0;
@@ -885,6 +966,7 @@ static int pm88x_charger_probe(struct platform_device *pdev)
 
 	info = devm_kzalloc(&pdev->dev, sizeof(struct pm88x_charger_info),
 			GFP_KERNEL);
+
 	if (!info) {
 		dev_err(&pdev->dev, "Cannot allocate memory.\n");
 		return -ENOMEM;
