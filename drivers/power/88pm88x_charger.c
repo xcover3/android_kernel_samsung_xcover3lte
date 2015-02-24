@@ -60,7 +60,7 @@
 #define PM88X_CHG_ILIM_FINE_10		(0x4 << 4)
 
 #define PM88X_MPPT_CONFIG3		(0x40)
-#define PM88X_WA_TH_SET_3V9		(0x3 << 0)
+#define PM88X_WA_TH_MASK		(0x3 << 0)
 
 #define PM88X_CHG_LOG1			(0x45)
 #define PM88X_BATT_REMOVAL		(1 << 0)
@@ -555,9 +555,14 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 	regmap_update_bits(info->chip->battery_regmap, PM88X_FAST_CONFIG3,
 			   PM88X_IBAT_EOC_TH, get_fastchg_eoc(info));
 
-	/* set wall-adaptor threshold to 3.9V */
+	/*
+	 * set wall-adaptor threshold to 3.9V:
+	 * on PM886 the value is the maximum (0x3),
+	 * on PM880 the value is the minimum (0x0)
+	 */
+	data = (info->chip->type == PM886 ? PM88X_WA_TH_MASK : 0x0);
 	regmap_update_bits(info->chip->battery_regmap, PM88X_MPPT_CONFIG3,
-			   PM88X_WA_TH_SET_3V9, PM88X_WA_TH_SET_3V9);
+			   PM88X_WA_TH_MASK, data);
 
 	return 0;
 }
