@@ -1901,6 +1901,7 @@ struct snd_soc_codec_driver soc_codec_dev_map = {
 	.read = map_read,
 	.write = map_write,
 	.reg_cache_size = MAP_CACHE_SIZE,
+	.reg_cache_step = 4,
 	.reg_word_size = sizeof(u32),
 	.controls = map_snd_controls,
 	.num_controls = ARRAY_SIZE(map_snd_controls),
