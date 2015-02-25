@@ -18,6 +18,7 @@
 #include <linux/clk/mmpdcstat.h>
 #include <linux/clk/mmpcpdvc.h>
 #include <linux/debugfs.h>
+#include <linux/clk/mmpfuse.h>
 
 #include "clk.h"
 #include "clk-plat.h"
@@ -365,6 +366,12 @@ unsigned int get_iddq_130(void)
 	return comm_fuseinfo.iddq_1030;
 }
 EXPORT_SYMBOL(get_iddq_130);
+
+unsigned int get_skusetting(void)
+{
+	return comm_fuseinfo.skusetting;
+}
+EXPORT_SYMBOL(get_skusetting);
 
 #ifdef CONFIG_DEBUG_FS
 static ssize_t fab_fuse_read(struct file *file, char __user *user_buf,

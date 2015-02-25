@@ -75,6 +75,7 @@ static unsigned int uisvtdro;
 static unsigned int uilvtdro;
 static unsigned int uisidd1p05;
 static unsigned int uisidd1p30;
+
 static struct comm_fuse_info fuseinfo;
 
 #define CHIP_PROFILE_15   (15)
@@ -142,6 +143,7 @@ static int __init __init_read_droinfo(void)
 	unsigned int uiy = 0;
 	unsigned int uiparity = 0;
 	unsigned int uifusever = 0;
+	unsigned int uiskusetting = 0;
 
 #ifdef CONFIG_ARM64
 	smc_get_fuse_info(0xD0002000, (void *)&arg);
@@ -166,6 +168,9 @@ static int __init __init_read_droinfo(void)
 	uix		= (uimanupara_63_32 >>  7) & 0xff;
 	uiy		= (uimanupara_63_32 >> 15) & 0xff;
 	uiparity	= (uimanupara_63_32 >> 23) & 0x1;
+
+	/*bit 174 ~ 179 for core speed and UDR voltage*/
+	uiskusetting	= (uimanupara_95_64 >> 14) & 0x3f;
 
 	uifusever = (uiblock0_rsv1 >> 6) & 0x3;
 	if (1 == uifusever) {
@@ -193,6 +198,7 @@ static int __init __init_read_droinfo(void)
 	fuseinfo.profile = uiprofile;
 	fuseinfo.iddq_1050 = uisidd1p05;
 	fuseinfo.iddq_1030 = uisidd1p30;
+	fuseinfo.skusetting = uiskusetting;
 	plat_fill_fuseinfo(&fuseinfo);
 
 	pr_info(" ");
@@ -208,6 +214,7 @@ static int __init __init_read_droinfo(void)
 	pr_info("		x [46:39]	= %d\n", uix);
 	pr_info("		y [54:47]	= %d\n", uiy);
 	pr_info("		parity [55:55]	= %d\n", uiparity);
+	pr_info("		skusetting [174:179]	= %d\n", uiskusetting);
 	pr_info("	*********************************\n");
 	pr_info("	*********************************\n");
 	pr_info("		LVTDRO [77:68]	= %d\n", uilvtdro);

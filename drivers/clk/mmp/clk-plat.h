@@ -66,6 +66,7 @@ struct comm_fuse_info {
 	unsigned int profile;
 	unsigned int iddq_1050;
 	unsigned int iddq_1030;
+	unsigned int skusetting;
 };
 extern int plat_fill_fuseinfo(struct comm_fuse_info *info);
 
