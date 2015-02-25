@@ -247,13 +247,18 @@ struct regval_tab s5k5e3_id[] = {
 };
 
 struct regval_tab s5k5e3_vts[] = {
+	{0x0340, 0x07, 0xff},
+	{0x0341, 0xe9, 0xff},
 };
 
 struct regval_tab s5k5e3_expo[] = {
 	{0x0202, 0x04, 0xff},
 	{0x0203, 0xE2, 0xff},
 };
-
+struct regval_tab s5k5e3_frationalexp[] = {
+	{0x0200, 0x00, 0xff},
+	{0x0201, 0x00, 0xff},
+};
 struct regval_tab s5k5e3_ag[] = {
 	{0x0204, 0x00, 0xff},
 	{0x0205, 0xF0, 0xff},
@@ -285,6 +290,9 @@ struct b52_sensor_i2c_attr s5k5e3_i2c_attr[] = {
 		.addr = 0x10,
 	},
 };
+static struct b52_sensor_module s5k5e3_SSG = {
+	.id = 0,
+};
 #define N_S5K5E3_I2C_ATTR ARRAY_SIZE(s5k5e3_i2c_attr)
 #define N_S5K5E3_INIT ARRAY_SIZE(s5k5e3_res_init)
 #define N_S5K5E3_ID ARRAY_SIZE(s5k5e3_id)
@@ -293,6 +301,7 @@ struct b52_sensor_i2c_attr s5k5e3_i2c_attr[] = {
 #define N_S5K5E3_1M ARRAY_SIZE(s5k5e3_res_1M)
 #define N_S5K5E3_VTS ARRAY_SIZE(s5k5e3_vts)
 #define N_S5K5E3_EXPO ARRAY_SIZE(s5k5e3_expo)
+#define N_S5K5E3_FRATIONALEXPO ARRAY_SIZE(s5k5e3_frationalexp)
 #define N_S5K5E3_AG ARRAY_SIZE(s5k5e3_ag)
 #define N_S5K5E3_AF ARRAY_SIZE(s5k5e3_af)
 #define N_S5K5E3_STREAM_ON ARRAY_SIZE(s5k5e3_stream_on)
@@ -312,8 +321,8 @@ struct b52_sensor_resolution s5k5e3_res[] = {
 	[0] = {
 		 .width = 2576,
 		 .height = 1932,
-		 .hts = 0x0b00,
-		 .min_vts = 0x0800,
+		 .hts = 0x0b86,
+		 .min_vts = 0x07e9,
 		 .prop = SENSOR_RES_BINING1,
 		 .regs = {
 			.tab = s5k5e3_res_5M,
@@ -323,8 +332,8 @@ struct b52_sensor_resolution s5k5e3_res[] = {
 	[1] = {
 		 .width = 1280,
 		 .height = 960,
-		 .hts = 0x0b00,
-		 .min_vts = 0x07c0,
+		 .hts = 0x0b86,
+		 .min_vts = 0x07e9,
 		 .prop = SENSOR_RES_BINING2,
 		 .regs = {
 			.tab = s5k5e3_res_1M,
@@ -369,10 +378,10 @@ struct b52_sensor_data b52_s5k5e3 = {
 		.numerator = 100,
 		.denominator = 0x10,
 	},
-	.vts_range = {0x0ba0, 0x7fff},
+	.vts_range = {0x07e9, 0x7fff},
 	.gain_range = {
-		[B52_SENSOR_AG] = {0x0010, 0x0100},
-		[B52_SENSOR_DG] = {0x0010, 0x0010},
+		[B52_SENSOR_AG] = {0x0020, 0x0100},
+		[B52_SENSOR_DG] = {0x0020, 0x0010},
 	},
 	.expo_range = {0x0010, 0x07e0},
 	.focus_range = {0x0000, 0x0000},
@@ -383,6 +392,10 @@ struct b52_sensor_data b52_s5k5e3 = {
 	.expo_reg = {
 		.tab = s5k5e3_expo,
 		.num = N_S5K5E3_EXPO,
+	},
+	.frationalexp_reg = {
+		.tab = s5k5e3_frationalexp,
+		.num = N_S5K5E3_FRATIONALEXPO,
 	},
 	.gain_reg = {
 		[B52_SENSOR_AG] = {
@@ -406,11 +419,15 @@ struct b52_sensor_data b52_s5k5e3 = {
 		.tab = s5k5e3_vflip,
 		.num = N_S5K5E3_VFLIP,
 	},
-	.gain_shift = 0,
+	.flip_change_phase =  0,
+	/* A gain format is 8.5 */
+	.gain_shift = 0x00,
+	/* A expo format is 2 byte */
+	.expo_shift = 0x08,
+	.calc_dphy = 0,
 	.nr_lane = 2,
 	.ops = &s5k5e3_ops,
-
-	.expo_shift = 0x08,
+	.module = &s5k5e3_SSG,
 	.mipi_clk_bps = 896000000,
 	.reset_delay = 100,
 };

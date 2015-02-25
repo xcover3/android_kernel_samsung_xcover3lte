@@ -2886,7 +2886,7 @@ static const struct of_device_id b52_sensor_of_match[] = {
 #endif
 #ifdef CONFIG_B52_CAMERA_S5K5E3
 	{
-		.compatible = "marvell,s5k5e3",
+		.compatible = "samsung,s5k5e3",
 		.data = &b52_s5k5e3,
 	},
 #endif
