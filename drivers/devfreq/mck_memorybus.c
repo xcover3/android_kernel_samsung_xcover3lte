@@ -78,7 +78,6 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 		container_of(nb, struct ddr_devfreq_data, freq_transition);
 	struct devfreq *devfreq = cur_data->devfreq;
 	struct devfreq_throughput_data *gov_data;
-	struct clk *clk;
 	int evoc = 0;
 	unsigned int upthrd;
 	unsigned int cur_freq;
@@ -97,24 +96,20 @@ static int upthreshold_freq_notifer_call(struct notifier_block *nb,
 	else if (val == GPUFREQ_POSTCHANGE_DOWN)
 		cur_data->gpu_up = 0;
 
-	/* multi-cluster case*/
-	if (cur_data->multi_clst == 1) {
-		clk = __clk_lookup("clst0");
-		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+	if (cur_data->multi_clst) { /* multi-cluster case*/
+		cur_freq = clk_get_rate(cur_data->clst0_clk) / KHZ_TO_HZ;
 		if (cur_freq >= cur_data->high_upthrd_swp_clst0)
 			cur_data->cpu_up = 1;
 		else
 			cur_data->cpu_up = 0;
 
-		clk = __clk_lookup("clst1");
-		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		cur_freq = clk_get_rate(cur_data->clst1_clk) / KHZ_TO_HZ;
 		if (cur_freq >= cur_data->high_upthrd_swp_clst1)
 			cur_data->cpu_up |= 1;
 		else
 			cur_data->cpu_up |= 0;
 	} else { /* single cluster case */
-		clk = __clk_lookup("cpu");
-		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		cur_freq = clk_get_rate(cur_data->cpu_clk) / KHZ_TO_HZ;
 		if (cur_freq >= cur_data->high_upthrd_swp)
 			cur_data->cpu_up = 1;
 		else
@@ -718,7 +713,6 @@ static ssize_t high_swp_store(struct device *dev, struct device_attribute *attr,
 	struct platform_device *pdev;
 	struct ddr_devfreq_data *data;
 	struct devfreq *devfreq;
-	struct clk *clk;
 	unsigned int swp, swp_clst0, swp_clst1;
 	unsigned int cur_freq;
 	unsigned int upthrd;
@@ -746,12 +740,11 @@ static ssize_t high_swp_store(struct device *dev, struct device_attribute *attr,
 
 	up_flag_ori = data->cpu_up | data->gpu_up;
 
-	if (data->multi_clst) {
+	if (data->multi_clst) { /* multi-cluster case*/
 		data->high_upthrd_swp_clst0 = swp_clst0;
 		data->high_upthrd_swp_clst1 = swp_clst1;
 
-		clk = __clk_lookup("clst0");
-		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		cur_freq = clk_get_rate(data->clst0_clk) / KHZ_TO_HZ;
 		if (cur_freq >= data->high_upthrd_swp_clst0)
 			data->cpu_up = 1;
 		else
@@ -760,8 +753,7 @@ static ssize_t high_swp_store(struct device *dev, struct device_attribute *attr,
 		dev_dbg(dev, "clst0, swp: threshold = %u, freq = %u, cpu_up = %d\n",
 			data->high_upthrd_swp_clst0, cur_freq, data->cpu_up);
 
-		clk = __clk_lookup("clst1");
-		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		cur_freq = clk_get_rate(data->clst1_clk) / KHZ_TO_HZ;
 		if (cur_freq >= data->high_upthrd_swp_clst1)
 			data->cpu_up |= 1;
 		else
@@ -769,11 +761,10 @@ static ssize_t high_swp_store(struct device *dev, struct device_attribute *attr,
 
 		dev_dbg(dev, "clst1, swp: threshold = %u, freq = %u, cpu_up = %d\n",
 			data->high_upthrd_swp_clst1, cur_freq, data->cpu_up);
-	} else {
+	} else { /* single cluster case */
 		data->high_upthrd_swp = swp;
 
-		clk = __clk_lookup("cpu");
-		cur_freq = clk_get_rate(clk) / KHZ_TO_HZ;
+		cur_freq = clk_get_rate(data->cpu_clk) / KHZ_TO_HZ;
 		if (cur_freq >= data->high_upthrd_swp)
 			data->cpu_up = 1;
 		else
@@ -1513,17 +1504,22 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		goto err_devfreq_add;
 	}
 
-	if (__clk_lookup("clst0") && __clk_lookup("clst1")) {
+	data->clst0_clk = __clk_lookup("clst0");
+	data->clst1_clk = __clk_lookup("clst1");
+	data->cpu_clk = __clk_lookup("cpu");
+
+	if (data->clst0_clk && data->clst1_clk) {
 		data->multi_clst = 1;
 		data->high_upthrd_swp = 0xffffffff;
 		data->high_upthrd_swp_clst0= DDR_DEVFREQ_HIGHCPUFREQ_CLST0;
 		data->high_upthrd_swp_clst1= DDR_DEVFREQ_HIGHCPUFREQ_CLST1;
-	} else {
+	} else if (data->cpu_clk) {
 		data->multi_clst = 0;
 		data->high_upthrd_swp = DDR_DEVFREQ_HIGHCPUFREQ;
 		data->high_upthrd_swp_clst0= 0xffffffff;
 		data->high_upthrd_swp_clst1= 0xffffffff;
-	}
+	} else
+		dev_err(dev, "devfreq: CPU clock lookup error !\n");
 
 	data->high_upthrd = DDR_DEVFREQ_HIGHCPUFREQ_UPTHRESHOLD;
 	data->cpu_up = 0;

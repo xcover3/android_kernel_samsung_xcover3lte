@@ -127,6 +127,9 @@ struct ddr_profiler_data {
 struct ddr_devfreq_data {
 	struct devfreq *devfreq;
 	struct clk *ddr_clk;
+	struct clk *clst0_clk;
+	struct clk *clst1_clk;
+	struct clk *cpu_clk;
 	struct mck_ppmu dmc;
 	unsigned int bst_len; /* ddr burst length */
 	unsigned long last_polled_at;
