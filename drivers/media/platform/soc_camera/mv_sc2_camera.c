@@ -400,18 +400,18 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 				baddr = 2 << 28;
 			else
 				baddr = vbuf->v4l2_planes[2].m.userptr;
-			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
+			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[1].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
-				pid, 1 + pid * 4, 0);
+				pid, 2 + pid * 4, 0);
 			mbuf->ch_info[1].daddr = baddr;
 
 			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
 				baddr = 3 << 28;
 			else
 				baddr = vbuf->v4l2_planes[1].m.userptr;
-			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
+			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[2].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
-				pid, 2 + pid * 4, 0);
+				pid, 1 + pid * 4, 0);
 			mbuf->ch_info[2].daddr = baddr;
 			break;
 		case V4L2_PIX_FMT_NV12:
