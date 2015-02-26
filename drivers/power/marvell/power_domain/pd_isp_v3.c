@@ -22,6 +22,8 @@
 #define APMU_CCIC_CLK_RES_CTRL     0x50
 #define APMU_ISP_CLK_RES_CTRL   0x038
 #define APMU_CSI_CCIC2_CLK_RES_CTRL	0x24
+#define APMU_CCIC1_CLK_GATE_CTRL 0x28
+#define APMU_CCIC2_CLK_GATE_CTRL 0x1bc
 
 #define ISP_AHB_EN ((1 << 21) | (1 << 22))
 
@@ -204,6 +206,7 @@ static int mmp_pd_isp_v3_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret;
 	u32 latency;
+	u32 val;
 
 	if (!np)
 		return -EINVAL;
@@ -226,6 +229,14 @@ static int mmp_pd_isp_v3_probe(struct platform_device *pdev)
 					resource_size(res));
 	if (!pd->reg_base)
 		return -EINVAL;
+
+	/* set CCIC1 and CCIC2 clk dynamic gating for power saving */
+	val = readl(pd->reg_base + APMU_CCIC1_CLK_GATE_CTRL);
+	if (val != 0xffff0000)
+		writel(0xffff0000, pd->reg_base + APMU_CCIC1_CLK_GATE_CTRL);
+	val = readl(pd->reg_base + APMU_CCIC2_CLK_GATE_CTRL);
+	if (val != 0xffff0000)
+		writel(0xffff0000, pd->reg_base + APMU_CCIC2_CLK_GATE_CTRL);
 
 	/* Some power domain may need clk for power on. */
 	pd->clk = devm_clk_get(&pdev->dev, NULL);

@@ -169,6 +169,7 @@
 #define REG_SC2_GIRQ_STAT	0x0818
 #define REG_SC2_GMISC_CTRL	0x081c
 #define REG_SC2_CHDIS_DONE	0x0820
+#define REG_SC2_AXICLK_CG	0x083c
 /* bit defination in registers */
 /* REG_SC2_CTRLx */
 #define CCTRL_CH_ID(x)			(x & 0x000703FF)

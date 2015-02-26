@@ -299,6 +299,8 @@ static int msc2_chs_enable(struct msc2_mmu_dev *sc2_dev,
 			return ret;
 		}
 	}
+	/* set clock as dynamic gate for power optimization */
+	msc2_mmu_reg_write(sc2_dev, REG_SC2_AXICLK_CG, 0x0);
 	spin_unlock_irqrestore(&sc2_dev->msc2_lock, flags);
 	return 0;
 }
