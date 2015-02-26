@@ -296,11 +296,6 @@ static int __init __init_read_droinfo(void)
 
 }
 
-unsigned int get_helan3_profile(void)
-{
-	return uiprofile;
-}
-
 #ifndef CONFIG_SVC_TSMC
 /* components frequency combination */
 /* FIXME: adjust according to SVC */

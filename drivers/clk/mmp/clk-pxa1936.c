@@ -21,7 +21,7 @@
 #include <dt-bindings/clock/marvell-pxa1936.h>
 #include <linux/debugfs-pxa.h>
 #include <linux/cputype.h>
-
+#include <linux/clk/mmpfuse.h>
 #include "clk.h"
 #include "clk-pll-helanx.h"
 #include "clk-core-helan3.h"
@@ -1807,7 +1807,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 		max_freq = CORE_1p5G;
 	clst1_core_params.max_cpurate = max_freq;
 
-	profile = get_helan3_profile();
+	profile = get_chipprofile();
 	if ((profile >= 13) && (ddr_mode == DDR_800M)
 		&& (max_freq == CORE_1p5G))
 		panic("1.5GHz SKU chip Don't support DDR 800 mode when profile >= 13 , will panic.\n");
