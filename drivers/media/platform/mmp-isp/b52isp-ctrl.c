@@ -949,9 +949,15 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 			if (ret < 0)
 				return ret;
 			if ((lines + 16) > sensor->drvdata->vts_range.min)
-				b52_writew(base + REG_FW_CURR_VTS, lines + 16);
+				if (ctrls->auto_frame_rate->val ==
+						CID_AUTO_FRAME_RATE_DISABLE)
+					b52_writew(base + REG_FW_VTS,
+								lines + 16);
+				else
+					b52_writew(base + REG_FW_VTS,
+						sensor->drvdata->vts_range.min);
 			else
-				b52_writew(base + REG_FW_CURR_VTS,
+				b52_writew(base + REG_FW_VTS,
 						sensor->drvdata->vts_range.min);
 			if (ctrls->aec_manual_mode->val ==
 						CID_AEC_AUTO_THRESHOLD) {
