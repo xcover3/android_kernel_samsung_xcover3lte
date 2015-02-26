@@ -162,6 +162,16 @@ static struct v4l2_ctrl_config b52isp_ctrl_band_step_cfg = {
 	.step = 1,
 	.def = 0,
 };
+static struct v4l2_ctrl_config b52isp_ctrl_set_fps_cfg = {
+	.ops = &b52isp_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_SET_FPS,
+	.name = "set fps",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 0xff,
+	.step = 1,
+	.def = 0,
+};
 struct b52isp_ctrl_colorfx_reg {
 	u32 reg;
 	u32 val;
@@ -989,7 +999,18 @@ static int b52isp_ctrl_get_expo(struct b52isp_ctrls *ctrls, int id)
 	}
 	return ret;
 }
-
+static int b52isp_ctrl_set_fps(struct b52isp_ctrls *ctrls, int id)
+{
+	u32 vts = 0;
+	int value = ctrls->set_fps->val;
+	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
+	struct b52_sensor *sensor = b52isp_ctrl_to_sensor(ctrls->auto_expo);
+	if (value > 30 || value <= 0)
+		return -EINVAL;
+	vts = sensor->drvdata->vts_range.min * 30 / value;
+	b52_writew(base + REG_FW_VTS, vts);
+	return 0;
+}
 static int b52isp_ctrl_set_3a_lock(struct v4l2_ctrl *ctrl, int id)
 {
 	u32 base;
@@ -1846,6 +1867,9 @@ static int b52isp_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_PRIVATE_AEC_MANUAL_MODE:
 		break;
 
+	case V4L2_CID_PRIVATE_SET_FPS:
+		ret = b52isp_ctrl_set_fps(ctrls, id);
+		break;
 	default:
 		pr_err("no to s_ctrl: %s (%d)\n", ctrl->name, ctrl->val);
 		ret = -EINVAL;
@@ -1869,7 +1893,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	struct v4l2_ctrl_handler *handler = &ctrls->ctrl_handler;
 	const struct v4l2_ctrl_ops *ops = &b52isp_ctrl_ops;
 
-	v4l2_ctrl_handler_init(handler, 36);
+	v4l2_ctrl_handler_init(handler, 37);
 
 	ctrls->saturation = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_SATURATION, 0, 0xFFFF, 1, 0);
@@ -1984,6 +2008,8 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	ctrls->band_step = v4l2_ctrl_new_custom(handler,
 			&b52isp_ctrl_band_step_cfg, NULL);
 	ctrls->band_step->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	ctrls->set_fps = v4l2_ctrl_new_custom(handler,
+			&b52isp_ctrl_set_fps_cfg, NULL);
 	if (handler->error) {
 		pr_err("%s: failed to init all ctrls", __func__);
 		return handler->error;

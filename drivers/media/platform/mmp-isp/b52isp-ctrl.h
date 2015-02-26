@@ -97,6 +97,8 @@ struct b52isp_ctrls {
 	struct v4l2_ctrl *aec_stable;
 	/* ISP band step */
 	struct v4l2_ctrl *band_step;
+	/* ISP set fps */
+	struct v4l2_ctrl *set_fps;
 	/* user config data*/
 	struct v4l2_rect af_win;
 	struct b52isp_win metering_roi;
