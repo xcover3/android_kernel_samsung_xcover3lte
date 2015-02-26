@@ -107,7 +107,6 @@ extern int dvfs_setup_dvcplatinfo(struct dvc_plat_info *platinfo);
 extern int dvfs_get_dvcplatinfo(struct dvc_plat_info *platinfo);
 
 extern int dvfs_get_svc_freq_table(unsigned long const **freq, const char *name);
-extern unsigned int get_helan3_max_freq(void);
 extern int get_nodvfs(void);
 
 /* hwdvc notifier */
@@ -118,6 +117,5 @@ struct hwdvc_notifier_data {
 };
 extern int hwdvc_notifier_register(struct notifier_block *n);
 extern int hwdvc_notifier_unregister(struct notifier_block *n);
-extern int is_1p5G_chip;
 
 #endif
