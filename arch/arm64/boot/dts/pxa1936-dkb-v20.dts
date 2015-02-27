@@ -319,7 +319,7 @@
 			S5K3L2: sensor@5 {
 				compatible = "samsung,s5k3l2";
 				status = "okay";
-				reg = <0x10>;
+				reg = <0x2d>;
 				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
 				clock-names = "SC2MCLK";
 				sc2-i2c-dyn-ctrl;
