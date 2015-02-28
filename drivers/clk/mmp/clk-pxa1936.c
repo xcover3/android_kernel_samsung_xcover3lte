@@ -1740,9 +1740,23 @@ static void __init pxa1936_misc_init(struct pxa1936_clk_unit *pxa_unit)
 	/* NOTE: not init GPU/VPU xtc here as we will set rate after register those clocks. */
 }
 
+/* unit is MHz */
+static unsigned int __init pxa1936_round_max_freq(unsigned int freq)
+{
+	if (freq <= CORE_1p25G)
+		return CORE_1p25G;
+	else if (freq <= CORE_1p5G)
+		return CORE_1p5G;
+	else if (freq <= CORE_1p8G)
+		return CORE_1p8G;
+	else
+		/* typical value we support */
+		return CORE_1p5G;
+}
+
 static void __init pxa1936_clk_init(struct device_node *np)
 {
-	unsigned int max_freq = 0, profile = 0;
+	unsigned int max_freq_fused = CORE_1p5G, profile = 0;
 	struct pxa1936_clk_unit *pxa_unit;
 
 	pxa_unit = kzalloc(sizeof(*pxa_unit), GFP_KERNEL);
@@ -1799,25 +1813,27 @@ static void __init pxa1936_clk_init(struct device_node *np)
 #if defined(CONFIG_PXA_DVFS)
 	setup_pxa1936_dvfs_platinfo();
 	/* get big cluster max freq */
-	max_freq = get_helan3_max_freq();
-	if (max_freq <= 0)
-		max_freq = CORE_1p5G;
-	/* for safety, just limit the max freq to 1526MHz. */
-	if (max_freq > CORE_1p5G)
-		max_freq = CORE_1p5G;
-	clst1_core_params.max_cpurate = max_freq;
+	max_freq_fused = get_helan3_max_freq();
+	max_freq_fused = pxa1936_round_max_freq(max_freq_fused);
+	clst1_core_params.max_cpurate = max_freq_fused;
 
 	profile = get_chipprofile();
 	if ((profile >= 13) && (ddr_mode == DDR_800M)
-		&& (max_freq == CORE_1p5G))
-		panic("1.5GHz SKU chip Don't support DDR 800 mode when profile >= 13 , will panic.\n");
+		&& (max_freq_fused < CORE_1p8G))
+		panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 13 , will panic.\n");
 
-	if ((profile >= 13) && (max_freq == CORE_1p5G)) {
+	if ((profile >= 13) && (max_freq_fused <= CORE_1p5G)) {
 		clst0_core_params.max_cpurate = 1057;
-		pr_info("1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 13\n");
+		pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 13\n");
 	}
 
 #endif
+	/* let uboot cmdline param have the final judge */
+	if (max_freq) {
+		max_freq = pxa1936_round_max_freq(max_freq);
+		if (max_freq < max_freq_fused)
+			clst1_core_params.max_cpurate = max_freq;
+	}
 	pr_info("little cluster max rate: %dMHz\n", clst0_core_params.max_cpurate);
 	pr_info("big cluster max rate: %dMHz\n", clst1_core_params.max_cpurate);
 
