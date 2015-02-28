@@ -175,9 +175,9 @@ void drain_mc_buffer(void)
 	return;
 }
 
-void panic_flush(struct pt_regs *regs)
+static int panic_flush(struct notifier_block *nb,
+				   unsigned long l, void *buf)
 {
-	struct pt_regs fixed_regs;
 	int i;
 
 	raw_spin_lock(&panic_lock);
@@ -188,10 +188,6 @@ void panic_flush(struct pt_regs *regs)
 
 	set_emmd_indicator();
 	ramtag_setup();
-
-	crash_setup_regs(&fixed_regs, regs);
-	crash_save_vmcoreinfo();
-	machine_crash_shutdown(&fixed_regs);
 
 	kmsg_dump(KMSG_DUMP_PANIC);
 	dump_task_info();
@@ -212,35 +208,9 @@ void panic_flush(struct pt_regs *regs)
 	outer_flush_all();
 #endif
 	drain_mc_buffer();
-	if (panic_timeout > 0) {
-		/*
-		 * Delay timeout seconds before rebooting the machine.
-		 * We can't use the "normal" timers since we just panicked.
-		 */
-		pr_emerg("Rebooting in %d seconds..", panic_timeout);
-
-		for (i = 0; i < panic_timeout * 1000; i += PANIC_TIMER_STEP)
-			mdelay(PANIC_TIMER_STEP);
-	}
-
-	if (panic_timeout != 0) {
-		/*
-		 * This will not be a clean reboot, with everything
-		 * shutting down.  But if there is a chance of
-		 * rebooting the system it will be rebooted.
-		 */
-		if (arm_pm_restart != NULL)
-			arm_pm_restart(0, NULL);
-	}
-
 	raw_spin_unlock(&panic_lock);
 
-	/*
-	 * Whoops - the architecture was unable to reboot.
-	 */
-	pr_emerg("Reboot failed -- System halted\n");
-	while (1)
-		cpu_relax();
+	return NOTIFY_DONE;
 }
 
 #if (defined CONFIG_PM)
@@ -299,6 +269,9 @@ static struct notifier_block _reboot_notifier = {
 	.notifier_call = _reboot_notifier_evt,
 };
 
+static struct notifier_block nb_panic_block = {
+	.notifier_call = panic_flush,
+};
 static int __init pxa_panic_init(void)
 {
 	struct device_node *np;
@@ -324,6 +297,8 @@ static int __init pxa_panic_init(void)
 		mc_base = of_iomap(np, 0);
 	else
 		mc_base = NULL;
+
+	atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
 
 	return 0;
 }
