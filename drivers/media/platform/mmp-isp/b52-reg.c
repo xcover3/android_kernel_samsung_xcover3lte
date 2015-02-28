@@ -2958,8 +2958,12 @@ static int b52_cmd_process_raw(struct b52isp_cmd *cmd)
 	if (dns == DISABLE_ADV_DNS) {
 		b52_writeb(CMD_REG3, DISABLE_ADV_DNS);
 		ret = wait_cmd_done(CMD_PROCESS_RAW);
-		if (ret < 0)
-			pr_err("process raw failed\n");
+		if (ret < 0) {
+			pr_err("process raw failed try again\n");
+			ret = wait_cmd_done(CMD_PROCESS_RAW);
+			if (ret < 0)
+				pr_err("process raw failed\n");
+		}
 	} else {
 		ret = b52_dns_process(cmd, dns);
 		if (ret < 0)
