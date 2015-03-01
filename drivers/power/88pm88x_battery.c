@@ -822,9 +822,23 @@ enum {
 	MAX_RANGE,
 };
 
+static inline const char *range_to_string(int range)
+{
+	const char *bat_range[] = {
+		"COLD_NO_CHARGING",
+		"LOW_TEMP",
+		"STD_TEMP",
+		"HIGH_TEMP",
+		"HOT_NO_CHARGING",
+	};
+	return range < ARRAY_SIZE(bat_range) ? bat_range[range] : "Unknown";
+}
+
 static int pm88x_get_batt_health(struct pm88x_battery_info *info)
 {
-	int temp, health, range, old_range = MAX_RANGE;
+	int temp, health, range;
+	static int old_range = MAX_RANGE;
+
 	if (!info->bat_params.present) {
 		info->bat_params.health = POWER_SUPPLY_HEALTH_UNKNOWN;
 		return 0;
@@ -850,9 +864,8 @@ static int pm88x_get_batt_health(struct pm88x_battery_info *info)
 	}
 
 	if ((old_range != range) && (old_range != MAX_RANGE)) {
-		dev_dbg(info->dev, "temperature changes: %d --> %d\n",
-			old_range, range);
-		power_supply_changed(&info->battery);
+		dev_info(info->dev, "temperature changes: %s --> %s\n",
+				range_to_string(old_range), range_to_string(range));
 	}
 	old_range = range;
 
@@ -1431,6 +1444,7 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 	static int prev_cap = -1;
 	static int prev_volt = -1;
 	static int prev_status = -1;
+	static int prev_health = -1;
 
 	info = container_of(work, struct pm88x_battery_info, monitor_work.work);
 
@@ -1446,15 +1460,18 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 	 * send a notification when:
 	 * 1. capacity or status is changed - in order to update Android
 	 * 2. status is FULL - trigger the charger driver to check the recharge threshold
+	 * 3. health is changed - trigger the charger driver to check charging
 	 */
 	if ((prev_cap != info->bat_params.soc)
 	    || (prev_status != info->bat_params.status)
+	    || (prev_health != info->bat_params.health)
 	    || (info->bat_params.status == POWER_SUPPLY_STATUS_FULL)) {
 
 		power_supply_changed(&info->battery);
 		prev_cap = info->bat_params.soc;
 		prev_volt = info->bat_params.volt;
 		prev_status = info->bat_params.status;
+		prev_health = info->bat_params.health;
 		dev_info(info->dev,
 			 "cap=%d, temp=%d, volt=%d, ocv_is_realiable=%d\n",
 			 info->bat_params.soc, info->bat_params.temp / 10,
