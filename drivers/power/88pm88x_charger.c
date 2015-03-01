@@ -846,7 +846,8 @@ static irqreturn_t pm88x_chg_done_handler(int irq, void *data)
 
 static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 {
-	int chg_allowed, chg_online, prev_status;
+	static int prev_chg_online = -1;
+	int chg_allowed, chg_online, prev_status, update_psy = 0;
 	char *charger_status[] = {
 		"UNKNOWN",
 		"CHARGING",
@@ -869,10 +870,7 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 		/* recharge done */
 		} else if (info->full) {
 			info->full = 0;
-			if (info->used_chg_type == USB_CHARGER_TYPE)
-				power_supply_changed(&info->usb_chg);
-			else
-				power_supply_changed(&info->ac_chg);
+			update_psy = 1;
 		} else {
 			/* start recharge */
 			if (!info->charging && chg_allowed)
@@ -914,12 +912,21 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 		break;
 	}
 
+	if (prev_chg_online != chg_online) {
+		prev_chg_online = chg_online;
+		update_psy = 1;
+	}
+
 	mutex_unlock(&info->lock);
 
-	/* notify when status is changed */
+	/* notify when status or online is changed */
 	if (prev_status != info->pm88x_charger_status) {
 		dev_dbg(info->chip->dev, "charger status changed from %s to %s\n",
 			charger_status[prev_status], charger_status[info->pm88x_charger_status]);
+		update_psy = 1;
+	}
+
+	if (update_psy) {
 		if (info->used_chg_type == USB_CHARGER_TYPE)
 			power_supply_changed(&info->usb_chg);
 		else
