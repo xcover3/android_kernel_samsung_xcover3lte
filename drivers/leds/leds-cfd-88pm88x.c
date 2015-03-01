@@ -16,6 +16,7 @@
 #include <linux/workqueue.h>
 #include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
+#include <linux/mfd/88pm880.h>
 #include <linux/module.h>
 #include <linux/regmap.h>
 #include <linux/platform_device.h>
@@ -116,7 +117,7 @@
 #define PM880_UV_SET_OFFSET	(2)
 #define PM880_UV_SET_MASK		(0x1 << PM880_UV_SET_OFFSET)
 #define PM880_BST_UVVBAT_EN_MASK	(0x1 << 2)
-
+#define PM880_CLS_OC_EN_MSK	(0x3 << 0)
 
 #define PM880_CURRENT_LEVEL_STEPS	25
 
@@ -830,13 +831,30 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 			PM88X_BST_UVVBAT_MASK, (pdata->bst_uvvbat_set << PM88X_BST_UVVBAT_OFFSET));
 	if (ret)
 		return ret;
-	/* if A0, disable UVVBAT due to comparator faults in silicon */
-	if (chip->chip_id == PM886_A0) {
-		ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
-				PM886_BST_UVVBAT_EN_MASK, 0);
-		if (ret)
-			return ret;
+
+	switch (chip->type) {
+	case PM886:
+		/* if A0, disable UVVBAT due to comparator faults in silicon */
+		if (chip->chip_id == PM886_A0) {
+			ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
+						PM886_BST_UVVBAT_EN_MASK, 0);
+				if (ret)
+					return ret;
+		}
+		break;
+	case PM880:
+		/* if A0, disable over current comparators */
+		if (chip->chip_id == PM880_A0) {
+			ret = regmap_update_bits(chip->battery_regmap, PM880_CLS_CONFIG2,
+						PM880_CLS_OC_EN_MSK, 0);
+				if (ret)
+					return ret;
+		}
+		break;
+	default:
+		break;
 	}
+
 	/* set CFD_CLK_EN to enable */
 	ret = regmap_update_bits(chip->base_regmap, PM88X_CLK_CTRL1,
 			PM88X_CFD_CLK_EN, PM88X_CFD_CLK_EN);
