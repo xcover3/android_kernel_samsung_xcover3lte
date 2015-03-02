@@ -73,6 +73,7 @@ struct clk_axi {
 #define APMU_IMR(c)		APMU_REG(c, 0x0098)
 #define APMU_CP_CCR(c)		APMU_REG(c, 0x0000)
 #define APMU_MC_HW_SLP_TYPE(c)	APMU_REG(c, 0x00b0)
+#define APMU_CLK_GATE(c)	APMU_REG(c, 0x0040)
 
 #define MPMU_REG(mpmu_base, x)	(mpmu_base + (x))
 
@@ -1008,6 +1009,18 @@ static void __init_fc_setting(struct core_params *core_params)
 	/* clock dynamic gate enable in CKG_CTRL */
 	regval = readl(DCIU_CKG(dciu_base));
 	writel(regval | 0xF, DCIU_CKG(dciu_base));
+
+	/* clock dynamic gate enable in PMU CLK_GATE_CTRL */
+	regval = readl(APMU_CLK_GATE(apmu_base));
+	regval &= ~(
+		(1 << 0) |	/* ref clock */
+		(1 << 2) |	/* cp core clock */
+		(1 << 4) |	/* ap core clock */
+		(1 << 8) |	/* axi clock */
+		(1 << 10) |	/* cp core idle SM */
+		(1 << 12) |	/* ap core idle SM */
+		(1 << 14));	/* ap subsys idle SM */
+	writel(regval, APMU_CLK_GATE(apmu_base));
 }
 
 static struct clk *hwsel2parent(struct parents_table *parent_table,
