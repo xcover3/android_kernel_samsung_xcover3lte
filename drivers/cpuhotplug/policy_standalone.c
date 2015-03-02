@@ -686,6 +686,9 @@ static int __init stand_alone_hotplug_init(void)
 	int i, ret;
 	struct cpufreq_frequency_table *table;
 
+	if (of_machine_is_compatible("marvell,pxa1908-fpga"))
+		return -EFAULT;
+
 	pr_info("%s, PM-hotplug init function\n", __func__);
 
 	hotplug_wq = create_singlethread_workqueue("dynamic hotplug");

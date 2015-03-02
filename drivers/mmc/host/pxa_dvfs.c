@@ -223,6 +223,12 @@ int pxa_sdh_get_highest_dvfs_level(struct sdhci_host *host)
 {
 	int dvfs_level;
 
+	/* fpga do not support dvfs, so need to ignore it.
+	 * else kernel will panic
+	 */
+	if (of_machine_is_compatible("marvell,pxa1908-fpga"))
+		return -EFAULT;
+
 	dvfs_level = plat_get_vl_max();
 
 	if (dvfs_level <= 0) {

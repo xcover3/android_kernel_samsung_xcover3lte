@@ -1553,7 +1553,8 @@ static void __init pxa1U88_clk_init(struct device_node *np)
 #endif
 
 #if defined(CONFIG_PXA_DVFS)
-	setup_pxa1908_dvfs_platinfo();
+	if (!board_is_fpga())
+		setup_pxa1908_dvfs_platinfo();
 #endif
 
 #ifdef CONFIG_DEBUG_FS
