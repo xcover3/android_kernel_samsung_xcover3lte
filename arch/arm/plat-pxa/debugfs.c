@@ -140,20 +140,6 @@ static ssize_t cp15_read(struct file *filp, char __user *buffer,
 	len += snprintf(p + len, buf_len - len,
 			"Coprocessor Access Control: 0x%08x\n", value);
 
-#ifndef CONFIG_TZ_HYPERVISOR
-	asm volatile("mrc p15, 0, %0, c1, c1, 0" : "=r"(value));
-	len += snprintf(p + len, buf_len - len,
-			"Secure Configuration: 0x%08x\n", value);
-
-	asm volatile("mrc p15, 0, %0, c1, c1, 1" : "=r"(value));
-	len += snprintf(p + len, buf_len - len,
-			"Secure Debug Enable: 0x%08x\n", value);
-
-	asm volatile("mrc p15, 0, %0, c1, c1, 2" : "=r"(value));
-	len += snprintf(p + len, buf_len - len,
-			"Non-Secure Access Control: 0x%08x\n", value);
-#endif
-
 	if (cpu_is_ca9()) {
 		asm volatile("mrc p15, 0, %0, c1, c1, 3" : "=r"(value));
 		len += snprintf(p + len, buf_len - len,
@@ -300,12 +286,6 @@ static ssize_t cp15_read(struct file *filp, char __user *buffer,
 	len += snprintf(p + len, buf_len - len,
 			"Vector Base Address: 0x%08x\n", value);
 
-#ifndef CONFIG_TZ_HYPERVISOR
-	asm volatile("mrc p15, 0, %0, c12, c0, 1" : "=r"(value));
-	len += snprintf(p + len, buf_len - len,
-			"Monitor Vector Base Address: 0x%08x\n", value);
-#endif
-
 	asm volatile("mrc p15, 0, %0, c12, c1, 0" : "=r"(value));
 	len += snprintf(p + len, buf_len - len,
 			"Interrupt Status: 0x%08x\n", value);
@@ -349,26 +329,7 @@ static ssize_t cp15_read(struct file *filp, char __user *buffer,
 		len += snprintf(p + len, buf_len - len,
 				"Main TLB Attribute: 0x%08x\n", value);
 	} else if (cpu_is_ca7()) {
-#ifndef CONFIG_TZ_HYPERVISOR
-		asm volatile("mrc p15, 3, %0, c15, c0, 0" : "=r"(value));
-		len += snprintf(p + len, buf_len - len,
-				"Direct Access To Interal Memory Data 0: 0x%08x\n",
-				value);
 
-		asm volatile("mrc p15, 3, %0, c15, c0, 1" : "=r"(value));
-		len += snprintf(p + len, buf_len - len,
-				"Direct Access To Interal Memory Data 1: 0x%08x\n",
-				value);
-
-		asm volatile("mrc p15, 3, %0, c15, c0, 2" : "=r"(value));
-		len += snprintf(p + len, buf_len - len,
-				"Direct Access To Interal Memory Data 2: 0x%08x\n",
-				value);
-
-		asm volatile("mrc p15, 4, %0, c15, c0, 0" : "=r"(value));
-		len += snprintf(p + len, buf_len - len,
-				"Configuration Base Address: 0x%08x\n", value);
-#endif
 	}
 	if (len == buf_len)
 		pr_warn("The buffer for dumpping cp15 is full now!\n");

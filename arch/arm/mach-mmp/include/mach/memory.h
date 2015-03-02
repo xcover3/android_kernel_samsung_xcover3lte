@@ -14,7 +14,7 @@
 #elif defined(CONFIG_TZ_HYPERVISOR)
 #define PLAT_PHYS_OFFSET	UL(0x01000000)
 #else
-#define PLAT_PHYS_OFFSET	UL(0x00000000)
+#define PLAT_PHYS_OFFSET	UL(0x00800000)
 #endif
 
 #endif /* __ASM_MACH_MEMORY_H */
