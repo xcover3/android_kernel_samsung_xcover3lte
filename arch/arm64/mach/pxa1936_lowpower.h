@@ -46,8 +46,16 @@
 #define ICU_MASK_IRQ			(1 << 1)
 #define ICU_INT_STATUS_BASE		0x200
 
+/* APMU regs offset */
+#define CORE_STATUS		0x90
+#define PWR_STATUS		0xf0
+
+#define SP_IDLE			(1 << 17)
+#define GNSS_SD_PWR_STAT	(1 << 9)
+
 /* MPMU regs offset */
 #define CPCR			0x0
+#define CPSR			0x0004
 #define CWUCRS			0x0048
 #define CWUCRM			0x004c
 #define APSLPW			0x1000
@@ -121,6 +129,13 @@
 #define PMUM_WAKEUP0		(1 << 0)
 #define PMUM_AP_WAKEUP_MASK     (0xFFFFFFFF \
 				& ~(PMUM_GSM_WAKEUPWM | PMUM_WCDMA_WAKEUPWM))
+/* PWRMODE_STUATS bits */
+#define PWRMODE_STATUS_OFFSET	16
+#define D2PP			(1 << 5)
+
+/* CPSR bits */
+#define CP_STATUS_OFFSET	24
+#define CP_IDLE_VALUE		0xa5
 
 #ifndef __ASSEMBLER__
 extern void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
