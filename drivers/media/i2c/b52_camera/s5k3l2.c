@@ -60,12 +60,132 @@ static int S5K3L2_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 	*rate = mclk / 8 * pll_mul / 2;
 	return 0;
 }
+static char S5K3L2_read_reg(struct v4l2_subdev *sd, short reg)
+{
+	const struct b52_sensor_i2c_attr attr = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x58,
+	};
+	struct b52_cmd_i2c_data data;
+	struct regval_tab tab;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+	data.attr = &attr;
+	data.tab = &tab;
+	data.num = 1;
+	data.pos = sensor->pos;
+
+	tab.reg = reg;
+	tab.mask = 0xff;
+	b52_cmd_read_i2c(&data);
+	return tab.val;
+}
+#define GROUP1_LEN 0x100
+#define GROUP2_LEN 0x800
+#define GROUP3_LEN 0x100
+#define GROUP4_LEN 0x800
+
+#define MODULE_OFFSET	0x08b0
+#define AF_OFFSET	0x0100
+#define GWB_OFFSET	0x0140
+#define WB_OFFSET	0x0148
+#define LSC_OFFSET	0x0158
+static int S5K3L2_read_data(struct v4l2_subdev *sd,
+				struct b52_sensor_otp *otp)
+{
+	int i, len, tmp_len = 0;
+	int ret = 0;
+	char *paddr = NULL;
+	ushort bank_addr;
+	char *bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
+	char *bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
+	char *bank_grp3 = devm_kzalloc(sd->dev, GROUP3_LEN, GFP_KERNEL);
+	char *bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
+	len = otp->user_otp->module_data_len;
+	if (len > 0) {
+		bank_addr = MODULE_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp1[i] = S5K3L2_read_reg(sd, bank_addr++);
+		paddr = otp->user_otp->module_data;
+		if (copy_to_user(paddr, &bank_grp1[0],
+							len)) {
+			ret = -EIO;
+			goto err;
+		}
+	}
+	len = otp->user_otp->vcm_otp_len;
+	if (len != 0 || otp->user_otp->wb_otp_len != 0) {
+		bank_addr =  AF_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp2[i] = S5K3L2_read_reg(sd, bank_addr++);
+		if (len > 0) {
+			paddr = (char *)otp->user_otp->otp_data + tmp_len;
+			if (copy_to_user(paddr,
+					&bank_grp2[0],
+					len)) {
+				ret = -EIO;
+				goto err;
+			}
+			tmp_len += len;
+		}
+		len = otp->user_otp->wb_otp_len/2;
+		bank_addr =  GWB_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp2[i] =  S5K3L2_read_reg(sd, bank_addr++);
+		if (len > 0) {
+			paddr = (char *) otp->user_otp->otp_data + tmp_len;
+			if (copy_to_user(paddr,
+				&bank_grp2[0], len)) {
+				ret = -EIO;
+				goto err;
+			}
+			tmp_len += len;
+		}
+	}
+	len = otp->user_otp->wb_otp_len/2;
+	if (len > 0) {
+		bank_addr =  WB_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp3[i] = S5K3L2_read_reg(sd, bank_addr++);
+		paddr = (char *)otp->user_otp->otp_data + tmp_len;
+		if (copy_to_user(paddr,
+				&bank_grp3[0], len)) {
+			ret = -EIO;
+			goto err;
+		}
+		tmp_len += len;
+	}
+	len = otp->user_otp->lsc_otp_len;
+	if (len > 0) {
+		bank_addr =  LSC_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp4[i] = S5K3L2_read_reg(sd, bank_addr++);
+		paddr = (char *)(otp->user_otp->otp_data + tmp_len);
+		if (copy_to_user(paddr, &bank_grp4[0], len)) {
+			ret = -EIO;
+			goto err;
+		}
+	}
+err:
+	devm_kfree(sd->dev, bank_grp1);
+	devm_kfree(sd->dev, bank_grp2);
+	devm_kfree(sd->dev, bank_grp3);
+	devm_kfree(sd->dev, bank_grp4);
+	return ret;
+}
 static int S5K3L2_update_otp(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *otp)
 {
-	pr_err("Marvell_Unifiled_OTP_ID_INF for S5K3L2: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
-		0, 0, 0, 0);
-	return 0;
+	int ret;
+	char *module_id;
+	if (otp->user_otp->otp_type ==  SENSOR_TO_ISP) {
+		module_id = otp->user_otp->module_data;
+		ret = S5K3L2_read_data(sd, otp);
+		pr_err("Marvell_Unifiled_OTP_ID_INF for S5K3L2: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
+			*module_id, 0, 0, 0);
+		return ret;
+	}
+	return -1;
 }
 
 static int S5K3L2_s_power(struct v4l2_subdev *sd, int on)
