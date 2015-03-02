@@ -161,12 +161,17 @@ static int map_fe_hw_params(struct snd_pcm_substream *substream,
 	do_div(sspa_div, sspa_mclk);
 
 #if 1
-	/* For i2s2, the dai format is pcm */
+	/* For i2s2(voice call) and i2s3(bt-audio), the dai format is pcm */
 	if (codec_dai->id == 2) {
 		snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_DSP_A |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
 		snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_DSP_A |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+	} else if (codec_dai->id == 5) {
+		snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_DSP_A |
+			    SND_SOC_DAIFMT_NB_IF | SND_SOC_DAIFMT_CBM_CFM);
+		snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_DSP_A |
+			    SND_SOC_DAIFMT_NB_IF | SND_SOC_DAIFMT_CBM_CFM);
 	} else {
 		snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
 			   SND_SOC_DAIFMT_NB_IF | SND_SOC_DAIFMT_CBM_CFM);

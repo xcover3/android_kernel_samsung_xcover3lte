@@ -46,7 +46,7 @@ struct map_fe_dai_private {
 	/* point to mmp-map */
 	struct map_private *map_priv;
 	/* Indication if i2s is configured */
-	bool i2s_config[4];
+	bool i2s_config[5];
 	/* Indication if i2s need to be active/inactive */
 };
 
@@ -376,8 +376,6 @@ static const struct snd_kcontrol_new map_snd_controls[] = {
 	 * adjust the dummy control number to keep valid widget & control
 	 * numid unchanged when adding/reducing new items.
 	 */
-	SND_SOC_BYTES_MAP("MAP_DUMMY_REG6", 0, 0),
-	SND_SOC_BYTES_MAP("MAP_DUMMY_REG7", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG8", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG9", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG10", 0, 0),
@@ -1008,7 +1006,28 @@ static const struct snd_kcontrol_new out1_hs_en_control =
 static const struct snd_kcontrol_new out1_spkr_en_control =
 	SOC_DAPM_SINGLE_VIRTUAL("Switch", 0, 0, 1, 0);
 
+/* ADC output out3 -> i2s3_bt_vc -> BT_VC_DL enable */
+static const struct snd_kcontrol_new i2s3_bt_vc_control =
+	SOC_DAPM_SINGLE_VIRTUAL("Switch", 0, 0, 1, 0);
+
+/* mux for I2S3 function select */
+static const char * const i2s3_func_sel_mux_text[] = {
+	"i2s3_fm",
+	"i2s3_bt",
+};
+
+static const struct soc_enum i2s3_func_sel_mux_enum =
+	SOC_ENUM_SINGLE(0, 0, 2, i2s3_func_sel_mux_text);
+
+static const struct snd_kcontrol_new i2s3_func_sel_mux =
+	SOC_DAPM_ENUM_VIRT("i2s3_func_sel", i2s3_func_sel_mux_enum);
+
 static const struct snd_soc_dapm_widget map_dapm_widgets[] = {
+	SND_SOC_DAPM_VIRT_MUX("i2s3_func_sel", SND_SOC_NOPM, 0, 0, &i2s3_func_sel_mux),
+
+	SND_SOC_DAPM_VIRT_SWITCH("i2s3_bt_vc", SND_SOC_NOPM, 0, 0,
+				&i2s3_bt_vc_control),
+
 	SND_SOC_DAPM_ADC("AOUT3 record", NULL, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_VIRT_SWITCH("out1_hs_en", SND_SOC_NOPM, 0, 0,
 				&out1_hs_en_control),
@@ -1206,6 +1225,12 @@ static const struct snd_soc_dapm_route map_intercon[] = {
 	{"MM_UL2", NULL, "ADC output ain4"},
 	{"VC_UL", NULL, "ADC output ain2"},
 
+	{"BT_UL", NULL, "ADC output ain3"},
+	{"i2s3_bt_vc", "Switch", "ADC output ain3"},
+
+	{"i2s3_func_sel", "i2s3_fm", "FM_DL"},
+	{"i2s3_func_sel", "i2s3_bt", "BT_DL"},
+
 	/* DAC1 input */
 	{"DAC input d1in1", "AOUT1", "MM_DL1"},
 	{"DAC input d1in1", "D1AIN1", "ADC input d1ain1"},
@@ -1217,7 +1242,7 @@ static const struct snd_soc_dapm_route map_intercon[] = {
 	{"DAC input d1in2", "D1AIN2", "ADC input d1ain2"},
 	{"DAC input d1in2", "D2OUT", "DAC2 out"},
 
-	{"DAC input d1in3", "AOUT3", "FM_DL"},
+	{"DAC input d1in3", "AOUT3", "i2s3_func_sel"},
 	{"DAC input d1in3", "D1AIN1", "ADC input d1ain1"},
 	{"DAC input d1in3", "D1AIN2", "ADC input d1ain2"},
 	{"DAC input d1in3", "D2OUT", "DAC2 out"},
@@ -1261,7 +1286,7 @@ static const struct snd_soc_dapm_route map_intercon[] = {
 	{"DAC input d2in2", "D1AIN2", "ADC input d1ain2"},
 	{"DAC input d2in2", "D1OUT", "DAC1 out"},
 
-	{"DAC input d2in3", "AOUT3", "FM_DL"},
+	{"DAC input d2in3", "AOUT3", "i2s3_func_sel"},
 	{"DAC input d2in3", "D1AIN1", "ADC input d1ain1"},
 	{"DAC input d2in3", "D1AIN2", "ADC input d1ain2"},
 	{"DAC input d2in3", "D1OUT", "DAC1 out"},
@@ -1368,6 +1393,7 @@ static int map_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 		reg =	MAP_I2S2_BCLK_DIV;
 		break;
 	case 3:
+	case 5:
 		reg =	MAP_I2S3_BCLK_DIV;
 		break;
 	case 4:
@@ -1453,6 +1479,7 @@ static int map_set_dai_clkdiv(struct snd_soc_dai *codec_dai,
 		addr =	MAP_I2S2_BCLK_DIV;
 		break;
 	case 3:
+	case 5:
 		addr =	MAP_I2S3_BCLK_DIV;
 		break;
 	case 4:
@@ -1472,13 +1499,14 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 {
 	struct map_fe_dai_private *map_fe_dai_priv;
 	struct map_private *map_priv;
-	unsigned int inf = 0, addr;
+	unsigned int inf = 0, addr, port;
 
 	map_fe_dai_priv = snd_soc_dai_get_drvdata(dai);
 	map_priv = map_fe_dai_priv->map_priv;
 	if (map_fe_dai_priv->i2s_config[dai->id - 1])
 		return 0;
 
+	port = dai->id;
 	switch (dai->id) {
 	case 1:
 		addr =	MAP_I2S1_CTRL_REG;
@@ -1491,7 +1519,9 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 		map_raw_write(map_priv, MAP_I2S3_CTRL_REG, inf);
 		break;
 	case 3:
+	case 5:
 		addr =	MAP_I2S3_CTRL_REG;
+		port = 3;
 		break;
 	case 4:
 		addr =	MAP_I2S4_CTRL_REG;
@@ -1519,7 +1549,7 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 	map_raw_write(map_priv, addr, inf);
 
 	/* sample rate */
-	map_set_port_freq(map_priv, dai->id, params_rate(params));
+	map_set_port_freq(map_priv, port, params_rate(params));
 	map_fe_dai_priv->i2s_config[dai->id - 1] = true;
 
 	switch (dai->id) {
@@ -1532,6 +1562,7 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 		map_reset_port(map_priv, I2S2);
 		break;
 	case 3:
+	case 5:
 		/* reset i2s3 interface(audio) */
 		map_reset_port(map_priv, I2S3);
 		break;
@@ -1566,6 +1597,7 @@ static int map_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		addr =	MAP_I2S2_CTRL_REG;
 		break;
 	case 3:
+	case 5:
 		addr =	MAP_I2S3_CTRL_REG;
 		break;
 	case 4:
@@ -1643,7 +1675,7 @@ static int mmp_map_startup(struct snd_pcm_substream *substream,
 	map_be_active(map_priv);
 
 	/* means FM opened */
-	if (codec_dai->id == 3)
+	if ((codec_dai->id == 3) || (codec_dai->id == 5))
 		map_priv->bt_fm_sel = true;
 
 	/* enable audio mode for all audio scenarios*/
@@ -1690,7 +1722,7 @@ static void mmp_map_shutdown(struct snd_pcm_substream *substream,
 	map_be_reset(map_priv);
 
 	/* means FM opened */
-	if (codec_dai->id == 3)
+	if ((codec_dai->id == 3) || (codec_dai->id == 5))
 		map_priv->bt_fm_sel = false;
 
 	/* disable audio mode */
@@ -1723,6 +1755,7 @@ static int mmp_map_trigger(struct snd_pcm_substream *substream, int cmd,
 		addr =	MAP_I2S2_CTRL_REG;
 		break;
 	case 3:
+	case 5:
 		addr =	MAP_I2S3_CTRL_REG;
 		break;
 	case 4:
@@ -1866,6 +1899,27 @@ struct snd_soc_dai_driver map_dai[] = {
 		.id = 3,
 		.playback = {
 			.stream_name  = "FM_DL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates        = MAP_RATES,
+			.formats      = MAP_FORMATS,
+		},
+		.ops = &map_dai_ops,
+		.symmetric_rates = 1,
+	},
+	/* For BT playback & capture */
+	{
+		.name = "map-i2s5-dai",
+		.id = 5,
+		.playback = {
+			.stream_name  = "BT_DL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates        = MAP_RATES,
+			.formats      = MAP_FORMATS,
+		},
+		.capture = {
+			.stream_name  = "BT_UL",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates        = MAP_RATES,
