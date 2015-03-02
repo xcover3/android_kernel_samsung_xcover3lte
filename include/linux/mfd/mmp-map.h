@@ -514,6 +514,7 @@ struct map_private {
 
 	/* map is used by cp and fm */
 	bool map_i2s2_i2s3_active;
+	bool tdm_clk_enabled;
 };
 
 enum mmp_map_port {

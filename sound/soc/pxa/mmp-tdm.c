@@ -978,6 +978,7 @@ void tdm_clk_enable(struct map_private *map_priv, bool enable)
 		/* apply change */
 		data = map_raw_read(map_priv, MAP_TDM_CTRL_REG_1);
 		map_raw_write(map_priv, MAP_TDM_CTRL_REG_1, data | 0x6000);
+		map_priv->tdm_clk_enabled = true;
 	} else {
 		spin_lock(&map_priv->map_lock);
 		if (map_priv->tdm_clk_cnt > 0)
@@ -992,6 +993,7 @@ void tdm_clk_enable(struct map_private *map_priv, bool enable)
 		map_raw_write(map_priv, MAP_TDM_CTRL_REG_1, 0);
 		/* apply change */
 		map_raw_write(map_priv, MAP_TDM_CTRL_REG_1, 0x6000);
+		map_priv->tdm_clk_enabled = false;
 	}
 }
 #endif

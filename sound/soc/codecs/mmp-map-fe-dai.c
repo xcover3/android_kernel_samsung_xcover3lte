@@ -249,6 +249,10 @@ static int map_snd_soc_bytes_get(struct snd_kcontrol *kcontrol,
 		}
 	}
 
+#ifdef	CONFIG_SND_TDM_STATIC_ALLOC
+	if (params->base == TDM_CLK_ENABLE)
+		*(u32 *)(&ucontrol->value.bytes.data) = map_priv->tdm_clk_enabled;
+#endif
 	return ret;
 }
 
@@ -383,11 +387,8 @@ static const struct snd_kcontrol_new map_snd_controls[] = {
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG12", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG13", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG14", 0, 0),
-#ifdef CONFIG_SND_TDM_STATIC_ALLOC
-	SND_SOC_BYTES_MAP("TDM_CLK_ENABLE", TDM_CLK_ENABLE, 1),
-#else
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG15", 0, 0),
-#endif
+
 	SND_SOC_BYTES_MAP("MAP_REVISION", MAP_REV, 1),
 	SND_SOC_BYTES_MAP("MAP_LRCLK_RATE_REG", MAP_LRCLK_RATE_REG, 1),
 	SND_SOC_BYTES_MAP("MAP_I2S1_CTRL_REG", MAP_I2S1_CTRL_REG, 1),
@@ -664,7 +665,11 @@ static const struct snd_kcontrol_new map_snd_controls[] = {
 	 * The following dummy reg is only for adding spcae with
 	 * other component.
 	 */
+#ifdef CONFIG_SND_TDM_STATIC_ALLOC
+	SND_SOC_BYTES_MAP("TDM_CLK_ENABLE", TDM_CLK_ENABLE, 1),
+#else
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG2", 0, 0),
+#endif
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG3", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG4", 0, 0),
 	SND_SOC_BYTES_MAP("MAP_DUMMY_REG5", 0, 0),
