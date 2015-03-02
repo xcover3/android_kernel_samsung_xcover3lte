@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
+#include <linux/power_supply.h>
 
 /* common register PM886 and PM880 */
 #define PM88X_CFD_CONFIG1		(0x60)
@@ -78,6 +79,10 @@
 #define PM88X_MAX_TORCH_CURRENT		(400)		/* mA */
 #define PM88X_MAX_SAFE_TORCH_CURRENT	(PM88X_MAX_TORCH_CURRENT - 200)		/* mA */
 
+#define PM88X_BST_VSET_5P25V		(0x6 << PM88X_BST_VSET_OFFSET)
+#define PM88X_BST_OV_SET_MASK		(0x3 << 1)
+#define PM88X_BST_OV_SET_6V		(0x3 << 1)
+#define PM88X_BST_OV_SET_5P2V		(0x1 << 1)
 
 #define CFD_MIN_BOOST_VOUT		3750
 #define CFD_MAX_BOOST_VOUT		5500
@@ -96,7 +101,10 @@
 #define PM886_UV_SET_OFFSET	(1)
 #define PM886_UV_SET_MASK		(0x3 << PM886_UV_SET_OFFSET)
 
+#define PM886_BST_CFD_STPFLS_DIS	(0x1 << 7)
 #define PM886_BST_UVVBAT_EN_MASK	(0x1 << 3)
+#define PM886_CFOUT_OV_EN_OFFSET	(3)
+#define PM886_CFOUT_OV_EN_MASK		(0x1 << PM886_CFOUT_OV_EN_OFFSET)
 
 #define PM886_CURRENT_LEVEL_STEPS	50
 
@@ -118,6 +126,12 @@
 #define PM880_UV_SET_MASK		(0x1 << PM880_UV_SET_OFFSET)
 #define PM880_BST_UVVBAT_EN_MASK	(0x1 << 2)
 #define PM880_CLS_OC_EN_MSK	(0x3 << 0)
+#define PM880_CFOUT_OC_EN_OFFSET	(0)
+#define PM880_CFOUT_OC_EN_MASK		(0x3 << PM880_CFOUT_OC_EN_OFFSET)
+
+#define PM880_BST_RAMP_DIS_OFFSET	(5)
+#define PM880_BST_RAMP_DIS_MASK		(0x1 << PM880_BST_RAMP_DIS_OFFSET)
+#define PM880_BST_RAMP_DIS_EN		(0x1 << PM880_BST_RAMP_DIS_OFFSET)
 
 #define PM880_CURRENT_LEVEL_STEPS	25
 
@@ -138,11 +152,18 @@ struct pm88x_led {
 	unsigned int max_current_div;
 	unsigned int iset_step;
 	unsigned int force_max_current;
+	unsigned int cfd_bst_vset;
+	unsigned int delay_flash_timer;
 
 	int id;
 	/* for external CF_EN and CF_TXMSK */
 	int cf_en;
 	int cf_txmsk;
+};
+
+static char *supply_interface[] = {
+	"ac",
+	"usb",
 };
 
 static void pm88x_led_bright_set(struct led_classdev *cdev, enum led_brightness value);
@@ -311,7 +332,9 @@ static void torch_off(struct pm88x_led *led)
 static void strobe_flash(struct pm88x_led *led)
 {
 	struct pm88x_chip *chip;
-
+	struct power_supply *psy;
+	union power_supply_propval val;
+	int i, ret, chg_online = 0;
 	chip = led->chip;
 
 	mutex_lock(&led->lock);
@@ -328,37 +351,107 @@ static void strobe_flash(struct pm88x_led *led)
 		gpio_direction_output(led->cf_en, 0);
 	}
 	clear_errors(led);
-	/*
-	 * set flash mode
-	 * if flash current is above 400mA, set booster mode to current regulation mode and enable
-	 * booster HS current limit
-	 * otherwise set booster mode to voltage regulation mode and disable booster HS current
-	 * limit
-	 */
-	if (chip->type == PM886) {
-		if (led->brightness > 400) {
-			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
-					(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
-					PM88X_SELECT_FLASH_MODE);
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
-					PM88X_BST_ILIM_DIS, 0);
+
+	/* get charger status */
+	for (i = 0; i < ARRAY_SIZE(supply_interface); i++) {
+		psy = power_supply_get_by_name(supply_interface[i]);
+		if (!psy || !psy->get_property)
+			continue;
+		ret = psy->get_property(psy, POWER_SUPPLY_PROP_ONLINE, &val);
+		if (ret == 0 && val.intval) {
+			chg_online = val.intval;
+			break;
+		}
+	}
+
+	/* while USB/CHG present block charging */
+	if (psy && psy->set_property) {
+		val.intval = 0;
+		psy->set_property(psy, POWER_SUPPLY_PROP_CHARGE_ENABLED, &val);
+	}
+
+	if (chg_online) {
+		if (chip->type == PM886) {
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
+					(PM886_BST_CFD_STPFLS_DIS | PM88X_BST_OV_SET_MASK),
+					(PM886_BST_CFD_STPFLS_DIS | PM88X_BST_OV_SET_6V));
+			regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
+					PM886_CFOUT_OV_EN_MASK, 0x0);
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+					PM88X_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
 		} else {
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+					PM88X_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
+					PM880_BST_RAMP_DIS_MASK, PM880_BST_RAMP_DIS_EN);
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
+					(PM88X_BST_OV_SET_MASK), (PM88X_BST_OV_SET_6V));
+			regmap_update_bits(chip->battery_regmap, PM880_CLS_CONFIG2,
+					PM880_CFOUT_OC_EN_MASK, 0);
+		}
+
+		/* unlock test page & force booster configuration */
+		regmap_write(chip->base_regmap, 0x1F, 0x1);
+		regmap_write(chip->test_regmap, 0x40, 0x0);
+		regmap_write(chip->test_regmap, 0x41, 0x0);
+		regmap_write(chip->test_regmap, 0x42, 0x0);
+		regmap_write(chip->test_regmap, 0x43, 0x0);
+		if (chip->type == PM886) {
+			regmap_write(chip->test_regmap, 0x44, 0x9);
+			regmap_write(chip->test_regmap, 0x45, 0x2);
+		} else {
+			regmap_write(chip->test_regmap, 0x44, 0x4);
+			regmap_write(chip->test_regmap, 0x45, 0x4);
+		}
+		regmap_write(chip->test_regmap, 0x46, 0x10);
+
+		if (chip->type == PM886) {
+			/* max brightness allowed in the state 900mA */
+			led->brightness = min_t(unsigned int, 900, led->brightness);
 			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
-					(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
-					(PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE));
+				(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
+				PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE);
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
+				PM88X_BST_ILIM_DIS, 0);
+		} else {
+			/* max brightness allowed in the state 650mA */
+			led->brightness = min_t(unsigned int, 650, led->brightness);
+			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
+					(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
+					(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
+		}
+	} else {
+		/*
+		 * set flash mode
+		 * if flash current is above 400mA, set booster mode to current
+		 * regulation mode and enable booster HS current limit otherwise set booster
+		 * mode to voltage regulation mode and disable booster HS current limit
+		 */
+		if (chip->type == PM886) {
+			if (led->brightness > 400) {
+				regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+						(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
+						PM88X_SELECT_FLASH_MODE);
+				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
+						PM88X_BST_ILIM_DIS, 0);
+			} else {
+				regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+						(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
+						(PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE));
+				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
+						PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
+			}
+		} else {
+			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
+					(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
+					(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
+
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 					PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
 		}
-	} else {
-		regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
-				(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
-				(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
-
-		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
-				PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
 	}
 
-	/* automatic booster enable mode*/
+	/* automatic booster enable mode */
 	/* set flash current */
 	regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG1,
 			PM88X_FLASH_ISET_MASK,
@@ -375,6 +468,47 @@ static void strobe_flash(struct pm88x_led *led)
 	} else {
 		gpio_direction_output(led->cf_en, 1);
 	}
+
+	if (chg_online) {
+		/* unlock mutex during sleep because flash off might be call */
+		mutex_unlock(&led->lock);
+		/* add 50msec for the HW delay which was chosen */
+		msleep(led->delay_flash_timer + 50);
+		mutex_lock(&led->lock);
+
+		/* restore test page booster configuration */
+		regmap_write(chip->test_regmap, 0x46, 0x0);
+		regmap_write(chip->test_regmap, 0x40, 0x0);
+		regmap_write(chip->test_regmap, 0x41, 0x0);
+		regmap_write(chip->test_regmap, 0x42, 0x0);
+		regmap_write(chip->test_regmap, 0x43, 0x0);
+		regmap_write(chip->test_regmap, 0x44, 0x0);
+		regmap_write(chip->test_regmap, 0x45, 0x0);
+
+		if (chip->type == PM886) {
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
+					(PM886_BST_CFD_STPFLS_DIS | PM88X_BST_OV_SET_MASK),
+					PM88X_BST_OV_SET_5P2V);
+			regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
+					PM886_CFOUT_OV_EN_MASK, PM886_CFOUT_OV_EN_MASK);
+		} else
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
+					PM880_BST_RAMP_DIS_MASK, 0);
+
+		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+					PM88X_BST_VSET_MASK,
+					(led->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+
+		/* lock test page */
+		regmap_write(chip->base_regmap, 0x1F, 0x0);
+	}
+
+	/* allow charging */
+	if (psy && psy->set_property) {
+		val.intval = 1;
+		psy->set_property(psy, POWER_SUPPLY_PROP_CHARGE_ENABLED, &val);
+	}
+
 	mutex_unlock(&led->lock);
 }
 
@@ -526,7 +660,7 @@ error:
 static DEVICE_ATTR(gpio_ctrl, S_IRUGO | S_IWUSR, gpio_ctrl_show, gpio_ctrl_store);
 
 /* convert dts voltage value to register value, values in msec */
-static void convert_flash_timer_val_to_reg(unsigned int *flash_timer)
+static void convert_flash_timer_val_to_reg(struct pm88x_led_pdata *pdata)
 {
 	/* in milliseconds */
 	int flash_timer_values[] = { 16, 23, 31, 39, 47, 57, 62, 70, 125, 187, 250, 312, 375, 437,
@@ -535,13 +669,15 @@ static void convert_flash_timer_val_to_reg(unsigned int *flash_timer)
 	int i;
 
 	for (i = 0; i < num_of_flash_timer_values; i++) {
-		if (*flash_timer <= flash_timer_values[i]) {
-			*flash_timer = i;
+		if (pdata->flash_timer <= flash_timer_values[i]) {
+			pdata->delay_flash_timer = flash_timer_values[i];
+			pdata->flash_timer = i;
 			return;
 		}
 	}
 
-	 *flash_timer = num_of_flash_timer_values - 1;
+	pdata->flash_timer = num_of_flash_timer_values - 1;
+	pdata->delay_flash_timer = flash_timer_values[num_of_flash_timer_values - 1];
 }
 
 /* convert dts voltage value to register value, values in mv */
@@ -686,7 +822,7 @@ static int pm88x_led_dt_init(struct device_node *np,
 				   "flash-timer", &pdata->flash_timer);
 	if (ret)
 		return ret;
-	convert_flash_timer_val_to_reg(&pdata->flash_timer);
+	convert_flash_timer_val_to_reg(pdata);
 
 	ret = of_property_read_u32(np,
 				   "cls-ov-set", &pdata->cls_ov_set);
@@ -926,6 +1062,8 @@ static int pm88x_led_probe(struct platform_device *pdev)
 	led->cf_en = pdata->cf_en;
 	led->cf_txmsk = pdata->cf_txmsk;
 	gpio_en = pdata->gpio_en;
+	led->cfd_bst_vset = pdata->cfd_bst_vset;
+	led->delay_flash_timer = pdata->delay_flash_timer;
 
 	led->current_brightness = 0;
 	led->cdev.name = led->name;

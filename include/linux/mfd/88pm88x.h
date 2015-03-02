@@ -125,6 +125,7 @@ struct pm88x_led_pdata {
 	unsigned int max_flash_current;
 	unsigned int max_torch_current;
 	unsigned int torch_force_max_current;
+	unsigned int delay_flash_timer;
 };
 
 struct pm88x_dvc_ops {
