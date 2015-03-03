@@ -157,8 +157,8 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 		[THROTTLE_GC2D] = { 0,
 		0, 0, 0, 0, 0, 0, 0, 0
 		},
-		[THROTTLE_GCSH] = { 0,
-		0, 0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_GCSH] = { 1,
+		0, 1, 1, 2, 3, 3, 3, 3
 		},
 		[THROTTLE_VPU] = { 0,
 		0, 0, 0, 0, 0, 0, 0, 0
@@ -183,8 +183,8 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 		[THROTTLE_GC2D] = { 0,
 		0, 0, 0, 0, 0, 0, 0, 0
 		},
-		[THROTTLE_GCSH] = { 0,
-		0, 0, 0, 0, 0, 0, 0, 0
+		[THROTTLE_GCSH] = { 1,
+		0, 1, 1, 2, 3, 3, 3, 3
 		},
 		[THROTTLE_VPU] = { 0,
 		0, 0, 0, 0, 0, 0, 0, 0

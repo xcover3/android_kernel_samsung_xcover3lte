@@ -476,7 +476,11 @@ int tsen_policy_dump(char *buf, int size)
 			else
 				strcpy(buf_name, "(vl_show)");
 
-			pr_info("        %svl:%d;\n", buf_name, vl);
+			if ((i == TRIP_RANGE_0) && (!strcmp("ulc", thermal_voltage->cpu_name)))
+				pr_info("        %svl:%d(gcsh use vl:7);\n", buf_name, vl);
+			else
+				pr_info("        %svl:%d;\n", buf_name, vl);
+
 			if (thermal_voltage->vl_master == THROTTLE_CORE)
 				strcpy(buf_name, "(vl_master)");
 			else if (throttle_tbl
