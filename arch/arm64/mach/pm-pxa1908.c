@@ -178,10 +178,42 @@ static int pxa1908_pm_check_constraint(void)
 	return ret;
 }
 
+static void check_pwrmode_status(unsigned int pwrmode_status)
+{
+	if (pwrmode_status & PMUM_PWRMODE_STATUS_D2PP)
+		pr_info("D2 entered!\n");
+	else
+		pr_info("D2 not entered!\n");
+}
+
+static void check_cp_status(unsigned int cpsr)
+{
+	if ((cpsr >> CPSR_RESERVED_OFFSET) == CP_IDLE_VALUE)
+		pr_info("CP idle!\n");
+	else
+		pr_info("CP not idle!\n");
+}
+
+static void check_gps_status(unsigned int pmua_pwr_status)
+{
+	if (pmua_pwr_status & PMUA_GNSS_SD_PWR_STAT)
+		pr_info("GPS power on!\n");
+	else
+		pr_info("GPS power off!\n");
+}
+
 static int pxa1908_suspend_check(void)
 {
-	u32 ret, reg = __raw_readl(regs_addr_get_va(REGS_ADDR_ICU) +
+	u32 ret, reg, cpsr, core_status, pwr_status;
+
+	void __iomem *mpmu_base = regs_addr_get_va(REGS_ADDR_MPMU);
+	void __iomem *apmu_base = regs_addr_get_va(REGS_ADDR_APMU);
+
+	reg = __raw_readl(regs_addr_get_va(REGS_ADDR_ICU) +
 			((IRQ_PXA1908_PMIC - IRQ_PXA1908_START) << 2));
+	cpsr = __raw_readl(mpmu_base + CPSR);
+	core_status = __raw_readl(apmu_base + CORE_STATUS);
+	pwr_status = __raw_readl(apmu_base + PWR_STATUS);
 
 	/*
 	 * check PMIC interrupt config before entering suspend. We
@@ -196,8 +228,14 @@ static int pxa1908_suspend_check(void)
 
 	ret = pxa1908_pm_check_constraint();
 	pr_info("========wake up events status =========\n");
-	pr_info("BEFORE SUSPEND AWUCRS:0x%x\n",
-			__raw_readl(regs_addr_get_va(REGS_ADDR_MPMU) + AWUCRS));
+	pr_info("BEFORE SUSPEND AWUCRS:0x%x, PWRMODE_STATUS: 0x%x\n",
+			__raw_readl(mpmu_base + AWUCRS),
+			__raw_readl(mpmu_base + PWRMODE_STATUS));
+	pr_info("CORE_STATUS: 0x%x, CPSR: 0x%x, PWR_STATUS: 0x%x\n",
+			core_status, cpsr, pwr_status);
+
+	check_cp_status(cpsr);
+	check_gps_status(pwr_status);
 
 	return ret;
 }
@@ -399,6 +437,10 @@ static u32 wakeup_source_check(void)
 	char *buf;
 	size_t size = PAGE_SIZE - 1;
 	int len_s = 0, len = 0;
+
+	void __iomem *mpmu = regs_addr_get_va(REGS_ADDR_MPMU);
+	void __iomem *apmu = regs_addr_get_va(REGS_ADDR_APMU);
+
 	u32 awucrm = __raw_readl(regs_addr_get_va(REGS_ADDR_MPMU) + AWUCRM);
 	u32 cwucrm = __raw_readl(regs_addr_get_va(REGS_ADDR_MPMU) + CWUCRM);
 
@@ -408,6 +450,11 @@ static u32 wakeup_source_check(void)
 	u32 apcr = __raw_readl(regs_addr_get_va(REGS_ADDR_MPMU) + APCR);
 	u32 cpcr = __raw_readl(regs_addr_get_va(REGS_ADDR_MPMU) + CPCR);
 
+	u32 cpsr = __raw_readl(mpmu + CPSR);
+	u32 pwrmode_status = __raw_readl(mpmu + PWRMODE_STATUS);
+	u32 core_status = __raw_readl(apmu + CORE_STATUS);
+	u32 pwr_status = __raw_readl(apmu + PWR_STATUS);
+
 	u32 sav_wucrs = awucrs | cwucrs;
 	u32 sav_wucrm = awucrm | cwucrm;
 	u32 sav_xpcr = apcr | cpcr;
@@ -415,6 +462,12 @@ static u32 wakeup_source_check(void)
 	u32 real_wus = sav_wucrs & sav_wucrm & PMUM_AP_WAKEUP_MASK;
 
 	pr_info("After SUSPEND");
+	pr_info("PWRMODE_STAUTS: 0x%x\n", pwrmode_status);
+	pr_info("CORE_STATUS: 0x%x, CPSR: 0x%x, PWR_STATUS: 0x%x\n",
+			core_status, cpsr, pwr_status);
+	check_pwrmode_status(pwrmode_status);
+	check_cp_status(cpsr);
+	check_gps_status(pwr_status);
 	pr_info("AWUCRS:0x%x, CWUCRS:0x%x\n", awucrs, cwucrs);
 	pr_info("General wakeup source status:0x%x\n", sav_wucrs);
 	pr_info("AWUCRM:0x%x, CWUCRM:0x%x\n", awucrm, cwucrm);

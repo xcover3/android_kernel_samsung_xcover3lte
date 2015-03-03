@@ -15,6 +15,8 @@
 #include <linux/cpuidle.h>
 /* APMU regs offset */
 /* Core IDLE configuration */
+#define CORE_STATUS		0x90
+#define PWR_STATUS		0xf0
 #define CORE0_IDLE		0x124
 #define CORE1_IDLE		0x128
 #define CORE2_IDLE		0x160
@@ -35,9 +37,11 @@
 #define STBL_TIMER		0x084
 /* MPMU regs offset */
 #define CPCR			0x0
+#define CPSR			0x0004
 #define CWUCRS			0x0048
 #define CWUCRM			0x004c
 #define APCR			0x1000
+#define PWRMODE_STATUS	        0x1030
 #define AWUCRS			0x1048
 #define AWUCRM			0x104c
 /* ICU regs offset */
@@ -68,8 +72,23 @@
 #define PMUA_MP_MASK_CLK_OFF		(1 << 11)
 #define PMUA_DIS_MP_SLP			(1 << 18)
 
+#define PMUA_GNSS_SD_PWR_STAT		(1 << 9)
+
 #define ICU_MASK_FIQ			(1 << 0)
 #define ICU_MASK_IRQ			(1 << 1)
+
+#define PMUM_DSPIDL			(1 << 31)
+#define PMUM_APIDL			(1 << 30)
+#define PMUM_CPIDL			(1 << 29)
+#define PMUM_DSPAVL			(1 << 28)
+#define PMUM_APCIDL			(1 << 27)
+#define PMUM_CPCIDL			(1 << 26)
+#define PMUM_APOFF			(1 << 25)
+#define PMUM_CPOFF			(1 << 24)
+#define CPSR_RESERVED_OFFSET		24
+#define CP_IDLE_VALUE			0xa5
+
+#define PMUM_PWRMODE_STATUS_D2PP	(1 << 21)
 
 #define PMUM_AXISD		(1 << 31)
 #define PMUM_DSPSD		(1 << 30)
