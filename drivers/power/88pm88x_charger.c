@@ -46,7 +46,7 @@
 #define PM88X_VBAT_FAST_SET_MASK	(0x7F << 0)
 
 #define PM88X_FAST_CONFIG2		(0x2F)
-#define PM88X_ICHG_FAST_SET_MASK	(0x1F << 0)
+#define PM88X_ICHG_FAST_SET_MASK	(0x3F << 0)
 
 #define PM88X_FAST_CONFIG3		(0x30)
 #define PM88X_IBAT_EOC_TH		(0x3F << 0)
