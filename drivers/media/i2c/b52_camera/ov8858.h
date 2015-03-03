@@ -576,7 +576,7 @@ static struct b52_sensor_vcm vcm_dw9718 = {
 };
 static struct b52_sensor_module ov8858r2a_SUNNY = {
 	.vcm = &vcm_dw9718,
-	.id = 0,
+	.id = 0x6,
 };
 static int OV8858R2A_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
 static int OV8858R2A_get_dphy_desc(struct v4l2_subdev *sd,
