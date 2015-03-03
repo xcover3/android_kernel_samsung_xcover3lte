@@ -103,8 +103,8 @@
 
 	headset {
 		marvell,headset-flag = <0>;
-		marvell,hook-press-th = <60>;
-		marvell,vol-up-press-th = <175>;
+		marvell,hook-press-th = <119>;
+		marvell,vol-up-press-th = <213>;
 		marvell,vol-down-press-th = <500>;
 		marvell,mic-det-th = <600>;
 		marvell,press-release-th = <600>;
