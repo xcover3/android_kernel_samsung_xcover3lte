@@ -560,7 +560,7 @@ static struct clk *__get_core_parent(struct clk_hw *hw, struct cpu_opt *cop)
 			pr_debug("clksrcst reg %x, core src sel %x, clk %s\n",
 				 pllsel.v, src_sel,
 				 parent_table[i].parent_name);
-			return __clk_lookup(parent_table[i].parent_name);
+			return parent_table[i].parent;
 		}
 	}
 
@@ -1058,14 +1058,6 @@ static void clk_cpu_init(struct clk_hw *hw)
 
 	parent_table = core->params->parent_table;
 	parent_table_size = core->params->parent_table_size;
-	for (i = 0; i < parent_table_size; i++) {
-		parent = __clk_lookup(parent_table[i].parent_name);
-		if (!IS_ERR(parent))
-			parent_table[i].parent = parent;
-		else
-			pr_err("%s : can't find clk %s\n", __func__,
-			       parent_table[i].parent_name);
-	}
 	pr_info("%-20s%-12s%-16s",
 		"pclk(src:sel,div)", "c_aclk(div)", "l1_xtc:l2_xtc");
 	for (i = 0; i < core->params->cpu_opt_size; i++) {
@@ -1549,7 +1541,7 @@ static inline void hwdfc_initvl(struct clk_ddr *ddr,
 
 static void clk_ddr_init(struct clk_hw *hw)
 {
-	struct clk *parent, *clk;
+	struct clk *parent;
 	struct clk_ddr *ddr = to_clk_ddr(hw);
 	struct ddr_opt *ddr_opt, *cop, cur_op;
 	unsigned int ddr_opt_size = 0, i;
@@ -1564,15 +1556,6 @@ static void clk_ddr_init(struct clk_hw *hw)
 
 	ddr_opt = ddr->params->ddr_opt;
 	ddr_opt_size = ddr->params->ddr_opt_size;
-
-	for (i = 0; i < parent_table_size; i++) {
-		clk = __clk_lookup(parent_table[i].parent_name);
-		if (!IS_ERR(clk))
-			parent_table[i].parent = clk;
-		else
-			pr_err("%s : can't find clk %s\n", __func__,
-			       parent_table[i].parent_name);
-	}
 
 	pr_info("dclk(src:sel,div,tblindex)\n");
 	for (i = 0; i < ddr_opt_size; i++) {
@@ -1741,7 +1724,7 @@ static u8 clk_ddr_get_parent(struct clk_hw *hw)
 		pr_err("%s: Cannot find parent for ddr!\n", __func__);
 		BUG_ON(1);
 	}
-	parent = __clk_lookup(parent_table[i].parent_name);
+	parent = parent_table[i].parent;
 	WARN_ON(!parent);
 	if (parent) {
 		for (i = 0; i < clk->num_parents; i++) {
@@ -2008,7 +1991,7 @@ static void __init __init_axi_rtcwtc(struct clk_hw *hw, struct axi_opt *axi_opt)
 
 static void clk_axi_init(struct clk_hw *hw)
 {
-	struct clk *parent, *clk;
+	struct clk *parent;
 	struct clk_axi *axi = to_clk_axi(hw);
 	struct axi_opt *axi_opt, *cop, cur_op;
 	unsigned int axi_opt_size = 0, i;
@@ -2021,15 +2004,6 @@ static void clk_axi_init(struct clk_hw *hw)
 	axi_opt_size = axi->params->axi_opt_size;
 	parent_table = axi->params->parent_table;
 	parent_table_size = axi->params->parent_table_size;
-
-	for (i = 0; i < parent_table_size; i++) {
-		clk = __clk_lookup(parent_table[i].parent_name);
-		if (!IS_ERR(clk))
-			parent_table[i].parent = clk;
-		else
-			pr_err("%s : can't find clk %s\n", __func__,
-			       parent_table[i].parent_name);
-	}
 
 	pr_info("aclk(src:sel,div)\n");
 	for (i = 0; i < axi_opt_size; i++) {
@@ -2125,7 +2099,7 @@ static u8 clk_axi_get_parent(struct clk_hw *hw)
 		pr_err("%s: Cannot find parent for axi !\n", __func__);
 		BUG_ON(1);
 	}
-	parent = __clk_lookup(parent_table[i].parent_name);
+	parent = parent_table[i].parent;
 	WARN_ON(!parent);
 	if (parent) {
 		for (i = 0; i < clk->num_parents; i++) {

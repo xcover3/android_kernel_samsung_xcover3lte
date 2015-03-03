@@ -1662,12 +1662,16 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 	clst0_core_params.ciu_base = pxa_unit->ciu_base;
 	clst0_core_params.dciu_base = pxa_unit->dciu_base;
 	clst0_core_params.pxa_powermode = pxa1936_powermode;
+	mmp_clk_parents_lookup(clst0_core_params.parent_table,
+		clst0_core_params.parent_table_size);
 
 	clst1_core_params.apmu_base = pxa_unit->apmu_base;
 	clst1_core_params.mpmu_base = pxa_unit->mpmu_base;
 	clst1_core_params.ciu_base = pxa_unit->ciu_base;
 	clst1_core_params.dciu_base = pxa_unit->dciu_base;
 	clst1_core_params.pxa_powermode = pxa1936_powermode;
+	mmp_clk_parents_lookup(clst1_core_params.parent_table,
+		clst1_core_params.parent_table_size);
 
 	ddr_params.apmu_base = pxa_unit->apmu_base;
 	ddr_params.mpmu_base = pxa_unit->mpmu_base;
@@ -1680,12 +1684,16 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 		ddr_params.ddr_opt = lpddr800_op_array;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_op_array);
 	}
+	mmp_clk_parents_lookup(ddr_params.parent_table,
+		ddr_params.parent_table_size);
 
 	axi_params.apmu_base = pxa_unit->apmu_base;
 	axi_params.mpmu_base = pxa_unit->mpmu_base;
 	axi_params.ciu_base = pxa_unit->ciu_base;
 	axi_params.axi_opt = axi_op_array;
 	axi_params.axi_opt_size = ARRAY_SIZE(axi_op_array);
+	mmp_clk_parents_lookup(axi_params.parent_table,
+		axi_params.parent_table_size);
 
 	clk = mmp_clk_register_core(CLST0_CORE_CLK_NAME,
 		(const char **)clst0_core_parent, ARRAY_SIZE(clst0_core_parent),
