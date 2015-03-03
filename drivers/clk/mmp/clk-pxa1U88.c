@@ -1423,6 +1423,8 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 	if (max_freq)
 		core_params.max_cpurate = max_freq;
 	core_params.pxa_powermode = pxa1u88_powermode;
+	mmp_clk_parents_lookup(core_params.parent_table,
+		core_params.parent_table_size);
 
 	ddr_params.apmu_base = pxa_unit->apmu_base;
 	ddr_params.mpmu_base = pxa_unit->mpmu_base;
@@ -1436,11 +1438,15 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 		ddr_params.ddr_opt = lpddr800_oparray;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_oparray);
 	}
+	mmp_clk_parents_lookup(ddr_params.parent_table,
+		ddr_params.parent_table_size);
 
 	axi_params.apmu_base = pxa_unit->apmu_base;
 	axi_params.mpmu_base = pxa_unit->mpmu_base;
 	axi_params.axi_opt = axi_oparray;
 	axi_params.axi_opt_size = ARRAY_SIZE(axi_oparray);
+	mmp_clk_parents_lookup(axi_params.parent_table,
+		axi_params.parent_table_size);
 
 	clk = mmp_clk_register_core("cpu", core_parent,
 		ARRAY_SIZE(core_parent), CLK_GET_RATE_NOCACHE,
