@@ -1047,7 +1047,7 @@
 			"ADC input3", "BT_VC_UL",
 			"TDM_OUT1_PLAYBACK", "DAC1 output out1",
 			"TDM_OUT2_PLAYBACK", "DAC2 output out2",
-			"BT_VC_DL", "ADC output ain3";
+			"BT_VC_DL", "i2s3_bt_vc";
 		fe_i2s1: fe_i2s1 {
 			compatible = "marvell,map-dailink-1";
 			dai-name = "MAP I2S1 audio";
@@ -1076,6 +1076,15 @@
 			stream-name = "map i2s3";
 			marvell,cpu-dai = <&mmp_pcm_hostless 1>;
 			marvell,codec-dai = <&mmp_map_codec 3>;
+			marvell,dai-no-host-mode;
+		};
+		fe_i2s5: fe_i2s5 {
+			compatible = "marvell,map-dailink-2";
+			dai-name = "MAP I2S5 audio";
+			stream-name = "map i2s5";
+			marvell,cpu-dai = <&mmp_pcm_hostless 2>;
+			marvell,codec-dai = <&mmp_map_codec 5>;
+			marvell,dai-dynamic;
 			marvell,dai-no-host-mode;
 		};
 		be_i2s1: be_i2s1 {
