@@ -678,9 +678,15 @@ static int sd8x_rfkill_probe(struct platform_device *pdev)
 	 * devices by default
 	 * TODO: enhance it if there is different choose in future
 	 */
-	pdata->is_on = 0;
-	sd8x_pwr_on(pdata);
-	sd8x_pwr_off(pdata);
+	if (pdata->mmc->sdio_probe_tune) {
+		pdata->is_on = 0;
+		sd8x_pwr_on(pdata);
+		pdata->mmc->sdio_probe_tune = false;
+		sd8x_pwr_off(pdata);
+	} else {
+		sd8x_pwr_ctrl(pdata, 0);
+		pdata->is_on = 0;
+	}
 
 	/*
 	 * Create a proc interface, allowing user space to control
