@@ -42,8 +42,8 @@ static struct task_struct *krtccd;
 static unsigned long prev_jiffy;
 static unsigned long boost_end_jiffy;
 
-#define BOOSTMODE_TIMEOUT		(60*HZ)
-#define DEF_RECLAIM_INTERVAL	(10*HZ)
+#define BOOSTMODE_TIMEOUT		60
+#define DEF_RECLAIM_INTERVAL	10
 #define RTCC_MSG_ASYNC			1
 #define RTCC_MSG_SYNC			2
 #define RTCC_GRADE_NUM 			5
@@ -71,6 +71,8 @@ static long swap_toplimit;
 
 static int rtcc_boost_mode = 1;
 static int rtcc_reclaim_interval = DEF_RECLAIM_INTERVAL;
+static int rtcc_reclaim_jiffies = DEF_RECLAIM_INTERVAL * HZ;
+static int rtcc_boost_duration = BOOSTMODE_TIMEOUT;
 static int rtcc_grade_size = RTCC_GRADE_NUM;
 static int rtcc_grade[RTCC_GRADE_NUM] = {
 	128 * RTCC_GRADE_MULTI,
@@ -142,7 +144,7 @@ static int get_reclaim_count(void)
 	else
 		grade = RTCC_GRADE_LIMIT;
 
-	rtcc_reclaim_interval = DEF_RECLAIM_INTERVAL / times;
+	rtcc_reclaim_jiffies = (rtcc_reclaim_interval * HZ) / times;
 
 	return rtcc_grade[grade];
 }
@@ -222,54 +224,71 @@ static void rtcc_dump(void)
 }
 
 /*
- * RTCC disable/enable by framework code
+ * RTCC set interval by framework code
  */
-static ssize_t rtcc_enable_store(struct class *class, struct class_attribute *attr,
-		const char *buf, size_t count)
+static int rtcc_set_interval(const char *val, struct kernel_param *kp)
 {
-	int val;
+	param_set_int(val, kp);
 
-	sscanf(buf, "%d", &val);
-
-	if (val && atomic_read(&krtccd_enabled)) {
-		pr_info("rtcc has been enabled!\n");
-		return count;
-	}
-
-	if (!val && !atomic_read(&krtccd_enabled)) {
-		pr_info("rtcc has been disabled!\n");
-		return count;
-	}
-
-	if (val)
-		atomic_set(&krtccd_enabled, 1);
-	else
-		atomic_set(&krtccd_enabled, 0);
-
-	return count;
+	return 0;
 }
 
-static CLASS_ATTR(rtcc_enable, 0200, NULL, rtcc_enable_store);
+/*
+ * RTCC set duration by framework code
+ */
+static int rtcc_set_duration(const char *val, struct kernel_param *kp)
+{
+	param_set_int(val, kp);
 
+	return 0;
+}
+
+/*
+ * RTCC disable/enable by framework code
+ */
+static int rtcc_enable(const char *val, struct kernel_param *kp)
+{
+	int enable;
+
+	sscanf(val, "%d", &enable);
+
+	if (enable && atomic_read(&krtccd_enabled)) {
+		pr_info("rtcc has been enabled!\n");
+		return 0;
+	}
+
+	if (!enable && !atomic_read(&krtccd_enabled)) {
+		pr_info("rtcc has been disabled!\n");
+		return 0;
+	}
+
+	if (enable) {
+		prev_jiffy = jiffies;
+		boost_end_jiffy = jiffies + rtcc_boost_duration * HZ;
+		atomic_set(&krtccd_enabled, 1);
+	} else
+		atomic_set(&krtccd_enabled, 0);
+
+	return 0;
+}
 
 /*
  * RTCC triggered by framework code
  */
-static ssize_t rtcc_trigger_store(struct class *class, struct class_attribute *attr,
-		const char *buf, size_t count)
+static int rtcc_trigger(const char *val, struct kernel_param *kp)
 {
-	int val;
+	int option;
 
-	sscanf(buf, "%d", &val);
+	sscanf(val, "%d", &option);
 
 	if (likely(!atomic_read(&krtccd_enabled))) {
 		pr_info("rtcc is disabled, please enable it firstly!");
-		return count;
+		return 0;
 	}
 
-	if (likely(val == RTCC_MSG_ASYNC)) {
+	if (likely(option == RTCC_MSG_ASYNC)) {
 		atomic_set(&need_to_reclaim, 1);
-	} else if (val == RTCC_MSG_SYNC) {
+	} else if (option == RTCC_MSG_SYNC) {
 		if (atomic_read(&krtccd_running) == 0) {
 			atomic_set(&krtccd_running, 1);
 			wake_up_process(krtccd);
@@ -279,11 +298,8 @@ static ssize_t rtcc_trigger_store(struct class *class, struct class_attribute *a
 		rtcc_dump();
 	}
 
-	return count;
+	return 0;
 }
-
-static CLASS_ATTR(rtcc_trigger, 0200, NULL, rtcc_trigger_store);
-static struct class *rtcc_class;
 
 /*
  * RTCC idle handler, called when CPU is idle
@@ -297,7 +313,7 @@ static int rtcc_idle_handler(struct notifier_block *nb, unsigned long val, void 
 		return 0;
 
 	// To prevent RTCC from running too frequently
-	if (likely(time_before(jiffies, prev_jiffy + rtcc_reclaim_interval)))
+	if (likely(time_before(jiffies, prev_jiffy + rtcc_reclaim_jiffies)))
 		return 0;
 
 	if (unlikely(atomic_read(&kswapd_running) == 1))
@@ -339,28 +355,10 @@ static int __init rtcc_init(void)
 	atomic_set(&krtccd_enabled, 0);
 	atomic_set(&need_to_reclaim, 1);
 	atomic_set(&krtccd_running, 0);
-	prev_jiffy = jiffies;
-	boost_end_jiffy = jiffies + BOOSTMODE_TIMEOUT;
 
 #ifndef CONFIG_KSM_ANDROID
 	idle_notifier_register(&rtcc_idle_nb);
 #endif
-
-	rtcc_class = class_create(THIS_MODULE, "rtcc");
-	if (IS_ERR(rtcc_class)) {
-		pr_err("%s: couldn't create rtcc class.\n", __func__);
-		return 0;
-	}
-
-	if (class_create_file(rtcc_class, &class_attr_rtcc_enable) < 0) {
-		pr_err("%s: couldn't create rtcc enable file in sysfs.\n", __func__);
-		class_destroy(rtcc_class);
-	}
-
-	if (class_create_file(rtcc_class, &class_attr_rtcc_trigger) < 0) {
-		pr_err("%s: couldn't create rtcc trigger file in sysfs.\n", __func__);
-		class_destroy(rtcc_class);
-	}
 
 	return 0;
 }
@@ -373,14 +371,14 @@ static void __exit rtcc_exit(void)
 		kthread_stop(krtccd);
 		krtccd = NULL;
 	}
-
-	if (rtcc_class) {
-		class_remove_file(rtcc_class, &class_attr_rtcc_enable);
-		class_remove_file(rtcc_class, &class_attr_rtcc_trigger);
-		class_destroy(rtcc_class);
-	}
 }
 
+module_param_call(interval, rtcc_set_interval, param_get_int,
+	&rtcc_reclaim_interval, S_IWUSR | S_IRUGO);
+module_param_call(boost_duration, rtcc_set_duration, param_get_int,
+	&rtcc_boost_duration, S_IWUSR | S_IRUGO);
+module_param_call(trigger, rtcc_trigger, NULL, NULL, S_IWUSR | S_IRUGO);
+module_param_call(enable, rtcc_enable, NULL, NULL, S_IWUSR | S_IRUGO);
 module_param_array_named(grade, rtcc_grade, uint, &rtcc_grade_size, S_IRUGO | S_IWUSR);
 module_param_array_named(minfree, rtcc_minfree, uint, &rtcc_grade_size, S_IRUGO | S_IWUSR);
 
