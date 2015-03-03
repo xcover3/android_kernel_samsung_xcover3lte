@@ -375,6 +375,7 @@ struct mmc_host {
 	atomic_t		sdio_irq_thread_abort;
 	unsigned int            irq_wakeup;
 	unsigned int            break_suspend;
+	bool			sdio_probe_tune;
 
 	mmc_pm_flag_t		pm_flags;	/* requested pm features */
 

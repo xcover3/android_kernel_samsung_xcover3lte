@@ -1529,6 +1529,9 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 	if (of_property_read_bool(np, "marvell,sdh-pm-runtime-en"))
 		pdata->flags |= PXA_FLAG_EN_PM_RUNTIME;
 
+	if (of_property_read_bool(np, "marvell,sdh-sdio-probe-tune"))
+		host->mmc->sdio_probe_tune = true;
+
 	if (!of_property_read_u32(np, "marvell,sdh-flags", &tmp))
 		pdata->flags |= tmp;
 
