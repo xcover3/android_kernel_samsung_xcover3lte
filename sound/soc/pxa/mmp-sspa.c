@@ -163,14 +163,12 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 {
 	struct sspa_priv *sspa_priv = snd_soc_dai_get_drvdata(cpu_dai);
 	struct ssp_device *sspa = sspa_priv->sspa;
-	u32 sspa_sp, sspa_ctrl, tx_en, rx_en, sp_reg, ctrl_reg;
+	u32 sspa_sp, sspa_ctrl, sp_reg, ctrl_reg;
 
-	tx_en = mmp_sspa_read_reg(sspa, SSPA_TXSP) & SSPA_SP_S_EN;
-	rx_en = mmp_sspa_read_reg(sspa, SSPA_RXSP) & SSPA_SP_S_EN;
-	if (cpu_dai->playback_active && !tx_en) {
+	if (cpu_dai->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		sp_reg = SSPA_TXSP;
 		ctrl_reg = SSPA_TXCTL;
-	} else if (cpu_dai->capture_active && !rx_en) {
+	} else if (cpu_dai->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		sp_reg = SSPA_RXSP;
 		ctrl_reg = SSPA_RXCTL;
 	} else {
@@ -210,7 +208,7 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 		sspa_ctrl &= ~SSPA_CTL_XWDLEN1_MASK;
 		sspa_ctrl |= SSPA_CTL_XWDLEN1(SSPA_CTL_32_BITS);
 		/* fix to sample shift issue in I2S mode */
-		if (cpu_dai->playback_active && !tx_en)
+		if (cpu_dai->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			sspa_sp |= SSPA_SP_FSP;
 		break;
 	case SND_SOC_DAIFMT_DSP_A:

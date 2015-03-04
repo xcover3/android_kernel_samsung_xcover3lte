@@ -239,6 +239,7 @@ struct snd_soc_dai {
 	const char *name;
 	int id;
 	struct device *dev;
+	int stream;		/* playback or capture */
 	void *ac97_pdata;	/* platform_data for the ac97 codec */
 
 	/* driver ops */

@@ -107,6 +107,9 @@ static int map_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int freq_in, freq_out, sspa_mclk, sysclk, sspa_div;
 
+	codec_dai->stream = substream->stream;
+	cpu_dai->stream = substream->stream;
+
 	freq_in = 32768;
 	if (params_rate(params) > 11025) {
 		freq_out = params_rate(params) * 128;
@@ -146,6 +149,9 @@ static int map_fe_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	u32 freq_in, freq_out, sspa_mclk, sysclk, sspa_div;
 	u32 srate = params_rate(params);
+
+	codec_dai->stream = substream->stream;
+	cpu_dai->stream = substream->stream;
 
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
@@ -211,6 +217,9 @@ static int map_be_dei2s_hw_params(struct snd_pcm_substream *substream,
 	unsigned int if1_rx_channel[2] = {7, 5};
 	unsigned int if2_tx_channel[2] = {2, 0};
 	unsigned int if2_rx_channel[2] = {6, 4};
+
+	codec_dai->stream = substream->stream;
+	cpu_dai->stream = substream->stream;
 
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
@@ -300,6 +309,9 @@ static int map_tdm_spkr_hw_params(struct snd_pcm_substream *substream,
 #else
 	int channel;
 #endif
+	codec_dai->stream = substream->stream;
+	cpu_dai->stream = substream->stream;
+
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
 		freq_out = params_rate(params) * 512;
@@ -364,6 +376,9 @@ static int map_tdm_hs_hw_params(struct snd_pcm_substream *substream,
 #else
 	int channel;
 #endif
+	codec_dai->stream = substream->stream;
+	cpu_dai->stream = substream->stream;
+
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
 		freq_out = params_rate(params) * 512;
@@ -428,6 +443,9 @@ static int map_tdm_mic_hw_params(struct snd_pcm_substream *substream,
 #else
 	int channel;
 #endif
+	codec_dai->stream = substream->stream;
+	cpu_dai->stream = substream->stream;
+
 	freq_in = 26000000;
 	if (params_rate(params) > 11025) {
 		freq_out = params_rate(params) * 512;
