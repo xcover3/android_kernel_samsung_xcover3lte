@@ -48,6 +48,7 @@ enum b52_sensor_vcm_type {
 	AD5823 = 2,
 	DW9804 = 4,
 	DW9718 = 5,
+	DW9806 = 6,
 	NONE_VCM,
 };
 

@@ -1011,7 +1011,7 @@ static struct b52_sensor_i2c_attr vcm_attr = {
 	.addr = 0x0c,
 };
 static struct b52_sensor_vcm vcm_dw9806 = {
-	.type = DW9804,
+	.type = DW9806,
 	.attr = &vcm_attr,
 };
 static struct b52_sensor_module S5K3L2_SSG = {
