@@ -29,6 +29,21 @@
 		reg = <0x00000000 0x10000000>;
 	};
 
+	cpus {
+		cpu@0 {
+			enable-method = "";
+		};
+		cpu@1 {
+			enable-method = "";
+		};
+		cpu@2 {
+			enable-method = "";
+		};
+		cpu@3 {
+			enable-method = "";
+		};
+	};
+
 	soc {
 		pd_display: pd_display@0xd4282800 {
 			compatible = "marvell,power-domain-display-pxa1u88";
@@ -40,7 +55,7 @@
 		};
 
 		smmu {  /* iommu in vpu */
-			status = "okay";
+			status = "disabled";
 		};
 
 		axi@d4200000 {	/* AXI */
@@ -90,7 +105,7 @@
 				clocks = <&soc_clocks PXA1U88_CLK_VPU>,
 					<&soc_clocks PXA1U88_CLK_VPUBUS>;
 				clock-names = "VPUCLK", "VPUACLK";
-				status = "okay";
+				status = "disabled";
 			};
 
 			intc: wakeupgen@d4282000 {
@@ -508,6 +523,7 @@
                                         synaptics,sensor_max_y = <1392>;
                                         synaptics,sensor_margin_x = <39>;
                                         synaptics,sensor_margin_y = <0>;
+                                        status = "disabled";
                                 };
 
                                 touch2: s3202@1080p {
@@ -526,6 +542,7 @@
                                         synaptics,sensor_max_y = <2070>;
                                         synaptics,sensor_margin_x = <0>;
                                         synaptics,sensor_margin_y = <0>;
+                                        status = "disabled";
                                 };
 			};
 			twsi2: i2c@d4037000 {
@@ -612,7 +629,7 @@
 					   1 0 0 0  /* 1.8G */
 					   2 0 0 0  /* 1.5G */
 					   3 0 0 0>;/* 1.2G */
-				status = "okay";
+				status = "disabled";
 			};
 			/* SSPA port 0 */
 			sspa0: sspa@d128dc00 {
@@ -767,7 +784,7 @@
 	ion {
 		marvell,ion-nr = <2>;
 		status = "okay";
-		marvell,ion-iommu = <1>;
+		marvell,ion-iommu = <0>;
 		heap1 {
 			marvell,ion-name = "carveout_heap";
 			marvell,ion-type = <2>;
@@ -817,7 +834,7 @@
 		pinctrl-0 = <&gnss_pmx_def1 &gnss_pmx_def2>;
 		pinctrl-1 = <&gnss_pmx_power_on>;
 		pinctrl-2 = <&gnss_pmx_def2>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	mmp_m3_2: cm3senhb {
@@ -827,7 +844,7 @@
 		pinctrl-0 = <&gnss_pmx_def1 &gnss_pmx_def2 &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
 		pinctrl-1 = <&gnss_pmx_power_on &twsi3_pmx_senhb>;
 		pinctrl-2 = <&gnss_pmx_def2>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	smc91x: smc91x@80000300 {
