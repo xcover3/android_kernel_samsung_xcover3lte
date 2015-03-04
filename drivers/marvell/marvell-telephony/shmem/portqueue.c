@@ -32,6 +32,7 @@
 #include "msocket.h"
 #include "diag.h"
 #include "audio_stub.h"
+#include "tel_trace.h"
 
 static struct wakeup_source port_tx_wakeup;
 static struct wakeup_source port_rx_wakeup;
@@ -1010,6 +1011,7 @@ static void portq_tx_worker(struct work_struct *work)
 			}
 			shm_xmit(rbctl, skb);	/* write to rb */
 			data_dump(skb->data, skb->len, portq->port, DATA_TX);
+			trace_portq_xmit(pgrp->grp_type, portq->port, skb->len);
 			kfree_skb(skb);	/* free skb memory */
 			num++, total++;	/* count */
 
@@ -1148,6 +1150,8 @@ static void portq_rx_worker(struct work_struct *work)
 		}
 		__pm_wakeup_event(&port_rx_wakeup, 2000);
 		data_dump(skb->data, skb->len, portq->port, DATA_RX);
+
+		trace_portq_recv(pgrp->grp_type, portq->port, skb->len);
 
 		spin_lock(&portq->lock);
 

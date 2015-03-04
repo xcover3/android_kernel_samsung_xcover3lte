@@ -107,6 +107,36 @@ TRACE_EVENT(psd_recv,
 	TP_printk("slot=%d", __entry->slot)
 );
 
+DECLARE_EVENT_CLASS(portq_xfer_template,
+
+	TP_PROTO(int group, int port, int len),
+
+	TP_ARGS(group, port, len),
+
+	TP_STRUCT__entry(
+		__field(int, group)
+		__field(int, port)
+		__field(int, len)
+	),
+
+	TP_fast_assign(
+		__entry->group = group;
+		__entry->port = port;
+		__entry->len = len;
+	),
+
+	TP_printk("group=%d port=%d len=%d",
+		__entry->group, __entry->port, __entry->len)
+);
+
+DEFINE_EVENT(portq_xfer_template, portq_xmit,
+	TP_PROTO(int group, int port, int len),
+	TP_ARGS(group, port, len));
+
+DEFINE_EVENT(portq_xfer_template, portq_recv,
+	TP_PROTO(int group, int port, int len),
+	TP_ARGS(group, port, len));
+
 #endif /* _TEL_TRACE_H */
 
 #undef TRACE_INCLUDE_PATH
