@@ -3722,11 +3722,9 @@ static ssize_t b52_proc_read_reg(
 static ssize_t b52_proc_write_reg(struct file *filp,
 	const char __user *buffer, size_t length, loff_t *offset)
 {
-	int ret;
 	char readwrite;
 	u32	addr;
-	u32	tmp, val, i, cnt;
-	int	rw_write = 0;
+	u32	tmp, val, i, cnt, pos;
 	char buf[64];
 	u32     offst = 0;
 
@@ -3740,22 +3738,9 @@ static ssize_t b52_proc_write_reg(struct file *filp,
 		pr_err("error: copy_from_user\n");
 		return -EFAULT;
 	}
-	ret = sscanf(buf, "%c %x %x", &readwrite, &addr, &tmp);
-	switch (readwrite) {
-	case 'w':
-		rw_write = 1;
-		break;
-	case 'r':
-		rw_write = 0;
-		break;
-	default:
-		pr_err("error: access could only be r or w\n");
-		pr_info("[b52_reg] usage:\n");
-		pr_info(" read:  echo r [addr] [count] > /proc/driver/b52_reg\n");
-		pr_info(" write: echo w [addr] [value] > /proc/driver/b52_reg\n");
-		return -EFAULT;
-	}
 
+	if (sscanf(buf, "%c %x %x %d", &readwrite, &addr, &tmp, &pos) < 0)
+		return -EINVAL;
 	for (i = 0; i < ARRAY_SIZE(b52_reg_map); i++) {
 		if ((addr >= b52_reg_map[i][0]) && (addr <= b52_reg_map[i][1]))
 			goto addr_valid;
@@ -3764,13 +3749,15 @@ static ssize_t b52_proc_write_reg(struct file *filp,
 	return -EINVAL;
 
 addr_valid:
-	if (rw_write) {
+	switch (readwrite) {
+	case 'w':
 		val = tmp;
 		b52_writeb(addr, val);
 		out_cnt = snprintf(out_buf, PAGE_SIZE,
 				"[0x%05X]: 0x%02X\n", addr, b52_readb(addr));
 		pr_info("%s", out_buf);
-	} else {
+		break;
+	case 'r':
 		cnt = tmp;
 		if (cnt == 0)
 			cnt = 1;
@@ -3785,7 +3772,52 @@ addr_valid:
 		}
 		out_cnt = offst;
 		pr_info("\n%s", out_buf);
+		break;
+	case 's':
+		/*back sensor*/
+		if (pos == 0) {
+			b52_writeb(0x63601, addr);
+			b52_writew(0x63602, tmp);
+			b52_writeb(0x63606, 0x1);
+			b52_writeb(0x63609, 0x33);
+			usleep_range(1000, 1100);
+			b52_writeb(0x63609, 0xf9);
+			usleep_range(1000, 1100);
+			pr_info("sensor addr:[0x%04X]--> value: %X\n",
+						tmp, b52_readb(0x63608));
+		} else {	/*front sensor*/
+			b52_writeb(0x63701, addr);
+			b52_writew(0x63702, tmp);
+			b52_writeb(0x63706, 0x1);
+			b52_writeb(0x63709, 0x33);
+			usleep_range(1000, 1100);
+			b52_writeb(0x63709, 0xf9);
+			usleep_range(1000, 1100);
+			pr_info("sensor addr:[0x%04X]--> value: %X\n",
+						tmp, b52_readb(0x63708));
+		}
+		break;
+	case 'v':
+		b52_writeb(0x63601, addr);
+		b52_writeb(0x63603, tmp);
+		b52_writeb(0x63606, 0x00);
+		b52_writeb(0x63609, 0x33);
+		usleep_range(1000, 1100);
+		b52_writeb(0x63609, 0xf9);
+		usleep_range(1000, 1100);
+		pr_info("vcm addr:[0x%04X]--> value: %X\n",
+						tmp, b52_readb(0x63608));
+		break;
+	default:
+		pr_err("error: access could only be r or w\n");
+		pr_info("[b52_reg] usage:\n");
+		pr_info(" read:  echo r [addr] [count] > /proc/driver/b52_reg\n");
+		pr_info(" write: echo w [addr] [value] > /proc/driver/b52_reg\n");
+		pr_info(" sensor: echo s [i2c] [addr] [pos] > /proc/driver/b52_reg\n");
+		pr_info(" vcm: echo v [i2c] [addr] [no_reg]> /proc/driver/b52_reg\n");
+		return -EFAULT;
 	}
+
 	return length;
 }
 
