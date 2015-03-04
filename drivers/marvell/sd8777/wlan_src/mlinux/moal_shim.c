@@ -1727,7 +1727,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 			if (priv->netdev
 			    && priv->netdev->ieee80211_ptr->wiphy->
-			    mgmt_stypes) {
+			    mgmt_stypes && priv->mgmt_subtype_mask) {
 				/* frmctl + durationid + addr1 + addr2 + addr3
 				   + seqctl */
 #define PACKET_ADDR4_POS        (2 + 2 + 6 + 6 + 6 + 2)
