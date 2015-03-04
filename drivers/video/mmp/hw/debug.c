@@ -65,7 +65,7 @@ void vsync_check_count(struct mmp_path *path)
 	 * Or there will be corner case that irq happen once enable irq,
 	 * it will clear irq before vsync_check=1.
 	 */
-	path->ops.set_irq(path, 1);
+	mmp_path_set_irq(path, SPECIAL_IRQ, IRQ_ENA);
 	init_timer(&vsync_timer);
 	vsync_timer.data = (unsigned long)path;
 	vsync_timer.function = vsync_check_timer;
@@ -78,7 +78,7 @@ void vsync_check_count(struct mmp_path *path)
 		pr_info("%s:still check vsync count\n", __func__);
 
 	/* disable count interrupts */
-	path->ops.set_irq(path, 0);
+	mmp_path_set_irq(path, SPECIAL_IRQ, IRQ_DIS);
 }
 
 ssize_t dsi_show(struct device *dev, struct device_attribute *attr,

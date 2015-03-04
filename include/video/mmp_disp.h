@@ -28,6 +28,13 @@
 #define MMP_XALIGN_GEN4(x) ALIGN(x, 64)
 #define MMP_YALIGN_GEN4(x) ALIGN(x, 4)
 
+#define	IRQ_ENA	1
+#define	IRQ_DIS	0
+
+#define DISPD_IRQ	1
+#define VSYNC_IRQ	2
+#define SPECIAL_IRQ	3
+
 #define DISP_GEN4(version)	((version) == 4 || (version) == 0x14 || (version) == 0x24)
 #define DISP_GEN4_LITE(version)	((version) == 0x14)
 
@@ -544,7 +551,7 @@ struct mmp_path_ops {
 	void (*set_onoff)(struct mmp_path *path, int status);
 	int (*wait_vsync)(struct mmp_path *path);
 	int (*wait_special_vsync)(struct mmp_path *path);
-	int (*set_irq)(struct mmp_path *path, int on);
+	int (*set_irq)(struct mmp_path *path, u32 irq, int on);
 	int (*ctrl_safe)(struct mmp_path *path);
 	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
 	int (*set_commit)(struct mmp_path *path);
@@ -738,8 +745,10 @@ struct mmp_path {
 	int open_count;
 	int status;
 	struct mutex access_ok;
-	atomic_t irq_en_ref;
-	atomic_t irq_en_count;
+	atomic_t irq_dispd_en_ref;
+	atomic_t irq_vsync_en_ref;
+	atomic_t irq_dispd_en_count;
+	atomic_t irq_vsync_en_count;
 
 	/* rate */
 	unsigned long rate;
@@ -812,10 +821,10 @@ static inline int mmp_path_set_gamma(struct mmp_path *path,
 		return path->ops.set_gamma(path, flag, table);
 	return 0;
 }
-static inline int mmp_path_set_irq(struct mmp_path *path, int on)
+static inline int mmp_path_set_irq(struct mmp_path *path, u32 irq, int on)
 {
 	if (path && path->ops.set_irq)
-		return path->ops.set_irq(path, on);
+		return path->ops.set_irq(path, irq, on);
 	return 0;
 }
 
@@ -829,7 +838,8 @@ static inline int mmp_dsi_set_irq(struct mmp_dsi *dsi, int on)
 static inline int mmp_path_get_irq_state(struct mmp_path *path)
 {
 	if (path)
-		return atomic_read(&path->irq_en_ref) > 0;
+		return (atomic_read(&path->irq_dispd_en_ref) > 0)
+			|| (atomic_read(&path->irq_vsync_en_ref) > 0);
 	return 0;
 }
 

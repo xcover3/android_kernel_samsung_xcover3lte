@@ -123,11 +123,11 @@ static void path_hw_trigger(struct mmp_path *path)
 					vdma->ops->trigger(vdma);
 				if (vsync_enable &&
 						!DISP_GEN4_LITE(path_to_ctrl(path)->version))
-					/* Enable irq that vdma channel clock
-					 * will be disabled in irq handler */
-					if (!atomic_read(&path->irq_en_count)) {
-						atomic_inc(&path->irq_en_count);
-						mmp_path_set_irq(path, 1);
+					if (!atomic_read(&path->irq_vsync_en_count)) {
+						atomic_inc(&path->irq_vsync_en_count);
+						/* Enable irq that vdma channel clock
+						 * will be disabled in irq handler */
+						mmp_path_set_irq(path, VSYNC_IRQ, IRQ_ENA);
 					}
 			}
 		}
@@ -503,16 +503,31 @@ static int ctrl_irq_set(struct mmp_path *path, u32 mask, u32 set)
 	return retry;
 }
 
-static int path_set_irq(struct mmp_path *path, int on)
+static int path_set_irq(struct mmp_path *path, u32 irq, int on)
 {
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	u32 tmp;
-	u32 mask = display_done_imask(path->id) | vsync_imask(path->id) |
-		gfx_udflow_imask(path->id) | vid_udflow_imask(path->id);
+	u32 mask = 0;
+	u32 irq_flag = 0;
 	int retry = 0;
 	unsigned long flags;
 
-	spin_lock_irqsave(&path->irq_lock, flags);
+	atomic_t *ref_dispd = NULL, *ref_vsync = NULL;
+
+	if (irq & DISPD_IRQ)
+		ref_dispd = &path->irq_dispd_en_ref;
+
+	if (irq & VSYNC_IRQ)
+		ref_vsync = &path->irq_vsync_en_ref;
+
+	if (!(irq & (DISPD_IRQ | VSYNC_IRQ))) {
+		pr_err("%s: wrong irq setting %d\n", __func__, irq);
+		return 0;
+	}
+
+	dev_dbg(path->dev, "set irq: %d,dispd ref:%d,vsync ref:%d\n", irq,
+			atomic_read(&path->irq_dispd_en_ref),
+			atomic_read(&path->irq_vsync_en_ref));
 
 	/*
 	 * It is possible to disable/enable irq anytime, enable HCLK for it.
@@ -523,34 +538,60 @@ static int path_set_irq(struct mmp_path *path, int on)
 	if (ctrl->clk && !in_irq())
 		clk_prepare_enable(ctrl->clk);
 
+	spin_lock_irqsave(&path->irq_lock, flags);
 	if (!on) {
-		if (atomic_read(&path->irq_en_ref))
-			if (atomic_dec_and_test(&path->irq_en_ref)) {
-				if (!path_ctrl_safe(path)) {
+		/*
+		 * check ref_dispd and ref_vsync if they need to set related
+		 * registers.
+		 */
+		if (ref_dispd && atomic_read(ref_dispd) && atomic_dec_and_test(ref_dispd)) {
+			irq_flag |= DISPD_IRQ;
+			mask |= display_done_imask(path->id);
+		}
+
+		if (ref_vsync && atomic_read(ref_vsync) && atomic_dec_and_test(ref_vsync)) {
+			irq_flag |= VSYNC_IRQ;
+			mask |= vsync_imask(path->id);
+		}
+
+		if (irq_flag) {
+			if (!path_ctrl_safe(path)) {
+				/*
+				 * if it is suspended, we can't access real register,
+				 * should only change the stored value to let them be
+				 * valid in resume.
+				 */
+				tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
+				tmp &= ~mask;
+				ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
+			} else {
+				retry = ctrl_irq_set(path, mask, 0);
+				if (retry == 10000) {
+					pr_err("disable irq: write LCD IRQ failure\n");
 					/*
-					 * if it is suspended, we can't access real register,
-					 * should only change the stored value to let them be
-					 * valid in resume.
+					 * if disable irq failure, we should keep the
+					 * ref the same, so irq would be enabled
+					 * always and try to disable irq.
 					 */
-					tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
-					tmp &= ~mask;
-					ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
-				} else {
-					retry = ctrl_irq_set(path, mask, 0);
-					if (retry == 10000) {
-						pr_info("disable irq: write LCD IRQ failure\n");
-						/*
-						 * if disable irq failure, we should keep the
-						 * irq_en_ref the same, so irq would be enabled
-						 * always and try to disable irq.
-						 */
-						atomic_inc(&path->irq_en_ref);
-					}
+					if (ref_dispd)
+						atomic_inc(ref_dispd);
+					if (ref_vsync)
+						atomic_inc(ref_vsync);
 				}
-				dev_dbg(path->dev, "%s eof intr off\n", path->name);
 			}
+		}
 	} else {
-		if (!atomic_read(&path->irq_en_ref)) {
+		if (ref_dispd && !atomic_read(ref_dispd)) {
+			irq_flag |= DISPD_IRQ;
+			mask |= display_done_imask(path->id);
+		}
+
+		if (ref_vsync && !atomic_read(ref_vsync)) {
+			irq_flag |= VSYNC_IRQ;
+			mask |= vsync_imask(path->id);
+		}
+
+		if (irq_flag) {
 			/*
 			 * FIXME: clear the interrupt status.
 			 * It would not trigger handler if the status on
@@ -583,24 +624,31 @@ static int path_set_irq(struct mmp_path *path, int on)
 
 				retry = ctrl_irq_set(path, 0, mask);
 			}
-			dev_dbg(path->dev, "%s eof intr on\n", path->name);
 		}
 		/*
-		 * if enable irq failure, we shouldn't irq_en_ref++,
+		 * if enable irq failure, we shouldn't ref++,
 		 * or there will be no chance to enable irq.
 		 */
 		if (retry == 10000)
-			pr_info("enable irq: write LCD IRQ failure\n");
-		else
-			atomic_inc(&path->irq_en_ref);
+			pr_err("enable irq: write LCD IRQ failure\n");
+		else {
+			if (ref_dispd)
+				atomic_inc(ref_dispd);
+			if (ref_vsync)
+				atomic_inc(ref_vsync);
+		}
 	}
+	spin_unlock_irqrestore(&path->irq_lock, flags);
 
 	if (ctrl->clk && !in_irq())
 		clk_disable_unprepare(ctrl->clk);
 
-	spin_unlock_irqrestore(&path->irq_lock, flags);
+	dev_dbg(path->dev,
+			"%s eof intr %s,irq_flag:%d,dispd ref:%d,vsync ref:%d\n", path->name,
+			on?"on":"off", irq_flag, atomic_read(&path->irq_dispd_en_ref),
+			atomic_read(&path->irq_vsync_en_ref));
 
-	return atomic_read(&path->irq_en_ref) > 0;
+	return mmp_path_get_irq_state(path);
 }
 
 static void path_trigger(struct mmp_path *path)
@@ -608,6 +656,8 @@ static void path_trigger(struct mmp_path *path)
 	struct mmp_overlay *overlay;
 	int i;
 
+	if (path == NULL)
+		return;
 	/* Called in display(DMA) done interrupt,
 	 * set shadow buffer to registers */
 	for (i = 0; i < path->overlay_num; i++) {
@@ -633,64 +683,61 @@ static irqreturn_t ctrl_handle_irq(int irq, void *dev_id)
 		else
 			writel_relaxed(isr_en, ctrl->reg_base + SPU_IRQ_ISR);
 
-		disp_done = isr_en & display_done_imasks;
-		vsync_done = isr_en & vsync_imasks;
-
 		for (id = 0; id < ctrl->path_num; id++) {
+			disp_done = isr_en & display_done_imask(id);
+			vsync_done = isr_en & vsync_imask(id);
+
 			path = ctrl->path_plats[id].path;
+
+			if (vsync_done) {
+				/*
+				 * if vsync irq happen, we always do vsync handle.
+				 */
+				path = ctrl->path_plats[id].path;
+				slave = path->slave;
+				if (path && path->vsync.handle_irq)
+					path->vsync.handle_irq(&path->vsync);
+				if (slave && slave->vsync.handle_irq)
+					slave->vsync.handle_irq(&slave->vsync);
+
+				if (!(path->irq_count.vsync_check) &&
+					atomic_read(&path->irq_vsync_en_count) &&
+					atomic_dec_and_test(
+					&path->irq_vsync_en_count))
+					mmp_path_set_irq(path, VSYNC_IRQ, IRQ_DIS);
+			} else {
+				/*
+				 * If dispd irq happen and vsync irq not happen,
+				 * we will do special vsync handle;
+				 */
+				if (disp_done) {
+					spin_lock(&path->commit_lock);
+					if (path && atomic_read(&path->commit)) {
+						path_trigger(path);
+						/* update slave path */
+						path_trigger(path->slave);
+						atomic_set(&path->commit, 0);
+						trace_commit(path, 0);
+					}
+					spin_unlock(&path->commit_lock);
+					/* Some special usage need wait this
+					 * kind of vsync */
+					if (path && path->special_vsync.handle_irq)
+						path->special_vsync.handle_irq(
+						&path->special_vsync);
+				}
+			}
+
 			if (path->irq_count.vsync_check) {
 				path->irq_count.irq_count++;
-				if (disp_done & display_done_imask(id))
+				if (disp_done)
 					path->irq_count.dispd_count++;
-				if (vsync_done & vsync_imask(id))
+				if (vsync_done)
 					path->irq_count.vsync_count++;
 			}
 
 			if (isr_en & (gfx_udflow_imask(id) | vid_udflow_imask(id)))
 				trace_underflow(path, isr_en);
-		}
-
-		if (!disp_done)
-			return IRQ_HANDLED;
-		for (id = 0; id < ctrl->path_num; id++) {
-			if (!(disp_done & display_done_imask(id)))
-				continue;
-			path = ctrl->path_plats[id].path;
-			slave = path->slave;
-			if (!(vsync_done & vsync_imask(id))) {
-				spin_lock(&path->commit_lock);
-				if (path && atomic_read(&path->commit)) {
-					path_trigger(path);
-					/* update slave path */
-					if (path->slave)
-						path_trigger(path->slave);
-					atomic_set(&path->commit, 0);
-					trace_commit(path, 0);
-				}
-				spin_unlock(&path->commit_lock);
-				/* Some special usage need wait this
-				 * kind of vsync */
-				if (path && path->special_vsync.handle_irq)
-					path->special_vsync.handle_irq(
-					&path->special_vsync);
-				/* Disable irq if irq is enabled by
-				 * pan_display or path_set_commit.
-				 * Sometimes the irq handler maybe delayed
-				 * (vsync status and display done status were
-				 * both on), this step will be skipped.
-				 * Unless we can find the right
-				 * display done handler (not delayed),
-				 * we wouldn't disable the irq */
-				if (!(path->irq_count.vsync_check) &&
-					atomic_read(&path->irq_en_count) &&
-					atomic_dec_and_test(
-					&path->irq_en_count))
-					mmp_path_set_irq(path, 0);
-			}
-			if (path && path->vsync.handle_irq)
-				path->vsync.handle_irq(&path->vsync);
-			if (slave && slave->vsync.handle_irq)
-				slave->vsync.handle_irq(&slave->vsync);
 		}
 	} while ((isr_en = readl_relaxed(ctrl->reg_base + SPU_IRQ_ISR) &
 				readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA)));

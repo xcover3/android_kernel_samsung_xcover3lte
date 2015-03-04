@@ -806,7 +806,7 @@ struct lcd_regs {
 #define	 GRA_FRAME_IRQ1_MASK		0x04000000
 #define	 GRA_FF_UNDERFLOW(ff)		((ff)<<25)
 #define	 GRA_FF_UNDERFLOW_MASK		0x02000000
-#define	 VSYNC_IRQ(vsync_irq)		((vsync_irq)<<23)
+#define	 PVSYNC_IRQ(vsync_irq)		((vsync_irq)<<23)
 #define	 VSYNC_IRQ_MASK			0x00800000
 #define	 DUMB_FRAMEDONE(fdone)		((fdone)<<22)
 #define	 DUMB_FRAMEDONE_MASK		0x00400000
