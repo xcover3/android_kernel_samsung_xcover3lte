@@ -289,6 +289,66 @@ static struct regmap *nr_to_regmap(struct pm88x_chip *chip, unsigned int nr)
 	}
 }
 
+static int of_get_legacy_init_data(struct device *dev,
+				   struct regulator_init_data **init_data)
+{
+	struct device_node *node = dev->of_node;
+	struct regulator_consumer_supply *consumer_supplies;
+	int len, num, ret, i;
+
+	len =  of_property_count_strings(node, "marvell,consumer-supplies");
+	if (len <= 0)
+		return 0;
+
+	/* format: marvell,consumer-supplies = "supply-name", "dev-name" */
+	if (len % 2 != 0) {
+		dev_err(dev,
+			"format should be: marvell,consumer-supplies = supply-name, dev-name\n");
+
+		return -EINVAL;
+	}
+
+	num = len / 2;
+	consumer_supplies = devm_kzalloc(dev,
+					  sizeof(struct regulator_consumer_supply) * num,
+					  GFP_KERNEL);
+	if (!consumer_supplies) {
+		dev_err(dev, "alloc memory fails.\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < num; i++) {
+		ret = of_property_read_string_index(node,
+						    "marvell,consumer-supplies",
+						    i * 2,
+						    &consumer_supplies[i].supply);
+		if (ret) {
+			dev_err(dev, "read property fails.\n");
+			devm_kfree(dev, consumer_supplies);
+			return ret;
+		}
+
+		ret = of_property_read_string_index(node,
+						    "marvell,consumer-supplies",
+						    i * 2 + 1,
+						    &consumer_supplies[i].dev_name);
+		if (ret) {
+			dev_err(dev, "read property fails.\n");
+			devm_kfree(dev, consumer_supplies);
+			return ret;
+		}
+
+		if (!strcmp((consumer_supplies[i].dev_name), "nameless"))
+			consumer_supplies[i].dev_name = NULL;
+
+	}
+
+	(*init_data)->consumer_supplies = consumer_supplies;
+	(*init_data)->num_consumer_supplies = num;
+
+	return 0;
+}
+
 static int pm88x_virtual_regulator_probe(struct platform_device *pdev)
 {
 	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -306,6 +366,9 @@ static int pm88x_virtual_regulator_probe(struct platform_device *pdev)
 		const_info = match->data;
 		init_data = of_get_regulator_init_data(&pdev->dev,
 						       pdev->dev.of_node);
+		ret = of_get_legacy_init_data(&pdev->dev, &init_data);
+		if (ret < 0)
+			return ret;
 	} else {
 		dev_err(&pdev->dev, "parse dts fails!\n");
 		return -EINVAL;
