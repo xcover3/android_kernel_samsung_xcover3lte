@@ -41,6 +41,7 @@
 #include "diag.h"
 #include "shm_share.h"
 #include "direct_rb.h"
+#include "tel_trace.h"
 
 #define RX_ENQUEUE_RATELIMIT (8192)
 /* max diag rx queue length, in byte */
@@ -459,6 +460,7 @@ int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
 		return -EFAULT;
 	}
 	data_dump((char *)hdr, sizeof(*hdr) + len, dir_ctl->svc_id, DATA_TX);
+	trace_drb_xmit(direct_type, sizeof(*hdr) + len);
 
 	shm_flush_dcache(rbctl, hdr, sizeof(*hdr) + len);
 	dir_ctl->stat_tx_sent++;
@@ -513,6 +515,7 @@ ssize_t direct_rb_recv(enum direct_rb_type direct_type,
 	/* save packet length before advancing reader pointer */
 	packet_len = skb->len;
 	data_dump(skb->data, skb->len, dir_ctl->svc_id, DATA_RX);
+	trace_drb_recv(direct_type, skb->len);
 
 	dev_kfree_skb_any(skb);
 
