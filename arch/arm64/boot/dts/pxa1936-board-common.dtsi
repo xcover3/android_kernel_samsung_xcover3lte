@@ -1189,6 +1189,7 @@
 		pd-gpio = <&gpio 97 0>;
 		rst-gpio = <&gpio 71 0>;
 		wib_1v8-supply = <&buck2>;
+		wib_3v3-supply = <&buck5>;
 		edge-wakeup-gpio = <&gpio 39 0>;
 		status = "okay";
 	};
