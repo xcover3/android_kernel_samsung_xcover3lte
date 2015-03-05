@@ -57,6 +57,10 @@ enum {
 	PM886_ID_LDO_MAX = 16,
 };
 
+enum {
+	PM886_ID_BUCK1_SLP = 0,
+};
+
 /* 1.367 mV/LSB */
 #define PM886_VBAT_2_VALUE(v)		((v << 9) / 700)
 #define PM886_VALUE_2_VBAT(val)		((val * 700) >> 9)

@@ -27,6 +27,9 @@
 
 #define PM88X_VR_EN		(0x28)
 
+#define PM886_BUCK1_SLP_VOUT	(0xa3)
+#define PM886_BUCK1_SLP_EN	(0xa2)
+
 #define PM880_BUCK1A_SLP_VOUT	(0x26)
 #define PM880_BUCK1A_SLP_EN	(0x24)
 #define PM880_BUCK1B_SLP_VOUT	(0x3e)
@@ -92,6 +95,9 @@
 #define PM880_BUCK_SLP(vreg, ebit, nr, volt_ranges, n_volt)		\
 	PM88X_BUCK_SLP(PM880, vreg, ebit, nr, volt_ranges, n_volt)
 
+#define PM886_BUCK_SLP(vreg, ebit, nr, volt_ranges, n_volt)		\
+	PM88X_BUCK_SLP(PM886, vreg, ebit, nr, volt_ranges, n_volt)
+
 #define PM880_BUCK_AUDIO(vreg, ebit, nr, volt_ranges, n_volt)		\
 	PM88X_BUCK_AUDIO(PM880, vreg, ebit, nr, volt_ranges, n_volt)
 
@@ -115,6 +121,9 @@
 
 #define PM880_BUCK_SLP_OF_MATCH(comp, label) \
 	PM88X_BUCK_SLP_OF_MATCH(pm880, PM880_ID, comp, label)
+
+#define PM886_BUCK_SLP_OF_MATCH(comp, label) \
+	PM88X_BUCK_SLP_OF_MATCH(pm886, PM886_ID, comp, label)
 
 #define PM880_BUCK_AUDIO_OF_MATCH(comp, label) \
 	PM88X_BUCK_AUDIO_OF_MATCH(pm880, PM880_ID, comp, label)
@@ -180,12 +189,26 @@ static int pm88x_buck_slp_is_enabled(struct regulator_dev *rdev)
 	return !!((val & rdev->desc->enable_mask) == (0x2 << 5));
 }
 
+static int pm88x_buck_slp_map_voltage(struct regulator_dev *rdev,
+				      int min_uV, int max_uV)
+{
+	/* use higest voltage */
+	if (max_uV >= 1600000)
+		return 0x50 + (max_uV - 1600000) / 50000;
+	else
+		return (max_uV - 600000) / 12500;
+
+	return -EINVAL;
+}
+
 static struct regulator_ops pm88x_buck_slp_ops = {
 	.enable = pm88x_buck_slp_enable,
 	.disable = pm88x_buck_slp_disable,
 	.is_enabled = pm88x_buck_slp_is_enabled,
 	.set_voltage_sel = regulator_set_voltage_sel_regmap,
 	.get_voltage_sel = regulator_get_voltage_sel_regmap,
+	.list_voltage = regulator_list_voltage_linear_range,
+	.map_voltage = pm88x_buck_slp_map_voltage,
 };
 
 static int pm88x_buck_audio_enable(struct regulator_dev *rdev)
@@ -212,6 +235,7 @@ static struct regulator_ops pm88x_buck_audio_ops = {
 	.is_enabled = pm88x_buck_audio_is_enabled,
 	.set_voltage_sel = regulator_set_voltage_sel_regmap,
 	.get_voltage_sel = regulator_get_voltage_sel_regmap,
+	.list_voltage = regulator_list_voltage_linear_range,
 };
 
 static struct pm88x_vr_info pm88x_vr_configs[] = {
@@ -223,6 +247,10 @@ static struct pm88x_buck_slp_info pm880_buck_slp_configs[] = {
 	PM880_BUCK_SLP(BUCK1B_SLP, 4, 4, buck_slp_volt_range1, 0x55),
 };
 
+static struct pm88x_buck_slp_info pm886_buck_slp_configs[] = {
+	PM886_BUCK_SLP(BUCK1_SLP, 4, 1, buck_slp_volt_range1, 0x55),
+};
+
 static struct pm88x_buck_audio_info pm880_buck_audio_configs[] = {
 	PM880_BUCK_AUDIO(BUCK1A_AUDIO, 7, 4, buck_audio_volt_range1, 0x50),
 	PM880_BUCK_AUDIO(BUCK1B_AUDIO, 7, 4, buck_audio_volt_range1, 0x50),
@@ -230,6 +258,8 @@ static struct pm88x_buck_audio_info pm880_buck_audio_configs[] = {
 
 static const struct of_device_id pm88x_vrs_of_match[] = {
 	PM88X_VR_OF_MATCH("marvell,88pm88x-votg", VOTG),
+
+	PM886_BUCK_SLP_OF_MATCH("marvell,88pm886-buck1-slp", BUCK1_SLP),
 
 	PM880_BUCK_SLP_OF_MATCH("marvell,88pm880-buck1a-slp", BUCK1A_SLP),
 	PM880_BUCK_SLP_OF_MATCH("marvell,88pm880-buck1b-slp", BUCK1B_SLP),

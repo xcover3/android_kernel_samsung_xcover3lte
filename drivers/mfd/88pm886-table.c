@@ -280,6 +280,7 @@ const struct mfd_cell pm886_cell_devs[] = {
 	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo14", 18),
 	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo15", 19),
 	CELL_DEV(PM886_LDO_NAME, ldo_resources, "marvell,88pm886-ldo16", 20),
+	CELL_DEV(PM88X_VIRTUAL_REGULATOR_NAME, vr_resources, "marvell,88pm886-buck1-slp", 21),
 };
 EXPORT_SYMBOL_GPL(pm886_cell_devs);
 
