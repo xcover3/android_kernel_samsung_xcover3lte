@@ -620,7 +620,7 @@ struct b52_sensor_data b52_ov8858 = {
 	},
 	.vts_range = {0X0ba0, 0x7fff},
 	.gain_range = {
-		[B52_SENSOR_AG] = {0x0010, 0x00ff},
+		[B52_SENSOR_AG] = {0x0010, 0x00f8},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
 	.expo_range = {0x00010, 0xb90},
