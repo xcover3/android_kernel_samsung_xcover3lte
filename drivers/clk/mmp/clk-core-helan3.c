@@ -75,6 +75,7 @@ struct clk_axi {
 #define APMU_CP_CCR(c)		APMU_REG(c, 0x0000)
 #define APMU_MC_HW_SLP_TYPE(c)	APMU_REG(c, 0x00b0)
 #define APMU_CLK_GATE(c)	APMU_REG(c, 0x0040)
+#define APMU_CCI(c)		APMU_REG(c, 0x0300)
 
 #define MPMU_REG(mpmu_base, x)	(mpmu_base + (x))
 
@@ -2180,6 +2181,43 @@ struct clk *mmp_clk_register_axi(const char *name, const char **parent_name,
 		kfree(axi);
 
 	return clk;
+}
+
+#define CCI_BUS_DIV_SHIFT	(8)
+#define CCI_BUS_DIV_MASK	(0x7)
+static struct clk *clk_cci_mem;
+void __iomem *global_apmu_base;
+
+static int cci_min_notify(struct notifier_block *b,
+				unsigned long min, void *v)
+{
+	int ret = 0;
+	unsigned int regval, bus_clk_div;
+
+	bus_clk_div = ((min == 832000) ? 4 : 2);
+	bus_clk_div -= 1;	/* bus_clk = mem_clk / (this field +1) */
+	regval = readl(APMU_CCI(global_apmu_base));
+	regval &= ~(CCI_BUS_DIV_MASK << CCI_BUS_DIV_SHIFT);
+	regval |= (bus_clk_div << CCI_BUS_DIV_SHIFT);
+	writel(regval, APMU_CCI(global_apmu_base));
+
+	ret = clk_set_rate(clk_cci_mem, min * KHZ_TO_HZ);
+	if (ret) {
+		pr_err("%s failed to change cci mem_clk to %lu MHz\n", __func__, min);
+		return NOTIFY_BAD;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cci_min_notifier = {
+	.notifier_call = cci_min_notify,
+};
+
+void register_cci_notifier(void __iomem *apmu_base, struct clk *clk)
+{
+	global_apmu_base = apmu_base;
+	clk_cci_mem = clk;
+	pm_qos_add_notifier(PM_QOS_CCI_MIN, &cci_min_notifier);
 }
 
 /*

@@ -1528,6 +1528,7 @@ static const char * const cci_parent_names[] = {
 
 static struct mmp_clk_mix_clk_table cci_memclk_pptbl[] = {
 	{.rate = 156000000, .parent_index = 1, },
+	{.rate = 208000000, .parent_index = 0, },
 	{.rate = 312000000, .parent_index = 1, },
 	{.rate = 416000000, .parent_index = 0, },
 	{.rate = 624000000, .parent_index = 1, },
@@ -1538,19 +1539,6 @@ static struct mmp_clk_mix_config cci_memclk_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 4, 3, 0, 12),
 	.table = cci_memclk_pptbl,
 	.table_size = ARRAY_SIZE(cci_memclk_pptbl),
-};
-
-static struct mmp_clk_mix_clk_table cci_busclk_pptbl[] = {
-	{.rate = 78000000, .parent_index = 1, },
-	{.rate = 156000000, .parent_index = 1, },
-	{.rate = 208000000, .parent_index = 0, },
-	{.rate = 312000000, .parent_index = 1, },
-};
-
-static struct mmp_clk_mix_config cci_busclk_mix_config = {
-	.reg_info = DEFINE_MIX_REG_INFO(3, 8, 3, 0, 12),
-	.table = cci_busclk_pptbl,
-	.table_size = ARRAY_SIZE(cci_busclk_pptbl),
 };
 
 static struct combclk_relation dclk_aclk_relationtbl[] = {
@@ -1584,33 +1572,6 @@ static struct combclk_relation c1clk_cciclk_relationtbl[] = {
 	{.mclk_rate = 1803000000, .sclk_rate = 832000000},
 };
 
-static struct clk *clk_cci_mem;
-static struct clk *clk_cci_bus;
-
-static int cci_min_notify(struct notifier_block *b,
-				unsigned long min, void *v)
-{
-	int ret = 0;
-
-	ret = clk_set_rate(clk_cci_mem, min * KHZ_TO_HZ);
-	if (ret) {
-		pr_err("%s failed to change cci mem_clk to %lu MHz\n", __func__, min);
-		return NOTIFY_BAD;
-	} else {
-		min = ((min == 832000) ? (min / 4) : (min / 2));
-		ret = clk_set_rate(clk_cci_bus, min * KHZ_TO_HZ);
-		if (ret) {
-			pr_err("%s failed to change cci bus_clk to %lu MHz\n", __func__, min);
-			return NOTIFY_BAD;
-		}
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block cci_min_notifier = {
-	.notifier_call = cci_min_notify,
-};
-
 static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 {
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
@@ -1627,7 +1588,6 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_CCI,
 				(1 << 13), (1 << 13), 0x0, 0, NULL);
-	clk_cci_mem = clk;
 	clk_prepare_enable(clk);
 	mmp_clk_add(unit, PXA1936_CLK_CCI_MEM, clk);
 
@@ -1636,26 +1596,12 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 		c0clk_cciclk_relationtbl,
 		ARRAY_SIZE(c0clk_cciclk_relationtbl));
 
-	cci_busclk_mix_config.reg_info.reg_clk_ctrl =
-				pxa_unit->apmu_base + APMU_CCI;
-	clk = mmp_clk_register_mix(NULL, "cci_bus_mix_clk",
-				(const char **)cci_parent_names, ARRAY_SIZE(cci_parent_names),
-				0, &cci_busclk_mix_config, NULL);
-
-	clk = mmp_clk_register_gate(NULL, "cci_busclk", "cci_bus_mix_clk",
-				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
-				pxa_unit->apmu_base + APMU_CCI,
-				(1 << 13), (1 << 13), 0x0, 0, NULL);
-	clk_cci_bus = clk;
-	clk_prepare_enable(clk);
-	mmp_clk_add(unit, PXA1936_CLK_CCI_BUS, clk);
-
 	register_slave_clock(clk, CLST1,
 		cci_memclk_pptbl[ARRAY_SIZE(cci_memclk_pptbl) - 1].rate,
 		c1clk_cciclk_relationtbl,
 		ARRAY_SIZE(c1clk_cciclk_relationtbl));
 
-	pm_qos_add_notifier(PM_QOS_CCI_MIN, &cci_min_notifier);
+	register_cci_notifier(pxa_unit->apmu_base, clk);
 
 	clst0_core_params.apmu_base = pxa_unit->apmu_base;
 	clst0_core_params.mpmu_base = pxa_unit->mpmu_base;

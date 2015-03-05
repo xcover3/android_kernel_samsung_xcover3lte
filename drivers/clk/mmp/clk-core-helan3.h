@@ -126,6 +126,8 @@ struct axi_rtcwtc {
 	unsigned int xtc_val;
 };
 
+void register_cci_notifier(void __iomem *apmu_base, struct clk *clk);
+
 /*
  * MMP AXI:
  */
