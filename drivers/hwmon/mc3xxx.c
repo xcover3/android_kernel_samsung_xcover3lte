@@ -1147,19 +1147,19 @@ static ssize_t mc3xxx_delay_store(struct device *dev,
 
 static DEVICE_ATTR(enable      , 0666                           ,
 			mc3xxx_enable_show      , mc3xxx_enable_store);
-static DEVICE_ATTR(delay       , 0666                           ,
+static DEVICE_ATTR(delay       , 0664                           ,
 			mc3xxx_delay_show       , mc3xxx_delay_store);
 static DEVICE_ATTR(value       , S_IRUGO                        ,
 			mc3xxx_value_show       , NULL);
-static DEVICE_ATTR(range       , S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
+static DEVICE_ATTR(range       , S_IRUGO|S_IWUSR|S_IWGRP|S_IROTH,
 			mc3xxx_range_show       , mc3xxx_range_store);
-static DEVICE_ATTR(bandwidth   , S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
+static DEVICE_ATTR(bandwidth   , S_IRUGO|S_IWUSR|S_IWGRP|S_IROTH,
 			mc3xxx_bandwidth_show   , mc3xxx_bandwidth_store);
 static DEVICE_ATTR(position    , 0666                           ,
 			mc3xxx_position_show    , mc3xxx_position_store);
-static DEVICE_ATTR(mode        , S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
+static DEVICE_ATTR(mode        , S_IRUGO|S_IWUSR|S_IWGRP|S_IROTH,
 			mc3xxx_mode_show        , mc3xxx_mode_store);
-static DEVICE_ATTR(reg         , S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
+static DEVICE_ATTR(reg         , S_IRUGO|S_IWUSR|S_IWGRP|S_IROTH,
 			mc3xxx_register_show    , mc3xxx_register_store);
 static DEVICE_ATTR(product_code, S_IRUGO                        ,
 			mc3xxx_product_code_show, NULL);
