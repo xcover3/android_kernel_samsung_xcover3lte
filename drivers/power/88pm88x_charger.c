@@ -128,7 +128,8 @@ static inline int get_prechg_cur(struct pm88x_charger_info *info)
 		info->prechg_cur = 750;
 	else if (info->prechg_cur < 300)
 		info->prechg_cur = 300;
-	if (info->prechg_cur == 300)
+
+	if (info->prechg_cur < 450)
 		return 0;
 	else
 		return (info->prechg_cur - 450) / 50 + 1;
@@ -164,7 +165,7 @@ static inline int get_fastchg_cur(struct pm88x_charger_info *info)
 		ret = 0x1F;
 	} else if (info->fastchg_cur >= 1900)
 		ret = 0x1E;
-	else if (info->fastchg_cur <= 300) {
+	else if (info->fastchg_cur < 450) {
 		info->fastchg_cur = 300;
 		ret = 0x0;
 	} else
