@@ -56,6 +56,14 @@
 #define PM88X_RECHG_THR_SET_50MV	(0x0 << 4)
 #define PM88X_CHG_ILIM_EXTD_1X5		(0x3 << 6)
 
+/* IR drop compensation for PM880 and it's subsequent versions */
+#define PM88X_CHG_CONFIG5		(0x32)
+#define PM88X_IR_COMP_EN		(1 << 5)
+#define PM88X_IR_COMP_UPD_OFFSET	(0)
+#define PM88X_IR_COMP_UPD_MSK		(0x1f << PM88X_IR_COMP_UPD_OFFSET)
+#define PM88X_IR_COMP_UPD_SET(x)	((x) << PM88X_IR_COMP_UPD_OFFSET)
+#define PM88X_IR_COMP_RES_SET		(0x33)
+
 #define PM88X_EXT_ILIM_CONFIG		(0x34)
 #define PM88X_CHG_ILIM_FINE_10		(0x4 << 4)
 
@@ -88,6 +96,9 @@ struct pm88x_charger_info {
 	int used_chg_type;	/* type of used power supply */
 
 	struct mutex lock;
+
+	unsigned int ir_comp_res;	/* IR compensation resistor */
+	unsigned int ir_comp_update;	/* IR compensation update time */
 
 	unsigned int prechg_cur;	/* precharge current limit */
 	unsigned int prechg_vol;	/* precharge voltage limit */
@@ -646,6 +657,18 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 	regmap_update_bits(info->chip->battery_regmap, PM88X_MPPT_CONFIG3,
 			   PM88X_WA_TH_MASK, data);
 
+	if ((PM886 != info->chip->type) && (0 != info->ir_comp_res)) {
+		/* set IR compensation resistor, 4.1667mohm/LSB */
+		data = info->ir_comp_res * 10000 / 41667;
+		data = (data < 0xff) ? data : 0xff;
+		regmap_write(info->chip->battery_regmap, PM88X_IR_COMP_RES_SET, data);
+		/* IR compensation update time is 1s ~ 31s */
+		data = (info->ir_comp_update > 0x1f) ? 0x1f : info->ir_comp_update;
+		regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG5,
+					(PM88X_IR_COMP_EN | PM88X_IR_COMP_UPD_MSK),
+					(PM88X_IR_COMP_EN | PM88X_IR_COMP_UPD_SET(data)));
+	}
+
 	return 0;
 }
 
@@ -952,6 +975,15 @@ static int pm88x_charger_dt_init(struct device_node *np,
 	ret = of_property_read_u32(np, "dcp-limit", &info->dcp_limit);
 	if (ret)
 		return ret;
+
+	ret = of_property_read_u32(np, "ir-comp-res", &info->ir_comp_res);
+	if (ret)
+		info->ir_comp_res = 0;
+
+	ret = of_property_read_u32(np, "ir-comp-update", &info->ir_comp_update);
+	if (ret)
+		/* set IR compensation update time as 1s default */
+		info->ir_comp_update = 1;
 
 	return 0;
 }
