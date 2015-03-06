@@ -193,6 +193,9 @@ struct pm88x_chip {
 	struct pm88x_dvc *dvc;
 };
 
+extern bool buck1slp_is_ever_changed;
+extern bool buck1slp_ever_used_by_map;
+
 struct pm88x_chip *pm88x_init_chip(struct i2c_client *client);
 int pm88x_parse_dt(struct device_node *np, struct pm88x_chip *chip);
 

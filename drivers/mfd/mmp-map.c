@@ -41,6 +41,7 @@ static int map_offset, aux_offset;
 static struct map_private *audio_map_priv;
 static void *regmap_aux;
 static bool pmic_is_88pm880;
+bool buck1slp_ever_used_by_map;
 
 #define to_clk_audio(clk) (container_of(clk, struct clk_audio, hw))
 
@@ -1556,6 +1557,7 @@ void map_set_sleep_vol(struct map_private *map_priv, int on)
 		if (pmic_is_88pm880) {
 			if (map_priv->vccmain) {
 				regulator_put(map_priv->vccmain);
+				buck1slp_ever_used_by_map = true;
 				map_priv->vccmain = NULL;
 			}
 			return;
