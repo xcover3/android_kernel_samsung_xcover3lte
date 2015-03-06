@@ -117,6 +117,11 @@
 		cc-fixup = <102>;
 	};
 
+	charger {
+		ir-comp-res = <65>; /* mohm */
+		ir-comp-update = <5>; /* s */
+	};
+
 	led {
 		gpio-en = <0>;
 		flash-en-gpio = <124>;
