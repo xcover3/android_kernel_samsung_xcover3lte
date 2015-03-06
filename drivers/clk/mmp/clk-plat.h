@@ -70,4 +70,13 @@ struct comm_fuse_info {
 };
 extern int plat_fill_fuseinfo(struct comm_fuse_info *info);
 
+struct parents_table {
+	char *parent_name;
+	struct clk *parent;
+	u32 hw_sel_val;
+};
+
+extern void mmp_clk_parents_lookup(struct parents_table *parent_table,
+	int parent_table_size);
+
 #endif

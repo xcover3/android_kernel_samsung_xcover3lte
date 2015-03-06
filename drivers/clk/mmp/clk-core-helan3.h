@@ -36,12 +36,6 @@ struct cpu_opt {
 	struct list_head node;
 };
 
-struct parents_table {
-	char *parent_name;
-	struct clk *parent;
-	u32 hw_sel_val;
-};
-
 /*
  * struct core_params store core specific data
  */

@@ -28,6 +28,7 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/pxa.h>
 #include "clk.h"
+#include "clk-plat.h"
 #include "clk-core-helan3.h"
 
 struct clk_core {

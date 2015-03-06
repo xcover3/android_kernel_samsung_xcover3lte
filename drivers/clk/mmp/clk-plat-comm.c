@@ -53,6 +53,22 @@ static int __init max_freq_setup(char *str)
 }
 __setup("max_freq=", max_freq_setup);
 
+void mmp_clk_parents_lookup(struct parents_table *parent_table,
+	int parent_table_size)
+{
+	int i;
+	struct clk *parent;
+
+	for (i = 0; i < parent_table_size; i++) {
+		parent = __clk_lookup(parent_table[i].parent_name);
+		if (!IS_ERR_OR_NULL(parent))
+			parent_table[i].parent = parent;
+		else
+			pr_err("%s : can't find clk %s\n", __func__,
+				parent_table[i].parent_name);
+	}
+}
+
 /* interface use to get peri clock avaliable op num and rate */
 unsigned int mmp_clk_mix_get_opnum(struct clk *clk)
 {
