@@ -835,7 +835,7 @@ static int pm88x_get_batt_health(struct pm88x_battery_info *info)
 		return 0;
 	}
 
-	temp = pm88x_get_batt_temp(info);
+	temp = info->bat_params.temp / 10;
 
 	if (temp <= info->t1)
 		range = COLD_NO_CHARGING;
