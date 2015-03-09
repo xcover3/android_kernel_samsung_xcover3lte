@@ -25,11 +25,21 @@
 #define DRV_NAME	"simple_dip"
 #define MISCDEV_MINOR	100
 #define MAX_NUM		10
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+#define CLK_CLST0		"clst0"
+#define CLK_CLST1		"clst1"
+#else
 #define CLK_CPU		"cpu"
+#endif
 #define CLK_DDR		"ddr"
 
 enum comp {
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	CLST0,
+	CLST1,
+#else
 	CPU,
+#endif
 	DDR,
 	LCD,
 };
@@ -48,10 +58,19 @@ struct comp_info_array {
 struct dip_info {
 	struct miscdevice misc_dev;
 	struct comp_info_array comp_info_array;
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	struct clk *clst0;
+	struct clk *clst1;
+	struct pm_qos_request cpu_min_l_qos;
+	struct pm_qos_request cpu_max_l_qos;
+	struct pm_qos_request cpu_min_b_qos;
+	struct pm_qos_request cpu_max_b_qos;
+#else
 	struct clk *cpu;
-	struct clk *ddr;
 	struct pm_qos_request cpu_min_qos;
 	struct pm_qos_request cpu_max_qos;
+#endif
+	struct clk *ddr;
 	struct pm_qos_request ddr_min_qos;
 	struct pm_qos_request ddr_max_qos;
 };
@@ -114,6 +133,22 @@ static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 			return -EFAULT;
 
 		for (i = 0; i < array->comp_num; i++) {
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+			if (array->comp_info[i].comp_id == CLST0) {
+				pm_qos_update_request(&dip_info->cpu_min_l_qos,
+						      array->comp_info[i].
+						      min_freq);
+				pm_qos_update_request(&dip_info->cpu_max_l_qos,
+						      array->comp_info[i].
+						      max_freq);
+			} else if (array->comp_info[i].comp_id == CLST1) {
+				pm_qos_update_request(&dip_info->cpu_min_b_qos,
+						      array->comp_info[i].
+						      min_freq);
+				pm_qos_update_request(&dip_info->cpu_max_b_qos,
+						      array->comp_info[i].
+						      max_freq);
+#else
 			if (array->comp_info[i].comp_id == CPU) {
 				pm_qos_update_request(&dip_info->cpu_min_qos,
 						      array->comp_info[i].
@@ -121,6 +156,7 @@ static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 				pm_qos_update_request(&dip_info->cpu_max_qos,
 						      array->comp_info[i].
 						      max_freq);
+#endif
 			} else if (array->comp_info[i].comp_id == DDR) {
 				pm_qos_update_request(&dip_info->ddr_min_qos,
 						      array->comp_info[i].
@@ -136,9 +172,18 @@ static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 		return 0;
 	} else if (cmd == DIP_END) {
 		dip_notifier(cmd, &rate);
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+		pm_qos_update_request(&dip_info->cpu_min_l_qos,
+				      PM_QOS_DEFAULT_VALUE);
+		pm_qos_update_request(&dip_info->cpu_max_l_qos, INT_MAX);
+		pm_qos_update_request(&dip_info->cpu_min_b_qos,
+				      PM_QOS_DEFAULT_VALUE);
+		pm_qos_update_request(&dip_info->cpu_max_b_qos, INT_MAX);
+#else
 		pm_qos_update_request(&dip_info->cpu_min_qos,
 				      PM_QOS_DEFAULT_VALUE);
 		pm_qos_update_request(&dip_info->cpu_max_qos, INT_MAX);
+#endif
 		pm_qos_update_request(&dip_info->ddr_min_qos,
 				      PM_QOS_DEFAULT_VALUE);
 		pm_qos_update_request(&dip_info->ddr_max_qos, INT_MAX);
@@ -173,6 +218,35 @@ static int simple_dip_probe(struct platform_device *dev)
 	dip_info->misc_dev.name = DRV_NAME;
 	dip_info->misc_dev.fops = &simple_dip_fops;
 	dip_info->comp_info_array.comp_info = comp_info_temp;
+
+#ifdef CONFIG_ARM_MMP_BL_CPUFREQ
+	dip_info->clst0 = __clk_lookup(CLK_CLST0);
+	if (!dip_info->clst0) {
+		pr_err("cannot get clk(clst0)\n");
+		goto err_free_dip;
+	}
+
+	dip_info->cpu_min_l_qos.name = "dip_cpu_min_l";
+	pm_qos_add_request(&dip_info->cpu_min_l_qos, PM_QOS_CPUFREQ_L_MIN,
+			   PM_QOS_DEFAULT_VALUE);
+
+	dip_info->cpu_max_l_qos.name = "dip_cpu_max_l";
+	pm_qos_add_request(&dip_info->cpu_max_l_qos, PM_QOS_CPUFREQ_L_MAX, INT_MAX);
+
+	dip_info->clst1 = __clk_lookup(CLK_CLST1);
+	if (!dip_info->clst1) {
+		pr_err("cannot get clk(clst1)\n");
+		goto err_free_dip;
+	}
+
+	dip_info->cpu_min_b_qos.name = "dip_cpu_min_b";
+	pm_qos_add_request(&dip_info->cpu_min_b_qos, PM_QOS_CPUFREQ_B_MIN,
+			   PM_QOS_DEFAULT_VALUE);
+
+	dip_info->cpu_max_b_qos.name = "dip_cpu_max_b";
+	pm_qos_add_request(&dip_info->cpu_max_b_qos, PM_QOS_CPUFREQ_B_MAX, INT_MAX);
+
+#else
 	dip_info->cpu = __clk_lookup(CLK_CPU);
 	if (!dip_info->cpu) {
 		pr_err("cannot get clk(cpu)\n");
@@ -185,6 +259,7 @@ static int simple_dip_probe(struct platform_device *dev)
 
 	dip_info->cpu_max_qos.name = "dip_cpu_max";
 	pm_qos_add_request(&dip_info->cpu_max_qos, PM_QOS_CPUFREQ_MAX, INT_MAX);
+#endif
 
 	dip_info->ddr = __clk_lookup(CLK_DDR);
 	if (!dip_info->ddr) {
