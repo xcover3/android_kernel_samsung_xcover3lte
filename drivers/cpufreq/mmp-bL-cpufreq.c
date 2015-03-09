@@ -31,6 +31,11 @@
 #include <linux/pm_qos.h>
 #include <linux/clk-private.h>
 
+#ifdef CONFIG_DEBUG_FS
+#include <linux/debugfs.h>
+#include <linux/debugfs-pxa.h>
+#endif
+
 /* Unit of various frequencies:
  * clock driver: Hz
  * cpufreq framework/driver & QoS framework/interface: KHz
@@ -136,13 +141,17 @@ static char *__cpufreq_printf(const char *fmt, ...)
  * By default we enable mode-1 and we can append "vl_cpufreq=0"
  * to uboot cmdline to enable mode-2.
  */
-static int vl_cpufreq_enable = 1;
+static unsigned int vl_cpufreq_enable = 1;
 static int __init __cpufreq_mode_setup(char *str)
 {
-	int n;
+	unsigned int n;
+
 	if (!get_option(&str, &n))
 		return 0;
-	vl_cpufreq_enable = n;
+
+	if (n < 2)
+		vl_cpufreq_enable = n;
+
 	return 1;
 }
 __setup("vl_cpufreq=", __cpufreq_mode_setup);
@@ -644,14 +653,25 @@ static struct cpufreq_driver mmp_bL_cpufreq_driver = {
 	.attr = cpufreq_generic_attr,
 };
 
+static struct dentry *vl_cpufreq;
+
 static int __init mmp_bL_cpufreq_register(void)
 {
+#ifdef CONFIG_DEBUG_FS
+	vl_cpufreq = debugfs_create_u32("vl_cpufreq", 0664, pxa, &vl_cpufreq_enable);
+	if (vl_cpufreq == NULL)
+		pr_err("%s: Error to create file node vl_cpufreq.\n", __func__);
+#endif
 	register_pm_notifier(&cpufreq_pm_notifier);
 	return cpufreq_register_driver(&mmp_bL_cpufreq_driver);
 }
 
 static void __exit mmp_bL_cpufreq_unregister(void)
 {
+#ifdef CONFIG_DEBUG_FS
+	if (vl_cpufreq)
+		debugfs_remove(vl_cpufreq);
+#endif
 	unregister_pm_notifier(&cpufreq_pm_notifier);
 	cpufreq_unregister_driver(&mmp_bL_cpufreq_driver);
 }
