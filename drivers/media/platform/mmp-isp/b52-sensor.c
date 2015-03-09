@@ -748,6 +748,8 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 		b52_sensor_call(sensor, get_dphy_desc,
 				&sensor->csi.dphy_desc, sensor->mclk);
 
+	if (sensor->drvdata->ops->update_otp)
+		b52_sensor_call(sensor, update_otp, &sensor->otp);
 	if (otp_ctrl != -1)
 		sensor->otp.otp_ctrl = otp_ctrl;
 
@@ -774,6 +776,7 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 	if (ret < 0)
 		pr_err("%s: setup hadnler failed\n", __func__);
 	sensor->sensor_init = 1;
+
 	return ret;
 }
 #if 0
