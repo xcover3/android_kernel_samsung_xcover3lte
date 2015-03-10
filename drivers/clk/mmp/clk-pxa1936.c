@@ -1108,7 +1108,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 static DEFINE_SPINLOCK(fc_seq_lock);
 
 static struct cpu_rtcwtc clst0_cpu_rtcwtc_tbl[] = {
-	{.max_pclk = 312, .l1_xtc = 0x11111111, .l2_xtc = 0x00001111, },
+	{.max_pclk = 416, .l1_xtc = 0x11111111, .l2_xtc = 0x00001111, },
 	{.max_pclk = 832, .l1_xtc = 0x55555555, .l2_xtc = 0x00005555, },
 	{.max_pclk = 1057, .l1_xtc = 0x55555555, .l2_xtc = 0x0000555A, },
 	{.max_pclk = 1248, .l1_xtc = 0xAAAAAAAA, .l2_xtc = 0x0000AAAA, },
@@ -1190,7 +1190,7 @@ static struct core_params clst0_core_params = {
 };
 
 static struct cpu_rtcwtc clst1_cpu_rtcwtc_tbl[] = {
-	{.max_pclk = 312, .l1_xtc = 0x11111111, .l2_xtc = 0x00001111, },
+	{.max_pclk = 416, .l1_xtc = 0x11111111, .l2_xtc = 0x00001111, },
 	{.max_pclk = 832, .l1_xtc = 0x55555555, .l2_xtc = 0x00005555, },
 	{.max_pclk = 1057, .l1_xtc = 0x55555555, .l2_xtc = 0x0000555A, },
 	{.max_pclk = 1803, .l1_xtc = 0xAAAAAAAA, .l2_xtc = 0x0000AAAA, },
