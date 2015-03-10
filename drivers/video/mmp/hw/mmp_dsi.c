@@ -652,8 +652,8 @@ static void dsi_set_video_panel(struct mmp_dsi *dsi)
 	hsync_b = to_dsi_bcnt(mode->hsync_len, bpp);
 	hex_b = to_dsi_bcnt(DSI_EX_PIXEL_CNT, bpp);
 	httl_b = hact_b + hsync_b + hfp_b + hbp_b + hex_b;
-	slot_cnt0 = slot_cnt1 = httl_b - hact_b + 3;
 
+	slot_cnt0 = slot_cnt1 = (httl_b - hact_b) / dsi->setting.lanes + 3;
 	hact = hact_b / dsi->setting.lanes;
 	hfp = hfp_b / dsi->setting.lanes;
 	hbp = hbp_b / dsi->setting.lanes;
