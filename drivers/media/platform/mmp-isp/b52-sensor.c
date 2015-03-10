@@ -1676,6 +1676,7 @@ struct sensor_otp32 {
 	compat_caddr_t	module_data;
 	compat_caddr_t	full_otp;
 	__u16   full_otp_len;
+	__u16   full_otp_offset;
 	compat_caddr_t	read_otp_len;
 };
 
@@ -1696,6 +1697,7 @@ static int get_sensor_otp32(struct sensor_otp *kp,
 			get_user(kp->wb_otp_len, &up->wb_otp_len) ||
 			get_user(kp->vcm_otp_len, &up->vcm_otp_len) ||
 			get_user(kp->module_data_len, &up->module_data_len) ||
+			get_user(kp->full_otp_offset, &up->full_otp_offset) ||
 			get_user(kp->full_otp_len, &up->full_otp_len))
 		return -EFAULT;
 	kp->otp_data = compat_ptr(tmp1);
