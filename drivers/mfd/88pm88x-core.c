@@ -670,8 +670,8 @@ static int i2c_raw_update_bits(u8 reg, u8 value)
 	/* 1. read the original value */
 	buf[0] = reg;
 	ret = __i2c_transfer(client->adapter, msgs, 2);
-	if (ret < 0) {
-		pr_err("%s read register fails...\n", __func__);
+	if (ret != 2) {
+		pr_err("%s read register fails, ret = %d...\n", __func__, ret);
 		WARN_ON(1);
 		goto out;
 	}
@@ -683,7 +683,7 @@ static int i2c_raw_update_bits(u8 reg, u8 value)
 	msgs[0].buf[0] = reg;
 	msgs[0].buf[1] = data | value;
 	ret = __i2c_transfer(client->adapter, msgs, 1);
-	if (ret < 0) {
+	if (ret != 1) {
 		pr_err("%s write data fails: ret = %d\n", __func__, ret);
 		WARN_ON(1);
 	}
