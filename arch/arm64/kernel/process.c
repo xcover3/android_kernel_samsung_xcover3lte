@@ -147,39 +147,29 @@ void arch_cpu_idle_dead(void)
 
 void machine_shutdown(void)
 {
-#ifdef CONFIG_SMP
-	/*
-	 * Disable preemption so we're guaranteed to
-	 * run to power off or reboot and prevent
-	 * the possibility of switching to another
-	 * thread that might wind up blocking on
-	 * one of the stopped CPUs.
-	 */
-	preempt_disable();
-
-	smp_send_stop();
-#endif
+	disable_nonboot_cpus();
 }
 
 void machine_halt(void)
 {
-	machine_shutdown();
+	local_irq_disable();
+	smp_send_stop();
 	while (1);
 }
 
 void machine_power_off(void)
 {
-	machine_shutdown();
+	local_irq_disable();
+	smp_send_stop();
 	if (pm_power_off)
 		pm_power_off();
 }
 
 void machine_restart(char *cmd)
 {
-	machine_shutdown();
-
 	/* Disable interrupts first */
 	local_irq_disable();
+	smp_send_stop();
 
 	/* Now call the architecture specific reboot code. */
 	if (arm_pm_restart)
