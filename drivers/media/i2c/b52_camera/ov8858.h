@@ -17,8 +17,8 @@
 #define OTP_DRV_LENC_START_ADDR 0x7028
 #define OTP_DRV_LENC_SIZE  240
 #define OTP_DRV_LSC_REG_ADDR  0x5800
-#define bg_ratio_typical 0x400
-#define rg_ratio_typical 0x400
+#define bg_ratio_typical 0x122
+#define rg_ratio_typical 0x137
 
 /* raw10,XVCLK=24Mhz, SCLK=4x120Mhz, MIPI 640Mbps, DACCLK=240Mhz */
 struct regval_tab ov8858r2a_res_init[] = {
@@ -534,8 +534,8 @@ struct b52_sensor_resolution ov8858r2a_res[] = {
 	[0] = {
 		 .width = 3264,
 		 .height = 2448,
-		 .hts = 0x1580,/*0x1580*/
-		 .min_vts = 0x09aa,/*0x09dc*/
+		 .hts = 0x0794*2,
+		 .min_vts = 0x09dc,
 		 .prop = SENSOR_RES_BINING1,
 		 .regs = {
 			.tab = ov8858r2a_res_8M,
@@ -545,8 +545,8 @@ struct b52_sensor_resolution ov8858r2a_res[] = {
 	[1] = {
 		 .width = 1632,
 		 .height = 1224,
-		 .hts = 0x1580,
-		 .min_vts = 0x04dc,
+		 .hts = 0x0794*2,
+		 .min_vts = 0x09dc,
 		 .prop = SENSOR_RES_BINING2,
 		 .regs = {
 			.tab = ov8858r2a_res_2M,
