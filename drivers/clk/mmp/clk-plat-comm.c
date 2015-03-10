@@ -367,6 +367,12 @@ int plat_fill_fuseinfo(struct comm_fuse_info *info)
 	return 0;
 }
 
+unsigned int get_chipfab(void)
+{
+	return comm_fuseinfo.fab;
+}
+EXPORT_SYMBOL(get_chipfab);
+
 unsigned int get_chipprofile(void)
 {
 	return comm_fuseinfo.profile;

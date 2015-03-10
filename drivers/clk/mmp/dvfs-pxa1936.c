@@ -17,6 +17,7 @@
 #include <linux/mfd/88pm886.h>
 #include <linux/clk/dvfs-dvc.h>
 #include <linux/clk/mmpcpdvc.h>
+#include <linux/clk/mmpfuse.h>
 
 #include <linux/cputype.h>
 #include "clk-plat.h"
@@ -38,12 +39,6 @@ enum dvfs_comp {
 	SDH1,
 	SDH2,
 	VM_RAIL_MAX,
-};
-
-enum fab {
-	TSMC = 0,
-	SEC,
-	FAB_MAX,
 };
 
 #define VL_MAX	8
