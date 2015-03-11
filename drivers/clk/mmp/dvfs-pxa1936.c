@@ -194,6 +194,7 @@ static int __init __init_read_droinfo(void)
 	unsigned int uiAllocRev, uiRun, uiWafer, uiX, uiY, uiParity;
 	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0, smc_ret = 0;
 	unsigned int uiCpuFreq;
+	unsigned int uiskusetting = 0;
 	void __iomem *apmu_base, *geu_base;
 
 	apmu_base = ioremap(APMU_BASE, SZ_4K);
@@ -258,6 +259,8 @@ static int __init __init_read_droinfo(void)
 	uiCpuFreq = (uiBlock0_GEU_FUSE_MANU_PARA_2 >>  14) & 0x3f;
 	uiFabRev = (uiBlock4_MANU_PARA1_1 >> 4) & 0x3;
 	fab_rev = convert_fab_revision(uiFabRev);
+	/*bit 201 ~ 202 for UDR voltage*/
+	uiskusetting = (uiBlock4_MANU_PARA1_1 >> 9) & 0x3;
 
 	guiProfile = convertFusesToProfile_helan3(uiProfileFuses);
 
@@ -273,6 +276,7 @@ static int __init __init_read_droinfo(void)
 	fuseinfo.profile = guiProfile;
 	fuseinfo.iddq_1050 = uiSIDD1p05;
 	fuseinfo.iddq_1030 = uiSIDD1p30;
+	fuseinfo.skusetting = uiskusetting;
 	plat_fill_fuseinfo(&fuseinfo);
 
 	pr_info(" \n");
@@ -288,6 +292,7 @@ static int __init __init_read_droinfo(void)
 	pr_info("             x = %d\n",        uiX);
 	pr_info("             y = %d\n",        uiY);
 	pr_info("        parity = %d\n",   uiParity);
+	pr_info("        skusetting [201:202] = %d\n", uiskusetting);
 	pr_info("     *************************** \n");
 	if (0 == fab_rev)
 		pr_info("     *  Fab   = TSMC 28LP (%d)\n",    fab_rev);
