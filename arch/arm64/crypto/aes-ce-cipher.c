@@ -151,5 +151,9 @@ static void __exit aes_mod_exit(void)
 	crypto_unregister_alg(&aes_alg);
 }
 
+#ifdef USE_V8_CRYPTO_EXTENSIONS
 module_cpu_feature_match(AES, aes_mod_init);
+#else
+module_init(aes_mod_init);
+#endif
 module_exit(aes_mod_exit);
