@@ -220,8 +220,8 @@ static int simple_dip_probe(struct platform_device *dev)
 	dip_info->comp_info_array.comp_info = comp_info_temp;
 
 #ifdef CONFIG_ARM_MMP_BL_CPUFREQ
-	dip_info->clst0 = __clk_lookup(CLK_CLST0);
-	if (!dip_info->clst0) {
+	dip_info->clst0 = devm_clk_get(&dev->dev, CLK_CLST0);
+	if (IS_ERR_OR_NULL(dip_info->clst0)) {
 		pr_err("cannot get clk(clst0)\n");
 		goto err_free_dip;
 	}
@@ -233,8 +233,8 @@ static int simple_dip_probe(struct platform_device *dev)
 	dip_info->cpu_max_l_qos.name = "dip_cpu_max_l";
 	pm_qos_add_request(&dip_info->cpu_max_l_qos, PM_QOS_CPUFREQ_L_MAX, INT_MAX);
 
-	dip_info->clst1 = __clk_lookup(CLK_CLST1);
-	if (!dip_info->clst1) {
+	dip_info->clst1 = devm_clk_get(&dev->dev, CLK_CLST1);
+	if (IS_ERR_OR_NULL(dip_info->clst1)) {
 		pr_err("cannot get clk(clst1)\n");
 		goto err_free_dip;
 	}
@@ -247,8 +247,8 @@ static int simple_dip_probe(struct platform_device *dev)
 	pm_qos_add_request(&dip_info->cpu_max_b_qos, PM_QOS_CPUFREQ_B_MAX, INT_MAX);
 
 #else
-	dip_info->cpu = __clk_lookup(CLK_CPU);
-	if (!dip_info->cpu) {
+	dip_info->cpu = devm_clk_get(&dev->dev, CLK_CPU);
+	if (IS_ERR_OR_NULL(dip_info->cpu)) {
 		pr_err("cannot get clk(cpu)\n");
 		goto err_free_dip;
 	}
@@ -261,8 +261,8 @@ static int simple_dip_probe(struct platform_device *dev)
 	pm_qos_add_request(&dip_info->cpu_max_qos, PM_QOS_CPUFREQ_MAX, INT_MAX);
 #endif
 
-	dip_info->ddr = __clk_lookup(CLK_DDR);
-	if (!dip_info->ddr) {
+	dip_info->ddr = devm_clk_get(&dev->dev, CLK_DDR);
+	if (IS_ERR_OR_NULL(dip_info->ddr)) {
 		pr_err("cannot get clk(ddr)\n");
 		goto err_free_dip;
 	}
