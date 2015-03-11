@@ -1523,7 +1523,7 @@ static struct axi_params axi_params = {
 
 /* CCI-400 mem clk */
 static const char * const cci_parent_names[] = {
-	"pll1_832_gate", "pll1_1248_gate", "pll2", "pll3p"
+	"pll1_832", "pll1_1248", "pll2", "pll3p"
 };
 
 static struct mmp_clk_mix_clk_table cci_memclk_pptbl[] = {
