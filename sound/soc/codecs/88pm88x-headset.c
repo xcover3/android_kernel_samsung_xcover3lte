@@ -79,6 +79,7 @@ struct pm886_hs_info {
 
 	struct regulator *mic_bias;
 	int mic_bias_volt;
+	int mic_bias_range;
 	int headset_flag;
 	int hook_press_th;
 	int vol_up_press_th;
@@ -138,7 +139,7 @@ static int gpadc_measure_voltage(struct pm886_hs_info *info, int which)
 		return 0;
 	/* GPADC4_dir = 1, measure(mv) = value *1.4 *1000/(2^12) */
 	sum = ((buf[0] & 0xFF) << 4) | (buf[1] & 0x0F);
-	sum = ((sum & 0xFFF) * 1400) >> 12;
+	sum = ((sum & 0xFFF) * info->mic_bias_range) >> 12;
 	return sum;
 }
 
@@ -149,13 +150,13 @@ static void gpadc_set_threshold(struct pm886_hs_info *info, int min,
 	if (min <= 0)
 		data = 0;
 	else
-		data = ((min << 12) / 1400) >> 4;
+		data = ((min << 12) / info->mic_bias_range) >> 4;
 	regmap_write(info->map_gpadc,
 		PM886_GPADC_LOW_TH, data);
 	if (max <= 0)
 		data = 0xFF;
 	else
-		data = ((max << 12) / 1400) >> 4;
+		data = ((max << 12) / info->mic_bias_range) >> 4;
 	regmap_write(info->map_gpadc,
 		PM886_GPADC_UPP_TH, data);
 }
@@ -641,6 +642,18 @@ static int pm886_headset_probe(struct platform_device *pdev)
 		hs_info->press_release_th = PM886_PRESS_RELEASE_TH;
 		hs_info->mic_bias_volt = 1700;
 	}
+
+	/*
+	 * When MIC_DET_RDIV_DIS=1, mic bias measure range is 0~1.4V.
+	 * When MIC_DET_RDIV_DIS=0, LDO16_VSET[2]=0,
+	 * mic bias measure range is 0~1.85V.
+	 * When MIC_DET_RDIV_DIS=0, LDO16_VSET[2]=1,
+	 * mic bias measure range is 0~3.1V.
+	 */
+	if (hs_info->mic_bias_volt <= 2000)
+		hs_info->mic_bias_range = 1850;
+	else
+		hs_info->mic_bias_range = 3100;
 
 	hs_info->map = chip->base_regmap;
 	hs_info->map_gpadc = chip->gpadc_regmap;
