@@ -219,17 +219,17 @@ static void add_to_parent_rate_tbl(unsigned long rate)
 /*
  * create clk table for lcd&dsi's parent clk in init stage;
  */
-static void create_parent_tbl(struct clk *clk11)
+static void create_parent_tbl(struct device *dev, struct clk *clk11)
 {
 	int i;
 	struct clk *clk1;
 
 	for (i = 0; i < clk11->num_parents; i++) {
-		clk1 = __clk_lookup(clk11->parent_names[i]);
+		clk1 = devm_clk_get(dev, clk11->parent_names[i]);
 		if (clk1) {
 			parent_clk_tbl[parent_clk_count++] = clk1;
 			add_to_parent_rate_tbl(clk1->rate);
-			create_parent_tbl(clk1);
+			create_parent_tbl(dev, clk1);
 		}
 	}
 }
@@ -976,25 +976,25 @@ void mmp_dfc_init(struct device *dev)
 		for (i = 0; i < count; i++) {
 			if (of_property_read_string_index(np, "parent1-clk-tbl", i, &clk_name))
 				continue;
-			parent1_clk_tbl[i] = __clk_lookup(clk_name);
+			parent1_clk_tbl[i] = devm_clk_get(dev, clk_name);
 		}
 
 		parent2_count = of_property_count_strings(np, "parent2-clk-tbl");
-		if (count < 0) {
+		if (parent2_count < 0) {
 			pr_err("%s: parent2_names property missing or empty\n", __func__);
 			return;
 		}
 		for (i = 0; i < parent2_count; i++) {
 			if (of_property_read_string_index(np, "parent2-clk-tbl", i, &clk_name))
 				continue;
-			parent2_clk_tbl[i] = __clk_lookup(clk_name);
+			parent2_clk_tbl[i] = devm_clk_get(dev, clk_name);
 		}
 	} else {
 		pr_err("%s: dts is not suport, or disp_apmu_ver missing\n", __func__);
 		return;
 	}
 
-	create_parent_tbl(path_clk);
+	create_parent_tbl(dev, path_clk);
 	atomic_set(&ctrl->dfc.commit, 0);
 	spin_lock_init(&ctrl->dfc.lock);
 	INIT_LIST_HEAD(&ctrl->dfc_list.queue);
@@ -1003,15 +1003,15 @@ void mmp_dfc_init(struct device *dev)
 	ctrl->dfc.sclk_reg = ctrl->reg_base + LCD_PN_SCLK;
 
 	sclk_div = readl_relaxed(ctrl->dfc.sclk_reg);
-	clk_parent0 = __clk_lookup(parent0_clk_tbl[0]);
+	clk_parent0 = devm_clk_get(dev, parent0_clk_tbl[0]);
 
 	/*
 	 * When other platforms add dedicate dsi pll like pll3,
 	 * please add "if (plat == PXAxxx)" to update dsipll;
 	 */
-	dsipll = __clk_lookup("pll4");
-	dsipll_vco = __clk_lookup("pll4_vco");
-	hclk = __clk_lookup("LCDCIHCLK");
+	dsipll = devm_clk_get(dev, "pll4");
+	dsipll_vco = devm_clk_get(dev, "pll4_vco");
+	hclk = devm_clk_get(dev, "LCDCIHCLK");
 
 	dsipll_vco_default = clk_get_rate(dsipll_vco);
 	dsipll_default = clk_get_rate(dsipll);
