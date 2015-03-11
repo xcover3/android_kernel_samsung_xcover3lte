@@ -410,7 +410,7 @@ static int HI551_update_otp(struct v4l2_subdev *sd,
 	int ret;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 
-	if (otp->user_otp->otp_type == SENSOR_TO_SENSOR) {
+	if (otp->otp_type ==  SENSOR_TO_SENSOR) {
 		HI551_switch_to_otp_mode(sensor);
 
 		ret = update_otp_info(sensor, otp);

@@ -144,6 +144,7 @@ struct b52_sensor_otp {
 	struct sensor_otp *user_otp;
 	u32 user_data[5];
 	u32 otp_ctrl;
+	enum OTP_TYPE	otp_type;
 };
 
 struct b52_sensor_spec_ops {

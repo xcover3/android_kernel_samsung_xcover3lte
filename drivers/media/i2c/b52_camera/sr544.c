@@ -353,7 +353,7 @@ err:
 static int SR544_update_otp(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *otp)
 {
-	if (otp->user_otp->otp_type ==  SENSOR_TO_ISP)
+	if (otp->otp_type ==  SENSOR_TO_ISP)
 		return SR544_read_data(sd, otp);
 	return -1;
 }

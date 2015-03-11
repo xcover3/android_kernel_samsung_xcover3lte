@@ -1368,6 +1368,7 @@ static int b52_sensor_set_defalut(struct b52_sensor *sensor)
 		sensor->ops.update_otp =
 			sensor->drvdata->ops->update_otp;
 		sensor->otp.otp_ctrl = 3;
+		sensor->otp.otp_type = SENSOR_TO_SENSOR;
 	}
 	return 0;
 }
@@ -2119,7 +2120,9 @@ static long b52_sensor_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_PRIVATE_B52ISP_SENSOR_OTP:
 		sensor->otp.user_otp = (struct sensor_otp *)arg;
+		sensor->otp.otp_type = sensor->otp.user_otp->otp_type;
 		ret = b52_sensor_call(sensor, update_otp, &sensor->otp);
+		sensor->otp.user_otp = NULL;
 		break;
 	case VIDIOC_PRIVATE_B52ISP_SENSOR_REINIT:
 		ret = b52_sensor_reinit(sensor);

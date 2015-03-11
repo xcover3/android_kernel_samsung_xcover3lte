@@ -276,9 +276,9 @@ static int OV8858R2A_update_otp(struct v4l2_subdev *sd,
 	int ret = 0;
 	int flag = 0;
 	u8 lenc[240];
-
 	struct b52_sensor *sensor = to_b52_sensor(sd);
-	if (otp->user_otp->otp_type ==  SENSOR_TO_SENSOR) {
+
+	if (otp->otp_type ==  SENSOR_TO_SENSOR) {
 		/*access otp data start*/
 		OV8858R2A_otp_access_start(sensor);
 
