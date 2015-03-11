@@ -1301,7 +1301,7 @@ static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
 	mutex_lock(&dvfs_tuning_lock);
 
 	/* scale to min freq before requesting dvfs levels */
-	sdh_tunning_scaling2minfreq();
+	sdh_tunning_scaling2minfreq(pdev);
 
 	dvfs_level_min = max(pdata->dvfs_level_min, pxa_sdh_get_lowest_dvfs_level(host));
 	do {

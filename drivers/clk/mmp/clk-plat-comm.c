@@ -19,6 +19,7 @@
 #include <linux/clk/mmpcpdvc.h>
 #include <linux/debugfs.h>
 #include <linux/clk/mmpfuse.h>
+#include <linux/platform_device.h>
 
 #include "clk.h"
 #include "clk-plat.h"
@@ -248,14 +249,15 @@ static int __init sdh_tuning_init(void)
 #endif
 arch_initcall(sdh_tuning_init);
 
-int sdh_tunning_scaling2minfreq(void)
+int sdh_tunning_scaling2minfreq(struct platform_device *pdev)
 {
 	int i;
+	struct device *dev = &pdev->dev;
 
 	for (i = 0; i < BOOT_DVFS_MAX; i++) {
 		if (unlikely(!clk[i])) {
-			clk[i] = __clk_lookup(clk_name[i]);
-			if (!clk[i]) {
+			clk[i] = devm_clk_get(dev, clk_name[i]);
+			if (IS_ERR_OR_NULL(clk[i])) {
 				pr_err("failed to get clk %s\n", clk_name[i]);
 				return -1;
 			}
