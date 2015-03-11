@@ -254,8 +254,11 @@
 				clocks = <&soc_clocks PXA1U88_CLK_SDH2
 					  &soc_clocks PXA1U88_CLK_SDH_AXI
 					  &soc_clocks PXA1U88_CLK_SDH2_DUMMY
+					  &soc_clocks PXA1U88_CLK_CPU
+					  &soc_clocks PXA1U88_CLK_DDR
+					  &soc_clocks PXA1U88_CLK_AXI
 					  >;
-				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "cpu", "ddr", "axi";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
@@ -267,8 +270,11 @@
 				clocks = <&soc_clocks PXA1U88_CLK_SDH0
 					  &soc_clocks PXA1U88_CLK_SDH_AXI
 					  &soc_clocks PXA1U88_CLK_SDH0_DUMMY
+					  &soc_clocks PXA1U88_CLK_CPU
+					  &soc_clocks PXA1U88_CLK_DDR
+					  &soc_clocks PXA1U88_CLK_AXI
 					  >;
-				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "cpu", "ddr", "axi";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
@@ -280,8 +286,11 @@
 				clocks = <&soc_clocks PXA1U88_CLK_SDH1
 					  &soc_clocks PXA1U88_CLK_SDH_AXI
 					  &soc_clocks PXA1U88_CLK_SDH1_DUMMY
+					  &soc_clocks PXA1U88_CLK_CPU
+					  &soc_clocks PXA1U88_CLK_DDR
+					  &soc_clocks PXA1U88_CLK_AXI
 					  >;
-				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "cpu", "ddr", "axi";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
