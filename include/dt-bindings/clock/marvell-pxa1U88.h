@@ -42,6 +42,7 @@
 /* ddr/axi etc */
 #define PXA1U88_CLK_DDR			40
 #define PXA1U88_CLK_AXI			41
+#define PXA1U88_CLK_CPU			42
 
 /* apb periphrals */
 #define PXA1U88_CLK_TWSI0		60

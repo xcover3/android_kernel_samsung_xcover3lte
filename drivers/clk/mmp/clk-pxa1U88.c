@@ -1452,6 +1452,7 @@ static void __init pxa1U88_acpu_init(struct pxa1U88_clk_unit *pxa_unit)
 		ARRAY_SIZE(core_parent), CLK_GET_RATE_NOCACHE,
 		0, &fc_seq_lock, &core_params);
 	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1U88_CLK_CPU, clk);
 
 	clk = mmp_clk_register_ddr("ddr", ddr_parent,
 		ARRAY_SIZE(ddr_parent), CLK_GET_RATE_NOCACHE,
