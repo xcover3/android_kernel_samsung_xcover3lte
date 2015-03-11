@@ -765,8 +765,10 @@ static int b52isp_ctrl_set_contrast(struct v4l2_ctrl *ctrl, int id)
 {
 	u32 base = ISP1_REG_BASE + id * ISP1_ISP2_OFFSER;
 
-	b52_writeb(base + REG_CONTRAST_MIN, ctrl->val & 0xFF);
-	b52_writeb(base + REG_CONTRAST_MAX, (ctrl->val >> 8) & 0xFF);
+	b52_writeb(base + REG_SDE_YGAIN, 0x00);
+	b52_writeb(base + REG_SDE_YGAIN_1, ctrl->val & 0xFF);
+	b52_writeb(base + REG_SDE_YOFFSET, (ctrl->val >> 16) & 0xFF);
+	b52_writeb(base + REG_SDE_YOFFSET_1, (ctrl->val >> 8) & 0xFF);
 
 	return 0;
 }
@@ -1906,7 +1908,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	ctrls->brightness = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_BRIGHTNESS, 0, 0xFFFFFF, 1, 0);
 	ctrls->contrast = v4l2_ctrl_new_std(handler, ops,
-			V4L2_CID_CONTRAST, 0, 0xFFFF, 1, 0);
+			V4L2_CID_CONTRAST, 0, 0xFFFFFF, 1, 0);
 	ctrls->sharpness = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_SHARPNESS, 0, 0xFFFF, 1, 0);
 	ctrls->hue = v4l2_ctrl_new_std(handler, ops,
