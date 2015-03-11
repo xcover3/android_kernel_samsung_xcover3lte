@@ -1645,11 +1645,13 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 		(const char **)clst0_core_parent, ARRAY_SIZE(clst0_core_parent),
 		CLK_GET_RATE_NOCACHE, 0, &fc_seq_lock, &clst0_core_params);
 	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1936_CLK_CLST0, clk);
 
 	clk = mmp_clk_register_core(CLST1_CORE_CLK_NAME,
 		(const char **)clst1_core_parent, ARRAY_SIZE(clst1_core_parent),
 		CLK_GET_RATE_NOCACHE, 0, &fc_seq_lock, &clst1_core_params);
 	clk_prepare_enable(clk);
+	mmp_clk_add(unit, PXA1936_CLK_CLST1, clk);
 
 	clk = mmp_clk_register_ddr("ddr", (const char **)ddr_parent,
 		ARRAY_SIZE(ddr_parent), CLK_GET_RATE_NOCACHE,

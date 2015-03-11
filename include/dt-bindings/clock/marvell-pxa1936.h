@@ -42,6 +42,8 @@
 /* ddr/axi etc */
 #define PXA1936_CLK_DDR			40
 #define PXA1936_CLK_AXI			41
+#define PXA1936_CLK_CLST0		42
+#define PXA1936_CLK_CLST1		43
 
 /* apb periphrals */
 #define PXA1936_CLK_TWSI0		60
