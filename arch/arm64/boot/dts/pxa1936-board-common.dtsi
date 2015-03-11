@@ -1242,6 +1242,10 @@
 
 	dip {
 		compatible = "marvell,simple-dip";
+		clocks = <&soc_clocks PXA1936_CLK_CLST0>,
+				<&soc_clocks PXA1936_CLK_CLST1>,
+				<&soc_clocks PXA1936_CLK_DDR>;
+		clock-names = "clst0", "clst1", "ddr";
 	};
 
 	iml: iml@7ffffe0{
