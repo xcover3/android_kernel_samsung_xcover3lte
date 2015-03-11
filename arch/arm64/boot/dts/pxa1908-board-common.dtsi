@@ -1250,6 +1250,9 @@
 
 	dip {
 		compatible = "marvell,simple-dip";
+		clocks = <&soc_clocks PXA1U88_CLK_CPU>,
+				<&soc_clocks PXA1U88_CLK_DDR>;
+		clock-names = "cpu", "ddr";
 	};
 
 	iml: iml@7ffffe0{
