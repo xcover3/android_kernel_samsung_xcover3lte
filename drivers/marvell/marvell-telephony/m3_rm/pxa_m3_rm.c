@@ -852,9 +852,11 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 				"unfuse_en_d2");
 	}
 
-	clk_32k = __clk_lookup("32kpu");
-	if (!clk_32k)
-		pr_info("get 32k clock failed, will direct control it\n");
+	clk_32k = devm_clk_get(dev, "32kpu");
+	if (IS_ERR_OR_NULL(clk_32k)) {
+		clk_32k = NULL;
+		pr_err("get 32k clock failed, will direct control it\n");
+	}
 	else
 		clk_prepare(clk_32k);
 
