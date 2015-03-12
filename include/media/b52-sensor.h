@@ -41,17 +41,6 @@ enum b52_sensor_type {
 	HYNIX_SENSOR,
 };
 
-enum b52_sensor_vcm_type {
-	BUILD_IN_VCM = 0,
-	AD5820 = 1,
-	DW9714 = AD5820,
-	AD5823 = 2,
-	DW9804 = 4,
-	DW9718 = 5,
-	DW9806 = 6,
-	NONE_VCM,
-};
-
 enum b52_sensor_gain_type {
 	B52_SENSOR_AG = 0,
 	B52_SENSOR_DG,
@@ -112,21 +101,10 @@ struct sensor_prop_range {
 	u32 max;
 };
 
-struct b52_sensor_vcm {
-	const char *name;
-	enum b52_sensor_vcm_type type;
-	struct b52_sensor_i2c_attr *attr;
-	u16 pos_reg_msb;
-	u16 pos_reg_lsb;
-	/*suppose this property belongs to some module */
-	struct b52_sensor_regs id;
-	struct b52_sensor_regs init;
-};
 
 struct b52_sensor_module {
 	u32 id;
 	u32 apeture_size;
-	struct b52_sensor_vcm *vcm;
 };
 struct b52_sensor_otp {
 	u32 customer_id;
@@ -252,7 +230,6 @@ struct b52_sensor_ops {
 	int (*detect_sensor)(struct v4l2_subdev *);
 	int (*detect_vcm)(struct v4l2_subdev *);
 	int (*g_cur_fmt)(struct v4l2_subdev *, struct b52_cmd_i2c_data *);
-	int (*g_vcm_info)(struct v4l2_subdev *, struct b52_sensor_vcm *);
 	int (*gain_to_iso)(struct v4l2_subdev *, u32 gain, u32 *iso);
 	int (*iso_to_gain)(struct v4l2_subdev *, u32 iso, u32 *gain);
 	int (*to_expo_line)(struct v4l2_subdev *, u32 time, u32 *lines);
@@ -285,15 +262,6 @@ struct sensor_power {
 	int ref_cnt;
 };
 
-struct b52_sensor_flash {
-	enum v4l2_flash_led_mode led_mode;
-	enum v4l2_flash_strobe_source strobe_source;
-	u32 timeout;
-	u32 flash_current;
-	u32 torch_current;
-	int flash_status;
-};
-
 struct b52isp_sensor_ctrls {
 	struct v4l2_ctrl_handler ctrl_hdl;
 
@@ -317,8 +285,6 @@ struct b52_sensor {
 	u32 mclk;
 	u32 pixel_rate;
 	struct mipi_csi2 csi;
-
-	struct b52_sensor_flash flash;
 
 	struct b52isp_sensor_ctrls ctrls;
 

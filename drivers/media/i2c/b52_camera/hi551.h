@@ -2123,17 +2123,7 @@ struct b52_sensor_resolution hi551_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_16BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9714 = {
-	.type = DW9714,
-	.attr = &vcm_attr,
-};
 static struct b52_sensor_module hi551_KERR = {
-	.vcm = &vcm_dw9714,
 	.id = 1,		/*follow KERR YL5B01A module id.*/
 };
 static int HI551_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);

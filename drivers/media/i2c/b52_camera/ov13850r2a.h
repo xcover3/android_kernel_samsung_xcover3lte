@@ -317,17 +317,7 @@ struct b52_sensor_resolution OV13850R2A_13M_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_8BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9714 = {
-	.type = DW9714,
-	.attr = &vcm_attr,
-};
 static struct b52_sensor_module OV13850R2A_SUNNY = {
-	.vcm = &vcm_dw9714,
 	.id = 0,
 };
 static int OV13850R2A_get_pixelclock(struct v4l2_subdev *sd,

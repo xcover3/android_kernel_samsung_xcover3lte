@@ -29,6 +29,8 @@
 #include <uapi/media/b52_api.h>
 
 #include "ov13850.h"
+#define OTP_DRV_VCM_GROUP_COUNT  3
+#define OTP_DRV_VCM_SIZE  3
 static int OV13850_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
 	int temp1, temp2;

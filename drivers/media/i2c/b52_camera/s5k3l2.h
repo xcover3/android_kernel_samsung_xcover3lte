@@ -1005,17 +1005,7 @@ struct b52_sensor_resolution S5K3L2_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_8BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9806 = {
-	.type = DW9806,
-	.attr = &vcm_attr,
-};
 static struct b52_sensor_module S5K3L2_SSG = {
-	.vcm = &vcm_dw9806,
 	.id = 0,
 };
 static int S5K3L2_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);

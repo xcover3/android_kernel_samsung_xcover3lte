@@ -34,7 +34,7 @@
 
 #include <media/b52-sensor.h>
 #include <media/mrvl-camera.h>
-
+#include <media/b52socisp/host_isd.h>
 #include "plat_cam.h"
 #include "ccicv2.h"
 
@@ -397,12 +397,15 @@ static int ccic_csi_link_setup(struct media_entity *entity,
 {
 	struct isp_subdev *ispsd = me_to_ispsd(entity);
 	struct ccic_csi *csi = ispsd->drv_priv;
+	struct v4l2_subdev *hst_sd;
 	struct v4l2_subdev *sd;
 	switch (local->index) {
 	case CCIC_CSI_PAD_IN:
 		if (flags & MEDIA_LNK_FL_ENABLED) {
-			sd = container_of(remote->entity,
+			hst_sd = container_of(remote->entity,
 					struct v4l2_subdev, entity);
+			sd = host_subdev_get_guest(hst_sd,
+				MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 			csi->sensor = to_b52_sensor(sd);
 		} else
 			csi->sensor = NULL;

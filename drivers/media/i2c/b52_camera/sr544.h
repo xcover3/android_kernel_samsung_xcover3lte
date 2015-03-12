@@ -2193,17 +2193,7 @@ struct b52_sensor_resolution sr544_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_8BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9804 = {
-	.type = DW9804,
-	.attr = &vcm_attr,
-};
 static struct b52_sensor_module sr544_SSG = {
-	.vcm = &vcm_dw9804,
 	.id = 0,
 };
 static int SR544_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);

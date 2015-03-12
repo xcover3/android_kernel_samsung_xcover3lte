@@ -21,9 +21,10 @@
 #include <linux/pm_qos.h>
 
 #include <media/b52socisp/b52socisp-vdev.h>
+#include <media/b52socisp/host_isd.h>
 #include <media/b52-sensor.h>
 #include "b52-reg.h"
-
+#include <media/b52-vcm.h>
 #include <linux/workqueue.h>
 
 static u64 of_jiffies;
@@ -945,10 +946,8 @@ addr_match:
 static int b52_basic_init(struct b52isp_cmd *cmd)
 {
 	int pipe_id;
-#ifdef CONFIG_ISP_USE_TWSI3
-	u16 af_init_val;
-#endif
-	struct v4l2_subdev *sd = cmd->sensor;
+
+	struct v4l2_subdev *hst_sd = cmd->sensor;
 
 	if (!(cmd->flags & BIT(CMD_FLAG_INIT)))
 		return 0;
@@ -959,16 +958,8 @@ static int b52_basic_init(struct b52isp_cmd *cmd)
 		pipe_id = 1;
 	else
 		return -EINVAL;
-
-	b52_set_aecagc_reg(sd, pipe_id);
-	b52_set_vcm_reg(sd, pipe_id);
-
-#ifdef CONFIG_ISP_USE_TWSI3
-	/*FIXME: set af init val, let it stay at current pos*/
-	b52_read_vcm_info(pipe_id, &af_init_val);
-	b52_sensor_call(sensor, s_focus, af_init_val);
-#endif
-
+	b52_set_aecagc_reg(hst_sd, pipe_id);
+	b52_set_vcm_reg(hst_sd, pipe_id);
 	return 0;
 }
 
@@ -2610,7 +2601,9 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	int ret;
 	u32 flags = cmd->flags;
 	struct b52_cmd_i2c_data data;
-	struct v4l2_subdev *sd = cmd->sensor;
+	struct v4l2_subdev *hsd = cmd->sensor;
+	struct v4l2_subdev *gsd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	const struct b52_sensor_data *sensordata = cmd->memory_sensor_data;
 
 	for (i = 0; i < cmd->nr_mac; i++) {
@@ -2637,7 +2630,7 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 		!(flags & BIT(CMD_FLAG_STREAM_OFF))) {
 		b52_basic_init(cmd);
 
-		b52_g_sensor_fmt_data(sd, &data);
+		b52_g_sensor_fmt_data(gsd, &data);
 		b52_fill_cmd_i2c_buf(data.tab, data.attr->addr, data.num,
 				data.attr->reg_len, data.attr->val_len, data.pos, 0);
 	}
@@ -2668,7 +2661,7 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 		b52_writeb(REG_ISP_TOP37, RGBHGMA_ENABLE);
 		b52_write_pipeline_info(cmd->path, cmd->mem.buf[0]);
 	} else
-		b52_cfg_isp(sd);
+		b52_cfg_isp(gsd);
 	ret = wait_cmd_done(CMD_SET_FMT);
 	if (ret < 0) {
 		b52_dump_isp_cnt(); /* dump ISP cnt to check */
@@ -3202,7 +3195,7 @@ int b52_hdl_cmd(struct b52isp_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(b52_hdl_cmd);
 
-static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
+static int b52_set_aecagc_reg(struct v4l2_subdev *hsd, int p_num)
 {
 	u32 base;
 	u8 type;
@@ -3211,6 +3204,8 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	u8 gain_shift, expo_shift;
 	struct b52_sensor_regs reg;
 	struct b52_sensor_i2c_attr attr;
+	struct v4l2_subdev *sd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 	if (p_num > 1) {
 		pr_err("%s: parameter error %d\n", __func__, p_num);
@@ -3226,18 +3221,7 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	 */
 	b52_writeb(base + REG_FW_SSOR_GAIN_MODE, SSOR_GAIN_Q4);
 
-#ifdef CONFIG_ISP_USE_TWSI3
-	/*
-	 * FIXME: In firmware, expo and gain take effect after 2 frames
-	 * for sony sensor, while ov sensor expo after 2 frames and
-	 * gain after one frame.
-	 * IMX219 is like ov sensor.
-	 */
-	if (type == SONY_SENSOR)
-		type = OVT_SENSOR;
-#endif
 	b52_writeb(base + REG_FW_SSOR_TYPE, type);
-
 	ret = b52_sensor_call(sensor, g_sensor_attr, &attr);
 	if (ret < 0)
 		return ret;
@@ -3249,7 +3233,6 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	if (attr.val_len == I2C_16BIT)
 		val |= FOCUS_DATA_16BIT;
 	b52_writeb(base + REG_FW_SSOR_I2C_OPT, val);
-
 	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_EXPO, &reg);
 	if (ret < 0)
 		return ret;
@@ -3348,51 +3331,47 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 			break;
 		}
 	}
-#ifdef CONFIG_ISP_USE_TWSI3
-	b52_writeb(base + REG_FW_EXPO_GAIN_WR, EXPO_GAIN_HOST_WR);
-#endif
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(b52_set_aecagc_reg);
 
-static int b52_set_vcm_reg(struct v4l2_subdev *sd, int p_num)
+static int b52_set_vcm_reg(struct v4l2_subdev *hsd, int p_num)
 {
+
 	u32 base;
 	int ret;
 	u8 val = 0;
-	struct b52_sensor_vcm vcm;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
+	struct b52_sensor *sensor;
+	struct vcm_type *vcm_info;
+	struct v4l2_subdev *sd;
+	struct v4l2_subdev *subdev = host_subdev_get_guest(hsd,
+						MEDIA_ENT_T_V4L2_SUBDEV_VCM);
+	struct vcm_subdev *vcm = to_b52_vcm(subdev);
+	sd = host_subdev_get_guest(hsd,	MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
+	sensor = to_b52_sensor(sd);
 	if (p_num > 1) {
 		pr_err("%s: parameter error %d\n", __func__, p_num);
 		return -EINVAL;
 	}
 	base = FW_P1_REG_AF_BASE + p_num * FW_P1_P2_AF_OFFSET;
-
-	ret = b52_sensor_call(sensor, g_vcm_info, &vcm);
+	ret = b52_vcm_call(vcm, g_vcm_info, &vcm_info);
 	if (ret == 1) /*if ret==1, which means, the sensor has no vcm*/
 		return 0;
-
 	if (ret < 0)
 		return ret;
 
 	val = sensor->pos;
-	if (vcm.attr->reg_len == I2C_16BIT)
+	if (vcm_info->attr->reg_len == I2C_16BIT)
 		val |= FOCUS_ADDR_16BIT;
-	if (vcm.attr->val_len == I2C_16BIT)
+	if (vcm_info->attr->val_len == I2C_16BIT)
 		val |= FOCUS_DATA_16BIT;
 	b52_writeb(base + REG_FW_FOCUS_I2C_OPT, val);
-	b52_writeb(base + REG_FW_FOCUS_I2C_ADDR, vcm.attr->addr << 1);
-	b52_writew(base + REG_FW_FOCUS_REG_ADDR_MSB, vcm.pos_reg_msb);
-	b52_writew(base + REG_FW_FOCUS_REG_ADDR_LSB, vcm.pos_reg_lsb);
+	b52_writeb(base + REG_FW_FOCUS_I2C_ADDR, vcm_info->attr->addr << 1);
+	b52_writew(base + REG_FW_FOCUS_REG_ADDR_MSB, vcm_info->pos_reg_msb);
+	b52_writew(base + REG_FW_FOCUS_REG_ADDR_LSB, vcm_info->pos_reg_lsb);
 
-#ifdef CONFIG_ISP_USE_TWSI3
-	b52_writeb(base + REG_FW_VCM_TYPE, VCM_HOST_WR);
-#else
-	b52_writeb(base + REG_FW_VCM_TYPE, vcm.type);
-#endif
-
+	b52_writeb(base + REG_FW_VCM_TYPE, vcm_info->type);
 	return 0;
 }
 

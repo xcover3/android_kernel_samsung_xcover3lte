@@ -10,7 +10,7 @@
 #include <linux/export.h>
 #include <linux/slab.h>
 #include <media/v4l2-subdev.h>
-
+#include <media/b52-sensor.h>
 #include <media/b52socisp/b52socisp-mdev.h>
 #include <media/b52socisp/host_isd.h>
 
@@ -59,6 +59,23 @@ int host_subdev_add_guest(struct isp_host_subdev *hsd,
 	return 0;
 }
 EXPORT_SYMBOL(host_subdev_add_guest);
+struct v4l2_subdev *host_subdev_get_guest(struct v4l2_subdev *sd,
+				int entity_type)
+{
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *gsd;
+	struct isp_dev_ptr *dptr;
+	list_for_each_entry(dptr, &hsd->isd.gdev_list, hook) {
+		gsd = dptr->ptr;
+		if (gsd->entity.type != entity_type)
+			continue;
+		goto find_sd;
+	}
+	return NULL;
+find_sd:
+	return gsd;
+}
+EXPORT_SYMBOL(host_subdev_get_guest);
 
 int host_subdev_remove_guest(struct isp_host_subdev *hsd,
 				struct v4l2_subdev *guest)
@@ -114,12 +131,10 @@ EXPORT_SYMBOL(host_subdev_create);
 static int host_subdev_open(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct v4l2_subdev *gsd;
 	struct isp_dev_ptr *dptr;
 	int ret = 0, skip = 0;
-
 	list_for_each_entry(dptr, &hsd->isd.gdev_list, hook) {
 		if (ret < 0) {
 			skip++;
@@ -159,8 +174,7 @@ close_gsd:
 static int host_subdev_close(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct v4l2_subdev *gsd;
 	struct isp_dev_ptr *dptr;
 	int ret = 0;
@@ -225,6 +239,27 @@ static long hsd_cascade_core_ioctl(struct v4l2_subdev *sd, unsigned int cmd, voi
 	return ret;
 }
 
+static int hsd_core_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
+{
+	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
+					struct isp_host_subdev, isd);
+	struct v4l2_subdev *gsd;
+	struct isp_dev_ptr *dptr;
+	int ret = 0;
+
+	list_for_each_entry(dptr, &hsd->isd.gdev_list, hook) {
+		gsd = dptr->ptr;
+		if (!subdev_has_fn(gsd, core, queryctrl))
+			continue;
+		ret |= v4l2_subdev_call(gsd, core, queryctrl, qc);
+		if (ret < 0)
+			d_inf(1, "%s: failed to dispatch ioctl to %s: %d",
+				hsd->isd.subdev.name, gsd->name, ret);
+	}
+
+	return ret;
+}
+
 static int hsd_cascade_core_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
@@ -280,10 +315,10 @@ power_off:
 
 	return ret;
 }
-
 static const struct v4l2_subdev_core_ops hsd_cascade_core_ops = {
 	.ioctl		= &hsd_cascade_core_ioctl,
 	.s_power	= &hsd_cascade_core_s_power,
+	.queryctrl	= &hsd_core_queryctrl,
 };
 
 static int hsd_cascade_video_s_stream(struct v4l2_subdev *sd, int enable)
@@ -692,8 +727,7 @@ EXPORT_SYMBOL(hsd_cascade_behaviors);
 static long hsd_bundle_core_ioctl(struct v4l2_subdev *sd,
 					unsigned int cmd, void *arg)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct v4l2_subdev *gsd;
 	struct isp_dev_ptr *dscr;
 	int ret = 0;
@@ -717,15 +751,13 @@ static long hsd_bundle_core_ioctl(struct v4l2_subdev *sd,
 
 static int hsd_bundle_core_s_power(struct v4l2_subdev *sd, int on)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct v4l2_subdev *gsd;
 	struct isp_dev_ptr *dscr;
 	int ret = 0, tmp, skip = 0;
 
 	if (!on)
 		goto power_off;
-
 	ret = 0;
 	list_for_each_entry(dscr, &hsd->isd.gdev_list, hook) {
 		if (ret < 0) {
@@ -773,16 +805,40 @@ power_off:
 
 	return ret;
 }
+static long hsd_bundle_core_ioctl32(struct v4l2_subdev *sd,
+				unsigned int cmd, void *arg)
+{
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *gsd;
+	struct isp_dev_ptr *dscr;
+	int ret = 0;
+	list_for_each_entry(dscr, &hsd->isd.gdev_list, hook) {
+		int tmp;
+		gsd = dscr->ptr;
+		if (!subdev_has_fn(gsd, core, compat_ioctl32))
+			continue;
+		tmp = v4l2_subdev_call(gsd, core, compat_ioctl32, cmd, arg);
+		if (tmp < 0) {
+			d_inf(1, "%s: failed to dispatch ioctl 0x%X to %s: %d",
+				hsd->isd.subdev.name, cmd, gsd->name, ret);
+			return 0;
+		}
+		ret |= tmp;
+	}
 
+	return ret;
+}
 static const struct v4l2_subdev_core_ops hsd_bundle_core_ops = {
 	.ioctl		= &hsd_bundle_core_ioctl,
 	.s_power	= &hsd_bundle_core_s_power,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = hsd_bundle_core_ioctl32,
+#endif
 };
 
 static int hsd_bundle_video_s_stream(struct v4l2_subdev *sd, int enable)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct v4l2_subdev *gsd;
 	struct tlist_entry *entry;
 	int ret = 0, skip = 0;
@@ -841,8 +897,7 @@ stream_off:
 static int hsd_bundle_video_g_frame_interval(struct v4l2_subdev *sd,
 					struct v4l2_subdev_frame_interval *itv)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct v4l2_subdev *gsd;
 	struct tlist_entry *entry;
 
@@ -859,8 +914,7 @@ static int hsd_bundle_video_g_frame_interval(struct v4l2_subdev *sd,
 static int hsd_bundle_video_s_frame_interval(struct v4l2_subdev *sd,
 					struct v4l2_subdev_frame_interval *itv)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct v4l2_subdev *gsd;
 	struct tlist_entry *entry;
 	int ret = -ENODEV;
@@ -883,8 +937,7 @@ static int hsd_bundle_video_s_frame_interval(struct v4l2_subdev *sd,
 static int hsd_bundle_video_s_mbus_fmt(struct v4l2_subdev *sd,
 				struct v4l2_mbus_framefmt *fmt)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct tlist_entry *entry;
 	struct v4l2_subdev *gsd;
 	int ret = -ENODEV;
@@ -909,8 +962,7 @@ static int hsd_bundle_video_s_mbus_fmt(struct v4l2_subdev *sd,
 static int hsd_bundle_video_g_mbus_fmt(struct v4l2_subdev *sd,
 				struct v4l2_mbus_framefmt *fmt)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct tlist_entry *entry;
 	struct v4l2_subdev *gsd;
 	int ret = 0;
@@ -938,8 +990,7 @@ static int hsd_bundle_video_g_mbus_fmt(struct v4l2_subdev *sd,
 static int hsd_bundle_video_g_mbus_config(struct v4l2_subdev *sd,
 					struct v4l2_mbus_config *cfg)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct tlist_entry *entry;
 	struct v4l2_subdev *gsd;
 
@@ -956,8 +1007,7 @@ static int hsd_bundle_video_g_mbus_config(struct v4l2_subdev *sd,
 static int hsd_bundle_video_s_mbus_config(struct v4l2_subdev *sd,
 					const struct v4l2_mbus_config *cfg)
 {
-	struct isp_host_subdev *hsd = container_of(v4l2_get_subdev_hostdata(sd),
-					struct isp_host_subdev, isd);
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
 	struct tlist_entry *entry;
 	struct v4l2_subdev *gsd;
 	int ret = -ENODEV;
@@ -988,8 +1038,141 @@ static const struct v4l2_subdev_video_ops hsd_bundle_video_ops = {
 	.s_mbus_config		= &hsd_bundle_video_s_mbus_config,
 	.g_mbus_config		= &hsd_bundle_video_g_mbus_config,
 };
+static int hsd_bundle_enum_mbus_code(struct v4l2_subdev *sd,
+		struct v4l2_subdev_fh *fh,
+		struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
+	struct tlist_entry *entry;
+	struct v4l2_subdev *gsd;
+	int ret = -ENODEV;
 
+	list_for_each_entry(entry, &hsd->trvrs_list, hook) {
+		gsd = entry->item;
+		if (!subdev_has_fn(gsd, pad, enum_mbus_code))
+			continue;
+		/* only one component in the pipeline controls mbus config */
+		ret = v4l2_subdev_call(gsd, pad, enum_mbus_code, fh, code);
+		if (ret < 0) {
+			d_inf(1, "%s: failed to set mbus config on %s: %d",
+				sd->name, gsd->name, ret);
+			break;
+		} else
+			d_inf(3, "%s: set mbus config on %s done",
+				sd->name, gsd->name);
+	}
+	return ret;
+}
+static int hsd_bundle_enum_frame_size(struct v4l2_subdev *sd,
+		struct v4l2_subdev_fh *fh,
+		struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
+	struct tlist_entry *entry;
+	struct v4l2_subdev *gsd;
+	int ret = -ENODEV;
+
+	list_for_each_entry(entry, &hsd->trvrs_list, hook) {
+		gsd = entry->item;
+		if (!subdev_has_fn(gsd, pad, enum_frame_size))
+			continue;
+		/* only one component in the pipeline controls mbus config */
+		ret = v4l2_subdev_call(gsd, pad, enum_frame_size, fh, fse);
+		if (ret < 0) {
+			d_inf(1, "%s: failed to set mbus config on %s: %d",
+				sd->name, gsd->name, ret);
+			break;
+		} else
+			d_inf(3, "%s: set mbus config on %s done",
+				sd->name, gsd->name);
+	}
+	return ret;
+}
+static int hsd_bundle_enum_frame_interval(struct v4l2_subdev *sd,
+		struct v4l2_subdev_fh *fh,
+		struct v4l2_subdev_frame_interval_enum *fie)
+{
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
+	struct tlist_entry *entry;
+	struct v4l2_subdev *gsd;
+	int ret = -ENODEV;
+
+	list_for_each_entry(entry, &hsd->trvrs_list, hook) {
+		gsd = entry->item;
+		if (!subdev_has_fn(gsd, pad, enum_frame_interval))
+			continue;
+		/* only one component in the pipeline controls mbus config */
+		ret = v4l2_subdev_call(gsd, pad, enum_frame_interval, fh, fie);
+		if (ret < 0) {
+			d_inf(1, "%s: failed to set mbus config on %s: %d",
+				sd->name, gsd->name, ret);
+			break;
+		} else
+			d_inf(3, "%s: set mbus config on %s done",
+				sd->name, gsd->name);
+	}
+	return ret;
+}
+
+static int hsd_bundle_get_fmt(struct v4l2_subdev *sd,
+		struct v4l2_subdev_fh *fh,
+		struct v4l2_subdev_format *format)
+{
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
+	struct tlist_entry *entry;
+	struct v4l2_subdev *gsd;
+	int ret = -ENODEV;
+
+	list_for_each_entry(entry, &hsd->trvrs_list, hook) {
+		gsd = entry->item;
+		if (!subdev_has_fn(gsd, pad, get_fmt))
+			continue;
+		/* only one component in the pipeline controls mbus config */
+		ret = v4l2_subdev_call(gsd, pad, get_fmt, fh, format);
+		if (ret < 0) {
+			d_inf(1, "%s: failed to set mbus config on %s: %d",
+				sd->name, gsd->name, ret);
+			break;
+		} else
+			d_inf(3, "%s: set mbus config on %s done",
+				sd->name, gsd->name);
+	}
+	return ret;
+}
+static int hsd_bundle_set_fmt(struct v4l2_subdev *sd,
+		struct v4l2_subdev_fh *fh,
+		struct v4l2_subdev_format *format)
+{
+	struct isp_host_subdev *hsd = v4l2_get_subdevdata(sd);
+	struct tlist_entry *entry;
+	struct v4l2_subdev *gsd;
+	int ret = -ENODEV;
+	list_for_each_entry(entry, &hsd->trvrs_list, hook) {
+		gsd = entry->item;
+		if (!subdev_has_fn(gsd, pad, set_fmt))
+			continue;
+		/* only one component in the pipeline controls mbus config */
+		ret = v4l2_subdev_call(gsd, pad, set_fmt, fh, format);
+		if (ret < 0) {
+			d_inf(1, "%s: failed to set mbus config on %s: %d",
+				sd->name, gsd->name, ret);
+			break;
+		} else
+			d_inf(3, "%s: set mbus config on %s done",
+				sd->name, gsd->name);
+	}
+	return ret;
+}
+
+static const struct v4l2_subdev_pad_ops hsd_bundle_pad_ops = {
+	.enum_mbus_code      = hsd_bundle_enum_mbus_code,
+	.enum_frame_size     = hsd_bundle_enum_frame_size,
+	.enum_frame_interval = hsd_bundle_enum_frame_interval,
+	.get_fmt             = hsd_bundle_get_fmt,
+	.set_fmt             = hsd_bundle_set_fmt,
+};
 const struct v4l2_subdev_ops hsd_bundle_ops = {
+	.pad	= &hsd_bundle_pad_ops,
 	.core	= &hsd_bundle_core_ops,
 	.video	= &hsd_bundle_video_ops,
 };
@@ -1007,7 +1190,6 @@ static int hsd_bundle_group(struct isp_host_subdev *hsd, u32 group)
 	/* Build up bundle container */
 	INIT_LIST_HEAD(&hsd->trvrs_list);
 	v4l2_ctrl_handler_init(hsd->isd.subdev.ctrl_handler, 0);
-
 	list_for_each_entry(dscr, &hsd->isd.gdev_list, hook) {
 		switch (dscr->type) {
 		case ISP_GDEV_SUBDEV:
@@ -1027,13 +1209,13 @@ static int hsd_bundle_group(struct isp_host_subdev *hsd, u32 group)
 						gsd->ctrl_handler, NULL);
 		if (ret < 0)
 			goto un_group;
-
 		if (gsd->entity.type != MEDIA_ENT_T_V4L2_SUBDEV_SENSOR)
 			continue;
 		/*
 		 * Traverse list only contains sensor chip guests, but there can
 		 * be more than one sensor chip: consider the 3D camera case.
 		 */
+
 		entry = devm_kzalloc(hsd->dev, sizeof(*entry), GFP_KERNEL);
 		if (entry == NULL) {
 			ret = -ENOMEM;
@@ -1043,9 +1225,9 @@ static int hsd_bundle_group(struct isp_host_subdev *hsd, u32 group)
 		INIT_LIST_HEAD(&entry->hook);
 		list_add_tail(&entry->hook, &hsd->trvrs_list);
 	}
-
 	/* The bundle host subdev has the same pads as the core guest */
 	hsd->isd.subdev.entity.ops = gsd->entity.ops;
+	hsd->isd.subdev.entity.type = MEDIA_ENT_T_V4L2_SUBDEV_HOST;
 	ret = media_entity_init(&hsd->isd.subdev.entity, gsd->entity.num_pads,
 				gsd->entity.pads, 0);
 	if (ret < 0)
@@ -1112,14 +1294,13 @@ static int host_subdev_probe(struct platform_device *pdev)
 {
 	/* pdev->dev.platform_data */
 	struct isp_host_subdev *host;
-	struct v4l2_subdev *sd;
+	struct v4l2_subdev *sd = NULL;
 	struct host_subdev_pdata *pdata = pdev->dev.platform_data;
 	int ret = 0;
 
 	host = devm_kzalloc(&pdev->dev, sizeof(*host), GFP_KERNEL);
 	if (unlikely(host == NULL))
 		return -ENOMEM;
-
 	platform_set_drvdata(pdev, host);
 	host->dev = &pdev->dev;
 	host->group = pdata->group;
@@ -1130,15 +1311,14 @@ static int host_subdev_probe(struct platform_device *pdev)
 	host->isd.subdev.ctrl_handler = &host->isd.ctrl_handler;
 
 	/* v4l2_subdev_init(sd, &host_subdev_ops); */
-	sd = &host->isd.subdev;
+	sd = &(host->isd.subdev);
 	sd->internal_ops = &host_subdev_internal_ops;
-	v4l2_set_subdevdata(sd, host);
 	v4l2_subdev_init(sd, pdata->subdev_ops);
 	sd->grp_id = GID_ISP_SUBDEV;
 	strcpy(sd->name, pdata->name);
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	sd->entity.type = MEDIA_ENT_T_V4L2_SUBDEV;
-	d_inf(2, "host subdev \"%s\" created", sd->name);
+	sd->entity.type = MEDIA_ENT_T_V4L2_SUBDEV_HOST;
+	v4l2_set_subdevdata(sd, host);
 	return ret;
 err:
 	host_subdev_remove(pdev);

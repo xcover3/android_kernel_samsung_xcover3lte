@@ -35,6 +35,7 @@
 #include <media/mrvl-camera.h>
 #include <media/b52-sensor.h>
 #include <uapi/media/b52_api.h>
+#include <media/b52socisp/host_isd.h>
 #include <linux/workqueue.h>
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
 #include <linux/platform_data/camera.h>
@@ -2737,7 +2738,9 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 
 		if ((lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
-			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
+						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
 			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
 			struct b52_sensor *sensor = to_b52_sensor(sd);
@@ -3070,7 +3073,9 @@ disable_axi:
 		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
 			(lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
-			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
+						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
 			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
 

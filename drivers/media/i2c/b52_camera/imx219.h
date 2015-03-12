@@ -117,17 +117,6 @@ struct regval_tab imx219_dg[] = {
 	{0x0158, 0x00, 0xff},
 	{0x0159, 0x00, 0xff},
 };
-struct regval_tab imx219_vcm_id[] = {
-	{0x00, 0xF1, 0xff},
-};
-struct regval_tab imx219_vcm_init[] = {
-	/* control register */
-	{0x02, 0x02, 0x03},
-	/* mode register */
-	{0x06, 0x00, 0xC0},
-	/* period register */
-	{0x07, 0x7C, 0xFF},
-};
 struct regval_tab imx219_af[] = {
 };
 struct regval_tab imx219_vflip[] = {
@@ -146,7 +135,6 @@ struct b52_sensor_i2c_attr imx219_i2c_attr[] = {
 #define N_IMX219_I2C_ATTR ARRAY_SIZE(imx219_i2c_attr)
 #define N_IMX219_INIT ARRAY_SIZE(imx219_res_init)
 #define N_IMX219_ID ARRAY_SIZE(imx219_id)
-#define N_IMX219_VCM_ID ARRAY_SIZE(imx219_vcm_id)
 #define N_IMX219_FMT_RAW10 ARRAY_SIZE(imx219_fmt_raw10)
 #define N_IMX219_13M ARRAY_SIZE(imx219_res_13M)
 #define N_IMX219_4M ARRAY_SIZE(imx219_res_4M)
@@ -158,7 +146,6 @@ struct b52_sensor_i2c_attr imx219_i2c_attr[] = {
 #define N_IMX219_AF ARRAY_SIZE(imx219_af)
 #define N_IMX219_STREAM_ON ARRAY_SIZE(imx219_stream_on)
 #define N_IMX219_STREAM_OFF ARRAY_SIZE(imx219_stream_off)
-#define N_IMX219_VCM_INIT ARRAY_SIZE(imx219_vcm_init)
 #define N_IMX219_VFLIP ARRAY_SIZE(imx219_vflip)
 #define N_IMX219_HFLIP ARRAY_SIZE(imx219_hflip)
 struct b52_sensor_mbus_fmt imx219_fmt = {
@@ -195,28 +182,7 @@ struct b52_sensor_resolution imx219_res[] = {
 	},
 #endif
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_8BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9804 = {
-	.name = "dw9804",
-	.type = DW9804,
-	.attr = &vcm_attr,
-	.pos_reg_msb = 0x03,
-	.pos_reg_lsb = 0x04,
-	.id = {
-		.tab = imx219_vcm_id,
-		.num = N_IMX219_VCM_ID,
-	},
-	.init = {
-		.tab = imx219_vcm_init,
-		.num = N_IMX219_VCM_INIT,
-	},
-};
 static struct b52_sensor_module imx219_SSG = {
-	.vcm = &vcm_dw9804,
 };
 static int IMX219_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
 static int IMX219_get_dphy_desc(struct v4l2_subdev *sd,

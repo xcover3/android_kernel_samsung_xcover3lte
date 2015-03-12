@@ -487,17 +487,6 @@ struct regval_tab ov8858r2a_vflip[] = {
 struct regval_tab ov8858r2a_hflip[] = {
 	{0x3621, 0x00, 0x4},
 };
-struct regval_tab ov8858r2a_vcm_id[] = {
-	{0x00, 0xF1, 0xff},
-};
-struct regval_tab ov8858r2a_vcm_init[] = {
-	/* control register */
-	{0x01, 0x00, 0x03},
-	/* mode register */
-	{0x02, 0x00, 0xC0},
-	/* period register */
-	{0x03, 0x7C, 0xFF},
-};
 
 struct b52_sensor_i2c_attr ov8858r2a_i2c_attr[] = {
 	[0] = {
@@ -509,8 +498,6 @@ struct b52_sensor_i2c_attr ov8858r2a_i2c_attr[] = {
 #define N_OV8858R2A_I2C_ATTR ARRAY_SIZE(ov8858r2a_i2c_attr)
 #define N_OV8858R2A_INIT ARRAY_SIZE(ov8858r2a_res_init)
 #define N_OV8858R2A_ID ARRAY_SIZE(ov8858r2a_id)
-#define N_OV8858R2A_VCM_ID ARRAY_SIZE(ov8858r2a_vcm_id)
-#define N_OV8858R2A_VCM_INIT ARRAY_SIZE(ov8858r2a_vcm_init)
 #define N_OV8858R2A_FMT_RAW10 ARRAY_SIZE(ov8858r2a_fmt_raw10)
 #define N_OV8858R2A_2M ARRAY_SIZE(ov8858r2a_res_2M)
 #define N_OV8858R2A_8M ARRAY_SIZE(ov8858r2a_res_8M)
@@ -554,28 +541,7 @@ struct b52_sensor_resolution ov8858r2a_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_16BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9718 = {
-	.name = "dw9718",
-	.type = DW9718,
-	.attr = &vcm_attr,
-	.pos_reg_msb = 0x02,
-	.pos_reg_lsb = 0x03,
-	.id = {
-		.tab = ov8858r2a_vcm_id,
-		.num = N_OV8858R2A_VCM_ID,
-	},
-	.init = {
-		.tab = ov8858r2a_vcm_init,
-		.num = N_OV8858R2A_VCM_INIT,
-	},
-};
 static struct b52_sensor_module ov8858r2a_SUNNY = {
-	.vcm = &vcm_dw9718,
 	.id = 0x6,
 };
 static int OV8858R2A_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
