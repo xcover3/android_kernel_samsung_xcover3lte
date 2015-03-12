@@ -55,6 +55,28 @@ struct edge_wakeup {
 };
 
 static struct edge_wakeup *info;
+static BLOCKING_NOTIFIER_HEAD(mfp_edge_wakeup_notifier);
+
+int register_mfp_edge_wakup_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&mfp_edge_wakeup_notifier, nb);
+}
+EXPORT_SYMBOL_GPL(register_mfp_edge_wakup_notifier);
+
+int unregister_mfp_edge_wakeup_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&mfp_edge_wakeup_notifier,
+						  nb);
+}
+EXPORT_SYMBOL_GPL(unregister_mfp_edge_wakeup_notifier);
+
+int mfp_edge_wakeup_notifier_call_chain(unsigned long val)
+{
+	int ret = blocking_notifier_call_chain(&mfp_edge_wakeup_notifier,
+					       val, NULL);
+
+	return notifier_to_errno(ret);
+}
 
 /*
  * mmp_request/remove_edge_wakeup is called by common device driver.
@@ -101,6 +123,9 @@ int request_mfp_edge_wakeup(int gpio, edge_handler handler, \
 	list_add(&desc->list, &info->list);
 
 	spin_unlock_irqrestore(&info->lock, flags);
+
+	/* Notify there is one GPIO added for wakeup */
+	mfp_edge_wakeup_notifier_call_chain(gpio);
 
 	return 0;
 }
