@@ -31,12 +31,19 @@ extern void arch_restore_coreinfo(void);
 extern void arch_save_mpinfo(void);
 extern void arch_restore_mpinfo(void);
 
+/*
+ * Stop trace on current CPU.
+ * Use to prevent overrun of valuable trace during error handling.
+ */
+extern void arch_stop_trace(void);
+
 extern void __init arch_coresight_init(void);
 extern void __init arch_enable_trace(u32 enable_mask);
 
 #else
 #define coresight_dump_pcsr(cpu)     do {} while (0)
 #define coresight_trigger_panic(cpu)        do {} while (0)
+static inline void arch_stop_trace(void) {}
 #endif
 
 #endif /* __ARM_CORSIGHT_H */

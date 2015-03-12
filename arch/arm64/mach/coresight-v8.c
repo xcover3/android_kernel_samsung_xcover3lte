@@ -390,6 +390,16 @@ static void __init coresight_local_etb_init(u32 cpu)
 	writel_relaxed(0x0, local_etb + TMC_LAR);
 }
 
+static void coresight_local_etb_stop(u32 cpu)
+{
+	void __iomem *local_etb = LOCAL_ETF_BASE(cpu);
+
+	writel_relaxed(0xC5ACCE55, local_etb + TMC_LAR);
+	writel_relaxed(0x0, local_etb + TMC_CTL);
+	writel_relaxed(0x0, local_etb + TMC_LAR);
+	dsb(); /* prevent further progress until stopped */
+}
+
 static void __init coresight_etm_enable(u32 cpu)
 {
 	void __iomem *p_etm_base = ETM_BASE(cpu);
@@ -515,6 +525,11 @@ void arch_enable_trace(u32 enable_mask)
 			coresight_percore_init(cpu);
 
 	etm_enable_mask = enable_mask;
+}
+
+void arch_stop_trace(void)
+{
+	coresight_local_etb_stop(raw_smp_processor_id());
 }
 #endif
 
