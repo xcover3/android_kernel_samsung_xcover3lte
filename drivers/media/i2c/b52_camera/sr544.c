@@ -198,11 +198,19 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 	ushort bank_addr;
 	ushort bank_map[3] = {BANK1_BASE, BANK2_BASE, BANK3_BASE};
 	ushort bank_base =  bank_map[0];
-	char *bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
-	char *bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
-	char *bank_grp3 = devm_kzalloc(sd->dev, GROUP3_LEN, GFP_KERNEL);
-	char *bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
-	char *full_otp = devm_kzalloc(sd->dev, FULL_OTP_LEN, GFP_KERNEL);
+	char *bank_grp1, *bank_grp2, *bank_grp3, *bank_grp4, *full_otp;
+
+	if (!otp->user_otp) {
+		pr_err("user otp haven't init\n");
+		return 0;
+	}
+
+	bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
+	bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
+	bank_grp3 = devm_kzalloc(sd->dev, GROUP3_LEN, GFP_KERNEL);
+	bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
+	full_otp = devm_kzalloc(sd->dev, FULL_OTP_LEN, GFP_KERNEL);
+
 	SR544_write_reg(sd, 0x0118,  0x00);
 	msleep(100);
 	SR544_cmd_write(sd, sr544_otp);
