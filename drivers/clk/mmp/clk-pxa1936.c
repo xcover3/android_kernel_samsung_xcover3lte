@@ -229,6 +229,7 @@ struct plat_pll_info {
 	unsigned long outp_flag;
 	unsigned long outpclk_flag;
 	/* dt index */
+	unsigned int vcodtidx;
 	unsigned int outdtidx;
 	unsigned int outpdtidx;
 	unsigned int vcodiv3dtidx;
@@ -243,6 +244,7 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 		.vcoclk_flag = CLK_IS_ROOT,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
+		.vcodtidx = PXA1936_CLK_PLL2VCO,
 		.outdtidx = PXA1936_CLK_PLL2,
 		.outpdtidx = PXA1936_CLK_PLL2P,
 		.vcodiv3dtidx = PXA1936_CLK_PLL2VCODIV3,
@@ -257,6 +259,7 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 		.outpclk_flag = CLK_SET_RATE_PARENT,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
+		.vcodtidx = PXA1936_CLK_PLL3VCO,
 		.outdtidx = PXA1936_CLK_PLL3,
 		.outpdtidx = PXA1936_CLK_PLL3P,
 		.vcodiv3dtidx = PXA1936_CLK_PLL3VCODIV3,
@@ -275,6 +278,7 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 		.outclk_flag = CLK_SET_RATE_PARENT,
 		.out_flag = HELANX_PLLOUT,
 		.outp_flag = HELANX_PLLOUTP,
+		.vcodtidx = PXA1936_CLK_PLL4VCO,
 		.outdtidx = PXA1936_CLK_PLL4,
 		.outpdtidx = PXA1936_CLK_PLL4P,
 		.vcodiv3dtidx = PXA1936_CLK_PLL4VCODIV3,
@@ -342,6 +346,7 @@ static void pxa1936_dynpll_init(struct pxa1936_clk_unit *pxa_unit)
 			0, pllx_platinfo[idx].vcoclk_flag, pllx_platinfo[idx].vco_flag,
 			&pllx_platinfo[idx].lock, &pllx_vco_params[idx]);
 		clk_set_rate(clk, pllx_vco_params[idx].default_rate);
+		mmp_clk_add(unit, pllx_platinfo[idx].vcodtidx, clk);
 		/* pll */
 		pllx_pll_params[idx].default_rate =
 			pll_dfrate[ddr_mode][idx][OUT];
