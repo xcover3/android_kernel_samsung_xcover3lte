@@ -93,17 +93,22 @@ int sendPSDData(int cid, struct sk_buff *skb)
 
 	DP_ENTER();
 
-	if (!gCcinetDataEnabled) {
-		dev_kfree_skb_any(skb);
-		return PSD_DATA_SEND_DROP;
-	}
+	if (!gCcinetDataEnabled)
+		goto drop;
 
 	/* data path is not open, drop the packet and return */
 	if (!psd_dp) {
 		DP_PRINT("%s: data path is not open!\n", __func__);
-		dev_kfree_skb_any(skb);
-		return PSD_DATA_SEND_DROP;
+		goto drop;
 	}
+
+	len = skb->len;
+	if (padded_size(sizeof(*hdr) + len) >
+			data_path_max_payload(psd_dp)) {
+		DP_ERROR("%s: packet too large %d\n", __func__, len);
+		goto drop;
+	}
+
 	prio = skb->queue_mapping == PSD_QUEUE_HIGH
 			? dp_priority_high
 			: dp_priority_default;
@@ -122,8 +127,7 @@ int sendPSDData(int cid, struct sk_buff *skb)
 
 		if (data_drop) {
 			DP_PRINT("%s: drop the packet\n", __func__);
-			dev_kfree_skb_any(skb);
-			return PSD_DATA_SEND_DROP;
+			goto drop;
 		} else {
 			DP_PRINT("%s: return net busy to upper layer\n",
 				__func__);
@@ -131,7 +135,6 @@ int sendPSDData(int cid, struct sk_buff *skb)
 		}
 	}
 
-	len = skb->len;
 	tailpad = padding_size(sizeof(*hdr) + len);
 
 	if (likely(!skb_cloned(skb))) {
@@ -170,6 +173,10 @@ fill:
 
 	data_path_xmit(psd_dp, skb, prio);
 	return PSD_DATA_SEND_OK;
+drop:
+	dev_kfree_skb_any(skb);
+	return PSD_DATA_SEND_DROP;
+
 }
 EXPORT_SYMBOL(sendPSDData);
 

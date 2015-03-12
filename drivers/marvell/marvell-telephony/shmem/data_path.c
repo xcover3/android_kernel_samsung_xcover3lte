@@ -194,7 +194,8 @@ static void data_path_tx_func(unsigned long arg)
 			break;
 		}
 
-		if (shm_is_xmit_full(rbctl)) {
+		free_slots = shm_free_tx_skbuf(rbctl);
+		if (free_slots == 0) {
 			/*
 			 * notify cp only if we still have packets in queue
 			 * otherwise, simply break
@@ -209,12 +210,9 @@ static void data_path_tx_func(unsigned long arg)
 			if (tx_q_length(dp) && !rbctl->is_ap_xmit_stopped)
 				shm_notify_ap_tx_stopped(rbctl);
 			break;
-		}
-
-		free_slots = shm_free_tx_skbuf(rbctl);
-		/* the only left slot is our pending slot */
-		if (free_slots == 1 && pending_slot != -1) {
+		} else if (free_slots == 1 && pending_slot != -1) {
 			/*
+			 * the only left slot is our pending slot
 			 * check if we still have enough space in this
 			 * pending slot
 			 */
@@ -235,13 +233,6 @@ static void data_path_tx_func(unsigned long arg)
 		if (!packet) {
 			DP_PRINT("%s: no packet available\n", __func__);
 			break;
-		}
-
-		if (packet->len + sizeof(*skhdr) > rbctl->tx_skbuf_size) {
-			DP_ERROR("%s: packet too large %d\n", __func__,
-				 packet->len);
-			dev_kfree_skb_any(packet);
-			continue;
 		}
 
 		/* push to ring buffer */
@@ -541,6 +532,13 @@ void data_path_schedule_rx(struct data_path *dp)
 	DP_LEAVE();
 }
 EXPORT_SYMBOL(data_path_schedule_rx);
+
+int data_path_max_payload(struct data_path *dp)
+{
+	struct shm_rbctl *rbctl = dp->rbctl;
+	return rbctl->tx_skbuf_size - sizeof(struct shm_psd_skhdr);
+}
+EXPORT_SYMBOL(data_path_max_payload);
 
 enum data_path_result data_path_xmit(struct data_path *dp,
 				     struct sk_buff *skb,

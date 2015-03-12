@@ -252,5 +252,6 @@ extern void data_path_schedule_rx(struct data_path *dp);
 extern enum data_path_result data_path_xmit(struct data_path *dp,
 					    struct sk_buff *skb,
 					    enum data_path_priority prio);
+int data_path_max_payload(struct data_path *dp);
 
 #endif /* _DATA_CHANNEL_H_ */
