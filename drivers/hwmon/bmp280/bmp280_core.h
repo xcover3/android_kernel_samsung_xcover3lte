@@ -20,6 +20,9 @@
 #include "bs_log.h"
 #include <linux/regulator/consumer.h>
 
+/* define allowed sleep range for bmp280 */
+#define BMP280_SLP_RANGE_USEC	100
+
 /*! @defgroup bmp280_core_inc
  *  @brief The head file of BMP280 device driver core code
  @{*/

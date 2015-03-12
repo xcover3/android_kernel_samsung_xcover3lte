@@ -159,7 +159,8 @@ static const u8 workmode_list[] = {
 */
 static void bmp_delay(u16 msec)
 {
-	mdelay(msec);
+	unsigned int usec = msec * 1000;
+	usleep_range(usec, usec + BMP280_SLP_RANGE_USEC);
 }
 
 /*!
@@ -192,7 +193,7 @@ static int bmp_check_chip_id(struct bmp_data_bus *data_bus)
 			PINFO("read %s chip id successfully", BMP_NAME);
 			return 0;
 		}
-		mdelay(1);
+		usleep_range(1000, 1000 + BMP280_SLP_RANGE_USEC);
 	}
 
 	PERR("read %s chip id failed, read value = %d\n", BMP_NAME, chip_id);

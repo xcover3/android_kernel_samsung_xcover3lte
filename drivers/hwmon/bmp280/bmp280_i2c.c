@@ -29,7 +29,7 @@ static struct i2c_client *bmp_i2c_client;
 /*! maximum retry times during i2c transfer */
 #define BMP_MAX_RETRY_I2C_XFER 10
 /*! wait time after i2c transfer error occurred */
-#define BMP_I2C_WRITE_DELAY_TIME 1
+#define BMP_I2C_WRITE_DELAY_TIME_USEC 1000
 
 #ifdef BMP_USE_BASIC_I2C_FUNC
 /*!
@@ -66,10 +66,13 @@ static s8 bmp_i2c_read(struct i2c_client *client, u8 reg_addr,
 	};
 
 	for (retry = 0; retry < BMP_MAX_RETRY_I2C_XFER; retry++) {
-		if (i2c_transfer(client->adapter, msg, ARRAY_SIZE(msg)) > 0)
+		if (i2c_transfer(client->adapter, msg, ARRAY_SIZE(msg)) > 0) {
 			break;
-		else
-			mdelay(BMP_I2C_WRITE_DELAY_TIME);
+		} else {
+			usleep_range(BMP_I2C_WRITE_DELAY_TIME_USEC,
+						BMP_I2C_WRITE_DELAY_TIME_USEC +
+						BMP280_SLP_RANGE_USEC);
+		}
 	}
 
 	if (BMP_MAX_RETRY_I2C_XFER <= retry) {
@@ -114,7 +117,9 @@ static s8 bmp_i2c_write(struct i2c_client *client, u8 reg_addr,
 						ARRAY_SIZE(msg)) > 0) {
 				break;
 			} else {
-				mdelay(BMP_I2C_WRITE_DELAY_TIME);
+				usleep_range(BMP_I2C_WRITE_DELAY_TIME_USEC,
+						BMP_I2C_WRITE_DELAY_TIME_USEC +
+						BMP280_SLP_RANGE_USEC);
 			}
 		}
 		if (BMP_MAX_RETRY_I2C_XFER <= retry) {
