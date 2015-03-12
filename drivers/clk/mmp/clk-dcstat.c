@@ -48,7 +48,7 @@ static LIST_HEAD(core_dcstat_list);
 static LIST_HEAD(clk_dcstat_list);
 
 static powermode pxa_powermode;
-
+static struct clk *gcsh_clk;
 
 /*10us,50us,100us,250us,500us,750us,1ms,5ms,25ms,100ms */
 #define MAX_TIME 1000000000000000000
@@ -248,6 +248,9 @@ int clk_register_dcstat(struct clk *clk,
 		clk_notifier_register(clk, &cdcs->nb);
 	}
 
+	if (!gcsh_clk)
+		gcsh_clk = __clk_lookup("gcsh_clk");
+
 	return 0;
 out1:
 	kfree(cdcs);
@@ -280,16 +283,13 @@ EXPORT_SYMBOL(clk_dcstat_event);
 void clk_dcstat_event_check(struct clk *clk,
 			  enum clk_stat_msg msg, unsigned int tgtstate)
 {
-	static struct clk *gcsh_clk;
-
 	if (!clk)
 		return;
 
 	if (!strcmp(clk->name, "gc3d_clk")) {
 		clk_dcstat_event(clk, msg, tgtstate);
-		if (!gcsh_clk)
-			gcsh_clk = __clk_lookup("gcsh_clk");
-		clk_dcstat_event(gcsh_clk, msg, tgtstate);
+		if (gcsh_clk)
+			clk_dcstat_event(gcsh_clk, msg, tgtstate);
 	} else
 		clk_dcstat_event(clk, msg, tgtstate);
 }
