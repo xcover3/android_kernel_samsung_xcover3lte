@@ -107,6 +107,12 @@ static netdev_tx_t ccinet_tx(struct sk_buff *skb, struct net_device *netdev)
 
 }
 
+static u16 ccinet_select_queue(struct net_device *dev, struct sk_buff *skb,
+			      void *accel_priv, select_queue_fallback_t fallback)
+{
+	return psd_select_queue(skb);
+}
+
 static void ccinet_fc_cb(void *user_obj, bool is_throttle)
 {
 	struct net_device *dev = (struct net_device *)user_obj;
@@ -209,8 +215,8 @@ static int create_ccinet_netdev(unsigned char cid, bool locked)
 
 	sprintf(ifname, "ccinet%d", cid);
 	dev =
-	    alloc_netdev(sizeof(struct ccinet_priv), ifname,
-			 ccinet_setup);
+	    alloc_netdev_mqs(sizeof(struct ccinet_priv), ifname,
+			 ccinet_setup, PSD_QUEUE_CNT, 1);
 	if (!dev) {
 		pr_err("%s: alloc_netdev for %s fail\n",
 		       __func__, ifname);
@@ -361,6 +367,7 @@ static const struct net_device_ops cci_netdev_ops = {
 	.ndo_open		= ccinet_open,
 	.ndo_stop		= ccinet_stop,
 	.ndo_start_xmit	= ccinet_tx,
+	.ndo_select_queue	= ccinet_select_queue,
 	.ndo_tx_timeout		= ccinet_tx_timeout,
 	.ndo_get_stats	= ccinet_get_stats,
 	.ndo_do_ioctl = ccinet_ioctl

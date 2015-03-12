@@ -42,40 +42,6 @@ static u32 ack_opt = true;
 static u32 data_drop = true;
 static u32 ndev_fc;
 
-#define MMS_CID    1
-
-static inline enum data_path_priority packet_priority(int cid,
-	struct sk_buff *skb)
-{
-	const struct iphdr *iph;
-	enum data_path_priority prio = dp_priority_default;
-
-	if (!ack_opt)
-		return dp_priority_high;
-
-	if (cid == MMS_CID)
-		prio = dp_priority_high;
-	else {
-		bool is_ack = false;
-
-		iph = ip_hdr(skb);
-		if (iph) {
-			if (iph->version == 4) {
-				if (skb->len <= IPV4_ACK_LENGTH_LIMIT)
-					is_ack = true;
-			} else if (iph->version == 6) {
-				if (skb->len <= IPV6_ACK_LENGTH_LIMIT)
-					is_ack = true;
-			}
-
-			if (is_ack)
-					prio = dp_priority_high;
-		}
-	}
-
-	return prio;
-}
-
 int psd_register(const struct psd_user *user, int cid)
 {
 	DP_PRINT("%s: cid:%d,\n", __func__, cid);
@@ -101,6 +67,21 @@ void set_embms_cid(int cid)
 }
 EXPORT_SYMBOL(set_embms_cid);
 
+unsigned short psd_select_queue(struct sk_buff *skb)
+{
+	struct iphdr *iph;
+	bool is_ack;
+
+	if (!ack_opt)
+		return PSD_QUEUE_HIGH;
+
+	iph = ip_hdr(skb);
+	is_ack = iph &&
+		((iph->version == 4 && skb->len <= IPV4_ACK_LENGTH_LIMIT) ||
+		(iph->version == 6 && skb->len <= IPV6_ACK_LENGTH_LIMIT));
+	return is_ack ? PSD_QUEUE_HIGH : PSD_QUEUE_DEFAULT;
+}
+EXPORT_SYMBOL(psd_select_queue);
 
 int sendPSDData(int cid, struct sk_buff *skb)
 {
@@ -123,7 +104,9 @@ int sendPSDData(int cid, struct sk_buff *skb)
 		dev_kfree_skb_any(skb);
 		return PSD_DATA_SEND_DROP;
 	}
-	prio = packet_priority(cid & (~(1 << 31)), skb);
+	prio = skb->queue_mapping == PSD_QUEUE_HIGH
+			? dp_priority_high
+			: dp_priority_default;
 
 	/*
 	 * tx_q is full or link is down

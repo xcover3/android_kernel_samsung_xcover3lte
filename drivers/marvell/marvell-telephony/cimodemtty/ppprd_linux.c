@@ -367,6 +367,7 @@ static ssize_t ppprd_write(struct file *filp, const char __user *buf,
 			kfree_skb(skb);
 			return -EFAULT;
 		}
+		skb->queue_mapping = psd_select_queue(skb);
 		ret = sendPSDData(modem_current_cid, skb);
 		if (ret) {
 			if (ret == PSD_DATA_SEND_BUSY)

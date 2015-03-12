@@ -18,6 +18,12 @@
 #define PSD_DATA_SEND_BUSY -1
 #define PSD_DATA_SEND_DROP -2
 
+enum {
+	PSD_QUEUE_HIGH,
+	PSD_QUEUE_DEFAULT,
+	PSD_QUEUE_CNT
+};
+
 struct psd_user {
 	void *priv;
 	int (*on_receive)(void *priv, const unsigned char *packet,
@@ -29,7 +35,8 @@ int psd_register(const struct psd_user *user, int cid);
 int psd_unregister(const struct psd_user *user, int cid);
 void set_embms_cid(int cid);
 
-
+struct sk_buff;
+unsigned short psd_select_queue(struct sk_buff *skb);
 int sendPSDData(int cid, struct sk_buff *skb);
 
 #endif
