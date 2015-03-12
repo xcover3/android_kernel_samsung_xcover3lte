@@ -200,9 +200,22 @@
 				marvell,disp-name = "disp_name";
 				marvell,path-num = <1>;
 				marvell,power-domain = <&pd_display>;
-				clocks = <&soc_clocks PXA1936_CLK_DISP1>,
-					<&soc_clocks PXA1936_CLK_DISP4>;
-				clock-names = "disp1_clk", "dsipll_clk";
+				clocks = <&soc_clocks PXA1936_CLK_DISP_HCLK>,
+					<&soc_clocks PXA1936_CLK_PLL4VCO>,
+					/* parent1-clk-tbl clk */
+					<&soc_clocks PXA1936_CLK_DISP1>,
+					<&soc_clocks PXA1936_CLK_DISP4>,
+					/* parent2-clk-tbl clk */
+					<&soc_clocks PXA1936_CLK_PLL1_624>,
+					<&soc_clocks PXA1936_CLK_PLL1_832>,
+					<&soc_clocks PXA1936_CLK_PLL1_499>,
+					<&soc_clocks PXA1936_CLK_PLL4>,
+					<&soc_clocks PXA1936_CLK_PLL4VCODIV3>;
+				clock-names = "LCDCIHCLK", "pll4_vco",
+					/* parent1-clk-tbl clk */
+					"disp1_clk", "dsipll_clk",
+					/* parent2-clk-tbl clk */
+					"pll1_624", "pll1_832", "pll1_499", "pll4", "pll4_div3";
 				status = "okay";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
@@ -215,7 +228,7 @@
 						plat = <4>;
 						apmu-reg = <0xd428284c>;
 						clksrc-bit = <9>;
-						parent1-clk-tbl = "disp1_sel_clk", "dsi_pll";
+						parent1-clk-tbl = "disp1_clk", "dsipll_clk";
 						parent2-clk-tbl = "pll1_624", "pll1_832", "pll1_499", "pll4", "pll4_div3";
 					};
 				};
