@@ -1112,6 +1112,7 @@ void __init audio_clk_init(struct device_node *np)
 					map_unit->apbsp_base + APB_SPARE9,
 					APB_SPARE_PU_LIMIT, APB_SPARE_PU_LIMIT,
 					0x0, 0, NULL);
+		mmp_clk_add(unit, AUDIO_CLK_32KPU, clk);
 		map_unit->puclk = clk;
 	} else if (apll == APLL_26M) {
 		/*
