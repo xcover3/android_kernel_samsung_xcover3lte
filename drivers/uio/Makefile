@@ -10,3 +10,4 @@ obj-$(CONFIG_UIO_PRUSS)         += uio_pruss.o
 obj-$(CONFIG_UIO_MF624)         += uio_mf624.o
 obj-$(CONFIG_UIO_CODA7542) += uio_coda7542.o
 obj-$(CONFIG_UIO_HANTRO)	+= uio_hantro.o
+obj-$(CONFIG_UIO_CODAL) += uio_codaL.o
