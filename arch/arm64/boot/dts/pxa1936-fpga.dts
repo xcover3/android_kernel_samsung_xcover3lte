@@ -40,6 +40,10 @@
 		};
 
 		smmu {  /* iommu in vpu */
+			clocks = <&soc_clocks PXA1936_CLK_VPU>,
+				<&soc_clocks PXA1936_CLK_VPUBUS>;
+			clock-names = "VPUCLK", "VPUACLK";
+			marvell,power-domain = <&pd_vpu>;
 			status = "okay";
 		};
 
@@ -82,15 +86,47 @@
 				clocks = <&soc_clocks PXA1936_CLK_VPU>;
 			};
 
+			pd_smmu: pd_smmu@c0010000 {
+				compatible = "marvell,power-domain-smmu-pxa1u88";
+				reg = <0xc0010000 0x10000>;
+				marvell,power-domain-parent = <&pd_vpu>;
+				clocks = <&soc_clocks PXA1936_CLK_VPU>,
+					<&soc_clocks PXA1936_CLK_VPUBUS>;
+				clock-names = "VPUCLK", "VPUACLK";
+			};
+
 			coda7542: coda7542@d420d000 {
 				marvell,sram-internal = <1>;
-				marvell,nv21_support = <0>;
-				marvell,power-domain = <&pd_vpu>;
+				marvell,nv21_support = <1>;
+				marvell,power-domain = <&pd_smmu>;
 				clocks = <&soc_clocks PXA1936_CLK_VPU>,
 					<&soc_clocks PXA1936_CLK_VPUBUS>;
 				clock-names = "VPUCLK", "VPUACLK";
 				status = "disabled";
 			};
+
+			codaL_vpu: codaL_vpu@d420d000 {
+				marvell,sram-internal = <1>;
+				marvell,nv21_support = <1>;
+				marvell,codaL-type = <0>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1936_CLK_VPU>,
+					<&soc_clocks PXA1936_CLK_VPUBUS>;
+				clock-names = "VPUCLK", "VPUACLK";
+				status = "disabled";
+			};
+
+			codaL_JPG: codaL_JPG@d420d000 {
+				marvell,sram-internal = <1>;
+				marvell,nv21_support = <1>;
+				marvell,codaL-type = <1>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1936_CLK_VPU>,
+					<&soc_clocks PXA1936_CLK_VPUBUS>;
+				clock-names = "VPUCLK", "VPUACLK";
+				status = "disabled";
+			};
+
 
 			intc: wakeupgen@d4282000 {
 				status = "okay";
@@ -112,13 +148,13 @@
 				marvell,dsi-lanes = <4>;
 				marvell,burst-mode = <2>;
 				marvell,hbp-en;
-				status = "okay";
+				status = "disabled";
 			};
 
 			vdma: vdma@d4209000 {
 				marvell,vdma-num = <2>;
 				marvell,vdma-axi = <1>;
-				status = "okay";
+				status = "disabled";
 				vdma1 {
 					marvell,vdma-id = <0>;
 					marvell,sram-size = <30720>;
@@ -138,7 +174,7 @@
 				marvell,power-domain = <&pd_display>;
 				clocks = <&soc_clocks PXA1936_CLK_DISP1>;
 				clock-names = "disp1_clk";
-				status = "okay";
+				status = "disabled";
 				path1 {
 					marvell,path-name = "mmp_pnpath";
 					marvell,overlay-num = <2>;
@@ -163,14 +199,14 @@
 				marvell,default-pixfmt = <0x109>;
 				marvell,buffer-num = <3>;
 				marvell,fb-mem = <0x17000000>;
-				status = "okay";
+				status = "disabled";
 			};
 
 			fb1: fboverlay {
 				marvell,fb-name = "mmp-fb-overlay";
 				marvell,path-name = "mmp_pnpath";
 				marvell,overlay-id = <0>;
-				status = "okay";
+				status = "disabled";
 			};
 
 			asram: asram@d12a0000 {
@@ -822,7 +858,9 @@
 	ion {
 		marvell,ion-nr = <2>;
 		status = "okay";
-		marvell,ion-iommu = <1>;
+		marvell,ion-iommu = <0>;
+		marvell,power-domain = <&pd_smmu>;
+		marvell,ion-extra-pages = <0>;
 		heap1 {
 			marvell,ion-name = "carveout_heap";
 			marvell,ion-type = <2>;
