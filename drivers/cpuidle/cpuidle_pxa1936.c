@@ -19,6 +19,10 @@
 #include <asm/proc-fns.h>
 #include <asm/psci.h>
 #include <linux/clk/mmpdcstat.h>
+#include <linux/edge_wakeup_mmp.h>
+#include <linux/helanx_smc.h>
+
+static struct notifier_block mfp_edge_wakeup_notifier;
 
 static int arm64_enter_state(struct cpuidle_device *dev,
 			     struct cpuidle_driver *drv, int idx);
@@ -159,14 +163,7 @@ static const struct of_device_id psci_of_match[] __initconst = {
 	{},
 };
 
-/*
- * arm64_idle_init
- *
- * Registers the arm specific cpuidle driver with the cpuidle
- * framework. It relies on core code to set-up the driver cpumask
- * and initialize it to online CPUs.
- */
-int __init arm64_idle_init(void)
+static int __init check_platform(void)
 {
 	struct device_node *np;
 
@@ -176,6 +173,33 @@ int __init arm64_idle_init(void)
 	np = of_find_matching_node(NULL, psci_of_match);
 	if (!np || !of_device_is_available(np))
 		return -ENODEV;
+	return 0;
+}
+
+int __init setup_mfp_notify(void)
+{
+	int err = check_platform();
+	if (err)
+		return err;
+
+	mfp_edge_wakeup_notifier.notifier_call = mfp_edge_wakeup_notify;
+
+	return register_mfp_edge_wakup_notifier(&mfp_edge_wakeup_notifier);
+}
+core_initcall(setup_mfp_notify);
+
+/*
+ * arm64_idle_init
+ *
+ * Registers the arm specific cpuidle driver with the cpuidle
+ * framework. It relies on core code to set-up the driver cpumask
+ * and initialize it to online CPUs.
+ */
+int __init arm64_idle_init(void)
+{
+	int err = check_platform();
+	if (err)
+		return err;
 
 	return cpuidle_register(&arm64_idle_driver, NULL);
 }
