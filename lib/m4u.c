@@ -2,6 +2,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/m4u.h>
+#include <linux/vmalloc.h>
 
 #define MAX_PLANE_PER_FRAME	5
 
