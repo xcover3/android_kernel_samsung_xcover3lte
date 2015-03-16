@@ -111,6 +111,17 @@ static inline int cpu_is_pxa1936(void)
 	    (((mmp_chip_id & 0xffff) == 0x1936));
 }
 
+static inline int cpu_is_pxa1956_z1(void)
+{
+	return (((read_cpuid_id() >> 4) & 0xfff) == 0xd03) &&
+	    (((mmp_chip_id & 0xffffff) == 0xf01956));
+}
+
+static inline int cpu_is_pxa1956(void)
+{
+	return cpu_is_pxa1956_z1();
+}
+
 static inline int cpu_is_pxa1928_b0(void)
 {
 	return (mmp_chip_id & 0xffffff) == 0xb0c198;
