@@ -230,6 +230,7 @@ struct save_buffer {
 static struct save_buffer extern_data;
 
 static int pm88x_get_batt_vol(struct pm88x_battery_info *info, int active);
+static void init_ccnt_data(struct ccnt *ccnt_val, int value);
 
 static void pm88x_bat_enable_irq(struct pm88x_bat_irq *irq)
 {
@@ -843,37 +844,23 @@ static int pm88x_get_batt_health(struct pm88x_battery_info *info)
 
 	temp = info->bat_params.temp / 10;
 
-	if (temp <= info->t1)
+	if (temp <= info->t1) {
 		range = COLD_NO_CHARGING;
-	else if (temp <= info->t2)
+		health = POWER_SUPPLY_HEALTH_DEAD;
+	} else if (temp <= info->t2) {
 		range = LOW_TEMP_RANGE;
-	else if (temp <= info->t3)
-		range = STD_TEMP_RANGE;
-	else if (temp <= info->t4)
-		range = HIGH_TEMP_RANGE;
-	else
-		range = HOT_NO_CHARGING;
-
-	switch (range) {
-	case COLD_NO_CHARGING:
-		health = POWER_SUPPLY_HEALTH_DEAD;
-		break;
-	case LOW_TEMP_RANGE:
 		health = POWER_SUPPLY_HEALTH_COLD;
-		break;
-	case STD_TEMP_RANGE:
+	} else if (temp <= info->t3) {
+		range = STD_TEMP_RANGE;
 		health = POWER_SUPPLY_HEALTH_GOOD;
-		break;
-	case HIGH_TEMP_RANGE:
+	} else if (temp <= info->t4) {
+		range = HIGH_TEMP_RANGE;
 		health = POWER_SUPPLY_HEALTH_OVERHEAT;
-		break;
-	case HOT_NO_CHARGING:
+	} else {
+		range = HOT_NO_CHARGING;
 		health = POWER_SUPPLY_HEALTH_DEAD;
-		break;
-	default:
-		health = POWER_SUPPLY_HEALTH_GOOD;
-		break;
 	}
+
 	if ((old_range != range) && (old_range != MAX_RANGE)) {
 		dev_dbg(info->dev, "temperature changes: %d --> %d\n",
 			old_range, range);
@@ -1700,15 +1687,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 
 end:
 	/* update ccnt_data timely */
-	ccnt_val->soc = *initial_soc;
-
-	/* multiple 10 */
-	ccnt_val->soc *= 10;
-	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
-
-	ccnt_val->real_soc = ccnt_val->soc;
-	ccnt_val->real_last_cc = ccnt_val->last_cc;
-	ccnt_val->previous_soc = ccnt_val->soc;
+	init_ccnt_data(ccnt_val, *initial_soc);
 
 	dev_info(info->dev,
 		 "<---- %s: initial soc = %d\n", __func__, *initial_soc);
@@ -1886,6 +1865,65 @@ static int pm88x_batt_get_prop(struct power_supply *psy,
 	return 0;
 }
 
+static void init_ccnt_data(struct ccnt *ccnt_val, int value)
+{
+	ccnt_val->soc = 10 * value; /* multiply 10 */
+	ccnt_val->real_soc = ccnt_val->soc;
+
+	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
+	ccnt_val->real_last_cc = ccnt_val->last_cc;
+
+	ccnt_val->previous_soc = ccnt_val->soc;
+}
+
+static int pm88x_batt_set_prop_capacity(struct pm88x_battery_info *info, int data)
+{
+	if (!info->bat_params.present) {
+		dev_warn(info->dev, "battery is not present\n");
+		return -EPERM;
+	}
+
+	if (data < 0 || data > 100) {
+		dev_warn(info->dev, "invalid capacity: %d\n", data);
+		return -EINVAL;
+	}
+
+	info->bat_params.soc = data;
+	init_ccnt_data(&ccnt_data, data);
+
+	return 0;
+}
+
+static int pm88x_batt_set_prop(struct power_supply *psy,
+			       enum power_supply_property psp,
+			       const union power_supply_propval *val)
+{
+	struct pm88x_battery_info *info = dev_get_drvdata(psy->dev->parent);
+	int ret = 0;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CAPACITY:
+		ret = pm88x_batt_set_prop_capacity(info, val->intval);
+		break;
+	default:
+		ret = -EPERM;
+		break;
+	}
+
+	return ret;
+}
+
+static int pm88x_batt_property_is_writeable(struct power_supply *psy,
+					    enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CAPACITY:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
 static irqreturn_t pm88x_battery_cc_handler(int irq, void *data)
 {
 	struct pm88x_battery_info *info = data;
@@ -2025,31 +2063,31 @@ static int pm88x_battery_dt_init(struct device_node *np,
 	}
 
 	/* ignore if fails */
-	of_property_read_u32(np, "abs-lowest-temp", &info->abs_lowest_temp);
-	of_property_read_u32(np, "t1-degree", &info->t1);
-	of_property_read_u32(np, "t2-degree", &info->t2);
-	of_property_read_u32(np, "t3-degree", &info->t3);
-	of_property_read_u32(np, "t4-degree", &info->t4);
+	ret = of_property_read_u32(np, "abs-lowest-temp", &info->abs_lowest_temp);
+	ret = of_property_read_u32(np, "t1-degree", &info->t1);
+	ret = of_property_read_u32(np, "t2-degree", &info->t2);
+	ret = of_property_read_u32(np, "t3-degree", &info->t3);
+	ret = of_property_read_u32(np, "t4-degree", &info->t4);
 
 	info->t1 -= info->abs_lowest_temp;
 	info->t2 -= info->abs_lowest_temp;
 	info->t3 -= info->abs_lowest_temp;
 	info->t4 -= info->abs_lowest_temp;
 
-	of_property_read_u32(np, "times-in-minus-ten", &info->times_in_minus_ten);
-	of_property_read_u32(np, "offset-in-minus-ten", &info->offset_in_minus_ten);
-	of_property_read_u32(np, "times-in-zero", &info->times_in_zero);
-	of_property_read_u32(np, "offset-in-zero", &info->offset_in_zero);
+	ret = of_property_read_u32(np, "times-in-minus-ten", &info->times_in_minus_ten);
+	ret = of_property_read_u32(np, "offset-in-minus-ten", &info->offset_in_minus_ten);
+	ret = of_property_read_u32(np, "times-in-zero", &info->times_in_zero);
+	ret = of_property_read_u32(np, "offset-in-zero", &info->offset_in_zero);
 
-	of_property_read_u32(np, "soc-low-th-cycle", &info->soc_low_th_cycle);
-	of_property_read_u32(np, "soc-high-th-cycle", &info->soc_high_th_cycle);
+	ret = of_property_read_u32(np, "soc-low-th-cycle", &info->soc_low_th_cycle);
+	ret = of_property_read_u32(np, "soc-high-th-cycle", &info->soc_high_th_cycle);
 
 	/*
 	 * introduced by PCB,
 	 * software needs to compensate the CC value,
 	 * multipiled by 100
 	 */
-	of_property_read_u32(np, "cc-fixup", &info->cc_fixup);
+	ret = of_property_read_u32(np, "cc-fixup", &info->cc_fixup);
 
 	return 0;
 }
@@ -2178,10 +2216,12 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	info->battery.properties = pm88x_batt_props;
 	info->battery.num_properties = ARRAY_SIZE(pm88x_batt_props);
 	info->battery.get_property = pm88x_batt_get_prop;
+	info->battery.set_property = pm88x_batt_set_prop;
+	info->battery.property_is_writeable = pm88x_batt_property_is_writeable;
 	info->battery.external_power_changed = pm88x_external_power_changed;
 	info->battery.supplied_to = supply_interface;
 	info->battery.num_supplicants = ARRAY_SIZE(supply_interface);
-	power_supply_register(&pdev->dev, &info->battery);
+	ret = power_supply_register(&pdev->dev, &info->battery);
 	info->battery.dev->parent = &pdev->dev;
 
 	info->bat_wqueue = create_singlethread_workqueue("88pm88x-battery-wq");
