@@ -38,6 +38,9 @@
 #define TDIMR		0x80	/* Int Mask */
 #define TDISR		0xa0	/* Int Status */
 
+/* DMA channel active */
+#define CHANACT		(1 << 14)
+
 /* Two-Channel DMA Control Register */
 #define TDCR_SSZ_8_BITS		(0x0 << 22)	/* Sample Size */
 #define TDCR_SSZ_12_BITS	(0x1 << 22)
@@ -310,11 +313,22 @@ static void dma_do_tasklet(unsigned long data)
 
 }
 
+static size_t mmp_tdma_check_active(struct mmp_tdma_chan *tdmac)
+{
+	size_t value;
+
+	value = __raw_readl(tdmac->reg_base + TDCR);
+
+	return (value & CHANACT);
+}
+
 static size_t mmp_tdma_get_pos(struct mmp_tdma_chan *tdmac)
 {
 	size_t reg;
+
 	if (tdmac->dma_state == TDMA_COMPLETE)
-		return 0;
+		if (!mmp_tdma_check_active(tdmac))
+			return 0;
 
 	if (tdmac->idx == 0) {
 		reg = __raw_readl(tdmac->reg_base + TDSAR);
