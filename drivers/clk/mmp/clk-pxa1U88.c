@@ -969,7 +969,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				&disp4_clks.mux.hw, disp4_clks.mux_ops,
 				NULL, NULL,
 				&disp4_clks.gate.hw, disp4_clks.gate_ops,
-				CLK_SET_RATE_PARENT);
+				0);
 	mmp_clk_add(unit, PXA1U88_CLK_DISP4, clk);
 	clk_register_clkdev(clk, "dsi_pll", NULL);
 
