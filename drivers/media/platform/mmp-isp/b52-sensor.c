@@ -297,10 +297,11 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 		b52_sensor_call(sensor, get_dphy_desc,
 				&sensor->csi.dphy_desc, sensor->mclk);
 
-	if (sensor->drvdata->ops->update_otp)
-		b52_sensor_call(sensor, update_otp, &sensor->otp);
 	if (otp_ctrl != -1)
 		sensor->otp.otp_ctrl = otp_ctrl;
+
+	if (sensor->drvdata->ops->update_otp)
+		b52_sensor_call(sensor, update_otp, &sensor->otp);
 
 	module = sensor->drvdata->module;
 	for (num = 0; num < sensor->drvdata->num_module; num++)
