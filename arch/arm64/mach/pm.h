@@ -33,6 +33,7 @@ struct suspend_ops {
 	u32 (*post_chk_wakeup)(void);
 	void (*post_clr_wakeup)(u32 wakeup_src_stat);
 	void (*plt_suspend_init)(void);
+	int (*get_suspend_voltage)(void);
 };
 
 struct platform_suspend {

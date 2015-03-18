@@ -17,10 +17,11 @@
 #include <asm/suspend.h>
 #include <asm/cputype.h>
 #include <linux/irqchip/arm-gic.h>
-
+#include <linux/clk/mmpfuse.h>
 #include "pm.h"
 
 struct platform_suspend *mmp_suspend;
+static int fuse_suspd_volt;
 u32 detect_wakeup_status;
 EXPORT_SYMBOL(detect_wakeup_status);
 /*
@@ -132,5 +133,14 @@ int __init mmp_platform_suspend_register(struct platform_suspend *plt_suspend)
 	if (mmp_suspend->ops->plt_suspend_init)
 		mmp_suspend->ops->plt_suspend_init();
 
+	if (mmp_suspend->ops->get_suspend_voltage)
+		fuse_suspd_volt = mmp_suspend->ops->get_suspend_voltage();
+
 	return 0;
 }
+
+int get_fuse_suspd_voltage(void)
+{
+	return fuse_suspd_volt;
+}
+
