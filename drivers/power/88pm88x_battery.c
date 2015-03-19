@@ -1165,6 +1165,14 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		dev_dbg(info->dev, "%s: before: charging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
 
+		/*
+		 * last time when it enters into this _routine_,
+		 * the battery is discharging in low temperature scenario
+		 * it resumes back when arrives here
+		 */
+		if (ccnt_val->bypass_cc)
+			ccnt_val->bypass_cc = false;
+
 		/* the column counter has reached 99% here, clamp it to 99% */
 		ccnt_val->soc = (ccnt_val->soc >= 990) ? 990 : ccnt_val->soc;
 		ccnt_val->previous_soc = (ccnt_val->previous_soc >= 990) ? 990 : ccnt_val->previous_soc;
