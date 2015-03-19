@@ -17,6 +17,7 @@
 #include <linux/edge_wakeup_mmp.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/gfp.h>
+#include <linux/clk/mmpfuse.h>
 #include "pxa1908_lowpower.h"
 #include "pm.h"
 #include "regs-addr.h"
@@ -574,12 +575,34 @@ static u32 pxa1908_post_chk_wakeup(void)
 	return ret;
 }
 
+static int pxa1908_get_suspend_volt(void)
+{
+	unsigned int volt_fuseinfo = 0;
+
+	volt_fuseinfo = get_skusetting();
+
+	switch (volt_fuseinfo) {
+	case 0x20: /*100000*/
+	case 0x3e: /*111110*/
+	case 0x38: /*111000*/
+		return 700000;
+	case 0x30: /*110000*/
+	case 0x3f: /*111111*/
+	case 0x3c: /*111100*/
+	case 0x0:  /*000000*/
+		return 800000;
+	default:
+		return 800000;
+	}
+}
+
 static struct suspend_ops pxa1908_suspend_ops = {
 	.pre_suspend_check = pxa1908_suspend_check,
 	.post_chk_wakeup = pxa1908_post_chk_wakeup,
 	.post_clr_wakeup = NULL,
 	.set_wake = pxa1908_set_wake,
 	.plt_suspend_init = pxa1908_plt_suspend_init,
+	.get_suspend_voltage = pxa1908_get_suspend_volt,
 };
 
 static struct platform_suspend pxa1908_suspend = {
