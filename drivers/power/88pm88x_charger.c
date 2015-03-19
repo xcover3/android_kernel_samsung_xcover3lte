@@ -380,6 +380,9 @@ static int pm88x_charger_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = info->pm88x_charger_status;
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
+		val->intval = info->allow_chg_ext;
+		break;
 	default:
 		return -EINVAL;
 	}
