@@ -315,12 +315,14 @@ static int S5K3L2_update_otp(struct v4l2_subdev *sd,
 			S5K3L2_otp_write(sd, otp->user_otp->full_otp_offset,
 					otp->user_otp->full_otp,
 					otp->user_otp->full_otp_len);
+		return 0;
 	}
 	if (otp->otp_type ==  SENSOR_TO_ISP) {
 		module_id = otp->user_otp->module_data;
 		ret = S5K3L2_read_data(sd, otp);
-		pr_err("Marvell_Unifiled_OTP_ID_INF for S5K3L2: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
-			*module_id, 0, 0, 0);
+		if (otp->user_otp->module_data_len > 0)
+			pr_err("Marvell_Unifiled_OTP_ID_INF for S5K3L2: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
+				*module_id, 0, 0, 0);
 		return ret;
 	}
 	return -1;
