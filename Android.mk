@@ -13,7 +13,7 @@ UBOOT_OUTPUT ?=  $(abspath $(PRODUCT_OUT)/obj/uboot)
 #TODO: when android support arm64
 ARCH ?= arm
 ifeq ($(ARCH),arm64)
-export PATH:=$(ANDROID_BUILD_TOP)/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.8/bin:$(PATH)
+export PATH:=$(PATH):$(ANDROID_BUILD_TOP)/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin:$(ANDROID_BUILD_TOP)/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.8/bin
 KERNEL_CROSS_COMPILE := aarch64-linux-android-
 else
 KERNEL_CROSS_COMPILE := $(CROSS_COMPILE)
