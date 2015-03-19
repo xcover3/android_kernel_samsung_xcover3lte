@@ -18,6 +18,7 @@
 #include <linux/irqchip/arm-gic.h>
 #include <linux/gfp.h>
 #include <linux/pxa1936_powermode.h>
+#include <linux/clk/mmpfuse.h>
 #include "pxa1936_lowpower.h"
 #include "pm.h"
 #include "regs-addr.h"
@@ -613,12 +614,30 @@ static u32 pxa1936_post_chk_wakeup(void)
 	return ret;
 }
 
+static int pxa1936_get_suspend_volt(void)
+{
+	unsigned int volt_fuseinfo = 0;
+
+	volt_fuseinfo = get_skusetting();
+
+	switch (volt_fuseinfo) {
+	case 0x1:
+		return 700000;
+	case 0x0:
+	case 0x2:
+		return 800000;
+	default:
+		return 800000;
+	}
+}
+
 static struct suspend_ops pxa1936_suspend_ops = {
 	.pre_suspend_check = pxa1936_suspend_check,
 	.post_chk_wakeup = pxa1936_post_chk_wakeup,
 	.post_clr_wakeup = NULL,
 	.set_wake = pxa1936_set_wake,
 	.plt_suspend_init = pxa1936_plt_suspend_init,
+	.get_suspend_voltage = pxa1936_get_suspend_volt,
 };
 
 static struct platform_suspend pxa1936_suspend = {
