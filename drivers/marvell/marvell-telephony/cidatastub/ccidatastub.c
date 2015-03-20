@@ -47,19 +47,11 @@ DEFINE_SPINLOCK(data_handle_list_lock);
 int gCcinetDataEnabled = TRUE;
 EXPORT_SYMBOL(gCcinetDataEnabled);
 
-#if     1
-#define DPRINT(fmt, args ...)     printk(fmt, ## args)
+#define DPRINT(fmt, args ...)     pr_info(fmt, ## args)
 #define DBGMSG(fmt, args ...)     pr_debug("CIN: " fmt, ## args)
 #define ENTER()         pr_debug("CIN: ENTER %s\n", __func__)
 #define LEAVE()         pr_debug("CIN: LEAVE %s\n", __func__)
 #define FUNC_EXIT()     pr_debug("CIN: EXIT %s\n", __func__)
-#else
-#define DPRINT(fmt, args ...)     printk(fmt, ##args)
-#define DBGMSG(fmt, args ...)     pr_debug(fmt, ##args)
-#define ENTER()         do {} while (0)
-#define LEAVE()         do {} while (0)
-#define FUNC_EXIT()     do {} while (0)
-#endif
 
 static void remove_handle_by_cid(DATAHANDLELIST **plist, unsigned char cid)
 {
