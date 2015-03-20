@@ -294,7 +294,7 @@ static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			}
 		} else {
 			spin_unlock(&priv->lock);
-			netdev_warn(netdev,
+			netdev_dbg(netdev,
 				"%s: SIM%d want release cid%d, but not used before\n",
 				__func__, sim_id + 1, priv->cid);
 		}
