@@ -2,7 +2,7 @@
   *
   * @brief This file contains functions for debug proc file.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -345,6 +345,8 @@ woal_log_read(struct seq_file *sfp, void *data)
 	    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
 		PRINTM(MERROR,
 		       "woal_log_read: Get log: Failed to get stats info!");
+		MODULE_PUT;
+		LEAVE();
 		return -EFAULT;
 	}
 
@@ -389,23 +391,6 @@ woal_log_proc_open(struct inode *inode, struct file *file)
 #else
 	return single_open(file, woal_log_read, PDE(inode)->data);
 #endif
-}
-
-/**
- *  @brief Proc write function for log
- *
- *  @param f       file pointer
- *  @param buf     pointer to data buffer
- *  @param count   data number to write
- *  @param off     Offset
- *
- *  @return        number of data
- */
-static ssize_t
-woal_log_write(struct file *f, const char __user * buf, size_t count,
-	       loff_t * off)
-{
-	return count;
 }
 
 /********************************************************
@@ -707,7 +692,6 @@ static const struct file_operations log_proc_fops = {
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
-	.write = woal_log_write,
 };
 
 /********************************************************

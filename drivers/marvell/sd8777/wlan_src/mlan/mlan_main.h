@@ -4,7 +4,7 @@
  *  structures and declares global function prototypes used
  *  in MLAN module.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -484,12 +484,12 @@ do {                                    \
 
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 /** Multi port TX aggregation buffer size */
-#define SDIO_MP_TX_AGGR_DEF_BUF_SIZE        (16384 - DMA_ALIGNMENT) /* 16K */
+#define SDIO_MP_TX_AGGR_DEF_BUF_SIZE        (16384)	/* 16K */
 #endif /* SDIO_MULTI_PORT_TX_AGGR */
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
 /** Multi port RX aggregation buffer size */
-#define SDIO_MP_RX_AGGR_DEF_BUF_SIZE        (16384 - DMA_ALIGNMENT) /* 16K */
+#define SDIO_MP_RX_AGGR_DEF_BUF_SIZE        (16384)	/* 16K */
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
 /** High threshold at which to start drop packets */
@@ -1469,6 +1469,26 @@ typedef struct {
 
 } wlan_meas_state_t;
 
+#if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
+/**
+ *  @brief Link buffer into aggregate head buffer
+ *
+ *  @param pmbuf_aggr	Pointer to aggregation buffer
+ *  @param pmbuf		Pointer to buffer to copy
+ */
+static inline t_void
+wlan_link_buf_to_aggr(pmlan_buffer pmbuf_aggr, pmlan_buffer pmbuf)
+{
+	/* link new buf at end of list */
+	pmbuf->pnext = pmbuf_aggr;
+	pmbuf->pprev = pmbuf_aggr->pprev;
+	pmbuf->pparent = pmbuf_aggr;
+	pmbuf_aggr->pprev->pnext = pmbuf;
+	pmbuf_aggr->pprev = pmbuf;
+	pmbuf_aggr->use_count++;
+}
+#endif
+
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 /** data structure for SDIO MPA TX */
 typedef struct _sdio_mpa_tx {
@@ -1492,6 +1512,8 @@ typedef struct _sdio_mpa_tx {
 	t_u32 pkt_aggr_limit;
 	/** multiport write info */
 	t_u16 mp_wr_info[SDIO_MP_AGGR_DEF_PKT_LIMIT];
+	/** multiport rx aggregation mbuf array */
+	pmlan_buffer mbuf_arr[SDIO_MP_AGGR_DEF_PKT_LIMIT];
 } sdio_mpa_tx;
 #endif
 
@@ -1647,6 +1669,12 @@ typedef struct _mlan_adapter {
 	t_u8 *mp_regs;
     /** allocated buf to read SDIO multiple port group registers */
 	t_u8 *mp_regs_buf;
+#if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
+	/* see blk_queue_max_segment_size */
+	t_u32 max_seg_size;
+	/* see blk_queue_max_segments */
+	t_u16 max_segs;
+#endif
 
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 	/** data structure for SDIO MPA TX */

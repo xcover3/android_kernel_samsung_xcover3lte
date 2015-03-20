@@ -2,7 +2,7 @@
  *
  *  @brief This file contains the handling of AP mode ioctls
  *
- *  Copyright (C) 2009-2014, Marvell International Ltd.
+ *  Copyright (C) 2009-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -72,6 +72,30 @@ wlan_uap_bss_ioctl_stop(IN pmlan_adapter pmadapter,
 	return ret;
 }
 
+static t_bool
+wlan_can_radar_det_skip(mlan_private *priv)
+{
+	mlan_private *priv_list[MLAN_MAX_BSS_NUM];
+	mlan_private *pmpriv;
+	mlan_adapter *pmadapter = priv->adapter;
+	t_u8 pcount, i;
+
+	/* In MBSS environment, if one of the BSS is already beaconing and DRCS
+	   is off then 11n_radar detection is not required for subsequent BSSes
+	   since they will follow the primary bss. */
+	if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)) {
+		memset(pmadapter, priv_list, 0x00, sizeof(priv_list));
+		pcount = wlan_get_privs_by_cond(pmadapter, wlan_is_intf_active,
+						priv_list);
+		for (i = 0; i < pcount; i++) {
+			pmpriv = priv_list[i];
+			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP)
+				return MTRUE;
+		}
+	}
+	return MFALSE;
+}
+
 /**
  *  @brief Callback to finish BSS IOCTL START
  *  Not to be called directly to initiate bss_start
@@ -98,6 +122,7 @@ wlan_uap_callback_bss_ioctl_start(IN t_void *priv)
 	 * Check if the region and channel requires we check for radar.
 	 */
 	if ((puap_state_chan_cb->band_config & BAND_CONFIG_5GHZ) &&
+	    !wlan_can_radar_det_skip(pmpriv) &&
 	    wlan_11h_radar_detect_required(pmpriv,
 					   puap_state_chan_cb->channel)) {
 
@@ -203,6 +228,8 @@ wlan_uap_bss_ioctl_start(IN pmlan_adapter pmadapter,
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
 
 	ENTER();
+
+	/* if FW supports ACS+DFS then sequence is different */
 
 	/* First check channel report, defer BSS_START CMD to callback. */
 	/* store params, issue command to get UAP channel, whose CMD_RESP will
@@ -1070,6 +1097,7 @@ wlan_uap_callback_11h_channel_check_req(IN t_void *priv)
 	 * check.
 	 */
 	if ((puap_state_chan_cb->band_config & BAND_CONFIG_5GHZ) &&
+	    !wlan_can_radar_det_skip(pmpriv) &&
 	    wlan_11h_radar_detect_required(pmpriv, puap_state_chan_cb->channel)
 	    && !wlan_11h_is_channel_under_nop(pmpriv->adapter,
 					      puap_state_chan_cb->channel)) {
@@ -1167,6 +1195,7 @@ wlan_uap_callback_snmp_mib_11h(IN t_void *priv)
 
 	if (enable_11h) {
 		if ((puap_state_chan_cb->band_config & BAND_CONFIG_5GHZ) &&
+		    !wlan_can_radar_det_skip(pmpriv) &&
 		    wlan_11h_radar_detect_required(pmpriv,
 						   puap_state_chan_cb->
 						   channel)) {

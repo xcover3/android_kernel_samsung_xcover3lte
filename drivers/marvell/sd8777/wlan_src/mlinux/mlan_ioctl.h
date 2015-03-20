@@ -2,7 +2,7 @@
  *
  *  @brief This file declares the IOCTL data structures and APIs.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -3008,7 +3008,7 @@ typedef struct _mlan_ds_wifi_direct_config {
 /**Action ID for TDLS config link*/
 #define WLAN_TDLS_CONFIG_LINK            0x03
 /*reason code*/
-#define WLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED 26
+#define MLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED 26
 /** TDLS operation buffer */
 typedef struct _mlan_ds_misc_tdls_oper {
     /** TDLS Action */

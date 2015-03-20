@@ -2,7 +2,7 @@
  *
  *  @brief This file contains SDIO specific code
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -824,8 +824,20 @@ wlan_receive_mp_aggr_buf(mlan_adapter *pmadapter)
 
 	memset(pmadapter, &mbuf_aggr, 0, sizeof(mlan_buffer));
 
-	mbuf_aggr.pbuf = (t_u8 *)pmadapter->mpa_rx.buf;
-	mbuf_aggr.data_len = pmadapter->mpa_rx.buf_len;
+	if (!pmadapter->mpa_rx.buf && pmadapter->mpa_rx.pkt_cnt > 1) {
+		mbuf_aggr.data_len = pmadapter->mpa_rx.buf_len;
+		mbuf_aggr.pnext = mbuf_aggr.pprev = &mbuf_aggr;
+		mbuf_aggr.use_count = 0;
+		for (pind = 0; pind < pmadapter->mpa_rx.pkt_cnt; pind++) {
+			pmadapter->mpa_rx.mbuf_arr[pind]->data_len =
+				pmadapter->mpa_rx.len_arr[pind];
+			wlan_link_buf_to_aggr(&mbuf_aggr,
+					      pmadapter->mpa_rx.mbuf_arr[pind]);
+		}
+	} else {
+		mbuf_aggr.pbuf = (t_u8 *)pmadapter->mpa_rx.buf;
+		mbuf_aggr.data_len = pmadapter->mpa_rx.buf_len;
+	}
 
 	cmd53_port = (pmadapter->ioport | SDIO_MPA_ADDR_BASE |
 		      (pmadapter->mpa_rx.ports << 4)) +
@@ -836,38 +848,57 @@ wlan_receive_mp_aggr_buf(mlan_adapter *pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	DBG_HEXDUMP(MIF_D, "SDIO MP-A Blk Rd", pmadapter->mpa_rx.buf,
-		    MIN(pmadapter->mpa_rx.buf_len, MAX_DATA_DUMP_LEN));
-
-	curr_ptr = pmadapter->mpa_rx.buf;
-
-	for (pind = 0; pind < pmadapter->mpa_rx.pkt_cnt; pind++) {
-
-		/* get curr PKT len & type */
-		pkt_len = wlan_le16_to_cpu(*(t_u16 *)&curr_ptr[0]);
-		pkt_type = wlan_le16_to_cpu(*(t_u16 *)&curr_ptr[2]);
-
-		PRINTM(MINFO, "RX: [%d] pktlen: %d pkt_type: 0x%x\n", pind,
-		       pkt_len, pkt_type);
-
-		/* copy pkt to deaggr buf */
-		mbuf_deaggr = pmadapter->mpa_rx.mbuf_arr[pind];
-		if ((pkt_type == MLAN_TYPE_DATA) &&
-		    (pkt_len <= pmadapter->mpa_rx.len_arr[pind])) {
-			memcpy(pmadapter,
-			       mbuf_deaggr->pbuf + mbuf_deaggr->data_offset,
-			       curr_ptr, pkt_len);
+	if (!pmadapter->mpa_rx.buf && pmadapter->mpa_rx.pkt_cnt > 1) {
+		for (pind = 0; pind < pmadapter->mpa_rx.pkt_cnt; pind++) {
+			mbuf_deaggr = pmadapter->mpa_rx.mbuf_arr[pind];
+			pkt_len =
+				wlan_le16_to_cpu(*(t_u16 *)
+						 (mbuf_deaggr->pbuf +
+						  mbuf_deaggr->data_offset));
+			pkt_type =
+				wlan_le16_to_cpu(*(t_u16 *)
+						 (mbuf_deaggr->pbuf +
+						  mbuf_deaggr->data_offset +
+						  2));
 			pmadapter->upld_len = pkt_len;
-			/* Process de-aggr packet */
 			wlan_decode_rx_packet(pmadapter, mbuf_deaggr, pkt_type);
-		} else {
-			PRINTM(MERROR,
-			       "Wrong aggr packet: type=%d, len=%d, max_len=%d\n",
-			       pkt_type, pkt_len,
-			       pmadapter->mpa_rx.len_arr[pind]);
-			wlan_free_mlan_buffer(pmadapter, mbuf_deaggr);
 		}
-		curr_ptr += pmadapter->mpa_rx.len_arr[pind];
+	} else {
+		DBG_HEXDUMP(MIF_D, "SDIO MP-A Blk Rd", pmadapter->mpa_rx.buf,
+			    MIN(pmadapter->mpa_rx.buf_len, MAX_DATA_DUMP_LEN));
+
+		curr_ptr = pmadapter->mpa_rx.buf;
+
+		for (pind = 0; pind < pmadapter->mpa_rx.pkt_cnt; pind++) {
+
+			/* get curr PKT len & type */
+			pkt_len = wlan_le16_to_cpu(*(t_u16 *)&curr_ptr[0]);
+			pkt_type = wlan_le16_to_cpu(*(t_u16 *)&curr_ptr[2]);
+
+			PRINTM(MINFO, "RX: [%d] pktlen: %d pkt_type: 0x%x\n",
+			       pind, pkt_len, pkt_type);
+
+			/* copy pkt to deaggr buf */
+			mbuf_deaggr = pmadapter->mpa_rx.mbuf_arr[pind];
+			if ((pkt_type == MLAN_TYPE_DATA) &&
+			    (pkt_len <= pmadapter->mpa_rx.len_arr[pind])) {
+				memcpy(pmadapter,
+				       mbuf_deaggr->pbuf +
+				       mbuf_deaggr->data_offset, curr_ptr,
+				       pkt_len);
+				pmadapter->upld_len = pkt_len;
+				/* Process de-aggr packet */
+				wlan_decode_rx_packet(pmadapter, mbuf_deaggr,
+						      pkt_type);
+			} else {
+				PRINTM(MERROR,
+				       "Wrong aggr packet: type=%d, len=%d, max_len=%d\n",
+				       pkt_type, pkt_len,
+				       pmadapter->mpa_rx.len_arr[pind]);
+				wlan_free_mlan_buffer(pmadapter, mbuf_deaggr);
+			}
+			curr_ptr += pmadapter->mpa_rx.len_arr[pind];
+		}
 	}
 	pmadapter->mpa_rx_count[pmadapter->mpa_rx.pkt_cnt - 1]++;
 	MP_RX_AGGR_BUF_RESET(pmadapter);
@@ -1037,6 +1068,7 @@ wlan_send_mp_aggr_buf(mlan_adapter *pmadapter)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u32 cmd53_port = 0;
 	mlan_buffer mbuf_aggr;
+	t_u8 i = 0;
 	t_u8 mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
 
 	ENTER();
@@ -1051,8 +1083,18 @@ wlan_send_mp_aggr_buf(mlan_adapter *pmadapter)
 
 	memset(pmadapter, &mbuf_aggr, 0, sizeof(mlan_buffer));
 
-	mbuf_aggr.pbuf = (t_u8 *)pmadapter->mpa_tx.buf;
-	mbuf_aggr.data_len = pmadapter->mpa_tx.buf_len;
+	if (!pmadapter->mpa_tx.buf && pmadapter->mpa_tx.pkt_cnt > 1) {
+		mbuf_aggr.data_len = pmadapter->mpa_tx.buf_len;
+		mbuf_aggr.pnext = mbuf_aggr.pprev = &mbuf_aggr;
+		mbuf_aggr.use_count = 0;
+		for (i = 0; i < pmadapter->mpa_tx.pkt_cnt; i++) {
+			wlan_link_buf_to_aggr(&mbuf_aggr,
+					      pmadapter->mpa_tx.mbuf_arr[i]);
+		}
+	} else {
+		mbuf_aggr.pbuf = (t_u8 *)pmadapter->mpa_tx.buf;
+		mbuf_aggr.data_len = pmadapter->mpa_tx.buf_len;
+	}
 
 	cmd53_port = (pmadapter->ioport | SDIO_MPA_ADDR_BASE |
 		      (pmadapter->mpa_tx.ports << 4)) +
@@ -1060,7 +1102,21 @@ wlan_send_mp_aggr_buf(mlan_adapter *pmadapter)
 
 	if (pmadapter->mpa_tx.pkt_cnt == 1)
 		cmd53_port = pmadapter->ioport + pmadapter->mpa_tx.start_port;
-	ret = wlan_write_data_sync(pmadapter, &mbuf_aggr, cmd53_port);
+    /** only one packet */
+	if (!pmadapter->mpa_tx.buf && pmadapter->mpa_tx.pkt_cnt == 1)
+		ret = wlan_write_data_sync(pmadapter,
+					   pmadapter->mpa_tx.mbuf_arr[0],
+					   cmd53_port);
+	else
+		ret = wlan_write_data_sync(pmadapter, &mbuf_aggr, cmd53_port);
+	if (!pmadapter->mpa_tx.buf) {
+	/** free mlan buffer */
+		for (i = 0; i < pmadapter->mpa_tx.pkt_cnt; i++) {
+			wlan_write_data_complete(pmadapter,
+						 pmadapter->mpa_tx.mbuf_arr[i],
+						 MLAN_STATUS_SUCCESS);
+		}
+	}
 	if (!(pmadapter->mp_wr_bitmap & (1 << pmadapter->curr_wr_port))
 	    && (pmadapter->mpa_tx.pkt_cnt < mp_aggr_pkt_limit))
 		pmadapter->mpa_sent_no_ports++;
@@ -1104,6 +1160,7 @@ wlan_host_to_card_mp_aggr(mlan_adapter *pmadapter, mlan_buffer *mbuf, t_u8 port,
 	t_s32 f_send_cur_buf = 0;
 	t_s32 f_precopy_cur_buf = 0;
 	t_s32 f_postcopy_cur_buf = 0;
+	t_u8 aggr_sg = 0;
 	t_u8 mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
 
 	ENTER();
@@ -1189,7 +1246,12 @@ wlan_host_to_card_mp_aggr(mlan_adapter *pmadapter, mlan_buffer *mbuf, t_u8 port,
 			       MLAN_SDIO_BLOCK_SIZE,
 			       mbuf->pbuf + mbuf->data_offset,
 			       MLAN_SDIO_BLOCK_SIZE);
-		MP_TX_AGGR_BUF_PUT(pmadapter, mbuf, port);
+		if (!pmadapter->mpa_tx.buf) {
+			MP_TX_AGGR_BUF_PUT_SG(pmadapter, mbuf, port);
+			aggr_sg = MTRUE;
+		} else {
+			MP_TX_AGGR_BUF_PUT(pmadapter, mbuf, port);
+		}
 		if (MP_TX_AGGR_PKT_LIMIT_REACHED(pmadapter) ||
 		    MP_TX_AGGR_PORT_LIMIT_REACHED(pmadapter)
 			) {
@@ -1248,8 +1310,16 @@ tx_curr_single:
 			       MLAN_SDIO_BLOCK_SIZE,
 			       mbuf->pbuf + mbuf->data_offset,
 			       MLAN_SDIO_BLOCK_SIZE);
-		MP_TX_AGGR_BUF_PUT(pmadapter, mbuf, port);
+		if (!pmadapter->mpa_tx.buf) {
+			MP_TX_AGGR_BUF_PUT_SG(pmadapter, mbuf, port);
+			aggr_sg = MTRUE;
+		} else {
+			MP_TX_AGGR_BUF_PUT(pmadapter, mbuf, port);
+		}
 	}
+	/* Always return PENDING in SG mode */
+	if (aggr_sg)
+		ret = MLAN_STATUS_PENDING;
 
 	LEAVE();
 	return ret;
@@ -1578,7 +1648,8 @@ wlan_process_int_status(mlan_adapter *pmadapter)
 				goto done;
 			}
 			rx_len = (t_u16)(rx_blocks * MLAN_SDIO_BLOCK_SIZE);
-			if (port == CTRL_PORT)
+			if (port == CTRL_PORT ||
+			    rx_len > MLAN_TX_DATA_BUF_SIZE_2K)
 				pmbuf = wlan_alloc_mlan_buffer(pmadapter,
 							       rx_len, 0,
 							       MOAL_MALLOC_BUFFER);
@@ -1774,38 +1845,55 @@ wlan_alloc_sdio_mpa_buffers(IN mlan_adapter *pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u8 mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
 
 	ENTER();
 
 #ifdef SDIO_MULTI_PORT_TX_AGGR
-	ret = pcb->moal_malloc(pmadapter->pmoal_handle,
-			       mpa_tx_buf_size + DMA_ALIGNMENT,
-			       MLAN_MEM_DEF | MLAN_MEM_DMA,
-			       (t_u8 **)&pmadapter->mpa_tx.head_ptr);
-	if (ret != MLAN_STATUS_SUCCESS || !pmadapter->mpa_tx.head_ptr) {
-		PRINTM(MERROR,
-		       "Could not allocate buffer for SDIO MP TX aggr\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto error;
+	if ((pmadapter->max_segs < mp_aggr_pkt_limit) ||
+	    (pmadapter->max_seg_size < mpa_tx_buf_size)) {
+		ret = pcb->moal_malloc(pmadapter->pmoal_handle,
+				       mpa_tx_buf_size + DMA_ALIGNMENT,
+				       MLAN_MEM_DEF | MLAN_MEM_DMA,
+				       (t_u8 **)&pmadapter->mpa_tx.head_ptr);
+		if (ret != MLAN_STATUS_SUCCESS || !pmadapter->mpa_tx.head_ptr) {
+			PRINTM(MERROR,
+			       "Could not allocate buffer for SDIO MP TX aggr\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto error;
+		}
+		pmadapter->mpa_tx.buf =
+			(t_u8 *)ALIGN_ADDR(pmadapter->mpa_tx.head_ptr,
+					   DMA_ALIGNMENT);
+	} else {
+		PRINTM(MMSG, "wlan: Enable TX SG mode\n");
+		pmadapter->mpa_tx.head_ptr = MNULL;
+		pmadapter->mpa_tx.buf = MNULL;
 	}
-	pmadapter->mpa_tx.buf =
-		(t_u8 *)ALIGN_ADDR(pmadapter->mpa_tx.head_ptr, DMA_ALIGNMENT);
 	pmadapter->mpa_tx.buf_size = mpa_tx_buf_size;
 #endif /* SDIO_MULTI_PORT_TX_AGGR */
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
-	ret = pcb->moal_malloc(pmadapter->pmoal_handle,
-			       mpa_rx_buf_size + DMA_ALIGNMENT,
-			       MLAN_MEM_DEF | MLAN_MEM_DMA,
-			       (t_u8 **)&pmadapter->mpa_rx.head_ptr);
-	if (ret != MLAN_STATUS_SUCCESS || !pmadapter->mpa_rx.head_ptr) {
-		PRINTM(MERROR,
-		       "Could not allocate buffer for SDIO MP RX aggr\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto error;
+	if ((pmadapter->max_segs < mp_aggr_pkt_limit) ||
+	    (pmadapter->max_seg_size < mpa_rx_buf_size)) {
+		ret = pcb->moal_malloc(pmadapter->pmoal_handle,
+				       mpa_rx_buf_size + DMA_ALIGNMENT,
+				       MLAN_MEM_DEF | MLAN_MEM_DMA,
+				       (t_u8 **)&pmadapter->mpa_rx.head_ptr);
+		if (ret != MLAN_STATUS_SUCCESS || !pmadapter->mpa_rx.head_ptr) {
+			PRINTM(MERROR,
+			       "Could not allocate buffer for SDIO MP RX aggr\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto error;
+		}
+		pmadapter->mpa_rx.buf =
+			(t_u8 *)ALIGN_ADDR(pmadapter->mpa_rx.head_ptr,
+					   DMA_ALIGNMENT);
+	} else {
+		PRINTM(MMSG, "wlan: Enable RX SG mode\n");
+		pmadapter->mpa_rx.head_ptr = MNULL;
+		pmadapter->mpa_rx.buf = MNULL;
 	}
-	pmadapter->mpa_rx.buf =
-		(t_u8 *)ALIGN_ADDR(pmadapter->mpa_rx.head_ptr, DMA_ALIGNMENT);
 	pmadapter->mpa_rx.buf_size = mpa_rx_buf_size;
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 error:

@@ -2,7 +2,7 @@
  *
  *  @brief This file contains APIs to MOAL module.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -252,6 +252,10 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 
 #ifdef MFG_CMD_SUPPORT
 	pmadapter->init_para.mfg_mode = pmdevice->mfg_mode;
+#endif
+#if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
+	pmadapter->max_segs = pmdevice->max_segs;
+	pmadapter->max_seg_size = pmdevice->max_seg_size;
 #endif
 
 #ifdef SDIO_MULTI_PORT_TX_AGGR

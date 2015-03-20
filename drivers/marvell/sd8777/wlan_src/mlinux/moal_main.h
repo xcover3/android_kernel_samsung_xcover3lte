@@ -2,7 +2,7 @@
   *
   * @brief This file contains wlan driver specific defines etc.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -970,10 +970,6 @@ struct _moal_private {
 #endif
 #ifdef STA_CFG80211
 #ifdef STA_SUPPORT
-	/** CFG80211 scan request description */
-	struct cfg80211_scan_request *scan_request;
-	/** lock for scan_request */
-	spinlock_t scan_req_lock;
 	/** CFG80211 association description */
 	t_u8 cfg_bssid[ETH_ALEN];
 	/** Disconnect request from CFG80211 */
@@ -1285,6 +1281,10 @@ struct _moal_handle {
 	t_u8 scan_pending_on_block;
 	/** Async scan semaphore */
 	struct semaphore async_sem;
+#ifdef STA_CFG80211
+	/** CFG80211 scan request description */
+	struct cfg80211_scan_request *scan_request;
+#endif
 #endif
 	/** main state */
 	t_u8 main_state;
@@ -1308,6 +1308,8 @@ struct _moal_handle {
 	spinlock_t driver_lock;
 	/** Driver ioctl spin lock */
 	spinlock_t ioctl_lock;
+	/** lock for scan_request */
+	spinlock_t scan_req_lock;
 	/** Card type */
 	t_u16 card_type;
 	/** Card specific driver version */
@@ -1712,7 +1714,7 @@ typedef struct _HostCmd_DS_802_11_CFG_DATA {
 #define DEF_REPEAT_COUNT	 6
 
 /** default rssi low threshold */
-#define DEFAULT_RSSI_LOW_THRESHOLD 70
+#define DEFAULT_RSSI_LOW_THRESHOLD 75
 /** RSSI HYSTERSIS */
 #define RSSI_HYSTERESIS		6
 /** lowest rssi threshold */

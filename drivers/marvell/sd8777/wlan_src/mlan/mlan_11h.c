@@ -2,7 +2,7 @@
  *
  *  @brief This file contains functions for 802.11H.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1029,7 +1029,7 @@ wlan_11h_is_dfs_slave(mlan_private *priv)
  *
  *  @return             MTRUE or MFALSE
  */
-static t_bool
+t_bool
 wlan_is_intf_active(mlan_private *pmpriv)
 {
 	t_bool ret = MFALSE;

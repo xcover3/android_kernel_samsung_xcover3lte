@@ -2,7 +2,7 @@
   *
   * @brief This file contains the functions for CFG80211.
   *
-  * Copyright (C) 2011-2014, Marvell International Ltd.
+  * Copyright (C) 2011-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -365,27 +365,6 @@ woal_is_any_interface_active(moal_handle *handle)
 	}
 	return MFALSE;
 }
-
-#ifdef STA_SUPPORT
-/**
- *  @brief Check if any interface has pending scan req
- *
- *  @param handle        A pointer to moal_handle
- *
- *
- *  @return              MTRUE/MFALSE;
- */
-moal_private *
-woal_get_scan_interface(moal_handle *handle)
-{
-	int i;
-	for (i = 0; i < handle->priv_num; i++) {
-		if (handle->priv[i] && handle->priv[i]->scan_request)
-			return handle->priv[i];
-	}
-	return NULL;
-}
-#endif
 
 /**
  *  @brief Get current frequency of active interface
@@ -1826,14 +1805,6 @@ woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 	t_u32 last_mgmt_subtype_mask = priv->mgmt_subtype_mask;
 
 	ENTER();
-#ifdef UAP_SUPPORT
-	if ((priv->bss_type == MLAN_BSS_TYPE_UAP) &&
-	    (frame_type == IEEE80211_STYPE_PROBE_REQ)) {
-		PRINTM(MIOCTL, "Skip register PROBE_REQ in UAP mode\n");
-		LEAVE();
-		return;
-	}
-#endif
 	if (reg == MTRUE) {
 		/* set mgmt_subtype_mask based on origin value */
 		mgmt_subtype_mask =

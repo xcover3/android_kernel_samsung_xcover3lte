@@ -2,7 +2,7 @@
  *
  *  @brief This file declares the generic data structures and APIs.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		"C080"
+#define MLAN_RELEASE_VERSION		"C086"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -131,7 +131,9 @@ typedef t_s32 t_sval;
 #define MLAN_NET_IP_ALIGN        0
 
 /** DMA alignment */
-#define DMA_ALIGNMENT            8
+/* SDIO3.0 Inrevium Adapter require 32 bit DMA alignment */
+#define DMA_ALIGNMENT            32
+
 /** max size of TxPD */
 #define MAX_TXPD_SIZE            32
 
@@ -1091,6 +1093,12 @@ typedef struct _mlan_device {
 #ifdef SDIO_MULTI_PORT_RX_AGGR
     /** SDIO MPA Rx */
 	t_u32 mpa_rx_cfg;
+#endif
+#if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
+	/* see blk_queue_max_segment_size */
+	t_u32 max_seg_size;
+	/* see blk_queue_max_segments */
+	t_u16 max_segs;
 #endif
     /** Auto deep sleep */
 	t_u32 auto_ds;

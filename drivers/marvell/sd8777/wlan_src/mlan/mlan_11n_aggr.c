@@ -2,7 +2,7 @@
  *
  *  @brief This file contains functions for 11n Aggregation.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -513,7 +513,6 @@ wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		wlan_write_data_complete(pmadapter, pmbuf_aggr, ret);
 		goto exit;
 	case MLAN_STATUS_PENDING:
-		pmadapter->data_sent = MFALSE;
 		break;
 	case MLAN_STATUS_SUCCESS:
 		wlan_write_data_complete(pmadapter, pmbuf_aggr, ret);

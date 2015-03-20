@@ -3,7 +3,7 @@
  *
  *  @brief This file include miscellaneous functions for MLAN module
  *
- *  Copyright (C) 2009-2014, Marvell International Ltd.
+ *  Copyright (C) 2009-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1797,7 +1797,7 @@ wlan_misc_ioctl_tdls_oper(IN pmlan_adapter pmadapter,
 				       ptdls_oper->peer_mac,
 				       MLAN_MAC_ADDR_LENGTH);
 				tdls_evt->reason_code =
-					WLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED;
+					MLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED;
 				wlan_recv_event(pmpriv,
 						MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ,
 						ptdls_event);

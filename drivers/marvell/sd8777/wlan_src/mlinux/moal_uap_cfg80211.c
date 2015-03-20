@@ -2,7 +2,7 @@
   *
   * @brief This file contains the functions for uAP CFG80211.
   *
-  * Copyright (C) 2011-2014, Marvell International Ltd.
+  * Copyright (C) 2011-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -831,14 +831,15 @@ woal_cfg80211_beacon_config(moal_private *priv,
 	}
 #endif /* COMPAT_WIRELESS */
 
+	if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
-	/* find and set wmm ie */
-	woal_set_wmm_ies(params->beacon.tail, (int)params->beacon.tail_len,
-			 &sys_config);
+		/* find and set wmm ie */
+		woal_set_wmm_ies(params->beacon.tail,
+				 (int)params->beacon.tail_len, &sys_config);
 #else
-	woal_set_wmm_ies(params->tail, params->tail_len, &sys_config);
+		woal_set_wmm_ies(params->tail, params->tail_len, &sys_config);
 #endif
-
+	}
 	/* If the security mode is configured as WEP or WPA-PSK, it will
 	   disable 11n automatically, and if configured as open(off) or
 	   wpa2-psk, it will automatically enable 11n */
@@ -945,7 +946,6 @@ woal_alloc_virt_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type,
 
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
 	spin_lock_init(&priv->tx_stat_lock);
-	spin_lock_init(&priv->scan_req_lock);
 	spin_lock_init(&priv->connect_lock);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -1164,7 +1164,7 @@ woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 			woal_remain_timer_func(handle);
 		}
 
-		/** cancel pending scan */
+	/*** cancel pending scan */
 		woal_cancel_scan(vir_priv, MOAL_IOCTL_WAIT);
 
 		woal_flush_tx_stat_queue(vir_priv);

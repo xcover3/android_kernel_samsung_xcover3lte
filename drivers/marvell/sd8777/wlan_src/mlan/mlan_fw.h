@@ -4,7 +4,7 @@
  *  structures and declares global function prototypes used
  *  in MLAN module.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -526,6 +526,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define ISSUPP_TXSTBC(Dot11nDevCap) (Dot11nDevCap & MBIT(25))
 /** HW_SPEC Dot11nDevCap : Short GI @ 40Mhz support */
 #define ISSUPP_SHORTGI40(Dot11nDevCap) (Dot11nDevCap & MBIT(24))
+/** HW_SPEC Dot11nDevCap : Reset Short GI @ 40Mhz support */
+#define RESETSUPP_SHORTGI40(Dot11nDevCap) (Dot11nDevCap &= ~MBIT(24))
 /** HW_SPEC Dot11nDevCap : Short GI @ 20Mhz support */
 #define ISSUPP_SHORTGI20(Dot11nDevCap) (Dot11nDevCap & MBIT(23))
 /** HW_SPEC Dot11nDevCap : Rx LDPC support */
@@ -542,6 +544,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define ISSUPP_CHANWIDTH10(Dot11nDevCap) (Dot11nDevCap & MBIT(15))
 /** Dot11nUsrCap : 40Mhz intolarance enabled */
 #define ISENABLED_40MHZ_INTOLARENT(Dot11nDevCap) (Dot11nDevCap & MBIT(8))
+/** Dot11nUsrCap : Reset 40Mhz intolarance enabled */
+#define RESET_40MHZ_INTOLARENT(Dot11nDevCap) (Dot11nDevCap &= ~MBIT(8))
 /** HW_SPEC Dot11nDevCap : Rx AntennaD support */
 #define ISSUPP_RXANTENNAD(Dot11nDevCap) (Dot11nDevCap & MBIT(7))
 /** HW_SPEC Dot11nDevCap : Rx AntennaC support */
@@ -2955,10 +2959,8 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_NoA_setting_t {
 typedef MLAN_PACK_START struct _MrvlIEtypes_OPP_PS_setting_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
-    /** enable/disable */
+    /** enable/disable && ct_window */
 	t_u8 enable;
-    /** CT window value */
-	t_u8 ct_window;
 } MLAN_PACK_END MrvlIEtypes_OPP_PS_setting_t;
 
 /** HostCmd_DS_REMAIN_ON_CHANNEL */

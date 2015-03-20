@@ -3,7 +3,7 @@
   * @brief This file contains the major functions in WLAN
   * driver.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -77,7 +77,7 @@ char driver_version[] =
 
 /** Firmware name */
 char *fw_name;
-static int req_fw_nowait;
+int req_fw_nowait;
 
 /** MAC address */
 char *mac_addr;
@@ -1084,6 +1084,7 @@ woal_init_sw(moal_handle *handle)
 #endif
 	spin_lock_init(&handle->driver_lock);
 	spin_lock_init(&handle->ioctl_lock);
+	spin_lock_init(&handle->scan_req_lock);
 
 #if defined(SDIO_SUSPEND_RESUME)
 	handle->is_suspended = MFALSE;
@@ -1162,6 +1163,18 @@ woal_init_sw(moal_handle *handle)
 	device.cfg_11d = (t_u32)cfg_11d;
 #endif
 	device.fw_crc_check = (t_u32)fw_crc_check;
+#if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
+	device.max_segs =
+		((struct sdio_mmc_card *)handle->card)->func->card->host->
+		max_segs;
+	device.max_seg_size =
+		((struct sdio_mmc_card *)handle->card)->func->card->host->
+		max_seg_size;
+#endif
+	PRINTM(MMSG, "SDIO: max_segs=%d max_seg_size=%d\n", device.max_segs,
+	       device.max_seg_size);
+#endif
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 #ifdef MMC_QUIRK_BLKSZ_FOR_BYTE_MODE
 	device.mpa_tx_cfg = MLAN_INIT_PARA_ENABLED;
@@ -2316,15 +2329,10 @@ woal_fill_mlan_buffer(moal_private *priv,
 #else
 	memcpy(&skb->stamp, &tstamp, sizeof(skb->stamp));
 #endif
+
 	pmbuf->pdesc = skb;
-	if (pmbuf == (mlan_buffer *)skb->head) {
-		pmbuf->pbuf = skb->head + sizeof(mlan_buffer);
-		pmbuf->data_offset =
-			skb->data - (skb->head + sizeof(mlan_buffer));
-	} else {
-		pmbuf->pbuf = skb->head;
-		pmbuf->data_offset = skb->data - skb->head;
-	}
+	pmbuf->pbuf = skb->head + sizeof(mlan_buffer);
+	pmbuf->data_offset = skb->data - (skb->head + sizeof(mlan_buffer));
 	pmbuf->data_len = skb->len;
 	pmbuf->priority = skb->priority;
 	pmbuf->buf_type = 0;
@@ -2593,7 +2601,6 @@ woal_add_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type)
 	spin_lock_init(&priv->tx_stat_lock);
 #ifdef STA_CFG80211
 #ifdef STA_SUPPORT
-	spin_lock_init(&priv->scan_req_lock);
 	spin_lock_init(&priv->connect_lock);
 #endif
 #endif
@@ -2985,17 +2992,16 @@ woal_close(struct net_device *dev)
 	if (IS_STA_CFG80211(cfg80211_wext) &&
 	    (priv->bss_type == MLAN_BSS_TYPE_STA))
 		woal_clear_conn_params(priv);
-	spin_lock_irqsave(&priv->scan_req_lock, flags);
-	if (IS_STA_CFG80211(cfg80211_wext) && priv->scan_request) {
-		cfg80211_scan_done(priv->scan_request, MTRUE);
-		priv->scan_request = NULL;
+	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
+	if (IS_STA_CFG80211(cfg80211_wext) && priv->phandle->scan_request) {
+		cfg80211_scan_done(priv->phandle->scan_request, MTRUE);
+		priv->phandle->scan_request = NULL;
 	}
-	spin_unlock_irqrestore(&priv->scan_req_lock, flags);
+	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 	if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev->current_bss)
-		cfg80211_disconnected(priv->netdev, 0, NULL, 0,
-				      GFP_KERNEL);
+		cfg80211_disconnected(priv->netdev, 0, NULL, 0, GFP_KERNEL);
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) || defined(COMPAT_WIRELESS)
@@ -3027,8 +3033,6 @@ woal_close(struct net_device *dev)
 #endif
 #endif
 #endif
-
-
 	MODULE_PUT;
 
 	LEAVE();
@@ -3854,9 +3858,9 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		priv->stats.tx_dropped++;
 		goto done;
 	}
-
-	if (skb_headroom(skb) <
-	    (MLAN_MIN_DATA_HEADER_LEN + priv->extra_tx_head_len)) {
+	if (skb_headroom(skb) < (MLAN_MIN_DATA_HEADER_LEN +
+				 sizeof(mlan_buffer) +
+				 priv->extra_tx_head_len)) {
 		PRINTM(MWARN, "Tx: Insufficient skb headroom %d\n",
 		       skb_headroom(skb));
 		/* Insufficient skb headroom - allocate a new skb */
@@ -3872,22 +3876,9 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		if (new_skb != skb)
 			dev_kfree_skb_any(skb);
 		skb = new_skb;
-		pmbuf = (mlan_buffer *)skb->head;
 		PRINTM(MINFO, "new skb headroom %d\n", skb_headroom(skb));
-	} else if (skb_headroom(skb) < (MLAN_MIN_DATA_HEADER_LEN +
-					sizeof(mlan_buffer) +
-					priv->extra_tx_head_len)) {
-		pmbuf = kzalloc(sizeof(mlan_buffer), GFP_ATOMIC);
-		if (!pmbuf) {
-			PRINTM(MERROR,
-			       "Fail to allocate pmbuf in woal_hard_start_xmit\n");
-			dev_kfree_skb_any(skb);
-			priv->stats.tx_dropped++;
-			goto done;
-		}
-	} else {
-		pmbuf = (mlan_buffer *)skb->head;
 	}
+	pmbuf = (mlan_buffer *)skb->head;
 	memset((t_u8 *)pmbuf, 0, sizeof(mlan_buffer));
 	pmbuf->bss_index = priv->bss_index;
 	woal_fill_mlan_buffer(priv, pmbuf, skb);
@@ -3924,15 +3915,11 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	case MLAN_STATUS_SUCCESS:
 		priv->stats.tx_packets++;
 		priv->stats.tx_bytes += skb->len;
-		if (pmbuf != (mlan_buffer *)skb->head)
-			kfree(pmbuf);
 		dev_kfree_skb_any(skb);
 		break;
 	case MLAN_STATUS_FAILURE:
 	default:
 		priv->stats.tx_dropped++;
-		if (pmbuf != (mlan_buffer *)skb->head)
-			kfree(pmbuf);
 		dev_kfree_skb_any(skb);
 		break;
 	}
@@ -6852,16 +6839,16 @@ woal_cleanup_module(void)
 				    (handle->priv[i]->bss_type ==
 				     MLAN_BSS_TYPE_STA))
 					woal_clear_conn_params(handle->priv[i]);
-				spin_lock_irqsave(&handle->priv[i]->
-						  scan_req_lock, flags);
+				spin_lock_irqsave(&handle->scan_req_lock,
+						  flags);
 				if (IS_STA_CFG80211(cfg80211_wext) &&
-				    handle->priv[i]->scan_request) {
-					cfg80211_scan_done(handle->priv[i]->
-							   scan_request, MTRUE);
-					handle->priv[i]->scan_request = NULL;
+				    handle->scan_request) {
+					cfg80211_scan_done(handle->scan_request,
+							   MTRUE);
+					handle->scan_request = NULL;
 				}
-				spin_unlock_irqrestore(&handle->priv[i]->
-						       scan_req_lock, flags);
+				spin_unlock_irqrestore(&handle->scan_req_lock,
+						       flags);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) || defined(COMPAT_WIRELESS)
 				if (IS_STA_CFG80211(cfg80211_wext) &&
 				    handle->priv[i]->sched_scanning) {

@@ -3,7 +3,7 @@
   * @brief This file contains definitions for SDIO interface.
   * driver.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -236,6 +236,22 @@ Change log:
 	a->mpa_tx.pkt_cnt++;                                \
 } while (0)
 
+#define MP_TX_AGGR_BUF_PUT_SG(a, mbuf, port) do {       \
+	a->mpa_tx.buf_len += mbuf->data_len;                \
+	a->mpa_tx.mp_wr_info[a->mpa_tx.pkt_cnt] = \
+		*(t_u16 *)(mbuf->pbuf+mbuf->data_offset); \
+	a->mpa_tx.mbuf_arr[a->mpa_tx.pkt_cnt] = mbuf;       \
+	if (!a->mpa_tx.pkt_cnt) {                           \
+		a->mpa_tx.start_port = port;                    \
+	}                                                   \
+	if (a->mpa_tx.start_port <= port) {                 \
+		a->mpa_tx.ports |= (1 << (a->mpa_tx.pkt_cnt));	\
+	} else {                                            \
+		a->mpa_tx.ports |= (1 << (a->mpa_tx.pkt_cnt \
+			+ 1 + (MAX_PORT - a->mp_end_port)));  \
+	}                                                   \
+	a->mpa_tx.pkt_cnt++;                                \
+} while (0)
 /** SDIO Tx aggregation limit ? */
 #define MP_TX_AGGR_PKT_LIMIT_REACHED(a) ((a->mpa_tx.pkt_cnt) \
 			== (a->mpa_tx.pkt_aggr_limit))

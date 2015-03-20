@@ -2,7 +2,7 @@
  *
  *  @brief This file contains functions for WMM.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1042,7 +1042,6 @@ wlan_send_processed_packet(pmlan_private priv, raListTbl *ptr, int ptrindex)
 			wlan_write_data_complete(pmadapter, pmbuf, ret);
 			break;
 		case MLAN_STATUS_PENDING:
-			pmadapter->data_sent = MFALSE;
 			break;
 		case MLAN_STATUS_SUCCESS:
 			DBG_HEXDUMP(MDAT_D, "Tx",

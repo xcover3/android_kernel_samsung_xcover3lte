@@ -2,7 +2,7 @@
   *
   * @brief This file contains private ioctl functions
   *
-  * Copyright (C) 2014, Marvell International Ltd.
+  * Copyright (C) 2014-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -95,6 +95,11 @@ parse_arguments(t_u8 *pos, int *data, int datalen, int *user_data_len)
 	unsigned int i, j, k;
 	char cdata[10];
 	int is_hex = 0;
+
+	if (strlen(pos) == 0) {
+		*user_data_len = 0;
+		return MLAN_STATUS_SUCCESS;
+	}
 
 	memset(cdata, 0, sizeof(cdata));
 	for (i = 0, j = 0, k = 0; i <= strlen(pos); i++) {

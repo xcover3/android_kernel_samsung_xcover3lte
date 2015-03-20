@@ -3,7 +3,7 @@
  *  @brief This header file contains data structures and
  *  function declarations of 802.11h
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -163,5 +163,8 @@ extern mlan_status wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter);
 
 /** DFS switch to non-DFS channel */
 extern mlan_status wlan_11h_switch_non_dfs_chan(mlan_private *priv, t_u8 *chan);
+
+/** function checks if interface is active. **/
+extern t_bool wlan_is_intf_active(mlan_private *pmpriv);
 
 #endif /*_MLAN_11H_ */

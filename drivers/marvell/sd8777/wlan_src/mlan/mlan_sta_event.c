@@ -2,7 +2,7 @@
  *
  *  @brief This file contains MLAN event handling.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -329,7 +329,7 @@ wlan_send_tdls_tear_down_request(pmlan_private priv)
 			memcpy(priv->adapter, (t_u8 *)tdls_evt->peer_mac_addr,
 			       sta_ptr->mac_addr, MLAN_MAC_ADDR_LENGTH);
 			tdls_evt->reason_code =
-				WLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED;
+				MLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED;
 			wlan_recv_event(priv,
 					MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ,
 					ptdls_event);
