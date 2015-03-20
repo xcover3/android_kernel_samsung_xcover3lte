@@ -143,14 +143,15 @@ static int pxa27x_keypad_matrix_key_parse_dt(struct pxa27x_keypad *keypad,
 	struct device *dev = input_dev->dev.parent;
 	u32 rows = 0, cols = 0;
 	int error;
+	struct device_node *np = dev->of_node;
 
-	error = matrix_keypad_parse_of_params(dev, &rows, &cols);
-	if (error) {
-		/*
-		 * If do not have keypad,num-rows or keypad,num-columns defined,
-		 * it means matrix key is not supported.
-		 */
-		return error == -EINVAL ? 0 : error;
+	if (np) {
+		of_property_read_u32(np, "keypad,num-rows", &rows);
+		of_property_read_u32(np, "keypad,num-columns", &cols);
+		if (!rows || !cols)
+			return 0;
+	} else {
+		return 0;
 	}
 
 	if (rows > MAX_MATRIX_KEY_ROWS || cols > MAX_MATRIX_KEY_COLS) {
