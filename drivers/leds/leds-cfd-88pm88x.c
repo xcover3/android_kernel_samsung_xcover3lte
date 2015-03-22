@@ -50,10 +50,14 @@
 
 #define PM88X_BST_HSOC_OFFSET		(5)
 #define PM88X_BST_HSOC_MASK		(0x7 << PM88X_BST_HSOC_OFFSET)
+#define PM88X_BST_HSOC_SET_2P5A		(0x5 << PM88X_BST_HSOC_OFFSET)
 #define PM88X_BST_LSOC_OFFSET		(1)
 #define PM88X_BST_LSOC_MASK		(0x7 << PM88X_BST_LSOC_OFFSET)
+#define PM88X_BST_LSOC_SET_3A		(0x4 << PM88X_BST_LSOC_OFFSET)
 #define PM88X_BST_HSZC_OFFSET		(5)
 #define PM88X_BST_HSZC_MASK		(0x3 << PM88X_BST_HSZC_OFFSET)
+
+
 #define PM88X_BST_VSET_OFFSET		(4)
 #define PM88X_BST_VSET_MASK		(0x7 << PM88X_BST_VSET_OFFSET)
 #define PM88X_BST_UVVBAT_OFFSET	(0)
@@ -928,15 +932,16 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 		if (ret)
 			return ret;
 	}
-	/* set booster high-side to 3.5A and low-side to 4.5A */
+	/* set booster high-side to 2.5A and low-side to 3A */
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG4,
-			PM88X_BST_HSOC_MASK, PM88X_BST_HSOC_MASK);
+			PM88X_BST_HSOC_MASK, PM88X_BST_HSOC_SET_2P5A);
 	if (ret)
 		return ret;
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG4,
-			PM88X_BST_LSOC_MASK, PM88X_BST_LSOC_MASK);
+			PM88X_BST_LSOC_MASK, PM88X_BST_LSOC_SET_3A);
 	if (ret)
 		return ret;
+
 	/* set high-side zero current limit to 130mA */
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
 			PM88X_BST_HSZC_MASK, 0);
