@@ -458,6 +458,29 @@ struct timecounter *arch_timer_get_timecounter(void)
 	return &timecounter;
 }
 
+static DEFINE_SPINLOCK(read_persistent_clock_lock);
+
+void read_persistent_clock(struct timespec *ts)
+{
+	unsigned long long nsecs;
+	static struct timespec persistent_ts;
+	static cycles_t cycles;
+	cycles_t last_cycles;
+	unsigned long flags;
+
+	spin_lock_irqsave(&read_persistent_clock_lock, flags);
+
+	last_cycles = cycles;
+	cycles = arch_timer_read_counter();
+	nsecs = clocksource_cyc2ns(cycles - last_cycles,
+			cyclecounter.mult, cyclecounter.shift);
+
+	timespec_add_ns(&persistent_ts, nsecs);
+	*ts = persistent_ts;
+
+	spin_unlock_irqrestore(&read_persistent_clock_lock, flags);
+}
+
 static void __init arch_counter_register(unsigned type)
 {
 	u64 start_count;
