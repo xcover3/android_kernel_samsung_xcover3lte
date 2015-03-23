@@ -2038,7 +2038,7 @@ static int pm88x_battery_setup_adc(struct pm88x_battery_info *info)
 	/* active vbat voltage channel */
 	chan = iio_channel_get(info->dev, "vbat");
 	if (PTR_ERR(chan) == -EPROBE_DEFER) {
-		dev_err(info->dev, "get vbat iio channel defers.\n");
+		dev_info(info->dev, "get vbat iio channel defers.\n");
 		return -EPROBE_DEFER;
 	}
 	info->chan[VBATT_CHAN] = IS_ERR(chan) ? NULL : chan;
@@ -2046,7 +2046,7 @@ static int pm88x_battery_setup_adc(struct pm88x_battery_info *info)
 	/* sleep vbat voltage channel */
 	chan = iio_channel_get(info->dev, "vbat_slp");
 	if (PTR_ERR(chan) == -EPROBE_DEFER) {
-		dev_err(info->dev, "get vbat_slp iio channel defers.\n");
+		dev_info(info->dev, "get vbat_slp iio channel defers.\n");
 		return -EPROBE_DEFER;
 	}
 	info->chan[VBATT_SLP_CHAN] = IS_ERR(chan) ? NULL : chan;
@@ -2055,7 +2055,7 @@ static int pm88x_battery_setup_adc(struct pm88x_battery_info *info)
 	sprintf(s, "gpadc%d_res", info->gpadc_temp_no);
 	chan = iio_channel_get(info->dev, s);
 	if (PTR_ERR(chan) == -EPROBE_DEFER) {
-		dev_err(info->dev, "get %s iio channel defers.\n", s);
+		dev_info(info->dev, "get %s iio channel defers.\n", s);
 		return -EPROBE_DEFER;
 	}
 	info->chan[TEMP_CHAN] = IS_ERR(chan) ? NULL : chan;
