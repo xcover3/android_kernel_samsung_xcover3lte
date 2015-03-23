@@ -247,6 +247,15 @@
 		/* camera */
 	};
 
+	panel1: r63311 {
+		marvell,mipi-backlight;
+		power_gpio = <&gpio 96 0>;
+		rst_gpio = <&gpio 98 0>;
+		mipi-backlight-max_brightness = <97>;
+		mipi-backlight-min_brightness = <1>;
+		iovdd-supply = <&ldo5>;
+	};
+
 	/* virtual keypad backlight */
 	keypad-bl {
 		compatible = "regulator-leds";

@@ -65,7 +65,6 @@
 		regulator-boot-on;
 	};
 	ldo5: regulator-ldo5 {
-		regulator-always-on;
 		regulator-boot-on;
 	};
 	ldo6: regulator-ldo6 {
