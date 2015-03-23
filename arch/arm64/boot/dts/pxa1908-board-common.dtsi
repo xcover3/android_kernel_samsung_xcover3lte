@@ -1271,4 +1271,10 @@
 	iml: iml@7ffffe0{
 		status = "okay";
 	};
+
+	mmplog {
+		status = "okay";
+		mmplog-base = <0x08000000>;
+		mmplog-size = <0x100000>;
+	};
 };

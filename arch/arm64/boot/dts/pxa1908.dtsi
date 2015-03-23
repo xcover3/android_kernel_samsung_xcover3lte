@@ -1030,4 +1030,9 @@
 		dma-names =  "iml-dma";
 		status = "disabled";
 	};
+	mmplog {
+		compatible = "marvell,mmplog-heap";
+		status = "disabled";
+	};
+
 };
