@@ -43,3 +43,4 @@ struct sk_buff *skb_llist_reverse_order(struct sk_buff *head)
 
 	return new_head;
 }
+EXPORT_SYMBOL(skb_llist_reverse_order);

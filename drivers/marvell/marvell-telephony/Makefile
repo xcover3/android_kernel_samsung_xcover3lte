@@ -3,6 +3,7 @@ subdir-ccflags-y += -DEXPORT_SYMTAB
 subdir-ccflags-y += -fno-pic
 
 #follow dependency sequence
+obj-$(CONFIG_MRVL_MMP_MODEM) += common/
 
 obj-$(CONFIG_MRVL_MMP_MODEM) += shmem/
 

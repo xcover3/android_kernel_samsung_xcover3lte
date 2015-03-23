@@ -41,11 +41,13 @@ void *shm_vmap(phys_addr_t start, size_t size)
 
 	return vaddr + offset_in_page(start);
 }
+EXPORT_SYMBOL(shm_vmap);
 
 void shm_vunmap(void *vaddr)
 {
 	vunmap(vaddr - offset_in_page(vaddr));
 }
+EXPORT_SYMBOL(shm_vunmap);
 
 void *shm_map(phys_addr_t start, size_t size)
 {
