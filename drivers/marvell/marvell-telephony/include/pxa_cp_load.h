@@ -11,6 +11,7 @@
 #ifndef _PXA_CP_LOAD_H_
 #define _PXA_CP_LOAD_H_
 
+#include "util.h"
 #include "linux_driver_types.h"
 
 enum cp_type {
@@ -76,5 +77,7 @@ static inline int cp_set_seagull_remap_reg(u64 val)
 
 	return ret;
 }
+
+DECLARE_BLOCKING_NOTIFIER(cp_mem_set);
 
 #endif /* _PXA_CP_LOAD_H_ */

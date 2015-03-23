@@ -37,13 +37,13 @@
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
 #include <linux/mman.h>
+#include <linux/notifier.h>
 
 #include "pxa_cp_load.h"
 #include "pxa_cp_load_ioctl.h"
 #include "common_regs.h"
-#include "msocket.h"
-#include "shm.h"
 #include "shm_map.h"
+#include "util.h"
 
 static struct cp_dev *global_cp;
 uint32_t arbel_bin_phys_addr;
@@ -249,17 +249,14 @@ int cp_mmap(struct file *file, struct vm_area_struct *vma)
 	return 0;
 }
 
+DEFINE_BLOCKING_NOTIFIER(cp_mem_set);
+
 /*
  * actions after memory address set
  */
 static void post_mem_set(struct cpload_cp_addr *addr)
 {
-	if (addr->first_boot)
-		cp_shm_ch_init(addr, global_cp->lpm_qos);
-	else {
-		tel_shm_exit(shm_grp_cp);
-		tel_shm_init(shm_grp_cp, addr);
-	}
+	notify_cp_mem_set(global_cp->lpm_qos, addr);
 }
 
 static long cp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)

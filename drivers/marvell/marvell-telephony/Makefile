@@ -5,9 +5,9 @@ subdir-ccflags-y += -fno-pic
 #follow dependency sequence
 obj-$(CONFIG_MRVL_MMP_MODEM) += common/
 
-obj-$(CONFIG_MRVL_MMP_MODEM) += shmem/
-
 obj-$(CONFIG_MRVL_MMP_MODEM) += cp_load/
+
+obj-$(CONFIG_MRVL_MMP_MODEM) += shmem/
 
 obj-$(CONFIG_MRVL_MMP_MODEM) += errorhandler/
 

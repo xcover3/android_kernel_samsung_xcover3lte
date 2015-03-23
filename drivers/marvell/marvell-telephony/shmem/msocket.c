@@ -46,6 +46,7 @@
 #include "common_regs.h"
 #include "pxa_m3_rm.h"
 #include "psd_data_channel.h"
+#include "pxa_cp_load.h"
 
 #define CMSOCKDEV_NR_DEVS PORTQ_NUM_MAX
 
@@ -1460,6 +1461,26 @@ void m3_shm_ch_deinit(void)
 EXPORT_SYMBOL(m3_shm_ch_deinit);
 
 
+static int cp_mem_set_notifier_func(struct notifier_block *this,
+	unsigned long code, void *cmd)
+{
+	struct cpload_cp_addr *addr = (struct cpload_cp_addr *)cmd;
+	u32 lpm_qos = (u32)code;
+
+	if (addr->first_boot)
+		cp_shm_ch_init(addr, lpm_qos);
+	else {
+		tel_shm_exit(shm_grp_cp);
+		tel_shm_init(shm_grp_cp, addr);
+	}
+
+	return 0;
+}
+
+static struct notifier_block cp_mem_set_notifier = {
+	.notifier_call = cp_mem_set_notifier_func,
+};
+
 #define APMU_DEBUG_BUS_PROTECTION (1 << 4)
 /* module initialization */
 static int __init msocket_init(void)
@@ -1498,6 +1519,7 @@ static int __init msocket_init(void)
 	apmu_debug_byte3 |= APMU_DEBUG_BUS_PROTECTION;
 	__raw_writeb(apmu_debug_byte3, APMU_DEBUG + 3);
 	register_reboot_notifier(&reboot_notifier);
+	register_cp_mem_set_notifier(&cp_mem_set_notifier);
 
 	/* port queue init */
 	rc = portq_init();
@@ -1546,6 +1568,7 @@ msocketDump_err:
 misc_err:
 	portq_exit();
 portq_err:
+	unregister_cp_mem_set_notifier(&cp_mem_set_notifier);
 	unregister_reboot_notifier(&reboot_notifier);
 	remove_proc_entry(PROC_FILE_NAME, NULL);
 proc_err:
@@ -1563,6 +1586,7 @@ static void __exit msocket_exit(void)
 	cmsockdev_cleanup_module(cmsockdev_nr_devs);
 	misc_deregister(&msocketDump_dev);
 	misc_deregister(&msocket_dev);
+	unregister_cp_mem_set_notifier(&cp_mem_set_notifier);
 	unregister_reboot_notifier(&reboot_notifier);
 	remove_proc_entry(PROC_FILE_NAME, NULL);
 	shm_debugfs_exit();
