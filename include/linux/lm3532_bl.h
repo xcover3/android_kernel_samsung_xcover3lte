@@ -16,7 +16,7 @@
 
 #include <linux/ioctl.h>
 
-#define LM3532_NAME                 "lcd-bl"
+#define LM3532_NAME                 "lcd-backlight"
 #define LM3532_I2C_ADDR        0x38
 
 /*****************************************************************************
