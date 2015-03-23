@@ -13,12 +13,23 @@
 #include <linux/netdevice.h>	/* dev_kfree_skb_any */
 #include <linux/ip.h>
 #include <linux/debugfs.h>
+#include <linux/platform_device.h>
+
 #include "common_datastub.h"
-#include "data_channel_kernel.h"
 #include "data_path.h"
 #include "psd_data_channel.h"
 #include "tel_trace.h"
 #include "debugfs.h"
+
+#define DPRINT(fmt, args ...)     pr_info(fmt, ## args)
+#define DBGMSG(fmt, args ...)     pr_debug("PSD: " fmt, ## args)
+#define ENTER()         pr_debug("PSD: ENTER %s\n", __func__)
+#define LEAVE()         pr_debug("PSD: LEAVE %s\n", __func__)
+#define FUNC_EXIT()     pr_debug("PSD: EXIT %s\n", __func__)
+
+#define PSDATASTUB_IOC_MAGIC 'P'
+#define PSDATASTUB_GCFDATA _IOW(PSDATASTUB_IOC_MAGIC, 1, int)
+#define PSDATASTUB_TOGGLE_DATA_ENABLE_DISABLE _IOW(PSDATASTUB_IOC_MAGIC, 2, int)
 
 #define NETWORK_EMBMS_CID    0xFF
 
@@ -41,6 +52,8 @@ static struct psd_user __rcu *psd_users[MAX_CID_NUM];
 static u32 ack_opt = true;
 static u32 data_drop = true;
 static u32 ndev_fc;
+
+static int gCcinetDataEnabled = TRUE;
 
 int psd_register(const struct psd_user *user, int cid)
 {
@@ -95,7 +108,6 @@ int sendPSDData(int cid, struct sk_buff *skb)
 
 	if (!gCcinetDataEnabled)
 		goto drop;
-
 	/* data path is not open, drop the packet and return */
 	if (!psd_dp) {
 		DP_PRINT("%s: data path is not open!\n", __func__);
@@ -368,21 +380,203 @@ static int psd_debugfs_exit(void)
 	return 0;
 }
 
-int InitPsdChannel(void)
+static int InitPsdChannel(struct notifier_block *nb,
+			unsigned long action, void *data)
 {
 	psd_dp = data_path_open(dp_type_psd, &psd_cbs);
-	if (!psd_dp)
+	if (!psd_dp) {
+		DP_ERROR("%s: failed to open data path\n", __func__);
 		return -1;
-
+	}
 	if (psd_debugfs_init() < 0)
 		data_path_close(psd_dp);
-
 	return 0;
 }
 
-void DeInitPsdChannel(void)
+static void DeInitPsdChannel(void)
 {
 	psd_debugfs_exit();
 	data_path_close(psd_dp);
+}
+
+static int psdatastub_open(struct inode *inode, struct file *filp)
+{
+	ENTER();
+	return 0;
+	LEAVE();
+}
+
+static long psdatastub_ioctl(struct file *filp,
+			      unsigned int cmd, unsigned long arg)
+{
+	GCFDATA gcfdata;
+	struct sk_buff *gcfbuf;
+
+	ENTER();
+	if (_IOC_TYPE(cmd) != PSDATASTUB_IOC_MAGIC) {
+		DBGMSG("psdatastub_ioctl: cci magic number is wrong!\n");
+		return -ENOTTY;
+	}
+
+	DBGMSG("psdatastub_ioctl,cmd=0x%x\n", cmd);
+	switch (cmd) {
+	case PSDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
+		if (copy_from_user(&gcfdata, (GCFDATA *) arg, sizeof(GCFDATA)))
+			return -EFAULT;
+		gcfbuf = alloc_skb(gcfdata.len, GFP_KERNEL);
+		if (!gcfbuf)
+			return -ENOMEM;
+		if (copy_from_user
+		    (skb_put(gcfbuf, gcfdata.len), gcfdata.databuf,
+		     gcfdata.len)) {
+			kfree_skb(gcfbuf);
+			return -EFAULT;
+		}
+		sendPSDData(gcfdata.cid, gcfbuf);
+		break;
+
+	case PSDATASTUB_TOGGLE_DATA_ENABLE_DISABLE:
+		if (gCcinetDataEnabled == TRUE)
+			gCcinetDataEnabled = FALSE;
+		else
+			gCcinetDataEnabled = TRUE;
+
+		DPRINT("%s: Toggle Data to %s", __func__, (gCcinetDataEnabled == TRUE) ?
+			"Enabled" : "Disabled");
+		break;
+
+	}
+	LEAVE();
+	return 0;
+}
+
+#ifdef CONFIG_COMPAT
+static int compat_cgfdata_handle(struct file *filp,
+			      unsigned int cmd, unsigned long arg)
+{
+	struct GCFDATA32 __user *argp = (void __user *)arg;
+	GCFDATA __user *buf;
+	compat_uptr_t param_addr;
+	int ret = 0;
+
+	buf = compat_alloc_user_space(sizeof(*buf));
+	if (!access_ok(VERIFY_WRITE, buf, sizeof(*buf))
+	    || !access_ok(VERIFY_WRITE, argp, sizeof(*argp)))
+		return -EFAULT;
+
+	if (__copy_in_user(buf, argp, offsetof(struct GCFDATA32, databuf))
+	    || __get_user(param_addr, &argp->databuf)
+	    || __put_user(compat_ptr(param_addr), &buf->databuf))
+		return -EFAULT;
+
+	ret = psdatastub_ioctl(filp, cmd, (unsigned long)buf);
+	return ret;
+}
+static long compat_psdatastub_ioctl(struct file *filp,
+			      unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+	if (_IOC_TYPE(cmd) != PSDATASTUB_IOC_MAGIC) {
+		DBGMSG("psdatastub_ioctl: cci magic number is wrong!\n");
+		return -ENOTTY;
+	}
+	switch (cmd) {
+	case PSDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
+		ret = compat_cgfdata_handle(filp, cmd, arg);
+		break;
+	default:
+		ret = psdatastub_ioctl(filp, cmd, arg);
+		break;
+	}
+	return ret;
+}
+#endif
+
+static const struct file_operations psdatastub_fops = {
+	.open = psdatastub_open,
+	.unlocked_ioctl = psdatastub_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = compat_psdatastub_ioctl,
+#endif
+	.owner = THIS_MODULE
+};
+
+static struct miscdevice psdatastub_miscdev = {
+	MISC_DYNAMIC_MINOR,
+	"psdatastub",
+	&psdatastub_fops,
+};
+
+static struct notifier_block cp_state_notifier = {
+	.notifier_call = InitPsdChannel,
+};
+
+static int psdatastub_probe(struct platform_device *dev)
+{
+	int ret;
+
+	ENTER();
+
+	ret = misc_register(&psdatastub_miscdev);
+	if (ret)
+		pr_err("register misc device error\n");
+
+	register_first_cp_synced(&cp_state_notifier);
+
+	LEAVE();
+
+	return ret;
+}
+
+static int psdatastub_remove(struct platform_device *dev)
+{
+	ENTER();
+	DeInitPsdChannel();
+	misc_deregister(&psdatastub_miscdev);
+	LEAVE();
+	return 0;
+}
+
+static void psdatastub_dev_release(struct device *dev)
+{
+	return;
+}
+
+static struct platform_device psdatastub_device = {
+	.name = "psdatastub",
+	.id = 0,
+	.dev = {
+		.release = psdatastub_dev_release,
+	},
+};
+
+static struct platform_driver psdatastub_driver = {
+	.probe = psdatastub_probe,
+	.remove = psdatastub_remove,
+	.driver = {
+		.name = "psdatastub",
+	}
+};
+
+int psdatastub_init(void)
+{
+	int ret;
+
+	ret = platform_device_register(&psdatastub_device);
+	if (!ret) {
+		ret = platform_driver_register(&psdatastub_driver);
+		if (ret)
+			platform_device_unregister(&psdatastub_device);
+	} else {
+		DPRINT("Cannot register CCIDATASTUB platform device\n");
+	}
+
+	return ret;
+}
+
+void psdatastub_exit(void)
+{
+	platform_driver_unregister(&psdatastub_driver);
+	platform_device_unregister(&psdatastub_device);
 }
 

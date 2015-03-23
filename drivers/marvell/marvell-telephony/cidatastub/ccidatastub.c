@@ -44,8 +44,6 @@ DATAHANDLELIST *hCsdataList = NULL;
 int csdChannelInited;
 int imsChannelInited;
 DEFINE_SPINLOCK(data_handle_list_lock);
-int gCcinetDataEnabled = TRUE;
-EXPORT_SYMBOL(gCcinetDataEnabled);
 
 #define DPRINT(fmt, args ...)     pr_info(fmt, ## args)
 #define DBGMSG(fmt, args ...)     pr_debug("CIN: " fmt, ## args)
@@ -112,8 +110,6 @@ static long ccidatastub_ioctl(struct file *filp,
 {
 	DATAHANDLELIST *pNode, **plist;
 	struct datahandle_obj dataHandle;
-	GCFDATA gcfdata;
-	struct sk_buff *gcfbuf;
 	unsigned char cid;
 
 	ENTER();
@@ -167,76 +163,16 @@ static long ccidatastub_ioctl(struct file *filp,
 		remove_handle_by_cid(&hCsdataList, cid);
 		spin_unlock_irq(&data_handle_list_lock);
 		break;
-
-	case CCIDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
-		if (copy_from_user(&gcfdata, (GCFDATA *) arg, sizeof(GCFDATA)))
-			return -EFAULT;
-		gcfbuf = alloc_skb(gcfdata.len, GFP_KERNEL);
-		if (!gcfbuf)
-			return -ENOMEM;
-		if (copy_from_user
-		    (skb_put(gcfbuf, gcfdata.len), gcfdata.databuf,
-		     gcfdata.len)) {
-			kfree_skb(gcfbuf);
-			return -EFAULT;
-		}
-		sendPSDData(gcfdata.cid, gcfbuf);
-		break;
-
-	case CCIDATASTUB_TOGGLE_DATA_ENABLE_DISABLE:
-		if (gCcinetDataEnabled == TRUE)
-			gCcinetDataEnabled = FALSE;
-		else
-			gCcinetDataEnabled = TRUE;
-
-		DPRINT("%s: Toggle Data to %s", __func__, (gCcinetDataEnabled == TRUE) ?
-			"Enabled" : "Disabled");
-		break;
-
 	}
 	LEAVE();
 	return 0;
 }
 
 #ifdef CONFIG_COMPAT
-static int compat_cgfdata_handle(struct file *filp,
-			      unsigned int cmd, unsigned long arg)
-{
-	struct GCFDATA32 __user *argp = (void __user *)arg;
-	GCFDATA __user *buf;
-	compat_uptr_t param_addr;
-	int ret = 0;
-
-	buf = compat_alloc_user_space(sizeof(*buf));
-	if (!access_ok(VERIFY_WRITE, buf, sizeof(*buf))
-	    || !access_ok(VERIFY_WRITE, argp, sizeof(*argp)))
-		return -EFAULT;
-
-	if (__copy_in_user(buf, argp, offsetof(struct GCFDATA32, databuf))
-	    || __get_user(param_addr, &argp->databuf)
-	    || __put_user(compat_ptr(param_addr), &buf->databuf))
-		return -EFAULT;
-
-	ret = ccidatastub_ioctl(filp, cmd, (unsigned long)buf);
-	return ret;
-}
 static long compat_ccidatastub_ioctl(struct file *filp,
 			      unsigned int cmd, unsigned long arg)
 {
-	int ret = 0;
-	if (_IOC_TYPE(cmd) != CCIDATASTUB_IOC_MAGIC) {
-		DBGMSG("ccidatastub_ioctl: cci magic number is wrong!\n");
-		return -ENOTTY;
-	}
-	switch (cmd) {
-	case CCIDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
-		ret = compat_cgfdata_handle(filp, cmd, arg);
-		break;
-	default:
-		ret = ccidatastub_ioctl(filp, cmd, arg);
-		break;
-	}
-	return ret;
+	return ccidatastub_ioctl(filp, cmd, arg);
 }
 #endif
 
@@ -285,7 +221,8 @@ static int set_csd_init_cfg(void)
 }
 #endif
 
-static void ccidatastub_ready_cb(void)
+static int ccidatastub_ready_cb(struct notifier_block *nb,
+			unsigned long action, void *data)
 {
 	DPRINT("%s executed\n", __func__);
 
@@ -293,10 +230,14 @@ static void ccidatastub_ready_cb(void)
 	set_csd_init_cfg();
 #endif
 
-	InitPsdChannel();
 	InitCsdChannel();
 	InitImsChannel();
+	return 0;
 }
+
+static struct notifier_block cp_state_notifier = {
+	.notifier_call = ccidatastub_ready_cb,
+};
 
 static int ccidatastub_probe(struct platform_device *dev)
 {
@@ -308,7 +249,7 @@ static int ccidatastub_probe(struct platform_device *dev)
 	if (ret)
 		pr_err("register misc device error\n");
 
-	register_first_cp_synced(ccidatastub_ready_cb);
+	register_first_cp_synced(&cp_state_notifier);
 
 	LEAVE();
 
@@ -318,7 +259,6 @@ static int ccidatastub_probe(struct platform_device *dev)
 static int ccidatastub_remove(struct platform_device *dev)
 {
 	ENTER();
-	DeInitPsdChannel();
 	DeInitCsdChannel();
 	DeInitImsChannel();
 	misc_deregister(&ccidatastub_miscdev);

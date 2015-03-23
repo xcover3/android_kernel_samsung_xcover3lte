@@ -45,6 +45,7 @@
 #include "direct_rb.h"
 #include "common_regs.h"
 #include "pxa_m3_rm.h"
+#include "psd_data_channel.h"
 
 #define CMSOCKDEV_NR_DEVS PORTQ_NUM_MAX
 
@@ -78,6 +79,20 @@ DECLARE_COMPLETION(cp_peer_sync);
 
 bool m3_is_synced;
 DECLARE_COMPLETION(m3_peer_sync);
+
+static BLOCKING_NOTIFIER_HEAD(cp_sync_notifier_list);
+
+int register_first_cp_synced(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&cp_sync_notifier_list, nb);
+}
+EXPORT_SYMBOL(register_first_cp_synced);
+
+void notify_first_cp_synced(void)
+{
+	blocking_notifier_call_chain(&cp_sync_notifier_list,
+			1, NULL);
+}
 
 static void dump(const unsigned char *data, unsigned int len)
 {
@@ -347,15 +362,6 @@ struct sk_buff *mrecvskb(int sock, int len, int flags)
 }
 EXPORT_SYMBOL(mrecvskb);
 
-static void (*cp_synced_callback)(void);
-
-void register_first_cp_synced(void (*ready_cb)(void))
-{
-	cp_synced_callback = ready_cb;
-}
-EXPORT_SYMBOL(register_first_cp_synced);
-
-
 static void cp_sync_worker(struct work_struct *work)
 {
 	bool cb_notify;
@@ -404,8 +410,8 @@ static void cp_sync_worker(struct work_struct *work)
 	/* unlock before return */
 	spin_unlock(&cp_sync_lock);
 
-	if (cb_notify && cp_synced_callback)
-		cp_synced_callback();
+	if (cb_notify)
+		notify_first_cp_synced();
 }
 
 /* thottle portq receive by msocket */
@@ -1522,9 +1528,17 @@ static int __init msocket_init(void)
 			__func__, rc);
 		goto cmsock_err;
 	}
+	rc = psdatastub_init();
+	if (rc < 0) {
+		pr_err("%s: init psdatastub failed %d\n",
+			__func__, rc);
+		goto psdatastub_err;
+	}
 
 	return 0;
 
+psdatastub_err:
+	cmsockdev_cleanup_module(cmsockdev_nr_devs);
 cmsock_err:
 	misc_deregister(&msocketDump_dev);
 msocketDump_err:
@@ -1544,6 +1558,7 @@ unmap_apmu:
 /* module exit */
 static void __exit msocket_exit(void)
 {
+	psdatastub_exit();
 	portq_exit();
 	cmsockdev_cleanup_module(cmsockdev_nr_devs);
 	misc_deregister(&msocketDump_dev);

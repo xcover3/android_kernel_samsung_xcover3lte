@@ -30,8 +30,6 @@
 #include <linux/spinlock.h>
 #include <linux/list.h>
 #include <linux/skbuff.h>
-#include "common_datastub.h"
-#include "data_channel_kernel.h"
 #include "psd_data_channel.h"
 #include "ppprd_linux.h"
 

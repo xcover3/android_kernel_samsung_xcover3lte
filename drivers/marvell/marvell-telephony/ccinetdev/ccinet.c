@@ -18,8 +18,6 @@
 
 #include <net/checksum.h>
 
-#include "common_datastub.h"
-#include "data_channel_kernel.h"
 #include "psd_data_channel.h"
 #include "debugfs.h"
 

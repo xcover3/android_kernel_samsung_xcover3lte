@@ -1,4 +1,4 @@
-ccflags-y += -Idrivers/marvell/marvell-telephony/cidatastub/
+ccflags-y += -Idrivers/marvell/marvell-telephony/shmem/
 
 gs_modem-objs := ppprd_linux.o
 

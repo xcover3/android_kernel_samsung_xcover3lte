@@ -65,7 +65,8 @@ extern void cp_shm_ch_deinit(void);
 extern int m3_shm_ch_init(const struct rm_m3_addr *addr);
 extern void m3_shm_ch_deinit(void);
 
-extern void register_first_cp_synced(void (*ready_cb)(void));
+extern int register_first_cp_synced(struct notifier_block *nb);
+
 
 extern int msocket(int port);
 extern int msocket_with_cb(int port,
