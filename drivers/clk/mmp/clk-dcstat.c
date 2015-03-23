@@ -50,6 +50,8 @@ static LIST_HEAD(clk_dcstat_list);
 static powermode pxa_powermode;
 static struct clk *gcsh_clk;
 
+struct timecounter *timecounter;
+
 /*10us,50us,100us,250us,500us,750us,1ms,5ms,25ms,100ms */
 #define MAX_TIME 1000000000000000000
 static u64 cpuidle_breakdown[MAX_BREAKDOWN_TIME+1] = {10000, 50000, 100000,
@@ -73,7 +75,8 @@ static void clk_dutycycle_stats(struct clk *clk,
 	spin_lock(&clk_dc_stats_lock);
 
 	cur = &dc_stat_info->ops_dcstat[dc_stat_info->curopindex];
-	ktime_get_ts(&cur_ts);
+	timecounter = arch_timer_get_timecounter();
+	cur_ts = ns_to_timespec(timecounter_read(timecounter));
 
 	prev_ts = cur->prev_ts;
 	time_ns = ts2ns(cur_ts, prev_ts);
@@ -587,7 +590,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 	struct op_dcstat_info *cur;
 	unsigned int cpu_i;
 	bool mark_keytime;
-	u64 ktime_temp, temp_time = 0;
+	u64 cur_nsecs, temp_time = 0;
 	u32 i, j, lpm_min, cpuidle_qos, cluster_flag = 0, cluster_flag1 = 0,
 	mp2_flag = 0, mp2_flag1 = 0, active_flag = 0;
 	u32 cpuidle_qos_min = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
@@ -622,18 +625,20 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 	}
 
+	timecounter = arch_timer_get_timecounter();
+
 	switch (msg) {
 	case CLK_STAT_START:
 		if ((0 == cpuid || 4 == cpuid) && (idle_dcstat_info.init_flag)) {
 			memset(&idle_dcstat_info, 0,
 			       sizeof(idle_dcstat_info));
 			idle_dcstat_info.init_flag = 0;
-			ktime_temp = ktime_to_ns(ktime_get());
-			idle_dcstat_info.all_idle_start = ktime_temp;
-			idle_dcstat_info.all_idle_end = ktime_temp;
-			idle_dcstat_info.all_active_start = ktime_temp;
-			idle_dcstat_info.all_active_end = ktime_temp;
-			idle_dcstat_info.cal_duration = ktime_temp;
+			cur_nsecs = timecounter_read(timecounter);
+			idle_dcstat_info.all_idle_start = cur_nsecs;
+			idle_dcstat_info.all_idle_end = cur_nsecs;
+			idle_dcstat_info.all_active_start = cur_nsecs;
+			idle_dcstat_info.all_active_end = cur_nsecs;
+			idle_dcstat_info.cal_duration = cur_nsecs;
 			idle_dcstat_info.M2_cluster0_idle_start = 0;
 			idle_dcstat_info.M2_cluster1_idle_start = 0;
 			idle_dcstat_info.D1P_idle_start = 0;
@@ -650,7 +655,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 
 				if (dc_stat_info->power_mode == MAX_LPM_INDEX
 					&& cpu_online(cpu_i)) {
-					dc_stat_info->runtime_start = ktime_temp;
+					dc_stat_info->runtime_start = cur_nsecs;
 					dc_stat_info->runtime_op_index = dc_stat_info->curopindex;
 				}
 
@@ -675,14 +680,14 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		break;
 	case CLK_STAT_STOP:
 		if (0 == cpuid) {
-			ktime_temp = ktime_to_ns(ktime_get());
+			cur_nsecs = timecounter_read(timecounter);
 			idle_dcstat_info.cal_duration =
-			    ktime_temp
+			    cur_nsecs
 			    - idle_dcstat_info.cal_duration;
 		}
 		break;
 	case CLK_RATE_CHANGE:
-		ktime_temp = ktime_to_ns(ktime_get());
+		cur_nsecs = timecounter_read(timecounter);
 
 		for (j = 0; j < op->cpu_num; j++) {
 			cpu_i = op->cpu_id[j];
@@ -692,37 +697,37 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 
 			spin_lock(&c1c2_exit_lock);
 			if ((u64) 0 != dc_stat_info->runtime_start) {
-				dc_stat_info->runtime_end = ktime_temp;
+				dc_stat_info->runtime_end = cur_nsecs;
 				dc_stat_info->runtime_op_total
 				    [dc_stat_info->runtime_op_index] +=
 				    dc_stat_info->runtime_end -
 					dc_stat_info->runtime_start;
-				dc_stat_info->runtime_start = ktime_temp;
+				dc_stat_info->runtime_start = cur_nsecs;
 				dc_stat_info->runtime_op_index = tgtop;
 			}
 			if ((dc_stat_info->idle_flag == LPM_C1) &&
 			    ((u64) 0 != dc_stat_info->C1_idle_start)) {
-				dc_stat_info->C1_idle_end = ktime_temp;
+				dc_stat_info->C1_idle_end = cur_nsecs;
 				dc_stat_info->C1_op_total
 				    [dc_stat_info->C1_op_index] +=
 				    dc_stat_info->C1_idle_end -
 					dc_stat_info->C1_idle_start;
 				dc_stat_info->C1_count[dc_stat_info->C1_op_index]++;
-				dc_stat_info->C1_idle_start = ktime_temp;
+				dc_stat_info->C1_idle_start = cur_nsecs;
 				dc_stat_info->C1_op_index = tgtop;
 			} else if ((dc_stat_info->idle_flag == LPM_C2) &&
 				   ((u64) 0 != dc_stat_info->C2_idle_start)) {
-				dc_stat_info->C2_idle_end = ktime_temp;
+				dc_stat_info->C2_idle_end = cur_nsecs;
 				dc_stat_info->C2_op_total
 				    [dc_stat_info->C2_op_index] +=
 						dc_stat_info->C2_idle_end -
 						 dc_stat_info->C2_idle_start;
 				dc_stat_info->C2_count[dc_stat_info->C2_op_index]++;
-				dc_stat_info->C2_idle_start = ktime_temp;
+				dc_stat_info->C2_idle_start = cur_nsecs;
 				dc_stat_info->C2_op_index = tgtop;
 			}
 			if ((u64) 0 != dc_stat_info->breakdown_start) {
-				dc_stat_info->breakdown_end = ktime_temp;
+				dc_stat_info->breakdown_end = cur_nsecs;
 				temp_time = dc_stat_info->breakdown_end -
 							 dc_stat_info->breakdown_start;
 				for (i = 0; i <= MAX_BREAKDOWN_TIME; i++)
@@ -732,16 +737,16 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 						dc_stat_info->breakdown_time_count[i]++;
 						break;
 					}
-				dc_stat_info->breakdown_start = ktime_temp;
+				dc_stat_info->breakdown_start = cur_nsecs;
 			}
 			spin_unlock(&c1c2_exit_lock);
 		}
 		break;
 	case CPU_IDLE_ENTER:
-		ktime_temp = ktime_to_ns(ktime_get());
+		cur_nsecs = timecounter_read(timecounter);
 		spin_lock(&c1c2_enter_lock);
 		if ((u64) 0 != dc_stat_info->runtime_start) {
-			dc_stat_info->runtime_end = ktime_temp;
+			dc_stat_info->runtime_end = cur_nsecs;
 			dc_stat_info->runtime_op_index = dc_stat_info->curopindex;
 			dc_stat_info->runtime_op_total[dc_stat_info->runtime_op_index] +=
 				dc_stat_info->runtime_end - dc_stat_info->runtime_start;
@@ -749,15 +754,15 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 		if (LPM_C1 == tgtop) {
 			dc_stat_info->C1_op_index = dc_stat_info->curopindex;
-			dc_stat_info->C1_idle_start = ktime_temp;
+			dc_stat_info->C1_idle_start = cur_nsecs;
 			dc_stat_info->idle_flag = LPM_C1;
 		} else if (tgtop >= LPM_C2 && tgtop <= LPM_D2_UDR) {
 			dc_stat_info->C2_op_index = dc_stat_info->curopindex;
-			dc_stat_info->C2_idle_start = ktime_temp;
+			dc_stat_info->C2_idle_start = cur_nsecs;
 			dc_stat_info->idle_flag = LPM_C2;
 		}
 		if ((tgtop >= LPM_C1) && (tgtop <= LPM_D2_UDR))
-			dc_stat_info->breakdown_start = ktime_temp;
+			dc_stat_info->breakdown_start = cur_nsecs;
 		spin_unlock(&c1c2_enter_lock);
 		dc_stat_info->power_mode = tgtop;
 
@@ -778,7 +783,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 
 		if (mark_keytime) {
-			idle_dcstat_info.all_idle_start = ktime_temp;
+			idle_dcstat_info.all_idle_start = cur_nsecs;
 			idle_dcstat_info.all_idle_op_index =
 			    dc_stat_info->curopindex;
 		}
@@ -800,7 +805,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			}
 		}
 		if (mark_keytime) {
-			idle_dcstat_info.all_active_end = ktime_temp;
+			idle_dcstat_info.all_active_end = cur_nsecs;
 			idle_dcstat_info.total_all_active +=
 			    idle_dcstat_info.all_active_end -
 				       idle_dcstat_info.all_active_start;
@@ -808,15 +813,15 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 		break;
 	case CPU_IDLE_EXIT:
-		ktime_temp = ktime_to_ns(ktime_get());
+		cur_nsecs = timecounter_read(timecounter);
 		spin_lock(&c1c2_exit_lock);
 
 		dc_stat_info->runtime_op_index = dc_stat_info->curopindex;
-		dc_stat_info->runtime_start = ktime_temp;
+		dc_stat_info->runtime_start = cur_nsecs;
 
 		if ((dc_stat_info->idle_flag == LPM_C1) &&
 		    ((u64) 0 != dc_stat_info->C1_idle_start)) {
-			dc_stat_info->C1_idle_end = ktime_temp;
+			dc_stat_info->C1_idle_end = cur_nsecs;
 			dc_stat_info->C1_op_total[dc_stat_info->C1_op_index] +=
 			dc_stat_info->C1_idle_end - dc_stat_info->C1_idle_start;
 			dc_stat_info->C1_count[dc_stat_info->C1_op_index]++;
@@ -824,7 +829,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		} else if ((dc_stat_info->idle_flag == LPM_C2) &&
 			   ((u64) 0 !=
 			    dc_stat_info->C2_idle_start)) {
-			dc_stat_info->C2_idle_end = ktime_temp;
+			dc_stat_info->C2_idle_end = cur_nsecs;
 			dc_stat_info->C2_op_total[dc_stat_info->C2_op_index] +=
 			    dc_stat_info->C2_idle_end -
 						  dc_stat_info->C2_idle_start;
@@ -834,7 +839,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		spin_unlock(&c1c2_exit_lock);
 		dc_stat_info->idle_flag = MAX_LPM_INDEX;
 		if ((u64) 0 != dc_stat_info->breakdown_start) {
-			dc_stat_info->breakdown_end = ktime_temp;
+			dc_stat_info->breakdown_end = cur_nsecs;
 			temp_time = dc_stat_info->breakdown_end -
 						 dc_stat_info->breakdown_start;
 			dc_stat_info->breakdown_start = 0;
@@ -863,13 +868,13 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			if (mark_keytime) {
 				if ((cpuid < 4) && ((u64) 0 != idle_dcstat_info.M2_cluster0_idle_start)) {
 					idle_dcstat_info.M2_cluster0_idle_total +=
-					    ktime_temp - idle_dcstat_info.M2_cluster0_idle_start;
+					    cur_nsecs - idle_dcstat_info.M2_cluster0_idle_start;
 					idle_dcstat_info.M2_cluster0_idle_total++;
 					idle_dcstat_info.M2_cluster0_idle_start = 0;
 				} else if ((cpuid >= 4 && cpuid < 8) &&
 				((u64) 0 != idle_dcstat_info.M2_cluster1_idle_start)) {
 					idle_dcstat_info.M2_cluster1_idle_total +=
-					    ktime_temp - idle_dcstat_info.M2_cluster1_idle_start;
+					    cur_nsecs - idle_dcstat_info.M2_cluster1_idle_start;
 					idle_dcstat_info.M2_cluster1_idle_total++;
 					idle_dcstat_info.M2_cluster1_idle_start = 0;
 				}
@@ -888,7 +893,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		}
 		spin_lock(&allidle_lock);
 		if (mark_keytime) {
-			idle_dcstat_info.all_idle_end = ktime_temp;
+			idle_dcstat_info.all_idle_end = cur_nsecs;
 			idle_dcstat_info.total_all_idle +=
 			idle_dcstat_info.all_idle_end -
 				       idle_dcstat_info.all_idle_start;
@@ -962,11 +967,11 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 					if ((cluster_flag1 == 0) &&
 					((u64) 0 == idle_dcstat_info.M2_cluster0_idle_start))
 						idle_dcstat_info.M2_cluster0_idle_start
-							= ktime_temp;
+							= cur_nsecs;
 					if ((cluster_flag1 == 1) &&
 					((u64) 0 == idle_dcstat_info.M2_cluster1_idle_start))
 						idle_dcstat_info.M2_cluster1_idle_start
-							= ktime_temp;
+							= cur_nsecs;
 				}
 			}
 		}
@@ -982,10 +987,10 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			}
 		}
 		if (mark_keytime)
-			idle_dcstat_info.all_active_start = ktime_temp;
+			idle_dcstat_info.all_active_start = cur_nsecs;
 		break;
 	case CPU_M2_OR_DEEPER_ENTER:
-		ktime_temp = ktime_to_ns(ktime_get());
+		cur_nsecs = timecounter_read(timecounter);
 
 		if (multi_cluster) {
 			dc_stat_info = &per_cpu(cpu_dc_stat, cpuid);
@@ -1019,11 +1024,11 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			if (active_flag == 0) {
 				dc_stat_info = &per_cpu(cpu_dc_stat, cpuid);
 				if (LPM_D1P == lpm_min)
-					idle_dcstat_info.D1P_idle_start = ktime_temp;
+					idle_dcstat_info.D1P_idle_start = cur_nsecs;
 				else if (LPM_D1 == lpm_min)
-					idle_dcstat_info.D1_idle_start = ktime_temp;
+					idle_dcstat_info.D1_idle_start = cur_nsecs;
 				else if (LPM_D2 == lpm_min)
-					idle_dcstat_info.D2_idle_start = ktime_temp;
+					idle_dcstat_info.D2_idle_start = cur_nsecs;
 
 #ifdef CONFIG_VOLDC_STAT
 				if (LPM_MP2 == lpm_min)
@@ -1068,22 +1073,22 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 					if ((cluster_flag == 0) &&
 					((u64) 0 == idle_dcstat_info.M2_cluster0_idle_start))
 						idle_dcstat_info.M2_cluster0_idle_start
-							= ktime_temp;
+							= cur_nsecs;
 					if ((cluster_flag == 1) &&
 					((u64) 0 == idle_dcstat_info.M2_cluster1_idle_start))
 						idle_dcstat_info.M2_cluster1_idle_start
-							= ktime_temp;
+							= cur_nsecs;
 				}
 			}
 		} else {
 			if (LPM_MP2 == tgtop)
-				idle_dcstat_info.M2_idle_start = ktime_temp;
+				idle_dcstat_info.M2_idle_start = cur_nsecs;
 			else if (LPM_D1P == tgtop)
-				idle_dcstat_info.D1P_idle_start = ktime_temp;
+				idle_dcstat_info.D1P_idle_start = cur_nsecs;
 			else if (LPM_D1 == tgtop)
-				idle_dcstat_info.D1_idle_start = ktime_temp;
+				idle_dcstat_info.D1_idle_start = cur_nsecs;
 			else if (LPM_D2 == tgtop)
-				idle_dcstat_info.D2_idle_start = ktime_temp;
+				idle_dcstat_info.D2_idle_start = cur_nsecs;
 		}
 		break;
 	default:
