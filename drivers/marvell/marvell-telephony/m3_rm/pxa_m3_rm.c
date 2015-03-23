@@ -693,8 +693,6 @@ int m3_mmap(struct file *file, struct vm_area_struct *vma)
 	unsigned long size = vma->vm_end - vma->vm_start;
 	unsigned long pa = vma->vm_pgoff;
 
-	pr_err("m3 mmap!\n");
-
 	if (!(REG_READ(CIU_GPS_HANDSHAKE) & 0x8)) {
 		pr_err("m3 init is not ready. try again!\n");
 		return -ENXIO;
