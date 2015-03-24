@@ -25,13 +25,11 @@
 #include <linux/platform_data/mmp_ddr_tbl.h>
 #endif
 #include <linux/mutex.h>
-#include <linux/dma-mapping.h>
 #include <linux/clk/mmpcpdvc.h>
+#include "shm_common.h"
 #include "pxa_cp_load_ioctl.h"
 #include "acipcd.h"
 #include "amipcd.h"
-
-#define SHM_PACKET_PTR(b, n, sz) ((unsigned char *)(b) + (n) * (sz))
 
 enum shm_grp_type {
 	shm_grp_cp,
@@ -212,55 +210,48 @@ extern struct shm_rbctl shm_rbctl[];
 /* get the next tx socket buffer slot */
 static inline int shm_get_next_tx_slot(struct shm_rbctl *rbctl, int slot)
 {
-	return slot + 1 == rbctl->tx_skbuf_num ? 0 : slot + 1;
+	return __shm_get_next_slot(rbctl->tx_skbuf_num, slot);
 }
 
 /* get the next rx socket buffer slot */
 static inline int shm_get_next_rx_slot(struct shm_rbctl *rbctl, int slot)
 {
-	return slot + 1 == rbctl->rx_skbuf_num ? 0 : slot + 1;
+	return __shm_get_next_slot(rbctl->rx_skbuf_num, slot);
 }
 
 /* check if up-link free socket buffer available */
 static inline bool shm_is_xmit_full(struct shm_rbctl *rbctl)
 {
-	return shm_get_next_tx_slot(rbctl,
-				    rbctl->skctl_va->ap_wptr) ==
-	    rbctl->skctl_va->cp_rptr;
+	return __shm_is_xmit_full(rbctl->tx_skbuf_num,
+		rbctl->skctl_va->ap_wptr,
+		rbctl->skctl_va->cp_rptr);
 }
 
 /* check if down-link socket buffer data received */
 static inline bool shm_is_recv_empty(struct shm_rbctl *rbctl)
 {
-	return rbctl->skctl_va->cp_wptr == rbctl->skctl_va->ap_rptr;
-}
-
-/* check if down-link socket buffer has enough free slot */
-static inline bool shm_has_enough_free_rx_skbuf(struct shm_rbctl *rbctl)
-{
-	int free = rbctl->skctl_va->ap_rptr - rbctl->skctl_va->cp_wptr;
-	if (free <= 0)
-		free += rbctl->rx_skbuf_num;
-	return free > rbctl->rx_skbuf_low_wm;
+	return __shm_is_recv_empty(rbctl->skctl_va->cp_wptr,
+		rbctl->skctl_va->ap_rptr);
 }
 
 /* get free rx skbuf num */
 static inline int shm_free_rx_skbuf(struct shm_rbctl *rbctl)
 {
-	int free = rbctl->skctl_va->ap_rptr - rbctl->skctl_va->cp_wptr;
-	if (free <= 0)
-		free += rbctl->rx_skbuf_num;
-	return free;
+	return __shm_free_rx_skbuf(rbctl->skctl_va->ap_rptr,
+		rbctl->skctl_va->cp_wptr, rbctl->rx_skbuf_num);
+}
+
+/* check if down-link socket buffer has enough free slot */
+static inline bool shm_has_enough_free_rx_skbuf(struct shm_rbctl *rbctl)
+{
+	return shm_free_rx_skbuf(rbctl) > rbctl->rx_skbuf_low_wm;
 }
 
 /* get free tx skbuf num */
 static inline int shm_free_tx_skbuf(struct shm_rbctl *rbctl)
 {
-	int free = rbctl->skctl_va->cp_rptr - shm_get_next_tx_slot(rbctl,
-				    rbctl->skctl_va->ap_wptr);
-	if (free < 0)
-		free += rbctl->tx_skbuf_num;
-	return free;
+	return __shm_free_tx_skbuf(rbctl->skctl_va->cp_rptr,
+		rbctl->skctl_va->ap_wptr, rbctl->tx_skbuf_num);
 }
 
 /* check if cp pmic is in master mode */
@@ -398,36 +389,15 @@ static inline void shm_notify_ap_tx_stopped(struct shm_rbctl *rbctl)
 static inline void shm_flush_dcache(struct shm_rbctl *rbctl,
 	void *addr, size_t size)
 {
-	if (rbctl && rbctl->tx_cacheable) {
-		dma_addr_t dma = 0;
-#ifdef CONFIG_ARM
-		dma = virt_to_dma(NULL, addr);
-#elif defined CONFIG_ARM64
-		dma = phys_to_dma(NULL, virt_to_phys(addr));
-#else
-#error unsupported arch
-#endif
-		dma_sync_single_for_device(NULL, dma,
-			size, DMA_TO_DEVICE);
-
-	}
+	if (rbctl && rbctl->tx_cacheable)
+		__shm_flush_dcache(addr, size);
 }
 
 static inline void shm_invalidate_dcache(struct shm_rbctl *rbctl,
 	void *addr, size_t size)
 {
-	if (rbctl && rbctl->rx_cacheable) {
-		dma_addr_t dma = 0;
-#ifdef CONFIG_ARM
-		dma = virt_to_dma(NULL, addr);
-#elif defined CONFIG_ARM64
-		dma = phys_to_dma(NULL, virt_to_phys(addr));
-#else
-#error unsupported arch
-#endif
-		dma_sync_single_for_device(NULL, dma,
-			size, DMA_FROM_DEVICE);
-	}
+	if (rbctl && rbctl->rx_cacheable)
+		__shm_invalidate_dcache(addr, size);
 }
 
 /*
