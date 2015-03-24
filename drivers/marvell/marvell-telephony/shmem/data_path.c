@@ -170,17 +170,11 @@ static void data_path_tx_func(unsigned long arg)
 	int consumed_slot = 0;
 	int consumed_packets = 0;
 	int start_q_len;
-	u64 sched_delay = 0;
 	int max_tx_shots = dp->max_tx_shots;
 
 	pending_slot = -1;
 	remain_bytes = rbctl->tx_skbuf_size - sizeof(struct shm_psd_skhdr);
 	used_bytes = 0;
-
-	if (dp->stat_level & dp_stat_lvl_sched_delay) {
-		sched_delay = sched_clock() - dp->stat.tx_sched_delay_start;
-		clear_bit(dp_sds_set, &dp->stat.tx_sched_delay_state);
-	}
 
 	start_q_len = tx_q_length(dp);
 
@@ -329,8 +323,6 @@ static void data_path_tx_func(unsigned long arg)
 		shm_notify_packet_sent(rbctl);
 		dp->stat.tx_interrupts++;
 		dp->stat.tx_sched_q_len += start_q_len;
-		if (dp->stat_level & dp_stat_lvl_sched_delay)
-			dp->stat.tx_sched_delay += sched_delay;
 	}
 
 	if (consumed_slot >= max_tx_shots) {
@@ -470,12 +462,6 @@ void __data_path_schedule_tx(struct data_path *dp, bool force_delay)
 	if (dp && atomic_read(&dp->state) == dp_state_opened) {
 		int free_slots = shm_free_tx_skbuf(dp->rbctl);
 		int len = tx_q_avail_length(dp, free_slots);
-
-		if ((dp->stat_level & dp_stat_lvl_sched_delay) &&
-			!test_and_set_bit(dp_sds_set,
-				&dp->stat.tx_sched_delay_state)) {
-			dp->stat.tx_sched_delay_start = sched_clock();
-		}
 
 		/*
 		 * ok, we have enough packet in queue, fire the work immediately
@@ -647,8 +633,6 @@ static int debugfs_show_stat(struct seq_file *s, void *data)
 		(unsigned long)dp->stat.tx_force_sched_cnt);
 	ret += seq_printf(s, "tx_sched_q_len\t: %lu\n",
 		(unsigned long)dp->stat.tx_sched_q_len);
-	ret += seq_printf(s, "tx_sched_delay\t: %llu\n",
-		(unsigned long long)dp->stat.tx_sched_delay);
 
 	return ret;
 }
@@ -812,12 +796,6 @@ static int dp_debugfs_init(struct data_path *dp)
 				"tx_q_min_sched_len", S_IRUGO | S_IWUSR,
 				dp->dentry, &dp->tx_q_min_sched_len)))
 		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_u32(
-				"stat_level", S_IRUGO | S_IWUSR,
-				dp->dentry, &dp->stat_level)))
-		goto error;
-
 
 	return 0;
 

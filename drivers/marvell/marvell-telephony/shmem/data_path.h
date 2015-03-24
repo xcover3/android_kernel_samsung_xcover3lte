@@ -54,14 +54,6 @@ enum data_path_priority {
 	dp_priority_cnt,
 };
 
-enum data_path_sched_delay_state {
-	dp_sds_set,
-};
-
-enum data_path_stat_level {
-	dp_stat_lvl_sched_delay = 0x01,
-};
-
 /*
  * data channel callbacks
  *
@@ -132,9 +124,6 @@ struct data_path_stat {
 	u32 tx_resched_cnt;
 	u32 tx_force_sched_cnt;
 	u32 tx_sched_q_len;
-	u64 tx_sched_delay_start;
-	u64 tx_sched_delay;
-	unsigned long tx_sched_delay_state;
 };
 
 struct data_path {
@@ -169,7 +158,6 @@ struct data_path {
 
 	/* stat */
 	struct data_path_stat stat;
-	u32 stat_level;
 };
 
 extern void data_path_broadcast_msg(int proc);
