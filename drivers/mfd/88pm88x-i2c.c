@@ -158,12 +158,15 @@ static int get_fuse_suspend_voltage_helan3(void)
 	}
 }
 
-static int pm88x_i2c_suspend(struct i2c_client *client, pm_message_t mesg)
+#ifdef CONFIG_PM_SLEEP
+static int pm88x_i2c_suspend(struct device *dev)
 {
+	struct i2c_client *client = container_of(dev, struct i2c_client, dev);
+	struct pm88x_chip *chip = i2c_get_clientdata(client);
 	struct regulator *buck1slp;
 	static bool first_suspend;
 	int fuse_slpvolt = 0;
-	struct pm88x_chip *chip = i2c_get_clientdata(client);
+
 	if (!buck1slp_is_ever_changed) {
 		pr_info("%s: buck1_sleep is not being used by other modules.\n",
 			__func__);
@@ -199,22 +202,24 @@ static int pm88x_i2c_suspend(struct i2c_client *client, pm_message_t mesg)
 	return 0;
 }
 
-static int pm88x_i2c_resume(struct i2c_client *client)
+static int pm88x_i2c_resume(struct device *dev)
 {
 	return 0;
 }
+#endif
+
+static SIMPLE_DEV_PM_OPS(pm88x_pm_ops, pm88x_i2c_suspend, pm88x_i2c_resume);
 
 static struct i2c_driver pm88x_i2c_driver = {
 	.driver = {
 		.name	= "88pm88x",
 		.owner	= THIS_MODULE,
+		.pm	= &pm88x_pm_ops,
 		.of_match_table	= of_match_ptr(pm88x_of_match),
 	},
 	.probe		= pm88x_i2c_probe,
 	.remove		= pm88x_i2c_remove,
 	.id_table	= pm88x_i2c_id,
-	.suspend	= pm88x_i2c_suspend,
-	.resume		= pm88x_i2c_resume,
 };
 
 static int pm88x_i2c_init(void)
