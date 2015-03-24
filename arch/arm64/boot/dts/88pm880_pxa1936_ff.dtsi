@@ -39,7 +39,6 @@
 		regulator-boot-on;
 	};
 	buck5: regulator-buck5 {
-		regulator-always-on;
 	};
 	buck6: regulator-buck6 {
 		regulator-always-on;
