@@ -57,7 +57,6 @@ static int gCcinetDataEnabled = TRUE;
 
 int psd_register(const struct psd_user *user, int cid)
 {
-	DP_PRINT("%s: cid:%d,\n", __func__, cid);
 	return cmpxchg(&psd_users[cid], NULL, user) == NULL ? 0 : -EEXIST;
 }
 EXPORT_SYMBOL(psd_register);
@@ -66,7 +65,6 @@ EXPORT_SYMBOL(psd_register);
 int psd_unregister(const struct psd_user *user, int cid)
 {
 	int ret;
-	DP_PRINT("%s: cid:%d,\n", __func__, cid);
 	ret =  cmpxchg(&psd_users[cid], user, NULL) == user ? 0 : -ENOENT;
 	if (ret == 0)
 		synchronize_net();
@@ -104,20 +102,18 @@ int sendPSDData(int cid, struct sk_buff *skb)
 	unsigned tailpad;
 	enum data_path_priority prio;
 
-	DP_ENTER();
-
 	if (!gCcinetDataEnabled)
 		goto drop;
 	/* data path is not open, drop the packet and return */
 	if (!psd_dp) {
-		DP_PRINT("%s: data path is not open!\n", __func__);
+		pr_err("%s: data path is not open!\n", __func__);
 		goto drop;
 	}
 
 	len = skb->len;
 	if (padded_size(sizeof(*hdr) + len) >
 			data_path_max_payload(psd_dp)) {
-		DP_ERROR("%s: packet too large %d\n", __func__, len);
+		pr_err("%s: packet too large %d\n", __func__, len);
 		goto drop;
 	}
 
@@ -132,16 +128,16 @@ int sendPSDData(int cid, struct sk_buff *skb)
 	if (unlikely((prio != dp_priority_high &&
 		data_path_is_tx_q_full(psd_dp)) ||
 		 !data_path_is_link_up())) {
-		DP_PRINT("%s: tx_q is full or link is down\n", __func__);
+		pr_err_ratelimited("%s: tx_q is full or link is down\n", __func__);
 		/* tx q is full, should schedule tx immediately */
 		if (data_path_is_link_up())
 			data_path_schedule_tx(psd_dp);
 
 		if (data_drop) {
-			DP_PRINT("%s: drop the packet\n", __func__);
+			pr_err_ratelimited("%s: drop the packet\n", __func__);
 			goto drop;
 		} else {
-			DP_PRINT("%s: return net busy to upper layer\n",
+			pr_err_ratelimited("%s: return net busy to upper layer\n",
 				__func__);
 			return PSD_DATA_SEND_BUSY;
 		}
@@ -196,7 +192,6 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 {
 	unsigned char *p = data;
 	unsigned int remains = length;
-	DP_ENTER();
 
 	while (remains > 0) {
 		struct psd_user *user;
@@ -210,7 +205,7 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 		offset_len = hdr->offset;
 
 		if (unlikely(total_len < offset_len)) {
-			DP_ERROR("%s: packet error\n", __func__);
+			pr_err("%s: packet error\n", __func__);
 			return dp_rx_packet_error;
 		}
 
@@ -219,14 +214,9 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 		sim_id = (hdr->cid >> 31) & 1;
 		hdr->cid &= ~(1 << 31);
 
-		DP_PRINT("%s: SIM%d remains %u, iplen %u\n" __func__,
-			sim_id+1, remains, iplen);
-		DP_PRINT("%s: offset %u, cid %d, tailpad %u\n", __func__,
-			offset_len, hdr->cid, tailpad);
-
 		if (unlikely(remains < (iplen + offset_len
 					+ sizeof(*hdr) + tailpad))) {
-			DP_ERROR("%s: packet length error\n", __func__);
+			pr_err("%s: packet length error\n", __func__);
 			return dp_rx_packet_error;
 		}
 
@@ -281,38 +271,26 @@ static void psd_tx_traffic_control(bool is_throttle)
 
 void psd_tx_stop(void)
 {
-	DP_ENTER();
 	psd_tx_traffic_control(true);
-	DP_LEAVE();
 }
 
 void psd_tx_resume(void)
 {
-	DP_ENTER();
 	psd_tx_traffic_control(false);
-	DP_LEAVE();
 }
 
 void psd_rx_stop(void)
 {
-	DP_ENTER();
-
-	DP_LEAVE();
 	return;
 }
 
 void psd_link_down(void)
 {
-	DP_ENTER();
-
-	DP_LEAVE();
 	return;
 }
 
 void psd_link_up(void)
 {
-	DP_ENTER();
-	DP_LEAVE();
 	return;
 }
 
@@ -385,7 +363,7 @@ static int InitPsdChannel(struct notifier_block *nb,
 {
 	psd_dp = data_path_open(dp_type_psd, &psd_cbs);
 	if (!psd_dp) {
-		DP_ERROR("%s: failed to open data path\n", __func__);
+		pr_err("%s: failed to open data path\n", __func__);
 		return -1;
 	}
 	if (psd_debugfs_init() < 0)

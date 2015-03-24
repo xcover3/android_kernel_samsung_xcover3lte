@@ -27,19 +27,6 @@
 
 #include "skb_llist.h"
 
-/* #define DEBUG_DP */
-
-#ifdef DEBUG_DP
-#define DP_ENTER()               pr_debug("%s enter\n", __func__)
-#define DP_LEAVE()               pr_debug("%s leave\n", __func__)
-#define DP_PRINT(fmt, args...)   pr_debug(fmt, ##args)
-#else
-#define DP_ENTER()
-#define DP_LEAVE()
-#define DP_PRINT(fmt, args...)
-#endif
-#define DP_ERROR(fmt, args...)   pr_err(fmt, ##args)
-
 enum data_path_type {
 	dp_type_psd,
 	dp_type_total_cnt

@@ -182,8 +182,6 @@ static void data_path_tx_func(unsigned long arg)
 		clear_bit(dp_sds_set, &dp->stat.tx_sched_delay_state);
 	}
 
-	DP_ENTER();
-
 	start_q_len = tx_q_length(dp);
 
 	dp->stat.tx_sched_cnt++;
@@ -230,10 +228,8 @@ static void data_path_tx_func(unsigned long arg)
 
 		packet = tx_q_dequeue(dp, &prio);
 
-		if (!packet) {
-			DP_PRINT("%s: no packet available\n", __func__);
+		if (!packet)
 			break;
-		}
 
 		/* push to ring buffer */
 
@@ -306,9 +302,6 @@ static void data_path_tx_func(unsigned long arg)
 		used_bytes += padded_size(packet->len);
 		remain_bytes -= padded_size(packet->len);
 
-		DP_PRINT("%s: xmit to shm with length %d\n",
-			__func__, packet->len);
-
 		trace_psd_xmit(packet, slot);
 
 		dp->stat.tx_packets_delay[prio] +=
@@ -353,7 +346,7 @@ static void data_path_tx_func(unsigned long arg)
 	 */
 	if (rbctl->is_ap_xmit_stopped) {
 		if (!dp->is_tx_stopped)
-			DP_ERROR("%s tx stop\n", __func__);
+			pr_err("%s tx stop\n", __func__);
 
 		dp->is_tx_stopped = true;
 
@@ -372,7 +365,7 @@ static void data_path_tx_func(unsigned long arg)
 	 */
 	if (!rbctl->is_ap_xmit_stopped && dp->is_tx_stopped
 		&& tx_q_length(dp) == 0) {
-		DP_ERROR("%s tx resume\n", __func__);
+		pr_err("%s tx resume\n", __func__);
 
 		/* notify upper layer tx resumed */
 		if (dp->cbs->tx_resume)
@@ -380,8 +373,6 @@ static void data_path_tx_func(unsigned long arg)
 
 		dp->is_tx_stopped = false;
 	}
-
-	DP_LEAVE();
 }
 
 static void data_path_rx_func(unsigned long arg)
@@ -395,8 +386,6 @@ static void data_path_rx_func(unsigned long arg)
 	enum data_path_result result;
 	int i;
 	int max_rx_shots = dp->max_rx_shots;
-
-	DP_ENTER();
 
 	dp->stat.rx_sched_cnt++;
 
@@ -427,14 +416,11 @@ static void data_path_rx_func(unsigned long arg)
 		count = skhdr->length + sizeof(*skhdr);
 
 		if (count > rbctl->rx_skbuf_size) {
-			DP_ERROR(KERN_EMERG
+			pr_err(
 				 "%s: slot = %d, count = %d\n", __func__, slot,
 				 count);
 			goto error_length;
 		}
-
-		DP_PRINT("%s: recv from shm with length %d\n", __func__,
-			 skhdr->length);
 
 		trace_psd_recv(slot);
 
@@ -450,14 +436,12 @@ static void data_path_rx_func(unsigned long arg)
 		else
 			result = dp_success;
 
-		DP_PRINT("%s: result of data_rx: %d\n", __func__, result);
-
 		/*
 		 * upper layer decide to keep the packet as pending
 		 * and we need to return now
 		 */
 		if (result == dp_rx_keep_pending) {
-			DP_ERROR("%s: packet is pending\n", __func__);
+			pr_err("%s: packet is pending\n", __func__);
 			break;
 		}
 error_length:
@@ -468,8 +452,6 @@ error_length:
 		dp->stat.rx_sched_cnt++;
 		data_path_schedule_rx(dp);
 	}
-
-	DP_LEAVE();
 }
 
 static void tx_sched_timeout(unsigned long data)
@@ -485,8 +467,6 @@ static void tx_sched_timeout(unsigned long data)
  */
 void __data_path_schedule_tx(struct data_path *dp, bool force_delay)
 {
-	DP_ENTER();
-
 	if (dp && atomic_read(&dp->state) == dp_state_opened) {
 		int free_slots = shm_free_tx_skbuf(dp->rbctl);
 		int len = tx_q_avail_length(dp, free_slots);
@@ -512,8 +492,6 @@ void __data_path_schedule_tx(struct data_path *dp, bool force_delay)
 			}
 		}
 	}
-
-	DP_LEAVE();
 }
 
 void data_path_schedule_tx(struct data_path *dp)
@@ -524,12 +502,8 @@ EXPORT_SYMBOL(data_path_schedule_tx);
 
 void data_path_schedule_rx(struct data_path *dp)
 {
-	DP_ENTER();
-
 	if (dp && atomic_read(&dp->state) == dp_state_opened)
 		tasklet_schedule(&dp->rx_tl);
-
-	DP_LEAVE();
 }
 EXPORT_SYMBOL(data_path_schedule_rx);
 
@@ -545,7 +519,6 @@ enum data_path_result data_path_xmit(struct data_path *dp,
 				     enum data_path_priority prio)
 {
 	enum data_path_result ret = dp_not_open;
-	DP_ENTER();
 
 	if (dp && atomic_read(&dp->state) == dp_state_opened) {
 		tx_q_enqueue(dp, skb, prio);
@@ -553,7 +526,6 @@ enum data_path_result data_path_xmit(struct data_path *dp,
 		ret = dp_success;
 	}
 
-	DP_LEAVE();
 	return ret;
 }
 EXPORT_SYMBOL(data_path_xmit);
@@ -562,8 +534,6 @@ void data_path_broadcast_msg(int proc)
 {
 	struct data_path *dp;
 	const struct data_path *dp_end = data_path + dp_type_total_cnt;
-
-	DP_ENTER();
 
 	for (dp = data_path; dp != dp_end; ++dp) {
 		if (atomic_read(&dp->state) == dp_state_opened) {
@@ -597,8 +567,6 @@ void data_path_broadcast_msg(int proc)
 			}
 		}
 	}
-
-	DP_LEAVE();
 }
 
 static int debugfs_show_tx_q(struct seq_file *s, void *data)
@@ -871,15 +839,13 @@ struct data_path *data_path_open(enum data_path_type dp_type,
 {
 	struct data_path *dp;
 
-	DP_ENTER();
-
 	if (dp_type >= dp_type_total_cnt || dp_type < 0) {
-		DP_ERROR("%s: incorrect type %d\n", __func__, dp_type);
+		pr_err("%s: incorrect type %d\n", __func__, dp_type);
 		return NULL;
 	}
 
 	if (!cbs) {
-		DP_ERROR("%s: cbs is NULL\n", __func__);
+		pr_err("%s: cbs is NULL\n", __func__);
 		return NULL;
 	}
 
@@ -887,7 +853,7 @@ struct data_path *data_path_open(enum data_path_type dp_type,
 
 	if (atomic_cmpxchg(&dp->state, dp_state_idle,
 			   dp_state_opening) != dp_state_idle) {
-		DP_ERROR("%s: path is already opened(state %d)\n",
+		pr_err("%s: path is already opened(state %d)\n",
 			 __func__, atomic_read(&dp->state));
 		return NULL;
 	}
@@ -930,24 +896,20 @@ struct data_path *data_path_open(enum data_path_type dp_type,
 
 	atomic_set(&dp->state, dp_state_opened);
 
-	DP_LEAVE();
-
 	return dp;
 }
 EXPORT_SYMBOL(data_path_open);
 
 void data_path_close(struct data_path *dp)
 {
-	DP_ENTER();
-
 	if (!dp) {
-		DP_ERROR("%s: empty data channel\n", __func__);
+		pr_err("%s: empty data channel\n", __func__);
 		return;
 	}
 
 	if (atomic_cmpxchg(&dp->state, dp_state_opened,
 			   dp_state_closing) != dp_state_opened) {
-		DP_ERROR("%s: path is already opened(state %d)\n",
+		pr_err("%s: path is already opened(state %d)\n",
 			 __func__, atomic_read(&dp->state));
 		return;
 	}
@@ -965,16 +927,12 @@ void data_path_close(struct data_path *dp)
 	dp->cbs = NULL;
 
 	atomic_set(&dp->state, dp_state_idle);
-
-	DP_LEAVE();
 }
 EXPORT_SYMBOL(data_path_close);
 
 void dp_rb_stop_cb(struct shm_rbctl *rbctl)
 {
 	struct data_path *dp;
-
-	DP_ENTER();
 
 	if (!rbctl)
 		return;
@@ -989,15 +947,11 @@ void dp_rb_stop_cb(struct shm_rbctl *rbctl)
 			dp->cbs->rx_stop();
 		data_path_schedule_rx(dp);
 	}
-
-	DP_LEAVE();
 }
 
 void dp_rb_resume_cb(struct shm_rbctl *rbctl)
 {
 	struct data_path *dp;
-
-	DP_ENTER();
 
 	if (!rbctl)
 		return;
@@ -1012,8 +966,6 @@ void dp_rb_resume_cb(struct shm_rbctl *rbctl)
 		 * as we need to resume upper layer in tx_func */
 		data_path_schedule_tx(dp);
 	}
-
-	DP_LEAVE();
 }
 
 void dp_packet_send_cb(struct shm_rbctl *rbctl)
@@ -1021,8 +973,6 @@ void dp_packet_send_cb(struct shm_rbctl *rbctl)
 	struct data_path *dp;
 	struct shm_skctl *skctl;
 	static unsigned long last_time = INITIAL_JIFFIES;
-
-	DP_ENTER();
 
 	if (!rbctl)
 		return;
@@ -1044,8 +994,6 @@ void dp_packet_send_cb(struct shm_rbctl *rbctl)
 	trace_psd_recv_irq(skctl->cp_wptr);
 
 	data_path_schedule_rx(dp);
-
-	DP_LEAVE();
 }
 
 struct shm_callback dp_shm_cb = {
@@ -1075,7 +1023,7 @@ int data_path_init(void)
 		dp->dp_type = dp - data_path;
 		dp->rbctl = shm_open(dp_rb[dp - data_path], &dp_shm_cb, dp);
 		if (!dp->rbctl) {
-			DP_ERROR("%s: cannot open shm\n", __func__);
+			pr_err("%s: cannot open shm\n", __func__);
 			goto exit;
 		}
 		atomic_set(&dp->state, dp_state_idle);
