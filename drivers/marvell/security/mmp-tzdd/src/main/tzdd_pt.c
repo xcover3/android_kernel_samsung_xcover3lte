@@ -20,8 +20,13 @@
 #include "tzdd_internal.h"
 #include "tzdd_pt_core.h"
 
+#ifdef CONFIG_64BIT
 #define CALL_SMC            (0x72000000)
 #define CALL_IPI            (0x73000000)
+#else
+#define CALL_SMC            (0x33000000)
+#define CALL_IPI            (0x34000000)
+#endif
 
 static uint32_t _g_tzdd_send_num;
 static bool _g_pt_thread_stop_flag;

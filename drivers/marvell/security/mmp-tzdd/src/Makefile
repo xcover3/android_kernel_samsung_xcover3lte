@@ -84,6 +84,8 @@ endif
 
 ifeq ($(CONFIG_TEE_RES_CFG_16M), y)
 ccflags-y += -DTEE_RES_CFG_16M
+else ifeq ($(CONFIG_TEE_RES_CFG_24M), y)
+ccflags-y += -DTEE_RES_CFG_24M
 else
 ccflags-y += -DTEE_RES_CFG_8M
 endif

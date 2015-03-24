@@ -17,8 +17,9 @@
  * warranty disclaimer.
  */
 
+#include <uapi/linux/resource.h>
+#include <asm/pgtable.h>
 #include "tzdd_internal.h"
-#include "asm/pgtable.h"
 
 MODULE_LICENSE("GPL");
 
@@ -27,9 +28,11 @@ MODULE_LICENSE("GPL");
  */
 
 #ifdef TEE_RES_CFG_16M
-#define TZDD_VERSION    "TEEC Drvier Version 1.1.1 16MB, kernel_3_10/3_14"
+#define TZDD_VERSION    "TEEC Drvier Version 1.1.3 16MB, kernel_3_10/3_14"
+#elif defined(TEE_RES_CFG_24M)
+#define TZDD_VERSION    "TEEC Drvier Version 1.1.3 24MB, kernel_3_10/3_14"
 #else
-#define TZDD_VERSION    "TEEC Drvier Version 1.1.1, kernel_3_10/3_14"
+#define TZDD_VERSION    "TEEC Drvier Version 1.1.3, kernel_3_10/3_14"
 #endif
 #define TZDD_DRV_NAME   "tzdd"
 
@@ -137,12 +140,14 @@ static int tzdd_open(struct inode *inode, struct file *filp)
 		OSA_LIST_ENTRY(entry, tzdd_pid_list_t, node, tmp_pid);
 		if (pid == tmp_pid->pid) {
 			flag = FIND_PID_IN_PID_LIST;
-			tmp_pid->count ++;
+			tmp_pid->count++;
 			break;
 		}
 	}
 
 	if (flag != FIND_PID_IN_PID_LIST) {
+		struct rlimit rlim_inf = { RLIM_INFINITY, RLIM_INFINITY };
+		ulong_t flags;
 		/* tzdd_pid will be released in tzdd_close */
 		tzdd_pid = osa_kmem_alloc(sizeof(tzdd_pid_list_t));
 		OSA_ASSERT(tzdd_pid != NULL);
@@ -150,6 +155,24 @@ static int tzdd_open(struct inode *inode, struct file *filp)
 		osa_list_init_head(&(tzdd_pid->ctx_list));
 		tzdd_pid->pid = pid;
 		tzdd_pid->count = 1;
+		/*
+		 * to make sure current->signal is valid,
+		 * tasklist_lock should be held.
+		 * since tasklist_lock is NOT exported to kernel modules,
+		 * we have to save/restore irq to make sure current->signal is valid.
+		 */
+		/* no tasklist_lock exported: read_lock(&tasklist_lock); */
+		task_lock(current->group_leader);
+		local_irq_save(flags);
+		if (current->signal) {
+			/* save the previous rlim[RLIMIT_MEMLOCK] */
+			tzdd_pid->mlock_rlim_orig = current->signal->rlim[RLIMIT_MEMLOCK];
+			/* make the current task's rlim[RLIMIT_MEMLOCK] infinite */
+			current->signal->rlim[RLIMIT_MEMLOCK] = rlim_inf;
+		}
+		local_irq_restore(flags);
+		task_unlock(current->group_leader);
+		/* no tasklist_lock exported: read_unlock(&tasklist_lock); */
 		osa_list_add(&(tzdd_pid->node), &(tzdd_dev->pid_list));
 	}
 
@@ -173,7 +196,7 @@ static int tzdd_close(struct inode *inode, struct file *filp)
 		if (pid == tzdd_pid->pid) {
 			flag = FIND_PID_IN_PID_LIST;
 			if (tzdd_pid->count > 0)
-				tzdd_pid->count --;
+				tzdd_pid->count--;
 			break;
 		}
 	}
@@ -181,6 +204,7 @@ static int tzdd_close(struct inode *inode, struct file *filp)
 	if ((flag == FIND_PID_IN_PID_LIST) &&
 		(tzdd_pid->count == 0)) {
 		tzdd_ctx_node_t *tzdd_ctx_node;
+		ulong_t flags;
 		osa_list_iterate_safe(&(tzdd_pid->ctx_list), entry, next) {
 			OSA_LIST_ENTRY(entry, tzdd_ctx_node_t, node, tzdd_ctx_node);
 			if (!(IS_MAGIC_VALID(tzdd_ctx_node->magic)))
@@ -189,7 +213,16 @@ static int tzdd_close(struct inode *inode, struct file *filp)
 			_tzdd_free_shared_mem(tzdd_ctx_node);
 			_tzdd_free_context(tzdd_ctx_node);
 		}
-
+		/* no tasklist_lock exported: read_lock(&tasklist_lock); */
+		task_lock(current->group_leader);
+		local_irq_save(flags);
+		if (current->signal) {
+			/* restore the current task's rlim[RLIMIT_MEMLOCK] */
+			current->signal->rlim[RLIMIT_MEMLOCK] = tzdd_pid->mlock_rlim_orig;
+		}
+		local_irq_restore(flags);
+		task_unlock(current->group_leader);
+		/* no tasklist_lock exported: read_unlock(&tasklist_lock); */
 		osa_list_del(&(tzdd_pid->node));
 		osa_kmem_free(tzdd_pid);
 	}
@@ -258,15 +291,16 @@ static long tzdd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		teec_map_shared_mem_args teec_map_shared_mem;
 		void *buf_local_virt;
 		tee_memm_ss_t memm_handle;
-
 		if (copy_from_user
 			(&teec_map_shared_mem, (void __user *)arg,
 			sizeof(teec_map_shared_mem_args))) {
 			return -EFAULT;
 		}
 
-		if (((unsigned long long) teec_map_shared_mem.buffer) < VMALLOC_START
-			&& ((unsigned long long) teec_map_shared_mem.buffer) < MODULES_VADDR) {
+		if ((((unsigned long long) teec_map_shared_mem.buffer) < VMALLOC_START) &&
+			(((unsigned long long) teec_map_shared_mem.buffer) < MODULES_VADDR) &&
+			((0 != (unsigned long long) teec_map_shared_mem.buffer) &&
+			 (0 != teec_map_shared_mem.size))) {
 			memm_handle = tee_memm_create_ss();
 			tee_memm_get_user_mem(memm_handle,
 				teec_map_shared_mem.buffer,

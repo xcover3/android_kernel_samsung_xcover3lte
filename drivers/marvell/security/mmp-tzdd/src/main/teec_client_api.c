@@ -361,15 +361,21 @@ TEEC_Result TEEC_InitializeContext(const char *name, TEEC_Context *context)
 	set_cpus_allowed_ptr(current, cpumask_of(0));
 #endif
 
-	if (name && (osa_memcmp(name, DEVICE_NAME, DEVICE_NAME_SIZE)))
+	if (name && (osa_memcmp(name, DEVICE_NAME, DEVICE_NAME_SIZE))) {
+		TZDD_DBG("ERROR - invalid name: %s\n", name);
 		return TEEC_ERROR_BAD_PARAMETERS;
+	}
 
-	if (!context)
+	if (!context) {
+		TZDD_DBG("ERROR -invalid parameter: cntx = NULL\n");
 		return TEEC_ERROR_BAD_PARAMETERS;
+	}
 
 	context->imp = osa_kmem_alloc(sizeof(_TEEC_MRVL_Context));
-	if (!(context->imp))
+	if (!(context->imp)) {
+		TZDD_DBG("ERROR - failed to alloc mem for cntx->imp\n");
 		return TEEC_ERROR_OUT_OF_MEMORY;
+	}
 
 	_teec_mrvl_context = (_TEEC_MRVL_Context *) (context->imp);
 	INIT_MAGIC(_teec_mrvl_context->magic);
@@ -387,28 +393,31 @@ void TEEC_FinalizeContext(TEEC_Context *context)
 	int32_t count;
 	_TEEC_MRVL_Context *_teec_mrvl_context;
 
-	if (!context)
+	if (!context) {
+		TZDD_DBG("ERROR - invalid cntx\n");
 		return;
+	}
 
 	tee_finish_record_time();
 
 	_teec_mrvl_context = (_TEEC_MRVL_Context *) (context->imp);
-#ifndef CONFIG_MINI_TZDD
-	TZDD_DBG("_teec_final_context name = %c%c%c%c\n",
-		_teec_mrvl_context->magic[0],
-		_teec_mrvl_context->magic[1],
-		_teec_mrvl_context->magic[2],
-		_teec_mrvl_context->magic[3]);
-#endif
 
-	if (!(IS_MAGIC_VALID(_teec_mrvl_context->magic)))
+	if (!(IS_MAGIC_VALID(_teec_mrvl_context->magic))) {
+		TZDD_DBG("ERROR - invalid cntx magic = %02x%02x%02x%02x\n",
+				_teec_mrvl_context->magic[0],
+				_teec_mrvl_context->magic[1],
+				_teec_mrvl_context->magic[2],
+				_teec_mrvl_context->magic[3]);
 		OSA_ASSERT(0);
+	}
 
 	CLEANUP_MAGIC(_teec_mrvl_context->magic);
 
 	count = osa_atomic_read(&(_teec_mrvl_context->count));
-	if (count != 0)
+	if (count != 0) {
+		TZDD_DBG("ERROR - invalid count in cntx, %d\n", count);
 		OSA_ASSERT(0);
+	}
 
 	osa_kmem_free(context->imp);
 	return;
@@ -424,27 +433,48 @@ TEEC_Result TEEC_RegisterSharedMemory(TEEC_Context *context,
 
 	tee_get_ret_map_shm_arg_t tee_get_ret;
 
-	if (!context || !sharedMem || !(sharedMem->buffer))
+	if (!context || !sharedMem || (!sharedMem->buffer && sharedMem->size)) {
+		TZDD_DBG("ERROR - invalid param, 0x%016llx, 0x%016llx,",
+				(uint64_t)context, (uint64_t)sharedMem);
+		if (sharedMem) {
+			TZDD_DBG(" 0x%64llx 0x%08x\n", (uint64_t)sharedMem->buffer, sharedMem->size);
+		} else {
+			TZDD_DBG(" 0x--------\n");
+		}
 		return TEEC_ERROR_BAD_PARAMETERS;
+	}
 
 	if ((sharedMem->flags != TEEC_MEM_INPUT) &&
 		(sharedMem->flags != TEEC_MEM_OUTPUT) &&
-		(sharedMem->flags != (TEEC_MEM_INPUT | TEEC_MEM_OUTPUT)))
+		(sharedMem->flags != (TEEC_MEM_INPUT | TEEC_MEM_OUTPUT))) {
+		TZDD_DBG("ERROR - invalid flag, 0x%08x\n", sharedMem->flags);
 		return TEEC_ERROR_BAD_PARAMETERS;
+	}
 
-	_teec_mrvl_context = (_TEEC_MRVL_Context *) (context->imp);
+	_teec_mrvl_context = (_TEEC_MRVL_Context *)(context->imp);
 
-	if (!(IS_MAGIC_VALID(_teec_mrvl_context->magic)))
+	if (!(IS_MAGIC_VALID(_teec_mrvl_context->magic))) {
+		TZDD_DBG("ERROR - invalid cntx magic = %02x%02x%02x%02x\n",
+				_teec_mrvl_context->magic[0],
+				_teec_mrvl_context->magic[1],
+				_teec_mrvl_context->magic[2],
+				_teec_mrvl_context->magic[3]);
 		return TEEC_ERROR_BAD_PARAMETERS;
+	}
 
-	if (sharedMem->size >= TEEC_CONFIG_SHAREDMEM_MAX_SIZE)
+	if (sharedMem->size >= TEEC_CONFIG_SHAREDMEM_MAX_SIZE) {
+		TZDD_DBG("ERROR - memory chunk to share is too large: 0x%08x",
+				sharedMem->size);
 		return TEEC_ERROR_OUT_OF_MEMORY;
+	}
 
 	osa_atomic_inc(&(_teec_mrvl_context->count));
 
 	sharedMem->imp = osa_kmem_alloc(sizeof(_TEEC_MRVL_SharedMemory));
-	if (!(sharedMem->imp))
+	if (!(sharedMem->imp)) {
+		TZDD_DBG("ERROR - failed to alloc sharedMem->imp");
 		return TEEC_ERROR_OUT_OF_MEMORY;
+	}
 
 	_teec_mrvl_sharedMem = (_TEEC_MRVL_SharedMemory *) (sharedMem->imp);
 	_teec_mrvl_sharedMem->tee_ctx_ntw = &(context->imp);
@@ -453,8 +483,10 @@ TEEC_Result TEEC_RegisterSharedMemory(TEEC_Context *context,
 
     if (sharedMem->size != 0) {
 		tee_msg_stat = _teec_map_memory(context, sharedMem, &tee_get_ret);
-		if (tee_msg_stat != TEEC_SUCCESS)
+		if (tee_msg_stat != TEEC_SUCCESS) {
+			TZDD_DBG("ERROR - _teec_map_memory failed, 0x%08x\n", tee_msg_stat);
 			OSA_ASSERT(0);
+		}
 
 		_teec_mrvl_sharedMem->vaddr_tw = tee_get_ret.vaddr_tw;
 		tee_result = tee_get_ret.ret;
@@ -465,8 +497,10 @@ TEEC_Result TEEC_RegisterSharedMemory(TEEC_Context *context,
 
 	INIT_MAGIC(_teec_mrvl_sharedMem->magic);
 
-	if (tee_result != TEEC_SUCCESS)
+	if (tee_result != TEEC_SUCCESS) {
 		osa_atomic_dec(&(_teec_mrvl_context->count));
+		TZDD_DBG("ERROR - _teec_map_memory failed, 0x%08x\n", tee_result);
+	}
 
 	return tee_result;
 }
@@ -481,10 +515,13 @@ TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 
 	tee_get_ret_map_shm_arg_t tee_get_ret;
 
-	if (!sharedMem)
+	if (!sharedMem) {
+		TZDD_DBG("ERROR - invalid sharedMem\n");
 		return TEEC_ERROR_BAD_PARAMETERS;
+	}
 
 	if (!context) {
+		TZDD_DBG("ERROR - invalid context\n");
 		sharedMem->buffer = NULL;
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
@@ -493,30 +530,47 @@ TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 		(sharedMem->flags != TEEC_MEM_OUTPUT) &&
 		(sharedMem->flags != (TEEC_MEM_INPUT | TEEC_MEM_OUTPUT))) {
 		sharedMem->buffer = NULL;
+		TZDD_DBG("ERROR - invalid flags, 0x%08x\n", sharedMem->flags);
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
 	_teec_mrvl_context = (_TEEC_MRVL_Context *) (context->imp);
 
 	if (!(IS_MAGIC_VALID(_teec_mrvl_context->magic))) {
+		TZDD_DBG("ERROR - invalid cntx magic = %02x%02x%02x%02x\n",
+				_teec_mrvl_context->magic[0],
+				_teec_mrvl_context->magic[1],
+				_teec_mrvl_context->magic[2],
+				_teec_mrvl_context->magic[3]);
 		sharedMem->buffer = NULL;
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
 	if (sharedMem->size >= TEEC_CONFIG_SHAREDMEM_MAX_SIZE) {
 		sharedMem->buffer = NULL;
+		TZDD_DBG("ERROR - memory chunk to share is too large: 0x%08x",
+				sharedMem->size);
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
-	sharedMem->buffer = osa_kmem_alloc(sharedMem->size);
-	if (!sharedMem->buffer)
-		return TEEC_ERROR_OUT_OF_MEMORY;
+	if (sharedMem->size) {
+		sharedMem->buffer = osa_kmem_alloc(sharedMem->size);
+		if (!sharedMem->buffer) {
+			TZDD_DBG("ERROR - failed to alloc mem for shardMem->buffer, %d\n",
+					sharedMem->size);
+			return TEEC_ERROR_OUT_OF_MEMORY;
+		}
+	} else {
+		sharedMem->buffer = NULL;
+	}
 
 	osa_atomic_inc(&(_teec_mrvl_context->count));
 
 	sharedMem->imp = osa_kmem_alloc(sizeof(_TEEC_MRVL_SharedMemory));
-	if (!sharedMem->imp)
+	if (!sharedMem->imp) {
+		TZDD_DBG("ERROR - failed to alloc sharedMem->imp");
 		return TEEC_ERROR_OUT_OF_MEMORY;
+	}
 
 	_teec_mrvl_sharedMem = (_TEEC_MRVL_SharedMemory *) (sharedMem->imp);
 	_teec_mrvl_sharedMem->tee_ctx_ntw = &(context->imp);
@@ -525,8 +579,10 @@ TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 
 	if (sharedMem->size != 0) {
 		tee_msg_stat = _teec_map_memory(context, sharedMem, &tee_get_ret);
-		if (tee_msg_stat != TEEC_SUCCESS)
+		if (tee_msg_stat != TEEC_SUCCESS) {
+			TZDD_DBG("ERROR - _teec_map_memory failed, 0x%08x\n", tee_msg_stat);
 			OSA_ASSERT(0);
+		}
 
 		_teec_mrvl_sharedMem->vaddr_tw = tee_get_ret.vaddr_tw;
 		tee_result = tee_get_ret.ret;
@@ -537,11 +593,12 @@ TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 
     INIT_MAGIC(_teec_mrvl_sharedMem->magic);
 
-	if (tee_result != TEEC_SUCCESS)
+	if (tee_result != TEEC_SUCCESS) {
+		osa_kmem_free(sharedMem->buffer);
 		sharedMem->buffer = NULL;
-
-	if (tee_result != TEEC_SUCCESS)
 		osa_atomic_dec(&(_teec_mrvl_context->count));
+		TZDD_DBG("ERROR - _teec_map_memory failed, 0x%08x\n", tee_result);
+	}
 
 	return tee_result;
 }
@@ -563,13 +620,21 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 	_TEEC_MRVL_Context *_teec_mrvl_context;
 	_TEEC_MRVL_SharedMemory *_teec_mrvl_sharedMem;
 
-	if (!sharedMem)
+	if (!sharedMem) {
+		TZDD_DBG("ERROR - invalid sharedMem\n");
 		return;
+	}
 
 	_teec_mrvl_sharedMem = (_TEEC_MRVL_SharedMemory *) (sharedMem->imp);
 
-	if (!(IS_MAGIC_VALID(_teec_mrvl_sharedMem->magic)))
+	if (!(IS_MAGIC_VALID(_teec_mrvl_sharedMem->magic))) {
+		TZDD_DBG("ERROR - invalid shm magic = %02x%02x%02x%02x\n",
+				_teec_mrvl_sharedMem->magic[0],
+				_teec_mrvl_sharedMem->magic[1],
+				_teec_mrvl_sharedMem->magic[2],
+				_teec_mrvl_sharedMem->magic[3]);
 		OSA_ASSERT(0);
+	}
 
 	CLEANUP_MAGIC(_teec_mrvl_sharedMem->magic);
 
@@ -584,16 +649,20 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 	}
 
 	count = osa_atomic_read(&(_teec_mrvl_sharedMem->count));
-	if (count != 0)
+	if (count != 0) {
+		TZDD_DBG("ERROR - invalid count, %d\n", count);
 		OSA_ASSERT(0);
+	}
 
 	if (sharedMem->size == 0)
 		goto exit;
 
 	/* prepare the request, create the msg and add it to the msgQ */
 	tee_msgm_handle = tee_msgm_create_inst();
-	if (!tee_msgm_handle)
+	if (!tee_msgm_handle) {
+		TZDD_DBG("ERROR - failed to create msgm handle\n");
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_info.cmd = TEE_CMD_UNMAP_SHM;
 	tee_msg_info.msg_map_shm_info = NULL;
@@ -603,12 +672,16 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 	tee_msg_stat =
 		tee_msgm_set_msg_buf(tee_msgm_handle, &tee_msg_info, NULL,
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_buf = osa_kmem_alloc(sizeof(tee_msg_head_t) + buf_size);
 	if (!tee_msg_buf) {
 		tee_msgm_destroy_inst(tee_msgm_handle);
+		TZDD_DBG("ERROR - failed to alloc msg buf, %d\n",
+				sizeof(tee_msg_head_t) + buf_size);
 		OSA_ASSERT(0);
 	}
 
@@ -617,8 +690,10 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 		tee_msgm_set_msg_buf(tee_msgm_handle, NULL,
 				tee_msg_buf + sizeof(tee_msg_head_t),
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	/* init head_t */
 	tee_msg_head = _init_msg_head(tee_msg_buf, buf_size);
@@ -629,8 +704,10 @@ void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 	tee_msg_stat =
 		tee_msgm_set_cmd(tee_msgm_handle, tee_msg_cmd,
 				tee_msg_set_cmd_ummap_shm_arg);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set cmd, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	tzdd_call_tw(tee_msg_head);
 
@@ -679,7 +756,8 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 	if (!context || !session || !destination) {
 		if (returnOrigin)
 			*returnOrigin = TEEC_ORIGIN_API;
-
+		TZDD_DBG("ERROR - invalid param, 0x%016llx, 0x%016llx, 0x%016llx\n",
+				(uint64_t)context, (uint64_t)session, (uint64_t)destination);
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
@@ -693,7 +771,7 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 			if (connectionData) {
 				if (returnOrigin)
 					*returnOrigin = TEEC_ORIGIN_API;
-
+				TZDD_DBG("ERROR - invalid conn data, NULL\n");
 				return TEEC_ERROR_BAD_PARAMETERS;
 			}
 		}
@@ -704,7 +782,7 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 			if (!connectionData) {
 				if (returnOrigin)
 					*returnOrigin = TEEC_ORIGIN_API;
-
+				TZDD_DBG("ERROR - invalid conn data, NULL\n");
 				return TEEC_ERROR_BAD_PARAMETERS;
 			}
 		}
@@ -727,7 +805,8 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 		{
 			if (returnOrigin)
 				*returnOrigin = TEEC_ORIGIN_API;
-
+			TZDD_DBG("ERROR - invalid conn meth, 0x%08x\n",
+					connectionMethod);
 			return TEEC_ERROR_BAD_PARAMETERS;
 		}
 		break;
@@ -738,7 +817,11 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 	if (!(IS_MAGIC_VALID(_teec_mrvl_context->magic))) {
 		if (returnOrigin)
 			*returnOrigin = TEEC_ORIGIN_API;
-
+		TZDD_DBG("ERROR - invalid cntx magic = %02x%02x%02x%02x\n",
+				_teec_mrvl_context->magic[0],
+				_teec_mrvl_context->magic[1],
+				_teec_mrvl_context->magic[2],
+				_teec_mrvl_context->magic[3]);
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
@@ -748,6 +831,8 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 		if (tee_result != TEEC_SUCCESS) {
 			if (returnOrigin)
 				*returnOrigin = TEEC_ORIGIN_API;
+			TZDD_DBG("ERROR - failed to set shm atom cntr, 0x%08x\n",
+					tee_result);
 			return TEEC_ERROR_BAD_PARAMETERS;
 		}
 	}
@@ -758,6 +843,7 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 	if (!(session->imp)) {
 		if (returnOrigin)
 			*returnOrigin = TEEC_ORIGIN_API;
+		TZDD_DBG("ERROR - failed to alloc mem for session->imp\n");
 		return TEEC_ERROR_OUT_OF_MEMORY;
 	}
 	_teec_mrvl_session = (_TEEC_MRVL_Session *) (session->imp);
@@ -770,8 +856,10 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 
 	/* prepare the request, create the msg and add it to the msgQ */
 	tee_msgm_handle = tee_msgm_create_inst();
-	if (!tee_msgm_handle)
+	if (!tee_msgm_handle) {
+		TZDD_DBG("ERROR - failed to create msgm inst\n");
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_info.cmd = TEE_CMD_OPEN_SS;
 	tee_msg_info.msg_map_shm_info = NULL;
@@ -781,15 +869,18 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 	tee_msg_stat =
 		tee_msgm_set_msg_buf(tee_msgm_handle, &tee_msg_info, NULL,
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_buf = osa_kmem_alloc(sizeof(tee_msg_head_t) + buf_size);
 	if (!tee_msg_buf) {
 		tee_msgm_destroy_inst(tee_msgm_handle);
 		if (returnOrigin)
 			*returnOrigin = TEEC_ORIGIN_API;
-
+		TZDD_DBG("ERROR - failed to alloc msg buf, %d\n",
+				sizeof(tee_msg_head_t) + buf_size);
 		return TEEC_ERROR_GENERIC;
 	}
 
@@ -798,8 +889,10 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 		tee_msgm_set_msg_buf(tee_msgm_handle, NULL,
 				tee_msg_buf + sizeof(tee_msg_head_t),
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	/* init head_t */
 	tee_msg_head = _init_msg_head(tee_msg_buf, buf_size);
@@ -809,6 +902,7 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 		if (!(operation->imp)) {
 			if (returnOrigin)
 				*returnOrigin = TEEC_ORIGIN_API;
+			TZDD_DBG("ERROR - failed to alloc mem for op->imp\n");
 			return TEEC_ERROR_OUT_OF_MEMORY;
 		}
 		_teec_mrvl_operation =
@@ -828,26 +922,26 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 	tee_msg_stat =
 		tee_msgm_set_cmd(tee_msgm_handle, tee_msg_cmd,
 				&tee_msg_set_cmd_open_ss_arg);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set cmd, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	/* set params body */
 	if (operation) {
 		tee_msg_stat = tee_msgm_set_params(tee_msgm_handle, operation);
 		if (tee_msg_stat != TEEC_SUCCESS) {
 			osa_atomic_dec(&(_teec_mrvl_context->count));
-
 			if (operation) {
 				osa_atomic_dec(&(_teec_mrvl_session->count));
 				_set_sharedMem_atomic((tee_impl)&(context->imp),
 										operation, DEC_ATOMIC);
 			}
-
 			osa_kmem_free(tee_msg_buf);
 			tee_msgm_destroy_inst(tee_msgm_handle);
 			if (returnOrigin)
 				*returnOrigin = TEEC_ORIGIN_API;
-
+			TZDD_DBG("ERROR - failed to set params, 0x%08x\n", tee_msg_stat);
 			return tee_msg_stat;
 		}
 	}
@@ -857,20 +951,31 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 	tee_add_time_record_point("naob");
 
 	/* deal with the response */
-	if (!(IS_MSG_MAGIC_VALID(tee_msg_head->magic)))
+	if (!(IS_MSG_MAGIC_VALID(tee_msg_head->magic))) {
+		TZDD_DBG("ERROR - invalid msg magic = %02x%02x%02x%02x\n",
+				tee_msg_head->magic[0],
+				tee_msg_head->magic[1],
+				tee_msg_head->magic[2],
+				tee_msg_head->magic[3]);
 		OSA_ASSERT(0);
+	}
 
 	/* Get return */
 	if (operation) {
 		tee_msg_stat =
 			tee_msgm_update_params(tee_msgm_handle, operation);
-		if (tee_msg_stat != TEEC_SUCCESS)
+		if (tee_msg_stat != TEEC_SUCCESS) {
+			TZDD_DBG("ERROR - failed to update params, 0x%08x\n",
+					tee_msg_stat);
 			OSA_ASSERT(0);
+		}
 	}
 
 	tee_msg_stat = tee_msgm_get_ret(tee_msgm_handle, (void *)&tee_get_ret);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to get ret, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	_teec_mrvl_session->tee_ss_tw = tee_get_ret.ss_tw;
 	if (returnOrigin)
@@ -878,8 +983,10 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 
 	tee_result = tee_get_ret.ret;
 
-	if (tee_result != TEEC_SUCCESS)
+	if (tee_result != TEEC_SUCCESS) {
 		osa_atomic_dec(&(_teec_mrvl_context->count));
+		TZDD_DBG("ERROR - error ret from tw, 0x%08x", tee_result);
+	}
 
 	if (operation) {
 		osa_atomic_dec(&(_teec_mrvl_session->count));
@@ -915,25 +1022,37 @@ void TEEC_CloseSession(TEEC_Session *session)
 	_TEEC_MRVL_Context *_teec_mrvl_context;
 	_TEEC_MRVL_Session *_teec_mrvl_session;
 
-	if (!session)
+	if (!session) {
+		TZDD_DBG("ERROR - invalid ss, NULL\n");
 		return;
+	}
 
 	tee_add_time_record_point("nace");
 	_teec_mrvl_session = (_TEEC_MRVL_Session *) (session->imp);
 
-	if (!(IS_MAGIC_VALID(_teec_mrvl_session->magic)))
+	if (!(IS_MAGIC_VALID(_teec_mrvl_session->magic))) {
+		TZDD_DBG("ERROR - invalid ss magic = %02x%02x%02x%02x\n",
+				_teec_mrvl_session->magic[0],
+				_teec_mrvl_session->magic[1],
+				_teec_mrvl_session->magic[2],
+				_teec_mrvl_session->magic[3]);
 		OSA_ASSERT(0);
+	}
 
 	CLEANUP_MAGIC(_teec_mrvl_session->magic);
 
 	count = osa_atomic_read(&(_teec_mrvl_session->count));
-	if (count != 0)
+	if (count != 0) {
+		TZDD_DBG("ERROR - invalid count in cntx, %d\n", count);
 		OSA_ASSERT(0);
+	}
 
 	/* prepare the request, create the msg and add it to the msgQ */
 	tee_msgm_handle = tee_msgm_create_inst();
-	if (!tee_msgm_handle)
+	if (!tee_msgm_handle) {
+		TZDD_DBG("ERROR - failed to create msgm inst\n");
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_info.cmd = TEE_CMD_CLOSE_SS;
 	tee_msg_info.msg_map_shm_info = NULL;
@@ -943,12 +1062,16 @@ void TEEC_CloseSession(TEEC_Session *session)
 	tee_msg_stat =
 		tee_msgm_set_msg_buf(tee_msgm_handle, &tee_msg_info, NULL,
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_buf = osa_kmem_alloc(sizeof(tee_msg_head_t) + buf_size);
 	if (!tee_msg_buf) {
 		tee_msgm_destroy_inst(tee_msgm_handle);
+		TZDD_DBG("ERROR - failed to alloc msg buf, %d\n",
+				sizeof(tee_msg_head_t) + buf_size);
 		OSA_ASSERT(0);
 	}
 
@@ -957,8 +1080,10 @@ void TEEC_CloseSession(TEEC_Session *session)
 		tee_msgm_set_msg_buf(tee_msgm_handle, NULL,
 				tee_msg_buf + sizeof(tee_msg_head_t),
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	/* init head_t */
 	tee_msg_head = _init_msg_head(tee_msg_buf, buf_size);
@@ -969,8 +1094,10 @@ void TEEC_CloseSession(TEEC_Session *session)
 	tee_msg_stat =
 		tee_msgm_set_cmd(tee_msgm_handle, tee_msg_cmd,
 				tee_msg_set_cmd_close_ss_arg);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set cmd, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	tee_add_time_record_point("nacw");
 	tzdd_call_tw(tee_msg_head);
@@ -1018,7 +1145,7 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 	if (!session) {
 		if (returnOrigin)
 			*returnOrigin = TEEC_ORIGIN_API;
-
+		TZDD_DBG("ERROR - invalid ss, NULL\n");
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
@@ -1027,6 +1154,11 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 	if (!(IS_MAGIC_VALID(_teec_mrvl_session->magic))) {
 		if (returnOrigin)
 			*returnOrigin = TEEC_ORIGIN_API;
+		TZDD_DBG("ERROR - invalid ss magic = %02x%02x%02x%02x\n",
+				_teec_mrvl_session->magic[0],
+				_teec_mrvl_session->magic[1],
+				_teec_mrvl_session->magic[2],
+				_teec_mrvl_session->magic[3]);
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
@@ -1037,6 +1169,8 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 		if (tee_result != TEEC_SUCCESS) {
 			if (returnOrigin)
 				*returnOrigin = TEEC_ORIGIN_API;
+			TZDD_DBG("ERROR - failed to set shm atom cntr, 0x%08x\n",
+					tee_result);
 			return TEEC_ERROR_BAD_PARAMETERS;
 		}
 	}
@@ -1046,8 +1180,10 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 
 	/* prepare the request, create the msg and add it to the msgQ */
 	tee_msgm_handle = tee_msgm_create_inst();
-	if (!tee_msgm_handle)
+	if (!tee_msgm_handle) {
+		TZDD_DBG("ERROR - failed to create msgm inst\n");
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_info.cmd = TEE_CMD_INV_OP;
 	tee_msg_info.msg_map_shm_info = NULL;
@@ -1060,15 +1196,18 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 	tee_msg_stat =
 		tee_msgm_set_msg_buf(tee_msgm_handle, &tee_msg_info, NULL,
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	tee_msg_buf = osa_kmem_alloc(sizeof(tee_msg_head_t) + buf_size);
 	if (!tee_msg_buf) {
 		tee_msgm_destroy_inst(tee_msgm_handle);
 		if (returnOrigin)
 			*returnOrigin = TEEC_ORIGIN_API;
-
+		TZDD_DBG("ERROR - failed to alloc msg buf, %d\n",
+				sizeof(tee_msg_head_t) + buf_size);
 		return TEEC_ERROR_GENERIC;
 	}
 
@@ -1077,8 +1216,10 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 		tee_msgm_set_msg_buf(tee_msgm_handle, NULL,
 				tee_msg_buf + sizeof(tee_msg_head_t),
 				&buf_size);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	/* init head_t */
 	tee_msg_head = _init_msg_head(tee_msg_buf, buf_size);
@@ -1088,6 +1229,7 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 		if (!(operation->imp)) {
 			if (returnOrigin)
 				*returnOrigin = TEEC_ORIGIN_API;
+			TZDD_DBG("ERROR - failed to alloc mem for op->imp\n");
 			return TEEC_ERROR_OUT_OF_MEMORY;
 		}
 
@@ -1105,8 +1247,10 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 	tee_msg_stat =
 		tee_msgm_set_cmd(tee_msgm_handle, tee_msg_cmd,
 				&tee_msg_set_cmd_inv_op_arg);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to set cmd, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	/* set params body */
 	if (operation) {
@@ -1122,6 +1266,7 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 			tee_msgm_destroy_inst(tee_msgm_handle);
 			if (returnOrigin)
 				*returnOrigin = TEEC_ORIGIN_API;
+			TZDD_DBG("ERROR - failed to set params, 0x%08x\n", tee_msg_stat);
 			return tee_msg_stat;
 		}
 	}
@@ -1131,25 +1276,38 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 	tee_add_time_record_point("naib");
 
 	/* deal with the response */
-	if (!(IS_MSG_MAGIC_VALID(tee_msg_head->magic)))
+	if (!(IS_MSG_MAGIC_VALID(tee_msg_head->magic))) {
+		TZDD_DBG("ERROR - invalid msg magic = %02x%02x%02x%02x\n",
+				tee_msg_head->magic[0],
+				tee_msg_head->magic[1],
+				tee_msg_head->magic[2],
+				tee_msg_head->magic[3]);
 		OSA_ASSERT(0);
+	}
 
 	/* Get return */
 	if (operation) {
 		tee_msg_stat =
 			tee_msgm_update_params(tee_msgm_handle, operation);
-		if (tee_msg_stat != TEEC_SUCCESS)
+		if (tee_msg_stat != TEEC_SUCCESS) {
+			TZDD_DBG("ERROR - failed to update params, 0x%08x\n",
+					tee_msg_stat);
 			OSA_ASSERT(0);
+		}
 	}
 
 	tee_msg_stat = tee_msgm_get_ret(tee_msgm_handle, (void *)&tee_get_ret);
-	if (tee_msg_stat != TEEC_SUCCESS)
+	if (tee_msg_stat != TEEC_SUCCESS) {
+		TZDD_DBG("ERROR - failed to get ret, 0x%08x\n", tee_msg_stat);
 		OSA_ASSERT(0);
+	}
 
 	if (returnOrigin)
 		*returnOrigin = tee_get_ret.ret_orig;
 
 	tee_result = tee_get_ret.ret;
+	if (tee_result)
+		TZDD_DBG("ERROR - error ret from tw, 0x%08x\n", tee_result);
 
 	if (operation) {
 		osa_atomic_dec(&(_teec_mrvl_session->count));
@@ -1171,6 +1329,7 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 
 void TEEC_RequestCancellation(TEEC_Operation *operation)
 {
+	TZDD_DBG("ERROR - %s is not supported in mini-TZDD\n", __FUNCTION__);
 	return;
 }
 
@@ -1192,8 +1351,10 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 	_TEEC_MRVL_Session *_teec_mrvl_session;
 	_TEEC_MRVL_Operation *_teec_mrvl_operation;
 
-	if (!operation)
+	if (!operation) {
+		TZDD_DBG("ERROR - invalid op, NULL\n");
 		OSA_ASSERT(0);
+	}
 
 	_teec_mrvl_operation = (_TEEC_MRVL_Operation *)(operation->imp);
 
@@ -1208,8 +1369,10 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 
 		/* prepare the request, create the msg and add it to the msgQ */
 		tee_msgm_handle = tee_msgm_create_inst();
-		if (!tee_msgm_handle)
+		if (!tee_msgm_handle) {
+			TZDD_DBG("ERROR - failed to create msgm inst\n");
 			OSA_ASSERT(0);
+		}
 
 		tee_msg_info.cmd = TEE_CMD_CAN_OP;
 		tee_msg_info.msg_map_shm_info = NULL;
@@ -1219,12 +1382,16 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 		tee_msg_stat =
 			tee_msgm_set_msg_buf(tee_msgm_handle, &tee_msg_info, NULL,
 					&buf_size);
-		if (tee_msg_stat != TEEC_SUCCESS)
+		if (tee_msg_stat != TEEC_SUCCESS) {
+			TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 			OSA_ASSERT(0);
+		}
 
 		tee_msg_buf = osa_kmem_alloc(sizeof(tee_msg_head_t) + buf_size);
 		if (!tee_msg_buf) {
 			tee_msgm_destroy_inst(tee_msgm_handle);
+			TZDD_DBG("ERROR - failed to alloc msg buf, %d\n",
+					sizeof(tee_msg_head_t) + buf_size);
 			OSA_ASSERT(0);
 		}
 
@@ -1233,8 +1400,10 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 			tee_msgm_set_msg_buf(tee_msgm_handle, NULL,
 					tee_msg_buf + sizeof(tee_msg_head_t),
 					&buf_size);
-		if (tee_msg_stat != TEEC_SUCCESS)
+		if (tee_msg_stat != TEEC_SUCCESS) {
+			TZDD_DBG("ERROR - failed to set msg buf, 0x%08x\n", tee_msg_stat);
 			OSA_ASSERT(0);
+		}
 
 		/* init head_t */
 		tee_msg_head = _init_msg_head(tee_msg_buf, buf_size);
@@ -1251,8 +1420,10 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 		tee_msg_stat =
 			tee_msgm_set_cmd(tee_msgm_handle, tee_msg_cmd,
 					&tee_msg_set_cmd_can_op_arg);
-		if (tee_msg_stat != TEEC_SUCCESS)
+		if (tee_msg_stat != TEEC_SUCCESS) {
+			TZDD_DBG("ERROR - failed to set cmd, 0x%08x\n", tee_msg_stat);
 			OSA_ASSERT(0);
+		}
 
 		tzdd_add_node_to_req_list(&(tee_msg_head->node));
 
@@ -1266,4 +1437,3 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 }
 
 #endif /* CONFIG_MINI_TZDD */
-

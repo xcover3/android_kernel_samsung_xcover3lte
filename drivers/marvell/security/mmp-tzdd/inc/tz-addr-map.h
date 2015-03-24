@@ -38,6 +38,14 @@
 #define RC_PHYS_ADDR    (0x00F00000)
 #define RC_SIZE         (0x00100000)
 
+#elif defined(TEE_RES_CFG_24M)
+
+#define RB_PHYS_ADDR    (0x01600000)
+#define RB_SIZE         (0x00100000)
+
+#define RC_PHYS_ADDR    (0x01700000)
+#define RC_SIZE         (0x00100000)
+
 #else
 
 #error "ERROR - Invalid TEE_RES_CFG Setting."
