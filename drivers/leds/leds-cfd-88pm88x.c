@@ -298,7 +298,7 @@ static void torch_on(struct pm88x_led *led)
 					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
 		else
 			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
-					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+					   PM88X_CF_CFD_PLS_ON, 0);
 	} else {
 		gpio_direction_output(led->cf_en, 1);
 	}
@@ -467,7 +467,7 @@ static void strobe_flash(struct pm88x_led *led)
 					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
 		} else {
 			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
-			   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+			   PM88X_CF_CFD_PLS_ON, 0);
 		}
 	} else {
 		gpio_direction_output(led->cf_en, 1);
