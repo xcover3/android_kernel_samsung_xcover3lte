@@ -23,6 +23,7 @@
 #include <linux/skbuff.h>
 #include "pxa_cp_load_ioctl.h"
 #include "shm.h"
+#include "util.h"
 
 /* the magic is 8-bit byte, should not use 300 */
 /* #define MSOCKET_MAJOR         300   */  /* The major number of the devices */
@@ -86,4 +87,5 @@ extern void msocket_recv_unthrottled(int sock);
  * extern int msend_skb(int sock, struct sk_buff *skb, int flags);
  * extern int mrecv_skb(int sock, struct sk_buff **pskb, int flags);
 */
+DECLARE_BLOCKING_NOTIFIER(cp_link_status);
 #endif /* MSOCKET_H_ */

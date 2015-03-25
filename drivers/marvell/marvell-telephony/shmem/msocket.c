@@ -95,6 +95,8 @@ void notify_first_cp_synced(void)
 			1, NULL);
 }
 
+DEFINE_BLOCKING_NOTIFIER(cp_link_status);
+
 static void dump(const unsigned char *data, unsigned int len)
 {
 	int i;
@@ -397,6 +399,9 @@ static void cp_sync_worker(struct work_struct *work)
 					data_path_link_up();
 					direct_rb_broadcast_msg
 					    (MsocketLinkupProcId);
+					notify_cp_link_status(
+						MsocketLinkupProcId,
+						NULL);
 					cp_recv_up_ioc = false;
 				} else {
 					cb_notify  = true;
@@ -1039,6 +1044,7 @@ static long msocket_ioctl(struct file *filp,
 		portq_broadcast_msg(portq_grp_cp_main, MsocketLinkdownProcId);
 		data_path_link_down();
 		direct_rb_broadcast_msg(MsocketLinkdownProcId);
+		notify_cp_link_status(MsocketLinkdownProcId, NULL);
 		return 0;
 
 	case MSOCKET_IOC_PMIC_QUERY:
