@@ -842,8 +842,6 @@ struct data_path *data_path_open(enum data_path_type dp_type,
 	dp->tx_wm[dp_priority_high] = 0;
 	dp->tx_wm[dp_priority_default]
 		= dp->rbctl->tx_skbuf_num / 10;
-	dp->tx_wm[dp_priority_low]
-		= dp->rbctl->tx_skbuf_num / 10;
 
 	dp->enable_piggyback = true;
 

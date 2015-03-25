@@ -50,7 +50,6 @@ enum data_path_result {
 enum data_path_priority {
 	dp_priority_high,
 	dp_priority_default,
-	dp_priority_low,
 	dp_priority_cnt,
 };
 
