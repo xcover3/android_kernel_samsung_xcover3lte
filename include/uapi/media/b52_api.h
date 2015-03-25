@@ -155,6 +155,14 @@ struct b52isp_sharpness {
 	__u8 sha_arr[6];
 };
 
+struct b52isp_saturation {
+	__u8 sat_arr[6];
+};
+
+struct b52isp_sharpness {
+	__u8 sha_arr[6];
+};
+
 enum v4l2_priv_colorfx {
 	V4L2_PRIV_COLORFX_NONE          = 0,
 	V4L2_PRIV_COLORFX_MONO_CHROME   = 1,
