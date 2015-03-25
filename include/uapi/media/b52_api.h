@@ -128,6 +128,8 @@ struct b52isp_brightness {
 	enum type_brightness_ops op;
 	__u8    ygain_h;
 	__u8    ygain_l;
+	__u8    yoffset_h;
+	__u8    yoffset_l;
 	__u8    uv_matrix_00_h;
 	__u8    uv_matrix_00_l;
 	__u8    uv_matrix_01_h;

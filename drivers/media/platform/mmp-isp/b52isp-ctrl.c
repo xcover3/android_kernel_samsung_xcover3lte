@@ -765,10 +765,10 @@ static int b52isp_ctrl_set_contrast(struct v4l2_ctrl *ctrl, int id)
 {
 	u32 base = ISP1_REG_BASE + id * ISP1_ISP2_OFFSER;
 
-	b52_writeb(base + REG_SDE_YGAIN, 0x00);
+	b52_writeb(base + REG_SDE_YGAIN, (ctrl->val >> 8) & 0x0F);
 	b52_writeb(base + REG_SDE_YGAIN_1, ctrl->val & 0xFF);
-	b52_writeb(base + REG_SDE_YOFFSET, (ctrl->val >> 16) & 0xFF);
-	b52_writeb(base + REG_SDE_YOFFSET_1, (ctrl->val >> 8) & 0xFF);
+	b52_writeb(base + REG_SDE_YOFFSET, (ctrl->val >> 20) & 0xFF);
+	b52_writeb(base + REG_SDE_YOFFSET_1, (ctrl->val >> 12) & 0xFF);
 
 	return 0;
 }

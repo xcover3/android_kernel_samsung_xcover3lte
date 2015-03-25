@@ -1298,6 +1298,8 @@ static int b52isp_brightness(struct isp_subdev *isd,
 	case TYPE_READ:
 		arg->ygain_h = b52_readb(0x65b07);
 		arg->ygain_l = b52_readb(0x65b08);
+		arg->yoffset_h = b52_readb(0x65b11);
+		arg->yoffset_l = b52_readb(0x65b12);
 		arg->uv_matrix_00_h = b52_readb(0x65b09);
 		arg->uv_matrix_00_l = b52_readb(0x65b0a);
 		arg->uv_matrix_01_h = b52_readb(0x65b0b);
