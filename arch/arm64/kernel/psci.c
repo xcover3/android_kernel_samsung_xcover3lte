@@ -320,6 +320,8 @@ static int cpu_psci_cpu_boot(unsigned int cpu)
 	if (err)
 		pr_err("psci: failed to boot CPU%d (%d)\n", cpu, err);
 
+	/* cpu hotplug return cpu_dc_stat */
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
 	return err;
 }
 
@@ -344,7 +346,9 @@ static void cpu_psci_cpu_die(unsigned int cpu)
 		.affinity_level = AFFINITY_LEVEL2,
 		.id = _state2bit(3),
 	};
-
+	/* cpu hotplug out cpu_dc_stat */
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_M2_OR_DEEPER_ENTER, LPM_D2);
+	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, LPM_C2);
 	ret = psci_ops.cpu_off(state);
 
 	pr_crit("psci: unable to power off CPU%u (%d)\n", cpu, ret);
