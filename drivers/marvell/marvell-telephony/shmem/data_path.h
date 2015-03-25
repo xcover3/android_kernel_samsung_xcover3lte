@@ -159,18 +159,6 @@ struct data_path {
 	struct data_path_stat stat;
 };
 
-extern void data_path_broadcast_msg(int proc);
-
-static inline void data_path_link_down(void)
-{
-	data_path_broadcast_msg(MsocketLinkdownProcId);
-}
-
-static inline void data_path_link_up(void)
-{
-	data_path_broadcast_msg(MsocketLinkupProcId);
-}
-
 static inline bool data_path_is_link_up(void)
 {
 	return cp_is_synced;

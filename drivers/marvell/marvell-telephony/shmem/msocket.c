@@ -396,7 +396,6 @@ static void cp_sync_worker(struct work_struct *work)
 					portq_broadcast_msg(
 						portq_grp_cp_main,
 						MsocketLinkupProcId);
-					data_path_link_up();
 					direct_rb_broadcast_msg
 					    (MsocketLinkupProcId);
 					notify_cp_link_status(
@@ -1042,7 +1041,6 @@ static long msocket_ioctl(struct file *filp,
 		msocket_disconnect(portq_grp_cp_main);
 		/* ok! the world's silent then notify the upper layer */
 		portq_broadcast_msg(portq_grp_cp_main, MsocketLinkdownProcId);
-		data_path_link_down();
 		direct_rb_broadcast_msg(MsocketLinkdownProcId);
 		notify_cp_link_status(MsocketLinkdownProcId, NULL);
 		return 0;

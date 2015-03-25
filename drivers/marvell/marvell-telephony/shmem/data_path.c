@@ -516,7 +516,7 @@ enum data_path_result data_path_xmit(struct data_path *dp,
 }
 EXPORT_SYMBOL(data_path_xmit);
 
-void data_path_broadcast_msg(int proc)
+static void data_path_broadcast_msg(int proc)
 {
 	struct data_path *dp;
 	const struct data_path *dp_end = data_path + dp_type_total_cnt;
@@ -978,6 +978,17 @@ struct shm_callback dp_shm_cb = {
 	.rb_resume_cb    = dp_rb_resume_cb,
 };
 
+static int cp_link_status_notifier_func(struct notifier_block *this,
+	unsigned long code, void *cmd)
+{
+	data_path_broadcast_msg((int)code);
+	return 0;
+}
+
+static struct notifier_block cp_link_status_notifier = {
+	.notifier_call = cp_link_status_notifier_func,
+};
+
 int data_path_init(void)
 {
 	struct data_path *dp;
@@ -1005,6 +1016,9 @@ int data_path_init(void)
 		atomic_set(&dp->state, dp_state_idle);
 	}
 
+	if (register_cp_link_status_notifier(&cp_link_status_notifier) < 0)
+		goto exit;
+
 	return 0;
 
 exit:
@@ -1027,6 +1041,8 @@ void data_path_exit(void)
 {
 	struct data_path *dp;
 	const struct data_path *dp_end = data_path + dp_type_total_cnt;
+
+	unregister_cp_link_status_notifier(&cp_link_status_notifier);
 
 	for (dp = data_path; dp != dp_end; ++dp)
 		shm_close(dp->rbctl);
