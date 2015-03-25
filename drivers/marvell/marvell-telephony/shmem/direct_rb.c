@@ -348,70 +348,6 @@ void direct_rb_close(struct direct_rbctl *rbctl)
 }
 EXPORT_SYMBOL(direct_rb_close);
 
-/* direct_rb_init */
-int direct_rb_init(void)
-{
-	int rc = -1;
-	struct direct_rbctl *dir_ctl;
-	struct direct_rbctl *dir_ctl2;
-	const struct direct_rbctl *dir_ctl_end =
-	    direct_rbctl + direct_rb_type_total_cnt;
-
-	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
-		char buf[16];
-		dir_ctl->direct_type = dir_ctl - direct_rbctl;
-		dir_ctl->rbctl =
-		    shm_open(direct_shm_rb_type[dir_ctl - direct_rbctl],
-			     &direct_path_shm_cb, dir_ctl);
-		if (!dir_ctl->rbctl) {
-			pr_err("%s: cannot open shm\n", __func__);
-			goto exit;
-		}
-		init_waitqueue_head(&(dir_ctl->rb_rx_wq));
-		spin_lock_init(&dir_ctl->rb_rx_lock);
-		dir_ctl->refcount = 0;
-		dir_ctl->is_ap_recv_empty = true;
-
-		snprintf(buf, sizeof(buf), "drb_wq %d", dir_ctl->direct_type);
-
-		INIT_WORK(&dir_ctl->rx_work, direct_rb_rx_worker);
-		dir_ctl->rx_wq = create_singlethread_workqueue(buf);
-	}
-	rc = misc_register(&msocketDirectDump_dev);
-	if (rc < 0) {
-		dir_ctl = direct_rbctl;
-		goto exit;
-	}
-	return 0;
-
-exit:
-	for (dir_ctl2 = direct_rbctl; dir_ctl2 != dir_ctl; ++dir_ctl2)
-		shm_close(dir_ctl2->rbctl);
-
-	return rc;
-}
-EXPORT_SYMBOL(direct_rb_init);
-
-/* direct_rb_exit */
-void direct_rb_exit(void)
-{
-	unsigned long flags;
-	struct direct_rbctl *dir_ctl;
-	const struct direct_rbctl *dir_ctl_end =
-	    direct_rbctl + direct_rb_type_total_cnt;
-
-	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
-		destroy_workqueue(dir_ctl->rx_wq);
-		spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
-		dir_ctl->refcount = 0;
-		shm_close(dir_ctl->rbctl);
-		spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
-	}
-
-	misc_deregister(&msocketDirectDump_dev);
-}
-EXPORT_SYMBOL(direct_rb_exit);
-
 #define DIAG_TX_RETRY_DELAY_MS 10
 int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
 		   int len)
@@ -525,7 +461,7 @@ ssize_t direct_rb_recv(enum direct_rb_type direct_type,
 }
 EXPORT_SYMBOL(direct_rb_recv);
 
-void direct_rb_broadcast_msg(int proc)
+static void direct_rb_broadcast_msg(int proc)
 {
 	struct direct_rbctl *dir_ctl = direct_rbctl;
 	unsigned long flags;
@@ -618,3 +554,82 @@ void msocket_dump_direct_rb(void)
 		       dir_ctl->stat_broadcast_msg);
 	}
 }
+
+static int cp_link_status_notifier_func(struct notifier_block *this,
+	unsigned long code, void *cmd)
+{
+	direct_rb_broadcast_msg((int)code);
+	return 0;
+}
+
+static struct notifier_block cp_link_status_notifier = {
+	.notifier_call = cp_link_status_notifier_func,
+};
+
+/* direct_rb_init */
+int direct_rb_init(void)
+{
+	int rc = -1;
+	struct direct_rbctl *dir_ctl;
+	struct direct_rbctl *dir_ctl2;
+	const struct direct_rbctl *dir_ctl_end =
+	    direct_rbctl + direct_rb_type_total_cnt;
+
+	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
+		char buf[16];
+		dir_ctl->direct_type = dir_ctl - direct_rbctl;
+		dir_ctl->rbctl =
+		    shm_open(direct_shm_rb_type[dir_ctl - direct_rbctl],
+			     &direct_path_shm_cb, dir_ctl);
+		if (!dir_ctl->rbctl) {
+			pr_err("%s: cannot open shm\n", __func__);
+			goto exit;
+		}
+		init_waitqueue_head(&(dir_ctl->rb_rx_wq));
+		spin_lock_init(&dir_ctl->rb_rx_lock);
+		dir_ctl->refcount = 0;
+		dir_ctl->is_ap_recv_empty = true;
+
+		snprintf(buf, sizeof(buf), "drb_wq %d", dir_ctl->direct_type);
+
+		INIT_WORK(&dir_ctl->rx_work, direct_rb_rx_worker);
+		dir_ctl->rx_wq = create_singlethread_workqueue(buf);
+	}
+	rc = misc_register(&msocketDirectDump_dev);
+	if (rc < 0) {
+		dir_ctl = direct_rbctl;
+		goto exit;
+	}
+
+	register_cp_link_status_notifier(&cp_link_status_notifier);
+
+	return 0;
+
+exit:
+	for (dir_ctl2 = direct_rbctl; dir_ctl2 != dir_ctl; ++dir_ctl2)
+		shm_close(dir_ctl2->rbctl);
+
+	return rc;
+}
+EXPORT_SYMBOL(direct_rb_init);
+
+/* direct_rb_exit */
+void direct_rb_exit(void)
+{
+	unsigned long flags;
+	struct direct_rbctl *dir_ctl;
+	const struct direct_rbctl *dir_ctl_end =
+	    direct_rbctl + direct_rb_type_total_cnt;
+
+	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
+		destroy_workqueue(dir_ctl->rx_wq);
+		spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
+		dir_ctl->refcount = 0;
+		shm_close(dir_ctl->rbctl);
+		spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
+	}
+
+	unregister_cp_link_status_notifier(&cp_link_status_notifier);
+	misc_deregister(&msocketDirectDump_dev);
+}
+EXPORT_SYMBOL(direct_rb_exit);

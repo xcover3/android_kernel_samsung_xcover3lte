@@ -66,6 +66,5 @@ extern int direct_rb_xmit(enum direct_rb_type direct_type,
 			  const char __user *buf, int len);
 extern ssize_t direct_rb_recv(enum direct_rb_type direct_type, char *buf,
 			      int len);
-extern void direct_rb_broadcast_msg(int proc);
 extern void msocket_dump_direct_rb(void);
 #endif /* _DIRECT_RB_H_ */
