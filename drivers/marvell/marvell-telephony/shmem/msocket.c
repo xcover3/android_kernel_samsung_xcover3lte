@@ -393,9 +393,6 @@ static void cp_sync_worker(struct work_struct *work)
 				/* only when we have received linkup ioctl
 				 * can we report the linkup message */
 				if (cp_recv_up_ioc) {
-					portq_broadcast_msg(
-						portq_grp_cp_main,
-						MsocketLinkupProcId);
 					notify_cp_link_status(
 						MsocketLinkupProcId,
 						NULL);
@@ -1038,7 +1035,6 @@ static long msocket_ioctl(struct file *filp,
 		msocket_dump_direct_rb();
 		msocket_disconnect(portq_grp_cp_main);
 		/* ok! the world's silent then notify the upper layer */
-		portq_broadcast_msg(portq_grp_cp_main, MsocketLinkdownProcId);
 		notify_cp_link_status(MsocketLinkdownProcId, NULL);
 		return 0;
 

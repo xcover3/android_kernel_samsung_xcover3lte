@@ -305,6 +305,17 @@ struct shm_callback portq_m3_shm_cb = {
 	.rb_resume_cb    = portq_rb_resume_cb,
 };
 
+static int cp_link_status_notifier_func(struct notifier_block *this,
+	unsigned long code, void *cmd)
+{
+	portq_broadcast_msg(portq_grp_cp_main, (int)code);
+	return 0;
+}
+
+static struct notifier_block cp_link_status_notifier = {
+	.notifier_call = cp_link_status_notifier_func,
+};
+
 int portq_grp_init(struct portq_group *pgrp)
 {
 	enum portq_grp_type grp_type = pgrp - portq_grp;
@@ -319,6 +330,7 @@ int portq_grp_init(struct portq_group *pgrp)
 			return -1;
 		}
 		pgrp->ipc_ws = &acipc_wakeup;
+		register_cp_link_status_notifier(&cp_link_status_notifier);
 	} else if (grp_type == portq_grp_m3) {
 		/* open ring buffer */
 		pgrp->rbctl = shm_open(shm_rb_m3, &portq_m3_shm_cb, pgrp);
@@ -360,6 +372,8 @@ int portq_grp_init(struct portq_group *pgrp)
 
 void portq_grp_exit(struct portq_group *pgrp)
 {
+	if (pgrp->grp_type == portq_grp_cp_main)
+		unregister_cp_link_status_notifier(&cp_link_status_notifier);
 	shm_close(pgrp->rbctl);
 	destroy_workqueue(pgrp->wq);
 	kfree(pgrp->port_list);
