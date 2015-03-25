@@ -773,7 +773,7 @@ static int b52isp_ctrl_set_contrast(struct v4l2_ctrl *ctrl, int id)
 	return 0;
 }
 
-static int b52isp_ctrl_set_saturation(struct v4l2_ctrl *ctrl, int id)
+static int __maybe_unused b52isp_ctrl_set_saturation(struct v4l2_ctrl *ctrl, int id)
 {
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
 
@@ -783,7 +783,7 @@ static int b52isp_ctrl_set_saturation(struct v4l2_ctrl *ctrl, int id)
 	return 0;
 }
 
-static int b52isp_ctrl_set_sharpness(struct v4l2_ctrl *ctrl, int id)
+static int __maybe_unused b52isp_ctrl_set_sharpness(struct v4l2_ctrl *ctrl, int id)
 {
 	u32 base = ISP1_REG_BASE + id * ISP1_ISP2_OFFSER;
 

@@ -145,6 +145,14 @@ enum SENSOR_ESD_STATUS {
 	SENSOR_ESD_ST_UNKNOWN = 2,
 };
 
+struct b52isp_saturation {
+	__u8 sat_arr[6];
+};
+
+struct b52isp_sharpness {
+	__u8 sha_arr[6];
+};
+
 enum v4l2_priv_colorfx {
 	V4L2_PRIV_COLORFX_NONE          = 0,
 	V4L2_PRIV_COLORFX_MONO_CHROME   = 1,
@@ -329,4 +337,8 @@ enum B52_flash_type {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct b52isp_brightness)
 #define VIDIOC_PRIVATE_B52ISP_SENSOR_ESD_STATUS\
 	_IOR('V', BASE_VIDIOC_PRIVATE + 14, int)
+#define VIDIOC_PRIVATE_B52ISP_SATURATION\
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 15, struct b52isp_saturation)
+#define VIDIOC_PRIVATE_B52ISP_SHARPNESS\
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 16, struct b52isp_sharpness)
 #endif /* _B52_API_H */

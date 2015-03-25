@@ -1325,6 +1325,60 @@ static int b52isp_brightness(struct isp_subdev *isd,
 	return 0;
 }
 
+static int b52isp_saturation(struct isp_subdev *isd,
+	struct b52isp_saturation *arg)
+{
+	u32 base;
+	int i = 0;
+	struct isp_block *blk = isp_sd2blk(isd);
+
+	if (!arg)
+		return 0;
+
+	if (blk->id.mod_id == B52ISP_BLK_PIPE1)
+		base = FW_P1_REG_BASE;
+	else if (blk->id.mod_id == B52ISP_BLK_PIPE2) {
+		base = FW_P2_REG_BASE;
+		pr_err("Current ISP FW can't support this on p2\n");
+		return -EINVAL;
+	}
+
+	/* 0x333f3~0x333f8 */
+	while (REG_FW_UV_MIN_SATURATON + i <= REG_FW_UV_MAX_SATURATON) {
+		b52_writeb(base + REG_FW_UV_MIN_SATURATON + i, arg->sat_arr[i]);
+		i++;
+	}
+
+	return 0;
+}
+
+static int b52isp_sharpness(struct isp_subdev *isd,
+	struct b52isp_sharpness *arg)
+{
+	u32 base;
+	int i = 0;
+	struct isp_block *blk = isp_sd2blk(isd);
+
+	if (!arg)
+		return 0;
+
+	if (blk->id.mod_id == B52ISP_BLK_PIPE1)
+		base = FW_P1_REG_BASE;
+	else if (blk->id.mod_id == B52ISP_BLK_PIPE2) {
+		base = FW_P2_REG_BASE;
+		pr_err("Current ISP FW can't support this on p2\n");
+		return -EINVAL;
+	}
+
+	/* 0x331ea~0x331ef */
+	while (REG_FW_MIN_SHARPNESS + i <= REG_FW_MAX_SHARPNESS) {
+		b52_writeb(FW_P1_REG_BASE + REG_FW_MIN_SHARPNESS + i, arg->sha_arr[i]);
+		i++;
+	}
+
+	return 0;
+}
+
 /* ioctl(subdev, IOCTL_XXX, arg) is handled by this one */
 static long b52isp_path_ioctl(struct v4l2_subdev *sd,
 				unsigned int cmd, void *arg)
@@ -1375,6 +1429,12 @@ static long b52isp_path_ioctl(struct v4l2_subdev *sd,
 		break;
 	case VIDIOC_PRIVATE_B52ISP_BRIGHTNESS:
 		ret = b52isp_brightness(isd, (struct b52isp_brightness *)arg);
+		break;
+	case VIDIOC_PRIVATE_B52ISP_SATURATION:
+		ret = b52isp_saturation(isd, (struct b52isp_saturation *)arg);
+		break;
+	case VIDIOC_PRIVATE_B52ISP_SHARPNESS:
+		ret = b52isp_sharpness(isd, (struct b52isp_sharpness *)arg);
 		break;
 	default:
 		d_inf(1, "unknown ioctl '%c', dir=%d, #%d (0x%08x)\n",
@@ -1518,6 +1578,8 @@ static long b52isp_compat_ioctl32(struct v4l2_subdev *sd,
 	case VIDIOC_PRIVATE_B52ISP_SET_PATH_ARG:
 	case VIDIOC_PRIVATE_B52ISP_ANTI_SHAKE:
 	case VIDIOC_PRIVATE_B52ISP_BRIGHTNESS:
+	case VIDIOC_PRIVATE_B52ISP_SATURATION:
+	case VIDIOC_PRIVATE_B52ISP_SHARPNESS:
 		break;
 	default:
 		d_inf(1, "unknown compat ioctl '%c', dir=%d, #%d (0x%08x)\n",

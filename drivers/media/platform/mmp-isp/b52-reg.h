@@ -855,8 +855,11 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 #define REG_FW_CMX_PREGAIN1         (0x3b2)
 #define REG_FW_CMX_PREGAIN2         (0x3b3)
 
-#define REG_FW_UV_MAX_SATURATON     (0x3f5)
-#define REG_FW_UV_MIN_SATURATON     (0x3f6)
+#define REG_FW_UV_MAX_SATURATON     (0x3f8)
+#define REG_FW_UV_MIN_SATURATON     (0x3f3)
+
+#define REG_FW_MAX_SHARPNESS	    (0x1ef)
+#define REG_FW_MIN_SHARPNESS	    (0x1ea)
 
 #define REG_FW_METADATA_LEN         (0x5e8)
 #define REG_FW_METADATA_PORT        (0x5eb)
