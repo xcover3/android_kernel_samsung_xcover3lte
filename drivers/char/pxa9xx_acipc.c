@@ -136,7 +136,7 @@ static u32 acipc_default_callback(u32 status)
 	return 0;
 }
 
-static enum acipc_return_code acipc_event_set(enum acipc_events user_event)
+enum acipc_return_code acipc_event_set(enum acipc_events user_event)
 {
 	IPC_ENTER();
 	acipc_writel_withdummy(IPC_ISRW, user_event);
@@ -145,6 +145,7 @@ static enum acipc_return_code acipc_event_set(enum acipc_events user_event)
 	IPC_LEAVE();
 	return ACIPC_RC_OK;
 }
+EXPORT_SYMBOL(acipc_event_set);
 
 static void acipc_int_enable(enum acipc_events event)
 {
@@ -199,7 +200,7 @@ static void acipc_int_disable(enum acipc_events event)
 	}
 }
 
-static enum acipc_return_code acipc_data_send(enum acipc_events user_event,
+enum acipc_return_code acipc_data_send(enum acipc_events user_event,
 					      acipc_data data)
 {
 	IPC_ENTER();
@@ -217,8 +218,9 @@ static enum acipc_return_code acipc_data_send(enum acipc_events user_event,
 	IPC_LEAVE();
 	return ACIPC_RC_OK;
 }
+EXPORT_SYMBOL(acipc_data_send);
 
-static enum acipc_return_code acipc_data_read(acipc_data *data)
+enum acipc_return_code acipc_data_read(acipc_data *data)
 {
 	IPC_ENTER();
 	/* reading the data from RDR */
@@ -228,6 +230,7 @@ static enum acipc_return_code acipc_data_read(acipc_data *data)
 
 	return ACIPC_RC_OK;
 }
+EXPORT_SYMBOL(acipc_data_read);
 
 static enum acipc_return_code acipc_event_status_get(u32 user_event,
 						     u32 *status)
@@ -253,7 +256,7 @@ static enum acipc_return_code acipc_event_status_get(u32 user_event,
 	return ACIPC_RC_OK;
 }
 
-static enum acipc_return_code acipc_event_bind(u32 user_event,
+enum acipc_return_code acipc_event_bind(u32 user_event,
 					       acipc_rec_event_callback cb,
 					       enum acipc_callback_mode cb_mode,
 					       u32 *historical_event_status)
@@ -290,8 +293,9 @@ static enum acipc_return_code acipc_event_bind(u32 user_event,
 	IPC_LEAVE();
 	return ACIPC_RC_OK;
 }
+EXPORT_SYMBOL(acipc_event_bind);
 
-static enum acipc_return_code acipc_event_unbind(u32 user_event)
+enum acipc_return_code acipc_event_unbind(u32 user_event)
 {
 	u32 i;
 
@@ -316,6 +320,7 @@ static enum acipc_return_code acipc_event_unbind(u32 user_event)
 	IPC_LEAVE();
 	return ACIPC_RC_OK;
 }
+EXPORT_SYMBOL(acipc_event_unbind);
 
 static irqreturn_t acipc_interrupt_handler(int irq, void *dev_id)
 {
@@ -340,7 +345,7 @@ static irqreturn_t acipc_interrupt_handler(int irq, void *dev_id)
 				/*
 				 * call the user callback with the status
 				 * of other events as define when the user
-				 * called ACIPCEventBind
+				 * called acipc_event_bind
 				 */
 				acipc->acipc_db.event_db[i].cb(on_events);
 
@@ -564,47 +569,6 @@ static void __exit pxa9xx_acipc_exit(void)
 {
 	platform_driver_unregister(&pxa9xx_acipc_driver);
 }
-
-enum acipc_return_code ACIPCEventBind(u32 user_event,
-				      acipc_rec_event_callback cb,
-				      enum acipc_callback_mode cb_mode,
-				      u32 *historical_event_status)
-{
-	return acipc_event_bind(user_event, cb, cb_mode,
-				historical_event_status);
-}
-EXPORT_SYMBOL(ACIPCEventBind);
-
-enum acipc_return_code ACIPCEventUnBind(u32 user_event)
-{
-	return acipc_event_unbind(user_event);
-}
-EXPORT_SYMBOL(ACIPCEventUnBind);
-
-enum acipc_return_code ACIPCEventSet(enum acipc_events user_event)
-{
-	return acipc_event_set(user_event);
-}
-EXPORT_SYMBOL(ACIPCEventSet);
-
-enum acipc_return_code ACIPCDataSend(enum acipc_events user_event,
-				     acipc_data data)
-{
-	return acipc_data_send(user_event, data);
-}
-EXPORT_SYMBOL(ACIPCDataSend);
-
-enum acipc_return_code ACIPCDataRead(acipc_data *data)
-{
-	return acipc_data_read(data);
-}
-EXPORT_SYMBOL(ACIPCDataRead);
-
-enum acipc_return_code ACIPCEventStatusGet(u32 userEvent, u32 *status)
-{
-	return acipc_event_status_get(userEvent, status);
-}
-EXPORT_SYMBOL(ACIPCEventStatusGet);
 
 module_init(pxa9xx_acipc_init);
 module_exit(pxa9xx_acipc_exit);

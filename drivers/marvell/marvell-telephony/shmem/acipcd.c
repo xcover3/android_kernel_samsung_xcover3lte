@@ -118,27 +118,27 @@ int acipc_init(u32 lpm_qos)
 	wakeup_source_init(&acipc_wakeup, "acipc_wakeup");
 
 	/* we do not check any return value */
-	ACIPCEventBind(ACIPC_MUDP_KEY, acipc_cb, ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_RINGBUF_TX_STOP, acipc_cb_rb_stop,
+	acipc_event_bind(ACIPC_MUDP_KEY, acipc_cb, ACIPC_CB_NORMAL, NULL);
+	acipc_event_bind(ACIPC_RINGBUF_TX_STOP, acipc_cb_rb_stop,
 		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_RINGBUF_TX_RESUME, acipc_cb_rb_resume,
+	acipc_event_bind(ACIPC_RINGBUF_TX_RESUME, acipc_cb_rb_resume,
 		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_PORT_FLOWCONTROL, acipc_cb_port_fc,
-		       ACIPC_CB_NORMAL, NULL);
-
-	ACIPCEventBind(ACIPC_RINGBUF_PSD_TX_STOP, acipc_cb_psd_rb_stop,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_RINGBUF_PSD_TX_RESUME, acipc_cb_psd_rb_resume,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_SHM_PSD_PACKET_NOTIFY, acipc_cb_psd_cb,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_SHM_DIAG_PACKET_NOTIFY, acipc_cb_diag_cb,
+	acipc_event_bind(ACIPC_PORT_FLOWCONTROL, acipc_cb_port_fc,
 		       ACIPC_CB_NORMAL, NULL);
 
-	ACIPCEventBind(ACIPC_MODEM_DDR_UPDATE_REQ, acipc_cb_event_notify,
+	acipc_event_bind(ACIPC_RINGBUF_PSD_TX_STOP, acipc_cb_psd_rb_stop,
+		       ACIPC_CB_NORMAL, NULL);
+	acipc_event_bind(ACIPC_RINGBUF_PSD_TX_RESUME, acipc_cb_psd_rb_resume,
+		       ACIPC_CB_NORMAL, NULL);
+	acipc_event_bind(ACIPC_SHM_PSD_PACKET_NOTIFY, acipc_cb_psd_cb,
+		       ACIPC_CB_NORMAL, NULL);
+	acipc_event_bind(ACIPC_SHM_DIAG_PACKET_NOTIFY, acipc_cb_diag_cb,
 		       ACIPC_CB_NORMAL, NULL);
 
-	ACIPCEventBind(ACIPC_IPM, acipc_cb_block_cpuidle_axi,
+	acipc_event_bind(ACIPC_MODEM_DDR_UPDATE_REQ, acipc_cb_event_notify,
+		       ACIPC_CB_NORMAL, NULL);
+
+	acipc_event_bind(ACIPC_IPM, acipc_cb_block_cpuidle_axi,
 		       ACIPC_CB_NORMAL, NULL);
 
 	pm_qos_cpuidle_block_axi = lpm_qos;
@@ -159,17 +159,17 @@ int acipc_init(u32 lpm_qos)
 /* acipc_exit used to unregister interrupt call-back function */
 void acipc_exit(void)
 {
-	ACIPCEventUnBind(ACIPC_SHM_PSD_PACKET_NOTIFY);
-	ACIPCEventUnBind(ACIPC_RINGBUF_PSD_TX_RESUME);
-	ACIPCEventUnBind(ACIPC_RINGBUF_PSD_TX_STOP);
-	ACIPCEventUnBind(ACIPC_PORT_FLOWCONTROL);
-	ACIPCEventUnBind(ACIPC_RINGBUF_TX_RESUME);
-	ACIPCEventUnBind(ACIPC_RINGBUF_TX_STOP);
-	ACIPCEventUnBind(ACIPC_MUDP_KEY);
-	ACIPCEventUnBind(ACIPC_SHM_DIAG_PACKET_NOTIFY);
-	ACIPCEventUnBind(ACIPC_MODEM_DDR_UPDATE_REQ);
+	acipc_event_unbind(ACIPC_SHM_PSD_PACKET_NOTIFY);
+	acipc_event_unbind(ACIPC_RINGBUF_PSD_TX_RESUME);
+	acipc_event_unbind(ACIPC_RINGBUF_PSD_TX_STOP);
+	acipc_event_unbind(ACIPC_PORT_FLOWCONTROL);
+	acipc_event_unbind(ACIPC_RINGBUF_TX_RESUME);
+	acipc_event_unbind(ACIPC_RINGBUF_TX_STOP);
+	acipc_event_unbind(ACIPC_MUDP_KEY);
+	acipc_event_unbind(ACIPC_SHM_DIAG_PACKET_NOTIFY);
+	acipc_event_unbind(ACIPC_MODEM_DDR_UPDATE_REQ);
 
-	ACIPCEventUnBind(ACIPC_IPM);
+	acipc_event_unbind(ACIPC_IPM);
 
 	pm_qos_remove_request(&cp_block_cpuidle_axi);
 
@@ -229,7 +229,7 @@ static u32 acipc_cb(u32 status)
 	u32 data;
 	u16 event;
 
-	ACIPCDataRead(&data);
+	acipc_data_read(&data);
 	event = (data & 0xFF00) >> 8;
 
 	switch (event) {

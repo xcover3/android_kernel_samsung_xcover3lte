@@ -88,7 +88,7 @@ struct acipc_database_cell {
 	enum acipc_callback_mode mode;
 	/*
 	 * add to support multiple events binding
-	 * see ACIPCEventBind for more details
+	 * see acipc_event_bind for more details
 	 */
 	u32 mask;
 	acipc_rec_event_callback cb;
@@ -125,14 +125,14 @@ struct acipc_ioctl_arg {
 	enum acipc_callback_mode cb_mode;
 };
 
-extern enum acipc_return_code ACIPCEventBind(u32 user_event,
-					     acipc_rec_event_callback cb,
-					     enum acipc_callback_mode cb_mode,
-					     u32 *historical_event_status);
-extern enum acipc_return_code ACIPCEventUnBind(u32 user_event);
-extern enum acipc_return_code ACIPCEventSet(enum acipc_events user_event);
-extern enum acipc_return_code ACIPCDataSend(enum acipc_events user_event,
-					    acipc_data data);
-extern enum acipc_return_code ACIPCDataRead(acipc_data *data);
+extern enum acipc_return_code acipc_event_bind(u32 user_event,
+					       acipc_rec_event_callback cb,
+					       enum acipc_callback_mode cb_mode,
+					       u32 *historical_event_status);
+extern enum acipc_return_code acipc_event_unbind(u32 user_event);
+extern enum acipc_return_code acipc_event_set(enum acipc_events user_event);
+extern enum acipc_return_code acipc_data_send(enum acipc_events user_event,
+					      acipc_data data);
+extern enum acipc_return_code acipc_data_read(acipc_data *data);
 
 #endif	/* _PXA9XX_ACIPC_H_ */
