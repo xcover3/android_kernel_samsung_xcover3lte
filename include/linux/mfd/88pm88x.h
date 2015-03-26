@@ -253,6 +253,15 @@ static inline struct regmap *get_codec_companion(void)
 }
 #endif
 
+#ifdef CONFIG_LEDS_88PM88X_CFD
+int get_flash_duration(unsigned int *duration);
+#else
+static inline int get_flash_duration(unsigned int *duration)
+{
+	return -EINVAL;
+}
+#endif
+
 static const struct resource vr_resources[] = {
 	{
 	.name = PM88X_VIRTUAL_REGULATOR_NAME,

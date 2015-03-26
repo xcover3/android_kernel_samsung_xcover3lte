@@ -141,6 +141,7 @@
 
 static int gpio_en;
 static unsigned int dev_num;
+static unsigned int delay_flash_timer;
 
 struct pm88x_led {
 	struct led_classdev cdev;
@@ -157,7 +158,6 @@ struct pm88x_led {
 	unsigned int iset_step;
 	unsigned int force_max_current;
 	unsigned int cfd_bst_vset;
-	unsigned int delay_flash_timer;
 	bool conn_cfout_ab;
 
 	int id;
@@ -575,7 +575,7 @@ static void strobe_flash(struct pm88x_led *led)
 		/* unlock mutex during sleep because flash off might be call */
 		mutex_unlock(&led->lock);
 		/* add 50msec for the HW delay which was chosen */
-		msleep(led->delay_flash_timer + 50);
+		msleep(delay_flash_timer + 50);
 		mutex_lock(&led->lock);
 
 		switch (chip->type) {
@@ -769,6 +769,16 @@ error:
 }
 
 static DEVICE_ATTR(gpio_ctrl, S_IRUGO | S_IWUSR, gpio_ctrl_show, gpio_ctrl_store);
+
+int get_flash_duration(unsigned int *duration)
+{
+	if (!duration)
+		return -EINVAL;
+	*duration = delay_flash_timer;
+
+	return 0;
+}
+EXPORT_SYMBOL(get_flash_duration);
 
 /* convert dts voltage value to register value, values in msec */
 static void convert_flash_timer_val_to_reg(struct pm88x_led_pdata *pdata)
@@ -1201,7 +1211,7 @@ static int pm88x_led_probe(struct platform_device *pdev)
 	led->cf_txmsk = pdata->cf_txmsk;
 	gpio_en = pdata->gpio_en;
 	led->cfd_bst_vset = pdata->cfd_bst_vset;
-	led->delay_flash_timer = pdata->delay_flash_timer;
+	delay_flash_timer = pdata->delay_flash_timer;
 
 	led->current_brightness = 0;
 	led->cdev.name = led->name;
