@@ -44,7 +44,6 @@ static u32 acipc_cb(u32 status);
 #ifdef CONFIG_DDR_DEVFREQ
 static u32 acipc_cb_modem_ddrfreq_update(u32 status);
 #endif
-static u32 acipc_cb_diag_cb(u32 status);
 
 static u32 acipc_cb_event_notify(u32 status);
 static u32 acipc_cb_block_cpuidle_axi(u32 status);
@@ -123,9 +122,6 @@ int acipc_init(u32 lpm_qos)
 	acipc_event_bind(ACIPC_PORT_FLOWCONTROL, acipc_cb_port_fc,
 		       ACIPC_CB_NORMAL, NULL);
 
-	acipc_event_bind(ACIPC_SHM_DIAG_PACKET_NOTIFY, acipc_cb_diag_cb,
-		       ACIPC_CB_NORMAL, NULL);
-
 	acipc_event_bind(ACIPC_MODEM_DDR_UPDATE_REQ, acipc_cb_event_notify,
 		       ACIPC_CB_NORMAL, NULL);
 
@@ -154,7 +150,6 @@ void acipc_exit(void)
 	acipc_event_unbind(ACIPC_RINGBUF_TX_RESUME);
 	acipc_event_unbind(ACIPC_RINGBUF_TX_STOP);
 	acipc_event_unbind(ACIPC_MUDP_KEY);
-	acipc_event_unbind(ACIPC_SHM_DIAG_PACKET_NOTIFY);
 	acipc_event_unbind(ACIPC_MODEM_DDR_UPDATE_REQ);
 
 	acipc_event_unbind(ACIPC_IPM);
@@ -174,7 +169,6 @@ void portq_peer_sync_cb(struct shm_rbctl *);
 void portq_rb_stop_cb(struct shm_rbctl *);
 void portq_rb_resume_cb(struct shm_rbctl *);
 void portq_port_fc_cb(struct shm_rbctl *);
-void direct_rb_packet_send_cb(struct shm_rbctl *);
 
 /* cp xmit stopped notify interrupt */
 static u32 acipc_cb_rb_stop(u32 status)
@@ -194,13 +188,6 @@ static u32 acipc_cb_rb_resume(u32 status)
 static u32 acipc_cb_port_fc(u32 status)
 {
 	portq_port_fc_cb(&shm_rbctl[shm_rb_main]);
-	return 0;
-}
-
-/* diag new packet arrival interrupt */
-static u32 acipc_cb_diag_cb(u32 status)
-{
-	direct_rb_packet_send_cb(&shm_rbctl[shm_rb_diag]);
 	return 0;
 }
 

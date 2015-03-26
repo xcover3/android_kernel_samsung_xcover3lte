@@ -297,9 +297,6 @@ static inline void shm_notify_packet_sent(struct shm_rbctl *rbctl)
 	case shm_rb_main:
 		acipc_notify_packet_sent();
 		break;
-	case shm_rb_diag:
-		acipc_notify_diag_packet_sent();
-		break;
 	case shm_rb_m3:
 		amipc_notify_packet_sent();
 		break;

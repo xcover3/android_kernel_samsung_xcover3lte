@@ -34,14 +34,15 @@
 #include <linux/workqueue.h>
 
 #include <linux/delay.h>
+#include <linux/pxa9xx_acipc.h>
 
-#include "acipcd.h"
 #include "msocket.h"
 #include "shm.h"
 #include "diag.h"
 #include "shm_share.h"
 #include "direct_rb.h"
 #include "tel_trace.h"
+#include "acipcd.h"
 
 #define RX_ENQUEUE_RATELIMIT (8192)
 /* max diag rx queue length, in byte */
@@ -54,6 +55,12 @@ static enum shm_rb_type direct_shm_rb_type[direct_rb_type_total_cnt] = {
 };
 
 static int direct_dump_flag;
+
+/* notify cp diag that new packet available in the socket buffer */
+static inline void acipc_notify_diag_packet_sent(void)
+{
+	acipc_event_set(ACIPC_SHM_DIAG_PACKET_NOTIFY);
+}
 
 static inline bool direct_rb_schedule_rx(struct direct_rbctl *dir_ctl)
 {
@@ -398,7 +405,7 @@ int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
 	dir_ctl->stat_tx_sent++;
 	skctl->ap_wptr = slot;	/* advance pointer index */
 
-	shm_notify_packet_sent(rbctl);
+	acipc_notify_diag_packet_sent();
 	return len;
 }
 EXPORT_SYMBOL(direct_rb_xmit);
@@ -551,6 +558,29 @@ void msocket_dump_direct_rb(void)
 	}
 }
 
+/* diag new packet arrival interrupt */
+static u32 acipc_cb_diag_cb(u32 status)
+{
+	direct_rb_packet_send_cb(&shm_rbctl[shm_rb_diag]);
+	return 0;
+}
+
+/* acipc_init is used to register interrupt call-back function */
+static inline int drb_acipc_init(void)
+{
+	/* we do not check any return value */
+	acipc_event_bind(ACIPC_SHM_DIAG_PACKET_NOTIFY, acipc_cb_diag_cb,
+		       ACIPC_CB_NORMAL, NULL);
+
+	return 0;
+}
+
+/* acipc_exit used to unregister interrupt call-back function */
+static inline void drb_acipc_exit(void)
+{
+	acipc_event_unbind(ACIPC_SHM_DIAG_PACKET_NOTIFY);
+}
+
 static int cp_link_status_notifier_func(struct notifier_block *this,
 	unsigned long code, void *cmd)
 {
@@ -599,6 +629,11 @@ int direct_rb_init(void)
 
 	register_cp_link_status_notifier(&cp_link_status_notifier);
 
+	if (drb_acipc_init() < 0) {
+		pr_err("%s: init acipc failed\n", __func__);
+		goto exit;
+	}
+
 	return 0;
 
 exit:
@@ -625,6 +660,7 @@ void direct_rb_exit(void)
 		spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
 	}
 
+	drb_acipc_exit();
 	unregister_cp_link_status_notifier(&cp_link_status_notifier);
 	misc_deregister(&msocketDirectDump_dev);
 }

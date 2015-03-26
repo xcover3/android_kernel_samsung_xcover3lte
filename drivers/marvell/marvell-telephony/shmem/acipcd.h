@@ -67,12 +67,6 @@ static inline void acipc_notify_ap_tx_stopped(void)
 	acipc_event_set(ACIPC_RINGBUF_TX_STOP);
 }
 
-/* notify cp diag that new packet available in the socket buffer */
-static inline void acipc_notify_diag_packet_sent(void)
-{
-	acipc_event_set(ACIPC_SHM_DIAG_PACKET_NOTIFY);
-}
-
 /*notify cp that ap will reset cp to let cp exit WFI state */
 static inline void acipc_notify_reset_cp_request(void)
 {
