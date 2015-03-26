@@ -67,32 +67,10 @@ static inline void acipc_notify_ap_tx_stopped(void)
 	acipc_event_set(ACIPC_RINGBUF_TX_STOP);
 }
 
-/* notify cp psd that new packet available in the socket buffer */
-static inline void acipc_notify_psd_packet_sent(void)
-{
-	acipc_event_set(ACIPC_SHM_PSD_PACKET_NOTIFY);
-}
-
 /* notify cp diag that new packet available in the socket buffer */
 static inline void acipc_notify_diag_packet_sent(void)
 {
 	acipc_event_set(ACIPC_SHM_DIAG_PACKET_NOTIFY);
-}
-
-/* notify cp psd that cp can continue transmission */
-static inline void acipc_notify_cp_psd_tx_resume(void)
-{
-	pr_warn_ratelimited(
-		"MSOCK: acipc_notify_cp_psd_tx_resume!!!\n");
-	acipc_event_set(ACIPC_RINGBUF_PSD_TX_RESUME);
-}
-
-/*notify cp psd that ap transmission is stopped, please resume me later */
-static inline void acipc_notify_ap_psd_tx_stopped(void)
-{
-	pr_warn_ratelimited(
-		"MSOCK: acipc_notify_ap_psd_tx_stopped!!!\n");
-	acipc_event_set(ACIPC_RINGBUF_PSD_TX_STOP);
 }
 
 /*notify cp that ap will reset cp to let cp exit WFI state */

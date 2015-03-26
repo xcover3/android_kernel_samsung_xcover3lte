@@ -40,9 +40,6 @@ struct wakeup_source acipc_wakeup; /* used to ensure Workqueue scheduled. */
 static u32 acipc_cb_rb_stop(u32 status);
 static u32 acipc_cb_rb_resume(u32 status);
 static u32 acipc_cb_port_fc(u32 status);
-static u32 acipc_cb_psd_rb_stop(u32 status);
-static u32 acipc_cb_psd_rb_resume(u32 status);
-static u32 acipc_cb_psd_cb(u32 status);
 static u32 acipc_cb(u32 status);
 #ifdef CONFIG_DDR_DEVFREQ
 static u32 acipc_cb_modem_ddrfreq_update(u32 status);
@@ -126,12 +123,6 @@ int acipc_init(u32 lpm_qos)
 	acipc_event_bind(ACIPC_PORT_FLOWCONTROL, acipc_cb_port_fc,
 		       ACIPC_CB_NORMAL, NULL);
 
-	acipc_event_bind(ACIPC_RINGBUF_PSD_TX_STOP, acipc_cb_psd_rb_stop,
-		       ACIPC_CB_NORMAL, NULL);
-	acipc_event_bind(ACIPC_RINGBUF_PSD_TX_RESUME, acipc_cb_psd_rb_resume,
-		       ACIPC_CB_NORMAL, NULL);
-	acipc_event_bind(ACIPC_SHM_PSD_PACKET_NOTIFY, acipc_cb_psd_cb,
-		       ACIPC_CB_NORMAL, NULL);
 	acipc_event_bind(ACIPC_SHM_DIAG_PACKET_NOTIFY, acipc_cb_diag_cb,
 		       ACIPC_CB_NORMAL, NULL);
 
@@ -159,9 +150,6 @@ int acipc_init(u32 lpm_qos)
 /* acipc_exit used to unregister interrupt call-back function */
 void acipc_exit(void)
 {
-	acipc_event_unbind(ACIPC_SHM_PSD_PACKET_NOTIFY);
-	acipc_event_unbind(ACIPC_RINGBUF_PSD_TX_RESUME);
-	acipc_event_unbind(ACIPC_RINGBUF_PSD_TX_STOP);
 	acipc_event_unbind(ACIPC_PORT_FLOWCONTROL);
 	acipc_event_unbind(ACIPC_RINGBUF_TX_RESUME);
 	acipc_event_unbind(ACIPC_RINGBUF_TX_STOP);
@@ -187,9 +175,6 @@ void portq_rb_stop_cb(struct shm_rbctl *);
 void portq_rb_resume_cb(struct shm_rbctl *);
 void portq_port_fc_cb(struct shm_rbctl *);
 void direct_rb_packet_send_cb(struct shm_rbctl *);
-void dp_packet_send_cb(struct shm_rbctl *);
-void dp_rb_stop_cb(struct shm_rbctl *);
-void dp_rb_resume_cb(struct shm_rbctl *);
 
 /* cp xmit stopped notify interrupt */
 static u32 acipc_cb_rb_stop(u32 status)
@@ -209,27 +194,6 @@ static u32 acipc_cb_rb_resume(u32 status)
 static u32 acipc_cb_port_fc(u32 status)
 {
 	portq_port_fc_cb(&shm_rbctl[shm_rb_main]);
-	return 0;
-}
-
-/* cp psd xmit stopped notify interrupt */
-static u32 acipc_cb_psd_rb_stop(u32 status)
-{
-	dp_rb_stop_cb(&shm_rbctl[shm_rb_psd]);
-	return 0;
-}
-
-/* cp psd wakeup ap xmit interrupt */
-static u32 acipc_cb_psd_rb_resume(u32 status)
-{
-	dp_rb_resume_cb(&shm_rbctl[shm_rb_psd]);
-	return 0;
-}
-
-/* psd new packet arrival interrupt */
-static u32 acipc_cb_psd_cb(u32 status)
-{
-	dp_packet_send_cb(&shm_rbctl[shm_rb_psd]);
 	return 0;
 }
 

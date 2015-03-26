@@ -297,9 +297,6 @@ static inline void shm_notify_packet_sent(struct shm_rbctl *rbctl)
 	case shm_rb_main:
 		acipc_notify_packet_sent();
 		break;
-	case shm_rb_psd:
-		acipc_notify_psd_packet_sent();
-		break;
 	case shm_rb_diag:
 		acipc_notify_diag_packet_sent();
 		break;
@@ -327,8 +324,6 @@ static inline void shm_notify_cp_tx_resume(struct shm_rbctl *rbctl)
 
 	if (rbctl->rb_type == shm_rb_main)
 		acipc_notify_cp_tx_resume();
-	else if (rbctl->rb_type == shm_rb_psd)
-		acipc_notify_cp_psd_tx_resume();
 	else if (rbctl->rb_type == shm_rb_m3)
 		amipc_notify_m3_tx_resume();
 }
@@ -343,8 +338,6 @@ static inline void shm_notify_ap_tx_stopped(struct shm_rbctl *rbctl)
 
 	if (rbctl->rb_type == shm_rb_main)
 		acipc_notify_ap_tx_stopped();
-	else if (rbctl->rb_type == shm_rb_psd)
-		acipc_notify_ap_psd_tx_stopped();
 	else if (rbctl->rb_type == shm_rb_m3)
 		amipc_notify_ap_tx_stopped();
 }

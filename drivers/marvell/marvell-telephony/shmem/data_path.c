@@ -24,6 +24,8 @@
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include <linux/ctype.h>
+#include <linux/ratelimit.h>
+#include <linux/pxa9xx_acipc.h>
 #include "shm_share.h"
 #include "acipcd.h"
 #include "shm.h"
@@ -154,6 +156,28 @@ static inline int tx_q_avail_length(struct data_path *dp, int free_slots)
 	return len;
 }
 
+/* notify cp psd that new packet available in the socket buffer */
+static inline void acipc_notify_psd_packet_sent(void)
+{
+	acipc_event_set(ACIPC_SHM_PSD_PACKET_NOTIFY);
+}
+
+/* notify cp psd that cp can continue transmission */
+static inline void acipc_notify_cp_psd_tx_resume(void)
+{
+	pr_warn_ratelimited(
+		"MSOCK: acipc_notify_cp_psd_tx_resume!!!\n");
+	acipc_event_set(ACIPC_RINGBUF_PSD_TX_RESUME);
+}
+
+/*notify cp psd that ap transmission is stopped, please resume me later */
+static inline void acipc_notify_ap_psd_tx_stopped(void)
+{
+	pr_warn_ratelimited(
+		"MSOCK: acipc_notify_ap_psd_tx_stopped!!!\n");
+	acipc_event_set(ACIPC_RINGBUF_PSD_TX_STOP);
+}
+
 static void data_path_tx_func(unsigned long arg)
 {
 	struct data_path *dp = (struct data_path *)arg;
@@ -199,8 +223,10 @@ static void data_path_tx_func(unsigned long arg)
 			 * have a watermark for resume interrupt,
 			 * we can assume it is safe
 			 */
-			if (tx_q_length(dp) && !rbctl->is_ap_xmit_stopped)
+			if (tx_q_length(dp) && !rbctl->is_ap_xmit_stopped) {
 				shm_notify_ap_tx_stopped(rbctl);
+				acipc_notify_ap_psd_tx_stopped();
+			}
 			break;
 		} else if (free_slots == 1 && pending_slot != -1) {
 			/*
@@ -216,6 +242,7 @@ static void data_path_tx_func(unsigned long arg)
 			if (padded_size(packet->len) > remain_bytes &&
 				!rbctl->is_ap_xmit_stopped) {
 				shm_notify_ap_tx_stopped(rbctl);
+				acipc_notify_ap_psd_tx_stopped();
 				break;
 			}
 		}
@@ -320,7 +347,7 @@ static void data_path_tx_func(unsigned long arg)
 
 	if (consumed_slot > 0) {
 		trace_psd_xmit_irq(consumed_slot);
-		shm_notify_packet_sent(rbctl);
+		acipc_notify_psd_packet_sent();
 		dp->stat.tx_interrupts++;
 		dp->stat.tx_sched_q_len += start_q_len;
 	}
@@ -391,6 +418,7 @@ static void data_path_rx_func(unsigned long arg)
 		if (rbctl->is_cp_xmit_stopped
 		    && shm_has_enough_free_rx_skbuf(rbctl)) {
 			shm_notify_cp_tx_resume(rbctl);
+			acipc_notify_cp_psd_tx_resume();
 		}
 
 		if (shm_is_recv_empty(rbctl))
@@ -980,6 +1008,49 @@ struct shm_callback dp_shm_cb = {
 	.dummy  = NULL,
 };
 
+/* cp psd xmit stopped notify interrupt */
+static u32 acipc_cb_psd_rb_stop(u32 status)
+{
+	dp_rb_stop_cb(&shm_rbctl[shm_rb_psd]);
+	return 0;
+}
+
+/* cp psd wakeup ap xmit interrupt */
+static u32 acipc_cb_psd_rb_resume(u32 status)
+{
+	dp_rb_resume_cb(&shm_rbctl[shm_rb_psd]);
+	return 0;
+}
+
+/* psd new packet arrival interrupt */
+static u32 acipc_cb_psd_cb(u32 status)
+{
+	dp_packet_send_cb(&shm_rbctl[shm_rb_psd]);
+	return 0;
+}
+
+static int dp_acipc_init(void)
+{
+	/* we do not check any return value */
+	acipc_event_bind(ACIPC_RINGBUF_PSD_TX_STOP, acipc_cb_psd_rb_stop,
+		       ACIPC_CB_NORMAL, NULL);
+	acipc_event_bind(ACIPC_RINGBUF_PSD_TX_RESUME, acipc_cb_psd_rb_resume,
+		       ACIPC_CB_NORMAL, NULL);
+	acipc_event_bind(ACIPC_SHM_PSD_PACKET_NOTIFY, acipc_cb_psd_cb,
+		       ACIPC_CB_NORMAL, NULL);
+
+	return 0;
+}
+
+/* acipc_exit used to unregister interrupt call-back function */
+static void dp_acipc_exit(void)
+{
+	acipc_event_unbind(ACIPC_SHM_PSD_PACKET_NOTIFY);
+	acipc_event_unbind(ACIPC_RINGBUF_PSD_TX_RESUME);
+	acipc_event_unbind(ACIPC_RINGBUF_PSD_TX_STOP);
+}
+
+
 static int cp_link_status_notifier_func(struct notifier_block *this,
 	unsigned long code, void *cmd)
 {
@@ -1021,8 +1092,13 @@ int data_path_init(void)
 	if (register_cp_link_status_notifier(&cp_link_status_notifier) < 0)
 		goto exit;
 
+	if (dp_acipc_init() < 0)
+		goto unregister;
+
 	return 0;
 
+unregister:
+	unregister_cp_link_status_notifier(&cp_link_status_notifier);
 exit:
 	for (dp2 = data_path; dp2 != dp; ++dp2)
 		shm_close(dp2->rbctl);
@@ -1043,6 +1119,8 @@ void data_path_exit(void)
 {
 	struct data_path *dp;
 	const struct data_path *dp_end = data_path + dp_type_total_cnt;
+
+	dp_acipc_exit();
 
 	unregister_cp_link_status_notifier(&cp_link_status_notifier);
 
