@@ -1,4 +1,4 @@
-/* Marvell ISP S5K3L2 Driver
+/* Marvell ISP S5K4H5 Driver
  *
  * Copyright (C) 2009-2010 Marvell International Ltd.
  *
@@ -66,12 +66,287 @@ static int S5K4H5_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 	*rate = 279736500;
 	return 0;
 }
+static char S5K4H5_vcm_read_reg(struct v4l2_subdev *sd, char reg)
+{
+	const struct b52_sensor_i2c_attr attr = {
+		.reg_len = I2C_8BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x0c,
+	};
+	struct b52_cmd_i2c_data data;
+	struct regval_tab tab;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+	data.attr = &attr;
+	data.tab = &tab;
+	data.num = 1;
+	data.pos = sensor->pos;
+
+	tab.reg = reg;
+	tab.mask = 0xff;
+	b52_cmd_read_i2c(&data);
+	return tab.val;
+}
+static char S5K4H5_eflash_read_reg(struct v4l2_subdev *sd, short reg)
+{
+	const struct b52_sensor_i2c_attr attr = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x58,
+	};
+	struct b52_cmd_i2c_data data;
+	struct regval_tab tab;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+	data.attr = &attr;
+	data.tab = &tab;
+	data.num = 1;
+	data.pos = sensor->pos;
+
+	tab.reg = reg;
+	tab.mask = 0xff;
+	b52_cmd_read_i2c(&data);
+	return tab.val;
+}
+static void S5K4H5_eflash_write_reg(struct v4l2_subdev *sd, short reg, char val)
+{
+	const struct b52_sensor_i2c_attr attr = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x58,
+	};
+	struct b52_cmd_i2c_data data;
+	struct regval_tab tab;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+	data.attr = &attr;
+	data.tab = &tab;
+	data.num = 1;
+	data.pos = sensor->pos;
+
+	tab.reg = reg;
+	tab.val = val;
+	tab.mask = 0xff;
+	b52_cmd_write_i2c(&data);
+	return;
+}
+#define ER BIT(7)
+#define PG BIT(1)
+#define EFLSH_PAGE_SIZE 1024
+static void S5K4H5_erase_page(struct v4l2_subdev *sd, char page)
+{
+	char val =  0;
+	const struct b52_sensor_i2c_attr attr = {
+		.reg_len = I2C_8BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x58,
+	};
+	struct b52_cmd_i2c_data data;
+	struct regval_tab tab;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+	data.attr = &attr;
+	data.tab = &tab;
+	data.num = 1;
+	data.pos = sensor->pos;
+
+	val = ER | PG | (page<<2);
+	tab.reg = val;
+	tab.val = 0xee;
+	tab.mask = 0xff;
+	/* wait for last step over */
+	while (S5K4H5_vcm_read_reg(sd, 0x05) & 0x02)
+		usleep_range(100, 300);
+	b52_cmd_write_i2c(&data);
+	/* wait for last step over */
+	while (S5K4H5_vcm_read_reg(sd, 0x05) & 0x02)
+		usleep_range(2500, 3000);
+}
+static int S5K4H5_otp_write(struct v4l2_subdev *sd,
+		unsigned int offset, char *buffer, int len)
+{
+	unsigned short head, tail, tmp_addr;
+	char *tmp_buffer;
+	int i = 0;
+	head = rounddown(offset, EFLSH_PAGE_SIZE);
+	tail = roundup(offset + len, EFLSH_PAGE_SIZE);
+	if (buffer == NULL || len == 0)
+		return -EINVAL;
+	tmp_buffer =  devm_kzalloc(sd->dev, tail - head, GFP_KERNEL);
+	/* read the  head */
+	tmp_addr = head;
+	while (tmp_addr < offset)
+		tmp_buffer[i++] = S5K4H5_eflash_read_reg(sd, tmp_addr++);
+	/* read the  tail */
+	tmp_addr = offset + len;
+	i = len + offset - head;
+	while (tmp_addr < tail)
+		tmp_buffer[i++] = S5K4H5_eflash_read_reg(sd, tmp_addr++);
+	/* fill the buffer */
+	tmp_addr = offset - head;
+	i = 0;
+	while (i < len)
+		tmp_buffer[tmp_addr++] = buffer[i++];
+	tmp_addr = head;
+	while (tmp_addr < tail) {
+		S5K4H5_erase_page(sd, tmp_addr>>10);
+		tmp_addr += EFLSH_PAGE_SIZE;
+	}
+	tmp_addr = head;
+	i = 0;
+	while (tmp_addr < tail)
+		S5K4H5_eflash_write_reg(sd, tmp_addr++, tmp_buffer[i++]);
+	return 0;
+}
+#define GROUP1_LEN 0x100
+#define GROUP2_LEN 0x800
+#define GROUP3_LEN 0x100
+#define GROUP4_LEN 0x800
+#define FULL_LEN 0x2000
+
+
+#define MODULE_OFFSET	0x08b0
+#define AF_OFFSET	0x0100
+#define GWB_OFFSET	0x0140
+#define WB_OFFSET	0x0900
+#define LSC_OFFSET	0x0a0c
+static int S5K4H5_read_data(struct v4l2_subdev *sd,
+				struct b52_sensor_otp *otp)
+{
+	int i, len, tmp_len = 0;
+	int ret = 0;
+	char *paddr = NULL;
+	ushort bank_addr;
+	char *bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
+	char *bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
+	char *bank_grp3 = devm_kzalloc(sd->dev, GROUP3_LEN, GFP_KERNEL);
+	char *bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
+	char *bank_full = devm_kzalloc(sd->dev, FULL_LEN, GFP_KERNEL);
+	len = otp->user_otp->module_data_len;
+	if (len > 0) {
+		bank_addr = MODULE_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp1[i] = S5K4H5_eflash_read_reg(sd, bank_addr++);
+		paddr = otp->user_otp->module_data;
+		if (copy_to_user(paddr, &bank_grp1[0],
+							len)) {
+			ret = -EIO;
+			goto err;
+		}
+	}
+	len = otp->user_otp->vcm_otp_len;
+	if (len != 0 || otp->user_otp->wb_otp_len != 0) {
+		bank_addr =  AF_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp2[i] = S5K4H5_eflash_read_reg(sd, bank_addr++);
+		if (len > 0) {
+			paddr = (char *)otp->user_otp->otp_data + tmp_len;
+			if (copy_to_user(paddr,
+					&bank_grp2[0],
+					len)) {
+				ret = -EIO;
+				goto err;
+			}
+			tmp_len += len;
+		}
+		len = otp->user_otp->wb_otp_len/2;
+		bank_addr =  GWB_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp2[i] =  S5K4H5_eflash_read_reg(sd, bank_addr++);
+		if (len > 0) {
+			paddr = (char *) otp->user_otp->otp_data + tmp_len;
+			if (copy_to_user(paddr,
+				&bank_grp2[0], len)) {
+				ret = -EIO;
+				goto err;
+			}
+			tmp_len += len;
+		}
+	}
+	len = otp->user_otp->wb_otp_len/2;
+	if (len > 0) {
+		bank_addr =  WB_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp3[i] = S5K4H5_eflash_read_reg(sd, bank_addr++);
+		paddr = (char *)otp->user_otp->otp_data + tmp_len;
+		if (copy_to_user(paddr,
+				&bank_grp3[0], len)) {
+			ret = -EIO;
+			goto err;
+		}
+		tmp_len += len;
+	}
+	len = otp->user_otp->lsc_otp_len;
+	if (len > 0) {
+		bank_addr =  LSC_OFFSET;
+		for (i = 0; i < len; i++)
+			bank_grp4[i] = S5K4H5_eflash_read_reg(sd, bank_addr++);
+		paddr = (char *)(otp->user_otp->otp_data + tmp_len);
+		if (copy_to_user(paddr, &bank_grp4[0], len)) {
+			ret = -EIO;
+			goto err;
+		}
+	}
+	len = otp->user_otp->full_otp_len;
+	if (len > 0) {
+		bank_addr =  0x0000;
+		for (i = 0; i < len; i++)
+			bank_full[i] = S5K4H5_eflash_read_reg(sd, bank_addr++);
+		paddr = (char *)(otp->user_otp->full_otp);
+		if (copy_to_user(paddr, &bank_full[0], len)) {
+			ret = -EIO;
+			goto err;
+		}
+	}
+err:
+	devm_kfree(sd->dev, bank_grp1);
+	devm_kfree(sd->dev, bank_grp2);
+	devm_kfree(sd->dev, bank_grp3);
+	devm_kfree(sd->dev, bank_grp4);
+	devm_kfree(sd->dev, bank_full);
+	return ret;
+}
 static int S5K4H5_update_otp(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *otp)
 {
-	pr_err("Marvell_Unifiled_OTP_ID_INF for S5K4H5: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
-		0, 0, 0, 0);
-	return 0;
+	int ret;
+	char *module_id;
+	char *tmp_write = NULL;
+	if (otp->user_otp == NULL)
+		return -EINVAL;
+	if (otp->otp_type ==  ISP_TO_SENSOR) {
+		if (otp->user_otp->module_data_len)
+			S5K4H5_otp_write(sd, MODULE_OFFSET,
+						otp->user_otp->module_data,
+						otp->user_otp->module_data_len);
+		if (otp->user_otp->vcm_otp_len)
+			S5K4H5_otp_write(sd, AF_OFFSET,
+						otp->user_otp->otp_data,
+						otp->user_otp->vcm_otp_len);
+		tmp_write = otp->user_otp->otp_data +
+					otp->user_otp->vcm_otp_len;
+		if (otp->user_otp->wb_otp_len)
+			S5K4H5_otp_write(sd, GWB_OFFSET,
+						tmp_write,
+						otp->user_otp->wb_otp_len);
+		tmp_write = otp->user_otp->otp_data +
+					otp->user_otp->vcm_otp_len +
+					otp->user_otp->wb_otp_len;
+		if (otp->user_otp->lsc_otp_len)
+			S5K4H5_otp_write(sd, LSC_OFFSET,
+						tmp_write,
+						otp->user_otp->lsc_otp_len);
+		if (otp->user_otp->full_otp_len)
+			S5K4H5_otp_write(sd, otp->user_otp->full_otp_offset,
+					otp->user_otp->full_otp,
+					otp->user_otp->full_otp_len);
+		return 0;
+	}
+	if (otp->otp_type ==  SENSOR_TO_ISP) {
+		module_id = otp->user_otp->module_data;
+		ret = S5K4H5_read_data(sd, otp);
+		if (otp->user_otp->module_data_len > 0)
+			pr_err("Marvell_Unifiled_OTP_ID_INF for S5K4H5: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
+				*module_id, 0, 0, 0);
+		return ret;
+	}
+	return -1;
 }
 
 static int S5K4H5_s_power(struct v4l2_subdev *sd, int on)
