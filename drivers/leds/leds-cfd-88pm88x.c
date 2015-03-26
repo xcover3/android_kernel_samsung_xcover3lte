@@ -775,7 +775,7 @@ static void convert_flash_timer_val_to_reg(struct pm88x_led_pdata *pdata)
 {
 	/* in milliseconds */
 	int flash_timer_values[] = { 16, 23, 31, 39, 47, 57, 62, 70, 125, 187, 250, 312, 375, 437,
-					500, 565, 1000, 1500, 2000, 2500, 3000, 3496, 4000, 4520};
+					500, 1000, 1500, 2000, 2500, 3000, 3496, 4000, 4520};
 	int num_of_flash_timer_values = ARRAY_SIZE(flash_timer_values);
 	int i;
 
