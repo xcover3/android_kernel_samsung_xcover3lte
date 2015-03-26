@@ -131,6 +131,17 @@ int mmpfb_ioctl_flip_fence(struct fb_info *info, unsigned long arg)
 	}
 
 	check_pitch(&surface);
+
+	/* Sometime, need zoom feature on video layer, so force the dst resolution
+	 * to real panel resolutin.
+	 */
+	if (is_virtual_display && (fbi->overlay->id == PN_VID)) {
+		if (surface.win.xdst != fbi->overlay->path->mode.real_xres)
+			surface.win.xdst = fbi->overlay->path->mode.real_xres;
+		if (surface.win.ydst != fbi->overlay->path->mode.real_yres)
+			surface.win.ydst = fbi->overlay->path->mode.real_yres;
+	}
+
 	mmp_overlay_set_surface(fbi->overlay, &surface);
 
 	return 0;

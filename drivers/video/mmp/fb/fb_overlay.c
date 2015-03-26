@@ -183,6 +183,10 @@ static int mmpfb_overlay_probe(struct platform_device *pdev)
 
 	mmpfb_overlay_vsync_notify_init(fbi);
 
+	/* Disable Graphic layer after boot up, becaues uboot use graphic for logo */
+	if (fbi->overlay->id == PN_GRA)
+		mmp_overlay_set_status(fbi->overlay, MMP_OFF_DMA);
+
 	dev_info(fbi->dev, "loaded to /dev/fb%d <%s>.\n",
 		info->node, info->fix.id);
 

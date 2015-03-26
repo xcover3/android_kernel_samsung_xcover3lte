@@ -249,6 +249,14 @@
 				vqmmc-supply	= <&ldo10>;
 				vmmc-supply	= <&ldo14>;
 			};
+
+			fb0: fbbase {
+				marvell,overlay-id = <0>;
+			};
+
+			fb1: fboverlay {
+				marvell,overlay-id = <1>;
+			};
 		};
 
 		/* sensors */

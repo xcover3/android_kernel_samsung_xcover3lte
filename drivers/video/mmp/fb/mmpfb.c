@@ -31,6 +31,7 @@
 
 /* As bootloader always enable display, so we usually skip power on sequence in kernel */
 static unsigned int no_skipped_power_on;
+unsigned int is_virtual_display;
 static int __init early_fbboot(char *str)
 {
 	/* If no_skipped_power_on, kernel will follow normal display power on sequence */
