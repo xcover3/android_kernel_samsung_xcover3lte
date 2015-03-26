@@ -261,6 +261,8 @@ void portq_rb_stop_cb(struct shm_rbctl *rbctl)
 {
 	struct portq_group *pgrp = (struct portq_group *)rbctl->priv;
 
+	shm_rb_stop(rbctl);
+
 	__pm_wakeup_event(pgrp->ipc_ws, 5000);
 
 	/*
@@ -274,6 +276,8 @@ void portq_rb_stop_cb(struct shm_rbctl *rbctl)
 void portq_rb_resume_cb(struct shm_rbctl *rbctl)
 {
 	struct portq_group *pgrp = (struct portq_group *)rbctl->priv;
+
+	shm_rb_resume(rbctl);
 
 	__pm_wakeup_event(pgrp->ipc_ws, 2000);
 
@@ -291,18 +295,11 @@ void portq_m3_peer_sync_cb(struct shm_rbctl *rbctl)
 }
 
 struct shm_callback portq_cp_shm_cb = {
-	.peer_sync_cb    = portq_peer_sync_cb,
-	.packet_send_cb  = portq_packet_send_cb,
-	.port_fc_cb      = portq_port_fc_cb,
-	.rb_stop_cb      = portq_rb_stop_cb,
-	.rb_resume_cb    = portq_rb_resume_cb,
+	.dummy = NULL,
 };
 
 struct shm_callback portq_m3_shm_cb = {
-	.peer_sync_cb    = portq_m3_peer_sync_cb,
-	.packet_send_cb  = portq_packet_send_cb,
-	.rb_stop_cb      = portq_rb_stop_cb,
-	.rb_resume_cb    = portq_rb_resume_cb,
+	.dummy = NULL,
 };
 
 static int cp_link_status_notifier_func(struct notifier_block *this,

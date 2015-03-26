@@ -181,46 +181,63 @@ void acipc_exit(void)
 #endif
 }
 
+void portq_packet_send_cb(struct shm_rbctl *);
+void portq_peer_sync_cb(struct shm_rbctl *);
+void portq_rb_stop_cb(struct shm_rbctl *);
+void portq_rb_resume_cb(struct shm_rbctl *);
+void portq_port_fc_cb(struct shm_rbctl *);
+void direct_rb_packet_send_cb(struct shm_rbctl *);
+void dp_packet_send_cb(struct shm_rbctl *);
+void dp_rb_stop_cb(struct shm_rbctl *);
+void dp_rb_resume_cb(struct shm_rbctl *);
+
 /* cp xmit stopped notify interrupt */
 static u32 acipc_cb_rb_stop(u32 status)
 {
-	return shm_rb_stop_cb(&shm_rbctl[shm_rb_main]);
+	portq_rb_stop_cb(&shm_rbctl[shm_rb_main]);
+	return 0;
 }
 
 /* cp wakeup ap xmit interrupt */
 static u32 acipc_cb_rb_resume(u32 status)
 {
-	return shm_rb_resume_cb(&shm_rbctl[shm_rb_main]);
+	portq_rb_resume_cb(&shm_rbctl[shm_rb_main]);
+	return 0;
 }
 
 /* cp notify ap port flow control */
 static u32 acipc_cb_port_fc(u32 status)
 {
-	return shm_port_fc_cb(&shm_rbctl[shm_rb_main]);
+	portq_port_fc_cb(&shm_rbctl[shm_rb_main]);
+	return 0;
 }
 
 /* cp psd xmit stopped notify interrupt */
 static u32 acipc_cb_psd_rb_stop(u32 status)
 {
-	return shm_rb_stop_cb(&shm_rbctl[shm_rb_psd]);
+	dp_rb_stop_cb(&shm_rbctl[shm_rb_psd]);
+	return 0;
 }
 
 /* cp psd wakeup ap xmit interrupt */
 static u32 acipc_cb_psd_rb_resume(u32 status)
 {
-	return shm_rb_resume_cb(&shm_rbctl[shm_rb_psd]);
+	dp_rb_resume_cb(&shm_rbctl[shm_rb_psd]);
+	return 0;
 }
 
 /* psd new packet arrival interrupt */
 static u32 acipc_cb_psd_cb(u32 status)
 {
-	return shm_packet_send_cb(&shm_rbctl[shm_rb_psd]);
+	dp_packet_send_cb(&shm_rbctl[shm_rb_psd]);
+	return 0;
 }
 
 /* diag new packet arrival interrupt */
 static u32 acipc_cb_diag_cb(u32 status)
 {
-	return shm_packet_send_cb(&shm_rbctl[shm_rb_diag]);
+	direct_rb_packet_send_cb(&shm_rbctl[shm_rb_diag]);
+	return 0;
 }
 
 /* new packet arrival interrupt */
@@ -234,11 +251,11 @@ static u32 acipc_cb(u32 status)
 
 	switch (event) {
 	case PACKET_SENT:
-		shm_packet_send_cb(&shm_rbctl[shm_rb_main]);
+		portq_packet_send_cb(&shm_rbctl[shm_rb_main]);
 		break;
 
 	case PEER_SYNC:
-		shm_peer_sync_cb(&shm_rbctl[shm_rb_main]);
+		portq_peer_sync_cb(&shm_rbctl[shm_rb_main]);
 		break;
 
 	default:

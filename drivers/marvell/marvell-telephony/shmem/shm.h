@@ -124,11 +124,7 @@ struct shm_rbctl {
 };
 
 struct shm_callback {
-	void (*peer_sync_cb)(struct shm_rbctl *);
-	void (*packet_send_cb)(struct shm_rbctl *);
-	void (*port_fc_cb)(struct shm_rbctl *);
-	void (*rb_stop_cb)(struct shm_rbctl *);
-	void (*rb_resume_cb)(struct shm_rbctl *);
+	void (*dummy)(void);
 };
 
 /* share memory control block structure */
@@ -257,32 +253,8 @@ static inline bool shm_is_cp_pmic_master(struct shm_rbctl *rbctl)
 	return rbctl->skctl_va->cp_pcm_master == PMIC_MASTER_FLAG;
 }
 
-/* callback wrapper for acipcd */
-static inline u32 shm_peer_sync_cb(struct shm_rbctl *rbctl)
-{
-	if (rbctl && rbctl->cbs && rbctl->cbs->peer_sync_cb)
-		rbctl->cbs->peer_sync_cb(rbctl);
-
-	return 0;
-}
-
-static inline u32 shm_packet_send_cb(struct shm_rbctl *rbctl)
-{
-	if (rbctl && rbctl->cbs && rbctl->cbs->packet_send_cb)
-		rbctl->cbs->packet_send_cb(rbctl);
-
-	return 0;
-}
-
-static inline u32 shm_port_fc_cb(struct shm_rbctl *rbctl)
-{
-	if (rbctl && rbctl->cbs && rbctl->cbs->port_fc_cb)
-		rbctl->cbs->port_fc_cb(rbctl);
-
-	return 0;
-}
-
-static inline u32 shm_rb_stop_cb(struct shm_rbctl *rbctl)
+/* update status in ring buffer fc */
+static inline u32 shm_rb_stop(struct shm_rbctl *rbctl)
 {
 	if (!rbctl)
 		return 0;
@@ -290,22 +262,16 @@ static inline u32 shm_rb_stop_cb(struct shm_rbctl *rbctl)
 	rbctl->cp_stopped_num++;
 	rbctl->is_cp_xmit_stopped = true;
 
-	if (rbctl->cbs && rbctl->cbs->rb_stop_cb)
-		rbctl->cbs->rb_stop_cb(rbctl);
-
 	return 0;
 }
 
-static inline u32 shm_rb_resume_cb(struct shm_rbctl *rbctl)
+static inline u32 shm_rb_resume(struct shm_rbctl *rbctl)
 {
 	if (!rbctl)
 		return 0;
 
 	rbctl->ap_resumed_num++;
 	rbctl->is_ap_xmit_stopped = false;
-
-	if (rbctl->cbs && rbctl->cbs->rb_resume_cb)
-		rbctl->cbs->rb_resume_cb(rbctl);
 
 	return 0;
 }

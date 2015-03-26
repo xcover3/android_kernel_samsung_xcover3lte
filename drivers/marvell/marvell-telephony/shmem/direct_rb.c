@@ -198,11 +198,7 @@ void direct_rb_packet_send_cb(struct shm_rbctl *rbctl)
 }
 
 struct shm_callback direct_path_shm_cb = {
-	.peer_sync_cb    = NULL,
-	.packet_send_cb  = direct_rb_packet_send_cb,
-	.port_fc_cb      = NULL,
-	.rb_stop_cb      = NULL,
-	.rb_resume_cb    = NULL,
+	.dummy    = NULL,
 };
 
 static void direct_rb_rx_worker(struct work_struct *work)

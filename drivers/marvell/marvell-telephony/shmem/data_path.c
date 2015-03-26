@@ -913,6 +913,8 @@ void dp_rb_stop_cb(struct shm_rbctl *rbctl)
 	if (!rbctl)
 		return;
 
+	shm_rb_stop(rbctl);
+
 	dp = rbctl->priv;
 
 	__pm_wakeup_event(&acipc_wakeup, 5000);
@@ -931,6 +933,8 @@ void dp_rb_resume_cb(struct shm_rbctl *rbctl)
 
 	if (!rbctl)
 		return;
+
+	shm_rb_resume(rbctl);
 
 	dp = rbctl->priv;
 
@@ -973,9 +977,7 @@ void dp_packet_send_cb(struct shm_rbctl *rbctl)
 }
 
 struct shm_callback dp_shm_cb = {
-	.packet_send_cb  = dp_packet_send_cb,
-	.rb_stop_cb      = dp_rb_stop_cb,
-	.rb_resume_cb    = dp_rb_resume_cb,
+	.dummy  = NULL,
 };
 
 static int cp_link_status_notifier_func(struct notifier_block *this,

@@ -51,6 +51,11 @@ void amipc_exit(void)
 	wakeup_source_trash(&amipc_wakeup);
 }
 
+void portq_packet_send_cb(struct shm_rbctl *);
+void portq_m3_peer_sync_cb(struct shm_rbctl *);
+void portq_rb_stop_cb(struct shm_rbctl *);
+void portq_rb_resume_cb(struct shm_rbctl *);
+
 /* new packet arrival interrupt */
 static u32 amipc_cb(u32 status)
 {
@@ -62,11 +67,11 @@ static u32 amipc_cb(u32 status)
 
 	switch (event) {
 	case PACKET_SENT:
-		shm_packet_send_cb(&shm_rbctl[shm_rb_m3]);
+		portq_packet_send_cb(&shm_rbctl[shm_rb_m3]);
 		break;
 
 	case PEER_SYNC:
-		shm_peer_sync_cb(&shm_rbctl[shm_rb_m3]);
+		portq_m3_peer_sync_cb(&shm_rbctl[shm_rb_m3]);
 		break;
 
 	default:
@@ -87,11 +92,11 @@ static u32 amipc_cb_fc(u32 status)
 
 	switch (event) {
 	case TX_STOP:
-		shm_rb_stop_cb(&shm_rbctl[shm_rb_m3]);
+		portq_rb_stop_cb(&shm_rbctl[shm_rb_m3]);
 		break;
 
 	case TX_RESUME:
-		shm_rb_resume_cb(&shm_rbctl[shm_rb_m3]);
+		portq_rb_resume_cb(&shm_rbctl[shm_rb_m3]);
 		break;
 
 	default:
