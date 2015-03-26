@@ -339,7 +339,7 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 		    && (abs(info->hk_avg - voltage) > PM886_HK_DELTA))
 			goto FAKE_HOOK;
 		else if (!info->hk_avg)
-			if (voltage > 35 && voltage < info->hook_press_th - 20)
+			if (voltage > 35 && voltage < info->hook_press_th - 40)
 				goto FAKE_HOOK;
 	}
 
