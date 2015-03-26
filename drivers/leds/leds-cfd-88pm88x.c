@@ -358,26 +358,45 @@ static void torch_on(struct pm88x_led *led)
 	schedule_delayed_work(&led->delayed_work, jiffies);
 }
 
-static void torch_off(struct pm88x_led *led)
+static void cfd_pls_off(struct pm88x_led *led)
 {
 	struct pm88x_chip *chip;
 
 	chip = led->chip;
-	cancel_delayed_work_sync(&led->delayed_work);
+
 	mutex_lock(&led->lock);
 	if (!gpio_en) {
-		if (chip->type == PM886)
+		switch (chip->type) {
+		case PM886:
 			/* clear CFD_PLS_ON to disable */
 			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
 				   PM88X_CF_CFD_PLS_ON, 0);
-		else
+			break;
+		case PM880:
 			/* clear CFD_PLS_ON to disable */
 			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
 				   PM88X_CF_CFD_PLS_ON, 0);
+			break;
+		default:
+			dev_err(led->cdev.dev, "Unsupported chip type %ld\n", chip->type);
+			break;
+		}
 	} else
 		gpio_direction_output(led->cf_en, 0);
 
 	mutex_unlock(&led->lock);
+}
+
+static void flash_off(struct pm88x_led *led)
+{
+	dev_info(led->cdev.dev, "turning flash off!\n");
+	cfd_pls_off(led);
+}
+
+static void torch_off(struct pm88x_led *led)
+{
+	cancel_delayed_work_sync(&led->delayed_work);
+	cfd_pls_off(led);
 }
 
 static void strobe_flash(struct pm88x_led *led)
@@ -650,9 +669,20 @@ static void pm88x_led_bright_set(struct led_classdev *cdev,
 	struct pm88x_led *led = container_of(cdev, struct pm88x_led, cdev);
 
 	/* skip the lowest level */
-	if (value == 0)
+	if (value == 0) {
 		led->brightness = 0;
-	else {
+		/*
+		 * The reason to turn off the flash here and not in the workqueue:
+		 * While turning on the flash + usb connected, the strobe_flash function
+		 * will sleep untill the flash will be off, and adding flash_off to workqueue
+		 * will occured only after that. To turn off the flash right, it should be
+		 * done out of the workqueue.
+		 */
+		if (led->id == PM88X_FLASH_LED) {
+			flash_off(led);
+			return;
+		}
+	} else {
 		if (led->force_max_current)
 			value = LED_FULL;
 		led->brightness = ((value / led->max_current_div) + 1)
