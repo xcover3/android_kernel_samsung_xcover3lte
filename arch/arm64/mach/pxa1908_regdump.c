@@ -1,8 +1,8 @@
 /*
- *  linux/arch/arm64/mach/regdump-mmp.c
+ *  linux/arch/arm64/mach/pxa1908_regdump.c
  *
  *  Copyright (C) 2014 Marvell Technology Group Ltd.
- *  Author: Neil Zhang<zhangwm@marvell.com>
+ *  Author: Fiona Yang<chy@marvell.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -16,7 +16,7 @@
 #include "regs-addr.h"
 
 static struct regdump_ops pmua_regdump_ops = {
-	.dev_name = "pxa1936-common-pmua",
+	.dev_name = "pxa1908-common-pmua",
 };
 
 static struct regdump_region pmua_dump_region[] = {
@@ -71,28 +71,27 @@ static struct regdump_region pmua_dump_region[] = {
 	{"PMUA_PWR_CTRL_REG",		0x0d8, 4, regdump_cond_true},
 	{"PMUA_PWR_BLK_TMR_REG",	0x0dc, 4, regdump_cond_true},
 	{"PMUA_SDH2_CLK_RES_CTRL",	0x0e0, 4, regdump_cond_true},
-	{"PMUA_CA7MP_IDLE_CFG1",	0x0e4, 4, regdump_cond_true},
+	{"PMUA_APMP_IDLE_CFG1",	0x0e4, 4, regdump_cond_true},
 	{"PMUA_MC_CTRL",		0x0e8, 4, regdump_cond_true},
 	{"PMUA_PWR_STATUS_REG",		0x0f0, 4, regdump_cond_true},
 	{"PMUA_2D_GPU_CLK_RES_CTRL",	0x0f4, 4, regdump_cond_true},
-	{"PMUA_SP_IDLE_CFG",	0x0f8, 4, regdump_cond_true},
 	{"PMUA_GNSS_PWR_CTRL",	0x0fc, 4, regdump_cond_true},
 	{"PMUA_CC2_AP",			0x100, 4, regdump_cond_true},
 	{"PMUA_DM_CC2_AP",		0x104, 4, regdump_cond_true},
 	{"PMUA_TRACE_CONFIG",		0x108, 4, regdump_cond_true},
-	{"PMUA_CA7MP_IDLE_CFG0",	0x120, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE0_IDLE_CFG",	0x124, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE1_IDLE_CFG",	0x128, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE0_WAKEUP",	0x12c, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE1_WAKEUP",	0x130, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE2_WAKEUP",	0x134, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE3_WAKEUP",	0x138, 4, regdump_cond_true},
-	{"PMUA_DVC_DEBUG",		0x140, 4, regdump_cond_true},
-	{"PMUA_CA7MP_IDLE_CFG2",	0x150, 4, regdump_cond_true},
-	{"PMUA_CA7MP_IDLE_CFG3",	0x154, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE2_IDLE_CFG",	0x160, 4, regdump_cond_true},
-	{"PMUA_CA7_CORE3_IDLE_CFG",	0x164, 4, regdump_cond_true},
-	{"PMUA_CA7_PWR_MISC",		0x170, 4, regdump_cond_true},
+	{"PMUA_APMP_IDLE_CFG0",	0x120, 4, regdump_cond_true},
+	{"PMUA_AP_CORE0_IDLE_CFG",	0x124, 4, regdump_cond_true},
+	{"PMUA_AP_CORE1_IDLE_CFG",	0x128, 4, regdump_cond_true},
+	{"PMUA_AP_CORE0_WAKEUP",	0x12c, 4, regdump_cond_true},
+	{"PMUA_AP_CORE1_WAKEUP",	0x130, 4, regdump_cond_true},
+	{"PMUA_AP_CORE2_WAKEUP",	0x134, 4, regdump_cond_true},
+	{"PMUA_AP_CORE3_WAKEUP",	0x138, 4, regdump_cond_true},
+	{"PMUA_DVC_DFC_DEBUG",		0x140, 4, regdump_cond_true},
+	{"PMUA_APMP_IDLE_CFG2",	0x150, 4, regdump_cond_true},
+	{"PMUA_APMP_IDLE_CFG3",	0x154, 4, regdump_cond_true},
+	{"PMUA_AP_CORE2_IDLE_CFG",	0x160, 4, regdump_cond_true},
+	{"PMUA_AP_CORE3_IDLE_CFG",	0x164, 4, regdump_cond_true},
+	{"PMUA_AP_PWR_MISC",		0x170, 4, regdump_cond_true},
 	{"DFC_AP",			0x180, 4, regdump_cond_true},
 	{"DFC_CP",			0x184, 4, regdump_cond_true},
 	{"DFC_STATUS",			0x188, 4, regdump_cond_true},
@@ -119,32 +118,7 @@ static struct regdump_region pmua_dump_region[] = {
 	{"PMU_GT_WAKEUP_C2_MH",			0x1e4, 4, regdump_cond_true},
 	{"PMU_GT_WAKEUP_C3_ML",			0x1e8, 4, regdump_cond_true},
 	{"PMU_GT_WAKEUP_C3_MH",			0x1ec, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C4_CTRL",			0x208, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C5_CTRL",			0x20c, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C6_CTRL",			0x210, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C7_CTRL",			0x214, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C4_ML",			0x218, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C4_MH",			0x21c, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C5_ML",			0x220, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C5_MH",			0x224, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C6_ML",			0x228, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C6_MH",			0x22c, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C7_ML",			0x230, 4, regdump_cond_true},
-	{"PMU_GT_WAKEUP_C7_MH",			0x234, 4, regdump_cond_true},
-	{"PMU_CCI_CLK_CTRL",			0x300, 4, regdump_cond_true},
-	{"PMU_CA7_CORE4_IDLE_CFG",			0x304, 4, regdump_cond_true},
-	{"PMU_CA7_CORE5_IDLE_CFG",			0x308, 4, regdump_cond_true},
-	{"PMU_CA7_CORE6_IDLE_CFG",			0x30c, 4, regdump_cond_true},
-	{"PMU_CA7_CORE7_IDLE_CFG",			0x310, 4, regdump_cond_true},
-	{"PMU_CA7MP_IDLE_CFG4",			0x314, 4, regdump_cond_true},
-	{"PMU_CA7MP_IDLE_CFG5",			0x318, 4, regdump_cond_true},
-	{"PMU_CA7MP_IDLE_CFG6",			0x31c, 4, regdump_cond_true},
-	{"PMU_CA7MP_IDLE_CFG7",			0x320, 4, regdump_cond_true},
-	{"PMU_CA7_CORE4_WAKEUP",			0x324, 4, regdump_cond_true},
-	{"PMU_CA7_CORE5_WAKEUP",			0x328, 4, regdump_cond_true},
-	{"PMU_CA7_CORE6_WAKEUP",			0x32c, 4, regdump_cond_true},
-	{"PMU_CA7_CORE7_WAKEUP",			0x330, 4, regdump_cond_true},
-	{"FC_LOCK_STATUS",			0x334, 4, regdump_cond_true},
+	{"FC_LOCK_STATUS",			0x1f0, 4, regdump_cond_true},
 
 };
 
@@ -159,7 +133,7 @@ static void __init mmp_pmua_regdump_init(void)
 }
 
 static struct regdump_ops pmum_regdump_ops = {
-	.dev_name = "pxa1936-common-pmum",
+	.dev_name = "pxa1908-common-pmum",
 };
 
 static struct regdump_region pmum_dump_region[] = {
@@ -195,7 +169,7 @@ static struct regdump_region pmum_dump_region[] = {
 	{"CMPR1",               0x0404, 4, regdump_cond_true},
 	{"CMPR2",               0x0408, 4, regdump_cond_true},
 	{"CMPR3",               0x0410, 4, regdump_cond_true},
-	{"APSLPW",              0x1000, 4, regdump_cond_true},
+	{"APCR",                0x1000, 4, regdump_cond_true},
 	{"APSR",                0x1004, 4, regdump_cond_true},
 	{"APRR",                0x1020, 4, regdump_cond_true},
 	{"ACGR",                0x1024, 4, regdump_cond_true},
@@ -205,9 +179,6 @@ static struct regdump_region pmum_dump_region[] = {
 	{"AWUCRM",              0x104C, 4, regdump_cond_true},
 	{"APBCSCR",             0x1050, 4, regdump_cond_true},
 	{"AWUCRS1",             0x1064, 4, regdump_cond_true},
-	{"APCR_CLUSTER0",       0x1080, 4, regdump_cond_true},
-	{"APCR_CLUSTER1",       0x1084, 4, regdump_cond_true},
-	{"APCR_PER",            0x1088, 4, regdump_cond_true},
 	{"SPRR",                0x3000, 4, regdump_cond_true},
 };
 
@@ -222,7 +193,7 @@ static void __init mmp_pmum_regdump_init(void)
 
 static int __init mmp_regdump_init(void)
 {
-	if (cpu_is_pxa1936()) {
+	if (cpu_is_pxa1908()) {
 		mmp_pmua_regdump_init();
 		mmp_pmum_regdump_init();
 	}
