@@ -376,7 +376,7 @@ static void cp_sync_worker(struct work_struct *work)
 
 	while (!cp_is_sync_canceled) {
 		/* send peer sync notify */
-		shm_notify_peer_sync(portq_grp[portq_grp_cp_main].rbctl);
+		acipc_notify_peer_sync();
 
 		/* unlock before wait completion */
 		spin_unlock(&cp_sync_lock);

@@ -276,41 +276,6 @@ static inline u32 shm_rb_resume(struct shm_rbctl *rbctl)
 	return 0;
 }
 
-/* acipc event wrapper */
-static inline void shm_notify_peer_sync(struct shm_rbctl *rbctl)
-{
-	if (!rbctl)
-		return;
-
-	if (rbctl->rb_type == shm_rb_main)
-		acipc_notify_peer_sync();
-	else if (rbctl->rb_type == shm_rb_m3)
-		amipc_notify_peer_sync();
-}
-
-static inline void shm_notify_packet_sent(struct shm_rbctl *rbctl)
-{
-	if (!rbctl)
-		return;
-
-	switch (rbctl->rb_type) {
-	case shm_rb_main:
-		acipc_notify_packet_sent();
-		break;
-	case shm_rb_m3:
-		amipc_notify_packet_sent();
-		break;
-	default:
-		break;
-	}
-}
-
-static inline void shm_notify_port_fc(struct shm_rbctl *rbctl)
-{
-	if (rbctl && rbctl->rb_type == shm_rb_main)
-		acipc_notify_port_fc();
-}
-
 static inline void shm_notify_cp_tx_resume(struct shm_rbctl *rbctl)
 {
 	if (!rbctl)
@@ -318,11 +283,6 @@ static inline void shm_notify_cp_tx_resume(struct shm_rbctl *rbctl)
 
 	rbctl->cp_resumed_num++;
 	rbctl->is_cp_xmit_stopped = false;
-
-	if (rbctl->rb_type == shm_rb_main)
-		acipc_notify_cp_tx_resume();
-	else if (rbctl->rb_type == shm_rb_m3)
-		amipc_notify_m3_tx_resume();
 }
 
 static inline void shm_notify_ap_tx_stopped(struct shm_rbctl *rbctl)
@@ -332,11 +292,6 @@ static inline void shm_notify_ap_tx_stopped(struct shm_rbctl *rbctl)
 
 	rbctl->ap_stopped_num++;
 	rbctl->is_ap_xmit_stopped = true;
-
-	if (rbctl->rb_type == shm_rb_main)
-		acipc_notify_ap_tx_stopped();
-	else if (rbctl->rb_type == shm_rb_m3)
-		amipc_notify_ap_tx_stopped();
 }
 
 static inline void shm_flush_dcache(struct shm_rbctl *rbctl,

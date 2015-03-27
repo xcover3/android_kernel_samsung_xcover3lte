@@ -25,6 +25,7 @@
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 #include <linux/poll.h>
+#include <linux/pxa9xx_acipc.h>
 #include "msocket.h"
 
 /* some queue size constant define, you may need fine-tune these carefully */
@@ -177,4 +178,18 @@ static inline struct portq_group *portq_get_group(struct portq *portq)
 extern void portq_recv_throttled(struct portq *portq);
 extern void portq_recv_unthrottled(struct portq *portq);
 
+/* some arbitrary definitions */
+#define ACIPC_MUDP_KEY	ACIPC_SHM_PACKET_NOTIFY
+#define PACKET_SENT		0x11
+#define PEER_SYNC		0x5
+
+/*
+ * the following acipc_notify_* inline functions are used to generate
+ * interrupt from AP to CP.
+ */
+/* generate peer sync interrupt */
+static inline void acipc_notify_peer_sync(void)
+{
+	acipc_data_send(ACIPC_MUDP_KEY, PEER_SYNC << 8);
+}
 #endif /* _PORTQUEUE_H_ */

@@ -37,10 +37,6 @@
 
 struct wakeup_source acipc_wakeup; /* used to ensure Workqueue scheduled. */
 /* forward static function prototype, these all are interrupt call-backs */
-static u32 acipc_cb_rb_stop(u32 status);
-static u32 acipc_cb_rb_resume(u32 status);
-static u32 acipc_cb_port_fc(u32 status);
-static u32 acipc_cb(u32 status);
 #ifdef CONFIG_DDR_DEVFREQ
 static u32 acipc_cb_modem_ddrfreq_update(u32 status);
 #endif
@@ -114,14 +110,6 @@ int acipc_init(u32 lpm_qos)
 	wakeup_source_init(&acipc_wakeup, "acipc_wakeup");
 
 	/* we do not check any return value */
-	acipc_event_bind(ACIPC_MUDP_KEY, acipc_cb, ACIPC_CB_NORMAL, NULL);
-	acipc_event_bind(ACIPC_RINGBUF_TX_STOP, acipc_cb_rb_stop,
-		       ACIPC_CB_NORMAL, NULL);
-	acipc_event_bind(ACIPC_RINGBUF_TX_RESUME, acipc_cb_rb_resume,
-		       ACIPC_CB_NORMAL, NULL);
-	acipc_event_bind(ACIPC_PORT_FLOWCONTROL, acipc_cb_port_fc,
-		       ACIPC_CB_NORMAL, NULL);
-
 	acipc_event_bind(ACIPC_MODEM_DDR_UPDATE_REQ, acipc_cb_event_notify,
 		       ACIPC_CB_NORMAL, NULL);
 
@@ -162,58 +150,6 @@ void acipc_exit(void)
 	destroy_workqueue(acipc_wq);
 	pm_qos_remove_request(&modem_ddr_cons);
 #endif
-}
-
-void portq_packet_send_cb(struct shm_rbctl *);
-void portq_peer_sync_cb(struct shm_rbctl *);
-void portq_rb_stop_cb(struct shm_rbctl *);
-void portq_rb_resume_cb(struct shm_rbctl *);
-void portq_port_fc_cb(struct shm_rbctl *);
-
-/* cp xmit stopped notify interrupt */
-static u32 acipc_cb_rb_stop(u32 status)
-{
-	portq_rb_stop_cb(&shm_rbctl[shm_rb_main]);
-	return 0;
-}
-
-/* cp wakeup ap xmit interrupt */
-static u32 acipc_cb_rb_resume(u32 status)
-{
-	portq_rb_resume_cb(&shm_rbctl[shm_rb_main]);
-	return 0;
-}
-
-/* cp notify ap port flow control */
-static u32 acipc_cb_port_fc(u32 status)
-{
-	portq_port_fc_cb(&shm_rbctl[shm_rb_main]);
-	return 0;
-}
-
-/* new packet arrival interrupt */
-static u32 acipc_cb(u32 status)
-{
-	u32 data;
-	u16 event;
-
-	acipc_data_read(&data);
-	event = (data & 0xFF00) >> 8;
-
-	switch (event) {
-	case PACKET_SENT:
-		portq_packet_send_cb(&shm_rbctl[shm_rb_main]);
-		break;
-
-	case PEER_SYNC:
-		portq_peer_sync_cb(&shm_rbctl[shm_rb_main]);
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
 }
 
 #ifdef CONFIG_DDR_DEVFREQ
