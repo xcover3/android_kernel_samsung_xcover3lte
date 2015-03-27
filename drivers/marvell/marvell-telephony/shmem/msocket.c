@@ -662,21 +662,17 @@ static int msocket_seq_show(struct seq_file *s, void *v)
 		}
 	} else if (seq == seq_dump_diag) {
 		/* diag */
-		struct direct_rbctl *dir_ctl;
-		const struct direct_rbctl *dir_ctl_end =
-			direct_rbctl + direct_rb_type_total_cnt;
+		struct direct_rbctl *dir_ctl = &direct_rbctl;
+
 		seq_puts(s, "\ndirect_rb:\n");
-		for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end;
-			++dir_ctl) {
-			seq_printf(s,
-				"tx_sent: %lu, tx_drop: %lu,"
-				" rx_fail: %lu, rx_got: %lu, rx_drop: %lu,"
-				" interrupt: %lu, broadcast_msg: %lu\n",
-				dir_ctl->stat_tx_sent, dir_ctl->stat_tx_drop,
-				dir_ctl->stat_rx_fail, dir_ctl->stat_rx_got,
-				dir_ctl->stat_rx_drop, dir_ctl->stat_interrupt,
-				dir_ctl->stat_broadcast_msg);
-		}
+		seq_printf(s,
+			"tx_sent: %lu, tx_drop: %lu,"
+			" rx_fail: %lu, rx_got: %lu, rx_drop: %lu,"
+			" interrupt: %lu, broadcast_msg: %lu\n",
+			dir_ctl->stat_tx_sent, dir_ctl->stat_tx_drop,
+			dir_ctl->stat_rx_fail, dir_ctl->stat_rx_got,
+			dir_ctl->stat_rx_drop, dir_ctl->stat_interrupt,
+			dir_ctl->stat_broadcast_msg);
 	}
 
 	return 0;
@@ -790,7 +786,7 @@ static int msockdev_open(struct inode *inode, struct file *filp)
 	port = MINOR(dev->cdev.dev);
 
 	if (port == DIAG_PORT) {
-		drbctl = direct_rb_open(direct_rb_type_diag, port);
+		drbctl = direct_rb_open(port);
 		if (drbctl) {
 			pr_info("diag is opened by process id:%d (\"%s\")\n",
 			       current->tgid, current->comm);
@@ -829,7 +825,7 @@ static int msocket_close(struct inode *inode, struct file *filp)
 	/* Extract Minor Number */
 	port = MINOR(dev->cdev.dev);
 	if (port == DIAG_PORT) {
-		direct_rb_close(&direct_rbctl[direct_rb_type_diag]);
+		direct_rb_close(&direct_rbctl);
 		pr_info(
 		       "%s diag rb is closed by process id:%d (\"%s\")\n",
 		       __func__, current->tgid, current->comm);
@@ -860,7 +856,7 @@ msocket_read(struct file *filp, char __user *buf, size_t len, loff_t *f_pos)
 	}
 
 	if (portq->port == DIAG_PORT)
-		return direct_rb_recv(direct_rb_type_diag, buf, len);
+		return direct_rb_recv(&direct_rbctl, buf, len);
 	skb = portq_recv(portq, true);
 
 	if (IS_ERR(skb)) {
@@ -918,7 +914,7 @@ msocket_write(struct file *filp, const char __user *buf, size_t len,
 	}
 
 	if (portq->port == DIAG_PORT)
-		return direct_rb_xmit(direct_rb_type_diag, buf, len);
+		return direct_rb_xmit(&direct_rbctl, buf, len);
 
 	pgrp = portq_get_group(portq);
 
@@ -985,7 +981,7 @@ static long msocket_ioctl(struct file *filp,
 		port = arg;
 
 		if (port == DIAG_PORT) {
-			drbctl = direct_rb_open(direct_rb_type_diag, port);
+			drbctl = direct_rb_open(port);
 			if (drbctl) {
 				pr_info("diag path is opened by process id:%d (\"%s\")\n",
 				       current->tgid, current->comm);

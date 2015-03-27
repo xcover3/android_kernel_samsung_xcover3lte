@@ -139,30 +139,28 @@ DEFINE_EVENT(portq_xfer_template, portq_recv,
 
 DECLARE_EVENT_CLASS(drb_xfer_template,
 
-	TP_PROTO(int type, int len),
+	TP_PROTO(int len),
 
-	TP_ARGS(type, len),
+	TP_ARGS(len),
 
 	TP_STRUCT__entry(
-		__field(int, type)
 		__field(int, len)
 	),
 
 	TP_fast_assign(
-		__entry->type = type;
 		__entry->len = len;
 	),
 
-	TP_printk("type=%d len=%d", __entry->type, __entry->len)
+	TP_printk("len=%d", __entry->len)
 );
 
 DEFINE_EVENT(drb_xfer_template, drb_xmit,
-	TP_PROTO(int type, int len),
-	TP_ARGS(type, len));
+	TP_PROTO(int len),
+	TP_ARGS(len));
 
 DEFINE_EVENT(drb_xfer_template, drb_recv,
-	TP_PROTO(int type, int len),
-	TP_ARGS(type, len));
+	TP_PROTO(int len),
+	TP_ARGS(len));
 
 #endif /* _TEL_TRACE_H */
 

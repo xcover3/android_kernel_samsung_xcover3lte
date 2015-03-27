@@ -49,10 +49,7 @@
 static uint32_t max_rx_q_size = 4 * 1024 * 1024;
 module_param_named(diag_max_rx_q_size, max_rx_q_size, uint, S_IWUSR | S_IRUGO);
 
-struct direct_rbctl direct_rbctl[direct_rb_type_total_cnt];
-static enum shm_rb_type direct_shm_rb_type[direct_rb_type_total_cnt] = {
-	shm_rb_diag
-};
+struct direct_rbctl direct_rbctl;
 
 static int direct_dump_flag;
 
@@ -146,7 +143,6 @@ static ssize_t msocketDirectDump_write(struct file *filp,
 {
 	int flag = 0;
 	int flagSave;
-	int i;
 
 	if (kstrtoint_from_user(buf, len, 10, &flag) < 0) {
 		pr_err("%s: kstrtoint error\n", __func__);
@@ -156,23 +152,17 @@ static ssize_t msocketDirectDump_write(struct file *filp,
 	flagSave = flag;
 	pr_info("%s: set flag :0x%08x\n", __func__, flag);
 
-	for (i = 0; i < sizeof(flag) * 8; i++) {
-		if (flag & 0x1) {
-			struct direct_rbctl *drbctl;
+	if (flag & 0x1) {
+		struct direct_rbctl *drbctl;
 
-			if (i >= direct_rb_type_total_cnt)
-				break;
+		drbctl = &direct_rbctl;
 
-			drbctl = &direct_rbctl[i];
-
-			if (direct_rb_schedule_rx(drbctl)) {
-				pr_info("%s: i = %d, cp_wptr=%d, ap_rptr=%d\n",
-					__func__, i,
-					drbctl->rbctl->skctl_va->cp_wptr,
-					drbctl->rbctl->skctl_va->ap_rptr);
-			}
+		if (direct_rb_schedule_rx(drbctl)) {
+			pr_info("%s: cp_wptr=%d, ap_rptr=%d\n",
+				__func__,
+				drbctl->rbctl->skctl_va->cp_wptr,
+				drbctl->rbctl->skctl_va->ap_rptr);
 		}
-		flag >>= 1;
 	}
 
 	direct_dump_flag = flagSave;
@@ -308,36 +298,31 @@ error_length:
 	spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
 }
 
-struct direct_rbctl *direct_rb_open(enum direct_rb_type direct_type, int svc_id)
+struct direct_rbctl *direct_rb_open(int svc_id)
 {
 	unsigned long flags;
+	struct direct_rbctl *dir_ctl = &direct_rbctl;
 
-	if (direct_type >= direct_rb_type_total_cnt || direct_type < 0) {
-		pr_err("%s: incorrect type %d\n", __func__,
-		       direct_type);
-		return NULL;
-	}
-
-	spin_lock_irqsave(&direct_rbctl[direct_type].rb_rx_lock, flags);
-	if (direct_rbctl[direct_type].refcount > 0) {
-		direct_rbctl[direct_type].refcount++;
+	spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
+	if (dir_ctl->refcount > 0) {
+		dir_ctl->refcount++;
 		goto exit;
 	}
-	direct_rbctl[direct_type].refcount++;
-	direct_rbctl[direct_type].svc_id = svc_id;
-	direct_rbctl[direct_type].stat_tx_sent = 0;
-	direct_rbctl[direct_type].stat_tx_drop = 0;
-	direct_rbctl[direct_type].stat_rx_fail = 0;
-	direct_rbctl[direct_type].stat_rx_got = 0;
-	direct_rbctl[direct_type].stat_rx_drop = 0;
-	direct_rbctl[direct_type].stat_interrupt = 0;
-	direct_rbctl[direct_type].stat_broadcast_msg = 0;
-	direct_rbctl[direct_type].rx_q_size = 0;
-	direct_rbctl[direct_type].max_rx_q_size = max_rx_q_size;
-	skb_queue_head_init(&direct_rbctl[direct_type].rx_q);
+	dir_ctl->refcount++;
+	dir_ctl->svc_id = svc_id;
+	dir_ctl->stat_tx_sent = 0;
+	dir_ctl->stat_tx_drop = 0;
+	dir_ctl->stat_rx_fail = 0;
+	dir_ctl->stat_rx_got = 0;
+	dir_ctl->stat_rx_drop = 0;
+	dir_ctl->stat_interrupt = 0;
+	dir_ctl->stat_broadcast_msg = 0;
+	dir_ctl->rx_q_size = 0;
+	dir_ctl->max_rx_q_size = max_rx_q_size;
+	skb_queue_head_init(&dir_ctl->rx_q);
 exit:
-	spin_unlock_irqrestore(&direct_rbctl[direct_type].rb_rx_lock, flags);
-	return &direct_rbctl[direct_type];
+	spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
+	return dir_ctl;
 }
 EXPORT_SYMBOL(direct_rb_open);
 
@@ -358,25 +343,18 @@ void direct_rb_close(struct direct_rbctl *rbctl)
 EXPORT_SYMBOL(direct_rb_close);
 
 #define DIAG_TX_RETRY_DELAY_MS 10
-int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
+int direct_rb_xmit(struct direct_rbctl *dir_ctl, const char __user *buf,
 		   int len)
 {
-	struct direct_rbctl *dir_ctl = direct_rbctl + direct_type;
 	struct shm_rbctl *rbctl;
 	struct direct_rb_skhdr *hdr;
 	struct shm_skctl *skctl;
 	int slot;
 
-	if (direct_type >= direct_rb_type_total_cnt || direct_type < 0) {
-		pr_err("%s: incorrect type %d\n", __func__,
-		       direct_type);
-		return -1;
-	}
-
 	if (!cp_is_synced)
 		return -1;
 
-	rbctl = direct_rbctl[direct_type].rbctl;
+	rbctl = dir_ctl->rbctl;
 	skctl = rbctl->skctl_va;
 
 	if (len > rbctl->tx_skbuf_size - sizeof(*hdr)) {
@@ -405,7 +383,7 @@ int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
 		return -EFAULT;
 	}
 	data_dump((char *)hdr, sizeof(*hdr) + len, dir_ctl->svc_id, DATA_TX);
-	trace_drb_xmit(direct_type, sizeof(*hdr) + len);
+	trace_drb_xmit(sizeof(*hdr) + len);
 
 	shm_flush_dcache(rbctl, hdr, sizeof(*hdr) + len);
 	dir_ctl->stat_tx_sent++;
@@ -416,10 +394,9 @@ int direct_rb_xmit(enum direct_rb_type direct_type, const char __user *buf,
 }
 EXPORT_SYMBOL(direct_rb_xmit);
 
-ssize_t direct_rb_recv(enum direct_rb_type direct_type,
+ssize_t direct_rb_recv(struct direct_rbctl *dir_ctl,
 		       char __user *buf, int len)
 {
-	struct direct_rbctl *dir_ctl = direct_rbctl + direct_type;
 	struct sk_buff *skb;
 	int rc = -EFAULT;
 	unsigned long flags;
@@ -460,7 +437,7 @@ ssize_t direct_rb_recv(enum direct_rb_type direct_type,
 	/* save packet length before advancing reader pointer */
 	packet_len = skb->len;
 	data_dump(skb->data, skb->len, dir_ctl->svc_id, DATA_RX);
-	trace_drb_recv(direct_type, skb->len);
+	trace_drb_recv(skb->len);
 
 	dev_kfree_skb_any(skb);
 
@@ -472,96 +449,78 @@ EXPORT_SYMBOL(direct_rb_recv);
 
 static void direct_rb_broadcast_msg(int proc)
 {
-	struct direct_rbctl *dir_ctl = direct_rbctl;
+	struct direct_rbctl *dir_ctl = &direct_rbctl;
 	unsigned long flags;
 
-	const struct direct_rbctl *dir_ctl_end =
-		direct_rbctl + direct_rb_type_total_cnt;
+	struct sk_buff *skb;
+	int msg_size;
 
-	for (; dir_ctl != dir_ctl_end; ++dir_ctl) {
-		struct sk_buff *skb;
-		int msg_size;
+	struct diagmsgheader *pDiagMsgHeader;
 
-		spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
-		if (dir_ctl->refcount == 0) {
-			spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
-			continue;
-		}
-
-		if (dir_ctl->direct_type == direct_rb_type_diag)
-			msg_size = sizeof(struct diagmsgheader);
-		else
-			msg_size = sizeof(ShmApiMsg);
-
-		skb = alloc_skb(msg_size, GFP_ATOMIC);
-
-		if (!skb) {
-			pr_err("%s: alloc_skb error\n", __func__);
-			spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
-			return;
-		}
-
-		if (dir_ctl->direct_type == direct_rb_type_diag) {
-			struct diagmsgheader *pDiagMsgHeader =
-				(struct diagmsgheader *)skb_put(skb, msg_size);
-			pDiagMsgHeader->diagHeader.packetlen =
-				sizeof(pDiagMsgHeader->procId);
-			pDiagMsgHeader->diagHeader.seqNo = 0;
-			pDiagMsgHeader->diagHeader.msgType = proc;
-			pDiagMsgHeader->procId = proc;
-		} else {
-			ShmApiMsg *pShmApimsg =
-				(ShmApiMsg *)skb_put(skb, msg_size);
-			pShmApimsg->svcId = dir_ctl->svc_id;
-			pShmApimsg->procId = proc;
-			pShmApimsg->msglen = 0;
-		}
-
-		rx_enqueue(dir_ctl, skb, true);
-
-		if (dir_ctl->is_ap_recv_empty) {
-			dir_ctl->is_ap_recv_empty = false;
-			wake_up_interruptible(&(dir_ctl->rb_rx_wq));
-		}
-
+	spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
+	if (dir_ctl->refcount == 0) {
 		spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
+		return;
+	}
 
-		dir_ctl->stat_broadcast_msg++;
+	msg_size = sizeof(struct diagmsgheader);
 
-		if (proc == MsocketLinkupProcId) {
-			/*
-			 * Now both AP and CP will not send packet to
-			 * ring buffer or receive packet from ring
-			 * buffer, so cleanup any packet in ring buffer
-			 * and initialize some key data structure to the
-			 * beginning state otherwise user space process
-			 * may occur error
-			 */
-			shm_rb_data_init(dir_ctl->rbctl);
-		} else if (proc == MsocketLinkdownProcId) {
-			/*
-			 * flush workqueue here to make sure all the work
-			 * is done after link down
-			 */
-			flush_workqueue(dir_ctl->rx_wq);
-		}
+	skb = alloc_skb(msg_size, GFP_ATOMIC);
 
+	if (!skb) {
+		pr_err("%s: alloc_skb error\n", __func__);
+		spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
+		return;
+	}
+
+	pDiagMsgHeader =
+		(struct diagmsgheader *)skb_put(skb, msg_size);
+	pDiagMsgHeader->diagHeader.packetlen =
+		sizeof(pDiagMsgHeader->procId);
+	pDiagMsgHeader->diagHeader.seqNo = 0;
+	pDiagMsgHeader->diagHeader.msgType = proc;
+	pDiagMsgHeader->procId = proc;
+
+	rx_enqueue(dir_ctl, skb, true);
+
+	if (dir_ctl->is_ap_recv_empty) {
+		dir_ctl->is_ap_recv_empty = false;
+		wake_up_interruptible(&(dir_ctl->rb_rx_wq));
+	}
+
+	spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
+
+	dir_ctl->stat_broadcast_msg++;
+
+	if (proc == MsocketLinkupProcId) {
+		/*
+		 * Now both AP and CP will not send packet to
+		 * ring buffer or receive packet from ring
+		 * buffer, so cleanup any packet in ring buffer
+		 * and initialize some key data structure to the
+		 * beginning state otherwise user space process
+		 * may occur error
+		 */
+		shm_rb_data_init(dir_ctl->rbctl);
+	} else if (proc == MsocketLinkdownProcId) {
+		/*
+		 * flush workqueue here to make sure all the work
+		 * is done after link down
+		 */
+		flush_workqueue(dir_ctl->rx_wq);
 	}
 }
 
 void msocket_dump_direct_rb(void)
 {
-	struct direct_rbctl *dir_ctl;
-	const struct direct_rbctl *dir_ctl_end =
-	    direct_rbctl + direct_rb_type_total_cnt;
-	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
-		pr_err("tx_sent: %lu, tx_drop: %lu, rx_fail: %lu, rx_got: %lu,"
-		       "rx_drop: %lu interrupt: %lu, broadcast_msg: %lu\n",
-		       dir_ctl->stat_tx_sent, dir_ctl->stat_tx_drop,
-		       dir_ctl->stat_rx_fail, dir_ctl->stat_rx_got,
-		       dir_ctl->stat_rx_drop, dir_ctl->stat_interrupt,
-		       dir_ctl->stat_broadcast_msg);
-	}
+	struct direct_rbctl *dir_ctl = &direct_rbctl;
+
+	pr_err("tx_sent: %lu, tx_drop: %lu, rx_fail: %lu, rx_got: %lu,"
+		"rx_drop: %lu interrupt: %lu, broadcast_msg: %lu\n",
+		dir_ctl->stat_tx_sent, dir_ctl->stat_tx_drop,
+		dir_ctl->stat_rx_fail, dir_ctl->stat_rx_got,
+		dir_ctl->stat_rx_drop, dir_ctl->stat_interrupt,
+		dir_ctl->stat_broadcast_msg);
 }
 
 /* diag new packet arrival interrupt */
@@ -602,36 +561,25 @@ static struct notifier_block cp_link_status_notifier = {
 int direct_rb_init(void)
 {
 	int rc = -1;
-	struct direct_rbctl *dir_ctl;
-	struct direct_rbctl *dir_ctl2;
-	const struct direct_rbctl *dir_ctl_end =
-	    direct_rbctl + direct_rb_type_total_cnt;
+	struct direct_rbctl *dir_ctl = &direct_rbctl;
 
-	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
-		char buf[16];
-		dir_ctl->direct_type = dir_ctl - direct_rbctl;
-		dir_ctl->rbctl =
-		    shm_open(direct_shm_rb_type[dir_ctl - direct_rbctl],
-			     &drb_shm_cb, dir_ctl);
-		if (!dir_ctl->rbctl) {
-			pr_err("%s: cannot open shm\n", __func__);
-			goto exit;
-		}
-		init_waitqueue_head(&(dir_ctl->rb_rx_wq));
-		spin_lock_init(&dir_ctl->rb_rx_lock);
-		dir_ctl->refcount = 0;
-		dir_ctl->is_ap_recv_empty = true;
-
-		snprintf(buf, sizeof(buf), "drb_wq %d", dir_ctl->direct_type);
-
-		INIT_WORK(&dir_ctl->rx_work, direct_rb_rx_worker);
-		dir_ctl->rx_wq = create_singlethread_workqueue(buf);
-	}
-	rc = misc_register(&msocketDirectDump_dev);
-	if (rc < 0) {
-		dir_ctl = direct_rbctl;
+	dir_ctl->rbctl =
+		shm_open(shm_rb_diag, &drb_shm_cb, dir_ctl);
+	if (!dir_ctl->rbctl) {
+		pr_err("%s: cannot open shm\n", __func__);
 		goto exit;
 	}
+	init_waitqueue_head(&(dir_ctl->rb_rx_wq));
+	spin_lock_init(&dir_ctl->rb_rx_lock);
+	dir_ctl->refcount = 0;
+	dir_ctl->is_ap_recv_empty = true;
+
+	INIT_WORK(&dir_ctl->rx_work, direct_rb_rx_worker);
+	dir_ctl->rx_wq = create_singlethread_workqueue("diag_wq");
+
+	rc = misc_register(&msocketDirectDump_dev);
+	if (rc < 0)
+		goto exit;
 
 	register_cp_link_status_notifier(&cp_link_status_notifier);
 
@@ -643,8 +591,7 @@ int direct_rb_init(void)
 	return 0;
 
 exit:
-	for (dir_ctl2 = direct_rbctl; dir_ctl2 != dir_ctl; ++dir_ctl2)
-		shm_close(dir_ctl2->rbctl);
+	shm_close(dir_ctl->rbctl);
 
 	return rc;
 }
@@ -654,17 +601,13 @@ EXPORT_SYMBOL(direct_rb_init);
 void direct_rb_exit(void)
 {
 	unsigned long flags;
-	struct direct_rbctl *dir_ctl;
-	const struct direct_rbctl *dir_ctl_end =
-	    direct_rbctl + direct_rb_type_total_cnt;
+	struct direct_rbctl *dir_ctl = &direct_rbctl;
 
-	for (dir_ctl = direct_rbctl; dir_ctl != dir_ctl_end; ++dir_ctl) {
-		destroy_workqueue(dir_ctl->rx_wq);
-		spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
-		dir_ctl->refcount = 0;
-		shm_close(dir_ctl->rbctl);
-		spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
-	}
+	destroy_workqueue(dir_ctl->rx_wq);
+	spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
+	dir_ctl->refcount = 0;
+	shm_close(dir_ctl->rbctl);
+	spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
 
 	drb_acipc_exit();
 	unregister_cp_link_status_notifier(&cp_link_status_notifier);
