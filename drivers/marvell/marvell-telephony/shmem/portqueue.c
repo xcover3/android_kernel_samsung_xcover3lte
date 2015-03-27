@@ -323,12 +323,18 @@ void portq_m3_peer_sync_cb(struct shm_rbctl *rbctl)
 	complete_all(&m3_peer_sync);
 }
 
+static size_t portq_get_packet_length(const unsigned char *hdr)
+{
+	struct shm_skhdr *skhdr = (struct shm_skhdr *)hdr;
+	return skhdr->length + sizeof(*skhdr);
+}
+
 struct shm_callback portq_cp_shm_cb = {
-	.dummy = NULL,
+	.get_packet_length = portq_get_packet_length,
 };
 
 struct shm_callback portq_m3_shm_cb = {
-	.dummy = NULL,
+	.get_packet_length = portq_get_packet_length,
 };
 
 static int cp_link_status_notifier_func(struct notifier_block *this,

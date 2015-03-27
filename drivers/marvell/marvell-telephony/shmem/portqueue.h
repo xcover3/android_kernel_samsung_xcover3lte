@@ -124,6 +124,14 @@ struct portq_group {
 	int rx_workq_sched_num;
 };
 
+/* share memory socket header structure */
+struct shm_skhdr {
+	unsigned int address;	/* not used */
+	int port;				/* queue port */
+	unsigned int checksum;	/* not used */
+	int length;				/* payload length */
+};
+
 extern struct portq_group portq_grp[];
 extern unsigned int portq_cp_port_fc;
 

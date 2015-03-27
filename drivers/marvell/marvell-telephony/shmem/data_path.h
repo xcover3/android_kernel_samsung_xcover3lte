@@ -152,6 +152,12 @@ struct data_path {
 	struct data_path_stat stat;
 };
 
+/* PSD share memory socket header structure */
+struct shm_psd_skhdr {
+	unsigned short length;		/* payload length */
+	unsigned short reserved;	/* not used */
+};
+
 static inline bool data_path_is_link_up(void)
 {
 	return cp_is_synced;

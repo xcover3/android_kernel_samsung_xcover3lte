@@ -204,8 +204,14 @@ void direct_rb_packet_send_cb(struct shm_rbctl *rbctl)
 	}
 }
 
-struct shm_callback direct_path_shm_cb = {
-	.dummy    = NULL,
+static size_t drb_get_packet_length(const unsigned char *hdr)
+{
+	struct direct_rb_skhdr *skhdr = (struct direct_rb_skhdr *)hdr;
+	return skhdr->length + sizeof(*skhdr);
+}
+
+struct shm_callback drb_shm_cb = {
+	.get_packet_length = drb_get_packet_length,
 };
 
 static void direct_rb_rx_worker(struct work_struct *work)
@@ -606,7 +612,7 @@ int direct_rb_init(void)
 		dir_ctl->direct_type = dir_ctl - direct_rbctl;
 		dir_ctl->rbctl =
 		    shm_open(direct_shm_rb_type[dir_ctl - direct_rbctl],
-			     &direct_path_shm_cb, dir_ctl);
+			     &drb_shm_cb, dir_ctl);
 		if (!dir_ctl->rbctl) {
 			pr_err("%s: cannot open shm\n", __func__);
 			goto exit;

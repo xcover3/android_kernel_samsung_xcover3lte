@@ -987,8 +987,14 @@ void dp_packet_send_cb(struct shm_rbctl *rbctl)
 	data_path_schedule_rx(dp);
 }
 
+static size_t dp_get_packet_length(const unsigned char *hdr)
+{
+	struct shm_psd_skhdr *skhdr = (struct shm_psd_skhdr *)hdr;
+	return skhdr->length + sizeof(*skhdr);
+}
+
 struct shm_callback dp_shm_cb = {
-	.dummy  = NULL,
+	.get_packet_length = dp_get_packet_length,
 };
 
 /* cp psd xmit stopped notify interrupt */

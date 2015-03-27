@@ -124,7 +124,7 @@ struct shm_rbctl {
 };
 
 struct shm_callback {
-	void (*dummy)(void);
+	size_t (*get_packet_length)(const unsigned char *);
 };
 
 /* share memory control block structure */
@@ -138,25 +138,6 @@ struct shm_skctl {
 	volatile int ap_rptr;
 	volatile int cp_wptr;
 	volatile unsigned int cp_port_fc;
-};
-
-/* share memory socket header structure */
-struct shm_skhdr {
-	unsigned int address;	/* not used */
-	int port;				/* queue port */
-	unsigned int checksum;	/* not used */
-	int length;				/* payload length */
-};
-
-/* PSD share memory socket header structure */
-struct shm_psd_skhdr {
-	unsigned short length;		/* payload length */
-	unsigned short reserved;	/* not used */
-};
-
-/* DIAG share memory socket header structure */
-struct direct_rb_skhdr {
-	unsigned int length;		/* payload length */
 };
 
 extern struct shm_rbctl shm_rbctl[];

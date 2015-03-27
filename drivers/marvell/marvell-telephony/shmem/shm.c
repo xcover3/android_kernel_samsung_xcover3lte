@@ -783,7 +783,6 @@ void shm_xmit(struct shm_rbctl *rbctl, struct sk_buff *skb)
 struct sk_buff *shm_recv(struct shm_rbctl *rbctl)
 {
 	struct shm_skctl *skctl = rbctl->skctl_va;
-	enum shm_rb_type rb_type = rbctl - shm_rbctl;
 
 	/* yes, we always read from the next slot either */
 	int slot = shm_get_next_rx_slot(rbctl, skctl->ap_rptr);
@@ -791,48 +790,17 @@ struct sk_buff *shm_recv(struct shm_rbctl *rbctl)
 	/* get the total packet size first for memory allocate */
 	unsigned char *hdr = SHM_PACKET_PTR(rbctl->rx_va, slot,
 					    rbctl->rx_skbuf_size);
-	int count = 0;
+	size_t count = 0;
 	struct sk_buff *skb = NULL;
 
 	shm_invalidate_dcache(rbctl, hdr, rbctl->rx_skbuf_size);
 
-	switch (rb_type) {
-	case shm_rb_m3:
-	case shm_rb_main: {
-		struct shm_skhdr *skhdr = (struct shm_skhdr *)hdr;
-		count = skhdr->length + sizeof(*skhdr);
+	if (likely(rbctl->cbs && rbctl->cbs->get_packet_length))
+		count = rbctl->cbs->get_packet_length(hdr);
 
-		if (skhdr->length <= 0) {
-			pr_emerg(
-				"MSOCK: shm_recv: slot = %d, skhdr->length = %d\n",
-				slot, skhdr->length);
-			goto error_length;
-		}
-		break;
-	}
-	case shm_rb_psd: {
-		struct shm_psd_skhdr *skhdr = (struct shm_psd_skhdr *)hdr;
-		count = skhdr->length + sizeof(*skhdr);
-		pr_warn(
-			"MSOCK: shm_recv: calling in psd ring buffer!!!\n");
-		break;
-	}
-
-	case shm_rb_diag: {
-		struct direct_rb_skhdr *skhdr = (struct direct_rb_skhdr *)hdr;
-		count = skhdr->length + sizeof(*skhdr);
-		break;
-	}
-
-	default:
-		pr_warn(
-			"MSOCK: shm_recv: incorrect rb_type %d!!!\n", rb_type);
-		return NULL;
-	}
-
-	if (count > rbctl->rx_skbuf_size) {
+	if (unlikely(count > rbctl->rx_skbuf_size || !count)) {
 		pr_emerg(
-		       "MSOCK: shm_recv: slot = %d, count = %d\n", slot, count);
+		       "MSOCK: shm_recv: slot = %d, count = %zu\n", slot, count);
 		goto error_length;
 	}
 

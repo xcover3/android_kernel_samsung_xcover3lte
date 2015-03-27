@@ -55,6 +55,11 @@ struct direct_rbctl {
 	unsigned long stat_broadcast_msg;
 };
 
+/* DIAG share memory socket header structure */
+struct direct_rb_skhdr {
+	unsigned int length;		/* payload length */
+};
+
 extern struct direct_rbctl direct_rbctl[];
 
 extern int direct_rb_init(void);
