@@ -31,6 +31,7 @@
 #include "acipcd.h"
 #include "pxa_m3_rm.h"
 #include "debugfs.h"
+#include "msocket.h"
 
 #define SHM_SKBUF_SIZE		2048	/* maximum packet size */
 #define SHM_PSD_TX_SKBUF_SIZE	2048	/* PSD tx maximum packet size */
@@ -215,48 +216,6 @@ static int shm_rb_debugfs_init(struct shm_rbctl *rbctl)
 				&rbctl->skctl_va->cp_port_fc)))
 		goto error;
 
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"ap_pcm_master", S_IRUGO | S_IWUSR, ksdir,
-				(unsigned int *)
-				&rbctl->skctl_va->ap_pcm_master)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"cp_pcm_master", S_IRUGO | S_IWUSR, ksdir,
-				(unsigned int *)
-				&rbctl->skctl_va->cp_pcm_master)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"modem_ddrfreq", S_IRUGO | S_IWUSR, ksdir,
-				(unsigned int *)
-				&rbctl->skctl_va->modem_ddrfreq)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"reset_request", S_IRUGO | S_IWUSR, ksdir,
-				(unsigned int *)
-				&rbctl->skctl_va->reset_request)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"diag_header_ptr", S_IRUGO | S_IWUSR, ksdir,
-				(unsigned int *)
-				&rbctl->skctl_va->diag_header_ptr)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"diag_cp_db_ver", S_IRUGO | S_IWUSR, ksdir,
-				(unsigned int *)
-				&rbctl->skctl_va->diag_cp_db_ver)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"diag_ap_db_ver", S_IRUGO | S_IWUSR, ksdir,
-				(unsigned int *)
-				&rbctl->skctl_va->diag_ap_db_ver)))
-		goto error;
-
 	return 0;
 
 error:
@@ -269,6 +228,76 @@ static int shm_rb_debugfs_exit(struct shm_rbctl *rbctl)
 {
 	debugfs_remove_recursive(rbctl->rbdir);
 	rbctl->rbdir = NULL;
+	return 0;
+}
+
+static int cpks_debugfs_init(struct dentry *parent)
+{
+	cpks_rootdir = debugfs_create_dir("cpks", parent);
+	if (IS_ERR_OR_NULL(cpks_rootdir))
+		return -ENOMEM;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"ap_pcm_master", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->ap_pcm_master)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"cp_pcm_master", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->cp_pcm_master)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"modem_ddrfreq", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->modem_ddrfreq)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"reset_request", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->reset_request)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"diag_header_ptr", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->diag_header_ptr)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"diag_cp_db_ver", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->diag_cp_db_ver)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"diag_ap_db_ver", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->diag_ap_db_ver)))
+		goto error;
+
+	return 0;
+
+error:
+	debugfs_remove_recursive(cpks_rootdir);
+	cpks_rootdir = NULL;
+	return -1;
+}
+
+static int cpks_debugfs_exit(void)
+{
+	debugfs_remove_recursive(cpks_rootdir);
+	cpks_rootdir = NULL;
 	return 0;
 }
 
@@ -393,8 +422,6 @@ static int shm_param_init(enum shm_grp_type grp_type,
 
 void shm_rb_data_init(struct shm_rbctl *rbctl)
 {
-	unsigned int network_mode;
-
 	rbctl->is_ap_xmit_stopped = false;
 	rbctl->is_cp_xmit_stopped = false;
 
@@ -402,11 +429,20 @@ void shm_rb_data_init(struct shm_rbctl *rbctl)
 	rbctl->ap_resumed_num = 0;
 	rbctl->cp_stopped_num = 0;
 	rbctl->cp_resumed_num = 0;
+}
 
-	network_mode = rbctl->skctl_va->network_mode;
-	memset(rbctl->skctl_va, 0, sizeof(struct shm_skctl));
-	rbctl->skctl_va->network_mode = network_mode;
-	rbctl->skctl_va->ap_pcm_master = PMIC_MASTER_FLAG;
+void cp_keysection_data_init(void)
+{
+	unsigned int network_mode;
+
+	mutex_lock(&cpks_lock);
+	if (cpks) {
+		network_mode = cpks->network_mode;
+		memset(cpks, 0, sizeof(*cpks));
+		cpks->network_mode = network_mode;
+		cpks->ap_pcm_master = PMIC_MASTER_FLAG;
+	}
+	mutex_unlock(&cpks_lock);
 }
 
 void shm_lock_init(void)
@@ -442,25 +478,22 @@ static inline void shm_rb_dump(struct shm_rbctl *rbctl)
 
 static void set_version_numb(void)
 {
-	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
-
-	skctl_va->version_magic = VERSION_MAGIC_FLAG;
-	skctl_va->version_number = VERSION_NUMBER_FLAG;
+	cpks->version_magic = VERSION_MAGIC_FLAG;
+	cpks->version_number = VERSION_NUMBER_FLAG;
 	return;
 }
 
 static void get_dvc_info(void)
 {
-	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
 	struct cpmsa_dvc_info dvc_vol_info;
 	int i = 0;
 
 	getcpdvcinfo(&dvc_vol_info);
 	for (i = 0; i < MAX_CP_PPNUM; i++) {
-		skctl_va->cp_freq[i] = dvc_vol_info.cpdvcinfo[i].cpfreq;
-		skctl_va->cp_vol[i] = dvc_vol_info.cpdvcinfo[i].cpvl;
+		cpks->cp_freq[i] = dvc_vol_info.cpdvcinfo[i].cpfreq;
+		cpks->cp_vol[i] = dvc_vol_info.cpdvcinfo[i].cpvl;
 	}
-	skctl_va->msa_dvc_vol = dvc_vol_info.msadvcvl;
+	cpks->msa_dvc_vol = dvc_vol_info.msadvcvl;
 }
 
 static int shm_rb_init(struct shm_rbctl *rbctl)
@@ -573,6 +606,44 @@ void shm_debugfs_exit(void)
 	tel_debugfs_root_dir = NULL;
 }
 
+int cp_keysection_init(void)
+{
+	mutex_lock(&cpks_lock);
+	cpks = shm_map(shm_rbctl[shm_rb_main].skctl_pa +
+		sizeof(struct shm_skctl),
+		sizeof(struct cp_keysection));
+	mutex_unlock(&cpks_lock);
+	if (!cpks)
+		return -1;
+
+	if (cpks_debugfs_init(shm_debugfs_root_dir) < 0)
+		goto exit;
+
+	return 0;
+
+exit:
+	mutex_lock(&cpks_lock);
+	if (cpks)
+		shm_unmap(shm_rbctl[shm_rb_main].skctl_pa +
+			sizeof(struct shm_skctl),
+			cpks);
+	cpks = NULL;
+	mutex_unlock(&cpks_lock);
+	return -1;
+}
+
+void cp_keysection_exit(void)
+{
+	cpks_debugfs_exit();
+	mutex_lock(&cpks_lock);
+	if (cpks)
+		shm_unmap(shm_rbctl[shm_rb_main].skctl_pa +
+			sizeof(struct shm_skctl),
+			cpks);
+	cpks = NULL;
+	mutex_unlock(&cpks_lock);
+}
+
 int tel_shm_init(enum shm_grp_type grp_type,
 	const void *data)
 {
@@ -585,6 +656,11 @@ int tel_shm_init(enum shm_grp_type grp_type,
 	if (ret < 0)
 		return -1;
 
+	if (grp_type == shm_grp_cp) {
+		if (cp_keysection_init() < 0)
+			return -1;
+	}
+
 	for (rbctl = shm_rbctl; rbctl != rbctl_end; ++rbctl) {
 		if (rbctl->grp_type == grp_type)
 			ret = shm_rb_init(rbctl);
@@ -593,6 +669,7 @@ int tel_shm_init(enum shm_grp_type grp_type,
 	}
 
 	if (grp_type == shm_grp_cp) {
+		cp_keysection_data_init();
 		set_version_numb();
 		get_dvc_info();
 	}
@@ -603,6 +680,9 @@ rb_exit:
 	for (rbctl2 = shm_rbctl; rbctl2 != rbctl; ++rbctl2)
 		if (rbctl->grp_type == grp_type)
 			shm_rb_exit(rbctl2);
+
+	if (grp_type == shm_grp_cp)
+		cp_keysection_exit();
 
 	return -1;
 }
@@ -616,6 +696,9 @@ void tel_shm_exit(enum shm_grp_type grp_type)
 	for (rbctl = shm_rbctl; rbctl != rbctl_end; ++rbctl)
 		if (rbctl->grp_type == grp_type)
 			shm_rb_exit(rbctl);
+
+	if (grp_type == shm_grp_cp)
+		cp_keysection_exit();
 }
 EXPORT_SYMBOL(tel_shm_exit);
 

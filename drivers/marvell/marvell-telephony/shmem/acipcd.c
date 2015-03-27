@@ -30,7 +30,6 @@
 #include <linux/pm_qos.h>
 
 #include "acipcd.h"
-#include "shm.h"
 #include "portqueue.h"
 #include "msocket.h"
 #include "pxa_cp_load.h"
@@ -71,8 +70,8 @@ static void acipc_modem_ddr_freq_update_handler(struct work_struct *work)
 	static int cur_ddrfreq;
 
 	pr_info("acipc_cb_modem_ddrfreq_update: %d\n",
-	       (unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq);
-	if ((unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq ==
+	       (unsigned int)cpks->modem_ddrfreq);
+	if ((unsigned int)cpks->modem_ddrfreq ==
 	    MODEM_DDRFREQ_HI) {
 		if (cur_ddrfreq == MODEM_DDRFREQ_HI)
 			return;
@@ -82,7 +81,7 @@ static void acipc_modem_ddr_freq_update_handler(struct work_struct *work)
 		cur_ddrfreq = MODEM_DDRFREQ_HI;
 	}
 
-	if ((unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq ==
+	if ((unsigned int)cpks->modem_ddrfreq ==
 	    MODEM_DDRFREQ_MID) {
 		if (cur_ddrfreq == MODEM_DDRFREQ_MID)
 			return;
@@ -92,7 +91,7 @@ static void acipc_modem_ddr_freq_update_handler(struct work_struct *work)
 		cur_ddrfreq = MODEM_DDRFREQ_MID;
 	}
 
-	if ((unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq ==
+	if ((unsigned int)cpks->modem_ddrfreq ==
 	    MODEM_DDRFREQ_LOW) {
 		if (cur_ddrfreq == MODEM_DDRFREQ_LOW)
 			return;
@@ -163,11 +162,11 @@ static u32 acipc_cb_modem_ddrfreq_update(u32 status)
 
 static u32 acipc_cb_reset_cp_confirm(u32 status)
 {
-	if (shm_rbctl[shm_rb_main].skctl_va->reset_request
+	if (cpks->reset_request
 		== RESET_CP_REQUEST_DONE)
 		complete(&reset_cp_confirm);
 
-	shm_rbctl[shm_rb_main].skctl_va->reset_request = 0;
+	cpks->reset_request = 0;
 	return 0;
 }
 
@@ -182,30 +181,27 @@ static u32 acipc_cb_event_notify(u32 status)
 
 void acipc_reset_cp_request(void)
 {
-	struct shm_rbctl *rbctl;
-
-	rbctl = &shm_rbctl[shm_rb_main];
-	mutex_lock(&rbctl->va_lock);
-	if (!rbctl->skctl_va) {
-		mutex_unlock(&rbctl->va_lock);
+	mutex_lock(&cpks_lock);
+	if (!cpks) {
+		mutex_unlock(&cpks_lock);
 		return;
 	}
-	shm_rbctl[shm_rb_main].skctl_va->reset_request = RESET_CP_REQUEST;
+	cpks->reset_request = RESET_CP_REQUEST;
 	reinit_completion(&reset_cp_confirm);
 	acipc_notify_reset_cp_request();
-	mutex_unlock(&rbctl->va_lock);
+	mutex_unlock(&cpks_lock);
 	if (wait_for_completion_timeout(&reset_cp_confirm, 2 * HZ))
 		pr_info("reset cp request success!\n");
 	else
 		pr_err("reset cp request fail!\n");
 
-	mutex_lock(&rbctl->va_lock);
-	if (!rbctl->skctl_va) {
-		mutex_unlock(&rbctl->va_lock);
+	mutex_lock(&cpks_lock);
+	if (!cpks) {
+		mutex_unlock(&cpks_lock);
 		return;
 	}
-	shm_rbctl[shm_rb_main].skctl_va->reset_request = 0;
-	mutex_unlock(&rbctl->va_lock);
+	cpks->reset_request = 0;
+	mutex_unlock(&cpks_lock);
 	return;
 }
 
@@ -222,7 +218,7 @@ static u32 acipc_cb_block_cpuidle_axi(u32 status)
 	bool block = false;
 	u32 pm_status = 0;
 
-	pm_status = shm_rbctl[shm_rb_main].skctl_va->ap_pm_status_request;
+	pm_status = cpks->ap_pm_status_request;
 	if (pm_status == REQ_AP_D2_STATUS) {
 		block = false;
 	} else if (pm_status == REQ_AP_ND2_STATUS) {

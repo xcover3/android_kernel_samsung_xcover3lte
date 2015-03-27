@@ -54,6 +54,10 @@ static int cp_shm_ch_inited;
 static int m3_shm_ch_inited;
 static int aponly;
 
+struct cp_keysection *cpks;
+DEFINE_MUTEX(cpks_lock);
+struct dentry *cpks_rootdir;
+
 int cmsockdev_major;
 int cmsockdev_minor;
 int cmsockdev_nr_devs = CMSOCKDEV_NR_DEVS;
@@ -1076,13 +1080,13 @@ static long msocket_ioctl(struct file *filp,
 		return 0;
 	case MSOCKET_IOC_NETWORK_MODE_CP_NOTIFY: /*notify CP network mode*/
 		network_mode = (int)arg;
-		mutex_lock(&portq_rbctl->va_lock);
-		if (portq_rbctl->skctl_va) {
-			portq_rbctl->skctl_va->network_mode = network_mode;
+		mutex_lock(&cpks_lock);
+		if (cpks) {
+			cpks->network_mode = network_mode;
 			pr_info("MSOCK: network mode:%d\n",
 				network_mode);
 		}
-		mutex_unlock(&portq_rbctl->va_lock);
+		mutex_unlock(&cpks_lock);
 		return 0;
 	default:
 		return -ENOTTY;

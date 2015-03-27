@@ -138,45 +138,6 @@ struct shm_skctl {
 	volatile int ap_rptr;
 	volatile int cp_wptr;
 	volatile unsigned int cp_port_fc;
-
-#define PMIC_MASTER_FLAG	0x4D415354
-	/* PMIC SSP master status setting query */
-	volatile unsigned int ap_pcm_master;
-	volatile unsigned int cp_pcm_master;
-	volatile unsigned int modem_ddrfreq;
-
-	/* DIAG specific info */
-	volatile unsigned int diag_header_ptr;
-	volatile unsigned int diag_cp_db_ver;
-	volatile unsigned int diag_ap_db_ver;
-
-	volatile unsigned int reset_request;
-	volatile unsigned int ap_pm_status_request;
-	volatile unsigned int profile_number;
-
-	/* dvc voltage table number */
-	volatile unsigned int dvc_vol_tbl_num;
-	volatile unsigned int dvc_vol_tbl[16];
-
-#define VERSION_MAGIC_FLAG 0x56455253
-#define VERSION_NUMBER_FLAG 0x1
-	volatile unsigned int version_magic;
-	volatile unsigned int version_number;
-
-	volatile unsigned int dfc_dclk_num;
-	volatile unsigned int dfc_dclk[16];
-
-	/*L+G or G+L*/
-	volatile unsigned int network_mode;
-
-	/* uuid reserved for SSIPC solution */
-	volatile unsigned int uuid_high;
-	volatile unsigned int uuid_low;
-
-	/* dvc voltage and frequency */
-	volatile unsigned int cp_freq[MAX_CP_PPNUM];
-	volatile unsigned int cp_vol[MAX_CP_PPNUM];
-	volatile unsigned int msa_dvc_vol;
 };
 
 /* share memory socket header structure */
@@ -245,12 +206,6 @@ static inline int shm_free_tx_skbuf(struct shm_rbctl *rbctl)
 {
 	return __shm_free_tx_skbuf(rbctl->skctl_va->cp_rptr,
 		rbctl->skctl_va->ap_wptr, rbctl->tx_skbuf_num);
-}
-
-/* check if cp pmic is in master mode */
-static inline bool shm_is_cp_pmic_master(struct shm_rbctl *rbctl)
-{
-	return rbctl->skctl_va->cp_pcm_master == PMIC_MASTER_FLAG;
 }
 
 /* update status in ring buffer fc */
