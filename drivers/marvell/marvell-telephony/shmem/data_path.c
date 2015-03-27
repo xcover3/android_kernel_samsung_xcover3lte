@@ -37,12 +37,8 @@
 
 static struct wakeup_source dp_rx_wakeup;
 
-static struct data_path data_path[dp_type_total_cnt] = {
-	[dp_type_psd].name = "psd",
-};
-
-static enum shm_rb_type dp_rb[dp_type_total_cnt] = {
-	shm_rb_psd
+static struct data_path data_path = {
+	.name = "psd",
 };
 
 static struct dentry *tel_debugfs_root_dir;
@@ -546,39 +542,36 @@ EXPORT_SYMBOL(data_path_xmit);
 
 static void data_path_broadcast_msg(int proc)
 {
-	struct data_path *dp;
-	const struct data_path *dp_end = data_path + dp_type_total_cnt;
+	struct data_path *dp = &data_path;
 
-	for (dp = data_path; dp != dp_end; ++dp) {
-		if (atomic_read(&dp->state) == dp_state_opened) {
-			if (proc == MsocketLinkdownProcId) {
-				/* make sure tx/rx tasklet is stopped */
-				tasklet_disable(&dp->tx_tl);
-				/*
-				 * tx tasklet is completely stopped
-				 * purge the skb list
-				 */
-				tx_q_clean(dp);
-				tasklet_enable(&dp->tx_tl);
+	if (atomic_read(&dp->state) == dp_state_opened) {
+		if (proc == MsocketLinkdownProcId) {
+			/* make sure tx/rx tasklet is stopped */
+			tasklet_disable(&dp->tx_tl);
+			/*
+			 * tx tasklet is completely stopped
+			 * purge the skb list
+			 */
+			tx_q_clean(dp);
+			tasklet_enable(&dp->tx_tl);
 
-				tasklet_disable(&dp->rx_tl);
-				tasklet_enable(&dp->rx_tl);
+			tasklet_disable(&dp->rx_tl);
+			tasklet_enable(&dp->rx_tl);
 
-				if (dp->cbs && dp->cbs->link_down)
-					dp->cbs->link_down();
-			} else if (proc == MsocketLinkupProcId) {
-				/*
-				 * Now both AP and CP will not send packet
-				 * to ring buffer or receive packet from ring
-				 * buffer, so cleanup any packet in ring buffer
-				 * and initialize some key data structure to
-				 * the beginning state otherwise user space
-				 * process and CP may occur error
-				 */
-				shm_rb_data_init(dp->rbctl);
-				if (dp->cbs && dp->cbs->link_up)
-					dp->cbs->link_up();
-			}
+			if (dp->cbs && dp->cbs->link_down)
+				dp->cbs->link_down();
+		} else if (proc == MsocketLinkupProcId) {
+			/*
+			 * Now both AP and CP will not send packet
+			 * to ring buffer or receive packet from ring
+			 * buffer, so cleanup any packet in ring buffer
+			 * and initialize some key data structure to
+			 * the beginning state otherwise user space
+			 * process and CP may occur error
+			 */
+			shm_rb_data_init(dp->rbctl);
+			if (dp->cbs && dp->cbs->link_up)
+				dp->cbs->link_up();
 		}
 	}
 }
@@ -761,9 +754,7 @@ static int dp_debugfs_init(struct data_path *dp)
 	char buf[256];
 	char path[256];
 
-	sprintf(buf, "dp%d", dp->dp_type);
-
-	dp->dentry = debugfs_create_dir(dp->name ? dp->name : buf,
+	dp->dentry = debugfs_create_dir(dp->name ? dp->name : "dp",
 		dp_debugfs_root_dir);
 	if (!dp->dentry)
 		return -ENOMEM;
@@ -840,22 +831,14 @@ static int dp_debugfs_exit(struct data_path *dp)
 	return 0;
 }
 
-struct data_path *data_path_open(enum data_path_type dp_type,
-				 struct data_path_callback *cbs)
+struct data_path *data_path_open(struct data_path_callback *cbs)
 {
-	struct data_path *dp;
-
-	if (dp_type >= dp_type_total_cnt || dp_type < 0) {
-		pr_err("%s: incorrect type %d\n", __func__, dp_type);
-		return NULL;
-	}
+	struct data_path *dp = &data_path;
 
 	if (!cbs) {
 		pr_err("%s: cbs is NULL\n", __func__);
 		return NULL;
 	}
-
-	dp = &data_path[dp_type];
 
 	if (atomic_cmpxchg(&dp->state, dp_state_idle,
 			   dp_state_opening) != dp_state_idle) {
@@ -1064,9 +1047,7 @@ static struct notifier_block cp_link_status_notifier = {
 
 int data_path_init(void)
 {
-	struct data_path *dp;
-	struct data_path *dp2;
-	const struct data_path *dp_end = data_path + dp_type_total_cnt;
+	struct data_path *dp = &data_path;
 
 	tel_debugfs_root_dir = tel_debugfs_get();
 	if (!tel_debugfs_root_dir)
@@ -1079,18 +1060,15 @@ int data_path_init(void)
 
 	wakeup_source_init(&dp_rx_wakeup, "dp_rx_wakeups");
 
-	for (dp = data_path; dp != dp_end; ++dp) {
-		dp->dp_type = dp - data_path;
-		dp->rbctl = shm_open(dp_rb[dp - data_path], &dp_shm_cb, dp);
-		if (!dp->rbctl) {
-			pr_err("%s: cannot open shm\n", __func__);
-			goto exit;
-		}
-		atomic_set(&dp->state, dp_state_idle);
+	dp->rbctl = shm_open(shm_rb_psd, &dp_shm_cb, dp);
+	if (!dp->rbctl) {
+		pr_err("%s: cannot open shm\n", __func__);
+		goto exit;
 	}
+	atomic_set(&dp->state, dp_state_idle);
 
 	if (register_cp_link_status_notifier(&cp_link_status_notifier) < 0)
-		goto exit;
+		goto closeshm;
 
 	if (dp_acipc_init() < 0)
 		goto unregister;
@@ -1099,10 +1077,9 @@ int data_path_init(void)
 
 unregister:
 	unregister_cp_link_status_notifier(&cp_link_status_notifier);
+closeshm:
+	shm_close(dp->rbctl);
 exit:
-	for (dp2 = data_path; dp2 != dp; ++dp2)
-		shm_close(dp2->rbctl);
-
 	wakeup_source_trash(&dp_rx_wakeup);
 
 	debugfs_remove(dp_debugfs_root_dir);
@@ -1117,15 +1094,13 @@ putrootfs:
 
 void data_path_exit(void)
 {
-	struct data_path *dp;
-	const struct data_path *dp_end = data_path + dp_type_total_cnt;
+	struct data_path *dp = &data_path;
 
 	dp_acipc_exit();
 
 	unregister_cp_link_status_notifier(&cp_link_status_notifier);
 
-	for (dp = data_path; dp != dp_end; ++dp)
-		shm_close(dp->rbctl);
+	shm_close(dp->rbctl);
 
 	wakeup_source_trash(&dp_rx_wakeup);
 

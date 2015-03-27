@@ -27,11 +27,6 @@
 
 #include "skb_llist.h"
 
-enum data_path_type {
-	dp_type_psd,
-	dp_type_total_cnt
-};
-
 enum data_path_result {
 	dp_success,
 
@@ -131,8 +126,6 @@ struct data_path {
 	const char *name;
 	struct dentry *dentry;
 
-	enum data_path_type dp_type;
-
 	struct shm_rbctl *rbctl;
 
 	struct tasklet_struct tx_tl;
@@ -204,8 +197,7 @@ static inline unsigned padded_size(unsigned len)
 extern int data_path_init(void);
 extern void data_path_exit(void);
 
-extern struct data_path *data_path_open(enum data_path_type dp_type,
-					struct data_path_callback *cbs);
+extern struct data_path *data_path_open(struct data_path_callback *cbs);
 extern void data_path_close(struct data_path *dp);
 
 extern void data_path_schedule_tx(struct data_path *dp);

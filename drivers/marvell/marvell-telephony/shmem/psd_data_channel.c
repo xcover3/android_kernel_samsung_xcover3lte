@@ -354,7 +354,7 @@ static int psd_debugfs_exit(void)
 static int ps_channel_init(struct notifier_block *nb,
 			unsigned long action, void *data)
 {
-	psd_dp = data_path_open(dp_type_psd, &psd_cbs);
+	psd_dp = data_path_open(&psd_cbs);
 	if (!psd_dp) {
 		pr_err("%s: failed to open data path\n", __func__);
 		return -1;
