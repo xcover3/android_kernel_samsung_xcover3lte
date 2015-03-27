@@ -604,27 +604,33 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 	pm88x_stop_charging(info);
 
 	/* WA for A0 to prevent OV_VBAT fault and support dead battery case */
-	if (info->chip->chip_id == PM886_A0) {
-		/* open test page */
-		regmap_write(info->chip->base_regmap, 0x1F, 0x1);
-		/* change defaults to disable OV_VBAT */
-		regmap_write(info->chip->test_regmap, 0x50, 0x2A);
-		regmap_write(info->chip->test_regmap, 0x51, 0x0C);
-		/* change defaults to enable charging */
-		regmap_write(info->chip->test_regmap, 0x52, 0x28);
-		regmap_write(info->chip->test_regmap, 0x53, 0x01);
-		/* change defaults to disable OV_VSYS1 and UV_VSYS1 */
-		regmap_write(info->chip->test_regmap, 0x54, 0x23);
-		regmap_write(info->chip->test_regmap, 0x55, 0x14);
-		regmap_write(info->chip->test_regmap, 0x58, 0xbb);
-		regmap_write(info->chip->test_regmap, 0x59, 0x08);
-		/* close test page */
-		regmap_write(info->chip->base_regmap, 0x1F, 0x0);
-		/* disable OV_VBAT */
-		regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG3,
-				   PM88X_OV_VBAT_EN, 0);
-		/* disable OV_VSYS1 and UV_VSYS1 */
-		regmap_write(info->chip->base_regmap, PM88X_LOWPOWER4, 0x14);
+	switch (info->chip->type) {
+	case PM886:
+		if (info->chip->chip_id == PM886_A0) {
+			/* open test page */
+			regmap_write(info->chip->base_regmap, 0x1F, 0x1);
+			/* change defaults to disable OV_VBAT */
+			regmap_write(info->chip->test_regmap, 0x50, 0x2A);
+			regmap_write(info->chip->test_regmap, 0x51, 0x0C);
+			/* change defaults to enable charging */
+			regmap_write(info->chip->test_regmap, 0x52, 0x28);
+			regmap_write(info->chip->test_regmap, 0x53, 0x01);
+			/* change defaults to disable OV_VSYS1 and UV_VSYS1 */
+			regmap_write(info->chip->test_regmap, 0x54, 0x23);
+			regmap_write(info->chip->test_regmap, 0x55, 0x14);
+			regmap_write(info->chip->test_regmap, 0x58, 0xbb);
+			regmap_write(info->chip->test_regmap, 0x59, 0x08);
+			/* close test page */
+			regmap_write(info->chip->base_regmap, 0x1F, 0x0);
+			/* disable OV_VBAT */
+			regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG3,
+					   PM88X_OV_VBAT_EN, 0);
+			/* disable OV_VSYS1 and UV_VSYS1 */
+			regmap_write(info->chip->base_regmap, PM88X_LOWPOWER4, 0x14);
+		}
+		break;
+	default:
+		break;
 	}
 
 	/* disable charger watchdog */

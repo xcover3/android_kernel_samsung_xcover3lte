@@ -500,34 +500,40 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 				return present;
 			}
 
-			if (info->chip->chip_id == PM886_A1) {
-				/*
-				 * disable battery temperature monitoring:
-				 * clear bit4
-				 */
-				regmap_update_bits(info->chip->battery_regmap,
-						   PM88X_CHG_CONFIG1,
-						   PM88X_BATTEMP_MON_EN, 0);
-				/*
-				 * select GPADC3 as external input for
-				 * battery tempeareure monitoring algorithm
-				 */
-				regmap_update_bits(info->chip->gpadc_regmap,
-						   PM88X_GPADC_CONFIG8,
-						   PM88X_BATT_TEMP_SEL,
-						   PM88X_BATT_TEMP_SEL_GP3);
-				/*
-				 * selects GPADC3 as input selection for
-				 * battery detection
-				 */
-				regmap_update_bits(info->chip->gpadc_regmap,
-						   PM88X_GPADC_CONFIG8,
-						   PM88X_GPADC_BD_EN,
-						   PM88X_GPADC_BD_EN);
-				/* disable BD_EN */
-				regmap_update_bits(info->chip->gpadc_regmap,
-						   PM88X_GPADC_CONFIG8,
-						   PM88X_GPADC_BD_EN, 0);
+			switch (info->chip->type) {
+			case PM886:
+				if (info->chip->chip_id == PM886_A1) {
+					/*
+					 * disable battery temperature monitoring:
+					 * clear bit4
+					 */
+					regmap_update_bits(info->chip->battery_regmap,
+							   PM88X_CHG_CONFIG1,
+							   PM88X_BATTEMP_MON_EN, 0);
+					/*
+					 * select GPADC3 as external input for
+					 * battery tempeareure monitoring algorithm
+					 */
+					regmap_update_bits(info->chip->gpadc_regmap,
+							   PM88X_GPADC_CONFIG8,
+							   PM88X_BATT_TEMP_SEL,
+							   PM88X_BATT_TEMP_SEL_GP3);
+					/*
+					 * selects GPADC3 as input selection for
+					 * battery detection
+					 */
+					regmap_update_bits(info->chip->gpadc_regmap,
+							   PM88X_GPADC_CONFIG8,
+							   PM88X_GPADC_BD_EN,
+							   PM88X_GPADC_BD_EN);
+					/* disable BD_EN */
+					regmap_update_bits(info->chip->gpadc_regmap,
+							   PM88X_GPADC_CONFIG8,
+							   PM88X_GPADC_BD_EN, 0);
+				}
+				break;
+			default:
+				break;
 			}
 			/* enable bias current */
 			ret = extern_pm88x_gpadc_set_current_generator(gp, 1);
@@ -1713,24 +1719,30 @@ end:
 static void pm88x_pre_setup_fuelgauge(struct pm88x_battery_info *info)
 {
 	int data;
-	if (info->chip->chip_id == PM886_A0) {
-		pr_info("%s: fix up for the fuelgauge driver.\n", __func__);
-		/* 1. base page 0x1f.0 = 1 ---> unlock test page */
-		regmap_write(info->chip->base_regmap, 0x1f, 0x1);
-		/* 2. tune ibat */
-		regmap_read(info->chip->test_regmap, 0x8f, &data);
-		/* if the bit [5:0] = 0, needs to rewrite to 0x22, b'10_0010 */
-		if ((data & 0x3f) == 0) {
-			dev_info(info->dev, "%s: -->test[0x8f] = 0x%x\n",
-				 __func__, data);
-			data &= 0xc0;
-			data |= 0x22;
-			regmap_write(info->chip->test_regmap, 0x8f, data);
-			dev_info(info->dev, "%s: <--test[0x8f] = 0x%x\n",
-				 __func__, data);
+	switch (info->chip->type) {
+	case PM886:
+		if (info->chip->chip_id == PM886_A0) {
+			pr_info("%s: fix up for the fuelgauge driver.\n", __func__);
+			/* 1. base page 0x1f.0 = 1 ---> unlock test page */
+			regmap_write(info->chip->base_regmap, 0x1f, 0x1);
+			/* 2. tune ibat */
+			regmap_read(info->chip->test_regmap, 0x8f, &data);
+			/* if the bit [5:0] = 0, needs to rewrite to 0x22, b'10_0010 */
+			if ((data & 0x3f) == 0) {
+				dev_info(info->dev, "%s: -->test[0x8f] = 0x%x\n",
+					 __func__, data);
+				data &= 0xc0;
+				data |= 0x22;
+				regmap_write(info->chip->test_regmap, 0x8f, data);
+				dev_info(info->dev, "%s: <--test[0x8f] = 0x%x\n",
+					 __func__, data);
+			}
+			/* 3. base page 0x1f.0 = 0 --> lock the test page */
+			regmap_write(info->chip->base_regmap, 0x1f, 0x0);
 		}
-		/* 3. base page 0x1f.0 = 0 --> lock the test page */
-		regmap_write(info->chip->base_regmap, 0x1f, 0x0);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -1771,14 +1783,26 @@ static int pm88x_init_fuelgauge(struct pm88x_battery_info *info)
 	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
 	/*
-	 * 5. disable battery temperature monitoring2 for 88pm886 A1 and 88pm880 A0:
+	 * 5. disable battery temperature monitoring2 for 88pm886 A1 and 88pm880 A0/A1:
 	 * set bit5
 	 */
-	if (info->chip->chip_id == PM886_A1 || info->chip->chip_id == PM880_A0)
+	switch (info->chip->type) {
+	case PM886:
+		if (info->chip->chip_id == PM886_A1)
+			regmap_update_bits(info->chip->battery_regmap,
+					   PM88X_CHG_CONFIG1,
+					   PM88X_BATTEMP_MON2_DIS,
+					   PM88X_BATTEMP_MON2_DIS);
+		break;
+	case PM880:
 		regmap_update_bits(info->chip->battery_regmap,
 				   PM88X_CHG_CONFIG1,
 				   PM88X_BATTEMP_MON2_DIS,
 				   PM88X_BATTEMP_MON2_DIS);
+		break;
+	default:
+		break;
+	}
 
 	return 0;
 }

@@ -71,10 +71,17 @@ static int pm88x_get_vbus(unsigned int *level)
 		return ret;
 
 	val = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
-	if (vbus_info->chip->chip_id == PM886_A0)
-		voltage = PM886A0_VALUE_2_VBUS(val);
-	else
+
+	switch (vbus_info->chip->type) {
+	case PM886:
+		if (vbus_info->chip->chip_id == PM886_A0) {
+			voltage = PM886A0_VALUE_2_VBUS(val);
+			break;
+		}
+	default:
 		voltage = PM88X_VALUE_2_VBUS(val);
+		break;
+	}
 
 	/* read pm886 status to decide it's cable in or out */
 	regmap_read(vbus_info->chip->base_regmap, PM88X_STATUS1, &val);
@@ -105,9 +112,15 @@ static int pm88x_get_vbus(unsigned int *level)
 			dev_dbg(vbus_info->chip->dev,
 				"%s: Cable out / OTG disabled !(%dmV)\n", __func__, voltage);
 			/* Open USB_SW in order to save power at low power mode */
-			if (vbus_info->chip->chip_id != PM886_A0)
+			switch (vbus_info->chip->type) {
+			case PM886:
+				if (vbus_info->chip->chip_id == PM886_A0)
+					break;
+			default:
 				regmap_update_bits(vbus_info->chip->battery_regmap,
 					PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, 0);
+				break;
+			}
 		}
 	}
 
@@ -139,9 +152,16 @@ static int pm88x_set_vbus(unsigned int vbus)
 					PM88X_USB_OTG_EN, PM88X_USB_OTG_EN);
 		if (ret)
 			return ret;
-		if (vbus_info->chip->chip_id != PM886_A0)
+
+		switch (vbus_info->chip->type) {
+		case PM886:
+			if (vbus_info->chip->chip_id == PM886_A0)
+				break;
+		default:
 			ret = regmap_update_bits(vbus_info->chip->battery_regmap,
 				PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, PM88X_VBUS_SW_EN);
+			break;
+		}
 	} else
 		ret = regmap_update_bits(vbus_info->chip->battery_regmap, PM88X_CHG_CONFIG1,
 					PM88X_USB_OTG_EN, 0);
@@ -240,9 +260,16 @@ static irqreturn_t pm88x_vbus_handler(int irq, void *data)
 	 * insertion. in case of removal this will be called and the
 	 * switch will be opened at pm88x_get_vbus
 	 */
-	if (vbus_info->chip->chip_id != PM886_A0)
+	switch (vbus_info->chip->type) {
+	case PM886:
+		if (vbus_info->chip->chip_id == PM886_A0)
+			break;
+	default:
 		regmap_update_bits(vbus_info->chip->battery_regmap,
 			PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, PM88X_VBUS_SW_EN);
+		break;
+	}
+
 	dev_dbg(info->chip->dev, "88pm886 vbus interrupt is served..\n");
 	/* allowing 7.5msec for the SW to close */
 	schedule_delayed_work(&info->pxa_notify, usecs_to_jiffies(7500));
@@ -318,14 +345,20 @@ static void pm88x_vbus_fixup(struct pm88x_vbus_info *info)
 		return;
 	}
 
-	if (info->chip->chip_id == PM886_A0) {
-		pr_info("%s: fix up for the vbus driver.\n", __func__);
-		/* 1. base page 0x1f.0 = 1 --> unlock test page */
-		regmap_write(info->chip->base_regmap, 0x1f, 0x1);
-		/* 2. test page 0x90.[4:0] = 0, reset trimming to mid point 0 */
-		regmap_update_bits(info->chip->test_regmap, 0x90, 0x1f << 0, 0);
-		/* 3. base page 0x1f.0 = 0 --> lock the test page */
-		regmap_write(info->chip->base_regmap, 0x1f, 0x0);
+	switch (info->chip->type) {
+	case PM886:
+		if (info->chip->chip_id == PM886_A0) {
+			pr_info("%s: fix up for the vbus driver.\n", __func__);
+			/* 1. base page 0x1f.0 = 1 --> unlock test page */
+			regmap_write(info->chip->base_regmap, 0x1f, 0x1);
+			/* 2. test page 0x90.[4:0] = 0, reset trimming to mid point 0 */
+			regmap_update_bits(info->chip->test_regmap, 0x90, 0x1f << 0, 0);
+			/* 3. base page 0x1f.0 = 0 --> lock the test page */
+			regmap_write(info->chip->base_regmap, 0x1f, 0x0);
+		}
+		break;
+	default:
+		break;
 	}
 }
 

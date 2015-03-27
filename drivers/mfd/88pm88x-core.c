@@ -218,17 +218,22 @@ static void parse_powerup_down_log(struct pm88x_chip *chip)
 	 * note: HYB_DONE and HW_RESET1 are kept,
 	 *       but should not be considered as power down events
 	 */
-	if (chip->type == PM886) {
+	switch (chip->type) {
+	case PM886:
 		powerup &= 0x7f;
 		powerdown2 &= 0x1f;
 		powerup_bits = 7;
 		powerdown1_bits = 8;
 		powerdown2_bits = 5;
-	} else {
+		break;
+	case PM880:
 		powerdown2 &= 0x3f;
 		powerup_bits = 8;
 		powerdown1_bits = 8;
 		powerdown2_bits = 6;
+		break;
+	default:
+		return;
 	}
 
 	/* keep globals for external usage */

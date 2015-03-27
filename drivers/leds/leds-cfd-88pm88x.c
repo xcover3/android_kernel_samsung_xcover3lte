@@ -213,14 +213,22 @@ static void pm88x_led_delayed_work(struct work_struct *work)
 	ret = clear_errors(led);
 	/* set TRCH_TIMER_RESET to reset torch timer so
 	 * led won't turn off */
-	if (led->chip->type == PM886)
+	switch (led->chip->type) {
+	case PM886:
 		regmap_update_bits(led->chip->battery_regmap, PM886_CFD_CONFIG4,
 			PM88X_CF_BITMASK_TRCH_RESET,
 			PM88X_CF_BITMASK_TRCH_RESET);
-	else
+		break;
+	case PM880:
 		regmap_update_bits(led->chip->battery_regmap, PM880_CFD_CONFIG4,
 			PM88X_CF_BITMASK_TRCH_RESET,
 			PM88X_CF_BITMASK_TRCH_RESET);
+		break;
+	default:
+		dev_err(led->cdev.dev, "Unsupported chip type %ld\n", led->chip->type);
+		mutex_unlock(&led->lock);
+		return;
+	}
 	mutex_unlock(&led->lock);
 	if (!ret) {
 		/* reschedule torch timer reset */
@@ -261,7 +269,8 @@ static void torch_on(struct pm88x_led *led)
 		gpio_direction_output(led->cf_en, 0);
 	}
 
-	if (chip->type == PM886) {
+	switch (chip->type) {
+	case PM886:
 		/* set TRCH_TIMER_RESET to reset torch timer so
 		 * led won't turn off */
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
@@ -273,7 +282,8 @@ static void torch_on(struct pm88x_led *led)
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
 				(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
 				PM88X_SELECT_TORCH_MODE | PM886_BOOST_MODE);
-	} else {
+		break;
+	case PM880:
 		/* set TRCH_TIMER_RESET to reset torch timer so
 		 * led won't turn off */
 		regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
@@ -284,7 +294,13 @@ static void torch_on(struct pm88x_led *led)
 		regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
 				(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
 				PM88X_SELECT_TORCH_MODE | PM880_CL1_EN);
+		break;
+	default:
+		dev_err(led->cdev.dev, "Unsupported chip type %ld\n", chip->type);
+		mutex_unlock(&led->lock);
+		return;
 	}
+
 	/* disable booster HS current limit */
 	regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 			PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
@@ -375,7 +391,8 @@ static void strobe_flash(struct pm88x_led *led)
 	}
 
 	if (chg_online) {
-		if (chip->type == PM886) {
+		switch (chip->type) {
+		case PM886:
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
 					(PM886_BST_CFD_STPFLS_DIS | PM88X_BST_OV_SET_MASK),
 					(PM886_BST_CFD_STPFLS_DIS | PM88X_BST_OV_SET_6V));
@@ -383,7 +400,26 @@ static void strobe_flash(struct pm88x_led *led)
 					PM886_CFOUT_OV_EN_MASK, 0x0);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
 					PM88X_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
-		} else {
+
+			/* unlock test page & force booster configuration */
+			regmap_write(chip->base_regmap, 0x1F, 0x1);
+			regmap_write(chip->test_regmap, 0x40, 0x0);
+			regmap_write(chip->test_regmap, 0x41, 0x0);
+			regmap_write(chip->test_regmap, 0x42, 0x0);
+			regmap_write(chip->test_regmap, 0x43, 0x0);
+			regmap_write(chip->test_regmap, 0x44, 0x9);
+			regmap_write(chip->test_regmap, 0x45, 0x2);
+			regmap_write(chip->test_regmap, 0x46, 0x10);
+
+			/* max brightness allowed in the state 900mA */
+			led->brightness = min_t(unsigned int, 900, led->brightness);
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+				(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
+				PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE);
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
+				PM88X_BST_ILIM_DIS, 0);
+			break;
+		case PM880:
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
 					PM88X_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
@@ -392,37 +428,26 @@ static void strobe_flash(struct pm88x_led *led)
 					(PM88X_BST_OV_SET_MASK), (PM88X_BST_OV_SET_6V));
 			regmap_update_bits(chip->battery_regmap, PM880_CLS_CONFIG2,
 					PM880_CFOUT_OC_EN_MASK, 0);
-		}
 
-		/* unlock test page & force booster configuration */
-		regmap_write(chip->base_regmap, 0x1F, 0x1);
-		regmap_write(chip->test_regmap, 0x40, 0x0);
-		regmap_write(chip->test_regmap, 0x41, 0x0);
-		regmap_write(chip->test_regmap, 0x42, 0x0);
-		regmap_write(chip->test_regmap, 0x43, 0x0);
-		if (chip->type == PM886) {
-			regmap_write(chip->test_regmap, 0x44, 0x9);
-			regmap_write(chip->test_regmap, 0x45, 0x2);
-		} else {
+			/* unlock test page & force booster configuration */
+			regmap_write(chip->base_regmap, 0x1F, 0x1);
+			regmap_write(chip->test_regmap, 0x40, 0x0);
+			regmap_write(chip->test_regmap, 0x41, 0x0);
+			regmap_write(chip->test_regmap, 0x42, 0x0);
+			regmap_write(chip->test_regmap, 0x43, 0x0);
 			regmap_write(chip->test_regmap, 0x44, 0x4);
 			regmap_write(chip->test_regmap, 0x45, 0x4);
-		}
-		regmap_write(chip->test_regmap, 0x46, 0x10);
+			regmap_write(chip->test_regmap, 0x46, 0x10);
 
-		if (chip->type == PM886) {
-			/* max brightness allowed in the state 900mA */
-			led->brightness = min_t(unsigned int, 900, led->brightness);
-			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
-				(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
-				PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE);
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
-				PM88X_BST_ILIM_DIS, 0);
-		} else {
-			/* max brightness allowed in the state 650mA */
 			led->brightness = min_t(unsigned int, 650, led->brightness);
 			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
 					(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
 					(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
+			break;
+		default:
+			dev_err(led->cdev.dev, "Unsupported chip type %ld\n", chip->type);
+			mutex_unlock(&led->lock);
+			return;
 		}
 	} else {
 		/*
@@ -431,7 +456,8 @@ static void strobe_flash(struct pm88x_led *led)
 		 * regulation mode and enable booster HS current limit otherwise set booster
 		 * mode to voltage regulation mode and disable booster HS current limit
 		 */
-		if (chip->type == PM886) {
+		switch (chip->type) {
+		case PM886:
 			if (led->brightness > 400) {
 				regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
 						(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
@@ -445,13 +471,19 @@ static void strobe_flash(struct pm88x_led *led)
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 						PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
 			}
-		} else {
+			break;
+		case PM880:
 			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
 					(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
 					(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
 
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 					PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
+			break;
+		default:
+			dev_err(led->cdev.dev, "Unsupported chip type %ld\n", chip->type);
+			mutex_unlock(&led->lock);
+			return;
 		}
 	}
 
@@ -480,31 +512,40 @@ static void strobe_flash(struct pm88x_led *led)
 		msleep(led->delay_flash_timer + 50);
 		mutex_lock(&led->lock);
 
-		/* restore test page booster configuration */
-		regmap_write(chip->test_regmap, 0x46, 0x0);
-		regmap_write(chip->test_regmap, 0x40, 0x0);
-		regmap_write(chip->test_regmap, 0x41, 0x0);
-		regmap_write(chip->test_regmap, 0x42, 0x0);
-		regmap_write(chip->test_regmap, 0x43, 0x0);
-		regmap_write(chip->test_regmap, 0x44, 0x0);
-		regmap_write(chip->test_regmap, 0x45, 0x0);
+		switch (chip->type) {
+		case PM886:
+		case PM880:
+			/* restore test page booster configuration */
+			regmap_write(chip->test_regmap, 0x46, 0x0);
+			regmap_write(chip->test_regmap, 0x40, 0x0);
+			regmap_write(chip->test_regmap, 0x41, 0x0);
+			regmap_write(chip->test_regmap, 0x42, 0x0);
+			regmap_write(chip->test_regmap, 0x43, 0x0);
+			regmap_write(chip->test_regmap, 0x44, 0x0);
+			regmap_write(chip->test_regmap, 0x45, 0x0);
 
-		if (chip->type == PM886) {
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
-					(PM886_BST_CFD_STPFLS_DIS | PM88X_BST_OV_SET_MASK),
-					PM88X_BST_OV_SET_5P2V);
-			regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
-					PM886_CFOUT_OV_EN_MASK, PM886_CFOUT_OV_EN_MASK);
-		} else
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
-					PM880_BST_RAMP_DIS_MASK, 0);
+			if (chip->type == PM886) {
+				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
+						(PM886_BST_CFD_STPFLS_DIS | PM88X_BST_OV_SET_MASK),
+						PM88X_BST_OV_SET_5P2V);
+				regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
+						PM886_CFOUT_OV_EN_MASK, PM886_CFOUT_OV_EN_MASK);
+			} else
+				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
+						PM880_BST_RAMP_DIS_MASK, 0);
 
-		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-					PM88X_BST_VSET_MASK,
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+						PM88X_BST_VSET_MASK,
 					(led->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
 
-		/* lock test page */
-		regmap_write(chip->base_regmap, 0x1F, 0x0);
+			/* lock test page */
+			regmap_write(chip->base_regmap, 0x1F, 0x0);
+			break;
+		default:
+			dev_err(led->cdev.dev, "Unsupported chip type %ld\n", chip->type);
+			mutex_unlock(&led->lock);
+			return;
+		}
 	}
 
 	/* allow charging */
@@ -1033,12 +1074,20 @@ static int pm88x_led_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (chip->type == PM886)
+	switch (chip->type) {
+	case PM886:
 		led->iset_step = PM886_CURRENT_LEVEL_STEPS;
-	else
+		break;
+	case PM880:
 		led->iset_step = PM880_CURRENT_LEVEL_STEPS;
+		break;
+	default:
+		dev_err(&pdev->dev, "Unsupported chip type %ld\n", chip->type);
+		return -EINVAL;
+	}
 
-	if (pdev->id == PM88X_FLASH_LED) {
+	switch (pdev->id) {
+	case PM88X_FLASH_LED:
 		strncpy(led->name, "flash", MFD_NAME_SIZE - 1);
 		min_current_step = led->iset_step;
 		max_current_step = led->iset_step * PM88X_NUM_FLASH_CURRENT_LEVELS;
@@ -1046,7 +1095,8 @@ static int pm88x_led_probe(struct platform_device *pdev)
 				min_current_step : pdata->max_flash_current;
 		max_current = (pdata->max_flash_current > max_current_step) ?
 				max_current_step : pdata->max_flash_current;
-	} else {
+		break;
+	case PM88X_TORCH_LED:
 		strncpy(led->name, "torch", MFD_NAME_SIZE - 1);
 		min_current_step = led->iset_step;
 		max_current_step = led->iset_step * PM88X_NUM_TORCH_CURRENT_LEVELS;
@@ -1059,6 +1109,11 @@ static int pm88x_led_probe(struct platform_device *pdev)
 		 * layer request
 		 */
 		led->force_max_current = pdata->torch_force_max_current;
+		break;
+	case PM88X_NO_LED:
+	default:
+		dev_err(&pdev->dev, "Invalid LED id 0x%x\n", pdev->id);
+		return -EINVAL;
 	}
 
 	led->chip = chip;
