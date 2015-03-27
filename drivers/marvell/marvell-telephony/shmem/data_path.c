@@ -33,6 +33,7 @@
 #include "data_path.h"
 #include "tel_trace.h"
 #include "debugfs.h"
+#include "pxa_cp_load.h"
 
 
 static struct wakeup_source dp_rx_wakeup;
@@ -997,24 +998,31 @@ struct shm_callback dp_shm_cb = {
 	.get_packet_length = dp_get_packet_length,
 };
 
+struct shm_rbctl psd_rbctl = {
+	.name = "cp-psd",
+	.cbs = &dp_shm_cb,
+	.priv = &data_path,
+	.va_lock = __MUTEX_INITIALIZER(psd_rbctl.va_lock),
+};
+
 /* cp psd xmit stopped notify interrupt */
 static u32 acipc_cb_psd_rb_stop(u32 status)
 {
-	dp_rb_stop_cb(&shm_rbctl[shm_rb_psd]);
+	dp_rb_stop_cb(&psd_rbctl);
 	return 0;
 }
 
 /* cp psd wakeup ap xmit interrupt */
 static u32 acipc_cb_psd_rb_resume(u32 status)
 {
-	dp_rb_resume_cb(&shm_rbctl[shm_rb_psd]);
+	dp_rb_resume_cb(&psd_rbctl);
 	return 0;
 }
 
 /* psd new packet arrival interrupt */
 static u32 acipc_cb_psd_cb(u32 status)
 {
-	dp_packet_send_cb(&shm_rbctl[shm_rb_psd]);
+	dp_packet_send_cb(&psd_rbctl);
 	return 0;
 }
 
@@ -1039,7 +1047,6 @@ static void dp_acipc_exit(void)
 	acipc_event_unbind(ACIPC_RINGBUF_PSD_TX_STOP);
 }
 
-
 static int cp_link_status_notifier_func(struct notifier_block *this,
 	unsigned long code, void *cmd)
 {
@@ -1049,6 +1056,59 @@ static int cp_link_status_notifier_func(struct notifier_block *this,
 
 static struct notifier_block cp_link_status_notifier = {
 	.notifier_call = cp_link_status_notifier_func,
+};
+
+#define SHM_PSD_TX_SKBUF_SIZE	2048	/* PSD tx maximum packet size */
+#define SHM_PSD_RX_SKBUF_SIZE	16384	/* PSD rx maximum packet size */
+static int shm_param_init(const struct cpload_cp_addr *addr)
+{
+	if (!addr)
+		return -1;
+
+	/* psd dedicated ring buffer */
+	psd_rbctl.skctl_pa = addr->psd_skctl_pa;
+
+	psd_rbctl.tx_skbuf_size = SHM_PSD_TX_SKBUF_SIZE;
+	psd_rbctl.rx_skbuf_size = SHM_PSD_RX_SKBUF_SIZE;
+
+	psd_rbctl.tx_pa = addr->psd_tx_pa;
+	psd_rbctl.rx_pa = addr->psd_rx_pa;
+
+	psd_rbctl.tx_total_size = addr->psd_tx_total_size;
+	psd_rbctl.rx_total_size = addr->psd_rx_total_size;
+
+	psd_rbctl.tx_skbuf_num =
+		psd_rbctl.tx_total_size /
+		psd_rbctl.tx_skbuf_size;
+	psd_rbctl.rx_skbuf_num =
+		psd_rbctl.rx_total_size /
+		psd_rbctl.rx_skbuf_size;
+
+	psd_rbctl.tx_skbuf_low_wm =
+		(psd_rbctl.tx_skbuf_num + 1) / 4;
+	psd_rbctl.rx_skbuf_low_wm =
+		(psd_rbctl.rx_skbuf_num + 1) / 4;
+
+	return 0;
+}
+
+static int cp_mem_set_notifier_func(struct notifier_block *this,
+	unsigned long code, void *cmd)
+{
+	struct cpload_cp_addr *addr = (struct cpload_cp_addr *)cmd;
+
+	if (!addr->first_boot)
+		shm_rb_exit(&psd_rbctl);
+
+	shm_param_init(addr);
+	if (shm_rb_init(&psd_rbctl, dp_debugfs_root_dir) < 0)
+		pr_err("%s: init psd rbctl failed\n", __func__);
+
+	return 0;
+}
+
+static struct notifier_block cp_mem_set_notifier = {
+	.notifier_call = cp_mem_set_notifier_func,
 };
 
 int data_path_init(void)
@@ -1066,15 +1126,14 @@ int data_path_init(void)
 
 	wakeup_source_init(&dp_rx_wakeup, "dp_rx_wakeups");
 
-	dp->rbctl = shm_open(shm_rb_psd, &dp_shm_cb, dp);
-	if (!dp->rbctl) {
-		pr_err("%s: cannot open shm\n", __func__);
-		goto exit;
-	}
+	dp->rbctl = &psd_rbctl;
 	atomic_set(&dp->state, dp_state_idle);
 
 	if (register_cp_link_status_notifier(&cp_link_status_notifier) < 0)
-		goto closeshm;
+		goto exit1;
+
+	if (register_cp_mem_set_notifier(&cp_mem_set_notifier) < 0)
+		goto exit2;
 
 	if (dp_acipc_init() < 0)
 		goto unregister;
@@ -1082,10 +1141,10 @@ int data_path_init(void)
 	return 0;
 
 unregister:
+	unregister_cp_mem_set_notifier(&cp_mem_set_notifier);
+exit2:
 	unregister_cp_link_status_notifier(&cp_link_status_notifier);
-closeshm:
-	shm_close(dp->rbctl);
-exit:
+exit1:
 	wakeup_source_trash(&dp_rx_wakeup);
 
 	debugfs_remove(dp_debugfs_root_dir);
@@ -1100,13 +1159,11 @@ putrootfs:
 
 void data_path_exit(void)
 {
-	struct data_path *dp = &data_path;
-
 	dp_acipc_exit();
 
-	unregister_cp_link_status_notifier(&cp_link_status_notifier);
+	unregister_cp_mem_set_notifier(&cp_mem_set_notifier);
 
-	shm_close(dp->rbctl);
+	unregister_cp_link_status_notifier(&cp_link_status_notifier);
 
 	wakeup_source_trash(&dp_rx_wakeup);
 

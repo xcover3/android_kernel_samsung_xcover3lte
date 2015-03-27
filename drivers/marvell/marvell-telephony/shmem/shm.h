@@ -22,41 +22,13 @@
 
 #include <linux/skbuff.h>
 #include <linux/mutex.h>
-#include <linux/clk/mmpcpdvc.h>
 #include "shm_common.h"
-#include "pxa_cp_load_ioctl.h"
-#include "acipcd.h"
-#include "amipcd.h"
-
-enum shm_grp_type {
-	shm_grp_cp,
-	shm_grp_m3,
-	shm_grp_total_cnt
-};
-
-enum shm_rb_type {
-	shm_rb_main,
-	shm_rb_psd,
-	shm_rb_diag,
-	shm_rb_m3,
-	shm_rb_total_cnt
-};
 
 struct shm_rbctl {
 	/*
 	 * name
 	 */
 	const char *name;
-
-	/*
-	 * type
-	 */
-	enum shm_rb_type rb_type;
-
-	/*
-	 * group type
-	 */
-	enum shm_grp_type grp_type;
 
 	/*
 	 * callback function
@@ -248,20 +220,11 @@ static inline void shm_invalidate_dcache(struct shm_rbctl *rbctl,
  * functions exported by this module
  */
 /* init & exit */
-extern int tel_shm_init(enum shm_grp_type grp_type,
-	const void *data);
-extern void tel_shm_exit(enum shm_grp_type grp_type);
-extern int shm_debugfs_init(void);
-extern void shm_debugfs_exit(void);
 extern void shm_rb_data_init(struct shm_rbctl *rbctl);
-extern void shm_lock_init(void);
 extern int shm_free_rx_skbuf_safe(struct shm_rbctl *rbctl);
 extern int shm_free_tx_skbuf_safe(struct shm_rbctl *rbctl);
-
-/* open & close */
-extern struct shm_rbctl *shm_open(enum shm_rb_type rb_type,
-				  struct shm_callback *cb, void *priv);
-extern void shm_close(struct shm_rbctl *rbctl);
+extern int shm_rb_init(struct shm_rbctl *rbctl, struct dentry *parent);
+extern int shm_rb_exit(struct shm_rbctl *rbctl);
 
 /* xmit and recv */
 extern void shm_xmit(struct shm_rbctl *rbctl, struct sk_buff *skb);

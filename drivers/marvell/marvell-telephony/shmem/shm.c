@@ -28,36 +28,7 @@
 
 #include "shm.h"
 #include "shm_map.h"
-#include "acipcd.h"
-#include "pxa_m3_rm.h"
 #include "debugfs.h"
-#include "msocket.h"
-
-#define SHM_SKBUF_SIZE		2048	/* maximum packet size */
-#define SHM_PSD_TX_SKBUF_SIZE	2048	/* PSD tx maximum packet size */
-#define SHM_PSD_RX_SKBUF_SIZE	16384	/* PSD rx maximum packet size */
-
-struct shm_rbctl shm_rbctl[shm_rb_total_cnt] = {
-	[shm_rb_main] = {
-		.grp_type = shm_grp_cp,
-		.name = "cp-portq"
-	},
-	[shm_rb_psd] = {
-		.grp_type = shm_grp_cp,
-		.name = "cp-psd"
-	},
-	[shm_rb_diag] = {
-		.grp_type = shm_grp_cp,
-		.name = "cp-diag"
-	},
-	[shm_rb_m3] = {
-		.grp_type = shm_grp_m3,
-		.name = "m3"
-	},
-};
-
-static struct dentry *tel_debugfs_root_dir;
-static struct dentry *shm_debugfs_root_dir;
 
 static int debugfs_show_ks_info(struct seq_file *s, void *data)
 {
@@ -144,15 +115,13 @@ TEL_DEBUG_ENTRY(rx_buf_info);
 TEL_DEBUG_ENTRY(fc_stat);
 TEL_DEBUG_ENTRY(stat);
 
-static int shm_rb_debugfs_init(struct shm_rbctl *rbctl)
+static int shm_rb_debugfs_init(struct shm_rbctl *rbctl,
+	struct dentry *parent)
 {
 	struct dentry *ksdir;
-	char buf[16];
 
-	sprintf(buf, "shm%d", rbctl->rb_type);
-
-	rbctl->rbdir = debugfs_create_dir(rbctl->name ? rbctl->name : buf,
-		shm_debugfs_root_dir);
+	rbctl->rbdir = debugfs_create_dir(rbctl->name ? rbctl->name : "shm",
+		parent);
 	if (IS_ERR_OR_NULL(rbctl->rbdir))
 		return -ENOMEM;
 
@@ -231,195 +200,6 @@ static int shm_rb_debugfs_exit(struct shm_rbctl *rbctl)
 	return 0;
 }
 
-static int cpks_debugfs_init(struct dentry *parent)
-{
-	cpks_rootdir = debugfs_create_dir("cpks", parent);
-	if (IS_ERR_OR_NULL(cpks_rootdir))
-		return -ENOMEM;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"ap_pcm_master", S_IRUGO | S_IWUSR,
-				cpks_rootdir,
-				(unsigned int *)
-				&cpks->ap_pcm_master)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"cp_pcm_master", S_IRUGO | S_IWUSR,
-				cpks_rootdir,
-				(unsigned int *)
-				&cpks->cp_pcm_master)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"modem_ddrfreq", S_IRUGO | S_IWUSR,
-				cpks_rootdir,
-				(unsigned int *)
-				&cpks->modem_ddrfreq)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"reset_request", S_IRUGO | S_IWUSR,
-				cpks_rootdir,
-				(unsigned int *)
-				&cpks->reset_request)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"diag_header_ptr", S_IRUGO | S_IWUSR,
-				cpks_rootdir,
-				(unsigned int *)
-				&cpks->diag_header_ptr)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"diag_cp_db_ver", S_IRUGO | S_IWUSR,
-				cpks_rootdir,
-				(unsigned int *)
-				&cpks->diag_cp_db_ver)))
-		goto error;
-
-	if (IS_ERR_OR_NULL(debugfs_create_uint(
-				"diag_ap_db_ver", S_IRUGO | S_IWUSR,
-				cpks_rootdir,
-				(unsigned int *)
-				&cpks->diag_ap_db_ver)))
-		goto error;
-
-	return 0;
-
-error:
-	debugfs_remove_recursive(cpks_rootdir);
-	cpks_rootdir = NULL;
-	return -1;
-}
-
-static int cpks_debugfs_exit(void)
-{
-	debugfs_remove_recursive(cpks_rootdir);
-	cpks_rootdir = NULL;
-	return 0;
-}
-
-static int shm_param_init(enum shm_grp_type grp_type,
-	const void *data)
-{
-	if (!data)
-		return -1;
-
-	if (grp_type == shm_grp_cp) {
-		const struct cpload_cp_addr *addr =
-			(const struct cpload_cp_addr *)data;
-
-		/* main ring buffer */
-		shm_rbctl[shm_rb_main].skctl_pa = addr->main_skctl_pa;
-
-		shm_rbctl[shm_rb_main].tx_skbuf_size = SHM_SKBUF_SIZE;
-		shm_rbctl[shm_rb_main].rx_skbuf_size = SHM_SKBUF_SIZE;
-
-		shm_rbctl[shm_rb_main].tx_pa = addr->main_tx_pa;
-		shm_rbctl[shm_rb_main].rx_pa = addr->main_rx_pa;
-
-		shm_rbctl[shm_rb_main].tx_total_size = addr->main_tx_total_size;
-		shm_rbctl[shm_rb_main].rx_total_size = addr->main_rx_total_size;
-
-		shm_rbctl[shm_rb_main].tx_skbuf_num =
-			shm_rbctl[shm_rb_main].tx_total_size /
-			shm_rbctl[shm_rb_main].tx_skbuf_size;
-		shm_rbctl[shm_rb_main].rx_skbuf_num =
-			shm_rbctl[shm_rb_main].rx_total_size /
-			shm_rbctl[shm_rb_main].rx_skbuf_size;
-
-		shm_rbctl[shm_rb_main].tx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_main].tx_skbuf_num + 1) / 4;
-		shm_rbctl[shm_rb_main].rx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_main].rx_skbuf_num + 1) / 4;
-
-		/* psd dedicated ring buffer */
-		shm_rbctl[shm_rb_psd].skctl_pa = addr->psd_skctl_pa;
-
-		shm_rbctl[shm_rb_psd].tx_skbuf_size = SHM_PSD_TX_SKBUF_SIZE;
-		shm_rbctl[shm_rb_psd].rx_skbuf_size = SHM_PSD_RX_SKBUF_SIZE;
-
-		shm_rbctl[shm_rb_psd].tx_pa = addr->psd_tx_pa;
-		shm_rbctl[shm_rb_psd].rx_pa = addr->psd_rx_pa;
-
-		shm_rbctl[shm_rb_psd].tx_total_size = addr->psd_tx_total_size;
-		shm_rbctl[shm_rb_psd].rx_total_size = addr->psd_rx_total_size;
-
-		shm_rbctl[shm_rb_psd].tx_skbuf_num =
-			shm_rbctl[shm_rb_psd].tx_total_size /
-			shm_rbctl[shm_rb_psd].tx_skbuf_size;
-		shm_rbctl[shm_rb_psd].rx_skbuf_num =
-			shm_rbctl[shm_rb_psd].rx_total_size /
-			shm_rbctl[shm_rb_psd].rx_skbuf_size;
-
-		shm_rbctl[shm_rb_psd].tx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_psd].tx_skbuf_num + 1) / 4;
-		shm_rbctl[shm_rb_psd].rx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_psd].rx_skbuf_num + 1) / 4;
-
-		/* diag ring buffer */
-		shm_rbctl[shm_rb_diag].skctl_pa = addr->diag_skctl_pa;
-
-		shm_rbctl[shm_rb_diag].tx_skbuf_size = SHM_SKBUF_SIZE;
-		shm_rbctl[shm_rb_diag].rx_skbuf_size = SHM_SKBUF_SIZE;
-
-		shm_rbctl[shm_rb_diag].tx_pa = addr->diag_tx_pa;
-		shm_rbctl[shm_rb_diag].rx_pa = addr->diag_rx_pa;
-
-		shm_rbctl[shm_rb_diag].tx_total_size = addr->diag_tx_total_size;
-		shm_rbctl[shm_rb_diag].rx_total_size = addr->diag_rx_total_size;
-
-		shm_rbctl[shm_rb_diag].tx_skbuf_num =
-			shm_rbctl[shm_rb_diag].tx_total_size /
-			shm_rbctl[shm_rb_diag].tx_skbuf_size;
-		shm_rbctl[shm_rb_diag].rx_skbuf_num =
-			shm_rbctl[shm_rb_diag].rx_total_size /
-			shm_rbctl[shm_rb_diag].rx_skbuf_size;
-
-		shm_rbctl[shm_rb_diag].tx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_diag].tx_skbuf_num + 1) / 4;
-		shm_rbctl[shm_rb_diag].rx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_diag].rx_skbuf_num + 1) / 4;
-	} else if (grp_type == shm_grp_m3) {
-		const struct rm_m3_addr *addr =
-			(const struct rm_m3_addr *)data;
-
-		shm_rbctl[shm_rb_m3].skctl_pa = addr->m3_rb_ctrl_start_addr;
-
-		pr_info("M3 RB PA: 0x%08lx\n", shm_rbctl[shm_rb_m3].skctl_pa);
-
-		shm_rbctl[shm_rb_m3].tx_skbuf_size = M3_SHM_SKBUF_SIZE;
-		shm_rbctl[shm_rb_m3].rx_skbuf_size = M3_SHM_SKBUF_SIZE;
-
-		pr_info("M3 RB PACKET TX SIZE: %d, RX SIZE: %d\n",
-			shm_rbctl[shm_rb_m3].tx_skbuf_size,
-			shm_rbctl[shm_rb_m3].rx_skbuf_size);
-
-		shm_rbctl[shm_rb_m3].tx_pa = addr->m3_ddr_mb_start_addr;
-		shm_rbctl[shm_rb_m3].tx_skbuf_num = M3_SHM_AP_TX_MAX_NUM;
-		shm_rbctl[shm_rb_m3].tx_total_size =
-			shm_rbctl[shm_rb_m3].tx_skbuf_num *
-			shm_rbctl[shm_rb_m3].tx_skbuf_size;
-
-
-		shm_rbctl[shm_rb_m3].rx_pa = shm_rbctl[shm_rb_m3].tx_pa +
-			shm_rbctl[shm_rb_m3].tx_total_size;
-		shm_rbctl[shm_rb_m3].rx_skbuf_num = M3_SHM_AP_RX_MAX_NUM;
-		shm_rbctl[shm_rb_m3].rx_total_size =
-			shm_rbctl[shm_rb_m3].rx_skbuf_num *
-			shm_rbctl[shm_rb_m3].rx_skbuf_size;
-
-		shm_rbctl[shm_rb_m3].tx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_m3].tx_skbuf_num + 1) / 4;
-		shm_rbctl[shm_rb_m3].rx_skbuf_low_wm =
-			(shm_rbctl[shm_rb_m3].rx_skbuf_num + 1) / 4;
-	}
-
-	return 0;
-}
-
 void shm_rb_data_init(struct shm_rbctl *rbctl)
 {
 	rbctl->is_ap_xmit_stopped = false;
@@ -431,33 +211,10 @@ void shm_rb_data_init(struct shm_rbctl *rbctl)
 	rbctl->cp_resumed_num = 0;
 }
 
-void cp_keysection_data_init(void)
-{
-	unsigned int network_mode;
-
-	mutex_lock(&cpks_lock);
-	if (cpks) {
-		network_mode = cpks->network_mode;
-		memset(cpks, 0, sizeof(*cpks));
-		cpks->network_mode = network_mode;
-		cpks->ap_pcm_master = PMIC_MASTER_FLAG;
-	}
-	mutex_unlock(&cpks_lock);
-}
-
-void shm_lock_init(void)
-{
-	struct shm_rbctl *rbctl;
-	struct shm_rbctl *rbctl_end = shm_rbctl + shm_rb_total_cnt;
-
-	for (rbctl = shm_rbctl; rbctl != rbctl_end; ++rbctl)
-		mutex_init(&rbctl->va_lock);
-}
-
 static inline void shm_rb_dump(struct shm_rbctl *rbctl)
 {
 	pr_info(
-		"rb_type %d:\n"
+		"ring buffer %s:\n"
 		"\tskctl_pa: 0x%08lx, skctl_va: 0x%p\n"
 		"\ttx_pa: 0x%08lx, tx_va: 0x%p\n"
 		"\ttx_total_size: 0x%08x, tx_skbuf_size: 0x%08x\n"
@@ -465,7 +222,7 @@ static inline void shm_rb_dump(struct shm_rbctl *rbctl)
 		"\trx_pa: 0x%08lx, rx_va: 0x%p\n"
 		"\trx_total_size: 0x%08x, rx_skbuf_size: 0x%08x\n"
 		"\trx_skbuf_num: 0x%08x, rx_skbuf_low_wm: 0x%08x\n",
-		(int)(rbctl - shm_rbctl),
+		rbctl->name ? rbctl->name : "shm",
 		rbctl->skctl_pa, rbctl->skctl_va,
 		rbctl->tx_pa, rbctl->tx_va,
 		rbctl->tx_total_size, rbctl->tx_skbuf_size,
@@ -476,30 +233,8 @@ static inline void shm_rb_dump(struct shm_rbctl *rbctl)
 	);
 }
 
-static void set_version_numb(void)
+int shm_rb_init(struct shm_rbctl *rbctl, struct dentry *parent)
 {
-	cpks->version_magic = VERSION_MAGIC_FLAG;
-	cpks->version_number = VERSION_NUMBER_FLAG;
-	return;
-}
-
-static void get_dvc_info(void)
-{
-	struct cpmsa_dvc_info dvc_vol_info;
-	int i = 0;
-
-	getcpdvcinfo(&dvc_vol_info);
-	for (i = 0; i < MAX_CP_PPNUM; i++) {
-		cpks->cp_freq[i] = dvc_vol_info.cpdvcinfo[i].cpfreq;
-		cpks->cp_vol[i] = dvc_vol_info.cpdvcinfo[i].cpvl;
-	}
-	cpks->msa_dvc_vol = dvc_vol_info.msadvcvl;
-}
-
-static int shm_rb_init(struct shm_rbctl *rbctl)
-{
-	rbctl->rb_type = rbctl - shm_rbctl;
-
 	mutex_lock(&rbctl->va_lock);
 	/* map to non-cache virtual address */
 	rbctl->skctl_va =
@@ -534,7 +269,7 @@ static int shm_rb_init(struct shm_rbctl *rbctl)
 	shm_rb_data_init(rbctl);
 	shm_rb_dump(rbctl);
 
-	if (shm_rb_debugfs_init(rbctl) < 0)
+	if (shm_rb_debugfs_init(rbctl, parent) < 0)
 		goto exit4;
 
 	return 0;
@@ -554,8 +289,9 @@ exit1:
 	mutex_unlock(&rbctl->va_lock);
 	return -1;
 }
+EXPORT_SYMBOL(shm_rb_init);
 
-static int shm_rb_exit(struct shm_rbctl *rbctl)
+int shm_rb_exit(struct shm_rbctl *rbctl)
 {
 	void *skctl_va = rbctl->skctl_va;
 	void *tx_va = rbctl->tx_va;
@@ -578,129 +314,7 @@ static int shm_rb_exit(struct shm_rbctl *rbctl)
 
 	return 0;
 }
-
-int shm_debugfs_init(void)
-{
-	tel_debugfs_root_dir = tel_debugfs_get();
-	if (!tel_debugfs_root_dir)
-		return -1;
-
-	shm_debugfs_root_dir = debugfs_create_dir("shm", tel_debugfs_root_dir);
-	if (IS_ERR_OR_NULL(shm_debugfs_root_dir))
-		goto put_rootfs;
-
-	return 0;
-
-put_rootfs:
-	tel_debugfs_put(tel_debugfs_root_dir);
-	tel_debugfs_root_dir = NULL;
-
-	return -1;
-}
-
-void shm_debugfs_exit(void)
-{
-	debugfs_remove(shm_debugfs_root_dir);
-	shm_debugfs_root_dir = NULL;
-	tel_debugfs_put(tel_debugfs_root_dir);
-	tel_debugfs_root_dir = NULL;
-}
-
-int cp_keysection_init(void)
-{
-	mutex_lock(&cpks_lock);
-	cpks = shm_map(shm_rbctl[shm_rb_main].skctl_pa +
-		sizeof(struct shm_skctl),
-		sizeof(struct cp_keysection));
-	mutex_unlock(&cpks_lock);
-	if (!cpks)
-		return -1;
-
-	if (cpks_debugfs_init(shm_debugfs_root_dir) < 0)
-		goto exit;
-
-	return 0;
-
-exit:
-	mutex_lock(&cpks_lock);
-	if (cpks)
-		shm_unmap(shm_rbctl[shm_rb_main].skctl_pa +
-			sizeof(struct shm_skctl),
-			cpks);
-	cpks = NULL;
-	mutex_unlock(&cpks_lock);
-	return -1;
-}
-
-void cp_keysection_exit(void)
-{
-	cpks_debugfs_exit();
-	mutex_lock(&cpks_lock);
-	if (cpks)
-		shm_unmap(shm_rbctl[shm_rb_main].skctl_pa +
-			sizeof(struct shm_skctl),
-			cpks);
-	cpks = NULL;
-	mutex_unlock(&cpks_lock);
-}
-
-int tel_shm_init(enum shm_grp_type grp_type,
-	const void *data)
-{
-	int ret;
-	struct shm_rbctl *rbctl;
-	struct shm_rbctl *rbctl2;
-	struct shm_rbctl *rbctl_end = shm_rbctl + shm_rb_total_cnt;
-
-	ret = shm_param_init(grp_type, data);
-	if (ret < 0)
-		return -1;
-
-	if (grp_type == shm_grp_cp) {
-		if (cp_keysection_init() < 0)
-			return -1;
-	}
-
-	for (rbctl = shm_rbctl; rbctl != rbctl_end; ++rbctl) {
-		if (rbctl->grp_type == grp_type)
-			ret = shm_rb_init(rbctl);
-		if (ret < 0)
-			goto rb_exit;
-	}
-
-	if (grp_type == shm_grp_cp) {
-		cp_keysection_data_init();
-		set_version_numb();
-		get_dvc_info();
-	}
-
-	return 0;
-
-rb_exit:
-	for (rbctl2 = shm_rbctl; rbctl2 != rbctl; ++rbctl2)
-		if (rbctl->grp_type == grp_type)
-			shm_rb_exit(rbctl2);
-
-	if (grp_type == shm_grp_cp)
-		cp_keysection_exit();
-
-	return -1;
-}
-EXPORT_SYMBOL(tel_shm_init);
-
-void tel_shm_exit(enum shm_grp_type grp_type)
-{
-	struct shm_rbctl *rbctl;
-	struct shm_rbctl *rbctl_end = shm_rbctl + shm_rb_total_cnt;
-
-	for (rbctl = shm_rbctl; rbctl != rbctl_end; ++rbctl)
-		if (rbctl->grp_type == grp_type)
-			shm_rb_exit(rbctl);
-
-	if (grp_type == shm_grp_cp)
-		cp_keysection_exit();
-}
-EXPORT_SYMBOL(tel_shm_exit);
+EXPORT_SYMBOL(shm_rb_exit);
 
 int shm_free_rx_skbuf_safe(struct shm_rbctl *rbctl)
 {
@@ -729,34 +343,6 @@ int shm_free_tx_skbuf_safe(struct shm_rbctl *rbctl)
 	return ret;
 }
 EXPORT_SYMBOL(shm_free_tx_skbuf_safe);
-
-struct shm_rbctl *shm_open(enum shm_rb_type rb_type,
-			   struct shm_callback *cb, void *priv)
-{
-	if (rb_type >= shm_rb_total_cnt || rb_type < 0) {
-		pr_err("%s: incorrect type %d\n", __func__, rb_type);
-		return NULL;
-	}
-
-	if (!cb) {
-		pr_err("%s: callback is NULL\n", __func__);
-		return NULL;
-	}
-
-	shm_rbctl[rb_type].cbs = cb;
-	shm_rbctl[rb_type].priv = priv;
-
-	return &shm_rbctl[rb_type];
-}
-
-void shm_close(struct shm_rbctl *rbctl)
-{
-	if (!rbctl)
-		return;
-
-	rbctl->cbs = NULL;
-	rbctl->priv = NULL;
-}
 
 /* write packet to share memory socket buffer */
 void shm_xmit(struct shm_rbctl *rbctl, struct sk_buff *skb)

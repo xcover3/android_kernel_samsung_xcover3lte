@@ -21,6 +21,7 @@
 #define MSOCKET_H_
 
 #include <linux/skbuff.h>
+#include <linux/clk/mmpcpdvc.h>
 #include "pxa_cp_load_ioctl.h"
 #include "shm.h"
 #include "util.h"
@@ -61,8 +62,6 @@ extern bool m3_is_synced;
 extern struct completion m3_peer_sync;
 
 struct rm_m3_addr;
-extern int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos);
-extern void cp_shm_ch_deinit(void);
 extern int m3_shm_ch_init(const struct rm_m3_addr *addr);
 extern void m3_shm_ch_deinit(void);
 
@@ -133,6 +132,8 @@ struct cp_keysection {
 extern struct cp_keysection *cpks;
 extern struct mutex cpks_lock;
 extern struct dentry *cpks_rootdir;
+
+extern struct dentry *msocket_debugfs_root_dir;
 
 /* check if cp pmic is in master mode */
 static inline bool shm_is_cp_pmic_master(struct shm_rbctl *rbctl)

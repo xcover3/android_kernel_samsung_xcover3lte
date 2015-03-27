@@ -43,6 +43,7 @@
 #include "direct_rb.h"
 #include "tel_trace.h"
 #include "acipcd.h"
+#include "pxa_cp_load.h"
 
 #define RX_ENQUEUE_RATELIMIT (8192)
 /* max diag rx queue length, in byte */
@@ -202,6 +203,13 @@ static size_t drb_get_packet_length(const unsigned char *hdr)
 
 struct shm_callback drb_shm_cb = {
 	.get_packet_length = drb_get_packet_length,
+};
+
+struct shm_rbctl diag_rbctl = {
+	.name = "cp-diag",
+	.cbs = &drb_shm_cb,
+	.priv = &direct_rbctl,
+	.va_lock = __MUTEX_INITIALIZER(diag_rbctl.va_lock),
 };
 
 static void direct_rb_rx_worker(struct work_struct *work)
@@ -526,7 +534,7 @@ void msocket_dump_direct_rb(void)
 /* diag new packet arrival interrupt */
 static u32 acipc_cb_diag_cb(u32 status)
 {
-	direct_rb_packet_send_cb(&shm_rbctl[shm_rb_diag]);
+	direct_rb_packet_send_cb(&diag_rbctl);
 	return 0;
 }
 
@@ -557,18 +565,66 @@ static struct notifier_block cp_link_status_notifier = {
 	.notifier_call = cp_link_status_notifier_func,
 };
 
+#define SHM_SKBUF_SIZE		2048	/* maximum packet size */
+static int shm_param_init(const struct cpload_cp_addr *addr)
+{
+	if (!addr)
+		return -1;
+
+	/* diag ring buffer */
+	diag_rbctl.skctl_pa = addr->diag_skctl_pa;
+
+	diag_rbctl.tx_skbuf_size = SHM_SKBUF_SIZE;
+	diag_rbctl.rx_skbuf_size = SHM_SKBUF_SIZE;
+
+	diag_rbctl.tx_pa = addr->diag_tx_pa;
+	diag_rbctl.rx_pa = addr->diag_rx_pa;
+
+	diag_rbctl.tx_total_size = addr->diag_tx_total_size;
+	diag_rbctl.rx_total_size = addr->diag_rx_total_size;
+
+	diag_rbctl.tx_skbuf_num =
+		diag_rbctl.tx_total_size /
+		diag_rbctl.tx_skbuf_size;
+	diag_rbctl.rx_skbuf_num =
+		diag_rbctl.rx_total_size /
+		diag_rbctl.rx_skbuf_size;
+
+	diag_rbctl.tx_skbuf_low_wm =
+		(diag_rbctl.tx_skbuf_num + 1) / 4;
+	diag_rbctl.rx_skbuf_low_wm =
+		(diag_rbctl.rx_skbuf_num + 1) / 4;
+
+	return 0;
+}
+
+static int cp_mem_set_notifier_func(struct notifier_block *this,
+	unsigned long code, void *cmd)
+{
+	struct cpload_cp_addr *addr = (struct cpload_cp_addr *)cmd;
+
+	if (!addr->first_boot)
+		shm_rb_exit(&diag_rbctl);
+
+	shm_param_init(addr);
+	if (shm_rb_init(&diag_rbctl,
+			msocket_debugfs_root_dir) < 0)
+		pr_err("%s: init psd rbctl failed\n", __func__);
+
+	return 0;
+}
+
+static struct notifier_block cp_mem_set_notifier = {
+	.notifier_call = cp_mem_set_notifier_func,
+};
+
 /* direct_rb_init */
 int direct_rb_init(void)
 {
 	int rc = -1;
 	struct direct_rbctl *dir_ctl = &direct_rbctl;
 
-	dir_ctl->rbctl =
-		shm_open(shm_rb_diag, &drb_shm_cb, dir_ctl);
-	if (!dir_ctl->rbctl) {
-		pr_err("%s: cannot open shm\n", __func__);
-		goto exit;
-	}
+	dir_ctl->rbctl = &diag_rbctl;
 	init_waitqueue_head(&(dir_ctl->rb_rx_wq));
 	spin_lock_init(&dir_ctl->rb_rx_lock);
 	dir_ctl->refcount = 0;
@@ -582,6 +638,7 @@ int direct_rb_init(void)
 		goto exit;
 
 	register_cp_link_status_notifier(&cp_link_status_notifier);
+	register_cp_mem_set_notifier(&cp_mem_set_notifier);
 
 	if (drb_acipc_init() < 0) {
 		pr_err("%s: init acipc failed\n", __func__);
@@ -591,7 +648,6 @@ int direct_rb_init(void)
 	return 0;
 
 exit:
-	shm_close(dir_ctl->rbctl);
 
 	return rc;
 }
@@ -606,11 +662,11 @@ void direct_rb_exit(void)
 	destroy_workqueue(dir_ctl->rx_wq);
 	spin_lock_irqsave(&dir_ctl->rb_rx_lock, flags);
 	dir_ctl->refcount = 0;
-	shm_close(dir_ctl->rbctl);
 	spin_unlock_irqrestore(&dir_ctl->rb_rx_lock, flags);
 
 	drb_acipc_exit();
 	unregister_cp_link_status_notifier(&cp_link_status_notifier);
+	unregister_cp_mem_set_notifier(&cp_mem_set_notifier);
 	misc_deregister(&msocketDirectDump_dev);
 }
 EXPORT_SYMBOL(direct_rb_exit);

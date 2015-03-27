@@ -67,11 +67,11 @@ static u32 amipc_cb(u32 status)
 
 	switch (event) {
 	case PACKET_SENT:
-		portq_packet_send_cb(&shm_rbctl[shm_rb_m3]);
+		portq_packet_send_cb(&portq_m3_rbctl);
 		break;
 
 	case PEER_SYNC:
-		portq_m3_peer_sync_cb(&shm_rbctl[shm_rb_m3]);
+		portq_m3_peer_sync_cb(&portq_m3_rbctl);
 		break;
 
 	default:
@@ -92,11 +92,11 @@ static u32 amipc_cb_fc(u32 status)
 
 	switch (event) {
 	case TX_STOP:
-		portq_rb_stop_cb(&shm_rbctl[shm_rb_m3]);
+		portq_rb_stop_cb(&portq_m3_rbctl);
 		break;
 
 	case TX_RESUME:
-		portq_rb_resume_cb(&shm_rbctl[shm_rb_m3]);
+		portq_rb_resume_cb(&portq_m3_rbctl);
 		break;
 
 	default:

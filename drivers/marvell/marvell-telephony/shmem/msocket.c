@@ -35,6 +35,7 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
+#include <linux/debugfs.h>
 #include "acipcd.h"
 #include "amipcd.h"
 #include "shm.h"
@@ -47,6 +48,8 @@
 #include "pxa_m3_rm.h"
 #include "psd_data_channel.h"
 #include "pxa_cp_load.h"
+#include "debugfs.h"
+#include "shm_map.h"
 
 #define CMSOCKDEV_NR_DEVS PORTQ_NUM_MAX
 
@@ -57,6 +60,9 @@ static int aponly;
 struct cp_keysection *cpks;
 DEFINE_MUTEX(cpks_lock);
 struct dentry *cpks_rootdir;
+
+static struct dentry *tel_debugfs_root_dir;
+struct dentry *msocket_debugfs_root_dir;
 
 int cmsockdev_major;
 int cmsockdev_minor;
@@ -1296,7 +1302,222 @@ static struct notifier_block reboot_notifier = {
 	.notifier_call = reboot_notifier_func,
 };
 
-int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
+#define SHM_SKBUF_SIZE		2048	/* maximum packet size */
+static int cp_shm_param_init(const struct cpload_cp_addr *addr)
+{
+	if (!addr)
+		return -1;
+
+	/* main ring buffer */
+	portq_cp_rbctl.skctl_pa = addr->main_skctl_pa;
+
+	portq_cp_rbctl.tx_skbuf_size = SHM_SKBUF_SIZE;
+	portq_cp_rbctl.rx_skbuf_size = SHM_SKBUF_SIZE;
+
+	portq_cp_rbctl.tx_pa = addr->main_tx_pa;
+	portq_cp_rbctl.rx_pa = addr->main_rx_pa;
+
+	portq_cp_rbctl.tx_total_size = addr->main_tx_total_size;
+	portq_cp_rbctl.rx_total_size = addr->main_rx_total_size;
+
+	portq_cp_rbctl.tx_skbuf_num =
+		portq_cp_rbctl.tx_total_size /
+		portq_cp_rbctl.tx_skbuf_size;
+	portq_cp_rbctl.rx_skbuf_num =
+		portq_cp_rbctl.rx_total_size /
+		portq_cp_rbctl.rx_skbuf_size;
+
+	portq_cp_rbctl.tx_skbuf_low_wm =
+		(portq_cp_rbctl.tx_skbuf_num + 1) / 4;
+	portq_cp_rbctl.rx_skbuf_low_wm =
+		(portq_cp_rbctl.rx_skbuf_num + 1) / 4;
+
+	return 0;
+}
+
+static void set_version_numb(void)
+{
+	cpks->version_magic = VERSION_MAGIC_FLAG;
+	cpks->version_number = VERSION_NUMBER_FLAG;
+	return;
+}
+
+static void get_dvc_info(void)
+{
+	struct cpmsa_dvc_info dvc_vol_info;
+	int i = 0;
+
+	getcpdvcinfo(&dvc_vol_info);
+	for (i = 0; i < MAX_CP_PPNUM; i++) {
+		cpks->cp_freq[i] = dvc_vol_info.cpdvcinfo[i].cpfreq;
+		cpks->cp_vol[i] = dvc_vol_info.cpdvcinfo[i].cpvl;
+	}
+	cpks->msa_dvc_vol = dvc_vol_info.msadvcvl;
+}
+
+static int cpks_debugfs_init(struct dentry *parent)
+{
+	cpks_rootdir = debugfs_create_dir("cpks", parent);
+	if (IS_ERR_OR_NULL(cpks_rootdir))
+		return -ENOMEM;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"ap_pcm_master", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->ap_pcm_master)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"cp_pcm_master", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->cp_pcm_master)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"modem_ddrfreq", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->modem_ddrfreq)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"reset_request", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->reset_request)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"diag_header_ptr", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->diag_header_ptr)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"diag_cp_db_ver", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->diag_cp_db_ver)))
+		goto error;
+
+	if (IS_ERR_OR_NULL(debugfs_create_uint(
+				"diag_ap_db_ver", S_IRUGO | S_IWUSR,
+				cpks_rootdir,
+				(unsigned int *)
+				&cpks->diag_ap_db_ver)))
+		goto error;
+
+	return 0;
+
+error:
+	debugfs_remove_recursive(cpks_rootdir);
+	cpks_rootdir = NULL;
+	return -1;
+}
+
+static int cpks_debugfs_exit(void)
+{
+	debugfs_remove_recursive(cpks_rootdir);
+	cpks_rootdir = NULL;
+	return 0;
+}
+
+static void cp_keysection_data_init(void)
+{
+	unsigned int network_mode;
+
+	mutex_lock(&cpks_lock);
+	if (cpks) {
+		network_mode = cpks->network_mode;
+		memset(cpks, 0, sizeof(*cpks));
+		cpks->network_mode = network_mode;
+		cpks->ap_pcm_master = PMIC_MASTER_FLAG;
+	}
+	mutex_unlock(&cpks_lock);
+}
+
+static int cp_keysection_init(const struct cpload_cp_addr *addr)
+{
+	mutex_lock(&cpks_lock);
+	cpks = shm_map(addr->main_skctl_pa +
+		sizeof(struct shm_skctl),
+		sizeof(struct cp_keysection));
+	mutex_unlock(&cpks_lock);
+	if (!cpks)
+		return -1;
+
+	if (cpks_debugfs_init(msocket_debugfs_root_dir) < 0)
+		goto exit;
+
+	return 0;
+
+exit:
+	mutex_lock(&cpks_lock);
+	if (cpks)
+		shm_unmap(addr->main_skctl_pa +
+			sizeof(struct shm_skctl),
+			cpks);
+	cpks = NULL;
+	mutex_unlock(&cpks_lock);
+	return -1;
+}
+
+void cp_keysection_exit(const struct cpload_cp_addr *addr)
+{
+	cpks_debugfs_exit();
+	mutex_lock(&cpks_lock);
+	if (cpks)
+		shm_unmap(addr->main_skctl_pa +
+			sizeof(struct shm_skctl),
+			cpks);
+	cpks = NULL;
+	mutex_unlock(&cpks_lock);
+}
+
+static int cp_shm_init(const struct cpload_cp_addr *addr)
+{
+	int ret;
+
+	ret = cp_shm_param_init(addr);
+	if (ret < 0) {
+		pr_err("%s: init cp portq shm param failed\n", __func__);
+		return -1;
+	}
+
+	if (cp_keysection_init(addr) < 0) {
+		pr_err("%s: init cp key section failed\n", __func__);
+		return -1;
+	}
+
+	if (shm_rb_init(&portq_cp_rbctl,
+			msocket_debugfs_root_dir) < 0) {
+		pr_err("%s: init cp portq ring buffer failed\n",
+			__func__);
+		goto rb_exit;
+	}
+
+	cp_keysection_data_init();
+	set_version_numb();
+	get_dvc_info();
+
+	return 0;
+
+rb_exit:
+	cp_keysection_exit(addr);
+
+	return -1;
+}
+
+static void cp_shm_exit(const struct cpload_cp_addr *addr)
+{
+	shm_rb_exit(&portq_cp_rbctl);
+	cp_keysection_exit(addr);
+}
+
+static int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 {
 	int rc;
 
@@ -1314,7 +1535,7 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 	}
 
 	/* share memory area init */
-	rc = tel_shm_init(shm_grp_cp, addr);
+	rc = cp_shm_init(addr);
 	if (rc < 0) {
 		pr_err("%s: shm init failed %d\n",
 			__func__, rc);
@@ -1327,22 +1548,6 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 		pr_err("%s: portq group init failed %d\n",
 			__func__, rc);
 		goto portq_err;
-	}
-
-	/* data channel init */
-	rc = data_path_init();
-	if (rc < 0) {
-		pr_err("%s: data path init failed %d\n",
-			__func__, rc);
-		goto dp_err;
-	}
-
-	/* direct rb init */
-	rc = direct_rb_init();
-	if (rc < 0) {
-		pr_err("%s: direct rb init failed %d\n",
-			__func__, rc);
-		goto direct_rb_err;
 	}
 
 	/* acipc init */
@@ -1363,19 +1568,14 @@ int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos)
 	return 0;
 
 acipc_err:
-	direct_rb_exit();
-direct_rb_err:
-	data_path_exit();
-dp_err:
 	portq_grp_exit(&portq_grp[portq_grp_cp_main]);
 portq_err:
-	tel_shm_exit(shm_grp_cp);
+	cp_shm_exit(addr);
 
 	return rc;
 }
-EXPORT_SYMBOL(cp_shm_ch_init);
 
-void cp_shm_ch_deinit(void)
+static void cp_shm_ch_deinit(const struct cpload_cp_addr *addr)
 {
 	if (!cp_shm_ch_inited)
 		return;
@@ -1384,12 +1584,48 @@ void cp_shm_ch_deinit(void)
 	/* reverse order of initialization */
 	msocket_disconnect(portq_grp_cp_main);
 	acipc_exit();
-	direct_rb_exit();
-	data_path_exit();
 	portq_grp_exit(&portq_grp[portq_grp_cp_main]);
-	tel_shm_exit(shm_grp_cp);
+	cp_shm_exit(addr);
 }
-EXPORT_SYMBOL(cp_shm_ch_deinit);
+
+static int m3_shm_param_init(const struct rm_m3_addr *addr)
+{
+	if (!addr)
+		return -1;
+
+	portq_m3_rbctl.skctl_pa = addr->m3_rb_ctrl_start_addr;
+
+	pr_info("M3 RB PA: 0x%08lx\n", portq_m3_rbctl.skctl_pa);
+
+	portq_m3_rbctl.tx_skbuf_size = M3_SHM_SKBUF_SIZE;
+	portq_m3_rbctl.rx_skbuf_size = M3_SHM_SKBUF_SIZE;
+
+	pr_info("M3 RB PACKET TX SIZE: %d, RX SIZE: %d\n",
+		portq_m3_rbctl.tx_skbuf_size,
+		portq_m3_rbctl.rx_skbuf_size);
+
+	portq_m3_rbctl.tx_pa = addr->m3_ddr_mb_start_addr;
+	portq_m3_rbctl.tx_skbuf_num = M3_SHM_AP_TX_MAX_NUM;
+	portq_m3_rbctl.tx_total_size =
+		portq_m3_rbctl.tx_skbuf_num *
+		portq_m3_rbctl.tx_skbuf_size;
+
+
+	portq_m3_rbctl.rx_pa = portq_m3_rbctl.tx_pa +
+		portq_m3_rbctl.tx_total_size;
+	portq_m3_rbctl.rx_skbuf_num = M3_SHM_AP_RX_MAX_NUM;
+	portq_m3_rbctl.rx_total_size =
+		portq_m3_rbctl.rx_skbuf_num *
+		portq_m3_rbctl.rx_skbuf_size;
+
+	portq_m3_rbctl.tx_skbuf_low_wm =
+		(portq_m3_rbctl.tx_skbuf_num + 1) / 4;
+	portq_m3_rbctl.rx_skbuf_low_wm =
+		(portq_m3_rbctl.rx_skbuf_num + 1) / 4;
+
+	return 0;
+}
+
 
 int m3_shm_ch_init(const struct rm_m3_addr *addr)
 {
@@ -1402,7 +1638,9 @@ int m3_shm_ch_init(const struct rm_m3_addr *addr)
 	}
 
 	/* share memory area init */
-	rc = tel_shm_init(shm_grp_m3, addr);
+	m3_shm_param_init(addr);
+	rc = shm_rb_init(&portq_m3_rbctl,
+		msocket_debugfs_root_dir);
 	if (rc < 0) {
 		pr_err("%s: shm init failed %d\n",
 			__func__, rc);
@@ -1437,7 +1675,7 @@ int m3_shm_ch_init(const struct rm_m3_addr *addr)
 amipc_err:
 	portq_grp_exit(&portq_grp[portq_grp_m3]);
 portq_err:
-	tel_shm_exit(shm_grp_m3);
+	shm_rb_exit(&portq_m3_rbctl);
 
 	return rc;
 }
@@ -1453,10 +1691,11 @@ void m3_shm_ch_deinit(void)
 	msocket_disconnect(portq_grp_m3);
 	amipc_exit();
 	portq_grp_exit(&portq_grp[portq_grp_m3]);
-	tel_shm_exit(shm_grp_m3);
+	shm_rb_exit(&portq_m3_rbctl);
 }
 EXPORT_SYMBOL(m3_shm_ch_deinit);
 
+static const struct cpload_cp_addr *cp_addr;
 
 static int cp_mem_set_notifier_func(struct notifier_block *this,
 	unsigned long code, void *cmd)
@@ -1464,11 +1703,14 @@ static int cp_mem_set_notifier_func(struct notifier_block *this,
 	struct cpload_cp_addr *addr = (struct cpload_cp_addr *)cmd;
 	u32 lpm_qos = (u32)code;
 
-	if (addr->first_boot)
+	cp_addr = addr;
+
+	if (addr->first_boot) {
 		cp_shm_ch_init(addr, lpm_qos);
+	}
 	else {
-		tel_shm_exit(shm_grp_cp);
-		tel_shm_init(shm_grp_cp, addr);
+		cp_shm_exit(addr);
+		cp_shm_init(addr);
 	}
 
 	return 0;
@@ -1477,6 +1719,35 @@ static int cp_mem_set_notifier_func(struct notifier_block *this,
 static struct notifier_block cp_mem_set_notifier = {
 	.notifier_call = cp_mem_set_notifier_func,
 };
+
+static int msocket_debugfs_init(void)
+{
+	tel_debugfs_root_dir = tel_debugfs_get();
+	if (!tel_debugfs_root_dir)
+		return -1;
+
+	msocket_debugfs_root_dir = debugfs_create_dir("msocket",
+		tel_debugfs_root_dir);
+	if (IS_ERR_OR_NULL(msocket_debugfs_root_dir))
+		goto put_rootfs;
+
+	return 0;
+
+put_rootfs:
+	tel_debugfs_put(tel_debugfs_root_dir);
+	tel_debugfs_root_dir = NULL;
+
+	return -1;
+}
+
+static void msocket_debugfs_exit(void)
+{
+	debugfs_remove(msocket_debugfs_root_dir);
+	msocket_debugfs_root_dir = NULL;
+	tel_debugfs_put(tel_debugfs_root_dir);
+	tel_debugfs_root_dir = NULL;
+}
+
 
 #define APMU_DEBUG_BUS_PROTECTION (1 << 4)
 /* module initialization */
@@ -1493,11 +1764,10 @@ static int __init msocket_init(void)
 
 	/* init lock */
 	spin_lock_init(&cp_sync_lock);
-	shm_lock_init();
 
-	rc = shm_debugfs_init();
+	rc = msocket_debugfs_init();
 	if (rc < 0) {
-		pr_err("%s: shm debugfs init failed\n", __func__);
+		pr_err("%s: msocket debugfs init failed\n", __func__);
 		goto unmap_apmu;
 	}
 
@@ -1554,8 +1824,28 @@ static int __init msocket_init(void)
 		goto psdatastub_err;
 	}
 
+	/* data channel init */
+	rc = data_path_init();
+	if (rc < 0) {
+		pr_err("%s: data path init failed %d\n",
+			__func__, rc);
+		goto dp_err;
+	}
+
+	/* direct rb init */
+	rc = direct_rb_init();
+	if (rc < 0) {
+		pr_err("%s: direct rb init failed %d\n",
+			__func__, rc);
+		goto direct_rb_err;
+	}
+
 	return 0;
 
+direct_rb_err:
+	data_path_exit();
+dp_err:
+	psdatastub_exit();
 psdatastub_err:
 	cmsockdev_cleanup_module(cmsockdev_nr_devs);
 cmsock_err:
@@ -1569,7 +1859,7 @@ portq_err:
 	unregister_reboot_notifier(&reboot_notifier);
 	remove_proc_entry(PROC_FILE_NAME, NULL);
 proc_err:
-	shm_debugfs_exit();
+	msocket_debugfs_exit();
 unmap_apmu:
 	unmap_apmu_base_va();
 	return rc;
@@ -1578,6 +1868,8 @@ unmap_apmu:
 /* module exit */
 static void __exit msocket_exit(void)
 {
+	direct_rb_exit();
+	data_path_exit();
 	psdatastub_exit();
 	portq_exit();
 	cmsockdev_cleanup_module(cmsockdev_nr_devs);
@@ -1586,9 +1878,9 @@ static void __exit msocket_exit(void)
 	unregister_cp_mem_set_notifier(&cp_mem_set_notifier);
 	unregister_reboot_notifier(&reboot_notifier);
 	remove_proc_entry(PROC_FILE_NAME, NULL);
-	shm_debugfs_exit();
+	msocket_debugfs_exit();
 	if (cp_shm_ch_inited)
-		cp_shm_ch_deinit();
+		cp_shm_ch_deinit(cp_addr);
 	cp_shm_ch_inited = 0;
 	if (m3_shm_ch_inited)
 		m3_shm_ch_deinit();
