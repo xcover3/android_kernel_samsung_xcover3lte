@@ -21,9 +21,6 @@
 #define _SHM_H_
 
 #include <linux/skbuff.h>
-#if 0
-#include <linux/platform_data/mmp_ddr_tbl.h>
-#endif
 #include <linux/mutex.h>
 #include <linux/clk/mmpcpdvc.h>
 #include "shm_common.h"
@@ -422,10 +419,5 @@ extern void shm_close(struct shm_rbctl *rbctl);
 /* xmit and recv */
 extern void shm_xmit(struct shm_rbctl *rbctl, struct sk_buff *skb);
 extern struct sk_buff *shm_recv(struct shm_rbctl *rbctl);
-#if 0
-extern int get_voltage_table_for_cp(unsigned int *dvc_voltage_tbl,
-				unsigned int *level_num);
-extern void get_dfc_tables(void __iomem *ciu_base, struct pxa1928_ddr_opt **tbl, int *len);
-#endif
 
 #endif /* _SHM_H_ */

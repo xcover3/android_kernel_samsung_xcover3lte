@@ -25,10 +25,6 @@
 #include <linux/fs.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
-#if 0
-#include <linux/of.h>
-#include <linux/of_device.h>
-#endif
 
 #include "shm.h"
 #include "shm_map.h"
@@ -444,47 +440,6 @@ static inline void shm_rb_dump(struct shm_rbctl *rbctl)
 	);
 }
 
-#if 0
-static void read_mv_profile(void)
-{
-	struct device_node *node;
-	int pro = 0;
-
-	node = of_find_compatible_node(NULL, NULL, "marvell,profile");
-	if (node) {
-		if (of_property_read_u32(node, "marvell,profile-number", &pro))
-			pr_info("can't read profile number\n");
-		else {
-			pr_info("SoC profile number: %d\n", pro);
-			shm_rbctl[shm_rb_main].skctl_va->profile_number = pro;
-		}
-	} else {
-		pr_info("can't find marvell,profile dts\n");
-	}
-}
-
-static void read_dvc_table(void)
-{
-	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
-	unsigned int dvc_num, dvc_tbl[16];
-	int i = 0;
-
-#ifdef CONFIG_PXA_DVFS
-	get_voltage_table_for_cp(dvc_tbl, &dvc_num);
-#else
-	dvc_num = 0;
-#endif
-	skctl_va->dvc_vol_tbl_num = dvc_num;
-
-	pr_info("skctl_va->dvc_vol_tbl_num = %u\n", skctl_va->dvc_vol_tbl_num);
-	for (i = 0; i < dvc_num; i++) {
-		skctl_va->dvc_vol_tbl[i] = dvc_tbl[i];
-		pr_info("skctl_va->dvc_vol_tbl[%d] = %u\n",
-			i, skctl_va->dvc_vol_tbl[i]);
-	}
-	return;
-}
-#endif
 static void set_version_numb(void)
 {
 	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
@@ -493,23 +448,6 @@ static void set_version_numb(void)
 	skctl_va->version_number = VERSION_NUMBER_FLAG;
 	return;
 }
-#if 0
-static void read_dfc_table(void)
-{
-	struct shm_skctl *skctl_va = shm_rbctl[shm_rb_main].skctl_va;
-	struct pxa1928_ddr_opt *tbl;
-	int len = 0, i = 0;
-
-	get_dfc_tables(CIU_VIR_BASE, &tbl, &len);
-	BUG_ON(len > (sizeof(skctl_va->dfc_dclk) / sizeof(skctl_va->dfc_dclk[0])));
-	skctl_va->dfc_dclk_num = len;
-	for (i = 0; i < len; i++) {
-		skctl_va->dfc_dclk[i] = tbl[i].dclk;
-		pr_info("skctl_va->dfc_dclk[%d] = %u\n", i, skctl_va->dfc_dclk[i]);
-	}
-	return;
-}
-#endif
 
 static void get_dvc_info(void)
 {
@@ -657,11 +595,6 @@ int tel_shm_init(enum shm_grp_type grp_type,
 	if (grp_type == shm_grp_cp) {
 		set_version_numb();
 		get_dvc_info();
-#if 0
-		read_mv_profile();
-		read_dvc_table();
-		read_dfc_table();
-#endif
 	}
 
 	return 0;
