@@ -623,8 +623,6 @@ static struct platform_driver ramoops_driver = {
 	},
 };
 
-module_platform_driver(ramoops_driver);
-
 /* no need to register dummy and ramoops driver with DT solution. */
 static void ramoops_register_dummy(void)
 {
