@@ -2,7 +2,7 @@
   *
   * @brief This file contains the functions for uAP CFG80211.
   *
-  * Copyright (C) 2011-2014, Marvell International Ltd.
+  * Copyright (C) 2011-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1013,7 +1013,6 @@ woal_alloc_virt_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type,
 
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
 	spin_lock_init(&priv->tx_stat_lock);
-	spin_lock_init(&priv->scan_req_lock);
 	spin_lock_init(&priv->connect_lock);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)

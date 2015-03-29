@@ -3,7 +3,7 @@
  *  @brief This file contains the initialization for FW
  *  and HW.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -814,7 +814,9 @@ wlan_init_lock_list(IN pmlan_adapter pmadapter)
 	util_scalar_init((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->rx_pkts_queued, 0,
 			 MNULL, pmadapter->callbacks.moal_init_lock);
-
+	util_scalar_init((t_void *)pmadapter->pmoal_handle,
+			 &pmadapter->pending_bridge_pkts, 0,
+			 MNULL, pmadapter->callbacks.moal_init_lock);
 	/* Initialize cmd_free_q */
 	util_init_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->cmd_free_q, MTRUE,
@@ -942,7 +944,8 @@ wlan_free_lock_list(IN pmlan_adapter pmadapter)
 
 	util_scalar_free((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->rx_pkts_queued, pcb->moal_free_lock);
-
+	util_scalar_free((t_void *)pmadapter->pmoal_handle,
+			 &pmadapter->pending_bridge_pkts, pcb->moal_free_lock);
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->cmd_free_q,
 			    pmadapter->callbacks.moal_free_lock);

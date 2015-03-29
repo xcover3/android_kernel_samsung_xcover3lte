@@ -6,7 +6,7 @@
  *  for sending adhoc start, adhoc join, and association commands
  *  to the firmware.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -885,11 +885,7 @@ wlan_cmd_802_11_associate(IN mlan_private *pmpriv,
 					       &((*(pbss_desc->prsn_ie)).
 						 data[0])
 					       , prsn_ie_tlv->header.len);
-					if (pmpriv->pmfcfg.mfpc ||
-					    pmpriv->pmfcfg.mfpr) {
-						wlan_update_rsn_ie(pmpriv,
-								   prsn_ie_tlv);
-					}
+					wlan_update_rsn_ie(pmpriv, prsn_ie_tlv);
 				} else {
 					ret = MLAN_STATUS_FAILURE;
 					goto done;
@@ -919,7 +915,6 @@ wlan_cmd_802_11_associate(IN mlan_private *pmpriv,
 
 	if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info)
 	    && (!pbss_desc->disable_11n)
-	    && (pbss_desc->bss_band & BAND_A)
 	    && (pmpriv->config_bands & BAND_GAC
 		|| pmpriv->config_bands & BAND_AAC))
 		wlan_cmd_append_11ac_tlv(pmpriv, pbss_desc, &pos);

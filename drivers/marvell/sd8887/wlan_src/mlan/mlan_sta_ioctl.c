@@ -2,7 +2,7 @@
  *
  *  @brief This file contains the functions for station ioctl.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -5036,6 +5036,9 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	case MLAN_OID_MISC_GET_TDLS_IES:
 		status = wlan_misc_ioctl_tdls_get_ies(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_TDLS_IDLE_TIME:
+		status = wlan_misc_ioctl_tdls_idle_time(pmadapter, pioctl_req);
+		break;
 
 	case MLAN_OID_MISC_MAC_CONTROL:
 		status = wlan_misc_ioctl_mac_control(pmadapter, pioctl_req);
@@ -5099,6 +5102,9 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 #endif
 	case MLAN_OID_MISC_LOW_PWR_MODE:
 		status = wlan_misc_ioctl_low_pwr_mode(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_COALESCE_CFG:
+		status = wlan_misc_ioctl_coalesce_cfg(pmadapter, pioctl_req);
 		break;
 	default:
 		if (pioctl_req)

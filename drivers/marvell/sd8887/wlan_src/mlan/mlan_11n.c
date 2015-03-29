@@ -2,7 +2,7 @@
  *
  *  @brief This file contains functions for 11n handling.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -2212,12 +2212,21 @@ wlan_check_chan_width_ht40_by_region(IN mlan_private *pmpriv,
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	int i = 0;
 	int cover_pri_chan = MFALSE;
-	t_u8 pri_chan = pbss_desc->pht_info->ht_info.pri_chan;
-	t_u8 chan_offset =
-		GET_SECONDARYCHAN(pbss_desc->pht_info->ht_info.field2);
-	t_u8 num_cfp = pmadapter->region_channel[0].num_cfp;
+	t_u8 pri_chan;
+	t_u8 chan_offset;
+	t_u8 num_cfp;
 
 	ENTER();
+
+	if (pbss_desc->pht_info == MNULL) {
+		PRINTM(MERROR, "ht_info pointer NULL, force use HT20\n");
+		LEAVE();
+		return MFALSE;
+	}
+
+	pri_chan = pbss_desc->pht_info->ht_info.pri_chan;
+	chan_offset = GET_SECONDARYCHAN(pbss_desc->pht_info->ht_info.field2);
+	num_cfp = pmadapter->region_channel[0].num_cfp;
 
 	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
 	    pmadapter->region_channel && pmadapter->region_channel[0].valid) {
@@ -2438,8 +2447,10 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		wlan_add_ext_capa_info_ie(pmpriv, ppbuffer);
 		ret_len += sizeof(MrvlIETypes_ExtCap_t);
 	}
+
 	if (orig_usr_dot_11n_dev_cap)
 		pmadapter->usr_dot_11n_dev_cap_bg = orig_usr_dot_11n_dev_cap;
+
 	LEAVE();
 	return ret_len;
 }

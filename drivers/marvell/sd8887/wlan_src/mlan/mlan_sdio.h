@@ -3,7 +3,7 @@
   * @brief This file contains definitions for SDIO interface.
   * driver.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -656,6 +656,7 @@ mlan_status wlan_check_winner_status(mlan_adapter *pmadapter, t_u32 *val);
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 mlan_status wlan_send_mp_aggr_buf(mlan_adapter *pmadapter);
 #endif
+
 /** Firmware status check */
 mlan_status wlan_check_fw_status(mlan_adapter *pmadapter, t_u32 pollnum);
 /** Read interrupt status */

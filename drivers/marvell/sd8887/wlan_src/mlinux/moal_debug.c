@@ -2,7 +2,7 @@
   *
   * @brief This file contains functions for debug proc file.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -346,7 +346,7 @@ woal_hist_data_reset(moal_private *priv)
  *  @return   N/A
  */
 static void
-woal_hist_data_set(moal_private *priv, t_s8 rx_rate, t_s8 snr, t_s8 nflr)
+woal_hist_data_set(moal_private *priv, t_u8 rx_rate, t_s8 snr, t_s8 nflr)
 {
 	hgm_data *phist_data = priv->hist_data;
 
@@ -368,7 +368,7 @@ woal_hist_data_set(moal_private *priv, t_s8 rx_rate, t_s8 snr, t_s8 nflr)
  *  @return   N/A
  */
 void
-woal_hist_data_add(moal_private *priv, t_s8 rx_rate, t_s8 snr, t_s8 nflr)
+woal_hist_data_add(moal_private *priv, t_u8 rx_rate, t_s8 snr, t_s8 nflr)
 {
 	hgm_data *phist_data = priv->hist_data;
 	unsigned long curr_size;
@@ -379,6 +379,63 @@ woal_hist_data_add(moal_private *priv, t_s8 rx_rate, t_s8 snr, t_s8 nflr)
 	woal_hist_data_set(priv, rx_rate, snr, nflr);
 }
 
+static char *rate_lg[] = {
+	"1", "2", "5.5", "11",
+	"6", "9", "12", "18", "24", "36", "48", "54"
+};
+
+static char *rate_ht_2040[] = {
+	"6.5", "13", "19.5", "26", "39", "52", "58.5", "65",	// HT20 NSS=1
+	"13", "26", "39", "52", "78", "104", "117", "130",	// HT20 NSS=2
+	"13.5", "27", "40.5", "54", "81", "108", "121.5", "135",	// HT40
+									// NSS=1
+	"27", "54", "81", "108", "162", "216", "243", "270"	// HT40 NSS=2
+};
+
+static char *rate_ht_2040_sgi[] = {
+	"7.2", "14.4", "21.7", "28.9", "43.3", "57.8", "65", "72.2",	// HT20:SGI
+									// NSS=1
+	"14.4", "28.9", "43.3", "57.8", "86.7", "115.6", "130", "144.4",	// HT20:SGI
+										// NSS=2
+	"15", "30", "45", "60", "90", "120", "135", "150",	// HT40:SGI
+								// NSS=1
+	"30", "60", "90", "120", "180", "240", "270", "300"	// HT40:SGI
+								// NSS=2
+};
+
+static char *rate_vht_204080[] = {
+	"6.5", "13", "19.5", "26", "39", "52", "58.5", "65", "78", "Invalid ",	// VHT20
+										// NSS=1
+	"13", "26", "39", "52", "78", "104", "117", "130", "156", "Invalid ",	// VHT20
+										// NSS=2
+	"13.5", "27", "40.5", "54", "81", "108", "121.5", "135", "162", "180",	// VHT40
+										// NSS=1
+	"27", "54", "81", "108", "162", "216", "243", "270", "324", "360",	// VHT40
+										// NSS=2
+	"29.3", "58.5", "87.8", "117", "175.5", "234", "263.3", "292.5", "351", "390",	// VHT80
+											// NSS=1
+	"58.5", "117", "175.5", "234", "351", "468", "526.5", "585", "702", "780"	// VHT80
+											// NSS=2
+};
+
+static char *rate_vht_204080_sgi[] = {
+	"7.2", "14.4", "21.7", "28.9", "43.3", "57.8", "65", "72.2", "86.7", "Invalid ",	// VHT20:SGI
+												// NSS=1
+	"14.4", "28.9", "43.3", "57.8", "86.7", "115.6", "130", "144.4", "173.3", "Invalid ",	// VHT20:SGI
+												// NSS=2
+	"15", "30", "45", "60", "90", "120", "135", "150", "180", "200",	// VHT40:SGI
+										// NSS=1
+	"30", "60", "90", "120", "180", "240", "270", "300", "360", "400",	// VHT40:SGI
+										// NSS=2
+	"32.5", "65", "97.5", "130", "195", "260", "292.5", "325", "390", "433.3",	// VHT80:SGI
+											// NSS=1
+	"65", "130", "195", "260", "390", "520", "585", "650", "780", "866.7"	// VHT80:SGI
+										// NSS=2
+};
+
+#define MAX_MCS_NUM_SUPP    16
+#define MAX_MCS_NUM_AC    10
+#define RATE_INDEX_MCS0   12
 /**
  *  @brief Proc read function for histogram
  *
@@ -394,6 +451,11 @@ woal_histogram_read(struct seq_file *sfp, void *data)
 	hgm_data *phist_data = NULL;
 	int i = 0;
 	int value = 0;
+	t_bool sgi_enable = 0;
+	t_u8 bw = 0;
+	t_u8 mcs_index = 0;
+	t_u8 nss = 0;
+
 	ENTER();
 	if (!priv || !priv->hist_data) {
 		LEAVE();
@@ -409,13 +471,75 @@ woal_histogram_read(struct seq_file *sfp, void *data)
 	seq_printf(sfp,
 		   "rx rates (in Mbps): 0=1M   1=2M   2=5.5M  3=11M   4=6M  5=9M  6=12M\n");
 	seq_printf(sfp,
-		   "                    7=18M  8=24M  9=36M  10=48M  11=54M   12-27=MCS0-15(BW20) 28-43=MCS0-15(BW40)\n");
+		   "                    7=18M  8=24M  9=36M  10=48M  11=54M\n");
 	seq_printf(sfp,
-		   "                    44-53=MCS0-9(VHT:BW20) 54-63=MCS0-9(VHT:BW40) 64-73=MCS0-9(VHT:BW80)\n\n");
+		   "                    12-27=MCS0-15(BW20)     28-43=MCS0-15(BW40)\n");
+	seq_printf(sfp,
+		   "                    44-59=MCS0-15(BW20:SGI) 60-75=MCS0-15(BW40:SGI)\n");
+	seq_printf(sfp,
+		   "                    76-85  =MCS0-9(VHT:BW20:NSS1)     86-95  =MCS0-9(VHT:BW20:NSS2)\n");
+	seq_printf(sfp,
+		   "                    96-105 =MCS0-9(VHT:BW40:NSS1)     106-115=MCS0-9(VHT:BW40:NSS2)\n");
+	seq_printf(sfp,
+		   "                    116-125=MCS0-9(VHT:BW80:NSS1)     126-135=MCS0-9(VHT:BW80:NSS2)\n");
+	seq_printf(sfp,
+		   "                    136-145=MCS0-9(VHT:BW20:NSS1:SGI) 146-155=MCS0-9(VHT:BW20:NSS2:SGI)\n");
+	seq_printf(sfp,
+		   "                    156-165=MCS0-9(VHT:BW40:NSS1:SGI) 166-175=MCS0-9(VHT:BW40:NSS2:SGI)\n");
+	seq_printf(sfp,
+		   "                    176-185=MCS0-9(VHT:BW80:NSS1:SGI) 186-195=MCS0-9(VHT:BW80:NSS2:SGI)\n\n");
 	for (i = 0; i < RX_RATE_MAX; i++) {
 		value = atomic_read(&(phist_data->rx_rate[i]));
-		if (value)
-			seq_printf(sfp, "rx_rate[%02d] = %d\n", i, value);
+		if (value) {
+			if (i <= 11)
+				seq_printf(sfp, "rx_rate[%03d] (%sM) = %d\n", i,
+					   rate_lg[i], value);
+			else if (i <= 75) {
+				sgi_enable = (i - 12) / (MAX_MCS_NUM_SUPP * 2);	// 0:LGI,
+										// 1:SGI
+				bw = ((i - 12) % (MAX_MCS_NUM_SUPP * 2)) / MAX_MCS_NUM_SUPP;	// 0:20MHz,
+												// 1:40MHz
+				mcs_index = (i - 12) % MAX_MCS_NUM_SUPP;
+				if (sgi_enable)
+					seq_printf(sfp,
+						   "rx_rate[%03d] (MCS%d HT:BW%d:SGI %sM) = %d\n",
+						   i, mcs_index, (1 << bw) * 20,
+						   rate_ht_2040_sgi[i - 12 -
+								    MAX_MCS_NUM_SUPP
+								    * 2],
+						   value);
+				else
+					seq_printf(sfp,
+						   "rx_rate[%03d] (MCS%d HT:BW%d %sM) = %d\n",
+						   i, mcs_index, (1 << bw) * 20,
+						   rate_ht_2040[i - 12], value);
+			} else if (i <= 195) {
+				sgi_enable = (i - 76) / (MAX_MCS_NUM_AC * 6);	// 0:LGI,
+										// 1:SGI
+				bw = ((i - 76) % (MAX_MCS_NUM_AC * 6)) / (MAX_MCS_NUM_AC * 2);	// 0:20MHz,
+												// 1:40MHz,
+												// 2:80MHz
+				nss = (((i - 76) % (MAX_MCS_NUM_AC * 6)) % (MAX_MCS_NUM_AC * 2)) / MAX_MCS_NUM_AC;	// 0:NSS1,
+															// 1:NSS2
+				mcs_index = (i - 76) % MAX_MCS_NUM_AC;
+				if (sgi_enable)
+					seq_printf(sfp,
+						   "rx_rate[%03d] (MCS%d VHT:BW%d:NSS%d:SGI %sM) = %d\n",
+						   i, mcs_index, (1 << bw) * 20,
+						   nss + 1,
+						   rate_vht_204080_sgi[i - 76 -
+								       MAX_MCS_NUM_AC
+								       * 6],
+						   value);
+				else
+					seq_printf(sfp,
+						   "rx_rate[%03d] (MCS%d VHT:BW%d:NSS%d %sM) = %d\n",
+						   i, mcs_index, (1 << bw) * 20,
+						   nss + 1,
+						   rate_vht_204080[i - 76],
+						   value);
+			}
+		}
 	}
 	for (i = 0; i < SNR_MAX; i++) {
 		value = atomic_read(&(phist_data->snr[i]));

@@ -2,7 +2,7 @@
  *
  *  @brief This file contains SDIO specific code
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1125,7 +1125,8 @@ rx_curr_single:
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
-		if ((new_mode && (pkt_type != MLAN_TYPE_DATA)) ||
+		if ((new_mode && (pkt_type != MLAN_TYPE_DATA)
+		    ) ||
 		    (!new_mode &&
 		     ((port == CTRL_PORT) &&
 		      ((pkt_type != MLAN_TYPE_EVENT) &&
@@ -1888,10 +1889,12 @@ wlan_process_int_status(mlan_adapter *pmadapter)
 		bit_count =
 			bitcount(pmadapter->mp_wr_bitmap & pmadapter->
 				 mp_data_port_mask);
-		pmadapter->mp_update[bit_count - 1]++;
-		if (pmadapter->mp_update[bit_count - 1] == 0xffffffff)
-			memset(pmadapter, pmadapter->mp_update, 0,
-			       sizeof(pmadapter->mp_update));
+		if (bit_count) {
+			pmadapter->mp_update[bit_count - 1]++;
+			if (pmadapter->mp_update[bit_count - 1] == 0xffffffff)
+				memset(pmadapter, pmadapter->mp_update, 0,
+				       sizeof(pmadapter->mp_update));
+		}
 
 		pmadapter->last_recv_wr_bitmap = pmadapter->mp_wr_bitmap;
 		PRINTM(MINTR, "DNLD: wr_bitmap=0x%08x\n",
@@ -2254,6 +2257,7 @@ wlan_free_sdio_mpa_buffers(IN mlan_adapter *pmadapter)
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+
 #endif /* SDIO_MULTI_PORT_TX_AGGR || SDIO_MULTI_PORT_RX_AGGR */
 
 /**

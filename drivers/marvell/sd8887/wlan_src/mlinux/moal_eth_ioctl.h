@@ -2,7 +2,7 @@
  *
  * @brief This file contains definition for private IOCTL call.
  *
- * Copyright (C) 2014, Marvell International Ltd.
+ * Copyright (C) 2014-2015, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -200,7 +200,8 @@ Change log:
 #if defined(WIFI_DIRECT_SUPPORT)
 #if defined(UAP_CFG80211)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-#define PRIV_CMD_NOA_CFG            "noacfg"
+#define PRIV_CMD_CFG_NOA            "cfg_noa"
+#define PRIV_CMD_CFG_OPP_PS         "cfg_opp_ps"
 #endif
 #endif
 #endif
@@ -212,6 +213,7 @@ Change log:
 #define PRIV_CMD_COEX_RX_WINSIZE    "coex_rx_winsize"
 #define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
 #define PRIV_CMD_AUTO_TDLS          "autotdls"
+#define PRIV_CMD_TDLS_IDLE_TIME          "tdls_idle_time"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD        (SIOCDEVPRIVATE + 1)

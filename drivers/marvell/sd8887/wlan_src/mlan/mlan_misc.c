@@ -3,7 +3,7 @@
  *
  *  @brief This file include miscellaneous functions for MLAN module
  *
- *  Copyright (C) 2009-2014, Marvell International Ltd.
+ *  Copyright (C) 2009-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -530,7 +530,11 @@ wlan_get_info_debug_info(IN pmlan_adapter pmadapter,
 					 &pmpriv->wmm.tx_pkts_queued, MNULL,
 					 MNULL);
 #ifdef UAP_SUPPORT
-		debug_info->num_bridge_pkts = pmadapter->pending_bridge_pkts;
+		debug_info->num_bridge_pkts =
+			util_scalar_read(pmadapter->pmoal_handle,
+					 &pmadapter->pending_bridge_pkts,
+					 pmadapter->callbacks.moal_spin_lock,
+					 pmadapter->callbacks.moal_spin_unlock);
 		debug_info->num_drop_pkts = pmpriv->num_drop_pkts;
 #endif
 		debug_info->mlan_processing = pmadapter->mlan_processing;
@@ -822,7 +826,12 @@ wlan_free_mlan_buffer(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
 
 	if (pcb && pmbuf) {
 		if (pmbuf->flags & MLAN_BUF_FLAG_BRIDGE_BUF)
-			pmadapter->pending_bridge_pkts--;
+			util_scalar_decrement(pmadapter->pmoal_handle,
+					      &pmadapter->pending_bridge_pkts,
+					      pmadapter->callbacks.
+					      moal_spin_lock,
+					      pmadapter->callbacks.
+					      moal_spin_unlock);
 		if (pmbuf->flags & MLAN_BUF_FLAG_MALLOC_BUF)
 			pcb->moal_mfree(pmadapter->pmoal_handle, (t_u8 *)pmbuf);
 		else
@@ -1760,6 +1769,36 @@ wlan_misc_ioctl_tdls_config(IN pmlan_adapter pmadapter,
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get the TDLS idle time.
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status
+wlan_misc_ioctl_tdls_idle_time(IN pmlan_adapter pmadapter,
+			       IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	ENTER();
+
+	if (MLAN_ACT_GET == pioctl_req->action) {
+		if (pmpriv->tdls_idle_time == 0)
+			misc->param.tdls_idle_time = TDLS_IDLE_TIMEOUT;
+		else
+			misc->param.tdls_idle_time = pmpriv->tdls_idle_time;
+	} else if (MLAN_ACT_SET == pioctl_req->action) {
+		pmpriv->tdls_idle_time = misc->param.tdls_idle_time;
+	}
 	LEAVE();
 	return ret;
 }
@@ -3365,6 +3404,46 @@ wlan_misc_p2p_config(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	return ret;
 }
 #endif
+
+/**
+ *  @brief Set coalesce config
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_SUCCESS --success, otherwise fail
+ */
+mlan_status
+wlan_misc_ioctl_coalesce_cfg(IN pmlan_adapter pmadapter,
+			     IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+	t_u16 cmd_action = 0;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+
+	ENTER();
+
+	misc_cfg = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else
+		cmd_action = HostCmd_ACT_GEN_GET;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv,
+			       HostCmd_CMD_COALESCE_CFG,
+			       cmd_action,
+			       0,
+			       (t_void *)pioctl_req,
+			       &misc_cfg->param.coalesce_cfg);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
 
 /**
  *  @brief Get/Set Tx control configuration

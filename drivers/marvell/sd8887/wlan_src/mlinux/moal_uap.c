@@ -3,7 +3,7 @@
   * @brief This file contains the major functions in UAP
   * driver.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1410,18 +1410,73 @@ woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 	if (!(tx_rate_config.action))
 		mreq->action = MLAN_ACT_GET;
 	else {
+		if ((tx_rate_config.user_data_cnt <= 0) ||
+		    (tx_rate_config.user_data_cnt > 3)) {
+			PRINTM(MERROR, "Invalid user_data_cnt\n");
+			ret = -EINVAL;
+			goto done;
+		}
+
 		mreq->action = MLAN_ACT_SET;
-		if (tx_rate_config.rate == AUTO_RATE)
+		if (tx_rate_config.rate_format == AUTO_RATE)
 			rate->param.rate_cfg.is_rate_auto = 1;
 		else {
-			if ((tx_rate_config.rate != MLAN_RATE_INDEX_MCS32) &&
-			    ((tx_rate_config.rate < 0) ||
-			     (tx_rate_config.rate > MLAN_RATE_INDEX_MCS15))) {
+			if ((tx_rate_config.rate_format < 0) ||
+			    (tx_rate_config.rate < 0)) {
+				PRINTM(MERROR,
+				       "Invalid format or rate selection\n");
 				ret = -EINVAL;
 				goto done;
 			}
+			/* rate_format sanity check */
+			if ((tx_rate_config.rate_format > MLAN_RATE_FORMAT_VHT)
+				) {
+				PRINTM(MERROR, "Invalid format selection\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			rate->param.rate_cfg.rate_format =
+				tx_rate_config.rate_format;
+
+			/* rate sanity check */
+			if (tx_rate_config.user_data_cnt >= 2) {
+				if (((tx_rate_config.rate_format ==
+				      MLAN_RATE_FORMAT_LG) &&
+				     (tx_rate_config.rate >
+				      MLAN_RATE_INDEX_OFDM7))
+				    ||
+				    ((tx_rate_config.rate_format ==
+				      MLAN_RATE_FORMAT_HT) &&
+				     (tx_rate_config.rate != 32) &&
+				     (tx_rate_config.rate > 15)
+				    )
+				    ||
+				    ((tx_rate_config.rate_format ==
+				      MLAN_RATE_FORMAT_VHT) &&
+				     (tx_rate_config.rate >
+				      MLAN_RATE_INDEX_MCS9))
+					) {
+					PRINTM(MERROR,
+					       "Invalid rate selection\n");
+					ret = -EINVAL;
+					goto done;
+				}
+				rate->param.rate_cfg.rate = tx_rate_config.rate;
+			}
+
+			/* nss sanity check */
+			if (tx_rate_config.user_data_cnt == 3) {
+				if ((tx_rate_config.nss < 1) ||
+				    (tx_rate_config.nss > 2)) {
+					PRINTM(MERROR,
+					       "Invalid nss selection %d\n",
+					       tx_rate_config.nss);
+					ret = -EINVAL;
+					goto done;
+				}
+				rate->param.rate_cfg.nss = tx_rate_config.nss;
+			}
 		}
-		rate->param.rate_cfg.rate = tx_rate_config.rate;
 	}
 
 	status = woal_request_ioctl(priv, mreq, MOAL_IOCTL_WAIT);
@@ -1433,9 +1488,16 @@ woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 		priv->rate_index = tx_rate_config.action;
 	} else {
 		if (rate->param.rate_cfg.is_rate_auto)
-			tx_rate_config.rate = AUTO_RATE;
-		else
+			tx_rate_config.rate_format = AUTO_RATE;
+		else {
+			/* fixed rate */
+			tx_rate_config.rate_format =
+				rate->param.rate_cfg.rate_format;
 			tx_rate_config.rate = rate->param.rate_cfg.rate;
+			if (rate->param.rate_cfg.rate_format ==
+			    MLAN_RATE_FORMAT_VHT)
+				tx_rate_config.nss = rate->param.rate_cfg.nss;
+		}
 		for (i = 0; i < MAX_BITMAP_RATES_SIZE; i++) {
 			tx_rate_config.bitmap_rates[i] =
 				rate->param.rate_cfg.bitmap_rates[i];

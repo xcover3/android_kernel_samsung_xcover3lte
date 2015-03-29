@@ -3,7 +3,7 @@
   * @brief This file contains declaration referring to
   * functions defined in moal module
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -87,7 +87,7 @@ t_void moal_print_netintf(IN t_void *pmoal_handle, IN t_u32 bss_index,
 t_void moal_assert(IN t_void *pmoal_handle, IN t_u32 cond);
 t_void moal_tcp_ack_tx_ind(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf);
 t_void moal_hist_data_add(IN t_void *pmoal_handle, IN t_u32 bss_index,
-			  IN t_s8 rx_rate, IN t_s8 snr, IN t_s8 nflr);
+			  IN t_u8 rx_rate, IN t_s8 snr, IN t_s8 nflr);
 
 t_void moal_updata_peer_signal(IN t_void *pmoal_handle, IN t_u32 bss_index,
 			       IN t_u8 *peer_addr, IN t_s8 snr, IN t_s8 nflr);

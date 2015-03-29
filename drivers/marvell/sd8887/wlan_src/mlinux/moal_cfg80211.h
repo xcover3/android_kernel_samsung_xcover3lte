@@ -2,7 +2,7 @@
   *
   * @brief This file contains the CFG80211 specific defines.
   *
-  * Copyright (C) 2011-2014, Marvell International Ltd.
+  * Copyright (C) 2011-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -303,6 +303,11 @@ int woal_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)|| defined(COMPAT_WIRELESS)
 int woal_cfg80211_set_txq_params(struct wiphy *wiphy, struct net_device *dev,
 				 struct ieee80211_txq_params *params);
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+int woal_cfg80211_set_coalesce(struct wiphy *wiphy,
+			       struct cfg80211_coalesce *coalesce);
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)

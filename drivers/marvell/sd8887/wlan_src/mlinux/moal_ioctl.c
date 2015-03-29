@@ -2,7 +2,7 @@
   *
   * @brief This file contains ioctl function to MLAN
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -3358,9 +3358,8 @@ woal_p2p_config(moal_private *priv, t_u32 action,
 	misc_cfg->sub_command = MLAN_OID_MISC_WIFI_DIRECT_CONFIG;
 	req->req_id = MLAN_IOCTL_MISC_CFG;
 	req->action = action;
-	if (action == MLAN_ACT_SET)
-		memcpy(&misc_cfg->param.p2p_config, p2p_config,
-		       sizeof(mlan_ds_wifi_direct_config));
+	memcpy(&misc_cfg->param.p2p_config, p2p_config,
+	       sizeof(mlan_ds_wifi_direct_config));
 	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (ret == MLAN_STATUS_SUCCESS) {
 		if (action == MLAN_ACT_GET)
@@ -4206,7 +4205,6 @@ woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	moal_handle *handle = priv->phandle;
 #ifdef STA_CFG80211
-	int i = 0;
 	unsigned long flags;
 #endif
 
@@ -4225,23 +4223,13 @@ woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	handle->scan_pending_on_block = MFALSE;
 	MOAL_REL_SEMAPHORE(&handle->async_sem);
 #ifdef STA_CFG80211
-	for (i = 0; i < handle->priv_num; i++) {
-		spin_lock_irqsave(&handle->priv[i]->scan_req_lock, flags);
-		if (IS_STA_CFG80211(cfg80211_wext) &&
-		    handle->priv[i]->scan_request) {
-			PRINTM(MMSG, "wlan: Cancel scan on %s\n",
-			       handle->priv[i]->netdev->name);
+	spin_lock_irqsave(&handle->scan_req_lock, flags);
+	if (IS_STA_CFG80211(cfg80211_wext) && handle->scan_request) {
 	    /** some supplicant can not handle SCAN abort event */
-			if (handle->priv[i]->bss_type == MLAN_BSS_TYPE_STA)
-				cfg80211_scan_done(handle->priv[i]->
-						   scan_request, MTRUE);
-			else
-				cfg80211_scan_done(handle->priv[i]->
-						   scan_request, MFALSE);
-			handle->priv[i]->scan_request = NULL;
-		}
-		spin_unlock_irqrestore(&handle->priv[i]->scan_req_lock, flags);
+		cfg80211_scan_done(handle->scan_request, MFALSE);
+		handle->scan_request = NULL;
 	}
+	spin_unlock_irqrestore(&handle->scan_req_lock, flags);
 #endif
 done:
 	if (ret != MLAN_STATUS_PENDING)

@@ -2,7 +2,7 @@
  *
  *  @brief This file contains functions for WMM.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1508,36 +1508,7 @@ wlan_clean_txrx(pmlan_private priv)
 
 	wlan_wmm_cleanup_queues(priv);
 	wlan_11n_deleteall_txbastream_tbl(priv);
-#ifdef SDIO_MULTI_PORT_TX_AGGR
-    /**
-    * Before reset the TX aggregation buffer, check for any pre-copied data.
-    * &  If any data was pre-copied, restore the current write port and write
-    * bitmap, to the values that they would have if those data buffers were
-    * not copied. This is required as FW expects the driver to use the write
-    * bitmap sequentially. If write bitmap is not re-stored, few bits get
-    * skipped for next write and fw doesn't issue tx-done interrupt in this
-    * condition.
-    */
 
-	while (pmadapter->mpa_tx.pkt_cnt) {
-		/* Decrement current write port to the last used port */
-		if ((pmadapter->psdio_device->supports_sdio_new_mode)
-		    && (pmadapter->curr_wr_port == 0))
-			pmadapter->curr_wr_port =
-				pmadapter->psdio_device->max_ports;
-		pmadapter->curr_wr_port--;
-
-		if ((!pmadapter->psdio_device->supports_sdio_new_mode)
-		    && (pmadapter->curr_wr_port == CTRL_PORT))
-			pmadapter->curr_wr_port = (pmadapter->mp_end_port - 1);
-		/* Mark the port as available in write bitmap */
-		pmadapter->mp_wr_bitmap |=
-			(t_u16)(1 << pmadapter->curr_wr_port);
-		pmadapter->mpa_tx.pkt_cnt--;
-	}
-
-	MP_TX_AGGR_BUF_RESET(priv->adapter);
-#endif
 	wlan_wmm_delete_all_ralist(priv);
 	memcpy(pmadapter, tos_to_tid, ac_to_tid, sizeof(tos_to_tid));
 	for (i = 0; i < MAX_NUM_TID; i++)
@@ -2577,10 +2548,9 @@ wlan_del_tx_pkts_in_ralist(pmlan_private priv,
 								MNULL);
 			if (pmbuf) {
 				PRINTM(MDATA,
-				       "Drop pkts: tid=%d tx_pause=%d pkts=%d brd_pkts=%d "
+				       "Drop pkts: tid=%d tx_pause=%d pkts=%d "
 				       MACSTR "\n", tid, ra_list->tx_pause,
 				       ra_list->total_pkts,
-				       pmadapter->pending_bridge_pkts,
 				       MAC2STR(ra_list->ra));
 				wlan_write_data_complete(pmadapter, pmbuf,
 							 MLAN_STATUS_FAILURE);

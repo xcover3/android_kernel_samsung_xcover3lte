@@ -2,7 +2,7 @@
   *
   * @brief This file contains the callback functions registered to MLAN
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -893,7 +893,6 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 	int custom_len = 0;
 #ifdef STA_CFG80211
 	unsigned long flags;
-	moal_private *scan_priv = NULL;
 #endif
 #endif
 	moal_private *priv = NULL;
@@ -996,9 +995,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 			priv->report_scan_result = MFALSE;
 #ifdef STA_CFG80211
 			if (IS_STA_CFG80211(cfg80211_wext)) {
-				scan_priv =
-					woal_get_scan_interface(priv->phandle);
-				if (scan_priv && scan_priv->scan_request) {
+				if (priv->phandle->scan_request) {
 					PRINTM(MINFO,
 					       "Reporting scan results\n");
 					woal_inform_bss_from_scan_result(priv,
@@ -1012,13 +1009,17 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 								   PASSIVE_SCAN_CHAN_TIME,
 								   SPECIFIC_SCAN_CHAN_TIME);
 					}
-					cfg80211_scan_done(scan_priv->
-							   scan_request,
-							   MFALSE);
-					spin_lock_irqsave(&scan_priv->
+					spin_lock_irqsave(&priv->phandle->
 							  scan_req_lock, flags);
-					scan_priv->scan_request = NULL;
-					spin_unlock_irqrestore(&scan_priv->
+					if (priv->phandle->scan_request) {
+						cfg80211_scan_done(priv->
+								   phandle->
+								   scan_request,
+								   MFALSE);
+						priv->phandle->scan_request =
+							NULL;
+					}
+					spin_unlock_irqrestore(&priv->phandle->
 							       scan_req_lock,
 							       flags);
 				}
@@ -1789,11 +1790,14 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 							pmevent->event_len -
 							sizeof(pmevent->
 							       event_id) -
-							MLAN_MAC_ADDR_LENGTH,
+							MLAN_MAC_ADDR_LENGTH
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-							0,
+							, 0
 #endif
-							GFP_ATOMIC);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+							, GFP_ATOMIC
+#endif
+					);
 #else
 				cfg80211_rx_mgmt(priv->netdev, freq,
 						 ((const t_u8 *)pmevent->
@@ -2116,7 +2120,7 @@ moal_tcp_ack_tx_ind(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
  *  @return                 N/A
  */
 t_void
-moal_hist_data_add(IN t_void *pmoal_handle, IN t_u32 bss_index, IN t_s8 rx_rate,
+moal_hist_data_add(IN t_void *pmoal_handle, IN t_u32 bss_index, IN t_u8 rx_rate,
 		   IN t_s8 snr, IN t_s8 nflr)
 {
 	moal_private *priv = NULL;

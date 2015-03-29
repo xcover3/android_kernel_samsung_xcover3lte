@@ -2,7 +2,7 @@
   *
   * @brief This file contains the functions for CFG80211.
   *
-  * Copyright (C) 2011-2014, Marvell International Ltd.
+  * Copyright (C) 2011-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -366,27 +366,6 @@ woal_is_any_interface_active(moal_handle *handle)
 	}
 	return MFALSE;
 }
-
-#ifdef STA_SUPPORT
-/**
- *  @brief Check if any interface has pending scan req
- *
- *  @param handle        A pointer to moal_handle
- *
- *
- *  @return              MTRUE/MFALSE;
- */
-moal_private *
-woal_get_scan_interface(moal_handle *handle)
-{
-	int i;
-	for (i = 0; i < handle->priv_num; i++) {
-		if (handle->priv[i] && handle->priv[i]->scan_request)
-			return handle->priv[i];
-	}
-	return NULL;
-}
-#endif
 
 /**
  *  @brief Get current frequency of active interface
@@ -1663,6 +1642,219 @@ woal_cfg80211_set_channel(struct wiphy *wiphy,
 	}
 	/* set monitor channel support */
 
+	LEAVE();
+	return ret;
+}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+static bool
+woal_is_pattern_supported(struct cfg80211_pkt_pattern *pat, t_u8 *byte_seq,
+			  t_u8 max_byte_seq)
+{
+	int j, k, valid_byte_cnt = 0;
+	bool dont_care_byte = false;
+
+	for (j = 0; j < DIV_ROUND_UP(pat->pattern_len, 8); j++) {
+		for (k = 0; k < 8; k++) {
+			if (pat->mask[j] & 1 << k) {
+				memcpy(byte_seq + valid_byte_cnt,
+				       &pat->pattern[j * 8 + k], 1);
+				valid_byte_cnt++;
+				if (dont_care_byte)
+					return false;
+			} else {
+				if (valid_byte_cnt)
+					dont_care_byte = true;
+			}
+
+			if (valid_byte_cnt > max_byte_seq)
+				return false;
+		}
+	}
+
+	byte_seq[max_byte_seq] = valid_byte_cnt;
+
+	return true;
+}
+
+static int
+woal_get_coalesce_pkt_type(t_u8 *byte_seq)
+{
+	const t_u8 ipv4_mc_mac[] = { 0x33, 0x33 };
+	const t_u8 ipv6_mc_mac[] = { 0x01, 0x00, 0x5e };
+	const t_u8 bc_mac[] = { 0xff, 0xff, 0xff, 0xff };
+
+	if ((byte_seq[0] & 0x01) && (byte_seq[COALESCE_MAX_BYTESEQ] == 1))
+		return PACKET_TYPE_UNICAST;
+	else if (!memcmp(byte_seq, bc_mac, 4))
+		return PACKET_TYPE_BROADCAST;
+	else if ((!memcmp(byte_seq, ipv4_mc_mac, 2) &&
+		  byte_seq[COALESCE_MAX_BYTESEQ] == 2) ||
+		 (!memcmp(byte_seq, ipv6_mc_mac, 3) &&
+		  byte_seq[COALESCE_MAX_BYTESEQ] == 3))
+		return PACKET_TYPE_MULTICAST;
+
+	return 0;
+}
+
+static int
+woal_fill_coalesce_rule_info(struct cfg80211_coalesce_rules *crule,
+			     struct coalesce_rule *mrule)
+{
+	t_u8 byte_seq[COALESCE_MAX_BYTESEQ + 1];
+	struct filt_field_param *param;
+	int i;
+
+	mrule->max_coalescing_delay = crule->delay;
+
+	param = mrule->params;
+
+	for (i = 0; i < crule->n_patterns; i++) {
+		memset(byte_seq, 0, sizeof(byte_seq));
+		if (!woal_is_pattern_supported(&crule->patterns[i],
+					       byte_seq,
+					       COALESCE_MAX_BYTESEQ)) {
+			PRINTM(MERROR, "Pattern not supported\n");
+			return -EOPNOTSUPP;
+		}
+
+		if (!crule->patterns[i].pkt_offset) {
+			u8 pkt_type;
+
+			pkt_type = woal_get_coalesce_pkt_type(byte_seq);
+			if (pkt_type && mrule->pkt_type) {
+				PRINTM(MERROR,
+				       "Multiple packet types not allowed\n");
+				return -EOPNOTSUPP;
+			} else if (pkt_type) {
+				mrule->pkt_type = pkt_type;
+				continue;
+			}
+		}
+
+		if (crule->condition == NL80211_COALESCE_CONDITION_MATCH)
+			param->operation = RECV_FILTER_MATCH_TYPE_EQ;
+		else
+			param->operation = RECV_FILTER_MATCH_TYPE_NE;
+
+		param->operand_len = byte_seq[COALESCE_MAX_BYTESEQ];
+		memcpy(param->operand_byte_stream, byte_seq,
+		       param->operand_len);
+		param->offset = crule->patterns[i].pkt_offset;
+		param++;
+
+		mrule->num_of_fields++;
+	}
+
+	if (!mrule->pkt_type) {
+		PRINTM(MERROR, "Packet type can not be determined\n");
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
+/**
+ *  @brief Set coalesce parameter
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param action           MLAN_ACT_SET or MLAN_ACT_GET
+ *  @param coalesce_cfg     A pointer to coalesce structure
+ *
+ *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+woal_set_coalesce(moal_private *priv, t_u16 action,
+		  mlan_ds_coalesce_cfg * coalesce_cfg)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_misc_cfg *misc_cfg = NULL;
+	mlan_ioctl_req *req = NULL;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	misc_cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	misc_cfg->sub_command = MLAN_OID_MISC_COALESCE_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = action;
+
+	memcpy(&misc_cfg->param.coalesce_cfg, coalesce_cfg,
+	       sizeof(mlan_ds_coalesce_cfg));
+
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (ret != MLAN_STATUS_SUCCESS)
+		goto done;
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Request the driver to set the coalesce
+ *
+ * @param wiphy           A pointer to wiphy structure
+ * @param coalesce        A pointer to cfg80211_coalesce structure
+ *
+ * @return                0 -- success, otherwise fail
+ */
+int
+woal_cfg80211_set_coalesce(struct wiphy *wiphy,
+			   struct cfg80211_coalesce *coalesce)
+{
+	int ret = 0;
+	int i;
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+	moal_private *priv = NULL;
+	mlan_ds_coalesce_cfg coalesce_cfg;
+
+	ENTER();
+
+	if (!handle) {
+		PRINTM(MFATAL, "Unable to get handle\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	if (!priv) {
+		ret = -EINVAL;
+		goto done;
+	}
+
+	memset(&coalesce_cfg, 0, sizeof(coalesce_cfg));
+	if (!coalesce) {
+		PRINTM(MMSG, "Disable coalesce and reset all previous rules\n");
+	} else {
+		coalesce_cfg.num_of_rules = coalesce->n_rules;
+		for (i = 0; i < coalesce->n_rules; i++) {
+			ret = woal_fill_coalesce_rule_info(&coalesce->rules[i],
+							   &coalesce_cfg.
+							   rule[i]);
+			if (ret) {
+				PRINTM(MERROR,
+				       "Recheck the patterns provided for rule %d\n",
+				       i + 1);
+				return ret;
+			}
+		}
+	}
+
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_coalesce(priv, MLAN_ACT_SET, &coalesce_cfg)) {
+		PRINTM(MERROR, "wlan: Fail to set coalesce\n");
+		ret = -EFAULT;
+	}
+
+done:
 	LEAVE();
 	return ret;
 }

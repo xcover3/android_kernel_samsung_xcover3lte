@@ -2,7 +2,7 @@
  *
  *  @brief This file contains the functions for station ioctl.
  *
- *  Copyright (C) 2011-2014, Marvell International Ltd.
+ *  Copyright (C) 2011-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -201,6 +201,21 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 	if (pioctl_req->action == MLAN_ACT_SET) {
 	/** SET operation */
 	/** validate the user input and correct it if necessary */
+		if (pmpriv->bss_role == MLAN_BSS_ROLE_STA) {
+			if (cfg->param.vht_cfg.txrx == 3) {
+				PRINTM(MERROR,
+				       "Configuration of VHT capabilities for TX/RX 3 is not supported in STA mode!\n");
+				return MLAN_STATUS_FAILURE;
+			}
+		}
+		if (pmpriv->bss_role == MLAN_BSS_ROLE_UAP) {
+			if (cfg->param.vht_cfg.txrx != 3) {
+				PRINTM(MERROR,
+				       "Configuration of VHT capabilities for TX/RX %d is not supported in UAP mode!\n",
+				       cfg->param.vht_cfg.txrx);
+				return MLAN_STATUS_FAILURE;
+			}
+		}
 	/** set bit fileds */
 		usr_vht_cap_info = VHT_CAP_INFO_BIT_FIELDS &
 			cfg->param.vht_cfg.vht_cap_info &

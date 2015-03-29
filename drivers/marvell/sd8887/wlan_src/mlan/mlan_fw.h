@@ -4,7 +4,7 @@
  *  structures and declares global function prototypes used
  *  in MLAN module.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -458,6 +458,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_BTCOEX_WL_SCANTIME    					(PROPRIETARY_TLV_BASE_ID + 0Xcb)
 /** TLV type : Ewpa_eapol_pkt */
 #define TLV_TYPE_EAPOL_PKT                          (PROPRIETARY_TLV_BASE_ID + 0xcf)
+
+#define TLV_TYPE_COALESCE_RULE                      (PROPRIETARY_TLV_BASE_ID + 0x9a)
 
 /** ADDBA TID mask */
 #define ADDBA_TID_MASK   (MBIT(2) | MBIT(3) | MBIT(4) | MBIT(5))
@@ -1181,6 +1183,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID: Remain On Channel */
 #define HostCmd_CMD_802_11_REMAIN_ON_CHANNEL     0x010d
 #endif
+
+#define HostCmd_CMD_COALESCE_CFG                 0x010a
 
 /** Host Command ID : OTP user data */
 #define HostCmd_CMD_OTP_READ_USER_DATA          0x0114
@@ -3156,10 +3160,8 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_NoA_setting_t {
 typedef MLAN_PACK_START struct _MrvlIEtypes_OPP_PS_setting_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
-    /** enable/disable */
+    /** enable/disable && ct_window */
 	t_u8 enable;
-    /** CT window value */
-	t_u8 ct_window;
 } MLAN_PACK_END MrvlIEtypes_OPP_PS_setting_t;
 
 /** HostCmd_DS_REMAIN_ON_CHANNEL */
@@ -3171,6 +3173,29 @@ typedef MLAN_PACK_START struct _HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG {
      */
 } MLAN_PACK_END HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG;
 #endif
+
+MLAN_PACK_START struct coalesce_filt_field_param {
+	t_u8 operation;
+	t_u8 operand_len;
+	t_u16 offset;
+	t_u8 operand_byte_stream[4];
+} MLAN_PACK_END;
+
+MLAN_PACK_START struct coalesce_receive_filt_rule {
+	MrvlIEtypesHeader_t header;
+	t_u8 num_of_fields;
+	t_u8 pkt_type;
+	t_u16 max_coalescing_delay;
+	struct coalesce_filt_field_param params[0];
+} MLAN_PACK_END;
+
+/** HostCmd_DS_COALESCE_CONFIG */
+typedef MLAN_PACK_START struct _HostCmd_DS_COALESCE_CONFIG {
+    /** Action 0-GET, 1-SET */
+	t_u16 action;
+	t_u16 num_of_rules;
+	struct coalesce_receive_filt_rule rule[0];
+} MLAN_PACK_END HostCmd_DS_COALESCE_CONFIG;
 
 #ifdef STA_SUPPORT
 
@@ -5510,6 +5535,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_WIFI_DIRECT_MODE wifi_direct_mode;
 		HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG p2p_params_config;
 #endif
+		HostCmd_DS_COALESCE_CONFIG coalesce_config;
 		HostCmd_DS_HS_WAKEUP_REASON hs_wakeup_reason;
 		HostCmd_DS_MULTI_CHAN_CFG multi_chan_cfg;
 		HostCmd_DS_MULTI_CHAN_POLICY multi_chan_policy;

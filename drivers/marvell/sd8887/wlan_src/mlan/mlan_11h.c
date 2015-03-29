@@ -2,7 +2,7 @@
  *
  *  @brief This file contains functions for 802.11H.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -31,6 +31,7 @@ Change Log:
 #include "mlan_main.h"
 #include "mlan_ioctl.h"
 #include "mlan_11h.h"
+#include "mlan_11n.h"
 #ifdef UAP_SUPPORT
 #include "mlan_uap.h"
 #endif
@@ -3408,12 +3409,23 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter)
 						       priv_curr_idx];
 #ifdef UAP_SUPPORT
 			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
+				t_u8 chan_offset;
+				t_u16 mask_chanwidth = 0x0C;
+
 				pmpriv->uap_state_chan_cb.pioctl_req_curr =
 					MNULL;
 				pmpriv->uap_state_chan_cb.get_chan_callback =
 					wlan_11h_radar_detected_callback;
 				/* DFS only in 5GHz */
-				pstate_rdh->uap_band_cfg |= BAND_CONFIG_5GHZ;
+				chan_offset =
+					wlan_get_second_channel_offset
+					(pstate_rdh->new_channel);
+				pstate_rdh->uap_band_cfg &= mask_chanwidth;
+				pstate_rdh->uap_band_cfg |=
+					(chan_offset << 4) | BAND_CONFIG_5GHZ;
+				PRINTM(MINFO, "uAP band config = 0x%x\n",
+				       pstate_rdh->uap_band_cfg);
+
 				ret = wlan_uap_set_channel(pmpriv,
 							   pstate_rdh->
 							   uap_band_cfg,

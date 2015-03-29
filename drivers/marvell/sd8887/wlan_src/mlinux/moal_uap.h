@@ -2,7 +2,7 @@
   *
   * @brief This file contains uap driver specific defines etc.
   *
-  * Copyright (C) 2009-2014, Marvell International Ltd.
+  * Copyright (C) 2009-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -118,8 +118,14 @@ typedef struct _tx_rate_cfg_t {
 	int subcmd;
     /** Action */
 	int action;
+    /** Rate format */
+	int rate_format;
     /** Rate configured */
 	int rate;
+    /** nss */
+	int nss;
+    /** user_data_cnt */
+	int user_data_cnt;
     /** Rate bitmap */
 	t_u16 bitmap_rates[MAX_BITMAP_RATES_SIZE];
 } tx_rate_cfg_t;

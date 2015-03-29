@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of RxReordering in wlan
  *  driver.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -692,7 +692,11 @@ wlan_cmd_11n_addba_rspgen(mlan_private *priv,
 #endif
 #ifdef UAP_SUPPORT
 	    || ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-		&& (priv->adapter->pending_bridge_pkts > RX_LOW_THRESHOLD))
+		&& (util_scalar_read(priv->adapter->pmoal_handle,
+				     &priv->adapter->pending_bridge_pkts,
+				     priv->adapter->callbacks.moal_spin_lock,
+				     priv->adapter->callbacks.
+				     moal_spin_unlock) > RX_LOW_THRESHOLD))
 #endif
 		)
 		padd_ba_rsp->status_code =

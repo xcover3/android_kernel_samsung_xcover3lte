@@ -3,7 +3,7 @@
  *  @brief This file contains SDIO MMC IF (interface) module
  *  related functions.
  *
- * Copyright (C) 2008-2014, Marvell International Ltd.
+ * Copyright (C) 2008-2015, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -603,7 +603,7 @@ woal_read_reg(moal_handle *handle, t_u32 reg, t_u32 *data)
  *  @brief This function use SG mode to read/write data into card memory
  *
  *  @param handle   A Pointer to the moal_handle structure
- *  @param pmbuf    Pointer to mlan_buffer structure
+ *  @param pmbuf_list   Pointer to a linked list of mlan_buffer structure
  *  @param port     Port
  *  @param write    write flag
  *

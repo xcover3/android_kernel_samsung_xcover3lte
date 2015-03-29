@@ -1,6 +1,6 @@
 # File: Makefile
 #
-# Copyright (C) 2008-2014, Marvell International Ltd.
+# Copyright (C) 2008-2015, Marvell International Ltd.
 #
 # This software file (the "File") is distributed by Marvell International
 # Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -111,11 +111,7 @@ KERNELDIR ?= /usr/src/arm/linux-3.10.33-pxa1088-kk44
 # make CROSS_COMPILE=</usr/local/arm/4.1.1/bin/>arm-linux-
 # Alternatively CROSS_COMPILE can be set in the environment.
 # Default value for CROSS_COMPILE is set below.
-#if defined(BG2CT)
-CROSS_COMPILE ?= /usr/local/arm-eabi-4.6/bin/arm-eabi-
-#else
 CROSS_COMPILE ?= /usr/local/arm/4.1.1/bin/arm-linux-
-#endif
 
 # INSTALLDIR specify the path to install the kernel module after
 # succesful compilation.
@@ -132,8 +128,6 @@ INSTALLDIR ?= /tftpboot/pxa9xx/root
 # Alternatively ARCH can be set in the environment
 # Default values of ARCH for specific platform are set below.
 ARCH ?= arm
-
-LD += -S
 
 BINDIR = ../bin_sd8xxx
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)

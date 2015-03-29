@@ -2,7 +2,7 @@
   *
   * @brief This file contains wlan driver specific defines etc.
   *
-  * Copyright (C) 2008-2014, Marvell International Ltd.
+  * Copyright (C) 2008-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -871,7 +871,7 @@ struct tdls_peer {
 
 /** Number of samples in histogram (/proc/mwlan/mlan0/histogram).*/
 #define HIST_MAX_SAMPLES   1048576
-#define RX_RATE_MAX			74
+#define RX_RATE_MAX			196
 
 /** SRN MAX  */
 #define SNR_MAX				256
@@ -989,10 +989,6 @@ struct _moal_private {
 #endif
 #ifdef STA_CFG80211
 #ifdef STA_SUPPORT
-	/** CFG80211 scan request description */
-	struct cfg80211_scan_request *scan_request;
-	/** lock for scan_request */
-	spinlock_t scan_req_lock;
 	/** CFG80211 association description */
 	t_u8 cfg_bssid[ETH_ALEN];
 	/** Disconnect request from CFG80211 */
@@ -1322,6 +1318,10 @@ struct _moal_handle {
 	t_u8 scan_pending_on_block;
 	/** Async scan semaphore */
 	struct semaphore async_sem;
+#ifdef STA_CFG80211
+	/** CFG80211 scan request description */
+	struct cfg80211_scan_request *scan_request;
+#endif
 #endif
 	/** main state */
 	t_u8 main_state;
@@ -1345,6 +1345,8 @@ struct _moal_handle {
 	spinlock_t driver_lock;
 	/** Driver ioctl spin lock */
 	spinlock_t ioctl_lock;
+	/** lock for scan_request */
+	spinlock_t scan_req_lock;
 	/** Card type */
 	t_u16 card_type;
 	/** card info */
@@ -1760,7 +1762,7 @@ typedef struct _HostCmd_DS_802_11_CFG_DATA {
 #define DEF_REPEAT_COUNT	 6
 
 /** default rssi low threshold */
-#define DEFAULT_RSSI_LOW_THRESHOLD 70
+#define DEFAULT_RSSI_LOW_THRESHOLD 75
 /** RSSI HYSTERSIS */
 #define RSSI_HYSTERESIS		6
 /** lowest rssi threshold */
@@ -2169,7 +2171,7 @@ mlan_status woal_rx_pkt_coalesce_cfg(moal_private *priv, t_u16 *enable,
 #endif
 mlan_status woal_set_low_pwr_mode(moal_handle *handle, t_u8 wait_option);
 void woal_hist_data_reset(moal_private *priv);
-void woal_hist_data_add(moal_private *priv, t_s8 rx_rate, t_s8 snr, t_s8 nflr);
+void woal_hist_data_add(moal_private *priv, t_u8 rx_rate, t_s8 snr, t_s8 nflr);
 mlan_status woal_set_hotspotcfg(moal_private *priv, t_u8 wait_option,
 				t_u32 hotspotcfg);
 #endif /* _MOAL_MAIN_H */

@@ -2,7 +2,7 @@
   *
   * @brief This file contains the functions for STA CFG80211.
   *
-  * Copyright (C) 2011-2014, Marvell International Ltd.
+  * Copyright (C) 2011-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -219,6 +219,9 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35) || defined(COMPAT_WIRELESS)
 	.set_cqm_rssi_config = woal_cfg80211_set_cqm_rssi_config,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	.set_coalesce = woal_cfg80211_set_coalesce,
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,0) || defined(COMPAT_WIRELESS)
 	.tdls_oper = woal_cfg80211_tdls_oper,
 	.tdls_mgmt = woal_cfg80211_tdls_mgmt,
@@ -375,6 +378,17 @@ static const struct wiphy_wowlan_support wowlan_support = {
 	.flags = WIPHY_WOWLAN_ANY,
 };
 #endif
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+static const struct wiphy_coalesce_support coalesce_support = {
+	.n_rules = COALESCE_MAX_RULES,
+	.max_delay = MAX_COALESCING_DELAY,
+	.n_patterns = COALESCE_MAX_FILTERS,
+	.pattern_min_len = 1,
+	.pattern_max_len = MAX_PATTERN_LEN,
+	.max_pkt_offset = MAX_OFFSET_LEN,
+};
 #endif
 
 /********************************************************
@@ -1225,8 +1239,11 @@ woal_inform_bss_from_scan_result(moal_private *priv,
 			memcpy(&cap_info, &scan_table[i].cap_info,
 			       sizeof(cap_info));
 			pub = cfg80211_inform_bss(priv->wdev->wiphy, chan,
-						  scan_table[i].mac_address, ts,
-						  cap_info,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+						  CFG80211_BSS_FTYPE_UNKNOWN,
+#endif
+						  scan_table[i].mac_address,
+						  ts, cap_info,
 						  scan_table[i].beacon_period,
 						  scan_table[i].pbeacon_buf +
 						  WLAN_802_11_FIXED_IE_SIZE,
@@ -1315,6 +1332,9 @@ woal_cfg80211_inform_ibss_bss(moal_private *priv,
 	}
 
 	bss = cfg80211_inform_bss(priv->wdev->wiphy, chan,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+				  CFG80211_BSS_FTYPE_UNKNOWN,
+#endif
 				  bss_info.bssid, 0, WLAN_CAPABILITY_IBSS,
 				  beacon_interval, ie_buf, ie_len,
 				  signal.bcn_rssi_avg, GFP_KERNEL);
@@ -2338,16 +2358,17 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 			return ret;
 		}
 	}
-	if (priv->scan_request && priv->scan_request != request) {
+	if (priv->phandle->scan_request &&
+	    priv->phandle->scan_request != request) {
 		PRINTM(MCMND,
 		       "different scan_request is coming before previous one is finished on %s...\n",
 		       dev->name);
 		LEAVE();
 		return -EBUSY;
 	}
-	spin_lock_irqsave(&priv->scan_req_lock, flags);
-	priv->scan_request = request;
-	spin_unlock_irqrestore(&priv->scan_req_lock, flags);
+	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
+	priv->phandle->scan_request = request;
+	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 	memset(&scan_req, 0x00, sizeof(scan_req));
 
 #ifdef WIFI_DIRECT_SUPPORT
@@ -2357,11 +2378,11 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	else
 		scan_req.scan_chan_gap = 0;
 #endif
-	for (i = 0; i < priv->scan_request->n_ssids; i++) {
+	for (i = 0; i < priv->phandle->scan_request->n_ssids; i++) {
 		memcpy(scan_req.ssid_list[i].ssid,
-		       priv->scan_request->ssids[i].ssid,
-		       priv->scan_request->ssids[i].ssid_len);
-		if (priv->scan_request->ssids[i].ssid_len)
+		       priv->phandle->scan_request->ssids[i].ssid,
+		       priv->phandle->scan_request->ssids[i].ssid_len);
+		if (priv->phandle->scan_request->ssids[i].ssid_len)
 			scan_req.ssid_list[i].max_len = 0;
 		else
 			scan_req.ssid_list[i].max_len = 0xff;
@@ -2370,16 +2391,16 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT &&
-	    priv->scan_request->n_ssids) {
+	    priv->phandle->scan_request->n_ssids) {
 		if (!memcmp(scan_req.ssid_list[0].ssid, "DIRECT-", 7))
 			scan_req.ssid_list[0].max_len = 0xfe;
 	}
 #endif
 #endif
 	for (i = 0;
-	     i < MIN(WLAN_USER_SCAN_CHAN_MAX, priv->scan_request->n_channels);
-	     i++) {
-		chan = priv->scan_request->channels[i];
+	     i < MIN(WLAN_USER_SCAN_CHAN_MAX,
+		     priv->phandle->scan_request->n_channels); i++) {
+		chan = priv->phandle->scan_request->channels[i];
 		scan_req.chan_list[i].chan_number = chan->hw_value;
 		scan_req.chan_list[i].radio_type = chan->band;
 		if (chan->
@@ -2393,7 +2414,7 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 		if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT &&
-		    priv->scan_request->n_ssids) {
+		    priv->phandle->scan_request->n_ssids) {
 			if (!memcmp(scan_req.ssid_list[0].ssid, "DIRECT-", 7))
 				scan_req.chan_list[i].scan_time =
 					MIN_SPECIFIC_SCAN_CHAN_TIME;
@@ -2414,13 +2435,14 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 				MIN_SPECIFIC_SCAN_CHAN_TIME;
 #endif
 	}
-	if (priv->scan_request->ie && priv->scan_request->ie_len) {
+	if (priv->phandle->scan_request->ie &&
+	    priv->phandle->scan_request->ie_len) {
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_cfg80211_mgmt_frame_ie(priv, NULL, 0,
-						NULL, 0, NULL, 0,
-						(t_u8 *)priv->scan_request->ie,
-						priv->scan_request->ie_len,
-						MGMT_MASK_PROBE_REQ,
+		    woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0, NULL, 0,
+						(t_u8 *)priv->phandle->
+						scan_request->ie,
+						priv->phandle->scan_request->
+						ie_len, MGMT_MASK_PROBE_REQ,
 						MOAL_IOCTL_WAIT)) {
 			PRINTM(MERROR, "Fail to set scan request IE\n");
 			ret = -EFAULT;
@@ -2454,10 +2476,10 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	}
 done:
 	if (ret) {
-		spin_lock_irqsave(&priv->scan_req_lock, flags);
+		spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
 		cfg80211_scan_done(request, MTRUE);
-		priv->scan_request = NULL;
-		spin_unlock_irqrestore(&priv->scan_req_lock, flags);
+		priv->phandle->scan_request = NULL;
+		spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 	} else
 		PRINTM(MMSG, "wlan: %s START SCAN\n", dev->name);
 	LEAVE();
@@ -3003,6 +3025,7 @@ woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 			 t_u16 reason_code)
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	long start_time;
 
 	ENTER();
 	PRINTM(MMSG, "wlan: Received disassociation request on %s\n",
@@ -3035,12 +3058,16 @@ woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 
 	priv->cfg_disconnect = MTRUE;
 
+	start_time = jiffies;
 	if (woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT, priv->cfg_bssid) !=
 	    MLAN_STATUS_SUCCESS) {
 		priv->cfg_disconnect = MFALSE;
 		LEAVE();
 		return -EFAULT;
 	}
+       /**Add delay to avoid auth failure after wps success */
+	if ((jiffies - start_time) < 1 * HZ)
+		woal_sched_timeout(1500);
 
 	priv->cfg_disconnect = MFALSE;
 
@@ -4019,7 +4046,7 @@ woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow)
 	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
 		if (handle->priv[i] &&
 		    (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_STA)) {
-			if (handle->priv[i]->scan_request) {
+			if (handle->scan_request) {
 				PRINTM(MIOCTL,
 				       "Cancel pending scan in woal_cfg80211_suspend\n");
 				woal_cancel_scan(handle->priv[i],
@@ -4662,7 +4689,9 @@ woal_construct_tdls_action_frame(moal_private *priv,
 
 	switch (action_code) {
 	case WLAN_PUB_ACTION_TDLS_DISCOVER_RES:
-		woal_tdls_get_ies(priv, peer, tdls_ies, TDLS_IE_FLAGS_EXTCAP);
+		woal_tdls_get_ies(priv, peer, tdls_ies,
+				  TDLS_IE_FLAGS_EXTCAP |
+				  TDLS_IE_FLAGS_SUPP_CS_IE);
 		skb_put(skb, 1 + sizeof(mgmt->u.action.u.tdls_discover_resp));
 		mgmt->u.action.category = WLAN_CATEGORY_PUBLIC;
 		mgmt->u.action.u.tdls_discover_resp.action_code =
@@ -4673,12 +4702,13 @@ woal_construct_tdls_action_frame(moal_private *priv,
 		/* move back for addr4 */
 		memmove(pos + ETH_ALEN, &mgmt->u.action.category,
 			1 + sizeof(mgmt->u.action.u.tdls_discover_resp));
-	/** init address 4 */
+		/** init address 4 */
 		memcpy(pos, addr, ETH_ALEN);
 
 		woal_add_supported_rates_ie(priv, skb, band);
 		woal_add_ext_supported_rates_ie(priv, skb, band);
 		woal_tdls_add_ext_capab(skb, tdls_ies);
+
 		break;
 	default:
 		ret = -EINVAL;
@@ -5864,6 +5894,9 @@ woal_register_cfg80211(moal_private *priv)
 #endif
 #endif
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	wiphy->coalesce = &coalesce_support;
+#endif
 	wiphy->max_scan_ssids = MRVDRV_MAX_SSID_LIST_LENGTH;
 	wiphy->max_scan_ie_len = MAX_IE_SIZE;
 	wiphy->interface_modes = 0;
@@ -5934,7 +5967,9 @@ woal_register_cfg80211(moal_private *priv)
 	wiphy->flags |= WIPHY_FLAG_HAVE_AP_SME;
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) || defined(COMPAT_WIRELESS)
+#ifdef SCHED_SCAN_SUPPORT
 	wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
+#endif
 	wiphy->max_sched_scan_ssids = MRVDRV_MAX_SSID_LIST_LENGTH;
 	wiphy->max_sched_scan_ie_len = MAX_IE_SIZE;
 	wiphy->max_match_sets = MRVDRV_MAX_SSID_LIST_LENGTH;

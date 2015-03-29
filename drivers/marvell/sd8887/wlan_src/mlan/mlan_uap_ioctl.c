@@ -2,7 +2,7 @@
  *
  *  @brief This file contains the handling of AP mode ioctls
  *
- *  Copyright (C) 2009-2014, Marvell International Ltd.
+ *  Copyright (C) 2009-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -115,6 +115,7 @@ wlan_uap_callback_bss_ioctl_start(IN t_void *priv)
 	mlan_callbacks *pcb = (mlan_callbacks *)&pmpriv->adapter->callbacks;
 	wlan_uap_get_info_cb_t *puap_state_chan_cb = &pmpriv->uap_state_chan_cb;
 	t_u8 old_channel;
+	t_bool under_nop = MFALSE;
 
 	ENTER();
 	/* clear callback now that we're here */
@@ -134,6 +135,7 @@ wlan_uap_callback_bss_ioctl_start(IN t_void *priv)
 						  channel)) {
 			/* recently we've seen radar on this channel */
 			ret = MLAN_STATUS_FAILURE;
+			under_nop = MTRUE;
 		}
 
 		/* Check cached radar check on the channel */
@@ -157,17 +159,37 @@ wlan_uap_callback_bss_ioctl_start(IN t_void *priv)
 							   puap_state_chan_cb->
 							   channel);
 				if (ret == MLAN_STATUS_SUCCESS) {
-					PRINTM(MMSG,
-					       "Radar found on channel %d,"
-					       "switch to new channel %d.\n",
-					       old_channel,
-					       puap_state_chan_cb->channel);
+					if (under_nop) {
+						PRINTM(MMSG,
+						       "Channel %d under NOP,"
+						       " switched to new channel %d successfully.\n",
+						       old_channel,
+						       puap_state_chan_cb->
+						       channel);
+					} else {
+						PRINTM(MMSG,
+						       "Radar found on channel %d,"
+						       " switched to new channel %d successfully.\n",
+						       old_channel,
+						       puap_state_chan_cb->
+						       channel);
+					}
 				} else {
-					PRINTM(MMSG,
-					       "Radar found on channel %d,"
-					       " switch to new channel %d failed.\n",
-					       old_channel,
-					       puap_state_chan_cb->channel);
+					if (under_nop) {
+						PRINTM(MMSG,
+						       "Channel %d under NOP,"
+						       " switch to new channel %d failed.\n",
+						       old_channel,
+						       puap_state_chan_cb->
+						       channel);
+					} else {
+						PRINTM(MMSG,
+						       "Radar found on channel %d,"
+						       " switch to new channel %d failed.\n",
+						       old_channel,
+						       puap_state_chan_cb->
+						       channel);
+					}
 					pcb->moal_ioctl_complete(pmpriv->
 								 adapter->
 								 pmoal_handle,
@@ -177,9 +199,15 @@ wlan_uap_callback_bss_ioctl_start(IN t_void *priv)
 					goto done;
 				}
 			} else {
-				PRINTM(MMSG,
-				       "Radar found on channel %d, no switch channel available.\n",
-				       old_channel);
+				if (under_nop) {
+					PRINTM(MMSG,
+					       "Channel %d under NOP, no switch channel available.\n",
+					       old_channel);
+				} else {
+					PRINTM(MMSG,
+					       "Radar found on channel %d, no switch channel available.\n",
+					       old_channel);
+				}
 				/* No command sent with the ioctl, need
 				   manually signal completion */
 				pcb->moal_ioctl_complete(pmpriv->adapter->

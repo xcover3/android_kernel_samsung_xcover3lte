@@ -3,7 +3,7 @@
  *
  *  @brief This file contains the handling of CMD/EVENT in MLAN
  *
- *  Copyright (C) 2009-2014, Marvell International Ltd.
+ *  Copyright (C) 2009-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -4127,11 +4127,37 @@ wlan_cmd_p2p_params_config(IN pmlan_private pmpriv,
 				wlan_cpu_to_le16(sizeof
 						 (MrvlIEtypes_OPP_PS_setting_t)
 						 - sizeof(MrvlIEtypesHeader_t));
-			popp_ps_tlv->enable = cfg->opp_ps_enable;
-			popp_ps_tlv->ct_window = cfg->ct_window;
+
+			popp_ps_tlv->enable = cfg->ct_window;
+			popp_ps_tlv->enable |= cfg->opp_ps_enable << 7;
 			cmd->size += sizeof(MrvlIEtypes_OPP_PS_setting_t);
 			PRINTM(MCMND, "Set OPP_PS: enable=%d ct_win=%d\n",
 			       cfg->opp_ps_enable, cfg->ct_window);
+		}
+	} else if (cmd_action == HostCmd_ACT_GEN_GET) {
+		tlv = (t_u8 *)p2p_config +
+			sizeof(HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG);
+		if (cfg->flags & WIFI_DIRECT_NOA) {
+			pnoa_tlv = (MrvlIEtypes_NoA_setting_t *)tlv;
+			pnoa_tlv->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_WIFI_DIRECT_NOA);
+			pnoa_tlv->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlIEtypes_NoA_setting_t) -
+						 sizeof(MrvlIEtypesHeader_t));
+			cmd->size += sizeof(MrvlIEtypes_NoA_setting_t);
+			tlv += sizeof(MrvlIEtypes_NoA_setting_t);
+		}
+
+		if (cfg->flags & WIFI_DIRECT_OPP_PS) {
+			popp_ps_tlv = (MrvlIEtypes_OPP_PS_setting_t *)tlv;
+			popp_ps_tlv->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_WIFI_DIRECT_OPP_PS);
+			popp_ps_tlv->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlIEtypes_OPP_PS_setting_t)
+						 - sizeof(MrvlIEtypesHeader_t));
+			cmd->size += sizeof(MrvlIEtypes_OPP_PS_setting_t);
 		}
 	}
 	cmd->size = wlan_cpu_to_le16(cmd->size);
@@ -4213,16 +4239,17 @@ wlan_ret_p2p_params_config(IN pmlan_private pmpriv,
 					       (int)cfg->param.p2p_config.
 					       noa_interval);
 					break;
-				case TLV_TYPE_SSID:
+				case TLV_TYPE_WIFI_DIRECT_OPP_PS:
 					popp_ps_tlv =
 						(MrvlIEtypes_OPP_PS_setting_t *)
 						tlv;
 					cfg->param.p2p_config.flags |=
 						WIFI_DIRECT_OPP_PS;
 					cfg->param.p2p_config.opp_ps_enable =
-						popp_ps_tlv->enable;
+						(popp_ps_tlv->
+						 enable & 0x80) >> 7;
 					cfg->param.p2p_config.ct_window =
-						popp_ps_tlv->ct_window;
+						popp_ps_tlv->enable & 0x7f;
 					PRINTM(MCMND,
 					       "Get OPP_PS: enable=%d ct_win=%d\n",
 					       cfg->param.p2p_config.

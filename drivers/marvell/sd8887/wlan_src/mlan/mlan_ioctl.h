@@ -2,7 +2,7 @@
  *
  *  @brief This file declares the IOCTL data structures and APIs.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -257,6 +257,8 @@ enum _mlan_ioctl_req_id {
 #ifdef RX_PACKET_COALESCE
 	MLAN_OID_MISC_RX_PACKET_COALESCE = 0x0020002C,
 #endif
+	MLAN_OID_MISC_COALESCE_CFG = 0x0020002E,
+	MLAN_OID_MISC_TDLS_IDLE_TIME = 0x0020002F,
 };
 
 /** Sub command size */
@@ -1074,6 +1076,43 @@ typedef struct _mlan_ds_radio_cfg {
 #endif
 	} param;
 } mlan_ds_radio_cfg, *pmlan_ds_radio_cfg;
+
+enum COALESCE_OPERATION {
+	RECV_FILTER_MATCH_TYPE_EQ = 0x80,
+	RECV_FILTER_MATCH_TYPE_NE,
+};
+
+enum COALESCE_PACKET_TYPE {
+	PACKET_TYPE_UNICAST = 1,
+	PACKET_TYPE_MULTICAST = 2,
+	PACKET_TYPE_BROADCAST = 3
+};
+
+#define COALESCE_MAX_RULES	8
+#define COALESCE_MAX_BYTESEQ	4	/* non-adjustable */
+#define COALESCE_MAX_FILTERS	4
+#define MAX_COALESCING_DELAY	100	/* in msecs */
+#define MAX_PATTERN_LEN         20
+#define MAX_OFFSET_LEN          100
+
+struct filt_field_param {
+	t_u8 operation;
+	t_u8 operand_len;
+	t_u16 offset;
+	t_u8 operand_byte_stream[COALESCE_MAX_BYTESEQ];
+};
+
+struct coalesce_rule {
+	t_u16 max_coalescing_delay;
+	t_u8 num_of_fields;
+	t_u8 pkt_type;
+	struct filt_field_param params[COALESCE_MAX_FILTERS];
+};
+
+typedef struct _mlan_ds_coalesce_cfg {
+	t_u16 num_of_rules;
+	struct coalesce_rule rule[COALESCE_MAX_RULES];
+} mlan_ds_coalesce_cfg;
 
 /*-----------------------------------------------------------------*/
 /** SNMP MIB Group */
@@ -3437,6 +3476,7 @@ typedef struct _mlan_ds_misc_cfg {
 		t_u16 coalescing_status;
 	/** Custom IE for MLAN_OID_MISC_CUSTOM_IE */
 		mlan_ds_misc_custom_ie cust_ie;
+		t_u16 tdls_idle_time;
 	/** TDLS configuration for MLAN_OID_MISC_TDLS_CONFIG */
 		mlan_ds_misc_tdls_config tdls_config;
 	/** TDLS operation for MLAN_OID_MISC_TDLS_OPER */
@@ -3483,6 +3523,7 @@ typedef struct _mlan_ds_misc_cfg {
 #ifdef WIFI_DIRECT_SUPPORT
 		mlan_ds_wifi_direct_config p2p_config;
 #endif
+		mlan_ds_coalesce_cfg coalesce_cfg;
 		t_u8 low_pwr_mode;
 #ifdef RX_PACKET_COALESCE
 		mlan_ds_misc_rx_packet_coalesce rx_coalesce;

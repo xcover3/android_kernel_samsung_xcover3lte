@@ -5,7 +5,7 @@
  *  IOCTL handlers as well as command preparation and response routines
  *  for sending scan commands to the firmware.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -2709,6 +2709,9 @@ wlan_scan_process_results(IN mlan_private *pmpriv)
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	t_s32 j;
 	t_u32 i;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	BSSDescriptor_t *bss_new_entry = MNULL;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
 
 	ENTER();
 
@@ -2804,16 +2807,43 @@ wlan_scan_process_results(IN mlan_private *pmpriv)
 		} else {
 			// Apend to the end of scan table
 			if (pmpriv->pcurr_bcn_buf && pmpriv->curr_bcn_size) {
-				if (pmadapter->num_in_scan_table <
-				    MRVDRV_MAX_BSSID_LIST)
-					pmadapter->num_in_scan_table++;
-				memcpy(pmadapter,
-				       &pmadapter->pscan_table[pmadapter->
+				ret = pcb->moal_malloc(pmadapter->pmoal_handle,
+						       sizeof(BSSDescriptor_t),
+						       MLAN_MEM_DEF,
+						       (t_u8 **)&bss_new_entry);
+				if (ret == MLAN_STATUS_SUCCESS && bss_new_entry) {
+					memcpy(pmadapter, bss_new_entry,
+					       &pmpriv->curr_bss_params.
+					       bss_descriptor,
+					       sizeof(pmpriv->curr_bss_params.
+						      bss_descriptor));
+					if (pmadapter->num_in_scan_table <
+					    MRVDRV_MAX_BSSID_LIST)
+						pmadapter->num_in_scan_table++;
+					pmadapter->pscan_table[pmadapter->
 							       num_in_scan_table
-							       - 1],
-				       &pmpriv->curr_bss_params.bss_descriptor,
-				       sizeof(pmpriv->curr_bss_params.
-					      bss_descriptor));
+							       -
+							       1].pbeacon_buf =
+						MNULL;
+					wlan_ret_802_11_scan_store_beacon
+						(pmpriv,
+						 pmadapter->num_in_scan_table -
+						 1,
+						 pmadapter->num_in_scan_table,
+						 bss_new_entry);
+					if (bss_new_entry->pbeacon_buf == MNULL)
+						pmadapter->num_in_scan_table--;
+					else
+						memcpy(pmadapter,
+						       &pmadapter->
+						       pscan_table[pmadapter->
+								   num_in_scan_table
+								   - 1],
+						       bss_new_entry,
+						       sizeof(BSSDescriptor_t));
+					pcb->moal_mfree(pmadapter->pmoal_handle,
+							(t_u8 *)bss_new_entry);
+				}
 			}
 		}
 

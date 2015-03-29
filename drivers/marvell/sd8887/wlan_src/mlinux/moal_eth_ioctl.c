@@ -2,7 +2,7 @@
   *
   * @brief This file contains private ioctl functions
   *
-  * Copyright (C) 2014, Marvell International Ltd.
+  * Copyright (C) 2014-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -103,6 +103,11 @@ parse_arguments(t_u8 *pos, int *data, int datalen, int *user_data_len)
 	unsigned int i, j, k;
 	char cdata[10];
 	int is_hex = 0;
+
+	if (strlen(pos) == 0) {
+		*user_data_len = 0;
+		return MLAN_STATUS_SUCCESS;
+	}
 
 	memset(cdata, 0, sizeof(cdata));
 	for (i = 0, j = 0, k = 0; i <= strlen(pos); i++) {
@@ -9563,7 +9568,7 @@ done:
  *  @return             Number of bytes written, negative for failure.
  */
 static int
-woal_priv_noa_cfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+woal_priv_cfg_noa(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 {
 	int header_len = 0, user_data_len = 0;
 	int ret = 0, data[7];
@@ -9571,8 +9576,21 @@ woal_priv_noa_cfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 
 	ENTER();
 
-	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_NOA_CFG);
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_CFG_NOA);
 	memset(&noa_cfg, 0, sizeof(noa_cfg));
+
+	memset(data, 0, sizeof(data));
+	parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+			&user_data_len);
+
+	if (user_data_len > 5) {
+		PRINTM(MERROR, "invalid parameters\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	noa_cfg.flags |= WIFI_DIRECT_NOA;
+
 	if (woal_p2p_config(priv, MLAN_ACT_GET, &noa_cfg) !=
 	    MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Could not get P2P noa config\n");
@@ -9580,30 +9598,12 @@ woal_priv_noa_cfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		goto done;
 	}
 
-	memset(data, 0, sizeof(data));
 	if (strlen(respbuf) == header_len) {
 		/* GET operation */
 		memcpy(respbuf, &noa_cfg, sizeof(noa_cfg));
 		ret = sizeof(noa_cfg);
 	} else {
-		/* SET operation */
-		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
-				&user_data_len);
-		if (user_data_len > 7) {
-			ret = -EINVAL;
-			goto done;
-		}
 		switch (user_data_len) {
-		case 7:
-			noa_cfg.ct_window = (t_u8)data[6];
-		case 6:
-			if (data[5] < 0 || data[5] > 1) {
-				PRINTM(MERROR, "Invalid ps enable\n");
-				ret = -EINVAL;
-				goto done;
-			}
-			noa_cfg.opp_ps_enable = (t_u8)data[5];
-			noa_cfg.flags |= WIFI_DIRECT_OPP_PS;
 		case 5:
 			noa_cfg.noa_interval = (t_u32)data[4];
 		case 4:
@@ -9637,6 +9637,74 @@ woal_priv_noa_cfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		}
 		woal_p2p_config(priv, MLAN_ACT_SET, &noa_cfg);
 	}
+
+done:
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief               Set/Get P2P OPP-PS parameters
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_cfg_opp_ps(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	int header_len = 0, user_data_len = 0;
+	int ret = 0, data[7];
+	mlan_ds_wifi_direct_config opp_ps_cfg;
+
+	ENTER();
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_CFG_OPP_PS);
+	memset(&opp_ps_cfg, 0, sizeof(opp_ps_cfg));
+
+	memset(data, 0, sizeof(data));
+	parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+			&user_data_len);
+
+	if (user_data_len > 2) {
+		PRINTM(MERROR, "invalid parameters\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	opp_ps_cfg.flags |= WIFI_DIRECT_OPP_PS;
+
+	if (woal_p2p_config(priv, MLAN_ACT_GET, &opp_ps_cfg) !=
+	    MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "Could not get P2P opp ps config\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		memcpy(respbuf, &opp_ps_cfg, sizeof(opp_ps_cfg));
+		ret = sizeof(opp_ps_cfg);
+	} else {
+		switch (user_data_len) {
+		case 2:
+			opp_ps_cfg.ct_window = (t_u8)data[1];
+		case 1:
+			if (data[0] < 0 || data[0] > 1) {
+				PRINTM(MERROR, "Invalid ps enable\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			opp_ps_cfg.opp_ps_enable = (t_u8)data[0];
+			opp_ps_cfg.flags |= WIFI_DIRECT_OPP_PS;
+		default:
+			break;
+		}
+		woal_p2p_config(priv, MLAN_ACT_SET, &opp_ps_cfg);
+	}
+
 done:
 
 	LEAVE();
@@ -10026,6 +10094,78 @@ woal_priv_auto_tdls(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	}
 
 done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief               Set/Get TDLS idle timeout value
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_tdls_idle_time(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+	int user_data_len = 0, header_len = 0, data;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_TDLS_IDLE_TIME;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_TDLS_IDLE_TIME);
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		ioctl_req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, &data,
+				sizeof(data) / sizeof(int), &user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+		ioctl_req->action = MLAN_ACT_SET;
+		misc->param.tdls_idle_time = (t_u16)data;
+	}
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	memcpy(respbuf, (t_u8 *)&misc->param.tdls_idle_time, sizeof(t_u16));
+	ret = sizeof(t_u16);
+
+	PRINTM(MIOCTL, "tdls idle time %d\n", misc->param.tdls_idle_time);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
 	LEAVE();
 	return ret;
 }
@@ -10903,10 +11043,17 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 #if defined(UAP_CFG80211)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 		} else if (strnicmp
-			   (buf + strlen(CMD_MARVELL), PRIV_CMD_NOA_CFG,
-			    strlen(PRIV_CMD_NOA_CFG)) == 0) {
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_CFG_NOA,
+			    strlen(PRIV_CMD_CFG_NOA)) == 0) {
 			/* Set/Get P2P NoA (Notice of Absence) parameters */
-			len = woal_priv_noa_cfg(priv, buf, priv_cmd.total_len);
+			len = woal_priv_cfg_noa(priv, buf, priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_CFG_OPP_PS,
+			    strlen(PRIV_CMD_CFG_OPP_PS)) == 0) {
+			/* Set/Get P2P OPP-PS parameters */
+			len = woal_priv_cfg_opp_ps(priv, buf,
+						   priv_cmd.total_len);
 			goto handled;
 #endif
 #endif
@@ -10942,6 +11089,13 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get control to enable/disable auto TDLS */
 			len = woal_priv_auto_tdls(priv, buf,
 						  priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_TDLS_IDLE_TIME,
+			    strlen(PRIV_CMD_TDLS_IDLE_TIME)) == 0) {
+			/* Set/Get TDLS idle timeout value */
+			len = woal_priv_tdls_idle_time(priv, buf,
+						       priv_cmd.total_len);
 			goto handled;
 		} else {
 			/* Fall through, after stripping off the custom header */

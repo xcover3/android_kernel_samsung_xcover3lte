@@ -2,7 +2,7 @@
  *
  *  @brief This file contains the handling of AP mode command and event
  *
- *  Copyright (C) 2009-2014, Marvell International Ltd.
+ *  Copyright (C) 2009-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -64,6 +64,7 @@ uap_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 	 * Handling errors here
 	 */
 	switch (resp->command) {
+
 	case HOST_CMD_APCMD_SYS_CONFIGURE:
 		{
 			HostCmd_DS_SYS_CONFIG *sys_config =

@@ -4,7 +4,7 @@
  *  @brief This file contains WLAN client mode channel, frequency and power
  *  related code
  *
- *  Copyright (C) 2009-2014, Marvell International Ltd.
+ *  Copyright (C) 2009-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -74,6 +74,9 @@ typedef struct _country_code_mapping {
 	t_u8 cfp_code_a;
 } country_code_mapping_t;
 
+#define EU_CFP_CODE_BG  0x30
+#define EU_CFP_CODE_A   0x30
+
 /** Region code mapping table */
 static country_code_mapping_t country_code_mapping[] = {
 	{"US", 0x10, 0x10},	/* US FCC */
@@ -90,6 +93,15 @@ static country_code_mapping_t country_code_mapping[] = {
 	{"AT", 0x30, 0x09},	/* Austria */
 	{"BR", 0x01, 0x09},	/* Brazil */
 	{"RU", 0x30, 0x0f},	/* Russia */
+};
+
+/** Country code for ETSI */
+static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
+	"AL", "AD", "AT", "AU", "BY", "BE", "BA", "BG", "HR", "CY",
+	"CZ", "DK", "EE", "FI", "FR", "MK", "DE", "GR", "HU", "IS",
+	"IE", "IT", "KR", "LV", "LI", "LT", "LU", "MT", "MD", "MC",
+	"ME", "NL", "NO", "PL", "RO", "RU", "SM", "RS", "SI", "SK",
+	"ES", "SE", "CH", "TR", "UA", "UK"
 };
 
 /**
@@ -356,7 +368,12 @@ static chan_freq_power_t channel_freq_power_EU_A[] = {
 	{128, 5640, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
 	{132, 5660, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
 	{136, 5680, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
-	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE}
+	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{149, 5745, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{153, 5765, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{157, 5785, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{161, 5805, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{165, 5825, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE}
 };
 
 /** Band: 'A', Region: Japan */
@@ -910,6 +927,17 @@ wlan_misc_country_2_cfp_table_code(pmlan_adapter pmadapter, t_u8 *country_code,
 		}
 	}
 
+	/* If still not found, look for code in EU country code table */
+	for (i = 0; i < NELEMENTS(eu_country_code_table); i++) {
+		if (!memcmp(pmadapter, eu_country_code_table[i],
+			    country_code, COUNTRY_CODE_LEN - 1)) {
+			*cfp_bg = EU_CFP_CODE_BG;
+			*cfp_a = EU_CFP_CODE_A;
+			LEAVE();
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
+
 	LEAVE();
 	return MLAN_STATUS_FAILURE;
 }
@@ -927,26 +955,29 @@ wlan_adjust_data_rate(mlan_private *priv, t_u8 rx_rate, t_u8 rate_info)
 {
 	t_u8 rate_index = 0;
 	t_u8 bw = 0;
+	t_u8 nss = 0;
+	t_bool sgi_enable = 0;
 
 #define MAX_MCS_NUM_SUPP    16
 
 #define MAX_MCS_NUM_AC    10
 #define RATE_INDEX_MCS0   12
 	bw = (rate_info & 0xC) >> 2;
+	sgi_enable = (rate_info & 0x10) >> 4;
 	if ((rate_info & 0x3) == 0) {
 		rate_index =
 			(rx_rate >
 			 MLAN_RATE_INDEX_OFDM0) ? rx_rate - 1 : rx_rate;
 	} else if ((rate_info & 0x03) == 1) {
-		if (bw == 0)	// BW 20
-			rate_index = RATE_INDEX_MCS0 + rx_rate;
-		else if (bw == 1)
-			rate_index =
-				RATE_INDEX_MCS0 + rx_rate + MAX_MCS_NUM_SUPP;
+		rate_index = RATE_INDEX_MCS0 +
+			MAX_MCS_NUM_SUPP * 2 * sgi_enable +
+			MAX_MCS_NUM_SUPP * bw + rx_rate;
 	} else if ((rate_info & 0x3) == 2) {
-		rate_index =
-			RATE_INDEX_MCS0 + MAX_MCS_NUM_SUPP * 2 +
-			bw * MAX_MCS_NUM_AC + rx_rate;
+		nss = rx_rate >> 4;	// 0:NSS1, 1:NSS2
+		rate_index = RATE_INDEX_MCS0 + MAX_MCS_NUM_SUPP * 4 +
+			MAX_MCS_NUM_AC * 6 * sgi_enable +
+			MAX_MCS_NUM_AC * 2 * bw + MAX_MCS_NUM_AC * nss +
+			(rx_rate & 0x0f);
 	}
 	return rate_index;
 }

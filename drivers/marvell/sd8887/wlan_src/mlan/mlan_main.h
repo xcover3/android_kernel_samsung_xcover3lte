@@ -4,7 +4,7 @@
  *  structures and declares global function prototypes used
  *  in MLAN module.
  *
- *  Copyright (C) 2008-2014, Marvell International Ltd.
+ *  Copyright (C) 2008-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -1080,6 +1080,7 @@ typedef struct _mlan_private {
 	mlan_list_head sta_list;
     /** tdls pending queue */
 	mlan_list_head tdls_pending_txq;
+	t_u16 tdls_idle_time;
 
     /** MGMT IE */
 	custom_ie mgmt_ie[MAX_MGMT_IE_INDEX];
@@ -2084,7 +2085,7 @@ typedef struct _mlan_adapter {
 	wlan_dbg dbg;
 
     /** RX pending for forwarding packets */
-	t_u16 pending_bridge_pkts;
+	mlan_scalar pending_bridge_pkts;
 
 #ifdef STA_SUPPORT
     /** ARP filter buffer */
@@ -2893,6 +2894,8 @@ mlan_status
 
 wlan_misc_ioctl_tdls_get_ies(IN pmlan_adapter pmadapter,
 			     IN pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_ioctl_tdls_idle_time(IN pmlan_adapter pmadapter,
+					   IN pmlan_ioctl_req pioctl_req);
 
 mlan_status wlan_get_info_ver_ext(IN pmlan_adapter pmadapter,
 				  IN pmlan_ioctl_req pioctl_req);
@@ -2958,6 +2961,9 @@ mlan_status wlan_ret_multi_chan_policy(IN pmlan_private pmpriv,
 
 void wlan_bt_coex_wlan_param_update_event(pmlan_private priv,
 					  pmlan_buffer pevent);
+
+mlan_status wlan_misc_ioctl_coalesce_cfg(IN pmlan_adapter pmadapter,
+					 IN pmlan_ioctl_req pioctl_req);
 
 mlan_status wlan_misc_ioctl_low_pwr_mode(IN pmlan_adapter pmadapter,
 					 IN pmlan_ioctl_req pioctl_req);
