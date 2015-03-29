@@ -129,11 +129,9 @@ static int inv_push_16bytes_buffer(struct inv_mpu_state *st, u16 hdr,
 	        iio_push_to_buffers(indio_dev, buf);
 	for (i = 0; i < 2; i++)
 		memcpy(buf + 4 * i, &q[i + 1], sizeof(q[i]));
-	pr_debug("ligang: iio_push_to_buffer buf step 1 %s\n", buf);
 		//iio_push_to_buffers_with_timestamp(indio_dev, buf, 0);
 	        iio_push_to_buffers(indio_dev, buf);
 	memcpy(buf, &t, sizeof(t));
-pr_debug("ligang: iio_push_to_buffer buf step 2 %s\n", buf);
 		//iio_push_to_buffers_with_timestamp(indio_dev, buf, 0);
 	        iio_push_to_buffers(indio_dev, buf);
 
@@ -173,11 +171,9 @@ static int inv_push_8bytes_buffer(struct inv_mpu_state *st, u16 hdr,
 	memcpy(buf, &hdr, sizeof(hdr));
 	for (i = 0; i < 3; i++)
 		memcpy(&buf[2 + i * 2], &d[i], sizeof(d[i]));
-pr_debug("ligang: 8bye iio_push_to_buffer buf step 1 %s\n", buf);
 		//iio_push_to_buffers_with_timestamp(indio_dev, buf, 0);
 	        iio_push_to_buffers(indio_dev, buf);
 	memcpy(buf, &t, sizeof(t));
-pr_debug("ligang: 8bye iio_push_to_buffer buf step 2 %s\n", buf);
 		//iio_push_to_buffers_with_timestamp(indio_dev, buf, 0);
 	        iio_push_to_buffers(indio_dev, buf);
 
@@ -224,7 +220,6 @@ static void inv_convert_and_push_16bytes(struct inv_mpu_state *st, u16 hdr,
 		for (j = 0; j < 3; j++)
 			if (m[i * 3 + j])
 				out[i] = in[j] * m[i * 3 + j];
-        pr_debug("ligang : inv_push_16bytes_buffer call prepare\n");
 	inv_push_16bytes_buffer(st, hdr, t, out);
 }
 
@@ -242,7 +237,6 @@ static void inv_convert_and_push_8bytes(struct inv_mpu_state *st, u16 hdr,
 		for (j = 0; j < 3; j++)
 			if (m[i * 3 + j])
 				out[i] = in[j] * m[i * 3 + j];
-        pr_debug("ligang : inv_push_8bytes_buffer call prepare\n");
 	inv_push_8bytes_buffer(st, hdr, t, out);
 }
 
@@ -255,7 +249,6 @@ static int inv_push_sensor(struct inv_mpu_state *st, int ind, u64 t, u8 *d)
 
 	hdr = st->sensor[ind].header;
 	res = 0;
-        pr_debug("ligang: inv_push_sensor, ind = %d\n", ind);
 	switch (ind) {
 	case SENSOR_ACCEL:
 		inv_convert_and_push_16bytes(st, hdr, d, t, iden);
@@ -435,7 +428,6 @@ static int inv_parse_packet(struct inv_mpu_state *st, u16 hdr, u8 *dptr)
 	u64 t;
 	u16 hdr2 = 0;
 	bool data_header;
-        pr_debug("ligang: enter inv_parse_packet\n");
 	t = 0;
 	if (hdr & HEADER2_SET) {
 		hdr2 = be16_to_cpup((__be16 *)(dptr));
@@ -447,7 +439,6 @@ static int inv_parse_packet(struct inv_mpu_state *st, u16 hdr, u8 *dptr)
 		if (hdr & st->sensor[i].output) {
 			inv_get_dmp_ts(st, i);
 			st->sensor[i].sample_calib++;
-                        pr_debug("ligang: called inv_push_sensor\n");
 			inv_push_sensor(st, i, st->sensor[i].ts, dptr);
 			dptr += st->sensor[i].sample_size;
 			t = st->sensor[i].ts;
@@ -569,10 +560,8 @@ static int inv_process_dmp_data(struct inv_mpu_state *st)
 	if (res)
 		return res;
 	fifo_count = be16_to_cpup((__be16 *)(data));
-        pr_debug("ligang: REG_FIFO_COUNT size = %d, value = %d, %d\n", fifo_count, data[0],data[1]);
 	if (!fifo_count)
 		return 0;
-        pr_debug("ligang: continue process\n");
 	st->fifo_count = fifo_count;
 	d = fifo_data;
 
@@ -605,7 +594,6 @@ static int inv_process_dmp_data(struct inv_mpu_state *st)
 		return -EINVAL;
 	dptr = d;
 	done_flag = false;
-        pr_debug("ligang: inv_prescan_data ok\n");
 	while (!done_flag) {
 		if (total_bytes > HEADER_SZ) {
 			hdr = (u16)be16_to_cpup((__be16 *)(dptr));
@@ -617,7 +605,6 @@ static int inv_process_dmp_data(struct inv_mpu_state *st)
 				return -EINVAL;
 			}
 			if (total_bytes >= pk_size) {
-                                pr_debug("ligang: called inv_parse_packet now\n");
 				inv_parse_packet(st, hdr, dptr + HEADER_SZ);
 				total_bytes -= pk_size;
 				dptr += pk_size;
