@@ -463,9 +463,8 @@ static int inv_mpu_resume(struct device *dev)
 							BIT_FIFO_OVERFLOW_EN_0);
 			inv_switch_power_in_lp(st, false);
 		}
-	} else {
-		inv_switch_power_in_lp(st, true);
 	}
+	inv_set_power(st, true);
 	mutex_unlock(&indio_dev->mlock);
 	/* add code according to different request End */
 	mutex_unlock(&st->suspend_resume_lock);
@@ -497,10 +496,8 @@ static int inv_mpu_suspend(struct device *dev)
 			inv_plat_single_write(st, REG_INT_ENABLE_2, 0);
 			inv_switch_power_in_lp(st, false);
 		}
-	} else {
-		/* in non DMP case, just turn off the power */
-		inv_set_power(st, false);
 	}
+	inv_set_power(st, false);
 	/* add code according to different request End */
 	st->suspend_state = true;
 	msleep(100);
