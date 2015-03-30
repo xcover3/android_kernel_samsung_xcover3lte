@@ -519,18 +519,6 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 							   PM88X_GPADC_CONFIG8,
 							   PM88X_BATT_TEMP_SEL,
 							   PM88X_BATT_TEMP_SEL_GP3);
-					/*
-					 * selects GPADC3 as input selection for
-					 * battery detection
-					 */
-					regmap_update_bits(info->chip->gpadc_regmap,
-							   PM88X_GPADC_CONFIG8,
-							   PM88X_GPADC_BD_EN,
-							   PM88X_GPADC_BD_EN);
-					/* disable BD_EN */
-					regmap_update_bits(info->chip->gpadc_regmap,
-							   PM88X_GPADC_CONFIG8,
-							   PM88X_GPADC_BD_EN, 0);
 				}
 				break;
 			default:
