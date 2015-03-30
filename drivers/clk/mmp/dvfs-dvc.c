@@ -1029,7 +1029,7 @@ device_initcall(hwdvc_init_level_volt);
 static ssize_t voltage_read(struct file *filp,
 	char __user *buffer, size_t count, loff_t *ppos)
 {
-	char buf[1000];
+	char *buf;
 	int len = 0, cur_vl, num_comps;
 	unsigned int i;
 	struct dvfs *d;
@@ -1039,8 +1039,12 @@ static ssize_t voltage_read(struct file *filp,
 	union pmudvc_cr pmudvc_cr;
 	struct dvfs_rail_component *comps;
 	struct clk *c;
+	size_t size = PAGE_SIZE, ret;
 
-	size_t size = sizeof(buf) - 1;
+	buf = (char *)__get_free_pages(GFP_NOIO, get_order(size));
+	if (!buf)
+		return -ENOMEM;
+
 	len += snprintf(buf + len, size,
 		"\n|dvc_flag:\t| %d (Use %s)\t\t\t  |\n",
 		dvc_flag, dvc_flag ? "HWDVC" : "SWDVC");
@@ -1111,7 +1115,9 @@ static ssize_t voltage_read(struct file *filp,
 		}
 	}
 
-	return simple_read_from_buffer(buffer, count, ppos, buf, len);
+	ret = simple_read_from_buffer(buffer, count, ppos, buf, len);
+	free_pages((unsigned long)buf, get_order(size));
+	return ret;
 }
 
 
