@@ -90,7 +90,7 @@ static netdev_tx_t ccinet_tx(struct sk_buff *skb, struct net_device *netdev)
 	if (skb->tstamp.tv64 == 0)
 		__net_timestamp(skb);
 
-	ret = sendPSDData(cid | devobj->sim_id << 31, skb);
+	ret = psd_data_tx(cid | devobj->sim_id << 31, skb);
 	if (ret == PSD_DATA_SEND_BUSY) {
 		return NETDEV_TX_BUSY;
 	} else if (ret == PSD_DATA_SEND_DROP) {

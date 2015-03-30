@@ -21,12 +21,6 @@
 #include "tel_trace.h"
 #include "debugfs.h"
 
-#define DPRINT(fmt, args ...)     pr_info(fmt, ## args)
-#define DBGMSG(fmt, args ...)     pr_debug("PSD: " fmt, ## args)
-#define ENTER()         pr_debug("PSD: ENTER %s\n", __func__)
-#define LEAVE()         pr_debug("PSD: LEAVE %s\n", __func__)
-#define FUNC_EXIT()     pr_debug("PSD: EXIT %s\n", __func__)
-
 #define PSDATASTUB_IOC_MAGIC 'P'
 #define PSDATASTUB_GCFDATA _IOW(PSDATASTUB_IOC_MAGIC, 1, int)
 #define PSDATASTUB_TOGGLE_DATA_ENABLE_DISABLE _IOW(PSDATASTUB_IOC_MAGIC, 2, int)
@@ -53,7 +47,7 @@ static u32 ack_opt = true;
 static u32 data_drop = true;
 static u32 ndev_fc;
 
-static int gCcinetDataEnabled = TRUE;
+static bool data_enabled = true;
 
 int psd_register(const struct psd_user *user, int cid)
 {
@@ -94,7 +88,7 @@ unsigned short psd_select_queue(struct sk_buff *skb)
 }
 EXPORT_SYMBOL(psd_select_queue);
 
-int sendPSDData(int cid, struct sk_buff *skb)
+int psd_data_tx(int cid, struct sk_buff *skb)
 {
 	struct pduhdr *hdr;
 	struct sk_buff *skb2;
@@ -102,7 +96,7 @@ int sendPSDData(int cid, struct sk_buff *skb)
 	unsigned tailpad;
 	enum data_path_priority prio;
 
-	if (!gCcinetDataEnabled)
+	if (!data_enabled)
 		goto drop;
 	/* data path is not open, drop the packet and return */
 	if (!psd_dp) {
@@ -186,7 +180,7 @@ drop:
 	return PSD_DATA_SEND_DROP;
 
 }
-EXPORT_SYMBOL(sendPSDData);
+EXPORT_SYMBOL(psd_data_tx);
 
 enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 {
@@ -267,7 +261,6 @@ static void psd_tx_traffic_control(bool is_throttle)
 		rcu_read_unlock();
 	}
 }
-
 
 void psd_tx_stop(void)
 {
@@ -358,7 +351,7 @@ static int psd_debugfs_exit(void)
 	return 0;
 }
 
-static int InitPsdChannel(struct notifier_block *nb,
+static int ps_channel_init(struct notifier_block *nb,
 			unsigned long action, void *data)
 {
 	psd_dp = data_path_open(dp_type_psd, &psd_cbs);
@@ -371,7 +364,7 @@ static int InitPsdChannel(struct notifier_block *nb,
 	return 0;
 }
 
-static void DeInitPsdChannel(void)
+static void ps_channel_exit(void)
 {
 	psd_debugfs_exit();
 	data_path_close(psd_dp);
@@ -379,9 +372,7 @@ static void DeInitPsdChannel(void)
 
 static int psdatastub_open(struct inode *inode, struct file *filp)
 {
-	ENTER();
 	return 0;
-	LEAVE();
 }
 
 static long psdatastub_ioctl(struct file *filp,
@@ -390,13 +381,12 @@ static long psdatastub_ioctl(struct file *filp,
 	GCFDATA gcfdata;
 	struct sk_buff *gcfbuf;
 
-	ENTER();
 	if (_IOC_TYPE(cmd) != PSDATASTUB_IOC_MAGIC) {
-		DBGMSG("psdatastub_ioctl: cci magic number is wrong!\n");
+		pr_debug("%s: cci magic number is wrong!\n", __func__);
 		return -ENOTTY;
 	}
 
-	DBGMSG("psdatastub_ioctl,cmd=0x%x\n", cmd);
+	pr_debug("%s: cmd=0x%x\n", __func__, cmd);
 	switch (cmd) {
 	case PSDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
 		if (copy_from_user(&gcfdata, (GCFDATA *) arg, sizeof(GCFDATA)))
@@ -410,21 +400,20 @@ static long psdatastub_ioctl(struct file *filp,
 			kfree_skb(gcfbuf);
 			return -EFAULT;
 		}
-		sendPSDData(gcfdata.cid, gcfbuf);
+		psd_data_tx(gcfdata.cid, gcfbuf);
 		break;
 
 	case PSDATASTUB_TOGGLE_DATA_ENABLE_DISABLE:
-		if (gCcinetDataEnabled == TRUE)
-			gCcinetDataEnabled = FALSE;
+		if (data_enabled)
+			data_enabled = false;
 		else
-			gCcinetDataEnabled = TRUE;
+			data_enabled = true;
 
-		DPRINT("%s: Toggle Data to %s", __func__, (gCcinetDataEnabled == TRUE) ?
+		pr_info("%s: Toggle Data to %s", __func__, data_enabled ?
 			"Enabled" : "Disabled");
 		break;
 
 	}
-	LEAVE();
 	return 0;
 }
 
@@ -455,7 +444,7 @@ static long compat_psdatastub_ioctl(struct file *filp,
 {
 	int ret = 0;
 	if (_IOC_TYPE(cmd) != PSDATASTUB_IOC_MAGIC) {
-		DBGMSG("psdatastub_ioctl: cci magic number is wrong!\n");
+		pr_debug("%s: cci magic number is wrong!\n", __func__);
 		return -ENOTTY;
 	}
 	switch (cmd) {
@@ -486,14 +475,12 @@ static struct miscdevice psdatastub_miscdev = {
 };
 
 static struct notifier_block cp_state_notifier = {
-	.notifier_call = InitPsdChannel,
+	.notifier_call = ps_channel_init,
 };
 
 static int psdatastub_probe(struct platform_device *dev)
 {
 	int ret;
-
-	ENTER();
 
 	ret = misc_register(&psdatastub_miscdev);
 	if (ret)
@@ -501,17 +488,13 @@ static int psdatastub_probe(struct platform_device *dev)
 
 	register_first_cp_synced(&cp_state_notifier);
 
-	LEAVE();
-
 	return ret;
 }
 
 static int psdatastub_remove(struct platform_device *dev)
 {
-	ENTER();
-	DeInitPsdChannel();
+	ps_channel_exit();
 	misc_deregister(&psdatastub_miscdev);
-	LEAVE();
 	return 0;
 }
 
@@ -546,7 +529,7 @@ int psdatastub_init(void)
 		if (ret)
 			platform_device_unregister(&psdatastub_device);
 	} else {
-		DPRINT("Cannot register CCIDATASTUB platform device\n");
+		pr_info("Cannot register CCIDATASTUB platform device\n");
 	}
 
 	return ret;

@@ -15,8 +15,8 @@
 #define MAX_CID_NUM    15
 
 #define PSD_DATA_SEND_OK 0
-#define PSD_DATA_SEND_BUSY -1
-#define PSD_DATA_SEND_DROP -2
+#define PSD_DATA_SEND_BUSY (-1)
+#define PSD_DATA_SEND_DROP (-2)
 
 enum {
 	PSD_QUEUE_HIGH,
@@ -37,7 +37,7 @@ void set_embms_cid(int cid);
 
 struct sk_buff;
 unsigned short psd_select_queue(struct sk_buff *skb);
-int sendPSDData(int cid, struct sk_buff *skb);
+int psd_data_tx(int cid, struct sk_buff *skb);
 
 int psdatastub_init(void);
 void psdatastub_exit(void);

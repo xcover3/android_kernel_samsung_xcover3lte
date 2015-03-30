@@ -353,8 +353,7 @@ static ssize_t ppprd_write(struct file *filp, const char __user *buf,
 
 	count = min_t(size_t, count, PPP_FRAME_SIZE);
 
-	/* get count bytes data from PPPSRV, then send to CP,
-	 * use sendPSDData which defined in cidatastub */
+	/* get count bytes data from PPPSRV, then send to CP */
 	if (modem_current_cid != INVALID_CID) {
 		skb = alloc_skb(count, GFP_ATOMIC);
 		if (!skb) {
@@ -366,7 +365,7 @@ static ssize_t ppprd_write(struct file *filp, const char __user *buf,
 			return -EFAULT;
 		}
 		skb->queue_mapping = psd_select_queue(skb);
-		ret = sendPSDData(modem_current_cid, skb);
+		ret = psd_data_tx(modem_current_cid, skb);
 		if (ret) {
 			if (ret == PSD_DATA_SEND_BUSY)
 				kfree_skb(skb);
