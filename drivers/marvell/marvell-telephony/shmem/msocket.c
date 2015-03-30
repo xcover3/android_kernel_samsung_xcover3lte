@@ -1348,7 +1348,7 @@ static void get_dvc_info(void)
 		cpks->cp_freq[i] = dvc_vol_info.cpdvcinfo[i].cpfreq;
 		cpks->cp_vol[i] = dvc_vol_info.cpdvcinfo[i].cpvl;
 	}
-	cpks->msa_dvc_vol = dvc_vol_info.msadvcvl;
+	cpks->msa_dvc_vol = dvc_vol_info.msadvcvl[0].cpvl;
 }
 
 static int cpks_debugfs_init(struct dentry *parent)

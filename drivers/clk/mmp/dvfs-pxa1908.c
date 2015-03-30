@@ -293,7 +293,7 @@ static struct cpmsa_dvc_info cpmsa_dvc_info_1908sec = {
 	.cpdvcinfo[0] = {416, VL2},
 	.cpdvcinfo[1] = {624, VL3},
 	.cpdvcinfo[2] = {832, VL6},
-	.msadvcvl = VL2,
+	.msadvcvl[0] = {416, VL2},
 };
 
 /*

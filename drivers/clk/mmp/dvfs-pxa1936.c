@@ -1125,7 +1125,7 @@ static int vm_millivolts_1936_svc_sec_golden[][VL_MAX] = {
 #define cp_msa(cp0, cp1, cp2, msa) {.cpdvcinfo[0] = {416, cp0},\
 		.cpdvcinfo[1] = {624, cp1},\
 		.cpdvcinfo[2] = {832, cp2},\
-		.msadvcvl = msa,}
+		.msadvcvl[0] = {416, msa},}
 
 #define cp_lv1 cp_msa(VL1, VL1, VL5, VL1)
 #define cp_lv2 cp_msa(VL1, VL2, VL5, VL2)
