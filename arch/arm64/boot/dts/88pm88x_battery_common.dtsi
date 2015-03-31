@@ -14,8 +14,6 @@
 
 	battery {
 		sleep-period = <1000>;		/* second */
-		low-threshold = <30>;		/* % */
-		high-threshold = <50>;		/* % */
 		alart-percent = <5>;		/* % */
 
 		power-off-th = <3350>;		/* mv */
