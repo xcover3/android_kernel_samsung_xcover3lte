@@ -190,6 +190,19 @@ static struct pm_qos_object ddr_devfreq_max_pm_qos = {
 	.name = "ddr_devfreq_max",
 };
 
+static BLOCKING_NOTIFIER_HEAD(ddr_devfreq_upthrd_max_notifier);
+static struct pm_qos_constraints ddr_devfreq_upthrd_max_constraints = {
+	.list = PLIST_HEAD_INIT(ddr_devfreq_upthrd_max_constraints.list),
+	.target_value = PM_QOS_DEFAULT_VALUE,
+	.default_value = INT_MAX,
+	.type = PM_QOS_MIN,
+	.notifiers = &ddr_devfreq_upthrd_max_notifier,
+};
+static struct pm_qos_object ddr_devfreq_upthrd_max_pm_qos = {
+	.constraints = &ddr_devfreq_upthrd_max_constraints,
+	.name = "ddr_devfreq_upthrd_max",
+};
+
 static BLOCKING_NOTIFIER_HEAD(axi_min_notifier);
 static struct pm_qos_constraints axi_min_constraints = {
 	.list = PLIST_HEAD_INIT(axi_min_constraints.list),
@@ -347,6 +360,7 @@ struct pm_qos_object *pm_qos_array[] = {
 	&cpu_num_max_pm_qos,
 	&ddr_devfreq_min_pm_qos,
 	&ddr_devfreq_max_pm_qos,
+	&ddr_devfreq_upthrd_max_pm_qos,
 	&axi_min_pm_qos,
 	&vpu_devfreq_min_pm_qos,
 	&vpu_devfreq_max_pm_qos,
@@ -1058,24 +1072,27 @@ postcore_initcall(cpu_num_qos_debugfs_init);
 static int ddrfreq_qos_show(struct seq_file *m, void *unused)
 {
 	unsigned long flags;
-	struct pm_qos_object *qos_min, *qos_max;
-	struct list_head *list_min, *list_max;
+	struct pm_qos_object *qos_min, *qos_max, *qos_upthrd_max;
+	struct list_head *list_min, *list_max, *list_upthrd_max;
 	struct plist_node *node;
-	s32 target_min = 0, target_max = 0;
+	s32 target_min = 0, target_max = 0, target_upthrd_max = 0;
 	struct pm_qos_request *req;
 
 	qos_min = pm_qos_array[PM_QOS_DDR_DEVFREQ_MIN];
 	list_min = &qos_min->constraints->list.node_list;
 	qos_max = pm_qos_array[PM_QOS_DDR_DEVFREQ_MAX];
 	list_max = &qos_max->constraints->list.node_list;
+	qos_upthrd_max = pm_qos_array[PM_QOS_DDR_DEVFREQ_UPTHRD_MAX];
+	list_upthrd_max = &qos_upthrd_max->constraints->list.node_list;
 
 	rcu_read_lock();
 	spin_lock_irqsave(&pm_qos_lock, flags);
 
 	target_min = pm_qos_read_value(qos_min->constraints);
 	target_max = pm_qos_read_value(qos_max->constraints);
+	target_upthrd_max = pm_qos_read_value(qos_upthrd_max->constraints);
 
-	seq_printf(m, "Target min %d\n", target_min);
+	seq_printf(m, "Target min frequency: %d\n", target_min);
 	list_for_each_entry(node, list_min, node_list) {
 		req = container_of(node, struct pm_qos_request, node);
 		if (node->prio != PM_QOS_DEFAULT_VALUE)
@@ -1083,13 +1100,22 @@ static int ddrfreq_qos_show(struct seq_file *m, void *unused)
 				node->prio, req->name);
 	}
 
-	seq_printf(m, "Target max %d\n", target_max);
+	seq_printf(m, "Target max frequency: %d\n", target_max);
 	list_for_each_entry(node, list_max, node_list) {
 		req = container_of(node, struct pm_qos_request, node);
 		if (node->prio != PM_QOS_DEFAULT_VALUE)
 			seq_printf(m, "Req: %d\t Name: %s\n",
 				node->prio, req->name);
 	}
+
+	seq_printf(m, "Target max up threshold: %d\n", target_upthrd_max);
+	list_for_each_entry(node, list_upthrd_max, node_list) {
+		req = container_of(node, struct pm_qos_request, node);
+		if (node->prio != PM_QOS_DEFAULT_VALUE)
+			seq_printf(m, "Req: %d\t Name: %s\n",
+				node->prio, req->name);
+	}
+
 	spin_unlock_irqrestore(&pm_qos_lock, flags);
 	rcu_read_unlock();
 
