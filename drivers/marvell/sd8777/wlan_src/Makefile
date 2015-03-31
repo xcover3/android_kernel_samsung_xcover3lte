@@ -127,6 +127,8 @@ INSTALLDIR ?= /tftpboot/pxa9xx/root
 # Default values of ARCH for specific platform are set below.
 ARCH ?= arm
 
+LD += -S
+
 BINDIR = ../bin_sd87xx
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
