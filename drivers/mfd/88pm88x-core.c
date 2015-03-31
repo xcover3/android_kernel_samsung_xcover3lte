@@ -279,6 +279,24 @@ static void parse_powerup_down_log(struct pm88x_chip *chip)
 	regmap_write(chip->base_regmap, PM88X_POWER_DOWN_LOG2, 0xff);
 }
 
+static const char *chip_stepping_to_string(unsigned int id)
+{
+	switch (id) {
+	case 0x00:
+		return "88pm886 A0";
+	case 0xa1:
+		return "88pm886 A1";
+	case 0xb0:
+		return "88pm880 A0";
+	case 0xb1:
+		return "88pm880 A1A";
+	default:
+		break;
+	}
+
+	return "Unknown";
+}
+
 int pm88x_post_init_chip(struct pm88x_chip *chip)
 {
 	int ret;
@@ -296,7 +314,8 @@ int pm88x_post_init_chip(struct pm88x_chip *chip)
 	}
 	chip->chip_id = val;
 
-	dev_info(chip->dev, "PM88X chip ID = 0x%x\n", val);
+	dev_info(chip->dev, "PM88X chip ID = 0x%x(%s)\n", val,
+			chip_stepping_to_string(chip->chip_id));
 
 	/* read before alarm wake up bit before initialize interrupt */
 	ret = regmap_read(chip->base_regmap, PM88X_RTC_ALARM_CTRL1, &val);
