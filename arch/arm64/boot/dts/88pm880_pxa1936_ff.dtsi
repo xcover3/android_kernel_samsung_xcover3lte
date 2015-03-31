@@ -18,7 +18,8 @@
 				<0x4 0x24 0x30 0x20>,	/* enable buck1a sleep mode */
 				<0x4 0x26 0x7f 0x08>,	/* set buck1a sleep voltage to 0.7v */
 				<0x1 0x5c 0xf0 0xa0>,	/* set LDO11_SET_SLP to 2.8V 						*/
-				<0x1 0x5d 0x30 0x20>;	/* set LDO11_SLP to be LDO11_SET_SLP value on sleep */
+				<0x1 0x5d 0x30 0x20>,	/* set LDO11_SLP to be LDO11_SET_SLP value on sleep */
+				<0x1 0x51 0x30 0x00>;	/* set LDO9_SLP value to be off in sleep */
 
 	/* using lables, so no need for nesting */
 	/* ---buck--- */
