@@ -115,9 +115,7 @@ static LIST_HEAD(clst_list);
 #define policy_nb_to_clst(ptr) (container_of(ptr, struct cpufreq_cluster, cpufreq_policy_notifier))
 #define vl_nb_to_clst(ptr) (container_of(ptr, struct cpufreq_cluster, vl_min_notifier))
 
-/* Save PM status and disable cpufreq before enter suspend. */
-static unsigned long mmp_pm_event;
-/* Locks used to sync cpufreq target request and suspend request. */
+/* Locks used to serialize cpufreq target request. */
 static DEFINE_MUTEX(mmp_cpufreq_lock);
 
 static char *__cpufreq_printf(const char *fmt, ...)
@@ -427,20 +425,6 @@ static int __cpufreq_policy_notify(
 	return NOTIFY_OK;
 }
 
-static int __cpufreq_pm_notify(
-			struct notifier_block *nb,
-			unsigned long val,
-			void *data)
-{
-	mutex_lock(&mmp_cpufreq_lock);
-	mmp_pm_event = val;
-	mutex_unlock(&mmp_cpufreq_lock);
-	return NOTIFY_OK;
-}
-static struct notifier_block cpufreq_pm_notifier = {
-	.notifier_call = __cpufreq_pm_notify,
-};
-
 static unsigned int mmp_bL_cpufreq_get(unsigned int cpu)
 {
 	int clst_index = topology_physical_package_id(cpu);
@@ -473,10 +457,7 @@ static int mmp_bL_cpufreq_target(
 	BUG_ON(!clst);
 
 	mutex_lock(&mmp_cpufreq_lock);
-	if (mmp_pm_event == PM_SUSPEND_PREPARE)
-		ret = -EBUSY;
-	else
-		pm_qos_update_request(&clst->profiler_req_min, target_freq);
+	pm_qos_update_request(&clst->profiler_req_min, target_freq);
 	mutex_unlock(&mmp_cpufreq_lock);
 
 	return ret;
@@ -662,7 +643,6 @@ static int __init mmp_bL_cpufreq_register(void)
 	if (vl_cpufreq == NULL)
 		pr_err("%s: Error to create file node vl_cpufreq.\n", __func__);
 #endif
-	register_pm_notifier(&cpufreq_pm_notifier);
 	return cpufreq_register_driver(&mmp_bL_cpufreq_driver);
 }
 
@@ -672,7 +652,6 @@ static void __exit mmp_bL_cpufreq_unregister(void)
 	if (vl_cpufreq)
 		debugfs_remove(vl_cpufreq);
 #endif
-	unregister_pm_notifier(&cpufreq_pm_notifier);
 	cpufreq_unregister_driver(&mmp_bL_cpufreq_driver);
 }
 
