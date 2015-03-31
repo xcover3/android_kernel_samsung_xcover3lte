@@ -136,10 +136,12 @@ static char *__cpufreq_printf(const char *fmt, ...)
  *    of dual clusters are always aligned to the same voltage level.
  * 2. Each cluster can change its frequency freely.
  *
- * By default we enable mode-1 and we can append "vl_cpufreq=0"
- * to uboot cmdline to enable mode-2.
+ * We can
+ * append "vl_cpufreq=1 (or 0)" to uboot cmdline
+ * or "echo 1 (or 0) > /sys/kernel/debug/pxa/vl_cpufreq"
+ * to enable or disable voltage based cpufreq.
  */
-static unsigned int vl_cpufreq_enable = 1;
+static unsigned int vl_cpufreq_enable = 0;
 static int __init __cpufreq_mode_setup(char *str)
 {
 	unsigned int n;
