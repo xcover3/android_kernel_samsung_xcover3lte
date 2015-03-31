@@ -226,6 +226,8 @@ static int mv_otg_reset(struct mv_otg *mvotg)
 	writel(tmp, &mvotg->op_regs->usbsts);
 
 	portsc = readl(&mvotg->op_regs->portsc[0]);
+	/* add delay before set PHCD bit */
+	udelay(400);
 	portsc |= PORTSCX_PORT_PHCD;
 	writel(portsc, &mvotg->op_regs->portsc[0]);
 	return 0;
