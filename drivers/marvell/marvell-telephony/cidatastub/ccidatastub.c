@@ -34,8 +34,7 @@
 #include "common_datastub.h"
 #include "shm_share.h"
 #include "data_channel_kernel.h"
-#include "psd_data_channel.h"
-#include "data_path.h"
+#include "msocket.h"
 
 static const char *const ccidatastub_name = "ccidatastub";
 int dataSvgHandle;

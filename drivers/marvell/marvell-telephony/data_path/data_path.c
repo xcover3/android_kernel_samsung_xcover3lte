@@ -27,7 +27,6 @@
 #include <linux/ratelimit.h>
 #include <linux/pxa9xx_acipc.h>
 #include "shm_share.h"
-#include "acipcd.h"
 #include "shm.h"
 #include "msocket.h"
 #include "data_path.h"
@@ -37,6 +36,7 @@
 
 
 static struct wakeup_source dp_rx_wakeup;
+static struct wakeup_source dp_acipc_wakeup;
 
 static struct data_path data_path = {
 	.name = "psd",
@@ -929,7 +929,7 @@ void dp_rb_stop_cb(struct shm_rbctl *rbctl)
 
 	dp = rbctl->priv;
 
-	__pm_wakeup_event(&acipc_wakeup, 5000);
+	__pm_wakeup_event(&dp_acipc_wakeup, 5000);
 	pr_warn("MSOCK: dp_rb_stop_cb!!!\n");
 
 	if (dp && (atomic_read(&dp->state) == dp_state_opened)) {
@@ -950,7 +950,7 @@ void dp_rb_resume_cb(struct shm_rbctl *rbctl)
 
 	dp = rbctl->priv;
 
-	__pm_wakeup_event(&acipc_wakeup, 2000);
+	__pm_wakeup_event(&dp_acipc_wakeup, 2000);
 	pr_warn("MSOCK: dp_rb_resume_cb!!!\n");
 
 	if (dp && (atomic_read(&dp->state) == dp_state_opened)) {
@@ -1111,7 +1111,7 @@ static struct notifier_block cp_mem_set_notifier = {
 	.notifier_call = cp_mem_set_notifier_func,
 };
 
-int data_path_init(void)
+static int __init data_path_init(void)
 {
 	struct data_path *dp = &data_path;
 
@@ -1138,6 +1138,8 @@ int data_path_init(void)
 	if (dp_acipc_init() < 0)
 		goto unregister;
 
+	wakeup_source_init(&dp_acipc_wakeup, "dp_acipc_wakeup");
+
 	return 0;
 
 unregister:
@@ -1157,8 +1159,10 @@ putrootfs:
 	return -1;
 }
 
-void data_path_exit(void)
+static void __exit data_path_exit(void)
 {
+	wakeup_source_trash(&dp_acipc_wakeup);
+
 	dp_acipc_exit();
 
 	unregister_cp_mem_set_notifier(&cp_mem_set_notifier);
@@ -1173,3 +1177,5 @@ void data_path_exit(void)
 	tel_debugfs_root_dir = NULL;
 }
 
+module_init(data_path_init);
+module_exit(data_path_exit);

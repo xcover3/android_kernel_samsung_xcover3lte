@@ -18,7 +18,7 @@
 
 #include <net/checksum.h>
 
-#include "psd_data_channel.h"
+#include "psdatastub.h"
 #include "debugfs.h"
 
 #define PERSIST_DEVICE_NUM    8

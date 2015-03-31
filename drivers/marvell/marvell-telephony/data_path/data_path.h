@@ -200,9 +200,6 @@ static inline unsigned padded_size(unsigned len)
 	return (len + (DATA_ALIGN_SIZE - 1)) & ~(DATA_ALIGN_SIZE - 1);
 }
 
-extern int data_path_init(void);
-extern void data_path_exit(void);
-
 extern struct data_path *data_path_open(struct data_path_callback *cbs);
 extern void data_path_close(struct data_path *dp);
 

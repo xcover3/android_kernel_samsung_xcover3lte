@@ -9,6 +9,8 @@ obj-$(CONFIG_MRVL_MMP_MODEM) += cp_load/
 
 obj-$(CONFIG_MRVL_MMP_MODEM) += shmem/
 
+obj-$(CONFIG_MRVL_MMP_MODEM) += data_path/
+
 obj-$(CONFIG_MRVL_MMP_MODEM) += errorhandler/
 
 obj-$(CONFIG_MRVL_MMP_CM3) += m3_rm/

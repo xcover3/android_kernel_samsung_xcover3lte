@@ -42,11 +42,9 @@
 #include "portqueue.h"
 #include "msocket.h"
 #include "shm_share.h"
-#include "data_path.h"
 #include "direct_rb.h"
 #include "common_regs.h"
 #include "pxa_m3_rm.h"
-#include "psd_data_channel.h"
 #include "pxa_cp_load.h"
 #include "debugfs.h"
 #include "shm_map.h"
@@ -1817,20 +1815,6 @@ static int __init msocket_init(void)
 			__func__, rc);
 		goto cmsock_err;
 	}
-	rc = psdatastub_init();
-	if (rc < 0) {
-		pr_err("%s: init psdatastub failed %d\n",
-			__func__, rc);
-		goto psdatastub_err;
-	}
-
-	/* data channel init */
-	rc = data_path_init();
-	if (rc < 0) {
-		pr_err("%s: data path init failed %d\n",
-			__func__, rc);
-		goto dp_err;
-	}
 
 	/* direct rb init */
 	rc = direct_rb_init();
@@ -1843,10 +1827,6 @@ static int __init msocket_init(void)
 	return 0;
 
 direct_rb_err:
-	data_path_exit();
-dp_err:
-	psdatastub_exit();
-psdatastub_err:
 	cmsockdev_cleanup_module(cmsockdev_nr_devs);
 cmsock_err:
 	misc_deregister(&msocketDump_dev);
@@ -1869,8 +1849,6 @@ unmap_apmu:
 static void __exit msocket_exit(void)
 {
 	direct_rb_exit();
-	data_path_exit();
-	psdatastub_exit();
 	portq_exit();
 	cmsockdev_cleanup_module(cmsockdev_nr_devs);
 	misc_deregister(&msocketDump_dev);

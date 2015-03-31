@@ -39,7 +39,4 @@ struct sk_buff;
 unsigned short psd_select_queue(struct sk_buff *skb);
 int psd_data_tx(int cid, struct sk_buff *skb);
 
-int psdatastub_init(void);
-void psdatastub_exit(void);
-
 #endif

@@ -14,10 +14,12 @@
 #include <linux/ip.h>
 #include <linux/debugfs.h>
 #include <linux/platform_device.h>
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
 
-#include "common_datastub.h"
 #include "data_path.h"
-#include "psd_data_channel.h"
+#include "psdatastub.h"
 #include "tel_trace.h"
 #include "debugfs.h"
 
@@ -36,6 +38,20 @@ struct pduhdr {
 	__u8 reserved;
 	int cid;
 } __packed;
+
+struct GCFDATA {
+	u32 cid;
+	u32 len;		/* length of databuf */
+	u8 *databuf;
+};
+
+#ifdef CONFIG_COMPAT
+struct GCFDATA32 {
+	u32 cid;
+	u32 len;		/* length of databuf */
+	compat_uptr_t databuf;
+};
+#endif
 
 struct data_path *psd_dp;
 
@@ -378,7 +394,7 @@ static int psdatastub_open(struct inode *inode, struct file *filp)
 static long psdatastub_ioctl(struct file *filp,
 			      unsigned int cmd, unsigned long arg)
 {
-	GCFDATA gcfdata;
+	struct GCFDATA gcfdata;
 	struct sk_buff *gcfbuf;
 
 	if (_IOC_TYPE(cmd) != PSDATASTUB_IOC_MAGIC) {
@@ -389,7 +405,8 @@ static long psdatastub_ioctl(struct file *filp,
 	pr_debug("%s: cmd=0x%x\n", __func__, cmd);
 	switch (cmd) {
 	case PSDATASTUB_GCFDATA:	/* For CGSEND and TGSINK */
-		if (copy_from_user(&gcfdata, (GCFDATA *) arg, sizeof(GCFDATA)))
+		if (copy_from_user(&gcfdata, (struct GCFDATA *) arg,
+				sizeof(struct GCFDATA)))
 			return -EFAULT;
 		gcfbuf = alloc_skb(gcfdata.len, GFP_KERNEL);
 		if (!gcfbuf)
@@ -422,7 +439,7 @@ static int compat_cgfdata_handle(struct file *filp,
 			      unsigned int cmd, unsigned long arg)
 {
 	struct GCFDATA32 __user *argp = (void __user *)arg;
-	GCFDATA __user *buf;
+	struct GCFDATA __user *buf;
 	compat_uptr_t param_addr;
 	int ret = 0;
 
@@ -519,7 +536,7 @@ static struct platform_driver psdatastub_driver = {
 	}
 };
 
-int psdatastub_init(void)
+static int __init psdatastub_init(void)
 {
 	int ret;
 
@@ -529,15 +546,17 @@ int psdatastub_init(void)
 		if (ret)
 			platform_device_unregister(&psdatastub_device);
 	} else {
-		pr_info("Cannot register CCIDATASTUB platform device\n");
+		pr_info("Cannot register psdatastub platform device\n");
 	}
 
 	return ret;
 }
 
-void psdatastub_exit(void)
+static void __exit psdatastub_exit(void)
 {
 	platform_driver_unregister(&psdatastub_driver);
 	platform_device_unregister(&psdatastub_device);
 }
 
+module_init(psdatastub_init);
+module_exit(psdatastub_exit);

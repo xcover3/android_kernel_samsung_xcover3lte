@@ -30,7 +30,7 @@
 #include <linux/spinlock.h>
 #include <linux/list.h>
 #include <linux/skbuff.h>
-#include "psd_data_channel.h"
+#include "psdatastub.h"
 #include "ppprd_linux.h"
 
 #define INVALID_CID 0xff
