@@ -11,6 +11,8 @@
 #ifndef __LINUX_MCK_MEMORYBUS_H__
 #define __LINUX_MCK_MEMORYBUS_H__
 
+#include <linux/pm_qos.h>
+
 #define DDR_FREQ_MAX 20
 
 #define DEFAULT_MCK_BASE_ADDR	(0xc0100000)
@@ -136,22 +138,17 @@ struct ddr_profiler_data {
 struct ddr_devfreq_data {
 	struct devfreq *devfreq;
 	struct clk *ddr_clk;
-	struct clk *clst0_clk;
-	struct clk *clst1_clk;
-	struct clk *cpu_clk;
 	struct mck_ppmu dmc;
 	unsigned int bst_len; /* ddr burst length */
 	unsigned long last_polled_at;
 	spinlock_t lock;
 
-	/* used for performance optimization */
-	u32 multi_clst;
-	u32 high_upthrd_swp_clst0;
-	u32 high_upthrd_swp_clst1;
-	u32 high_upthrd_swp;
-	u32 high_upthrd;
-	u32 cpu_up;
-	u32 gpu_up;
+	/* ddr upthreshold constraint */
+	struct notifier_block qos_max_upthrd_nb;
+	struct pm_qos_request qos_req_upthrd_max;
+	unsigned long qos_max_upthrd;
+	int max_upthrd_qos_type;
+
 	/* notifier block for ddr upthreshold change */
 	struct notifier_block freq_transition;
 

@@ -299,6 +299,8 @@ struct devfreq_throughput_data {
 	u32 *freq_table;        /* unit Khz */
 	struct throughput_threshold *throughput_table;
 };
+
+extern int update_devfreq(struct devfreq *devfreq);
 #endif
 
 /* calculate workload according to busy and total time, unit percent */
