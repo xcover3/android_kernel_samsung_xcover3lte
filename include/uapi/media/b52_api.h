@@ -180,13 +180,16 @@ enum guest_type {
 };
 
 enum b52_vcm_type {
-	BUILD_IN_VCM = 0,
-	AD5820 = 1,
-	DW9714 = AD5820,
-	AD5823 = 2,
-	DW9804 = 4,
-	DW9718 = 5,
-	NONE_VCM,
+	VCM_BUILD_IN = 0,
+	VCM_AD5820 = 1,
+	VCM_DW9714 = VCM_AD5820,
+	VCM_AD5823 = 2,
+	VCM_DW9804 = 4,
+	VCM_DW9806 = VCM_DW9804,
+	VCM_DW9807 = VCM_DW9804,
+	VCM_DW9761 = VCM_DW9804,
+	VCM_DW9718 = 5,
+	VCM_NONE,
 };
 
 enum B52_flash_type {

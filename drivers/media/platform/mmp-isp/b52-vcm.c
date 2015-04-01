@@ -153,7 +153,7 @@ struct vcm_ops dw9804_ops = {
 };
 static struct vcm_type vcm_dw9804 = {
 	.name = "dw9804",
-	.type = DW9804,
+	.type = VCM_DW9804,
 	.attr = &vcm_attr_8BIT,
 	.pos_reg_msb = 0x03,
 	.pos_reg_lsb = 0x04,
@@ -220,7 +220,7 @@ struct vcm_ops dw9714_ops = {
 };
 static struct vcm_type vcm_dw9714 = {
 	.name = "dw9714",
-	.type = DW9714,
+	.type = VCM_DW9714,
 	.attr = &vcm_attr_8BIT,
 	.ops = &dw9714_ops,
 };
@@ -329,7 +329,7 @@ struct vcm_ops dw9718_ops = {
 #define N_DW9718_INIT ARRAY_SIZE(dw9718_init)
 static struct vcm_type vcm_dw9718 = {
 	.name = "dw9718",
-	.type = DW9718,
+	.type = VCM_DW9718,
 	.attr = &vcm_attr_16BIT,
 	.pos_reg_msb = 0x02,
 	.pos_reg_lsb = 0x03,
@@ -443,7 +443,7 @@ static int vcm_s_ctrl(struct v4l2_ctrl *ctrl)
 			ctrl->handler, struct vcm_subdev, vcm_ctrl.ctrl_hdl);
 	switch (ctrl->id) {
 	case V4L2_CID_VCM_SELECT_TYPE:
-		if (ctrl->val < 0 || ctrl->val > NONE_VCM) {
+		if (ctrl->val < 0 || ctrl->val > VCM_NONE) {
 			pr_err("%s: ctrl not support\n", __func__);
 			return -EINVAL;
 		}
@@ -582,7 +582,7 @@ static int vcm_subdev_probe(struct platform_device *pdev)
 		pr_err("register vcm subdev ret:%d\n", ret);
 		goto err;
 	}
-	for (i = 0; i < NONE_VCM; i++)
+	for (i = 0; i < VCM_NONE; i++)
 		vcm->b52_vcm_type[i] = b52_vcm_type[i];
 	vcm->current_type = b52_vcm_type[3];
 #ifdef CONFIG_HOST_SUBDEV
