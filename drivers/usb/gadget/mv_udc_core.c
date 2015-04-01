@@ -675,6 +675,12 @@ static int  mv_ep_disable(struct usb_ep *_ep)
 
 	udc = ep->udc;
 
+	if (!udc->vbus_active) {
+		dev_info(&udc->dev->dev,
+			"usb already plug out!\n");
+		return -EINVAL;
+	}
+
 	/* Get the endpoint queue head address */
 	dqh = ep->dqh;
 
@@ -1392,9 +1398,10 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		stop_activity(udc, udc->driver);
 	}
 
-	spin_unlock_irqrestore(&udc->lock, flags);
 	if (!udc->vbus_active)
 		mv_udc_disable(udc);
+
+	spin_unlock_irqrestore(&udc->lock, flags);
 
 out:
 	return retval;
