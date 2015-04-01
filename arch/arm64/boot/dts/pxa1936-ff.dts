@@ -120,6 +120,7 @@
 						(LM3532_ILED1_FB_EN | LM3532_ILED2_FB_EN)>;
 					output_cfg_val = <
 						LM3532_OUTPUT_CONFIG>;
+					lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 				};
 				board_eeprom1:24aa025t@50 {
 					compatible = "atmel,24c02";
