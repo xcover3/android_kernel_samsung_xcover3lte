@@ -1349,12 +1349,12 @@ static int plat_setup_sensor(struct isp_build *isb,
 #ifdef CONFIG_SUBDEV_VCM
 		vdata.hsd = hsd;
 		vdata.v4l2_dev = &isb->v4l2_dev;
-		vcm_subdev_create(isb->dev, NULL, 0, &vdata);
+		vcm_subdev_create(isb->dev, NULL, 1, &vdata);
 #endif
 #ifdef CONFIG_SUBDEV_FLASH
 		fdata.hsd = hsd;
 		fdata.v4l2_dev = &isb->v4l2_dev;
-		flash_subdev_create(isb->dev, NULL, 0, &fdata);
+		flash_subdev_create(isb->dev, NULL, 1, &fdata);
 #endif
 #endif
 
