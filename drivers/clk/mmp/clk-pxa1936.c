@@ -1793,9 +1793,12 @@ static void __init pxa1936_clk_init(struct device_node *np)
 			&& (max_freq_fused < CORE_1p8G))
 			panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 4 , will panic.\n");
 
-		if ((profile >= 11) && (max_freq_fused <= CORE_1p5G)) {
+		if ((profile == 15) && (max_freq_fused <= CORE_1p5G)) {
+			clst0_core_params.max_cpurate = CORE_0p8G;
+			pr_info("<=1.5GHz SKU chip clst0 support max freq is 832M when profile == 15\n");
+		} else if ((profile >= 11) && (profile <= 14) && (max_freq_fused <= CORE_1p5G)) {
 			clst0_core_params.max_cpurate = CORE_1p0G;
-			pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 11\n");
+			pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile == (11 ~ 14)\n");
 		}
 	}
 #endif

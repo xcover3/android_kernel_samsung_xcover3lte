@@ -20,6 +20,7 @@ enum ddr_type {
 };
 
 enum {
+	CORE_0p8G = 832,
 	CORE_1p0G = 1057,
 	CORE_1p2G = 1183,
 	CORE_1p25G = 1248,
