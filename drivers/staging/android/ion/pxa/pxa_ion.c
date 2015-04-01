@@ -144,8 +144,9 @@ struct sg_table *sg_clone_table(struct sg_table *table_from,
 			sg_to->length = PAGE_SIZE;
 			sg_to = sg_next(sg_to);
 		}
-	} else
+	} else if (num_extra_pages) {
 		pr_err("%s: appendixes page failure\n", __func__);
+	}
 
 	return table_to;
 }
