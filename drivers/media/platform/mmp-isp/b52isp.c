@@ -2955,7 +2955,9 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			 * will refine this in the future
 			 * */
 			{
-				struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+				struct v4l2_subdev *hst_sd = lpipe->cur_cmd->sensor;
+				struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
+						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 				struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
 				struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
 
