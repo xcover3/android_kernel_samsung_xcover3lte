@@ -948,8 +948,18 @@ out:
 static void check_set_ocv_flag(struct pm88x_battery_info *info,
 			       struct ccnt *ccnt_val)
 {
-	int old_soc, vol, slp_cnt, new_soc, low_th, high_th, tmp_soc;
+	int old_soc, vol, slp_cnt, new_soc, low_th, high_th, tmp_soc, chg_status;
 	bool soc_in_good_range;
+
+	chg_status = pm88x_battery_get_charger_status(info);
+	/*
+	 * when AC charger is inserted, system can enter suspend mode,
+	 * just skip it.
+	 */
+	if (chg_status == POWER_SUPPLY_STATUS_CHARGING) {
+		dev_info(info->dev, "system enter suspend when charging.\n");
+		return;
+	}
 
 	/* save old SOC in case to recover */
 	old_soc = ROUND_SOC(ccnt_val->soc) / 10; /* 100% */
