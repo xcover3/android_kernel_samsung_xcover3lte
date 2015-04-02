@@ -715,6 +715,48 @@ out:
 	return ret;
 }
 
+static void pm88x_get_status(void)
+{
+	u8 data, buf[2];
+	int ret;
+
+	/* only for base page */
+	struct i2c_client *client = pm88x_get_chip()->client;
+	struct i2c_msg msgs[] = {
+		{
+			.addr = client->addr,
+			.flags = 0,
+			.len = 1,
+			.buf = buf,
+		},
+		{
+			.addr = client->addr,
+			.flags = I2C_M_RD,
+			.len = 1,
+			.buf = &data,
+		},
+	};
+
+	i2c_pxa_set_pinstate(client->adapter, "default");
+	i2c_set_pio_mode(client->adapter, 1);
+
+	buf[0] = PM88X_MISC_CONFIG1;
+	ret = __i2c_transfer(client->adapter, msgs, 2);
+	if (ret != 2)
+		pr_err("%s read register fails..., error code = %d\n", __func__, ret);
+
+	pr_info("1: update value: msgs->buf[0] = 0x%x, msgs->buf[1] = 0x%x\n",
+		msgs->buf[0], msgs->buf[1]);
+
+	buf[0] = PM88X_MISC_CONFIG1;
+	ret = __i2c_transfer(client->adapter, msgs, 2);
+	if (ret != 2)
+		pr_err("%s read register fails..., error code = %d\n", __func__, ret);
+
+	pr_info("2: update value: msgs->buf[0] = 0x%x, msgs->buf[1] = 0x%x\n",
+		msgs->buf[0], msgs->buf[1]);
+}
+
 void pm88x_power_off(void)
 {
 	int ret;
@@ -724,6 +766,8 @@ void pm88x_power_off(void)
 	if (ret < 0)
 		pr_err("%s power off fails", __func__);
 	pr_info("finish powering off system: this line shouldn't appear.");
+
+	pm88x_get_status();
 
 	/* wait for power off */
 	for (;;)
