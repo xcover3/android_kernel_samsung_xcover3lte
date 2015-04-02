@@ -9,3 +9,4 @@ obj-$(CONFIG_B52_CAMERA_OV5670)         += ov5670.o
 obj-$(CONFIG_B52_CAMERA_S5K5E3)         += s5k5e3.o
 obj-$(CONFIG_B52_CAMERA_OV13850R2A)	+= ov13850r2a.o
 obj-$(CONFIG_B52_CAMERA_S5K3L2)		+= s5k3l2.o
+obj-$(CONFIG_B52_CAMERA_S5K4H5)         += s5k4h5.o

@@ -71,3 +71,9 @@ config B52_CAMERA_S5K3L2
        depends on VIDEO_MMPISP_B52 && I2C
        help
        This is a V4L2 camera driver for the s5k3l2 sensor
+
+config B52_CAMERA_S5K4H5
+       tristate "S5K4H5 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+       This is a V4L2 camera driver for the s5k4h5 sensor

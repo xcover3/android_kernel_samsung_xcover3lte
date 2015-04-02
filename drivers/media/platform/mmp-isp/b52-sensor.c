@@ -373,7 +373,7 @@ static inline int __detect_sensor(const struct b52_sensor_regs *id,
 		ret = b52_sensor_isp_read(attr, id->tab[i].reg, &val, pos);
 
 		if (ret || val != id->tab[i].val) {
-			pr_debug("val: got %x, req %x\n", val, id->tab[i].val);
+			pr_err("val: got %x, req %x\n", val, id->tab[i].val);
 			return -ENODEV;
 		}
 	}
@@ -2206,6 +2206,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 	{
 		.compatible = "samsung,s5k3l2",
 		.data = &b52_s5k3l2,
+	},
+#endif
+#ifdef CONFIG_B52_CAMERA_S5K4H5
+	{
+		.compatible = "samsung,s5k4h5",
+		.data = &b52_s5k4h5,
 	},
 #endif
 	{  }
