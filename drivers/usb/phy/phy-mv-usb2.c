@@ -719,7 +719,7 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 	unsigned int tmp, val;
 
 	/* PHY_28NM_CTRL_REG0 */
-	if (cpu_is_pxa1908() || cpu_is_pxa1936()) {
+	if (cpu_is_pxa1908() || cpu_is_pxa1936() || cpu_is_pxa1956()) {
 		writel(readl(base + PHY_28NM_CTRL_REG0) |
 			((0x3) << PHY_28NM_CTRL_REG0_SHIFT),
 			base + PHY_28NM_CTRL_REG0);
@@ -786,7 +786,7 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 		base + PHY_28NM_DIG_REG0);
 
 
-	if (cpu_is_pxa1928_b0() || cpu_is_pxa1908() || cpu_is_pxa1936()) {
+	if (cpu_is_pxa1928_b0() || cpu_is_pxa1908() || cpu_is_pxa1936() || cpu_is_pxa1956()) {
 		writel(readl(base + PHY_28NM_DIG_REG0) |
 			(0x0 << PHY_28NM_DIG_SQ_FILT_SHIFT
 			| 0x0 << PHY_28NM_DIG_SQ_BLK_SHIFT
@@ -913,7 +913,7 @@ static void _mv_usb2_phy_28nm_shutdown(struct mv_usb2_phy *mv_phy)
 	val &= ~PHY_28NM_PLL_PU_PLL_MASK;
 	writew(val, base + PHY_28NM_PLL_REG1);
 
-	/* power down PHY Analog part */
+	/* need power up PHY Analog part although shutdown PHY */
 	val = readw(base + PHY_28NM_TX_REG0);
 	val |= (0x1 << PHY_28NM_TX_PU_ANA_SHIFT) | (0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT);
 	writew(val, base + PHY_28NM_TX_REG0);
@@ -924,7 +924,7 @@ static void _mv_usb2_phy_28nm_shutdown(struct mv_usb2_phy *mv_phy)
 	writew(val, base + PHY_28NM_OTG_REG);
 
 	/* PHY_28NM_CTRL_REG0 */
-	if (cpu_is_pxa1908() || cpu_is_pxa1936()) {
+	if (cpu_is_pxa1908() || cpu_is_pxa1936() || cpu_is_pxa1956()) {
 		val = readl(base + PHY_28NM_CTRL_REG0);
 		val &= ~((0x3) << PHY_28NM_CTRL_REG0_SHIFT);
 		writew(val, base + PHY_28NM_CTRL_REG0);
