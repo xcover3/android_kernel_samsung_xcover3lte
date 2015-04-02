@@ -1252,15 +1252,32 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 				ccnt_val->soc -= 10;
 		} else {
 			if (info->bat_params.volt <= info->power_off_th) {
-				if (power_off_cnt > 100) {
-					power_off_cnt = 0;
-					if (ccnt_val->soc > 0)
-						ccnt_val->soc -= 10;
-					else if (ccnt_val->soc == 0)
-						ccnt_val->soc = 10;
+				/*
+				 * low temperature
+				 * if power_off_cnt > 20, reset power_off_cnt and decrease SoC by 1% step.
+				 */
+				if (info->bat_params.temp < 0) {
+					if (power_off_cnt > 20) {
+						dev_info(info->dev, "%s: power off th voltage at low temp = %d\n",
+							 __func__, info->bat_params.volt);
+						power_off_cnt = 0;
+						if (ccnt_val->soc > 0)
+							ccnt_val->soc -= 10;
+					} else {
+						dev_info(info->dev, "hit power off cnt at low temp = %d\n", power_off_cnt);
+						power_off_cnt++;
+					}
 				} else {
-					dev_info(info->dev, "hit power off!\n");
-					power_off_cnt++;
+					if (power_off_cnt > 4) {
+						dev_info(info->dev, "%s: power off th voltage at room temp= %d\n",
+							 __func__, info->bat_params.volt);
+						power_off_cnt = 0;
+						if (ccnt_val->soc > 0)
+							ccnt_val->soc -= 10;
+					} else {
+						dev_info(info->dev, "hit power off cnt at room temp = %d\n", power_off_cnt);
+						power_off_cnt++;
+					}
 				}
 			}
 			if (info->bat_params.volt < info->safe_power_off_th) {
