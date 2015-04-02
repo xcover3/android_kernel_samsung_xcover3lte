@@ -18,7 +18,7 @@
 
 		power-off-th = <3350>;		/* mv */
 		safe-power-off-th = <3000>;	/* mv */
-
+		power-off-cnt-th = <20 4 4>; /* low-temp, standard-temp, high-temp */
 		io-channels 	 = <&gpadc 7>,  /* vbat */
 			           <&gpadc 13>, /* vbat_slp */
 				   <&gpadc 14>, /* gpadc0_res */
