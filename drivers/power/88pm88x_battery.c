@@ -1248,8 +1248,15 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 				 __func__, info->bat_params.volt);
 			/* battery voltage interrupt */
 			pm88x_bat_disable_irq(&info->irqs[1]);
-			if (ccnt_val->soc >= 10)
+			if (ccnt_val->soc > 10)
 				ccnt_val->soc -= 10;
+			else if (info->bat_params.volt < info->safe_power_off_th) {
+				/* if soc <=1, when the volt is lower than safe_power_off_th, set soc=0;
+				 * else keep soc=1.
+				 */
+				dev_info(info->dev, "%s: volt lower than safe_power_off_th\n", __func__);
+				ccnt_val->soc = 0;
+			}
 		} else {
 			if (info->bat_params.volt <= info->power_off_th) {
 				/*
