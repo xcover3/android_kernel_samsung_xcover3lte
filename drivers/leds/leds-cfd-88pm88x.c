@@ -366,28 +366,45 @@ static void torch_on(struct pm88x_led *led)
 static void cfd_pls_off(struct pm88x_led *led)
 {
 	struct pm88x_chip *chip;
+	unsigned int reg_add, reg_val;
+	unsigned int cfd_state = 0;
 
 	chip = led->chip;
 
 	mutex_lock(&led->lock);
+
+	switch (chip->type) {
+	case PM886:
+		reg_add = PM886_CFD_CONFIG4;
+		break;
+	case PM880:
+		reg_add = PM880_CFD_CONFIG4;
+		break;
+	default:
+		/* use pr_err and not dev_err because while kernel shutdown
+		 * led_classdev_unregister will remove led->cdev.dev, and only
+		 * afterwards cfd_pls_off will occurred */
+		pr_err("%s: Unsupported chip type %ld\n", __func__, chip->type);
+		mutex_unlock(&led->lock);
+		return;
+	}
+
 	if (!gpio_en) {
-		switch (chip->type) {
-		case PM886:
-			/* clear CFD_PLS_ON to disable */
-			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
-				   PM88X_CF_CFD_PLS_ON, 0);
-			break;
-		case PM880:
-			/* clear CFD_PLS_ON to disable */
-			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
-				   PM88X_CF_CFD_PLS_ON, 0);
-			break;
-		default:
-			dev_err(led->cdev.dev, "Unsupported chip type %ld\n", chip->type);
-			break;
-		}
+		/* read CFD_PLS_ON status */
+		regmap_read(chip->battery_regmap, reg_add, &reg_val);
+		if (reg_val & PM88X_CF_CFD_PLS_ON)
+			cfd_state = 1;
 	} else
-		gpio_direction_output(led->cf_en, 0);
+		cfd_state = gpio_get_value(led->cf_en);
+	if (cfd_state) {
+		pr_info("%s: turning cfd off\n", __func__);
+		if (!gpio_en) {
+			/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, reg_add,
+				   PM88X_CF_CFD_PLS_ON, 0);
+		} else
+			gpio_direction_output(led->cf_en, 0);
+	}
 
 	mutex_unlock(&led->lock);
 }
@@ -397,7 +414,6 @@ static void pm88x_flash_off(struct work_struct *work)
 	struct pm88x_led *led;
 
 	led = container_of(work, struct pm88x_led, led_flash_off);
-	dev_info(led->cdev.dev, "turning flash off!\n");
 	cfd_pls_off(led);
 }
 
@@ -1308,7 +1324,6 @@ static int pm88x_led_probe(struct platform_device *pdev)
 	INIT_WORK(&led->led_flash_off, pm88x_flash_off);
 	INIT_DELAYED_WORK(&led->delayed_work, pm88x_led_delayed_work);
 
-
 	ret = led_classdev_register(&pdev->dev, &led->cdev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to register LED: %d\n", ret);
@@ -1329,6 +1344,23 @@ static int pm88x_led_remove(struct platform_device *pdev)
 {
 	struct pm88x_led *led = platform_get_drvdata(pdev);
 
+	device_remove_file(led->cdev.dev, &dev_attr_gpio_ctrl);
+
+	led_classdev_unregister(&led->cdev);
+
+	/* cancel torch on workqueue */
+	cancel_delayed_work_sync(&led->delayed_work);
+	/* led_classdev_unregister will trigger device off
+	 * so we need to flush those workqueues,
+	 * led->work for torch off.
+	 * led->led_flash_off for flash off.
+	 */
+	flush_work(&led->work);
+	flush_work(&led->led_flash_off);
+
+	if (led->led_wqueue)
+		destroy_workqueue(led->led_wqueue);
+
 	mutex_lock(&led->lock);
 
 	if (dev_num > 0)
@@ -1339,9 +1371,12 @@ static int pm88x_led_remove(struct platform_device *pdev)
 
 	mutex_unlock(&led->lock);
 
-	if (led)
-		led_classdev_unregister(&led->cdev);
 	return 0;
+}
+
+static void pm88x_led_shutdown(struct platform_device *pdev)
+{
+	pm88x_led_remove(pdev);
 }
 
 static const struct of_device_id pm88x_led_dt_match[] = {
@@ -1354,10 +1389,11 @@ static struct platform_driver pm88x_led_driver = {
 	.driver	= {
 		.owner	= THIS_MODULE,
 		.name	= "88pm88x-leds",
-		.of_match_table = of_match_ptr(pm88x_led_dt_match),
+		.of_match_table	= of_match_ptr(pm88x_led_dt_match),
 	},
 	.probe	= pm88x_led_probe,
 	.remove	= pm88x_led_remove,
+	.shutdown	= pm88x_led_shutdown,
 };
 
 module_platform_driver(pm88x_led_driver);
