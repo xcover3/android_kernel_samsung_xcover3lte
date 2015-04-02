@@ -26,6 +26,7 @@
 #include <linux/syscore_ops.h>
 #include <linux/ftrace.h>
 #include <linux/rtc.h>
+#include <linux/wakelock.h>
 #include <trace/events/power.h>
 
 #include "power.h"
@@ -41,6 +42,46 @@ static const struct platform_suspend_ops *suspend_ops;
 static bool need_suspend_ops(suspend_state_t state)
 {
 	return !!(state > PM_SUSPEND_FREEZE);
+}
+
+static bool sync_done;
+static struct wake_lock sync_wakelock;
+static DECLARE_WAIT_QUEUE_HEAD(sync_wq);
+
+static DEFINE_MUTEX(sync_lock);
+static void sync_system(struct work_struct *work);
+static DECLARE_WORK(sync_system_work, sync_system);
+struct workqueue_struct *sync_work_queue;
+
+static void sync_system(struct work_struct *work)
+{
+	printk(KERN_INFO "PM: Syncing filesystems ... ");
+	sys_sync();
+
+	mutex_lock(&sync_lock);
+	sync_done = 1;
+	mutex_unlock(&sync_lock);
+
+	wake_up(&sync_wq);
+	printk("done.\n");
+
+	if (wake_lock_active(&sync_wakelock)) {
+		wake_unlock(&sync_wakelock);
+		printk(KERN_INFO "PM: Release file syncing wake lock\n");
+	}
+
+	return;
+}
+
+static int __init suspend_sync_init(void)
+{
+	wake_lock_init(&sync_wakelock, WAKE_LOCK_SUSPEND, "sync_wakelock");
+	sync_work_queue = create_singlethread_workqueue("sync_system_work");
+	if (sync_work_queue == NULL) {
+		pr_err("%s: failed to create sync_work_queue\n", __func__);
+		return -EINVAL;
+	}
+	return 0;
 }
 
 static DECLARE_WAIT_QUEUE_HEAD(suspend_freeze_wait_head);
@@ -305,6 +346,7 @@ static void suspend_finish(void)
 	pm_restore_console();
 }
 
+
 /**
  * enter_state - Do common work needed to enter system sleep state.
  * @state: System sleep state to enter.
@@ -334,9 +376,16 @@ static int enter_state(suspend_state_t state)
 	if (state == PM_SUSPEND_FREEZE)
 		freeze_begin();
 
-	printk(KERN_INFO "PM: Syncing filesystems ... ");
-	sys_sync();
-	printk("done.\n");
+	sync_done = 0;
+	queue_work(sync_work_queue, &sync_system_work);
+	if (!wait_event_timeout(sync_wq, sync_done, msecs_to_jiffies(1000))) {
+		mutex_lock(&sync_lock);
+		/* time out happens */
+		if (!sync_done)
+			wake_lock(&sync_wakelock);
+		mutex_unlock(&sync_lock);
+		pr_info("PM: Timeout in syncing files. Will abort suspend.\n");
+	}
 
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state].label);
 	error = suspend_prepare(state);
@@ -397,3 +446,5 @@ int pm_suspend(suspend_state_t state)
 	return error;
 }
 EXPORT_SYMBOL(pm_suspend);
+
+late_initcall(suspend_sync_init);
