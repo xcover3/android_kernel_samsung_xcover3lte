@@ -53,6 +53,26 @@
 		pinctrl-single,pins = <GPIO91 AF0>;
 		MFP_PULL_LOW;
 	};
+
+	disp_func: disp_func {
+		pinctrl-single,pins = <
+			GPIO98 AF0
+			GPIO96 AF0
+		>;
+		MFP_LPM_PULL_DW;
+	};
+
+	/* keep lm3532 enable pin always high*/
+	disp_func_bklight: disp_func_bklight {
+		pinctrl-single,pins = <
+			GPIO32 AF0
+		>;
+		MFP_LPM_DRIVE_HIGH;
+	};
+};
+
+&disp {
+	pinctrl-0 = <&disp_func &disp_func_bklight>;
 };
 
 / {
