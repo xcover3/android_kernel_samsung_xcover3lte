@@ -219,6 +219,24 @@ config ARM64_ERRATUM_824069
 
 	  If unsure, say Y.
 
+config ARM64_ERRATUM_845719
+	bool "Cortex-A53: 845719: a load might read incorrect data"
+	depends on COMPAT
+	default y
+	help
+	  This option adds an alternative code sequence to avoid ARM
+	  erratum 845719 on Cortex-A53 parts up to r0p4.
+
+	  When running a compat (AArch32) userspace on an affected Cortex-A53
+	  part, a load at EL0 from a virtual address that matches the bottom 32
+	  bits of the virtual address used by a recent load at (AArch64) EL1
+	  might return incorrect data.
+
+	  The fix is to write the contextidr_el1 register on exception
+	  return to a 32-bit task.
+
+	  If unsure, say Y.
+
 endmenu
 
 config ARM64_64K_PAGES
