@@ -234,7 +234,6 @@ static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 					   int *bias_current, int *bias_voltage)
 {
 	int ret, channel, index;
-	static int prev_index = -1;
 	u8 reg;
 
 	switch (gpadc_number) {
@@ -260,28 +259,20 @@ static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 	}
 
 	/*
-	 * if it is the first time here,
 	 * set an inital bias 31uA (index=6) which should cover most cases
 	 */
-	if (prev_index == -1)
-		index = 6;
-	else
-		index = prev_index;
-
+	index = 6;
 	do {
-		if (index != prev_index) {
-			ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, index);
-			if (ret < 0)
-				return ret;
-			msleep(20);
-		}
+		ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, index);
+		if (ret < 0)
+			return ret;
+		usleep_range(20000, 30000);
 		/* uA */
 		*bias_current = 1 + index * 5;
 		ret = pm88x_gpadc_get_processed(info, channel, bias_voltage);
 		if (ret < 0)
 			return ret;
 
-		prev_index = index;
 		/* voltage too low, need to increase bias */
 		if (*bias_voltage < 300000) {
 			dev_dbg(info->chip->dev,
