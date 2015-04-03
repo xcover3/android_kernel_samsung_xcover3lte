@@ -6,6 +6,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <clocksource/arm_arch_timer.h>
 #ifdef CONFIG_CPU_MMP2
 #define CLOCK_TICK_RATE		6500000
 #else

@@ -458,6 +458,7 @@ struct timecounter *arch_timer_get_timecounter(void)
 	return &timecounter;
 }
 
+#ifdef CONFIG_ARM64
 static DEFINE_SPINLOCK(read_persistent_clock_lock);
 
 void read_persistent_clock(struct timespec *ts)
@@ -480,6 +481,7 @@ void read_persistent_clock(struct timespec *ts)
 
 	spin_unlock_irqrestore(&read_persistent_clock_lock, flags);
 }
+#endif
 
 static void __init arch_counter_register(unsigned type)
 {
