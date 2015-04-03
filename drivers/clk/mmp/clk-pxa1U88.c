@@ -657,7 +657,7 @@ static struct mmp_clk_mix_config vpubus_mix_config = {
 };
 
 static DEFINE_SPINLOCK(disp_lock);
-static const char *disp1_parent_names[] = {"pll1_624", "pll1_832", "pll1_499"};
+static const char *disp1_parent_names[] = {"pll1_624", "pll1_832", "pll1_499_en"};
 static const char *disp2_parent_names[] = {"pll2", "pll2p", "pll2_div3"};
 static const char *disp3_parent_names[] = {"pll3p", "pll3_div3"};
 static const char *disp4_parent_names[] = {"pll4", "pll4_div3"};
