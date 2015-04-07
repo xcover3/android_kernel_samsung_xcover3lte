@@ -805,6 +805,7 @@ power_off:
 
 	return ret;
 }
+#ifdef CONFIG_COMPAT
 static long hsd_bundle_core_ioctl32(struct v4l2_subdev *sd,
 				unsigned int cmd, void *arg)
 {
@@ -828,6 +829,7 @@ static long hsd_bundle_core_ioctl32(struct v4l2_subdev *sd,
 
 	return ret;
 }
+#endif
 static const struct v4l2_subdev_core_ops hsd_bundle_core_ops = {
 	.ioctl		= &hsd_bundle_core_ioctl,
 	.s_power	= &hsd_bundle_core_s_power,
