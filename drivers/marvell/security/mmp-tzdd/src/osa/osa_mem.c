@@ -722,49 +722,143 @@ osa_err_t osa_iounmap_cached(void __kernel *vir_addr, uint32_t size)
 }
 OSA_EXPORT_SYMBOL(osa_iounmap_cached);
 
-static void *_virt_to_phys_by_pg_mapping(struct mm_struct *mm, void *va)
+#ifdef CONFIG_64BIT
+#define GET_PET_ATTRIDX(pteval)		(uint32_t)(((pteval) & 0x1C) >> 2)
+#define GET_MAIR_ID(attr)		((attr) & 0x7)
+#else
+#ifdef CONFIG_ARM_LPAE
+#define GET_PET_ATTRIDX(pteval)		(uint32_t)(((pteval) & 0x1C) >> 2)
+#define GET_MAIR_NUM(attr)		(((attr) & 0x4) >> 2)
+#define GET_MAIR_ID(attr)		((attr) & 0x3)
+#else
+#define GET_PET_ATTRIDX(pteval)		(uint32_t)((((pteval) & (0x040)) >> 4) | \
+												(((pteval) & (0xC)) >> 2))
+#endif
+#endif
+static osa_err_t _virt_to_phys_by_pg_mapping_ex(struct mm_struct *mm,
+	ulong_t va, bool *cacheable, ulong_t *pa)
 {
 	pgd_t *pgd;
+	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
-
 	ulong_t pfn;
+
 #ifdef pte_offset_map_lock
 	spinlock_t *ptl;
 #endif
-	void *ret = INVALID_PHYS_ADDR;
+	void *pa_wt = INVALID_PHYS_ADDR;
+
+	uint32_t attridx;
+
+	osa_err_t ret = OSA_ERR;
 
 	down_read(&mm->mmap_sem);
 
-	pgd = pgd_offset(mm, (ulong_t) va);
-	if (!pgd_present(*pgd))
-		goto _no_pgd;
+	pgd = pgd_offset(mm, va);
+	if (pgd_none(*pgd) || pgd_bad(*pgd))
+		goto _bad_pgd;
 
-	/* pmd = pmd_offset(pgd, (ulong_t)va); */
-	/* update for kernel version */
-	pmd = pmd_offset((pud_t *) pgd, (ulong_t) va);
-	if (!pmd_present(*pmd))
-		goto _no_pmd;
+	pud = pud_offset(pgd, va);
+	if (pud_none(*pud) || pud_bad(*pud))
+		goto _bad_pud;
+
+	pmd = pmd_offset(pud, va);
+	if (pmd_none(*pmd) || pmd_bad(*pmd))
+		goto _bad_pmd;
 
 #ifdef pte_offset_map_lock
-	pte = pte_offset_map_lock(mm, pmd, (ulong_t) va, &ptl);
+	pte = pte_offset_map_lock(mm, pmd, va, &ptl);
 #else
-	pte = pte_offset_map(pmd, (ulong_t) va);
+	pte = pte_offset_map(pmd, va);
 #endif
-	if (!pte_present(*pte))
-		goto _no_pte;
+	if (pte_none(*pmd))
+		goto _non_pte;
 
-	pfn = pte_pfn(*pte);
+	pfn = pte_pfn(pte_val(*pte));
 
-	ret = (void *)((pfn << PAGE_SHIFT)
-		       + ((ulong_t) va & (~PAGE_MASK)));
-_no_pte:
+	pa_wt = (void *)((pfn << PAGE_SHIFT)
+			+ ((ulong_t) va & (~PAGE_MASK)));
+
+#ifdef CONFIG_64BIT
+	uint64_t mair;
+	uint8_t *pmair = (uint8_t *)&mair;
+	attridx = GET_PET_ATTRIDX(pte_val(*pte));
+
+	__asm__ __volatile__("mrs %0, mair_el1" : "=r"(mair) : );
+
+	if (0x0 == pmair[GET_MAIR_ID(attridx)]) {
+		/* device */
+	*cacheable = false;
+	} else if (0x44 == pmair[GET_MAIR_ID(attridx)]) {
+		*cacheable = false;
+	} else {
+		*cacheable = true;
+	}
+#else
+#ifdef CONFIG_ARM_LPAE
+	uint32_t mair;
+	uint8_t *pmair = (uint8_t *)&mair;
+	attridx = GET_PET_ATTRIDX(pte_val(*pte));
+	if (GET_MAIR_NUM(attridx)) {
+		/* MAIR1 */
+		__asm__ __volatile__("mrc p15, 0, %0, c10, c2, 1\n\t" : "=r"(mair) : );
+	} else {
+		/* MAIR0 */
+		__asm__ __volatile__("mrc p15, 0, %0, c10, c2, 0\n\t" : "=r"(mair) : );
+	}
+
+	if (0x0 == pmair[GET_MAIR_ID(attridx)]) {
+		/* device */
+		*cacheable = false;
+	} else if (0x44 == pmair[GET_MAIR_ID(attridx)]) {
+		*cacheable = false;
+	} else {
+		*cacheable = true;
+	}
+#else
+	uint32_t prrr;
+	uint32_t nmrr;
+
+	attridx = GET_PET_ATTRIDX(pte_val(*pte));
+	__asm__ __volatile__("mrc p15, 0, %0, c10, c2, 0\n\t" : "=r"(prrr) : );
+	__asm__ __volatile__("mrc p15, 0, %0, c10, c2, 1\n\t" : "=r"(nmrr) : );
+
+	if (attridx == 6) {
+		OSA_ASSERT(0);
+	}
+
+	if ((prrr & (0x3 << (2*attridx))) == (0x1 << (2*attridx))) {
+		/* device */
+		*cacheable = false;
+	} else if ((prrr & (0x3 << (2*attridx))) == (0x00 << (2*attridx))) {
+		/* Strongly-ordered. */
+		*cacheable = false;
+	} else if ((prrr & (0x3 << (2*attridx))) == (0x10 << (2*attridx))) {
+		/* Normal memory. */
+		if (((nmrr & (0x3 << (2*attridx))) == (0x0 << (2*attridx))) &&
+			((nmrr & (0x3 << (2*attridx + 16))) == (0x0 << (2*attridx + 16)))) {
+			*cacheable = false;
+		} else {
+			*cacheable = true;
+		}
+	} else {
+		OSA_ASSERT(0);
+	}
+#endif
+#endif
+
+	*pa = pa_wt;
+	ret = OSA_OK;
+
+_non_pte:
 #ifdef pte_offset_map_lock
 	pte_unmap_unlock(pte, ptl);
 #endif
 
-_no_pmd:
-_no_pgd:
+_bad_pmd:
+_bad_pud:
+_bad_pgd:
 	up_read(&mm->mmap_sem);
 
 	return ret;
@@ -772,47 +866,7 @@ _no_pgd:
 
 #define PHYS_ADDR_BITS (0xFFFFFFFFFFFF)
 
-static void *_osa_virt_to_phys_by_cp15(ulong_t virt)
-{
-#ifdef CONFIG_64BIT
-	volatile ulong_t ret;
-	ulong_t flags;
-
-	spin_lock_irqsave(&_g_pg_walk_by_cp15_lock, flags);
-
-	if (virt > VMALLOC_START)
-		__asm__ __volatile__("at s1e1r, %0" : : "r"(virt));
-	else
-		__asm__ __volatile__("at s1e0r, %0" : : "r"(virt));
-
-	__asm__ __volatile__("mrs %0, par_el1" : "=r"(ret) : );
-
-	spin_unlock_irqrestore(&_g_pg_walk_by_cp15_lock, flags);
-
-	ret &= ~(PAGE_SIZE - 1);
-	ret |= (virt & (PAGE_SIZE - 1));
-	ret &= PHYS_ADDR_BITS;
-
-	return (void *)ret;
-#else
-	ulong_t flags;
-	volatile ulong_t ret;
-
-	spin_lock_irqsave(&_g_pg_walk_by_cp15_lock, flags);
-
-	/* fail to get the phys_addr when using 0, c7, c8, 1 */
-	__asm__ __volatile__("mcr p15, 0, %1, c7, c8, 0\n\t"
-		"mrc p15, 0, %0, c7, c4, 0\n\t" : "=r"(ret) : "r"
-		(virt));
-
-	spin_unlock_irqrestore(&_g_pg_walk_by_cp15_lock, flags);
-
-	ret &= ~(PAGE_SIZE - 1);
-	ret |= (virt & (PAGE_SIZE - 1));
-
-	return (void *)ret;
-#endif
-}
+#define PAR_FAULT  (0x1)
 
 #ifdef CONFIG_64BIT
 typedef union {
@@ -824,6 +878,16 @@ typedef union {
 	ulong_t all;
 } phy_addr_reg;
 #else
+#ifdef CONFIG_ARM_LPAE
+typedef union {
+	struct {
+		unsigned long long  rsvd:56;
+		uint32_t inner:4;
+		uint32_t outer:4;
+	} bits;
+	unsigned long long all;
+} phy_addr_reg;
+#else
 typedef union {
 	struct {
 		ulong_t  rsvd:2;
@@ -833,14 +897,16 @@ typedef union {
 	uint32_t all;
 } phy_addr_reg;
 #endif
+#endif
 
 /* FIXME - cacheable may be wrong! */
-static void *_osa_virt_to_phys_by_cp15_ex(
+static osa_err_t _osa_virt_to_phys_by_cp15_ex(
 	ulong_t virt,
-	bool *cacheable)
+	bool *cacheable,
+	ulong_t *phys)
 {
 #ifdef CONFIG_64BIT
-	volatile ulong_t ret;
+	volatile ulong_t pardata;
 	phy_addr_reg par;
 	ulong_t flags;
 
@@ -851,50 +917,92 @@ static void *_osa_virt_to_phys_by_cp15_ex(
 	else
 		__asm__ __volatile__("at s1e0r, %0" : : "r"(virt));
 
-	__asm__ __volatile__("mrs %0, par_el1" : "=r"(ret) : );
+	__asm__ __volatile__("mrs %0, par_el1" : "=r"(pardata) : );
 
 	spin_unlock_irqrestore(&_g_pg_walk_by_cp15_lock, flags);
 
-	par.all = ret;
+	if (PAR_FAULT & pardata)
+		return OSA_ERR;
+
+	par.all = pardata;
 	if (par.bits.outer == 0x4 &&
 		par.bits.inner == 0x4)
 		*cacheable = false;
 	else
 		*cacheable = true;
 
-	ret &= ~(PAGE_SIZE - 1);
-	ret |= (virt & (PAGE_SIZE - 1));
-	ret &= PHYS_ADDR_BITS;
+	pardata &= ~(PAGE_SIZE - 1);
+	pardata |= (virt & (PAGE_SIZE - 1));
+	pardata &= PHYS_ADDR_BITS;
 
-	return (void *)ret;
+	*phys = pardata;
+
+	return OSA_OK;
 #else
-
+#ifdef CONFIG_ARM_LPAE
 	ulong_t flags;
-	volatile ulong_t ret;
+	volatile unsigned long long pardata;
 	phy_addr_reg par;
 
 	spin_lock_irqsave(&_g_pg_walk_by_cp15_lock, flags);
 
 	/* fail to get the phys_addr when using 0, c7, c8, 1 */
 	__asm__ __volatile__("mcr p15, 0, %1, c7, c8, 0\n\t"
-		"mrc p15, 0, %0, c7, c4, 0\n\t" : "=r"(ret) : "r"
+		"mrrc p15, 0, %Q0, %R0, c7\n\t" : "=r"(pardata) : "r"
 		(virt));
 
 	spin_unlock_irqrestore(&_g_pg_walk_by_cp15_lock, flags);
 
-	par.all = ret;
+	if (PAR_FAULT & pardata)
+		return OSA_ERR;
+
+	par.all = pardata;
+	if (par.bits.outer == 0x4 &&
+		par.bits.inner == 0x4)
+		*cacheable = false;
+	else
+		*cacheable = true;
+
+	pardata &= ~(PAGE_SIZE - 1);
+	pardata |= (virt & (PAGE_SIZE - 1));
+	pardata &= PHYS_ADDR_BITS;
+
+	*phys = pardata;
+
+	return OSA_OK;
+#else
+	ulong_t flags;
+	volatile ulong_t pardata;
+	phy_addr_reg par;
+
+	spin_lock_irqsave(&_g_pg_walk_by_cp15_lock, flags);
+
+	/* fail to get the phys_addr when using 0, c7, c8, 1 */
+	__asm__ __volatile__("mcr p15, 0, %1, c7, c8, 0\n\t"
+		"mrc p15, 0, %0, c7, c4, 0\n\t" : "=r"(pardata) : "r"
+		(virt));
+
+	spin_unlock_irqrestore(&_g_pg_walk_by_cp15_lock, flags);
+
+	if (PAR_FAULT & pardata)
+		return OSA_ERR;
+
+	par.all = pardata;
 	if (par.bits.outer == 0x0 &&
-	   (par.bits.inner & 0x4) == 0x0)
+		(par.bits.inner & 0x4) == 0x0)
 		*cacheable = false;
 	else if (par.bits.outer > 0x0 &&
-		    (par.bits.inner & 0x4) == 0x4)
+			(par.bits.inner & 0x4) == 0x4)
 		*cacheable = true;
 	else
 		OSA_ASSERT(0);
-	ret &= ~(PAGE_SIZE - 1);
-	ret |= (virt & (PAGE_SIZE - 1));
+	pardata &= ~(PAGE_SIZE - 1);
+	pardata |= (virt & (PAGE_SIZE - 1));
 
-	return (void *)ret;
+	*phys = pardata;
+
+	return OSA_OK;
+#endif
 #endif
 }
 
@@ -911,25 +1019,29 @@ static void *_osa_virt_to_phys_by_cp15_ex(
  */
 void *osa_virt_to_phys(void *virt_addr)
 {
-	if ((ulong_t) virt_addr < PAGE_OFFSET)
-		return _virt_to_phys_by_pg_mapping(current->mm, virt_addr);
-	else if (virt_addr < high_memory)
-		return (void *)__virt_to_phys((unsigned long)virt_addr);
-	else
-		return _osa_virt_to_phys_by_cp15((ulong_t) virt_addr);
-
+	bool cacheable;
+	return osa_virt_to_phys_ex(virt_addr, &cacheable);
 }
 OSA_EXPORT_SYMBOL(osa_virt_to_phys);
 
 void *osa_virt_to_phys_ex(void *virt_addr, bool *cacheable)
 {
+	osa_err_t ret;
+	ulong_t pa;
+
 	if (virt_addr < high_memory &&
 		(ulong_t) virt_addr >= PAGE_OFFSET) {
 		*cacheable = true;
 		return (void *)__virt_to_phys((ulong_t)virt_addr);
-	} else
-		return _osa_virt_to_phys_by_cp15_ex(
-			(ulong_t) virt_addr, cacheable);
+	} else {
+		ret = _osa_virt_to_phys_by_cp15_ex((ulong_t)virt_addr, cacheable, &pa);
+		if (ret != OSA_OK) {
+		ret = _virt_to_phys_by_pg_mapping_ex(current->mm,
+				(ulong_t)virt_addr, cacheable, &pa);
+		}
+		OSA_ASSERT(ret == OSA_OK);
+		return (void *)pa;
+	}
 }
 OSA_EXPORT_SYMBOL(osa_virt_to_phys_ex);
 
