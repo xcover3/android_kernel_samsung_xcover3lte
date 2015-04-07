@@ -301,7 +301,7 @@ static int mmp_cpufreq_init(struct cpufreq_policy *policy)
 	 */
 	cpufreq_generic_init(policy, freq_table, 10 * 1000);
 
-	policy->cur = cpufreq_generic_get(policy->cpu);
+	policy->cur = clk_get_rate(policy->clk) / 1000;
 
 	if (!pm_qos_request_active(&cpufreq_qos_req_min))
 		pm_qos_add_request(&cpufreq_qos_req_min,
