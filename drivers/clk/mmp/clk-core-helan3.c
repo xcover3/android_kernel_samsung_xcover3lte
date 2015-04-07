@@ -70,7 +70,6 @@ struct clk_axi {
 #define APMU_FCLSR(c)		APMU_REG(c, 0x0334)
 #define APMU_ISR(c)		APMU_REG(c, 0x00a0)
 #define APMU_DEBUG(c)		APMU_REG(c, 0x0088)
-#define APMU_DEBUG2(c)		APMU_REG(c, 0x01b0)
 #define APMU_IMR(c)		APMU_REG(c, 0x0098)
 #define APMU_CP_CCR(c)		APMU_REG(c, 0x0000)
 #define APMU_MC_HW_SLP_TYPE(c)	APMU_REG(c, 0x00b0)
@@ -1002,11 +1001,6 @@ static void __init_fc_setting(struct core_params *core_params)
 	 */
 	regval |= (1 << 0) | (1 << 3);
 	writel(regval, APMU_DEBUG(apmu_base));
-
-	/* GNSS on Helan3 access DDR and also vote for AP FC */
-	regval = readl(APMU_DEBUG2(apmu_base));
-	regval |= (0xFFFF << 16);
-	writel(regval, APMU_DEBUG2(apmu_base));
 
 	/* clock dynamic gate enable in CKG_CTRL */
 	regval = readl(DCIU_CKG(dciu_base));
