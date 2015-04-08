@@ -276,6 +276,7 @@ int shm_rb_init(struct shm_rbctl *rbctl, struct dentry *parent)
 
 exit4:
 	shm_rb_debugfs_exit(rbctl);
+	mutex_lock(&rbctl->va_lock);
 	if (!rbctl->rx_cacheable)
 		shm_unmap(rbctl->rx_pa, rbctl->rx_va);
 	rbctl->rx_cacheable = false;
