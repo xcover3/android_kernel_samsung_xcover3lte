@@ -433,6 +433,14 @@
 				compatible = "marvell,mmp-debug";
 				reg = <0xd42a0000 0x800>;
 				version = <1>;
+				interrupts = <0 62 0x4>;
+				/*
+				 * 0x0: No mode enabled
+				 * 0x1: Enable interrupt mode
+				 * 0x2: Enable data abort mode
+				 * 0x3: Enable interrupt and data abort modes;
+				 */
+				detection_modes = <0x3>;
 			};
 
 			ccic1: ccic@d420a000 {
