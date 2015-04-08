@@ -822,7 +822,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC,
 				(3 << 4), (3 << 4), 0x0, 0, &gc_lock);
-	clk_set_rate(clk, 416000000);
+	clk_set_rate(clk, 312000000);
 	mmp_clk_add(unit, PXA1U88_CLK_GC3D, clk);
 	register_mixclk_dcstatinfo(clk);
 
@@ -839,7 +839,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC,
 				(1 << 25), (1 << 25), 0x0, 0, &gc_lock);
-	clk_set_rate(clk, 416000000);
+	clk_set_rate(clk, 312000000);
 	mmp_clk_add(unit, PXA1U88_CLK_GCSH, clk);
 	register_mixclk_dcstatinfo(clk);
 
@@ -855,7 +855,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC2D,
 				(3 << 4), (3 << 4), 0x0, 0, &gc2d_lock);
-	clk_set_rate(clk, 208000000);
+	clk_set_rate(clk, 156000000);
 	mmp_clk_add(unit, PXA1U88_CLK_GC2D, clk);
 	register_mixclk_dcstatinfo(clk);
 
@@ -868,7 +868,7 @@ static void pxa1U88_axi_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apmu_base + APMU_GC2D,
 				(1 << 3), (1 << 3), 0x0, 0, &gc2d_lock);
-	clk_set_rate(clk, 416000000);
+	clk_set_rate(clk, 312000000);
 	mmp_clk_add(unit, PXA1U88_CLK_GCBUS, clk);
 
 	vpufclk_mix_config.reg_info.reg_clk_ctrl =
