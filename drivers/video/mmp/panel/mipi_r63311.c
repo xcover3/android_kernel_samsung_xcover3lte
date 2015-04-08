@@ -445,6 +445,7 @@ static int r63311_probe(struct platform_device *pdev)
 			pr_debug("panel %s has ddrfreq min request: %u\n",
 				 panel_r63311.name, panel_r63311.ddrfreq_qos);
 		}
+#endif
 		ret = of_property_read_u32(np, "mipi-backlight-max_brightness",
 				&panel_r63311.max_brightness);
 		if (ret < 0) {
@@ -463,7 +464,6 @@ static int r63311_probe(struct platform_device *pdev)
 			"min brightness not found, set default as %u\n",
 					panel_r63311.min_brightness);
 		}
-#endif
 	} else {
 		/* get configs from platform data */
 		mi = pdev->dev.platform_data;
