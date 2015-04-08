@@ -665,10 +665,10 @@ err2:
 exit_kfree_pdata:
 	kfree(acc->pdata);
 err_mutexunlockfreedata:
-	kfree(acc);
 	mutex_unlock(&acc->lock);
-    i2c_set_clientdata(client, NULL);
-    mxc400x_acc_misc_data = NULL;
+	i2c_set_clientdata(client, NULL);
+	mxc400x_acc_misc_data = NULL;
+	kfree(acc);
 exit_alloc_data_failed:
 exit_check_functionality_failed:
 	printk(KERN_ERR "%s: Driver Init failed\n", MXC400X_ACC_DEV_NAME);
