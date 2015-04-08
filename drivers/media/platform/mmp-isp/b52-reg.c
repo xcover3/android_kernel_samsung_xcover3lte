@@ -2368,6 +2368,14 @@ int b52_cmd_read_i2c(struct b52_cmd_i2c_data *data)
 			b52_writeb((CMD_BUF_D + 2 + 4 * i), 0xff);
 			b52_writeb((CMD_BUF_D + 3 + 4 * i), 0xff);
 		}
+	} else if (data->attr->reg_len == I2C_8BIT) {
+		for (i = 0; i < data->num; i++) {
+			b52_writeb((CMD_BUF_D + 0 + 4 * i),
+					(tab[i].reg & 0xff));
+			b52_writeb((CMD_BUF_D + 1 + 4 * i), 0xff);
+			b52_writeb((CMD_BUF_D + 2 + 4 * i), 0xff);
+			b52_writeb((CMD_BUF_D + 3 + 4 * i), 0xff);
+		}
 	} else
 		pr_err("the length do not support");
 

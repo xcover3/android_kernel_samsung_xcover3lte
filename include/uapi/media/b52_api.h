@@ -78,6 +78,8 @@ enum OTP_TYPE {
 	SENSOR_TO_SENSOR = 1,
 	SENSOR_TO_ISP = 2,
 	ISP_TO_SENSOR = 3,
+	VERIFY_CRC = 4,
+	GEN_CRC = 5,
 };
 struct sensor_otp {
 	enum OTP_TYPE	otp_type;
@@ -85,6 +87,7 @@ struct sensor_otp {
 	__u16			wb_otp_len;
 	__u16			vcm_otp_len;
 	__u16			module_data_len;
+	__u32			crc_status;
 	void				*otp_data;
 	void				*module_data;
 	void				*full_otp;
