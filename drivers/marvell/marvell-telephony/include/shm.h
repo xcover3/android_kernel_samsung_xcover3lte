@@ -112,8 +112,6 @@ struct shm_skctl {
 	volatile unsigned int cp_port_fc;
 };
 
-extern struct shm_rbctl shm_rbctl[];
-
 /* get the next tx socket buffer slot */
 static inline int shm_get_next_tx_slot(struct shm_rbctl *rbctl, int slot)
 {
@@ -129,7 +127,7 @@ static inline int shm_get_next_rx_slot(struct shm_rbctl *rbctl, int slot)
 /* check if up-link free socket buffer available */
 static inline bool shm_is_xmit_full(struct shm_rbctl *rbctl)
 {
-	return __shm_is_xmit_full(rbctl->tx_skbuf_num,
+	return __shm_is_full(rbctl->tx_skbuf_num,
 		rbctl->skctl_va->ap_wptr,
 		rbctl->skctl_va->cp_rptr);
 }
@@ -137,14 +135,14 @@ static inline bool shm_is_xmit_full(struct shm_rbctl *rbctl)
 /* check if down-link socket buffer data received */
 static inline bool shm_is_recv_empty(struct shm_rbctl *rbctl)
 {
-	return __shm_is_recv_empty(rbctl->skctl_va->cp_wptr,
+	return __shm_is_empty(rbctl->skctl_va->cp_wptr,
 		rbctl->skctl_va->ap_rptr);
 }
 
 /* get free rx skbuf num */
 static inline int shm_free_rx_skbuf(struct shm_rbctl *rbctl)
 {
-	return __shm_free_rx_skbuf(rbctl->skctl_va->ap_rptr,
+	return __shm_free_slot(rbctl->skctl_va->ap_rptr,
 		rbctl->skctl_va->cp_wptr, rbctl->rx_skbuf_num);
 }
 
@@ -157,7 +155,7 @@ static inline bool shm_has_enough_free_rx_skbuf(struct shm_rbctl *rbctl)
 /* get free tx skbuf num */
 static inline int shm_free_tx_skbuf(struct shm_rbctl *rbctl)
 {
-	return __shm_free_tx_skbuf(rbctl->skctl_va->cp_rptr,
+	return __shm_free_slot(rbctl->skctl_va->cp_rptr,
 		rbctl->skctl_va->ap_wptr, rbctl->tx_skbuf_num);
 }
 

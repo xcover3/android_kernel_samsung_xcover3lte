@@ -31,30 +31,20 @@ static inline int __shm_get_next_slot(int total, int slot)
 }
 
 /* check if ring buffer available */
-static inline bool __shm_is_xmit_full(int total, int ap_wptr, int cp_rptr)
+static inline bool __shm_is_full(int total, int wptr, int rptr)
 {
-	return __shm_get_next_slot(total, ap_wptr) == cp_rptr;
+	return __shm_get_next_slot(total, wptr) == rptr;
 }
 
-/* check if down-link socket buffer data received */
-static inline bool __shm_is_recv_empty(int cp_wptr, int ap_rptr)
+/* check if ring buffer empty */
+static inline bool __shm_is_empty(int wptr, int rptr)
 {
-	return cp_wptr == ap_rptr;
+	return wptr == rptr;
 }
 
-/* get free rx num */
-static inline int __shm_free_rx_skbuf(int ap_rptr, int cp_wptr, int total)
+static inline int __shm_free_slot(int rptr, int wptr, int total)
 {
-	int free = ap_rptr - cp_wptr;
-	if (free <= 0)
-		free += total;
-	return free;
-}
-
-/* get free tx num */
-static inline int __shm_free_tx_skbuf(int cp_rptr, int ap_wptr, int total)
-{
-	int free = cp_rptr - __shm_get_next_slot(total, ap_wptr);
+	int free = rptr - __shm_get_next_slot(total, wptr);
 	if (free < 0)
 		free += total;
 	return free;
