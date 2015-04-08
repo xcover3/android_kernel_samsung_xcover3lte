@@ -146,7 +146,9 @@ static unsigned int delay_flash_timer;
 struct pm88x_led {
 	struct led_classdev cdev;
 	struct work_struct work;
+	struct work_struct led_flash_off;
 	struct delayed_work delayed_work;
+	struct workqueue_struct *led_wqueue;
 	struct pm88x_chip *chip;
 	struct mutex lock;
 #define MFD_NAME_SIZE		(40)
@@ -387,8 +389,11 @@ static void cfd_pls_off(struct pm88x_led *led)
 	mutex_unlock(&led->lock);
 }
 
-static void flash_off(struct pm88x_led *led)
+static void pm88x_flash_off(struct work_struct *work)
 {
+	struct pm88x_led *led;
+
+	led = container_of(work, struct pm88x_led, led_flash_off);
 	dev_info(led->cdev.dev, "turning flash off!\n");
 	cfd_pls_off(led);
 }
@@ -672,14 +677,14 @@ static void pm88x_led_bright_set(struct led_classdev *cdev,
 	if (value == 0) {
 		led->brightness = 0;
 		/*
-		 * The reason to turn off the flash here and not in the workqueue:
+		 * The reason to turn off the flash here and not in the system workqueue:
 		 * While turning on the flash + usb connected, the strobe_flash function
-		 * will sleep untill the flash will be off, and adding flash_off to workqueue
-		 * will occured only after that. To turn off the flash right, it should be
-		 * done out of the workqueue.
+		 * will sleep untill the flash will be off, and adding flash_off to system
+		 * workqueue will occured only after that. To turn off the flash right, it
+		 * should be done out of the system workqueue.
 		 */
 		if (led->id == PM88X_FLASH_LED) {
-			flash_off(led);
+			queue_work(led->led_wqueue, &led->led_flash_off);
 			return;
 		}
 	} else {
@@ -1271,7 +1276,13 @@ static int pm88x_led_probe(struct platform_device *pdev)
 	dev_num++;
 	mutex_unlock(&led->lock);
 
+	led->led_wqueue = create_singlethread_workqueue("88pm88x-led-wq");
+	if (!led->led_wqueue) {
+		dev_err(&pdev->dev, "%s: failed to create wq.\n", __func__);
+		return -ESRCH;
+	}
 	INIT_WORK(&led->work, pm88x_led_work);
+	INIT_WORK(&led->led_flash_off, pm88x_flash_off);
 	INIT_DELAYED_WORK(&led->delayed_work, pm88x_led_delayed_work);
 
 
