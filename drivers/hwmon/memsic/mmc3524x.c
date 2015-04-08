@@ -502,7 +502,7 @@ static struct of_device_id memsic_match_table[] = {
 };
 static int mmc3524x_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
-	//unsigned char data[16] = {0};
+	unsigned char data[16] = {0};
 	int res = 0;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -511,6 +511,13 @@ static int mmc3524x_probe(struct i2c_client *client, const struct i2c_device_id 
 		goto out;
 	}
 	this_client = client;
+
+	data[0] = MMC3524X_REG_PRODUCTID_1;
+	if (mmc3xxx_i2c_rx_data(data, 1) < 0) {
+		res = -EFAULT;
+		pr_err("mmc3524x read production id failed\n");
+		goto out;
+	}
 
 	res = misc_register(&mmc3524x_device);
 	if (res) {
