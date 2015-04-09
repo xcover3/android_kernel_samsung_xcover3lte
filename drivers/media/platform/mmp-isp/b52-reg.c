@@ -63,7 +63,7 @@ static inline void __b52_enable_mac_clk(u8 mac_id, int enable);
 static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num);
 static int b52_set_vcm_reg(struct v4l2_subdev *sd, int p_num);
 static struct delayed_work rdy_work;
-#define FRAME_TIME_MS 10
+#define FRAME_TIME_MS 50
 
 #ifdef CONFIG_ISP_USE_TWSI3
 static void *sensor;
