@@ -280,6 +280,15 @@ static int hotplug_freq_notifier_call(struct notifier_block *nb,
 	return 0;
 }
 
+static int cpufreq_qos_max_notify(struct notifier_block *nb,
+				      unsigned long max, void *data)
+{
+	mutex_lock(&hotplug_stat_lock);
+	max_performance = NUM_CPUS * max;
+	mutex_unlock(&hotplug_stat_lock);
+	return NOTIFY_OK;
+}
+
 void hotplug_sync_idle_time(int cpu)
 {
 	struct cpu_time_info *tmp_info;
@@ -325,6 +334,10 @@ static struct notifier_block hotplug_freq_notifier = {
 
 static struct notifier_block  __refdata sthp_cpu_notifier = {
 	.notifier_call = sthp_cpu_callback,
+};
+
+static struct notifier_block cpufreq_qos_max_notifier = {
+	.notifier_call = cpufreq_qos_max_notify,
 };
 
 static void __ref hotplug_timer(struct work_struct *work)
@@ -712,6 +725,8 @@ static int __init stand_alone_hotplug_init(void)
 	if (ret)
 		goto err_cpufreq_register_notifier;
 
+	pm_qos_add_notifier(PM_QOS_CPUFREQ_MAX, &cpufreq_qos_max_notifier);
+
 	/* register cpu hotplug notifier call */
 	ret = register_hotcpu_notifier(&sthp_cpu_notifier);
 	if (ret)
@@ -788,6 +803,7 @@ err_kobject_init_and_add:
 	cancel_delayed_work(&hotplug_work);
 	unregister_hotcpu_notifier(&sthp_cpu_notifier);
 err_hotplug_register_notifier:
+	pm_qos_remove_notifier(PM_QOS_CPUFREQ_MAX, &cpufreq_qos_max_notifier);
 	cpufreq_unregister_notifier(&hotplug_freq_notifier,
 				    CPUFREQ_TRANSITION_NOTIFIER);
 err_cpufreq_register_notifier:
