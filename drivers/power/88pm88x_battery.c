@@ -1130,6 +1130,13 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 			/* by pass the coulom counter for ccnt_val->soc */
 			ccnt_val->bypass_cc = true;
 		}
+	} else {
+		/*
+		 * when temp_is_fine or temp_ever_low is false, we should disable bypass_cc
+		 * otherwise, when battery changed from full to discharging,
+		 * SoC will keep full all the time.
+		 */
+		ccnt_val->bypass_cc = false;
 	}
 
 	/* offset are multipled by 10 times becasue the soc now is 1000% */
@@ -1221,7 +1228,12 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 			ccnt_val->soc = 1000;
 			ccnt_val->real_soc = 1000;
 			info->bat_params.status = POWER_SUPPLY_STATUS_FULL;
+
+			ccnt_val->last_cc = ccnt_val->max_cc;
+			/* also align the real_last_cc for low temperature scenario */
+			ccnt_val->real_last_cc = ccnt_val->max_cc;
 		}
+		ccnt_val->bypass_cc = true;
 		dev_dbg(info->dev, "%s: after: full-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
 		break;
@@ -1230,7 +1242,6 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 	default:
 		dev_dbg(info->dev, "%s: before: discharging-->capacity: %d%%\n",
 			__func__, ccnt_val->soc);
-
 		pm88x_battery_correct_low_temp(info, ccnt_val);
 
 		/*
@@ -1340,15 +1351,6 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		 * ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
 		 */
 		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc);
-	}
-
-	/* align the last_cc to max_cc when the *charger status is FULL */
-	if (chg_status == POWER_SUPPLY_STATUS_FULL) {
-		dev_info(info->dev, "%s: before align last_cc = %d\n",
-			 __func__, ccnt_val->last_cc);
-		ccnt_val->last_cc = ccnt_val->max_cc;
-		/* also align the real_last_cc for low temperature scenario */
-		ccnt_val->real_last_cc = ccnt_val->max_cc;
 	}
 
 	/* corner case: we need 1% step */
