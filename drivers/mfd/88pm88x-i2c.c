@@ -120,49 +120,9 @@ static const struct i2c_device_id pm88x_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, pm88x_i2c_id);
 
-static int get_fuse_suspend_voltage(void)
-{
-	unsigned int volt_fuseinfo = 0;
-
-	volt_fuseinfo = get_skusetting();
-
-	switch (volt_fuseinfo) {
-	case 0x20: /*100000*/
-	case 0x3e: /*111110*/
-	case 0x38: /*111000*/
-		return 700000;
-	case 0x30: /*110000*/
-	case 0x3f: /*111111*/
-	case 0x3c: /*111100*/
-	case 0x0:  /*000000*/
-		return 800000;
-	default:
-		return 700000;
-	}
-}
-
-static int get_fuse_suspend_voltage_helan3(void)
-{
-	unsigned int volt_fuseinfo = 0;
-
-	volt_fuseinfo = get_skusetting();
-
-	switch (volt_fuseinfo) {
-		case 0x1:
-			return 700000;
-		case 0x0:
-		case 0x2:
-			return 800000;
-		default:
-			return 800000;
-	}
-}
-
 #ifdef CONFIG_PM_SLEEP
 static int pm88x_i2c_suspend(struct device *dev)
 {
-	struct i2c_client *client = container_of(dev, struct i2c_client, dev);
-	struct pm88x_chip *chip = i2c_get_clientdata(client);
 	struct regulator *buck1slp;
 	static bool first_suspend;
 	int fuse_slpvolt = 0;
@@ -178,18 +138,9 @@ static int pm88x_i2c_suspend(struct device *dev)
 			}
 
 			pr_info("%s: buck1_sleep is configured by AP.\n", __func__);
-			switch (chip->type) {
-			case PM880:
-				fuse_slpvolt = get_fuse_suspend_voltage_helan3();
-				regulator_set_voltage(buck1slp, fuse_slpvolt, fuse_slpvolt);
-				break;
-			case PM886:
-			default:
-				/* set according to SOC fuse */
-				fuse_slpvolt = get_fuse_suspend_voltage();
-				regulator_set_voltage(buck1slp, fuse_slpvolt, fuse_slpvolt);
-				break;
-			}
+
+			fuse_slpvolt = get_fuse_suspd_voltage();
+			regulator_set_voltage(buck1slp, fuse_slpvolt, fuse_slpvolt);
 			regulator_put(buck1slp);
 
 			buck1slp_ever_used_by_map = false;
