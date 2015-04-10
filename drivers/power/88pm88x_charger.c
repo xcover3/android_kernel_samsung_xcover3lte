@@ -1137,7 +1137,7 @@ static struct platform_driver pm88x_charger_driver = {
 	.shutdown = pm88x_charger_shutdown,
 	.driver = {
 		.owner = THIS_MODULE,
-		.name = "88pm886-charger",
+		.name = "88pm88x-charger",
 		.of_match_table = of_match_ptr(pm88x_chg_dt_match),
 	},
 };
