@@ -52,8 +52,6 @@
 		compatible = "marvell,88pm880-buck6";
 		regulator-min-microvolt = <600000>;
 		regulator-max-microvolt = <3300000>;
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	buck7: regulator-buck7 {
 		compatible = "marvell,88pm880-buck7";
