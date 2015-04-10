@@ -28,6 +28,8 @@
 /* max current in sleep */
 #define MAX_SLEEP_CURRENT	5000
 
+/* BUCK enable2 register offset relative to enable1 register */
+#define PM88X_BUCK_EN2_OFF	(0x06)
 /* ------------- 88pm886 buck registers --------------- */
 
 /* buck voltage */
@@ -146,6 +148,55 @@ struct pm88x_regulators {
 	struct regulator_dev *rdev;
 	struct pm88x_chip *chip;
 	struct regmap *map;
+};
+
+struct pm88x_buck_print {
+	char name[15];
+	char enable[15];
+	char slp_mode[15];
+	char set_slp[15];
+	char volt[10];
+	char audio_en[15];
+	char audio[10];
+};
+
+struct pm88x_buck_extra {
+	const char *name;
+	bool dvc;
+	u8 audio_enable_reg;
+	u8 audio_enable_mask;
+	u8 audio_enable_off;
+	u8 audio_vsel_reg;
+	u8 audio_vsel_mask;
+};
+
+#define PM88X_BUCK_EXTRA(_name, _dvc, _areg, _amsk, _aoff, _vreg, _vmsk)	\
+{										\
+	.name			= _name,					\
+	.dvc			= _dvc,						\
+	.audio_enable_reg	= _areg,					\
+	.audio_enable_mask	= _amsk,					\
+	.audio_enable_off	= _aoff,					\
+	.audio_vsel_reg		= _vreg,					\
+	.audio_vsel_mask	= _vmsk						\
+}
+
+static struct pm88x_buck_extra pm886_buck_extra_info[] = {
+	PM88X_BUCK_EXTRA("BUCK1", 1, 0xa4, 0x80, 0x07, 0xa4, 0x7f),
+	PM88X_BUCK_EXTRA("BUCK2", 0, 0xb2, 0x80, 0x07, 0xb2, 0x7f),
+	PM88X_BUCK_EXTRA("BUCK3", 0, 0xc0, 0x80, 0x07, 0xc0, 0x7f),
+	PM88X_BUCK_EXTRA("BUCK4", 0, 0, 0, 0, 0, 0),
+	PM88X_BUCK_EXTRA("BUCK5", 0, 0, 0, 0, 0, 0),
+};
+
+static struct pm88x_buck_extra pm880_buck_extra_info[] = {
+	PM88X_BUCK_EXTRA("BUCK1A", 1, 0x27, 0x80, 0x07, 0x27, 0x7f),
+	PM88X_BUCK_EXTRA("BUCK2", 0, 0x57, 0x80, 0x07, 0x57, 0x7f),
+	PM88X_BUCK_EXTRA("BUCK3", 0, 0x6f, 0x80, 0x07, 0x6f, 0x7f),
+	PM88X_BUCK_EXTRA("BUCK4", 0, 0, 0, 0, 0, 0),
+	PM88X_BUCK_EXTRA("BUCK5", 0, 0, 0, 0, 0, 0),
+	PM88X_BUCK_EXTRA("BUCK6", 0, 0, 0, 0, 0, 0),
+	PM88X_BUCK_EXTRA("BUCK7", 1, 0, 0, 0, 0, 0),
 };
 
 #define BUCK_OFF		(0x0)
@@ -336,6 +387,236 @@ static const struct of_device_id pm88x_bucks_of_match[] = {
 	PM880_BUCK_OF_MATCH("marvell,88pm880-buck6", BUCK6),
 	PM880_BUCK_OF_MATCH("marvell,88pm880-buck7", BUCK7),
 };
+
+/*
+ * The function convert the buck voltage register value
+ * to a real voltage value (in uV) according to the voltage table.
+ */
+static int pm88x_get_vbuck_vol(unsigned int val, struct pm88x_buck_info *info)
+{
+	const struct regulator_linear_range *range;
+	int i, volt = -EINVAL;
+
+	/* get the voltage via the register value */
+	for (i = 0; i < info->desc.n_linear_ranges; i++) {
+		range = &info->desc.linear_ranges[i];
+		if (!range)
+			return -EINVAL;
+
+		if (val >= range->min_sel && val <= range->max_sel) {
+			volt = (val - range->min_sel) * range->uV_step + range->min_uV;
+			break;
+		}
+	}
+	return volt;
+}
+
+/* The function check if the regulator register is configured to enable/disable */
+static int pm88x_check_en(struct pm88x_chip *chip, unsigned int reg, unsigned int mask,
+			unsigned int reg2)
+{
+	struct regmap *map = chip->buck_regmap;
+	int ret, value;
+	unsigned int enable1, enable2;
+
+	ret = regmap_read(map, reg, &enable1);
+	if (ret < 0)
+		return ret;
+
+	ret = regmap_read(map, reg2, &enable2);
+	if (ret < 0)
+		return ret;
+
+	value = (enable1 | enable2) & mask;
+
+	return value;
+}
+
+/* The function check the regulator sleep mode as configured in his register */
+static int pm88x_check_slp_mode(struct regmap *map, unsigned int reg, int off)
+{
+	int ret;
+	unsigned int slp_mode;
+
+	ret = regmap_read(map, reg, &slp_mode);
+	if (ret < 0)
+		return ret;
+
+	slp_mode = (slp_mode >> off) & 0x3;
+
+	return slp_mode;
+}
+
+/* The function return the value in the regulator voltage register */
+static unsigned int pm88x_check_vol(struct regmap *map, unsigned int reg, unsigned int mask)
+{
+	int ret;
+	unsigned int vol_val;
+
+	ret = regmap_bulk_read(map, reg, &vol_val, 1);
+	if (ret < 0)
+		return ret;
+
+	/* mask and shift the relevant value from the register */
+	vol_val = (vol_val & mask) >> (ffs(mask) - 1);
+
+	return vol_val;
+}
+
+static int pm88x_update_print(struct pm88x_chip *chip, struct pm88x_buck_info *info,
+			      struct pm88x_buck_extra *extra, struct pm88x_buck_print *print_temp,
+			      int index, int buck_num)
+{
+	int ret, volt;
+	struct regmap *map = chip->buck_regmap;
+	char *slp_mode_str[] = {"off", "active_slp", "sleep", "active"};
+	int slp_mode_num = ARRAY_SIZE(slp_mode_str);
+
+	sprintf(print_temp->name, "%s", info[index].desc.name);
+
+	/* check enable/disable */
+	ret = pm88x_check_en(chip, info[index].desc.enable_reg, info[index].desc.enable_mask,
+			     info[index].desc.enable_reg + PM88X_BUCK_EN2_OFF);
+	if (ret < 0)
+		return ret;
+	else if (ret)
+		strcpy(print_temp->enable, "enable");
+	else
+		strcpy(print_temp->enable, "disable");
+
+	if (!strcmp(print_temp->name, "BUCK1A")) {
+		sprintf(print_temp->slp_mode, " VR");
+		sprintf(print_temp->set_slp, " VR");
+	} else {
+		/* check sleep mode */
+		ret = pm88x_check_slp_mode(map, info[index].sleep_enable_reg,
+					   info[index].sleep_enable_off);
+		if (ret < 0)
+			return ret;
+		if (ret < slp_mode_num)
+			strcpy(print_temp->slp_mode, slp_mode_str[ret]);
+		else
+			strcpy(print_temp->slp_mode, "unknown");
+
+		/* print sleep voltage */
+		ret = pm88x_check_vol(map, info[index].sleep_vsel_reg, info[index].sleep_vsel_mask);
+		if (ret < 0)
+			return ret;
+
+		volt = pm88x_get_vbuck_vol(ret, &info[index]);
+		if (volt < 0)
+			return volt;
+		else
+			sprintf(print_temp->set_slp, "%4d", volt/1000);
+	}
+
+	/* print active voltage(s) */
+	if (extra[index].dvc) {
+		sprintf(print_temp->volt, " DVC ");
+	} else {
+		ret = pm88x_check_vol(map, info[index].desc.vsel_reg,
+				      info[index].desc.vsel_mask);
+		if (ret < 0)
+			return ret;
+
+		volt = pm88x_get_vbuck_vol(ret, &info[index]);
+		if (volt < 0)
+			return volt;
+		else
+			sprintf(print_temp->volt, "%4d", volt/1000);
+	}
+
+	/* print audio voltage */
+	if (extra[index].audio_enable_reg) {
+		ret = pm88x_check_en(chip, extra[index].audio_enable_reg,
+				     extra[index].audio_enable_mask,
+				     extra[index].audio_enable_reg);
+		if (ret < 0)
+			return ret;
+		else if (ret)
+			strcpy(print_temp->audio_en, "enable");
+		else
+			strcpy(print_temp->audio_en, "disable");
+
+		ret = pm88x_check_vol(map, extra[index].audio_vsel_reg,
+				      extra[index].audio_vsel_mask);
+		if (ret < 0)
+			return ret;
+
+		volt = pm88x_get_vbuck_vol(ret, &info[index]);
+		if (volt < 0)
+			return volt;
+		else
+			sprintf(print_temp->audio, "%4d", volt/1000);
+	} else {
+		strcpy(print_temp->audio_en, "   -   ");
+		sprintf(print_temp->audio, "  -");
+	}
+
+	return 0;
+}
+
+int pm88x_display_buck(struct pm88x_chip *chip, char *buf)
+{
+	struct pm88x_buck_print *print_temp;
+	struct pm88x_buck_info *info;
+	struct pm88x_buck_extra *extra;
+	int buck_num, i, len = 0;
+	ssize_t ret;
+
+	switch (chip->type) {
+	case PM886:
+		info = pm886_buck_configs;
+		extra = pm886_buck_extra_info;
+		buck_num = ARRAY_SIZE(pm886_buck_configs);
+		break;
+	case PM880:
+		info = pm880_buck_configs;
+		extra = pm880_buck_extra_info;
+		buck_num = ARRAY_SIZE(pm880_buck_configs);
+		break;
+	default:
+		pr_err("%s: Cannot find chip type.\n", __func__);
+		return -ENODEV;
+	}
+
+	print_temp = kmalloc(sizeof(struct pm88x_buck_print), GFP_KERNEL);
+	if (!print_temp) {
+		pr_err("%s: Cannot allocate print template.\n", __func__);
+		return -ENOMEM;
+	}
+
+	len += sprintf(buf + len, "\nBUCK");
+	len += sprintf(buf + len, "\n-----------------------------------");
+	len += sprintf(buf + len, "-------------------------------------\n");
+	len += sprintf(buf + len, "|   name   | status  |  slp_mode  |slp_volt");
+	len += sprintf(buf + len, "|  volt  | audio_en| audio  |\n");
+	len += sprintf(buf + len, "------------------------------------");
+	len += sprintf(buf + len, "------------------------------------\n");
+
+	for (i = 0; i < buck_num; i++) {
+		ret = pm88x_update_print(chip, info, extra, print_temp, i, buck_num);
+		if (ret < 0) {
+			pr_err("Print of regulator %s failed\n", print_temp->name);
+			goto out_print;
+		}
+		len += sprintf(buf + len, "| %-8s |", print_temp->name);
+		len += sprintf(buf + len, " %-7s |", print_temp->enable);
+		len += sprintf(buf + len, "  %-10s|", print_temp->slp_mode);
+		len += sprintf(buf + len, "  %-5s |", print_temp->set_slp);
+		len += sprintf(buf + len, "  %-5s |", print_temp->volt);
+		len += sprintf(buf + len, " %-7s |", print_temp->audio_en);
+		len += sprintf(buf + len, "  %-5s |\n", print_temp->audio);
+	}
+
+	len += sprintf(buf + len, "------------------------------------");
+	len += sprintf(buf + len, "------------------------------------\n");
+
+	ret = len;
+out_print:
+	kfree(print_temp);
+	return ret;
+}
 
 static int pm88x_buck_probe(struct platform_device *pdev)
 {
