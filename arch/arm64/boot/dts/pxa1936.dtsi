@@ -309,10 +309,9 @@
 					  &soc_clocks PXA1936_CLK_SDH2_DUMMY
 					  &soc_clocks PXA1936_CLK_CLST0
 					  &soc_clocks PXA1936_CLK_CLST1
-					  &soc_clocks PXA1936_CLK_AXI
 					  &soc_clocks PXA1936_CLK_DDR
 					  >;
-				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "clst0", "clst1", "axi", "ddr";
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "clst0", "clst1", "ddr";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
@@ -326,10 +325,9 @@
 					  &soc_clocks PXA1936_CLK_SDH0_DUMMY
 					  &soc_clocks PXA1936_CLK_CLST0
 					  &soc_clocks PXA1936_CLK_CLST1
-					  &soc_clocks PXA1936_CLK_AXI
 					  &soc_clocks PXA1936_CLK_DDR
 					  >;
-				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "clst0", "clst1", "axi", "ddr";
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "clst0", "clst1", "ddr";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};
@@ -343,10 +341,9 @@
 					  &soc_clocks PXA1936_CLK_SDH1_DUMMY
 					  &soc_clocks PXA1936_CLK_CLST0
 					  &soc_clocks PXA1936_CLK_CLST1
-					  &soc_clocks PXA1936_CLK_AXI
 					  &soc_clocks PXA1936_CLK_DDR
 					  >;
-				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "clst0", "clst1", "axi", "ddr";
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned", "clst0", "clst1", "ddr";
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				status = "disabled";
 			};

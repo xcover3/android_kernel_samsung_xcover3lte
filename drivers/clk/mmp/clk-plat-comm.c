@@ -148,21 +148,20 @@ enum comp {
 	CORE,
 #endif
 	DDR,
-	AXI,
 	BOOT_DVFS_MAX,
 };
 
-static unsigned long bootfreq[BOOT_DVFS_MAX];
+static unsigned long bootfreq[BOOT_DVFS_MAX]; /*unit: KHz*/
 static struct clk *clk[BOOT_DVFS_MAX];
 #ifdef CONFIG_ARM_MMP_BL_CPUFREQ
-static char *clk_name[BOOT_DVFS_MAX] = {"clst0", "clst1", "ddr", "axi"};
+static char *clk_name[BOOT_DVFS_MAX] = {"clst0", "clst1", "ddr"};
 static struct pm_qos_request sdh_core_clst0_qos_max;
 static struct pm_qos_request sdh_core_clst1_qos_max;
-static unsigned long minfreq[BOOT_DVFS_MAX] = {0, 0, 0, 0};
+static unsigned long minfreq[BOOT_DVFS_MAX] = {0, 0, 0}; /*unit: KHz*/
 #else
-static char *clk_name[BOOT_DVFS_MAX] = {"cpu", "ddr", "axi"};
+static char *clk_name[BOOT_DVFS_MAX] = {"cpu", "ddr"};
 static struct pm_qos_request sdh_core_qos_max;
-static unsigned long minfreq[BOOT_DVFS_MAX] = {0, 0, 0};
+static unsigned long minfreq[BOOT_DVFS_MAX] = {0, 0}; /*unit: KHz*/
 #endif
 
 static struct pm_qos_request sdh_ddr_qos_max;
@@ -264,10 +263,8 @@ int sdh_tunning_scaling2minfreq(struct platform_device *pdev)
 		}
 
 		if (!bootfreq[i])
-			bootfreq[i] = clk_get_rate(clk[i]);
+			bootfreq[i] = clk_get_rate(clk[i]) / KHZ_TO_HZ;
 	}
-
-	clk_set_rate(clk[AXI], minfreq[AXI]);
 
 #ifdef CONFIG_CPU_FREQ
 #ifdef CONFIG_ARM_MMP_BL_CPUFREQ
@@ -300,7 +297,7 @@ int sdh_tunning_restorefreq(void)
 		if (!clk[i])
 			continue;
 
-		clk_set_rate(clk[i], bootfreq[i]);
+		clk_set_rate(clk[i], bootfreq[i] * KHZ_TO_HZ);
 	}
 
 	return 0;
