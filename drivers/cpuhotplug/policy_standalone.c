@@ -789,7 +789,7 @@ err_kobject_init_and_add:
 	unregister_hotcpu_notifier(&sthp_cpu_notifier);
 err_hotplug_register_notifier:
 	cpufreq_unregister_notifier(&hotplug_freq_notifier,
-				    CPUFREQ_POLICY_NOTIFIER);
+				    CPUFREQ_TRANSITION_NOTIFIER);
 err_cpufreq_register_notifier:
 	clk_put(cpu_clk);
 err_clk_get_sys:
