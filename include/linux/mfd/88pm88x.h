@@ -268,4 +268,39 @@ static const struct resource vr_resources[] = {
 	},
 };
 
+/* debugfs part */
+#ifdef CONFIG_REGULATOR_88PM88X
+extern int pm88x_display_buck(struct pm88x_chip *chip, char *buf);
+extern int pm88x_display_vr(struct pm88x_chip *chip, char *buf);
+extern int pm88x_display_ldo(struct pm88x_chip *chip, char *buf);
+#else
+static inline int pm88x_display_buck(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+static inline int pm88x_display_vr(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+static inline int pm88x_display_ldo(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+#endif
+#ifdef CONFIG_MFD_88PM8XX_DVC
+extern int pm88x_display_dvc(struct pm88x_chip *chip, char *buf);
+#else
+static inline int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+#endif
+#ifdef CONFIG_88PM88X_GPADC
+extern int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf);
+#else
+static inline int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+#endif
 #endif /* __LINUX_MFD_88PM88X_H */

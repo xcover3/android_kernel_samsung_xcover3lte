@@ -528,6 +528,73 @@ static const struct file_operations pm88x_buck1_info_fops = {
 	.owner = THIS_MODULE,
 };
 
+static ssize_t pm88x_debug_read(struct file *file, char __user *user_buf,
+				size_t count, loff_t *ppos)
+{
+	struct pm88x_chip *chip = file->private_data;
+	int len = 0;
+	ssize_t ret = -EINVAL;
+	char *buf;
+
+	if (!chip) {
+		pr_err("Cannot find chip!\n");
+		return -EINVAL;
+	}
+
+	buf = kzalloc(8000, GFP_KERNEL);
+	if (!buf) {
+		pr_err("Cannot allocate buffer!\n");
+		return -ENOMEM;
+	}
+
+	ret = pm88x_display_buck(chip, buf);
+	if (ret < 0) {
+		pr_err("Error in printing the buck list!\n");
+		goto out_print;
+	}
+	len += ret;
+
+	ret = pm88x_display_vr(chip, buf + len);
+	if (ret < 0) {
+		pr_err("Error in printing the virtual regulator list!\n");
+		goto out_print;
+	}
+	len += ret;
+
+	ret = pm88x_display_ldo(chip, buf + len);
+	if (ret < 0) {
+		pr_err("Error in printing the ldo list!\n");
+		goto out_print;
+	}
+	len += ret;
+
+	ret = pm88x_display_dvc(chip, buf + len);
+	if (ret < 0) {
+		pr_err("Error in printing the dvc!\n");
+		goto out_print;
+	}
+	len += ret;
+
+	ret = pm88x_display_gpadc(chip, buf + len);
+	if (ret < 0) {
+		pr_err("Error in printing the GPADC values!\n");
+		goto out_print;
+	}
+	len += ret;
+
+	ret = simple_read_from_buffer(user_buf, count, ppos, buf, len);
+out_print:
+	kfree(buf);
+	return ret;
+}
+
+static const struct file_operations pm88x_debug_fops = {
+	.open = simple_open,
+	.read = pm88x_debug_read,
+	.write = NULL,
+	.owner = THIS_MODULE,
+};
+
 static int pm88x_debug_probe(struct platform_device *pdev)
 {
 	struct dentry *file;
@@ -570,6 +637,10 @@ static int pm88x_debug_probe(struct platform_device *pdev)
 		goto err;
 	file = debugfs_create_file("buck1_info", (S_IRUGO | S_IWUSR | S_IWGRP),
 		pm88x_dir, chip, &pm88x_buck1_info_fops);
+	if (!file)
+		goto err;
+	file = debugfs_create_file("pm88x_debug", (S_IRUGO | S_IFREG),
+		pm88x_dir, chip, &pm88x_debug_fops);
 	if (!file)
 		goto err;
 	return 0;
