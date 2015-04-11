@@ -253,7 +253,6 @@
 				marvell,sdh-tuning-win-limit = <100>;
 				marvell,sdh-dvfs-levels = <1 7>; /* tuning from dvfs level 1 to 7 */
 				marvell,sdh-tuning-mode = <PXA_SDH_TUNING_DVFS>;
-				marvell,sdh-sdio-probe-tune;
 				status = "okay";
 			};
 
@@ -340,6 +339,7 @@
 				marvell,sdh-tuning-win-limit = <120>;
 				marvell,sdh-dvfs-levels = <1 7>; /* tuning from dvfs level 1 to 7 */
 				marvell,sdh-tuning-mode = <PXA_SDH_TUNING_DVFS>;
+				marvell,sdh-sdio-probe-tune;
 				status = "okay";
 			};
 		};
