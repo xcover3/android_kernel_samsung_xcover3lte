@@ -916,6 +916,7 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 	#define AF_ST_FOCUSING	(0x0)
 	#define AF_ST_SUCCESS	(0x1)
 	#define AF_ST_FAILED    (0x2)
+	#define AF_ST_IDLE	(0x3)
 #define REG_FW_VCM_TYPE             (0x140)
 	#define VCM_TYPE_BUILD_IN (0x0)
 	#define VCM_TYPE_AD5820  (0x1)

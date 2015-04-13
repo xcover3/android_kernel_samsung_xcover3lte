@@ -1571,6 +1571,9 @@ static int b52isp_ctrl_get_focus(struct b52isp_ctrls *ctrls, int id)
 	case AF_ST_FAILED:
 		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_FAILED;
 		break;
+	case AF_ST_IDLE:
+		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_IDLE;
+		break;
 	default:
 		pr_info("Unknown AF status %#x\n", status);
 		break;
