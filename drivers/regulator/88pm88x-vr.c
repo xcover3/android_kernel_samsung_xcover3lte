@@ -158,6 +158,16 @@ struct pm88x_regulators {
 	struct regmap *map;
 };
 
+struct pm88x_vr_print {
+	char name[15];
+	char enable[15];
+	char slp_mode[15];
+	char set_slp[15];
+	char volt[10];
+	char audio_en[15];
+	char audio[10];
+};
+
 static struct regulator_ops pm88x_virtual_regulator_ops = {
 	.enable = regulator_enable_regmap,
 	.disable = regulator_disable_regmap,
@@ -347,6 +357,215 @@ static int of_get_legacy_init_data(struct device *dev,
 	(*init_data)->num_consumer_supplies = num;
 
 	return 0;
+}
+
+/*
+ * The function convert the vr voltage register value
+ * to a real voltage value (in uV) according to the voltage table.
+ */
+static int pm88x_get_vvr_vol(unsigned int val, unsigned int n_linear_ranges,
+			     const struct regulator_linear_range *ranges)
+{
+	const struct regulator_linear_range *range;
+	int i, volt = -EINVAL;
+
+	/* get the voltage via the register value */
+	for (i = 0; i < n_linear_ranges; i++) {
+		range = &ranges[i];
+		if (!range)
+			return -EINVAL;
+
+		if (val >= range->min_sel && val <= range->max_sel) {
+			volt = (val - range->min_sel) * range->uV_step + range->min_uV;
+			break;
+		}
+	}
+	return volt;
+}
+
+/* The function check if the regulator register is configured to enable/disable */
+static int pm88x_check_en(struct regmap *map, unsigned int reg, unsigned int mask)
+{
+	int ret, value;
+	unsigned int enable1;
+
+	ret = regmap_read(map, reg, &enable1);
+	if (ret < 0)
+		return ret;
+
+	value = enable1 & mask;
+
+	return value;
+}
+
+/* The function return the value in the regulator voltage register */
+static unsigned int pm88x_check_vol(struct regmap *map, unsigned int reg, unsigned int mask)
+{
+	int ret;
+	unsigned int vol_val;
+
+	ret = regmap_bulk_read(map, reg, &vol_val, 1);
+	if (ret < 0)
+		return ret;
+
+	/* mask and shift the relevant value from the register */
+	vol_val = (vol_val & mask) >> (ffs(mask) - 1);
+
+	return vol_val;
+}
+
+static int pm88x_update_print(struct pm88x_chip *chip, struct regmap *map,
+			      struct regulator_desc *desc, struct pm88x_vr_print *print_temp,
+			      int index, int num)
+{
+	int ret, volt;
+
+	sprintf(print_temp->name, "%s", desc->name);
+
+	/* check enable/disable */
+	ret = pm88x_check_en(map, desc->enable_reg, desc->enable_mask);
+	if (ret < 0)
+		return ret;
+	else if (ret)
+		strcpy(print_temp->enable, "enable");
+	else
+		strcpy(print_temp->enable, "disable");
+
+	/* no sleep mode */
+	strcpy(print_temp->slp_mode, "   -");
+
+	/* no sleep voltage */
+	sprintf(print_temp->set_slp, "   -");
+
+	/* print active voltage(s) */
+	ret = pm88x_check_vol(map, desc->vsel_reg, desc->vsel_mask);
+	if (ret < 0)
+		return ret;
+
+	if (desc->n_linear_ranges) {
+		volt = pm88x_get_vvr_vol(ret, desc->n_linear_ranges, desc->linear_ranges);
+		if (volt < 0)
+			return volt;
+		else
+			sprintf(print_temp->volt, "%4d", volt/1000);
+	} else {
+		sprintf(print_temp->volt, "   -");
+	}
+	/* no audio mode*/
+	strcpy(print_temp->audio_en, "   -   ");
+	sprintf(print_temp->audio, "  -");
+
+	return 0;
+}
+
+int pm88x_display_vr(struct pm88x_chip *chip, char *buf)
+{
+	struct pm88x_vr_print *print_temp;
+	struct pm88x_buck_slp_info *slp_info = NULL;
+	struct pm88x_buck_audio_info *audio_info = NULL;
+	struct pm88x_vr_info *vr_info = NULL;
+	struct regmap *map;
+	int slp_num, audio_num, vr_num, i, len = 0;
+	ssize_t ret;
+
+	switch (chip->type) {
+	case PM886:
+		slp_info = pm886_buck_slp_configs;
+		slp_num = ARRAY_SIZE(pm886_buck_slp_configs);
+		vr_info = pm88x_vr_configs;
+		vr_num = ARRAY_SIZE(pm88x_vr_configs);
+		break;
+	case PM880:
+		slp_info = pm880_buck_slp_configs;
+		slp_num = ARRAY_SIZE(pm880_buck_slp_configs);
+		audio_info = pm880_buck_audio_configs;
+		audio_num = ARRAY_SIZE(pm880_buck_audio_configs);
+		vr_info = pm88x_vr_configs;
+		vr_num = ARRAY_SIZE(pm88x_vr_configs);
+		break;
+	default:
+		pr_err("%s: Cannot find chip type.\n", __func__);
+		return -ENODEV;
+	}
+
+	print_temp = kmalloc(sizeof(struct pm88x_vr_print), GFP_KERNEL);
+	if (!print_temp) {
+		pr_err("%s: Cannot allocate print template.\n", __func__);
+		return -ENOMEM;
+	}
+
+	len += sprintf(buf + len, "\nVirtual Regulator");
+	len += sprintf(buf + len, "\n------------------------------------");
+	len += sprintf(buf + len, "--------------------------------------\n");
+	len += sprintf(buf + len, "|    name    | status  |  slp_mode  |slp_volt");
+	len += sprintf(buf + len, "|  volt  | audio_en| audio  |\n");
+	len += sprintf(buf + len, "-------------------------------------");
+	len += sprintf(buf + len, "-------------------------------------\n");
+
+	if (slp_info) {
+		map = nr_to_regmap(chip, slp_info->page_nr);
+		for (i = 0; i < slp_num; i++) {
+			ret = pm88x_update_print(chip, map, &slp_info[i].desc,
+						 print_temp, i, slp_num);
+			if (ret < 0) {
+				pr_err("Print of regulator %s failed\n", print_temp->name);
+				goto out_print;
+			}
+			len += sprintf(buf + len, "|%-12s|", print_temp->name);
+			len += sprintf(buf + len, " %-7s |", print_temp->enable);
+			len += sprintf(buf + len, "  %-10s|", print_temp->slp_mode);
+			len += sprintf(buf + len, "  %-5s |", print_temp->set_slp);
+			len += sprintf(buf + len, "  %-5s |", print_temp->volt);
+			len += sprintf(buf + len, " %-7s |", print_temp->audio_en);
+			len += sprintf(buf + len, "  %-5s |\n", print_temp->audio);
+		}
+	}
+
+	if (audio_info) {
+		map = nr_to_regmap(chip, audio_info->page_nr);
+		for (i = 0; i < audio_num; i++) {
+			ret = pm88x_update_print(chip, map, &audio_info[i].desc,
+						 print_temp, i, audio_num);
+			if (ret < 0) {
+				pr_err("Print of regulator %s failed\n", print_temp->name);
+				goto out_print;
+			}
+			len += sprintf(buf + len, "|%-12s|", print_temp->name);
+			len += sprintf(buf + len, " %-7s |", print_temp->enable);
+			len += sprintf(buf + len, "  %-10s|", print_temp->slp_mode);
+			len += sprintf(buf + len, "  %-5s |", print_temp->set_slp);
+			len += sprintf(buf + len, "  %-5s |", print_temp->volt);
+			len += sprintf(buf + len, " %-7s |", print_temp->audio_en);
+			len += sprintf(buf + len, "  %-5s |\n", print_temp->audio);
+		}
+	}
+
+	if (vr_info) {
+		map = nr_to_regmap(chip, vr_info->page_nr);
+		for (i = 0; i < vr_num; i++) {
+			ret = pm88x_update_print(chip, map, &vr_info[i].desc,
+						 print_temp, i, vr_num);
+			if (ret < 0) {
+				pr_err("Print of regulator %s failed\n", print_temp->name);
+				goto out_print;
+			}
+			len += sprintf(buf + len, "|%-12s|", print_temp->name);
+			len += sprintf(buf + len, " %-7s |", print_temp->enable);
+			len += sprintf(buf + len, "  %-10s|", print_temp->slp_mode);
+			len += sprintf(buf + len, "  %-5s |", print_temp->set_slp);
+			len += sprintf(buf + len, "  %-5s |", print_temp->volt);
+			len += sprintf(buf + len, " %-7s |", print_temp->audio_en);
+			len += sprintf(buf + len, "  %-5s |\n", print_temp->audio);
+		}
+	}
+
+	len += sprintf(buf + len, "-------------------------------------");
+	len += sprintf(buf + len, "-------------------------------------\n");
+
+	ret = len;
+out_print:
+	kfree(print_temp);
+	return ret;
 }
 
 static int pm88x_virtual_regulator_probe(struct platform_device *pdev)
