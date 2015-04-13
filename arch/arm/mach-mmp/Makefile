@@ -42,7 +42,7 @@ obj-$(CONFIG_MACH_MMPX_DT)	+= mmpx-dt.o regs-addr.o v7_pm_setup.o mmp_cpuidle.o 
 obj-$(CONFIG_MACH_HELANX_DT)	+= $(ARM64)/helanx-dt.o $(ARM64)/regs-addr.o $(ARM64)/soc_camera_dkb.o $(ARM64)/cpuidle_qos.o $(ARM64)/pm-pxa1908.o $(ARM64)/pxa1908_lowpower.o $(ARM64)/../mcpm/mcpm_plat.o
 
 ifeq ($(CONFIG_SUSPEND),y)
-obj-$(CONFIG_ARCH_MMP)		+= pm.o pm-pxa1L88.o
+obj-$(CONFIG_ARCH_MMP)		+= pm.o
 endif
 obj-$(CONFIG_MACH_TETON_BGA)	+= teton_bga.o
 obj-$(CONFIG_MACH_GPLUGD)	+= gplugd.o
