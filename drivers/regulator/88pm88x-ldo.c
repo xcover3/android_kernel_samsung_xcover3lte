@@ -33,6 +33,9 @@
 #define PM886_LDO_EN1		(0x09)
 #define PM886_LDO_EN2		(0x0a)
 
+/* LDO enable2 register offset relative to enable1 register */
+#define PM88X_LDO_EN2_OFF	(0x06)
+
 /*
  * 88pm886 ldo voltage:
  * ldox_set_slp[7: 4] ldox_set [3: 0]
@@ -155,6 +158,39 @@ struct pm88x_ldos {
 	struct regulator_dev *rdev;
 	struct pm88x_chip *chip;
 	struct regmap *map;
+};
+
+struct pm88x_ldo_print {
+	char name[15];
+	char enable[15];
+	char slp_mode[15];
+	char set_slp[15];
+	char volt[10];
+	char audio_en[15];
+	char audio[10];
+};
+
+struct pm88x_ldo_extra {
+	const char *name;
+	u8 audio_enable_reg;
+	u8 audio_enable_mask;
+	u8 audio_enable_off;
+	u8 audio_vsel_reg;
+	u8 audio_vsel_mask;
+};
+
+#define PM88X_LDO_EXTRA(_name, _areg, _amsk, _aoff, _vreg, _vmsk)	\
+{									\
+	.name			= _name,				\
+	.audio_enable_reg	= _areg,				\
+	.audio_enable_mask	= _amsk,				\
+	.audio_enable_off	= _aoff,				\
+	.audio_vsel_reg		= _vreg,				\
+	.audio_vsel_mask	= _vmsk					\
+}
+
+static struct pm88x_ldo_extra pm88x_ldo_extra_info[] = {
+	PM88X_LDO_EXTRA("LDO2", 0x28, 0x10, 0x04, 0x28, 0x0f),
 };
 
 #define LDO_OFF			(0x0 << 4)
@@ -377,6 +413,222 @@ static const struct of_device_id pm88x_ldos_of_match[] = {
 	PM880_LDO_OF_MATCH("marvell,88pm880-ldo17", LDO17),
 	PM880_LDO_OF_MATCH("marvell,88pm880-ldo18", LDO18),
 };
+
+/*
+ * The function convert the ldo voltage register value
+ * to a real voltage value (in uV) according to the voltage table.
+ */
+static int pm88x_get_vldo_vol(unsigned int val, struct pm88x_ldo_info *info)
+{
+	int volt = -EINVAL;
+
+	/* get the voltage via the register value */
+	volt = info->desc.volt_table[val];
+	return volt;
+}
+
+/* The function check if the regulator register is configured to enable/disable */
+static int pm88x_check_en(struct pm88x_chip *chip, unsigned int reg, unsigned int mask,
+			unsigned int reg2)
+{
+	struct regmap *map = chip->ldo_regmap;
+	int ret, value;
+	unsigned int enable1, enable2;
+
+	ret = regmap_read(map, reg, &enable1);
+	if (ret < 0)
+		return ret;
+
+	ret = regmap_read(map, reg2, &enable2);
+	if (ret < 0)
+		return ret;
+
+	value = (enable1 | enable2) & mask;
+
+	return value;
+}
+
+/* The function check the regulator sleep mode as configured in his register */
+static int pm88x_check_slp_mode(struct regmap *map, unsigned int reg, int mask)
+{
+	int ret;
+	unsigned int slp_mode;
+
+	ret = regmap_read(map, reg, &slp_mode);
+	if (ret < 0)
+		return ret;
+
+	slp_mode = (slp_mode & mask) >> (ffs(mask) - 1);
+
+	return slp_mode;
+}
+
+/* The function return the value in the regulator voltage register */
+static unsigned int pm88x_check_vol(struct regmap *map, unsigned int reg, unsigned int mask)
+{
+	int ret;
+	unsigned int vol_val;
+
+	ret = regmap_bulk_read(map, reg, &vol_val, 1);
+	if (ret < 0)
+		return ret;
+
+	/* mask and shift the relevant value from the register */
+	vol_val = (vol_val & mask) >> (ffs(mask) - 1);
+
+	return vol_val;
+}
+
+static int pm88x_update_print(struct pm88x_chip *chip, struct pm88x_ldo_info *info,
+			      struct pm88x_ldo_extra *extra, struct pm88x_ldo_print *print_temp,
+			      int index, int ldo_num, int extra_info_num)
+{
+	int i, ret, volt, flag = 0;
+	struct regmap *map = chip->ldo_regmap;
+	char *slp_mode_str[] = {"off", "active_slp", "sleep", "active"};
+	int slp_mode_num = sizeof(slp_mode_str)/sizeof(slp_mode_str[0]);
+
+	sprintf(print_temp->name, "%s", info[index].desc.name);
+
+	/* check enable/disable */
+	ret = pm88x_check_en(chip, info[index].desc.enable_reg, info[index].desc.enable_mask,
+			     info[index].desc.enable_reg + PM88X_LDO_EN2_OFF);
+	if (ret < 0)
+		return ret;
+	else if (ret)
+		strcpy(print_temp->enable, "enable");
+	else
+		strcpy(print_temp->enable, "disable");
+
+	/* check sleep mode */
+	ret = pm88x_check_slp_mode(map, info[index].sleep_enable_reg,
+				   info[index].sleep_enable_mask);
+	if (ret < 0)
+		return ret;
+	if (ret < slp_mode_num)
+		strcpy(print_temp->slp_mode, slp_mode_str[ret]);
+	else
+		strcpy(print_temp->slp_mode, "unknown");
+
+	/* print sleep voltage */
+	ret = pm88x_check_vol(map, info[index].sleep_vsel_reg, info[index].sleep_vsel_mask);
+	if (ret < 0)
+		return ret;
+
+	volt = pm88x_get_vldo_vol(ret, &info[index]);
+	if (volt < 0)
+		return volt;
+	else
+		sprintf(print_temp->set_slp, "%4d", volt/1000);
+
+	/* print active voltage(s) */
+	ret = pm88x_check_vol(map, info[index].desc.vsel_reg,
+			      info[index].desc.vsel_mask);
+	if (ret < 0)
+		return ret;
+
+	volt = pm88x_get_vldo_vol(ret, &info[index]);
+	if (volt < 0)
+		return volt;
+	else
+		sprintf(print_temp->volt, "%4d", volt/1000);
+
+	for (i = 0; i < extra_info_num; i++) {
+		/* print audio voltage */
+		if (!strcmp(print_temp->name, extra[i].name) && extra[i].audio_enable_reg) {
+			ret = pm88x_check_en(chip, extra[i].audio_enable_reg,
+					     extra[i].audio_enable_mask,
+					     extra[i].audio_enable_reg);
+			if (ret < 0)
+				return ret;
+			else if (ret)
+				strcpy(print_temp->audio_en, "enable");
+			else
+				strcpy(print_temp->audio_en, "disable");
+			ret = pm88x_check_vol(map, extra[i].audio_vsel_reg,
+					      extra[i].audio_vsel_mask);
+			if (ret < 0)
+				return ret;
+
+			volt = pm88x_get_vldo_vol(ret, &info[index]);
+			if (volt < 0)
+				return volt;
+			else
+				sprintf(print_temp->audio, "%4d", volt/1000);
+			flag = 1;
+		}
+	}
+	if (!flag) {
+		strcpy(print_temp->audio_en, "   -   ");
+		sprintf(print_temp->audio, "  -");
+		flag = 0;
+	}
+	return 0;
+}
+
+int pm88x_display_ldo(struct pm88x_chip *chip, char *buf)
+{
+	struct pm88x_ldo_print *print_temp;
+	struct pm88x_ldo_info *info;
+	struct pm88x_ldo_extra *extra;
+	int ldo_num, extra_info_num, i, len = 0;
+	ssize_t ret;
+
+	switch (chip->type) {
+	case PM886:
+		info = pm886_ldo_configs;
+		ldo_num = sizeof(pm886_ldo_configs) / sizeof(pm886_ldo_configs[0]);
+		extra = pm88x_ldo_extra_info;
+		extra_info_num = sizeof(pm88x_ldo_extra_info) / sizeof(pm88x_ldo_extra_info[0]);
+		break;
+	case PM880:
+		info = pm880_ldo_configs;
+		ldo_num = sizeof(pm880_ldo_configs) / sizeof(pm880_ldo_configs[0]);
+		extra = pm88x_ldo_extra_info;
+		extra_info_num = sizeof(pm88x_ldo_extra_info) / sizeof(pm88x_ldo_extra_info[0]);
+		break;
+	default:
+		pr_err("%s: Cannot find chip type.\n", __func__);
+		return -ENODEV;
+	}
+
+	print_temp = kmalloc(sizeof(struct pm88x_ldo_print), GFP_KERNEL);
+	if (!print_temp) {
+		pr_err("%s: Cannot allocate print template.\n", __func__);
+		return -ENOMEM;
+	}
+
+	len += sprintf(buf + len, "\nLDO");
+	len += sprintf(buf + len, "\n-----------------------------------");
+	len += sprintf(buf + len, "-------------------------------------\n");
+	len += sprintf(buf + len, "|   name   | status  |  slp_mode  |slp_volt");
+	len += sprintf(buf + len, "|  volt  | audio_en| audio  |\n");
+	len += sprintf(buf + len, "------------------------------------");
+	len += sprintf(buf + len, "------------------------------------\n");
+
+	for (i = 0; i < ldo_num; i++) {
+		ret = pm88x_update_print(chip, info, extra, print_temp, i, ldo_num, extra_info_num);
+		if (ret < 0) {
+			pr_err("Print of regulator %s failed\n", print_temp->name);
+			goto out_print;
+		}
+		len += sprintf(buf + len, "| %-8s |", print_temp->name);
+		len += sprintf(buf + len, " %-7s |", print_temp->enable);
+		len += sprintf(buf + len, "  %-10s|", print_temp->slp_mode);
+		len += sprintf(buf + len, "  %-5s |", print_temp->set_slp);
+		len += sprintf(buf + len, "  %-5s |", print_temp->volt);
+		len += sprintf(buf + len, " %-7s |", print_temp->audio_en);
+		len += sprintf(buf + len, "  %-5s |\n", print_temp->audio);
+	}
+
+	len += sprintf(buf + len, "------------------------------------");
+	len += sprintf(buf + len, "------------------------------------\n");
+
+	ret = len;
+out_print:
+	kfree(print_temp);
+	return ret;
+}
 
 static int pm88x_ldo_probe(struct platform_device *pdev)
 {
