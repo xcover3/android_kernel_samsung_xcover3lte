@@ -32,6 +32,8 @@
 #include <linux/pm_qos.h>
 #include <linux/clk-private.h>
 
+#include "mmp-cpufreq-comm.h"
+
 #define KHZ_TO_HZ	(1000)
 
 static struct clk *cpu_clk;
@@ -48,6 +50,10 @@ static struct pm_qos_request cpufreq_qos_req_min = {
 static struct pm_qos_request cpufreq_qos_req_max = {
 	.name = "cpu_freqmax",
 };
+
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+static struct cpufreq_ddr_upthrd *cdu;
+#endif
 
 static int mmp_update_cpu_speed(unsigned long rate)
 {
@@ -75,6 +81,13 @@ static int mmp_update_cpu_speed(unsigned long rate)
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 
 	cpufreq_cpu_put(policy);
+
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	cdu->old_cpu_rate = freqs.old;
+	cdu->new_cpu_rate = freqs.new;
+	cpufreq_ddr_upthrd_send_req(cdu, 0);
+#endif
+
 	return ret;
 }
 
@@ -311,6 +324,15 @@ static int mmp_cpufreq_init(struct cpufreq_policy *policy)
 		pm_qos_add_request(&cpufreq_qos_req_max,
 					PM_QOS_CPUFREQ_MAX,
 					policy->cpuinfo.max_freq);
+
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	cdu = cpufreq_ddr_upthrd_init(policy->clk);
+	if (!cdu) {
+		pr_err("%s: fail to get a valid cdu for ddr_thrd.\n", __func__);
+		return -ENOMEM;
+	}
+#endif
+
 	return 0;
 }
 
