@@ -55,6 +55,7 @@ struct pm88x_vbus_info {
 	int			id_irq;
 	int			vbus_gpio;
 	int			id_gpadc;
+	int			chg_in;
 	struct delayed_work	pxa_notify;
 };
 
@@ -104,6 +105,14 @@ static int pm88x_get_vbus(unsigned int *level)
 	/* cable in */
 	if (val & PM88X_CHG_DET) {
 		if (voltage >= USB_INSERTION) {
+			/* set charging flag, and disable OTG interrupts */
+			if (!vbus_info->chg_in) {
+				dev_dbg(vbus_info->chip->dev,
+					"set charging flag, and disable OTG interrupts\n");
+				vbus_info->chg_in = 1;
+				disable_irq(vbus_info->id_irq);
+			}
+
 			*level = VBUS_HIGH;
 			dev_dbg(vbus_info->chip->dev,
 				"%s: USB cable is valid! (%dmV)\n",
@@ -137,6 +146,14 @@ static int pm88x_get_vbus(unsigned int *level)
 				break;
 			}
 			pm88x_vbus_check_errors(vbus_info);
+		}
+
+		/* clear charging flag, and enable OTG interrupts */
+		if (vbus_info->chg_in) {
+			dev_dbg(vbus_info->chip->dev,
+				"clear charging flag, and enable OTG interrupts\n");
+			vbus_info->chg_in = 0;
+			enable_irq(vbus_info->id_irq);
 		}
 	}
 
@@ -190,6 +207,12 @@ static int pm88x_read_id_val(unsigned int *level)
 	unsigned int meas, upp_th, low_th;
 	unsigned char buf[2];
 	int ret, data;
+
+	if (vbus_info->chg_in) {
+		*level = 1;
+		dev_info(vbus_info->chip->dev, "idpin requested during charging state\n");
+		return 0;
+	}
 
 	switch (vbus_info->id_gpadc) {
 	case PM88X_GPADC0:
@@ -381,6 +404,7 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 		usb->id_gpadc = PM88X_NO_GPADC;
 
 	usb->chip = chip;
+	usb->chg_in = 0;
 
 	/* do it before enable interrupt */
 	pm88x_vbus_fixup(usb);
