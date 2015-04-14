@@ -77,7 +77,7 @@ static const struct resource headset_resources[] = {
 };
 
 static const struct resource vbus_resources[] = {
-	CELL_IRQ_RESOURCE("88pm88x-chg-det", PM88X_IRQ_CHG_GOOD),
+	CELL_IRQ_RESOURCE("88pm88x-vbus-det", PM88X_IRQ_VBUS),
 	CELL_IRQ_RESOURCE("88pm88x-gpadc0", PM88X_IRQ_GPADC0),
 	CELL_IRQ_RESOURCE("88pm88x-gpadc1", PM88X_IRQ_GPADC1),
 	CELL_IRQ_RESOURCE("88pm88x-gpadc2", PM88X_IRQ_GPADC2),
