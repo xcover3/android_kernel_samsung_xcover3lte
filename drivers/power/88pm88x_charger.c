@@ -81,11 +81,6 @@
 #define PM88X_OV_ITEMP			(1 << 7)
 
 enum {
-	AC_CHARGER_TYPE,
-	USB_CHARGER_TYPE,
-};
-
-enum {
 	TBAT_LTR = 0,
 	TBAT_STR,
 	TBAT_HTR
@@ -102,6 +97,8 @@ struct pm88x_charger_info {
 	int charger_cable_type;
 
 	struct mutex lock;
+	struct mutex type_lock;
+	bool type_is_valid;
 
 	unsigned int ir_comp_res;	/* IR compensation resistor */
 	unsigned int ir_comp_update;	/* IR compensation update time */
@@ -147,6 +144,24 @@ static void pm88x_charger_set_supply_type(struct pm88x_charger_info *info,
 					  struct power_supply *psy);
 static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
 				      unsigned long type);
+
+static int charger_cable_is_valid(struct pm88x_charger_info *info)
+{
+	int val, ret;
+
+	ret = regmap_read(info->chip->base_regmap, PM88X_STATUS1, &val);
+	if (ret < 0) {
+		dev_info(info->chip->dev, "%s: fail to get status\n", __func__);
+		return 0;
+	}
+
+	/* 1 - identify cable online, 0 - identify cable offline */
+	ret = (val & PM88X_CHG_DET) ? 1 : 0;
+
+	dev_info(info->chip->dev, "%s: charger cable is %s\n",
+		 __func__, ret ? "valid" : "invalid");
+	return ret;
+}
 
 static inline int get_prechg_cur(struct pm88x_charger_info *info)
 {
@@ -563,36 +578,51 @@ static int pm88x_stop_charging(struct pm88x_charger_info *info)
 static void pm88x_charger_set_supply_type(struct pm88x_charger_info *info,
 					  struct power_supply *psy)
 {
-	info->charger_cable_type = psy->type;
+	mutex_lock(&info->type_lock);
 	switch (psy->type) {
 	case POWER_SUPPLY_TYPE_USB:
-		info->cable_online = 1;
 		info->limit_cur = 500;
+		info->type_is_valid = true;
 		break;
 	case POWER_SUPPLY_TYPE_USB_DCP:
-		info->cable_online = 1;
 		info->limit_cur = info->dcp_limit;
+		info->type_is_valid = true;
 		break;
 	case POWER_SUPPLY_TYPE_USB_CDP:
-		info->cable_online = 1;
 		info->limit_cur = 1500;
+		info->type_is_valid = true;
 		break;
 	case POWER_SUPPLY_TYPE_UNKNOWN:
-		info->cable_online = 0;
-		cancel_delayed_work(&info->restart_chg_work);
+		/*
+		 * unknown type means that
+		 * 1) there is no charger from USB driver point-of-view.
+		 *    but charging depends on cable_online now, so it has
+		 *    no effect.
+		 * 2) or charger type is not got from USB yet, in this case
+		 *    we set 100mA here to avoid voltage drop, which may
+		 *    cause USB to get the wrong vbus voltage.
+		 */
+		info->limit_cur = 100;
+		info->type_is_valid = false;
 		break;
 	default:
-		info->cable_online = 1;
+		/* this case will never be used */
 		info->limit_cur = 500;
+		info->type_is_valid = true;
 		break;
 	}
+	mutex_unlock(&info->type_lock);
 
-	if (psy->type != POWER_SUPPLY_TYPE_UNKNOWN)
+	/* record the charger cable type */
+	info->charger_cable_type = psy->type;
+
+	if (info->cable_online)
 		pm88x_config_charger(info);
 
 	schedule_work(&info->chg_state_machine_work);
 
-	dev_info(info->dev, "%s: TA: online = %d, type = %d\n", __func__, info->cable_online, psy->type);
+	dev_info(info->dev, "%s: TA: online = %d, type = %d\n", __func__,
+		 info->cable_online, psy->type);
 }
 
 static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status)
@@ -644,6 +674,7 @@ static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 	/* -- begin configuring charger chip */
 	if (!info->charger_type_psy)
 		info->charger_type_psy = power_supply_get_by_name("mv-udc-psy");
+
 	psy = info->charger_type_psy;
 	if (!psy || !psy->get_property) {
 		dev_err(info->dev, "get charger type failed.\n");
@@ -655,10 +686,11 @@ static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 		dev_err(info->dev, "get charger type property failed.\n");
 		return;
 	}
+
 	/* -- charger type has been got */
 	pm88x_set_charger_by_type(info, val.intval);
-	/* -- finish configuring charger chip by charger type */
 
+	/* -- finish configuring charger chip by charger type */
 	schedule_work(&info->chg_state_machine_work);
 }
 
@@ -717,6 +749,7 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 {
 	unsigned int mask, data;
 
+	info->charger_cable_type = -1;
 	info->region = -1; /* uninitialzed */
 
 	info->allow_basic_charge = 1;
@@ -806,21 +839,12 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
 				      unsigned long type)
 {
-	static unsigned long prev_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
-
 	static struct power_supply *psy;
 	union power_supply_propval val;
 
 	/* no change in charger type - nothing to do */
-	if (type == prev_chg_type)
+	if (type == info->charger_cable_type)
 		return;
-
-	/* disable the auto-charging on cable insertion and removal */
-	if (prev_chg_type == POWER_SUPPLY_TYPE_UNKNOWN ||
-	    type == POWER_SUPPLY_TYPE_UNKNOWN)
-		pm88x_stop_charging(info);
-
-	prev_chg_type = type;
 
 	/* new charger - remove previous limitations */
 	info->allow_recharge = 1;
@@ -829,6 +853,7 @@ static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
 
 	if (!psy)
 		psy = power_supply_get_by_name(MY_PSY_NAME);
+
 	if (psy && psy->set_property) {
 		val.intval = type;
 		psy->set_property(psy, POWER_SUPPLY_PROP_TYPE, &val);
@@ -927,6 +952,53 @@ static irqreturn_t pm88x_chg_done_handler(int irq, void *data)
 
 	schedule_work(&info->chg_state_machine_work);
 
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t pm88x_chg_good_handler(int irq, void *data)
+{
+	struct pm88x_charger_info *info = data;
+
+	if (!info) {
+		pr_err("%s: charger chip info is empty!\n", __func__);
+		return IRQ_NONE;
+	}
+
+	dev_info(info->chip->dev, "chg_good interrupt is served\n");
+
+	info->cable_online = charger_cable_is_valid(info);
+	if (!info->cable_online) {
+		pm88x_stop_charging(info);
+		cancel_delayed_work(&info->restart_chg_work);
+		schedule_work(&info->chg_state_machine_work);
+		return IRQ_HANDLED;
+	}
+
+	/*
+	 * --- charger_high_threshold   ---- [6.0V, 6.4V]
+	 *                              <----vbus_volt_now, vbus_is_considered_as_offline
+	 * --- vbus_online_high_threshold
+	 *				<----vbus_is_considered_as_online
+	 * --- charger_low_threshold    ----- [3.7V, 4.0V]
+	 * --- vbus_online_low_threshold
+	 *                              <----vbus_volt_now, vbus_is_considered_as_offline
+	 */
+	if (info->type_is_valid) {
+		/*
+		 * every time when charger is removed, the current limit will
+		 * be reset to default value. here we need configure charger
+		 * again even when the type is already set.
+		 *
+		 * suppose that charger is 'removed' and 'inserted' because of
+		 * interference on vbus voltage, and usb driver will not set
+		 * type again.
+		 */
+		dev_info(info->dev, "charger type has been got.\n");
+		pm88x_config_charger(info);
+	} else
+		pm88x_set_charger_by_type(info, POWER_SUPPLY_TYPE_UNKNOWN);
+
+	schedule_work(&info->chg_state_machine_work);
 	return IRQ_HANDLED;
 }
 
@@ -1033,6 +1105,7 @@ static struct pm88x_irq_desc {
 } pm88x_irq_descs[] = {
 	{"charge fail", pm88x_chg_fail_handler},
 	{"charge done", pm88x_chg_done_handler},
+	{"charge good", pm88x_chg_good_handler},
 };
 
 static int pm88x_charger_dt_init(struct device_node *np,
@@ -1098,7 +1171,6 @@ static int pm88x_charger_probe(struct platform_device *pdev)
 	struct device_node *node = pdev->dev.of_node;
 	int ret = 0;
 	int i, j;
-
 	info = devm_kzalloc(&pdev->dev, sizeof(struct pm88x_charger_info),
 			GFP_KERNEL);
 
@@ -1115,6 +1187,7 @@ static int pm88x_charger_probe(struct platform_device *pdev)
 		return ret;
 
 	mutex_init(&info->lock);
+	mutex_init(&info->type_lock);
 	platform_set_drvdata(pdev, info);
 
 	for (i = 0, j = 0; i < pdev->num_resources; i++) {
@@ -1140,6 +1213,14 @@ static int pm88x_charger_probe(struct platform_device *pdev)
 	INIT_WORK(&info->chg_state_machine_work, pm88x_chg_state_machine_work);
 	INIT_DELAYED_WORK(&info->restart_chg_work, pm88x_restart_chg_work);
 
+	ret = device_create_file(&pdev->dev, &dev_attr_control);
+	if (ret < 0)
+		dev_err(info->dev, "failed to create charging contol sys file!\n");
+
+	info->cable_online = charger_cable_is_valid(info);
+	if (info->cable_online)
+		pm88x_set_charger_by_type(info, POWER_SUPPLY_TYPE_UNKNOWN);
+
 	/* interrupt should be request in the last stage */
 	for (i = 0; i < info->irq_nums; i++) {
 		ret = devm_request_threaded_irq(info->dev, info->irq[i], NULL,
@@ -1153,12 +1234,7 @@ static int pm88x_charger_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = device_create_file(&pdev->dev, &dev_attr_control);
-	if (ret < 0)
-		dev_err(info->dev, "failed to create charging contol sys file!\n");
-
 	dev_info(info->dev, "%s is successful!\n", __func__);
-
 	return 0;
 
 out_irq:

@@ -64,6 +64,7 @@ static const struct resource rtc_resources[] = {
 static const struct resource charger_resources[] = {
 	CELL_IRQ_RESOURCE("88pm88x-chg-fail", PM88X_IRQ_CHG_FAIL),
 	CELL_IRQ_RESOURCE("88pm88x-chg-done", PM88X_IRQ_CHG_DONE),
+	CELL_IRQ_RESOURCE("88pm88x-chg-good", PM88X_IRQ_CHG_GOOD),
 };
 
 static const struct resource battery_resources[] = {
