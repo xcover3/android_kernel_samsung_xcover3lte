@@ -205,5 +205,8 @@
 
 	vbus {
 		gpadc-number = <3>;
+		id-ov-sampling;
+		id-ov-samp-count = <10>; /* number of samples */
+		id-ov-samp-sleep = <100>; /* sleep between each sample [mS] */
 	};
 };
