@@ -1146,12 +1146,45 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 	ccnt_val->soc -= offset;
 }
 
+/* correct SoC according to temp */
+static void correct_soc_by_temp(struct pm88x_battery_info *info,
+				struct ccnt *ccnt_val)
+{
+	static int power_off_cnt;
+	/*
+	 * low temperature
+	 * if power_off_cnt > 20, reset power_off_cnt value and decrease SoC by 1% step.
+	 */
+	if (info->bat_params.temp < 0) {
+		if (power_off_cnt > 20) {
+			dev_info(info->dev, "%s: power off th voltage at low temp = %d\n",
+				 __func__, info->bat_params.volt);
+			power_off_cnt = 0;
+			if (ccnt_val->soc > 0)
+				ccnt_val->soc -= 10;
+		} else {
+			dev_info(info->dev, "hit power off cnt at low temp = %d\n", power_off_cnt);
+			power_off_cnt++;
+		}
+	} else {
+		if (power_off_cnt > 4) {
+			dev_info(info->dev, "%s: power off th voltage at room temp= %d\n",
+				 __func__, info->bat_params.volt);
+			power_off_cnt = 0;
+			if (ccnt_val->soc > 0)
+				ccnt_val->soc -= 10;
+		} else {
+			dev_info(info->dev, "hit power off cnt at room temp = %d\n", power_off_cnt);
+			power_off_cnt++;
+		}
+	}
+}
+
 /* correct SoC according to user scenario */
 static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
 	static int chg_status, old_soc;
-	static int power_off_cnt;
 
 	info->bat_params.volt = pm88x_get_batt_vol(info, 1);
 	if (info->bat_params.status == POWER_SUPPLY_STATUS_UNKNOWN) {
@@ -1279,35 +1312,8 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 				ccnt_val->soc = 0;
 			}
 		} else {
-			if (info->bat_params.volt <= info->power_off_th) {
-				/*
-				 * low temperature
-				 * if power_off_cnt > 20, reset power_off_cnt and decrease SoC by 1% step.
-				 */
-				if (info->bat_params.temp < 0) {
-					if (power_off_cnt > 20) {
-						dev_info(info->dev, "%s: power off th voltage at low temp = %d\n",
-							 __func__, info->bat_params.volt);
-						power_off_cnt = 0;
-						if (ccnt_val->soc > 0)
-							ccnt_val->soc -= 10;
-					} else {
-						dev_info(info->dev, "hit power off cnt at low temp = %d\n", power_off_cnt);
-						power_off_cnt++;
-					}
-				} else {
-					if (power_off_cnt > 4) {
-						dev_info(info->dev, "%s: power off th voltage at room temp= %d\n",
-							 __func__, info->bat_params.volt);
-						power_off_cnt = 0;
-						if (ccnt_val->soc > 0)
-							ccnt_val->soc -= 10;
-					} else {
-						dev_info(info->dev, "hit power off cnt at room temp = %d\n", power_off_cnt);
-						power_off_cnt++;
-					}
-				}
-			}
+			if (info->bat_params.volt <= info->power_off_th)
+				correct_soc_by_temp(info, ccnt_val);
 			if (info->bat_params.volt < info->safe_power_off_th) {
 				dev_info(info->dev,
 					 "%s: for safe: voltage = %d\n",
