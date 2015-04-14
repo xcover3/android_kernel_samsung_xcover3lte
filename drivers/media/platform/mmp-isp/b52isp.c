@@ -1381,60 +1381,6 @@ static int b52isp_sharpness(struct isp_subdev *isd,
 	return 0;
 }
 
-static int b52isp_saturation(struct isp_subdev *isd,
-	struct b52isp_saturation *arg)
-{
-	u32 base;
-	int i = 0;
-	struct isp_block *blk = isp_sd2blk(isd);
-
-	if (!arg)
-		return 0;
-
-	if (blk->id.mod_id == B52ISP_BLK_PIPE1)
-		base = FW_P1_REG_BASE;
-	else if (blk->id.mod_id == B52ISP_BLK_PIPE2) {
-		base = FW_P2_REG_BASE;
-		pr_err("Current ISP FW can't support this on p2\n");
-		return -EINVAL;
-	}
-
-	/* 0x333f3~0x333f8 */
-	while (REG_FW_UV_MIN_SATURATON + i <= REG_FW_UV_MAX_SATURATON) {
-		b52_writeb(base + REG_FW_UV_MIN_SATURATON + i, arg->sat_arr[i]);
-		i++;
-	}
-
-	return 0;
-}
-
-static int b52isp_sharpness(struct isp_subdev *isd,
-	struct b52isp_sharpness *arg)
-{
-	u32 base;
-	int i = 0;
-	struct isp_block *blk = isp_sd2blk(isd);
-
-	if (!arg)
-		return 0;
-
-	if (blk->id.mod_id == B52ISP_BLK_PIPE1)
-		base = FW_P1_REG_BASE;
-	else if (blk->id.mod_id == B52ISP_BLK_PIPE2) {
-		base = FW_P2_REG_BASE;
-		pr_err("Current ISP FW can't support this on p2\n");
-		return -EINVAL;
-	}
-
-	/* 0x331ea~0x331ef */
-	while (REG_FW_MIN_SHARPNESS + i <= REG_FW_MAX_SHARPNESS) {
-		b52_writeb(FW_P1_REG_BASE + REG_FW_MIN_SHARPNESS + i, arg->sha_arr[i]);
-		i++;
-	}
-
-	return 0;
-}
-
 /* ioctl(subdev, IOCTL_XXX, arg) is handled by this one */
 static long b52isp_path_ioctl(struct v4l2_subdev *sd,
 				unsigned int cmd, void *arg)
