@@ -156,6 +156,13 @@ static struct usb_configuration android_config_driver = {
 	.bConfigurationValue = 1,
 };
 
+static int __init serial_setup(char *str)
+{
+	strncpy(serial_string, str, sizeof(serial_string) - 1);
+	return 0;
+}
+early_param("androidboot.serialno", serial_setup);
+
 static void android_work(struct work_struct *data)
 {
 	struct android_dev *dev = container_of(data, struct android_dev, work);
@@ -1672,8 +1679,11 @@ static int android_bind(struct usb_composite_dev *cdev)
 	/* Default strings - should be updated by userspace */
 	strncpy(manufacturer_string, "Android", sizeof(manufacturer_string)-1);
 	strncpy(product_string, "Android", sizeof(product_string) - 1);
-	strncpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
+	if (!strlen(serial_string))
+		strncpy(serial_string, "0123456789ABCDEF",
+			sizeof(serial_string) - 1);
 
+	pr_debug("the default serial number is %s\n", serial_string);
 	id = usb_string_id(cdev);
 	if (id < 0)
 		return id;
