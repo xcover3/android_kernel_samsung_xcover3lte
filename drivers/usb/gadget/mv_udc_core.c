@@ -39,6 +39,7 @@
 #include <linux/pm_qos.h>
 #include <asm/unaligned.h>
 #include <dt-bindings/usb/mv_usb.h>
+#include <linux/power_supply.h>
 
 #include "mv_udc.h"
 
@@ -75,6 +76,23 @@ static void mv_udc_disable(struct mv_udc *udc);
 static void nuke(struct mv_ep *ep, int status);
 static void stop_activity(struct mv_udc *udc, struct usb_gadget_driver *driver);
 static void call_charger_notifier(struct mv_udc *udc);
+
+static enum power_supply_type map_charger_type(unsigned int type)
+{
+	switch (type) {
+	case NULL_CHARGER:
+		return POWER_SUPPLY_TYPE_UNKNOWN;
+	case DCP_CHARGER:
+		return POWER_SUPPLY_TYPE_USB_DCP;
+	case CDP_CHARGER:
+		return POWER_SUPPLY_TYPE_USB_CDP;
+	case SDP_CHARGER:
+	case DEFAULT_CHARGER:
+	case NONE_STANDARD_CHARGER:
+	default:
+		return POWER_SUPPLY_TYPE_USB;
+	}
+}
 
 /* for endpoint 0 operations */
 static const struct usb_endpoint_descriptor mv_ep0_desc = {
@@ -2375,6 +2393,7 @@ EXPORT_SYMBOL(mv_udc_unregister_client);
 
 static void call_charger_notifier(struct mv_udc *udc)
 {
+	udc->charger_type = map_charger_type(udc->charger_type);
 	blocking_notifier_call_chain(&mv_udc_notifier_list,
 				udc->charger_type, &udc->power);
 }
