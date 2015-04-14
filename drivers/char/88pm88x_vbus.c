@@ -17,8 +17,10 @@
 #include <linux/of_device.h>
 #include <linux/platform_data/mv_usb.h>
 
-#define PM88X_USB_OTG_EN		(1 << 7)
+#define PM88X_VBUS_LOW_TH (0x1a)
+#define PM88X_VBUS_UPP_TH (0x2a)
 
+#define PM88X_USB_OTG_EN		(1 << 7)
 #define PM88X_CHG_CONFIG4		(0x2B)
 #define PM88X_VBUS_SW_EN		(1 << 0)
 
@@ -84,28 +86,85 @@ static void pm88x_vbus_check_errors(struct pm88x_vbus_info *info)
 		regmap_write(info->chip->battery_regmap, PM88X_OTG_LOG1, val);
 }
 
-static int pm88x_get_vbus(unsigned int *level)
+enum vbus_volt_range {
+	OFFLINE_RANGE = 0, /* vbus_volt_threshold[0, 1]*/
+	ONLINE_RANGE,  /* vbus_volt_threshold[2, 3]*/
+	ABNORMAL_RANGE, /* vbus_volt_threshold[4, 5]*/
+	MAX_RANGE,
+};
+
+struct volt_threshold {
+	unsigned int lo; /* mV */
+	unsigned int hi;
+	int range_id;
+};
+
+static const struct volt_threshold vbus_volt[] = {
+	[0] = {.lo = 0, .hi = 4000, .range_id = OFFLINE_RANGE},
+	[1] = {.lo = 3500, .hi = 5250, .range_id = ONLINE_RANGE},
+	[2] = {.lo = 5160, .hi = 6000, .range_id = ABNORMAL_RANGE},
+};
+
+static void config_vbus_threshold(struct pm88x_chip *chip, int range_id)
+{
+	unsigned int lo_volt, hi_volt, lo_reg, hi_reg;
+
+	lo_volt = vbus_volt[range_id].lo;
+	hi_volt = vbus_volt[range_id].hi;
+
+	switch (chip->type) {
+	case PM886:
+		if (chip->chip_id == PM886_A0) {
+			hi_reg = PM886A0_VBUS_2_VALUE(hi_volt);
+			lo_reg = PM886A0_VBUS_2_VALUE(lo_volt);
+		} else {
+			hi_reg = PM88X_VBUS_2_VALUE(hi_volt);
+			lo_reg = PM88X_VBUS_2_VALUE(lo_volt);
+		}
+		break;
+	default:
+		hi_reg = PM88X_VBUS_2_VALUE(hi_volt);
+		lo_reg = PM88X_VBUS_2_VALUE(lo_volt);
+		break;
+	}
+
+	lo_reg = (lo_reg & 0xff0) >> 4;
+	hi_reg = (hi_reg & 0xff0) >> 4;
+
+	regmap_write(chip->gpadc_regmap, PM88X_VBUS_LOW_TH, lo_reg);
+	regmap_write(chip->gpadc_regmap, PM88X_VBUS_UPP_TH, hi_reg);
+}
+
+static int get_vbus_volt(struct pm88x_chip *chip)
 {
 	int ret, val, voltage;
 	unsigned char buf[2];
 
-	ret = regmap_bulk_read(vbus_info->chip->gpadc_regmap,
+	ret = regmap_bulk_read(chip->gpadc_regmap,
 				PM88X_VBUS_MEAS1, buf, 2);
 	if (ret)
 		return ret;
 
 	val = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
 
-	switch (vbus_info->chip->type) {
+	switch (chip->type) {
 	case PM886:
-		if (vbus_info->chip->chip_id == PM886_A0) {
+		if (chip->chip_id == PM886_A0)
 			voltage = PM886A0_VALUE_2_VBUS(val);
-			break;
-		}
+		break;
 	default:
 		voltage = PM88X_VALUE_2_VBUS(val);
 		break;
 	}
+
+	return voltage;
+}
+
+static int pm88x_get_vbus(unsigned int *level)
+{
+	int voltage, val;
+
+	voltage = get_vbus_volt(vbus_info->chip);
 
 	/* read pm886 status to decide it's cable in or out */
 	regmap_read(vbus_info->chip->base_regmap, PM88X_STATUS1, &val);
@@ -582,6 +641,9 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
 					pm88x_init_id);
 	}
+
+	/* TODO: modify according to current range later */
+	config_vbus_threshold(chip, ONLINE_RANGE);
 
 	return 0;
 
