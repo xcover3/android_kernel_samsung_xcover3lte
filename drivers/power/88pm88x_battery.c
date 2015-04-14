@@ -2339,6 +2339,16 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	pm88x_bat_update_status(info);
 
+	info->bat_wqueue = create_singlethread_workqueue("88pm88x-battery-wq");
+	if (!info->bat_wqueue) {
+		dev_info(chip->dev, "%s: failed to create wq.\n", __func__);
+		ret = -ESRCH;
+		goto out_free;
+	}
+
+	INIT_DELAYED_WORK(&info->charged_work, pm88x_charged_work);
+	INIT_DELAYED_WORK(&info->monitor_work, pm88x_battery_monitor_work);
+
 	info->battery.name = "battery";
 	info->battery.type = POWER_SUPPLY_TYPE_BATTERY;
 	info->battery.properties = pm88x_batt_props;
@@ -2351,13 +2361,6 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	info->battery.num_supplicants = ARRAY_SIZE(supply_interface);
 	ret = power_supply_register(&pdev->dev, &info->battery);
 	info->battery.dev->parent = &pdev->dev;
-
-	info->bat_wqueue = create_singlethread_workqueue("88pm88x-battery-wq");
-	if (!info->bat_wqueue) {
-		dev_info(chip->dev, "%s: failed to create wq.\n", __func__);
-		ret = -ESRCH;
-		goto out;
-	}
 
 	/* interrupt should be request in the last stage */
 	for (i = 0; i < info->irq_nums; i++) {
@@ -2374,9 +2377,6 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 			}
 		}
 	}
-
-	INIT_DELAYED_WORK(&info->charged_work, pm88x_charged_work);
-	INIT_DELAYED_WORK(&info->monitor_work, pm88x_battery_monitor_work);
 
 	pm_stay_awake(info->dev);
 	/* update the status timely */
@@ -2399,7 +2399,6 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 out_irq:
 	while (--i >= 0)
 		devm_free_irq(info->dev, info->irqs[i].irq, info);
-out:
 	power_supply_unregister(&info->battery);
 out_free:
 	kfree(info->temp_ohm_table);
