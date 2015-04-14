@@ -27,6 +27,8 @@
 #include <linux/of_device.h>
 #include <linux/platform_data/mv_usb.h>
 
+#define MY_PSY_NAME		"usb"
+
 #define CHG_RESTART_DELAY		(5) /* in minutes */
 
 #define PM88X_CHG_ENABLE		(1 << 0)
@@ -86,14 +88,12 @@ enum {
 
 struct pm88x_charger_info {
 	struct device *dev;
-	struct power_supply ac_chg;
-	struct power_supply usb_chg;
+	struct power_supply pm88x_charger_psy;
 	struct delayed_work restart_chg_work;
 	struct work_struct chg_state_machine_work;
 	struct notifier_block nb;
-	int ac_chg_online;
-	int usb_chg_online;
-	int used_chg_type;	/* type of used power supply */
+	int cable_online;
+	int charger_cable_type;
 
 	struct mutex lock;
 
@@ -132,6 +132,7 @@ static enum power_supply_property pm88x_props[] = {
 	POWER_SUPPLY_PROP_STATUS, /* Charger status output */
 	POWER_SUPPLY_PROP_ONLINE, /* External power source */
 	POWER_SUPPLY_PROP_CHARGE_ENABLED,
+	POWER_SUPPLY_PROP_TYPE, /* charger adapter type */
 };
 
 static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status);
@@ -261,7 +262,7 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 	int ret, i;
 
 	if (!psy || !psy->get_property) {
-		psy = power_supply_get_by_name(info->usb_chg.supplied_to[0]);
+		psy = power_supply_get_by_name(info->pm88x_charger_psy.supplied_to[0]);
 		if (!psy || !psy->get_property) {
 			dev_err(info->dev, "get battery property failed.\n");
 			return false;
@@ -383,16 +384,16 @@ static int pm88x_charger_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		if (!strncmp(psy->name, "ac", 2))
-			val->intval = info->ac_chg_online;
-		else
-			val->intval = info->usb_chg_online;
+		val->intval = info->cable_online;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = info->pm88x_charger_status;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
 		val->intval = info->allow_chg_ext;
+		break;
+	case POWER_SUPPLY_PROP_TYPE:
+		val->intval = info->charger_cable_type;
 		break;
 	default:
 		return -EINVAL;
@@ -479,34 +480,26 @@ static int pm88x_stop_charging(struct pm88x_charger_info *info)
 static void pm88x_charger_set_supply_type(struct pm88x_charger_info *info,
 					  struct power_supply *psy)
 {
+	info->charger_cable_type = psy->type;
 	switch (psy->type) {
-	case POWER_SUPPLY_TYPE_USB: /* Standard Downstream Port */
-		info->ac_chg_online = 0;
-		info->usb_chg_online = 1;
-		info->used_chg_type = USB_CHARGER_TYPE;
+	case POWER_SUPPLY_TYPE_USB:
+		info->cable_online = 1;
 		info->limit_cur = 500;
 		break;
-	case POWER_SUPPLY_TYPE_USB_DCP:	/* Dedicated Charging Port */
-		info->ac_chg_online = 1;
-		info->usb_chg_online = 0;
-		info->used_chg_type = AC_CHARGER_TYPE;
+	case POWER_SUPPLY_TYPE_USB_DCP:
+		info->cable_online = 1;
 		info->limit_cur = info->dcp_limit;
 		break;
-	case POWER_SUPPLY_TYPE_USB_CDP:	/* Charging Downstream Port */
-		info->ac_chg_online = 1;
-		info->usb_chg_online = 0;
-		info->used_chg_type = AC_CHARGER_TYPE;
-		/* the max current for CDP should be 1.5A */
+	case POWER_SUPPLY_TYPE_USB_CDP:
+		info->cable_online = 1;
 		info->limit_cur = 1500;
 		break;
-	case POWER_SUPPLY_TYPE_UNKNOWN: /* considering cable is not present */
-		info->ac_chg_online = 0;
-		info->usb_chg_online = 0;
+	case POWER_SUPPLY_TYPE_UNKNOWN:
+		info->cable_online = 0;
 		cancel_delayed_work(&info->restart_chg_work);
+		break;
 	default:
-		info->ac_chg_online = 0;
-		info->usb_chg_online = 1;
-		info->used_chg_type = USB_CHARGER_TYPE;
+		info->cable_online = 1;
 		info->limit_cur = 500;
 		break;
 	}
@@ -516,13 +509,12 @@ static void pm88x_charger_set_supply_type(struct pm88x_charger_info *info,
 
 	schedule_work(&info->chg_state_machine_work);
 
-	dev_info(info->dev, "%s: TA status: ac_chg = %d, usb = %d\n", __func__,
-		 info->ac_chg_online, info->usb_chg_online);
+	dev_info(info->dev, "%s: TA: online = %d, type = %d\n", __func__, info->cable_online, psy->type);
 }
 
 static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status)
 {
-	int chg_online = (info->ac_chg_online || info->usb_chg_online);
+	int chg_online = info->cable_online;
 	int charging;
 
 	if (status == 1) {
@@ -559,14 +551,6 @@ static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status)
 static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 {
 	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
-
-	if (!strncmp(psy->name, "ac", 2) && (info->ac_chg_online))
-		dev_dbg(info->dev, "%s: ac charger.\n", __func__);
-	else if (!strncmp(psy->name, "usb", 3) && (info->usb_chg_online))
-		dev_dbg(info->dev, "%s: usb charger.\n", __func__);
-	else
-		return;
-
 	schedule_work(&info->chg_state_machine_work);
 }
 
@@ -599,47 +583,22 @@ static DEVICE_ATTR(control, S_IWUSR | S_IWGRP, NULL, pm88x_control_charging);
 
 static int pm88x_power_supply_register(struct pm88x_charger_info *info)
 {
-	int ret = 0;
-
 	/* private attribute */
-	info->ac_chg.supplied_to = supply_interface;
-	info->ac_chg.num_supplicants = ARRAY_SIZE(supply_interface);
-	info->usb_chg.supplied_to = supply_interface;
-	info->usb_chg.num_supplicants = ARRAY_SIZE(supply_interface);
+	info->pm88x_charger_psy.supplied_to = supply_interface;
+	info->pm88x_charger_psy.num_supplicants = ARRAY_SIZE(supply_interface);
 
-	/* AC supply */
-	info->ac_chg.name = "ac";
-	info->ac_chg.type = POWER_SUPPLY_TYPE_MAINS;
-	info->ac_chg.properties = pm88x_props;
-	info->ac_chg.num_properties = ARRAY_SIZE(pm88x_props);
-	info->ac_chg.get_property = pm88x_charger_get_property;
-	info->ac_chg.set_property = pm88x_charger_set_property;
-	info->ac_chg.property_is_writeable = pm88x_property_is_writeable;
-	info->ac_chg.external_power_changed = pm88x_chg_ext_power_changed;
+	/* charger power supply */
+	info->pm88x_charger_psy.name = MY_PSY_NAME;
+	info->pm88x_charger_psy.type = POWER_SUPPLY_TYPE_USB;
+	info->pm88x_charger_psy.properties = pm88x_props;
+	info->pm88x_charger_psy.num_properties = ARRAY_SIZE(pm88x_props);
+	info->pm88x_charger_psy.get_property = pm88x_charger_get_property;
+	info->pm88x_charger_psy.set_property = pm88x_charger_set_property;
+	info->pm88x_charger_psy.property_is_writeable = pm88x_property_is_writeable;
+	info->pm88x_charger_psy.external_power_changed = pm88x_chg_ext_power_changed;
 
-	ret = power_supply_register(info->dev, &info->ac_chg);
-	if (ret < 0)
-		return ret;
+	return power_supply_register(info->dev, &info->pm88x_charger_psy);
 
-	/* USB supply */
-	info->usb_chg.name = "usb";
-	info->usb_chg.type = POWER_SUPPLY_TYPE_USB;
-	info->usb_chg.properties = pm88x_props;
-	info->usb_chg.num_properties = ARRAY_SIZE(pm88x_props);
-	info->usb_chg.get_property = pm88x_charger_get_property;
-	info->usb_chg.set_property = pm88x_charger_set_property;
-	info->usb_chg.property_is_writeable = pm88x_property_is_writeable;
-	info->usb_chg.external_power_changed = pm88x_chg_ext_power_changed;
-
-	ret = power_supply_register(info->dev, &info->usb_chg);
-	if (ret < 0)
-		goto err_usb;
-
-	return ret;
-
-err_usb:
-	power_supply_unregister(&info->ac_chg);
-	return ret;
 }
 
 static int pm88x_charger_init(struct pm88x_charger_info *info)
@@ -652,8 +611,7 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 	info->allow_chg_after_overvoltage = 1;
 	info->allow_chg_ext = 1;
 
-	info->ac_chg_online = 0;
-	info->usb_chg_online = 0;
+	info->cable_online = 0;
 	info->charging = 0;
 	info->pm88x_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
 
@@ -742,6 +700,9 @@ static int pm88x_charger_notifier_call(struct notifier_block *nb,
 		container_of(nb, struct pm88x_charger_info, nb);
 	static unsigned long prev_chg_type = NULL_CHARGER;
 
+	struct power_supply *psy;
+	union power_supply_propval val;
+
 	/* no change in charger type - nothing to do */
 	if (type == prev_chg_type)
 		return 0;
@@ -757,48 +718,11 @@ static int pm88x_charger_notifier_call(struct notifier_block *nb,
 	info->allow_chg_after_tout = 1;
 	info->allow_chg_after_overvoltage = 1;
 
-	switch (type) {
-	case NULL_CHARGER:
-		info->ac_chg_online = 0;
-		info->usb_chg_online = 0;
-		cancel_delayed_work(&info->restart_chg_work);
-		break;
-	case SDP_CHARGER:
-	case NONE_STANDARD_CHARGER:
-	case DEFAULT_CHARGER:
-		info->ac_chg_online = 0;
-		info->usb_chg_online = 1;
-		info->used_chg_type = USB_CHARGER_TYPE;
-		info->limit_cur = 500;
-		break;
-	case CDP_CHARGER:
-		info->ac_chg_online = 1;
-		info->usb_chg_online = 0;
-		info->used_chg_type = AC_CHARGER_TYPE;
-		/* the max current for CDP should be 1.5A */
-		info->limit_cur = 1500;
-		break;
-	case DCP_CHARGER:
-		info->ac_chg_online = 1;
-		info->usb_chg_online = 0;
-		info->used_chg_type = AC_CHARGER_TYPE;
-		info->limit_cur = info->dcp_limit;
-		break;
-	default:
-		info->ac_chg_online = 0;
-		info->usb_chg_online = 1;
-		info->used_chg_type = USB_CHARGER_TYPE;
-		info->limit_cur = 500;
-		break;
+	psy = power_supply_get_by_name(MY_PSY_NAME);
+	if (psy && psy->set_property) {
+		val.intval = type;
+		psy->set_property(psy, POWER_SUPPLY_PROP_TYPE, &val);
 	}
-
-	if (type != NULL_CHARGER)
-		pm88x_config_charger(info);
-
-	schedule_work(&info->chg_state_machine_work);
-
-	dev_dbg(info->dev, "usb_chg inserted: ac_chg = %d, usb = %d\n",
-		info->ac_chg_online, info->usb_chg_online);
 
 	return 0;
 }
@@ -912,7 +836,7 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 
 	chg_allowed = pm88x_charger_check_allowed(info);
 	prev_status = info->pm88x_charger_status;
-	chg_online = info->ac_chg_online || info->usb_chg_online;
+	chg_online = info->cable_online;
 
 	mutex_lock(&info->lock);
 
@@ -983,12 +907,8 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 		update_psy = 1;
 	}
 
-	if (update_psy) {
-		if (info->used_chg_type == USB_CHARGER_TYPE)
-			power_supply_changed(&info->usb_chg);
-		else
-			power_supply_changed(&info->ac_chg);
-	}
+	if (update_psy)
+		power_supply_changed(&info->pm88x_charger_psy);
 }
 
 static void pm88x_chg_state_machine_work(struct work_struct *work)
@@ -1148,8 +1068,7 @@ out_irq:
 #ifdef CONFIG_USB_MV_UDC
 err_psy:
 #endif
-	power_supply_unregister(&info->ac_chg);
-	power_supply_unregister(&info->usb_chg);
+	power_supply_unregister(&info->pm88x_charger_psy);
 out:
 	return ret;
 }
