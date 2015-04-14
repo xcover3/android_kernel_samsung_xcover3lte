@@ -51,11 +51,19 @@
 
 struct pm88x_vbus_info {
 	struct pm88x_chip	*chip;
+	struct work_struct	meas_id_work;
 	int			vbus_irq;
 	int			id_irq;
+	int			id_level;
 	int			vbus_gpio;
 	int			id_gpadc;
+	bool			id_ov_sampling;
+	int			id_ov_samp_count;
+	int			id_ov_samp_sleep;
 	int			chg_in;
+	unsigned int		gpadc_meas;
+	unsigned int		gpadc_upp_th;
+	unsigned int		gpadc_low_th;
 	struct delayed_work	pxa_notify;
 };
 
@@ -202,61 +210,132 @@ static int pm88x_set_vbus(unsigned int vbus)
 	return 0;
 }
 
-static int pm88x_read_id_val(unsigned int *level)
+static int pm88x_ext_read_id_level(unsigned int *level)
 {
-	unsigned int meas, upp_th, low_th;
-	unsigned char buf[2];
-	int ret, data;
-
 	if (vbus_info->chg_in) {
-		*level = 1;
+		*level = VBUS_HIGH;
 		dev_info(vbus_info->chip->dev, "idpin requested during charging state\n");
 		return 0;
 	}
 
-	switch (vbus_info->id_gpadc) {
-	case PM88X_GPADC0:
-		meas = PM88X_GPADC0_MEAS1;
-		low_th = PM88X_GPADC0_LOW_TH;
-		upp_th = PM88X_GPADC0_UPP_TH;
-		break;
-	case PM88X_GPADC1:
-		meas = PM88X_GPADC1_MEAS1;
-		low_th = PM88X_GPADC1_LOW_TH;
-		upp_th = PM88X_GPADC1_UPP_TH;
-		break;
-	case PM88X_GPADC2:
-		meas = PM88X_GPADC2_MEAS1;
-		low_th = PM88X_GPADC2_LOW_TH;
-		upp_th = PM88X_GPADC2_UPP_TH;
-		break;
-	case PM88X_GPADC3:
-		meas = PM88X_GPADC3_MEAS1;
-		low_th = PM88X_GPADC3_LOW_TH;
-		upp_th = PM88X_GPADC3_UPP_TH;
-		break;
-	default:
-		return -ENODEV;
-	}
-
-	ret = regmap_bulk_read(vbus_info->chip->gpadc_regmap, meas, buf, 2);
-	if (ret)
-		return ret;
-
-	data = ((buf[0] & 0xFF) << 4) | (buf[1] & 0xF);
-
-	if (data > OTG_IDPIN_TH) {
-		regmap_write(vbus_info->chip->gpadc_regmap, low_th, OTG_IDPIN_TH >> 4);
-		regmap_write(vbus_info->chip->gpadc_regmap, upp_th, 0xff);
-		*level = VBUS_HIGH;
-	} else {
-		regmap_write(vbus_info->chip->gpadc_regmap, low_th, 0);
-		regmap_write(vbus_info->chip->gpadc_regmap, upp_th, OTG_IDPIN_TH >> 4);
-		*level = VBUS_LOW;
-	}
+	*level = vbus_info->id_level;
 
 	return 0;
 };
+
+static int pm88x_get_id_level(unsigned int *level)
+{
+	int ret, data;
+	unsigned char buf[2];
+
+	ret = regmap_bulk_read(vbus_info->chip->gpadc_regmap, vbus_info->gpadc_meas, buf, 2);
+	if (ret)
+		return ret;
+
+	data = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
+	if (data > OTG_IDPIN_TH)
+		*level = VBUS_HIGH;
+	else
+		*level = VBUS_LOW;
+
+	dev_dbg(vbus_info->chip->dev,
+		"usb id voltage = %d mV, level is %s\n",
+		(((data) & 0xfff) * 175) >> 9, (*level == 1 ? "HIGH" : "LOW"));
+
+	return 0;
+}
+
+static int pm88x_update_id_level(void)
+{
+	int ret;
+
+	ret = pm88x_get_id_level(&vbus_info->id_level);
+	if (ret)
+		return ret;
+
+	if (vbus_info->id_level) {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, OTG_IDPIN_TH >> 4);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, 0xff);
+	} else {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, 0);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, OTG_IDPIN_TH >> 4);
+	}
+
+	dev_info(vbus_info->chip->dev, "idpin is %s\n", vbus_info->id_level ? "HIGH" : "LOW");
+	return 0;
+}
+
+static void pm88x_meas_id_work(struct work_struct *work)
+{
+	int i = 0;
+	unsigned int level, last_level = 1;
+
+	/*
+	 * 1.loop until the line is stable
+	 * 2.in every iteration do the follwing:
+	 *	- measure the line voltage
+	 *	- check if the voltage is the same as the previous value
+	 *	- if not, start the loop again (set loop index to 0)
+	 *	- if yes, continue the loop to next iteration
+	 * 3.if we get x (id_meas_count) identical results, loop end
+	 */
+	while (i < vbus_info->id_ov_samp_count) {
+		pm88x_get_id_level(&level);
+
+		if (i == 0) {
+			last_level = level;
+			i++;
+		} else if (level != last_level) {
+			i = 0;
+		} else {
+			i++;
+		}
+
+		msleep(vbus_info->id_ov_samp_sleep);
+	}
+
+	/* set the GPADC thrsholds for next insertion/removal */
+	if (last_level) {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, OTG_IDPIN_TH >> 4);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, 0xff);
+	} else {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, 0);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, OTG_IDPIN_TH >> 4);
+	}
+
+	/* after the line is stable, we can enable the id interrupt */
+	enable_irq(vbus_info->id_irq);
+
+	/* in case we missed interrupt till we enable it, we take one more measurment */
+	pm88x_get_id_level(&level);
+
+	/*
+	 * if the last measurment is different from the stable value,
+	 *  need to start the process again
+	*/
+	if (level != last_level) {
+		disable_irq(vbus_info->id_irq);
+		schedule_work(&vbus_info->meas_id_work);
+		return;
+	}
+
+	/* notify to wake up the usb subsystem if ID pin value changed */
+	if (last_level != vbus_info->id_level) {
+		vbus_info->id_level = last_level;
+		pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_ID, 0);
+
+		dev_info(vbus_info->chip->dev, "idpin is %s\n",
+			vbus_info->id_level ? "HIGH" : "LOW");
+	}
+}
 
 static int pm88x_init_id(void)
 {
@@ -294,7 +373,7 @@ static irqreturn_t pm88x_vbus_handler(int irq, void *data)
 		break;
 	}
 
-	dev_dbg(info->chip->dev, "88pm886 vbus interrupt is served..\n");
+	dev_info(info->chip->dev, "88pm886 vbus interrupt is served..\n");
 	/* allowing 7.5msec for the SW to close */
 	schedule_delayed_work(&info->pxa_notify, usecs_to_jiffies(7500));
 	return IRQ_HANDLED;
@@ -304,15 +383,26 @@ static irqreturn_t pm88x_id_handler(int irq, void *data)
 {
 	struct pm88x_vbus_info *info = data;
 
-	 /* notify to wake up the usb subsystem if ID pin is pulled down */
-	pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_ID, 0);
-	dev_dbg(info->chip->dev, "88pm886 id interrupt is served..\n");
+	dev_info(info->chip->dev, "88pm886 id interrupt is served..\n");
+
+	if (info->id_ov_sampling) {
+		/* disable id interrupt, and start measurment process */
+		disable_irq_nosync(info->id_irq);
+		schedule_work(&info->meas_id_work);
+	} else {
+		/* update id value */
+		pm88x_update_id_level();
+
+		/* notify to wake up the usb subsystem if ID pin is pulled down */
+		pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_ID, 0);
+	}
+
 	return IRQ_HANDLED;
 }
 
 static void pm88x_vbus_config(struct pm88x_vbus_info *info)
 {
-	unsigned int en, low_th, upp_th;
+	unsigned int gpadc_en;
 
 	if (!info)
 		return;
@@ -327,39 +417,66 @@ static void pm88x_vbus_config(struct pm88x_vbus_info *info)
 	/* set id gpadc low/upp threshold and enable it */
 	switch (info->id_gpadc) {
 	case PM88X_GPADC0:
-		low_th = PM88X_GPADC0_LOW_TH;
-		upp_th = PM88X_GPADC0_UPP_TH;
-		en = PM88X_GPADC0_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC0_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC0_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC0_UPP_TH;
+		gpadc_en = PM88X_GPADC0_MEAS_EN;
 		break;
 	case PM88X_GPADC1:
-		low_th = PM88X_GPADC1_LOW_TH;
-		upp_th = PM88X_GPADC1_UPP_TH;
-		en = PM88X_GPADC1_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC1_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC1_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC1_UPP_TH;
+		gpadc_en = PM88X_GPADC1_MEAS_EN;
 		break;
 	case PM88X_GPADC2:
-		low_th = PM88X_GPADC2_LOW_TH;
-		upp_th = PM88X_GPADC2_UPP_TH;
-		en = PM88X_GPADC2_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC2_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC2_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC2_UPP_TH;
+		gpadc_en = PM88X_GPADC2_MEAS_EN;
 		break;
 	case PM88X_GPADC3:
-		low_th = PM88X_GPADC3_LOW_TH;
-		upp_th = PM88X_GPADC3_UPP_TH;
-		en = PM88X_GPADC3_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC3_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC3_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC3_UPP_TH;
+		gpadc_en = PM88X_GPADC3_MEAS_EN;
 		break;
 	default:
 		return;
 	}
 
-	/* set the threshold for GPADC to prepare for interrupt */
-	regmap_write(info->chip->gpadc_regmap, low_th, OTG_IDPIN_TH >> 4);
-	regmap_write(info->chip->gpadc_regmap, upp_th, 0xff);
+	regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, gpadc_en, gpadc_en);
 
-	regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, en, en);
+	/* read ID level, and set the thresholds for GPADC to prepare for interrupt */
+	pm88x_update_id_level();
 }
 
 static int pm88x_vbus_dt_init(struct device_node *np, struct pm88x_vbus_info *usb)
 {
-	return of_property_read_u32(np, "gpadc-number", &usb->id_gpadc);
+	int ret;
+
+	ret = of_property_read_u32(np, "gpadc-number", &usb->id_gpadc);
+	if (ret) {
+		pr_err("cannot get gpadc number.\n");
+		return -EINVAL;
+	}
+
+	usb->id_ov_sampling = of_property_read_bool(np, "id-ov-sampling");
+
+	if (usb->id_ov_sampling) {
+		ret = of_property_read_u32(np, "id-ov-samp-count", &usb->id_ov_samp_count);
+		if (ret) {
+			pr_err("cannot get id measurments count.\n");
+			return -EINVAL;
+		}
+
+		ret = of_property_read_u32(np, "id-ov-samp-sleep", &usb->id_ov_samp_sleep);
+		if (ret) {
+			pr_err("cannot get id sleep time.\n");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
 }
 
 static void pm88x_vbus_fixup(struct pm88x_vbus_info *info)
@@ -404,6 +521,7 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 		usb->id_gpadc = PM88X_NO_GPADC;
 
 	usb->chip = chip;
+	usb->id_level = 1;
 	usb->chg_in = 0;
 
 	/* do it before enable interrupt */
@@ -417,6 +535,7 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 	}
 
 	INIT_DELAYED_WORK(&usb->pxa_notify, pm88x_pxa_notify);
+	INIT_WORK(&usb->meas_id_work, pm88x_meas_id_work);
 
 	ret = devm_request_threaded_irq(&pdev->dev, usb->vbus_irq, NULL,
 					pm88x_vbus_handler,
@@ -456,9 +575,10 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 				pm88x_set_vbus);
 	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, get_vbus,
 				pm88x_get_vbus);
+
 	if (usb->id_gpadc != PM88X_NO_GPADC) {
 		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
-					pm88x_read_id_val);
+					pm88x_ext_read_id_level);
 		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
 					pm88x_init_id);
 	}
