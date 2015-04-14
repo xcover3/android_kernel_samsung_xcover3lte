@@ -24,6 +24,10 @@
 #include <linux/io.h>
 #include <linux/of.h>
 
+/* buck dvc sets register */
+#define PM880_BUCK1B_VOUT		(0x40)
+#define PM880_BUCK7_VOUT		(0xb8)
+
 /* to enable dvc*/
 #define PM88X_PWR_HOLD			(1 << 7)
 
@@ -32,6 +36,38 @@
 #define BUCK_STEP			(12500)
 
 static struct pm88x_dvc *g_dvc;
+
+struct pm88x_dvc_print {
+	char name[15];
+	char sets[16][10];
+};
+
+struct pm88x_dvc_extra {
+	char *name;
+	struct pm88x_dvc *dvc;
+};
+
+struct pm88x_dvc buck1b_dvc = {
+	.desc.current_reg = PM880_BUCK1B_VOUT,
+	.desc.mid_reg_val = 0x50,
+	.desc.max_level = 16,
+	.desc.uV_step1 = 12500,
+	.desc.uV_step2 = 50000,
+	.desc.min_uV = 600000,
+	.desc.mid_uV = 1600000,
+	.desc.max_uV = 1800000,
+};
+
+struct pm88x_dvc buck7_dvc = {
+	.desc.current_reg = PM880_BUCK7_VOUT,
+	.desc.mid_reg_val = 0x50,
+	.desc.max_level = 4,
+	.desc.uV_step1 = 12500,
+	.desc.uV_step2 = 50000,
+	.desc.min_uV = 600000,
+	.desc.mid_uV = 1600000,
+	.desc.max_uV = 3300000,
+};
 
 static inline int map_volt_to_reg(int uv)
 {
@@ -189,6 +225,127 @@ static int pm88x_dvc_chip_init(struct pm88x_dvc *dvc)
 	}
 
 	return 0;
+}
+
+static int pm88x_update_print(struct pm88x_chip *chip, struct pm88x_dvc_extra *extra,
+			      struct pm88x_dvc_print *print_temp, int index, int sets_num)
+{
+	struct regmap *regmap;
+	int reg, volt, ret = 0, val = 0;
+
+	regmap = chip->buck_regmap;
+
+	sprintf(print_temp->name, "%s", extra->name);
+
+	if (!index)
+		volt = pm88x_dvc_get_volt(sets_num);
+	else {
+		reg = extra->dvc->desc.current_reg + sets_num;
+		ret = regmap_read(regmap, reg, &val);
+		if (ret < 0) {
+			pr_err("fail to read reg: 0x%x\n", extra->dvc->desc.current_reg);
+			return ret;
+		}
+		val &= 0x7f;
+
+		volt = list_volt_from_reg(val);
+		if (volt < extra->dvc->desc.min_uV || volt > extra->dvc->desc.max_uV) {
+			pr_err("voltage out of range: %duV, level = %d\n", volt, sets_num);
+			return extra->dvc->desc.min_uV;
+		}
+	}
+
+	if (volt < 0)
+		return volt;
+	else
+		sprintf(print_temp->sets[sets_num], "%4d", volt);
+
+	return 0;
+}
+
+int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
+{
+	struct pm88x_dvc_print *print_temp;
+	struct pm88x_dvc_extra extra[3];
+	int i, j, k, extra_num, len = 0;
+	ssize_t ret;
+	switch (chip->type) {
+	case PM886:
+		extra[0].name = "BUCK1";
+		extra[0].dvc = g_dvc;
+		extra_num = 1;
+		break;
+	case PM880:
+		extra[0].name = "BUCK1A";
+		extra[0].dvc = g_dvc;
+		extra[1].name = "BUCK1B";
+		extra[1].dvc = &buck1b_dvc;
+		extra[2].name = "BUCK7";
+		extra[2].dvc = &buck7_dvc;
+		extra_num = 3;
+		break;
+	default:
+		pr_err("%s: Cannot find chip type.\n", __func__);
+		return -ENODEV;
+	}
+
+	print_temp = kmalloc(sizeof(struct pm88x_dvc_print), GFP_KERNEL);
+	if (!print_temp) {
+		pr_err("%s: Cannot allocate print template.\n", __func__);
+		return -ENOMEM;
+	}
+
+	len += sprintf(buf + len, "\nDynamic Voltage Setting");
+
+	for (i = 0; i < extra_num; i++) {
+		for (j = 0; j <= (extra[i].dvc->desc.max_level / 6); j++) {
+			for (k = 0; k < 6; k++) {
+				if (k) {
+					len += sprintf(buf + len, "  set%-2X  |", (k + 6 * j));
+				} else {
+					len += sprintf(buf + len,
+						       "\n-----------------------------------");
+					len += sprintf(buf + len,
+						       "------------------------------------\n");
+					len += sprintf(buf + len, "|  name   |");
+					len += sprintf(buf + len, "  set%-2X  |", (k + 6 * j));
+				}
+			}
+			len += sprintf(buf + len, "\n-----------------------------------");
+			len += sprintf(buf + len, "------------------------------------\n");
+
+			for (k = 0; k < 6; k++) {
+				if ((k + 6 * j) < extra[i].dvc->desc.max_level) {
+					ret = pm88x_update_print(chip, &extra[i],
+								 print_temp, i, k + 6 * j);
+					if (ret < 0) {
+						pr_err("Print of DVC %s failed\n",
+						       print_temp->name);
+						goto out_print;
+					}
+					if (k) {
+						len += sprintf(buf + len, " %-7s |",
+							       print_temp->sets[k + 6 * j]);
+					} else {
+						len += sprintf(buf + len, "| %-7s |",
+							       print_temp->name);
+						len += sprintf(buf + len, " %-7s |",
+							       print_temp->sets[k + 6 * j]);
+					}
+				} else {
+						len += sprintf(buf + len, "    -    |");
+				}
+			}
+		}
+	}
+
+	len += sprintf(buf + len, "\n-----------------------------------");
+	len += sprintf(buf + len, "------------------------------------\n");
+
+	ret = len;
+out_print:
+	kfree(print_temp);
+	return ret;
 }
 
 static int pm88x_dvc_probe(struct platform_device *pdev)
