@@ -164,7 +164,7 @@ struct pm88x_battery_info {
 
 	int			power_off_th;
 	int			safe_power_off_th;
-
+	int			power_off_cnt_th[3]; /* low-temp, standard-temp, high-temp */
 	int			alart_percent;
 
 	int			irq_nums;
@@ -1153,10 +1153,11 @@ static void correct_soc_by_temp(struct pm88x_battery_info *info,
 	static int power_off_cnt;
 	/*
 	 * low temperature
-	 * if power_off_cnt > 20, reset power_off_cnt value and decrease SoC by 1% step.
+	 * if power_off_cnt > power_off_cnt_th[0],
+	 * reset power_off_cnt value and decrease SoC by 1% step.
 	 */
 	if (info->bat_params.temp < 0) {
-		if (power_off_cnt > 20) {
+		if (power_off_cnt > info->power_off_cnt_th[0]) {
 			dev_info(info->dev, "%s: power off th voltage at low temp = %d\n",
 				 __func__, info->bat_params.volt);
 			power_off_cnt = 0;
@@ -1167,7 +1168,7 @@ static void correct_soc_by_temp(struct pm88x_battery_info *info,
 			power_off_cnt++;
 		}
 	} else {
-		if (power_off_cnt > 4) {
+		if (power_off_cnt > info->power_off_cnt_th[1]) {
 			dev_info(info->dev, "%s: power off th voltage at room temp= %d\n",
 				 __func__, info->bat_params.volt);
 			power_off_cnt = 0;
@@ -2061,6 +2062,10 @@ static int pm88x_battery_dt_init(struct device_node *np,
 		return ret;
 	ret = of_property_read_u32(np, "safe-power-off-th",
 				   &info->safe_power_off_th);
+	if (ret)
+		return ret;
+	ret = of_property_read_u32_array(np, "power-off-cnt-th",
+					 info->power_off_cnt_th, 3);
 	if (ret)
 		return ret;
 
