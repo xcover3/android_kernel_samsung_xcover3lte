@@ -314,7 +314,7 @@ static void i2c_bus_reset(struct pxa_i2c *i2c)
 		 * wait until the control bit is self-cleard
 		 * suppose we use 100kbps, 9 clocks need about 100us
 		 */
-		usleep_range(100, 150);
+		udelay(100);
 		WARN_ON(readl(_ICR(i2c)) & ICR_BUSRSTEN);
 		return;
 	}
