@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/uaccess.h>
+#include <linux/vmalloc.h>
 
 #define LOG_MAGIC 0x4d474f4c	/* "LOGM" */
 
