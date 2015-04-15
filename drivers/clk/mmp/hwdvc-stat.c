@@ -57,7 +57,6 @@ static struct vol_ts_info vol_dcstat;
 static bool vol_tsinfo_inited;
 
 static int vol_ledstatus_start;
-struct timecounter *time_counter;
 
 static void vol_ledstatus_show(u32 mode)
 {
@@ -168,9 +167,7 @@ static void vol_dcstat_update(u32 mode)
 	vol_dcstat.vc_total_count++;
 
 	/* update voltage dc statistics */
-	time_counter = arch_timer_get_timecounter();
-	cur_ts = ns_to_ktime(timecounter_read(time_counter));
-
+	cur_ts = ktime_get();
 	time_us = ktime_to_us(ktime_sub(cur_ts, vol_dcstat.prev_ts));
 	vol_dcstat.vlts[vol_dcstat.cur_lvl].time += time_us;
 	vol_dcstat.prev_ts = cur_ts;
@@ -323,8 +320,7 @@ static ssize_t vol_dc_write(struct file *filp, const char __user *buffer,
 	vol_dcstat.stat_start = start;
 
 	spin_lock(&vol_lock);
-	time_counter = arch_timer_get_timecounter();
-	cur_ts = ns_to_ktime(timecounter_read(time_counter));
+	cur_ts = ktime_get();
 	if (vol_dcstat.stat_start) {
 		for (idx = 0; idx < vlnum; idx++)
 			vol_dcstat.vlts[idx].time = 0;

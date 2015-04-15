@@ -18,8 +18,6 @@
 #include <asm/cputype.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/clk/mmpfuse.h>
-#include <linux/clk/mmpdcstat.h>
-
 #include "pm.h"
 
 struct platform_suspend *mmp_suspend;
@@ -41,17 +39,13 @@ static int notrace mcpm_powerdown_finisher(unsigned long arg)
 static int mmp_pm_enter(suspend_state_t state)
 {
 	unsigned int real_idx = mmp_suspend->suspend_state;
-	int cpu = smp_processor_id();
 
 	if (mmp_suspend->ops->pre_suspend_check) {
 		if (mmp_suspend->ops->pre_suspend_check())
 			return -EAGAIN;
 	}
 
-	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_M2_OR_DEEPER_ENTER, LPM_D2);
-	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, real_idx);
 	cpu_suspend((unsigned long)&real_idx);
-	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_EXIT, MAX_LPM_INDEX);
 
 	if (mmp_suspend->ops->post_chk_wakeup)
 		detect_wakeup_status = mmp_suspend->ops->post_chk_wakeup();
