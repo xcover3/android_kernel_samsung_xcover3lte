@@ -241,11 +241,14 @@ int mpu_memory_read(struct inv_mpu_state *st, u8 mpu_addr, u16 mem_addr,
 	INV_I2C_INC_MPUREAD(len);
 #if CONFIG_DYNAMIC_DEBUG
 	{
-		char *read = 0;
-		pr_debug("%s RM%02X%02X%02X%02X - %s%s\n", st->hw->name,
-			 mpu_addr, bank[1], addr[1], len,
-			 wr_pr_debug_begin(data, len, read),
-			 wr_pr_debug_end(read));
+		char *read = NULL;
+		read = wr_pr_debug_begin(data, len, read);
+		if (read != NULL) {
+			pr_debug("%s RM%02X%02X%02X%02X - %s\n", st->hw->name,
+				mpu_addr, bank[1], addr[1], len,
+				read);
+			wr_pr_debug_end(read);
+		}
 	}
 #endif
 
