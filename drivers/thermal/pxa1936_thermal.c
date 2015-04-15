@@ -104,10 +104,10 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 		[THROTTLE_CORE]		= { 1,
-		0, 2, 2, 3, 4, 4, 5, 5, 5, 5,
+		0, 0, 2, 2, 3, 4, 4, 5, 5, 5,
 		},
 		[THROTTLE_CORE1]	= { 1,
-		0, 0, 1, 2, 2, 3, 4, 5, 6, 6,
+		0, 0, 0, 1, 2, 2, 3, 4, 5, 6,
 		},
 		[THROTTLE_HOTPLUG]	= { 1,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -133,10 +133,10 @@ unsigned int pxa_tsen_throttle_tbl[][THROTTLE_NUM][THERMAL_MAX_TRIPS+1] = {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
 		[THROTTLE_CORE]		= { 1,
-		0, 2, 2, 3, 4, 4, 5, 5, 5, 5,
+		0, 0, 2, 2, 3, 4, 4, 5, 5, 5,
 		},
 		[THROTTLE_CORE1]	= { 1,
-		0, 0, 1, 2, 2, 3, 4, 5, 6, 6,
+		0, 0, 0, 1, 2, 2, 3, 4, 5, 6,
 		},
 		[THROTTLE_HOTPLUG]	= { 1,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -515,19 +515,12 @@ static int max_set_cur_state(struct thermal_cooling_device *cdev,
 	if (c_plug)
 		c_plug->ops->set_cur_state(c_plug, plug_state);
 
-	pr_info("Thermal max temp: %d; CPU Throttle state %lu: cpu0freq qos %lu, cpu1freq qos %lu, core_num qos %lu\n",
-	thermal_dev.temp_max, state, freq_state, core1_freq_state, plug_state);
-
 	/* ddr related throttle */
 	ddr_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
 	[thermal_dev.thermal_volt.therm_policy][THROTTLE_DDR][state + 1];
 
 	if (ddr_freq)
 		ddr_freq->ops->set_cur_state(ddr_freq, ddr_freq_state);
-
-
-	pr_info("Thermal max temp: %d; DDR Throttle state %lu: ddrfreq qos %lu\n",
-	thermal_dev.temp_max, state, ddr_freq_state);
 
 	/* gc related throttle */
 	gc3d_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
@@ -542,9 +535,6 @@ static int max_set_cur_state(struct thermal_cooling_device *cdev,
 		gc3d_freq->ops->set_cur_state(gc3d_freq, gc3d_freq_state);
 	if (gcsh_freq)
 		gcsh_freq->ops->set_cur_state(gcsh_freq, gcsh_freq_state);
-	pr_info("Thermal max temp: %d: GC Throttle state %lu: gc2d qos %lu, gc3d qos %lu,gcsh qos %lu\n",
-			thermal_dev.temp_max, state, gc2d_freq_state, gc3d_freq_state,
-			gcsh_freq_state);
 
 	/* vpu related throttle */
 	vpu_freq_state = thermal_dev.thermal_volt.tsen_throttle_tbl
@@ -552,9 +542,11 @@ static int max_set_cur_state(struct thermal_cooling_device *cdev,
 	if (vpu_freq)
 		vpu_freq->ops->set_cur_state(vpu_freq, vpu_freq_state);
 
-
-	pr_info("Thermal max temp: %d; VPU Throttle state %lu: vpu qos %lu\n",
-			thermal_dev.temp_max, state, vpu_freq_state);
+	pr_info("Thermal max temp: %d; CPU Throttle state %lu: cpu0freq qos %lu, cpu1freq qos %lu,\n\
+	core_num qos %lu, ddrfreq qos %lu, gc2d qos %lu, gc3d qos %lu,gcsh qos %lu, vpu qos %lu\n",
+	thermal_dev.temp_max, state, freq_state, core1_freq_state,
+	plug_state,ddr_freq_state,gc2d_freq_state, gc3d_freq_state,
+	gcsh_freq_state,vpu_freq_state);
 
 	if (prev_state < state)
 		pr_info("Thermal frequency limitation, performance impact expected!");
