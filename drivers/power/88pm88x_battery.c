@@ -2208,8 +2208,10 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	pdata = pdev->dev.platform_data;
 	ret = pm88x_battery_dt_init(node, info);
-	if (ret)
-		return -EINVAL;
+	if (ret) {
+		ret = -EINVAL;
+		goto out_free;
+	}
 
 	/* give default total capacity */
 	if (info->total_capacity)
@@ -2241,11 +2243,11 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	ret = pm88x_battery_setup_adc(info);
 	if (ret < 0)
-		return ret;
+		goto out_free;
 
 	ret = pm88x_init_fuelgauge(info);
 	if (ret < 0)
-		return ret;
+		goto out_free;
 
 	pm88x_bat_update_status(info);
 
@@ -2298,7 +2300,7 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		dev_err(info->dev,
 			"%s: failed to register client!\n", __func__);
-		return ret;
+		goto out_irq;
 	}
 #endif
 	device_init_wakeup(&pdev->dev, 1);
@@ -2310,9 +2312,9 @@ out_irq:
 	while (--i >= 0)
 		devm_free_irq(info->dev, info->irqs[i].irq, info);
 out:
-	kfree(info->temp_ohm_table);
 	power_supply_unregister(&info->battery);
-
+out_free:
+	kfree(info->temp_ohm_table);
 	return ret;
 }
 
