@@ -38,7 +38,7 @@
 #include <media/b52socisp/host_isd.h>
 #include <linux/workqueue.h>
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-#include <linux/platform_data/camera.h>
+#include <linux/ddr_upthreshold.h>
 #endif
 
 #include "plat_cam.h"
@@ -53,6 +53,8 @@
 #define PATH_PER_PIPE 3
 
 static struct pm_qos_request ddrfreq_qos_req_min;
+static struct pm_qos_request ddrfreq_qos_req_upthrd_max;
+static s32 ddrfreq_upthrd_value;
 
 static void b52isp_tasklet(unsigned long data);
 
@@ -289,38 +291,22 @@ EXPORT_SYMBOL(b52isp_set_ddr_qos);
 
 static void b52isp_ddr_threshold_work(struct work_struct *work)
 {
-#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	unsigned long val;
-	u32 threshold;
+	s32 val;
 	struct b52isp *b52isp = container_of(work, struct b52isp, work);
 
-	if (b52isp->ddr_threshold_up) {
-		val = CAMFREQ_POSTCHANGE_UP;
-		threshold = 30;
-	} else {
-		threshold = 0;
-		val = CAMFREQ_POSTCHANGE_DOWN;
-	}
+	if (b52isp->ddr_threshold_up)
+		val = ddrfreq_upthrd_value;
+	else
+		val = PM_QOS_DEFAULT_VALUE;
 
-	/* Need to call DDR threshold notifier in process context */
-	srcu_notifier_call_chain(&b52isp->nh, val, &threshold);
-#endif
+	pm_qos_update_request(&ddrfreq_qos_req_upthrd_max, val);
 }
 
 void b52isp_set_ddr_threshold(struct work_struct *work, int up)
 {
-	unsigned long irq_flags;
-	static DEFINE_SPINLOCK(lock);
 	struct b52isp *b52isp = container_of(work, struct b52isp, work);
 
-	spin_lock_irqsave(&lock, irq_flags);
-	if (up == b52isp->ddr_threshold_up) {
-		spin_unlock_irqrestore(&lock, irq_flags);
-		return;
-	}
 	b52isp->ddr_threshold_up = up;
-	spin_unlock_irqrestore(&lock, irq_flags);
-
 	schedule_work(&b52isp->work);
 }
 EXPORT_SYMBOL(b52isp_set_ddr_threshold);
@@ -3892,6 +3878,37 @@ static irqreturn_t b52isp_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+static ssize_t upthrd_isp_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+
+	return sprintf(buf, "%lu\n", (unsigned long)ddrfreq_upthrd_value);
+}
+
+static ssize_t upthrd_isp_store(struct kobject *kobj,
+			     struct kobj_attribute *attr,
+			     const char *buf, size_t count)
+{
+	unsigned long upthrd_isp;
+	int ret;
+
+	ret = sscanf(buf, "%lu", &upthrd_isp);
+	if ((upthrd_isp >= 100) || (ret != 1)) {
+		d_inf(2, "<ERR> wrong parameter.");
+		d_inf(2, "echo upthrd(0~100) > upthrd_isp");
+		d_inf(2, "For example: echo 30 > upthrd_isp");
+		return -EINVAL;
+	}
+
+	ddrfreq_upthrd_value = upthrd_isp;
+	return count;
+}
+
+static struct kobj_attribute upthrd_isp_attr =
+	__ATTR(upthrd_isp, 0644, upthrd_isp_show, upthrd_isp_store);
+#endif
+
 static const struct of_device_id b52isp_dt_match[] = {
 	{
 		.compatible = "ovt,single-pipeline ISP",
@@ -4017,33 +4034,52 @@ static int b52isp_probe(struct platform_device *pdev)
 		}
 	}
 
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	ret = sysfs_create_file(ddr_upthrd_obj, &upthrd_isp_attr.attr);
+	if (ret) {
+		dev_err(&pdev->dev, "sysfs attr upthrd_isp create failure\n");
+		return ret;
+	}
+#endif
 	ddrfreq_qos_req_min.name = B52ISP_DRV_NAME;
 	pm_qos_add_request(&ddrfreq_qos_req_min,
 				PM_QOS_DDR_DEVFREQ_MIN,
+				PM_QOS_DEFAULT_VALUE);
+
+	ddrfreq_upthrd_value = 30;
+	ddrfreq_qos_req_upthrd_max.name = B52ISP_DRV_NAME;
+	pm_qos_add_request(&ddrfreq_qos_req_upthrd_max,
+				PM_QOS_DDR_DEVFREQ_UPTHRD_MAX,
 				PM_QOS_DEFAULT_VALUE);
 
 	ret = b52isp_setup(b52isp);
 	if (unlikely(ret < 0)) {
 		dev_err(&pdev->dev, "failed to break down %s into isp-subdev\n",
 			B52ISP_NAME);
-		return ret;
+		goto err;
 	}
 
-	srcu_init_notifier_head(&b52isp->nh);
 	INIT_WORK(&b52isp->work, b52isp_ddr_threshold_work);
-#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	camfeq_register_dev_notifier(&b52isp->nh);
-#endif
 
 	pm_runtime_enable(b52isp->dev);
 
 	return 0;
+
+err:
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	sysfs_remove_file(ddr_upthrd_obj, &upthrd_isp_attr.attr);
+#endif
+
+	return ret;
 }
 
 static int b52isp_remove(struct platform_device *pdev)
 {
 	struct b52isp *b52isp = platform_get_drvdata(pdev);
 
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	sysfs_remove_file(ddr_upthrd_obj, &upthrd_isp_attr.attr);
+#endif
 	cancel_work_sync(&b52isp->work);
 	pm_runtime_disable(b52isp->dev);
 	dmam_free_coherent(b52isp->dev, META_DATA_SIZE, meta_cpu, meta_dma);

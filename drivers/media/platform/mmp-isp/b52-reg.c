@@ -28,7 +28,7 @@
 #include <linux/workqueue.h>
 
 static u64 of_jiffies;
-static u8 of;
+static bool mac_of;
 static DEFINE_MUTEX(cmd_mutex);
 static void __iomem *b52_base;
 static atomic_t streaming_state = ATOMIC_INIT(0);
@@ -3748,6 +3748,8 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 		irq_src_d = b52_readb(REG_FW_MAC1_INT_SRC + i);
 		rdy = b52_readb(mac_base[i] + REG_MAC_RDY_ADDR0);
 
+		trace_printk("mac%d: irq %x,src %x,rdy %x\n", i, mac_irq, irq_src_s, rdy);
+
 		/* build up write ports virtual IRQs */
 		if (mac_irq & W_INT_START0) {
 			if (irq_src_s & INT_SRC_W1)
@@ -3784,11 +3786,12 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 				b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
 			spin_unlock(&mac_overflow_lock);
 
-			of_jiffies = get_jiffies_64();
-			if (atomic_read(&streaming_state)) {
+			if (time_after64(of_jiffies + HZ, get_jiffies_64()) &&
+				atomic_read(&streaming_state)) {
 				b52isp_set_ddr_threshold(work, 1);
-				of = 1;
+				mac_of = true;
 			}
+			of_jiffies = get_jiffies_64();
 		}
 
 		if (mac_irq & (W_INT_DONE0 | W_INT_OVERFLOW0))
@@ -3807,9 +3810,9 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 		event[i] |= virt_irq(0, irq0) | virt_irq(1, irq1) |
 				virt_irq(2, irqr);
 
-		if (of && time_before64(of_jiffies + 2 * HZ, get_jiffies_64())) {
+		if (mac_of && time_before64(of_jiffies + 30*HZ, get_jiffies_64())) {
 			b52isp_set_ddr_threshold(work, 0);
-			of = 0;
+			mac_of = false;
 		}
 	}
 }

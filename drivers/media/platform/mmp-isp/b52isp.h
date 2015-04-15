@@ -62,7 +62,6 @@ struct b52isp {
 	struct isp_block		*blk[B52ISP_BLK_CNT];
 	struct isp_subdev		*isd[B52ISP_ISD_CNT];
 	unsigned long			mac_map;
-	struct srcu_notifier_head	nh;
 	struct work_struct		work;
 	unsigned int			ddr_threshold_up;
 };
