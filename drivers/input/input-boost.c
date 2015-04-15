@@ -145,7 +145,7 @@ static void inputboost_work(struct work_struct *w)
 	/* boost shader to a limit frequency */
 	if (boost_config.boost_gcsh_time)
 		pm_qos_update_request_timeout(&touchboost_gpush_qos_min,
-				boost_config.boost_gcsh_freq, boost_config.boost_gc3d_time);
+				boost_config.boost_gcsh_freq, boost_config.boost_gcsh_time);
 
 #ifdef CONFIG_VPU_DEVFREQ
 	/* boost vpu to a limit frequency */
