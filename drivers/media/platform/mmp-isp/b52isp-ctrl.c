@@ -1067,25 +1067,14 @@ static int b52_set_metering_win(
 	return 0;
 }
 
-static int b52_set_metering_roi(struct b52isp_win *r,
-		int enable, int id)
+static int b52_set_metering_roi(struct b52isp_win *r, int id)
 {
-	int weight_in = 1;
-	int weight_out = 1;
 	u32 base = ISP1_REG_BASE + id * ISP1_ISP2_OFFSER;
-
-	if (!enable)
-		goto out;
 
 	b52_writew(base + REG_AEC_ROI_LEFT, r->left);
 	b52_writew(base + REG_AEC_ROI_TOP, r->top);
 	b52_writew(base + REG_AEC_ROI_RIGHT, r->right);
 	b52_writew(base + REG_AEC_ROI_BOTTOM, r->bottom);
-	weight_out = 0;
-
-out:
-	b52_writeb(base + REG_AEC_ROI_WEIGHT_IN, weight_in);
-	b52_writeb(base + REG_AEC_ROI_WEIGHT_OUT, weight_out);
 
 	return 0;
 }
@@ -1098,24 +1087,22 @@ static int b52isp_ctrl_set_metering_mode(struct b52isp_ctrls *ctrls,
 	switch (ctrls->exp_metering->val) {
 	case V4L2_EXPOSURE_METERING_AVERAGE:
 		ret = b52_set_metering_win(&ctrls->metering_mode[0], id);
-		ret |= b52_set_metering_roi(&ctrls->metering_roi, 0, id);
 		break;
 	case V4L2_EXPOSURE_METERING_CENTER_WEIGHTED:
 		ret = b52_set_metering_win(&ctrls->metering_mode[1], id);
-		ret |= b52_set_metering_roi(&ctrls->metering_roi, 0, id);
 		break;
 	case V4L2_EXPOSURE_METERING_SPOT:
 		ret = b52_set_metering_win(&ctrls->metering_mode[2], id);
-		ret |= b52_set_metering_roi(&ctrls->metering_roi, 1, id);
 		break;
 	case V4L2_EXPOSURE_METERING_MATRIX:
 		ret = b52_set_metering_win(&ctrls->metering_mode[3], id);
-		ret |= b52_set_metering_roi(&ctrls->metering_roi, 0, id);
 		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
+
+	ret |= b52_set_metering_roi(&ctrls->metering_roi, id);
 
 	return ret;
 }
