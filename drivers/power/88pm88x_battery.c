@@ -1438,11 +1438,30 @@ static void pm88x_bat_update_status(struct pm88x_battery_info *info)
 	mutex_unlock(&info->update_lock);
 }
 
+static inline const char *bat_status_to_string(int status)
+{
+	switch (status) {
+	case POWER_SUPPLY_STATUS_UNKNOWN:
+		return "UNKNOWN";
+	case POWER_SUPPLY_STATUS_CHARGING:
+		return "CHARGING";
+	case POWER_SUPPLY_STATUS_DISCHARGING:
+		return "DISCHARGING";
+	case POWER_SUPPLY_STATUS_NOT_CHARGING:
+		return "NOT_CHARGING";
+	case POWER_SUPPLY_STATUS_FULL:
+		return "FULL";
+	default:
+		break;
+	}
+
+	return "Unknown";
+}
+
 static void pm88x_battery_monitor_work(struct work_struct *work)
 {
 	struct pm88x_battery_info *info;
 	static int prev_cap = -1;
-	static int prev_volt = -1;
 	static int prev_status = -1;
 	static int prev_health = -1;
 
@@ -1469,13 +1488,13 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 
 		power_supply_changed(&info->battery);
 		prev_cap = info->bat_params.soc;
-		prev_volt = info->bat_params.volt;
 		prev_status = info->bat_params.status;
 		prev_health = info->bat_params.health;
 		dev_info(info->dev,
-			 "cap=%d, temp=%d, volt=%d, ocv_is_realiable=%d\n",
+			 "status=%s, cap=%d, temp=%d, volt=%d, ibat=%d, ocv_is_realiable=%d\n",
+			 bat_status_to_string(info->bat_params.status),
 			 info->bat_params.soc, info->bat_params.temp / 10,
-			 info->bat_params.volt, info->ocv_is_realiable);
+			 info->bat_params.volt, info->bat_params.ibat, info->ocv_is_realiable);
 	}
 
 	/* save the recent value in non-volatile memory */
