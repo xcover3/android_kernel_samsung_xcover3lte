@@ -1287,6 +1287,7 @@
 		wib_3v3-supply = <&buck5>;
 		edge-wakeup-gpio = <&gpio 39 0>;
 		marvell,sdh-tuning-dvfs;
+		marvell,sdh-edge-wakeup-register-once;
 		status = "okay";
 	};
 
