@@ -26,8 +26,55 @@
 #define PM88X_GAPDC_CONFIG12		(0x0c) /* perbias and bias for gpadc1 */
 #define PM88X_GAPDC_CONFIG13		(0x0d) /* perbias and bias for gpadc2 */
 #define PM88X_GAPDC_CONFIG14		(0x0e) /* perbias and bias for gpadc3 */
-
 #define PM88X_GPADC_CONFIG20		(0x14) /* gp_bias_out and gp_bias_en */
+
+/* for nonexistent measurement */
+#define PM88X_GPADC_NO_REG		(0x0)
+#define PM88X_GPADC_NO_EN_MASK		(0x0)
+#define PM88X_GPADC_NO_MIN_MEA		(0x0)
+#define PM88X_GPADC_NO_MAX_MEA		(0x0)
+#define PM88X_GPADC_NO_AVG_MEA		(0x0)
+#define PM88X_GPADC_NO_SLP_AVG_MEA	(0x0)
+
+/* GPADC enable mask */
+#define PM88X_GPADC_VSC_EN_MASK		(0x01)
+#define PM88X_GPADC_VBAT_EN_MASK	(0x02)
+#define PM88X_GPADC_GND_DET1_EN_MASK	(0x08)
+#define PM88X_GPADC_VBUS_EN_MASK	(0x10)
+#define PM88X_GPADC_VCHG_PWR_EN_MASK	(0x20)
+#define PM88X_GPADC_VCF_OUT_EN_MASK	(0x40)
+#define PM88X_GPADC_TINT_EN_MASK	(0x01)
+#define PM88X_GPADC_PMODE_EN_MASK	(0x02)
+#define PM88X_GPADC_GPADC0_EN_MASK	(0x04)
+#define PM88X_GPADC_GPADC1_EN_MASK	(0x08)
+#define PM88X_GPADC_GPADC2_EN_MASK	(0x10)
+#define PM88X_GPADC_GPADC3_EN_MASK	(0x20)
+#define PM88X_GPADC_MIC_DET_EN_MASK	(0x40)
+#define PM88X_GPADC_GND_DET2_EN_MASK	(0x01)
+
+
+/* GPADC minimum measurement  */
+#define PM88X_GPADC_VBAT_MIN_MEA	(0x80)
+#define PM88X_GPADC_VBUS_MIN_MEA	(0x84)
+#define PM88X_GPADC_GPADC3_MIN_MEA	(0x86)
+#define PM88X_GPADC_MIC_DET_MIN_MEA	(0x88)
+
+/* GPADC maximum measurement  */
+#define PM88X_GPADC_VBAT_MAX_MEA	(0x90)
+#define PM88X_GPADC_VBUS_MAX_MEA	(0x94)
+#define PM88X_GPADC_GPADC3_MAX_MEA	(0x96)
+#define PM88X_GPADC_MIC_DET_MAX_MEA	(0x98)
+
+/* GPADC average measurement  */
+#define PM88X_GPADC_VBAT_AVG_MEA	(0xa0)
+#define PM88X_GPADC_GND_DET1_AVG_MEA	(0xa4)
+#define PM88X_GPADC_GND_DET2_AVG_MEA	(0xa6)
+#define PM88X_GPADC_VBUS_AVG_MEA	(0xa8)
+#define PM88X_GPADC_GPADC3_AVG_MEA	(0xaa)
+#define PM88X_GPADC_MIC_DET_AVG_MEA	(0xac)
+#define PM88X_GPADC_VBAT_SLP_AVG_MEA	(0xb0)
+
+#define PM88X_GPADC_CHECK_EN(val) (val ? "enable" : "disable")
 
 enum {
 	GPADC_0_RES,
@@ -69,8 +116,78 @@ struct pm88x_gpadc_info {
 	struct iio_map *map;
 };
 
+struct pm88x_gpadc_extra_info {
+	const char *name;
+	const char *unit;
+	u8 enable_reg;
+	u8 enable_mask;
+	u8 avg_reg;
+	u8 min_reg;
+	u8 max_reg;
+	u8 slp_reg;
+};
+
+#define PM88X_GPADC_EXTRA(_name, _unit, _en_reg, _en_mask, _avg_reg, _min_reg, _max_reg, _slp_reg)\
+{								\
+	.name = _name,						\
+	.unit = _unit,						\
+	.enable_reg = PM88X_GPADC_##_en_reg,			\
+	.enable_mask = PM88X_GPADC_##_en_mask##_EN_MASK,	\
+	.avg_reg = PM88X_GPADC_##_avg_reg##_AVG_MEA,		\
+	.min_reg = PM88X_GPADC_##_min_reg##_MIN_MEA,		\
+	.max_reg = PM88X_GPADC_##_max_reg##_MAX_MEA,		\
+	.slp_reg = PM88X_GPADC_##_slp_reg##_SLP_AVG_MEA,	\
+}
+
+static struct pm88x_gpadc_extra_info pm88x_extra[] = {
+	/* PM88X_GPADC_EXTRA(name, unit, en_reg, en_mask, avg_reg, min_reg, max_reg, slp_reg) */
+	PM88X_GPADC_EXTRA("vsc", "mV", CONFIG1, VSC, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("vbat", "mV", CONFIG1, VBAT, VBAT, VBAT, VBAT, VBAT),
+	PM88X_GPADC_EXTRA("gnddet1", "mV", CONFIG1, GND_DET1, GND_DET1, NO, NO, NO),
+	PM88X_GPADC_EXTRA("vbus", "mV", CONFIG1, VBUS, VBUS, VBUS, VBUS, NO),
+	PM88X_GPADC_EXTRA("vchg_pwr", "mV", CONFIG1, VCHG_PWR, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("vcf_out", "mV", CONFIG1, VCF_OUT, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("tint", "C", CONFIG2, TINT, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("pmode", "mV", CONFIG2, PMODE, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc0", "mV", CONFIG2, GPADC0, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc1", "mV", CONFIG2, GPADC1, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc2", "mV", CONFIG2, GPADC2, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc3", "mV", CONFIG2, GPADC3, GPADC3, GPADC3, GPADC3, NO),
+	PM88X_GPADC_EXTRA("mic_det", "mV", CONFIG2, MIC_DET, MIC_DET, MIC_DET, MIC_DET, NO),
+	PM88X_GPADC_EXTRA("gnddet2", "mV", CONFIG3, GND_DET2, GND_DET2, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc0_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc1_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc2_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc3_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
+};
+
+struct pm88x_gpadc_bias_info {
+	const char *name;
+	u8 bias_reg;
+	u8 bias_mask;
+	u8 bias_en_reg;
+	u8 bias_en_mask;
+};
+
+#define PM88X_GPADC_BIAS_INFO(_name, _reg, _mask, _en_reg, _en_mask)	\
+{					\
+	.name = _name,			\
+	.bias_reg = _reg,		\
+	.bias_mask = _mask,		\
+	.bias_en_reg = _en_reg,		\
+	.bias_en_mask = _en_mask,	\
+}
+
+static struct pm88x_gpadc_bias_info pm88x_bias_info[] = {
+	PM88X_GPADC_BIAS_INFO("gpadc0", 0x0b, 0x0f, 0x14, 0x1),
+	PM88X_GPADC_BIAS_INFO("gpadc1", 0x0c, 0x0f, 0x14, 0x2),
+	PM88X_GPADC_BIAS_INFO("gpadc2", 0x0d, 0x0f, 0x14, 0x4),
+	PM88X_GPADC_BIAS_INFO("gpadc3", 0x0e, 0x0f, 0x14, 0x8),
+};
+
 /* used by external access */
 static struct pm88x_gpadc_info *g_gpadc;
+static struct iio_dev *g_iio;
 
 static u8 pm88x_channel_to_reg(int channel)
 {
@@ -192,7 +309,6 @@ static int pm88x_gpadc_get_processed(struct pm88x_gpadc_info *gpadc,
 		dev_err(gpadc->chip->dev, "get raw value fails: 0x%x\n", ret);
 		return ret;
 	}
-
 	*res = val * ((iio->channels[channel]).address);
 
 	dev_dbg(gpadc->chip->dev,
@@ -332,7 +448,6 @@ static int pm88x_gpadc_read_raw(struct iio_dev *iio,
 {
 	struct pm88x_gpadc_info *gpadc = iio_priv(iio);
 	int err;
-
 	mutex_lock(&gpadc->lock);
 
 	dev_dbg(gpadc->chip->dev, "%s: channel name = %s\n",
@@ -404,7 +519,6 @@ static const struct iio_chan_spec pm88x_gpadc_channels[] = {
 	ADC_CHANNEL(GPADC3_RES_CHAN, 342, IIO_TEMP, "gpadc3_res", IIO_CHAN_INFO_SCALE),
 };
 
-
 static const struct iio_info pm88x_gpadc_iio_info = {
 	.read_raw = pm88x_gpadc_read_raw,
 	.driver_module = THIS_MODULE,
@@ -474,6 +588,183 @@ static int pm88x_iio_map_register(struct iio_dev *iio,
 	return 0;
 }
 
+static int pm800_gpadc_check_en(struct regmap *map, unsigned int reg, unsigned int mask)
+{
+	int ret;
+	unsigned int enable;
+
+	ret = regmap_read(map, reg, &enable);
+	if (ret < 0)
+		return ret;
+
+	enable = (enable & mask);
+
+	return enable;
+}
+
+static int pm88x_gpadc_get_meas(struct regmap *map, unsigned int reg, unsigned int *value)
+{
+	int ret;
+	unsigned char val[2];
+
+	ret = regmap_bulk_read(map, reg, val, 2);
+	if (ret < 0) {
+		*value = reg;
+		return ret;
+	}
+
+	*value = (val[0] << 4) | (val[1] & 0x0f);
+	return 0;
+}
+
+static int pm88x_gpadc_print_bias(struct regmap *map, struct pm88x_gpadc_extra_info *extra_info,
+		char *buf, int *len)
+{
+	struct pm88x_gpadc_bias_info *bias_info = pm88x_bias_info;
+	unsigned int en_mask, out_mask, mask, val = 0;
+	int i, ret, flag = 0;
+
+	mask = bias_info->bias_mask;
+	en_mask = bias_info->bias_en_mask;
+	out_mask = bias_info->bias_en_mask << 4;
+	for (i = 0; i < ARRAY_SIZE(pm88x_bias_info); i++) {
+		if (!(strcmp(extra_info->name, bias_info[i].name)) && bias_info[i].bias_en_reg) {
+			ret = regmap_read(map, bias_info[i].bias_en_reg, &val);
+			if (ret < 0)
+				return ret;
+			else {
+				/*
+				 * the bias is disabled only if:
+				 * GP_BIAS_EN = 1 && GP_BIAS_OUT = 0
+				 * thus, !GP_BIAS_EN || GP_BIAS_OUT
+				 */
+				val = (!(val & en_mask) || (val & out_mask));
+			}
+			if (val) {
+				ret = regmap_read(map, bias_info[i].bias_reg, &val);
+				if (ret < 0)
+					return ret;
+				else {
+					val = ((val & mask) >> (ffs(mask) - 1)) * 5 + 1;
+					*len += sprintf(buf + *len, "   %-4d |", val);
+					flag = 1;
+				}
+			} else {
+				*len += sprintf(buf + *len, "%s |", "Disable");
+				flag = 1;
+			}
+		}
+	}
+	if (!flag) {
+		*len += sprintf(buf + *len, "   %-4s |", "-");
+		flag = 0;
+	}
+	return val;
+}
+
+static int pm88x_gpadc_print(struct regmap *map, struct iio_dev *iio,
+			     const struct iio_chan_spec *channel,
+			     struct pm88x_gpadc_extra_info *info, char *buf, int *len)
+{
+	int ret[5], i;
+	unsigned int val[5] = {0};
+
+	ret[0] = pm88x_gpadc_read_raw(iio, channel, &val[0], NULL,
+				      ffs(channel->info_mask_separate) - 1);
+	if (ret[0] > 0)
+		ret[0] = 0;
+	if (channel->info_mask_separate == BIT(IIO_CHAN_INFO_PROCESSED))
+		val[0] = val[0] / 1000;
+
+	if (info->avg_reg)
+		ret[1]  = pm88x_gpadc_get_meas(map, info->avg_reg, &val[1]);
+	else
+		ret[1] = 1;
+	if (info->min_reg)
+		ret[2]  = pm88x_gpadc_get_meas(map, info->min_reg, &val[2]);
+	else
+		ret[2] = 1;
+	if (info->max_reg)
+		ret[3]  = pm88x_gpadc_get_meas(map, info->max_reg, &val[3]);
+	else
+		ret[3] = 1;
+	if (info->slp_reg)
+		ret[4]  = pm88x_gpadc_get_meas(map, info->slp_reg, &val[4]);
+	else
+		ret[4] = 1;
+
+	for (i = 0; i < 5; i++) {
+		if (ret[i] < 0)
+			*len += sprintf(buf + *len, "ERR 0x%-5x|", val[i]);
+		else if (ret[i] > 0)
+			*len += sprintf(buf + *len, "   %-7s |", "-");
+		else {
+			if (i > 0 && channel->info_mask_separate == BIT(IIO_CHAN_INFO_PROCESSED))
+				val[i] = val[i] * channel->address / 1000;
+			*len += sprintf(buf + *len, "  %-7d  |", val[i]);
+		}
+	}
+
+	pm88x_gpadc_print_bias(map, info, buf, len);
+	*len += sprintf(buf + *len, "\n");
+
+	return *len;
+}
+
+int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf)
+{
+	int gpadc_num, channels_num, i, j, len = 0;
+	ssize_t ret = 0;
+	struct regmap *map = chip->gpadc_regmap;
+	struct pm88x_gpadc_extra_info *extra_info = pm88x_extra;
+	const struct iio_chan_spec *channels = pm88x_gpadc_channels;
+
+	gpadc_num = ARRAY_SIZE(pm88x_extra);
+	channels_num = ARRAY_SIZE(pm88x_gpadc_channels);
+
+	len += sprintf(buf + len, "\nGPADC");
+
+	len += sprintf(buf + len, "\n------------------------------------------------");
+	len += sprintf(buf + len, "------------------------------------------------\n");
+	len += sprintf(buf + len, "|      name     | status  |   value   |    avg    ");
+	len += sprintf(buf + len, "|    min    |    max    |    slp    |bias(uA)|");
+	len += sprintf(buf + len, "\n------------------------------------------------");
+	len += sprintf(buf + len, "------------------------------------------------\n");
+
+	for (i = 0; i < gpadc_num; i++) {
+		len += sprintf(buf + len, "|%-10s %-4s|", extra_info[i].name, extra_info[i].unit);
+		if (extra_info[i].enable_reg) {
+			ret = pm800_gpadc_check_en(map, extra_info[i].enable_reg,
+						   extra_info[i].enable_mask);
+			if (ret < 0)
+				len += sprintf(buf + len, "ERR 0x%-2x |",
+					       extra_info[i].enable_reg);
+			else
+				len += sprintf(buf + len, " %-7s |", PM88X_GPADC_CHECK_EN(ret));
+		} else
+				len += sprintf(buf + len, " %-7s |", "-");
+		if (!ret && extra_info[i].enable_reg) {
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-4s |\n", "-");
+		} else {
+			for (j = 0; j < channels_num; j++) {
+				if (!strcmp(extra_info[i].name, channels[j].datasheet_name))
+					pm88x_gpadc_print(map, g_iio, &channels[j],
+							  &extra_info[i], buf, &len);
+			}
+		}
+	}
+
+	len += sprintf(buf + len, "-------------------------------------------------");
+	len += sprintf(buf + len, "-----------------------------------------------\n");
+
+	return len;
+}
+
 static int pm88x_gpadc_probe(struct platform_device *pdev)
 {
 	struct iio_dev *iio;
@@ -523,6 +814,7 @@ static int pm88x_gpadc_probe(struct platform_device *pdev)
 	dev_info(&iio->dev, "%s is successful to be probed.\n", __func__);
 
 	g_gpadc = gpadc;
+	g_iio = iio;
 	return 0;
 }
 
