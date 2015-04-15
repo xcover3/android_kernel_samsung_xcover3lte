@@ -59,6 +59,10 @@ struct sd8x_rfkill_platform_data {
 
 	/* power status */
 	int is_on;
+
+	bool edge_wakeup_register_once;
+	int edge_wakeup_register_count;
+
 };
 
 int sd8x_sdh_init(struct device *dev, irq_handler_t detect_irq, void *data);

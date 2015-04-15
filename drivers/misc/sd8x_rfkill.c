@@ -367,9 +367,12 @@ static int sd8x_pwr_on(struct sd8x_rfkill_platform_data *pdata)
 		pdata->is_on = 1;
 
 		if (pdata->gpio_edge_wakeup >= 0) {
-			request_mfp_edge_wakeup(pdata->gpio_edge_wakeup,
-				dat1_edge_wakeup, NULL,
-				pdata->mmc->parent);
+			if (!pdata->edge_wakeup_register_once || !pdata->edge_wakeup_register_count) {
+				request_mfp_edge_wakeup(pdata->gpio_edge_wakeup,
+						dat1_edge_wakeup, NULL,
+						pdata->mmc->parent);
+				pdata->edge_wakeup_register_count = 1;
+			}
 		}
 
 		if (pdata->pinctrl && pdata->pin_on)
@@ -424,7 +427,7 @@ static int sd8x_pwr_off(struct sd8x_rfkill_platform_data *pdata)
 	/* Last: update the status */
 	pm_runtime_put_sync(host->mmc->parent);
 
-	if (pdata->gpio_edge_wakeup >= 0)
+	if ((pdata->gpio_edge_wakeup >= 0) && (!pdata->edge_wakeup_register_once))
 		remove_mfp_edge_wakeup(pdata->gpio_edge_wakeup);
 
 	if (pdata->set_power)
@@ -628,6 +631,11 @@ static int sd8x_rfkill_probe_dt(struct platform_device *pdev)
 		}
 	} else {
 		pdata->wib_sdio_1v8 = wib_sdio_1v8;
+	}
+
+	if (of_property_read_bool(np, "marvell,sdh-edge-wakeup-register-once")) {
+		pdata->edge_wakeup_register_count = 0;
+		pdata->edge_wakeup_register_once = true;
 	}
 
 	return 0;
