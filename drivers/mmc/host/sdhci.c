@@ -2922,7 +2922,8 @@ again:
 		sdhci_writel(host, intmask & (SDHCI_INT_CARD_INSERT |
 			     SDHCI_INT_CARD_REMOVE), SDHCI_INT_STATUS);
 		intmask &= ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE);
-		queue_work(host->card_workqueue, &host->card_work);
+		if (host->boot_complete)
+			queue_work(host->card_workqueue, &host->card_work);
 	}
 
 	if (intmask & SDHCI_INT_CMD_MASK) {
@@ -3693,14 +3694,16 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	mmiowb();
 
+	host->boot_complete = false;
+	sdhci_enable_card_detection(host);
+	host->boot_complete = true;
+
 	mmc_add_host(mmc);
 
 	pr_info("%s: SDHCI controller on %s [%s] using %s\n",
 		mmc_hostname(mmc), host->hw_name, dev_name(mmc_dev(mmc)),
 		(host->flags & SDHCI_USE_ADMA) ? "ADMA" :
 		(host->flags & SDHCI_USE_SDMA) ? "DMA" : "PIO");
-
-	sdhci_enable_card_detection(host);
 
 	return 0;
 

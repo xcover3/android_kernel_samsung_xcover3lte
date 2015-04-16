@@ -219,6 +219,7 @@ struct sdhci_host {
 	int	constrain_ref;
 
 	bool sdio_irq_enabled;
+	bool boot_complete;
 
 	unsigned long private[0] ____cacheline_aligned;
 };
