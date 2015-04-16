@@ -496,14 +496,60 @@ static struct input_polled_dev * mmc3524x_input_init(struct i2c_client *client)
 	return ipdev;
 }
 #endif
+
+static ssize_t mmc3524x_fs_read(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	unsigned char data[6] = {0};
+	int vec[3] = {0};
+	int count;
+	int res = 0;
+
+	mutex_lock(&ecompass_lock);
+
+	data[0] = MMC3524X_REG_CTRL;
+	data[1] = MMC3524X_CTRL_TM;
+	res = mmc3xxx_i2c_tx_data(data, 2);
+
+	msleep(MMC3524X_DELAY_TM);
+
+	data[0] = MMC3524X_REG_DATA;
+	if (mmc3xxx_i2c_rx_data(data, 6) < 0)
+		return 0;
+
+	vec[0] = data[1] << 8 | data[0];
+	vec[1] = data[3] << 8 | data[2];
+	vec[2] = data[5] << 8 | data[4];
+	count = sprintf(buf, "%d,%d,%d\n", vec[0], vec[1], vec[2]);
+	mutex_unlock(&ecompass_lock);
+
+	return count;
+}
+
+static ssize_t mmc3524x_fs_write(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t size)
+{
+	unsigned char data[16] = {0};
+
+	data[0] = MMC3524X_REG_CTRL;
+	data[1] = MMC3524X_CTRL_TM;
+	if (mmc3xxx_i2c_tx_data(data, 2) < 0)
+		pr_err("mmc3524x mmc3xxx_i2c_tx_data failed\n");
+
+	msleep(MMC3524X_DELAY_TM);
+
+	return size;
+}
+
+static DEVICE_ATTR(read_mag, S_IRUGO | S_IWUSR | S_IWGRP, mmc3524x_fs_read, mmc3524x_fs_write);
 static struct of_device_id memsic_match_table[] = {
-        { .compatible = "memsic,mmc3524", },
-        {}
+	{ .compatible = "memsic,mmc3524", },
+	{}
 };
 static int mmc3524x_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	unsigned char data[16] = {0};
 	int res = 0;
+	struct device *dev_t;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("%s: functionality check failed\n", __FUNCTION__);
@@ -518,6 +564,30 @@ static int mmc3524x_probe(struct i2c_client *client, const struct i2c_device_id 
 		pr_err("mmc3524x read production id failed\n");
 		goto out;
 	}
+
+	mag_class = class_create(THIS_MODULE, "magnetic");
+
+	if (IS_ERR(mag_class)) {
+		res = PTR_ERR(mag_class);
+		pr_err("mmc3524x create class magnetic failed\n");
+		goto out;
+	}
+
+	dev_t = device_create(mag_class, NULL, 0, "%s", "magnetic");
+
+	if (IS_ERR(dev_t)) {
+		res = PTR_ERR(dev_t);
+		pr_err("mmc3524x create device failed\n");
+		goto out;
+	}
+
+	res = device_create_file(dev_t, &dev_attr_read_mag);
+	if (res < 0) {
+		pr_err("mmc3524x Failed to create device file(%s)!\n", dev_attr_read_mag.attr.name);
+		goto out;
+	}
+
+	ipdev = NULL;
 
 	res = misc_register(&mmc3524x_device);
 	if (res) {
@@ -572,47 +642,6 @@ out:
 	return res;
 }
 
-static ssize_t mmc3524x_fs_read(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	unsigned char data[6] = {0};
-	int vec[3] = {0};
-	int count;
-	int res = 0;
-
-	mutex_lock(&ecompass_lock);
-
-        data[0] = MMC3524X_REG_CTRL;
-        data[1] = MMC3524X_CTRL_TM;
-        res = mmc3xxx_i2c_tx_data(data, 2);
-
-        msleep(MMC3524X_DELAY_TM);
-
-        data[0] = MMC3524X_REG_DATA;
-	if (mmc3xxx_i2c_rx_data(data, 6) < 0) {
-	    return 0;
-	}
-	vec[0] = data[1] << 8 | data[0];
-	vec[1] = data[3] << 8 | data[2];
-	vec[2] = data[5] << 8 | data[4];
-	count = sprintf(buf,"%d,%d,%d\n", vec[0], vec[1], vec[2]);
-	mutex_unlock(&ecompass_lock);
-
-	return count;
-}
-
-static ssize_t mmc3524x_fs_write(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	unsigned char data[16] = {0};
-
-	data[0] = MMC3524X_REG_CTRL;
-	data[1] = MMC3524X_CTRL_TM;
-	if (mmc3xxx_i2c_tx_data(data, 2) < 0) {
-	}
-	msleep(MMC3524X_DELAY_TM);
-
-	return size;
-}
-
 static int mmc3524x_remove(struct i2c_client *client)
 {
 	device_remove_file(&client->dev, &dev_attr_mmc3524x);
@@ -621,8 +650,6 @@ static int mmc3524x_remove(struct i2c_client *client)
 
 	return 0;
 }
-
-static DEVICE_ATTR(read_mag, S_IRUGO | S_IWUSR | S_IWGRP, mmc3524x_fs_read, mmc3524x_fs_write);
 
 static const struct i2c_device_id mmc3524x_id[] = {
 	{ MMC3524X_I2C_NAME, 0 },
@@ -643,24 +670,7 @@ static struct i2c_driver mmc3524x_driver = {
 
 static int __init mmc3524x_init(void)
 {
-	struct device *dev_t;
-
-	mag_class = class_create(THIS_MODULE, "magnetic");
-
-	if (IS_ERR(mag_class))
-		return PTR_ERR( mag_class );
-
-	dev_t = device_create( mag_class, NULL, 0, "%s", "magnetic");
-
-	if (device_create_file(dev_t, &dev_attr_read_mag) < 0)
-		printk("Failed to create device file(%s)!\n", dev_attr_read_mag.attr.name);
-
-	if (IS_ERR(dev_t))
-	{
-		return PTR_ERR(dev_t);
-	}
-        printk("mmc3524x add driver\r\n");
-	ipdev = NULL;
+	printk(KERN_INFO "mmc3524x add driver\r\n");
 	return i2c_add_driver(&mmc3524x_driver);
 }
 
