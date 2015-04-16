@@ -697,17 +697,17 @@ static DEFINE_SPINLOCK(ccic1_lock);
 static DEFINE_SPINLOCK(isp_lock);
 static const char *sc2_4x_parent_names[] = {"pll1_832_gate", "pll1_624_gate",
 		"pll2_div3", "pll2p", "pll4_div3"};
-static int sc2_4x_mux_table[] = {0x0, 0x1, 0x02, 0x82, 0x03};
+static int sc2_4x_mux_table[] = {0x0, 0x1, 0x02, 0x6, 0x03};
 static struct mmp_clk_mix_config sc2_4x_mix_config = {
-	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 2, 23, 15),
+	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 3, 23, 15),
 	.mux_table = sc2_4x_mux_table,
 };
 
 static const char *sc2_csi_parent_names[] = {"pll1_416_gate", "pll1_624_gate",
 		"pll2_div3", "pll2p", "pll4_div3"};
-static int sc2_csi_mux_table[] = {0x0, 0x1, 0x02, 0x22, 0x03};
+static int sc2_csi_mux_table[] = {0x0, 0x1, 0x02, 0x6, 0x03};
 static struct mmp_clk_mix_config sc2_csi_mix_config = {
-	.reg_info = DEFINE_MIX_REG_INFO(3, 18, 2, 16, 15),
+	.reg_info = DEFINE_MIX_REG_INFO(3, 19, 3, 16, 15),
 	.mux_table = sc2_csi_mux_table,
 };
 
