@@ -65,7 +65,7 @@
 
 #define PM88X_BST_ILIM_DIS		(0x1 << 7)
 
-#define PM88X_CURRENT_DIV(x, y)		DIV_ROUND_UP(256, (x / y))
+#define PM88X_CURRENT_DIV(x, y)		DIV_ROUND_UP(256, ((x) / (y)))
 #define PM88X_FLASH_ISET_OFFSET	(0)
 #define PM88X_FLASH_ISET_MASK		(0x1f << PM88X_FLASH_ISET_OFFSET)
 #define PM88X_TORCH_ISET_OFFSET	(5)
@@ -692,6 +692,8 @@ static void pm88x_led_bright_set(struct led_classdev *cdev,
 			value = LED_FULL;
 		led->brightness = ((value / led->max_current_div) + 1)
 				* led->iset_step;
+		if (led->conn_cfout_ab)
+			led->brightness *= 2;
 	}
 
 	dev_dbg(led->cdev.dev, "value = %d, brightness = %d\n",
@@ -1241,7 +1243,10 @@ static int pm88x_led_probe(struct platform_device *pdev)
 
 	led->chip = chip;
 	led->id = pdev->id;
-	led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step);
+	if (led->conn_cfout_ab)
+		led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step * 2);
+	else
+		led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step);
 	led->cf_en = pdata->cf_en;
 	led->cf_txmsk = pdata->cf_txmsk;
 	gpio_en = pdata->gpio_en;
