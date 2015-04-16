@@ -569,7 +569,7 @@ static void strobe_flash(struct pm88x_led *led)
 	 */
 	regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG1,
 			PM88X_FLASH_ISET_MASK,
-			PM88X_LED_FLASH_ISET(led->brightness, led->iset_step));
+			PM88X_LED_FLASH_ISET(brightness, led->iset_step));
 	switch (chip->type) {
 	case PM880:
 		if (led->conn_cfout_ab)
