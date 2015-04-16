@@ -30,6 +30,7 @@
 #include <media/videobuf2-dma-sg.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
+#include <linux/cputype.h>
 
 #include <media/mrvl-camera.h> /* TBD refined */
 
@@ -852,6 +853,8 @@ static void ccic_clk_change(struct ccic_ctrl_dev *ctrl_dev,
 		rate = 312000000;
 	else if (rate < 416000000)
 		rate = 416000000;
+	else if (rate < 528000000 && cpu_is_pxa1936())
+		rate = 528000000;
 	else
 		rate = 624000000;
 
@@ -868,6 +871,8 @@ static void ccic_clk_change(struct ccic_ctrl_dev *ctrl_dev,
 		rate = 312000000;
 	else if (rate < 416000000)
 		rate = 416000000;
+	else if (rate < 528000000 && cpu_is_pxa1936())
+		rate = 528000000;
 	else
 		rate = 624000000;
 
