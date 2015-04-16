@@ -1271,9 +1271,14 @@ static int pxav3_execute_tuning_dvfs(struct sdhci_host *host, u32 opcode)
 	/*
 	 * 1.Check whether there is pre-tuned data and whether it is valid
 	 *  if Yes: tuning is not need, Set rx delay and dvfs level directly.
-	 *  if No: go to tuning under different dvfs level
+	 *  if No: go to tuning under different dvfs level. But sd card is exceptional
+	 *  since it support hot plug. tuning is only allowed during boot up.
 	 */
 	if (pxav3_check_pretuned(host, pretuned)) {
+		/* Tuning is forbidden after boot completed */
+		if (host->boot_complete &&
+				host->mmc->card && mmc_card_sd(host->mmc->card))
+			return -EPERM;
 		pr_warn("%s: no valid pretuned data, start real tuning\n",
 			mmc_hostname(host->mmc));
 	} else {
