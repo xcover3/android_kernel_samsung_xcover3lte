@@ -2615,7 +2615,7 @@ void mmc_start_host(struct mmc_host *host)
 			mmc_power_off(host);
 		else
 			mmc_power_up(host, host->ocr_avail);
-		_mmc_detect_change(host, 0, false);
+		mmc_detect_change_sync(host, 0, 5 * HZ);
 	}
 }
 
