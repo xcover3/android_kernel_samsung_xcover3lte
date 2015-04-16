@@ -432,10 +432,12 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 				pm88x_set_vbus);
 	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, get_vbus,
 				pm88x_get_vbus);
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
-				pm88x_read_id_val);
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
-				pm88x_init_id);
+	if (usb->id_gpadc != PM88X_NO_GPADC) {
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
+					pm88x_read_id_val);
+		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
+					pm88x_init_id);
+	}
 
 	return 0;
 
