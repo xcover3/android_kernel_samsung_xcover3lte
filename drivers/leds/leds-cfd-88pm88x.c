@@ -59,7 +59,6 @@
 
 
 #define PM88X_BST_VSET_OFFSET		(4)
-#define PM88X_BST_VSET_MASK		(0x7 << PM88X_BST_VSET_OFFSET)
 #define PM88X_BST_UVVBAT_OFFSET	(0)
 #define PM88X_BST_UVVBAT_MASK		(0x3 << PM88X_BST_UVVBAT_OFFSET)
 
@@ -86,6 +85,7 @@
 #define PM88X_BST_VSET_5P25V		(0x6 << PM88X_BST_VSET_OFFSET)
 #define PM88X_BST_OV_SET_MASK		(0x3 << 1)
 #define PM88X_BST_OV_SET_6V		(0x3 << 1)
+#define PM88X_BST_OV_SET_5V		(0x2 << 1)
 #define PM88X_BST_OV_SET_5P2V		(0x1 << 1)
 
 #define CFD_MIN_BOOST_VOUT		3750
@@ -98,6 +98,7 @@
 #define PM886_CFD_CONFIG4		(0x63)
 #define PM886_CFD_LOG1			(0x65)
 
+#define PM886_BST_VSET_MASK		(0x7 << PM88X_BST_VSET_OFFSET)
 #define PM886_BOOST_MODE		(1 << 1)
 
 #define PM886_OV_SET_OFFSET	(4)
@@ -121,6 +122,7 @@
 #define PM880_CFD_LOG12			(0x67)
 #define PM880_CLS_CONFIG2		(0x72)
 
+#define PM880_BST_VSET_MASK		(0xf << PM88X_BST_VSET_OFFSET)
 #define PM880_CL1_EN		(1 << 5)
 #define PM880_CL2_EN		(1 << 6)
 
@@ -132,6 +134,7 @@
 #define PM880_CLS_OC_EN_MSK	(0x3 << 0)
 #define PM880_CFOUT_OC_EN_OFFSET	(0)
 #define PM880_CFOUT_OC_EN_MASK		(0x3 << PM880_CFOUT_OC_EN_OFFSET)
+#define PM880_CLK_NOK_OC_DB		(0x1 << 3)
 
 #define PM880_BST_RAMP_DIS_OFFSET	(5)
 #define PM880_BST_RAMP_DIS_MASK		(0x1 << PM880_BST_RAMP_DIS_OFFSET)
@@ -456,7 +459,7 @@ static void strobe_flash(struct pm88x_led *led)
 			regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
 					PM886_CFOUT_OV_EN_MASK, 0x0);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-					PM88X_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
+					PM886_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
 
 			/* unlock test page & force booster configuration */
 			regmap_write(chip->base_regmap, 0x1F, 0x1);
@@ -479,11 +482,9 @@ static void strobe_flash(struct pm88x_led *led)
 			break;
 		case PM880:
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-					PM88X_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
+					PM880_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
 					PM880_BST_RAMP_DIS_MASK, PM880_BST_RAMP_DIS_EN);
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
-					(PM88X_BST_OV_SET_MASK), (PM88X_BST_OV_SET_6V));
 			regmap_update_bits(chip->battery_regmap, PM880_CLS_CONFIG2,
 					PM880_CFOUT_OC_EN_MASK, 0);
 
@@ -620,13 +621,16 @@ static void strobe_flash(struct pm88x_led *led)
 						PM88X_BST_OV_SET_5P2V);
 				regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
 						PM886_CFOUT_OV_EN_MASK, PM886_CFOUT_OV_EN_MASK);
-			} else
+				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+						PM886_BST_VSET_MASK,
+						(led->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+			} else {
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
 						PM880_BST_RAMP_DIS_MASK, 0);
-
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-						PM88X_BST_VSET_MASK,
-					(led->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+						PM880_BST_VSET_MASK,
+						(led->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+			}
 
 			/* lock test page */
 			regmap_write(chip->base_regmap, 0x1F, 0x0);
@@ -1104,25 +1108,33 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 	if (ret)
 		return ret;
 
-	if (chip->type == PM886)
+	if (chip->type == PM886) {
 		/* set over & under voltage protection as configured in DT */
 		ret = regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
 				(PM886_OV_SET_MASK | PM886_UV_SET_MASK),
 				((pdata->cls_ov_set << PM886_OV_SET_OFFSET) |
 				(pdata->cls_uv_set << PM886_UV_SET_OFFSET)));
-	else
+		/* set booster voltage as configured in DT */
+		ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+				PM886_BST_VSET_MASK,
+				(pdata->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+		if (ret)
+			return ret;
+	} else {
 		/* set over & under voltage protection as configured in DT */
 		ret = regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
 			(PM880_OV_SET_MASK | PM880_UV_SET_MASK),
 			((pdata->cls_ov_set << PM880_OV_SET_OFFSET) |
 			(pdata->cls_uv_set << PM880_UV_SET_OFFSET)));
-	if (ret)
-		return ret;
-	/* set booster voltage as configured in DT */
-	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-			PM88X_BST_VSET_MASK, (pdata->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
-	if (ret)
-		return ret;
+		if (ret)
+			return ret;
+		/* set booster voltage as configured in DT */
+		ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
+				PM880_BST_VSET_MASK,
+				(pdata->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+		if (ret)
+			return ret;
+	}
 	/* set VBAT TH as configured in DT */
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
 			PM88X_BST_UVVBAT_MASK, (pdata->bst_uvvbat_set << PM88X_BST_UVVBAT_OFFSET));
@@ -1140,6 +1152,12 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 		}
 		break;
 	case PM880:
+		/* set cls_nok debounce period to 20us */
+		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
+				PM880_CLK_NOK_OC_DB, PM880_CLK_NOK_OC_DB);
+		/* set booste over-voltage to 5V */
+		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
+				(PM88X_BST_OV_SET_MASK), (PM88X_BST_OV_SET_5V));
 		/* if A0, disable over current comparators */
 		if (chip->chip_id == PM880_A0) {
 			ret = regmap_update_bits(chip->battery_regmap, PM880_CLS_CONFIG2,
