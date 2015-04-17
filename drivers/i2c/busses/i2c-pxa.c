@@ -1050,6 +1050,8 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 			}
 	}
 
+	pm_qos_update_request(&i2c->qos_idle, i2c->pm_qos);
+
 	spin_lock_irq(&i2c->lock);
 
 	i2c->msg = msg;
@@ -1057,8 +1059,6 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	i2c->msg_idx = 0;
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
-
-	pm_qos_update_request(&i2c->qos_idle, i2c->pm_qos);
 
 	i2c_pxa_start_message(i2c);
 
