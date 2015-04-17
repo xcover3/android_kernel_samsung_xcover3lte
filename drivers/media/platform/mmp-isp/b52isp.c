@@ -2650,6 +2650,7 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 			goto mmu_err;
 	}
 
+	b52_enable_mac_clk(laxi->mac, 1);
 	ret = b52_ctrl_mac_irq(laxi->mac, laxi->port, 1);
 	if (unlikely(ret < 0))
 		goto mac_err;
@@ -2657,6 +2658,7 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 	return 0;
 
 mac_err:
+	b52_enable_mac_clk(laxi->mac, 0);
 	if (pvnode->free_mmu_chnl)
 		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 mmu_err:
@@ -2680,6 +2682,7 @@ disable:
 	}
 
 	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
+	b52_enable_mac_clk(laxi->mac, 0);
 	if (pvnode->free_mmu_chnl)
 		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 	isp_block_tune_power(&paxi->blk, 0);

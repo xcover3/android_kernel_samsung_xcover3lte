@@ -59,6 +59,7 @@ static u32 b52_reg_map[][2] = {
 static DECLARE_COMPLETION(b52isp_cmd_done);
 static __u8 b52isp_cmd_id;
 
+static inline void __b52_enable_mac_clk(u8 mac_id, int enable);
 static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num);
 static int b52_set_vcm_reg(struct v4l2_subdev *sd, int p_num);
 static struct delayed_work rdy_work;
@@ -1169,6 +1170,10 @@ int b52_load_fw(struct device *dev, void __iomem *base, int enable,
 
 	/* default Pipeline clock is 312M, the sccb clock is 400K */
 	b52_set_sccb_clock_rate(312000000, 400000);
+	__b52_enable_mac_clk(1, 0);
+	__b52_enable_mac_clk(2, 0);
+	__b52_enable_mac_clk(3, 0);
+
 	pr_err("B52ISP version: HW %d.%d, SWM %d.%d, revision %d\n",
 	       b52_readb(REG_HW_VERSION), b52_readb(REG_HW_VERSION + 1),
 	       b52_readb(REG_SWM_VERSION), b52_readb(REG_SWM_VERSION + 1),
@@ -3536,6 +3541,49 @@ void b52_clear_mac_rdy_bit(u8 mac, u8 port)
 	b52_writeb(reg, b52_readb(reg) & (~val));
 }
 EXPORT_SYMBOL(b52_clear_mac_rdy_bit);
+
+static u32 mac_clk_enable[MAX_MAC_NUM][2] = {
+	{REG_TOP_CLK_RST1, MAC_1_CLK_EN},
+	{REG_TOP_CLK_RST1, MAC_2_CLK_EN},
+	{REG_TOP_CLK_RST3, MAC_3_CLK_EN},
+};
+static inline void __b52_enable_mac_clk(u8 mac_id, int enable)
+{
+	u8 val;
+
+	val = b52_readb(mac_clk_enable[mac_id][0]);
+
+	if (enable)
+		val |= mac_clk_enable[mac_id][1];
+	else
+		val &= ~mac_clk_enable[mac_id][1];
+
+	b52_writeb(mac_clk_enable[mac_id][0], val);
+}
+
+void b52_enable_mac_clk(u8 mac_id, int enable)
+{
+	static int refcnt[MAX_MAC_NUM];
+
+	if (mac_id >= MAX_MAC_NUM) {
+		pr_err("%s param error\n", __func__);
+		return;
+	}
+
+	if (enable) {
+		if (refcnt[mac_id]++ > 0)
+			return;
+
+		__b52_enable_mac_clk(mac_id, 1);
+	} else {
+		if (--refcnt[mac_id] > 0)
+			return;
+		WARN_ON(refcnt[mac_id] < 0);
+
+		__b52_enable_mac_clk(mac_id, 0);
+	}
+}
+EXPORT_SYMBOL(b52_enable_mac_clk);
 
 static int b52_config_mac(u8 mac_id, u8 port_id, int enable)
 {

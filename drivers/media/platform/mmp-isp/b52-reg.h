@@ -125,6 +125,7 @@ int b52_load_fw(struct device *dev, void __iomem *base, int enable,
 int b52_get_metadata_len(int path);
 int b52_hdl_cmd(struct b52isp_cmd *cmd);
 int b52_ctrl_mac_irq(u8 mac_id, u8 port_id, int enable);
+void b52_enable_mac_clk(u8 mac_id, int enable);
 void b52_clear_mac_rdy_bit(u8 mac, u8 port);
 void b52_clear_overflow_flag(u8 mac, u8 port);
 int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta,
@@ -386,9 +387,16 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 	#define MCU_SW_RST		(0x1)
 	#define RELEASE_SW_RST		(0x0)
 #define REG_TOP_CLK_RST0	(0x6301a)
+	#define SCCB_1_CLK_EN   (0x1 << 5)
+	#define SCCB_2_CLK_EN   (0x1 << 6)
 #define REG_TOP_CLK_RST1	(0x6301b)
+	#define MAC_1_CLK_EN    (0x1 << 4)
+	#define MAC_2_CLK_EN    (0x1 << 5)
+	#define PIPE_1_CLK_EN   (0x1 << 6)
+	#define PIPE_2_CLK_EN   (0x1 << 7)
 #define REG_TOP_CLK_RST2	(0x6301c)
 #define REG_TOP_CLK_RST3	(0x6301d)
+	#define MAC_3_CLK_EN    (0x1 << 4)
 #define REG_TOP_CORE_CTRL0_H	(0x63022)
 #define REG_TOP_CORE_CTRL0_L	(0x63023)
 #define REG_TOP_CORE_CTRL1_H	(0x63024)
@@ -420,6 +428,11 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 #define REG_ISP_TOP11                (0xb)
 #define REG_ISP_TOP12                (0xc)
 #define REG_ISP_TOP13                (0xd)
+
+#define REG_ISP_TOP80                (0x50)
+#define REG_ISP_TOP99                (0x63)
+#define REG_ISP_TOP100               (0x64)
+
 /*
  * ISP input size:
  * horizol: 0x10[12:8], 0x11[7:0]
