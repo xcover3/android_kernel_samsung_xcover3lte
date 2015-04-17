@@ -375,11 +375,11 @@ static int pm88x_gpadc_read_raw(struct iio_dev *iio,
 
 /* according to value register sequence */
 static const struct iio_chan_spec pm88x_gpadc_channels[] = {
-	/* FIXME */
-	ADC_CHANNEL(VSC_VOLT_CHAN, 1709, IIO_VOLTAGE, "vsc", IIO_CHAN_INFO_RAW),
-	ADC_CHANNEL(VCHG_PWR_VOLT_CHAN, 1709, IIO_VOLTAGE, "vchg_pwr", IIO_CHAN_INFO_RAW),
-	ADC_CHANNEL(VCF_OUT_CHAN, 1367, IIO_VOLTAGE, "vcf_out", IIO_CHAN_INFO_RAW),
-	ADC_CHANNEL(TINT_TEMP_CHAN, 104, IIO_TEMP, "tint", IIO_CHAN_INFO_RAW),
+
+	ADC_CHANNEL(VSC_VOLT_CHAN, 1367, IIO_VOLTAGE, "vsc", IIO_CHAN_INFO_PROCESSED),
+	ADC_CHANNEL(VCHG_PWR_VOLT_CHAN, 1709, IIO_VOLTAGE, "vchg_pwr", IIO_CHAN_INFO_PROCESSED),
+	ADC_CHANNEL(VCF_OUT_CHAN, 1367, IIO_VOLTAGE, "vcf_out", IIO_CHAN_INFO_PROCESSED),
+	ADC_CHANNEL(TINT_TEMP_CHAN, 104, IIO_TEMP, "tint", IIO_CHAN_INFO_PROCESSED),
 
 	ADC_CHANNEL(GPADC0_VOLT_CHAN, 342, IIO_VOLTAGE, "gpadc0", IIO_CHAN_INFO_PROCESSED),
 	ADC_CHANNEL(GPADC1_VOLT_CHAN, 342, IIO_VOLTAGE, "gpadc1", IIO_CHAN_INFO_PROCESSED),
@@ -391,7 +391,7 @@ static const struct iio_chan_spec pm88x_gpadc_channels[] = {
 	ADC_CHANNEL(GNDDET1_VOLT_CHAN, 342, IIO_VOLTAGE, "gnddet1", IIO_CHAN_INFO_RAW),
 	/* FIXME */
 	ADC_CHANNEL(GNDDET2_VOLT_CHAN, 342, IIO_VOLTAGE, "gnddet2", IIO_CHAN_INFO_RAW),
-	ADC_CHANNEL(VBUS_VOLT_CHAN, 1367, IIO_VOLTAGE, "vbus", IIO_CHAN_INFO_PROCESSED),
+	ADC_CHANNEL(VBUS_VOLT_CHAN, 1709, IIO_VOLTAGE, "vbus", IIO_CHAN_INFO_PROCESSED),
 	ADC_CHANNEL(GPADC3_VOLT_CHAN, 342, IIO_VOLTAGE, "gpadc3", IIO_CHAN_INFO_PROCESSED),
 	/* FIXME */
 	ADC_CHANNEL(MIC_DET_VOLT_CHAN, 1367, IIO_VOLTAGE, "mic_det", IIO_CHAN_INFO_RAW),
@@ -564,7 +564,6 @@ int extern_pm88x_gpadc_get_volt(int gpadc_number, int *volt)
 	return pm88x_gpadc_get_processed(g_gpadc, channel, volt);
 }
 EXPORT_SYMBOL(extern_pm88x_gpadc_get_volt);
-
 
 int extern_pm88x_gpadc_set_bias_current(int gpadc_number, int bias)
 {
