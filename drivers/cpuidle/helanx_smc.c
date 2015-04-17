@@ -30,22 +30,32 @@ int mfp_edge_wakeup_notify(struct notifier_block *nb,
 			   unsigned long val, void *data)
 {
 	int error = 0;
-	int (*invoke_smc_fn)(u64, u64) = __invoke_fn_smc;
-	error = invoke_smc_fn(LC_ADD_GPIO_EDGE_WAKEUP, get_gpio_address(val));
+	int (*invoke_smc_fn)(u64, u64, u64, u64) = __invoke_fn_smc;
+	error = invoke_smc_fn(LC_ADD_GPIO_EDGE_WAKEUP, get_gpio_address(val), 0, 0);
 	if (!error)
 		return NOTIFY_OK;
 	else
 		return NOTIFY_BAD;
 }
 
-noinline int __invoke_fn_smc(u64 function_id, u64 arg0)
+int store_share_address(unsigned long addr, unsigned long len)
+{
+	int error = 0;
+	int (*invoke_smc_fn)(u64, u64, u64, u64) = __invoke_fn_smc;
+	error = invoke_smc_fn(LC_ADD_SHARE_ADDRESS, addr, len, 0);
+	return error;
+}
+
+noinline int __invoke_fn_smc(u64 function_id, u64 arg0, u64 arg1, u64 arg2)
 {
 	asm volatile(
 			__asmeq("%0", "x0")
 			__asmeq("%1", "x1")
+			__asmeq("%2", "x2")
+			__asmeq("%3", "x3")
 			"smc	#0\n"
 		: "+r" (function_id)
-		: "r" (arg0));
+		: "r" (arg0), "r" (arg1), "r" (arg2));
 
 	return function_id;
 }

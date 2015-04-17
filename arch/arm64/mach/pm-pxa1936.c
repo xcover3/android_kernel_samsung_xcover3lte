@@ -19,6 +19,7 @@
 #include <linux/gfp.h>
 #include <linux/pxa1936_powermode.h>
 #include <linux/clk/mmpfuse.h>
+#include <linux/helanx_smc.h>
 #include "pxa1936_lowpower.h"
 #include "pm.h"
 #include "regs-addr.h"
@@ -47,6 +48,8 @@
 #define IRQ_PXA1936_USB1		(IRQ_PXA1936_START + 44)
 #define IRQ_PXA1936_GPIO_AP		(IRQ_PXA1936_START + 49)
 #define IRQ_PXA1936_GPS			(IRQ_PXA1936_START + 95)
+
+static unsigned int share_addr, share_len;
 
 static void pxa1936_set_wake(int irq, unsigned int on)
 {
@@ -631,6 +634,26 @@ static int pxa1936_get_suspend_volt(void)
 	}
 }
 
+static const struct of_device_id atf_of_match[] = {
+	{ .compatible = "marvell, atf",},
+	{},
+};
+
+static unsigned int get_share_address(unsigned int *addr)
+{
+	unsigned int len = 0;
+	struct device_node *np;
+	np = of_find_matching_node(NULL, atf_of_match);
+	if (!np)
+		*addr = 0;
+	else {
+		of_property_read_u32(np, "share-address", addr);
+		of_property_read_u32(np, "share-size", &len);
+	}
+
+	return len;
+}
+
 static struct suspend_ops pxa1936_suspend_ops = {
 	.pre_suspend_check = pxa1936_suspend_check,
 	.post_chk_wakeup = pxa1936_post_chk_wakeup,
@@ -655,6 +678,9 @@ static int __init pxa1936_suspend_init(void)
 
 	if (ret)
 		WARN_ON("PXA1936 Suspend Register fails!!");
+
+	share_len = get_share_address(&share_addr);
+	store_share_address((unsigned long)share_addr, share_len);
 
 	return 0;
 }
