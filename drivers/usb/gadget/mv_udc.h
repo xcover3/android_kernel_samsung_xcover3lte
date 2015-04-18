@@ -10,6 +10,8 @@
 #ifndef __MV_UDC_H
 #define __MV_UDC_H
 
+#include <linux/power_supply.h>
+
 #define VUSBHS_MAX_PORTS	8
 
 #define DQH_ALIGNMENT		2048
@@ -238,6 +240,9 @@ struct mv_udc {
 
 	/* some SOC has mutiple clock sources for USB*/
 	struct clk      *clk;
+
+	/* power supply used to detect charger type */
+	struct power_supply udc_psy;
 };
 
 /* endpoint data structure */

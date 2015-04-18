@@ -31,6 +31,7 @@
 #include <linux/pm.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/types.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/of.h>
@@ -2478,6 +2479,8 @@ static int mv_udc_remove(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 0);
 	udc = platform_get_drvdata(pdev);
 
+	power_supply_unregister(&udc->udc_psy);
+
 	usb_del_gadget_udc(&udc->gadget);
 
 	if (udc->pdata && (udc->pdata->extern_attr & MV_USB_HAS_VBUS_DETECTION)
@@ -2533,6 +2536,99 @@ static int mv_udc_dt_parse(struct platform_device *pdev,
 						"marvell,disable-otg-clock-gating");
 
 	return 0;
+}
+
+static int mv_udc_psy_get_property(struct power_supply *psy,
+				   enum power_supply_property psp,
+				   union power_supply_propval *val)
+{
+	struct mv_udc *udc;
+	udc = container_of(psy, struct mv_udc, udc_psy);
+	/* convert the private charger type to stanard power_supply_type */
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_PRESENT:
+		val->intval = udc->vbus_active;
+		break;
+	case POWER_SUPPLY_PROP_ONLINE:
+		/* TODO: charger type detected - 1 */
+		val->intval = udc->vbus_active;
+		break;
+	case POWER_SUPPLY_PROP_TYPE:
+		val->intval = psy->type;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* this function is used by charger driver to obtain the charger type*/
+	return 0;
+}
+
+static int mv_udc_psy_set_property(struct power_supply *psy,
+				  enum power_supply_property psp,
+				  const union power_supply_propval *val)
+{
+	struct mv_udc *udc;
+	udc = container_of(psy, struct mv_udc, udc_psy);
+	/* set the charger type */
+
+	/* notify the charger driver the charger type is ready */
+	power_supply_changed(&udc->udc_psy);
+
+	return 0;
+}
+
+static void mv_udc_psy_external_power_changed(struct power_supply *psy)
+{
+	/* seems no one supplies me ? */
+}
+
+static int mv_udc_psy_property_is_writeable(struct power_supply *psy,
+					    enum power_supply_property psp)
+{
+	return 1;
+}
+
+static char *mv_udc_psy_supplied_to[] = {
+	"88pm88x-charger",
+};
+
+static enum power_supply_property mv_udc_psy_props[] = {
+	POWER_SUPPLY_PROP_PRESENT,
+	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_TYPE,
+};
+
+static int mv_udc_psy_register(struct mv_udc *udc)
+{
+	int ret;
+	if (!udc)
+		return -EINVAL;
+
+	udc->udc_psy.name = "mv-udc-psy";
+	udc->udc_psy.type = POWER_SUPPLY_TYPE_USB;
+	udc->udc_psy.supplied_to = mv_udc_psy_supplied_to;
+	udc->udc_psy.num_supplicants = ARRAY_SIZE(mv_udc_psy_supplied_to);
+	udc->udc_psy.properties = mv_udc_psy_props;
+	udc->udc_psy.num_properties = ARRAY_SIZE(mv_udc_psy_props);
+	udc->udc_psy.get_property = mv_udc_psy_get_property;
+	udc->udc_psy.set_property = mv_udc_psy_set_property;
+	udc->udc_psy.external_power_changed = mv_udc_psy_external_power_changed;
+	udc->udc_psy.property_is_writeable = mv_udc_psy_property_is_writeable;
+
+	ret = power_supply_register(&udc->dev->dev, &udc->udc_psy);
+	if (ret < 0) {
+		dev_err(&udc->dev->dev, "%s: fail to register psy.\n", __func__);
+		return ret;
+	}
+
+	return ret;
+}
+
+static void mv_udc_psy_unregister(struct mv_udc *udc)
+{
+	power_supply_unregister(&udc->udc_psy);
 }
 
 static int mv_udc_probe(struct platform_device *pdev)
@@ -2706,6 +2802,12 @@ static int mv_udc_probe(struct platform_device *pdev)
 		pdata->extern_attr &=
 				   (unsigned int)(~MV_USB_HAS_IDPIN_DETECTION);
 
+	retval = mv_udc_psy_register(udc);
+	if (retval < 0) {
+		dev_err(&pdev->dev, "%s: Register udc psy fails.\n", __func__);
+		goto err_destroy_dma;
+	}
+
 	if ((pdata->extern_attr & MV_USB_HAS_VBUS_DETECTION)
 		 || udc->transceiver)
 		udc->clock_gating = 1;
@@ -2759,6 +2861,8 @@ static int mv_udc_probe(struct platform_device *pdev)
 	return 0;
 
 err_create_workqueue:
+	mv_udc_psy_unregister(udc);
+
 	if (udc->qwork) {
 		flush_workqueue(udc->qwork);
 		destroy_workqueue(udc->qwork);
