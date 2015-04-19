@@ -590,6 +590,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 	u64 ktime_temp, temp_time = 0;
 	u32 i, j, lpm_min, cpuidle_qos, cluster_flag = 0, cluster_flag1 = 0,
 	mp2_flag = 0, mp2_flag1 = 0, active_flag = 0;
+	u32 cluster0_online = 0, cluster1_online = 0;
 	u32 cpuidle_qos_min = PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE;
 	struct core_dcstat *op;
 
@@ -614,11 +615,11 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		cpuidle_qos_min = pm_qos_read_value(pm_qos_cpuidle->constraints);
 		/* cluster_flag1 is used for other cluster */
 		if (cpuid < 4) {
-			cluster_flag = 0;
-			cluster_flag1 = 1;
-		} else if (cpuid >= 4 && cpuid < 8) {
 			cluster_flag = 1;
 			cluster_flag1 = 0;
+		} else if (cpuid >= 4 && cpuid < 8) {
+			cluster_flag = 0;
+			cluster_flag1 = 1;
 		}
 	}
 
@@ -851,7 +852,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 
 		if (multi_cluster) {
 			mark_keytime = true;
-			for (cpu_i = 0 + 4 * cluster_flag; cpu_i < 4 + 4 * cluster_flag; cpu_i++) {
+			for (cpu_i = 0 + 4 * cluster_flag1; cpu_i < 4 + 4 * cluster_flag1; cpu_i++) {
 				if (cpuid == cpu_i)
 					continue;
 				dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
@@ -864,13 +865,13 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				if ((cpuid < 4) && ((u64) 0 != idle_dcstat_info.M2_cluster0_idle_start)) {
 					idle_dcstat_info.M2_cluster0_idle_total +=
 					    ktime_temp - idle_dcstat_info.M2_cluster0_idle_start;
-					idle_dcstat_info.M2_cluster0_idle_total++;
+					idle_dcstat_info.M2_cluster0_count++;
 					idle_dcstat_info.M2_cluster0_idle_start = 0;
 				} else if ((cpuid >= 4 && cpuid < 8) &&
 				((u64) 0 != idle_dcstat_info.M2_cluster1_idle_start)) {
 					idle_dcstat_info.M2_cluster1_idle_total +=
 					    ktime_temp - idle_dcstat_info.M2_cluster1_idle_start;
-					idle_dcstat_info.M2_cluster1_idle_total++;
+					idle_dcstat_info.M2_cluster1_count++;
 					idle_dcstat_info.M2_cluster1_idle_start = 0;
 				}
 			}
@@ -947,7 +948,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			if (multi_cluster) {
 				active_flag = 0;
 				lpm_min = MAX_LPM_INDEX;
-				for (cpu_i = 0 + 4 * cluster_flag1; cpu_i < 4 + 4 * cluster_flag1;
+				for (cpu_i = 0 + 4 * cluster_flag; cpu_i < 4 + 4 * cluster_flag;
 					cpu_i++) {
 					dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
 					if (MAX_LPM_INDEX != dc_stat_info->power_mode) {
@@ -959,11 +960,11 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 						}
 				}
 				if (active_flag == 0 && lpm_min >= LPM_MP2) {
-					if ((cluster_flag1 == 0) &&
+					if ((cluster_flag1 == 1) &&
 					((u64) 0 == idle_dcstat_info.M2_cluster0_idle_start))
 						idle_dcstat_info.M2_cluster0_idle_start
 							= ktime_temp;
-					if ((cluster_flag1 == 1) &&
+					if ((cluster_flag1 == 0) &&
 					((u64) 0 == idle_dcstat_info.M2_cluster1_idle_start))
 						idle_dcstat_info.M2_cluster1_idle_start
 							= ktime_temp;
@@ -988,6 +989,22 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		ktime_temp = ktime_to_ns(ktime_get());
 
 		if (multi_cluster) {
+			for_each_possible_cpu(cpu_i)
+				if (!cpu_online(cpu_i)) {
+					dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
+					dc_stat_info->power_mode = LPM_D2;
+				}
+			for (cpu_i = 0; cpu_i < 4; cpu_i++)
+				if (cpu_online(cpu_i)) {
+					cluster0_online = 1;
+					break;
+				}
+			for (cpu_i = 4; cpu_i < 8; cpu_i++)
+				if (cpu_online(cpu_i)) {
+					cluster1_online = 1;
+					break;
+				}
+
 			dc_stat_info = &per_cpu(cpu_dc_stat, cpuid);
 			dc_stat_info->power_mode = tgtop;
 			lpm_min = MAX_LPM_INDEX;
@@ -1026,9 +1043,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 					idle_dcstat_info.D2_idle_start = ktime_temp;
 
 #ifdef CONFIG_VOLDC_STAT
-				if (LPM_MP2 == lpm_min)
-					vol_dcstat_event(VLSTAT_LPM_ENTRY, 2, 0);
-				else if (LPM_D1P == lpm_min)
+				if (LPM_D1P == lpm_min)
 					vol_dcstat_event(VLSTAT_LPM_ENTRY, 3, 0);
 				else if (LPM_D1 == lpm_min)
 					vol_dcstat_event(VLSTAT_LPM_ENTRY, 4, 0);
@@ -1037,42 +1052,59 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 #endif
 			}
 			if (cpuidle_qos >= LPM_MP2) {
-
-				for (cpu_i = 0 + 4 * cluster_flag1; cpu_i < 4 + 4 * cluster_flag1;
-					cpu_i++) {
+				for (cpu_i = 4 * cluster_flag; cpu_i < 4 + 4 * (cluster_flag); cpu_i++) {
 					dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
-					if (MAX_LPM_INDEX == dc_stat_info->power_mode ||
-						(LPM_C1 <= dc_stat_info->power_mode &&
-						LPM_C2 >= dc_stat_info->power_mode))
-						mp2_flag = 1;
-						break;
+					if (cpu_online(cpu_i)) {
+						if (MAX_LPM_INDEX == dc_stat_info->power_mode ||
+							(LPM_C1 <= dc_stat_info->power_mode &&
+							LPM_C2 >= dc_stat_info->power_mode))
+							mp2_flag = 1;
+							break;
+					}
 				}
+
+				if ((cluster_flag1 == 1) && (cluster1_online == 0))
+					mp2_flag = 1;
+				else if ((cluster_flag == 1) && (cluster0_online == 0))
+					mp2_flag = 1;
 
 				if (mp2_flag == 1 && lpm_min >= LPM_MP2)
 					mp2_flag1 = 1;
 
 				lpm_min = MAX_LPM_INDEX;
-				for (cpu_i = 0 + 4 * cluster_flag; cpu_i < 4 + 4 * cluster_flag;
-					cpu_i++) {
-					dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
-					if (MAX_LPM_INDEX != dc_stat_info->power_mode) {
-						if (lpm_min > dc_stat_info->power_mode)
-							lpm_min = dc_stat_info->power_mode;
-					} else
-						return;
+				for (cpu_i = 4 * cluster_flag1; cpu_i < 4 + 4 * cluster_flag1; cpu_i++) {
+					if (cpu_online(cpu_i)) {
+						dc_stat_info = &per_cpu(cpu_dc_stat, cpu_i);
+						if (MAX_LPM_INDEX != dc_stat_info->power_mode) {
+							if (lpm_min > dc_stat_info->power_mode)
+								lpm_min = dc_stat_info->power_mode;
+						} else
+							return;
+					}
 				}
 				if (cpuidle_qos  < lpm_min)
 					lpm_min = cpuidle_qos;
 
 				if (mp2_flag1 == 1 || lpm_min >= LPM_MP2) {
-					if ((cluster_flag == 0) &&
-					((u64) 0 == idle_dcstat_info.M2_cluster0_idle_start))
-						idle_dcstat_info.M2_cluster0_idle_start
-							= ktime_temp;
-					if ((cluster_flag == 1) &&
+					if (((cluster_flag == 0) || (!cluster1_online)) &&
 					((u64) 0 == idle_dcstat_info.M2_cluster1_idle_start))
 						idle_dcstat_info.M2_cluster1_idle_start
 							= ktime_temp;
+
+					if (((cluster_flag == 1) || (!cluster0_online)) &&
+					((u64) 0 == idle_dcstat_info.M2_cluster0_idle_start))
+						idle_dcstat_info.M2_cluster0_idle_start
+							= ktime_temp;
+
+#ifdef CONFIG_VOLDC_STAT
+					/* When helan3 2 cluster enter M2 mode, we will start
+						vlstat M2 mode */
+					if (((u64) 0 != idle_dcstat_info.M2_cluster0_idle_start
+					|| !cluster0_online) &&
+					((u64) 0 != idle_dcstat_info.M2_cluster1_idle_start
+					|| !cluster1_online))
+						vol_dcstat_event(VLSTAT_LPM_ENTRY, 2, 0);
+#endif
 				}
 			}
 		} else {
