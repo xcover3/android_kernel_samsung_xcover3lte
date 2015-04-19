@@ -140,7 +140,7 @@ struct ddr_devfreq_data {
 	u32 high_upthrd_swp_clst0;
 	u32 high_upthrd_swp_clst1;
 	u32 high_upthrd_swp;
-	u32 high_upthrd;
+	u32 *high_upthrd;
 	u32 cpu_up;
 	u32 gpu_up;
 	/* notifier block for ddr upthreshold change */
