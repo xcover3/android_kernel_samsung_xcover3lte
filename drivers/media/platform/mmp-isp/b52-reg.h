@@ -94,7 +94,7 @@ struct b52isp_cmd {
 	/* A source can be a image sensor or memory input */
 	union {
 		const void				*memory_sensor_data;
-		struct v4l2_subdev		*sensor;
+		struct v4l2_subdev		*hsd;
 	};
 	struct {
 		int			axi_id;

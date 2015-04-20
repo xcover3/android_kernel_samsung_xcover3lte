@@ -1858,6 +1858,10 @@ static int b52_sensor_s_ctrl(struct v4l2_ctrl *ctrl)
 		b52_sensor_call(sensor, s_flip, 1, ctrl->val);
 		break;
 
+	case V4L2_CID_PRIVATE_SENSOR_OTP_CONTROL:
+		sensor->otp.otp_ctrl = ctrl->val;
+		break;
+
 	default:
 		pr_err("%s: ctrl %x not support\n", __func__, ctrl->id);
 		return -EINVAL;

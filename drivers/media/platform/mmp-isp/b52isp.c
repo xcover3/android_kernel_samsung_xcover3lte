@@ -468,16 +468,18 @@ static inline int b52isp_try_apply_cmd(struct b52isp_lpipe *pipe)
 		cmd->src_fmt.sizeimage
 			= vnode->format.fmt.pix_mp.plane_fmt[0].sizeimage;
 	} else {
-		struct v4l2_subdev *sensor = cmd->sensor;
+		struct v4l2_subdev *hst_sd = cmd->hsd;
+		struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 		struct v4l2_subdev_format fmt = {
 			.pad = 0,
 			.which = V4L2_SUBDEV_FORMAT_ACTIVE,
 		};
-		ret = v4l2_subdev_call(sensor, pad, get_fmt, NULL, &fmt);
+		ret = v4l2_subdev_call(sd, pad, get_fmt, NULL, &fmt);
 		if (ret < 0)
 			goto err_exit;
 		d_inf(4, "got sensor %s <w%d, h%d, c%X>",
-			sensor->name, fmt.format.width,
+			sd->name, fmt.format.width,
 			fmt.format.height, fmt.format.code);
 
 		ret = b52isp_mfmt_to_pfmt(&cmd->src_fmt, fmt.format);
@@ -970,9 +972,9 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 			ret = -EPIPE;
 			goto exit;
 		}
-		cur_cmd->sensor =
+		cur_cmd->hsd =
 			media_entity_to_v4l2_subdev(r_pad->entity);
-		d_inf(4, "sensor is %s", cur_cmd->sensor->name);
+		d_inf(4, "host is %s", cur_cmd->hsd->name);
 		break;
 
 	case SDCODE_B52ISP_A1R1:
@@ -2805,7 +2807,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 
 		if ((lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
-			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
 			struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
 						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
@@ -2958,7 +2960,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			 * will refine this in the future
 			 * */
 			{
-				struct v4l2_subdev *hst_sd = lpipe->cur_cmd->sensor;
+				struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
 				struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
 						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 				struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
@@ -3142,7 +3144,7 @@ disable_axi:
 		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
 			(lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
-			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
 			struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
 						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);

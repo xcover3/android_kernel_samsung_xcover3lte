@@ -948,7 +948,7 @@ static int b52_basic_init(struct b52isp_cmd *cmd)
 {
 	int pipe_id;
 
-	struct v4l2_subdev *hst_sd = cmd->sensor;
+	struct v4l2_subdev *hst_sd = cmd->hsd;
 
 	if (!(cmd->flags & BIT(CMD_FLAG_INIT)))
 		return 0;
@@ -2562,7 +2562,9 @@ static void b52_cfg_isp_lsc_phase(struct b52isp_cmd *cmd)
 	int hflip;
 	int vflip;
 	u8 phase = 0;
-	struct v4l2_subdev *sd = cmd->sensor;
+	struct v4l2_subdev *hsd = cmd->hsd;
+	struct v4l2_subdev *sd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 
 	hflip = v4l2_ctrl_g_ctrl(sensor->ctrls.hflip);
@@ -2650,7 +2652,7 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	int ret;
 	u32 flags = cmd->flags;
 	struct b52_cmd_i2c_data data;
-	struct v4l2_subdev *hsd = cmd->sensor;
+	struct v4l2_subdev *hsd = cmd->hsd;
 	struct v4l2_subdev *gsd = host_subdev_get_guest(hsd,
 					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	const struct b52_sensor_data *sensordata = cmd->memory_sensor_data;
@@ -2754,7 +2756,9 @@ static int b52_cmd_capture_img(struct b52isp_cmd *cmd)
 	int ret;
 	int bracket;
 	struct b52_cmd_i2c_data data;
-	struct v4l2_subdev *sd = cmd->sensor;
+	struct v4l2_subdev *hsd = cmd->hsd;
+	struct v4l2_subdev *sd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 
 	b52_g_sensor_fmt_data(sd, &data);
 	b52_fill_cmd_i2c_buf(data.tab, data.attr->addr, data.num,
