@@ -27,7 +27,7 @@
 #include <linux/of_device.h>
 #include <linux/platform_data/mv_usb.h>
 
-#define MY_PSY_NAME		"usb"
+#define MY_PSY_NAME		"88pm88x-charger"
 
 #define CHG_RESTART_DELAY		(5) /* in minutes */
 
@@ -89,6 +89,7 @@ enum {
 struct pm88x_charger_info {
 	struct device *dev;
 	struct power_supply pm88x_charger_psy;
+	struct power_supply *charger_type_psy;
 	struct delayed_work restart_chg_work;
 	struct work_struct chg_state_machine_work;
 	struct notifier_block nb;
@@ -138,6 +139,8 @@ static enum power_supply_property pm88x_props[] = {
 static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status);
 static void pm88x_charger_set_supply_type(struct pm88x_charger_info *info,
 					  struct power_supply *psy);
+static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
+				      unsigned long type);
 
 static inline int get_prechg_cur(struct pm88x_charger_info *info)
 {
@@ -551,6 +554,28 @@ static void pm88x_change_chg_status(struct pm88x_charger_info *info, int status)
 static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 {
 	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
+	union power_supply_propval val;
+	int ret;
+
+	/* TODO: configure dynamically */
+	/* -- begin configuring charger chip */
+	if (!info->charger_type_psy)
+		info->charger_type_psy = power_supply_get_by_name("mv-udc-psy");
+	psy = info->charger_type_psy;
+	if (!psy || !psy->get_property) {
+		dev_err(info->dev, "get charger type failed.\n");
+		return;
+	}
+
+	ret = psy->get_property(psy, POWER_SUPPLY_PROP_TYPE, &val);
+	if (ret) {
+		dev_err(info->dev, "get charger type property failed.\n");
+		return;
+	}
+	/* -- charger type has been got */
+	pm88x_set_charger_by_type(info, val.intval);
+	/* -- finish configuring charger chip by charger type */
+
 	schedule_work(&info->chg_state_machine_work);
 }
 
@@ -693,19 +718,17 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 	return 0;
 }
 
-static int pm88x_charger_notifier_call(struct notifier_block *nb,
-				       unsigned long type, void *chg_event)
+static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
+				      unsigned long type)
 {
-	struct pm88x_charger_info *info =
-		container_of(nb, struct pm88x_charger_info, nb);
 	static unsigned long prev_chg_type = NULL_CHARGER;
 
-	struct power_supply *psy;
+	static struct power_supply *psy;
 	union power_supply_propval val;
 
 	/* no change in charger type - nothing to do */
 	if (type == prev_chg_type)
-		return 0;
+		return;
 
 	/* disable the auto-charging on cable insertion and removal */
 	if (prev_chg_type == NULL_CHARGER || type == NULL_CHARGER)
@@ -718,11 +741,21 @@ static int pm88x_charger_notifier_call(struct notifier_block *nb,
 	info->allow_chg_after_tout = 1;
 	info->allow_chg_after_overvoltage = 1;
 
-	psy = power_supply_get_by_name(MY_PSY_NAME);
+	if (!psy)
+		psy = power_supply_get_by_name(MY_PSY_NAME);
 	if (psy && psy->set_property) {
 		val.intval = type;
 		psy->set_property(psy, POWER_SUPPLY_PROP_TYPE, &val);
 	}
+}
+
+static int pm88x_charger_notifier_call(struct notifier_block *nb,
+				       unsigned long type, void *chg_event)
+{
+	struct pm88x_charger_info *info =
+		container_of(nb, struct pm88x_charger_info, nb);
+
+	pm88x_set_charger_by_type(info, type);
 
 	return 0;
 }

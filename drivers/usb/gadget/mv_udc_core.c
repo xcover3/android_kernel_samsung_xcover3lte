@@ -2395,8 +2395,9 @@ EXPORT_SYMBOL(mv_udc_unregister_client);
 static void call_charger_notifier(struct mv_udc *udc)
 {
 	udc->charger_type = map_charger_type(udc->charger_type);
-	blocking_notifier_call_chain(&mv_udc_notifier_list,
-				udc->charger_type, &udc->power);
+
+	/* notify the interested guy the charger type is ready */
+	power_supply_changed(&udc->udc_psy);
 }
 
 static void do_delayed_charger_work(struct work_struct *work)
@@ -2555,7 +2556,7 @@ static int mv_udc_psy_get_property(struct power_supply *psy,
 		val->intval = udc->vbus_active;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
-		val->intval = psy->type;
+		val->intval = udc->charger_type;
 		break;
 	default:
 		return -EINVAL;
@@ -2572,6 +2573,31 @@ static int mv_udc_psy_set_property(struct power_supply *psy,
 	struct mv_udc *udc;
 	udc = container_of(psy, struct mv_udc, udc_psy);
 	/* set the charger type */
+	switch (psp) {
+	case POWER_SUPPLY_PROP_TYPE:
+		psy->type = val->intval;
+
+		switch (psy->type) {
+		case POWER_SUPPLY_TYPE_UNKNOWN:
+			udc->charger_type = NULL_CHARGER;
+			break;
+		case POWER_SUPPLY_TYPE_USB_DCP:
+			udc->charger_type = DCP_CHARGER;
+		case POWER_SUPPLY_TYPE_USB_CDP:
+			udc->charger_type = CDP_CHARGER;
+		case POWER_SUPPLY_TYPE_USB:
+			udc->charger_type = SDP_CHARGER;
+			break;
+		default:
+			udc->charger_type = NONE_STANDARD_CHARGER;
+			break;
+		}
+
+		break;
+	default:
+		break;
+
+	}
 
 	/* notify the charger driver the charger type is ready */
 	power_supply_changed(&udc->udc_psy);
