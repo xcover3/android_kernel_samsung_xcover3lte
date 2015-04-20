@@ -254,7 +254,7 @@ static inline int get_fastchg_timeout(struct pm88x_charger_info *info)
 }
 
 static char *supply_interface[] = {
-	"battery",
+	"88pm88x-fuelgauge",
 };
 
 static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)

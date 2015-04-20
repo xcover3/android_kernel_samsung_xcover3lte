@@ -30,6 +30,8 @@
 
 #define MY_PSY_NAME			"88pm88x-fuelgauge"
 
+#define MY_PSY_NAME			"88pm88x-fuelgauge"
+
 #define PM88X_VBAT_MEAS_EN		(1 << 1)
 #define PM88X_GPADC_BD_PREBIAS		(1 << 4)
 #define PM88X_GPADC_BD_EN		(1 << 5)
@@ -197,8 +199,7 @@ struct pm88x_battery_info {
 static int ocv_table[100];
 
 static char *supply_interface[] = {
-	"ac",
-	"usb",
+	"88pm88x-charger",
 };
 
 struct ccnt {
@@ -2358,7 +2359,7 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&info->charged_work, pm88x_charged_work);
 	INIT_DELAYED_WORK(&info->monitor_work, pm88x_battery_monitor_work);
 
-	info->battery.name = "battery";
+	info->battery.name = MY_PSY_NAME;
 	info->battery.type = POWER_SUPPLY_TYPE_BATTERY;
 	info->battery.properties = pm88x_batt_props;
 	info->battery.num_properties = ARRAY_SIZE(pm88x_batt_props);
