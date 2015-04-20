@@ -1192,8 +1192,10 @@ static int clk_cpu_setrate(struct clk_hw *hw, unsigned long rate,
 						     struct cpu_opt, node);
 		/* 2) change core to bridge_op */
 		ret = set_core_freq(hw, md_old, bridge_op);
-		if (ret)
+		if (ret) {
+			put_fc_spinlock();
 			goto tmpout;
+		}
 		/* 3) change parent's rate */
 		clk_set_rate(md_new->parent, md_new->ap_clk_src * MHZ);
 		/* 4) switch to target op */
@@ -1203,10 +1205,11 @@ static int clk_cpu_setrate(struct clk_hw *hw, unsigned long rate,
 		ret = set_core_freq(hw, md_old, md_new);
 	}
 
+	put_fc_spinlock();
+
 	trigger_slave_clk_fc(mclk_type, rate * MHZ);
 
 tmpout:
-	put_fc_spinlock();
 	if (ret)
 		goto out;
 
