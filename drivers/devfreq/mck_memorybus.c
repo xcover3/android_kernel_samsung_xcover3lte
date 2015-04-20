@@ -30,8 +30,6 @@
 #include <linux/of_address.h>
 #include <trace/events/pxa.h>
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-#include <linux/platform_data/gpu4dev.h>
-#include <linux/platform_data/camera.h>
 #include <linux/ddr_upthreshold.h>
 #include <linux/sysfs.h>
 #endif
@@ -66,28 +64,6 @@ static inline void __update_dev_upthreshold(unsigned int upthrd,
 			gov_data->freq_table[i] / 100;
 	}
 }
-
-/* notifier to change the devfreq govoner's upthreshold */
-static int upthreshold_freq_notifer_call(struct notifier_block *nb,
-		unsigned long val, void *data)
-{
-	return NOTIFY_OK;
-}
-
-int gpufeq_register_dev_notifier(struct srcu_notifier_head *gpu_notifier_chain)
-{
-	return srcu_notifier_chain_register(gpu_notifier_chain,
-					&ddrfreq_driver_data->freq_transition);
-}
-EXPORT_SYMBOL(gpufeq_register_dev_notifier);
-
-int camfeq_register_dev_notifier(struct srcu_notifier_head *cam_notifier_chain)
-{
-	return srcu_notifier_chain_register(cam_notifier_chain,
-					&ddrfreq_driver_data->freq_transition);
-}
-EXPORT_SYMBOL(camfeq_register_dev_notifier);
-
 #endif /* CONFIG_DDR_DEVFREQ_GOV_THROUGHPUT */
 
 static void __iomem *iomap_register(const char *reg_name)
@@ -1096,8 +1072,6 @@ static int qos_max_upthrd_notifier_call(struct notifier_block *nb,
 
 	mutex_unlock(&devfreq->lock);
 
-	pr_info("%s: up threshold request %d\n", __func__, upthrd);
-
 	return ret;
 }
 
@@ -1366,10 +1340,6 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		goto err_devfreq_add;
 	}
 
-#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	data->freq_transition.notifier_call = upthreshold_freq_notifer_call;
-	ddrfreq_driver_data = data;
-#endif /* CONFIG_DEVFREQ_GOV_THROUGHPUT */
 	ddrfreq_data = data;
 
 	/* init default devfreq min_freq and max_freq */
@@ -1406,7 +1376,6 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 	ddr_perf_cnt_init(data);
 
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	data->freq_transition.notifier_call = upthreshold_freq_notifer_call;
 	ddrfreq_driver_data = data;
 
 	res = sysfs_create_file(ddr_upthrd_obj, &upthrd_usr_attr.attr);
