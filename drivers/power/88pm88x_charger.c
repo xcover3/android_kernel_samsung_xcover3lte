@@ -25,7 +25,6 @@
 #include <linux/mfd/88pm886.h>
 #include <linux/delay.h>
 #include <linux/of_device.h>
-#include <linux/platform_data/mv_usb.h>
 
 #define MY_PSY_NAME		"88pm88x-charger"
 
@@ -721,7 +720,7 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
 				      unsigned long type)
 {
-	static unsigned long prev_chg_type = NULL_CHARGER;
+	static unsigned long prev_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
 
 	static struct power_supply *psy;
 	union power_supply_propval val;
@@ -731,7 +730,8 @@ static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
 		return;
 
 	/* disable the auto-charging on cable insertion and removal */
-	if (prev_chg_type == NULL_CHARGER || type == NULL_CHARGER)
+	if (prev_chg_type == POWER_SUPPLY_TYPE_UNKNOWN ||
+	    type == POWER_SUPPLY_TYPE_UNKNOWN)
 		pm88x_stop_charging(info);
 
 	prev_chg_type = type;
@@ -747,17 +747,6 @@ static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
 		val.intval = type;
 		psy->set_property(psy, POWER_SUPPLY_PROP_TYPE, &val);
 	}
-}
-
-static int pm88x_charger_notifier_call(struct notifier_block *nb,
-				       unsigned long type, void *chg_event)
-{
-	struct pm88x_charger_info *info =
-		container_of(nb, struct pm88x_charger_info, nb);
-
-	pm88x_set_charger_by_type(info, type);
-
-	return 0;
 }
 
 static void pm88x_restart_chg_work(struct work_struct *work)
@@ -1060,17 +1049,6 @@ static int pm88x_charger_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	/* register charger event notifier */
-	info->nb.notifier_call = pm88x_charger_notifier_call;
-
-#ifdef CONFIG_USB_MV_UDC
-	ret = mv_udc_register_client(&info->nb);
-	if (ret < 0) {
-		dev_err(info->dev, "failed to register client!\n");
-		goto err_psy;
-	}
-#endif
-
 	INIT_WORK(&info->chg_state_machine_work, pm88x_chg_state_machine_work);
 	INIT_DELAYED_WORK(&info->restart_chg_work, pm88x_restart_chg_work);
 
@@ -1098,9 +1076,7 @@ static int pm88x_charger_probe(struct platform_device *pdev)
 out_irq:
 	while (--i >= 0)
 		devm_free_irq(info->dev, info->irq[i], info);
-#ifdef CONFIG_USB_MV_UDC
-err_psy:
-#endif
+
 	power_supply_unregister(&info->pm88x_charger_psy);
 out:
 	return ret;
@@ -1119,10 +1095,6 @@ static int pm88x_charger_remove(struct platform_device *pdev)
 	}
 
 	pm88x_stop_charging(info);
-
-#ifdef CONFIG_USB_MV_UDC
-	mv_udc_unregister_client(&info->nb);
-#endif
 
 	platform_set_drvdata(pdev, NULL);
 	return 0;
