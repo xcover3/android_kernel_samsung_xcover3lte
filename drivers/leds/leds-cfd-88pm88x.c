@@ -172,8 +172,7 @@ struct pm88x_led {
 };
 
 static char *supply_interface[] = {
-	"ac",
-	"usb",
+	"88pm88x-charger",
 };
 
 static void pm88x_led_bright_set(struct led_classdev *cdev, enum led_brightness value);
