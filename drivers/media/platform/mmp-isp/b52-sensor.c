@@ -1333,7 +1333,9 @@ static int b52_sensor_get_fmt(struct v4l2_subdev *sd,
 		struct v4l2_subdev_format *format)
 {
 	int ret = 0;
+	const struct b52_sensor_data *data;
 	struct b52_sensor *sensor = to_b52_sensor(sd);
+	data = sensor->drvdata;
 
 	if (format->pad > 0) {
 		pr_err("%s, error pad num\n", __func__);
@@ -1348,6 +1350,8 @@ static int b52_sensor_get_fmt(struct v4l2_subdev *sd,
 		format->format = *v4l2_subdev_get_try_format(fh, 0);
 		break;
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
+		sensor->mf.code = b52_sensor_get_real_mbus(sd,
+				data->mbus_fmt[sensor->cur_mbus_idx].mbus_code);
 		format->format = sensor->mf;
 		break;
 	default:

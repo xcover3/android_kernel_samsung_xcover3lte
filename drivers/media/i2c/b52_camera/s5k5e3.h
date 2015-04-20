@@ -276,11 +276,11 @@ struct regval_tab s5k5e3_stream_off[] = {
 };
 
 struct regval_tab s5k5e3_vflip[] = {
-	{0x0101, 0x01, 0x01},
+	{0x0101, 0x02, 0x02},
 };
 
 struct regval_tab s5k5e3_hflip[] = {
-	{0x0101, 0x02, 0x02},
+	{0x0101, 0x01, 0x01},
 };
 
 struct b52_sensor_i2c_attr s5k5e3_i2c_attr[] = {
@@ -419,7 +419,7 @@ struct b52_sensor_data b52_s5k5e3 = {
 		.tab = s5k5e3_vflip,
 		.num = N_S5K5E3_VFLIP,
 	},
-	.flip_change_phase =  0,
+	.flip_change_phase =  1,
 	/* A gain format is 8.5 */
 	.gain_shift = 0x00,
 	/* A expo format is 2 byte */

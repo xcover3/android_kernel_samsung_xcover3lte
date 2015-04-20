@@ -2552,6 +2552,42 @@ static void b52_g_sensor_fmt_data(struct v4l2_subdev *sd,
 	b52_sensor_call(sensor, g_cur_fmt, data);
 }
 
+static void b52_cfg_isp_lsc_phase(struct b52isp_cmd *cmd)
+{
+	int hflip;
+	int vflip;
+	u8 phase = 0;
+	struct v4l2_subdev *sd = cmd->sensor;
+	struct b52_sensor *sensor = to_b52_sensor(sd);
+
+	hflip = v4l2_ctrl_g_ctrl(sensor->ctrls.hflip);
+	vflip = v4l2_ctrl_g_ctrl(sensor->ctrls.vflip);
+
+	if (!hflip && !vflip)
+		return;
+
+	if (hflip && vflip)
+		phase |= LSC_MIRR | LSC_FLIP;
+	else if (hflip && !vflip)
+		phase |= LSC_MIRR;
+	else if (!hflip && vflip)
+		phase |= LSC_FLIP;
+
+	switch (cmd->path) {
+	case B52ISP_ISD_PIPE1:
+	case B52ISP_ISD_MS1:
+		b52_writeb(REG_ISP_LSC_PHASE, phase);
+		break;
+	case B52ISP_ISD_PIPE2:
+	case B52ISP_ISD_MS2:
+		pr_err("%s: haven't support pipe2, need OVT FW support %d\n", __func__, cmd->path);
+		break;
+	default:
+		pr_err("%s: wrong path %d\n", __func__, cmd->path);
+		break;
+	}
+}
+
 static int b52_cfg_pixel_order(struct v4l2_pix_format *fmt, int path)
 {
 	u8 order = PIXEL_ORDER_BGGR;
@@ -2654,6 +2690,7 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 
 	b52_cfg_input(&cmd->src_fmt, cmd->src_type);
 	b52_cfg_pixel_order(&cmd->src_fmt, cmd->path);
+	b52_cfg_isp_lsc_phase(cmd);
 	b52_cfg_idi(&cmd->src_fmt, &cmd->pre_crop);
 	b52_cfg_output(cmd->output, cmd->output_map);
 	b52_cfg_zoom(&cmd->pre_crop, &cmd->post_crop);

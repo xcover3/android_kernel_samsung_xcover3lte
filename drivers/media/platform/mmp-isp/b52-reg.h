@@ -937,6 +937,9 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 #define REG_FW_FOCUS_POS            (0x1ea)
 #define REG_FW_FOCUS_MAN_STATUS     (0x1dc)
 
+#define REG_ISP_LSC_PHASE		(0x331e9)
+	#define LSC_MIRR		(0x1)
+	#define LSC_FLIP		(0x2)
 
 #define REG_HW_VERSION     (0x00bda)
 #define REG_SWM_VERSION    (0x00bdc)
