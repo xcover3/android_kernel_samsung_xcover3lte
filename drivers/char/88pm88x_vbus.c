@@ -60,6 +60,21 @@ struct pm88x_vbus_info {
 
 static struct pm88x_vbus_info *vbus_info;
 
+static void pm88x_vbus_check_errors(struct pm88x_vbus_info *info)
+{
+	int val = 0;
+
+	regmap_read(info->chip->battery_regmap, PM88X_OTG_LOG1, &val);
+
+	if (val & PM88X_OTG_UVVBAT)
+		dev_err(info->chip->dev, "OTG error: OTG_UVVBAT\n");
+	if (val & PM88X_OTG_SHORT_DET)
+		dev_err(info->chip->dev, "OTG error: OTG_SHORT_DET\n");
+
+	if (val)
+		regmap_write(info->chip->battery_regmap, PM88X_OTG_LOG1, val);
+}
+
 static int pm88x_get_vbus(unsigned int *level)
 {
 	int ret, val, voltage;
@@ -121,25 +136,11 @@ static int pm88x_get_vbus(unsigned int *level)
 					PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, 0);
 				break;
 			}
+			pm88x_vbus_check_errors(vbus_info);
 		}
 	}
 
 	return 0;
-}
-
-static void pm88x_vbus_check_errors(struct pm88x_vbus_info *info)
-{
-	int val = 0;
-
-	regmap_read(info->chip->battery_regmap, PM88X_OTG_LOG1, &val);
-
-	if (val & PM88X_OTG_UVVBAT)
-		dev_err(info->chip->dev, "OTG error: OTG_UVVBAT\n");
-	if (val & PM88X_OTG_SHORT_DET)
-		dev_err(info->chip->dev, "OTG error: OTG_SHORT_DET\n");
-
-	if (val)
-		regmap_write(info->chip->battery_regmap, PM88X_OTG_LOG1, val);
 }
 
 static int pm88x_set_vbus(unsigned int vbus)
