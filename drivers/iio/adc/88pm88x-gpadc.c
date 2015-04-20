@@ -194,11 +194,19 @@ static u8 pm88x_channel_to_reg(int channel)
 	u8 reg;
 
 	switch (channel) {
+	case VSC_VOLT_CHAN:
+		reg = 0x40;
+		break;
+	case VCHG_PWR_VOLT_CHAN:
+	case VCF_OUT_CHAN:
+	case TINT_TEMP_CHAN:
+		reg = 0x4c + (channel - VCHG_PWR_VOLT_CHAN) * 2;
+		break;
 	case GPADC0_VOLT_CHAN:
 	case GPADC1_VOLT_CHAN:
 	case GPADC2_VOLT_CHAN:
 		/* gapdc 0/1/2 */
-		reg = 0x54 + (channel - 0x4) * 2;
+		reg = 0x54 + (channel - GPADC0_VOLT_CHAN) * 2;
 		break;
 
 	case VBAT_VOLT_CHAN:
