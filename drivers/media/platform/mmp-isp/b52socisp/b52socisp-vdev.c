@@ -743,8 +743,8 @@ static int isp_vnode_streamoff(struct file *file, void *fh,
 			VDEV_NOTIFY_STM_OFF, vnode);
 	ret |= v4l2_subdev_call(sd, video, s_stream, 0);
 
-	spin_lock_irqsave(&vnode->vb_lock, flags);
 	ret |= vb2_streamoff(&vnode->vq, type);
+	spin_lock_irqsave(&vnode->vb_lock, flags);
 	INIT_LIST_HEAD(&vnode->idle_buf);
 	INIT_LIST_HEAD(&vnode->busy_buf);
 	vnode->busy_buf_cnt = 0;
