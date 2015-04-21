@@ -1576,12 +1576,12 @@ void map_be_active(struct map_private *map_priv)
 {
 	unsigned int reg, val;
 
+	/* get constrain out of spinlock since it may sleep */
+	if ((!map_priv->user_count) && (map_priv->lpm_qos >= 0))
+		pm_qos_update_request(&map_priv->qos_idle, map_priv->lpm_qos);
+
 	spin_lock(&map_priv->map_lock);
 	if (!map_priv->user_count) {
-		/* get constaint to block LPM if needed */
-		if (map_priv->lpm_qos >= 0)
-			pm_qos_update_request(&map_priv->qos_idle, map_priv->lpm_qos);
-
 		/* put map into active state */
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0x3;
@@ -1623,16 +1623,16 @@ void map_be_reset(struct map_private *map_priv)
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0x1;
 		map_raw_write(map_priv, reg, val);
-
-		/* release constaint to allow LPM if needed */
-		if (map_priv->lpm_qos >= 0)
-			pm_qos_update_request(&map_priv->qos_idle,
-				    PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
 	}
 	spin_unlock(&map_priv->map_lock);
 
-	if (map_priv->user_count == 0)
+	if (map_priv->user_count == 0) {
 		map_set_sleep_vol(map_priv, 0);
+		/* release constaint to allow LPM if needed */
+		if (map_priv->lpm_qos >= 0)
+			pm_qos_update_request(&map_priv->qos_idle,
+				PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
+	}
 
 	return;
 }
