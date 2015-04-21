@@ -1023,7 +1023,7 @@ static int oom_adjust_permission(struct inode *inode, int mask)
 	 * android applications (uid > 10000) as and services (uid >= 1000)
 	 */
 	if (p && (uid_eq(current_fsuid(), system_server_uid) &&
-				uid_gt(uid, system_server_uid))) {
+				uid_gte(uid, system_server_uid))) {
 		if (inode->i_mode >> 6 & mask) {
 			return 0;
 		}
