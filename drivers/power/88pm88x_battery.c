@@ -1617,26 +1617,26 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	 * a) plug into the charger cable first
 	 * b) then plug into the battery
 	 * in this case the vbat_slp is a random value, it's not realiable
+	 * if SoC saved is not valid, use soc_from_vbat_active
 	 * OR
 	 * a) plug into the battery first
 	 * b) then plug into the charger cable
+	 * if SoC saved is not valid, use soc_from_vbat_slp
 	 */
 	if (info->chip->powerup & 0x2) {
 		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40) {
 			/* plug into the charger cable first */
-			if (abs(soc_from_vbat_active - soc_from_saved) > 20)
+			if (saved_is_valid < 0 || abs(soc_from_vbat_active - soc_from_saved) > 20)
 				*initial_soc = soc_from_vbat_active;
 			else
 				*initial_soc = soc_from_saved;
-		} else if (abs(soc_from_vbat_slp - soc_from_saved) < 60) {
+		} else if (saved_is_valid >= 0 && abs(soc_from_vbat_slp - soc_from_saved) < 60) {
 			/* plug into the battery first */
 			*initial_soc = soc_from_saved;
 		} else {
 			*initial_soc = soc_from_vbat_slp;
 		}
-
 		*initial_cycles = cycles_from_saved;
-
 		goto end;
 	}
 
