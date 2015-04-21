@@ -2570,9 +2570,6 @@ static void b52_cfg_isp_lsc_phase(struct b52isp_cmd *cmd)
 	hflip = v4l2_ctrl_g_ctrl(sensor->ctrls.hflip);
 	vflip = v4l2_ctrl_g_ctrl(sensor->ctrls.vflip);
 
-	if (!hflip && !vflip)
-		return;
-
 	if (hflip && vflip)
 		phase |= LSC_MIRR | LSC_FLIP;
 	else if (hflip && !vflip)
