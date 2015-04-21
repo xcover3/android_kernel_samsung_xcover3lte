@@ -1012,7 +1012,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 
 	clk = mmp_clk_register_gate(NULL, "LCDCIHCLK", "disp_axi_clk", 0,
 			pxa_unit->apmu_base + APMU_DISP1,
-			0x16, 0x16, 0x0, 0, &disp_lock);
+			0x16, 0x16, 0x4, 0, &disp_lock);
 	mmp_clk_add(unit, PXA1936_CLK_DISP_HCLK, clk);
 
 	/* SC2 VCLK */
