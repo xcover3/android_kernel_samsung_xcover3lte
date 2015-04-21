@@ -141,4 +141,7 @@
 extern void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
 extern void __iomem *icu_get_base_addr(void);
 #endif
+
+void cpuidle_c2_lock(void);
+void cpuidle_c2_unlock(void);
 #endif

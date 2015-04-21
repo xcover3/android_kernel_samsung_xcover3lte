@@ -107,6 +107,33 @@ struct cpuidle_driver arm64_idle_driver = {
 	.state_count = 13,
 };
 
+static unsigned int states_disabled;
+
+/* FIXME: Support only one component to lock/unlock same index */
+void cpuidle_c2_lock(void)
+{
+	int i;
+
+	states_disabled = 0;
+	for (i = 0; i < arm64_idle_driver.state_count; i++)
+		states_disabled |= (arm64_idle_driver.states[i].disabled << i);
+
+	arm64_idle_driver.states[POWER_MODE_CORE_POWERDOWN].disabled = 1;
+	arm64_idle_driver.states[POWER_MODE_MP_POWERDOWN_L2_OFF].disabled = 1;
+	arm64_idle_driver.states[POWER_MODE_APPS_IDLE].disabled = 1;
+	arm64_idle_driver.states[POWER_MODE_SYS_SLEEP_VCTCXO_OFF].disabled = 1;
+}
+EXPORT_SYMBOL_GPL(cpuidle_c2_lock);
+
+void cpuidle_c2_unlock(void)
+{
+	int i;
+
+	for (i = 0; i < arm64_idle_driver.state_count; i++)
+		arm64_idle_driver.states[i].disabled = (states_disabled & (1 << i))?1:0;
+}
+EXPORT_SYMBOL_GPL(cpuidle_c2_unlock);
+
 /*
  * arm64_enter_state - Programs CPU to enter the specified state
  *
