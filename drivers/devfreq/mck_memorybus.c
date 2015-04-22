@@ -1078,12 +1078,7 @@ static int qos_max_upthrd_notifier_call(struct notifier_block *nb,
 static ssize_t upthrd_usr_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
-	struct ddr_devfreq_data *ddr_devfreq_data = ddrfreq_driver_data;
-
-	if (ddr_devfreq_data->max_upthrd_qos_type)
-		return sprintf(buf, "%lu\n", ddr_devfreq_data->qos_max_upthrd);
-	else
-		return sprintf(buf, "Qos max up threshold unsupport!!\n");
+	return sprintf(buf, "%lu\n", devfreq_throughput_data.upthreshold);
 }
 
 static ssize_t upthrd_usr_store(struct kobject *kobj,
@@ -1101,6 +1096,8 @@ static ssize_t upthrd_usr_store(struct kobject *kobj,
 		pr_err("For example: echo 30 > upthrd_usr\n");
 		return -EINVAL;
 	}
+
+	devfreq_throughput_data.upthreshold = upthrd_usr;
 
 	pm_qos_update_request(&ddr_devfreq_data->qos_req_upthrd_max, upthrd_usr);
 
