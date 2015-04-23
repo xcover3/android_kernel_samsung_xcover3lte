@@ -262,27 +262,6 @@ static struct isp_res_req b52axi_req[] = {
 	{ISP_RESRC_END}
 };
 
-static void __maybe_unused dump_mac_reg(void __iomem *mac_base)
-{
-	char buffer[0xD0];
-	int i;
-	for (i = 0; i < 0xD0; i++)
-		buffer[i] = readb(mac_base + i);
-
-	d_inf(4, "dump MAC registers from %p", mac_base);
-	for (i = 0; i < 0xD0; i += 8) {
-		d_inf(4, "[0x%02X..0x%02X] = %02X %02X %02X %02X     %02X %02X %02X %02X", i, i + 7,
-			buffer[i + 0],
-			buffer[i + 1],
-			buffer[i + 2],
-			buffer[i + 3],
-			buffer[i + 4],
-			buffer[i + 5],
-			buffer[i + 6],
-			buffer[i + 7]);
-	}
-}
-
 void b52isp_set_ddr_qos(s32 value)
 {
 	pm_qos_update_request(&ddrfreq_qos_req_min, value);
