@@ -436,7 +436,7 @@
 				>;
 
 				pinctrl-names = "default";
-				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1>;
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1 &mfp_pins_group_2>;
 
 				/*
 				 * these unused pins have been pulled down external
