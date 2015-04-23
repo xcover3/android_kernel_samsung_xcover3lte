@@ -309,10 +309,9 @@ static void torch_on(struct pm88x_led *led)
 				PM88X_CF_BITMASK_TRCH_RESET);
 		clear_errors(led);
 
-		/* set torch mode & boost voltage mode */
+		/* set torch mode */
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
-				(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
-				PM88X_SELECT_TORCH_MODE | PM886_BOOST_MODE);
+				PM88X_CF_BITMASK_MODE, PM88X_SELECT_TORCH_MODE);
 		break;
 	case PM880:
 		/* set TRCH_TIMER_RESET to reset torch timer so
@@ -491,8 +490,7 @@ static void strobe_flash(struct pm88x_led *led)
 			led->brightness = min_t(unsigned int, 900, led->brightness);
 			brightness = led->brightness;
 			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
-				(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
-				PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE);
+				PM88X_CF_BITMASK_MODE, PM88X_SELECT_FLASH_MODE);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 				PM88X_BST_ILIM_DIS, 0);
 			break;
@@ -544,18 +542,16 @@ static void strobe_flash(struct pm88x_led *led)
 		switch (chip->type) {
 		case PM886:
 			if (led->brightness > 400) {
-				regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
-						(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
-						PM88X_SELECT_FLASH_MODE);
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 						PM88X_BST_ILIM_DIS, 0);
 			} else {
-				regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
-						(PM88X_CF_BITMASK_MODE | PM886_BOOST_MODE),
-						(PM88X_SELECT_FLASH_MODE | PM886_BOOST_MODE));
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 						PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
 			}
+			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+					PM88X_CF_BITMASK_MODE, PM88X_SELECT_FLASH_MODE);
+			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
+					PM88X_BST_OV_SET_MASK, PM88X_BST_OV_SET_6V);
 			break;
 		case PM880:
 			if (led->conn_cfout_ab) {
@@ -1166,6 +1162,10 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 				if (ret)
 					return ret;
 		}
+
+		/* set boost mode to voltage mode, cofirmed with DE */
+		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
+				PM886_BOOST_MODE, PM886_BOOST_MODE);
 		break;
 	case PM880:
 		/* set cls_nok debounce period to 20us */
