@@ -2288,7 +2288,7 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	}
 
 	INIT_DELAYED_WORK(&info->charged_work, pm88x_charged_work);
-	INIT_DEFERRABLE_WORK(&info->monitor_work, pm88x_battery_monitor_work);
+	INIT_DELAYED_WORK(&info->monitor_work, pm88x_battery_monitor_work);
 
 	pm_stay_awake(info->dev);
 	/* update the status timely */
