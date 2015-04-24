@@ -392,6 +392,7 @@ void get_fc_spinlock(void)
 	if (!spin_trylock(&fc_seq_lock)) {
 		if (fc_seqlock_owner == current) {
 			fc_seqlock_cnt++;
+			local_irq_restore(flags);
 			return;
 		}
 		spin_lock(&fc_seq_lock);
@@ -410,8 +411,10 @@ void put_fc_spinlock(void)
 	WARN_ON_ONCE(fc_seqlock_owner != current);
 	WARN_ON_ONCE(fc_seqlock_cnt == 0);
 
-	if (--fc_seqlock_cnt)
+	if (--fc_seqlock_cnt) {
+		local_irq_restore(flags);
 		return;
+	}
 	fc_seqlock_owner = NULL;
 	spin_unlock(&fc_seq_lock);
 	local_irq_restore(flags);
