@@ -436,7 +436,7 @@
 				>;
 
 				pinctrl-names = "default";
-				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1 &mfp_pins_group_2>;
+				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1 &mfp_pins_group_2 &mfp_pins_group_3>;
 
 				/*
 				 * these unused pins have been pulled down external
@@ -510,6 +510,21 @@
 						GPIO15 AF0
 						GPIO76 AF0
 						GPIO78 AF0
+					>;
+					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_NONE;
+				};
+
+				/*
+				 * VCC_IO_ANT power domain
+				 * these pins not used on dkb and no PULL on HW
+				 * so PULL_UP internal to avoid current leakage
+				 * LPM_NONE to keep the setting during suspend
+				 */
+				mfp_pins_group_3: mfp_pins_group_3 {
+					pinctrl-single,pins = <
+						ANT_SW4 AF0
+						PA_MODE AF0
+						RF_CONF_4 AF0
 					>;
 					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_NONE;
 				};
