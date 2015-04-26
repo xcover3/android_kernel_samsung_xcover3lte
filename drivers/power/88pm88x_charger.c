@@ -1,5 +1,5 @@
 /*
- * 88PM886 PMIC Charger driver
+ * 88PM88X PMIC Charger driver
  *
  * Copyright (c) 2014 Marvell Technology Ltd.
  * Yi Zhang <yizhang@marvell.com>
@@ -258,15 +258,6 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 	static struct power_supply *psy;
 	int ret, i;
 
-	if (!info->allow_basic_charge)
-		return false;
-
-	if (!info->allow_chg_after_tout)
-		return false;
-
-	if (!info->allow_chg_ext)
-		return false;
-
 	if (!psy || !psy->get_property) {
 		psy = power_supply_get_by_name(info->usb_chg.supplied_to[0]);
 		if (!psy || !psy->get_property) {
@@ -275,28 +266,10 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 		}
 	}
 
-	/* check if there is a battery present */
-	ret = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &val);
-	if (ret) {
-		dev_err(info->dev, "get battery property failed.\n");
-		return false;
-	}
-	if (val.intval == 0) {
-		dev_dbg(info->dev, "battery not present.\n");
-		return false;
-	}
-
-	/* check if battery is healthy */
-	ret = psy->get_property(psy, POWER_SUPPLY_PROP_HEALTH, &val);
-	if (ret) {
-		dev_err(info->dev, "get battery property failed.\n");
-		return false;
-	}
-	if (val.intval != POWER_SUPPLY_HEALTH_GOOD) {
-		dev_info(info->dev, "battery health is not good.\n");
-		return false;
-	}
-
+	/*
+	 * the allow_recharge needs to be checked and updated before all other parameters,
+	 * because it is also used inside the state-machine
+	 */
 	if (!info->allow_recharge || !info->allow_chg_after_overvoltage) {
 		/*
 		 * perform 3 VBAT reads with 50ms delays,
@@ -322,6 +295,37 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 		dev_info(info->dev, "OK to start recharge!\n");
 		info->allow_chg_after_overvoltage = 1;
 		info->allow_recharge = 1;
+	}
+
+	if (!info->allow_basic_charge)
+		return false;
+
+	if (!info->allow_chg_after_tout)
+		return false;
+
+	if (!info->allow_chg_ext)
+		return false;
+
+	/* check if there is a battery present */
+	ret = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &val);
+	if (ret) {
+		dev_err(info->dev, "get battery property failed.\n");
+		return false;
+	}
+	if (val.intval == 0) {
+		dev_dbg(info->dev, "battery not present.\n");
+		return false;
+	}
+
+	/* check if battery is healthy */
+	ret = psy->get_property(psy, POWER_SUPPLY_PROP_HEALTH, &val);
+	if (ret) {
+		dev_err(info->dev, "get battery property failed.\n");
+		return false;
+	}
+	if (val.intval != POWER_SUPPLY_HEALTH_GOOD) {
+		dev_info(info->dev, "battery health is not good.\n");
+		return false;
 	}
 
 	return true;
@@ -875,9 +879,12 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 			/* start recharge */
 			if (!info->charging && chg_allowed)
 				pm88x_start_charging(info);
-			/* stop recharge */
-			else if (info->charging && !chg_allowed)
-				pm88x_stop_charging(info);
+			/* something else is blocking - change to discharging */
+			else if (info->allow_recharge && !chg_allowed) {
+				info->pm88x_charger_status = POWER_SUPPLY_STATUS_DISCHARGING;
+				if (info->charging)
+					pm88x_stop_charging(info);
+			}
 		}
 		break;
 
