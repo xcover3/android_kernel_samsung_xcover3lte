@@ -198,11 +198,18 @@ void thread_info_cache_init(void)
 
 #if defined(CONFIG_THREADINFO_MEMPOOL)
 #define MAX_MEMPOOL_THREADS 50
+#define NUM_OF_PAGES_512M   (512 * 1024 * 1024 / PAGE_SIZE)
 	{
 		int min_nr;
 
-		min_nr = MAX_MEMPOOL_THREADS;
-		pr_info("thread_info mempool reserved : %d \n", min_nr);
+		if (totalram_pages > NUM_OF_PAGES_512M) {
+					/* 0.8% of totalpages */
+			min_nr = (totalram_pages * 8 / 1000) / (THREAD_SIZE / PAGE_SIZE);
+			pr_info("thread_info mempool reserved : %d\n", min_nr);
+		} else {
+			min_nr = MAX_MEMPOOL_THREADS;
+			pr_info("thread_info mempool reserved : %d\n", min_nr);
+		}
 
 		thread_info_pool = mempool_create(min_nr, mempool_alloc_slab,
 				mempool_free_slab, thread_info_cache);
