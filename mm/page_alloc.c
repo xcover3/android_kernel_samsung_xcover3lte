@@ -1071,9 +1071,8 @@ struct page *__rmqueue_highest_cma(struct zone *zone, unsigned int order)
 		}
 
 		sel_page = &sel_page[offset];
+		set_freepage_migratetype(sel_page, MIGRATE_CMA);
 	}
-
-	set_freepage_migratetype(sel_page, MIGRATE_CMA);
 
 	return sel_page;
 }
