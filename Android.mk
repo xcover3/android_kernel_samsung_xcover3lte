@@ -49,6 +49,14 @@ else
 SD8XXX_CONFIG_OPTIONS := -m
 endif
 
+SUPPORTED_SD8XXX_CHIPS := 8777 8787 8887 8897
+
+ifeq ($(BOARD_SD8XXX_DRIVER_BUILD_IN),true)
+SD8XXX_CONFIG_OPTIONS := -e
+else
+SD8XXX_CONFIG_OPTIONS := -m
+endif
+
 # only do this if we are buidling out of tree
 ifneq ($(KERNEL_OUTPUT),)
 ifneq ($(KERNEL_OUTPUT), $(abspath $(TOP)/kernel))
@@ -176,6 +184,21 @@ endif
 	echo "PRIVATE_KERNEL_ARGS is "+$(PRIVATE_KERNEL_ARGS)
 	$(MAKE) $(PRIVATE_KERNEL_ARGS)
 
+ifneq ($(findstring 8xxx, $(BOARD_SD8XXX_CHIP)),)
+# keep the default configuration
+else
+ifneq ($(BOARD_SD8XXX_CHIP),)
+ifneq ($(filter $(BOARD_SD8XXX_CHIP),$(SUPPORTED_SD8XXX_CHIPS)),)
+	$(KERNEL_SCRIPT_UPDATE) -d CONFIG_MRVL_WL_SD8XXX
+	$(KERNEL_SCRIPT_UPDATE) $(foreach chip, $(SUPPORTED_SD8XXX_CHIPS), -d CONFIG_MRVL_WL_SD$(chip))
+	$(KERNEL_SCRIPT_UPDATE)	$(foreach chip, $(BOARD_SD8XXX_CHIP), -e CONFIG_MRVL_WL_SD$(chip))
+	$(KERNEL_SCRIPT_UPDATE) $(SD8XXX_CONFIG_OPTIONS) CONFIG_MRVL_WL_BUILD_TYPE
+else
+	$(error Invalid BOARD_SD8XXX_CHIP defined: $(BOARD_SD8XXX_CHIP), correct values are: $(SUPPORTED_SD8XXX_CHIPS))
+endif
+endif
+endif
+
 ifeq ($(KERNEL_NO_MODULES),)
 	echo "PRIVATE_KERNEL_ARGS is KERNEL_NO_MODULES is blank "+$(PRIVATE_KERNEL_ARGS)
 	$(MAKE) $(PRIVATE_KERNEL_ARGS) modules
@@ -247,6 +270,22 @@ else
 ifeq ($(HAVE_SECURITY_TZ_FEATURE),true)
 	$(KERNEL_SCRIPT_UPDATE) -e CONFIG_TZ_HYPERVISOR
 endif
+
+ifneq ($(findstring 8xxx, $(BOARD_SD8XXX_CHIP)),)
+# keep the default configuration
+else
+ifneq ($(BOARD_SD8XXX_CHIP),)
+ifneq ($(filter $(BOARD_SD8XXX_CHIP),$(SUPPORTED_SD8XXX_CHIPS)),)
+	$(KERNEL_SCRIPT_UPDATE) -d CONFIG_MRVL_WL_SD8XXX
+	$(KERNEL_SCRIPT_UPDATE) $(foreach chip, $(SUPPORTED_SD8XXX_CHIPS), -d CONFIG_MRVL_WL_SD$(chip))
+	$(KERNEL_SCRIPT_UPDATE)	$(foreach chip, $(BOARD_SD8XXX_CHIP), -e CONFIG_MRVL_WL_SD$(chip))
+	$(KERNEL_SCRIPT_UPDATE) $(SD8XXX_CONFIG_OPTIONS) CONFIG_MRVL_WL_BUILD_TYPE
+else
+	$(error Invalid BOARD_SD8XXX_CHIP defined: $(BOARD_SD8XXX_CHIP), correct values are: $(SUPPORTED_SD8XXX_CHIPS))
+endif
+endif
+endif
+
 ifeq ($(TARGET_USES_64_BIT_BINDER),true)
 	$(TOP)/kernel/scripts/config --file $(KERNEL_OUTPUT)/.config -d CONFIG_ANDROID_BINDER_IPC_32BIT
 else
