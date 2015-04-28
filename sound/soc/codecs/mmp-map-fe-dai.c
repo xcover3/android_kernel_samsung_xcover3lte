@@ -1950,6 +1950,7 @@ struct snd_soc_codec_driver soc_codec_dev_map = {
 	.reg_word_size = sizeof(u32),
 	.controls = map_snd_controls,
 	.num_controls = ARRAY_SIZE(map_snd_controls),
+	.ignore_pmdown_time = true,
 };
 
 static int mmp_map_fe_dai_probe(struct platform_device *pdev)
