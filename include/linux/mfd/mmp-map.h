@@ -378,7 +378,7 @@ enum {
 	APLL_NONE,
 };
 
-typedef void (*poweron_cb)(void __iomem*, struct clk*, int);
+typedef void (*poweron_cb)(void __iomem*, int);
 
 struct map_clk_audio_pll_table {
 	unsigned long input_rate;
@@ -394,7 +394,6 @@ struct map_clk_audio_pll_table {
 
 struct clk_audio {
 	struct clk_hw hw;
-	struct clk *puclk;
 	void __iomem *apmu_base;
 	void __iomem *map_base;
 	void __iomem *dspaux_base;
@@ -449,7 +448,6 @@ struct map_private {
 	struct clk *map_tdm;
 	struct clk *map_bclk;
 	struct clk *dsp_clk;
-	struct clk *puclk;
 	poweron_cb poweron;
 	struct pm_qos_request qos_idle;
 	s32 lpm_qos;

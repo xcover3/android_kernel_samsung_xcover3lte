@@ -6,8 +6,5 @@
 #define AUDIO_CLK_SSPA0		2
 #define AUDIO_CLK_SSPA1		3
 
-/* System level clocks , used by cm3 */
-#define AUDIO_CLK_32KPU		18
-
-#define AUDIO_NR_CLKS			20
+#define AUDIO_NR_CLKS		20
 #endif
