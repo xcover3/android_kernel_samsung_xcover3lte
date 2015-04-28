@@ -94,7 +94,6 @@ static int m3_init_done;
 static u32 m3_ip_ver;
 static u32 pmic_ver;
 static struct pm_qos_request ddr_qos_min;
-static struct clk *clk_32k;
 
 static void ldo_sleep_control(int ua_load, const char *ldo_name)
 {
@@ -201,13 +200,9 @@ int gnss_config(void)
 	pr_info("%s enters\n", __func__);
 
 	/* force anagrp power always on for GNSS power on */
-	if (clk_32k)
-		clk_enable(clk_32k);
-	else {
-		apb_reg_v = REG_READ(APB_SPARE9_REG);
-		apb_reg_v |= (0x1 << APB_ANAGRP_PWR_ON_OFFSET);
-		REG_WRITE(apb_reg_v, APB_SPARE9_REG);
-	}
+	apb_reg_v = REG_READ(APB_SPARE9_REG);
+	apb_reg_v |= (0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+	REG_WRITE(apb_reg_v, APB_SPARE9_REG);
 
 	pmu_reg_v = (0x1 << GNSS_PWR_ON1_OFFSET);
 	pmu_reg_v |= (0x1 << GNSS_AXI_CLOCK_ENABLE);
@@ -280,13 +275,9 @@ void gnss_power_off(void)
 	pr_info("gnss_power_off\n");
 
 	/*clear anagrp power always on for GNSS power off */
-	if (clk_32k)
-		clk_disable(clk_32k);
-	else {
-		apb_reg_v = REG_READ(APB_SPARE9_REG);
-		apb_reg_v &= ~(0x1 << APB_ANAGRP_PWR_ON_OFFSET);
-		REG_WRITE(apb_reg_v, APB_SPARE9_REG);
-	}
+	apb_reg_v = REG_READ(APB_SPARE9_REG);
+	apb_reg_v &= ~(0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+	REG_WRITE(apb_reg_v, APB_SPARE9_REG);
 
 	pmu_reg_v = REG_READ(PMUA_GNSS_PWR_CTRL);
 	pmu_reg_v &= ~(0x1 << GNSS_HW_MODE_OFFSET);
@@ -403,13 +394,9 @@ static int m3_open(struct inode *inode, struct file *filp)
 		gps_ldo_control(1);
 		ldo_sleep_control(70000, "vm3pwr");
 		/* force anagrp power always on for GNSS power on */
-		if (clk_32k)
-			clk_enable(clk_32k);
-		else {
-			apb_reg_v = REG_READ(APB_SPARE9_REG);
-			apb_reg_v |= (0x1 << APB_ANAGRP_PWR_ON_OFFSET);
-			REG_WRITE(apb_reg_v, APB_SPARE9_REG);
-		}
+		apb_reg_v = REG_READ(APB_SPARE9_REG);
+		apb_reg_v |= (0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+		REG_WRITE(apb_reg_v, APB_SPARE9_REG);
 	}
 	switch (port) {
 	case GNSS_PORT:
@@ -472,13 +459,9 @@ static int m3_close(struct inode *inode, struct file *filp)
 
 	if (gnss_open == 0 && senbub_open == 0) {
 		/*clear anagrp power always on for GNSS power off */
-		if (clk_32k)
-			clk_disable(clk_32k);
-		else {
-			apb_reg_v = REG_READ(APB_SPARE9_REG);
-			apb_reg_v &= ~(0x1 << APB_ANAGRP_PWR_ON_OFFSET);
-			REG_WRITE(apb_reg_v, APB_SPARE9_REG);
-		}
+		apb_reg_v = REG_READ(APB_SPARE9_REG);
+		apb_reg_v &= ~(0x1 << APB_ANAGRP_PWR_ON_OFFSET);
+		REG_WRITE(apb_reg_v, APB_SPARE9_REG);
 		ldo_sleep_control(0, "vm3pwr");
 		gps_ldo_control(0);
 
@@ -849,14 +832,6 @@ static int pxa_m3rm_probe(struct platform_device *pdev)
 		m3_pctrl.en_d2 = pinctrl_lookup_state(m3_pctrl.pinctrl,
 				"unfuse_en_d2");
 	}
-
-	clk_32k = devm_clk_get(dev, "32kpu");
-	if (IS_ERR_OR_NULL(clk_32k)) {
-		clk_32k = NULL;
-		pr_err("get 32k clock failed, will direct control it\n");
-	}
-	else
-		clk_prepare(clk_32k);
 
 	rc = init_gnss_base_addr();
 	if (rc) {
