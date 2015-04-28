@@ -74,14 +74,14 @@
 	ldo5: regulator-ldo5 {
 	};
 	ldo6: regulator-ldo6 {
+		regulator-always-on;
+		regulator-boot-on;
 	};
 	ldo7: regulator-ldo7 {
 	};
 	ldo8: regulator-ldo8 {
 	};
 	ldo9: regulator-ldo9 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo10: regulator-ldo10 {
 		regulator-boot-on;
