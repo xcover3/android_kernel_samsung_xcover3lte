@@ -290,18 +290,18 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 unsigned long pll_dfrate[DDR_TYPE_MAX][MAX_PLL_NUM][MAX_PLL_TYPE] = {
 	[DDR_533M] = {
 		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
-		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
 		/* for 533M case, reserve pll4 for LCD */
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
 	[DDR_667M] = {
 		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
-		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
 		{2670lu * MHZ, 1335 * MHZ, 667 * MHZ},
 	},
 	[DDR_800M] = {
 		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
-		{1526 * MHZ, 1526 * MHZ, 1526 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
 };
@@ -1259,10 +1259,10 @@ static struct cpu_opt clst1_op_array[] = {
 		.ap_clk_sel = 0x1,
 	},
 	{
-		.pclk = 1526,
-		.core_aclk = 763,
+		.pclk = 1491,
+		.core_aclk = 745,
 		.ap_clk_sel = 0x3,
-		.ap_clk_src = 1526,
+		.ap_clk_src = 1491,
 	},
 	{
 		.pclk = 1595,
@@ -1286,7 +1286,7 @@ static struct core_params clst1_core_params = {
 	.cpu_rtcwtc_table = clst1_cpu_rtcwtc_tbl,
 	.cpu_rtcwtc_table_size = ARRAY_SIZE(clst1_cpu_rtcwtc_tbl),
 	.bridge_cpurate = 1248,
-	.max_cpurate = 1526,
+	.max_cpurate = 1491,
 	.dcstat_support = true,
 };
 
@@ -1573,7 +1573,7 @@ static struct combclk_relation c1clk_cciclk_relationtbl[] = {
 	{.mclk_rate = 832000000, .sclk_rate = 416000000},
 	{.mclk_rate = 1057000000, .sclk_rate = 624000000},
 	{.mclk_rate = 1248000000, .sclk_rate = 624000000},
-	{.mclk_rate = 1526000000, .sclk_rate = 832000000},
+	{.mclk_rate = 1491000000, .sclk_rate = 624000000},
 	{.mclk_rate = 1595000000, .sclk_rate = 832000000},
 	{.mclk_rate = 1803000000, .sclk_rate = 832000000},
 };
