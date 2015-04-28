@@ -1338,8 +1338,6 @@
 		compatible = "marvell,mmp-m3";
 		/* 975000 for CM3 on, 700000 for CM3 off */
 		vccmain = <975000 700000>;
-		clocks = <&audio_map_clocks AUDIO_CLK_32KPU>;
-		clock-names = "32kpu";
 		pinctrl-names = "default", "poweron";
 		pinctrl-0 = <&gnss_pmx_def &twsi3_pmx_senhb_def &senhb_irq_pins_def>;
 		pinctrl-1 = <&gnss_pmx_power_on &twsi3_pmx_senhb>;
