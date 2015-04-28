@@ -757,8 +757,9 @@ static int dfc_set_rate(struct mmp_path *path, unsigned long rate, unsigned long
 		 * TODO: Better use power domain on off
 		 */
 		clk_prepare_enable(hclk);
-		writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
-				ctrl->reg_base + LCD_SCLK_DIV);
+		if (ctrl->regs_store)
+			writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
+					ctrl->reg_base + LCD_SCLK_DIV);
 	}
 
 	if (req == GC_REQUEST) {
@@ -783,7 +784,9 @@ static int dfc_set_rate(struct mmp_path *path, unsigned long rate, unsigned long
 		}
 	}
 	if (!path->status) {
-		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
+		if (ctrl->regs_store)
+			ctrl->regs_store[LCD_SCLK_DIV/4] =
+				readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
 		clk_disable_unprepare(hclk);
 	}
 
@@ -800,8 +803,9 @@ static unsigned long dfc_get_rate(struct mmp_path *path)
 	mutex_lock(&ctrl->access_ok);
 	if (!path->status) {
 		clk_prepare_enable(hclk);
-		writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
-				ctrl->reg_base + LCD_SCLK_DIV);
+		if (ctrl->regs_store)
+			writel_relaxed(ctrl->regs_store[LCD_SCLK_DIV/4],
+					ctrl->reg_base + LCD_SCLK_DIV);
 	}
 
 	/*
@@ -816,7 +820,9 @@ static unsigned long dfc_get_rate(struct mmp_path *path)
 	rate = rate / val / MHZ_TO_HZ;
 
 	if (!path->status) {
-		ctrl->regs_store[LCD_SCLK_DIV/4] = readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
+		if (ctrl->regs_store)
+			ctrl->regs_store[LCD_SCLK_DIV/4] =
+				readl_relaxed(ctrl->reg_base + LCD_SCLK_DIV);
 		clk_disable_unprepare(hclk);
 	}
 	mutex_unlock(&ctrl->access_ok);

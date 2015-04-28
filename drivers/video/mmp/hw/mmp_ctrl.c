@@ -555,7 +555,7 @@ static int path_set_irq(struct mmp_path *path, u32 irq, int on)
 		}
 
 		if (irq_flag) {
-			if (!path_ctrl_safe(path)) {
+			if (ctrl->regs_store && !path_ctrl_safe(path)) {
 				/*
 				 * if it is suspended, we can't access real register,
 				 * should only change the stored value to let them be
@@ -597,7 +597,7 @@ static int path_set_irq(struct mmp_path *path, u32 irq, int on)
 			 * It would not trigger handler if the status on
 			 * before enable.
 			 */
-			if (!path_ctrl_safe(path)) {
+			if (ctrl->regs_store && !path_ctrl_safe(path)) {
 				if (!DISP_GEN4(ctrl->version)) {
 					tmp = ctrl->regs_store[SPU_IRQ_ISR / 4];
 					tmp &= ~mask;
@@ -1976,14 +1976,20 @@ static int mmphw_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto failed_path_init;
 	}
-
-	ctrl->regs_store = devm_kzalloc(ctrl->dev,
-			ctrl->regs_len * sizeof(u32), GFP_KERNEL);
-	if (!ctrl->regs_store) {
-		dev_err(ctrl->dev,
-				"%s: unable to kzalloc memory for regs store\n",
-				__func__);
-		goto failed_path_init;
+	/*
+	 * GEN4_LITE for ulc and GEN4.5 for helan3 can sustain the register value,
+	 * needn't store/restore.
+	 */
+	if (!(DISP_GEN4_LITE(ctrl->version)) &&
+			!(DISP_GEN4_PLUS(ctrl->version))) {
+		ctrl->regs_store = devm_kzalloc(ctrl->dev,
+				ctrl->regs_len * sizeof(u32), GFP_KERNEL);
+		if (!ctrl->regs_store) {
+			dev_err(ctrl->dev,
+					"%s: unable to kzalloc memory for regs store\n",
+					__func__);
+			goto failed_path_init;
+		}
 	}
 
 	ret = ctrl_dbg_init(&pdev->dev);
@@ -2049,9 +2055,11 @@ static int mmphw_runtime_suspend(struct device *dev)
 	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
 
 	ctrl->status = MMP_OFF;
-	mutex_lock(&ctrl->access_ok);
-	mmphw_regs_store(ctrl);
-	mutex_unlock(&ctrl->access_ok);
+	if (ctrl->regs_store) {
+		mutex_lock(&ctrl->access_ok);
+		mmphw_regs_store(ctrl);
+		mutex_unlock(&ctrl->access_ok);
+	}
 
 	if (vdma)
 		vdma->ops->runtime_onoff(0);
@@ -2066,9 +2074,11 @@ static int mmphw_runtime_resume(struct device *dev)
 	struct mmp_path *path = ctrl->path_plats[0].path;
 	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
 
-	mutex_lock(&ctrl->access_ok);
-	mmphw_regs_recovery(ctrl);
-	mutex_unlock(&ctrl->access_ok);
+	if (ctrl->regs_store) {
+		mutex_lock(&ctrl->access_ok);
+		mmphw_regs_recovery(ctrl);
+		mutex_unlock(&ctrl->access_ok);
+	}
 	ctrl->status = MMP_ON;
 
 	if (vdma)
