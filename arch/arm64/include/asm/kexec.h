@@ -46,11 +46,15 @@ static inline void crash_setup_regs(struct pt_regs *newregs,
 			"stp x24, x25, [%0, #8 * 24]\n\t"
 			"stp x26, x27, [%0, #8 * 26]\n\t"
 			"stp x28, x29, [%0, #8 * 28]\n\t"
+			"stp x21, x22, [sp,#-32]!\n\t"
+			"str x23, [sp,#16]\n\t"
 			"mov x21, sp\n\t"
 			"stp x30, x21, [%0, #8 * 30]\n\t"
 			"adr x22, 1f\n\t"
 			"mrs x23, spsr_el1\n\t"
 			"stp x22, x23, [%0, #8 * 32]\n\t"
+			"ldr x23, [sp,#16]\n\t"
+			"ldp x21, x22, [sp],#32\n\t"
 		"1:"
 			:
 			: "r" (&newregs->regs[0])
