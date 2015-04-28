@@ -210,7 +210,8 @@ struct b52_sensor_data {
 	struct b52_sensor_regs vts_reg;
 	struct b52_sensor_regs gain_reg[B52_SENSOR_GAIN_MAX];
 	struct b52_sensor_regs af_reg;
-
+	/* the bias must have 13 item*/
+	int *ev_bias_offset;
 
 	u8 gain_shift;
 	u8 expo_shift;

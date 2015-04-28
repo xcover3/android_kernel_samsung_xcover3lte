@@ -868,7 +868,7 @@ static const int ev_ext_offset[] = {
 	0x20, 0x20, 0x20, 0x20, 0x20, 0x20
 };
 
-static int b52isp_ctrl_set_expo_bias(int idx, int id)
+static int b52isp_ctrl_set_expo_bias(int idx, int id, struct b52_sensor *sensor)
 {
 	int low_target;
 	int high_target;
@@ -886,8 +886,10 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id)
 			pr_err("exposure bias value %d is wrong\n", idx);
 			return -EINVAL;
 	}
-
-	offset = ev_bias_offset[idx];
+	if (sensor->drvdata->ev_bias_offset != NULL)
+		offset = sensor->drvdata->ev_bias_offset[idx];
+	else
+		offset = ev_bias_offset[idx];
 
 	/* (low_def[id]+ high_def[id])/2+(EV offset) */
 	low_target = ((low_def[id] + high_def[id]) >> 1) + offset;
@@ -932,7 +934,7 @@ static int b52isp_ctrl_set_expo(struct b52isp_ctrls *ctrls, int id)
 		}
 
 		if (ctrls->expo_bias->is_new)
-			b52isp_ctrl_set_expo_bias(ctrls->expo_bias->val, id);
+			b52isp_ctrl_set_expo_bias(ctrls->expo_bias->val, id, sensor);
 		break;
 
 	case V4L2_EXPOSURE_MANUAL:
