@@ -383,4 +383,4 @@
 #include "88pm880.dtsi"
 #include "88pm88x_battery_common.dtsi"
 #include "88pm88x_battery_485760ar.dtsi"
-#include "88pm880_pxa1936_dkb.dtsi"
+#include "88pm880_pxa1936_aloe_v01.dtsi"
