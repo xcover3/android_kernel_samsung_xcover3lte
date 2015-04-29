@@ -388,6 +388,8 @@ TEEC_Result TEEC_InitializeContext(const char *name, TEEC_Context *context)
 	return TEEC_SUCCESS;
 }
 
+EXPORT_SYMBOL(TEEC_InitializeContext);
+
 void TEEC_FinalizeContext(TEEC_Context *context)
 {
 	int32_t count;
@@ -422,6 +424,8 @@ void TEEC_FinalizeContext(TEEC_Context *context)
 	osa_kmem_free(context->imp);
 	return;
 }
+
+EXPORT_SYMBOL(TEEC_FinalizeContext);
 
 TEEC_Result TEEC_RegisterSharedMemory(TEEC_Context *context,
 					TEEC_SharedMemory *sharedMem)
@@ -504,6 +508,8 @@ TEEC_Result TEEC_RegisterSharedMemory(TEEC_Context *context,
 
 	return tee_result;
 }
+
+EXPORT_SYMBOL(TEEC_RegisterSharedMemory);
 
 TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 					TEEC_SharedMemory *sharedMem)
@@ -602,6 +608,8 @@ TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context,
 
 	return tee_result;
 }
+
+EXPORT_SYMBOL(TEEC_AllocateSharedMemory);
 
 void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 {
@@ -728,6 +736,8 @@ exit:
 	osa_kmem_free(sharedMem->imp);
 	return;
 }
+
+EXPORT_SYMBOL(TEEC_ReleaseSharedMemory);
 
 TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 				TEEC_Session *session,
@@ -1005,6 +1015,8 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 	return tee_result;
 }
 
+EXPORT_SYMBOL(TEEC_OpenSession);
+
 void TEEC_CloseSession(TEEC_Session *session)
 {
 	TEEC_Context *teec_context;
@@ -1120,6 +1132,8 @@ void TEEC_CloseSession(TEEC_Session *session)
 
 	return;
 }
+
+EXPORT_SYMBOL(TEEC_CloseSession);
 
 TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 				uint32_t commandID,
@@ -1325,6 +1339,8 @@ TEEC_Result TEEC_InvokeCommand(TEEC_Session *session,
 	return tee_result;
 }
 
+EXPORT_SYMBOL(TEEC_InvokeCommand);
+
 #ifdef CONFIG_MINI_TZDD
 
 void TEEC_RequestCancellation(TEEC_Operation *operation)
@@ -1435,5 +1451,7 @@ void TEEC_RequestCancellation(TEEC_Operation *operation)
 	}
 	return;
 }
+
+EXPORT_SYMBOL(TEEC_RequestCancellation);
 
 #endif /* CONFIG_MINI_TZDD */

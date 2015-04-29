@@ -134,13 +134,15 @@ void __kernel *osa_kmem_alloc(uint32_t size)
 	OSA_ASSERT(size);
 
 	if (size < OSA_128K)
-		return kmalloc(size, GFP_KERNEL);
+		return (void __kernel *)kmalloc(size, GFP_KERNEL);
 	else if (size <= KMEM_ALLOC_MAX_SIZE) {
 		struct page *page;
 		struct _pages_record *record;
 		void __kernel *ret;
 
-		record = kmalloc(sizeof(struct _pages_record), GFP_KERNEL);
+		record =
+		    (struct _pages_record *)
+		    kmalloc(sizeof(struct _pages_record), GFP_KERNEL);
 		if (!record) {
 			osa_dbg_print(DBG_ERR,
 				      "ERROR - failed to alloc a page record in osa_kmem_alloc\n");
@@ -296,7 +298,9 @@ void __kernel *osa_pages_alloc(uint32_t nr)
 		void *phys;
 		uint32_t i;
 
-		record = kmalloc(sizeof(struct _pages_record), GFP_KERNEL);
+		record =
+		    (struct _pages_record *)
+		    kmalloc(sizeof(struct _pages_record), GFP_KERNEL);
 		if (!record) {
 			osa_dbg_print(DBG_ERR,
 				      "ERROR - failed to alloc a page record in osa_pages_alloc\n");
@@ -318,8 +322,7 @@ void __kernel *osa_pages_alloc(uint32_t nr)
 		 * remap_pfn_range works in the condition of
 		 * PageReserved is set.
 		 */
-		phys = (void *)(unsigned long)
-			__virt_to_phys((unsigned long)ret);
+		phys = (void *)__virt_to_phys((unsigned long)ret);
 		for (i = 0; i < nr; i++) {
 			SetPageReserved(pfn_to_page
 					(((ulong_t) phys >> PAGE_SHIFT) + i));
@@ -372,7 +375,7 @@ void osa_pages_free(void __kernel *addr)
 
 	OSA_ASSERT(ptr != &_g_alloc_pages_list);
 
-	phys = (void *)(unsigned long)__virt_to_phys((unsigned long)addr);
+	phys = (void *)__virt_to_phys((unsigned long)addr);
 	nr = record->size >> PAGE_SHIFT;
 	for (i = 0; i < nr; i++) {
 		ClearPageReserved(pfn_to_page
@@ -519,8 +522,7 @@ void *osa_alloc_phys_mem(uint32_t size, bool is_cached, uint32_t alignment,
 			*phys = NULL;
 			return NULL;
 		}
-		alloc_phys_addr = (void *)(unsigned long)
-				__virt_to_phys((unsigned long)alloc_virt_addr);
+		alloc_phys_addr = (void *)__virt_to_phys((unsigned long)alloc_virt_addr);
 	} else {
 		alloc_virt_addr =
 		    dma_alloc_coherent(NULL, mem_blk_size,
@@ -741,14 +743,6 @@ static osa_err_t _virt_to_phys_by_pg_mapping_ex(struct mm_struct *mm,
 	pmd_t *pmd;
 	pte_t *pte;
 	ulong_t pfn;
-#ifdef CONFIG_64BIT
-	uint64_t mair;
-#else
-#ifdef CONFIG_ARM_LPAE
-	uint32_t mair;
-#endif
-#endif
-	uint8_t *pmair = (uint8_t *)&mair;
 
 #ifdef pte_offset_map_lock
 	spinlock_t *ptl;
@@ -787,6 +781,8 @@ static osa_err_t _virt_to_phys_by_pg_mapping_ex(struct mm_struct *mm,
 			+ ((ulong_t) va & (~PAGE_MASK)));
 
 #ifdef CONFIG_64BIT
+	uint64_t mair;
+	uint8_t *pmair = (uint8_t *)&mair;
 	attridx = GET_PET_ATTRIDX(pte_val(*pte));
 
 	__asm__ __volatile__("mrs %0, mair_el1" : "=r"(mair) : );
@@ -801,6 +797,8 @@ static osa_err_t _virt_to_phys_by_pg_mapping_ex(struct mm_struct *mm,
 	}
 #else
 #ifdef CONFIG_ARM_LPAE
+	uint32_t mair;
+	uint8_t *pmair = (uint8_t *)&mair;
 	attridx = GET_PET_ATTRIDX(pte_val(*pte));
 	if (GET_MAIR_NUM(attridx)) {
 		/* MAIR1 */
@@ -850,7 +848,7 @@ static osa_err_t _virt_to_phys_by_pg_mapping_ex(struct mm_struct *mm,
 #endif
 #endif
 
-	*pa = (ulong_t)pa_wt;
+	*pa = pa_wt;
 	ret = OSA_OK;
 
 _non_pte:
@@ -1029,13 +1027,12 @@ OSA_EXPORT_SYMBOL(osa_virt_to_phys);
 void *osa_virt_to_phys_ex(void *virt_addr, bool *cacheable)
 {
 	osa_err_t ret;
-	ulong_t pa = 0;
+	ulong_t pa;
 
 	if (virt_addr < high_memory &&
 		(ulong_t) virt_addr >= PAGE_OFFSET) {
 		*cacheable = true;
-		return (void *)(unsigned long)
-			__virt_to_phys((ulong_t)virt_addr);
+		return (void *)__virt_to_phys((ulong_t)virt_addr);
 	} else {
 		ret = _osa_virt_to_phys_by_cp15_ex((ulong_t)virt_addr, cacheable, &pa);
 		if (ret != OSA_OK) {
