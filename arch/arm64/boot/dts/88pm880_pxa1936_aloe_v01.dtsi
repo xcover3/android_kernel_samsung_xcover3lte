@@ -74,8 +74,6 @@
 	ldo5: regulator-ldo5 {
 	};
 	ldo6: regulator-ldo6 {
-		regulator-always-on;
-		regulator-boot-on;
 	};
 	ldo7: regulator-ldo7 {
 	};
