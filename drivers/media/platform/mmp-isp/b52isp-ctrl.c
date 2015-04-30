@@ -846,7 +846,7 @@ static int b52isp_ctrl_set_white_balance(struct b52isp_ctrls *ctrls,
 
 /* Supported manual ISO values */
 static const s64 iso_qmenu[] = {
-	100, 200, 400, 800, 1600
+	100, 200, 400, 800, 1600, 3200
 };
 
 /*
@@ -1751,8 +1751,10 @@ static int b52isp_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_EXPOSURE_AUTO:
 		ret = b52isp_ctrl_get_expo(ctrls, id);
 		break;
-	case V4L2_CID_ISO_SENSITIVITY_AUTO:
+	case V4L2_CID_ISO_SENSITIVITY:
 		ret = b52isp_ctrl_get_iso(ctrls, id);
+		break;
+	case V4L2_CID_ISO_SENSITIVITY_AUTO:
 		break;
 	case V4L2_CID_AUTOGAIN:
 		ret = b52isp_ctrl_get_gain(ctrls, id);
@@ -1828,8 +1830,11 @@ static int b52isp_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = b52isp_ctrl_set_metering_mode(ctrls, id);
 		break;
 
-	case V4L2_CID_ISO_SENSITIVITY_AUTO:
+	case V4L2_CID_ISO_SENSITIVITY:
 		ret = b52isp_ctrl_set_iso(ctrls, id);
+		break;
+
+	case V4L2_CID_ISO_SENSITIVITY_AUTO:
 		break;
 
 	case V4L2_CID_AUTOGAIN:
