@@ -267,13 +267,14 @@ int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
 {
 	struct pm88x_dvc_print *print_temp;
 	struct pm88x_dvc_extra extra[3];
-	int i, j, k, extra_num, len = 0;
+	int i, j, extra_num, sets_num, len = 0;
 	ssize_t ret;
 	switch (chip->type) {
 	case PM886:
 		extra[0].name = "BUCK1";
 		extra[0].dvc = g_dvc;
 		extra_num = 1;
+		sets_num = 8;
 		break;
 	case PM880:
 		extra[0].name = "BUCK1A";
@@ -283,6 +284,7 @@ int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
 		extra[2].name = "BUCK7";
 		extra[2].dvc = &buck7_dvc;
 		extra_num = 3;
+		sets_num = 16;
 		break;
 	default:
 		pr_err("%s: Cannot find chip type.\n", __func__);
@@ -296,51 +298,39 @@ int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
 	}
 
 	len += sprintf(buf + len, "\nDynamic Voltage Setting");
+	len += sprintf(buf + len, "\n--------");
+	for (i = 0; i < extra_num; i++)
+		len += sprintf(buf + len, "----------");
 
-	for (i = 0; i < extra_num; i++) {
-		for (j = 0; j <= (extra[i].dvc->desc.max_level / 6); j++) {
-			for (k = 0; k < 6; k++) {
-				if (k) {
-					len += sprintf(buf + len, "  set%-2X  |", (k + 6 * j));
-				} else {
-					len += sprintf(buf + len,
-						       "\n-----------------------------------");
-					len += sprintf(buf + len,
-						       "------------------------------------\n");
-					len += sprintf(buf + len, "|  name   |");
-					len += sprintf(buf + len, "  set%-2X  |", (k + 6 * j));
-				}
-			}
-			len += sprintf(buf + len, "\n-----------------------------------");
-			len += sprintf(buf + len, "------------------------------------\n");
+	len += sprintf(buf + len, "\n| set# |");
+	for (i = 0; i < extra_num; i++)
+		len += sprintf(buf + len, " %-7s |", extra[i].name);
+	len += sprintf(buf + len, "\n--------");
+	for (i = 0; i < extra_num; i++)
+		len += sprintf(buf + len, "----------");
 
-			for (k = 0; k < 6; k++) {
-				if ((k + 6 * j) < extra[i].dvc->desc.max_level) {
-					ret = pm88x_update_print(chip, &extra[i],
-								 print_temp, i, k + 6 * j);
-					if (ret < 0) {
-						pr_err("Print of DVC %s failed\n",
-						       print_temp->name);
-						goto out_print;
-					}
-					if (k) {
-						len += sprintf(buf + len, " %-7s |",
-							       print_temp->sets[k + 6 * j]);
-					} else {
-						len += sprintf(buf + len, "| %-7s |",
-							       print_temp->name);
-						len += sprintf(buf + len, " %-7s |",
-							       print_temp->sets[k + 6 * j]);
-					}
-				} else {
-						len += sprintf(buf + len, "    -    |");
+	for (i = 0; i < sets_num; i++) {
+		len += sprintf(buf + len, "\n| set%X |", i);
+		for (j = 0; j < extra_num; j++) {
+			if (i < extra[j].dvc->desc.max_level) {
+				ret = pm88x_update_print(chip, &extra[j], print_temp, j, i);
+				if (ret < 0) {
+					pr_err("Print of DVC %s failed\n",
+					       print_temp->name);
+					goto out_print;
 				}
+				len += sprintf(buf + len, " %-7s |",
+					       print_temp->sets[i]);
+			} else {
+				len += sprintf(buf + len, "    -    |");
 			}
 		}
 	}
 
-	len += sprintf(buf + len, "\n-----------------------------------");
-	len += sprintf(buf + len, "------------------------------------\n");
+	len += sprintf(buf + len, "\n--------");
+	for (i = 0; i < extra_num; i++)
+		len += sprintf(buf + len, "----------");
+	len += sprintf(buf + len, "\n");
 
 	ret = len;
 out_print:
