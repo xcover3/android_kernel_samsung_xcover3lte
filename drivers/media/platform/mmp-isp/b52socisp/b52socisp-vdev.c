@@ -588,7 +588,7 @@ static int isp_vnode_set_format(struct file *file, void *fh,
 		goto out;
 
 	ret = blocking_notifier_call_chain(&vnode->notifier.head,
-		VDEV_NOTIFY_S_FMT, &sd_fmt.format);
+		VDEV_NOTIFY_S_FMT, vnode);
 	if (ret < 0)
 		goto out;
 
