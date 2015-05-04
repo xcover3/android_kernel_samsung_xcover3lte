@@ -1981,6 +1981,7 @@ static irqreturn_t pm88x_battery_cc_handler(int irq, void *data)
 
 static irqreturn_t pm88x_battery_vbat_handler(int irq, void *data)
 {
+	static int enter_low;
 	struct pm88x_battery_info *info = data;
 	if (!info) {
 		pr_err("%s: empty battery info.\n", __func__);
@@ -1991,7 +1992,12 @@ static irqreturn_t pm88x_battery_vbat_handler(int irq, void *data)
 
 	mutex_lock(&info->volt_lock);
 	if (!is_extreme_low) {
-		is_extreme_low = true;
+		enter_low++;
+		dev_info(info->dev, "enter_low = %d\n", enter_low);
+		if (enter_low >= 5) {
+			enter_low = 0;
+			is_extreme_low = true;
+		}
 	} else {
 		mutex_unlock(&info->volt_lock);
 		dev_dbg(info->dev, "battery voltage low again!\n");
