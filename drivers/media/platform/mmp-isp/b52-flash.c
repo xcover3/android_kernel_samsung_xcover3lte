@@ -3,7 +3,10 @@
 #include <media/b52-flash.h>
 #include <linux/leds.h>
 #include <uapi/media/b52_api.h>
+#include <linux/mfd/88pm88x.h>
+
 #define SUBDEV_DRV_NAME	"flash-pdrv"
+
 /*FIXME: refine the min/max*/
 #define FLASH_TIMEOUT_MIN		100000	/* us */
 #define FLASH_TIMEOUT_MAX		100000
@@ -167,6 +170,13 @@ static int b52_set_torch(
 	return 0;
 }
 
+
+static int b52_get_flash_duration(
+		struct flash_subdev *flash, int *value)
+{
+	return get_flash_duration(value);
+}
+
 static int flash_g_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct flash_subdev *flash = container_of(
@@ -179,8 +189,13 @@ static int flash_g_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_FLASH_STROBE_STATUS:
 		ctrl->val = flash->flash_status;
 		break;
+
 	case V4L2_CID_FLASH_SELECT_TYPE:
 		break;
+
+	case V4L2_CID_PRIVATE_FLASH_DURATION:
+		return b52_get_flash_duration(flash, &ctrl->val);
+
 	default:
 		pr_err("%s: ctrl not support\n", __func__);
 		return -EINVAL;
@@ -280,6 +295,18 @@ static struct v4l2_ctrl_config flash_select_type_ctrl_cfg = {
 	.step = 1,
 	.def = 0
 };
+
+static struct v4l2_ctrl_config b52_flash_duration_cfg = {
+	.ops = &flash_ctrl_ops,
+	.id = V4L2_CID_PRIVATE_FLASH_DURATION,
+	.name = "B52 Flash durtation",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 0xffff,
+	.step = 1,
+	.def = 1,
+};
+
 static int flash_init_ctrls(struct flash_subdev *flash)
 {
 	struct v4l2_ctrl *ctrl;
@@ -342,9 +369,17 @@ static int flash_init_ctrls(struct flash_subdev *flash)
 	if (ctrl != NULL)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
+
 	flash->flash_ctrl.select_type = v4l2_ctrl_new_custom(
 				&flash->flash_ctrl.ctrl_hdl,
 				&flash_select_type_ctrl_cfg, NULL);
+
+	ctrl = v4l2_ctrl_new_custom(
+				&flash->flash_ctrl.ctrl_hdl,
+				&b52_flash_duration_cfg, NULL);
+	if (ctrl != NULL)
+		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE | V4L2_CTRL_FLAG_READ_ONLY;
+
 	return flash->flash_ctrl.ctrl_hdl.error;
 }
 static int flash_subdev_probe(struct platform_device *pdev)
