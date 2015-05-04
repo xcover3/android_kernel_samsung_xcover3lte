@@ -670,7 +670,6 @@ static struct mmp_clk_mix_clk_table vpubus_pptbl[] = {
 	{.rate = 208000000, .parent_index = 0, },
 	{.rate = 312000000, .parent_index = 1, },
 	{.rate = 416000000, .parent_index = 0, },
-	{.rate = 528500000, .parent_index = 2, },
 };
 
 static struct mmp_clk_mix_config vpubus_mix_config = {
