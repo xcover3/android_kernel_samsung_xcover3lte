@@ -1661,17 +1661,26 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	 * if SoC saved is not valid, use soc_from_vbat_slp
 	 */
 	if (info->chip->powerup & 0x2) {
-		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40) {
-			/* plug into the charger cable first */
-			if (saved_is_valid < 0 || abs(soc_from_vbat_active - soc_from_saved) > 20)
+		dev_info(info->dev, "%s: chg wakeup\n", __func__);
+		if (saved_is_valid < 0) {
+			if ((soc_from_vbat_active - soc_from_vbat_slp) > 0)
 				*initial_soc = soc_from_vbat_active;
 			else
-				*initial_soc = soc_from_saved;
-		} else if (saved_is_valid >= 0 && abs(soc_from_vbat_slp - soc_from_saved) < 60) {
-			/* plug into the battery first */
-			*initial_soc = soc_from_saved;
+				*initial_soc = soc_from_vbat_slp;
+			info->ocv_is_realiable = false;
+		} else if ((soc_from_vbat_active - soc_from_vbat_slp) > 0) {
+			*initial_soc = soc_from_vbat_active;
 		} else {
-			*initial_soc = soc_from_vbat_slp;
+			battery_is_changed = check_battery_change(info, soc_from_vbat_slp,
+							  soc_from_saved);
+			if (battery_is_changed)
+				*initial_soc = soc_from_vbat_slp;
+			else
+				*initial_soc = soc_from_saved;
+
+			dev_info(info->dev,
+					"%s: soc_from_vbat_slp=%d, soc_from_saved=%d\n",
+					__func__, soc_from_vbat_slp, soc_from_saved);
 		}
 		*initial_cycles = cycles_from_saved;
 		goto end;
