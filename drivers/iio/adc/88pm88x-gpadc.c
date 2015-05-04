@@ -139,7 +139,14 @@ struct pm88x_gpadc_extra_info {
 	.slp_reg = PM88X_GPADC_##_slp_reg##_SLP_AVG_MEA,	\
 }
 
-static struct pm88x_gpadc_extra_info pm88x_extra[] = {
+static struct pm88x_gpadc_extra_info pm88x_extra_gpadc[] = {
+	/* PM88X_GPADC_EXTRA(name, unit, en_reg, en_mask, avg_reg, min_reg, max_reg, slp_reg) */
+	PM88X_GPADC_EXTRA("gpadc0", "mV", CONFIG2, GPADC0, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc1", "mV", CONFIG2, GPADC1, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc2", "mV", CONFIG2, GPADC2, NO, NO, NO, NO),
+	PM88X_GPADC_EXTRA("gpadc3", "mV", CONFIG2, GPADC3, GPADC3, GPADC3, GPADC3, NO),
+};
+static struct pm88x_gpadc_extra_info pm88x_extra_other[] = {
 	/* PM88X_GPADC_EXTRA(name, unit, en_reg, en_mask, avg_reg, min_reg, max_reg, slp_reg) */
 	PM88X_GPADC_EXTRA("vsc", "mV", CONFIG1, VSC, NO, NO, NO, NO),
 	PM88X_GPADC_EXTRA("vbat", "mV", CONFIG1, VBAT, VBAT, VBAT, VBAT, VBAT),
@@ -149,16 +156,8 @@ static struct pm88x_gpadc_extra_info pm88x_extra[] = {
 	PM88X_GPADC_EXTRA("vcf_out", "mV", CONFIG1, VCF_OUT, NO, NO, NO, NO),
 	PM88X_GPADC_EXTRA("tint", "C", CONFIG2, TINT, NO, NO, NO, NO),
 	PM88X_GPADC_EXTRA("pmode", "mV", CONFIG2, PMODE, NO, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc0", "mV", CONFIG2, GPADC0, NO, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc1", "mV", CONFIG2, GPADC1, NO, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc2", "mV", CONFIG2, GPADC2, NO, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc3", "mV", CONFIG2, GPADC3, GPADC3, GPADC3, GPADC3, NO),
 	PM88X_GPADC_EXTRA("mic_det", "mV", CONFIG2, MIC_DET, MIC_DET, MIC_DET, MIC_DET, NO),
 	PM88X_GPADC_EXTRA("gnddet2", "mV", CONFIG3, GND_DET2, GND_DET2, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc0_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc1_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc2_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
-	PM88X_GPADC_EXTRA("gpadc3_res", "Ohm", NO_REG, NO, NO, NO, NO, NO),
 };
 
 struct pm88x_gpadc_bias_info {
@@ -625,8 +624,9 @@ static int pm88x_gpadc_get_meas(struct regmap *map, unsigned int reg, unsigned i
 	return 0;
 }
 
-static int pm88x_gpadc_print_bias(struct regmap *map, struct pm88x_gpadc_extra_info *extra_info,
-		char *buf, int *len)
+static int pm88x_gpadc_print_bias_res(struct regmap *map,
+				      struct pm88x_gpadc_extra_info *extra_info,
+				      char *buf, int *len, int volt)
 {
 	struct pm88x_gpadc_bias_info *bias_info = pm88x_bias_info;
 	unsigned int en_mask, out_mask, mask, val = 0;
@@ -654,17 +654,20 @@ static int pm88x_gpadc_print_bias(struct regmap *map, struct pm88x_gpadc_extra_i
 					return ret;
 				else {
 					val = ((val & mask) >> (ffs(mask) - 1)) * 5 + 1;
-					*len += sprintf(buf + *len, "   %-4d |", val);
+					*len += sprintf(buf + *len, "   %-7d |", val);
+					*len += sprintf(buf + *len, "   %-7d |", volt / val);
 					flag = 1;
 				}
 			} else {
-				*len += sprintf(buf + *len, "%s |", "Disable");
+				*len += sprintf(buf + *len, "%-7s |", "Disable");
+				*len += sprintf(buf + *len, "%-7s |", "-");
 				flag = 1;
 			}
 		}
 	}
 	if (!flag) {
-		*len += sprintf(buf + *len, "   %-4s |", "-");
+		*len += sprintf(buf + *len, "   %-7s |", "-");
+		*len += sprintf(buf + *len, "   %-7s |", "-");
 		flag = 0;
 	}
 	return val;
@@ -672,15 +675,23 @@ static int pm88x_gpadc_print_bias(struct regmap *map, struct pm88x_gpadc_extra_i
 
 static int pm88x_gpadc_print(struct regmap *map, struct iio_dev *iio,
 			     const struct iio_chan_spec *channel,
-			     struct pm88x_gpadc_extra_info *info, char *buf, int *len)
+			     struct pm88x_gpadc_extra_info *info,
+			     char *buf, int *len, int is_gpadc)
 {
-	int ret[5], i;
+	int i, volt, mea_num = 0;
+	int ret[5];
 	unsigned int val[5] = {0};
+
+	if (is_gpadc)
+		mea_num = 4;
+	else
+		mea_num = 5;
 
 	ret[0] = pm88x_gpadc_read_raw(iio, channel, &val[0], NULL,
 				      ffs(channel->info_mask_separate) - 1);
 	if (ret[0] > 0)
 		ret[0] = 0;
+	volt = val[0];
 	if (channel->info_mask_separate == BIT(IIO_CHAN_INFO_PROCESSED))
 		val[0] = val[0] / 1000;
 
@@ -696,12 +707,14 @@ static int pm88x_gpadc_print(struct regmap *map, struct iio_dev *iio,
 		ret[3]  = pm88x_gpadc_get_meas(map, info->max_reg, &val[3]);
 	else
 		ret[3] = 1;
-	if (info->slp_reg)
-		ret[4]  = pm88x_gpadc_get_meas(map, info->slp_reg, &val[4]);
-	else
-		ret[4] = 1;
+	if (!is_gpadc) {
+		if (info->slp_reg)
+			ret[4]  = pm88x_gpadc_get_meas(map, info->slp_reg, &val[4]);
+		else
+			ret[4] = 1;
+	}
 
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < mea_num; i++) {
 		if (ret[i] < 0)
 			*len += sprintf(buf + *len, "ERR 0x%-5x|", val[i]);
 		else if (ret[i] > 0)
@@ -713,62 +726,101 @@ static int pm88x_gpadc_print(struct regmap *map, struct iio_dev *iio,
 		}
 	}
 
-	pm88x_gpadc_print_bias(map, info, buf, len);
+	if (is_gpadc)
+		pm88x_gpadc_print_bias_res(map, info, buf, len, volt);
 	*len += sprintf(buf + *len, "\n");
-
 	return *len;
 }
 
 int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf)
 {
-	int gpadc_num, channels_num, i, j, len = 0;
+	int gpadc_num, other_num, channels_num, i, j, len = 0;
 	ssize_t ret = 0;
 	struct regmap *map = chip->gpadc_regmap;
-	struct pm88x_gpadc_extra_info *extra_info = pm88x_extra;
+	struct pm88x_gpadc_extra_info *extra_info_gpadc = pm88x_extra_gpadc;
+	struct pm88x_gpadc_extra_info *extra_info_other = pm88x_extra_other;
 	const struct iio_chan_spec *channels = pm88x_gpadc_channels;
 
-	gpadc_num = ARRAY_SIZE(pm88x_extra);
+	gpadc_num = ARRAY_SIZE(pm88x_extra_gpadc);
+	other_num = ARRAY_SIZE(pm88x_extra_other);
 	channels_num = ARRAY_SIZE(pm88x_gpadc_channels);
 
 	len += sprintf(buf + len, "\nGPADC");
 
-	len += sprintf(buf + len, "\n------------------------------------------------");
-	len += sprintf(buf + len, "------------------------------------------------\n");
+	len += sprintf(buf + len, "\n-------------------------------------------");
+	len += sprintf(buf + len, "--------------------------------------------\n");
 	len += sprintf(buf + len, "|      name     | status  |   value   |    avg    ");
-	len += sprintf(buf + len, "|    min    |    max    |    slp    |bias(uA)|");
-	len += sprintf(buf + len, "\n------------------------------------------------");
-	len += sprintf(buf + len, "------------------------------------------------\n");
+	len += sprintf(buf + len, "|    min    |    max    |    slp    |");
+	len += sprintf(buf + len, "\n-------------------------------------------");
+	len += sprintf(buf + len, "--------------------------------------------\n");
 
-	for (i = 0; i < gpadc_num; i++) {
-		len += sprintf(buf + len, "|%-10s %-4s|", extra_info[i].name, extra_info[i].unit);
-		if (extra_info[i].enable_reg) {
-			ret = pm800_gpadc_check_en(map, extra_info[i].enable_reg,
-						   extra_info[i].enable_mask);
+	for (i = 0; i < other_num; i++) {
+		len += sprintf(buf + len, "|%-10s %-4s|", extra_info_other[i].name,
+			       extra_info_other[i].unit);
+		if (extra_info_other[i].enable_reg) {
+			ret = pm800_gpadc_check_en(map, extra_info_other[i].enable_reg,
+						   extra_info_other[i].enable_mask);
 			if (ret < 0)
 				len += sprintf(buf + len, "ERR 0x%-2x |",
-					       extra_info[i].enable_reg);
+					       extra_info_other[i].enable_reg);
 			else
 				len += sprintf(buf + len, " %-7s |", PM88X_GPADC_CHECK_EN(ret));
 		} else
 				len += sprintf(buf + len, " %-7s |", "-");
-		if (!ret && extra_info[i].enable_reg) {
+		if (!ret && extra_info_other[i].enable_reg) {
 			len += sprintf(buf + len, "   %-7s |", "-");
 			len += sprintf(buf + len, "   %-7s |", "-");
 			len += sprintf(buf + len, "   %-7s |", "-");
 			len += sprintf(buf + len, "   %-7s |", "-");
-			len += sprintf(buf + len, "   %-7s |", "-");
-			len += sprintf(buf + len, "   %-4s |\n", "-");
+			len += sprintf(buf + len, "   %-7s |\n", "-");
 		} else {
 			for (j = 0; j < channels_num; j++) {
-				if (!strcmp(extra_info[i].name, channels[j].datasheet_name))
+				if (!strcmp(extra_info_other[i].name, channels[j].datasheet_name))
 					pm88x_gpadc_print(map, g_iio, &channels[j],
-							  &extra_info[i], buf, &len);
+							  &extra_info_other[i], buf, &len, 0);
 			}
 		}
 	}
 
-	len += sprintf(buf + len, "-------------------------------------------------");
-	len += sprintf(buf + len, "-----------------------------------------------\n");
+	len += sprintf(buf + len, "--------------------------------------------");
+	len += sprintf(buf + len, "-------------------------------------------\n");
+	len += sprintf(buf + len, "\n-----------------------------------------------");
+	len += sprintf(buf + len, "-------------------------------------------------\n");
+	len += sprintf(buf + len, "|    name    | status  | value(mV) |  avg(mV)  |  min(mV)  ");
+	len += sprintf(buf + len, "|  max(mV)  |  bias(uA) | res(Ohm)  |");
+	len += sprintf(buf + len, "\n-----------------------------------------------");
+	len += sprintf(buf + len, "-------------------------------------------------\n");
+
+	for (i = 0; i < gpadc_num; i++) {
+		len += sprintf(buf + len, "| %-10s |", extra_info_gpadc[i].name);
+		if (extra_info_gpadc[i].enable_reg) {
+			ret = pm800_gpadc_check_en(map, extra_info_gpadc[i].enable_reg,
+						   extra_info_gpadc[i].enable_mask);
+			if (ret < 0)
+				len += sprintf(buf + len, "ERR 0x%-2x |",
+					       extra_info_gpadc[i].enable_reg);
+			else
+				len += sprintf(buf + len, " %-7s |", PM88X_GPADC_CHECK_EN(ret));
+		} else
+				len += sprintf(buf + len, " %-7s |", "-");
+		if (!ret && extra_info_gpadc[i].enable_reg) {
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |", "-");
+			len += sprintf(buf + len, "   %-7s |\n", "-");
+		} else {
+			for (j = 0; j < channels_num; j++) {
+				if (!strcmp(extra_info_gpadc[i].name, channels[j].datasheet_name))
+					pm88x_gpadc_print(map, g_iio, &channels[j],
+							  &extra_info_gpadc[i], buf, &len, 1);
+			}
+		}
+	}
+
+	len += sprintf(buf + len, "------------------------------------------------");
+	len += sprintf(buf + len, "------------------------------------------------\n");
 
 	return len;
 }
