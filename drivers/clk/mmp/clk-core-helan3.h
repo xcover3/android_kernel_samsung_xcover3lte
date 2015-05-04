@@ -70,6 +70,7 @@ extern struct clk *mmp_clk_register_core(const char *name,
 /* DDR */
 struct ddr_opt {
 	unsigned int dclk;	/* ddr clock */
+	unsigned int mode_4x_en;        /* enable dclk 4x mode */
 	unsigned int ddr_tbl_index;	/* ddr FC table index */
 	unsigned int ddr_lpmtbl_index;	/* ddr LPM table index */
 	unsigned int ddr_freq_level;	/* ddr freq level(0~7) */

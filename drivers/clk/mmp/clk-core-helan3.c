@@ -1497,10 +1497,12 @@ static void __init_ddr_devfreq_table(struct clk_hw *hw)
 	ddr_opt = ddr->params->ddr_opt;
 	for (i = 0; i < ddr_opt_size; i++) {
 		ddr_devfreq_tbl[i].index = i;
+		ddr_devfreq_tbl[i].mode_4x_en = ddr_opt[i].mode_4x_en;
 		ddr_devfreq_tbl[i].frequency = ddr_opt[i].dclk * MHZ_TO_KHZ;
 	}
 
 	ddr_devfreq_tbl[i].index = i;
+	ddr_devfreq_tbl[i].mode_4x_en = 0;
 	ddr_devfreq_tbl[i].frequency = DEVFREQ_TABLE_END;
 
 	devfreq_frequency_table_register(ddr_devfreq_tbl, DEVFREQ_DDR);
@@ -1515,6 +1517,7 @@ static inline void hwdfc_init(struct clk_ddr *ddr,
 	union dfc_lvl dfc_lvl;
 
 	dfc_lvl.v = readl(reg);
+	dfc_lvl.b.dclkmode = cop->mode_4x_en;
 	dfc_lvl.b.dclksrcsel = cop->ddr_clk_sel;
 	dfc_lvl.b.dclkdiv = cop->dclk_div;
 	dfc_lvl.b.mctblnum = cop->ddr_tbl_index;
@@ -2258,7 +2261,8 @@ static ssize_t dfcstatus_read(struct file *filp,
 	union dfc_cp dfc_cp;
 	union dfc_ap dfc_ap;
 	union dfc_lvl dfc_lvl;
-	unsigned int conf, src, div, tblnum, vl;
+	unsigned int conf, src, div, tblnum, vl, mode;
+
 	size_t size = sizeof(buf) - 1;
 
 	ddr_opt = dclk->params->ddr_opt;
@@ -2282,7 +2286,7 @@ static ssize_t dfcstatus_read(struct file *filp,
 			dfc_cp.b.lpm_lvl, dfc_cp.b.lpm_en);
 
 	len += snprintf(buf + len, size,
-			"|PPidx\t|Freq\t|Src\t|div\t|Tbidx\t|VL\t|\n");
+			"|PPidx\t|Freq\t|Src\t|div\t|Tbidx\t|VL\t|Mode\t\n");
 
 	for (idx = 0; idx < ddr_opt_size; idx++) {
 		conf = readl(DFC_LEVEL(apmu_base, idx));
@@ -2290,10 +2294,11 @@ static ssize_t dfcstatus_read(struct file *filp,
 		src = dfc_lvl.b.dclksrcsel;
 		div = dfc_lvl.b.dclkdiv;
 		tblnum = dfc_lvl.b.mctblnum;
+		mode = dfc_lvl.b.dclkmode;
 		vl = dfc_lvl.b.reqvl;
 		len += snprintf(buf + len, size,
-				"|%u\t|%u\t|%u\t|%u\t|%u\t|%u\t|\n", idx,
-				ddr_opt[idx].dclk, src, div, tblnum, vl);
+				"|%u\t|%u\t|%u\t|%u\t|%u\t|%u\t|%u\t|\n", idx,
+				ddr_opt[idx].dclk, src, div, tblnum, vl, mode);
 	};
 
 	return simple_read_from_buffer(buffer, count, ppos, buf, len);
