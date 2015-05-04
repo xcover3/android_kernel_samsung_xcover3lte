@@ -97,6 +97,7 @@ static atomic_t in_resume = ATOMIC_INIT(0);
  * or lower than 3.0V, this flag is true;
  */
 static bool is_extreme_low;
+static int power_off_cnt;
 
 enum {
 	ALL_SAVED_DATA,
@@ -161,7 +162,7 @@ struct pm88x_battery_info {
 	int			range_low_th;
 	int			range_high_th;
 	int			sleep_counter_th;
-
+	int			power_off_extreme_th[2];
 	int			power_off_th;
 	int			safe_power_off_th;
 	int			power_off_cnt_th[3]; /* low-temp, standard-temp, high-temp */
@@ -1163,7 +1164,6 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 static void correct_soc_by_temp(struct pm88x_battery_info *info,
 				struct ccnt *ccnt_val)
 {
-	static int power_off_cnt;
 	/*
 	 * low temperature
 	 * if power_off_cnt > power_off_cnt_th[0],
@@ -1199,6 +1199,7 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
 	static int chg_status, old_soc;
+	static int extreme_power_off_cnt;
 
 	info->bat_params.volt = pm88x_get_batt_vol(info, 1);
 	if (info->bat_params.status == POWER_SUPPLY_STATUS_UNKNOWN) {
@@ -1309,21 +1310,48 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		 * (it shows the voltage is really very low,
 		 *  we set is_extreme_low to indicate this condition)
 		 *         then every time we arrive here,
-		 *         the soc is decreased with 1% step
+		 * if capacity is no less than 1%
+		 *   if voltage < power_off_extreme_th[0]
+		 *    the soc is decreased with 1% step
+		 *   else if voltage > power_off_extreme_th[1]
+		 *    jump out extreme low.
+		 * otherwise
+		 *   if extreme_power_off_cnt++ > 5
+		 *    soc = 0
 		 */
 		if (is_extreme_low) {
 			dev_info(info->dev, "%s: extreme_low : voltage = %d\n",
 				 __func__, info->bat_params.volt);
-			/* battery voltage interrupt */
-			pm88x_bat_disable_irq(&info->irqs[1]);
-			if (ccnt_val->soc > 10)
-				ccnt_val->soc -= 10;
-			else if (info->bat_params.volt < info->safe_power_off_th) {
-				/* if soc <=1, when the volt is lower than safe_power_off_th, set soc=0;
-				 * else keep soc=1.
-				 */
-				dev_info(info->dev, "%s: volt lower than safe_power_off_th\n", __func__);
+			if (ccnt_val->soc > 10) {
+				if (info->bat_params.volt < info->power_off_extreme_th[0]) {
+					/* battery voltage interrupt */
+					pm88x_bat_disable_irq(&info->irqs[1]);
+					ccnt_val->soc -= 10;
+				} else if (info->bat_params.volt > info->power_off_extreme_th[1]) {
+					mutex_lock(&info->volt_lock);
+					is_extreme_low = false;
+					/* battery voltage interrupt */
+					pm88x_bat_enable_irq(&info->irqs[1]);
+					mutex_unlock(&info->volt_lock);
+					extreme_power_off_cnt = 0;
+				} else {
+					power_off_cnt++;
+				}
+			} else {
+				if (info->bat_params.volt < info->power_off_th) {
+					dev_info(info->dev, "extreme_power_off_cnt = %d\n",
+						extreme_power_off_cnt);
+					extreme_power_off_cnt++;
+				}
+				if (power_off_cnt > 5)
+					extreme_power_off_cnt = 6;
+			}
+			if (extreme_power_off_cnt > 5) {
+				dev_info(info->dev, "too urgent, I prefer to power off, bye.\n");
 				ccnt_val->soc = 0;
+				ccnt_val->previous_soc = 0;
+				extreme_power_off_cnt = 0;
+				power_off_cnt = 0;
 			}
 		} else {
 			if (info->bat_params.volt <= info->power_off_th)
@@ -2182,6 +2210,8 @@ static int pm88x_battery_dt_init(struct device_node *np,
 	 * multipiled by 100
 	 */
 	ret = of_property_read_u32(np, "cc-fixup", &info->cc_fixup);
+	ret = of_property_read_u32_array(np, "power-off-extreme-th",
+					 info->power_off_extreme_th, 2);
 
 	return 0;
 }
@@ -2261,6 +2291,8 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	info->soc_high_th_cycle = 85;
 
 	info->cc_fixup = 100;
+	info->power_off_extreme_th[0] = 3200;
+	info->power_off_extreme_th[1] = 3400;
 
 	pdata = pdev->dev.platform_data;
 	ret = pm88x_battery_dt_init(node, info);
