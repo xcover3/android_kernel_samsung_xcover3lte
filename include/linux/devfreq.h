@@ -230,6 +230,11 @@ enum devfreq_device_id {
 struct devfreq_frequency_table {
 	unsigned int index;
 	unsigned int frequency;
+	union {
+		/* DDR 4x mode enable or not */
+		unsigned int mode_4x_en;
+		/* other devfreq driver may add new info here */
+	};
 };
 
 struct devfreq_dev_freq_info {
