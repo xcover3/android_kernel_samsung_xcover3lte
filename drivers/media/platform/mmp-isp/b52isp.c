@@ -2953,12 +2953,13 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			ret = b52isp_try_apply_cmd(lpipe);
 			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_LINEAR_YUV);
 			if (WARN_ON(ret < 0))
-				goto unlock;
+				goto disable_sensor;
 			b52isp_export_cmd_buffer(lpipe->cur_cmd);
 			/*
 			 * FIXME:stream off sensor and csi, keep capture image cmd stream off do nothing
 			 * will refine this in the future
 			 * */
+disable_sensor:
 			{
 				struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
 				struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
