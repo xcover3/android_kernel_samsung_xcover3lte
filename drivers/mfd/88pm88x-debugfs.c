@@ -48,6 +48,15 @@
 #define PM88X_NAME		"88pm88x"
 #define PM88X_PAGES_NUM		(0x8)
 
+enum pm88x_debug_module {
+	DEBUG_INVALID = -1,
+	DEBUG_BUCK = 1,
+	DEBUG_LDO = 2,
+	DEBUG_VR = 3,
+	DEBUG_DVC = 4,
+	DEBUG_GPADC = 5,
+};
+
 static struct dentry *pm88x_dir;
 static u8 debug_page_addr, debug_reg_addr, debug_reg_val;
 
@@ -588,10 +597,243 @@ out_print:
 	return ret;
 }
 
+static void pm88x_debug_usage(void)
+{
+	pr_info("Usage of debugfs for PM88X:\n");
+	pr_info("1: dump PMIC information.\n");
+	pr_info("	cat <debugfs>/88pm88x/pm88x_debug\n");
+	pr_info("2: configure PMIC.\n");
+	pr_info("	echo -[OPTION] > <debugfs>/88pm88x/pm88x_debug\n");
+	pr_info("	-b [name]	print or set [name] information for BUCK\n");
+	pr_info("	-l [name]	print or set [name] information for LDO\n");
+	pr_info("	-v [name]	print or set [name] information for Virtual Regulator\n");
+	pr_info("	-d [name]	print or set [name] information for DVC\n");
+	pr_info("	-g [name]	print or set [name] information for GPADC\n");
+	pr_info("	-V [en] [voltage(uV)]		set [en] [voltage] for active mode\n");
+	pr_info("					set [en] for gpadc channel\n");
+	pr_info("	-s [en] [voltage(uV)]		set [en] [voltage] for sleep mode\n");
+	pr_info("	-a [en] [voltage(uV)]		set [en] [voltage] for audio mode\n");
+	pr_info("	-L [level] [voltage(uV)]	set [voltages] of [level] for DVC\n");
+	pr_info("	-B [bias_en] [bias_current(uA)]	set [bias_en] [bias_current] for gpadc\n");
+	pr_info("	-h				help\n");
+}
+
+static ssize_t pm88x_debug_write(struct file *file, const char __user *user_buf,
+				 size_t count, loff_t *ppos)
+{
+	struct pm88x_chip *chip = file->private_data;
+	struct pm88x_debug_info info;
+	int i, ret, buf_len, j = 0, len = 0;
+	char arg;
+	char print_tmp[200];
+	char *buf;
+
+	if (!chip) {
+		pr_err("Cannot find chip!\n");
+		return -EINVAL;
+	}
+
+	buf = kzalloc(3000, GFP_KERNEL);
+	if (!buf) {
+		pr_err("Cannot allocate buffer!\n");
+		return -ENOMEM;
+	}
+
+	info.en = -1;
+	info.volt = -1;
+	info.lvl = -1;
+	info.lvl_volt = -1;
+	info.slp_en = -1;
+	info.slp_volt = -1;
+	info.audio_en = -1;
+	info.audio_volt = -1;
+	info.bias_en = -1;
+	info.bias_current = -1;
+	info.debug_mod = DEBUG_INVALID;
+	buf_len = strchr(user_buf, '\n') - user_buf;
+
+	for (i = 0; i < 15; i++)
+		info.name[i] = 0;
+
+	if (buf_len == 0)
+		goto out;
+
+	if ((*user_buf != '-') || (*(user_buf + buf_len - 1) == ' ') ||
+			(*(user_buf + buf_len - 1) == '-'))
+		goto out;
+
+	for (i = 0; i < buf_len; i++) {
+		if (*(user_buf + i) == '-') {
+			ret = sscanf(user_buf + i, "-%c", &arg);
+			if (ret != 1)
+				goto out;
+			switch (arg) {
+			case 'b':
+				if (info.debug_mod != DEBUG_INVALID)
+					goto out;
+				info.debug_mod = DEBUG_BUCK;
+				break;
+			case 'l':
+				if (info.debug_mod != DEBUG_INVALID)
+					goto out;
+				info.debug_mod = DEBUG_LDO;
+				break;
+			case 'v':
+				if (info.debug_mod != DEBUG_INVALID)
+					goto out;
+				info.debug_mod = DEBUG_VR;
+				break;
+			case 'g':
+				if (info.debug_mod != DEBUG_INVALID)
+					goto out;
+				info.debug_mod = DEBUG_GPADC;
+				break;
+			case 'd':
+				if (info.debug_mod != DEBUG_INVALID)
+					goto out;
+				info.debug_mod = DEBUG_DVC;
+				break;
+			case 'V':
+			case 's':
+			case 'a':
+			case 'B':
+			case 'L':
+				break;
+			case 'h':
+			default:
+				goto out;
+			}
+		}
+
+		if (*(user_buf + i) == ' ' && *(user_buf + i + 1) != '-') {
+			switch (*(user_buf + i - 1)) {
+			case 'b':
+			case 'l':
+			case 'd':
+			case 'v':
+			case 'g':
+				if ((user_buf + i) == strrchr(user_buf, ' '))
+					strncpy(info.name, user_buf + i + 1, buf_len - (i + 1));
+				else
+					strncpy(info.name, user_buf + i + 1,
+						strchr(user_buf + i + 1, ' ') -
+						(user_buf + i + 1));
+				break;
+			case 'V':
+				ret = sscanf(user_buf + i + 1, "%d %d", &info.en, &info.volt);
+				if (ret < 1)
+					goto out;
+				if ((ret == 1) && (info.en > 1)) {
+					info.volt = info.en;
+					info.en = -1;
+				}
+				break;
+			case 'L':
+				ret = sscanf(user_buf + i + 1, "%d %d", &info.lvl, &info.lvl_volt);
+				if (ret < 1)
+					goto out;
+				if ((ret == 1) && (info.lvl > 16)) {
+					info.lvl_volt = info.lvl;
+					info.lvl = -1;
+				}
+				break;
+			case 's':
+				ret = sscanf(user_buf + i + 1, "%d %d", &info.slp_en,
+					     &info.slp_volt);
+				if (ret < 1)
+					goto out;
+				if ((ret == 1) && (info.slp_en > 3)) {
+					info.slp_volt = info.slp_en;
+					info.slp_en = -1;
+				}
+				break;
+			case 'a':
+				ret = sscanf(user_buf + i + 1, "%d %d", &info.audio_en,
+					     &info.audio_volt);
+				if (ret < 1)
+					goto out;
+				if ((ret == 1) && (info.audio_en > 1)) {
+					info.audio_volt = info.audio_en;
+					info.audio_en = -1;
+				}
+				break;
+			case 'B':
+				ret = sscanf(user_buf + i + 1, "%d %d", &info.bias_en,
+					     &info.bias_current);
+				if (ret < 1)
+					goto out;
+				if ((ret == 1) && (info.bias_en > 1)) {
+					info.bias_current = info.bias_en;
+					info.bias_en = -1;
+				}
+				break;
+			case 'h':
+				goto out;
+			default:
+				break;
+			}
+		}
+	}
+
+	switch (info.debug_mod) {
+	case DEBUG_BUCK:
+		ret = pm88x_buck_debug_write(chip, buf + len, &info);
+		if (ret < 0)
+			goto out;
+		break;
+	case DEBUG_LDO:
+		ret = pm88x_ldo_debug_write(chip, buf + len, &info);
+		if (ret < 0)
+			goto out;
+		break;
+	case DEBUG_VR:
+		ret = pm88x_vr_debug_write(chip, buf + len, &info);
+		if (ret < 0)
+			goto out;
+		break;
+	case DEBUG_DVC:
+		ret = pm88x_dvc_debug_write(chip, buf + len, &info);
+		if (ret < 0)
+			goto out;
+		break;
+	case DEBUG_GPADC:
+		ret = pm88x_gpadc_debug_write(chip, buf + len, &info);
+		if (ret < 0)
+			goto out;
+		break;
+	case DEBUG_INVALID:
+	default:
+		goto out;
+	}
+
+	memset(print_tmp, 0, 200);
+	for (i = 0; i < ret; i++) {
+		if (buf[i] == '\n') {
+			pr_info("%s\n", print_tmp);
+			memset(print_tmp, 0, 200);
+			j = 0;
+		} else {
+			if (j >= 200) {
+				pr_err("%s: Debug information is too long to print.", __func__);
+				break;
+			}
+			print_tmp[j] = buf[i];
+			j++;
+		}
+	}
+
+	kfree(buf);
+	return count;
+out:
+	pm88x_debug_usage();
+	kfree(buf);
+	return count;
+}
+
 static const struct file_operations pm88x_debug_fops = {
 	.open = simple_open,
 	.read = pm88x_debug_read,
-	.write = NULL,
+	.write = pm88x_debug_write,
 	.owner = THIS_MODULE,
 };
 
@@ -639,7 +881,7 @@ static int pm88x_debug_probe(struct platform_device *pdev)
 		pm88x_dir, chip, &pm88x_buck1_info_fops);
 	if (!file)
 		goto err;
-	file = debugfs_create_file("pm88x_debug", (S_IRUGO | S_IFREG),
+	file = debugfs_create_file("pm88x_debug", (S_IRUGO | S_IWUSR | S_IWGRP),
 		pm88x_dir, chip, &pm88x_debug_fops);
 	if (!file)
 		goto err;
