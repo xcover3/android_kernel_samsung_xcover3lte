@@ -195,6 +195,21 @@ struct pm88x_chip {
 	struct pm88x_dvc *dvc;
 };
 
+struct pm88x_debug_info {
+	char name[15];
+	int debug_mod;
+	int en;
+	int volt;
+	int lvl;
+	int lvl_volt;
+	int slp_en;
+	int slp_volt;
+	int audio_en;
+	int audio_volt;
+	int bias_en;
+	int bias_current;
+};
+
 extern bool buck1slp_is_ever_changed;
 extern bool buck1slp_ever_used_by_map;
 
@@ -273,6 +288,12 @@ static const struct resource vr_resources[] = {
 extern int pm88x_display_buck(struct pm88x_chip *chip, char *buf);
 extern int pm88x_display_vr(struct pm88x_chip *chip, char *buf);
 extern int pm88x_display_ldo(struct pm88x_chip *chip, char *buf);
+extern int pm88x_buck_debug_write(struct pm88x_chip *chip, char *buf,
+				  struct pm88x_debug_info *info);
+extern int pm88x_vr_debug_write(struct pm88x_chip *chip, char *buf,
+			       struct pm88x_debug_info *info);
+extern int pm88x_ldo_debug_write(struct pm88x_chip *chip, char *buf,
+				struct pm88x_debug_info *info);
 #else
 static inline int pm88x_display_buck(struct pm88x_chip *chip, char *buf)
 {
@@ -286,19 +307,48 @@ static inline int pm88x_display_ldo(struct pm88x_chip *chip, char *buf)
 {
 	return 0;
 }
+static inline int pm88x_buck_debug_write(struct pm88x_chip *chip, char *buf,
+					 struct pm88x_debug_info *info);
+{
+	return 0;
+}
+static inline int pm88x_vr_debug_write(struct pm88x_chip *chip, char *buf,
+				       struct pm88x_debug_info *info);
+{
+	return 0;
+}
+static inline int pm88x_ldo_debug_write(struct pm88x_chip *chip, char *buf,
+					struct pm88x_debug_info *info);
+{
+	return 0;
+}
 #endif
 #ifdef CONFIG_MFD_88PM8XX_DVC
 extern int pm88x_display_dvc(struct pm88x_chip *chip, char *buf);
+extern int pm88x_dvc_debug_write(struct pm88x_chip *chip, char *buf,
+				 struct pm88x_debug_info *info);
 #else
 static inline int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+static inline int pm88x_dvc_debug_write(struct pm88x_chip *chip, char *buf,
+					struct pm88x_debug_info *info);
 {
 	return 0;
 }
 #endif
 #ifdef CONFIG_88PM88X_GPADC
 extern int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf);
+extern int pm88x_gpadc_debug_write(struct pm88x_chip *chip, char *buf,
+				   struct pm88x_debug_info *info);
 #else
 static inline int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+static inline int pm88x_gpadc_debug_write(struct pm88x_chip *chip, char *buf,
+					  struct pm88x_debug_info *info);
 {
 	return 0;
 }
