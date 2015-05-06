@@ -739,8 +739,6 @@ ssize_t mmp_vdma_show(struct device *dev, struct device_attribute *attr,
 			vdma_info->sram_size);
 	}
 
-	s += sprintf(buf + s, "\nLCD controller version:%d\n", vdma->version);
-	s += sprintf(buf + s, "\nLCD register base: 0x%p\n", lcd_reg);
 	s += sprintf(buf + s, "\tLCD_PN2_SQULN2_CTRL: 0x%x\n",
 		readl_relaxed(lcd_reg + LCD_PN2_SQULN2_CTRL));
 	if (!DISP_GEN4(vdma->version)) {
@@ -763,20 +761,6 @@ ssize_t mmp_vdma_show(struct device *dev, struct device_attribute *attr,
 	}
 
 	vdma_reg = (struct mmp_vdma_reg *)(vdma->reg_base);
-	s += sprintf(buf + s, "\nVDMA register base: 0x%p\n", vdma->reg_base);
-	s += sprintf(buf + s, "\tirqr_0to3    (@%p): 0x%x\n",
-		&vdma_reg->irqr_0to3, readl_relaxed(&vdma_reg->irqr_0to3));
-	s += sprintf(buf + s, "\tirqr_4to7    (@%p): 0x%x\n",
-		&vdma_reg->irqr_4to7, readl_relaxed(&vdma_reg->irqr_4to7));
-	s += sprintf(buf + s, "\tirqm_0to3    (@%p): 0x%x\n",
-		&vdma_reg->irqm_0to3, readl_relaxed(&vdma_reg->irqm_0to3));
-	s += sprintf(buf + s, "\tirqm_4to7    (@%p): 0x%x\n",
-		&vdma_reg->irqm_4to7, readl_relaxed(&vdma_reg->irqm_4to7));
-	s += sprintf(buf + s, "\tirqs_0to3    (@%p): 0x%x\n",
-		&vdma_reg->irqs_0to3, readl_relaxed(&vdma_reg->irqs_0to3));
-	s += sprintf(buf + s, "\tirqs_4to7    (@%p): 0x%x\n",
-		&vdma_reg->irqs_4to7, readl_relaxed(&vdma_reg->irqs_4to7));
-
 	s += sprintf(buf + s, "\tmain_ctrl    (@%p): 0x%x\n",
 		&vdma_reg->main_ctrl, readl_relaxed(&vdma_reg->main_ctrl));
 
@@ -804,12 +788,6 @@ ssize_t mmp_vdma_show(struct device *dev, struct device_attribute *attr,
 		s += sprintf(buf + s, "\tram_ctrl0    (@%p): 0x%x\n",
 			&ch_reg->ram_ctrl0, readl_relaxed(&ch_reg->ram_ctrl0));
 	}
-
-	s += sprintf(buf + s, "commands:\n");
-	s += sprintf(buf + s, " - dump VDMA configuration, registers\n");
-	s += sprintf(buf + s, "\tcat mmp_vdma\n");
-	s += sprintf(buf + s, " - vdma setting\n"
-			"\ts [0/1/2/3/4/5](overlay_id) [1/0](allocat/free) <[sram_size](Byte)>\n");
 
 	return s;
 }
