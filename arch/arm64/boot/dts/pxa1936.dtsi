@@ -422,6 +422,7 @@
 						<499000 416000>,
 						<528000 416000>;
 				marvell,qos;
+				vpu-governor = "simple_ondemand";
 				status = "disabled";
 			};
 
