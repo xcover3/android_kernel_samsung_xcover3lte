@@ -14,6 +14,15 @@ struct cpmsa_dvc_info {
 	unsigned int msadvcvl; /* we only have one msa PP */
 };
 
+struct ddr_dfc_info {
+	unsigned int ddr_idle;
+	unsigned int ddr_active;
+	unsigned int ddr_high;
+};
+
+extern int fillddrdfcinfo(struct ddr_dfc_info *dfc_info);
+extern int getddrdfcinfo(struct ddr_dfc_info *dfc_info);
+
 extern int fillcpdvcinfo(struct cpmsa_dvc_info *dvc_info);
 extern int getcpdvcinfo(struct cpmsa_dvc_info *dvc_info);
 

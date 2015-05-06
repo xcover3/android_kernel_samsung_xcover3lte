@@ -26,6 +26,7 @@
 #include "clk-pll-helanx.h"
 #include "clk-core-helan3.h"
 #include "clk-plat.h"
+#include <linux/clk/mmpcpdvc.h>
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -1715,6 +1716,74 @@ static unsigned int __init pxa1936_round_max_freq(unsigned int freq)
 		return CORE_1p5G;
 }
 
+static struct ddr_dfc_info ddrdfcinfo;
+
+void find_ddr_level(struct ddr_opt *ddr_op_array)
+{
+	int i;
+	ddrdfcinfo.ddr_idle = 0;
+	for (i = 0; i < sizeof(ddr_op_array); i++) {
+		if (ddrdfcinfo.ddr_active == 0) {
+			if (((ddr_op_array[i].mode_4x_en == 1)
+				&& (ddr_op_array[i].dclk > 312))
+				|| ((ddr_op_array[i].mode_4x_en == 0)
+				&& (ddr_op_array[i].dclk >= 312))) {
+				ddrdfcinfo.ddr_active = i;
+			}
+		}
+		if (ddrdfcinfo.ddr_high == 0) {
+			if (((ddr_op_array[i].mode_4x_en == 1)
+				&& (ddr_op_array[i].dclk >= 624))
+				|| ((ddr_op_array[i].mode_4x_en == 0)
+				&& (ddr_op_array[i].dclk >= 416))) {
+				ddrdfcinfo.ddr_high = i;
+			}
+		}
+		if (ddrdfcinfo.ddr_active && ddrdfcinfo.ddr_high)
+			break;
+	}
+	return;
+}
+
+void init_ddr_dfc(void)
+{
+	memset(&ddrdfcinfo, 0, sizeof(ddrdfcinfo));
+	if (ddr_mode == DDR_533M)
+		find_ddr_level(lpddr533_op_array);
+	else if (ddr_mode == DDR_667M)
+		find_ddr_level(lpddr667_op_array);
+	else if (ddr_mode == DDR_800M)
+		find_ddr_level(lpddr800_op_array);
+
+	return;
+}
+
+/*
+ * This interface will be used by different platform to fill CP ddr dfc info
+ */
+int fillddrdfcinfo(struct ddr_dfc_info *dfc_info)
+{
+	if (!dfc_info)
+		return -EINVAL;
+
+	memcpy(&ddrdfcinfo, dfc_info, sizeof(struct ddr_dfc_info));
+	return 0;
+}
+
+/*
+ * This interface will be used by telephony to get CP ddr dfc info, and
+ * they will use ACIPC to pass the info to CP
+ */
+int getddrdfcinfo(struct ddr_dfc_info *dfc_info)
+{
+	if (!dfc_info)
+		return -EINVAL;
+
+	memcpy(dfc_info, &ddrdfcinfo, sizeof(struct ddr_dfc_info));
+	return 0;
+}
+EXPORT_SYMBOL(getddrdfcinfo);
+
 static void __init pxa1936_clk_init(struct device_node *np)
 {
 	unsigned int max_freq_fused = CORE_1p5G, profile = 0;
@@ -1773,6 +1842,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
  */
 #if defined(CONFIG_PXA_DVFS)
 	setup_pxa1936_dvfs_platinfo();
+	init_ddr_dfc();
 	/* get big cluster max freq */
 	max_freq_fused = get_helan3_max_freq();
 	max_freq_fused = pxa1936_round_max_freq(max_freq_fused);
