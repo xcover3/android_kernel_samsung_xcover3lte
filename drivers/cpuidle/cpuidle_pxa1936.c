@@ -107,30 +107,34 @@ struct cpuidle_driver arm64_idle_driver = {
 	.state_count = 13,
 };
 
-static unsigned int states_disabled;
+static unsigned int states_disabled_cpu0;
 
 /* FIXME: Support only one component to lock/unlock same index */
 void cpuidle_c2_lock(void)
 {
 	int i;
+	struct cpuidle_device *dev = per_cpu(cpuidle_devices, 0);
+	struct cpuidle_state_usage *su = dev->states_usage;
 
-	states_disabled = 0;
+	states_disabled_cpu0 = 0;
 	for (i = 0; i < arm64_idle_driver.state_count; i++)
-		states_disabled |= (arm64_idle_driver.states[i].disabled << i);
+		states_disabled_cpu0 |= (su[i].disable << i);
 
-	arm64_idle_driver.states[POWER_MODE_CORE_POWERDOWN].disabled = 1;
-	arm64_idle_driver.states[POWER_MODE_MP_POWERDOWN_L2_OFF].disabled = 1;
-	arm64_idle_driver.states[POWER_MODE_APPS_IDLE].disabled = 1;
-	arm64_idle_driver.states[POWER_MODE_SYS_SLEEP_VCTCXO_OFF].disabled = 1;
+	su[POWER_MODE_CORE_POWERDOWN].disable = 1;
+	su[POWER_MODE_MP_POWERDOWN_L2_OFF].disable = 1;
+	su[POWER_MODE_APPS_IDLE].disable = 1;
+	su[POWER_MODE_SYS_SLEEP_VCTCXO_OFF].disable = 1;
 }
 EXPORT_SYMBOL_GPL(cpuidle_c2_lock);
 
 void cpuidle_c2_unlock(void)
 {
 	int i;
+	struct cpuidle_device *dev = per_cpu(cpuidle_devices, 0);
+	struct cpuidle_state_usage *su = dev->states_usage;
 
 	for (i = 0; i < arm64_idle_driver.state_count; i++)
-		arm64_idle_driver.states[i].disabled = (states_disabled & (1 << i))?1:0;
+		su[i].disable = (states_disabled_cpu0 & (1 << i))?1:0;
 }
 EXPORT_SYMBOL_GPL(cpuidle_c2_unlock);
 
