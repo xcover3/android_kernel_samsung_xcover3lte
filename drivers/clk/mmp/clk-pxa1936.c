@@ -1384,39 +1384,39 @@ static struct ddr_opt lpddr533_op_array[] = {
 	},
 };
 
+/* enable 208/312/416/624 4x, 667 2x, remove 528 */
 static struct ddr_opt lpddr667_op_array[] = {
 	{
-		.dclk = 156,
+		.dclk = 208,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 2,
 		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x0,
+		.ddr_clk_sel = 0x1,
 	},
 	{
 		.dclk = 312,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 4,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x0,
 	},
 	{
 		.dclk = 416,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 6,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x1,
 	},
 	{
-		.dclk = 528,
-		.ddr_tbl_index = 8,
-		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x4,
-	},
-	{
 		.dclk = 624,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 10,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x6,
 	},
 	{
 		.dclk = 667,
+		.mode_4x_en = 0,
 		.ddr_tbl_index = 12,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x5,
@@ -1548,10 +1548,11 @@ static struct mmp_clk_mix_config cci_memclk_mix_config = {
 
 static struct combclk_relation dclk_aclk_relationtbl[] = {
 	{.mclk_rate = 156000000, .sclk_rate = 156000000},
+	{.mclk_rate = 208000000, .sclk_rate = 156000000},
 	{.mclk_rate = 312000000, .sclk_rate = 156000000},
 	{.mclk_rate = 416000000, .sclk_rate = 208000000},
 	{.mclk_rate = 528000000, .sclk_rate = 312000000},
-	{.mclk_rate = 624000000, .sclk_rate = 312000000},
+	{.mclk_rate = 624000000, .sclk_rate = 208000000},
 	{.mclk_rate = 667000000, .sclk_rate = 312000000},
 	{.mclk_rate = 797000000, .sclk_rate = 312000000},
 };
@@ -1628,6 +1629,8 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 	ddr_params.mpmu_base = pxa_unit->mpmu_base;
 	ddr_params.ddr_opt = lpddr533_op_array;
 	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr533_op_array);
+	if (ddr_mode == DDR_533M)
+		BUG_ON("mode DDR_533M is not supported now.\n");
 	if (ddr_mode == DDR_667M) {
 		ddr_params.ddr_opt = lpddr667_op_array;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr667_op_array);
