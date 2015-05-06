@@ -477,6 +477,7 @@ do {                                    \
 /** Type event */
 #define MLAN_TYPE_EVENT			3
 
+#define MAX_SUPPORT_AMSDU_SIZE          4096
 /** Maximum numbfer of registers to read for multiple port */
 /* upto 0xB7 */
 #define MAX_MP_REGS			184
@@ -488,12 +489,12 @@ do {                                    \
 
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 /** Multi port TX aggregation buffer size */
-#define SDIO_MP_TX_AGGR_DEF_BUF_SIZE        (32768)	/* 32K */
+#define SDIO_MP_TX_AGGR_DEF_BUF_SIZE        (65280)	/* 64K - 256 */
 #endif /* SDIO_MULTI_PORT_TX_AGGR */
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
 /** Multi port RX aggregation buffer size */
-#define SDIO_MP_RX_AGGR_DEF_BUF_SIZE        (32768)	/* 32K */
+#define SDIO_MP_RX_AGGR_DEF_BUF_SIZE        (65280)	/* 64K - 256 */
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
 /** High threshold at which to start drop packets */
@@ -620,6 +621,13 @@ typedef struct _txAggr_t {
 	t_u8 amsdu;
 } tx_aggr_t;
 
+/** BA stream status */
+typedef enum _baStatus_e {
+	BA_STREAM_NOT_SETUP = 0,
+	BA_STREAM_SETUP_INPROGRESS,
+	BA_STREAM_SETUP_COMPLETE
+} baStatus_e;
+
 /** RA list table */
 typedef struct _raListTbl raListTbl;
 
@@ -643,6 +651,10 @@ struct _raListTbl {
 	t_u8 is_11n_enabled;
 	/** max amsdu size */
 	t_u16 max_amsdu;
+    /** BA stream status */
+	baStatus_e ba_status;
+    /** amsdu in ampdu flag */
+	t_u8 amsdu_in_ampdu;
 	/** tdls flag */
 	t_u8 is_tdls_link;
 	/** tx_pause flag */
@@ -956,6 +968,12 @@ typedef struct _mlan_private {
 	t_u8 rxpd_rate_info;
     /** max amsdu size */
 	t_u16 max_amsdu;
+    /** 802.11n Device Capabilities for 2.4GHz */
+	t_u32 usr_dot_11n_dev_cap_bg;
+    /** 802.11n Device Capabilities for 5GHz */
+	t_u32 usr_dot_11n_dev_cap_a;
+    /** MIMO abstraction of MCSs supported by device */
+	t_u8 usr_dev_mcs_support;
 #ifdef UAP_SUPPORT
     /** UAP 11n flag */
 	t_u8 is_11n_enabled;
@@ -968,6 +986,12 @@ typedef struct _mlan_private {
 	t_u8 tx_vhtinfo;
     /** rxpd_vhtinfo */
 	t_u8 rxpd_vhtinfo;
+    /** 802.11ac Device Capabilities for 2.4GHz */
+	t_u32 usr_dot_11ac_dev_cap_bg;
+    /** 802.11ac Device Capabilities for 5GHz */
+	t_u32 usr_dot_11ac_dev_cap_a;
+    /** MIMO abstraction of MCSs supported by device */
+	t_u32 usr_dot_11ac_mcs_support;
 #ifdef UAP_SUPPORT
     /** packet forward control */
 	t_u8 pkt_fwd;
@@ -1159,13 +1183,6 @@ typedef struct _mlan_private {
     /** Control TX AMPDU on infra link */
 	t_u8 txaggrctrl;
 } mlan_private, *pmlan_private;
-
-/** BA stream status */
-typedef enum _baStatus_e {
-	BA_STREAM_NOT_SETUP = 0,
-	BA_STREAM_SETUP_INPROGRESS,
-	BA_STREAM_SETUP_COMPLETE
-} baStatus_e;
 
 /** Tx BA stream table */
 struct _TxBAStreamTbl {
@@ -1748,6 +1765,10 @@ typedef struct _mlan_adapter {
 	t_u8 sdio_ireg;
     /** number of interrupt receive */
 	t_u32 num_of_irq;
+    /** max SDIO single port tx size */
+	t_u16 max_sp_tx_size;
+    /** max SDIO single port rx size */
+	t_u16 max_sp_rx_size;
     /** SDIO multiple port read bitmap */
 	t_u32 mp_rd_bitmap;
     /** SDIO multiple port write bitmap */
@@ -1976,6 +1997,8 @@ typedef struct _mlan_adapter {
 	t_u8 tx_lock_flag;
     /** Rx lock flag */
 	t_u8 rx_lock_flag;
+    /** main lock flag */
+	t_u8 main_lock_flag;
 	/** Multi channel status */
 	t_u8 mc_status;
 
@@ -2050,12 +2073,6 @@ typedef struct _mlan_adapter {
 	t_u32 hw_dot_11n_dev_cap;
     /** Device support for MIMO abstraction of MCSs */
 	t_u8 hw_dev_mcs_support;
-    /** 802.11n Device Capabilities for 2.4GHz */
-	t_u32 usr_dot_11n_dev_cap_bg;
-    /** 802.11n Device Capabilities for 5GHz */
-	t_u32 usr_dot_11n_dev_cap_a;
-    /** MIMO abstraction of MCSs supported by device */
-	t_u8 usr_dev_mcs_support;
 #ifdef STA_SUPPORT
     /** Enable 11n support for adhoc start */
 	t_u8 adhoc_11n_enabled;
@@ -2067,12 +2084,6 @@ typedef struct _mlan_adapter {
 	t_u32 hw_dot_11ac_dev_cap;
     /** 802.11ac device support for MIMO abstraction of MCSs */
 	t_u32 hw_dot_11ac_mcs_support;
-    /** 802.11ac Device Capabilities for 2.4GHz */
-	t_u32 usr_dot_11ac_dev_cap_bg;
-    /** 802.11ac Device Capabilities for 5GHz */
-	t_u32 usr_dot_11ac_dev_cap_a;
-    /** MIMO abstraction of MCSs supported by device */
-	t_u32 usr_dot_11ac_mcs_support;
 
     /** max mgmt IE index in device */
 	t_u16 max_mgmt_ie_index;
@@ -2189,6 +2200,11 @@ mlan_status wlan_bss_ioctl_bss_role(IN pmlan_adapter pmadapter,
 
 mlan_status wlan_set_ewpa_mode(mlan_private *priv, mlan_ds_passphrase *psec_pp);
 mlan_status wlan_find_bss(mlan_private *pmpriv, pmlan_ioctl_req pioctl_req);
+
+/* block main process */
+void mlan_block_main_process(mlan_adapter *pmadapter, t_u8 block);
+/* block rx process */
+void mlan_block_rx_process(mlan_adapter *pmadapter, t_u8 block);
 
 /** Allocate memory for adapter structure members */
 mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter);

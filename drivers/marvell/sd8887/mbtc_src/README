@@ -1,7 +1,7 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright (C) 2003-2014, Marvell International Ltd.
+ Copyright (C) 2003-2015, Marvell International Ltd.
 
  This software file (the "File") is distributed by Marvell International
  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -160,6 +160,18 @@ proc command to enable BT test mode
     Usage:
         echo "test_mode=1" > /proc/mbt/mbtcharx/config   #enable BT test mode
 
+FOR FW RELOAD
+    a) Enable parallel firmware download in driver parameter
+       insmod bt8xxx.ko fw_serail=0
+
+    b) default fw name for parallel firmware download
+       sd8887_bt_a2.bin
+
+    c) Trigger FW reload
+	echo "fw_reload" > /proc/mbt/mbtcharx/debug		# start fw reload.
+
+    (Note: This feature only works on CAC-A2 board which supports parallel fw download)
+
 ==============================================================================
 			U S E R  M A N U A L  F O R  F M A P P
 
@@ -173,12 +185,14 @@ proc command to enable BT test mode
 
 	a) chmod 777 fmapp (optional)
 	b) Run fmapp utility based on usage below
-		Usage: fmapp <Options> devicename [command content]
-		devicename example: mfmchar0
-
+		Usage: fmapp <Options> devicename ogf ocf [command content]
+		devicename example: mfmchar0 /mnfccahr0
+		FM ogf/ocf example: 0x3f 0x280
+		NFC ogf/ocf example: 0x3f 0x281
 	Options:
 		-h: Display help
 		-v: Verbose
 
 3) TEST EXAMPLES
-	./fmapp mfmchar0 0x02 0x03
+    ./fmapp mfmchar0 0x3f 0x280 0x01 0x01
+    ./fmapp mnfcchar0 0x3f 0x281 0x20 0x00 0x01 0x01

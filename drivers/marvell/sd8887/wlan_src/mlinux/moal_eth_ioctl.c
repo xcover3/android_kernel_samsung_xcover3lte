@@ -316,11 +316,13 @@ woal_get_priv_driver_version(moal_private *priv, t_u8 *respbuf,
  *  @param priv         A pointer to moal_private structure
  *  @param respbuf      A pointer to response buffer
  *  @param respbuflen   Available length of response buffer
+ *  @param wait_option  Wait option
  *
  *  @return             Number of bytes written, negative for failure.
  */
 int
-woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
+		  t_u8 wait_option)
 {
 	int ret = 0;
 	t_u8 *data_ptr;
@@ -357,7 +359,7 @@ woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	memcpy(misc_cfg->param.hostcmd.cmd, data_ptr + sizeof(buf_len),
 	       misc_cfg->param.hostcmd.len);
 
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	status = woal_request_ioctl(priv, req, wait_option);
 	if (status != MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto error;
@@ -8397,7 +8399,7 @@ woal_priv_set_get_tx_rx_ant(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	int user_data_len = 0, header_len = 0;
 	mlan_ds_radio_cfg *radio = NULL;
 	mlan_ioctl_req *req = NULL;
-	int data[2] = { 0 };
+	int data[3] = { 0 };
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -8418,16 +8420,24 @@ woal_priv_set_get_tx_rx_ant(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		req->action = MLAN_ACT_GET;
 	} else {
 		/* SET operation */
-		parse_arguments(respbuf + header_len, data, 2, &user_data_len);
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
 		if (user_data_len > 2) {
 			PRINTM(MERROR, "Invalid number of args!\n");
 			ret = -EINVAL;
 			goto done;
 		}
-		radio->param.ant_cfg.tx_antenna = data[0];
-		radio->param.ant_cfg.rx_antenna = data[0];
-		if (user_data_len == 2)
-			radio->param.ant_cfg.rx_antenna = data[1];
+		if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+			radio->param.ant_cfg.tx_antenna = data[0];
+			radio->param.ant_cfg.rx_antenna = data[0];
+			if (user_data_len == 2)
+				radio->param.ant_cfg.rx_antenna = data[1];
+		} else {
+			radio->param.ant_cfg_1x1.antenna = data[0];
+			if (user_data_len == 2)
+				radio->param.ant_cfg_1x1.evaluate_time =
+					data[1];
+		}
 		req->action = MLAN_ACT_SET;
 	}
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
@@ -8436,13 +8446,21 @@ woal_priv_set_get_tx_rx_ant(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		goto done;
 	}
 	if (!user_data_len) {
-		data[0] = radio->param.ant_cfg.tx_antenna;
-		data[1] = radio->param.ant_cfg.rx_antenna;
-		if (data[0] && data[1])
-			ret = sizeof(int) * 2;
-		else
-			ret = sizeof(int) * 1;
-		memcpy(respbuf, (t_u8 *)data, sizeof(data));
+		if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+			data[0] = radio->param.ant_cfg.tx_antenna;
+			data[1] = radio->param.ant_cfg.rx_antenna;
+			if (data[0] && data[1])
+				ret = sizeof(int) * 2;
+			else
+				ret = sizeof(int) * 1;
+			memcpy(respbuf, (t_u8 *)data, sizeof(data));
+		} else {
+			data[0] = (int)radio->param.ant_cfg_1x1.antenna;
+			data[1] = (int)radio->param.ant_cfg_1x1.evaluate_time;
+			data[2] = (int)radio->param.ant_cfg_1x1.current_antenna;
+			memcpy(respbuf, (t_u8 *)data, sizeof(data));
+			ret = sizeof(data);
+		}
 	}
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -10271,7 +10289,8 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_HOSTCMD,
 			    strlen(PRIV_CMD_HOSTCMD)) == 0) {
 			/* hostcmd configuration */
-			len = woal_priv_hostcmd(priv, buf, priv_cmd.total_len);
+			len = woal_priv_hostcmd(priv, buf, priv_cmd.total_len,
+						MOAL_IOCTL_WAIT);
 			goto handled;
 		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_HTTXCFG,

@@ -837,6 +837,10 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 				pmbuf->pdesc = NULL;
 				pmbuf->pbuf = NULL;
 				pmbuf->data_offset = pmbuf->data_len = 0;
+				/* pkt been submit to kernel, no need to free
+				   by mlan */
+				status = MLAN_STATUS_PENDING;
+				atomic_dec(&handle->mbufalloc_count);
 			} else {
 				PRINTM(MERROR, "%s without skb attach!!!\n",
 				       __func__);
@@ -1344,6 +1348,9 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 	case MLAN_EVENT_ID_DRV_FLUSH_RX_WORK:
 		flush_workqueue(priv->phandle->rx_workqueue);
 		break;
+	case MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK:
+		flush_workqueue(priv->phandle->workqueue);
+		break;
 	case MLAN_EVENT_ID_DRV_DEFER_RX_WORK:
 		queue_work(priv->phandle->rx_workqueue,
 			   &priv->phandle->rx_work);
@@ -1728,8 +1735,8 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 			if (priv->netdev
-			    && priv->netdev->ieee80211_ptr->wiphy->
-			    mgmt_stypes) {
+			    && priv->netdev->ieee80211_ptr->wiphy->mgmt_stypes
+			    && priv->mgmt_subtype_mask) {
 				/* frmctl + durationid + addr1 + addr2 + addr3
 				   + seqctl */
 #define PACKET_ADDR4_POS        (2 + 2 + 6 + 6 + 6 + 2)
@@ -2121,12 +2128,14 @@ moal_tcp_ack_tx_ind(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
  */
 t_void
 moal_hist_data_add(IN t_void *pmoal_handle, IN t_u32 bss_index, IN t_u8 rx_rate,
-		   IN t_s8 snr, IN t_s8 nflr)
+		   IN t_s8 snr, IN t_s8 nflr, IN t_u8 antenna)
 {
 	moal_private *priv = NULL;
 	priv = woal_bss_index_to_priv(pmoal_handle, bss_index);
-	if (priv && priv->hist_data)
-		woal_hist_data_add(priv, rx_rate, snr, nflr);
+	if (antenna >= priv->phandle->histogram_table_num)
+		antenna = 0;
+	if (priv && priv->hist_data[antenna])
+		woal_hist_data_add(priv, rx_rate, snr, nflr, antenna);
 }
 
 /**

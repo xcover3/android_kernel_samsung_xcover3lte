@@ -1003,6 +1003,18 @@ woal_cfg80211_deinit_p2p(moal_private *priv)
 		ret = -EFAULT;
 		goto done;
 	}
+	/* unregister mgmt frame from FW */
+	if (priv->mgmt_subtype_mask) {
+		priv->mgmt_subtype_mask = 0;
+		if (woal_reg_rx_mgmt_ind(priv, MLAN_ACT_SET,
+					 &priv->mgmt_subtype_mask,
+					 MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR,
+			       "deinit_p2p: fail to unregister mgmt frame\n");
+			ret = -EFAULT;
+			goto done;
+		}
+	}
 	/* cancel previous remain on channel */
 	if (priv->phandle->remain_on_channel) {
 		remain_priv =

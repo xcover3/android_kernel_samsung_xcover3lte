@@ -22,6 +22,9 @@
 #include "moal_cfg80211.h"
 #include "moal_sta_cfg80211.h"
 #include "moal_eth_ioctl.h"
+#ifdef UAP_SUPPORT
+#include    "moal_uap.h"
+#endif
 
 extern int cfg80211_wext;
 
@@ -136,6 +139,9 @@ int woal_cfg80211_sched_scan_stop(struct wiphy *wiphy, struct net_device *dev);
 int woal_cfg80211_resume(struct wiphy *wiphy);
 int woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow);
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+static void woal_cfg80211_set_wakeup(struct wiphy *wiphy, bool enabled);
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,0)|| defined(COMPAT_WIRELESS)
 void woal_check_auto_tdls(struct wiphy *wiphy, struct net_device *dev);
@@ -213,14 +219,14 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 	.suspend = woal_cfg80211_suspend,
 	.resume = woal_cfg80211_resume,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+	.set_wakeup = woal_cfg80211_set_wakeup,
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) || defined(COMPAT_WIRELESS)
 	.set_antenna = woal_cfg80211_set_antenna,
 #endif
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35) || defined(COMPAT_WIRELESS)
 	.set_cqm_rssi_config = woal_cfg80211_set_cqm_rssi_config,
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-	.set_coalesce = woal_cfg80211_set_coalesce,
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,0) || defined(COMPAT_WIRELESS)
 	.tdls_oper = woal_cfg80211_tdls_oper,
@@ -232,6 +238,9 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 	.update_ft_ies = woal_cfg80211_update_ft_ies,
 #endif
 #ifdef UAP_CFG80211
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	.set_coalesce = woal_cfg80211_set_coalesce,
+#endif
 	.add_virtual_intf = woal_cfg80211_add_virtual_intf,
 	.del_virtual_intf = woal_cfg80211_del_virtual_intf,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
@@ -375,7 +384,11 @@ int cfg80211_drcs = 1;
 #ifdef CONFIG_PM
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 static const struct wiphy_wowlan_support wowlan_support = {
-	.flags = WIPHY_WOWLAN_ANY,
+	.flags = WIPHY_WOWLAN_ANY | WIPHY_WOWLAN_MAGIC_PKT,
+	.n_patterns = MAX_NUM_FILTERS,
+	.pattern_min_len = 1,
+	.pattern_max_len = WOWLAN_MAX_PATTERN_LEN,
+	.max_pkt_offset = WOWLAN_MAX_OFFSET_LEN,
 };
 #endif
 #endif
@@ -1690,7 +1703,7 @@ woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option)
 		goto done;
 	}
 	if ((priv->ft_pre_connect ||
-	     conn_param->auth_type == NL80211_AUTHTYPE_FT)
+	     (conn_param && conn_param->auth_type == NL80211_AUTHTYPE_FT))
 	    && priv->ft_ie_len) {
 		ie = priv->ft_ie;
 		ie_len = priv->ft_ie_len;
@@ -2775,7 +2788,8 @@ woal_connect_ft_over_air(moal_private *priv, t_u8 *bssid,
  * @return                0 -- success, otherwise fail
  */
 static int
-woal_connect_ft_over_ds(moal_private *priv, t_u8 *bssid)
+woal_connect_ft_over_ds(moal_private *priv, t_u8 *bssid,
+			struct ieee80211_channel *pchan)
 {
 	t_u8 status = 0, wait_option = MOAL_CMD_WAIT;
 	struct ieee80211_channel chan;
@@ -2809,11 +2823,14 @@ woal_connect_ft_over_ds(moal_private *priv, t_u8 *bssid)
 			wait_event_timeout(priv->ft_wait_q,
 					   priv->ft_wait_condition, 1 * HZ);
 		if (!timeout) {
-			/* connet fail */
-			priv->ft_roaming_triggered_by_driver = MFALSE;
-			PRINTM(MMSG,
-			       "wlan: keep connected to bssid " MACSTR "\n",
-			       MAC2STR(priv->cfg_bssid));
+			/* go over air, as current AP may be unreachable */
+			PRINTM(MMSG, "wlan: go over air\n");
+			woal_cfg80211_remain_on_channel_cfg(priv, wait_option,
+							    MTRUE, &status,
+							    NULL, 0, 0);
+			woal_connect_ft_over_air(priv, bssid, pchan);
+			LEAVE();
+			return ret;
 		} else {
 			PRINTM(MMSG, "wlan: received FT response\n");
 			memcpy(priv->target_ap_bssid, bssid, ETH_ALEN);
@@ -2844,16 +2861,20 @@ woal_start_ft_roaming(moal_private *priv, mlan_ssid_bssid *ssid_bssid)
 
 	ENTER();
 	PRINTM(MEVENT, "Try to start FT roaming......\n");
+	chan.band = (ssid_bssid->channel < 36) ?
+		IEEE80211_BAND_2GHZ : IEEE80211_BAND_5GHZ;
+	chan.center_freq =
+		ieee80211_channel_to_frequency(ssid_bssid->channel, chan.band);
 
 	priv->ft_roaming_triggered_by_driver = MTRUE;
-	if (ssid_bssid->ft_cap & MBIT(0)) {
-		woal_connect_ft_over_ds(priv, (t_u8 *)&ssid_bssid->bssid);
+	if (!(priv->last_event & EVENT_PRE_BCN_LOST) &&
+	    (ssid_bssid->ft_cap & MBIT(0))) {
+		woal_connect_ft_over_ds(priv, (t_u8 *)&ssid_bssid->bssid,
+					&chan);
 	} else {
-		chan.band = (ssid_bssid->channel < 36) ?
-			IEEE80211_BAND_2GHZ : IEEE80211_BAND_5GHZ;
-		chan.center_freq =
-			ieee80211_channel_to_frequency(ssid_bssid->channel,
-						       chan.band);
+		/* if pre beacon lost, it need to send auth request instead ft
+		   action request when ft over ds */
+
 		woal_connect_ft_over_air(priv, (t_u8 *)&ssid_bssid->bssid,
 					 &chan);
 	}
@@ -4043,6 +4064,7 @@ woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow)
 {
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	int i;
+
 	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
 		if (handle->priv[i] &&
 		    (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_STA)) {
@@ -4058,6 +4080,16 @@ woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow)
 	PRINTM(MIOCTL, "woal_cfg80211_suspended\n");
 	handle->cfg80211_suspend = MTRUE;
 	return 0;
+}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+static void
+woal_cfg80211_set_wakeup(struct wiphy *wiphy, bool enabled)
+{
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+
+	device_set_wakeup_enable(handle->hotplug_device, enabled);
 }
 #endif
 
@@ -4237,6 +4269,74 @@ woal_add_ext_supported_rates_ie(moal_private *priv, struct sk_buff *skb,
 	*pos++ = WLAN_EID_EXT_SUPP_RATES;
 	*pos++ = rate_num;
 	memcpy(pos, ext_rates, rate_num);
+	return;
+}
+
+/**
+ * @brief append wmm ie
+ *
+ * @param priv                  A pointer to moal_private structure
+ * @param skb                   A pointer to sk_buff structure
+ * @param wmm_type              WMM_TYPE_INFO/WMM_TYPE_PARAMETER
+ *
+ * @return                      N/A
+ */
+static void
+woal_add_wmm_ie(moal_private *priv, struct sk_buff *skb, t_u8 wmm_type)
+{
+	t_u8 wmmInfoElement[] = { 0x00, 0x50, 0xf2,
+		0x02, 0x00, 0x01
+	};
+	t_u8 wmmParamElement[] = { 0x00, 0x50, 0xf2,
+		0x02, 0x01, 0x01
+	};
+	t_u8 ac_vi[] = { 0x42, 0x43, 0x5e, 0x00 };
+	t_u8 ac_vo[] = { 0x62, 0x32, 0x2f, 0x00 };
+	t_u8 ac_be[] = { 0x03, 0xa4, 0x00, 0x00 };
+	t_u8 ac_bk[] = { 0x27, 0xa4, 0x00, 0x00 };
+	t_u8 qosInfo = 0x0;
+	t_u8 reserved = 0;
+	t_u8 wmm_id = 221;
+	t_u8 wmmParamIe_len = 24;
+	t_u8 wmmInfoIe_len = 7;
+	t_u8 len = 0;
+	t_u8 *pos;
+
+	if (skb_tailroom(skb) < wmmParamIe_len + 2)
+		return;
+
+	qosInfo = 0xf;
+	/* wmm parameter */
+	if (wmm_type == WMM_TYPE_PARAMETER) {
+		pos = skb_put(skb, wmmParamIe_len + 2);
+		len = wmmParamIe_len;
+	} else {
+		pos = skb_put(skb, wmmInfoIe_len + 2);
+		len = wmmInfoIe_len;
+	}
+
+	*pos++ = wmm_id;
+	*pos++ = len;
+	/* wmm parameter */
+	if (wmm_type == WMM_TYPE_PARAMETER) {
+		memcpy(pos, wmmParamElement, sizeof(wmmParamElement));
+		pos += sizeof(wmmParamElement);
+	} else {
+		memcpy(pos, wmmInfoElement, sizeof(wmmInfoElement));
+		pos += sizeof(wmmInfoElement);
+	}
+	*pos++ = qosInfo;
+	/* wmm parameter */
+	if (wmm_type == WMM_TYPE_PARAMETER) {
+		*pos++ = reserved;
+		memcpy(pos, ac_be, sizeof(ac_be));
+		pos += sizeof(ac_be);
+		memcpy(pos, ac_bk, sizeof(ac_bk));
+		pos += sizeof(ac_bk);
+		memcpy(pos, ac_vi, sizeof(ac_vi));
+		pos += sizeof(ac_vi);
+		memcpy(pos, ac_vo, sizeof(ac_vo));
+	}
 	return;
 }
 
@@ -4618,6 +4718,15 @@ woal_construct_tdls_data_frame(moal_private *priv,
 		break;
 	default:
 		break;
+	}
+
+	if (action_code == WLAN_TDLS_SETUP_REQUEST ||
+	    action_code == WLAN_TDLS_SETUP_RESPONSE) {
+		/* wmm info */
+		woal_add_wmm_ie(priv, skb, WMM_TYPE_INFO);
+	} else if (action_code == WLAN_TDLS_SETUP_CONFIRM) {
+		/* wmm parameter */
+		woal_add_wmm_ie(priv, skb, WMM_TYPE_PARAMETER);
 	}
 
 done:
@@ -5687,7 +5796,7 @@ woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 	}
 	if (bss_type == MLAN_BSS_TYPE_STA) {
 		wdev->iftype = NL80211_IFTYPE_STATION;
-		priv->roaming_enabled = MTRUE;
+		priv->roaming_enabled = MFALSE;
 		priv->roaming_required = MFALSE;
 	}
 #if defined(WIFI_DIRECT_SUPPORT)
@@ -5738,6 +5847,9 @@ woal_cfg80211_init_wiphy(moal_private *priv, t_u8 wait_option)
 #endif
 	mlan_ds_11n_cfg *cfg_11n = NULL;
 	t_u32 hw_dev_cap;
+#ifdef UAP_SUPPORT
+	mlan_uap_bss_param sys_cfg;
+#endif
 
 	ENTER();
 
@@ -5808,11 +5920,26 @@ woal_cfg80211_init_wiphy(moal_private *priv, t_u8 wait_option)
 #endif /* LINUX_VERSION_CODE */
 
 	/* Set retry limit count to wiphy */
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_retry(priv, MLAN_ACT_GET, wait_option, &retry_count)) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
+	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_get_retry(priv, MLAN_ACT_GET, wait_option,
+				       &retry_count)) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
 	}
+#ifdef UAP_SUPPORT
+	else {
+		memset(&sys_cfg, 0x00, sizeof(sys_cfg));
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_get_sys_config(priv, MLAN_ACT_GET, wait_option,
+					    &sys_cfg)) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		retry_count = sys_cfg.retry_limit;
+	}
+#endif
 	wiphy->retry_long = (t_u8)retry_count;
 	wiphy->retry_short = (t_u8)retry_count;
 	wiphy->max_scan_ie_len = MAX_IE_SIZE;
@@ -5890,7 +6017,11 @@ woal_register_cfg80211(moal_private *priv)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 	wiphy->wowlan = &wowlan_support;
 #else
-	wiphy->wowlan.flags = WIPHY_WOWLAN_ANY;
+	wiphy->wowlan.flags = WIPHY_WOWLAN_ANY | WIPHY_WOWLAN_MAGIC_PKT;
+	wiphy->wowlan.n_patterns = MAX_NUM_FILTERS;
+	wiphy->wowlan.pattern_min_len = 1;
+	wiphy->wowlan.pattern_max_len = WOWLAN_MAX_PATTERN_LEN;
+	wiphy->wowlan.max_pkt_offset = WOWLAN_MAX_OFFSET_LEN;
 #endif
 #endif
 #endif
@@ -5967,9 +6098,7 @@ woal_register_cfg80211(moal_private *priv)
 	wiphy->flags |= WIPHY_FLAG_HAVE_AP_SME;
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) || defined(COMPAT_WIRELESS)
-#ifdef SCHED_SCAN_SUPPORT
 	wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
-#endif
 	wiphy->max_sched_scan_ssids = MRVDRV_MAX_SSID_LIST_LENGTH;
 	wiphy->max_sched_scan_ie_len = MAX_IE_SIZE;
 	wiphy->max_match_sets = MRVDRV_MAX_SSID_LIST_LENGTH;

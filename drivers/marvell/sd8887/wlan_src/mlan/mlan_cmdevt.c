@@ -3801,12 +3801,12 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 
 	pmadapter->hw_dot_11n_dev_cap =
 		wlan_le32_to_cpu(hw_spec->dot_11n_dev_cap);
-	pmadapter->usr_dot_11n_dev_cap_bg =
-		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_BG;
-	pmadapter->usr_dot_11n_dev_cap_a =
-		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
-	pmadapter->usr_dev_mcs_support = pmadapter->hw_dev_mcs_support =
-		hw_spec->dev_mcs_support;
+	pmadapter->hw_dev_mcs_support = hw_spec->dev_mcs_support;
+	for (i = 0; i < pmadapter->priv_num; i++) {
+		if (pmadapter->priv[i])
+			wlan_update_11n_cap(pmadapter->priv[i]);
+	}
+
 	wlan_show_dot11ndevcap(pmadapter, pmadapter->hw_dot_11n_dev_cap);
 	wlan_show_devmcssupport(pmadapter, pmadapter->hw_dev_mcs_support);
 	if (ISSUPP_BEAMFORMING(pmadapter->hw_dot_11n_dev_cap)) {
@@ -3819,15 +3819,12 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	}
 	pmadapter->hw_dot_11ac_dev_cap =
 		wlan_le32_to_cpu(hw_spec->Dot11acDevCap);
-	pmadapter->usr_dot_11ac_mcs_support =
-		pmadapter->hw_dot_11ac_mcs_support =
+	pmadapter->hw_dot_11ac_mcs_support =
 		wlan_le32_to_cpu(hw_spec->Dot11acMcsSupport);
-	pmadapter->usr_dot_11ac_dev_cap_bg =
-		pmadapter->
-		hw_dot_11ac_dev_cap & ~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
-	pmadapter->usr_dot_11ac_dev_cap_a =
-		pmadapter->
-		hw_dot_11ac_dev_cap & ~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
+	for (i = 0; i < pmadapter->priv_num; i++) {
+		if (pmadapter->priv[i])
+			wlan_update_11ac_cap(pmadapter->priv[i]);
+	}
 	wlan_show_dot11acdevcap(pmadapter, pmadapter->hw_dot_11ac_dev_cap);
 	wlan_show_dot11acmcssupport(pmadapter,
 				    pmadapter->hw_dot_11ac_mcs_support);
@@ -4350,9 +4347,14 @@ wlan_cmd_802_11_rf_antenna(IN pmlan_private pmpriv,
 		t_u16 action;
 	/**  Antenna or 0xffff (diversity) */
 		t_u16 antenna_mode;
+	/** Evaluate time */
+		t_u16 evaluate_time;
+	/** Current antenna */
+		t_u16 current_antenna;
 	} HostCmd_DS_802_11_RF_ANTENNA_1X1;
 	HostCmd_DS_802_11_RF_ANTENNA_1X1 *pantenna_1x1 =
 		(HostCmd_DS_802_11_RF_ANTENNA_1X1 *)&cmd->params.antenna;
+	mlan_ds_ant_cfg_1x1 *ant_cfg_1x1 = (mlan_ds_ant_cfg_1x1 *) pdata_buf;
 
 	ENTER();
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_802_11_RF_ANTENNA);
@@ -4380,7 +4382,10 @@ wlan_cmd_802_11_rf_antenna(IN pmlan_private pmpriv,
 			pantenna_1x1->action =
 				wlan_cpu_to_le16(HostCmd_ACT_SET_BOTH);
 			pantenna_1x1->antenna_mode =
-				wlan_cpu_to_le16(*(t_u16 *)pdata_buf);
+				wlan_cpu_to_le16((t_u16)ant_cfg_1x1->antenna);
+			pantenna_1x1->evaluate_time =
+				wlan_cpu_to_le16((t_u16)ant_cfg_1x1->
+						 evaluate_time);
 		}
 	} else {
 		if (IS_STREAM_2X2(pmpriv->adapter->feature_control)) {
@@ -4419,10 +4424,16 @@ wlan_ret_802_11_rf_antenna(IN pmlan_private pmpriv,
 		t_u16 action;
 	    /**  Antenna or 0xffff (diversity) */
 		t_u16 antenna_mode;
+	    /** Evaluate time */
+		t_u16 evaluate_time;
+	    /** Current antenna */
+		t_u16 current_antenna;
 	} HostCmd_DS_802_11_RF_ANTENNA_1X1;
 	HostCmd_DS_802_11_RF_ANTENNA_1X1 *pantenna_1x1 =
 		(HostCmd_DS_802_11_RF_ANTENNA_1X1 *)&resp->params.antenna;
 	t_u16 ant_mode = wlan_le16_to_cpu(pantenna_1x1->antenna_mode);
+	t_u16 evaluate_time = wlan_le16_to_cpu(pantenna_1x1->evaluate_time);
+	t_u16 current_antenna = wlan_le16_to_cpu(pantenna_1x1->current_antenna);
 	mlan_ds_radio_cfg *radio = MNULL;
 
 	ENTER();
@@ -4433,8 +4444,10 @@ wlan_ret_802_11_rf_antenna(IN pmlan_private pmpriv,
 		       wlan_le16_to_cpu(pantenna->action_tx), tx_ant_mode,
 		       wlan_le16_to_cpu(pantenna->action_rx), rx_ant_mode);
 	else
-		PRINTM(MINFO, "RF_ANT_RESP: action = 0x%x, Mode = 0x%04x\n",
-		       wlan_le16_to_cpu(pantenna_1x1->action), ant_mode);
+		PRINTM(MINFO,
+		       "RF_ANT_RESP: action = 0x%x, Mode = 0x%04x, Evaluate time = %d, Current antenna = %d\n",
+		       wlan_le16_to_cpu(pantenna_1x1->action), ant_mode,
+		       evaluate_time, current_antenna);
 
 	if (pioctl_buf) {
 		radio = (mlan_ds_radio_cfg *)pioctl_buf->pbuf;
@@ -4442,7 +4455,10 @@ wlan_ret_802_11_rf_antenna(IN pmlan_private pmpriv,
 			radio->param.ant_cfg.tx_antenna = tx_ant_mode;
 			radio->param.ant_cfg.rx_antenna = rx_ant_mode;
 		} else {
-			radio->param.antenna = ant_mode;
+			radio->param.ant_cfg_1x1.antenna = ant_mode;
+			radio->param.ant_cfg_1x1.evaluate_time = evaluate_time;
+			radio->param.ant_cfg_1x1.current_antenna =
+				current_antenna;
 		}
 	}
 

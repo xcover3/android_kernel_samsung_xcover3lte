@@ -41,6 +41,7 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			     t_u8 **ppbuffer);
 mlan_status wlan_11ac_cfg_ioctl(pmlan_adapter pmadapter,
 				pmlan_ioctl_req pioctl_req);
+void wlan_update_11ac_cap(mlan_private *pmpriv);
 
 mlan_status wlan_cmd_11ac_cfg(IN pmlan_private pmpriv,
 			      IN HostCmd_DS_COMMAND *cmd,

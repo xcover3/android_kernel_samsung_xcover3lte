@@ -491,6 +491,11 @@ static struct _ampdu_info ampdu_info_v15 = {
 	.ampdu_wfd_txrxwinsize = MLAN_WFD_AMPDU_DEF_TXRXWINSIZE,
 };
 
+/** aggr buf size 32k  */
+#define SDIO_MP_AGGR_BUF_SIZE_32K   (32768)
+/** max aggr buf size 64k-256 */
+#define SDIO_MP_AGGR_BUF_SIZE_MAX   (65280)
+
 static const struct _mlan_sdio_device mlan_sdio_sd8777 = {
 	.reg = &mlan_reg_sd87xx,
 	.max_ports = 16,
@@ -505,8 +510,8 @@ static const struct _mlan_sdio_device mlan_sdio_sd8777 = {
 	.card_rx_unit_reg = 0x63,
 	.host_int_mask_reg = 0x02,
 	.host_int_status_reg = 0x03,
-	.mp_tx_aggr_buf_size = 16384,
-	.mp_rx_aggr_buf_size = 16384,
+	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.driver_supplicant_auth = 0,
 	.v15_update = 0,
@@ -529,8 +534,8 @@ static const struct _mlan_sdio_device mlan_sdio_sd8787 = {
 	.card_rx_unit_reg = 0x63,
 	.host_int_mask_reg = 0x02,
 	.host_int_status_reg = 0x03,
-	.mp_tx_aggr_buf_size = 16384,
-	.mp_rx_aggr_buf_size = 16384,
+	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.driver_supplicant_auth = 0,
 	.v15_update = 0,
@@ -553,8 +558,8 @@ static const struct _mlan_sdio_device mlan_sdio_sd8797 = {
 	.card_rx_unit_reg = 0x63,
 	.host_int_mask_reg = 0x02,
 	.host_int_status_reg = 0x03,
-	.mp_tx_aggr_buf_size = 16384,
-	.mp_rx_aggr_buf_size = 16384,
+	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.driver_supplicant_auth = 0,
 	.v15_update = 0,
@@ -582,8 +587,8 @@ static const struct _mlan_sdio_device mlan_sdio_sd8887 = {
 	.card_rx_unit_reg = 0x93,
 	.host_int_mask_reg = 0x08,
 	.host_int_status_reg = 0x0C,
-	.mp_tx_aggr_buf_size = 32768,
-	.mp_rx_aggr_buf_size = 32768,
+	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.driver_supplicant_auth = 0,
 	.v15_update = 1,
@@ -606,8 +611,8 @@ static const struct _mlan_sdio_device mlan_sdio_sd8801 = {
 	.card_rx_unit_reg = 0x63,
 	.host_int_mask_reg = 0x02,
 	.host_int_status_reg = 0x03,
-	.mp_tx_aggr_buf_size = 16384,
-	.mp_rx_aggr_buf_size = 16384,
+	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.driver_supplicant_auth = 1,
 	.v15_update = 0,
@@ -635,8 +640,8 @@ static const struct _mlan_sdio_device mlan_sdio_sd8897 = {
 	.card_rx_unit_reg = 0xC3,
 	.host_int_mask_reg = 0x02,
 	.host_int_status_reg = 0x03,
-	.mp_tx_aggr_buf_size = 32768,
-	.mp_rx_aggr_buf_size = 32768,
+	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
 	.driver_supplicant_auth = 0,
 	.v15_update = 1,

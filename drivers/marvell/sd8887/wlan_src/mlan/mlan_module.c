@@ -42,6 +42,7 @@ EXPORT_SYMBOL(mlan_select_wmm_queue);
 EXPORT_SYMBOL(mlan_interrupt);
 
 EXPORT_SYMBOL(mlan_pm_wakeup_card);
+EXPORT_SYMBOL(mlan_is_main_process_running);
 
 MODULE_DESCRIPTION("M-WLAN MLAN Driver");
 MODULE_AUTHOR("Marvell International Ltd.");

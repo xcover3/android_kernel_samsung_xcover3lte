@@ -2,7 +2,7 @@
  *  @brief This header file contains global constant/enum definitions,
  *  global variable declaration.
  *
- *  Copyright (C) 2007-2014, Marvell International Ltd.
+ *  Copyright (C) 2007-2015, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -310,6 +310,33 @@ os_sched_timeout(u32 millisec)
 #define __ATTRIB_PACK__ __attribute__((packed))
 #endif
 
+/** BT histogram command */
+#define BT_CMD_HISTOGRAM            0xEA
+#define MAX_LINK_NUM                10
+#define MAX_ANTENNA_NUM             2
+#define BDR_RATE					1
+#define EDR_RATE					2
+
+typedef struct _bt_link_stat {
+	u16 handle;
+	s8 txpower;
+	u8 txrxrate;
+	s8 rssi;
+} __ATTRIB_PACK__ bt_link_stat;
+
+typedef struct _bt_histogram_data {
+	u8 antenna;
+	u8 powerclass;
+	bt_link_stat link[MAX_LINK_NUM];
+} __ATTRIB_PACK__ bt_histogram_data;
+
+typedef struct _bt_hist_proc_data {
+    /** antenna */
+	u8 antenna;
+	/** Private structure */
+	struct _bt_private *pbt;
+} bt_hist_proc_data;
+
 /** Data structure for the Marvell Bluetooth device */
 typedef struct _bt_dev {
 	/** device name */
@@ -452,6 +479,8 @@ struct proc_private_data {
 struct device_proc {
 	/** Proc directory entry */
 	struct proc_dir_entry *proc_entry;
+    /** proc entry for hist */
+	struct proc_dir_entry *hist_entry;
 	/** num of proc files */
 	u8 num_proc_files;
 	/** pointer to proc_private_data */
@@ -497,7 +526,15 @@ typedef struct _bt_private {
 	int debug_device_pending;
 	int debug_ocf_ogf[2];
 	u8 fw_reload;
+	/* hist_data_len */
+	u8 hist_data_len;
+    /** hist data */
+	bt_histogram_data hist_data[MAX_ANTENNA_NUM];
+    /** hist proc data */
+	bt_hist_proc_data hist_proc[MAX_ANTENNA_NUM];
 } bt_private, *pbt_private;
+
+int bt_get_histogram(bt_private *priv);
 
 /** Disable interrupt */
 #define OS_INT_DISABLE	spin_lock_irqsave(&priv->driver_lock, \
@@ -624,7 +661,7 @@ int fm_set_intr_mask(bt_private *priv, u32 mask);
 
 /** The number of times to try when waiting for downloaded firmware to
     become active when multiple interface is present */
-#define MAX_MULTI_INTERFACE_POLL_TRIES  1000
+#define MAX_MULTI_INTERFACE_POLL_TRIES  150
 
 /** The number of times to try when waiting for downloaded firmware to
      become active. (polling the scratch register). */

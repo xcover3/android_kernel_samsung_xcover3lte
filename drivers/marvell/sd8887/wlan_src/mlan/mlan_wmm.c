@@ -663,8 +663,7 @@ wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 	for (j = pmadapter->priv_num - 1; j >= 0; --j) {
 		if (!(util_peek_list(pmadapter->pmoal_handle,
 				     &pmadapter->bssprio_tbl[j].bssprio_head,
-				     pmadapter->callbacks.moal_spin_lock,
-				     pmadapter->callbacks.moal_spin_unlock)))
+				     MNULL, MNULL)))
 			continue;
 
 		if (pmadapter->bssprio_tbl[j].bssprio_cur ==
@@ -1133,14 +1132,13 @@ wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 		return MLAN_STATUS_SUCCESS;
 	}
 
-	if (!ptr->is_11n_enabled || wlan_is_bastream_setup(priv, ptr, tid)
+	if (!ptr->is_11n_enabled || ptr->ba_status
 #ifdef STA_SUPPORT
 	    || priv->wps.session_enable
 #endif /* STA_SUPPORT */
 		) {
-		if (ptr->is_11n_enabled &&
-		    wlan_is_bastream_setup(priv, ptr, tid)
-		    && wlan_is_amsdu_in_ampdu_allowed(priv, ptr, tid)
+		if (ptr->is_11n_enabled && ptr->ba_status
+		    && ptr->amsdu_in_ampdu
 		    && wlan_is_amsdu_allowed(priv, ptr, tid)
 		    && (wlan_num_pkts_in_txq(priv, ptr, pmadapter->tx_buf_size)
 			>= MIN_NUM_AMSDU)) {
@@ -1694,6 +1692,8 @@ wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 		if (!ra_list)
 			break;
 		ra_list->max_amsdu = 0;
+		ra_list->ba_status = BA_STREAM_NOT_SETUP;
+		ra_list->amsdu_in_ampdu = MFALSE;
 		if (queuing_ra_based(priv)) {
 			ra_list->is_11n_enabled = wlan_is_11n_enabled(priv, ra);
 			if (ra_list->is_11n_enabled)
@@ -2010,6 +2010,8 @@ wlan_ralist_update(mlan_private *priv, t_u8 *old_ra, t_u8 *new_ra)
 			ra_list->packet_count = 0;
 			ra_list->ba_packet_threshold =
 				wlan_get_random_ba_threshold(priv->adapter);
+			ra_list->amsdu_in_ampdu = MFALSE;
+			ra_list->ba_status = BA_STREAM_NOT_SETUP;
 			PRINTM(MINFO,
 			       "ralist_update: %p, %d, " MACSTR "-->" MACSTR
 			       "\n", ra_list, ra_list->is_11n_enabled,
@@ -2472,12 +2474,13 @@ wlan_wmm_process_tx(pmlan_adapter pmadapter)
 	do {
 		if (wlan_dequeue_tx_packet(pmadapter))
 			break;
-		if (pmadapter->sdio_ireg) {
+		if (pmadapter->sdio_ireg & UP_LD_CMD_PORT_HOST_INT_STATUS) {
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 			wlan_send_mp_aggr_buf(pmadapter);
 #endif
 			break;
 		}
+
 		/* Check if busy */
 	} while (!pmadapter->data_sent && !pmadapter->tx_lock_flag
 		 && !wlan_wmm_lists_empty(pmadapter));

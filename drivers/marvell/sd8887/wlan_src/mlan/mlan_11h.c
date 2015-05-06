@@ -326,7 +326,6 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv,
 				wlan_11h_2_4G_region_FCC;
 			break;
 		case 0x30:	/* Europe ETSI */
-		case 0x32:	/* France */
 		case 0x41:	/* Japan */
 		case 0x50:	/* China */
 			psup_chan->subband[num_subbands++] =
@@ -352,16 +351,6 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv,
 		switch (cfp_a) {
 		case 0x10:	/* USA FCC */
 		case 0x20:	/* Canada IC */
-		case 0x32:	/* France */
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_lower_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_middle_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_mid_upper_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_upper_band;
-			break;
 		case 0x30:	/* Europe ETSI */
 		default:
 			psup_chan->subband[num_subbands++] =
@@ -370,6 +359,8 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv,
 				wlan_11h_unii_middle_band;
 			psup_chan->subband[num_subbands++] =
 				wlan_11h_unii_mid_upper_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_upper_band;
 			break;
 		case 0x50:	/* China */
 			psup_chan->subband[num_subbands++] =
@@ -3138,7 +3129,8 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter)
 			       " (!= curr_chan) !!\n", __func__);
 
 #ifdef DFS_TESTING_SUPPORT
-		if (pmadapter->dfs_test_params.fixed_new_channel_on_radar) {
+		if (!pmadapter->dfs_test_params.no_channel_change_on_radar &&
+		    pmadapter->dfs_test_params.fixed_new_channel_on_radar) {
 			PRINTM(MCMD_D, "dfs_testing - user fixed new_chan=%d\n",
 			       pmadapter->dfs_test_params.
 			       fixed_new_channel_on_radar);
@@ -3648,6 +3640,18 @@ wlan_11h_switch_non_dfs_chan(mlan_private *priv, t_u8 *chan)
 	pmlan_adapter pmadapter = priv->adapter;
 
 	ENTER();
+
+#ifdef DFS_TESTING_SUPPORT
+	if (!pmadapter->dfs_test_params.no_channel_change_on_radar &&
+	    pmadapter->dfs_test_params.fixed_new_channel_on_radar) {
+		PRINTM(MCMD_D, "dfs_testing - user fixed new_chan=%d\n",
+		       pmadapter->dfs_test_params.fixed_new_channel_on_radar);
+		*chan = pmadapter->dfs_test_params.fixed_new_channel_on_radar;
+
+		LEAVE();
+		return MLAN_STATUS_SUCCESS;
+	}
+#endif
 
 	/* get the channel table first */
 	for (i = 0; i < MAX_REGION_CHANNEL_NUM; i++) {

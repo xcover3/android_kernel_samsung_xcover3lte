@@ -2,7 +2,7 @@
  *  @brief This file contains SDIO IF (interface) module
  *  related functions.
  *
- * Copyright (C) 2007-2014, Marvell International Ltd.
+ * Copyright (C) 2007-2015, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -821,7 +821,7 @@ done:
 			release_firmware(fw_firmware);
 	}
 	/* For synchronous download cleanup will be done in add_card */
-    	if (!bt_req_fw_nowait)
+	if (!bt_req_fw_nowait)
 		return ret;
 	PRINTM(INFO, "unregister device\n");
 	sbi_unregister_dev(priv);

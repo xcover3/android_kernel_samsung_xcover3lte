@@ -1449,6 +1449,54 @@ wlan_bss_ioctl_find_bss(IN pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Check if BSS channel is valid for Station's region
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status
+wlan_bss_ioctl_bss_11d_check_channel(IN pmlan_adapter pmadapter,
+				     IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_bss *bss = MNULL;
+	mlan_ssid_bssid *ssid_bssid = MNULL;
+	BSSDescriptor_t *pbss_desc = MNULL;
+
+	ENTER();
+
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
+	ssid_bssid = &bss->param.ssid_bssid;
+
+	PRINTM(MINFO, "ssid: %s idx:%d\n", ssid_bssid->ssid.ssid,
+	       ssid_bssid->idx);
+
+	pbss_desc = &pmadapter->pscan_table[ssid_bssid->idx - 1];
+	if (!pbss_desc) {
+		PRINTM(MERROR, "Invalid scan table entry!\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	PRINTM(MINFO, "band:%d channel:%d\n",
+	       (t_u8)pbss_desc->bss_band, (t_u32)pbss_desc->channel);
+
+	/* check if this channel is supported in the region */
+	if (!wlan_find_cfp_by_band_and_channel(pmadapter,
+					       (t_u8)pbss_desc->bss_band,
+					       (t_u32)pbss_desc->channel)) {
+		PRINTM(MERROR, "Unsupported Channel for region 0x%x\n",
+		       pmadapter->region_code);
+		ret = MLAN_STATUS_FAILURE;
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief BSS command handler
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -1526,6 +1574,12 @@ wlan_bss_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	case MLAN_OID_BSS_REMOVE:
 		status = wlan_bss_ioctl_bss_remove(pmadapter, pioctl_req);
 		break;
+
+	case MLAN_OID_BSS_11D_CHECK_CHANNEL:
+		status = wlan_bss_ioctl_bss_11d_check_channel(pmadapter,
+							      pioctl_req);
+		break;
+
 	default:
 		status = MLAN_STATUS_FAILURE;
 		break;
@@ -4061,6 +4115,8 @@ wlan_misc_ioctl_warm_reset(IN pmlan_adapter pmadapter,
 	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 
 	ENTER();
+	mlan_block_main_process(pmadapter, MTRUE);
+	mlan_block_rx_process(pmadapter, MTRUE);
 	/* Cancel all pending commands and complete ioctls */
 	if (misc->param.fw_reload)
 		wlan_cancel_all_pending_cmd(pmadapter);
@@ -4088,7 +4144,8 @@ wlan_misc_ioctl_warm_reset(IN pmlan_adapter pmadapter,
 		if (pmadapter->priv[i])
 			wlan_init_priv(pmadapter->priv[i]);
 	}
-
+	mlan_block_main_process(pmadapter, MFALSE);
+	mlan_block_rx_process(pmadapter, MFALSE);
 	if (misc->param.fw_reload != MTRUE) {
 		/* Restart the firmware */
 		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FUNC_SHUTDOWN,

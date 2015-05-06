@@ -112,23 +112,23 @@ wlan_11n_ioctl_htusrcfg(IN pmlan_adapter pmadapter,
 			ret = MLAN_STATUS_FAILURE;
 		} else {
 			if (cfg->param.htcap_cfg.misc_cfg == BAND_SELECT_BG) {
-				pmadapter->usr_dot_11n_dev_cap_bg =
+				pmpriv->usr_dot_11n_dev_cap_bg =
 					cfg->param.htcap_cfg.htcap;
 				PRINTM(MINFO,
 				       "Set: UsrDot11nCap for 2.4GHz 0x%x\n",
-				       pmadapter->usr_dot_11n_dev_cap_bg);
+				       pmpriv->usr_dot_11n_dev_cap_bg);
 			}
 			if (cfg->param.htcap_cfg.misc_cfg == BAND_SELECT_A) {
-				pmadapter->usr_dot_11n_dev_cap_a =
+				pmpriv->usr_dot_11n_dev_cap_a =
 					cfg->param.htcap_cfg.htcap;
 				PRINTM(MINFO,
 				       "Set: UsrDot11nCap for 5GHz 0x%x\n",
-				       pmadapter->usr_dot_11n_dev_cap_a);
+				       pmpriv->usr_dot_11n_dev_cap_a);
 			}
 			if (cfg->param.htcap_cfg.misc_cfg == BAND_SELECT_BOTH) {
-				pmadapter->usr_dot_11n_dev_cap_bg =
+				pmpriv->usr_dot_11n_dev_cap_bg =
 					cfg->param.htcap_cfg.htcap;
-				pmadapter->usr_dot_11n_dev_cap_a =
+				pmpriv->usr_dot_11n_dev_cap_a =
 					cfg->param.htcap_cfg.htcap;
 				PRINTM(MINFO,
 				       "Set: UsrDot11nCap for 2.4GHz and 5GHz 0x%x\n",
@@ -143,14 +143,14 @@ wlan_11n_ioctl_htusrcfg(IN pmlan_adapter pmadapter,
 		else {
 			if (cfg->param.htcap_cfg.misc_cfg == BAND_SELECT_BG) {
 				cfg->param.htcap_cfg.htcap =
-					pmadapter->usr_dot_11n_dev_cap_bg;
+					pmpriv->usr_dot_11n_dev_cap_bg;
 				PRINTM(MINFO,
 				       "Get: UsrDot11nCap for 2.4GHz 0x%x\n",
 				       cfg->param.htcap_cfg.htcap);
 			}
 			if (cfg->param.htcap_cfg.misc_cfg == BAND_SELECT_A) {
 				cfg->param.htcap_cfg.htcap =
-					pmadapter->usr_dot_11n_dev_cap_a;
+					pmpriv->usr_dot_11n_dev_cap_a;
 				PRINTM(MINFO,
 				       "Get: UsrDot11nCap for 5GHz 0x%x\n",
 				       cfg->param.htcap_cfg.htcap);
@@ -321,12 +321,13 @@ wlan_11n_ioctl_stream_cfg(IN pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_11n_cfg *cfg = MNULL;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 
 	ENTER();
 
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
-		cfg->param.stream_cfg = pmadapter->usr_dev_mcs_support;
+		cfg->param.stream_cfg = pmpriv->usr_dev_mcs_support;
 	} else if (pioctl_req->action == MLAN_ACT_SET) {
 		switch (cfg->param.stream_cfg) {
 		case HT_STREAM_MODE_2X2:
@@ -335,11 +336,11 @@ wlan_11n_ioctl_stream_cfg(IN pmlan_adapter pmadapter,
 				       "HW does not support this mode\n");
 				ret = MLAN_STATUS_FAILURE;
 			} else
-				pmadapter->usr_dev_mcs_support =
+				pmpriv->usr_dev_mcs_support =
 					cfg->param.stream_cfg;
 			break;
 		case HT_STREAM_MODE_1X1:
-			pmadapter->usr_dev_mcs_support = cfg->param.stream_cfg;
+			pmpriv->usr_dev_mcs_support = cfg->param.stream_cfg;
 			break;
 		default:
 			PRINTM(MERROR, "Invalid stream mode\n");
@@ -1145,6 +1146,7 @@ wlan_11n_ioctl_supported_mcs_set(IN pmlan_adapter pmadapter,
 	mlan_ds_11n_cfg *cfg = MNULL;
 	int rx_mcs_supp;
 	t_u8 mcs_set[NUM_MCS_FIELD];
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 
 	ENTER();
 
@@ -1154,15 +1156,15 @@ wlan_11n_ioctl_supported_mcs_set(IN pmlan_adapter pmadapter,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	rx_mcs_supp = GET_RXMCSSUPP(pmadapter->usr_dev_mcs_support);
+	rx_mcs_supp = GET_RXMCSSUPP(pmpriv->usr_dev_mcs_support);
 	/* Set MCS for 1x1/2x2 */
 	memset(pmadapter, (t_u8 *)mcs_set, 0xff, rx_mcs_supp);
 	/* Clear all the other values */
 	memset(pmadapter, (t_u8 *)&mcs_set[rx_mcs_supp], 0,
 	       NUM_MCS_FIELD - rx_mcs_supp);
 	/* Set MCS32 with 40MHz support */
-	if (ISSUPP_CHANWIDTH40(pmadapter->usr_dot_11n_dev_cap_bg)
-	    || ISSUPP_CHANWIDTH40(pmadapter->usr_dot_11n_dev_cap_a)
+	if (ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_bg)
+	    || ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_a)
 		)
 		SETHT_MCS32(mcs_set);
 
@@ -1274,9 +1276,9 @@ wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 	ENTER();
 
 	if (bands & BAND_A)
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_a;
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_a;
 	else
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_bg;
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_bg;
 
 	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap))
 		SETHT_SUPPCHANWIDTH(ht_cap->ht_cap_info);
@@ -1356,9 +1358,9 @@ wlan_fill_ht_cap_tlv(mlan_private *priv,
 	ENTER();
 
 	if (bands & BAND_A)
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_a;
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_a;
 	else
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_bg;
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_bg;
 
 	/* Fill HT cap info */
 	wlan_fill_cap_info(priv, &pht_cap->ht_cap, bands);
@@ -1369,7 +1371,7 @@ wlan_fill_ht_cap_tlv(mlan_private *priv,
 	SETAMPDU_SIZE(pht_cap->ht_cap.ampdu_param, AMPDU_FACTOR_64K);
 	SETAMPDU_SPACING(pht_cap->ht_cap.ampdu_param, 0);
 
-	rx_mcs_supp = GET_RXMCSSUPP(pmadapter->usr_dev_mcs_support);
+	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
 	/* Clear all the other values to get the minimum mcs set btw STA and AP
 	 */
 	memset(pmadapter,
@@ -1412,9 +1414,9 @@ wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap, t_u8 bands)
 	pht_cap->ieee_hdr.element_id = HT_CAPABILITY;
 	pht_cap->ieee_hdr.len = sizeof(HTCap_t);
 	if (bands & BAND_A)
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_a;
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_a;
 	else
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_bg;
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_bg;
 
 	/* Fill HT cap info */
 	wlan_fill_cap_info(priv, &pht_cap->ht_cap, bands);
@@ -1423,7 +1425,7 @@ wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap, t_u8 bands)
 	SETAMPDU_SIZE(pht_cap->ht_cap.ampdu_param, AMPDU_FACTOR_64K);
 	SETAMPDU_SPACING(pht_cap->ht_cap.ampdu_param, 0);
 
-	rx_mcs_supp = GET_RXMCSSUPP(pmadapter->usr_dev_mcs_support);
+	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
 	memset(pmadapter, (t_u8 *)pht_cap->ht_cap.supported_mcs_set, 0xff,
 	       rx_mcs_supp);
 	/* Clear all the other values to get the minimum mcs set btw STA and AP
@@ -1629,6 +1631,9 @@ wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 
 	tid = (padd_ba_rsp->block_ack_param_set & BLOCKACKPARAM_TID_MASK)
 		>> BLOCKACKPARAM_TID_POS;
+
+	ra_list =
+		wlan_wmm_get_ralist_node(priv, tid, padd_ba_rsp->peer_mac_addr);
 	if (padd_ba_rsp->status_code == BA_RESULT_SUCCESS) {
 		ptx_ba_tbl = wlan_11n_get_txbastream_tbl(priv, tid,
 							 padd_ba_rsp->
@@ -1656,10 +1661,18 @@ wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 				ptx_ba_tbl->amsdu = MTRUE;
 			else
 				ptx_ba_tbl->amsdu = MFALSE;
+			if (ra_list) {
+				ra_list->amsdu_in_ampdu = ptx_ba_tbl->amsdu;
+				ra_list->ba_status = BA_STREAM_SETUP_COMPLETE;
+			}
 		} else {
 			PRINTM(MERROR, "BA stream not created\n");
 		}
 	} else {
+		if (ra_list) {
+			ra_list->amsdu_in_ampdu = MFALSE;
+			ra_list->ba_status = BA_STREAM_NOT_SETUP;
+		}
 		mlan_11n_delete_bastream_tbl(priv, tid,
 					     padd_ba_rsp->peer_mac_addr,
 					     TYPE_DELBA_SENT, MTRUE);
@@ -2292,14 +2305,14 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 	}
 
 	if (pbss_desc->bss_band & BAND_A)
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_a;
+		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_a;
 	else
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_bg;
+		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_bg;
 
 	if (pbss_desc->bss_band & BAND_A)
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_a;
+		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_a;
 	else
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_bg;
+		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_bg;
 	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
 	    ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !wlan_check_chan_width_ht40_by_region(pmpriv, pbss_desc)) {
@@ -2307,7 +2320,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		RESETSUPP_CHANWIDTH40(usr_dot_11n_dev_cap);
 		RESET_40MHZ_INTOLARENT(usr_dot_11n_dev_cap);
 		RESETSUPP_SHORTGI40(usr_dot_11n_dev_cap);
-		pmadapter->usr_dot_11n_dev_cap_bg = usr_dot_11n_dev_cap;
+		pmpriv->usr_dot_11n_dev_cap_bg = usr_dot_11n_dev_cap;
 	}
 	if (pbss_desc->pht_cap) {
 		pht_cap = (MrvlIETypes_HTCap_t *)*ppbuffer;
@@ -2449,7 +2462,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 	}
 
 	if (orig_usr_dot_11n_dev_cap)
-		pmadapter->usr_dot_11n_dev_cap_bg = orig_usr_dot_11n_dev_cap;
+		pmpriv->usr_dot_11n_dev_cap_bg = orig_usr_dot_11n_dev_cap;
 
 	LEAVE();
 	return ret_len;
@@ -2671,6 +2684,7 @@ wlan_11n_create_txbastream_tbl(mlan_private *priv,
 {
 	TxBAStreamTbl *new_node = MNULL;
 	pmlan_adapter pmadapter = priv->adapter;
+	raListTbl *ra_list = MNULL;
 
 	ENTER();
 
@@ -2686,12 +2700,16 @@ wlan_11n_create_txbastream_tbl(mlan_private *priv,
 			LEAVE();
 			return;
 		}
+		ra_list = wlan_wmm_get_ralist_node(priv, tid, ra);
+		if (ra_list) {
+			ra_list->amsdu_in_ampdu = MFALSE;
+			ra_list->ba_status = ba_status;
+		}
 		util_init_list((pmlan_linked_list)new_node);
 
 		new_node->tid = tid;
 		new_node->ba_status = ba_status;
 		memcpy(pmadapter, new_node->ra, ra, MLAN_MAC_ADDR_LENGTH);
-
 		util_enqueue_list_tail(pmadapter->pmoal_handle,
 				       &priv->tx_ba_stream_tbl_ptr,
 				       (pmlan_linked_list)new_node,
@@ -2946,4 +2964,16 @@ wlan_11n_cleanup_txbastream_tbl(mlan_private *priv, t_u8 *ra)
 	}
 	LEAVE();
 	return;
+}
+
+void
+wlan_update_11n_cap(mlan_private *pmpriv)
+{
+	mlan_adapter *pmadapter = pmpriv->adapter;
+
+	pmpriv->usr_dev_mcs_support = pmadapter->hw_dev_mcs_support;
+	pmpriv->usr_dot_11n_dev_cap_bg =
+		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_BG;
+	pmpriv->usr_dot_11n_dev_cap_a =
+		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
 }

@@ -290,8 +290,8 @@ wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 		pmadapter->callbacks.moal_hist_data_add(pmadapter->pmoal_handle,
 							pmbuf->bss_index,
 							adj_rx_rate,
-							prx_pd->snr,
-							prx_pd->nf);
+							prx_pd->snr, prx_pd->nf,
+							prx_pd->antenna);
 	}
 
 	rx_pkt_type = prx_pd->rx_pkt_type;

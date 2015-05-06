@@ -153,15 +153,14 @@ wlan_get_nss_vht_mcs(t_u16 mcs_map_set)
 static void
 wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap, t_u8 bands)
 {
-	mlan_adapter *pmadapter = priv->adapter;
 	t_u32 usr_dot_11ac_dev_cap;
 
 	ENTER();
 
 	if (bands & BAND_A)
-		usr_dot_11ac_dev_cap = pmadapter->usr_dot_11ac_dev_cap_a;
+		usr_dot_11ac_dev_cap = priv->usr_dot_11ac_dev_cap_a;
 	else
-		usr_dot_11ac_dev_cap = pmadapter->usr_dot_11ac_dev_cap_bg;
+		usr_dot_11ac_dev_cap = priv->usr_dot_11ac_dev_cap_bg;
 
 	vht_cap->vht_cap_info = usr_dot_11ac_dev_cap;
 
@@ -271,7 +270,7 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 			/* use the previous user value */
 			if (cfg->param.vht_cfg.vht_rx_mcs == 0xffffffff)
 				cfg->param.vht_cfg.vht_rx_mcs =
-					GET_VHTMCS(pmadapter->
+					GET_VHTMCS(pmpriv->
 						   usr_dot_11ac_mcs_support);
 			for (nss = 1; nss <= 8; nss++) {
 				cfg_value =
@@ -296,7 +295,7 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 			/* use the previous user value */
 			if (cfg->param.vht_cfg.vht_tx_mcs == 0xffffffff)
 				cfg->param.vht_cfg.vht_tx_mcs =
-					GET_VHTMCS(pmadapter->
+					GET_VHTMCS(pmpriv->
 						   usr_dot_11ac_mcs_support >>
 						   16);
 			for (nss = 1; nss <= 8; nss++) {
@@ -320,15 +319,15 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 			PRINTM(MINFO, "Set: vht tx mcs set 0x%08x\n",
 			       cfg->param.vht_cfg.vht_tx_mcs);
 
-			RESET_DEVRXMCSMAP(pmadapter->usr_dot_11ac_mcs_support);
-			pmadapter->usr_dot_11ac_mcs_support |=
+			RESET_DEVRXMCSMAP(pmpriv->usr_dot_11ac_mcs_support);
+			pmpriv->usr_dot_11ac_mcs_support |=
 				GET_VHTMCS(cfg->param.vht_cfg.vht_rx_mcs);
-			RESET_DEVTXMCSMAP(pmadapter->usr_dot_11ac_mcs_support);
-			pmadapter->usr_dot_11ac_mcs_support |=
+			RESET_DEVTXMCSMAP(pmpriv->usr_dot_11ac_mcs_support);
+			pmpriv->usr_dot_11ac_mcs_support |=
 				(GET_VHTMCS(cfg->param.vht_cfg.vht_tx_mcs) <<
 				 16);
 			PRINTM(MINFO, "Set: vht mcs set 0x%08x\n",
-			       pmadapter->usr_dot_11ac_mcs_support);
+			       pmpriv->usr_dot_11ac_mcs_support);
 		}
 	}
 
@@ -337,16 +336,16 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 			/* maximum VHT configuration used in association */
 			if (pioctl_req->action == MLAN_ACT_SET) {
 				if (cfg->param.vht_cfg.band == BAND_SELECT_BG)
-					pmadapter->usr_dot_11ac_dev_cap_bg =
+					pmpriv->usr_dot_11ac_dev_cap_bg =
 						usr_vht_cap_info;
 				else if (cfg->param.vht_cfg.band ==
 					 BAND_SELECT_A)
-					pmadapter->usr_dot_11ac_dev_cap_a =
+					pmpriv->usr_dot_11ac_dev_cap_a =
 						usr_vht_cap_info;
 				else {
-					pmadapter->usr_dot_11ac_dev_cap_bg =
+					pmpriv->usr_dot_11ac_dev_cap_bg =
 						usr_vht_cap_info;
-					pmadapter->usr_dot_11ac_dev_cap_a =
+					pmpriv->usr_dot_11ac_dev_cap_a =
 						usr_vht_cap_info;
 				}
 
@@ -354,32 +353,28 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 		/** GET operation */
 				if (cfg->param.vht_cfg.band == BAND_SELECT_BG) {
 					cfg->param.vht_cfg.vht_cap_info =
-						pmadapter->
-						usr_dot_11ac_dev_cap_bg;
+						pmpriv->usr_dot_11ac_dev_cap_bg;
 					PRINTM(MINFO,
 					       "Get: vht cap info for 2.4GHz 0x%x\n",
-					       pmadapter->
-					       usr_dot_11ac_dev_cap_bg);
+					       pmpriv->usr_dot_11ac_dev_cap_bg);
 				} else if (cfg->param.vht_cfg.band ==
 					   BAND_SELECT_A) {
 					cfg->param.vht_cfg.vht_cap_info =
-						pmadapter->
-						usr_dot_11ac_dev_cap_a;
+						pmpriv->usr_dot_11ac_dev_cap_a;
 					PRINTM(MINFO,
 					       "Get: vht cap info for 5GHz 0x%x\n",
-					       pmadapter->
-					       usr_dot_11ac_dev_cap_a);
+					       pmpriv->usr_dot_11ac_dev_cap_a);
 				} else {
 					PRINTM(MINFO,
 					       "Get: invalid band selection for vht cap info\n");
 					ret = MLAN_STATUS_FAILURE;
 				}
 				cfg->param.vht_cfg.vht_rx_mcs =
-					GET_DEVRXMCSMAP
-					(pmadapter->usr_dot_11ac_mcs_support);
+					GET_DEVRXMCSMAP(pmpriv->
+							usr_dot_11ac_mcs_support);
 				cfg->param.vht_cfg.vht_tx_mcs =
-					GET_DEVTXMCSMAP
-					(pmadapter->usr_dot_11ac_mcs_support);
+					GET_DEVTXMCSMAP(pmpriv->
+							usr_dot_11ac_mcs_support);
 				cfg->param.vht_cfg.vht_rx_max_rate =
 					wlan_convert_mcsmap_to_maxrate(pmpriv,
 								       cfg->
@@ -575,7 +570,6 @@ wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands, t_u16 mcs_map)
 	t_u8 max_mcs;
 	t_u16 max_rate = 0;
 	t_u32 usr_vht_cap_info = 0;
-	mlan_adapter *pmadapter = priv->adapter;
 
 	/* tables of the MCS map to the highest data rate (in Mbps) supported
 	   for long GI */
@@ -601,9 +595,9 @@ wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands, t_u16 mcs_map)
 	};
 
 	if (bands & BAND_AAC)
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_a;
+		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_a;
 	else
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_bg;
+		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_bg;
 
 	/* find the max NSS supported */
 	nss = 0;
@@ -648,7 +642,6 @@ void
 wlan_fill_vht_cap_tlv(mlan_private *priv,
 		      MrvlIETypes_VHTCap_t *pvht_cap, t_u8 bands)
 {
-	mlan_adapter *pmadapter = priv->adapter;
 	t_u16 mcs_map_user = 0;
 	t_u16 mcs_map_resp = 0;
 	t_u16 mcs_map_result = 0;
@@ -665,7 +658,7 @@ wlan_fill_vht_cap_tlv(mlan_private *priv,
 
 	/* Fill VHT MCS Set */
 	/* rx MCS Set, find the minimum of the user rx mcs and ap rx mcs */
-	mcs_map_user = GET_DEVRXMCSMAP(pmadapter->usr_dot_11ac_mcs_support);
+	mcs_map_user = GET_DEVRXMCSMAP(priv->usr_dot_11ac_mcs_support);
 	mcs_map_resp = wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.rx_mcs_map);
 	mcs_map_result = 0;
 	for (nss = 1; nss <= 8; nss++) {
@@ -689,7 +682,7 @@ wlan_fill_vht_cap_tlv(mlan_private *priv,
 		wlan_cpu_to_le16(pvht_cap->vht_cap.mcs_sets.rx_max_rate);
 
 	/* tx MCS Set find the minimum of the user tx mcs and ap tx mcs */
-	mcs_map_user = GET_DEVTXMCSMAP(pmadapter->usr_dot_11ac_mcs_support);
+	mcs_map_user = GET_DEVTXMCSMAP(priv->usr_dot_11ac_mcs_support);
 	mcs_map_resp = wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.tx_mcs_map);
 	mcs_map_result = 0;
 	for (nss = 1; nss <= 8; nss++) {
@@ -729,8 +722,6 @@ void
 wlan_fill_vht_cap_ie(mlan_private *priv,
 		     IEEEtypes_VHTCap_t *pvht_cap, t_u8 bands)
 {
-	mlan_adapter *pmadapter = priv->adapter;
-
 	ENTER();
 
 	pvht_cap->ieee_hdr.element_id = VHT_CAPABILITY;
@@ -741,7 +732,7 @@ wlan_fill_vht_cap_ie(mlan_private *priv,
 
 	/* rx MCS map */
 	pvht_cap->vht_cap.mcs_sets.rx_mcs_map =
-		GET_DEVRXMCSMAP(pmadapter->usr_dot_11ac_mcs_support);
+		GET_DEVRXMCSMAP(priv->usr_dot_11ac_mcs_support);
 
 	/* rx highest rate */
 	pvht_cap->vht_cap.mcs_sets.rx_max_rate =
@@ -751,7 +742,7 @@ wlan_fill_vht_cap_ie(mlan_private *priv,
 
 	/* tx MCS map */
 	pvht_cap->vht_cap.mcs_sets.tx_mcs_map =
-		GET_DEVTXMCSMAP(pmadapter->usr_dot_11ac_mcs_support);
+		GET_DEVTXMCSMAP(priv->usr_dot_11ac_mcs_support);
 	/* tx highest rate */
 	pvht_cap->vht_cap.mcs_sets.tx_max_rate =
 		wlan_convert_mcsmap_to_maxrate(priv, bands,
@@ -800,7 +791,6 @@ void
 wlan_fill_tdls_vht_oprat_ie(mlan_private *priv, IEEEtypes_VHTOprat_t *vht_oprat,
 			    sta_node *sta_ptr)
 {
-	mlan_adapter *pmadapter = priv->adapter;
 	t_u8 supp_chwd_set;
 	t_u8 peer_supp_chwd_set;
 	t_u8 ap_supp_chwd_set;
@@ -841,9 +831,9 @@ wlan_fill_tdls_vht_oprat_ie(mlan_private *priv, IEEEtypes_VHTOprat_t *vht_oprat,
 		sizeof(IEEEtypes_VHTOprat_t) - sizeof(IEEEtypes_Header_t);
 
 	if (pbss_desc->bss_band & BAND_A)
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_a;
+		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_a;
 	else
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_bg;
+		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_bg;
 
 	/* find the minmum bandwith between AP/TDLS peers */
 	supp_chwd_set = GET_VHTCAP_CHWDSET(usr_vht_cap_info);
@@ -872,7 +862,7 @@ wlan_fill_tdls_vht_oprat_ie(mlan_private *priv, IEEEtypes_VHTOprat_t *vht_oprat,
 
 	/* Fill BASIC VHT MCS and NSS Set */
 	/* rx MCS Set, find the minimum of the user rx mcs and peer rx mcs */
-	mcs_map_user = GET_DEVRXMCSMAP(pmadapter->usr_dot_11ac_mcs_support);
+	mcs_map_user = GET_DEVRXMCSMAP(priv->usr_dot_11ac_mcs_support);
 	mcs_map_resp = pvht_cap->vht_cap.mcs_sets.rx_mcs_map;
 	mcs_map_result = 0;
 	for (nss = 1; nss <= 8; nss++) {
@@ -940,9 +930,9 @@ wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		return 0;
 	}
 	if (pbss_desc->bss_band & BAND_A)
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_a;
+		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_a;
 	else
-		usr_vht_cap_info = pmadapter->usr_dot_11ac_dev_cap_bg;
+		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_bg;
 
 	/* VHT Capabilities IE */
 	if (pbss_desc->pvht_cap &&
@@ -1162,4 +1152,19 @@ wlan_ret_11ac_cfg(IN pmlan_private pmpriv,
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
+}
+
+void
+wlan_update_11ac_cap(mlan_private *pmpriv)
+{
+
+	mlan_adapter *pmadapter = pmpriv->adapter;
+
+	pmpriv->usr_dot_11ac_mcs_support = pmadapter->hw_dot_11ac_mcs_support;
+	pmpriv->usr_dot_11ac_dev_cap_bg =
+		pmadapter->
+		hw_dot_11ac_dev_cap & ~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
+	pmpriv->usr_dot_11ac_dev_cap_a =
+		pmadapter->
+		hw_dot_11ac_dev_cap & ~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
 }

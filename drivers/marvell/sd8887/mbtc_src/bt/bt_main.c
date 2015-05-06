@@ -4,7 +4,7 @@
   * driver. It includes init, exit, open, close and main
   * thread etc..
   *
-  * Copyright (C) 2007-2014, Marvell International Ltd.
+  * Copyright (C) 2007-2015, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -29,7 +29,7 @@
   *
   * @section copyright_sec Copyright
   *
-  * Copyright (C) 2007-2014, Marvell International Ltd.
+  * Copyright (C) 2007-2015, Marvell International Ltd.
   *
   */
 
@@ -369,6 +369,35 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 						      cmd_wait_q);
 				break;
 			}
+		case BT_CMD_HISTOGRAM:
+			{
+				u8 *status =
+					skb->data + HCI_EVENT_HDR_SIZE +
+					sizeof(struct hci_ev_cmd_complete);
+				u8 *pos =
+					(skb->data + HCI_EVENT_HDR_SIZE +
+					 sizeof(struct hci_ev_cmd_complete) +
+					 1);
+				if (*status == 0) {
+					priv->hist_data_len =
+						hdr->plen -
+						sizeof(struct
+						       hci_ev_cmd_complete) - 1;
+					if (priv->hist_data_len >
+					    sizeof(priv->hist_data))
+						priv->hist_data_len =
+							sizeof(priv->hist_data);
+					memcpy(priv->hist_data, pos,
+					       priv->hist_data_len);
+					PRINTM(CMD, "histogram len=%d\n",
+					       priv->hist_data_len);
+				}
+				priv->bt_dev.sendcmdflag = FALSE;
+				priv->adapter->cmd_complete = TRUE;
+				wake_up_interruptible(&priv->adapter->
+						      cmd_wait_q);
+				break;
+			}
 #ifdef SDIO_SUSPEND_RESUME
 		case FM_CMD:
 			{
@@ -429,6 +458,8 @@ bt_process_event(bt_private *priv, struct sk_buff *skb)
 		goto exit;
 	}
 	switch (pevent->data[0]) {
+	case BT_CMD_HISTOGRAM:
+		break;
 	case BT_CMD_AUTO_SLEEP_MODE:
 		if (pevent->data[2] == BT_STATUS_SUCCESS) {
 			if (pevent->data[1] == BT_PS_ENABLE)
@@ -824,7 +855,8 @@ bt_dump_firmware_info_v2(bt_private *priv)
 			break;
 		} else {
 			PRINTM(MSG, "%s_SIZE=0x%x\n",
-			       bt_mem_type_mapping_tbl[idx].mem_name, memory_size);
+			       bt_mem_type_mapping_tbl[idx].mem_name,
+			       memory_size);
 			bt_mem_type_mapping_tbl[idx].mem_Ptr =
 				vmalloc(memory_size + 1);
 			if ((ret != BT_STATUS_SUCCESS) ||
@@ -867,8 +899,8 @@ bt_dump_firmware_info_v2(bt_private *priv)
 				       "size = 0x%x\n",
 				       bt_mem_type_mapping_tbl[idx].mem_name,
 				       (unsigned int)(dbg_ptr -
-						      bt_mem_type_mapping_tbl[idx].
-						      mem_Ptr));
+						      bt_mem_type_mapping_tbl
+						      [idx].mem_Ptr));
 				memset(file_name, 0, sizeof(file_name));
 				sprintf((char *)file_name, "%s%s", "file_bt_",
 					bt_mem_type_mapping_tbl[idx].mem_name);
@@ -1040,6 +1072,51 @@ bt_send_module_cfg_cmd(bt_private *priv, int subcmd)
 		bt_cmd_timeout_func(priv, BT_CMD_MODULE_CFG_REQ);
 	} else {
 		PRINTM(CMD, "BT: module cfg Command done\n");
+	}
+exit:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function to get histogram
+ *
+ *  @param priv    A pointer to bt_private structure
+ *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
+ */
+int
+bt_get_histogram(bt_private *priv)
+{
+	struct sk_buff *skb = NULL;
+	int ret = BT_STATUS_SUCCESS;
+	BT_CMD *pcmd;
+	ENTER();
+	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
+	if (skb == NULL) {
+		PRINTM(WARN, "No free skb\n");
+		ret = BT_STATUS_FAILURE;
+		goto exit;
+	}
+	pcmd = (BT_CMD *)skb->data;
+	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_HISTOGRAM;
+	pcmd->length = 0;
+	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
+	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
+	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
+	skb_queue_head(&priv->adapter->tx_queue, skb);
+	PRINTM(CMD, "Queue Histogram cmd(0x%x)\n", pcmd->ocf_ogf);
+	priv->bt_dev.sendcmdflag = TRUE;
+	priv->bt_dev.send_cmd_ocf = BT_CMD_HISTOGRAM;
+	priv->adapter->cmd_complete = FALSE;
+	priv->hist_data_len = 0;
+	memset(priv->hist_data, 0, sizeof(priv->hist_data));
+	wake_up_interruptible(&priv->MainThread.waitQ);
+	if (!os_wait_interruptible_timeout
+	    (priv->adapter->cmd_wait_q, priv->adapter->cmd_complete,
+	     WAIT_UNTIL_CMD_RESP)) {
+		ret = BT_STATUS_FAILURE;
+		PRINTM(MSG, "BT: histogram timeout:\n");
+		bt_cmd_timeout_func(priv, BT_CMD_HISTOGRAM);
 	}
 exit:
 	LEAVE();
@@ -2756,7 +2833,7 @@ sbi_register_conf_dpc(bt_private *priv)
 
 		/** chmod & chown for BT char device */
 		mbtchar_chown(dev_file, AID_SYSTEM, AID_BLUETOOTH);
-		mbtchar_chmod(dev_file, 0660);
+		mbtchar_chmod(dev_file, 0666);
 
 		/** create proc device */
 		snprintf(priv->bt_dev.m_dev[BT_SEQ].name,

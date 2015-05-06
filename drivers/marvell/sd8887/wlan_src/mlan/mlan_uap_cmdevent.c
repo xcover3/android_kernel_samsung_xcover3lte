@@ -75,7 +75,8 @@ uap_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 			mlan_ds_misc_cfg *misc = MNULL;
 			custom_ie *cptr;
 
-			if (pioctl_buf->req_id != MLAN_IOCTL_MISC_CFG)
+			if (!pioctl_buf ||
+			    (pioctl_buf->req_id != MLAN_IOCTL_MISC_CFG))
 				break;
 			misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
 			if ((pioctl_buf->action == MLAN_ACT_SET) &&

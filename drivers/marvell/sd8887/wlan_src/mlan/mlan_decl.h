@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		"C090"
+#define MLAN_RELEASE_VERSION		"C095"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -479,6 +479,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_DEFER_RX_WORK = 0x80000016,
 	MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ = 0x80000017,
 	MLAN_EVENT_ID_DRV_FT_RESPONSE = 0x80000018,
+	MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK = 0x80000019,
 } mlan_event_id;
 
 /** Data Structures */
@@ -1085,7 +1086,8 @@ typedef struct _mlan_callbacks {
 	t_void (*moal_hist_data_add) (IN t_void *pmoal_handle,
 				      IN t_u32 bss_index,
 				      IN t_u8 rx_rate,
-				      IN t_s8 snr, IN t_s8 nflr);
+				      IN t_s8 snr,
+				      IN t_s8 nflr, IN t_u8 antenna);
 	t_void (*moal_updata_peer_signal) (IN t_void *pmoal_handle,
 					   IN t_u32 bss_index,
 					   IN t_u8 *peer_addr,
@@ -1216,6 +1218,8 @@ MLAN_API mlan_status mlan_recv_packet_complete(IN t_void *pmlan_adapter,
 MLAN_API t_void mlan_interrupt(IN t_void *pmlan_adapter);
 
 MLAN_API t_void mlan_pm_wakeup_card(IN t_void *pmlan_adapter);
+
+MLAN_API t_u8 mlan_is_main_process_running(IN t_void *adapter);
 
 /** mlan ioctl */
 MLAN_API mlan_status mlan_ioctl(IN t_void *pmlan_adapter,
