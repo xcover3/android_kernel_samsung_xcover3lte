@@ -486,8 +486,8 @@ static void strobe_flash(struct pm88x_led *led)
 			regmap_write(chip->test_regmap, 0x45, 0x2);
 			regmap_write(chip->test_regmap, 0x46, 0x10);
 
-			/* max brightness allowed in the state 900mA */
-			led->brightness = min_t(unsigned int, 900, led->brightness);
+			/* max brightness allowed in the state 1200mA */
+			led->brightness = min_t(unsigned int, 1200, led->brightness);
 			brightness = led->brightness;
 			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
 				PM88X_CF_BITMASK_MODE, PM88X_SELECT_FLASH_MODE);
