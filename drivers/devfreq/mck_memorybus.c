@@ -1078,7 +1078,7 @@ static int qos_max_upthrd_notifier_call(struct notifier_block *nb,
 static ssize_t upthrd_usr_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%lu\n", devfreq_throughput_data.upthreshold);
+	return sprintf(buf, "%d\n", devfreq_throughput_data.upthreshold);
 }
 
 static ssize_t upthrd_usr_store(struct kobject *kobj,
