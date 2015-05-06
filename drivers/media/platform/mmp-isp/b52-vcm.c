@@ -330,7 +330,7 @@ struct vcm_ops dw9718_ops = {
 static struct vcm_type vcm_dw9718 = {
 	.name = "dw9718",
 	.type = VCM_DW9718,
-	.attr = &vcm_attr_16BIT,
+	.attr = &vcm_attr_8BIT,
 	.pos_reg_msb = 0x02,
 	.pos_reg_lsb = 0x03,
 	.id = {
@@ -343,12 +343,14 @@ static struct vcm_type vcm_dw9718 = {
 	},
 	.ops = &dw9718_ops,
 };
+
 static struct vcm_type *b52_vcm_type[10] = {
 	[0] = NULL,
 	[1] = &vcm_dw9714,
 	[2] = NULL,
-	[3] = &vcm_dw9804,
-	[4] = &vcm_dw9718,
+	[3] = NULL,
+	[4] = &vcm_dw9804,
+	[5] = &vcm_dw9718,
 };
 
 static struct v4l2_queryctrl vcm_qctrl[] = {
@@ -471,7 +473,7 @@ static struct v4l2_ctrl_config vcm_select_type_ctrl_cfg = {
 	.name = "Select subdev type",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
-	.max = 1,
+	.max = 0xff,
 	.step = 1,
 	.def = 0
 };
