@@ -762,10 +762,11 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		spin_unlock(&c1c2_enter_lock);
 		dc_stat_info->power_mode = tgtop;
 
-		/*  this mark_keytime is flag indicate enter all idle mode,
-		 *  if two core both enter the idle,and power mode isn't
-		 *  eaqual to MAX_LPM_INDEX, mean the other core don't
-		 *  exit idle.
+		/*
+		 * calculate "all_idle" state
+		 * this mark_keytime is flag indicate enter all idle mode,
+		 * below code is used to check whether "cpuid" is the last cpu
+		 * in its cluster to enter idle. If yes all idle count started
 		 */
 		mark_keytime = true;
 		for_each_possible_cpu(cpu_i) {
@@ -783,11 +784,11 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			idle_dcstat_info.all_idle_op_index =
 			    dc_stat_info->curopindex;
 		}
-
-		/*  this mark_keytime is flag indicate enter all active
-		 *  mode,if two core both exit the idle,and power mode
-		 *  is both eaqual to MAX_LPM_INDEX, mean the other
-		 *  core both exit idle.
+		/*
+		 * calculate "all_active" state
+		 * this mark_keytime is flag indicate enter all active mode,
+		 * below code used to check whether "cpuid" is the first cpu
+		 * in its cluster to enter idle. If yes all active count end.
 		 */
 
 		mark_keytime = true;
@@ -876,7 +877,7 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				}
 			}
 		}
-
+		/* check if this "cpuid" is first of all exit idle */
 		mark_keytime = true;
 		for_each_possible_cpu(cpu_i) {
 			if (cpuid == cpu_i)
@@ -888,14 +889,15 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			}
 		}
 		spin_lock(&allidle_lock);
+		/* start to calculate */
 		if (mark_keytime) {
-			idle_dcstat_info.all_idle_end = ktime_temp;
-			idle_dcstat_info.total_all_idle +=
-			idle_dcstat_info.all_idle_end -
-				       idle_dcstat_info.all_idle_start;
-			idle_dcstat_info.total_all_idle_count++;
-
+			/* all_idle */
 			if ((u64) 0 != idle_dcstat_info.all_idle_start) {
+				idle_dcstat_info.all_idle_end = ktime_temp;
+				idle_dcstat_info.total_all_idle +=
+				idle_dcstat_info.all_idle_end -
+					       idle_dcstat_info.all_idle_start;
+
 				idle_dcstat_info.all_idle_op_total
 				    [idle_dcstat_info.all_idle_op_index] +=
 						idle_dcstat_info.
@@ -905,8 +907,11 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 				idle_dcstat_info.
 				    all_idle_count[idle_dcstat_info.
 						   all_idle_op_index]++;
-			}
 
+				idle_dcstat_info.all_idle_start = 0;
+				idle_dcstat_info.total_all_idle_count++;
+			}
+			/* M2, D1P, D1, D2 */
 			if (!multi_cluster) {
 				if ((u64) 0 != idle_dcstat_info.M2_idle_start) {
 					idle_dcstat_info.M2_idle_total +=
@@ -1257,7 +1262,7 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 				seq_printf(seq, "| %-4d ", cpu);
 			else
 				seq_puts(seq, "|      ");
-			seq_printf(seq, "| %-3u | %10lu | %8llu | %9llu | %4u.%2u%% |%3lld%%, %-7llu | %3lld%%, %-9lld | %3lld%%, %-9llu |\n",
+			seq_printf(seq, "| %-3u | %10lu | %8llu | %9llu | %4u.%2u%% | %3lld%%, %-7llu | %3lld%%, %-9lld | %3lld%%, %-9llu |\n",
 				percpu_stat->ops_dcstat[i].ppindex,
 				percpu_stat->ops_dcstat[i].pprate,
 				div64_u64(percpu_stat->runtime_op_total[i],
