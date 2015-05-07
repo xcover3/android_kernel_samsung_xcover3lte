@@ -121,6 +121,8 @@
 		high-threshold = <50>;
 
 		cc-fixup = <102>;
+		power-off-extreme-th = <3200 3400>; /* extreme power off threshold */
+
 	};
 
 	led {

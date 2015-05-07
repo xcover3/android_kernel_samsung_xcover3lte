@@ -140,6 +140,8 @@
 		gpadc-temp-no = <1>;
 
 		cc-fixup = <102>;
+		power-off-extreme-th = <3200 3400>; /* extreme power off threshold */
+
 	};
 
 	charger {
