@@ -114,6 +114,7 @@ struct pm88x_gpadc_info {
 	u8 (*channel_to_reg)(int channel);
 	u8 (*channel_to_gpadc_num)(int channel);
 	struct iio_map *map;
+	int bias_index[GPADC_MAX];
 };
 
 struct pm88x_gpadc_extra_info {
@@ -382,45 +383,53 @@ static int pm88x_gpadc_choose_bias_current(struct pm88x_gpadc_info *info,
 	}
 
 	/*
+	 * for each GPADC, if it is the first time here,
 	 * set an inital bias 31uA (index=6) which should cover most cases
 	 */
-	index = 6;
+	if (info->bias_index[gpadc_number] == -1)
+		index = 6;
+	else
+		index = info->bias_index[gpadc_number];
+
 	do {
-		ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, index);
-		if (ret < 0)
-			return ret;
-		usleep_range(20000, 30000);
+		if (index != info->bias_index[gpadc_number]) {
+			ret = regmap_update_bits(info->chip->gpadc_regmap, reg, 0xf, index);
+			if (ret < 0)
+				return ret;
+			usleep_range(20000, 30000);
+		}
 		/* uA */
 		*bias_current = 1 + index * 5;
 		ret = pm88x_gpadc_get_processed(info, channel, bias_voltage);
 		if (ret < 0)
 			return ret;
 
+		info->bias_index[gpadc_number] = index;
 		/* voltage too low, need to increase bias */
 		if (*bias_voltage < 300000) {
 			dev_dbg(info->chip->dev,
-				"not a good bias! current = %duA, voltage = %duV\n",
-				*bias_current, *bias_voltage);
+				"GPADC%d: not a good bias! current = %duA, voltage = %duV\n",
+				gpadc_number, *bias_current, *bias_voltage);
 			index++;
 		/* voltage too high, need to decrease bias */
 		} else if (*bias_voltage > 1250000) {
 			dev_dbg(info->chip->dev,
-				"not a good bias! current = %duA, voltage = %duV\n",
-				*bias_current, *bias_voltage);
+				"GPADC%d: not a good bias! current = %duA, voltage = %duV\n",
+				gpadc_number, *bias_current, *bias_voltage);
 			index--;
 		/* voltage is inside the valid range */
 		} else {
 			dev_dbg(info->chip->dev,
-				"hit: current = %duA, voltage = %duV\n",
-				*bias_current, *bias_voltage);
+				"GPADC%d: hit! current = %duA, voltage = %duV\n",
+				gpadc_number, *bias_current, *bias_voltage);
 			break;
 		}
 	} while (index >= 0 && index <= 15);
 
 	if (index < 0 || index > 15) {
 		dev_err(info->chip->dev,
-			"reached the boundery, no more biases left! (%duA, %duV)\n",
-			*bias_current, *bias_voltage);
+			"GPADC%d: reached the boundary, no more biases left! (%duA, %duV)\n",
+			gpadc_number, *bias_current, *bias_voltage);
 	}
 
 	return 0;
@@ -534,10 +543,12 @@ static const struct iio_info pm88x_gpadc_iio_info = {
 static int pm88x_gpadc_setup(struct pm88x_gpadc_info *gpadc)
 {
 	int ret;
+
 	if (!gpadc || !gpadc->chip || !gpadc->chip->gpadc_regmap) {
 		pr_err("%s: gpadc info is empty.\n", __func__);
 		return -ENODEV;
 	}
+
 	/* gpadc enable */
 	ret = regmap_update_bits(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG6,
 				 1 << 0, 1 << 0);
@@ -548,6 +559,9 @@ static int pm88x_gpadc_setup(struct pm88x_gpadc_info *gpadc)
 	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG1, 0xff);
 	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, 0xfd);
 	regmap_write(gpadc->chip->gpadc_regmap, PM88X_GPADC_CONFIG3, 0x01);
+
+	/* initialize bias array to -1 */
+	memset(gpadc->bias_index, -1, sizeof(gpadc->bias_index));
 
 	return 0;
 }
@@ -959,6 +973,7 @@ static int pm88x_gpadc_probe(struct platform_device *pdev)
 	gpadc->channel_to_gpadc_num = pm88x_channel_to_gpadc_num;
 
 	mutex_init(&gpadc->lock);
+	platform_set_drvdata(pdev, iio);
 
 	iio->dev.of_node = pdev->dev.of_node;
 	err = pm88x_iio_map_register(iio, gpadc);
@@ -991,7 +1006,9 @@ static int pm88x_gpadc_probe(struct platform_device *pdev)
 static int pm88x_gpadc_remove(struct platform_device *pdev)
 {
 	struct iio_dev *iio = platform_get_drvdata(pdev);
+
 	iio_device_unregister(iio);
+	iio_map_array_unregister(iio);
 
 	return 0;
 }
