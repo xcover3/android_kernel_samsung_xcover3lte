@@ -186,6 +186,10 @@ struct lm3532_platform_data {
 					 */
 	unsigned output_cfg_val;
 	unsigned ctrl_a_current_ctrl; /* choose ALS or I2C current control */
+
+	struct pinctrl *pinctrl;	/*pinctrl interface*/
+	struct pinctrl_state *pin_lpm_drv_low;
+	struct pinctrl_state *pin_lpm_drv_high;
 };
 #endif
 
