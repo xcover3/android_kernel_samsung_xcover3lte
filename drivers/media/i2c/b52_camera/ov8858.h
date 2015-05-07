@@ -460,7 +460,7 @@ struct regval_tab ov8858r2a_id[] = {
 };
 struct regval_tab ov8858r2a_vts[] = {
 	{0x380e, 0x09, 0x7f},
-	{0x380f, 0xaa, 0xff},
+	{0x380f, 0xdc, 0xff},
 };
 struct regval_tab ov8858r2a_stream_on[] = {
 	{0x0100, 0x01, 0xff},
@@ -482,10 +482,10 @@ struct regval_tab ov8858r2a_af[] = {
 	{0x3619, 0x00, 0xff},
 };
 struct regval_tab ov8858r2a_vflip[] = {
-	{0x3620, 0x00, 0x4},
+	{0x3820, 0x00, 0x6},
 };
 struct regval_tab ov8858r2a_hflip[] = {
-	{0x3621, 0x00, 0x4},
+	{0x3821, 0x00, 0x6},
 };
 
 struct b52_sensor_i2c_attr ov8858r2a_i2c_attr[] = {
@@ -584,12 +584,12 @@ struct b52_sensor_data b52_ov8858 = {
 		.numerator = 100,
 		.denominator = 0x10,
 	},
-	.vts_range = {0X0ba0, 0x7fff},
+	.vts_range = {0x09dc, 0x7fff},
 	.gain_range = {
 		[B52_SENSOR_AG] = {0x0010, 0x00f8},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
-	.expo_range = {0x00010, 0xb90},
+	.expo_range = {0x0010, 0x09cc},
 	.focus_range = {0x0010, 0x03ff},
 	.vts_reg = {
 		.tab = ov8858r2a_vts,
