@@ -1002,7 +1002,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				CLK_SET_RATE_PARENT,
 				&disp_axi_mix_config, &disp_lock);
 	mmp_clk_add(unit, PXA1936_CLK_DISP_AXI_SEL_CLK, clk);
-	clk_set_rate(clk, 208000000);
+	clk_set_rate(clk, 104000000);
 
 	clk = mmp_clk_register_gate(NULL, "disp_axi_clk", "disp_axi_sel_clk",
 			CLK_SET_RATE_PARENT,
