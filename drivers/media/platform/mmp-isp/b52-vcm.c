@@ -221,7 +221,7 @@ struct vcm_ops dw9714_ops = {
 static struct vcm_type vcm_dw9714 = {
 	.name = "dw9714",
 	.type = VCM_DW9714,
-	.attr = &vcm_attr_8BIT,
+	.attr = &vcm_attr_16BIT,
 	.ops = &dw9714_ops,
 };
 
