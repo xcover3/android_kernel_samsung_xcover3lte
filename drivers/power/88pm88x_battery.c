@@ -2273,7 +2273,7 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	/* interrupt should be request in the last stage */
 	for (i = 0; i < info->irq_nums; i++) {
-		if (!pm88x_irq_descs[i].handler) {
+		if (pm88x_irq_descs[i].handler) {
 			ret = devm_request_threaded_irq(info->dev,
 							info->irqs[i].irq, NULL,
 							pm88x_irq_descs[i].handler,
