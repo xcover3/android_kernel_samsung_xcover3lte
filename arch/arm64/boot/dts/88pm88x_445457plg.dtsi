@@ -17,7 +17,7 @@
 		prechg-voltage = <3000>;
 		fastchg-voltage = <4200>;
 		fastchg-cur = <1000>;
-		fastchg-eoc = <20>;
+		fastchg-eoc = <80>;
 		fastchg-tout = <8>;
 		recharge-thr = <200>;
 		dcp-limit = <2400>;
