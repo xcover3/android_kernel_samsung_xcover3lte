@@ -408,6 +408,7 @@
 #define PHY_28NM_RX_SQCAL_START_MASK		(0x1 << 4)
 
 #define PHY_28NM_CTRL_REG0_SHIFT	12
+static struct mv_usb2_phy *mv_phy_ptr;
 static int _mv_usb2_phy_55nm_init(struct mv_usb2_phy *mv_phy)
 {
 	struct platform_device *pdev = mv_phy->pdev;
@@ -710,6 +711,34 @@ void usb_phy_force_dp_dm(struct usb_phy *phy, bool is_force)
 #endif
 }
 #endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
+
+void usb2_phy_dip_set(int on_off)
+{
+	void __iomem *base = mv_phy_ptr->base;
+	int reg1, reg2;
+	static int status;
+	int tmp = readl(base + PHY_28NM_PLL_REG0) &
+		~(PHY_28NM_PLL_SELLPFR_MASK | PHY_28NM_PLL_ICP_MASK);
+
+	reg1 = tmp | (0x3 << PHY_28NM_PLL_SELLPFR_SHIFT |
+			0x7 << PHY_28NM_PLL_ICP_SHIFT);
+	reg2 = tmp | (0x1 << PHY_28NM_PLL_SELLPFR_SHIFT |
+			0x3 << PHY_28NM_PLL_ICP_SHIFT);
+
+	/* if usb does not work, directly return */
+	if ((mv_phy_ptr->phy).refcount == 0 ||
+		on_off == status)
+		return;
+
+	if (on_off)
+		/* PHY_28NM_PLL_REG0 */
+		writel(reg1, base + PHY_28NM_PLL_REG0);
+	else
+		writel(reg2, base + PHY_28NM_PLL_REG0);
+
+	status = on_off;
+}
+EXPORT_SYMBOL(usb2_phy_dip_set);
 
 static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 {
@@ -1257,6 +1286,7 @@ static int mv_usb2_phy_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mv_phy);
 
+	mv_phy_ptr = mv_phy;
 	return 0;
 }
 
