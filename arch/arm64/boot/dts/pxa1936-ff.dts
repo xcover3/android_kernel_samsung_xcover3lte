@@ -53,6 +53,29 @@
 		pinctrl-single,pins = <GPIO91 AF0>;
 		MFP_PULL_LOW;
 	};
+
+	disp_func: disp_func {
+		pinctrl-single,pins = <
+		GPIO98 AF0
+		GPIO96 AF0
+		>;
+		MFP_LPM_PULL_DW;
+		};
+
+	lm3532_lpm_drv_low_pins: pinmux_lm3532_lpm_drv_low_pins {
+		pinctrl-single,pins = <GPIO32 AF0>;
+		MFP_LPM_DRIVE_LOW;
+		};
+
+	lm3532_lpm_drv_high_pins: pinmux_lm3532_lpm_drv_high_pins {
+		pinctrl-single,pins = <GPIO32 AF0>;
+		MFP_LPM_DRIVE_HIGH;
+		};
+
+};
+
+&disp {
+	pinctrl-0 = <&disp_func>;
 };
 
 / {
@@ -89,6 +112,9 @@
 						(LM3532_CTRL_A_ZONE_0_PWM_EN |
 						 LM3532_CTRL_A_PWM_POL_ACT_HIGH)>;
 					rst_gpio = <&gpio BACKLIGHT_EN 0>;
+					pinctrl-names = "lpm_drv_low", "lpm_drv_high";
+					pinctrl-0 = <&lm3532_lpm_drv_low_pins>;
+					pinctrl-1 = <&lm3532_lpm_drv_high_pins>;
 					/*
 					 * set ldo9 , since driver requires an
 					 * ldo/buck and the driver.
