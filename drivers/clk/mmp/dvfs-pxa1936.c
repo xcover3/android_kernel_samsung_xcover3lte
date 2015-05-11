@@ -41,6 +41,15 @@ enum dvfs_comp {
 	VM_RAIL_MAX,
 };
 
+enum chip_stepping_id {
+	TSMC_28LP = 0,
+	TSMC_28LP_B020A,
+	TSMC_28LP_B121A,
+	SEC_28LP_A1,
+	SEC_28LP_A1D1A,
+	SEC_28LP_A2D2A,
+};
+
 static int golden_flag;
 static int __init golden_flag_setup(char *str)
 {
@@ -79,6 +88,7 @@ static unsigned int uiprofile;
 static unsigned int helan3_maxfreq;
 static struct comm_fuse_info fuseinfo;
 static unsigned int fab_rev;
+static enum chip_stepping_id chip_stepping;
 
 struct svtrng {
 	unsigned int min;
@@ -187,6 +197,34 @@ unsigned int convert_fab_revision(unsigned int fab_revision)
 	return ui_fab;
 }
 
+char *convert_step_revision(unsigned int step_id)
+{
+	if (fab_rev == TSMC) {
+		if (step_id == 0x0) {
+			chip_stepping = TSMC_28LP;
+			return "TSMC 28LP";
+		} else if (step_id == 0x1) {
+			chip_stepping = TSMC_28LP_B020A;
+			return "TSMC 28LP_B020A";
+		} else if (step_id == 0x2) {
+			chip_stepping = TSMC_28LP_B121A;
+			return "TSMC 28LP_B121A";
+		}
+	} else if (fab_rev == SEC) {
+		if (step_id == 0x0) {
+			chip_stepping = SEC_28LP_A1;
+			return "SEC 28LP_A1";
+		} else if (step_id == 0x1) {
+			chip_stepping = SEC_28LP_A1D1A;
+			return "SEC 28LP_A1D1A";
+		} else if (step_id == 0x2) {
+			chip_stepping = SEC_28LP_A2D2A;
+			return "SEC 28LP_A2D2A";
+		}
+	}
+	return "not SEC and TSMC chip";
+}
+
 static int __init __init_read_droinfo(void)
 {
 	struct fuse_info arg;
@@ -195,7 +233,7 @@ static int __init __init_read_droinfo(void)
 	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_0, uiBlock0_GEU_FUSE_MANU_PARA_1;
 	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_2, uiBlock0_GEU_AP_CP_MP_ECC;
 	unsigned int  uiBlock0_BLOCK0_RESERVED_1, uiBlock4_MANU_PARA1_0, uiBlock4_MANU_PARA1_1;
-	unsigned int uiAllocRev, uiRun, uiWafer, uiX, uiY, uiParity;
+	unsigned int uiAllocRev, uiRun, uiWafer, uiX, uiY, uiParity, ui_step_id;
 	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0, smc_ret = 0;
 	unsigned int uiCpuFreq;
 	unsigned int uiskusetting = 0;
@@ -265,6 +303,7 @@ static int __init __init_read_droinfo(void)
 	fab_rev = convert_fab_revision(uiFabRev);
 	/*bit 201 ~ 202 for UDR voltage*/
 	uiskusetting = (uiBlock4_MANU_PARA1_1 >> 9) & 0x3;
+	ui_step_id = (uiBlock0_GEU_FUSE_MANU_PARA_2 >> 2) & 0x3;
 
 	guiProfile = convertFusesToProfile_helan3(uiProfileFuses);
 
@@ -304,6 +343,9 @@ static int __init __init_read_droinfo(void)
 		pr_info("     *  Fab   = SEC 28LP (%d)\n",    fab_rev);
 	else
 		pr_info("     *  FabRev (%d) not currently supported\n",    fab_rev);
+	pr_info("     *  ui_step_id is %d\n", ui_step_id);
+	pr_info("     *  chip_stepping is %d\n", chip_stepping);
+	pr_info("     *  chip step is %s\n", convert_step_revision(ui_step_id));
 	pr_info("     *  wafer = %d\n", uiWafer);
 	pr_info("     *  x     = %d\n",     uiX);
 	pr_info("     *  y     = %d\n",     uiY);
