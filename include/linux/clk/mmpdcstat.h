@@ -124,6 +124,10 @@ struct idle_dcstat_info {
 	u64 all_idle_end;
 	u64 total_all_idle;
 	u64 total_all_idle_count;
+	u64 all_c2_start;
+	u64 all_c2_end;
+	u64 total_all_c2;
+	u64 total_all_c2_count;
 	u64 all_active_start;
 	u64 all_active_end;
 	u64 total_all_active;
