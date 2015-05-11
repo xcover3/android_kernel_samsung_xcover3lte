@@ -155,7 +155,6 @@ struct pm88x_battery_info {
 
 	bool			use_ntc;
 	bool			bat_temp_monitor_en;
-	bool			use_sw_bd;
 	int			gpadc_det_no;
 	int			gpadc_temp_no;
 
@@ -427,58 +426,10 @@ static int pm88x_battery_get_charger_status(struct pm88x_battery_info *info)
 	return status;
 }
 
-static int pm88x_enable_bat_detect(struct pm88x_battery_info *info, bool enable)
-{
-	int data, mask, ret = 0;
-
-	/*
-	 * 0. gpadc is in non-stop mode
-	 *    enable at least another measurement
-	 *    done in the mfd driver
-	 */
-
-	/* 1. choose gpadc 1/3 to detect battery */
-	switch (info->gpadc_det_no) {
-	case 1:
-		data = 0;
-		mask = PM88X_BD_GP_SEL;
-		/* choose gpadc1 for battery temperature monitoring algo */
-		regmap_update_bits(info->chip->gpadc_regmap,
-				   PM88X_GPADC_CONFIG8,
-				   PM88X_BATT_TEMP_SEL,
-				   PM88X_BATT_TEMP_SEL_GP1);
-		break;
-	case 3:
-		/* choose gpadc3 for battery temperature monitoring algo */
-		data = mask = PM88X_BD_GP_SEL;
-		regmap_update_bits(info->chip->gpadc_regmap,
-				   PM88X_GPADC_CONFIG8,
-				   PM88X_BATT_TEMP_SEL,
-				   PM88X_BATT_TEMP_SEL_GP3);
-		break;
-	default:
-		dev_err(info->dev,
-			"wrong gpadc number: %d\n", info->gpadc_det_no);
-		return -EINVAL;
-	}
-
-	if (enable) {
-		data |= (PM88X_GPADC_BD_EN | PM88X_GPADC_BD_PREBIAS);
-		mask |= (PM88X_GPADC_BD_EN | PM88X_GPADC_BD_PREBIAS);
-	} else {
-		data = 0;
-		mask = PM88X_GPADC_BD_EN | PM88X_GPADC_BD_PREBIAS;
-	}
-
-	ret = regmap_update_bits(info->chip->gpadc_regmap,
-				 PM88X_GPADC_CONFIG8, mask, data);
-	return ret;
-}
-
 static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 {
 	static bool present;
-	int data, ret = 0;
+	int volt, ret = 0;
 
 	if (!info) {
 		pr_err("%s: empty battery info.\n", __func__);
@@ -486,80 +437,36 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 	}
 
 	if (info->use_ntc) {
-		if (info->use_sw_bd) {
-			/*
-			 * 1. bias_current = 1uA
-			 * 2. check the gpadc voltage: if < 1.8V, present
-			 *    0.6 * Vsys = 0.6 * 3V = 1.8V
-			 */
-			int gp = info->gpadc_det_no;
-			int volt;
+		/*
+		 * 1. set bias_current = 1uA
+		 * 2. check the gpadc voltage:
+		 *    if < 0.7V --> present
+		 *    else --> not present
+		 */
 
-			if (gp != 0 && gp != 2) {
-				dev_err(info->dev,
-					"%s: wrong_gpadc = %d\n", __func__, gp);
-				present = true;
-				return present;
-			}
-
-			switch (info->chip->type) {
-			case PM886:
-				if (info->chip->chip_id == PM886_A1) {
-					/*
-					 * disable battery temperature monitoring:
-					 * clear bit4
-					 */
-					regmap_update_bits(info->chip->battery_regmap,
-							   PM88X_CHG_CONFIG1,
-							   PM88X_BATTEMP_MON_EN, 0);
-					/*
-					 * select GPADC3 as external input for
-					 * battery tempeareure monitoring algorithm
-					 */
-					regmap_update_bits(info->chip->gpadc_regmap,
-							   PM88X_GPADC_CONFIG8,
-							   PM88X_BATT_TEMP_SEL,
-							   PM88X_BATT_TEMP_SEL_GP3);
-				}
-				break;
-			default:
-				break;
-			}
-			/* enable bias current */
-			ret = extern_pm88x_gpadc_set_current_generator(gp, 1);
-			if (ret < 0)
-				goto out;
-			/* set bias_current = 1uA */
-			ret = extern_pm88x_gpadc_set_bias_current(gp, 1);
-			if (ret < 0)
-				goto out;
-			/* measure the gpadc voltage */
-			ret = extern_pm88x_gpadc_get_volt(gp, &volt);
-			if (ret < 0)
-				goto out;
-			if (volt < 700000)
-				present = true;
-			else
-				present = false;
-
-		} else {
-			/* use gpadc 1/3 to detect battery */
-			ret = pm88x_enable_bat_detect(info, true);
-			if (ret < 0) {
-				present = true;
-				goto out;
-			}
-			regmap_read(info->chip->base_regmap, PM88X_STATUS1, &data);
-			present = !!(data & PM88X_BAT_DET);
-
-			/* disable battery detection to measure temperature */
-			pm88x_enable_bat_detect(info, false);
-
-		}
-	} else {
+		/* enable bias current */
+		ret = extern_pm88x_gpadc_set_current_generator(info->gpadc_det_no, 1);
+		if (ret < 0)
+			goto out;
+		/* set bias_current = 1uA */
+		ret = extern_pm88x_gpadc_set_bias_current(info->gpadc_det_no, 1);
+		if (ret < 0)
+			goto out;
+		/* measure the gpadc voltage */
+		ret = extern_pm88x_gpadc_get_volt(info->gpadc_det_no, &volt);
+		if (ret < 0)
+			goto out;
+		if (volt < 700000)
+			present = true;
+		else
+			present = false;
+		dev_info(info->dev, "%s: GPADC%d=%d(mV), battery %s\n",
+			 __func__, info->gpadc_det_no, volt / 1000,
+			 present ? "present" : "not present");
+	} else
 		/* battery is _not_ removable */
 		present = true;
-	}
+
 out:
 	if (ret < 0)
 		present = true;
@@ -1636,6 +1543,39 @@ static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 
 	/* 7. set the VBAT threashold as 3000mV: 0x890 * 1.367mV/LSB = 2.996V */
 	ret = regmap_write(info->chip->gpadc_regmap, PM88X_VBAT_LOW_TH, 0x89);
+	if (ret < 0)
+		goto out;
+
+	/* 8. disable battery detection by HW */
+	ret = regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG8,
+				 PM88X_GPADC_BD_EN, 0);
+	if (ret < 0)
+		goto out;
+
+	/* 9. disable battery temperature monitoring */
+	ret = regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
+				 PM88X_BATTEMP_MON_EN, 0);
+	if (ret < 0)
+		goto out;
+
+	/* 10. disable battery temperature monitoring2 for 88pm886-A1 and 88pm880-xx */
+	switch (info->chip->type) {
+	case PM886:
+		if (info->chip->chip_id == PM886_A1)
+			ret = regmap_update_bits(info->chip->battery_regmap,
+						 PM88X_CHG_CONFIG1,
+						 PM88X_BATTEMP_MON2_DIS,
+						 PM88X_BATTEMP_MON2_DIS);
+		break;
+	case PM880:
+		ret = regmap_update_bits(info->chip->battery_regmap,
+					 PM88X_CHG_CONFIG1,
+					 PM88X_BATTEMP_MON2_DIS,
+					 PM88X_BATTEMP_MON2_DIS);
+		break;
+	default:
+		break;
+	}
 out:
 	return ret;
 }
@@ -1902,28 +1842,6 @@ static int pm88x_init_fuelgauge(struct pm88x_battery_info *info)
 	/* 4. hardcode type[Lion] */
 	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
 
-	/*
-	 * 5. disable battery temperature monitoring2 for 88pm886 A1 and 88pm880 A0/A1:
-	 * set bit5
-	 */
-	switch (info->chip->type) {
-	case PM886:
-		if (info->chip->chip_id == PM886_A1)
-			regmap_update_bits(info->chip->battery_regmap,
-					   PM88X_CHG_CONFIG1,
-					   PM88X_BATTEMP_MON2_DIS,
-					   PM88X_BATTEMP_MON2_DIS);
-		break;
-	case PM880:
-		regmap_update_bits(info->chip->battery_regmap,
-				   PM88X_CHG_CONFIG1,
-				   PM88X_BATTEMP_MON2_DIS,
-				   PM88X_BATTEMP_MON2_DIS);
-		break;
-	default:
-		break;
-	}
-
 	return 0;
 }
 
@@ -2155,11 +2073,6 @@ static int pm88x_battery_dt_init(struct device_node *np,
 	}
 
 	info->bat_temp_monitor_en = of_property_read_bool(np, "bat-temp-monitor-en");
-
-	if (of_get_property(np, "bat-software-battery-detection", NULL))
-		info->use_sw_bd = true;
-	else
-		info->use_sw_bd = false;
 
 	ret = of_property_read_u32(np, "gpadc-temp-no", &info->gpadc_temp_no);
 	if (ret)
