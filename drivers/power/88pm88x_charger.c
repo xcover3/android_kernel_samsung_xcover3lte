@@ -560,17 +560,26 @@ static int pm88x_stop_charging(struct pm88x_charger_info *info)
 	unsigned int data;
 
 	dev_info(info->dev, "%s\n", __func__);
-	/* disable charging */
 	info->charging = 0;
 
-	regmap_read(info->chip->battery_regmap, PM88X_CHG_CONFIG1, &data);
-	/* enable USB suspend */
-	data |= PM88X_USB_SUSP;
-	regmap_write(info->chip->battery_regmap, PM88X_CHG_CONFIG1, data);
+	switch (info->chip->type) {
+	case PM886:
+		regmap_read(info->chip->battery_regmap, PM88X_CHG_CONFIG1, &data);
+		/* enable USB suspend */
+		data |= PM88X_USB_SUSP;
+		regmap_write(info->chip->battery_regmap, PM88X_CHG_CONFIG1, data);
 
-	/* disable USB suspend and stop charging */
-	data &= ~(PM88X_USB_SUSP | PM88X_CHG_ENABLE);
-	regmap_write(info->chip->battery_regmap, PM88X_CHG_CONFIG1, data);
+		/* disable USB suspend and stop charging */
+		data &= ~(PM88X_USB_SUSP | PM88X_CHG_ENABLE);
+		regmap_write(info->chip->battery_regmap, PM88X_CHG_CONFIG1, data);
+		break;
+	case PM880:
+	default:
+		/* disable charging */
+		regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
+				   PM88X_CHG_ENABLE, 0);
+		break;
+	}
 
 	return 0;
 }
