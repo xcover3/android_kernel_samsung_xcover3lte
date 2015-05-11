@@ -634,6 +634,8 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 			idle_dcstat_info.all_idle_end = 0;
 			idle_dcstat_info.all_c2_start = 0;
 			idle_dcstat_info.all_c2_end = 0;
+			idle_dcstat_info.all_m2_start = 0;
+			idle_dcstat_info.all_m2_end = 0;
 			idle_dcstat_info.all_active_start = ktime_temp;
 			idle_dcstat_info.all_active_end = ktime_temp;
 			idle_dcstat_info.cal_duration = ktime_temp;
@@ -914,6 +916,17 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 		spin_lock(&allidle_lock);
 		/* start to calculate */
 		if (mark_keytime) {
+			/* all_m2 */
+			if ((u64) 0 != idle_dcstat_info.all_m2_start) {
+				idle_dcstat_info.all_m2_end = ktime_temp;
+				idle_dcstat_info.total_all_m2 +=
+					idle_dcstat_info.all_m2_end -
+					       idle_dcstat_info.all_m2_start;
+
+				idle_dcstat_info.total_all_m2_count++;
+				idle_dcstat_info.all_m2_start = 0;
+
+			}
 			/* all_c2 */
 			if ((u64) 0 != idle_dcstat_info.all_c2_start) {
 				idle_dcstat_info.all_c2_end = ktime_temp;
@@ -1079,6 +1092,10 @@ void cpu_dcstat_event(struct clk *clk, unsigned int cpuid,
 					idle_dcstat_info.D1_idle_start = ktime_temp;
 				else if (LPM_D2 == lpm_min)
 					idle_dcstat_info.D2_idle_start = ktime_temp;
+				/* all_m2 */
+				if (lpm_min >= LPM_MP2 && lpm_min <= LPM_D2 &&
+					0 == idle_dcstat_info.all_m2_start)
+					idle_dcstat_info.all_m2_start = ktime_temp;
 
 #ifdef CONFIG_VOLDC_STAT
 				if (LPM_D1P == lpm_min)
@@ -1168,7 +1185,7 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 	u32 total_time = 0, run_total, idle_total, busy_time, rt_total = 0;
 	u32 av_mips, av_mips_total = 0;
 	u32 av_mips_l, av_mips_h, rt_h, rt_l, idle_h, idle_l, total_all_idle,
-	total_all_c2, run_time, idle_time;
+	total_all_c2, total_all_m2, run_time, idle_time;
 	u32 temp_total_time = 0, temp_total_count = 0;
 	char *lpm_time_string[12] = { "<10 us", "<50 us", "<100 us",
 		"<250 us", "<500 us", "<750 us", "<1 ms", "<5 ms",
@@ -1251,6 +1268,13 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 	seq_printf(seq, "| %-10s | %2u.%2u%%| %10d | %10lld |\n", "All c2",
 		     idle_h, idle_l, total_all_c2,
 		     idle_dcstat_info.total_all_c2_count);
+	idle_l = 0;
+	total_all_m2 = (u32) div64_u64(idle_dcstat_info.total_all_m2,
+			(u64) NSEC_PER_MSEC);
+	idle_h = calculate_dc(total_all_m2, total_time, &idle_l);
+	seq_printf(seq, "| %-10s | %2u.%2u%%| %10d | %10lld |\n", "All m2",
+		     idle_h, idle_l, total_all_m2,
+		     idle_dcstat_info.total_all_m2_count);
 
 	if (multi_cluster) {
 		seq_printf(seq, "| %-10s | %4lld%% | %10lld | %10lld |\n", "M2_clst0",
