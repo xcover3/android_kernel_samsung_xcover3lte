@@ -609,6 +609,42 @@ static int pm800_gpadc_check_en(struct regmap *map, unsigned int reg, unsigned i
 	return enable;
 }
 
+static int pm88x_gpadc_enable(struct regmap *map, struct pm88x_gpadc_extra_info *info, int enable)
+{
+	int ret;
+
+	ret = regmap_update_bits(map, info->enable_reg, info->enable_mask,
+				 enable << (ffs(info->enable_mask) - 1));
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
+static int pm88x_gpadc_bias_enable(struct regmap *map, struct pm88x_gpadc_bias_info *info,
+				   int enable)
+{
+	int ret;
+
+	/*
+	 * the bias is disabled only if:
+	 * GP_BIAS_EN = 1 && GP_BIAS_OUT = 0
+	 * so also enable GP_BIAS_EN and use GP_BIAS_OUT to enable/disable bias
+	 */
+	ret = regmap_update_bits(map, info->bias_en_reg, info->bias_en_mask,
+				 1 << (ffs(info->bias_en_mask) - 1));
+	if (ret < 0)
+		return ret;
+
+	/* bias_out_mask = bias_en_mask << 4 */
+	ret = regmap_update_bits(map, info->bias_en_reg, info->bias_en_mask << 4,
+				 enable << (ffs(info->bias_en_mask) + 3));
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
 static int pm88x_gpadc_get_meas(struct regmap *map, unsigned int reg, unsigned int *value)
 {
 	int ret;
@@ -824,6 +860,79 @@ int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf)
 	len += sprintf(buf + len, "------------------------------------------------\n");
 
 	return len;
+}
+
+int pm88x_gpadc_debug_write(struct pm88x_chip *chip, char *buf, struct pm88x_debug_info *info)
+{
+	int gpadc_num, other_num, channels_num, bias_num, i,
+	    name_flag = 0, setting_flag = 0, ret = 0;
+	struct regmap *map = chip->gpadc_regmap;
+	struct pm88x_gpadc_extra_info *extra_gpadc = pm88x_extra_gpadc;
+	struct pm88x_gpadc_extra_info *extra_other = pm88x_extra_other;
+	struct pm88x_gpadc_bias_info *bias_info = pm88x_bias_info;
+
+	gpadc_num = ARRAY_SIZE(pm88x_extra_gpadc);
+	other_num = ARRAY_SIZE(pm88x_extra_other);
+	bias_num = ARRAY_SIZE(pm88x_bias_info);
+	channels_num = ARRAY_SIZE(pm88x_gpadc_channels);
+
+	for (i = 0; i < gpadc_num; i++) {
+		if (!strcmp(info->name, extra_gpadc[i].name)) {
+			name_flag = 1;
+			if ((info->en == 0) || (info->en == 1)) {
+				setting_flag = 1;
+				ret = pm88x_gpadc_enable(map, &extra_gpadc[i], info->en);
+				if (ret < 0)
+					return ret;
+				pr_info("GPADC: %s is %s.\n",
+					info->name, info->en ? "enabled" : "disabled");
+			}
+		}
+	}
+
+	for (i = 0; i < other_num; i++) {
+		if (!strcmp(info->name, extra_other[i].name)) {
+			name_flag = 1;
+			if ((info->en == 0) || (info->en == 1)) {
+				setting_flag = 1;
+				ret = pm88x_gpadc_enable(map, &extra_other[i], info->en);
+				if (ret < 0)
+					return ret;
+				pr_info("GPADC: %s is %s.\n",
+					info->name, info->en ? "enabled" : "disabled");
+			}
+		}
+	}
+
+	for (i = 0; i < bias_num; i++) {
+		if (!strcmp(info->name, bias_info[i].name)) {
+			name_flag = 1;
+			if ((info->bias_en == 0) || (info->bias_en == 1)) {
+				setting_flag = 1;
+				ret = pm88x_gpadc_bias_enable(map, &bias_info[i], info->bias_en);
+				if (ret < 0)
+					return ret;
+				pr_info("GPADC: %s bias current is %s.\n",
+					info->name, info->bias_en ? "enabled" : "disabled");
+			}
+
+			if (info->bias_current > 0) {
+				setting_flag = 1;
+				ret = pm88x_gpadc_set_bias_current(g_gpadc, i, info->bias_current);
+				if (ret < 0)
+					return ret;
+				pr_info("GPADC: %s bias current is set to %d uA.\n",
+					info->name, info->bias_current);
+			}
+		}
+	}
+
+	if (!name_flag && info->name[0])
+		pr_err("GPADC: name does not exist.\n");
+	else if (!setting_flag)
+		ret = pm88x_display_gpadc(chip, buf);
+
+	return ret;
 }
 
 static int pm88x_gpadc_probe(struct platform_device *pdev)
