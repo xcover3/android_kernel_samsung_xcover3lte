@@ -169,12 +169,13 @@ int mpu_memory_write(struct inv_mpu_state *st, u8 mpu_addr, u16 mem_addr,
 	INV_I2C_INC_MPUWRITE(3 + 3 + (2 + len));
 #if CONFIG_DYNAMIC_DEBUG
 	{
-		char *write = 0;
-		pr_debug("%s WM%02X%02X%02X%s%s - %d\n", st->hw->name,
-			 mpu_addr, bank[1], addr[1],
-			 wr_pr_debug_begin(data, len, write),
-			 wr_pr_debug_end(write),
-			 len);
+		char *write = NULL;
+		write = wr_pr_debug_begin(data, len, write);
+		if (write != NULL) {
+			pr_debug("%s WM%02X%02X%02X%s - %d\n", st->hw->name,
+				 mpu_addr, bank[1], addr[1], write, len);
+			wr_pr_debug_end(write);
+		}
 	}
 #endif
 

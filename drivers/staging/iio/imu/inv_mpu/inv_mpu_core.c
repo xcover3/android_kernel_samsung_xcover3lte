@@ -150,11 +150,13 @@ int inv_i2c_read_base(struct inv_mpu_state *st, u16 i2c_addr,
 	INV_I2C_INC_MPUREAD(length);
 #if CONFIG_DYNAMIC_DEBUG
 	{
-		char *read = 0;
-		pr_debug("%s RD%02X%02X%02X -> %s%s\n", st->hw->name,
-			 i2c_addr, reg, length,
-			 wr_pr_debug_begin(data, length, read),
-			 wr_pr_debug_end(read));
+		char *read = NULL;
+		read = wr_pr_debug_begin(data, length, read);
+		if (read != NULL) {
+			pr_debug("%s RD%02X%02X%02X -> %s\n", st->hw->name,
+				 i2c_addr, reg, length, read);
+			wr_pr_debug_end(read);
+		}
 	}
 #endif
 	return res;

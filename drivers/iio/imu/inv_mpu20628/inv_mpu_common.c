@@ -35,9 +35,11 @@ char *wr_pr_debug_begin(u8 const *data, u32 len, char *string)
 {
 	int ii;
 	string = kmalloc(len * 2 + 1, GFP_KERNEL);
-	for (ii = 0; ii < len; ii++)
-		sprintf(&string[ii * 2], "%02X", data[ii]);
-	string[len * 2] = 0;
+	if (string != NULL) {
+		for (ii = 0; ii < len; ii++)
+			sprintf(&string[ii * 2], "%02X", data[ii]);
+		string[len * 2] = 0;
+	}
 	return string;
 }
 
