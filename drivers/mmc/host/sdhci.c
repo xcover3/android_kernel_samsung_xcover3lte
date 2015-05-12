@@ -1604,6 +1604,11 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	WARN_ON(host->mrq != NULL);
 
+	if ((host->quirks2 & SDHCI_QUIRK2_DMA_CLOCK_FORCE_ON) &&
+		(host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) &&
+		(mrq->cmd->data) && (host->ops->int_clk_force_on))
+		host->ops->int_clk_force_on(host, 1);
+
 	if ((host->quirks2 & SDHCI_QUIRK2_SDIO_SW_CLK_GATE) &&
 			(host->ops->clk_gate_auto) &&
 			(host->mmc->caps2 & MMC_CAP2_BUS_AUTO_CLK_GATE))
@@ -2557,6 +2562,11 @@ static void sdhci_tasklet_finish(unsigned long param)
 		sdhci_writel(host, SDHCI_INT_CMD_MASK | SDHCI_INT_DATA_MASK,
 				SDHCI_INT_STATUS);
 	}
+
+	if ((host->quirks2 & SDHCI_QUIRK2_DMA_CLOCK_FORCE_ON) &&
+		(host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) &&
+		(mrq->cmd->data) && (host->ops->int_clk_force_on))
+		host->ops->int_clk_force_on(host, 0);
 
 	host->mrq = NULL;
 	host->cmd = NULL;

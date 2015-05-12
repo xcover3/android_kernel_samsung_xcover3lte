@@ -305,6 +305,7 @@ struct sdhci_ops {
 	void	(*clk_gate_auto)(struct sdhci_host *host, unsigned int ctrl);
 	void	(*host_caps_disable)(struct sdhci_host *host);
 	void	(*platform_hw_tuning_prepare)(struct sdhci_host *host);
+	void	(*int_clk_force_on)(struct sdhci_host *host, unsigned int force_on);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

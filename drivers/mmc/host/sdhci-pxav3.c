@@ -66,6 +66,7 @@
 #define RX_SDCLK_SEL0_SHIFT		0
 #define RX_SDCLK_SEL1_SHIFT		2
 #define PAD_CLK_GATE_MASK		(0x3<<11)
+#define INT_CLK_GATE_MASK		(0x3<<8)
 #define TX_DELAY1_SHIFT			16
 #define TX_MUX_SEL			(0x1<<31)
 #define TX_SEL_BUS_CLK			(0x1<<30)
@@ -1443,6 +1444,20 @@ static void pxav3_host_caps_disable(struct sdhci_host *host)
 		host->mmc->caps2 &= ~(pdata->host_caps2_disable);
 }
 
+static void pxav3_int_clk_force_on(struct sdhci_host *host, unsigned int force_on)
+{
+	u32 tmp;
+
+	tmp = sdhci_readl(host, SD_FIFO_PARAM);
+
+	if (force_on)
+		tmp |= INT_CLK_GATE_MASK;
+	else
+		tmp &= ~INT_CLK_GATE_MASK;
+
+	sdhci_writel(host, tmp, SD_FIFO_PARAM);
+}
+
 static const struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_reset_exit = pxav3_set_private_registers,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
@@ -1457,6 +1472,7 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_execute_tuning = pxav3_execute_tuning,
 	.platform_hw_tuning_prepare = pxav3_hw_tuning_prepare,
 	.host_caps_disable = pxav3_host_caps_disable,
+	.int_clk_force_on = pxav3_int_clk_force_on,
 };
 
 static struct sdhci_pltfm_data sdhci_pxav3_pdata = {
