@@ -279,7 +279,8 @@
 				marvell,sdh-quirks2 = <(
 						SDHCI_QUIRK2_SET_AIB_MMC |
 						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
-						SDHCI_QUIRK2_TIMEOUT_SHORT
+						SDHCI_QUIRK2_TIMEOUT_SHORT |
+						SDHCI_QUIRK2_DMA_CLOCK_FORCE_ON
 						)>;
 				marvell,sdh-host-caps2 = <(
 						MMC_CAP2_SKIP_MMC |
