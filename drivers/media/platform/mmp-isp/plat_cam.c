@@ -1335,7 +1335,7 @@ static int plat_setup_sensor(struct isp_build *isb,
 		hsd->isd.build = isb;
 		ret = v4l2_device_register_subdev(&isb->v4l2_dev,
 							&hsd->isd.subdev);
-		b52_sensor_host = container_of(&hsd->isd.subdev,
+		b52_sensor_host = container_of(sensor_sd,
 							struct b52_sensor, sd);
 		blocking_notifier_chain_register(&b52_sensor_host->nh,
 							&plat_sensor_nb);
@@ -1345,7 +1345,7 @@ static int plat_setup_sensor(struct isp_build *isb,
 			pr_err("init sensor host group fail\n");
 			return -1;
 		}
-		sensor_host_sd[1] =  &b52_sensor_host->sd;
+		sensor_host_sd[1] =  &hsd->isd.subdev;
 #ifdef CONFIG_SUBDEV_VCM
 		vdata.hsd = hsd;
 		vdata.v4l2_dev = &isb->v4l2_dev;

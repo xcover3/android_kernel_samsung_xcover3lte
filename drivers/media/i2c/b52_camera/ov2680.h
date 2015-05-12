@@ -121,6 +121,7 @@ struct regval_tab ov2680_res_init[] = {
 	{0x4008, 0x02},
 	{0x4009, 0x09},
 	{0x4837, 0x18},
+	{0x4800, 0x24},
 };
 
 struct regval_tab ov2680_fmt_raw8[] = {
