@@ -23,6 +23,10 @@
 				touch2: s3202@1080p {
 					avdd-supply = <&ldo13>;
 				};
+
+				touch3: s3202@20 {
+					avdd-supply = <&ldo13>;
+				};
 			};
 
 			twsi2: i2c@d4037000 {

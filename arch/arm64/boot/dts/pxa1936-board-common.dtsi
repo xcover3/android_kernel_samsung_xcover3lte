@@ -14,6 +14,7 @@
 #include "pxa1936.dtsi"
 #include "pxa1908-pinfunc.h"
 #include <dt-bindings/mmc/pxa_sdhci.h>
+#include <dt-bindings/input/input.h>
 
 / {
 	chosen {
@@ -989,6 +990,26 @@
 					synaptics,sensor_max_y = <2070>;
 					synaptics,sensor_margin_x = <0>;
 					synaptics,sensor_margin_y = <0>;
+				};
+
+				touch3: s3202@20 {
+					compatible = "synaptics,s3202-touch";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+					reg = <0x20>;
+					interrupt-parent = <&gpio>;
+					interrupts = <72 0x1>;
+					/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+					synaptics,irq-flags =  <0x2002>;
+					synaptics,irq-gpios = <&gpio 72 0>;
+					synaptics,reset-gpios = <&gpio 75 0>;
+					synaptics,sensor_res_x = <1080>;
+					synaptics,sensor_res_y = <1920>;
+					synaptics,sensor_max_x = <1080>;
+					synaptics,sensor_max_y = <1920>;
+					synaptics,sensor_margin_x = <0>;
+					synaptics,sensor_margin_y = <0>;
+					synaptics,button_maps = /bits/ 8 <KEY_MENU KEY_HOMEPAGE KEY_BACK>;
+					synaptics,num_button = <3>;
 				};
 			};
 
