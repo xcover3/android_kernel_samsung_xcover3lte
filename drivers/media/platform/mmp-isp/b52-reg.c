@@ -1008,8 +1008,15 @@ static int wait_cmd_capture_img_done(struct b52isp_cmd *cmd)
 	u8 i;
 	u8 val;
 	int ret = 0;
+	int ref_cnt = 0;
 	struct b52isp_output *output = cmd->output;
 	int num_planes = output[0].pix_mp.num_planes;
+
+start_bracket:
+	if (ref_cnt++ > 5) {
+		pr_err("%s: retry CMD_CAPTUR_IMG over 5 times\n", __func__);
+		return -EINVAL;
+	}
 
 	b52_writeb(CMD_REG0, CMD_CAPTURE_IMG);
 
@@ -1017,7 +1024,7 @@ static int wait_cmd_capture_img_done(struct b52isp_cmd *cmd)
 		&b52isp_cmd_done, WAIT_CMD_TIMEOUT);
 	if (!ret) {
 		pr_err("wait CMD_CAPTURE_IMG failed, L%d\n", __LINE__);
-		return -ETIMEDOUT;
+		goto start_bracket;
 	}
 
 	/*
@@ -1029,13 +1036,13 @@ static int wait_cmd_capture_img_done(struct b52isp_cmd *cmd)
 		if (b52isp_cmd_id != CMD_UPDATE_ADDR) {
 			pr_err("%s: cmd not match(%d:%d)\n", __func__,
 				   CMD_UPDATE_ADDR, b52isp_cmd_id);
-			return -EINVAL;
+			goto start_bracket;
 		}
 
 		val = b52_readb(REG_FW_IMG_ADDR_ID);
 		if (i != val) {
 			pr_err("%s: image address id error %d\n", __func__, val);
-			return -EINVAL;
+			goto start_bracket;
 		}
 
 		ret = b52_fill_mmu_chnl(cmd->priv, output[0].buf[i], num_planes);
@@ -1047,20 +1054,20 @@ static int wait_cmd_capture_img_done(struct b52isp_cmd *cmd)
 			&b52isp_cmd_done, WAIT_CMD_TIMEOUT);
 		if (!ret) {
 			pr_err("wait CMD_CAPTURE_IMG failed, L%d\n", __LINE__);
-			return -ETIMEDOUT;
+			goto start_bracket;
 		}
 	}
 
 	if (b52isp_cmd_id != CMD_CAPTURE_IMG) {
 		pr_err("%s:%d cmd not match(%d:%d)\n", __func__, __LINE__,
 			CMD_CAPTURE_IMG, b52isp_cmd_id);
-		return -EINVAL;
+		goto start_bracket;
 	}
 
 	val = b52_readb(CMD_RESULT);
 	if (val != CMD_SET_SUCCESS) {
 		pr_err("CMD_CAPTURE_IMG result failed\n");
-		return -EINVAL;
+		goto start_bracket;
 	}
 
 	pr_debug("CMD_CAPTURE_IMG success\n");
