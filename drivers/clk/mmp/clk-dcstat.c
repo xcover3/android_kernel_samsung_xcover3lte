@@ -1185,7 +1185,8 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 	u32 total_time = 0, run_total, idle_total, busy_time, rt_total = 0;
 	u32 av_mips, av_mips_total = 0;
 	u32 av_mips_l, av_mips_h, rt_h, rt_l, idle_h, idle_l, total_all_idle,
-	total_all_c2, total_all_m2, run_time, idle_time;
+	total_all_c2, total_all_m2, m2_cluster0_total_all,
+	m2_cluster1_total_all, run_time, idle_time;
 	u32 temp_total_time = 0, temp_total_count = 0;
 	char *lpm_time_string[12] = { "<10 us", "<50 us", "<100 us",
 		"<250 us", "<500 us", "<750 us", "<1 ms", "<5 ms",
@@ -1277,15 +1278,19 @@ static int cpu_dc_show(struct seq_file *seq, void *data)
 		     idle_dcstat_info.total_all_m2_count);
 
 	if (multi_cluster) {
-		seq_printf(seq, "| %-10s | %4lld%% | %10lld | %10lld |\n", "M2_clst0",
-			     div64_u64(idle_dcstat_info.M2_cluster0_idle_total * (u64) (100),
-				       idle_dcstat_info.cal_duration),
-			     div64_u64(idle_dcstat_info.M2_cluster0_idle_total, (u64) NSEC_PER_MSEC),
-			     idle_dcstat_info.M2_cluster0_count);
-		seq_printf(seq, "| %-10s | %4lld%% | %10lld | %10lld |\n", "M2_clst1",
-			     div64_u64(idle_dcstat_info.M2_cluster1_idle_total * (u64) (100),
-				       idle_dcstat_info.cal_duration),
-			     div64_u64(idle_dcstat_info.M2_cluster1_idle_total, (u64) NSEC_PER_MSEC),
+		idle_l = 0;
+		m2_cluster0_total_all = (u32) div64_u64(idle_dcstat_info.M2_cluster0_idle_total,
+				(u64) NSEC_PER_MSEC);
+		idle_h = calculate_dc(m2_cluster0_total_all, total_time, &idle_l);
+		seq_printf(seq, "| %-10s | %2u.%2u%%| %10d | %10lld |\n", "M2_clst0",
+				idle_h, idle_l, m2_cluster0_total_all,
+				idle_dcstat_info.M2_cluster0_count);
+		idle_l = 0;
+		m2_cluster1_total_all = (u32) div64_u64(idle_dcstat_info.M2_cluster1_idle_total,
+				(u64) NSEC_PER_MSEC);
+		idle_h = calculate_dc(m2_cluster1_total_all, total_time, &idle_l);
+		seq_printf(seq, "| %-10s | %2u.%2u%%| %10d | %10lld |\n", "M2_clst1",
+			     idle_h, idle_l, m2_cluster1_total_all,
 			     idle_dcstat_info.M2_cluster1_count);
 	} else {
 		seq_printf(seq, "| %-10s | %4lld%% | %10lld | %10lld |\n", "M2",
