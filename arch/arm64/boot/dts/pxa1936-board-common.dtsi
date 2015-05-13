@@ -1267,14 +1267,6 @@
 		};
 	};
 
-	vibrator {
-		compatible = "marvell,pwm-vibrator";
-		pwms = <&pwm4 0 1000>;
-		min_timeout = <0>;
-		duty_cycle = <800>;
-		vibrator-supply = <&ldo9>;
-	};
-
 	panel1: r63311 {
 		compatible = "marvell,mmp-r63311";
 		marvell,path-name = "mmp_pnpath";
