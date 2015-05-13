@@ -548,10 +548,17 @@ static int isp_vnode_set_format(struct file *file, void *fh,
 				struct v4l2_format *format)
 {
 	struct isp_vnode *vnode = video_drvdata(file);
-	struct isp_subdev *ispsd = me_to_ispsd(
-			media_entity_remote_pad(&vnode->pad)->entity);
+	struct isp_subdev *ispsd;
+	struct media_pad *pad;
 	struct v4l2_subdev_format sd_fmt;
 	int ret = 0;
+
+	pad = media_entity_remote_pad(&vnode->pad);
+	if (!pad) {
+		d_inf(1, "link was disabled in force, vnode hasn't linked any entity\n");
+		return -EINVAL;
+	}
+	ispsd =  me_to_ispsd(pad->entity);
 
 	if (format->type != vnode->buf_type)
 		return -EINVAL;
