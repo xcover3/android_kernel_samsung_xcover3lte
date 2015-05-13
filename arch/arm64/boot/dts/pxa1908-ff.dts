@@ -26,6 +26,14 @@
 				marvell,sdh-dtr-data = <PXA_MMC_TIMING_LEGACY PXA_SDH_DTR_26M PXA_SDH_DTR_52M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_SD_HS PXA_SDH_DTR_52M PXA_SDH_DTR_104M 0 0 0 0 0>,
 						<PXA_MMC_TIMING_MAX PXA_SDH_DTR_PS_NONE PXA_SDH_DTR_104M 0 0 0 0 0>;
+				/* as HW design, only SD Card's host has AIB_MMC register */
+				marvell,sdh-quirks2 = <(
+						SDHCI_QUIRK2_SET_AIB_MMC |
+						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
+						SDHCI_QUIRK2_TIMEOUT_SHORT |
+						SDHCI_QUIRK2_DMA_CLOCK_FORCE_ON |
+						SDHCI_QUIRK2_FIXED_VOLTAGE
+						)>;
 			};
 
 			usbphy: usbphy@d4207000 {
