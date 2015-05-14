@@ -146,7 +146,7 @@ struct ddr_devfreq_data {
 	/* ddr upthreshold constraint */
 	struct notifier_block qos_max_upthrd_nb;
 	struct pm_qos_request qos_req_upthrd_max;
-	unsigned long qos_max_upthrd;
+	unsigned int qos_max_upthrd_component;
 	int max_upthrd_qos_type;
 
 	/* notifier block for ddr upthreshold change */

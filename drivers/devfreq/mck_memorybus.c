@@ -40,6 +40,8 @@
 #define DDR_DEVFREQ_UPTHRESHOLD 65
 #define DDR_DEVFREQ_DOWNDIFFERENTIAL 5
 
+#define DDR_UPTHRD_MAXIMUM	100
+
 #define KHZ_TO_HZ   1000
 
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
@@ -47,16 +49,23 @@ static struct ddr_devfreq_data *ddrfreq_driver_data;
 
 /* default using 65% as upthreshold and 5% as downdifferential */
 static struct devfreq_throughput_data devfreq_throughput_data = {
-	.upthreshold = DDR_DEVFREQ_UPTHRESHOLD,
 	.downdifferential = DDR_DEVFREQ_DOWNDIFFERENTIAL,
 };
 
-static inline void __update_dev_upthreshold(unsigned int upthrd,
+static inline void __update_dev_upthreshold(unsigned int *upthrd_usr,
 		struct devfreq_throughput_data *gov_data)
 {
+	struct pm_qos_object *qos_upthrd_max;
+	s32 upthrd_component = 0;
+	unsigned int upthrd;
 	int i;
 
+	qos_upthrd_max = pm_qos_array[PM_QOS_DDR_DEVFREQ_UPTHRD_MAX];
+	upthrd_component = pm_qos_read_value(qos_upthrd_max->constraints);
+
 	for (i = 0; i < gov_data->table_len; i++) {
+		upthrd = (upthrd_component < devfreq_throughput_data.upthreshold[i])
+			? upthrd_component : devfreq_throughput_data.upthreshold[i];
 		gov_data->throughput_table[i].up =
 			upthrd * gov_data->freq_table[i] / 100;
 		gov_data->throughput_table[i].down =
@@ -1046,29 +1055,19 @@ static int qos_max_upthrd_notifier_call(struct notifier_block *nb,
 	struct devfreq_throughput_data *ddr_throughput_data;
 	struct ddr_devfreq_data *ddr_devfreq_data;
 	struct devfreq *devfreq;
-	unsigned int upthrd;
-	int ret, i;
+	int ret;
 
 	ddr_throughput_data = &devfreq_throughput_data;
 	ddr_devfreq_data = ddrfreq_driver_data;
 	devfreq = ddr_devfreq_data->devfreq;
 
-	upthrd = (unsigned int)value;
+	ddr_devfreq_data->qos_max_upthrd_component = (unsigned int)value;
 
 	mutex_lock(&devfreq->lock);
 
-	if (upthrd > ddr_throughput_data->downdifferential) {
-		ddr_devfreq_data->qos_max_upthrd = upthrd;
-		for (i = 0; i < ddr_throughput_data->table_len; i++) {
-			ddr_throughput_data->throughput_table[i].up =
-				upthrd * ddr_throughput_data->freq_table[i] / 100;
-			ddr_throughput_data->throughput_table[i].down =
-				(upthrd - ddr_throughput_data->downdifferential)
-				* ddr_throughput_data->freq_table[i] / 100;
-		}
-		ret = update_devfreq(devfreq);
-	} else
-		ret = 0;
+	__update_dev_upthreshold(devfreq_throughput_data.upthreshold,
+		&devfreq_throughput_data);
+	ret = update_devfreq(devfreq);
 
 	mutex_unlock(&devfreq->lock);
 
@@ -1078,28 +1077,50 @@ static int qos_max_upthrd_notifier_call(struct notifier_block *nb,
 static ssize_t upthrd_usr_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", devfreq_throughput_data.upthreshold);
+	return sprintf(buf, "%u, %u, %u, %u, %u, %u, %u, %u\n",
+		devfreq_throughput_data.upthreshold[0], devfreq_throughput_data.upthreshold[1],
+		devfreq_throughput_data.upthreshold[2], devfreq_throughput_data.upthreshold[3],
+		devfreq_throughput_data.upthreshold[4], devfreq_throughput_data.upthreshold[5],
+		devfreq_throughput_data.upthreshold[6], devfreq_throughput_data.upthreshold[7]);
 }
 
 static ssize_t upthrd_usr_store(struct kobject *kobj,
 			     struct kobj_attribute *attr,
 			     const char *buf, size_t count)
 {
-	struct ddr_devfreq_data *ddr_devfreq_data = ddrfreq_driver_data;
-	unsigned long upthrd_usr;
-	int ret;
+	struct devfreq_throughput_data *ddr_throughput_data;
+	struct ddr_devfreq_data *ddr_devfreq_data;
+	struct devfreq *devfreq;
+	unsigned int upthrd_tmp[DDR_FREQ_MAX];
+	int ret, i;
 
-	ret = sscanf(buf, "%lu", &upthrd_usr);
-	if ((upthrd_usr >= 100) || (ret != 1)) {
-		pr_err("<ERR> wrong parameter.\n");
-		pr_err("echo upthrd(0~100) > upthrd_usr\n");
-		pr_err("For example: echo 30 > upthrd_usr\n");
+	ddr_throughput_data = &devfreq_throughput_data;
+	ddr_devfreq_data = ddrfreq_driver_data;
+	devfreq = ddr_devfreq_data->devfreq;
+
+	ret = sscanf(buf, "%u, %u, %u, %u, %u, %u, %u, %u\n",
+		&upthrd_tmp[0], &upthrd_tmp[1], &upthrd_tmp[2], &upthrd_tmp[3],
+		&upthrd_tmp[4], &upthrd_tmp[5], &upthrd_tmp[6], &upthrd_tmp[7]);
+	if ((ret <= 0) || (ret > 8)) {
+		pr_err("<ERR> Effective number must between 1~8 !\n");
+		pr_err("Example: echo 65, 65, 65, 65 > upthrd_usr\n");
 		return -EINVAL;
 	}
 
-	devfreq_throughput_data.upthreshold = upthrd_usr;
+	for (i = 0; i < ddr_devfreq_data->ddr_freq_tbl_len; i++)
+		if (upthrd_tmp[i] > DDR_UPTHRD_MAXIMUM) {
+			pr_err("<ERR> Threshold value must smaller than 100!\n");
+			return -EINVAL;
+		}
 
-	pm_qos_update_request(&ddr_devfreq_data->qos_req_upthrd_max, upthrd_usr);
+	for (i = 0; i < ddr_devfreq_data->ddr_freq_tbl_len; i++)
+		devfreq_throughput_data.upthreshold[i] = upthrd_tmp[i];
+
+	mutex_lock(&devfreq->lock);
+	__update_dev_upthreshold(devfreq_throughput_data.upthreshold,
+		&devfreq_throughput_data);
+	update_devfreq(devfreq);
+	mutex_unlock(&devfreq->lock);
 
 	return count;
 }
@@ -1122,24 +1143,32 @@ static ssize_t upthrd_downdiff_store(struct kobject *kobj,
 	struct devfreq *devfreq;
 	struct pm_qos_object *qos_upthrd_max;
 	unsigned int upthrd_downdiff;
-	s32 target_upthrd_max = 0;
+	s32 upthrd_component = 0;
+	int i;
 
 	ddr_throughput_data = &devfreq_throughput_data;
 	ddr_devfreq_data = ddrfreq_driver_data;
 	devfreq = ddr_devfreq_data->devfreq;
 
 	qos_upthrd_max = pm_qos_array[PM_QOS_DDR_DEVFREQ_UPTHRD_MAX];
-	target_upthrd_max = pm_qos_read_value(qos_upthrd_max->constraints);
+	upthrd_component = pm_qos_read_value(qos_upthrd_max->constraints);
 
 	if (0x1 != sscanf(buf, "%u", &upthrd_downdiff)) {
 		pr_err("%s: <ERR> wrong parameter\n", __func__);
 		return -E2BIG;
 	}
 
-	if (upthrd_downdiff < target_upthrd_max) {
+	for (i = 0; i < ddr_devfreq_data->ddr_freq_tbl_len; i++)
+		if (upthrd_downdiff > devfreq_throughput_data.upthreshold[i]) {
+			pr_err("<ERR> Value is bigger than up threshold.\n");
+			return -EINVAL;
+		}
+
+	if (upthrd_downdiff < upthrd_component) {
 		ddr_throughput_data->downdifferential = upthrd_downdiff;
 		mutex_lock(&devfreq->lock);
-		__update_dev_upthreshold(target_upthrd_max, ddr_throughput_data);
+		__update_dev_upthreshold(devfreq_throughput_data.upthreshold,
+			ddr_throughput_data);
 		update_devfreq(devfreq);
 		mutex_unlock(&devfreq->lock);
 	} else
@@ -1239,6 +1268,16 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		data->ddr_freq_tbl_len = i;
 	}
 
+	devfreq_throughput_data.upthreshold = devm_kzalloc(dev,
+		sizeof(unsigned int) * DDR_FREQ_MAX, GFP_KERNEL);
+	if (devfreq_throughput_data.upthreshold == NULL) {
+		dev_err(dev, "Cannot allocate memory for upthreshold table.\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < data->ddr_freq_tbl_len; i++)
+		devfreq_throughput_data.upthreshold[i] = DDR_DEVFREQ_UPTHRESHOLD;
+
 	ddr_devfreq_profile.initial_freq =
 		clk_get_rate(data->ddr_clk) / KHZ_TO_HZ;
 
@@ -1318,10 +1357,10 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 
 	for (i = 0; i < devfreq_throughput_data.table_len; i++) {
 		devfreq_throughput_data.throughput_table[i].up =
-		   devfreq_throughput_data.upthreshold
+		   devfreq_throughput_data.upthreshold[i]
 		   * devfreq_throughput_data.freq_table[i] / 100;
 		devfreq_throughput_data.throughput_table[i].down =
-		   (devfreq_throughput_data.upthreshold
+		   (devfreq_throughput_data.upthreshold[i]
 		   - devfreq_throughput_data.downdifferential)
 		   * devfreq_throughput_data.freq_table[i] / 100;
 	}
@@ -1389,13 +1428,10 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		goto err_file_create4;
 	}
 
+	data->qos_max_upthrd_component = DDR_UPTHRD_MAXIMUM;
 	data->max_upthrd_qos_type = PM_QOS_DDR_DEVFREQ_UPTHRD_MAX;
 	data->qos_max_upthrd_nb.notifier_call = qos_max_upthrd_notifier_call;
 	pm_qos_add_notifier(data->max_upthrd_qos_type, &data->qos_max_upthrd_nb);
-
-	data->qos_req_upthrd_max.name = "userspace";
-	pm_qos_add_request(&data->qos_req_upthrd_max, data->max_upthrd_qos_type,
-			devfreq_throughput_data.upthreshold);
 #endif /* CONFIG_DEVFREQ_GOV_THROUGHPUT */
 
 	if (ddr_max) {
