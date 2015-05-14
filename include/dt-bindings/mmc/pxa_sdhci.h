@@ -68,6 +68,8 @@
 
 #define SDHCI_QUIRK_INVERTED_WRITE_PROTECT              (1<<16)
 
+#define SDHCI_QUIRK2_HOST_NO_CMD23			(1<<1)
+
 /* some SD host need to set IO capability by SOC part register */
 #define SDHCI_QUIRK2_SET_AIB_MMC			(1<<14)
 
