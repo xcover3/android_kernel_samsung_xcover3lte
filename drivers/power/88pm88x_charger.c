@@ -85,6 +85,12 @@ enum {
 	USB_CHARGER_TYPE,
 };
 
+enum {
+	TBAT_LTR = 0,
+	TBAT_STR,
+	TBAT_HTR
+};
+
 struct pm88x_charger_info {
 	struct device *dev;
 	struct power_supply pm88x_charger_psy;
@@ -103,8 +109,9 @@ struct pm88x_charger_info {
 	unsigned int prechg_cur;	/* precharge current limit */
 	unsigned int prechg_vol;	/* precharge voltage limit */
 
-	unsigned int fastchg_vol;	/* fastcharge voltage */
-	unsigned int fastchg_cur;	/* fastcharge current */
+	int region;			/* battery temperature region */
+	unsigned int fastchg_vol[3];	/* fastcharge voltage, [LTR, STR, HTR] */
+	unsigned int fastchg_cur[3];	/* fastcharge current, [LTR, STR, HTR] */
 	unsigned int fastchg_eoc;	/* fastcharge end current */
 	unsigned int fastchg_tout;	/* fastcharge voltage */
 
@@ -175,28 +182,47 @@ static inline int get_fastchg_eoc(struct pm88x_charger_info *info)
 	return (info->fastchg_eoc - 10) / 10;
 }
 
-static inline int get_fastchg_cur(struct pm88x_charger_info *info)
+/*
+ * get fast charge voltage according to temperature region
+ *
+ */
+static int get_fastchg_vol(struct pm88x_charger_info *info, int region)
+{
+	/* fastcharge voltage range is 3.6V - 4.5V */
+	if (info->fastchg_vol[region] > 4500)
+		info->fastchg_vol[region] = 4500;
+	else if (info->fastchg_vol[region] < 3600)
+		info->fastchg_vol[region] = 3600;
+
+	return (info->fastchg_vol[region] - 3600) * 10 / 125;
+}
+
+/*
+ * get fast charge current according to temperature region
+ *
+ */
+static int get_fastchg_cur(struct pm88x_charger_info *info, int region)
 {
 	int ret;
 
-	/* fastcharge current range is 300mA - 2000mA */
-	if (info->fastchg_cur >= 2000) {
-		info->fastchg_cur = 2000;
+	/* fast charge current range is 300mA - 2000mA */
+	if (info->fastchg_cur[region] >= 2000) {
+		info->fastchg_cur[region] = 2000;
 		ret = 0x1F;
-	} else if (info->fastchg_cur >= 1900)
+	} else if (info->fastchg_cur[region] >= 1900)
 		ret = 0x1E;
-	else if (info->fastchg_cur < 450) {
-		info->fastchg_cur = 300;
+	else if (info->fastchg_cur[region] < 450) {
+		info->fastchg_cur[region] = 300;
 		ret = 0x0;
 	} else
-		ret = ((info->fastchg_cur - 450) / 50) + 1;
+		ret = ((info->fastchg_cur[region] - 450) / 50) + 1;
 
 	/*
 	 * in PM880 the first value is 0mA (for testing), so shift value by 1.
 	 * also value of 1950mA is supported, so another shift is needed
 	 */
 	if (info->chip->type == PM880) {
-		if (info->fastchg_cur >= 1950)
+		if (info->fastchg_cur[region] >= 1950)
 			ret += 2;
 		else
 			ret++;
@@ -205,14 +231,39 @@ static inline int get_fastchg_cur(struct pm88x_charger_info *info)
 	return ret;
 }
 
-static inline int get_fastchg_vol(struct pm88x_charger_info *info)
+/*
+ * configure fast charg voltage/current according to temperature region
+ */
+static void pm88x_config_fast_charge(struct pm88x_charger_info *info, int region)
 {
-	/* fastcharge voltage range is 3.6V - 4.5V */
-	if (info->fastchg_vol > 4500)
-		info->fastchg_vol = 4500;
-	else if (info->fastchg_vol < 3600)
-		info->fastchg_vol = 3600;
-	return (info->fastchg_vol - 3600) * 10 / 125;
+	int old_region = info->region;
+	int old_vol = 0, new_vol = 0;
+	int old_cur = 0, new_cur = 0;
+
+	if (old_region == region)
+		return;
+
+	if (old_region != -1) {
+		old_vol = get_fastchg_vol(info, old_region);
+		old_cur = get_fastchg_cur(info, old_region);
+	}
+	new_vol = get_fastchg_vol(info, region);
+	new_cur = get_fastchg_cur(info, region);
+
+	/*
+	 * if it's not initialzed, set it
+	 * if voltage/current is differnt for different thermal, set it
+	 */
+	if (old_region == -1 || old_vol != new_vol)
+		regmap_update_bits(info->chip->battery_regmap,
+			PM88X_FAST_CONFIG1, PM88X_VBAT_FAST_SET_MASK, new_vol);
+
+	if (old_region == -1 || old_cur != new_cur)
+		regmap_update_bits(info->chip->battery_regmap,
+			PM88X_FAST_CONFIG2, PM88X_ICHG_FAST_SET_MASK, new_cur);
+
+	info->region = region;
+	return;
 }
 
 static inline int get_recharge_vol(struct pm88x_charger_info *info)
@@ -253,14 +304,44 @@ static inline int get_fastchg_timeout(struct pm88x_charger_info *info)
 	return ret;
 }
 
-static char *supply_interface[] = {
-	"88pm88x-fuelgauge",
-};
+static bool check_battery_health(struct pm88x_charger_info *info,
+				 struct power_supply *psy)
+{
+	union power_supply_propval val;
+	int ret;
+	int region;
+
+	ret = psy->get_property(psy, POWER_SUPPLY_PROP_HEALTH, &val);
+	if (ret) {
+		dev_err(info->dev, "get battery property failed.\n");
+		return false;
+	}
+
+	switch (val.intval) {
+	case POWER_SUPPLY_HEALTH_COLD:
+		region = TBAT_LTR;
+		break;
+	case POWER_SUPPLY_HEALTH_GOOD:
+		region = TBAT_STR;
+		break;
+	case POWER_SUPPLY_HEALTH_OVERHEAT:
+		region = TBAT_HTR;
+		break;
+	default:
+		return false; /* charge not allowed */
+	}
+
+	pm88x_config_fast_charge(info, region);
+
+	return true;
+}
 
 static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 {
 	union power_supply_propval val;
 	static struct power_supply *psy;
+	unsigned int voltage; /* mV */
+	unsigned int recharge_voltage; /* mV */
 	int ret, i;
 
 	if (!psy || !psy->get_property) {
@@ -288,13 +369,14 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 				return false;
 			}
 			/* change to mili-volts */
-			val.intval /= 1000;
-			if (val.intval >= (info->fastchg_vol - info->recharge_thr)) {
+			voltage = val.intval/1000;
+			recharge_voltage = info->fastchg_vol[info->region] - info->recharge_thr;
+			if (voltage >= recharge_voltage) {
 				dev_dbg(info->dev, "voltage not low enough (%d). wait until (%d)\n",
-					val.intval, info->fastchg_vol - info->recharge_thr);
+					voltage, recharge_voltage);
 				return false;
 			}
-			dev_dbg(info->dev, "voltage read (%d) is OK (%dmV)\n", i, val.intval);
+			dev_dbg(info->dev, "voltage read (%d) is OK (%dmV)\n", i, voltage);
 			msleep(50);
 		}
 		dev_info(info->dev, "OK to start recharge!\n");
@@ -323,15 +405,8 @@ static bool pm88x_charger_check_allowed(struct pm88x_charger_info *info)
 	}
 
 	/* check if battery is healthy */
-	ret = psy->get_property(psy, POWER_SUPPLY_PROP_HEALTH, &val);
-	if (ret) {
-		dev_err(info->dev, "get battery property failed.\n");
+	if (!check_battery_health(info, psy))
 		return false;
-	}
-	if (val.intval != POWER_SUPPLY_HEALTH_GOOD) {
-		dev_info(info->dev, "battery health is not good.\n");
-		return false;
-	}
 
 	return true;
 }
@@ -605,6 +680,10 @@ static ssize_t pm88x_control_charging(struct device *dev,
 
 static DEVICE_ATTR(control, S_IWUSR | S_IWGRP, NULL, pm88x_control_charging);
 
+static char *supply_interface[] = {
+	"88pm88x-fuelgauge",
+};
+
 static int pm88x_power_supply_register(struct pm88x_charger_info *info)
 {
 	/* private attribute */
@@ -628,6 +707,8 @@ static int pm88x_power_supply_register(struct pm88x_charger_info *info)
 static int pm88x_charger_init(struct pm88x_charger_info *info)
 {
 	unsigned int mask, data;
+
+	info->region = -1; /* uninitialzed */
 
 	info->allow_basic_charge = 1;
 	info->allow_recharge = 1;
@@ -684,11 +765,7 @@ static int pm88x_charger_init(struct pm88x_charger_info *info)
 			   mask, data);
 
 	/* config fast-charge parameters */
-	regmap_update_bits(info->chip->battery_regmap, PM88X_FAST_CONFIG1,
-			   PM88X_VBAT_FAST_SET_MASK, get_fastchg_vol(info));
-
-	regmap_update_bits(info->chip->battery_regmap, PM88X_FAST_CONFIG2,
-			   PM88X_ICHG_FAST_SET_MASK, get_fastchg_cur(info));
+	pm88x_config_fast_charge(info, TBAT_STR);
 
 	regmap_update_bits(info->chip->battery_regmap, PM88X_FAST_CONFIG3,
 			   PM88X_IBAT_EOC_TH, get_fastchg_eoc(info));
@@ -967,11 +1044,13 @@ static int pm88x_charger_dt_init(struct device_node *np,
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(np, "fastchg-voltage", &info->fastchg_vol);
+	ret = of_property_read_u32_array(np, "fastchg-voltage",
+					 info->fastchg_vol, 3);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(np, "fastchg-cur", &info->fastchg_cur);
+	ret = of_property_read_u32_array(np, "fastchg-cur",
+					 info->fastchg_cur, 3);
 	if (ret)
 		return ret;
 
