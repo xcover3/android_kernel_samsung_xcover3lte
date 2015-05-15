@@ -488,15 +488,26 @@ static void get_ddr_cycles(struct ddr_devfreq_data *data,
 	unsigned long long time_stamp_cur;
 	static unsigned long long time_stamp_old;
 	struct perf_counters *ddr_ticks = data->dmc.ddr_ticks;
+	struct devfreq_frequency_table *tbl;
 	int i;
+#ifdef CONFIG_64BIT
 	u64 *total_ticks_base = data->ddr_profiler.total_ticks_base;
 	u64 *data_ticks_base = data->ddr_profiler.data_ticks_base;
+#else
+	u32 *total_ticks_base = data->ddr_profiler.total_ticks_base;
+	u32 *data_ticks_base = data->ddr_profiler.data_ticks_base;
+#endif
+
+	tbl = devfreq_frequency_get_table(DEVFREQ_DDR);
 
 	spin_lock_irqsave(&data->lock, flags);
 	*total_ticks = *data_ticks = 0;
 	for (i = 0; i < data->ddr_freq_tbl_len; i++) {
 		*total_ticks += ddr_ticks[i].reg[1] - total_ticks_base[i];
-		*data_ticks += ddr_ticks[i].reg[2] - data_ticks_base[i];
+		/* Sanity check: clock driver should pass 0 or 1 for 4x mode enable */
+		BUG_ON((tbl[i].mode_4x_en != 0) && (tbl[i].mode_4x_en != 1));
+		*data_ticks +=
+			(ddr_ticks[i].reg[2] - data_ticks_base[i]) / (2 << tbl[i].mode_4x_en);
 		total_ticks_base[i] = ddr_ticks[i].reg[1];
 		data_ticks_base[i] = ddr_ticks[i].reg[2];
 	}
@@ -1011,6 +1022,7 @@ int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info)
 {
 	struct ddr_devfreq_data *data;
 	struct perf_counters *ddr_ticks, *ddr_ticks_base, *ddr_ticks_diff;
+	struct devfreq_frequency_table *tbl;
 	int i, j, k, len = 0;
 	unsigned long flags;
 	unsigned int ver;
@@ -1018,6 +1030,8 @@ int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info)
 	unsigned int tmp_total, tmp_rw_cmd, tmp_no_util, tmp_busy;
 	unsigned int tmp_data_cycle, cnttime_ms, cnttime_ms_ddr;
 	u64 glob_ticks;
+
+	tbl = devfreq_frequency_get_table(DEVFREQ_DDR);
 
 	data = ddrfreq_data;
 	ddr_ticks = data->dmc.ddr_ticks;
@@ -1083,7 +1097,9 @@ int ddr_profiling_show(struct clk_dc_stat_info *dc_stat_info)
 			BUG_ON(1);
 
 		if (tmp_total != 0) {
-			tmp_data_cycle = tmp_rw_cmd * data->bst_len / 2;
+			/* Sanity check: clock driver should pass 0 or 1 for 4x mode enable */
+			BUG_ON((tbl[i].mode_4x_en != 0) && (tbl[i].mode_4x_en != 1));
+			tmp_data_cycle = tmp_rw_cmd * data->bst_len / (2 << tbl[i].mode_4x_en);
 
 			data_ratio = tmp_data_cycle * 100000 / tmp_total + 5;
 
