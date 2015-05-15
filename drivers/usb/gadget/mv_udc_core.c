@@ -1292,6 +1292,7 @@ static void uevent_worker(struct work_struct *work)
 	struct mv_udc *udc = container_of(work, struct mv_udc, event_work);
 	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
 	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
+	static int is_charge_mode;
 
 	if (!udc)
 		return;
@@ -1309,6 +1310,14 @@ static void uevent_worker(struct work_struct *work)
 		} else
 			charge_only_send_uevent(3);
 	}
+
+	/* if previous mode is charge only mode,
+	 * disable it when switch to other function
+	 */
+	if (is_charge_mode && !udc->vbus_active)
+		charge_only_send_uevent(3);
+
+	is_charge_mode = is_charge_only_mode();
 #endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 }
 
