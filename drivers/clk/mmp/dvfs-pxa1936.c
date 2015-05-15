@@ -50,6 +50,12 @@ enum chip_stepping_id {
 	SEC_28LP_A2D2A,
 };
 
+enum svc_versions {
+	SEC_SVC_1_01 = 0,
+	SVC_1_11,
+	NO_SUPPORT,
+};
+
 
 #define VL_MAX	8
 
@@ -81,6 +87,7 @@ static unsigned int helan3_maxfreq;
 static struct comm_fuse_info fuseinfo;
 static unsigned int fab_rev;
 static enum chip_stepping_id chip_stepping;
+static unsigned int svc_version;
 
 struct svtrng {
 	unsigned int min;
@@ -189,6 +196,29 @@ unsigned int convert_fab_revision(unsigned int fab_revision)
 	return ui_fab;
 }
 
+unsigned int convert_svc_version(unsigned int uiYldTableEn,
+			unsigned int uiSVCRev, unsigned int uiFabRev)
+{
+	if (uiSVCRev == 0) {
+		if (!uiYldTableEn)
+			svc_version = SEC_SVC_1_01;
+		else {
+			if (uiFabRev == 0)
+				svc_version = SVC_1_11;
+			else if (uiFabRev == 1)
+				svc_version = SEC_SVC_1_01;
+			}
+	} else if (uiSVCRev == 1) {
+		if (uiFabRev == 0)
+			svc_version = NO_SUPPORT;
+		else if (uiFabRev == 1)
+			svc_version = SVC_1_11;
+	} else
+			svc_version = NO_SUPPORT;
+
+	return svc_version;
+}
+
 char *convert_step_revision(unsigned int step_id)
 {
 	if (fab_rev == TSMC) {
@@ -224,10 +254,10 @@ static int __init __init_read_droinfo(void)
 	unsigned int uiProfileFuses, uiSVCRev, uiFabRev, guiProfile;
 	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_0, uiBlock0_GEU_FUSE_MANU_PARA_1;
 	unsigned int uiBlock0_GEU_FUSE_MANU_PARA_2, uiBlock0_GEU_AP_CP_MP_ECC;
-	unsigned int  uiBlock0_BLOCK0_RESERVED_1, uiBlock4_MANU_PARA1_0, uiBlock4_MANU_PARA1_1;
+	unsigned int uiBlock0_BLOCK0_RESERVED_1, uiBlock4_MANU_PARA1_0;
 	unsigned int uiAllocRev, uiRun, uiWafer, uiX, uiY, uiParity, ui_step_id;
 	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0, smc_ret = 0;
-	unsigned int uiCpuFreq;
+	unsigned int uiCpuFreq, uiYldTableEn, uiBlock4_MANU_PARA1_1;
 	unsigned int uiskusetting = 0;
 	void __iomem *apmu_base, *geu_base;
 
@@ -282,7 +312,6 @@ static int __init __init_read_droinfo(void)
 	uiX = (uiBlock0_GEU_FUSE_MANU_PARA_1 >>  7) & 0xff;
 	uiY = (uiBlock0_GEU_FUSE_MANU_PARA_1 >> 15) & 0xff;
 	uiParity = (uiBlock0_GEU_FUSE_MANU_PARA_1 >> 23) & 0x1;
-	uiSVCRev = (uiBlock0_BLOCK0_RESERVED_1    >> 13) & 0x3;
 	uiSVTDRO_Avg = ((uiBlock0_GEU_FUSE_MANU_PARA_2 & 0x3) << 8) |
 		((uiBlock0_GEU_FUSE_MANU_PARA_1 >> 24) & 0xff);
 	uiLVTDRO_Avg = (uiBlock0_GEU_FUSE_MANU_PARA_2 >>  4) & 0x3ff;
@@ -296,6 +325,9 @@ static int __init __init_read_droinfo(void)
 	/*bit 201 ~ 202 for UDR voltage*/
 	uiskusetting = (uiBlock4_MANU_PARA1_1 >> 9) & 0x3;
 	ui_step_id = (uiBlock0_GEU_FUSE_MANU_PARA_2 >> 2) & 0x3;
+	uiSVCRev = (uiBlock4_MANU_PARA1_1 >> 6) & 0x3;
+	uiYldTableEn = (uiBlock0_BLOCK0_RESERVED_1 >> 9) & 0x1;
+	convert_svc_version(uiYldTableEn, uiSVCRev, uiFabRev);
 
 	guiProfile = convertFusesToProfile_helan3(uiProfileFuses);
 
@@ -349,8 +381,9 @@ static int __init __init_read_droinfo(void)
 	pr_info("     *  SVTDRO = %d\n",   uiSVTDRO_Avg);
 	pr_info("     *  SVC Revision = %2d\n", uiSVCRev);
 	pr_info("     *  SVC Profile  = %2d\n", guiProfile);
+	pr_info("     *  SVC Table Version  = %2d\n", svc_version);
 	pr_info("     *************************** \n");
-	pr_info(" \n");
+	pr_info("\n");
 
 	uiprofile = guiProfile;
 	return 0;
@@ -993,7 +1026,7 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 
 	__init_read_droinfo();
 
-	if (fab_rev == TSMC) {
+	if (svc_version == SVC_1_11) {
 		dvc_pxa1936_info.millivolts =
 			vm_millivolts_1936_svc_tsmc[uiprofile];
 
@@ -1002,7 +1035,7 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 		plat_set_vl_max(dvc_pxa1936_info.num_volts);
 
 		fillcpdvcinfo(&cpmsa_dvc_info_1936tsmc[uiprofile]);
-	} else if (fab_rev == SEC) {
+	} else if (svc_version == SEC_SVC_1_01) {
 		dvc_pxa1936_info.millivolts =
 			vm_millivolts_1936_svc_sec[uiprofile];
 
@@ -1013,7 +1046,7 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 		fillcpdvcinfo(&cpmsa_dvc_info_1936sec[uiprofile]);
 	} else {
 		pr_err("We don't support the fab helan3 chip\n");
-		BUG_ON(fab_rev);
+		BUG_ON(svc_version);
 	}
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
