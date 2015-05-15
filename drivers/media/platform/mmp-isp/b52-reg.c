@@ -1887,12 +1887,22 @@ static int b52_cfg_isp_ms(const struct b52_sensor_data *data, int path)
 static inline void b52_zoom_ddr_qos(int zoom)
 {
 	s32 freq;
-	if (zoom < 0x300)
+	if (b52_readb(REG_HW_VERSION + 1) == ISP_FW326) {
+		if (zoom < 0x300)
+			freq = 416000;
+		else  /* it will use DDR 4x on pxa1936 */
+			freq = 624000;
+	} else if (b52_readb(REG_HW_VERSION + 1) == ISP_FW325) {
+		if (zoom < 0x300)
+			freq = 312000;
+		else if (zoom < 0x380) /* 0x380 is 3.5x zoom */
+			freq = 416000;
+		else
+			freq = 528000;
+	} else {
 		freq = 312000;
-	else if (zoom < 0x380) /* 0x380 is 3.5x zoom */
-		freq = 416000;
-	else
-		freq = 528000;
+		pr_err("%s: ISP FW mismatch, set default DDR freq\n", __func__);
+	}
 	b52isp_set_ddr_qos(freq);
 }
 

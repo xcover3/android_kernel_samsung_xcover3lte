@@ -561,21 +561,10 @@ int b52isp_idi_change_clock(struct isp_block *block,
 				int w, int h, int fps)
 {
 	int sz = w * h * fps;
-	int rate;
+	int rate, rate_axi;
 	struct clk *axi_clk = block->clock[0];
 	struct clk *pipe_clk = block->clock[2];
 
-	/* Need to refine the frequency */
-	if (sz > 300000000)
-		rate = 416000000;
-	else if (sz > 180000000)
-		rate = 312000000;
-	else if (sz > 100000000)
-		rate = 208000000;
-	else
-		rate = 156000000;
-
-	clk_set_rate(axi_clk, rate);
 	if (sz > 300000000)
 		rate = 499000000;
 	else if (sz > 180000000)
@@ -586,6 +575,18 @@ int b52isp_idi_change_clock(struct isp_block *block,
 		rate = 156000000;
 	clk_set_rate(pipe_clk, rate);
 	b52_set_sccb_clock_rate(clk_get_rate(pipe_clk), 400000);
+
+	/* ISP need axi clk >= pipe_clk */
+	rate = clk_get_rate(pipe_clk);
+	if (rate > 416000000)
+		rate_axi = 528000000;
+	else if (rate > 312000000)
+		rate_axi = 416000000;
+	else if (rate > 208000000)
+		rate_axi = 312000000;
+	else
+		rate_axi = 208000000;
+	clk_set_rate(axi_clk, rate_axi);
 
 	d_inf(3, "isp axi clk %lu", clk_get_rate(axi_clk));
 	d_inf(3, "isp pipe clk %lu", clk_get_rate(pipe_clk));
@@ -2881,7 +2882,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 				}
 				if (lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS)) {
 					paxi->r_type = B52AXI_REVENT_MEMSENSOR;
-					b52isp_set_ddr_qos(528000);
+					b52isp_set_ddr_qos(624000);
 					ret = b52isp_try_apply_cmd(lpipe);
 					if (ret < 0)
 						goto unlock;

@@ -26,6 +26,9 @@
 #define FW_FILE_V325          "ispfw_v325.bin"
 #define FW_FILE_V326          "ispfw_v326.bin"
 
+#define ISP_FW325 0x25
+#define ISP_FW326 0x26
+
 enum mcu_cmd_name {
 	CMD_TEST = 0,
 	CMD_RAW_DUMP,
