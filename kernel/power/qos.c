@@ -1092,7 +1092,7 @@ static int ddrfreq_qos_show(struct seq_file *m, void *unused)
 	target_max = pm_qos_read_value(qos_max->constraints);
 	target_upthrd_max = pm_qos_read_value(qos_upthrd_max->constraints);
 
-	seq_printf(m, "Target min frequency: %d\n", target_min);
+	seq_printf(m, "Target min %d\n", target_min);
 	list_for_each_entry(node, list_min, node_list) {
 		req = container_of(node, struct pm_qos_request, node);
 		if (node->prio != PM_QOS_DEFAULT_VALUE)
@@ -1100,7 +1100,7 @@ static int ddrfreq_qos_show(struct seq_file *m, void *unused)
 				node->prio, req->name);
 	}
 
-	seq_printf(m, "Target max frequency: %d\n", target_max);
+	seq_printf(m, "Target max %d\n", target_max);
 	list_for_each_entry(node, list_max, node_list) {
 		req = container_of(node, struct pm_qos_request, node);
 		if (node->prio != PM_QOS_DEFAULT_VALUE)
@@ -1108,7 +1108,7 @@ static int ddrfreq_qos_show(struct seq_file *m, void *unused)
 				node->prio, req->name);
 	}
 
-	seq_printf(m, "Target max up threshold: %d\n", target_upthrd_max);
+	seq_printf(m, "Target max up threshold %d\n", target_upthrd_max);
 	list_for_each_entry(node, list_upthrd_max, node_list) {
 		req = container_of(node, struct pm_qos_request, node);
 		if (node->prio != PM_QOS_DEFAULT_VALUE)
