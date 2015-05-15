@@ -539,6 +539,8 @@ int mmp_tdm_move_slot(struct snd_pcm_substream *substream, int dst)
 }
 EXPORT_SYMBOL(mmp_tdm_move_slot);
 
+#define STATIC_TX_SLOT		4
+
 /* TDM slot allocate for static allocation */
 int mmp_tdm_static_slot_alloc(struct snd_pcm_substream *substream,
 				int *tx, int tx_num, int *rx, int rx_num)
@@ -634,12 +636,11 @@ int mmp_tdm_static_slot_alloc(struct snd_pcm_substream *substream,
 		rx_slot_tol = slot - tdm_man_priv->rx_unused_slot_tol;
 		tx_slot_tol = slot - tdm_man_priv->tx_unused_slot_tol;
 
-		for (i = 0; i < tx_num; i++) {
-			if (tx[i] > slot)
-				slot = tx[i];
-			if (tx[i] > tx_slot_tol)
-				tx_slot_tol = tx[i];
-		}
+		/* always allocate 4 slots for playback */
+		if (STATIC_TX_SLOT > slot)
+			slot = STATIC_TX_SLOT;
+		if (STATIC_TX_SLOT > tx_slot_tol)
+			tx_slot_tol = STATIC_TX_SLOT;
 
 		for (i = 0; i < rx_num; i++) {
 			if (rx[i] > slot)
