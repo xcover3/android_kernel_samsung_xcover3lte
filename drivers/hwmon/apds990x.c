@@ -1238,6 +1238,10 @@ static int apds990x_suspend(struct i2c_client *client, pm_message_t mesg)
 	struct apds990x_data *data = i2c_get_clientdata(client);
 	unsigned long flags;
 	int ret;
+
+		/* Do nothing as p-sensor is in active */
+	if (data->enable)
+		return 0;
 	ret = apds990x_set_enable(client, 0);
 	pr_info("enter %s\n", __func__);
 	if (atomic_read(&data->enable_als_sensor)
@@ -1255,6 +1259,9 @@ static int apds990x_resume(struct i2c_client *client)
 	struct apds990x_data *data = i2c_get_clientdata(client);
 	unsigned long flags;
 	int ret = 0;
+
+	if (data->enable)
+		return 0;
 
 	pr_info("enter %s \n", __func__);
 
