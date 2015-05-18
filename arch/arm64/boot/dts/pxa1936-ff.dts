@@ -46,7 +46,7 @@
 	apds990x_pins: pinmux_apds990x_pins {
 		/*pinctrl-single,pins = <GPIO(ALS_INT)>;*/
 		pinctrl-single,pins = <GPIO20 AF0>;
-		MFP_PULL_UP;
+		MFP_LPM_PULL_UP;
 	};
 	motion_sensor_pins: pinmux_motion_sensor_pins {
 		/* pinctrl-single,pins = <GPIO(GSEN_DRDY)>;*/
