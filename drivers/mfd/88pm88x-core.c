@@ -291,7 +291,7 @@ static const char *chip_stepping_to_string(unsigned int id)
 	case 0xb0:
 		return "88pm880 A0";
 	case 0xb1:
-		return "88pm880 A1A";
+		return "88pm880 A1";
 	default:
 		break;
 	}
