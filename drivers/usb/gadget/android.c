@@ -1248,126 +1248,6 @@ static struct android_usb_function audio_source_function = {
 	.attributes	= audio_source_function_attributes,
 };
 
-#define CD_ROM_PATH0  "/system/pcsuite/pcsuite.iso"
-
-struct pcsuite_function_config {
-	struct fsg_config fsg;
-	struct fsg_common *common;
-	int nluns;
-};
-
-static int pcsuite_fsg_init(struct usb_composite_dev *cdev,
-				struct android_usb_function *f,
-				struct pcsuite_function_config *config)
-{
-	struct fsg_common *common;
-	int nluns = config->nluns;
-	char *name;
-	int i, ret;
-
-	config->fsg.nluns = nluns;
-	for (i = 0; i < nluns; i++) {
-		config->fsg.luns[i].removable = 1;
-		config->fsg.luns[i].cdrom = 1;
-	}
-
-	common = fsg_common_init(NULL, cdev, &config->fsg);
-	if (IS_ERR(common))
-		return PTR_ERR(common);
-
-	/* Create symlinks */
-	for (i = 0; i < nluns; i++) {
-		name = get_lun_name(i, nluns);
-		ret = sysfs_create_link(&f->dev->kobj,
-				&common->luns[i].dev.kobj, name);
-		if (ret) {
-			while (i-- > 0) {
-				name = get_lun_name(i, nluns);
-				sysfs_remove_link(&f->dev->kobj, name);
-			}
-			goto err_create_symlink;
-		}
-	}
-
-	config->common = common;
-	return 0;
-
-err_create_symlink:
-	fsg_common_release(&common->ref);
-	return ret;
-}
-
-static void pcsuite_fsg_release(struct android_usb_function *f)
-{
-	struct pcsuite_function_config *config = f->config;
-	struct fsg_common *common = config->common;
-	int nluns = config->fsg.nluns;
-	char *name;
-	int i;
-
-	if (nluns < 1)
-		return;
-	/* Remove symlinks */
-	i = nluns - 1;
-	while (i >= 0) {
-		name = get_lun_name(i, nluns);
-		sysfs_remove_link(&f->dev->kobj, name);
-		i--;
-	}
-
-	fsg_common_release(&common->ref);
-}
-
-static int pcsuite_function_init(struct android_usb_function *f,
-					struct usb_composite_dev *cdev)
-{
-	struct pcsuite_function_config *config;
-
-	config = kzalloc(sizeof(struct pcsuite_function_config), GFP_KERNEL);
-	if (!config)
-		return -ENOMEM;
-
-	/* Init nluns=1 by default */
-	config->nluns = 1;
-	config->fsg.luns[0].filename = CD_ROM_PATH0;
-
-	f->config = config;
-	return 0;
-}
-
-static void pcsuite_function_cleanup(struct android_usb_function *f)
-{
-	pcsuite_fsg_release(f);
-	kfree(f->config);
-	f->config = NULL;
-}
-
-static int pcsuite_function_bind_config(struct android_usb_function *f,
-						struct usb_configuration *c)
-{
-	struct pcsuite_function_config *config = f->config;
-	int ret;
-	static int pcsuite_inited;
-
-	pr_info("%s, filename is %s\n", __func__, config->fsg.luns[0].filename);
-
-	if (pcsuite_inited == 0) {
-		ret = pcsuite_fsg_init(c->cdev, f, config);
-		if (ret)
-			return ret;
-		pcsuite_inited = 1;
-	}
-
-	return fsg_bind_config(c->cdev, c, config->common);
-}
-
-static struct android_usb_function pcsuite_function = {
-	.name		= "pcsuite",
-	.init		= pcsuite_function_init,
-	.cleanup	= pcsuite_function_cleanup,
-	.bind_config	= pcsuite_function_bind_config,
-};
-
 static struct android_usb_function *supported_functions[] = {
 	&adb_function,
 	&marvell_modem_function,
@@ -1383,7 +1263,6 @@ static struct android_usb_function *supported_functions[] = {
 #ifdef CONFIG_USB_GADGET_CHARGE_ONLY
 	&charge_only_function,
 #endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
-	&pcsuite_function,
 	NULL
 };
 
