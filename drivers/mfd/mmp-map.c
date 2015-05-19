@@ -1575,10 +1575,7 @@ void map_set_sleep_vol(struct map_private *map_priv, int on)
 void map_be_active(struct map_private *map_priv)
 {
 	unsigned int reg, val;
-
-	/* get constrain out of spinlock since it may sleep */
-	if ((!map_priv->user_count) && (map_priv->lpm_qos >= 0))
-		pm_qos_update_request(&map_priv->qos_idle, map_priv->lpm_qos);
+	bool map_is_active = false;
 
 	spin_lock(&map_priv->map_lock);
 	if (!map_priv->user_count) {
@@ -1595,13 +1592,19 @@ void map_be_active(struct map_private *map_priv)
 		reg = MAP_ASRC_CTRL_REG;
 		val = 0xff;
 		map_raw_write(map_priv, reg, val);
+
+		map_is_active = true;
 	}
 	map_priv->user_count++;
 	spin_unlock(&map_priv->map_lock);
 
-	/* set vol should out of spinlock status, it may sleep */
-	if (map_priv->user_count == 1)
+	if (map_is_active) {
+		/* get constrain out of spinlock since it may sleep */
+		if (map_priv->lpm_qos >= 0)
+			pm_qos_update_request(&map_priv->qos_idle, map_priv->lpm_qos);
+		/* set vol should out of spinlock status, it may sleep */
 		map_set_sleep_vol(map_priv, 1);
+	}
 
 	return;
 }
@@ -1611,6 +1614,7 @@ EXPORT_SYMBOL(map_be_active);
 void map_be_reset(struct map_private *map_priv)
 {
 	unsigned int reg, val;
+	bool map_is_reset = false;
 
 	spin_lock(&map_priv->map_lock);
 	map_priv->user_count--;
@@ -1623,10 +1627,12 @@ void map_be_reset(struct map_private *map_priv)
 		reg = MAP_TOP_CTRL_REG_1;
 		val = 0x1;
 		map_raw_write(map_priv, reg, val);
+
+		map_is_reset = true;
 	}
 	spin_unlock(&map_priv->map_lock);
 
-	if (map_priv->user_count == 0) {
+	if (map_is_reset) {
 		map_set_sleep_vol(map_priv, 0);
 		/* release constaint to allow LPM if needed */
 		if (map_priv->lpm_qos >= 0)
