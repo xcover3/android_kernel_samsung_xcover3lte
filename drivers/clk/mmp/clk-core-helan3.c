@@ -882,7 +882,7 @@ static void __init_cpufreq_table(struct clk_hw *hw)
 
 	cpu_opt_size = core->params->cpu_opt_size;
 	cpufreq_tbl =
-	    kmalloc(sizeof(struct cpufreq_frequency_table) *
+	    kzalloc(sizeof(struct cpufreq_frequency_table) *
 		    (cpu_opt_size + 1), GFP_KERNEL);
 	if (!cpufreq_tbl)
 		return;
@@ -1489,7 +1489,7 @@ static void __init_ddr_devfreq_table(struct clk_hw *hw)
 	struct clk_ddr *ddr = to_clk_ddr(hw);
 
 	ddr_opt_size = ddr->params->ddr_opt_size;
-	ddr_devfreq_tbl = kmalloc(sizeof(struct devfreq_frequency_table)
+	ddr_devfreq_tbl = kzalloc(sizeof(struct devfreq_frequency_table)
 				  * (ddr_opt_size + 1), GFP_KERNEL);
 	if (!ddr_devfreq_tbl)
 		return;
