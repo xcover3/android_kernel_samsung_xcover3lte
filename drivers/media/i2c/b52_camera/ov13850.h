@@ -418,6 +418,7 @@ struct regval_tab ov13850_13M_res_init[] = {
 	{0x5b09, 0x02},
 	{0x5e00, 0x00},
 	{0x5e10, 0x1c},
+	{0x3503, 0x23},
 };
 
 struct regval_tab ov13850_fmt_raw10[] = {
