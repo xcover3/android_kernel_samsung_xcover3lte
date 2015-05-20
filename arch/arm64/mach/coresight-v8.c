@@ -19,6 +19,8 @@
 #include <asm/cputype.h>
 #include <asm/smp_plat.h>
 
+#define USE_OSLOCK		0
+
 #define EDITR		0x84
 #define EDSCR		0x88
 #define EDRCR		0x90
@@ -195,10 +197,10 @@ struct etm_info {
 	u32	trc_eventctl0;	/* offset: 0x20 */
 	u32	trc_eventctl1;	/* offset: 0x24 */
 	u32	trc_stallctl;	/* offset: 0x2c */
+	u32	trc_tsctlr;	/* offset: 0x30 */
 	u32	trc_syncpr;	/* offset: 0x34 */
 	u32	trc_bbctl;	/* offset: 0x3c */
 	u32	trc_traceid;	/* offset: 0x40 */
-	u32	trc_tsctlr;	/* offset: 0x30 */
 	u32	trc_victlr;	/* offset: 0x80 */
 	u32	trc_viiectl;	/* offset: 0x84 */
 	u32	trc_vissctl;	/* offset: 0x88 */
@@ -212,115 +214,252 @@ struct etf_info {
 
 static DEFINE_PER_CPU(struct etm_info, cpu_etm_info);
 #define TRC_PRGCTLR	0x4
+#define TRC_PROCSELR			(0x008)
 #define TRC_STATR	0xc
 #define TRC_CONFIGR	0x10
+#define TRC_AUXCTLR			(0x018)
 #define TRC_EVENTCTL0R	0x20
 #define TRC_EVENTCTL1R  0x24
 #define TRC_STALLCTLR	0x2c
 #define TRC_TSCTLR	0x30
 #define TRC_SYNCPR	0x34
+#define TRC_CCCTLR			(0x038)
 #define TRC_BBCTLR	0x3c
 #define TRC_TRACEIDR	0x40
+#define TRC_QCTLR			(0x044)
 #define TRC_VICTLR	0x80
 #define TRC_VIIECTLR	0x84
 #define TRC_VISSCTLR	0x88
 
-#define TRC_OSLAR	0x300
-#define TRC_OSLSR	0x304
+#define TRC_VIPCSSCTLR			(0x08C)
+#define TRC_VDCTLR			(0x0A0)
+#define TRC_VDSACCTLR			(0x0A4)
+#define TRC_VDARCCTLR			(0x0A8)
+/* Derived resources registers */
+#define TRC_SEQEVRn(n)			(0x100 + (n * 4))
+#define TRC_SEQRSTEVR			(0x118)
+#define TRC_SEQSTR			(0x11C)
+#define TRC_EXTINSELR			(0x120)
+#define TRC_CNTRLDVRn(n)			(0x140 + (n * 4))
+#define TRC_CNTCTLRn(n)			(0x150 + (n * 4))
+#define TRC_CNTVRn(n)			(0x160 + (n * 4))
+/* ID registers */
+#define TRC_IDR8				(0x180)
+#define TRC_IDR9				(0x184)
+#define TRC_IDR10			(0x188)
+#define TRC_IDR11			(0x18C)
+#define TRC_IDR12			(0x190)
+#define TRC_IDR13			(0x194)
+#define TRC_IMSPEC0			(0x1C0)
+#define TRC_IMSPECn(n)			(0x1C0 + (n * 4))
+#define TRC_IDR0				(0x1E0)
+#define TRC_IDR1				(0x1E4)
+#define TRC_IDR2				(0x1E8)
+#define TRC_IDR3				(0x1EC)
+#define TRC_IDR4				(0x1F0)
+#define TRC_IDR5				(0x1F4)
+#define TRC_IDR6				(0x1F8)
+#define TRC_IDR7				(0x1FC)
+/* Resource selection registers */
+#define TRC_RSCTLRn(n)			(0x200 + (n * 4))
+/* Single-shot comparator registers */
+#define TRC_SSCCRn(n)			(0x280 + (n * 4))
+#define TRC_SSCSRn(n)			(0x2A0 + (n * 4))
+#define TRC_SSPCICRn(n)			(0x2C0 + (n * 4))
+/* Management registers (0x300-0x314) */
+#define TRC_OSLAR			(0x300)
+#define TRC_OSLSR			(0x304)
+#define TRC_PDCR				(0x310)
+#define TRC_PDSR				(0x314)
+/* Trace registers (0x318-0xEFC) */
+/* Comparator registers */
+#define TRC_ACVRn(n)			(0x400 + (n * 8))
+#define TRC_ACATRn(n)			(0x480 + (n * 8))
+#define TRC_DVCVRn(n)			(0x500 + (n * 16))
+#define TRC_DVCMRn(n)			(0x580 + (n * 16))
+#define TRC_CIDCVRn(n)			(0x600 + (n * 8))
+#define TRC_VMIDCVRn(n)			(0x640 + (n * 8))
+#define TRC_CIDCCTLR0			(0x680)
+#define TRC_CIDCCTLR1			(0x684)
+#define TRC_VMIDCCTLR0			(0x688)
+#define TRC_VMIDCCTLR1			(0x68C)
+/* Management register (0xF00) */
+/* Integration control registers */
+#define TRC_ITCTRL			(0xF00)
+/* Trace registers (0xFA0-0xFA4) */
+/* Claim tag registers */
+#define TRC_CLAIMSET			(0xFA0)
+#define TRC_CLAIMCLR			(0xFA4)
+/* Management registers (0xFA8-0xFFC) */
+#define TRC_DEVAFF0			(0xFA8)
+#define TRC_DEVAFF1			(0xFAC)
+#define TRC_LAR				(0xFB0)
+#define TRC_LSR				(0xFB4)
+#define TRC_AUTHSTATUS			(0xFB8)
+#define TRC_DEVARCH			(0xFBC)
+#define TRC_DEVID			(0xFC8)
+#define TRC_DEVTYPE			(0xFCC)
+#define TRC_PIDR4			(0xFD0)
+#define TRC_PIDR5			(0xFD4)
+#define TRC_PIDR6			(0xFD8)
+#define TRC_PIDR7			(0xFDC)
+#define TRC_PIDR0			(0xFE0)
+#define TRC_PIDR1			(0xFE4)
+#define TRC_PIDR2			(0xFE8)
+#define TRC_PIDR3			(0xFEC)
+#define TRC_CIDR0			(0xFF0)
+#define TRC_CIDR1			(0xFF4)
+#define TRC_CIDR2			(0xFF8)
+#define TRC_CIDR3			(0xFFC)
 
-#define TRC_PDCR	0x310
-#define TRC_PDSR	0x314
-
-#define TRC_LAR		0xFB0
-#define TRC_LSR		0xFB4
 
 /* The following operations are needed by XDB */
-static inline void etm_enable_access(void)
+static inline void etm_lock(void)
 {
-	u32 timeout, val;
+	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
+	/*lock the software lock*/
+	mb();
+	writel_relaxed(0x0, p_etm_base + TRC_LAR);
+}
+
+/* The following operations are needed by XDB */
+static inline void etm_unlock(void)
+{
 	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
 	/*Unlock the software lock*/
 	writel_relaxed(0xC5ACCE55, p_etm_base + TRC_LAR);
+	mb();
+}
 
-	timeout = 10000;
-	do {
-		val = readl_relaxed(p_etm_base + TRC_LSR);
-		if (!(val & (0x1 << 1)))
-			break;
-	} while (--timeout);
-	if (!timeout)
-		pr_err("Software Lock on cpu%d still locked!\n",
-			raw_smp_processor_id());
+/* The following operations are needed by XDB */
+static inline void etm_os_unlock(void)
+{
+	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
 
-	/*Unlock the OS lock*/
+	/*unlock the os lock*/
+	mb();
 	writel_relaxed(0x0, p_etm_base + TRC_OSLAR);
-	timeout = 10000;
-	do {
-		val = readl_relaxed(p_etm_base + TRC_OSLSR);
-		if (!(val & (0x1 << 1)))
-			break;
-	} while (--timeout);
-	if (!timeout)
-		pr_err("OSLock on cpu%d still locked!\n",
-			raw_smp_processor_id());
+}
+
+/* The following operations are needed by XDB */
+static inline void etm_os_lock(void)
+{
+	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
+
+	/*Lock the os lock*/
+	writel_relaxed(0x1, p_etm_base + TRC_OSLAR);
+	mb();
 }
 
 static void coresight_etm_save(void)
 {
 	struct etm_info *p_etm_info;
-	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
-
-	etm_enable_access();
-	p_etm_info = this_cpu_ptr(&cpu_etm_info);
-	p_etm_info->trc_config = readl_relaxed(p_etm_base + TRC_CONFIGR);
-	p_etm_info->trc_bbctl = readl_relaxed(p_etm_base + TRC_BBCTLR);
-	p_etm_info->trc_eventctl0 = readl_relaxed(p_etm_base + TRC_EVENTCTL0R);
-	p_etm_info->trc_eventctl1 = readl_relaxed(p_etm_base + TRC_EVENTCTL1R);
-	p_etm_info->trc_stallctl = readl_relaxed(p_etm_base + TRC_STALLCTLR);
-	p_etm_info->trc_syncpr = readl_relaxed(p_etm_base + TRC_SYNCPR);
-	p_etm_info->trc_traceid = readl_relaxed(p_etm_base + TRC_TRACEIDR);
-	p_etm_info->trc_tsctlr = readl_relaxed(p_etm_base + TRC_TSCTLR);
-	p_etm_info->trc_victlr = readl_relaxed(p_etm_base + TRC_VICTLR);
-	p_etm_info->trc_viiectl = readl_relaxed(p_etm_base + TRC_VIIECTLR);
-	p_etm_info->trc_vissctl = readl_relaxed(p_etm_base + TRC_VISSCTLR);
-	p_etm_info->trc_prgctl = readl_relaxed(p_etm_base + TRC_PRGCTLR);
-}
-
-static void coresight_etm_restore(void)
-{
-	struct etm_info *p_etm_info;
 	u32 timeout, val;
 	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
 
-	etm_enable_access();
+	mb();
+	isb();
 
-	if (readl(p_etm_base + TRC_PRGCTLR))
-		return;
+	/* unlock software lock */
+	etm_unlock();
+
+	/* Fix me, normally, lock OS lock can disable trace unit and external access,
+	 * but found OS lock can't lock/unlock issue when doing MBTF test, so replace
+	 * with TRC_PRGCTLR to disabel trace unit
+	 */
+#if USE_OSLOCK
+	etm_os_lock();
+#else
+	writel_relaxed(0x0, p_etm_base + TRC_PRGCTLR);
+#endif
 
 	/* Check the programmers' model is stable */
-	timeout = 10000;
+	timeout = 100;
 	do {
 		val = readl(p_etm_base + TRC_STATR);
 		if (val & (0x1 << 1))
 			break;
+		udelay(1);
 	} while (--timeout);
 	if (!timeout)
 		pr_info("cpu%d's programmer model is unstable.\n",
 			raw_smp_processor_id());
 
+	/* save register */
+	p_etm_info = this_cpu_ptr(&cpu_etm_info);
+	p_etm_info->trc_config = readl_relaxed(p_etm_base + TRC_CONFIGR);
+	p_etm_info->trc_eventctl0 = readl_relaxed(p_etm_base + TRC_EVENTCTL0R);
+	p_etm_info->trc_eventctl1 = readl_relaxed(p_etm_base + TRC_EVENTCTL1R);
+	p_etm_info->trc_stallctl = readl_relaxed(p_etm_base + TRC_STALLCTLR);
+	p_etm_info->trc_tsctlr = readl_relaxed(p_etm_base + TRC_TSCTLR);
+	p_etm_info->trc_syncpr = readl_relaxed(p_etm_base + TRC_SYNCPR);
+	p_etm_info->trc_bbctl = readl_relaxed(p_etm_base + TRC_BBCTLR);
+	p_etm_info->trc_traceid = readl_relaxed(p_etm_base + TRC_TRACEIDR);
+	p_etm_info->trc_victlr = readl_relaxed(p_etm_base + TRC_VICTLR);
+	p_etm_info->trc_viiectl = readl_relaxed(p_etm_base + TRC_VIIECTLR);
+	p_etm_info->trc_vissctl = readl_relaxed(p_etm_base + TRC_VISSCTLR);
+#if USE_OSLOCK
+	p_etm_info->trc_prgctl = readl_relaxed(p_etm_base + TRC_PRGCTLR);
+#endif
+
+	/* ensure trace unit is idle to be powered down */
+	timeout = 100;
+	do {
+		val = readl(p_etm_base + TRC_STATR);
+		if (val & (0x1 << 0))
+			break;
+		udelay(1);
+	} while (--timeout);
+	if (!timeout)
+		pr_info("cpu%d's programmer model is not idle.\n",
+			raw_smp_processor_id());
+
+	/* lock software lock */
+	etm_lock();
+}
+
+static void coresight_etm_restore(void)
+{
+	struct etm_info *p_etm_info;
+	void __iomem *p_etm_base = ETM_BASE(raw_smp_processor_id());
+
+	/* unlock software lock */
+	etm_unlock();
+
+	/* Fix me, normally, lock OS lock can disable trace unit and external access,
+	 * but found OS lock can't lock/unlock issue when doing MBTF test, so replace
+	 * with TRC_PRGCTLR to disabel trace unit
+	 */
+#if USE_OSLOCK
+	etm_os_lock();
+#else
+	writel_relaxed(0x0, p_etm_base + TRC_PRGCTLR);
+#endif
+
+	/* restore registers */
 	p_etm_info = this_cpu_ptr(&cpu_etm_info);
 	writel_relaxed(p_etm_info->trc_config, p_etm_base + TRC_CONFIGR);
-	writel_relaxed(p_etm_info->trc_bbctl, p_etm_base + TRC_BBCTLR);
 	writel_relaxed(p_etm_info->trc_eventctl0, p_etm_base + TRC_EVENTCTL0R);
 	writel_relaxed(p_etm_info->trc_eventctl1, p_etm_base + TRC_EVENTCTL1R);
 	writel_relaxed(p_etm_info->trc_stallctl, p_etm_base + TRC_STALLCTLR);
-	writel_relaxed(p_etm_info->trc_syncpr, p_etm_base + TRC_SYNCPR);
-	writel_relaxed(p_etm_info->trc_traceid, p_etm_base + TRC_TRACEIDR);
 	writel_relaxed(p_etm_info->trc_tsctlr, p_etm_base + TRC_TSCTLR);
+	writel_relaxed(p_etm_info->trc_syncpr, p_etm_base + TRC_SYNCPR);
+	writel_relaxed(p_etm_info->trc_bbctl, p_etm_base + TRC_BBCTLR);
+	writel_relaxed(p_etm_info->trc_traceid, p_etm_base + TRC_TRACEIDR);
 	writel_relaxed(p_etm_info->trc_victlr, p_etm_base + TRC_VICTLR);
 	writel_relaxed(p_etm_info->trc_viiectl, p_etm_base + TRC_VIIECTLR);
 	writel_relaxed(p_etm_info->trc_vissctl, p_etm_base + TRC_VISSCTLR);
+#if USE_OSLOCK
 	writel_relaxed(p_etm_info->trc_prgctl, p_etm_base + TRC_PRGCTLR);
+#else
+	writel_relaxed(0x1, p_etm_base + TRC_PRGCTLR);
+#endif
+
+	/* unlock os lock */
+	etm_os_unlock();
+
+	/* lock software lock */
+	etm_lock();
 }
 
 static DEFINE_PER_CPU(struct etf_info, local_etf_info);
@@ -407,15 +546,6 @@ static void __init coresight_etm_enable(u32 cpu)
 
 	/*Unlock the software lock*/
 	writel_relaxed(0xC5ACCE55, p_etm_base + TRC_LAR);
-	val = readl_relaxed(p_etm_base + TRC_LSR);
-	if (val & (0x1 << 1))
-		pr_err("Software Lock on cpu%d still locked!\n", cpu);
-
-	/*Unlock the OS lock*/
-	writel_relaxed(0x0, p_etm_base + TRC_OSLAR);
-	val = readl_relaxed(p_etm_base + TRC_OSLSR);
-	if (val & (0x1 << 1))
-		pr_err("OSLock on cpu%d still locked!\n", cpu);
 
 	/*Disable the trace unit*/
 	writel_relaxed(0x0, p_etm_base + TRC_PRGCTLR);
@@ -463,6 +593,9 @@ static void __init coresight_etm_enable(u32 cpu)
 
 	/*Enable the trace unit*/
 	writel_relaxed(0x1, p_etm_base + TRC_PRGCTLR);
+
+	/*Lock the software lock*/
+	writel_relaxed(0x0, p_etm_base + TRC_LAR);
 }
 
 static void __init coresight_percore_init(u32 cpu)
