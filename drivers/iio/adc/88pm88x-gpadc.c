@@ -632,11 +632,12 @@ static int pm88x_gpadc_print_bias_res(struct regmap *map,
 	unsigned int en_mask, out_mask, mask, val = 0;
 	int i, ret, flag = 0;
 
-	mask = bias_info->bias_mask;
-	en_mask = bias_info->bias_en_mask;
-	out_mask = bias_info->bias_en_mask << 4;
 	for (i = 0; i < ARRAY_SIZE(pm88x_bias_info); i++) {
 		if (!(strcmp(extra_info->name, bias_info[i].name)) && bias_info[i].bias_en_reg) {
+			mask = bias_info[i].bias_mask;
+			en_mask = bias_info[i].bias_en_mask;
+			out_mask = bias_info[i].bias_en_mask << 4;
+
 			ret = regmap_read(map, bias_info[i].bias_en_reg, &val);
 			if (ret < 0)
 				return ret;
