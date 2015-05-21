@@ -1013,9 +1013,15 @@ static int wait_cmd_capture_img_done(struct b52isp_cmd *cmd)
 	int num_planes = output[0].pix_mp.num_planes;
 
 start_bracket:
-	if (ref_cnt++ > 5) {
-		pr_err("%s: retry CMD_CAPTUR_IMG over 5 times\n", __func__);
+	if (ref_cnt++ > 30) {
+		pr_err("%s: retry CMD_CAPTUR_IMG over 30 times\n", __func__);
 		return -EINVAL;
+	} else if (ref_cnt) {
+		ret = b52_fill_mmu_chnl(cmd->priv, output[0].buf[0], num_planes);
+		if (ret < 0) {
+			pr_err("%s: failed to fill mmu channel\n", __func__);
+			return ret;
+		}
 	}
 
 	b52_writeb(CMD_REG0, CMD_CAPTURE_IMG);

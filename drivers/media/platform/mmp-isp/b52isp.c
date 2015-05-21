@@ -2952,25 +2952,8 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			lpipe->cur_cmd->flags |= BIT(CMD_FLAG_LOCK_AEAG);
 			ret = b52isp_try_apply_cmd(lpipe);
 			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_LINEAR_YUV);
-			if (WARN_ON(ret < 0))
-				goto disable_sensor;
-			b52isp_export_cmd_buffer(lpipe->cur_cmd);
-			/*
-			 * FIXME:stream off sensor and csi, keep capture image cmd stream off do nothing
-			 * will refine this in the future
-			 * */
-disable_sensor:
-			{
-				struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
-				struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
-						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
-				struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
-				struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
-
-				v4l2_subdev_call(sd, video, s_stream, 0);
-				v4l2_subdev_call(csi_sd, video, s_stream, 0);
-			}
-			/* ignore MAC IRQ, so skip notifier chain */
+			if (!ret)
+				b52isp_export_cmd_buffer(lpipe->cur_cmd);
 			goto unlock;
 		case CMD_HDR_STILL:
 		case CMD_RAW_PROCESS:
@@ -3142,8 +3125,7 @@ disable_axi:
 		b52isp_set_ddr_threshold(&laxi->parent->work, 0);
 
 		/* stream off sensor and csi */
-		if ((lpipe->cur_cmd->cmd_name != CMD_IMG_CAPTURE) &&
-			(lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
+		if ((lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
 			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
 			struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
