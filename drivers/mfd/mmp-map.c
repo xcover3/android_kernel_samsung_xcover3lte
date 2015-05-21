@@ -1342,12 +1342,12 @@ static ssize_t map_reg_set(struct device *dev,
 	int reg_val, reg, val;
 
 	char index[20], *val_str;
-	memset(index, '\0', 20);
 
 	/* write register: find whether it has blank */
 	val_str = strchr(buf, 32);
 	if (val_str) {
 		/* set the register index */
+		memset(index, 0, ARRAY_SIZE(index));
 		memcpy(index, buf, (val_str - buf));
 
 		if (kstrtouint(index, 16, &map_offset) < 0)
@@ -1358,6 +1358,7 @@ static ssize_t map_reg_set(struct device *dev,
 			return -EINVAL;
 		}
 
+		memset(index, 0, ARRAY_SIZE(index));
 		memcpy(index, val_str + 1, (strlen(val_str) - 1));
 
 		if (kstrtouint(index, 16, &reg_val) < 0)
@@ -1436,12 +1437,12 @@ static ssize_t dspaux_reg_set(struct device *dev,
 	int reg_val;
 
 	char index[20], *val_str;
-	memset(index, '\0', 20);
 
 	/* write register: find whether it has blank */
 	val_str = strchr(buf, 32);
 	if (val_str) {
 		/* set the register index */
+		memset(index, 0, ARRAY_SIZE(index));
 		memcpy(index, buf, (val_str - buf));
 
 		if (kstrtouint(index, 16, &aux_offset) < 0)
@@ -1452,6 +1453,7 @@ static ssize_t dspaux_reg_set(struct device *dev,
 			return -EINVAL;
 		}
 
+		memset(index, 0, ARRAY_SIZE(index));
 		memcpy(index, val_str + 1, (strlen(val_str) - 1));
 
 		if (kstrtouint(index, 16, &reg_val) < 0)
