@@ -764,11 +764,30 @@ static void find_match(struct pm88x_battery_info *info,
 		*high = end - 1;
 }
 
+/*
+ * if the fake temperature is equeal or greater than 2000, don't use it.
+ * otherwise, we will use it to fake the battery temperature.
+ */
+static int battery_fake_temp = 2000; /* 2000/10=200C */
+
+static inline bool is_battery_temp_faked(void)
+{
+	return (battery_fake_temp < 2000) ? true : false;
+}
+
+static inline int get_battery_fake_temp(void)
+{
+	return battery_fake_temp;
+}
+
 static int pm88x_get_batt_temp(struct pm88x_battery_info *info)
 {
 	struct iio_channel *channel = info->chan[TEMP_CHAN];
 	int ohm, ret, default_temp = 25;
 	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
+
+	if (is_battery_temp_faked())
+		return get_battery_fake_temp()/10;
 
 	if (!info->bat_temp_monitor_en)
 		return default_temp;
@@ -2016,6 +2035,17 @@ static int pm88x_batt_set_prop_capacity(struct pm88x_battery_info *info, int dat
 	return 0;
 }
 
+static int pm88x_batt_set_prop_temp(struct pm88x_battery_info *info, int data)
+{
+	battery_fake_temp = data;
+
+	dev_info(info->dev, "fake temperature is %s\n",
+		 is_battery_temp_faked() ? "enabled" : "disabled");
+	dev_info(info->dev, "fake temperature is %dC\n", battery_fake_temp/10);
+
+	return 0;
+}
+
 static int pm88x_batt_set_prop(struct power_supply *psy,
 			       enum power_supply_property psp,
 			       const union power_supply_propval *val)
@@ -2026,6 +2056,9 @@ static int pm88x_batt_set_prop(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CAPACITY:
 		ret = pm88x_batt_set_prop_capacity(info, val->intval);
+		break;
+	case POWER_SUPPLY_PROP_TEMP:
+		ret = pm88x_batt_set_prop_temp(info, val->intval);
 		break;
 	default:
 		ret = -EPERM;
@@ -2040,6 +2073,7 @@ static int pm88x_batt_property_is_writeable(struct power_supply *psy,
 {
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CAPACITY:
+	case POWER_SUPPLY_PROP_TEMP:
 		return 1;
 	default:
 		return 0;
