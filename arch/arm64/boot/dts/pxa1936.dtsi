@@ -1103,4 +1103,16 @@
 		dma-names =  "iml-dma";
 		status = "disabled";
 	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0 84 4>,
+			     <0 85 4>,
+			     <0 86 4>,
+			     <0 87 4>,
+			     <0 108 4>,
+			     <0 109 4>,
+			     <0 110 4>,
+			     <0 111 4>;
+	};
 };
