@@ -1144,6 +1144,7 @@ static int __init dvfs_dvc_create_debug_node(void)
 		goto err_voltage;
 
 	dvfs_debugfs_init(dvfs_node);
+	dvc_table_debugfs_init(dvfs_node);
 	return 0;
 
 err_voltage:

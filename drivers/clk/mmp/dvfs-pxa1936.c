@@ -18,6 +18,7 @@
 #include <linux/clk/dvfs-dvc.h>
 #include <linux/clk/mmpcpdvc.h>
 #include <linux/clk/mmpfuse.h>
+#include <linux/debugfs-pxa.h>
 
 #include <linux/cputype.h>
 #include "clk-plat.h"
@@ -39,6 +40,7 @@ enum dvfs_comp {
 	SDH1,
 	SDH2,
 	VM_RAIL_MAX,
+	VM_RAIL_NO_SDH_MAX = SDH0,
 };
 
 enum chip_stepping_id {
@@ -88,6 +90,17 @@ static struct comm_fuse_info fuseinfo;
 static unsigned int fab_rev;
 static enum chip_stepping_id chip_stepping;
 static unsigned int svc_version;
+static int min_lv0_voltage;
+static int min_cp_voltage;
+static int min_gc_voltage;
+static char dvfs_comp_name[VM_RAIL_MAX][20] = {
+	"CORE", "CORE1", "DDR", "AXI",
+	"GC3D", "GC2D", "GC_SHADER", "GCACLK",
+	"VPU", "ISP", "SDH0", "SDH1", "SDH2",};
+static struct cpmsa_dvc_info cpmsa_dvc_info_temp;
+unsigned int uiYldTableEn;
+unsigned long (*freqs_cmb)[VL_MAX];
+int *millivolts;
 
 struct svtrng {
 	unsigned int min;
@@ -196,8 +209,56 @@ unsigned int convert_fab_revision(unsigned int fab_revision)
 	return ui_fab;
 }
 
-unsigned int convert_svc_version(unsigned int uiYldTableEn,
-			unsigned int uiSVCRev, unsigned int uiFabRev)
+unsigned int convert_svc_voltage(unsigned int uiGc3d_Vlevel,
+	unsigned int uiLPP_LoPP_Profile, unsigned int uiPCPP_Profile)
+{
+	switch (uiLPP_LoPP_Profile) {
+	case 0:
+		min_lv0_voltage = 950;
+		break;
+	case 1:
+		min_lv0_voltage = 975;
+		break;
+	case 3:
+		min_lv0_voltage = 1025;
+		break;
+	default:
+		min_lv0_voltage = 950;
+		break;
+	}
+	switch (uiPCPP_Profile) {
+	case 0:
+		min_cp_voltage = 963;
+		break;
+	case 1:
+		min_cp_voltage = 988;
+		break;
+	case 3:
+		min_cp_voltage = 1038;
+		break;
+	default:
+		min_cp_voltage = 963;
+		break;
+	}
+	switch (uiGc3d_Vlevel) {
+	case 0:
+		min_gc_voltage = 950;
+		break;
+	case 1:
+		min_gc_voltage = 975;
+		break;
+	case 3:
+		min_gc_voltage = 1050;
+		break;
+	default:
+		min_gc_voltage = 950;
+		break;
+	}
+
+	return 0;
+}
+
+unsigned int convert_svc_version(unsigned int uiSVCRev, unsigned int uiFabRev)
 {
 	if (uiSVCRev == 0) {
 		if (!uiYldTableEn)
@@ -257,8 +318,9 @@ static int __init __init_read_droinfo(void)
 	unsigned int uiBlock0_BLOCK0_RESERVED_1, uiBlock4_MANU_PARA1_0;
 	unsigned int uiAllocRev, uiRun, uiWafer, uiX, uiY, uiParity, ui_step_id;
 	unsigned int uiLVTDRO_Avg, uiSVTDRO_Avg, uiSIDD1p05 = 0, uiSIDD1p30 = 0, smc_ret = 0;
-	unsigned int uiCpuFreq, uiYldTableEn, uiBlock4_MANU_PARA1_1;
-	unsigned int uiskusetting = 0;
+	unsigned int uiCpuFreq, uiBlock4_MANU_PARA1_1;
+	unsigned int uiskusetting = 0, uiGc3d_Vlevel;
+	unsigned int uiLPP_LoPP_Profile, uiPCPP_Profile, uiNegEdge;
 	void __iomem *apmu_base, *geu_base;
 
 	apmu_base = ioremap(APMU_BASE, SZ_4K);
@@ -327,7 +389,19 @@ static int __init __init_read_droinfo(void)
 	ui_step_id = (uiBlock0_GEU_FUSE_MANU_PARA_2 >> 2) & 0x3;
 	uiSVCRev = (uiBlock4_MANU_PARA1_1 >> 6) & 0x3;
 	uiYldTableEn = (uiBlock0_BLOCK0_RESERVED_1 >> 9) & 0x1;
-	convert_svc_version(uiYldTableEn, uiSVCRev, uiFabRev);
+	convert_svc_version(uiSVCRev, uiFabRev);
+
+	if (uiYldTableEn == 1) {
+		uiGc3d_Vlevel = (uiBlock0_BLOCK0_RESERVED_1 >> 10) & 0x3;
+		uiLPP_LoPP_Profile = (uiBlock0_BLOCK0_RESERVED_1 >> 12) & 0x3;
+		uiPCPP_Profile = (uiBlock0_BLOCK0_RESERVED_1 >> 14) & 0x3;
+		convert_svc_voltage(uiGc3d_Vlevel, uiLPP_LoPP_Profile,
+			uiPCPP_Profile);
+
+		uiNegEdge = (uiBlock0_BLOCK0_RESERVED_1 >> 31) & 0x1;
+		/* bit 0 = 700mv,bit 1 = 800mv, opposite*/
+		uiskusetting = !uiNegEdge;
+	}
 
 	guiProfile = convertFusesToProfile_helan3(uiProfileFuses);
 
@@ -359,7 +433,7 @@ static int __init __init_read_droinfo(void)
 	pr_info("             x = %d\n",        uiX);
 	pr_info("             y = %d\n",        uiY);
 	pr_info("        parity = %d\n",   uiParity);
-	pr_info("        skusetting [201:202] = %d\n", uiskusetting);
+	pr_info("        UDR voltage bit = %d\n", uiskusetting);
 	pr_info("     *************************** \n");
 	if (0 == fab_rev)
 		pr_info("     *  Fab   = TSMC 28LP (%d)\n",    fab_rev);
@@ -948,6 +1022,174 @@ static struct cpmsa_dvc_info cpmsa_dvc_info_1936sec[NUM_PROFILES] = {
 	[15] = cp_lv3,
 };
 
+int dump_dvc_table(char *buf, int size)
+{
+	int i, s = 0, j;
+	s += snprintf(buf + s, size - s,
+	"=====dump svc voltage and freq table===\nsvc table voltage:\n");
+	for (i = 0; i < VL_MAX; i++)
+		s += snprintf(buf + s, size - s, "%d ", millivolts[i]);
+	s += snprintf(buf + s, size - s,
+	"\n========================================\nsvc table freq table:\n");
+	for (i = 0; i < VM_RAIL_MAX; i++) {
+		s += snprintf(buf + s, size - s, "%s: ", dvfs_comp_name[i]);
+		for (j = 0; j < VL_MAX; j++)
+			s += snprintf(buf + s, size - s, "%lu ",
+				freqs_cmb[i][j]);
+		s += snprintf(buf + s, size - s, "\n");
+	}
+	s += snprintf(buf + s, size - s,
+		"========================================\n");
+
+	return s;
+}
+
+
+static ssize_t dvc_table_read(struct file *filp,
+		char __user *buffer, size_t count, loff_t *ppos)
+{
+	char *buf;
+	size_t size = PAGE_SIZE;
+	int s, ret;
+
+	buf = (char *)__get_free_pages(GFP_KERNEL, 0);
+	if (!buf) {
+		pr_err("memory alloc for dvc table dump is failed!!\n");
+		return -ENOMEM;
+	}
+	s = dump_dvc_table(buf, size);
+	ret = simple_read_from_buffer(buffer, count, ppos, buf, s);
+	free_pages((unsigned long)buf, 0);
+	return ret;
+}
+
+const struct file_operations dvc_table_fops = {
+	.read = dvc_table_read,
+};
+
+int __init dvc_table_debugfs_init(struct dentry *clk_debugfs_root)
+{
+	struct dentry *dvc_table;
+
+	dvc_table = debugfs_create_file("dvc_table", 0444,
+		clk_debugfs_root, NULL, &dvc_table_fops);
+	if (!dvc_table)
+		return -ENOENT;
+	return 0;
+}
+
+
+int handle_svc_table(void)
+{
+	int i, j, lv0_change_index = 0, s;
+	char *buff = NULL;
+	size_t size = PAGE_SIZE - 1;
+
+	if (svc_version == SVC_1_11) {
+		millivolts = vm_millivolts_1936_svc_tsmc[uiprofile];
+		freqs_cmb = freqs_cmb_1936_tsmc[uiprofile];
+	} else if (svc_version == SEC_SVC_1_01) {
+		millivolts = vm_millivolts_1936_svc_sec[uiprofile];
+		freqs_cmb = freqs_cmb_1936_sec[uiprofile];
+	}
+
+	if (uiYldTableEn == 1) {
+		/* Change LV0 voltage according to fuse value */
+		if (min_lv0_voltage >= millivolts[0]) {
+			for (i = 0; i < VL_MAX; i++)
+				if (min_lv0_voltage >= millivolts[i])
+					millivolts[i] = min_lv0_voltage;
+				else
+					break;
+
+			lv0_change_index = i - 1;
+		}
+
+		/*	Change other components(without SDH) frequency
+		 *	combination table if LV0 is changed.
+		 */
+		if ((lv0_change_index) != 0) {
+			for (j = 0; j < lv0_change_index; j++)
+				for (i = 0; i < VM_RAIL_NO_SDH_MAX; i++)
+					freqs_cmb[i][j] =
+					freqs_cmb[i][lv0_change_index];
+		}
+
+		/* For Gc frequencies that stay at lower voltage level
+		 * than fuse gc value, change it to the voltage
+		 * level >= fuse gc value
+		 */
+		for (i = 0; i < VL_MAX; i++)
+			if (freqs_cmb[GC3D][i] != 0)
+				if (millivolts[i] < min_gc_voltage) {
+					freqs_cmb[GC3D][i] = 0;
+					freqs_cmb[GC_SHADER][i] = 0;
+				}
+	}
+
+	buff = (char *)__get_free_pages(GFP_KERNEL, 0);
+	if (!buff) {
+		pr_err("memory alloc for dvc table dump is failed!!\n");
+		return -ENOMEM;
+	}
+	s = dump_dvc_table(buff, size);
+	printk(buff);
+	free_pages((unsigned long)buff, 0);
+
+	return 0;
+}
+
+int cp_level(int level)
+{
+	int i;
+	if (millivolts[level] <= min_cp_voltage) {
+		for (i = level; i < VL_MAX; i++)
+			if (millivolts[i] >= min_cp_voltage) {
+				level = i;
+				break;
+			}
+	}
+	return level;
+}
+
+void handle_svc_cp_table(void)
+{
+	int level1 = 0, level2 = 0, level3 = 0, level4 = 0;
+	struct cpmsa_dvc_info *cpmsa_dvc_info_cp_temp = NULL;
+
+	if (uiYldTableEn == 1) {
+		if (svc_version == SVC_1_11)
+			cpmsa_dvc_info_cp_temp = cpmsa_dvc_info_1936tsmc;
+		else if (svc_version == SEC_SVC_1_01)
+			cpmsa_dvc_info_cp_temp = cpmsa_dvc_info_1936sec;
+
+		level1 = cpmsa_dvc_info_cp_temp[uiprofile].cpdvcinfo[0].cpvl;
+		level2 = cpmsa_dvc_info_cp_temp[uiprofile].cpdvcinfo[1].cpvl;
+		level3 = cpmsa_dvc_info_cp_temp[uiprofile].cpdvcinfo[2].cpvl;
+		level4 = cpmsa_dvc_info_cp_temp[uiprofile].msadvcvl[0].cpvl;
+
+		level1 = cp_level(level1);
+		level2 = cp_level(level2);
+		level3 = cp_level(level3);
+		level4 = cp_level(level4);
+
+		cpmsa_dvc_info_temp.cpdvcinfo[0].cpfreq = 416;
+		cpmsa_dvc_info_temp.cpdvcinfo[0].cpvl = level1;
+		cpmsa_dvc_info_temp.cpdvcinfo[1].cpfreq = 624;
+		cpmsa_dvc_info_temp.cpdvcinfo[1].cpvl = level2;
+		cpmsa_dvc_info_temp.cpdvcinfo[2].cpfreq = 832;
+		cpmsa_dvc_info_temp.cpdvcinfo[2].cpvl = level3;
+		cpmsa_dvc_info_temp.msadvcvl[0].cpfreq = 416;
+		cpmsa_dvc_info_temp.msadvcvl[0].cpvl = level4;
+
+		fillcpdvcinfo(&cpmsa_dvc_info_temp);
+	} else {
+		if (svc_version == SVC_1_11)
+			fillcpdvcinfo(&cpmsa_dvc_info_1936tsmc[uiprofile]);
+		else if (svc_version == SEC_SVC_1_01)
+			fillcpdvcinfo(&cpmsa_dvc_info_1936sec[uiprofile]);
+	}
+}
 
 /*
  * dvfs_rail_component.freqs is inited dynamicly, due to different stepping
@@ -1022,32 +1264,16 @@ int __init setup_pxa1936_dvfs_platinfo(void)
 	void __iomem *hwdvc_base;
 	enum dvfs_comp idx;
 	struct dvc_plat_info *plat_info = &dvc_pxa1936_info;
-	unsigned long (*freqs_cmb)[VL_MAX] = NULL;
 
 	__init_read_droinfo();
 
-	if (svc_version == SVC_1_11) {
-		dvc_pxa1936_info.millivolts =
-			vm_millivolts_1936_svc_tsmc[uiprofile];
+	handle_svc_table();
 
-		freqs_cmb = freqs_cmb_1936_tsmc[uiprofile];
-		plat_set_vl_min(0);
-		plat_set_vl_max(dvc_pxa1936_info.num_volts);
+	dvc_pxa1936_info.millivolts = millivolts;
+	plat_set_vl_min(0);
+	plat_set_vl_max(dvc_pxa1936_info.num_volts);
 
-		fillcpdvcinfo(&cpmsa_dvc_info_1936tsmc[uiprofile]);
-	} else if (svc_version == SEC_SVC_1_01) {
-		dvc_pxa1936_info.millivolts =
-			vm_millivolts_1936_svc_sec[uiprofile];
-
-		freqs_cmb = freqs_cmb_1936_sec[uiprofile];
-		plat_set_vl_min(0);
-		plat_set_vl_max(dvc_pxa1936_info.num_volts);
-
-		fillcpdvcinfo(&cpmsa_dvc_info_1936sec[uiprofile]);
-	} else {
-		pr_err("We don't support the fab helan3 chip\n");
-		BUG_ON(svc_version);
-	}
+	handle_svc_cp_table();
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
 	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);
