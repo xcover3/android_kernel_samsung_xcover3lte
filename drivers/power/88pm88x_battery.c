@@ -1118,7 +1118,7 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
 	static int chg_status, old_soc;
-	static int extreme_power_off_cnt;
+	static int extreme_power_off_cnt, ramp_cnt;
 
 	info->bat_params.volt = pm88x_get_batt_vol(info, 1);
 	if (info->bat_params.status == POWER_SUPPLY_STATUS_UNKNOWN) {
@@ -1186,7 +1186,12 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 			dev_info(info->dev,
 				 "%s: %d: capacity %d%% < 1000%%, ramp up..\n",
 				 __func__, __LINE__, ccnt_val->soc);
-			ccnt_val->soc += 10;
+			if (ramp_cnt > 5) {
+				ccnt_val->soc += 10;
+				ramp_cnt = 0;
+			} else {
+				ramp_cnt++;
+			}
 			ccnt_val->real_soc = ccnt_val->soc;
 			info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
 		}
@@ -1195,6 +1200,7 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 			ccnt_val->soc = 1000;
 			ccnt_val->real_soc = 1000;
 			info->bat_params.status = POWER_SUPPLY_STATUS_FULL;
+			ramp_cnt = 0;
 
 			ccnt_val->last_cc = ccnt_val->max_cc;
 			/* also align the real_last_cc for low temperature scenario */
