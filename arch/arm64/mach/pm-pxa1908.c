@@ -582,14 +582,14 @@ static int pxa1908_get_suspend_volt(void)
 	volt_fuseinfo = get_skusetting();
 
 	switch (volt_fuseinfo) {
-	case 0x20: /*100000*/
-	case 0x3e: /*111110*/
-	case 0x38: /*111000*/
+	case 0x1:  /*2b'000001*/
+	case 0x1f: /*2b'011111*/
+	case 0x7:  /*2b'000111*/
 		return 700000;
-	case 0x30: /*110000*/
-	case 0x3f: /*111111*/
-	case 0x3c: /*111100*/
-	case 0x0:  /*000000*/
+	case 0x3:  /*2b'000011*/
+	case 0x3f: /*2b'111111*/
+	case 0xf:  /*2b'001111*/
+	case 0x0:  /*2b'000000*/
 		return 800000;
 	default:
 		return 800000;
