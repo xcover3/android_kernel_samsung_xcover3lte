@@ -730,6 +730,7 @@
 				bit_apb = <2>;
 				pll_sel = <0>;
 				power_ctrl = <0>;
+				audio_xtc = <0xd4282cac 0x38011011>;
 				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
 				status = "disabled";
 			};
