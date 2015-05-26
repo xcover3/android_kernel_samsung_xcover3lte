@@ -15,6 +15,8 @@ struct map_clk_unit {
 	void __iomem *map_base;
 	void __iomem *dspaux_base;
 	void __iomem *apbsp_base;
+	void __iomem *audio_xtc_reg;
+	u32 audio_xtc_val;
 	u32 apll;
 	u32 power_ctrl;
 	void (*poweron_cb)(void __iomem*, int);

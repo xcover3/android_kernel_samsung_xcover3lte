@@ -1007,7 +1007,7 @@ static char *apll_parent[] = {
 static int clk_parse_map_dt(struct device_node *np, struct map_clk_unit *map_unit)
 {
 	struct device_node *np_map;
-	u32 power_ctrl, apll = 0;
+	u32 power_ctrl, apll = 0, reg_xtc;
 	int ret;
 
 	map_unit->apmu_base = of_iomap(np, 0);
@@ -1053,6 +1053,20 @@ static int clk_parse_map_dt(struct device_node *np, struct map_clk_unit *map_uni
 	if (ret < 0) {
 		pr_err("could not get power_ctrl in dt in clock init\n");
 		return ret;
+	}
+
+	if (!of_property_read_u32_index(np_map, "audio_xtc", 0, &reg_xtc)) {
+		ret = of_property_read_u32_index(np_map, "audio_xtc", 1, &map_unit->audio_xtc_val);
+		if (ret < 0) {
+			map_unit->audio_xtc_reg = NULL;
+			map_unit->audio_xtc_val = 0;
+			pr_err("could not get audio_xtc_data in dt in clock init\n");
+		} else
+			map_unit->audio_xtc_reg = ioremap(reg_xtc, 4);
+	} else {
+		map_unit->audio_xtc_reg = NULL;
+		map_unit->audio_xtc_val = 0;
+		pr_info("audio_xtc is not set\n");
 	}
 
 	if (power_ctrl == HELANX_POWER_CTRL)
@@ -1142,5 +1156,10 @@ void __init audio_clk_init(struct device_node *np)
 				     dspaux_base + 0x10, 3, 2, 10, 0,
 				     &clk_lock);
 	mmp_clk_add(unit, AUDIO_CLK_SSPA1, clk);
+
+	if (map_unit->audio_xtc_reg && map_unit->audio_xtc_val) {
+		writel(map_unit->audio_xtc_val, map_unit->audio_xtc_reg);
+		iounmap(map_unit->audio_xtc_reg);
+	}
 }
 CLK_OF_DECLARE(audio_map_clk, "marvell,audio-map-clock", audio_clk_init);
