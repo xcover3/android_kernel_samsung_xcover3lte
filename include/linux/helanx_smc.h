@@ -10,8 +10,9 @@
 #define GPIO_124_ADDR		0xd401e0d0
 
 /* smc function id must be aligned with ATF */
-#define LC_ADD_GPIO_EDGE_WAKEUP	0xc2003002
-#define LC_ADD_SHARE_ADDRESS	0xc2003004
+#define LC_ADD_GPIO_EDGE_WAKEUP		0xc2003002
+#define LC_REMOVE_GPIO_EDGE_WAKEUP	0xc2003003
+#define LC_ADD_SHARE_ADDRESS		0xc2003004
 
 extern noinline int __invoke_fn_smc(u64 function_id, u64 arg0, u64 arg1, u64 arg2);
 extern int mfp_edge_wakeup_notify(struct notifier_block *nb,

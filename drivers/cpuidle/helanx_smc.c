@@ -12,8 +12,9 @@
 #include <asm/compiler.h>
 #include <asm-generic/int-ll64.h>
 #include <linux/helanx_smc.h>
+#include <linux/edge_wakeup_mmp.h>
 
-static unsigned int get_gpio_address(unsigned long gpio)
+static unsigned int get_gpio_address(int gpio)
 {
 	if (gpio <= 54)
 		return GPIO_0_ADDR + gpio * 4;
@@ -39,13 +40,29 @@ static unsigned int get_gpio_address(unsigned long gpio)
 int mfp_edge_wakeup_notify(struct notifier_block *nb,
 			   unsigned long val, void *data)
 {
-	int error = 0;
+	int error = 0, gpio;
+	unsigned long addr;
 	int (*invoke_smc_fn)(u64, u64, u64, u64) = __invoke_fn_smc;
-	error = invoke_smc_fn(LC_ADD_GPIO_EDGE_WAKEUP, get_gpio_address(val), 0, 0);
+	gpio = *(int *)data;
+	addr = get_gpio_address(gpio);
+	switch (val) {
+	case GPIO_ADD:
+		error = invoke_smc_fn(LC_ADD_GPIO_EDGE_WAKEUP, addr, 0, 0);
+		break;
+	case GPIO_REMOVE:
+		error = invoke_smc_fn(LC_REMOVE_GPIO_EDGE_WAKEUP, addr, 0, 0);
+		break;
+	default:
+		BUG_ON("Wrong LC command for GPIO edge wakeup!");
+	};
+
 	if (!error)
 		return NOTIFY_OK;
-	else
+	else {
+		pr_warn("GPIO %d %s failed!\n", gpio,
+			(val == GPIO_ADD) ? "add" : "remove");
 		return NOTIFY_BAD;
+	}
 }
 
 int store_share_address(unsigned long addr, unsigned long len)
