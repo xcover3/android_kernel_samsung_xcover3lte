@@ -137,6 +137,21 @@
 #define CP_STATUS_OFFSET	24
 #define CP_IDLE_VALUE		0xa5
 
+enum {
+	S_GPIOE_RER0,
+	S_GPIOE_RER1,
+	S_GPIOE_RER2,
+	S_GPIOE_RER3,
+	S_ICU_INT_STATUS_0,
+	S_ICU_INT_STATUS_1,
+	S_ICU_INT_STATUS_2,
+	S_ICU_INT_STATUS_3,
+	S_AWUCRM,
+	S_AWUCRS,
+	S_CWUCRM,
+	S_CWUCRS,
+};
+
 #ifndef __ASSEMBLER__
 extern void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
 extern void __iomem *icu_get_base_addr(void);
