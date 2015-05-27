@@ -70,11 +70,10 @@ int unregister_mfp_edge_wakeup_notifier(struct notifier_block *nb)
 }
 EXPORT_SYMBOL_GPL(unregister_mfp_edge_wakeup_notifier);
 
-int mfp_edge_wakeup_notifier_call_chain(unsigned long val)
+int mfp_edge_wakeup_notifier_call_chain(unsigned long msg, void *val)
 {
 	int ret = blocking_notifier_call_chain(&mfp_edge_wakeup_notifier,
-					       val, NULL);
-
+					       msg, val);
 	return notifier_to_errno(ret);
 }
 
@@ -125,7 +124,7 @@ int request_mfp_edge_wakeup(int gpio, edge_handler handler, \
 	spin_unlock_irqrestore(&info->lock, flags);
 
 	/* Notify there is one GPIO added for wakeup */
-	mfp_edge_wakeup_notifier_call_chain(gpio);
+	mfp_edge_wakeup_notifier_call_chain(GPIO_ADD, &gpio);
 
 	return 0;
 }
@@ -174,6 +173,8 @@ int remove_mfp_edge_wakeup(int gpio)
 			list_del(&e->list);
 			spin_unlock_irqrestore(&info->lock, flags);
 			kfree(e);
+			/* Notify there is one GPIO removed */
+			mfp_edge_wakeup_notifier_call_chain(GPIO_REMOVE, &gpio);
 			return 0;
 		}
 	}

@@ -4,6 +4,12 @@
 typedef void (*edge_handler)(int, void *);
 
 #ifndef __ASSEMBLER__
+
+enum {
+	GPIO_ADD,
+	GPIO_REMOVE,
+};
+
 extern int request_mfp_edge_wakeup(int gpio, edge_handler handler, \
 			void *data, struct device *dev);
 extern int remove_mfp_edge_wakeup(int gpio);
