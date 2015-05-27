@@ -305,6 +305,45 @@ static const char *chip_stepping_to_string(unsigned int id)
 	return "Unknown";
 }
 
+static void pm88x_verify_is_trimmed(struct pm88x_chip *chip)
+{
+	int val, trimming_reg, trimming_mask;
+
+	switch (chip->type) {
+	case PM886:
+		/* bit [7] of reg 0x8A indicates trimming */
+		trimming_reg = PM886_TEST_OTP5COPY7;
+		trimming_mask = PM886_OTP_OOL_TEMP_DIS;
+		break;
+	case PM880:
+		/* bits [4:0] of reg 0x92 indicates trimming */
+		trimming_reg = PM880_TEST_OTP6COPY7;
+		trimming_mask = PM880_VSYS_CHECK;
+		break;
+	default:
+		return;
+	}
+
+	/* unlock test page */
+	regmap_write(chip->base_regmap, 0x1f, 0x1);
+
+	/* read trimming status */
+	regmap_read(chip->test_regmap, trimming_reg, &val);
+
+	/* lock test page */
+	regmap_write(chip->base_regmap, 0x1f, 0x0);
+
+	/* trimming value should not be zero */
+	if ((val & trimming_mask) == 0) {
+		dev_err(chip->dev, "WARNING!!! PMIC is not trimmed, reg[0x%x]=0x%x\n",
+			trimming_reg, val);
+		chip->trimming_status = false;
+	} else {
+		dev_info(chip->dev, "PMIC is trimmed, reg[0x%x]=0x%x\n", trimming_reg, val);
+		chip->trimming_status = true;
+	}
+}
+
 int pm88x_post_init_chip(struct pm88x_chip *chip)
 {
 	int ret;
@@ -324,6 +363,9 @@ int pm88x_post_init_chip(struct pm88x_chip *chip)
 
 	dev_info(chip->dev, "PM88X chip ID = 0x%x(%s)\n", val,
 			chip_stepping_to_string(chip->chip_id));
+
+	/* verify chip is trimmed */
+	pm88x_verify_is_trimmed(chip);
 
 	/* read before alarm wake up bit before initialize interrupt */
 	ret = regmap_read(chip->base_regmap, PM88X_RTC_ALARM_CTRL1, &val);

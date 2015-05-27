@@ -95,4 +95,8 @@
 #define PM880_LDO17_SLP_CTRL	(0x81)
 #define PM880_LDO18_SLP_CTRL	(0x87)
 
+/* test registers */
+#define PM880_TEST_OTP6COPY7	(0x92)
+#define PM880_VSYS_CHECK	(0x1f << 0)
+
 #endif /*__LINUX_MFD_88PM880_REG_H */

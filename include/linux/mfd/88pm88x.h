@@ -22,6 +22,7 @@
 #include <linux/reboot.h>
 #include "88pm88x-reg.h"
 #include "88pm886-reg.h"
+#include "88pm880-reg.h"
 
 #define PM88X_RTC_NAME		"88pm88x-rtc"
 #define PM88X_ONKEY_NAME	"88pm88x-onkey"
@@ -189,6 +190,7 @@ struct pm88x_chip {
 	u8 powerdown1;
 	u8 powerdown2;
 	u8 powerup;
+	bool trimming_status;
 
 	struct notifier_block reboot_notifier;
 	struct notifier_block cb_nb;
