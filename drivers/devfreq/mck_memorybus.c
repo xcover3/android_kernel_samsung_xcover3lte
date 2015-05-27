@@ -39,6 +39,7 @@
 
 #define DDR_DEVFREQ_UPTHRESHOLD 65
 #define DDR_DEVFREQ_DOWNDIFFERENTIAL 5
+#define DDR_DEVFREQ_EFFICIENCY 90
 
 #define DDR_UPTHRD_MAXIMUM	100
 
@@ -50,15 +51,18 @@ static struct ddr_devfreq_data *ddrfreq_driver_data;
 /* default using 65% as upthreshold and 5% as downdifferential */
 static struct devfreq_throughput_data devfreq_throughput_data = {
 	.downdifferential = DDR_DEVFREQ_DOWNDIFFERENTIAL,
+	.ddr_efficiency = DDR_DEVFREQ_EFFICIENCY,
 };
 
 static inline void __update_dev_upthreshold(unsigned int *upthrd_usr,
 		struct devfreq_throughput_data *gov_data)
 {
 	struct pm_qos_object *qos_upthrd_max;
+	struct devfreq_frequency_table *tbl;
 	s32 upthrd_component = 0;
 	unsigned int upthrd;
 	int i;
+	tbl = devfreq_frequency_get_table(DEVFREQ_DDR);
 
 	qos_upthrd_max = pm_qos_array[PM_QOS_DDR_DEVFREQ_UPTHRD_MAX];
 	upthrd_component = pm_qos_read_value(qos_upthrd_max->constraints);
@@ -66,11 +70,21 @@ static inline void __update_dev_upthreshold(unsigned int *upthrd_usr,
 	for (i = 0; i < gov_data->table_len; i++) {
 		upthrd = (upthrd_component < devfreq_throughput_data.upthreshold[i])
 			? upthrd_component : devfreq_throughput_data.upthreshold[i];
-		gov_data->throughput_table[i].up =
-			upthrd * gov_data->freq_table[i] / 100;
-		gov_data->throughput_table[i].down =
-			(upthrd - gov_data->downdifferential) *
-			gov_data->freq_table[i] / 100;
+		if (tbl[i].mode_4x_en) {
+			gov_data->throughput_table[i].up =
+				upthrd * devfreq_throughput_data.ddr_efficiency
+						* gov_data->freq_table[i] / 100 / 100;
+			gov_data->throughput_table[i].down =
+				(upthrd - gov_data->downdifferential) *
+					devfreq_throughput_data.ddr_efficiency
+						* gov_data->freq_table[i] / 100 / 100;
+		} else {
+			gov_data->throughput_table[i].up =
+				upthrd * gov_data->freq_table[i] / 100;
+			gov_data->throughput_table[i].down =
+				(upthrd - gov_data->downdifferential) *
+						gov_data->freq_table[i] / 100;
+		}
 	}
 }
 #endif /* CONFIG_DDR_DEVFREQ_GOV_THROUGHPUT */
@@ -1349,14 +1363,28 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	tbl = devfreq_frequency_get_table(DEVFREQ_DDR);
+
 	for (i = 0; i < devfreq_throughput_data.table_len; i++) {
-		devfreq_throughput_data.throughput_table[i].up =
-		   devfreq_throughput_data.upthreshold[i]
-		   * devfreq_throughput_data.freq_table[i] / 100;
-		devfreq_throughput_data.throughput_table[i].down =
-		   (devfreq_throughput_data.upthreshold[i]
-		   - devfreq_throughput_data.downdifferential)
-		   * devfreq_throughput_data.freq_table[i] / 100;
+		if (tbl[i].mode_4x_en) {
+			devfreq_throughput_data.throughput_table[i].up =
+				devfreq_throughput_data.upthreshold[i]
+				* devfreq_throughput_data.ddr_efficiency
+				* devfreq_throughput_data.freq_table[i] / 100 / 100;
+			devfreq_throughput_data.throughput_table[i].down =
+				(devfreq_throughput_data.upthreshold[i]
+				* devfreq_throughput_data.ddr_efficiency
+				- devfreq_throughput_data.downdifferential)
+				* devfreq_throughput_data.freq_table[i] / 100 / 100;
+		} else {
+			devfreq_throughput_data.throughput_table[i].up =
+				devfreq_throughput_data.upthreshold[i]
+				* devfreq_throughput_data.freq_table[i] / 100;
+			devfreq_throughput_data.throughput_table[i].down =
+				(devfreq_throughput_data.upthreshold[i]
+				- devfreq_throughput_data.downdifferential)
+				* devfreq_throughput_data.freq_table[i] / 100;
+		}
 	}
 #endif /* CONFIG_DEVFREQ_GOV_THROUGHPUT */
 

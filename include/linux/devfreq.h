@@ -295,6 +295,7 @@ struct throughput_threshold {
 struct devfreq_throughput_data {
 	unsigned int *upthreshold;
 	unsigned int downdifferential;
+	unsigned int ddr_efficiency;
 	u32 table_len;
 	u32 *freq_table;        /* unit Khz */
 	struct throughput_threshold *throughput_table;
