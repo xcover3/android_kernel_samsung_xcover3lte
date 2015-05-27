@@ -69,7 +69,6 @@ static const struct resource charger_resources[] = {
 static const struct resource battery_resources[] = {
 	CELL_IRQ_RESOURCE("88pm88x-bat-cc", PM88X_IRQ_CC),
 	CELL_IRQ_RESOURCE("88pm88x-bat-volt", PM88X_IRQ_VBAT),
-	CELL_IRQ_RESOURCE("88pm88x-bat-detect", PM88X_IRQ_BAT_DET),
 };
 
 static const struct resource headset_resources[] = {
