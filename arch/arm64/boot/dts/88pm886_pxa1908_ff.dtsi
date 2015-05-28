@@ -32,15 +32,14 @@
 			      <0x1 0xbe 0x30 0x20>,
 			      <0x1 0xbf 0x7f 0x30>,
 			      /*
-			       * 2. disable ldo3, ldo8, ldo9, ldo10, ldo13,
-			       * ldo16 when system suspend
+			       * 2. disable ldo3, ldo8, ldo9, ldo10, ldo13
+			       * when system suspend
 			       */
 			      <0x1 0x2d 0x30 0x00>,
 			      <0x1 0x4b 0x30 0x00>,
 			      <0x1 0x51 0x30 0x00>,
 			      <0x1 0x57 0x30 0x00>,
-			      <0x1 0x69 0x30 0x00>,
-			      <0x1 0x7b 0x30 0x00>;
+			      <0x1 0x69 0x30 0x00>;
 
 	/* ---buck--- */
 	vccmain: regulator-buck1 {
@@ -110,6 +109,7 @@
 		marvell,mic-det-th = <600>;
 		marvell,press-release-th = <600>;
 		marvell,micbias-supply = <&ldo16>;
+		marvell,micbias-volt = <1700>;
 		status = "okay";
 	};
 
