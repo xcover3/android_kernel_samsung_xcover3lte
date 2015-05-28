@@ -311,8 +311,8 @@ const struct irq_domain_ops mmp_irq_domain_ops = {
 
 static struct mmp_intc_conf mmp_conf = {
 	.conf_enable	= 0x11,
-	.conf_disable	= 0x0,
-	.conf_mask	= 0x1f,
+	.conf_disable	= 0x10,
+	.conf_mask	= 0x43f,
 };
 
 static struct mmp_intc_conf mmp2_conf = {
@@ -616,7 +616,6 @@ void __init mmp_of_wakeup_init(void)
 	const __be32 *wake_clr_devs;
 	int ret, nr_irqs;
 	int size, i = 0, j = 0;
-	int irq;
 
 	node = of_find_compatible_node(NULL, NULL, "mrvl,mmp-intc-wakeupgen");
 	if (!node) {
@@ -635,13 +634,6 @@ void __init mmp_of_wakeup_init(void)
 		pr_err("Not found mrvl,intc-nr-irqs property\n");
 		return;
 	}
-
-	/*
-	 * Config all the interrupt source be able to interrupt the cpu 0,
-	 * in IRQ mode, with priority 0 as masked by default.
-	 */
-	for (irq = 0; irq < nr_irqs; irq++)
-		__raw_writel(ICU_IRQ_CPU0_MASKED, mmp_icu_base + (irq << 2));
 
 	/* ICU is only used as wakeup logic,  disable the icu global mask. */
 	i = 0;
