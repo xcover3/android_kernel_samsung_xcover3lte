@@ -423,16 +423,24 @@ static int pm88x_property_is_writeable(struct power_supply *psy,
 	}
 }
 
+static bool is_charger_info_invalid(struct pm88x_charger_info *info)
+{
+	if (info == NULL) {
+		pr_err("charger driver is shutdown yet, caller is %pS\n",
+		       __builtin_return_address(0));
+		return true;
+	} else
+		return false;
+}
+
 static int pm88x_charger_set_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		const union power_supply_propval *val)
 {
 	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
 
-	if (!info) {
-		pr_err("%s: charger chip info is empty!\n", __func__);
+	if (is_charger_info_invalid(info))
 		return -EINVAL;
-	}
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
@@ -454,10 +462,8 @@ static int pm88x_charger_get_property(struct power_supply *psy,
 {
 	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
 
-	if (!info) {
-		pr_err("%s: charger chip info is empty!\n", __func__);
+	if (is_charger_info_invalid(info))
 		return -EINVAL;
-	}
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -630,6 +636,9 @@ static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 	struct pm88x_charger_info *info = dev_get_drvdata(psy->dev->parent);
 	union power_supply_propval val;
 	int ret;
+
+	if (is_charger_info_invalid(info))
+		return;
 
 	/* TODO: configure dynamically */
 	/* -- begin configuring charger chip */
@@ -1175,6 +1184,7 @@ static int pm88x_charger_remove(struct platform_device *pdev)
 
 	pm88x_stop_charging(info);
 
+	power_supply_unregister(&info->pm88x_charger_psy);
 	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
