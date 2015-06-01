@@ -100,10 +100,10 @@
 	};
 
 	vibrator {
-		compatible = "marvell,pwm-vibrator";
+		compatible = "marvell,simple-vibrator";
 		min_timeout = <0>;
-		duty_cycle = <800>;
 		vibrator-supply = <&ldo6>;
+		status = "okay";
 	};
 
 	panel1: r63311 {
