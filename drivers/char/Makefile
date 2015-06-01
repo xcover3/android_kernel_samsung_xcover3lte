@@ -64,6 +64,7 @@ obj-$(CONFIG_VIBRATOR_DRV2604)  += drv2604_vibrator.o
 obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
 obj-$(CONFIG_VIBRATOR_PWM)      += pwm_vibrator.o
 
+obj-$(CONFIG_VIBRATOR_SIMPLE)   += simple_vibrator.o
 obj-$(CONFIG_JS_RTC)		+= js-rtc.o
 js-rtc-y = rtc.o
 
