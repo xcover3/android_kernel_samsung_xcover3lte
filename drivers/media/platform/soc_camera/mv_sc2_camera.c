@@ -509,9 +509,9 @@ static int mccic_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 	}
 
 	/* disable/enable SC2 clks to reset SC2 */
-	ctrl_dev->ops->clk_disable(ctrl_dev);
+	ctrl_dev->ops->clk_disable(ctrl_dev, SC2_MODE_CCIC);
 	clk_disable_unprepare(mcam_dev->axi_clk);
-	ctrl_dev->ops->clk_enable(ctrl_dev);
+	ctrl_dev->ops->clk_enable(ctrl_dev, SC2_MODE_CCIC);
 	clk_prepare_enable(mcam_dev->axi_clk);
 
 	ret = mccic_acquire_sc2_chs(mcam_dev, mcam_dev->mp.num_planes);
@@ -765,7 +765,7 @@ static int mccic_add_device(struct soc_camera_device *icd)
 		ctrl_dev->csi.calc_dphy = 0;
 
 	/* 5. initial the HW, clk, power, ccic */
-	ctrl_dev->ops->clk_enable(ctrl_dev);
+	ctrl_dev->ops->clk_enable(ctrl_dev, SC2_MODE_CCIC);
 	clk_set_rate(mcam_dev->axi_clk, 312000000);
 	clk_prepare_enable(mcam_dev->axi_clk);
 	ctrl_dev->ops->power_up(ctrl_dev);
@@ -833,7 +833,7 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	/* 4. handle ccic_dev */
 	mcam_dev->icd = NULL;
 
-	ctrl_dev->ops->clk_disable(ctrl_dev);
+	ctrl_dev->ops->clk_disable(ctrl_dev, SC2_MODE_CCIC);
 	/* 5. free ctx, need reconsider */
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG)
 		vb2_dma_contig_cleanup_ctx(mcam_dev->vb_alloc_ctx);

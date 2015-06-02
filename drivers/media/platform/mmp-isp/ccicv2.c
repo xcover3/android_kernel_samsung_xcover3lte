@@ -163,23 +163,10 @@ static irqreturn_t dma_irq_handler(struct ccic_dma_dev *dma_dev, u32 irqs)
 static int ccic_csi_hw_open(struct isp_block *block)
 {
 	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
-	struct msc2_ccic_dev *ccic_dev_host = NULL;
 	struct ccic_ctrl_dev *ctrl_dev;
 
-	/*
-	 * here support csi mux repack funcion.
-	 * enable csi2-> ccic1 IDI path.
-	 * */
-	if (csi->csi_mux_repacked) {
-		if (csi->dev->id != 1)
-			d_inf(1, "ccic csi device not match\n");
-
-		msc2_get_ccic_dev(&ccic_dev_host, 0);
-		ctrl_dev = ccic_dev_host->ctrl_dev;
-		ctrl_dev->ops->clk_enable(ctrl_dev);
-	}
 	ctrl_dev = csi->ccic_ctrl;
-	ctrl_dev->ops->clk_enable(ctrl_dev);
+	ctrl_dev->ops->clk_enable(ctrl_dev, SC2_MODE_B52ISP);
 #if 0
 /*
  * FIXME: ISP and SC2 use separate power, need share it
@@ -192,19 +179,10 @@ static int ccic_csi_hw_open(struct isp_block *block)
 static void ccic_csi_hw_close(struct isp_block *block)
 {
 	struct ccic_csi *csi = container_of(block, struct ccic_csi, block);
-	struct msc2_ccic_dev *ccic_dev_host = NULL;
 	struct ccic_ctrl_dev *ctrl_dev;
 
-	if (csi->csi_mux_repacked) {
-		if (csi->dev->id != 1)
-			d_inf(1, "ccic csi device not match\n");
-
-		msc2_get_ccic_dev(&ccic_dev_host, 0);
-		ctrl_dev = ccic_dev_host->ctrl_dev;
-		ctrl_dev->ops->clk_disable(ctrl_dev);
-	}
 	ctrl_dev = csi->ccic_ctrl;
-	ctrl_dev->ops->clk_disable(ctrl_dev);
+	ctrl_dev->ops->clk_disable(ctrl_dev, SC2_MODE_B52ISP);
 #if 0
 /*
  * FIXME: ISP and SC2 use separate power, need share it
