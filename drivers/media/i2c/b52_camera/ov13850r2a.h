@@ -27,7 +27,7 @@
 #define rg_ratio_typical 0x400
 
 /* raw10,XVCLK=24Mhz, MIPI 12000Mbps */
-struct regval_tab OV13850R2A_13M_res_init[] = {
+static struct regval_tab OV13850R2A_13M_res_init[] = {
 	{0x0102, 0x01},
 	{0x0300, 0x00},
 	{0x0301, 0x00},
@@ -238,50 +238,55 @@ struct regval_tab OV13850R2A_13M_res_init[] = {
 
 };
 
-struct regval_tab OV13850R2A_fmt_raw10[] = {
+static struct regval_tab OV13850R2A_fmt_raw10[] = {
 };
 
-struct regval_tab OV13850R2A_res_13M[] = {
+static struct regval_tab OV13850R2A_res_13M[] = {
 };
-struct regval_tab OV13850R2A_id[] = {
+static struct regval_tab OV13850R2A_id[] = {
 	{0x300A, 0xd8, 0xff},
 	{0x300B, 0x50, 0xff},
 	{0x302A, 0xB2, 0xff},
 };
-struct regval_tab OV13850R2A_vts[] = {
+static struct regval_tab OV13850R2A_vts[] = {
 	{0x380e, 0x0d, 0x7f},
 	{0x380f, 0x60, 0xff},
 };
-struct regval_tab OV13850R2A_stream_on[] = {
+static struct regval_tab OV13850R2A_stream_on[] = {
 	{0x0100, 0x01, 0xff},
 };
-struct regval_tab OV13850R2A_stream_off[] = {
+static struct regval_tab OV13850R2A_stream_off[] = {
 	{0x0100, 0x00, 0xff},
 };
-struct regval_tab OV13850R2A_expo[] = {
+static struct regval_tab OV13850R2A_expo[] = {
 	{0x3500, 0x00, 0xff},
 	{0x3501, 0x00, 0xff},
 	{0x3502, 0x00, 0x0f},
 };
-struct regval_tab OV13850R2A_ag[] = {
+static struct regval_tab OV13850R2A_ag[] = {
 	{0x350a, 0x00, 0xff},
 	{0x350b, 0x00, 0xff},
 };
-struct regval_tab OV13850R2A_af[] = {
+static struct regval_tab OV13850R2A_af[] = {
 	{0x3618, 0x00, 0xff},
 	{0x3619, 0x00, 0xff},
 };
-struct regval_tab OV13850R2A_vflip[] = {
+static struct regval_tab OV13850R2A_vflip[] = {
 	{0x3820, 0x00, 0x4},
 };
-struct regval_tab OV13850R2A_hflip[] = {
+static struct regval_tab OV13850R2A_hflip[] = {
 	{0x3821, 0x04, 0x4},
 };
-struct b52_sensor_i2c_attr OV13850R2A_i2c_attr[] = {
+static struct b52_sensor_i2c_attr OV13850R2A_i2c_attr[] = {
 	[0] = {
 		.reg_len = I2C_16BIT,
 		.val_len = I2C_8BIT,
 		.addr = 0x10,
+	},
+	[1] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x36,
 	},
 };
 #define N_OV13850R2A_I2C_ATTR ARRAY_SIZE(OV13850R2A_i2c_attr)
@@ -297,7 +302,7 @@ struct b52_sensor_i2c_attr OV13850R2A_i2c_attr[] = {
 #define N_OV13850R2A_HFLIP ARRAY_SIZE(OV13850R2A_hflip)
 #define N_OV13850R2A_STREAM_ON ARRAY_SIZE(OV13850R2A_stream_on)
 #define N_OV13850R2A_STREAM_OFF ARRAY_SIZE(OV13850R2A_stream_off)
-struct b52_sensor_mbus_fmt OV13850R2A_fmt = {
+static struct b52_sensor_mbus_fmt OV13850R2A_fmt = {
 	.mbus_code	= V4L2_MBUS_FMT_SBGGR10_1X10,
 	.colorspace	= V4L2_COLORSPACE_SRGB,
 	.regs = {
@@ -305,7 +310,7 @@ struct b52_sensor_mbus_fmt OV13850R2A_fmt = {
 		.num = N_OV13850R2A_FMT_RAW10,
 	}
 };
-struct b52_sensor_resolution OV13850R2A_13M_res[] = {
+static struct b52_sensor_resolution OV13850R2A_13M_res[] = {
 	[0] = {
 		 .width = 4224,
 		 .height = 3136,
@@ -328,7 +333,7 @@ static int OV13850R2A_get_dphy_desc(struct v4l2_subdev *sd,
 static int OV13850R2A_update_otp(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *opt);
 
-struct b52_sensor_spec_ops OV13850R2A_ops = {
+static struct b52_sensor_spec_ops OV13850R2A_ops = {
 	.get_pixel_rate = OV13850R2A_get_pixelclock,
 	.get_dphy_desc = OV13850R2A_get_dphy_desc,
 	.update_otp = OV13850R2A_update_otp,
