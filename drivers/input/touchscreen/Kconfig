@@ -992,6 +992,16 @@ config TOUCHSCREEN_FT6206
 	  To compile this driver as a module, choose M here: the
 	  module will be called ft6206_ts.
 
+config TOUCHSCREEN_FOCALTECH
+	tristate "Touchscreen_focaltech(FT5336) driver"
+	depends on I2C
+	help
+	   Say Y here if you have a FOCALTECH based touchscreen
+	   controller.
+	   If unsure, say N.
+	   To compile this driver as a module, choose M here: the
+	   module will be called focaltech_ts.o
+
 config TOUCHSCREEN_SUR40
 	tristate "Samsung SUR40 (Surface 2.0/PixelSense) touchscreen"
 	depends on USB
