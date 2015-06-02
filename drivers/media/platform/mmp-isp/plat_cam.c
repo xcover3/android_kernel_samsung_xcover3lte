@@ -596,8 +596,6 @@ static int plat_hsd_init(struct plat_hsd *phsd, u32 init,
 		MEDIA_ENT_T_V4L2_SUBDEV) {
 		guest = media_entity_to_v4l2_subdev(
 			link[nr_link - 1]->source->entity);
-		pr_err("%s: failed to add guest %s",
-				host->isd.subdev.name, guest->name);
 		ret = host_subdev_add_guest(host, guest);
 		if (ret < 0) {
 			d_inf(1, "%s: failed to add guest %s",

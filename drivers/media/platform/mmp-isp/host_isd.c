@@ -701,6 +701,7 @@ static int hsd_cascade_group(struct isp_host_subdev *hsd, u32 group)
 		goto un_group;
 #endif
 	hsd->type = TLIST_ENTRY_MLINK;
+	hsd->isd.subdev.grp_id = GID_ISP_SUBDEV;
 	return 0;
 
 un_group:
@@ -845,7 +846,7 @@ static int hsd_bundle_video_s_stream(struct v4l2_subdev *sd, int enable)
 	struct tlist_entry *entry;
 	int ret = 0, skip = 0;
 
-	if (enable)
+	if (!enable)
 		goto stream_off;
 
 	ret = 0;
@@ -1228,6 +1229,7 @@ static int hsd_bundle_group(struct isp_host_subdev *hsd, u32 group)
 		list_add_tail(&entry->hook, &hsd->trvrs_list);
 	}
 	/* The bundle host subdev has the same pads as the core guest */
+	hsd->isd.subdev.grp_id = GID_SENSOR_SUBDEV;
 	hsd->isd.subdev.entity.ops = gsd->entity.ops;
 	hsd->isd.subdev.entity.type = MEDIA_ENT_T_V4L2_SUBDEV_HOST;
 	ret = media_entity_init(&hsd->isd.subdev.entity, gsd->entity.num_pads,

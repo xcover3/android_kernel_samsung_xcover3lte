@@ -1119,6 +1119,12 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 	return ret;
 }
 
+static int b52_sensor_g_mbus_config(struct v4l2_subdev *sd,
+					struct v4l2_mbus_config *cfg)
+{
+	cfg->type = V4L2_MBUS_CSI2;
+	return 0;
+}
 static enum v4l2_mbus_pixelcode b52_sensor_get_real_mbus(
 	    struct v4l2_subdev *sd, enum v4l2_mbus_pixelcode code)
 {
@@ -1501,6 +1507,7 @@ static int b52_sensor_queryctrl(struct v4l2_subdev *sd,
 
 static struct v4l2_subdev_video_ops b52_sensor_video_ops = {
 	.s_stream = b52_sensor_s_stream,
+	.g_mbus_config = b52_sensor_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops b52_sensor_pad_ops = {
