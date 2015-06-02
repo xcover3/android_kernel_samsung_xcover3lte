@@ -342,10 +342,6 @@ static int mmp_map_be_startup(struct snd_pcm_substream *substream,
 	map_priv = map_be_dai_priv->map_priv;
 	map_be_active(map_priv);
 
-	/* if FM opened, we shouldn't let bt open */
-	if (dai->id == 1 && map_priv->bt_fm_sel)
-		return 0;
-
 	return 0;
 }
 
@@ -360,10 +356,6 @@ static void mmp_map_be_shutdown(struct snd_pcm_substream *substream,
 	map_be_dai_priv = snd_soc_dai_get_drvdata(dai);
 	map_priv = map_be_dai_priv->map_priv;
 	map_be_reset(map_priv);
-
-	/* if FM opened, we shouldn't let bt open */
-	if (dai->id == 1 && map_priv->bt_fm_sel)
-		return;
 
 	map_be_dai_priv->i2s_config[dai->id - 1] = false;
 
@@ -588,10 +580,6 @@ static int mmp_map_aux_mute(struct snd_soc_dai *dai, int mute, int direction)
 	struct map_be_dai_private *be_dai_priv = snd_soc_dai_get_drvdata(dai);
 	struct map_private *map_priv = be_dai_priv->map_priv;
 	unsigned int reg, val;
-
-	/* if FM opened, we shouldn't let bt open */
-	if (dai->id == 1 && map_priv->bt_fm_sel)
-		return 0;
 
 	if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
 		reg = MAP_DATAPATH_FLOW_CTRL_REG_1;
