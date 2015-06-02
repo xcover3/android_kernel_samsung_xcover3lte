@@ -205,10 +205,7 @@ wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 	PRINTM(MERROR, "mlan_processing =%d\n", pmadapter->mlan_processing);
 	PRINTM(MERROR, "mlan_rx_processing =%d\n",
 	       pmadapter->mlan_rx_processing);
-	PRINTM(MERROR, "rx_pkts_queued=%d\n",
-	       util_scalar_read(pmadapter->pmoal_handle,
-				&pmadapter->rx_pkts_queued, MNULL, MNULL));
-
+	PRINTM(MERROR, "rx_pkts_queued=%d\n", pmadapter->rx_pkts_queued);
 	PRINTM(MERROR, "more_task_flag = %d\n", pmadapter->more_task_flag);
 	PRINTM(MERROR, "num_cmd_timeout = %d\n", pmadapter->num_cmd_timeout);
 	PRINTM(MERROR, "dbg.num_cmd_timeout = %d\n",
@@ -754,15 +751,24 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 		wlan_cpu_to_le16(HostCmd_SET_SEQ_NO_BSS_INFO
 				 (pmadapter->seq_num, pcmd_node->priv->bss_num,
 				  pcmd_node->priv->bss_type));
+	cmd_code = wlan_le16_to_cpu(pcmd->command);
+	cmd_size = wlan_le16_to_cpu(pcmd->size);
+
+	pcmd_node->cmdbuf->data_len = cmd_size;
 
 	wlan_request_cmd_lock(pmadapter);
 	pmadapter->curr_cmd = pcmd_node;
 	wlan_release_cmd_lock(pmadapter);
 
-	cmd_code = wlan_le16_to_cpu(pcmd->command);
-	cmd_size = wlan_le16_to_cpu(pcmd->size);
-
-	pcmd_node->cmdbuf->data_len = cmd_size;
+	/* Save the last command id and action to debug log */
+	pmadapter->dbg.last_cmd_index =
+		(pmadapter->dbg.last_cmd_index + 1) % DBG_CMD_NUM;
+	pmadapter->dbg.last_cmd_id[pmadapter->dbg.last_cmd_index] = cmd_code;
+	pmadapter->dbg.last_cmd_act[pmadapter->dbg.last_cmd_index] =
+		wlan_le16_to_cpu(*(t_u16 *)((t_u8 *)pcmd + S_DS_GEN));
+	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
+						  &pmadapter->dnld_cmd_in_secs,
+						  &age_ts_usec);
 
 	PRINTM_GET_SYS_TIME(MCMND, &sec, &usec);
 	PRINTM_NETINTF(MCMND, pmpriv);
@@ -791,6 +797,10 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 
 		wlan_request_cmd_lock(pmadapter);
 		pmadapter->curr_cmd = MNULL;
+		if (pmadapter->dbg.last_cmd_index)
+			pmadapter->dbg.last_cmd_index--;
+		else
+			pmadapter->dbg.last_cmd_index = DBG_CMD_NUM - 1;
 		wlan_release_cmd_lock(pmadapter);
 
 		pmadapter->dbg.num_cmd_host_to_card_failure++;
@@ -798,13 +808,6 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-
-	/* Save the last command id and action to debug log */
-	pmadapter->dbg.last_cmd_index =
-		(pmadapter->dbg.last_cmd_index + 1) % DBG_CMD_NUM;
-	pmadapter->dbg.last_cmd_id[pmadapter->dbg.last_cmd_index] = cmd_code;
-	pmadapter->dbg.last_cmd_act[pmadapter->dbg.last_cmd_index] =
-		wlan_le16_to_cpu(*(t_u16 *)((t_u8 *)pcmd + S_DS_GEN));
 
 	/* Clear BSS_NO_BITS from HostCmd */
 	cmd_code &= HostCmd_CMD_ID_MASK;
@@ -822,9 +825,6 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 		}
 		goto done;
 	}
-	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
-						  &pmadapter->dnld_cmd_in_secs,
-						  &age_ts_usec);
 
 	/* Setup the timer after transmit command */
 	pcb->moal_start_timer(pmadapter->pmoal_handle,
@@ -3721,6 +3721,12 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u32 i;
+	t_u16 left_len;
+	t_u16 tlv_type = 0;
+	t_u16 tlv_len = 0;
+	MrvlIEtypes_fw_ver_info_t *api_rev = MNULL;
+	t_u16 api_id = 0;
+	MrvlIEtypesHeader_t *tlv = MNULL;
 	pmlan_ioctl_req pioctl_req = (mlan_ioctl_req *)pioctl_buf;
 
 	ENTER();
@@ -3872,7 +3878,40 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 		goto done;
 	}
 #endif /* STA_SUPPORT */
-
+	left_len =
+		wlan_le16_to_cpu(resp->size) - sizeof(HostCmd_DS_GET_HW_SPEC) -
+		S_DS_GEN;
+	tlv = (MrvlIEtypesHeader_t *)((t_u8 *)hw_spec +
+				      sizeof(HostCmd_DS_GET_HW_SPEC));
+	while (left_len > sizeof(MrvlIEtypesHeader_t)) {
+		tlv_type = wlan_le16_to_cpu(tlv->type);
+		tlv_len = wlan_le16_to_cpu(tlv->len);
+		switch (tlv_type) {
+		case TLV_TYPE_FW_VER_INFO:
+			api_rev = (MrvlIEtypes_fw_ver_info_t *) tlv;
+			api_id = wlan_le16_to_cpu(api_rev->api_id);
+			switch (api_id) {
+			case FW_API_VER_ID:
+				pmadapter->fw_ver = api_rev->major_ver;
+				PRINTM(MCMND, "fw ver=%d.%d\n",
+				       api_rev->major_ver, api_rev->minor_ver);
+				break;
+			case UAP_FW_API_VER_ID:
+				pmadapter->uap_fw_ver = api_rev->major_ver;
+				PRINTM(MCMND, "uap fw ver=%d.%d\n",
+				       api_rev->major_ver, api_rev->minor_ver);
+				break;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+		left_len -= (sizeof(MrvlIEtypesHeader_t) + tlv_len);
+		tlv = (MrvlIEtypesHeader_t *)((t_u8 *)tlv + tlv_len +
+					      sizeof(MrvlIEtypesHeader_t));
+	}
 done:
 	LEAVE();
 	return ret;

@@ -1514,6 +1514,7 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
+	int enable_11d = MTRUE;
 
 	ENTER();
 
@@ -1604,6 +1605,13 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 	}
 #endif
 #endif
+
+	ret = woal_uap_get_set_11d(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				   &enable_11d);
+	if (ret) {
+		PRINTM(MERROR, "Failed to set ENABLE_11D\n");
+		goto done;
+	}
 
 	/* if the bss is stopped, then start it */
 	if (priv->bss_started == MFALSE) {
@@ -1832,7 +1840,7 @@ woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 		PRINTM(MMSG, "wlan: deauth station " MACSTR "\n",
 		       MAC2STR(mac_addr));
 #ifdef WIFI_DIRECT_SUPPORT
-		if (!priv->phandle->is_go_timer_set &&
+		if (!priv->phandle->is_go_timer_set ||
 		    priv->bss_type != MLAN_BSS_TYPE_WIFIDIRECT)
 #endif
 			woal_deauth_station(priv, (u8 *)mac_addr);
@@ -1900,9 +1908,14 @@ woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 			PRINTM(MIOCTL, "Get station: " MACSTR " RSSI=%d\n",
 			       MAC2STR(mac),
 			       (int)info->param.sta_list.info[i].rssi);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+			stainfo->filled = BIT(NL80211_STA_INFO_INACTIVE_TIME) |
+				BIT(NL80211_STA_INFO_SIGNAL);
+#else
 			stainfo->filled =
 				STATION_INFO_INACTIVE_TIME |
 				STATION_INFO_SIGNAL;
+#endif
 			stainfo->inactive_time = 0;
 			stainfo->signal = info->param.sta_list.info[i].rssi;
 			ret = 0;

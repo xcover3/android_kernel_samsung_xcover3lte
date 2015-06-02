@@ -1153,19 +1153,28 @@ wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 				PRINTM(MINFO,
 				       "BA setup threshold %d reached. tid=%d\n",
 				       ptr->packet_count, tid);
-				wlan_11n_create_txbastream_tbl(priv, ptr->ra,
-							       tid,
-							       BA_STREAM_SETUP_INPROGRESS);
-				wlan_send_addba(priv, tid, ptr->ra);
+				if (!wlan_11n_get_txbastream_tbl
+				    (priv, tid, ptr->ra)) {
+					wlan_11n_create_txbastream_tbl(priv,
+								       ptr->ra,
+								       tid,
+								       BA_STREAM_SETUP_INPROGRESS);
+					wlan_send_addba(priv, tid, ptr->ra);
+				}
 			} else if (wlan_find_stream_to_delete(priv, ptr,
 							      tid, &tid_del,
 							      ra)) {
 				PRINTM(MDAT_D, "tid_del=%d tid=%d\n", tid_del,
 				       tid);
-				wlan_11n_create_txbastream_tbl(priv, ptr->ra,
-							       tid,
-							       BA_STREAM_SETUP_INPROGRESS);
-				wlan_send_delba(priv, MNULL, tid_del, ra, 1);
+				if (!wlan_11n_get_txbastream_tbl
+				    (priv, tid, ptr->ra)) {
+					wlan_11n_create_txbastream_tbl(priv,
+								       ptr->ra,
+								       tid,
+								       BA_STREAM_SETUP_INPROGRESS);
+					wlan_send_delba(priv, MNULL, tid_del,
+							ra, 1);
+				}
 			}
 		}
 		if (wlan_is_amsdu_allowed(priv, ptr, tid) &&
@@ -3587,4 +3596,19 @@ wlan_dump_ralist(mlan_private *priv)
 		}
 	}
 	return;
+}
+
+/**
+ *  @brief get tid down
+ *
+ *  @param priv         A pointer to mlan_private structure
+ * 	@param tid 			tid
+ *
+ *  @return             tid_down
+ *
+ */
+int
+wlan_get_wmm_tid_down(mlan_private *priv, int tid)
+{
+	return wlan_wmm_downgrade_tid(priv, tid);
 }

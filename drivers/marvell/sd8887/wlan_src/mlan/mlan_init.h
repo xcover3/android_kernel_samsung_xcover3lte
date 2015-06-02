@@ -36,6 +36,8 @@ Change log:
 
 /** Firmware has last block */
 #define FW_HAS_LAST_BLOCK		0x00000004
+/** CMD id for CMD7 */
+#define FW_CMD_7                0x00000007
 
 /** Firmware data transmit size */
 #define FW_DATA_XMIT_SIZE (sizeof(FWHeader) + DataLength + sizeof(t_u32))

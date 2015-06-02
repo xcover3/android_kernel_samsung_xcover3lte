@@ -2589,6 +2589,29 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PS_MODE_ENH {
 	} params;
 } MLAN_PACK_END HostCmd_DS_802_11_PS_MODE_ENH;
 
+/** FW VERSION tlv */
+#define TLV_TYPE_FW_VER_INFO        (PROPRIETARY_TLV_BASE_ID + 0xC7)	/* 0x1C7
+									 */
+
+/** MrvlIEtypes_fw_ver_info_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_fw_ver_info_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** API id */
+	t_u16 api_id;
+    /** major version */
+	t_u8 major_ver;
+    /** minor version */
+	t_u8 minor_ver;
+} MLAN_PACK_END MrvlIEtypes_fw_ver_info_t;
+
+/** API ID */
+enum API_VER_ID {
+	KEY_API_VER_ID = 1,
+	FW_API_VER_ID = 2,
+	UAP_FW_API_VER_ID = 3,
+};
+
 /** HostCmd_DS_GET_HW_SPEC */
 typedef MLAN_PACK_START struct _HostCmd_DS_GET_HW_SPEC {
     /** HW Interface version number */
@@ -4633,9 +4656,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_mac_filter_t {
     /** STA MAC addresses buffer */
 	t_u8 mac_address[1];
 } MLAN_PACK_END MrvlIEtypes_mac_filter_t;
-
-/** setting for band_config - band=5GHZ */
-#define BAND_CONFIG_5GHZ        0x01
 
 /** Band_Config_t */
 typedef MLAN_PACK_START struct _Band_Config_t {

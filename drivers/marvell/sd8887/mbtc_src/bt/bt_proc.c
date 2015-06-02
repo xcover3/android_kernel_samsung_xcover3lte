@@ -556,31 +556,50 @@ bt_histogram_read(struct seq_file *sfp, void *data)
 				   priv->hist_data[i].powerclass);
 			break;
 		}
-		for (j = 0; j < MAX_LINK_NUM; j++) {
+		for (j = 0; j < (MAX_BT_LINK + MAX_BLE_LINK); j++) {
 			switch (priv->hist_data[i].link[j].txrxrate) {
-			case BDR_RATE:
+			case BDR_RATE_1M:
 				seq_printf(sfp,
-					   "link[%d]: TxPower=%d dBm, TxRx Rate=BDR(%d), RSSI=%d dBm\n",
-					   priv->hist_data[i].link[j].handle,
+					   "BT link[%d]: TxPower=%d dBm, TxRx Rate=BDR(1 mbps), RSSI=%d dBm\n",
+					   j + 1,
 					   priv->hist_data[i].link[j].txpower,
-					   priv->hist_data[i].link[j].txrxrate,
 					   priv->hist_data[i].link[j].rssi);
 				break;
-			case EDR_RATE:
+			case EDR_RATE_2_3M:
 				seq_printf(sfp,
-					   "link[%d]: TxPower=%d dBm, TxRx Rate=EDR(%d), RSSI=%d dBm\n",
-					   priv->hist_data[i].link[j].handle,
+					   "BT link[%d]: TxPower=%d dBm, TxRx Rate=EDR(2/3 mbps), RSSI=%d dBm\n",
+					   j + 1,
 					   priv->hist_data[i].link[j].txpower,
-					   priv->hist_data[i].link[j].txrxrate,
+					   priv->hist_data[i].link[j].rssi);
+				break;
+			case BLE_RATE_1M:
+				seq_printf(sfp,
+					   "BLE link[%d]: TxPower=%d dBm, TxRx Rate=BLE(1 mbps), RSSI=%d dBm\n",
+					   j - MAX_BT_LINK + 0x80,
+					   priv->hist_data[i].link[j].txpower,
 					   priv->hist_data[i].link[j].rssi);
 				break;
 			default:
-				seq_printf(sfp,
-					   "link[%d]: TxPower=%d dBm, TxRx Rate=(%d), RSSI=%d dBm\n",
-					   priv->hist_data[i].link[j].handle,
-					   priv->hist_data[i].link[j].txpower,
-					   priv->hist_data[i].link[j].txrxrate,
-					   priv->hist_data[i].link[j].rssi);
+				if (j < MAX_BT_LINK)
+					seq_printf(sfp,
+						   "BT link[%d]: TxPower=%d dBm, TxRx Rate=(%d), RSSI=%d dBm\n",
+						   j + 1,
+						   priv->hist_data[i].link[j].
+						   txpower,
+						   priv->hist_data[i].link[j].
+						   txrxrate,
+						   priv->hist_data[i].link[j].
+						   rssi);
+				else
+					seq_printf(sfp,
+						   "BLE link[%d]: TxPower=%d dBm, TxRx Rate=(%d), RSSI=%d dBm\n",
+						   j - MAX_BT_LINK + 0x80,
+						   priv->hist_data[i].link[j].
+						   txpower,
+						   priv->hist_data[i].link[j].
+						   txrxrate,
+						   priv->hist_data[i].link[j].
+						   rssi);
 				break;
 			}
 		}

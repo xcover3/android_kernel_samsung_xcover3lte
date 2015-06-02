@@ -566,11 +566,8 @@ wlan_11n_get_rxreorder_tbl(mlan_private *priv, int tid, t_u8 *ta)
 
 	rx_reor_tbl_ptr =
 		(RxReorderTbl *)util_peek_list(priv->adapter->pmoal_handle,
-					       &priv->rx_reorder_tbl_ptr,
-					       priv->adapter->callbacks.
-					       moal_spin_lock,
-					       priv->adapter->callbacks.
-					       moal_spin_unlock);
+					       &priv->rx_reorder_tbl_ptr, MNULL,
+					       MNULL);
 	if (!rx_reor_tbl_ptr) {
 		LEAVE();
 		return MNULL;
@@ -998,6 +995,7 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 	TxBAStreamTbl *ptxtbl;
 	t_u8 cleanup_rx_reorder_tbl;
 	raListTbl *ra_list = MNULL;
+	int tid_down;
 
 	ENTER();
 
@@ -1025,7 +1023,8 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 			LEAVE();
 			return;
 		}
-		ra_list = wlan_wmm_get_ralist_node(priv, tid, peer_mac);
+		tid_down = wlan_get_wmm_tid_down(priv, tid);
+		ra_list = wlan_wmm_get_ralist_node(priv, tid_down, peer_mac);
 		if (ra_list) {
 			ra_list->amsdu_in_ampdu = MFALSE;
 			ra_list->ba_status = BA_STREAM_NOT_SETUP;

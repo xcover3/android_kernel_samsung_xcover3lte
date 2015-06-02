@@ -368,7 +368,7 @@ wlan_uap_bss_ioctl_mac_address(IN pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief Set/Get MAC address
+ *  @brief Set/Get wmm param
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
  *  @param pioctl_req	A pointer to ioctl request buffer
@@ -378,6 +378,76 @@ wlan_uap_bss_ioctl_mac_address(IN pmlan_adapter pmadapter,
 static mlan_status
 wlan_uap_bss_ioctl_uap_wmm_param(IN pmlan_adapter pmadapter,
 				 IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_bss *bss = MNULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else
+		cmd_action = HostCmd_ACT_GEN_GET;
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_SYS_CONFIGURE,
+			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get scan channels
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status
+wlan_uap_bss_ioctl_uap_scan_channels(IN pmlan_adapter pmadapter,
+				     IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_bss *bss = MNULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	bss = (mlan_ds_bss *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else
+		cmd_action = HostCmd_ACT_GEN_GET;
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_SYS_CONFIGURE,
+			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get UAP channel
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status
+wlan_uap_bss_ioctl_uap_channel(IN pmlan_adapter pmadapter,
+			       IN pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_bss *bss = MNULL;
@@ -1467,6 +1537,12 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (bss->sub_command == MLAN_OID_UAP_CFG_WMM_PARAM)
 			status = wlan_uap_bss_ioctl_uap_wmm_param(pmadapter,
 								  pioctl_req);
+		else if (bss->sub_command == MLAN_OID_UAP_SCAN_CHANNELS)
+			status = wlan_uap_bss_ioctl_uap_scan_channels(pmadapter,
+								      pioctl_req);
+		else if (bss->sub_command == MLAN_OID_UAP_CHANNEL)
+			status = wlan_uap_bss_ioctl_uap_channel(pmadapter,
+								pioctl_req);
 		break;
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	case MLAN_IOCTL_SCAN:

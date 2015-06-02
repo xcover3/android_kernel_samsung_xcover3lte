@@ -663,6 +663,57 @@ done:
 }
 
 /**
+ *  @brief get/set snmp mib 11d
+ *
+ *  @param priv                 A pointer to moal_private structure
+ *  @param action               Action set or get
+ *  @param wait_option          Wait option
+ *  @param value                11d value
+ *
+ *  @return                     0 --success, otherwise fail
+ */
+int
+woal_uap_get_set_11d(moal_private *priv, t_u32 action,
+		     t_u8 wait_option, int *value)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_snmp_mib *snmp = NULL;
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_snmp_mib));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	snmp = (mlan_ds_snmp_mib *)req->pbuf;
+	snmp->sub_command = MLAN_OID_SNMP_MIB_DOT11D;
+	req->req_id = MLAN_IOCTL_SNMP_MIB;
+	req->action = action;
+
+	if (action == MLAN_ACT_SET)
+		snmp->param.oid_value = *value;
+
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (action == MLAN_ACT_GET)
+		*value = snmp->param.oid_value;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief configure domain info
  *
  *  @param dev      A pointer to net_device structure
@@ -3145,6 +3196,98 @@ done:
 }
 
 /**
+ *  @brief Set/Get ap scan channel list
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param action           MLAN_ACT_SET or MLAN_ACT_GET
+ *  @param scan_channels    A pointer to mlan_uap_scan_channels structure
+ *
+ *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+woal_set_get_ap_scan_channels(moal_private *priv, t_u16 action,
+			      mlan_uap_scan_channels * scan_channels)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_bss *bss = NULL;
+	mlan_ioctl_req *req = NULL;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	bss = (mlan_ds_bss *)req->pbuf;
+	bss->sub_command = MLAN_OID_UAP_SCAN_CHANNELS;
+	req->req_id = MLAN_IOCTL_BSS;
+	req->action = action;
+
+	memcpy(&bss->param.ap_scan_channels, scan_channels,
+	       sizeof(mlan_uap_scan_channels));
+
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (ret != MLAN_STATUS_SUCCESS)
+		goto done;
+	if (action == MLAN_ACT_GET)
+		memcpy(scan_channels, &bss->param.ap_scan_channels,
+		       sizeof(mlan_uap_scan_channels));
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get uap channel
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param action           MLAN_ACT_SET or MLAN_ACT_GET
+ *  @param uap_channel      A pointer to mlan_uap_channel structure
+ *
+ *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+woal_set_get_ap_channel(moal_private *priv, t_u16 action,
+			mlan_uap_channel * uap_channel)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_bss *bss = NULL;
+	mlan_ioctl_req *req = NULL;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	bss = (mlan_ds_bss *)req->pbuf;
+	bss->sub_command = MLAN_OID_UAP_CHANNEL;
+	req->req_id = MLAN_IOCTL_BSS;
+	req->action = action;
+
+	memcpy(&bss->param.ap_channel, uap_channel, sizeof(mlan_uap_channel));
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (ret != MLAN_STATUS_SUCCESS)
+		goto done;
+	if (action == MLAN_ACT_GET)
+		memcpy(uap_channel, &bss->param.ap_channel,
+		       sizeof(mlan_uap_channel));
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief uap BSS control ioctl handler
  *
  *  @param priv             A pointer to moal_private structure
@@ -3182,7 +3325,7 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 			/* goto done; */
 		} else {
 			/* about to start bss: issue channel check */
-			woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);
+			woal_11h_channel_check_ioctl(priv, wait_option);
 		}
 		bss->sub_command = MLAN_OID_BSS_START;
 		break;
@@ -3206,8 +3349,8 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 	req->req_id = MLAN_IOCTL_BSS;
 	req->action = MLAN_ACT_SET;
 
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status == MLAN_STATUS_FAILURE) {
 		ret = -EFAULT;
 		goto done;
 	}

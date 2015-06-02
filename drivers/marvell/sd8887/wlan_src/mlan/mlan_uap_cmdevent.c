@@ -1197,12 +1197,16 @@ wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 	HostCmd_DS_SYS_CONFIG *sys_config =
 		(HostCmd_DS_SYS_CONFIG *)&cmd->params.sys_config;
 	MrvlIEtypes_MacAddr_t *mac_tlv = MNULL;
-	MrvlIEtypes_channel_band_t *chan_band_tlv = MNULL, *pdat_tlv_cb = MNULL;
+	MrvlIEtypes_channel_band_t *pdat_tlv_cb = MNULL;
 	MrvlIEtypes_beacon_period_t *bcn_pd_tlv = MNULL, *pdat_tlv_bcnpd =
 		MNULL;
 	MrvlIEtypes_dtim_period_t *dtim_pd_tlv = MNULL, *pdat_tlv_dtimpd =
 		MNULL;
 	MrvlIEtypes_wmm_parameter_t *tlv_wmm_parameter = MNULL;
+	MrvlIEtypes_ChanListParamSet_t *tlv_chan_list = MNULL;
+	ChanScanParamSet_t *pscan_chan = MNULL;
+	MrvlIEtypes_channel_band_t *chan_band_tlv = MNULL;
+	t_u16 i = 0;
 	t_u8 ac = 0;
 	mlan_ds_misc_custom_ie *cust_ie = MNULL;
 	mlan_ds_misc_cfg *misc = MNULL;
@@ -1444,6 +1448,91 @@ wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 								 ac_params[ac].
 								 tx_op_limit);
 				}
+			}
+		} else if (bss->sub_command == MLAN_OID_UAP_SCAN_CHANNELS) {
+			tlv_chan_list =
+				(MrvlIEtypes_ChanListParamSet_t *)sys_config->
+				tlv_buffer;
+			tlv_chan_list->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_CHANLIST);
+			if (bss->param.ap_scan_channels.num_of_chan &&
+			    bss->param.ap_scan_channels.num_of_chan <=
+			    MLAN_MAX_CHANNEL) {
+				cmd->size =
+					wlan_cpu_to_le16(sizeof
+							 (HostCmd_DS_SYS_CONFIG)
+							 - 1 + S_DS_GEN +
+							 sizeof(tlv_chan_list->
+								header) +
+							 sizeof
+							 (ChanScanParamSet_t) *
+							 bss->param.
+							 ap_scan_channels.
+							 num_of_chan);
+				tlv_chan_list->header.len =
+					wlan_cpu_to_le16((t_u16)
+							 (sizeof
+							  (ChanScanParamSet_t) *
+							  bss->param.
+							  ap_scan_channels.
+							  num_of_chan));
+				pscan_chan = tlv_chan_list->chan_scan_param;
+				for (i = 0;
+				     i <
+				     bss->param.ap_scan_channels.num_of_chan;
+				     i++) {
+					pscan_chan->chan_number =
+						bss->param.ap_scan_channels.
+						chan_list[i].chan_number;
+					pscan_chan->radio_type =
+						bss->param.ap_scan_channels.
+						chan_list[i].band_config_type;
+					pscan_chan++;
+				}
+				PRINTM(MCMND,
+				       "Set AP scan channel list =  %d\n",
+				       bss->param.ap_scan_channels.num_of_chan);
+			} else {
+				tlv_chan_list->header.len =
+					wlan_cpu_to_le16((t_u16)
+							 (sizeof
+							  (ChanScanParamSet_t) *
+							  MLAN_MAX_CHANNEL));
+				cmd->size =
+					wlan_cpu_to_le16(sizeof
+							 (HostCmd_DS_SYS_CONFIG)
+							 - 1 + S_DS_GEN +
+							 sizeof
+							 (MrvlIEtypes_ChanListParamSet_t)
+							 +
+							 sizeof
+							 (ChanScanParamSet_t) *
+							 MLAN_MAX_CHANNEL);
+			}
+		} else if (bss->sub_command == MLAN_OID_UAP_CHANNEL) {
+			chan_band_tlv =
+				(MrvlIEtypes_channel_band_t *)sys_config->
+				tlv_buffer;
+			cmd->size =
+				wlan_cpu_to_le16(sizeof(HostCmd_DS_SYS_CONFIG) -
+						 1 + S_DS_GEN +
+						 sizeof
+						 (MrvlIEtypes_channel_band_t));
+			chan_band_tlv->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_UAP_CHAN_BAND_CONFIG);
+			chan_band_tlv->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlIEtypes_channel_band_t)
+						 - sizeof(MrvlIEtypesHeader_t));
+			if (cmd_action == HostCmd_ACT_GEN_SET) {
+				chan_band_tlv->band_config =
+					bss->param.ap_channel.band_cfg;
+				chan_band_tlv->channel =
+					bss->param.ap_channel.channel;
+				PRINTM(MCMND,
+				       "Set AP channel, band=%d, channel=%d\n",
+				       bss->param.ap_channel.band_cfg,
+				       bss->param.ap_channel.channel);
 			}
 		} else if ((bss->sub_command == MLAN_OID_UAP_BSS_CONFIG) &&
 			   (cmd_action == HostCmd_ACT_GEN_SET)) {
@@ -2001,6 +2090,11 @@ wlan_uap_ret_sys_config(IN pmlan_private pmpriv,
 	tlvbuf_max_mgmt_ie *max_mgmt_ie = MNULL;
 	MrvlIEtypes_wmm_parameter_t *tlv_wmm_parameter =
 		(MrvlIEtypes_wmm_parameter_t *)sys_config->tlv_buffer;
+	MrvlIEtypes_ChanListParamSet_t *tlv_chan_list =
+		(MrvlIEtypes_ChanListParamSet_t *)sys_config->tlv_buffer;
+	MrvlIEtypes_channel_band_t *chan_band_tlv =
+		(MrvlIEtypes_channel_band_t *)sys_config->tlv_buffer;
+	ChanScanParamSet_t *pscan_chan = MNULL;
 	t_u8 ac = 0;
 	MrvlIEtypes_channel_band_t *tlv_cb = MNULL;
 	MrvlIEtypes_beacon_period_t *tlv_bcnpd = MNULL;
@@ -2094,6 +2188,69 @@ wlan_uap_ret_sys_config(IN pmlan_private pmpriv,
 							       tx_op_limit);
 						}
 					}
+				}
+			} else if (bss->sub_command ==
+				   MLAN_OID_UAP_SCAN_CHANNELS) {
+				if (TLV_TYPE_CHANLIST ==
+				    wlan_le16_to_cpu(tlv_chan_list->header.
+						     type)) {
+					pscan_chan =
+						tlv_chan_list->chan_scan_param;
+					bss->param.ap_scan_channels.
+						num_of_chan = 0;
+					for (i = 0;
+					     i <
+					     wlan_le16_to_cpu(tlv_chan_list->
+							      header.len) /
+					     sizeof(ChanScanParamSet_t); i++) {
+						if (bss->param.ap_scan_channels.
+						    remove_nop_channel &&
+						    wlan_11h_is_channel_under_nop
+						    (pmpriv->adapter,
+						     pscan_chan->chan_number)) {
+							bss->param.
+								ap_scan_channels.
+								num_remvoed_channel++;
+							PRINTM(MCMND,
+							       "Remove nop channel=%d\n",
+							       pscan_chan->
+							       chan_number);
+							pscan_chan++;
+							continue;
+						}
+						bss->param.ap_scan_channels.
+							chan_list[bss->param.
+								  ap_scan_channels.
+								  num_of_chan].
+							chan_number =
+							pscan_chan->chan_number;
+						bss->param.ap_scan_channels.
+							chan_list[bss->param.
+								  ap_scan_channels.
+								  num_of_chan].
+							band_config_type =
+							pscan_chan->radio_type;
+						bss->param.ap_scan_channels.
+							num_of_chan++;
+						pscan_chan++;
+					}
+					PRINTM(MCMND,
+					       "AP scan channel list=%d\n",
+					       bss->param.ap_scan_channels.
+					       num_of_chan);
+				}
+			} else if (bss->sub_command == MLAN_OID_UAP_CHANNEL) {
+				if (TLV_TYPE_UAP_CHAN_BAND_CONFIG ==
+				    wlan_le16_to_cpu(chan_band_tlv->header.
+						     type)) {
+					bss->param.ap_channel.band_cfg =
+						chan_band_tlv->band_config;
+					bss->param.ap_channel.channel =
+						chan_band_tlv->channel;
+					PRINTM(MCMND,
+					       "AP channel, band=%d, channel=%d\n",
+					       bss->param.ap_channel.band_cfg,
+					       bss->param.ap_channel.channel);
 				}
 			} else if ((bss->sub_command == MLAN_OID_UAP_BSS_CONFIG)
 				   && (pioctl_buf->action == MLAN_ACT_GET)) {

@@ -1270,7 +1270,6 @@ wlan_11n_get_txbastream_status(mlan_private *priv, baStatus_e ba_status)
 static void
 wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 {
-	mlan_adapter *pmadapter = priv->adapter;
 	t_u32 usr_dot_11n_dev_cap;
 
 	ENTER();
@@ -1311,13 +1310,13 @@ wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 		RESETHT_40MHZ_INTOLARANT(ht_cap->ht_cap_info);
 
 	/* No user config for LDPC coding capability yet */
-	if (ISSUPP_RXLDPC(pmadapter->hw_dot_11n_dev_cap))
+	if (ISSUPP_RXLDPC(usr_dot_11n_dev_cap))
 		SETHT_LDPCCODINGCAP(ht_cap->ht_cap_info);
 	else
 		RESETHT_LDPCCODINGCAP(ht_cap->ht_cap_info);
 
 	/* No user config for TX STBC yet */
-	if (ISSUPP_TXSTBC(pmadapter->hw_dot_11n_dev_cap))
+	if (ISSUPP_TXSTBC(usr_dot_11n_dev_cap))
 		SETHT_TXSTBC(ht_cap->ht_cap_info);
 	else
 		RESETHT_TXSTBC(ht_cap->ht_cap_info);
@@ -1326,7 +1325,7 @@ wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 	if (priv->adapter->psdio_device->v15_fw_api) {
 		RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
 	} else {
-		if (GET_DELAYEDBACK(pmadapter->hw_dot_11n_dev_cap))
+		if (GET_DELAYEDBACK(priv->adapter->hw_dot_11n_dev_cap))
 			SETHT_DELAYEDBACK(ht_cap->ht_cap_info);
 		else
 			RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
@@ -1581,10 +1580,13 @@ wlan_ret_11n_delba(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 				 * we initiated the ADDBA
 				 */
 		if (INITIATOR_BIT(pdel_ba->del_ba_param_set)) {
-			wlan_11n_create_txbastream_tbl(priv,
-						       pdel_ba->peer_mac_addr,
-						       tid,
-						       BA_STREAM_SETUP_INPROGRESS);
+			if (!wlan_11n_get_txbastream_tbl
+			    (priv, tid, pdel_ba->peer_mac_addr))
+				wlan_11n_create_txbastream_tbl(priv,
+							       pdel_ba->
+							       peer_mac_addr,
+							       tid,
+							       BA_STREAM_SETUP_INPROGRESS);
 			ptx_ba_tbl =
 				wlan_11n_get_txbastream_status(priv,
 							       BA_STREAM_SETUP_INPROGRESS);
@@ -1619,6 +1621,7 @@ wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 		(HostCmd_DS_11N_ADDBA_RSP *)&resp->params.add_ba_rsp;
 	TxBAStreamTbl *ptx_ba_tbl;
 	raListTbl *ra_list = MNULL;
+	int tid_down;
 
 	ENTER();
 
@@ -1631,9 +1634,10 @@ wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 
 	tid = (padd_ba_rsp->block_ack_param_set & BLOCKACKPARAM_TID_MASK)
 		>> BLOCKACKPARAM_TID_POS;
-
+	tid_down = wlan_get_wmm_tid_down(priv, tid);
 	ra_list =
-		wlan_wmm_get_ralist_node(priv, tid, padd_ba_rsp->peer_mac_addr);
+		wlan_wmm_get_ralist_node(priv, tid_down,
+					 padd_ba_rsp->peer_mac_addr);
 	if (padd_ba_rsp->status_code == BA_RESULT_SUCCESS) {
 		ptx_ba_tbl = wlan_11n_get_txbastream_tbl(priv, tid,
 							 padd_ba_rsp->
@@ -2685,37 +2689,37 @@ wlan_11n_create_txbastream_tbl(mlan_private *priv,
 	TxBAStreamTbl *new_node = MNULL;
 	pmlan_adapter pmadapter = priv->adapter;
 	raListTbl *ra_list = MNULL;
+	int tid_down;
 
 	ENTER();
 
-	if (!wlan_11n_get_txbastream_tbl(priv, tid, ra)) {
-		PRINTM(MDAT_D, "get_txbastream_tbl TID %d\n", tid);
-		DBG_HEXDUMP(MDAT_D, "RA", ra, MLAN_MAC_ADDR_LENGTH);
+	PRINTM(MDAT_D, "create_txbastream_tbl TID %d\n", tid);
+	DBG_HEXDUMP(MDAT_D, "RA", ra, MLAN_MAC_ADDR_LENGTH);
 
-		if (pmadapter->callbacks.
-		    moal_malloc(pmadapter->pmoal_handle, sizeof(TxBAStreamTbl),
-				MLAN_MEM_DEF, (t_u8 **)&new_node)) {
-			PRINTM(MERROR,
-			       "wlan_11n_create_txbastream_tbl Failed to allocate new_node\n");
-			LEAVE();
-			return;
-		}
-		ra_list = wlan_wmm_get_ralist_node(priv, tid, ra);
-		if (ra_list) {
-			ra_list->amsdu_in_ampdu = MFALSE;
-			ra_list->ba_status = ba_status;
-		}
-		util_init_list((pmlan_linked_list)new_node);
-
-		new_node->tid = tid;
-		new_node->ba_status = ba_status;
-		memcpy(pmadapter, new_node->ra, ra, MLAN_MAC_ADDR_LENGTH);
-		util_enqueue_list_tail(pmadapter->pmoal_handle,
-				       &priv->tx_ba_stream_tbl_ptr,
-				       (pmlan_linked_list)new_node,
-				       pmadapter->callbacks.moal_spin_lock,
-				       pmadapter->callbacks.moal_spin_unlock);
+	if (pmadapter->callbacks.
+	    moal_malloc(pmadapter->pmoal_handle, sizeof(TxBAStreamTbl),
+			MLAN_MEM_DEF, (t_u8 **)&new_node)) {
+		PRINTM(MERROR,
+		       "wlan_11n_create_txbastream_tbl Failed to allocate new_node\n");
+		LEAVE();
+		return;
 	}
+	tid_down = wlan_get_wmm_tid_down(priv, tid);
+	ra_list = wlan_wmm_get_ralist_node(priv, tid_down, ra);
+	if (ra_list) {
+		ra_list->amsdu_in_ampdu = MFALSE;
+		ra_list->ba_status = ba_status;
+	}
+	util_init_list((pmlan_linked_list)new_node);
+
+	new_node->tid = tid;
+	new_node->ba_status = ba_status;
+	memcpy(pmadapter, new_node->ra, ra, MLAN_MAC_ADDR_LENGTH);
+	util_enqueue_list_tail(pmadapter->pmoal_handle,
+			       &priv->tx_ba_stream_tbl_ptr,
+			       (pmlan_linked_list)new_node,
+			       pmadapter->callbacks.moal_spin_lock,
+			       pmadapter->callbacks.moal_spin_unlock);
 
 	LEAVE();
 }

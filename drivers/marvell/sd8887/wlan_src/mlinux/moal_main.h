@@ -138,6 +138,13 @@ Change log:
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 #endif
 
+/**
+ * Linux kernel later 3.10 use strncasecmp instead of strnicmp
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+#define strnicmp strncasecmp
+#endif
+
 /** Define BOOLEAN */
 typedef t_u8 BOOLEAN;
 
@@ -1344,6 +1351,8 @@ struct _moal_handle {
 #ifdef STA_CFG80211
 	/** CFG80211 scan request description */
 	struct cfg80211_scan_request *scan_request;
+	/** Scan Private pointer */
+	moal_private *scan_priv;
 #endif
 #endif
 	/** main state */
@@ -1788,7 +1797,7 @@ typedef struct _HostCmd_DS_802_11_CFG_DATA {
 #define DEF_REPEAT_COUNT	 6
 
 /** default rssi low threshold */
-#define DEFAULT_RSSI_LOW_THRESHOLD 70
+#define DEFAULT_RSSI_LOW_THRESHOLD 75
 /** RSSI HYSTERSIS */
 #define RSSI_HYSTERESIS		6
 /** lowest rssi threshold */

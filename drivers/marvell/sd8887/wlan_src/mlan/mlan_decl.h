@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		"C095"
+#define MLAN_RELEASE_VERSION		"C098"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -182,6 +182,7 @@ typedef t_s32 t_sval;
 /** RX winsize for COEX */
 #define MLAN_WFD_COEX_AMPDU_DEF_RXWINSIZE  16
 #endif
+
 /** Block ack timeout value */
 #define MLAN_DEFAULT_BLOCK_ACK_TIMEOUT  0xffff
 /** Maximum Tx Win size configured for ADDBA request [10 bits] */

@@ -575,6 +575,7 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
+	pmadapter->rx_pkts_queued = 0;
 	pmadapter->cmd_resp_received = MFALSE;
 	pmadapter->event_received = MFALSE;
 	pmadapter->data_received = MFALSE;
@@ -816,9 +817,6 @@ wlan_init_lock_list(IN pmlan_adapter pmadapter)
 			    &pmadapter->rx_data_queue, MTRUE,
 			    pmadapter->callbacks.moal_init_lock);
 	util_scalar_init((t_void *)pmadapter->pmoal_handle,
-			 &pmadapter->rx_pkts_queued, 0,
-			 MNULL, pmadapter->callbacks.moal_init_lock);
-	util_scalar_init((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->pending_bridge_pkts, 0,
 			 MNULL, pmadapter->callbacks.moal_init_lock);
 	/* Initialize cmd_free_q */
@@ -946,8 +944,6 @@ wlan_free_lock_list(IN pmlan_adapter pmadapter)
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->rx_data_queue, pcb->moal_free_lock);
 
-	util_scalar_free((t_void *)pmadapter->pmoal_handle,
-			 &pmadapter->rx_pkts_queued, pcb->moal_free_lock);
 	util_scalar_free((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->pending_bridge_pkts, pcb->moal_free_lock);
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,

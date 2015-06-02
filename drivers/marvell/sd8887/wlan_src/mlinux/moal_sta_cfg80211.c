@@ -2011,11 +2011,24 @@ woal_cfg80211_dump_station_info(moal_private *priv, struct station_info *sinfo)
 #endif
 
 	ENTER();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	sinfo->filled =
+		BIT(NL80211_STA_INFO_RX_BYTES) | BIT(NL80211_STA_INFO_TX_BYTES)
+		| BIT(NL80211_STA_INFO_RX_PACKETS) |
+		BIT(NL80211_STA_INFO_TX_PACKETS) | BIT(NL80211_STA_INFO_SIGNAL)
+		| BIT(NL80211_STA_INFO_TX_BITRATE);
+#else
 	sinfo->filled = STATION_INFO_RX_BYTES | STATION_INFO_TX_BYTES |
 		STATION_INFO_RX_PACKETS | STATION_INFO_TX_PACKETS |
 		STATION_INFO_SIGNAL | STATION_INFO_TX_BITRATE;
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	sinfo->filled |= BIT(NL80211_STA_INFO_TX_FAILED);
+#else
 	sinfo->filled |= STATION_INFO_TX_FAILED;
+#endif
 #endif
 
 	/* Get signal information from the firmware */
@@ -2051,7 +2064,11 @@ woal_cfg80211_dump_station_info(moal_private *priv, struct station_info *sinfo)
 	if (rate->param.data_rate.tx_rate_format != MLAN_RATE_FORMAT_LG) {
 		sinfo->txrate.flags = RATE_INFO_FLAGS_MCS;
 		if (rate->param.data_rate.tx_ht_bw == MLAN_HT_BW40)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+			sinfo->txrate.flags |= RATE_INFO_BW_40;
+#else
 			sinfo->txrate.flags |= RATE_INFO_FLAGS_40_MHZ_WIDTH;
+#endif
 		if (rate->param.data_rate.tx_ht_gi == MLAN_HT_SGI)
 			sinfo->txrate.flags |= RATE_INFO_FLAGS_SHORT_GI;
 		sinfo->txrate.mcs = rate->param.data_rate.tx_mcs_index;
@@ -2071,7 +2088,11 @@ woal_cfg80211_dump_station_info(moal_private *priv, struct station_info *sinfo)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) || defined(COMPAT_WIRELESS)
 	/* Update BSS information */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	sinfo->filled |= BIT(NL80211_STA_INFO_BSS_PARAM);
+#else
 	sinfo->filled |= STATION_INFO_BSS_PARAM;
+#endif
 	sinfo->bss_param.flags = 0;
 	ret = woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
 	if (ret)
@@ -2381,6 +2402,7 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	}
 	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
 	priv->phandle->scan_request = request;
+	priv->phandle->scan_priv = priv;
 	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 	memset(&scan_req, 0x00, sizeof(scan_req));
 
@@ -2492,6 +2514,7 @@ done:
 		spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
 		cfg80211_scan_done(request, MTRUE);
 		priv->phandle->scan_request = NULL;
+		priv->phandle->scan_priv = NULL;
 		spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 	} else
 		PRINTM(MMSG, "wlan: %s START SCAN\n", dev->name);
@@ -2904,6 +2927,8 @@ woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	mlan_ds_misc_assoc_rsp assoc_rsp;
 	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
 	mlan_ssid_bssid ssid_bssid;
+	moal_handle *handle = priv->phandle;
+	int i;
 
 	ENTER();
 
@@ -2932,6 +2957,20 @@ woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	ssid_bssid.ssid.ssid_len = sme->ssid_len;
 	if (sme->bssid)
 		memcpy(&ssid_bssid.bssid, sme->bssid, ETH_ALEN);
+	/* Not allowed to connect to the same AP which is already connected
+	   with other interface */
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i] != priv &&
+		    MTRUE == woal_is_connected(handle->priv[i], &ssid_bssid)) {
+			PRINTM(MMSG,
+			       "wlan: already connected with other interface, bssid "
+			       MACSTR "\n",
+			       MAC2STR(handle->priv[i]->cfg_bssid));
+			LEAVE();
+			return -EINVAL;
+		}
+	}
+
 	if (MTRUE == woal_is_connected(priv, &ssid_bssid)) {
 		/* Inform the BSS information to kernel, otherwise * kernel
 		   will give a panic after successful assoc */
@@ -3273,11 +3312,17 @@ woal_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *dev,
 		survey->filled = SURVEY_INFO_NOISE_DBM;
 		survey->noise = pchan_stats[idx].noise;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) || defined(COMPAT_WIRELESS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+		survey->filled |= SURVEY_INFO_TIME | SURVEY_INFO_TIME_BUSY;
+		survey->time = pchan_stats[idx].cca_scan_duration;
+		survey->time_busy = pchan_stats[idx].cca_busy_duration;
+#else
 		survey->filled |=
 			SURVEY_INFO_CHANNEL_TIME |
 			SURVEY_INFO_CHANNEL_TIME_BUSY;
 		survey->channel_time = pchan_stats[idx].cca_scan_duration;
 		survey->channel_time_busy = pchan_stats[idx].cca_busy_duration;
+#endif
 #endif
 	}
 done:
@@ -5796,7 +5841,7 @@ woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 	}
 	if (bss_type == MLAN_BSS_TYPE_STA) {
 		wdev->iftype = NL80211_IFTYPE_STATION;
-		priv->roaming_enabled = MFALSE;
+		priv->roaming_enabled = MTRUE;
 		priv->roaming_required = MFALSE;
 	}
 #if defined(WIFI_DIRECT_SUPPORT)
@@ -6098,7 +6143,9 @@ woal_register_cfg80211(moal_private *priv)
 	wiphy->flags |= WIPHY_FLAG_HAVE_AP_SME;
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) || defined(COMPAT_WIRELESS)
+#ifdef SCHED_SCAN_SUPPORT
 	wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
+#endif
 	wiphy->max_sched_scan_ssids = MRVDRV_MAX_SSID_LIST_LENGTH;
 	wiphy->max_sched_scan_ie_len = MAX_IE_SIZE;
 	wiphy->max_match_sets = MRVDRV_MAX_SSID_LIST_LENGTH;

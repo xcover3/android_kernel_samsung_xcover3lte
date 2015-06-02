@@ -1076,7 +1076,27 @@ wlan_ops_sta_process_event(IN t_void *priv)
 		break;
 
 	case EVENT_SAD_REPORT:
-		{
+		pevent->event_len = pmbuf->data_len - sizeof(eventcause);
+		if (pevent->event_len > sizeof(t_u32)) {
+			PRINTM(MEVENT, "EVENT: SAD_REPORT %d\n", eventcause);
+			/* Allocate memory for event buffer */
+			ret = pcb->moal_malloc(pmadapter->pmoal_handle,
+					       MAX_EVENT_SIZE, MLAN_MEM_DEF,
+					       &evt_buf);
+			if ((ret == MLAN_STATUS_SUCCESS) && evt_buf) {
+				pevent = (pmlan_event)evt_buf;
+				pevent->bss_index = pmpriv->bss_index;
+				pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
+				pevent->event_len = pmbuf->data_len;
+				memcpy(pmadapter, (t_u8 *)pevent->event_buf,
+				       pmbuf->pbuf + pmbuf->data_offset,
+				       pevent->event_len);
+				wlan_recv_event(pmpriv, pevent->event_id,
+						pevent);
+				pcb->moal_mfree(pmadapter->pmoal_handle,
+						evt_buf);
+			}
+		} else {
 			t_u8 *pevt_dat =
 				pmbuf->pbuf + pmbuf->data_offset +
 				sizeof(t_u32);
@@ -1123,6 +1143,7 @@ wlan_ops_sta_process_event(IN t_void *priv)
 		PRINTM(MEVENT, "EVENT: BT coex wlan param update\n");
 		wlan_bt_coex_wlan_param_update_event(pmpriv, pmbuf);
 		break;
+
 	default:
 		PRINTM(MEVENT, "EVENT: unknown event id: %#x\n", eventcause);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_UNKNOWN, MNULL);

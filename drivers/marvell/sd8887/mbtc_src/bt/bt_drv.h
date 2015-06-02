@@ -312,22 +312,32 @@ os_sched_timeout(u32 millisec)
 
 /** BT histogram command */
 #define BT_CMD_HISTOGRAM            0xEA
-#define MAX_LINK_NUM                10
+/** max antenna num */
 #define MAX_ANTENNA_NUM             2
-#define BDR_RATE					1
-#define EDR_RATE					2
+/** BDR 1M */
+#define BDR_RATE_1M					1
+/** EDR 2/3 M */
+#define EDR_RATE_2_3M			    2
+/** BLE 1M */
+#define BLE_RATE_1M                 5
+/** max bt link number */
+#define MAX_BT_LINK                 10
+/** max ble link number */
+#define MAX_BLE_LINK                16
 
 typedef struct _bt_link_stat {
-	u16 handle;
-	s8 txpower;
+    /** txrx rate 1: BDR_1M, 2:EDR 2/3 M, 3:BLE 1M */
 	u8 txrxrate;
+    /** power: -30 = N = 20 dbm*/
+	s8 txpower;
+    /** rssi: -127 to +20 (For BT), -128 to +127 (For BLE) */
 	s8 rssi;
 } __ATTRIB_PACK__ bt_link_stat;
 
 typedef struct _bt_histogram_data {
 	u8 antenna;
 	u8 powerclass;
-	bt_link_stat link[MAX_LINK_NUM];
+	bt_link_stat link[MAX_BT_LINK + MAX_BLE_LINK];
 } __ATTRIB_PACK__ bt_histogram_data;
 
 typedef struct _bt_hist_proc_data {
@@ -813,6 +823,14 @@ int bt_cal_config(bt_private *priv, char *cfg_file, char *mac);
 /** BT set user defined calibration ext data */
 int bt_cal_config_ext(bt_private *priv, char *cfg_file);
 int bt_init_mac_address(bt_private *priv, char *mac);
+int bt_set_gpio_pin(bt_private *priv);
+/** Bluetooth command : Set gpio pin */
+#define BT_CMD_SET_GPIO_PIN     0xEC
+/** Interrupt Raising Edge**/
+#define INT_RASING_EDGE  0
+/** Interrupt Falling Edge**/
+#define INT_FALLING_EDGE 1
+#define DELAY_50_US      50
 
 typedef struct _BT_HCI_CMD {
 	/** OCF OGF */

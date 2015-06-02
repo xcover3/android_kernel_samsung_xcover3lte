@@ -2623,7 +2623,7 @@ woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 	/* The old API using SIOCGIWAPLIST had a hard limit of IW_MAX_AP. The
 	   new API using SIOCGIWSCAN is only limited by buffer size WE-14 ->
 	   WE-16 the buffer is limited to IW_SCAN_MAX_DATA bytes which is 4096. */
-	for (i = 0; i < scan_resp.num_in_scan_table; i++) {
+	for (i = 0; i < MIN(scan_resp.num_in_scan_table, 64); i++) {
 		if ((current_ev + MAX_SCAN_CELL_SIZE) >= end_buf) {
 			PRINTM(MINFO,
 			       "i=%d break out: current_ev=%p end_buf=%p "

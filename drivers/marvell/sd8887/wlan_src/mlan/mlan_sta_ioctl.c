@@ -4132,9 +4132,7 @@ wlan_misc_ioctl_warm_reset(IN pmlan_adapter pmadapter,
 							moal_spin_unlock))) {
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 	}
-	util_scalar_write(pmadapter->pmoal_handle, &pmadapter->rx_pkts_queued,
-			  0, pmadapter->callbacks.moal_spin_lock,
-			  pmadapter->callbacks.moal_spin_unlock);
+	pmadapter->rx_pkts_queued = 0;
 
 	/* Initialize adapter structure */
 	wlan_init_adapter(pmadapter);
