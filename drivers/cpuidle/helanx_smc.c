@@ -18,20 +18,26 @@ static unsigned int get_gpio_address(int gpio)
 {
 	if (gpio <= 54)
 		return GPIO_0_ADDR + gpio * 4;
-	else if (gpio <= 66)
+	else if (gpio <= 59)
 		BUG_ON("GPIO number doesn't exist!\n");
+	else if (gpio <= 66)
+		return GPIO_60_ADDR + (gpio - 60) * 4;
 	else if (gpio <= 98)
 		return GPIO_67_ADDR + (gpio - 67) * 4;
 	else if (gpio == 99)
-		BUG_ON("GPIO number doesn't exist!\n");
+		return GPIO_99_ADDR;
 	else if (gpio <= 109)
 		return GPIO_100_ADDR + (gpio - 100) * 4;
 	else if (gpio <= 116)
 		return GPIO_110_ADDR + (gpio - 110) * 4;
-	else if (gpio <= 123)
-		BUG_ON("GPIO number doesn't exist!\n");
-	else if (gpio == 124)
-		return GPIO_124_ADDR;
+	else if (gpio <= 120)
+		return GPIO_117_ADDR + (gpio - 117) * 4;
+	else if (gpio == 121)
+		return GPIO_121_ADDR;
+	else if (gpio <= 125)
+		return GPIO_122_ADDR + (gpio - 122) * 4;
+	else if (gpio <= 127)
+		return GPIO_126_ADDR + (gpio - 126) * 4;
 	else
 		BUG_ON("GPIO number doesn't exist!\n");
 }
