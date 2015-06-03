@@ -52,13 +52,6 @@ enum chip_stepping_id {
 	SEC_28LP_A2D2A,
 };
 
-enum svc_versions {
-	SEC_SVC_1_01 = 0,
-	SVC_1_11,
-	NO_SUPPORT,
-};
-
-
 #define VL_MAX	8
 
 #define ACTIVE_RAIL_FLAG	(AFFECT_RAIL_ACTIVE)
@@ -256,6 +249,12 @@ unsigned int convert_svc_voltage(unsigned int uiGc3d_Vlevel,
 	}
 
 	return 0;
+}
+
+
+unsigned int get_helan3_svc_version(void)
+{
+	return svc_version;
 }
 
 unsigned int convert_svc_version(unsigned int uiSVCRev, unsigned int uiFabRev)

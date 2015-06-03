@@ -14,4 +14,10 @@ enum fab {
 	FAB_MAX,
 };
 
+enum svc_versions {
+	SEC_SVC_1_01 = 0,
+	SVC_1_11,
+	NO_SUPPORT,
+};
+
 #endif /* __MMP_FUSE_H */

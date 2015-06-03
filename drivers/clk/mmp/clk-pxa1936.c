@@ -1850,7 +1850,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 	clst1_core_params.max_cpurate = max_freq_fused;
 
 	profile = get_chipprofile();
-	if (get_chipfab() == TSMC) {
+	if (get_helan3_svc_version() == SVC_1_11) {
 		if ((profile >= 13) && (ddr_mode == DDR_800M)
 			&& (max_freq_fused < CORE_1p8G))
 			panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 13 , will panic.\n");
@@ -1859,7 +1859,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 			clst0_core_params.max_cpurate = CORE_1p0G;
 			pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 13\n");
 		}
-	} else if (get_chipfab() == SEC) {
+	} else if (get_helan3_svc_version() == SEC_SVC_1_01) {
 		if ((profile >= 4) && (ddr_mode == DDR_800M)
 			&& (max_freq_fused < CORE_1p8G))
 			panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 4 , will panic.\n");
