@@ -43,7 +43,7 @@ static struct b52_sensor_i2c_attr vcm_attr_8BIT = {
 	.val_len = I2C_8BIT,
 	.addr = 0x0c,
 };
-static struct b52_sensor_i2c_attr vcm_attr_16BIT = {
+static struct b52_sensor_i2c_attr __maybe_unused vcm_attr_16BIT = {
 	.reg_len = I2C_16BIT,
 	.val_len = I2C_8BIT,
 	.addr = 0x0c,
@@ -221,7 +221,7 @@ struct vcm_ops dw9714_ops = {
 static struct vcm_type vcm_dw9714 = {
 	.name = "dw9714",
 	.type = VCM_DW9714,
-	.attr = &vcm_attr_16BIT,
+	.attr = &vcm_attr_8BIT,
 	.ops = &dw9714_ops,
 };
 
