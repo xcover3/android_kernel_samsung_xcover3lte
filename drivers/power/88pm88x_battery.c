@@ -158,7 +158,7 @@ struct pm88x_battery_info {
 	int			gpadc_det_no;
 	int			gpadc_temp_no;
 
-	int			ocv_is_realiable;
+	int			ocv_is_reliable;
 	int			range_low_th;
 	int			range_high_th;
 	int			sleep_counter_th;
@@ -218,12 +218,12 @@ static struct ccnt ccnt_data;
  * the save_buffer mapping:
  *
  * | o o o o   o o o | o ||         o      | o o o   o o o o |
- * |<--- cycles ---->|   ||ocv_is_realiable|      SoC        |
+ * |<--- cycles ---->|   ||ocv_is_reliable |      SoC        |
  * |---RTC_SPARE6(0xef)--||-----------RTC_SPARE5(0xee)-------|
  */
 struct save_buffer {
 	int soc;
-	int ocv_is_realiable;
+	int ocv_is_reliable;
 	int padding;
 	int cycles;
 };
@@ -255,7 +255,7 @@ static int clamp_soc(int soc)
 
 /*
  * - saved SoC
- * - ocv_is_realiable flag
+ * - ocv_is_reliable flag
  */
 static int get_extern_data(struct pm88x_battery_info *info, int flag)
 {
@@ -336,7 +336,7 @@ static int pm88x_battery_write_buffer(struct pm88x_battery_info *info,
 		tmp_soc = value->soc;
 
 	/* save values in RTC registers */
-	data = (tmp_soc & 0x7f) | (value->ocv_is_realiable << 7);
+	data = (tmp_soc & 0x7f) | (value->ocv_is_reliable << 7);
 
 	/* bits 0 is used for other purpose, so give up it */
 	data |= (value->cycles & 0xfe) << 8;
@@ -358,7 +358,7 @@ static int pm88x_battery_read_buffer(struct pm88x_battery_info *info,
 	if (value->soc == 0x7f)
 		value->soc = 0;
 
-	value->ocv_is_realiable = (data & 0x80) >> 7;
+	value->ocv_is_reliable = (data & 0x80) >> 7;
 	value->cycles = (data >> 8) & 0xfe;
 	if (value->cycles < 0)
 		value->cycles = 0;
@@ -368,7 +368,7 @@ static int pm88x_battery_read_buffer(struct pm88x_battery_info *info,
 	 * it may be casused by backup battery totally discharged
 	 */
 	if (data == 0) {
-		dev_err(info->dev, "attention: saved value isn't realiable!\n");
+		dev_err(info->dev, "attention: saved value isn't reliable!\n");
 		return -EINVAL;
 	}
 
@@ -874,7 +874,7 @@ out:
 }
 
 /*
- * check whether it's the right point to set ocv_is_realiable flag
+ * check whether it's the right point to set ocv_is_reliable flag
  * if yes, set it;
  *   else, leave it as 0;
  */
@@ -910,8 +910,8 @@ static void check_set_ocv_flag(struct pm88x_battery_info *info,
 	}
 	dev_info(info->dev, "%s: battery has slept %d seconds.\n", __func__, slp_cnt);
 
-	if (info->ocv_is_realiable) {
-		dev_info(info->dev, "%s: ocv_is_realiable is true.\n", __func__);
+	if (info->ocv_is_reliable) {
+		dev_info(info->dev, "%s: ocv_is_reliable is true.\n", __func__);
 		return;
 	}
 
@@ -922,11 +922,11 @@ static void check_set_ocv_flag(struct pm88x_battery_info *info,
 	/* check if the new SoC is in good range or not */
 	soc_in_good_range = check_soc_range(info, new_soc);
 	if (soc_in_good_range) {
-		info->ocv_is_realiable = 1;
+		info->ocv_is_reliable = 1;
 		tmp_soc = new_soc;
 		dev_info(info->dev, "good range: new SoC = %d\n", new_soc);
 	} else {
-		info->ocv_is_realiable = 0;
+		info->ocv_is_reliable = 0;
 		tmp_soc = old_soc;
 		dev_info(info->dev, "in bad range (%d), no update\n", old_soc);
 	}
@@ -1444,15 +1444,15 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 		prev_status = info->bat_params.status;
 		prev_health = info->bat_params.health;
 		dev_info(info->dev,
-			 "status=%s, cap=%d, temp=%d, volt=%d, ibat=%d, ocv_is_realiable=%d\n",
+			 "status=%s, cap=%d, temp=%d, volt=%d, ibat=%d, ocv_is_reliable=%d\n",
 			 bat_status_to_string(info->bat_params.status),
 			 info->bat_params.soc, info->bat_params.temp / 10,
-			 info->bat_params.volt, info->bat_params.ibat, info->ocv_is_realiable);
+			 info->bat_params.volt, info->bat_params.ibat, info->ocv_is_reliable);
 	}
 
 	/* save the recent value in non-volatile memory */
 	extern_data.soc = ccnt_data.soc / 10;
-	extern_data.ocv_is_realiable = info->ocv_is_realiable;
+	extern_data.ocv_is_reliable = info->ocv_is_reliable;
 	extern_data.cycles = info->bat_params.cycle_nums;
 	pm88x_battery_write_buffer(info, &extern_data);
 
@@ -1593,7 +1593,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	int slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
 	int active_volt, soc_from_vbat_active;
 	int cycles_from_saved, saved_is_valid, ever_low_temp;
-	bool battery_is_changed, soc_in_good_range, realiable_from_saved;
+	bool battery_is_changed, soc_in_good_range, reliable_from_saved;
 
 	/*---------------- the following gets the initial_soc --------------*/
 	/*
@@ -1623,16 +1623,16 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	/*
 	 *  if system comes here because of software reboot
 	 *  and
-	 *  soc_from_saved is not realiable, use soc_from_vbat_slp
+	 *  soc_from_saved is not reliable, use soc_from_vbat_slp
 	 */
 
 	saved_is_valid = pm88x_battery_read_buffer(info, &extern_data);
 	soc_from_saved = extern_data.soc;
-	realiable_from_saved = extern_data.ocv_is_realiable;
+	reliable_from_saved = extern_data.ocv_is_reliable;
 	cycles_from_saved = extern_data.cycles;
 	dev_info(info->dev,
-		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n",
-		 __func__, soc_from_saved, realiable_from_saved);
+		 "---> %s: soc_from_saved = %d, reliable_from_saved = %d\n",
+		 __func__, soc_from_saved, reliable_from_saved);
 
 	/* ---------------------------------------------------------------- */
 	/*
@@ -1656,7 +1656,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	 * there are two cases:
 	 * a) plug into the charger cable first
 	 * b) then plug into the battery
-	 * in this case the vbat_slp is a random value, it's not realiable
+	 * in this case the vbat_slp is a random value, it's not reliable
 	 * if SoC saved is not valid, use soc_from_vbat_active
 	 * OR
 	 * a) plug into the battery first
@@ -1670,7 +1670,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 				*initial_soc = soc_from_vbat_active;
 			else
 				*initial_soc = soc_from_vbat_slp;
-			info->ocv_is_realiable = false;
+			info->ocv_is_reliable = false;
 		} else if ((soc_from_vbat_active - soc_from_vbat_slp) > 0) {
 			*initial_soc = soc_from_vbat_active;
 		} else {
@@ -1694,10 +1694,10 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 			 "---> %s: arrive here from reboot.\n", __func__);
 		if (saved_is_valid < 0) {
 			*initial_soc = soc_from_vbat_active;
-			info->ocv_is_realiable = false;
+			info->ocv_is_reliable = false;
 		} else {
 			*initial_soc = soc_from_saved;
-			info->ocv_is_realiable = realiable_from_saved;
+			info->ocv_is_reliable = reliable_from_saved;
 		}
 		*initial_cycles = cycles_from_saved;
 		goto end;
@@ -1720,12 +1720,12 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	battery_is_changed = check_battery_change(info, soc_from_vbat_slp,
 						  soc_from_saved);
 	/*
-	 * the data saved is not realiable,
+	 * the data saved is not reliable,
 	 * suppose the battery has been changed
 	 */
 	if (saved_is_valid < 0) {
 		dev_info(info->dev,
-			 "%s: the data saved is not realiable.\n", __func__);
+			 "%s: the data saved is not reliable.\n", __func__);
 		battery_is_changed = true;
 	}
 
@@ -1733,7 +1733,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	if (battery_is_changed) {
 		dev_info(info->dev, "----> %s: battery is changed\n", __func__);
 		*initial_soc = soc_from_vbat_slp;
-		info->ocv_is_realiable = false;
+		info->ocv_is_reliable = false;
 		/* let's assume it's new battery */
 		*initial_cycles = 0;
 		goto end;
@@ -1746,12 +1746,12 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 
 	if (slp_cnt < info->sleep_counter_th) {
 		*initial_soc = soc_from_saved;
-		info->ocv_is_realiable = realiable_from_saved;
+		info->ocv_is_reliable = reliable_from_saved;
 		dev_info(info->dev,
 			 "---> %s: battery is unchanged, and not relaxed:\n",
 			 __func__);
 		dev_info(info->dev,
-			 "\t\t use soc_from_saved and realiable_from_saved.\n");
+			 "\t\t use soc_from_saved and reliable_from_saved.\n");
 		goto end;
 	}
 
@@ -1762,12 +1762,12 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	dev_info(info->dev, "soc_in_good_range = %d\n", soc_in_good_range);
 	if (soc_in_good_range) {
 		*initial_soc = soc_from_vbat_slp;
-		info->ocv_is_realiable = true;
+		info->ocv_is_reliable = true;
 		dev_info(info->dev,
 			 "OCV is in good range, use soc_from_vbat_slp.\n");
 	} else {
 		*initial_soc = soc_from_saved;
-		info->ocv_is_realiable = realiable_from_saved;
+		info->ocv_is_reliable = reliable_from_saved;
 		dev_info(info->dev,
 			 "OCV is in bad range, use soc_from_saved.\n");
 	}
@@ -2398,7 +2398,7 @@ static int pm88x_battery_resume(struct device *dev)
 
 	/*
 	 * avoid to reading in short sleep case
-	 * to update ocv_is_realiable flag effectively
+	 * to update ocv_is_reliable flag effectively
 	 */
 	pm_stay_awake(info->dev);
 	atomic_set(&in_resume, 1);
