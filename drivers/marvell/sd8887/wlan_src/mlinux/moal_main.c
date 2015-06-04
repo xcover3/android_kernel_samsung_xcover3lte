@@ -1113,7 +1113,7 @@ woal_init_from_dev_tree(void)
 				       txpwrlimit_cfg);
 			}
 		} else if (!strncmp(prop->name, "antcfg", strlen("antcfg"))) {
-			if (!of_property_read_string
+			if (!of_property_read_u32
 			    (dt_node, prop->name, &data)) {
 				antcfg = data;
 				PRINTM(MIOCTL, "antcfg=%d\n", antcfg);

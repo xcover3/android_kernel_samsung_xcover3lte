@@ -2095,7 +2095,7 @@ bt_init_from_dev_tree(void)
 		} else if (!strncmp
 			   (prop->name, "mbt_gpio_pin",
 			    strlen("mbt_gpio_pin"))) {
-			if (!of_property_read_string
+			if (!of_property_read_u32
 			    (dt_node, prop->name, &data)) {
 				mbt_gpio_pin = data;
 				PRINTM(CMD, "mbt_gpio_pin=%d\n", mbt_gpio_pin);
