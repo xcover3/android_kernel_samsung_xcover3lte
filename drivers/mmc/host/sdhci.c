@@ -2542,6 +2542,7 @@ static void sdhci_tasklet_finish(unsigned long param)
 	}
 
 	del_timer(&host->timer);
+	host->timer_ahead = 0;
 
 	mrq = host->mrq;
 
@@ -2623,26 +2624,41 @@ static void sdhci_timeout_timer(unsigned long data)
 {
 	struct sdhci_host *host;
 	unsigned long flags;
+	u32 intmask;
 
 	host = (struct sdhci_host*)data;
 
 	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->mrq) {
-		pr_err("%s: Timeout waiting for hardware "
-			"interrupt.\n", mmc_hostname(host->mmc));
-		sdhci_dumpregs(host);
+		intmask = sdhci_readl(host, SDHCI_INT_STATUS);
+		if (intmask || test_bit(TASKLET_STATE_SCHED, &host->finish_tasklet.state)) {
+			host->timer_ahead++;
+			mod_timer(&host->timer, jiffies + 10 * HZ);
 
-		if (host->data) {
-			host->data->error = -ETIMEDOUT;
-			sdhci_finish_data(host);
+			if (intmask) {
+				pr_err("%s: irq 0x%x pending %d seconds for cpu handle\n",
+					mmc_hostname(host->mmc), intmask, 10 * host->timer_ahead);
+			} else {
+				pr_err("%s: irq pending %d seconds for tasklet handle\n",
+					mmc_hostname(host->mmc), 10 * host->timer_ahead);
+			}
 		} else {
-			if (host->cmd)
-				host->cmd->error = -ETIMEDOUT;
-			else
-				host->mrq->cmd->error = -ETIMEDOUT;
+			pr_err("%s: Timeout waiting for hardware "
+				"interrupt.\n", mmc_hostname(host->mmc));
+			sdhci_dumpregs(host);
 
-			tasklet_schedule(&host->finish_tasklet);
+			if (host->data) {
+				host->data->error = -ETIMEDOUT;
+				sdhci_finish_data(host);
+			} else {
+				if (host->cmd)
+					host->cmd->error = -ETIMEDOUT;
+				else
+					host->mrq->cmd->error = -ETIMEDOUT;
+
+				tasklet_schedule(&host->finish_tasklet);
+			}
 		}
 	}
 

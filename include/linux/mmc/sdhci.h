@@ -202,6 +202,7 @@ struct sdhci_host {
 	struct work_struct card_work;
 
 	struct timer_list timer;	/* Timer for timeouts */
+	int	timer_ahead;
 
 	u32 caps;		/* Alternative CAPABILITY_0 */
 	u32 caps1;		/* Alternative CAPABILITY_1 */
