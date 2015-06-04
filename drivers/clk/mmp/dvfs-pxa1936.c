@@ -94,6 +94,10 @@ static struct cpmsa_dvc_info cpmsa_dvc_info_temp;
 unsigned int uiYldTableEn;
 unsigned long (*freqs_cmb)[VL_MAX];
 int *millivolts;
+int ddr_800M_tsmc_svc[] = {1050, 950, 950, 950, 950, 950, 950, 950, 963,
+963, 963, 975, 1000, 1012, 1025, 1050};
+int ddr_800M_sec_svc[] = {1075, 975, 975, 975, 975, 975, 975, 975, 975,
+975, 975, 975, 1000, 1025, 1050, 1075};
 
 struct svtrng {
 	unsigned int min;
@@ -1021,6 +1025,23 @@ static struct cpmsa_dvc_info cpmsa_dvc_info_1936sec[NUM_PROFILES] = {
 	[15] = cp_lv3,
 };
 
+void adjust_ddr_svc(void)
+{
+	int i, ddr_voltage  = 0;
+	if (svc_version == SVC_1_11)
+		ddr_voltage = ddr_800M_tsmc_svc[uiprofile];
+	else if (svc_version == SEC_SVC_1_01)
+		ddr_voltage = ddr_800M_sec_svc[uiprofile];
+	if (ddr_mode == DDR_800M && get_ddr_800M_4x())
+		for (i = 0; i < VL_MAX; i++)
+			if ((freqs_cmb[DDR][i] != 0) &&
+				(millivolts[i] >= ddr_voltage))
+				freqs_cmb[DDR][i] = 797000;
+
+	return;
+}
+
+
 int dump_dvc_table(char *buf, int size)
 {
 	int i, s = 0, j;
@@ -1125,6 +1146,8 @@ int handle_svc_table(void)
 					freqs_cmb[GC_SHADER][i] = 0;
 				}
 	}
+
+	adjust_ddr_svc();
 
 	buff = (char *)__get_free_pages(GFP_KERNEL, 0);
 	if (!buff) {
