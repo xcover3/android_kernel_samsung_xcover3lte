@@ -308,21 +308,22 @@ static inline int pm88x_display_ldo(struct pm88x_chip *chip, char *buf)
 	return 0;
 }
 static inline int pm88x_buck_debug_write(struct pm88x_chip *chip, char *buf,
-					 struct pm88x_debug_info *info);
+					 struct pm88x_debug_info *info)
 {
 	return 0;
 }
 static inline int pm88x_vr_debug_write(struct pm88x_chip *chip, char *buf,
-				       struct pm88x_debug_info *info);
+				       struct pm88x_debug_info *info)
 {
 	return 0;
 }
 static inline int pm88x_ldo_debug_write(struct pm88x_chip *chip, char *buf,
-					struct pm88x_debug_info *info);
+					struct pm88x_debug_info *info)
 {
 	return 0;
 }
 #endif
+
 #ifdef CONFIG_MFD_88PM8XX_DVC
 extern int pm88x_display_dvc(struct pm88x_chip *chip, char *buf);
 extern int pm88x_dvc_debug_write(struct pm88x_chip *chip, char *buf,
@@ -333,11 +334,12 @@ static inline int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
 	return 0;
 }
 static inline int pm88x_dvc_debug_write(struct pm88x_chip *chip, char *buf,
-					struct pm88x_debug_info *info);
+					struct pm88x_debug_info *info)
 {
 	return 0;
 }
 #endif
+
 #ifdef CONFIG_88PM88X_GPADC
 extern int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf);
 extern int pm88x_gpadc_debug_write(struct pm88x_chip *chip, char *buf,
@@ -348,7 +350,7 @@ static inline int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf)
 	return 0;
 }
 static inline int pm88x_gpadc_debug_write(struct pm88x_chip *chip, char *buf,
-					  struct pm88x_debug_info *info);
+					  struct pm88x_debug_info *info)
 {
 	return 0;
 }
