@@ -2147,11 +2147,13 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	int ret;
 	u32 flags = cmd->flags;
 	struct b52_cmd_i2c_data data;
+	struct v4l2_subdev *gsd = NULL;
 	struct v4l2_subdev *hsd = cmd->hsd;
-	struct v4l2_subdev *gsd = host_subdev_get_guest(hsd,
-					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	const struct b52_sensor_data *sensordata = cmd->memory_sensor_data;
-
+	if (!(flags & BIT(CMD_FLAG_MS))) {
+		gsd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
+	}
 	for (i = 0; i < cmd->nr_mac; i++) {
 		b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
 		b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR1, 0);
@@ -2192,7 +2194,8 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 
 	b52_cfg_input(&cmd->src_fmt, cmd->src_type);
 	b52_cfg_pixel_order(&cmd->src_fmt, cmd->path);
-	b52_cfg_isp_lsc_phase(cmd);
+	if (!(flags & BIT(CMD_FLAG_MS)))
+		b52_cfg_isp_lsc_phase(cmd);
 	b52_cfg_idi(&cmd->src_fmt, &cmd->pre_crop);
 	b52_cfg_output(cmd->output, cmd->output_map);
 	b52_cfg_zoom(&cmd->pre_crop, &cmd->post_crop);

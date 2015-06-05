@@ -886,7 +886,7 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id, struct b52_sensor *sensor)
 			pr_err("exposure bias value %d is wrong\n", idx);
 			return -EINVAL;
 	}
-	if (sensor->drvdata->ev_bias_offset != NULL)
+	if (sensor != NULL && sensor->drvdata->ev_bias_offset != NULL)
 		offset = sensor->drvdata->ev_bias_offset[idx];
 	else
 		offset = ev_bias_offset[idx];
