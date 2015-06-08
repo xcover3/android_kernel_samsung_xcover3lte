@@ -413,7 +413,6 @@ static void get_ddr_cycles(struct ddr_devfreq_data *data,
 	unsigned long long time_stamp_cur;
 	static unsigned long long time_stamp_old;
 	struct perf_counters *ddr_ticks = data->dmc.ddr_ticks;
-	struct devfreq_frequency_table *tbl;
 	int i;
 #ifdef CONFIG_64BIT
 	u64 *total_ticks_base = data->ddr_profiler.total_ticks_base;
@@ -423,16 +422,11 @@ static void get_ddr_cycles(struct ddr_devfreq_data *data,
 	u32 *data_ticks_base = data->ddr_profiler.data_ticks_base;
 #endif
 
-	tbl = devfreq_frequency_get_table(DEVFREQ_DDR);
-
 	spin_lock_irqsave(&data->lock, flags);
 	*total_ticks = *data_ticks = 0;
 	for (i = 0; i < data->ddr_freq_tbl_len; i++) {
 		*total_ticks += ddr_ticks[i].reg[1] - total_ticks_base[i];
-		/* Sanity check: clock driver should pass 0 or 1 for 4x mode enable */
-		BUG_ON((tbl[i].mode_4x_en != 0) && (tbl[i].mode_4x_en != 1));
-		*data_ticks +=
-			(ddr_ticks[i].reg[2] - data_ticks_base[i]) / (2 << tbl[i].mode_4x_en);
+		*data_ticks += ddr_ticks[i].reg[2] - data_ticks_base[i];
 		total_ticks_base[i] = ddr_ticks[i].reg[1];
 		data_ticks_base[i] = ddr_ticks[i].reg[2];
 	}
