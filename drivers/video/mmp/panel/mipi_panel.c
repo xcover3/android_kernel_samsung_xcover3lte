@@ -204,10 +204,11 @@ static int mmp_dsi_panel_parse_video_mode(
 	ret = of_property_read_u32(np, "marvell,dsi-v-sync-width",
 			&plat_data->mode.vsync_len);
 
+	ret = of_property_read_u32(np, "marvell,dsi-panel-refresh",
+			&plat_data->mode.refresh);
 	if (ret)
 		ret = -EINVAL;
 
-	plat_data->mode.refresh = 60;
 	plat_data->mode.pix_fmt_out = PIXFMT_BGR888PACK;
 	plat_data->mode.hsync_invert = 0;
 	plat_data->mode.vsync_invert = 0;
@@ -246,32 +247,21 @@ static int mmp_dsi_panel_parse_dt_pin(struct device_node *np,
 				propname, "-value", &pin->value);
 		if (unlikely(ret))
 			pin->value = 0;
-
-		len = strlen(propname) + strlen("-supply") + 1;
+		len = strlen(propname) + strlen("-") + strlen(pin->name) + 1;
 		supply_name = kmalloc(sizeof(char) * len, GFP_KERNEL);
 		if (unlikely(!supply_name))
 			return -ENOMEM;
-		snprintf(supply_name, len, "%s-supply", propname);
-
-		node = of_parse_phandle(np, supply_name, 0);
-		if (!node) {
-			pr_err("%s: failed to parse %s\n",
-					__func__, supply_name);
-			kfree(supply_name);
-			return -EINVAL;
-		}
-		supply = regulator_get(dev, node->name);
+		snprintf(supply_name, len, "%s-%s", propname, pin->name);
+		supply = regulator_get(dev, supply_name);
 		if (IS_ERR_OR_NULL(supply)) {
 			pr_err("%s regulator(%s) get error!\n",
-					__func__, node->name);
-			of_node_put(node);
+					__func__, supply_name);
 			kfree(supply_name);
 			regulator_put(supply);
 			return -EINVAL;
 		}
 		pin->supply = supply;
-		pr_info("%s, get regulator(%s)\n", pin->name, node->name);
-		of_node_put(node);
+		pr_info("%s, get regulator(%s)\n", pin->name, supply_name);
 		kfree(supply_name);
 	} else {
 		char *gpio_name;
