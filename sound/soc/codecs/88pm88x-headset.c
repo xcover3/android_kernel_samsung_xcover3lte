@@ -224,7 +224,7 @@ static int pm886_handle_voltage(struct pm886_hs_info *info, int voltage)
 			return -EINVAL;
 	}
 
-	trace_printk("%s to %d\n", pm886_jk_btn[button], (report > 0));
+	dev_dbg(info->dev, "%s to %d\n", pm886_jk_btn[button], (report > 0));
 
 	return 0;
 }
@@ -320,13 +320,13 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 
 	if (!value) {
 		/* in case of headset unpresent, do nothing */
-		trace_printk("hook: false exit\n");
+		dev_dbg(info->dev, "hook: false exit\n");
 		goto FAKE_HOOK;
 	}
 
 	voltage = gpadc_measure_voltage(info, VOLTAGE_AVG);
 
-	trace_printk("voltage %d avg %d\n", voltage, info->hk_avg);
+	dev_dbg(info->dev, "voltage %d avg %d\n", voltage, info->hk_avg);
 	/*
 	 * below numbers are got by experience:
 	 * SS hs: hook vol = ~50; false hook = ~35, so set false_th = 40
@@ -444,7 +444,7 @@ static void pm886_headset_work(struct pm886_hs_info *info)
 
 	mic_set_volt_micbias(info->mic_bias_volt, info);
 	snd_soc_jack_report(info->hs_jack, report, SND_JACK_HEADSET);
-	trace_printk("hs status: %d\n", report);
+	dev_dbg(info->dev, "hs status: %d\n", report);
 
 	/* enable hook irq if headset is present */
 	if (info->hs_status == SND_JACK_HEADSET)
