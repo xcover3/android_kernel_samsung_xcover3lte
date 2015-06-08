@@ -1,0 +1,128 @@
+
+
+/ {
+	panel: mmp-dsi-panel {
+		panel-ext-pin-dvdd-supply = <&ldo16>;
+		panel_r63315 {
+			/*
+			 * BACKLIGHT CONTROL BY GPIO
+			 */
+			panel_id = <0x3315>;
+			/*
+			 * DSI PACKET HEADER INFO
+			 * @ data type : 1byte
+			 * @ command type : 1byte
+			 * @ delay(msec) : 2byte
+			 * @ size of data : 2byte
+			 */
+			marvell,dsi-panel-init-cmds = [
+			29 01 00 05 00 02 B0 04
+			29 01 00 05 00 02 D6 01
+			29 01 00 05 00 07 B3 14 00 00 00 00 00
+			29 01 00 05 00 03 B4 0C 00
+			29 01 00 05 00 03 B6 3A c3
+			29 01 00 05 00 02 B7 00
+			29 01 00 05 00 07 B8 07 90 1E 10 1E 32
+			29 01 00 05 00 07 B9 07 82 3C 10 3C 87
+			29 01 00 05 00 07 BA 07 78 64 10 64 B4
+			29 01 00 05 00 03 BE 00 04
+			29 01 00 05 00 02 C0 11
+			29 01 00 05 00 23 C1 84 60 00 FF 8F F2 D1 31 E1
+					  47 F8 5C 63 AC B9 07 E3 07 E6
+					  FC 4F C4 FF 00 00 00 00 00 68
+				          01 00 22 00 01
+			29 01 00 05 00 08 C2 31 F7 80 06 06 00 00
+			29 01 00 05 00 04 C3 00 00 00
+			29 01 00 05 00 17 C4 70 01 00 01 01 01 01 01 01
+					  01 03 00 00 00 00 00 00 00 00 00 01 03
+			29 01 00 05 00 02 C5 00
+			29 01 00 05 00 29 C6 71 00 00 08 66 00 00 00 00
+					  00 00 00 00 00 00 00 00 14 16
+					  07 71 00 00 08 66 00 00 00 00
+					  00 00 00 00 00 00 00 00 14 16 07
+			29 01 00 05 00 1f C7 00 13 1B 25 32 40 4A 5A 3F
+					  47 53 60 69 6F 74 00 13 1B 25
+					  32 40 4A 5A 3F 47 53 60 69 6F 74
+			29 01 00 05 00 14 C8 00 00 FC 01 00 FC 00 00 FD
+					  02 03 DE 00 00 FA 03 08 BA 00
+			29 01 00 05 00 0A CB EC FD BF 37 20 00 00 04 C0
+			29 01 00 05 00 02 CC 0E
+			29 01 00 05 00 06 CF 00 00 C1 05 3F
+			29 01 00 05 00 0B D0 11 85 BB 5D CF 4C 19 19 0C 00
+			29 01 00 05 00 1b D1 20 00 00 04 08 0C 10 00 00
+					  00 00 00 3C 04 20 00 00 04 08
+					  0C 10 00 00 3C C6 F0
+			29 01 00 05 00 1a D3 1B 33 BB BB B3 33 33 33 00
+					  01 00 A0 E8 A0 0D 46 46 33 3B
+					  37 72 57 3D BF 33
+			29 01 00 05 00 08 D5 06 00 00 01 52 01 52
+			29 01 00 05 00 17 D7 84 E0 7F A8 CE 38 FC C1 18
+					  E7 8F 1F 3C 10 FA C3 0F 04 41
+					  00 00 00
+			29 01 00 05 00 03 DD 10 8C
+			29 01 00 05 00 05 DE 00 FF 07 10
+			39 01 00 00 00 02 3A 70
+			39 01 00 00 00 02 35 00
+			39 01 00 78 00 01 29
+			39 01 00 78 00 01 11
+			];
+
+			video_mode {
+				marvell,dsi-panel-xres = <1080>;
+				marvell,dsi-panel-yres = <1920>;
+				marvell,dsi-panel-width= <62>;      /* screen width in mm */
+				marvell,dsi-panel-height = <110>;    /* screen height in mm */
+				marvell,dsi-h-front-porch = <150>;   /* right margin */
+				marvell,dsi-h-back-porch = <100>;    /* left margin */
+				marvell,dsi-h-sync-width = <4>;    /* hsync len */
+				marvell,dsi-v-front-porch = <20>;    /* lower margin */
+				marvell,dsi-v-back-porch = <4>;    /* upper margin */
+				marvell,dsi-v-sync-width = <2>;     /* vsync len */
+				marvell,dsi-panel-refresh = <57>;   /* screen fresh */
+			};
+			panel-ext-pin {
+				/*
+				 * Three properties are required
+				 * to control pwr pin
+				 * @node : panel-ext-pin node
+				 * @on : <0> - off / <1> - on
+				 * @usec : delay time of usec
+				 */
+				/*
+				 * panel-ext-pin-boot sequence
+				 * is skip power on mode
+				 */
+				panel-ext-pin-boot = <
+					&panel_pwr_dvdd2  1 20000
+					>;
+				panel-ext-pin-on = <
+					&panel_pwr_dvdd2  1 20000
+					&panel_pwr_rst2   1 10000
+					&panel_pwr_rst2   0 10000
+					&panel_pwr_rst2   1 120000
+					>;
+				panel-ext-pin-off = <
+					&panel_pwr_dvdd2  0 1000
+					&panel_pwr_rst2  0 10000
+					>;
+				/*
+				 * There are four properties to define pwr pin
+				 * <prefix>-name : pin name
+				 * <prefix>-type : <0> - GPIO, <1> - PMIC Regulator
+				 * <prefix>-gpio : If the type is GPIO, assign a gpio.
+				 * <prefix>-supply : If the type is PMIC Regulator, assign a regulator.
+				 */
+				panel_pwr_rst2: panel-pwr-rst2 {
+					panel-ext-pin-name = "rst";
+					panel-ext-pin-type = <0>;
+					panel-ext-pin-gpio = <&gpio 18 0>;
+				};
+				panel_pwr_dvdd2: panel-pwr-dvdd2 {
+					panel-ext-pin-name = "dvdd";
+					panel-ext-pin-type = <1>;
+					panel-ext-pin-value = <2800000>;
+				};
+			};
+		};
+	};
+};

@@ -10,6 +10,30 @@
 /dts-v1/;
 #include "pxa1936-board-common.dtsi"
 
+&pmx {
+	mfp_pins_group_0: mfp_pins_group_0 {
+		pinctrl-single,pins = <
+			DF_IO9 AF0
+			DF_IO10 AF0
+			DF_IO11 AF0
+			DF_IO12 AF0
+			DF_IO13 AF0
+			DF_IO15 AF0
+		>;
+		DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_NONE;
+	};
+
+	disp_func: disp_func {
+		pinctrl-single,pins = <
+			DF_IO8	AF1
+		>;
+		MFP_LPM_PULL_DW;
+		};
+};
+
+&disp {
+	pinctrl-0 = <&disp_func>;
+};
 / {
 	model = "Marvell PXA1936 Aloe V01 Development Board";
 	compatible = "marvell,pxa1936-dkb", "marvell,pxa1936";
@@ -110,16 +134,31 @@
 		rst_gpio = <&gpio 98 0>;
 		power_gpio = <&gpio 96 0>;
 		marvell,mipi-backlight;
+		status = "disabled";
 	};
 	panel2: hx8394 {
 		rst_gpio = <&gpio 98 0>;
 		avdd-supply = <&ldo6>;
+		status = "disabled";
 	};
 
 	panel3: lg4591 {
 		rst_gpio = <&gpio 98 0>;
 		avdd-supply = <&ldo6>;
+		status = "disabled";
 	};
+
+	panel: mmp-dsi-panel {
+	       compatible = "marvell,mmp-dsi-panel";
+	       marvell,path-name = "mmp_pnpath";
+	       /*
+		* BACKLIGHT CONTROL BY GPIO
+		*/
+	       bl_gpio = <&gpio 100 0>;
+	       panel_esd = <0>;
+	       marvell,dsi-panel-num = <3>;
+	       status = "okay";
+       };
 
 	mmp_m3_1: apsenhb {
 		pmicver = <2>;
@@ -430,3 +469,4 @@
 #include "88pm88x_battery_common.dtsi"
 #include "88pm88x_battery_485760ar.dtsi"
 #include "88pm880_pxa1936_aloe_v01.dtsi"
+#include "pxa1936-panel-r63315-l180_linlong.dtsi"
