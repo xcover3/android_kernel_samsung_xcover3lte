@@ -766,6 +766,7 @@ static int mccic_add_device(struct soc_camera_device *icd)
 
 	/* 5. initial the HW, clk, power, ccic */
 	ctrl_dev->ops->clk_enable(ctrl_dev);
+	clk_set_rate(mcam_dev->axi_clk, 312000000);
 	clk_prepare_enable(mcam_dev->axi_clk);
 	ctrl_dev->ops->power_up(ctrl_dev);
 	ctrl_dev->ops->irq_mask(ctrl_dev, 0); /* Mask interrupts */

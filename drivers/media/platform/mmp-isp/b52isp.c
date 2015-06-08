@@ -557,9 +557,7 @@ int b52isp_idi_change_clock(struct isp_block *block,
 
 	/* ISP need axi clk >= pipe_clk */
 	rate = clk_get_rate(pipe_clk);
-	if (rate > 416000000)
-		rate_axi = 528000000;
-	else if (rate > 312000000)
+	if (rate > 312000000)
 		rate_axi = 416000000;
 	else if (rate > 208000000)
 		rate_axi = 312000000;
