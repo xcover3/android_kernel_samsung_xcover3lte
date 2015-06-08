@@ -712,7 +712,7 @@ un_group:
 		list_del(&entry->hook);
 		devm_kfree(hsd->isd.subdev.entity.parent->dev, entry);
 	}
-	v4l2_ctrl_handler_free(&hsd->isd.ctrl_handler);
+
 	media_entity_cleanup(&hsd->isd.subdev.entity);
 	return ret;
 }
@@ -1192,7 +1192,6 @@ static int hsd_bundle_group(struct isp_host_subdev *hsd, u32 group)
 
 	/* Build up bundle container */
 	INIT_LIST_HEAD(&hsd->trvrs_list);
-	v4l2_ctrl_handler_init(hsd->isd.subdev.ctrl_handler, 0);
 	list_for_each_entry(dscr, &hsd->isd.gdev_list, hook) {
 		switch (dscr->type) {
 		case ISP_GDEV_SUBDEV:
@@ -1248,10 +1247,9 @@ un_group:
 		list_del(&entry->hook);
 		devm_kfree(hsd->dev, entry);
 	}
-	v4l2_ctrl_handler_free(&hsd->isd.ctrl_handler);
-	v4l2_ctrl_handler_init(&hsd->isd.ctrl_handler, 0);
+
 	media_entity_cleanup(&hsd->isd.subdev.entity);
-	return 0;
+	return ret;
 }
 struct host_subdev_pdata hsd_bundle_behaviors = {
 	.subdev_ops	= &hsd_bundle_ops,
@@ -1290,6 +1288,7 @@ static int host_subdev_remove(struct platform_device *pdev)
 		}
 	}
 
+	v4l2_ctrl_handler_free(&host->isd.ctrl_handler);
 	devm_kfree(host->dev, host);
 	return 0;
 }
