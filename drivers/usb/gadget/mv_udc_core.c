@@ -695,7 +695,7 @@ static int  mv_ep_disable(struct usb_ep *_ep)
 	udc = ep->udc;
 
 	if (!udc->vbus_active) {
-		dev_info(&udc->dev->dev,
+		dev_dbg(&udc->dev->dev,
 			"usb already plug out!\n");
 		return -EINVAL;
 	}
