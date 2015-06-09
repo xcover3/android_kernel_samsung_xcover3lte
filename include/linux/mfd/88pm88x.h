@@ -277,12 +277,6 @@ static inline int get_flash_duration(unsigned int *duration)
 }
 #endif
 
-static const struct resource vr_resources[] = {
-	{
-	.name = PM88X_VIRTUAL_REGULATOR_NAME,
-	},
-};
-
 /* debugfs part */
 #ifdef CONFIG_REGULATOR_88PM88X
 extern int pm88x_display_buck(struct pm88x_chip *chip, char *buf);

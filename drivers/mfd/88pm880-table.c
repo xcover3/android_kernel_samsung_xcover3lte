@@ -68,6 +68,12 @@ static const struct resource ldo_resources[] = {
 	},
 };
 
+static const struct resource vr_resources[] = {
+	{
+	.name = PM88X_VIRTUAL_REGULATOR_NAME,
+	},
+};
+
 const struct mfd_cell pm880_cell_devs[] = {
 	CELL_DEV(PM880_BUCK_NAME, buck_resources, "marvell,88pm880-buck1a", 0),
 	CELL_DEV(PM880_BUCK_NAME, buck_resources, "marvell,88pm880-buck2", 1),
