@@ -3233,8 +3233,6 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 		irq_src_d = b52_readb(REG_FW_MAC1_INT_SRC + i);
 		rdy = b52_readb(mac_base[i] + REG_MAC_RDY_ADDR0);
 
-		trace_printk("mac%d: irq %x,src %x,rdy %x\n", i, mac_irq, irq_src_s, rdy);
-
 		/* build up write ports virtual IRQs */
 		if (mac_irq & W_INT_START0) {
 			if (irq_src_s & INT_SRC_W1)
