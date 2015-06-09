@@ -671,7 +671,7 @@ static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 		return;
 
 	/* TODO: configure dynamically */
-	/* -- begin configuring charger chip */
+	/* begin configuring charger chip */
 	if (!info->charger_type_psy)
 		info->charger_type_psy = power_supply_get_by_name("mv-udc-psy");
 
@@ -687,10 +687,13 @@ static void pm88x_chg_ext_power_changed(struct power_supply *psy)
 		return;
 	}
 
-	/* -- charger type has been got */
-	pm88x_set_charger_by_type(info, val.intval);
+	/*
+	 * charger type has been got.
+	 * but if there is no change in charger type - nothing to do
+	 */
+	if (val.intval != info->charger_cable_type)
+		pm88x_set_charger_by_type(info, val.intval);
 
-	/* -- finish configuring charger chip by charger type */
 	schedule_work(&info->chg_state_machine_work);
 }
 
@@ -841,10 +844,6 @@ static void pm88x_set_charger_by_type(struct pm88x_charger_info *info,
 {
 	static struct power_supply *psy;
 	union power_supply_propval val;
-
-	/* no change in charger type - nothing to do */
-	if (type == info->charger_cable_type)
-		return;
 
 	/* new charger - remove previous limitations */
 	info->allow_recharge = 1;
