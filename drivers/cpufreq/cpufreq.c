@@ -782,12 +782,9 @@ struct kobject *cpufreq_global_kobject;
 struct kset *cpufreq_kset;
 static int cpufreq_uevent_filter(struct kset *kset, struct kobject *kobj)
 {
-	struct kobj_type *ktype = get_ktype(kobj);
+	if (!cpufreq_suspended)
+		return 1;
 
-	if (ktype == &ktype_cpufreq) {
-		if (!cpufreq_suspended)
-			return 1;
-	}
 	return 0;
 }
 
