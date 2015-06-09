@@ -399,9 +399,8 @@ static int __cpufreq_freq_max_notify(
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	clst->cdu->old_cpu_rate = freqs.old;
 	clst->cdu->new_cpu_rate = freqs.new;
-	cpufreq_ddr_upthrd_send_req(clst->cdu, 0);
+	cpufreq_ddr_upthrd_send_req(clst->cdu);
 #endif
 
 	return ret;

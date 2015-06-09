@@ -83,9 +83,8 @@ static int mmp_update_cpu_speed(unsigned long rate)
 	cpufreq_cpu_put(policy);
 
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	cdu->old_cpu_rate = freqs.old;
 	cdu->new_cpu_rate = freqs.new;
-	cpufreq_ddr_upthrd_send_req(cdu, 0);
+	cpufreq_ddr_upthrd_send_req(cdu);
 #endif
 
 	return ret;

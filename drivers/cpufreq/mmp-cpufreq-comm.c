@@ -65,21 +65,13 @@ static struct cpufreq_ddr_upthrd *cpufreq_find_cdu(const char *clk_name)
 	return NULL;
 }
 
-/* "force" means send qos request immediately if new_rate >= busy_rate. */
-void cpufreq_ddr_upthrd_send_req(struct cpufreq_ddr_upthrd *cdu,
-	int force)
+void cpufreq_ddr_upthrd_send_req(struct cpufreq_ddr_upthrd *cdu)
 {
 	unsigned long ddr_upthrd = PM_QOS_DEFAULT_VALUE;
 
 	mutex_lock(&cdu->data_lock);
-	if (force) {
-		if (cdu->new_cpu_rate >= cdu->busy_upthrd_swap)
-			ddr_upthrd = cdu->busy_upthrd;
-	} else {
-		if ((cdu->old_cpu_rate < cdu->busy_upthrd_swap)
-			&& (cdu->new_cpu_rate >= cdu->busy_upthrd_swap))
-			ddr_upthrd = cdu->busy_upthrd;
-	}
+	if (cdu->new_cpu_rate >= cdu->busy_upthrd_swap)
+		ddr_upthrd = cdu->busy_upthrd;
 	pm_qos_update_request(&cdu->ddr_upthrd_max_qos, ddr_upthrd);
 	mutex_unlock(&cdu->data_lock);
 }
@@ -141,10 +133,9 @@ static ssize_t category##_kattr_store(struct kobject *kobj,		\
 		return -EINVAL;						\
 	mutex_lock(&cdu->data_lock);					\
 	cdu->busy_##category = value;					\
-	cdu->old_cpu_rate = cdu->new_cpu_rate;				\
 	cdu->new_cpu_rate = clk_get_rate(cdu->cpu_clk) / 1000;		\
 	mutex_unlock(&cdu->data_lock);					\
-	cpufreq_ddr_upthrd_send_req(cdu, 1);				\
+	cpufreq_ddr_upthrd_send_req(cdu);				\
 	return count;							\
 }
 
@@ -188,14 +179,14 @@ struct cpufreq_ddr_upthrd *cpufreq_ddr_upthrd_init(struct clk *clk)
 	}
 
 	cdu->cpu_clk = clk;
-	cdu->old_cpu_rate = cdu->new_cpu_rate = clk_get_rate(clk) / 1000;
+	cdu->new_cpu_rate = clk_get_rate(clk) / 1000;
 	cdu->busy_upthrd = DEFAULT_BUSY_UPTHRD;
 	cdu->busy_upthrd_swap = DEFAULT_BUSY_UPTHRD_SWAP;
 	mutex_init(&cdu->data_lock);
 	if (!pm_qos_request_active(&cdu->ddr_upthrd_max_qos))
 		pm_qos_add_request(&cdu->ddr_upthrd_max_qos,
 			PM_QOS_DDR_DEVFREQ_UPTHRD_MAX, cdu->busy_upthrd);
-	cpufreq_ddr_upthrd_send_req(cdu, 1);
+	cpufreq_ddr_upthrd_send_req(cdu);
 	list_add_tail(&cdu->node, &cdu_list_head);
 
 	if (!strcmp(cdu->cpu_clk->name, "cpu")) {

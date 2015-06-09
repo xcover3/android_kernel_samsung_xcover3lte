@@ -26,7 +26,6 @@ char *__cpufreq_printf(const char *fmt, ...);
 
 struct cpufreq_ddr_upthrd {
 	struct clk *cpu_clk;
-	unsigned long old_cpu_rate;
 	unsigned long new_cpu_rate;
 	struct pm_qos_request ddr_upthrd_max_qos;
 	/* to protect busy_ddr_upthrd & busy_ddr_upthrd_swap */
@@ -36,9 +35,7 @@ struct cpufreq_ddr_upthrd {
 	struct list_head node;
 };
 
-void cpufreq_ddr_upthrd_send_req(struct cpufreq_ddr_upthrd *cdu,
-	int force);
-
+void cpufreq_ddr_upthrd_send_req(struct cpufreq_ddr_upthrd *cdu);
 struct cpufreq_ddr_upthrd *cpufreq_ddr_upthrd_init(struct clk *clk);
 #endif
 
