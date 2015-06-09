@@ -123,14 +123,15 @@ MODULE_DEVICE_TABLE(i2c, pm88x_i2c_id);
 #ifdef CONFIG_PM_SLEEP
 static int pm88x_i2c_suspend(struct device *dev)
 {
+	struct pm88x_chip *chip = dev_get_drvdata(dev);
 	struct regulator *buck1slp;
-	static bool first_suspend;
 	int fuse_slpvolt = 0;
 
 	if (!buck1slp_is_ever_changed) {
 		pr_info("%s: buck1_sleep is not being used by other modules.\n",
 			__func__);
-		if (buck1slp_ever_used_by_map || !first_suspend) {
+		if ((chip->type == PM886) ||
+				((chip->type == PM880) && buck1slp_ever_used_by_map)) {
 			buck1slp = regulator_get(NULL, "buck1slp");
 			if (IS_ERR(buck1slp)) {
 				pr_info("%s: get buck1slp fails.\n", __func__);
@@ -144,7 +145,6 @@ static int pm88x_i2c_suspend(struct device *dev)
 			regulator_put(buck1slp);
 
 			buck1slp_ever_used_by_map = false;
-			first_suspend = true;
 		}
 	} else {
 		pr_info("%s: buck1_sleep is being used by other modules.\n", __func__);
