@@ -19,6 +19,7 @@ enum ddr_type {
 	DDR_533M,
 	DDR_667M,
 	DDR_800M,
+	DDR_800M_2X,
 	DDR_TYPE_MAX,
 };
 

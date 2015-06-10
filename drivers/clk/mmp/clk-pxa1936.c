@@ -305,6 +305,11 @@ unsigned long pll_dfrate[DDR_TYPE_MAX][MAX_PLL_NUM][MAX_PLL_TYPE] = {
 		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
+	[DDR_800M_2X] = {
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
+		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
+	},
 };
 
 static int board_is_fpga(void)
@@ -1592,6 +1597,7 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 {
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
 	struct clk *clk;
+	int i;
 
 	/* make sure cci-400 clock & QoS notifier ready before core clocks */
 	cci_memclk_mix_config.reg_info.reg_clk_ctrl =
@@ -1647,7 +1653,15 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 	} else if (ddr_mode == DDR_800M) {
 		ddr_params.ddr_opt = lpddr800_op_array;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_op_array);
+	} else if (ddr_mode == DDR_800M_2X) {
+		/* change DDR800 4x mode by default to 2x mode */
+		i = ARRAY_SIZE(lpddr800_op_array) - 1;
+		if (lpddr800_op_array[i].dclk == 797)
+			lpddr800_op_array[i].mode_4x_en = 0;
+		ddr_params.ddr_opt = lpddr800_op_array;
+		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_op_array);
 	}
+
 	mmp_clk_parents_lookup(ddr_params.parent_table,
 		ddr_params.parent_table_size);
 
@@ -1775,7 +1789,7 @@ void init_ddr_dfc(void)
 		find_ddr_level(lpddr533_op_array);
 	else if (ddr_mode == DDR_667M)
 		find_ddr_level(lpddr667_op_array);
-	else if (ddr_mode == DDR_800M)
+	else if (ddr_mode == DDR_800M || ddr_mode == DDR_800M_2X)
 		find_ddr_level(lpddr800_op_array);
 
 	return;
@@ -1881,8 +1895,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 
 	profile = get_chipprofile();
 	if (get_helan3_svc_version() == SVC_1_11) {
-		if ((profile >= 13) && (ddr_mode == DDR_800M)
-			&& (max_freq_fused < CORE_1p8G) && !ddr_800M_4x())
+		if ((profile >= 13) && (ddr_mode == DDR_800M_2X) && (max_freq_fused < CORE_1p8G))
 			panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 13 , will panic.\n");
 
 		if ((profile >= 13) && (max_freq_fused <= CORE_1p5G)) {
@@ -1890,8 +1903,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 			pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 13\n");
 		}
 	} else if (get_helan3_svc_version() == SEC_SVC_1_01) {
-		if ((profile >= 4) && (ddr_mode == DDR_800M)
-			&& (max_freq_fused < CORE_1p8G) && !ddr_800M_4x())
+		if ((profile >= 4) && (ddr_mode == DDR_800M_2X) && (max_freq_fused < CORE_1p8G))
 			panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 4 , will panic.\n");
 
 		if ((profile == 15) && (max_freq_fused <= CORE_1p5G)) {
