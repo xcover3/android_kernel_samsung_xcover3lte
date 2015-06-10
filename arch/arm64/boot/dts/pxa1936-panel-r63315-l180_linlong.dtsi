@@ -73,12 +73,12 @@
 				marvell,dsi-panel-width= <62>;      /* screen width in mm */
 				marvell,dsi-panel-height = <110>;    /* screen height in mm */
 				marvell,dsi-h-front-porch = <150>;   /* right margin */
-				marvell,dsi-h-back-porch = <100>;    /* left margin */
+				marvell,dsi-h-back-porch = <60>;    /* left margin */
 				marvell,dsi-h-sync-width = <4>;    /* hsync len */
 				marvell,dsi-v-front-porch = <20>;    /* lower margin */
 				marvell,dsi-v-back-porch = <4>;    /* upper margin */
 				marvell,dsi-v-sync-width = <2>;     /* vsync len */
-				marvell,dsi-panel-refresh = <57>;   /* screen fresh */
+				marvell,dsi-panel-refresh = <55>;   /* screen fresh */
 			};
 			panel-ext-pin {
 				/*
