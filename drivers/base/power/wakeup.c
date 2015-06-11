@@ -735,6 +735,8 @@ bool pm_get_wakeup_count(unsigned int *count, bool block)
 	if (block) {
 		DEFINE_WAIT(wait);
 
+		pm_print_active_wakeup_sources();
+
 		for (;;) {
 			prepare_to_wait(&wakeup_count_wait_queue, &wait,
 					TASK_INTERRUPTIBLE);
