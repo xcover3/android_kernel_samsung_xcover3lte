@@ -31,6 +31,7 @@ Change Log:
 #include "mlan_main.h"
 #include "mlan_ioctl.h"
 #include "mlan_11h.h"
+#include "mlan_11n.h"
 #ifdef UAP_SUPPORT
 #include "mlan_uap.h"
 #endif
@@ -325,7 +326,6 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv,
 				wlan_11h_2_4G_region_FCC;
 			break;
 		case 0x30:	/* Europe ETSI */
-		case 0x32:	/* France */
 		case 0x41:	/* Japan */
 		case 0x50:	/* China */
 			psup_chan->subband[num_subbands++] =
@@ -351,16 +351,6 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv,
 		switch (cfp_a) {
 		case 0x10:	/* USA FCC */
 		case 0x20:	/* Canada IC */
-		case 0x32:	/* France */
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_lower_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_middle_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_mid_upper_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_upper_band;
-			break;
 		case 0x30:	/* Europe ETSI */
 		default:
 			psup_chan->subband[num_subbands++] =
@@ -369,6 +359,8 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv,
 				wlan_11h_unii_middle_band;
 			psup_chan->subband[num_subbands++] =
 				wlan_11h_unii_mid_upper_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_upper_band;
 			break;
 		case 0x50:	/* China */
 			psup_chan->subband[num_subbands++] =
@@ -3031,7 +3023,8 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter)
 			       " (!= curr_chan) !!\n", __func__);
 
 #ifdef DFS_TESTING_SUPPORT
-		if (pmadapter->dfs_test_params.fixed_new_channel_on_radar) {
+		if (!pmadapter->dfs_test_params.no_channel_change_on_radar &&
+		    pmadapter->dfs_test_params.fixed_new_channel_on_radar) {
 			PRINTM(MCMD_D, "dfs_testing - user fixed new_chan=%d\n",
 			       pmadapter->dfs_test_params.
 			       fixed_new_channel_on_radar);
@@ -3302,12 +3295,23 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter)
 						       priv_curr_idx];
 #ifdef UAP_SUPPORT
 			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
+				t_u8 chan_offset;
+				t_u16 mask_chanwidth = 0x0C;
+
 				pmpriv->uap_state_chan_cb.pioctl_req_curr =
 					MNULL;
 				pmpriv->uap_state_chan_cb.get_chan_callback =
 					wlan_11h_radar_detected_callback;
 				/* DFS only in 5GHz */
-				pstate_rdh->uap_band_cfg |= BAND_CONFIG_5GHZ;
+				chan_offset =
+					wlan_get_second_channel_offset
+					(pstate_rdh->new_channel);
+				pstate_rdh->uap_band_cfg &= mask_chanwidth;
+				pstate_rdh->uap_band_cfg |=
+					(chan_offset << 4) | BAND_CONFIG_5GHZ;
+				PRINTM(MINFO, "uAP band config = 0x%x\n",
+				       pstate_rdh->uap_band_cfg);
+
 				ret = wlan_uap_set_channel(pmpriv,
 							   pstate_rdh->
 							   uap_band_cfg,
@@ -3530,6 +3534,18 @@ wlan_11h_switch_non_dfs_chan(mlan_private *priv, t_u8 *chan)
 	pmlan_adapter pmadapter = priv->adapter;
 
 	ENTER();
+
+#ifdef DFS_TESTING_SUPPORT
+	if (!pmadapter->dfs_test_params.no_channel_change_on_radar &&
+	    pmadapter->dfs_test_params.fixed_new_channel_on_radar) {
+		PRINTM(MCMD_D, "dfs_testing - user fixed new_chan=%d\n",
+		       pmadapter->dfs_test_params.fixed_new_channel_on_radar);
+		*chan = pmadapter->dfs_test_params.fixed_new_channel_on_radar;
+
+		LEAVE();
+		return MLAN_STATUS_SUCCESS;
+	}
+#endif
 
 	/* get the channel table first */
 	for (i = 0; i < MAX_REGION_CHANNEL_NUM; i++) {

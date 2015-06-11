@@ -232,6 +232,7 @@ wlan_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 	case HostCmd_CMD_802_11_ASSOCIATE:
 		wlan_reset_connect_state(pmpriv, MTRUE);
 		break;
+
 	case HostCmd_CMD_MGMT_IE_LIST:
 		{
 			HostCmd_DS_MGMT_IE_LIST_CFG *pmgmt_ie_list =
@@ -1839,6 +1840,25 @@ wlan_ret_otp_user_data(IN pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
+/**
+ *  @brief This function handles the command response of coalesce config
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_coalesce_config(IN pmlan_private pmpriv,
+			 IN HostCmd_DS_COMMAND *resp,
+			 IN mlan_ioctl_req *pioctl_buf)
+{
+	ENTER();
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -2111,6 +2131,9 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 		ret = wlan_ret_rx_pkt_coalesce_cfg(pmpriv, resp, pioctl_buf);
 		break;
 #endif
+	case HostCmd_CMD_COALESCE_CFG:
+		ret = wlan_ret_coalesce_config(pmpriv, resp, pioctl_buf);
+		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);

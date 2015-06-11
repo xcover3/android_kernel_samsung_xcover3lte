@@ -3440,12 +3440,12 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 
 	pmadapter->hw_dot_11n_dev_cap =
 		wlan_le32_to_cpu(hw_spec->dot_11n_dev_cap);
-	pmadapter->usr_dot_11n_dev_cap_bg =
-		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_BG;
-	pmadapter->usr_dot_11n_dev_cap_a =
-		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
-	pmadapter->usr_dev_mcs_support = pmadapter->hw_dev_mcs_support =
-		hw_spec->dev_mcs_support;
+	pmadapter->hw_dev_mcs_support = hw_spec->dev_mcs_support;
+	for (i = 0; i < pmadapter->priv_num; i++) {
+		if (pmadapter->priv[i])
+			wlan_update_11n_cap(pmadapter->priv[i]);
+	}
+
 	wlan_show_dot11ndevcap(pmadapter, pmadapter->hw_dot_11n_dev_cap);
 	wlan_show_devmcssupport(pmadapter, pmadapter->hw_dev_mcs_support);
 	if (ISSUPP_BEAMFORMING(pmadapter->hw_dot_11n_dev_cap)) {
@@ -3969,6 +3969,7 @@ wlan_cmd_802_11_rf_antenna(IN pmlan_private pmpriv,
 			   IN t_u16 cmd_action, IN t_void *pdata_buf)
 {
 	HostCmd_DS_802_11_RF_ANTENNA *pantenna = &cmd->params.antenna;
+	mlan_ds_ant_cfg_1x1 *ant_cfg_1x1 = (mlan_ds_ant_cfg_1x1 *) pdata_buf;
 
 	ENTER();
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_802_11_RF_ANTENNA);
@@ -3978,7 +3979,10 @@ wlan_cmd_802_11_rf_antenna(IN pmlan_private pmpriv,
 
 	if (cmd_action == HostCmd_ACT_GEN_SET) {
 		pantenna->action = wlan_cpu_to_le16(HostCmd_ACT_SET_BOTH);
-		pantenna->antenna_mode = wlan_cpu_to_le16(*(t_u16 *)pdata_buf);
+		pantenna->antenna_mode =
+			wlan_cpu_to_le16((t_u16)ant_cfg_1x1->antenna);
+		pantenna->evaluate_time =
+			wlan_cpu_to_le16((t_u16)ant_cfg_1x1->evaluate_time);
 	} else {
 		pantenna->action = wlan_cpu_to_le16(HostCmd_ACT_GET_BOTH);
 	}
@@ -4002,16 +4006,22 @@ wlan_ret_802_11_rf_antenna(IN pmlan_private pmpriv,
 {
 	HostCmd_DS_802_11_RF_ANTENNA *pantenna = &resp->params.antenna;
 	t_u16 ant_mode = wlan_le16_to_cpu(pantenna->antenna_mode);
+	t_u16 evaluate_time = wlan_le16_to_cpu(pantenna->evaluate_time);
+	t_u16 current_antenna = wlan_le16_to_cpu(pantenna->current_antenna);
 	mlan_ds_radio_cfg *radio = MNULL;
 
 	ENTER();
 
-	PRINTM(MINFO, "RF_ANT_RESP: action = 0x%x, Mode = 0x%04x\n",
-	       wlan_le16_to_cpu(pantenna->action), ant_mode);
+	PRINTM(MINFO,
+	       "RF_ANT_RESP: action = 0x%x, Mode = 0x%04x, Evaluate time = %d, Current antenna = %d\n",
+	       wlan_le16_to_cpu(pantenna->action), ant_mode, evaluate_time,
+	       current_antenna);
 
 	if (pioctl_buf) {
 		radio = (mlan_ds_radio_cfg *)pioctl_buf->pbuf;
-		radio->param.antenna = ant_mode;
+		radio->param.ant_cfg_1x1.antenna = ant_mode;
+		radio->param.ant_cfg_1x1.evaluate_time = evaluate_time;
+		radio->param.ant_cfg_1x1.current_antenna = current_antenna;
 	}
 
 	LEAVE();

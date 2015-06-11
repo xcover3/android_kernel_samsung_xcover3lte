@@ -124,11 +124,19 @@ Change log:
  * CONFIG_USB_SUSPEND
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#ifdef CONFIG_PM
+#ifndef CONFIG_USB_SUSPEND
+#define CONFIG_USB_SUSPEND
+#endif
+#endif
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 #ifdef CONFIG_PM_RUNTIME
 #ifndef CONFIG_USB_SUSPEND
 #define CONFIG_USB_SUSPEND
 #endif
 #endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 #endif
 
 /** Define BOOLEAN */
@@ -1284,6 +1292,8 @@ struct _moal_handle {
 #ifdef STA_CFG80211
 	/** CFG80211 scan request description */
 	struct cfg80211_scan_request *scan_request;
+	/** Scan Private pointer */
+	moal_private   *scan_priv;
 #endif
 #endif
 	/** main state */
@@ -1888,6 +1898,8 @@ void woal_send_iwevcustom_event(moal_private *priv, char *str);
 /** Get channel list */
 mlan_status woal_get_channel_list(moal_private *priv, t_u8 wait_option,
 				  mlan_chan_list *chanlist);
+mlan_status woal_11d_check_ap_channel(moal_private *priv, t_u8 wait_option,
+				      mlan_ssid_bssid *ssid_bssid);
 #endif
 /** Set/Get retry count */
 mlan_status woal_set_get_retry(moal_private *priv, t_u32 action,
@@ -2101,7 +2113,8 @@ int wlan_get_scan_table_ret_entry(BSSDescriptor_t *pbss_desc, t_u8 **ppbuffer,
 				  int *pspace_left);
 BOOLEAN woal_ssid_valid(mlan_802_11_ssid *pssid);
 int woal_is_connected(moal_private *priv, mlan_ssid_bssid *ssid_bssid);
-int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen);
+int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
+		      t_u8 wait_option);
 void woal_flush_tx_stat_queue(moal_private *priv);
 struct tx_status_info *woal_get_tx_info(moal_private *priv, t_u8 tx_seq_num);
 void woal_remove_tx_info(moal_private *priv, t_u8 tx_seq_num);

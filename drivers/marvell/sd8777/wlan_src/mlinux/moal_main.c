@@ -1376,7 +1376,7 @@ woal_process_regrdwr(moal_handle *handle, t_u8 *type_string,
 	reg->param.reg_rw.value = value;
 
 	/* request ioctl for STA */
-	ret = woal_request_ioctl(handle->priv[0], ioctl_req, MOAL_IOCTL_WAIT);
+	ret = woal_request_ioctl(handle->priv[0], ioctl_req, MOAL_CMD_WAIT);
 	if (ret != MLAN_STATUS_SUCCESS)
 		goto done;
 	PRINTM(MINFO, "Register type: %d, offset: 0x%x, value: 0x%x\n", type,
@@ -1618,7 +1618,8 @@ woal_process_hostcmd_cfg(moal_handle *handle, t_u8 *data, t_size size)
 			memcpy(buf + strlen(CMD_STR), &cmd_len, sizeof(t_u32));
 
 			/* fire the hostcommand from here */
-			woal_priv_hostcmd(handle->priv[0], buf, CMD_BUF_LEN);
+			woal_priv_hostcmd(handle->priv[0], buf, CMD_BUF_LEN,
+					  MOAL_CMD_WAIT);
 			memset(buf + strlen(CMD_STR), 0,
 			       CMD_BUF_LEN - strlen(CMD_STR));
 			ptr = buf + strlen(CMD_STR) + sizeof(t_u32);
@@ -2016,7 +2017,7 @@ woal_init_fw_dpc(moal_handle *handle)
 
 	/** Cal data request */
 	memset(&param, 0, sizeof(mlan_init_param));
-	if (cal_data_cfg) {
+	if (cal_data_cfg && strncmp(cal_data_cfg, "none", strlen("none"))) {
 		if (req_fw_nowait) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait
@@ -2996,6 +2997,7 @@ woal_close(struct net_device *dev)
 	if (IS_STA_CFG80211(cfg80211_wext) && priv->phandle->scan_request) {
 		cfg80211_scan_done(priv->phandle->scan_request, MTRUE);
 		priv->phandle->scan_request = NULL;
+		priv->phandle->scan_priv = NULL;
 	}
 	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 
@@ -3910,7 +3912,9 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		if (atomic_read(&priv->phandle->tx_pending) >= MAX_TX_PENDING)
 			woal_stop_queue(priv->netdev);
 #endif /* #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29) */
-		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);
+		if (!mlan_is_main_process_running(priv->phandle->pmlan_adapter))
+			 queue_work(priv->phandle->workqueue,
+				    &priv->phandle->main_work);
 		break;
 	case MLAN_STATUS_SUCCESS:
 		priv->stats.tx_packets++;
@@ -4401,19 +4405,15 @@ woal_alloc_mlan_buffer(moal_handle *handle, int size)
 		return NULL;
 	}
 
-	pmbuf = kzalloc(sizeof(mlan_buffer), flag);
-	if (!pmbuf) {
-		PRINTM(MERROR, "%s: Fail to alloc mlan buffer\n", __func__);
-		LEAVE();
-		return NULL;
-	}
-	skb = __dev_alloc_skb(size, flag);
+	skb = __dev_alloc_skb(size + sizeof(mlan_buffer), flag);
 	if (!skb) {
 		PRINTM(MERROR, "%s: No free skb\n", __func__);
-		kfree(pmbuf);
 		LEAVE();
 		return NULL;
 	}
+	skb_reserve(skb, sizeof(mlan_buffer));
+	pmbuf = (mlan_buffer *)skb->head;
+	memset((u8 *)pmbuf, 0, sizeof(mlan_buffer));
 	pmbuf->pdesc = (t_void *)skb;
 	pmbuf->pbuf = (t_u8 *)skb->data;
 	atomic_inc(&handle->mbufalloc_count);
@@ -4467,11 +4467,10 @@ woal_free_mlan_buffer(moal_handle *handle, pmlan_buffer pmbuf)
 		LEAVE();
 		return;
 	}
-	if (pmbuf->pdesc) {
+	if (pmbuf->pdesc)
 		dev_kfree_skb_any((struct sk_buff *)pmbuf->pdesc);
-		pmbuf->pdesc = NULL;
-	}
-	kfree(pmbuf);
+	else
+		PRINTM(MERROR, "free mlan buffer without pdesc\n");
 	atomic_dec(&handle->mbufalloc_count);
 	LEAVE();
 	return;
@@ -4743,7 +4742,18 @@ woal_reassociation_thread(void *data)
 
 			status = woal_find_best_network(priv, MOAL_CMD_WAIT,
 							&ssid_bssid);
-
+#ifdef STA_WEXT
+			if (status == MLAN_STATUS_SUCCESS) {
+				if (MLAN_STATUS_SUCCESS !=
+				    woal_11d_check_ap_channel(priv,
+							      MOAL_CMD_WAIT,
+							      &ssid_bssid)) {
+					PRINTM(MERROR,
+					       "Reassoc: The AP's channel is invalid for current region\n");
+					status = MLAN_STATUS_FAILURE;
+				}
+			}
+#endif
 			/** The find AP without ssid, we need re-search */
 			if (status == MLAN_STATUS_SUCCESS &&
 			    !ssid_bssid.ssid.ssid_len) {
@@ -4765,6 +4775,19 @@ woal_reassociation_thread(void *data)
 				status = woal_find_best_network(priv,
 								MOAL_CMD_WAIT,
 								&ssid_bssid);
+#ifdef STA_WEXT
+				if (status == MLAN_STATUS_SUCCESS) {
+					if (MLAN_STATUS_SUCCESS !=
+					    woal_11d_check_ap_channel(priv,
+								      MOAL_CMD_WAIT,
+								      &ssid_bssid))
+					{
+						PRINTM(MERROR,
+						       "Reassoc: The AP's channel is invalid for current region\n");
+						status = MLAN_STATUS_FAILURE;
+					}
+				}
+#endif
 			}
 
 			if (status == MLAN_STATUS_SUCCESS) {
@@ -4790,7 +4813,7 @@ woal_reassociation_thread(void *data)
 					memset(&bss_info, 0, sizeof(bss_info));
 					if (MLAN_STATUS_SUCCESS !=
 					    woal_get_bss_info(priv,
-							      MOAL_IOCTL_WAIT,
+							      MOAL_CMD_WAIT,
 							      &bss_info)) {
 						PRINTM(MINFO,
 						       "Set asynced essid: Fail to get bss info after assoc\n");
@@ -6846,6 +6869,7 @@ woal_cleanup_module(void)
 					cfg80211_scan_done(handle->scan_request,
 							   MTRUE);
 					handle->scan_request = NULL;
+					handle->scan_priv = NULL;
 				}
 				spin_unlock_irqrestore(&handle->scan_req_lock,
 						       flags);

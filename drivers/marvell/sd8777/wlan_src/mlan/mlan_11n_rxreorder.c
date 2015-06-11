@@ -325,19 +325,8 @@ wlan_11n_delete_rxreorder_tbl_entry(mlan_private *priv,
 		LEAVE();
 		return;
 	}
-	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
-					    pmadapter->prx_proc_lock);
-	priv->adapter->rx_lock_flag = MTRUE;
-	if (priv->adapter->mlan_rx_processing) {
-		pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
-						      pmadapter->prx_proc_lock);
-		PRINTM(MEVENT, "wlan: wait rx work done...\n");
-		wlan_recv_event(wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY),
-				MLAN_EVENT_ID_DRV_FLUSH_RX_WORK, MNULL);
-	} else {
-		pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
-						      pmadapter->prx_proc_lock);
-	}
+	mlan_block_rx_process(pmadapter, MTRUE);
+
 	wlan_11n_dispatch_pkt_until_start_win(priv, rx_reor_tbl_ptr,
 					      (rx_reor_tbl_ptr->start_win +
 					       rx_reor_tbl_ptr->win_size)
@@ -370,12 +359,8 @@ wlan_11n_delete_rxreorder_tbl_entry(mlan_private *priv,
 					rx_reorder_ptr);
 	pmadapter->callbacks.moal_mfree(pmadapter->pmoal_handle,
 					(t_u8 *)rx_reor_tbl_ptr);
+	mlan_block_rx_process(pmadapter, MFALSE);
 
-	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
-					    pmadapter->prx_proc_lock);
-	priv->adapter->rx_lock_flag = MFALSE;
-	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
-					      pmadapter->prx_proc_lock);
 	LEAVE();
 }
 
@@ -692,7 +677,11 @@ wlan_cmd_11n_addba_rspgen(mlan_private *priv,
 #endif
 #ifdef UAP_SUPPORT
 	    || ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-		&& (priv->adapter->pending_bridge_pkts > RX_LOW_THRESHOLD))
+		&& (util_scalar_read(priv->adapter->pmoal_handle,
+				     &priv->adapter->pending_bridge_pkts,
+				     priv->adapter->callbacks.moal_spin_lock,
+				     priv->adapter->callbacks.
+				     moal_spin_unlock) > RX_LOW_THRESHOLD))
 #endif
 		)
 		padd_ba_rsp->status_code =
@@ -1008,6 +997,7 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 	RxReorderTbl *rx_reor_tbl_ptr;
 	TxBAStreamTbl *ptxtbl;
 	t_u8 cleanup_rx_reorder_tbl;
+	raListTbl *ra_list = MNULL;
 
 	ENTER();
 
@@ -1035,7 +1025,11 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 			LEAVE();
 			return;
 		}
-
+		ra_list = wlan_wmm_get_ralist_node(priv, tid, peer_mac);
+		if (ra_list) {
+			ra_list->amsdu_in_ampdu = MFALSE;
+			ra_list->ba_status = BA_STREAM_NOT_SETUP;
+		}
 		wlan_11n_delete_txbastream_tbl_entry(priv, ptxtbl);
 	}
 

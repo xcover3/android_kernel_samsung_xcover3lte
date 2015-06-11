@@ -402,7 +402,14 @@ wlan_uap_recv_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 				newbuf->data_offset =
 					(sizeof(UapTxPD) + INTF_HEADER_LEN +
 					 DMA_ALIGNMENT);
-				pmadapter->pending_bridge_pkts++;
+				util_scalar_increment(pmadapter->pmoal_handle,
+						      &pmadapter->
+						      pending_bridge_pkts,
+						      pmadapter->callbacks.
+						      moal_spin_lock,
+						      pmadapter->callbacks.
+						      moal_spin_unlock);
+
 				newbuf->flags |= MLAN_BUF_FLAG_BRIDGE_BUF;
 
 				/* copy the data */
@@ -413,7 +420,13 @@ wlan_uap_recv_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 				       pmbuf->data_len);
 				newbuf->data_len = pmbuf->data_len;
 				wlan_wmm_add_buf_txqueue(pmadapter, newbuf);
-				if (pmadapter->pending_bridge_pkts >
+				if (util_scalar_read(pmadapter->pmoal_handle,
+						     &pmadapter->
+						     pending_bridge_pkts,
+						     pmadapter->callbacks.
+						     moal_spin_lock,
+						     pmadapter->callbacks.
+						     moal_spin_unlock) >
 				    RX_HIGH_THRESHOLD)
 					wlan_drop_tx_pkts(priv);
 				wlan_recv_event(priv,
@@ -438,7 +451,13 @@ wlan_uap_recv_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 				newbuf->data_offset =
 					(sizeof(UapTxPD) + INTF_HEADER_LEN +
 					 DMA_ALIGNMENT);
-				pmadapter->pending_bridge_pkts++;
+				util_scalar_increment(pmadapter->pmoal_handle,
+						      &pmadapter->
+						      pending_bridge_pkts,
+						      pmadapter->callbacks.
+						      moal_spin_lock,
+						      pmadapter->callbacks.
+						      moal_spin_unlock);
 				newbuf->flags |= MLAN_BUF_FLAG_BRIDGE_BUF;
 
 				/* copy the data */
@@ -449,7 +468,13 @@ wlan_uap_recv_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 				       pmbuf->data_len);
 				newbuf->data_len = pmbuf->data_len;
 				wlan_wmm_add_buf_txqueue(pmadapter, newbuf);
-				if (pmadapter->pending_bridge_pkts >
+				if (util_scalar_read(pmadapter->pmoal_handle,
+						     &pmadapter->
+						     pending_bridge_pkts,
+						     pmadapter->callbacks.
+						     moal_spin_lock,
+						     pmadapter->callbacks.
+						     moal_spin_unlock) >
 				    RX_HIGH_THRESHOLD)
 					wlan_drop_tx_pkts(priv);
 				wlan_recv_event(priv,
@@ -533,7 +558,13 @@ wlan_process_uap_rx_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 				newbuf->data_offset =
 					(sizeof(UapTxPD) + INTF_HEADER_LEN +
 					 DMA_ALIGNMENT);
-				pmadapter->pending_bridge_pkts++;
+				util_scalar_increment(pmadapter->pmoal_handle,
+						      &pmadapter->
+						      pending_bridge_pkts,
+						      pmadapter->callbacks.
+						      moal_spin_lock,
+						      pmadapter->callbacks.
+						      moal_spin_unlock);
 				newbuf->flags |= MLAN_BUF_FLAG_BRIDGE_BUF;
 
 				/* copy the data, skip rxpd */
@@ -546,7 +577,13 @@ wlan_process_uap_rx_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 				newbuf->data_len =
 					pmbuf->data_len - prx_pd->rx_pkt_offset;
 				wlan_wmm_add_buf_txqueue(pmadapter, newbuf);
-				if (pmadapter->pending_bridge_pkts >
+				if (util_scalar_read(pmadapter->pmoal_handle,
+						     &pmadapter->
+						     pending_bridge_pkts,
+						     pmadapter->callbacks.
+						     moal_spin_lock,
+						     pmadapter->callbacks.
+						     moal_spin_unlock) >
 				    RX_HIGH_THRESHOLD)
 					wlan_drop_tx_pkts(priv);
 				wlan_recv_event(priv,
@@ -562,9 +599,20 @@ wlan_process_uap_rx_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 			pmbuf->data_len -= prx_pd->rx_pkt_offset;
 			pmbuf->data_offset += prx_pd->rx_pkt_offset;
 			pmbuf->flags |= MLAN_BUF_FLAG_BRIDGE_BUF;
-			pmadapter->pending_bridge_pkts++;
+			util_scalar_increment(pmadapter->pmoal_handle,
+					      &pmadapter->pending_bridge_pkts,
+					      pmadapter->callbacks.
+					      moal_spin_lock,
+					      pmadapter->callbacks.
+					      moal_spin_unlock);
 			wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
-			if (pmadapter->pending_bridge_pkts > RX_HIGH_THRESHOLD)
+			if (util_scalar_read(pmadapter->pmoal_handle,
+					     &pmadapter->pending_bridge_pkts,
+					     pmadapter->callbacks.
+					     moal_spin_lock,
+					     pmadapter->callbacks.
+					     moal_spin_unlock) >
+			    RX_HIGH_THRESHOLD)
 				wlan_drop_tx_pkts(priv);
 			wlan_recv_event(priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING,
 					MNULL);

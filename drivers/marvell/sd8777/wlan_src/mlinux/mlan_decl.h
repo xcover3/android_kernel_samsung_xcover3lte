@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		"C086"
+#define MLAN_RELEASE_VERSION		"C095"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -449,6 +449,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_DEFER_RX_WORK = 0x80000016,
 	MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ = 0x80000017,
 	MLAN_EVENT_ID_DRV_FT_RESPONSE = 0x80000018,
+	MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK = 0x80000019,
 } mlan_event_id;
 
 /** Data Structures */
@@ -1166,6 +1167,8 @@ MLAN_API mlan_status mlan_recv_packet_complete(IN t_void *pmlan_adapter,
 MLAN_API t_void mlan_interrupt(IN t_void *pmlan_adapter);
 
 MLAN_API t_void mlan_pm_wakeup_card(IN t_void *pmlan_adapter);
+
+MLAN_API t_u8 mlan_is_main_process_running(IN t_void *adapter);
 
 /** mlan ioctl */
 MLAN_API mlan_status mlan_ioctl(IN t_void *pmlan_adapter,

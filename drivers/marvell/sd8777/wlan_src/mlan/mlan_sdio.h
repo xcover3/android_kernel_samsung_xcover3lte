@@ -328,6 +328,7 @@ mlan_status wlan_check_winner_status(mlan_adapter *pmadapter, t_u32 *val);
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 mlan_status wlan_send_mp_aggr_buf(mlan_adapter *pmadapter);
 #endif
+
 /** Firmware status check */
 mlan_status wlan_check_fw_status(mlan_adapter *pmadapter, t_u32 pollnum);
 /** Read interrupt status */

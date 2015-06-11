@@ -308,11 +308,13 @@ woal_get_priv_driver_version(moal_private *priv, t_u8 *respbuf,
  *  @param priv         A pointer to moal_private structure
  *  @param respbuf      A pointer to response buffer
  *  @param respbuflen   Available length of response buffer
+ *  @param wait_option  Wait option
  *
  *  @return             Number of bytes written, negative for failure.
  */
 int
-woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
+		  t_u8 wait_option)
 {
 	int ret = 0;
 	t_u8 *data_ptr;
@@ -349,7 +351,7 @@ woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	memcpy(misc_cfg->param.hostcmd.cmd, data_ptr + sizeof(buf_len),
 	       misc_cfg->param.hostcmd.len);
 
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	status = woal_request_ioctl(priv, req, wait_option);
 	if (status != MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto error;
@@ -7630,7 +7632,7 @@ woal_priv_set_get_tx_rx_ant(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	int user_data_len = 0, header_len = 0;
 	mlan_ds_radio_cfg *radio = NULL;
 	mlan_ioctl_req *req = NULL;
-	int data = 0;
+	int data[3] = { 0 };
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -7651,13 +7653,16 @@ woal_priv_set_get_tx_rx_ant(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		req->action = MLAN_ACT_GET;
 	} else {
 		/* SET operation */
-		parse_arguments(respbuf + header_len, &data, 1, &user_data_len);
-		if (user_data_len > 1) {
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len > 2) {
 			PRINTM(MERROR, "Invalid number of args!\n");
 			ret = -EINVAL;
 			goto done;
 		}
-		radio->param.antenna = data;
+		radio->param.ant_cfg_1x1.antenna = data[0];
+		if (user_data_len == 2)
+			radio->param.ant_cfg_1x1.evaluate_time = data[1];
 		req->action = MLAN_ACT_SET;
 	}
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
@@ -7666,7 +7671,9 @@ woal_priv_set_get_tx_rx_ant(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		goto done;
 	}
 	if (!user_data_len) {
-		data = radio->param.antenna;
+		data[0] = (int)radio->param.ant_cfg_1x1.antenna;
+		data[1] = (int)radio->param.ant_cfg_1x1.evaluate_time;
+		data[2] = (int)radio->param.ant_cfg_1x1.current_antenna;
 		memcpy(respbuf, (t_u8 *)&data, sizeof(data));
 		ret = sizeof(data);
 	}
@@ -8631,6 +8638,78 @@ done:
 }
 
 /**
+ * @brief               Set/Get TDLS idle timeout value
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_tdls_idle_time(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+	int user_data_len = 0, header_len = 0, data;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_TDLS_IDLE_TIME;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_TDLS_IDLE_TIME);
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		ioctl_req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, &data,
+				sizeof(data) / sizeof(int), &user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+		ioctl_req->action = MLAN_ACT_SET;
+		misc->param.tdls_idle_time = (t_u16)data;
+	}
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	memcpy(respbuf, (t_u8 *)&misc->param.tdls_idle_time, sizeof(t_u16));
+	ret = sizeof(t_u16);
+
+	PRINTM(MIOCTL, "tdls idle time %d\n", misc->param.tdls_idle_time);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
  *  @param req          A pointer to ifreq structure
@@ -8731,7 +8810,8 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_HOSTCMD,
 			    strlen(PRIV_CMD_HOSTCMD)) == 0) {
 			/* hostcmd configuration */
-			len = woal_priv_hostcmd(priv, buf, priv_cmd.total_len);
+			len = woal_priv_hostcmd(priv, buf, priv_cmd.total_len,
+						MOAL_IOCTL_WAIT);
 			goto handled;
 		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_HTTXCFG,
@@ -9459,6 +9539,13 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get control to enable/disable auto TDLS */
 			len = woal_priv_auto_tdls(priv, buf,
 						  priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_TDLS_IDLE_TIME,
+			    strlen(PRIV_CMD_TDLS_IDLE_TIME)) == 0) {
+			/* Set/Get TDLS idle timeout value */
+			len = woal_priv_tdls_idle_time(priv, buf,
+						       priv_cmd.total_len);
 			goto handled;
 		} else {
 			/* Fall through, after stripping off the custom header */

@@ -1516,8 +1516,13 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 				sizeof(TdlsIdleTimeout->value);
 			TdlsIdleTimeout->header.len =
 				wlan_cpu_to_le16(TdlsIdleTimeout->header.len);
-			TdlsIdleTimeout->value =
-				wlan_cpu_to_le16(TDLS_IDLE_TIMEOUT);
+			if (pmpriv->tdls_idle_time == 0)
+				TdlsIdleTimeout->value =
+					wlan_cpu_to_le16(TDLS_IDLE_TIMEOUT);
+			else
+				TdlsIdleTimeout->value =
+					wlan_cpu_to_le16(pmpriv->
+							 tdls_idle_time);
 			travel_len += sizeof(MrvlIEtypes_TDLS_Idle_Timeout_t);
 		}
 		break;
@@ -1852,6 +1857,88 @@ wlan_cmd_inactivity_timeout(IN HostCmd_DS_COMMAND *cmd,
 	return MLAN_STATUS_SUCCESS;
 }
 
+/**
+ *  @brief This function prepares command of coalesce_config.
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_coalesce_config(IN pmlan_private pmpriv,
+			 IN HostCmd_DS_COMMAND *cmd,
+			 IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	HostCmd_DS_COALESCE_CONFIG *coalesce_config =
+		&cmd->params.coalesce_config;
+	mlan_ds_coalesce_cfg *cfg = (mlan_ds_coalesce_cfg *) pdata_buf;
+	t_u16 cnt, idx, length;
+	struct coalesce_filt_field_param *param;
+	struct coalesce_receive_filt_rule *rule;
+	ENTER();
+
+	cmd->size = sizeof(HostCmd_DS_COALESCE_CONFIG) + S_DS_GEN;
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_COALESCE_CFG);
+	coalesce_config->action = wlan_cpu_to_le16(cmd_action);
+	coalesce_config->num_of_rules = wlan_cpu_to_le16(cfg->num_of_rules);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		rule = coalesce_config->rule;
+		for (cnt = 0; cnt < cfg->num_of_rules; cnt++) {
+			rule->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_COALESCE_RULE);
+			rule->max_coalescing_delay =
+				wlan_cpu_to_le16(cfg->rule[cnt].
+						 max_coalescing_delay);
+			rule->pkt_type = cfg->rule[cnt].pkt_type;
+			rule->num_of_fields = cfg->rule[cnt].num_of_fields;
+
+			length = 0;
+
+			param = rule->params;
+			for (idx = 0; idx < cfg->rule[cnt].num_of_fields; idx++) {
+				param->operation =
+					cfg->rule[cnt].params[idx].operation;
+				param->operand_len =
+					cfg->rule[cnt].params[idx].operand_len;
+				param->offset =
+					wlan_cpu_to_le16(cfg->rule[cnt].
+							 params[idx].offset);
+				memcpy(pmpriv->adapter,
+				       param->operand_byte_stream,
+				       cfg->rule[cnt].params[idx].
+				       operand_byte_stream, param->operand_len);
+
+				length +=
+					sizeof(struct
+					       coalesce_filt_field_param);
+
+				param++;
+			}
+
+			/* Total rule length is sizeof
+			   max_coalescing_delay(t_u16), * num_of_fields(t_u8),
+			   pkt_type(t_u8) and total length of the all * params */
+			rule->header.len =
+				wlan_cpu_to_le16(length + sizeof(t_u16) +
+						 sizeof(t_u8) + sizeof(t_u8));
+
+			/* Add the rule length to the command size */
+			cmd->size +=
+				wlan_le16_to_cpu(rule->header.len) +
+				sizeof(MrvlIEtypesHeader_t);
+
+			rule = (void *)((t_u8 *)rule->params + length);
+		}
+
+	}
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -2176,6 +2263,10 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 						   pdata_buf);
 		break;
 #endif
+	case HostCmd_CMD_COALESCE_CFG:
+		ret = wlan_cmd_coalesce_config(pmpriv, cmd_ptr,
+					       cmd_action, pdata_buf);
+		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		ret = MLAN_STATUS_FAILURE;

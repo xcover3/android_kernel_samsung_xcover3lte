@@ -305,6 +305,11 @@ int woal_cfg80211_set_txq_params(struct wiphy *wiphy, struct net_device *dev,
 				 struct ieee80211_txq_params *params);
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+int woal_cfg80211_set_coalesce(struct wiphy *wiphy,
+			       struct cfg80211_coalesce *coalesce);
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 int woal_cfg80211_add_beacon(struct wiphy *wiphy,
 			     struct net_device *dev,
@@ -325,10 +330,14 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy,
 
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev);
 int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+			      struct station_del_parameters *param);
+#else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 			      const u8 *mac_addr);
 #else
 			      u8 *mac_addr);
+#endif
 #endif
 #endif /* UAP_CFG80211 */
 

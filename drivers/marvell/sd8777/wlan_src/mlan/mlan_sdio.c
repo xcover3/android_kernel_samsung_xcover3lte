@@ -801,6 +801,52 @@ wlan_decode_rx_packet(mlan_adapter *pmadapter, mlan_buffer *pmbuf,
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
 /**
+ *  @brief This function receives single packet
+ *
+ *  @param pmadapter A pointer to mlan_adapter structure
+ *  @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_receive_single_packet(mlan_adapter *pmadapter)
+{
+	mlan_buffer *pmbuf;
+	t_u8 port;
+	t_u16 rx_len;
+	t_u32 pkt_type = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	pmbuf = pmadapter->mpa_rx.mbuf_arr[0];
+	port = pmadapter->mpa_rx.start_port;
+	rx_len = pmadapter->mpa_rx.len_arr[0];
+	if (MLAN_STATUS_SUCCESS != wlan_sdio_card_to_host(pmadapter, &pkt_type,
+							  (t_u32 *)&pmadapter->
+							  upld_len, pmbuf,
+							  rx_len,
+							  pmadapter->ioport +
+							  port)) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	if (pkt_type != MLAN_TYPE_DATA) {
+		PRINTM(MERROR,
+		       "receive a wrong pkt from DATA PORT: type=%d, len=%dd\n",
+		       pkt_type, pmbuf->data_len);
+		pmbuf->status_code = MLAN_ERROR_DATA_RX_FAIL;
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	pmadapter->mpa_rx_count[0]++;
+	wlan_decode_rx_packet(pmadapter, pmbuf, pkt_type);
+done:
+	if (ret != MLAN_STATUS_SUCCESS)
+		wlan_free_mlan_buffer(pmadapter, pmbuf);
+	MP_RX_AGGR_BUF_RESET(pmadapter);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function receives data from the card in aggregate mode.
  *
  *  @param pmadapter A pointer to mlan_adapter structure
@@ -823,8 +869,9 @@ wlan_receive_mp_aggr_buf(mlan_adapter *pmadapter)
 	       pmadapter->mpa_rx.pkt_cnt);
 
 	memset(pmadapter, &mbuf_aggr, 0, sizeof(mlan_buffer));
-
-	if (!pmadapter->mpa_rx.buf && pmadapter->mpa_rx.pkt_cnt > 1) {
+	if (!pmadapter->mpa_rx.buf && pmadapter->mpa_rx.pkt_cnt == 1) {
+		return wlan_receive_single_packet(pmadapter);
+	} else if (!pmadapter->mpa_rx.buf && pmadapter->mpa_rx.pkt_cnt > 1) {
 		mbuf_aggr.data_len = pmadapter->mpa_rx.buf_len;
 		mbuf_aggr.pnext = mbuf_aggr.pprev = &mbuf_aggr;
 		mbuf_aggr.use_count = 0;
@@ -923,6 +970,7 @@ wlan_sdio_card_to_host_mp_aggr(mlan_adapter *pmadapter, mlan_buffer
 	t_s32 f_do_rx_aggr = 0;
 	t_s32 f_do_rx_cur = 0;
 	t_s32 f_aggr_cur = 0;
+	t_s32 f_post_aggr_cur = 0;
 	t_u32 pind = 0;
 	t_u32 pkt_type = 0;
 
@@ -955,7 +1003,7 @@ wlan_sdio_card_to_host_mp_aggr(mlan_adapter *pmadapter, mlan_buffer
 			} else {
 				/* No room in Aggr buf, do rx aggr now */
 				f_do_rx_aggr = 1;
-				f_do_rx_cur = 1;
+				f_post_aggr_cur = 1;
 			}
 		} else {
 			/* Rx aggr not in progress */
@@ -1029,7 +1077,11 @@ rx_curr_single:
 
 		wlan_decode_rx_packet(pmadapter, pmbuf, pkt_type);
 	}
-
+	if (f_post_aggr_cur) {
+		PRINTM(MINFO, "Current packet aggregation.\n");
+		/* Curr pkt can be aggregated */
+		MP_RX_AGGR_SETUP(pmadapter, pmbuf, port, rx_len);
+	}
 done:
 	if (ret == MLAN_STATUS_FAILURE) {
 		if (MP_RX_AGGR_IN_PROGRESS(pmadapter)) {
@@ -1589,10 +1641,12 @@ wlan_process_int_status(mlan_adapter *pmadapter)
 		bit_count =
 			bitcount(pmadapter->mp_wr_bitmap & pmadapter->
 				 mp_data_port_mask);
-		pmadapter->mp_update[bit_count - 1]++;
-		if (pmadapter->mp_update[bit_count - 1] == 0xffffffff)
-			memset(pmadapter, pmadapter->mp_update, 0,
-			       sizeof(pmadapter->mp_update));
+		if (bit_count) {
+			pmadapter->mp_update[bit_count - 1]++;
+			if (pmadapter->mp_update[bit_count - 1] == 0xffffffff)
+				memset(pmadapter, pmadapter->mp_update, 0,
+				       sizeof(pmadapter->mp_update));
+		}
 
 		pmadapter->last_recv_wr_bitmap = pmadapter->mp_wr_bitmap;
 		PRINTM(MINTR, "DNLD: wr_bitmap=0x%08x\n",
@@ -1851,7 +1905,7 @@ wlan_alloc_sdio_mpa_buffers(IN mlan_adapter *pmadapter,
 
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 	if ((pmadapter->max_segs < mp_aggr_pkt_limit) ||
-	    (pmadapter->max_seg_size < mpa_tx_buf_size)) {
+	    (pmadapter->max_seg_size < pmadapter->max_sp_tx_size)) {
 		ret = pcb->moal_malloc(pmadapter->pmoal_handle,
 				       mpa_tx_buf_size + DMA_ALIGNMENT,
 				       MLAN_MEM_DEF | MLAN_MEM_DMA,
@@ -1875,7 +1929,7 @@ wlan_alloc_sdio_mpa_buffers(IN mlan_adapter *pmadapter,
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
 	if ((pmadapter->max_segs < mp_aggr_pkt_limit) ||
-	    (pmadapter->max_seg_size < mpa_rx_buf_size)) {
+	    (pmadapter->max_seg_size < pmadapter->max_sp_rx_size)) {
 		ret = pcb->moal_malloc(pmadapter->pmoal_handle,
 				       mpa_rx_buf_size + DMA_ALIGNMENT,
 				       MLAN_MEM_DEF | MLAN_MEM_DMA,
@@ -1941,6 +1995,7 @@ wlan_free_sdio_mpa_buffers(IN mlan_adapter *pmadapter)
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+
 #endif /* SDIO_MULTI_PORT_TX_AGGR || SDIO_MULTI_PORT_RX_AGGR */
 
 /**

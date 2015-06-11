@@ -74,6 +74,9 @@ typedef struct _country_code_mapping {
 	t_u8 cfp_code_a;
 } country_code_mapping_t;
 
+#define EU_CFP_CODE_BG  0x30
+#define EU_CFP_CODE_A   0x30
+
 /** Region code mapping table */
 static country_code_mapping_t country_code_mapping[] = {
 	{"US", 0x10, 0x10},	/* US FCC */
@@ -82,14 +85,19 @@ static country_code_mapping_t country_code_mapping[] = {
 	{"EU", 0x30, 0x30},	/* ETSI */
 	{"AU", 0x30, 0x30},	/* Australia */
 	{"KR", 0x30, 0x30},	/* Republic Of Korea */
-	{"FR", 0x32, 0x32},	/* France */
 	{"JP", 0xFF, 0x40},	/* Japan */
 	{"CN", 0x30, 0x50},	/* China */
-	{"DE", 0x30, 0x06},	/* Germany */
-	{"ES", 0x30, 0x07},	/* Spain */
-	{"AT", 0x30, 0x09},	/* Austria */
 	{"BR", 0x01, 0x09},	/* Brazil */
 	{"RU", 0x30, 0x0f},	/* Russia */
+};
+
+/** Country code for ETSI */
+static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
+	"AL", "AD", "AT", "AU", "BY", "BE", "BA", "BG", "HR", "CY",
+	"CZ", "DK", "EE", "FI", "FR", "MK", "DE", "GR", "HU", "IS",
+	"IE", "IT", "KR", "LV", "LI", "LT", "LU", "MT", "MD", "MC",
+	"ME", "NL", "NO", "PL", "RO", "RU", "SM", "RS", "SI", "SK",
+	"ES", "SE", "CH", "TR", "UA", "UK"
 };
 
 /**
@@ -135,23 +143,6 @@ static chan_freq_power_t channel_freq_power_EU_BG[] = {
 	{11, 2462, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
 	{12, 2467, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
 	{13, 2472, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE}
-};
-
-/** Band: 'B/G', Region: France */
-static chan_freq_power_t channel_freq_power_FR_BG[] = {
-	{1, 2412, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{2, 2417, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{3, 2422, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{4, 2427, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{5, 2432, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{6, 2437, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{7, 2442, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{8, 2447, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{9, 2452, WLAN_TX_PWR_FR_100MW, MFALSE},
-	{10, 2457, WLAN_TX_PWR_FR_10MW, MFALSE},
-	{11, 2462, WLAN_TX_PWR_FR_10MW, MFALSE},
-	{12, 2467, WLAN_TX_PWR_FR_10MW, MFALSE},
-	{13, 2472, WLAN_TX_PWR_FR_10MW, MFALSE}
 };
 
 /** Band: 'B/G', Region: Japan */
@@ -249,10 +240,6 @@ static cfp_table_t cfp_table_BG[] = {
 	 channel_freq_power_EU_BG,
 	 NELEMENTS(channel_freq_power_EU_BG),
 	 },
-	{0x32,			/* FRANCE */
-	 channel_freq_power_FR_BG,
-	 NELEMENTS(channel_freq_power_FR_BG),
-	 },
 	{0x40,			/* JAPAN */
 	 channel_freq_power_JPN40_BG,
 	 NELEMENTS(channel_freq_power_JPN40_BG),
@@ -281,7 +268,7 @@ static cfp_table_t cfp_table_BG[] = {
 #define MLAN_CFP_TABLE_SIZE_BG  (NELEMENTS(cfp_table_BG))
 
 /* Format { Channel, Frequency (MHz), MaxTxPower, DFS } */
-/** Band: 'A', Region: USA FCC, Spain, France */
+/** Band: 'A', Region: USA FCC */
 static chan_freq_power_t channel_freq_power_A[] = {
 	{36, 5180, WLAN_TX_PWR_US_DEFAULT, MFALSE},
 	{40, 5200, WLAN_TX_PWR_US_DEFAULT, MFALSE},
@@ -354,7 +341,12 @@ static chan_freq_power_t channel_freq_power_EU_A[] = {
 	{128, 5640, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
 	{132, 5660, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
 	{136, 5680, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
-	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE}
+	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{149, 5745, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{153, 5765, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{157, 5785, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{161, 5805, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{165, 5825, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE}
 };
 
 /** Band: 'A', Region: Japan */
@@ -393,45 +385,6 @@ static chan_freq_power_t channel_freq_power_CN_A[] = {
 static chan_freq_power_t channel_freq_power_NULL_A[] = {
 };
 
-/** Band: 'A', Region: Germany */
-static chan_freq_power_t channel_freq_power_GRM_A[] = {
-	{36, 5180, WLAN_TX_PWR_200MW, MFALSE},
-	{40, 5200, WLAN_TX_PWR_200MW, MFALSE},
-	{44, 5220, WLAN_TX_PWR_200MW, MFALSE},
-	{48, 5240, WLAN_TX_PWR_200MW, MFALSE},
-	{52, 5260, WLAN_TX_PWR_200MW, MTRUE},
-	{56, 5280, WLAN_TX_PWR_200MW, MTRUE},
-	{60, 5300, WLAN_TX_PWR_200MW, MTRUE},
-	{64, 5320, WLAN_TX_PWR_200MW, MTRUE},
-	{100, 5500, WLAN_TX_PWR_1000MW, MTRUE},
-	{104, 5520, WLAN_TX_PWR_1000MW, MTRUE},
-	{108, 5540, WLAN_TX_PWR_1000MW, MTRUE},
-	{112, 5560, WLAN_TX_PWR_1000MW, MTRUE},
-	{116, 5580, WLAN_TX_PWR_1000MW, MTRUE},
-	{120, 5600, WLAN_TX_PWR_1000MW, MTRUE},
-	{124, 5620, WLAN_TX_PWR_1000MW, MTRUE},
-	{128, 5640, WLAN_TX_PWR_1000MW, MTRUE},
-	{132, 5660, WLAN_TX_PWR_1000MW, MTRUE},
-	{136, 5680, WLAN_TX_PWR_1000MW, MTRUE},
-	{140, 5700, WLAN_TX_PWR_1000MW, MTRUE},
-};
-
-/** Band: 'A', Region: Spain */
-static chan_freq_power_t channel_freq_power_SPN0_A[] = {
-	{36, 5180, WLAN_TX_PWR_SP_30MW, MFALSE},
-	{40, 5200, WLAN_TX_PWR_SP_30MW, MFALSE},
-	{44, 5220, WLAN_TX_PWR_SP_30MW, MFALSE},
-	{48, 5240, WLAN_TX_PWR_SP_30MW, MFALSE},
-};
-
-/** Band: 'A', Region: Spain */
-static chan_freq_power_t channel_freq_power_SPN1_A[] = {
-	{36, 5180, WLAN_TX_PWR_SP_60MW, MFALSE},
-	{40, 5200, WLAN_TX_PWR_SP_60MW, MFALSE},
-	{44, 5220, WLAN_TX_PWR_SP_60MW, MFALSE},
-	{48, 5240, WLAN_TX_PWR_SP_60MW, MFALSE},
-};
-
 /** Band: 'A', Region: Spain/Austria/Brazil */
 static chan_freq_power_t channel_freq_power_SPN2_A[] = {
 	{36, 5180, WLAN_TX_PWR_200MW, MFALSE},
@@ -442,30 +395,6 @@ static chan_freq_power_t channel_freq_power_SPN2_A[] = {
 	{56, 5280, WLAN_TX_PWR_200MW, MTRUE},
 	{60, 5300, WLAN_TX_PWR_200MW, MTRUE},
 	{64, 5320, WLAN_TX_PWR_200MW, MTRUE},
-};
-
-/** Band: 'A', Region: Spain/Austria */
-static chan_freq_power_t channel_freq_power_SPN3_A[] = {
-	{100, 5500, WLAN_TX_PWR_1000MW, MTRUE},
-	{104, 5520, WLAN_TX_PWR_1000MW, MTRUE},
-	{108, 5540, WLAN_TX_PWR_1000MW, MTRUE},
-	{112, 5560, WLAN_TX_PWR_1000MW, MTRUE},
-	{116, 5580, WLAN_TX_PWR_1000MW, MTRUE},
-	{120, 5600, WLAN_TX_PWR_1000MW, MTRUE},
-	{124, 5620, WLAN_TX_PWR_1000MW, MTRUE},
-	{128, 5640, WLAN_TX_PWR_1000MW, MTRUE},
-	{132, 5660, WLAN_TX_PWR_1000MW, MTRUE},
-	{136, 5680, WLAN_TX_PWR_1000MW, MTRUE},
-	{140, 5700, WLAN_TX_PWR_1000MW, MTRUE},
-};
-
-/** Band: 'A', Region: Austria */
-static chan_freq_power_t channel_freq_power_AT_A[] = {
-	{149, 5745, WLAN_TX_PWR_25MW, MFALSE},
-	{153, 5765, WLAN_TX_PWR_25MW, MFALSE},
-	{157, 5785, WLAN_TX_PWR_25MW, MFALSE},
-	{161, 5805, WLAN_TX_PWR_25MW, MFALSE},
-	{165, 5825, WLAN_TX_PWR_25MW, MFALSE}
 };
 
 /** Band: 'A', Region: Brazil */
@@ -494,6 +423,17 @@ static chan_freq_power_t channel_freq_power_BR2_A[] = {
 
 /** Band: 'A', Region: Russia */
 static chan_freq_power_t channel_freq_power_RU_A[] = {
+	{36, 5180, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{40, 5200, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{44, 5220, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{48, 5240, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{52, 5260, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{56, 5280, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{60, 5300, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{64, 5320, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{132, 5660, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{136, 5680, WLAN_TX_PWR_DEFAULT, MFALSE},
+	{140, 5700, WLAN_TX_PWR_DEFAULT, MFALSE},
 	{149, 5745, WLAN_TX_PWR_DEFAULT, MFALSE},
 	{153, 5765, WLAN_TX_PWR_DEFAULT, MFALSE},
 	{157, 5785, WLAN_TX_PWR_DEFAULT, MFALSE},
@@ -579,29 +519,9 @@ static cfp_table_t cfp_table_A[] = {
 	 channel_freq_power_low_high_band,
 	 NELEMENTS(channel_freq_power_low_high_band)
 	 },
-	{0x06,			/* GERMANY */
-	 channel_freq_power_GRM_A,
-	 NELEMENTS(channel_freq_power_GRM_A),
-	 },
-	{0x07,			/* SPAIN */
-	 channel_freq_power_SPN0_A,
-	 NELEMENTS(channel_freq_power_SPN0_A),
-	 },
-	{0x08,			/* SPAIN */
-	 channel_freq_power_SPN1_A,
-	 NELEMENTS(channel_freq_power_SPN1_A),
-	 },
 	{0x09,			/* SPAIN/Austria/Brazil */
 	 channel_freq_power_SPN2_A,
 	 NELEMENTS(channel_freq_power_SPN2_A),
-	 },
-	{0x0a,			/* SPAIN/Austria */
-	 channel_freq_power_SPN3_A,
-	 NELEMENTS(channel_freq_power_SPN3_A),
-	 },
-	{0x0b,			/* Austria */
-	 channel_freq_power_AT_A,
-	 NELEMENTS(channel_freq_power_AT_A),
 	 },
 	{0x0c,			/* Brazil */
 	 channel_freq_power_BR1_A,
@@ -626,10 +546,6 @@ static cfp_table_t cfp_table_A[] = {
 	{0x30,			/* EU */
 	 channel_freq_power_EU_A,
 	 NELEMENTS(channel_freq_power_EU_A),
-	 },
-	{0x32,			/* FRANCE */
-	 channel_freq_power_A,
-	 NELEMENTS(channel_freq_power_A),
 	 },
 	{0x40,			/* JAPAN */
 	 channel_freq_power_JPN_A,
@@ -903,6 +819,17 @@ wlan_misc_country_2_cfp_table_code(pmlan_adapter pmadapter, t_u8 *country_code,
 			    country_code, COUNTRY_CODE_LEN - 1)) {
 			*cfp_bg = country_code_mapping[i].cfp_code_bg;
 			*cfp_a = country_code_mapping[i].cfp_code_a;
+			LEAVE();
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
+
+	/* If still not found, look for code in EU country code table */
+	for (i = 0; i < NELEMENTS(eu_country_code_table); i++) {
+		if (!memcmp(pmadapter, eu_country_code_table[i],
+			    country_code, COUNTRY_CODE_LEN - 1)) {
+			*cfp_bg = EU_CFP_CODE_BG;
+			*cfp_a = EU_CFP_CODE_A;
 			LEAVE();
 			return MLAN_STATUS_SUCCESS;
 		}

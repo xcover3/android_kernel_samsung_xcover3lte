@@ -837,6 +837,10 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 				pmbuf->pdesc = NULL;
 				pmbuf->pbuf = NULL;
 				pmbuf->data_offset = pmbuf->data_len = 0;
+				/* pkt been submit to kernel, no need to free
+				   by mlan */
+				status = MLAN_STATUS_PENDING;
+				atomic_dec(&handle->mbufalloc_count);
 			} else {
 				PRINTM(MERROR, "%s without skb attach!!!\n",
 				       __func__);
@@ -1018,6 +1022,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 								   MFALSE);
 						priv->phandle->scan_request =
 							NULL;
+						priv->phandle->scan_priv = NULL;
 					}
 					spin_unlock_irqrestore(&priv->phandle->
 							       scan_req_lock,
@@ -1343,6 +1348,9 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		break;
 	case MLAN_EVENT_ID_DRV_FLUSH_RX_WORK:
 		flush_workqueue(priv->phandle->rx_workqueue);
+		break;
+	case MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK:
+		flush_workqueue(priv->phandle->workqueue);
 		break;
 	case MLAN_EVENT_ID_DRV_DEFER_RX_WORK:
 		queue_work(priv->phandle->rx_workqueue,
@@ -1726,8 +1734,8 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 			if (priv->netdev
-			    && priv->netdev->ieee80211_ptr->wiphy->
-			    mgmt_stypes && priv->mgmt_subtype_mask) {
+			    && priv->netdev->ieee80211_ptr->wiphy->mgmt_stypes
+			    && priv->mgmt_subtype_mask) {
 				/* frmctl + durationid + addr1 + addr2 + addr3
 				   + seqctl */
 #define PACKET_ADDR4_POS        (2 + 2 + 6 + 6 + 6 + 2)

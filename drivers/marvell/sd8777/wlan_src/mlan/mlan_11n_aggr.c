@@ -223,12 +223,12 @@ wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	t_u16 pkt_len;
 	int total_pkt_len;
 	t_u8 *data;
+	mlan_adapter *pmadapter = priv->adapter;
 	t_u32 max_rx_data_size = MLAN_RX_DATA_BUF_SIZE;
 	int pad;
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	RxPacketHdr_t *prx_pkt;
 	mlan_buffer *daggr_mbuf = MNULL;
-	mlan_adapter *pmadapter = priv->adapter;
 	t_u8 rfc1042_eth_hdr[MLAN_MAC_ADDR_LENGTH] = { 0xaa, 0xaa, 0x03,
 		0x00, 0x00, 0x00
 	};
@@ -257,6 +257,7 @@ wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			PRINTM(MERROR,
 			       "Error in packet length: total_pkt_len = %d, pkt_len = %d\n",
 			       total_pkt_len, pkt_len);
+			ret = MLAN_STATUS_FAILURE;
 			break;
 		}
 
@@ -281,8 +282,8 @@ wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 					       MOAL_ALLOC_MLAN_BUFFER);
 		if (daggr_mbuf == MNULL) {
 			PRINTM(MERROR, "Error allocating daggr mlan_buffer\n");
-			LEAVE();
-			return MLAN_STATUS_FAILURE;
+			ret = MLAN_STATUS_FAILURE;
+			break;
 		}
 		daggr_mbuf->bss_index = pmbuf->bss_index;
 		daggr_mbuf->buf_type = pmbuf->buf_type;
@@ -322,6 +323,8 @@ wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	}
 
 done:
+    /** we should free the aggr buffer after deaggr */
+	wlan_free_mlan_buffer(pmadapter, pmbuf);
 	LEAVE();
 	return ret;
 }

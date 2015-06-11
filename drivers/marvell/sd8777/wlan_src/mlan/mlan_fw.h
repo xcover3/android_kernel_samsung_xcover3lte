@@ -205,7 +205,7 @@ typedef enum _KEY_INFO_WAPI {
 
 /** The number of times to try when waiting for downloaded firmware to
      become active when multiple interface is present */
-#define MAX_MULTI_INTERFACE_POLL_TRIES  1000
+#define MAX_MULTI_INTERFACE_POLL_TRIES  150
 
 /** The number of times to try when waiting for downloaded firmware to
      become active. (polling the scratch register). */
@@ -440,6 +440,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_BTCOEX_WL_AGGR_WINSIZE					(PROPRIETARY_TLV_BASE_ID + 0xca)
 /** TLV type :  scan time */
 #define TLV_BTCOEX_WL_SCANTIME    					(PROPRIETARY_TLV_BASE_ID + 0Xcb)
+
+#define TLV_TYPE_COALESCE_RULE                      (PROPRIETARY_TLV_BASE_ID + 0x9a)
 
 /** ADDBA TID mask */
 #define ADDBA_TID_MASK   (MBIT(2) | MBIT(3) | MBIT(4) | MBIT(5))
@@ -1003,6 +1005,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HostCmd_CMD_802_11_REMAIN_ON_CHANNEL     0x010d
 #endif
 
+#define HostCmd_CMD_COALESCE_CFG                 0x010a
+
 /** Host Command ID : OTP user data */
 #define HostCmd_CMD_OTP_READ_USER_DATA          0x0114
 
@@ -1536,8 +1540,8 @@ typedef MLAN_PACK_START struct _RxPD {
 	t_u8 reserved[3];
     /** TDLS flags, bit 0: 0=InfraLink, 1=DirectLink */
 	t_u8 flags;
-    /** Reserved */
-	t_u8 reserved_1;
+    /**For SD8887 antenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
+	t_u8 antenna;
 } MLAN_PACK_END RxPD, *PRxPD;
 
 #ifdef UAP_SUPPORT
@@ -1596,8 +1600,8 @@ typedef MLAN_PACK_START struct _UapRxPD {
      * [Bit 1]  HT Bandwidth: BW20 = 0, BW40 = 1
      * [Bit 2]  HT Guard Interval: LGI = 0, SGI = 1 */
 	t_u8 ht_info;
-    /** Reserved */
-	t_u8 reserved;
+    /** For SD8887 ntenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
+	t_u8 antenna;
 } MLAN_PACK_END UapRxPD, *PUapRxPD;
 
 /** Fixed size of station association event */
@@ -2973,6 +2977,29 @@ typedef MLAN_PACK_START struct _HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG {
 } MLAN_PACK_END HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG;
 #endif
 
+MLAN_PACK_START struct coalesce_filt_field_param {
+	t_u8 operation;
+	t_u8 operand_len;
+	t_u16 offset;
+	t_u8 operand_byte_stream[4];
+} MLAN_PACK_END;
+
+MLAN_PACK_START struct coalesce_receive_filt_rule {
+	MrvlIEtypesHeader_t header;
+	t_u8 num_of_fields;
+	t_u8 pkt_type;
+	t_u16 max_coalescing_delay;
+	struct coalesce_filt_field_param params[0];
+} MLAN_PACK_END;
+
+/** HostCmd_DS_COALESCE_CONFIG */
+typedef MLAN_PACK_START struct _HostCmd_DS_COALESCE_CONFIG {
+    /** Action 0-GET, 1-SET */
+	t_u16 action;
+	t_u16 num_of_rules;
+	struct coalesce_receive_filt_rule rule[0];
+} MLAN_PACK_END HostCmd_DS_COALESCE_CONFIG;
+
 #ifdef STA_SUPPORT
 
 /**
@@ -3640,6 +3667,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_ANTENNA {
 	t_u16 action;
     /**  Antenna or 0xffff (diversity) */
 	t_u16 antenna_mode;
+    /** Evaluate time */
+	t_u16 evaluate_time;
+    /** Current antenna */
+	t_u16 current_antenna;
 } MLAN_PACK_END HostCmd_DS_802_11_RF_ANTENNA;
 
 /** HostCmd_DS_802_11_IBSS_STATUS */
@@ -4919,6 +4950,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_WIFI_DIRECT_MODE wifi_direct_mode;
 		HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG p2p_params_config;
 #endif
+		HostCmd_DS_COALESCE_CONFIG coalesce_config;
 		HostCmd_DS_HS_WAKEUP_REASON hs_wakeup_reason;
 #ifdef RX_PACKET_COALESCE
 		HostCmd_DS_RX_PKT_COAL_CFG rx_pkt_coal_cfg;

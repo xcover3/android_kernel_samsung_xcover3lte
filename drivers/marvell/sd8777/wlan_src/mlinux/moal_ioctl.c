@@ -3652,6 +3652,60 @@ done:
 }
 
 /**
+ *  @brief Check if AP channel is valid for STA Region
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param wait_option      Wait option
+ *  @param ssid_bssid       A pointer to mlan_ssid_bssid structure
+ *
+ *  @return                 MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING -- success, otherwise fail
+ */
+mlan_status
+woal_11d_check_ap_channel(moal_private *priv, t_u8 wait_option,
+			  mlan_ssid_bssid *ssid_bssid)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_bss *bss = NULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 *mac = 0;
+
+	ENTER();
+
+	if (!ssid_bssid) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	bss = (mlan_ds_bss *)req->pbuf;
+	req->req_id = MLAN_IOCTL_BSS;
+	req->action = MLAN_ACT_GET;
+	bss->sub_command = MLAN_OID_BSS_11D_CHECK_CHANNEL;
+
+	memcpy(&bss->param.ssid_bssid, ssid_bssid, sizeof(mlan_ssid_bssid));
+
+	mac = (t_u8 *)&ssid_bssid->bssid;
+	PRINTM(MINFO, "ssid=%s, " MACSTR ", idx=%d\n",
+	       ssid_bssid->ssid.ssid, MAC2STR(mac), (int)ssid_bssid->idx);
+
+	/* Send IOCTL request to MLAN */
+	ret = woal_request_ioctl(priv, req, wait_option);
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Get authentication mode
  *
  *  @param priv             A pointer to moal_private structure
@@ -4148,6 +4202,7 @@ woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	mlan_ioctl_req *req = NULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	moal_handle *handle = priv->phandle;
+	moal_private *scan_priv = handle->scan_priv;
 #ifdef STA_CFG80211
 	unsigned long flags;
 #endif
@@ -4170,8 +4225,12 @@ woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	spin_lock_irqsave(&handle->scan_req_lock, flags);
 	if (IS_STA_CFG80211(cfg80211_wext) && handle->scan_request) {
 	    /** some supplicant can not handle SCAN abort event */
-		cfg80211_scan_done(handle->scan_request, MFALSE);
+		if (scan_priv->bss_type == MLAN_BSS_TYPE_STA)
+			cfg80211_scan_done(handle->scan_request, MTRUE);
+		else
+			cfg80211_scan_done(handle->scan_request, MFALSE);
 		handle->scan_request = NULL;
+		handle->scan_priv = NULL;
 	}
 	spin_unlock_irqrestore(&handle->scan_req_lock, flags);
 #endif

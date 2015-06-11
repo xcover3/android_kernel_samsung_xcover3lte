@@ -51,11 +51,19 @@ Change log:
  * CONFIG_USB_SUSPEND
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#ifdef CONFIG_PM
+#ifndef CONFIG_USB_SUSPEND
+#define CONFIG_USB_SUSPEND
+#endif
+#endif
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 #ifdef CONFIG_PM_RUNTIME
 #ifndef CONFIG_USB_SUSPEND
 #define CONFIG_USB_SUSPEND
 #endif
 #endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 #endif
 
 /** Private command ID to clear 11d chan table */

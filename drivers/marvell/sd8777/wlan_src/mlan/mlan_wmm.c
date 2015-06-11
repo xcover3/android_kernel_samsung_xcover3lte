@@ -663,8 +663,7 @@ wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 	for (j = pmadapter->priv_num - 1; j >= 0; --j) {
 		if (!(util_peek_list(pmadapter->pmoal_handle,
 				     &pmadapter->bssprio_tbl[j].bssprio_head,
-				     pmadapter->callbacks.moal_spin_lock,
-				     pmadapter->callbacks.moal_spin_unlock)))
+				     MNULL, MNULL)))
 			continue;
 
 		if (pmadapter->bssprio_tbl[j].bssprio_cur ==
@@ -1133,14 +1132,13 @@ wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 		return MLAN_STATUS_SUCCESS;
 	}
 
-	if (!ptr->is_11n_enabled || wlan_is_bastream_setup(priv, ptr, tid)
+	if (!ptr->is_11n_enabled || ptr->ba_status
 #ifdef STA_SUPPORT
 	    || priv->wps.session_enable
 #endif /* STA_SUPPORT */
 		) {
-		if (ptr->is_11n_enabled &&
-		    wlan_is_bastream_setup(priv, ptr, tid)
-		    && wlan_is_amsdu_in_ampdu_allowed(priv, ptr, tid)
+		if (ptr->is_11n_enabled && ptr->ba_status
+		    && ptr->amsdu_in_ampdu
 		    && wlan_is_amsdu_allowed(priv, ptr, tid)
 		    && (wlan_num_pkts_in_txq(priv, ptr, pmadapter->tx_buf_size)
 			>= MIN_NUM_AMSDU)) {
@@ -1508,31 +1506,7 @@ wlan_clean_txrx(pmlan_private priv)
 
 	wlan_wmm_cleanup_queues(priv);
 	wlan_11n_deleteall_txbastream_tbl(priv);
-#ifdef SDIO_MULTI_PORT_TX_AGGR
-    /**
-    * Before reset the TX aggregation buffer, check for any pre-copied data.
-    * &  If any data was pre-copied, restore the current write port and write
-    * bitmap, to the values that they would have if those data buffers were
-    * not copied. This is required as FW expects the driver to use the write
-    * bitmap sequentially. If write bitmap is not re-stored, few bits get
-    * skipped for next write and fw doesn't issue tx-done interrupt in this
-    * condition.
-    */
 
-	while (pmadapter->mpa_tx.pkt_cnt) {
-		/* Decrement current write port to the last used port */
-		pmadapter->curr_wr_port--;
-
-		if (pmadapter->curr_wr_port == CTRL_PORT)
-			pmadapter->curr_wr_port = (pmadapter->mp_end_port - 1);
-		/* Mark the port as available in write bitmap */
-		pmadapter->mp_wr_bitmap |=
-			(t_u16)(1 << pmadapter->curr_wr_port);
-		pmadapter->mpa_tx.pkt_cnt--;
-	}
-
-	MP_TX_AGGR_BUF_RESET(priv->adapter);
-#endif
 	wlan_wmm_delete_all_ralist(priv);
 	memcpy(pmadapter, tos_to_tid, ac_to_tid, sizeof(tos_to_tid));
 	for (i = 0; i < MAX_NUM_TID; i++)
@@ -1718,6 +1692,8 @@ wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 		if (!ra_list)
 			break;
 		ra_list->max_amsdu = 0;
+		ra_list->ba_status = BA_STREAM_NOT_SETUP;
+		ra_list->amsdu_in_ampdu = MFALSE;
 		if (queuing_ra_based(priv)) {
 			ra_list->is_11n_enabled = wlan_is_11n_enabled(priv, ra);
 			if (ra_list->is_11n_enabled)
@@ -2029,6 +2005,8 @@ wlan_ralist_update(mlan_private *priv, t_u8 *old_ra, t_u8 *new_ra)
 			ra_list->packet_count = 0;
 			ra_list->ba_packet_threshold =
 				wlan_get_random_ba_threshold(priv->adapter);
+			ra_list->amsdu_in_ampdu = MFALSE;
+			ra_list->ba_status = BA_STREAM_NOT_SETUP;
 			PRINTM(MINFO,
 			       "ralist_update: %p, %d, " MACSTR "-->" MACSTR
 			       "\n", ra_list, ra_list->is_11n_enabled,
@@ -2490,12 +2468,7 @@ wlan_wmm_process_tx(pmlan_adapter pmadapter)
 	do {
 		if (wlan_dequeue_tx_packet(pmadapter))
 			break;
-		if (pmadapter->sdio_ireg) {
-#ifdef SDIO_MULTI_PORT_TX_AGGR
-			wlan_send_mp_aggr_buf(pmadapter);
-#endif
-			break;
-		}
+
 		/* Check if busy */
 	} while (!pmadapter->data_sent && !pmadapter->tx_lock_flag
 		 && !wlan_wmm_lists_empty(pmadapter));
@@ -2566,10 +2539,9 @@ wlan_del_tx_pkts_in_ralist(pmlan_private priv,
 								MNULL);
 			if (pmbuf) {
 				PRINTM(MDATA,
-				       "Drop pkts: tid=%d tx_pause=%d pkts=%d brd_pkts=%d "
+				       "Drop pkts: tid=%d tx_pause=%d pkts=%d "
 				       MACSTR "\n", tid, ra_list->tx_pause,
 				       ra_list->total_pkts,
-				       pmadapter->pending_bridge_pkts,
 				       MAC2STR(ra_list->ra));
 				wlan_write_data_complete(pmadapter, pmbuf,
 							 MLAN_STATUS_FAILURE);
