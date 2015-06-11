@@ -21,7 +21,6 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/irqdomain.h>
-#include <linux/irqchip/chained_irq.h>
 #include <linux/platform_data/gpio-mmp.h>
 
 #define GPLR		0x0
@@ -180,16 +179,14 @@ static int mmp_gpio_irq_type(struct irq_data *d, unsigned int type)
 	return 0;
 }
 
-static void mmp_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
+static irqreturn_t mmp_gpio_demux_handler(int irq, void *data)
 {
-	struct irq_chip *chip = irq_desc_get_chip(desc);
-	struct mmp_gpio_chip *mmp_chip = irq_get_handler_data(irq);
+	struct mmp_gpio_chip *mmp_chip = (struct mmp_gpio_chip *)data;
 	struct mmp_gpio_bank *bank;
 	int i, n;
 	u32 gedr;
 	unsigned long pending = 0;
-
-	chained_irq_enter(chip, desc);
+	unsigned int irqs_handled = 0;
 
 	for (i = 0; i < mmp_chip->nbank; i++) {
 		bank = &mmp_chip->banks[i];
@@ -204,9 +201,10 @@ static void mmp_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 		for_each_set_bit(n, &pending, BITS_PER_LONG)
 			generic_handle_irq(irq_find_mapping(mmp_chip->domain,
 						mmp_bank_to_gpio(i, n)));
+		irqs_handled++;
 	}
 
-	chained_irq_exit(chip, desc);
+	return irqs_handled ? IRQ_HANDLED : IRQ_NONE;
 }
 
 static void mmp_ack_muxed_gpio(struct irq_data *d)
@@ -412,6 +410,14 @@ static int mmp_gpio_probe(struct platform_device *pdev)
 	mmp_chip->chip.of_gpio_n_cells = 2;
 #endif
 	mmp_chip->chip.ngpio = mmp_chip->ngpio;
+
+	if (devm_request_irq(&pdev->dev, irq,
+			     mmp_gpio_demux_handler, 0, mmp_chip->chip.label, mmp_chip)) {
+		dev_err(&pdev->dev, "failed to request high IRQ\n");
+		ret = -ENOENT;
+		goto err;
+	}
+
 	gpiochip_add(&mmp_chip->chip);
 
 	/* clear all GPIO edge detects */
@@ -423,10 +429,10 @@ static int mmp_gpio_probe(struct platform_device *pdev)
 		writel(0xffffffff, bank->reg_bank + GAPMASK);
 	}
 
-	irq_set_chained_handler(irq, mmp_gpio_demux_handler);
-	irq_set_handler_data(irq, mmp_chip);
-
 	return 0;
+err:
+	irq_domain_remove(domain);
+	return ret;
 }
 
 static struct platform_driver mmp_gpio_driver = {
