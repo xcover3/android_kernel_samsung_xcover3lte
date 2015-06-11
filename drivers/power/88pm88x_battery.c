@@ -30,8 +30,6 @@
 
 #define MY_PSY_NAME			"88pm88x-fuelgauge"
 
-#define MY_PSY_NAME			"88pm88x-fuelgauge"
-
 #define PM88X_VBAT_MEAS_EN		(1 << 1)
 #define PM88X_GPADC_BD_PREBIAS		(1 << 4)
 #define PM88X_GPADC_BD_EN		(1 << 5)
@@ -1492,6 +1490,23 @@ static void pm88x_charged_work(struct work_struct *work)
 	return;
 }
 
+static void pm88x_cc_enable_bootup(struct pm88x_battery_info *info)
+{
+	if (!info) {
+		pr_err("%s: empty battery info.\n", __func__);
+		return;
+	}
+
+	/* 1. base page 0x1f.0 = 1 ---> unlock test page */
+	regmap_write(info->chip->base_regmap, 0x1f, 0x1);
+	/* 2. enable cc as default when boots up */
+	regmap_write(info->chip->test_regmap, 0x50, 0x01);
+	regmap_write(info->chip->test_regmap, 0x51, 0x6B);
+	regmap_write(info->chip->test_regmap, 0x58, 0x0B);
+	/* 3. base page 0x1f.0 = 0 --> lock the test page */
+	regmap_write(info->chip->base_regmap, 0x1f, 0x0);
+}
+
 static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 {
 	int ret = 0, data, mask, tmp;
@@ -1508,21 +1523,14 @@ static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 	buf[1] = (u8)((tmp & 0xff00) >> 8);
 	regmap_bulk_write(info->chip->battery_regmap, PM88X_CC_LOW_TH1, buf, 2);
 
-	/* 1. set PM88X_OFFCOMP_EN to compensate Ibat, SWOFF_EN = 0 */
-	data = mask = PM88X_OFFCOMP_EN;
-	ret = regmap_update_bits(info->chip->battery_regmap, PM88X_CC_CONFIG2,
-				 mask, data);
-	if (ret < 0)
-		goto out;
+	/* 1. set the EOC battery current as 100mA, done in charger driver */
 
-	/* 2. set the EOC battery current as 100mA, done in charger driver */
-
-	/* 3. use battery current to decide the EOC */
+	/* 2. use battery current to decide the EOC */
 	data = mask = PM88X_IBAT_MEAS_EN;
 	ret = regmap_update_bits(info->chip->battery_regmap,
 				PM88X_IBAT_EOC_CONFIG, mask, data);
 	/*
-	 * 4. set SD_PWRUP to enable sigma-delta
+	 * 3. set SD_PWRUP to enable sigma-delta
 	 *    set CC_CLR_ON_RD to clear coulomb counter on read
 	 *    set CC_EN to enable coulomb counter
 	 */
@@ -1531,6 +1539,7 @@ static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 				 mask, data);
 	if (ret < 0)
 		goto out;
+	pm88x_cc_enable_bootup(info);
 
 	/* 5. enable VBAT measurement */
 	data = mask = PM88X_VBAT_MEAS_EN;
@@ -1774,7 +1783,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 end:
 	/* update ccnt_data timely */
 	init_ccnt_data(ccnt_val, *initial_soc);
-
+	pm88x_battery_calc_ccnt(info, &ccnt_data);
 	dev_info(info->dev,
 		 "<---- %s: initial soc = %d\n", __func__, *initial_soc);
 

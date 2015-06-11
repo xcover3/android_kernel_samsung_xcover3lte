@@ -958,6 +958,30 @@ static irqreturn_t pm88x_chg_fail_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+int pm88x_set_ibat_offset(struct pm88x_chip *chip)
+{
+	unsigned int data, mask;
+
+	/* set PM88X_OFFCOMP_EN to compensate IBAT, SWOFF_EN = 0 */
+	data = mask = PM88X_OFFCOMP_EN;
+	regmap_update_bits(chip->battery_regmap, PM88X_CC_CONFIG2, mask, data);
+	regmap_read(chip->battery_regmap, PM88X_IBAT_OFFVAL, &data);
+	/* open test page */
+	regmap_write(chip->base_regmap, 0x1F, 0x1);
+	/* use ibat_offval as default */
+	regmap_write(chip->test_regmap, 0x52, 0x0C);
+	regmap_write(chip->test_regmap, 0x53, data);
+	/* enable  SWOFF_EN default */
+	regmap_write(chip->test_regmap, 0x54, 0x0F);
+	regmap_write(chip->test_regmap, 0x55, 0x80);
+	/* enable remap register */
+	regmap_write(chip->test_regmap, 0x58, 0xBB);
+	regmap_write(chip->test_regmap, 0x59, 0xBB);
+	/* close test page */
+	regmap_write(chip->base_regmap, 0x1F, 0x0);
+	return 0;
+}
+
 static irqreturn_t pm88x_chg_done_handler(int irq, void *data)
 {
 	struct pm88x_charger_info *info = data;
@@ -976,6 +1000,8 @@ static irqreturn_t pm88x_chg_done_handler(int irq, void *data)
 
 	/* disable auto-recharge */
 	pm88x_stop_charging(info);
+	/* ibat offset compensation */
+	pm88x_set_ibat_offset(info->chip);
 
 	schedule_work(&info->chg_state_machine_work);
 

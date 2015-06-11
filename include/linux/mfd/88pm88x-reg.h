@@ -106,8 +106,23 @@
 #define PM88X_GPADC2_MEAS1		(0x58)
 #define PM88X_GPADC3_MEAS1		(0x5A)
 
-
 /*--charger page:------------------------------------------------------------*/
+#define PM88X_CC_CONFIG1		(0x01)
+#define PM88X_CC_EN			(1 << 0)
+#define PM88X_CC_CLR_ON_RD		(1 << 2)
+#define PM88X_SD_PWRUP			(1 << 3)
+
+#define PM88X_CC_CONFIG2		(0x02)
+#define PM88X_CC_READ_REQ		(1 << 0)
+#define PM88X_OFFCOMP_EN		(1 << 1)
+
+#define PM88X_CC_VAL1			(0x03)
+#define PM88X_CC_VAL2			(0x04)
+#define PM88X_CC_VAL3			(0x05)
+#define PM88X_CC_VAL4			(0x06)
+#define PM88X_CC_VAL5			(0x07)
+#define PM88X_IBAT_OFFVAL		(0x0c)
+
 #define PM88X_CHG_CONFIG1		(0x28)
 /*-------------------------------------------------------------------------*/
 
