@@ -555,15 +555,18 @@ static int path_set_irq(struct mmp_path *path, u32 irq, int on)
 		}
 
 		if (irq_flag) {
-			if (ctrl->regs_store && !path_ctrl_safe(path)) {
+			if (!path_ctrl_safe(path)) {
 				/*
 				 * if it is suspended, we can't access real register,
 				 * should only change the stored value to let them be
 				 * valid in resume.
 				 */
-				tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
-				tmp &= ~mask;
-				ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
+				if (ctrl->regs_store) {
+					tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
+					tmp &= ~mask;
+					ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
+				} else
+					ctrl->irq_status &= ~mask;
 			} else {
 				retry = ctrl_irq_set(path, mask, 0);
 				if (retry == 10000) {
@@ -597,23 +600,26 @@ static int path_set_irq(struct mmp_path *path, u32 irq, int on)
 			 * It would not trigger handler if the status on
 			 * before enable.
 			 */
-			if (ctrl->regs_store && !path_ctrl_safe(path)) {
-				if (!DISP_GEN4(ctrl->version)) {
-					tmp = ctrl->regs_store[SPU_IRQ_ISR / 4];
-					tmp &= ~mask;
+			if (!path_ctrl_safe(path)) {
+				if (ctrl->regs_store) {
+					if (!DISP_GEN4(ctrl->version)) {
+						tmp = ctrl->regs_store[SPU_IRQ_ISR / 4];
+						tmp &= ~mask;
+						ctrl->regs_store[SPU_IRQ_ISR / 4] = tmp;
+					} else
+						tmp = mask;
 					ctrl->regs_store[SPU_IRQ_ISR / 4] = tmp;
-				} else
-					tmp = mask;
-				ctrl->regs_store[SPU_IRQ_ISR / 4] = tmp;
 
-				/*
-				 * if it is suspended, we can't access real register,
-				 * should only change the stored value to let them be
-				 * valid in resume.
-				 */
-				tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
-				tmp |= mask;
-				ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
+					/*
+					 * if it is suspended, we can't access real register,
+					 * should only change the stored value to let them be
+					 * valid in resume.
+					 */
+					tmp = ctrl->regs_store[SPU_IRQ_ENA / 4];
+					tmp |= mask;
+					ctrl->regs_store[SPU_IRQ_ENA / 4] = tmp;
+				} else
+					ctrl->irq_status |= mask;
 			} else {
 				if (!DISP_GEN4(ctrl->version)) {
 					tmp = readl(ctrl_regs(path) + SPU_IRQ_ISR);
@@ -1910,7 +1916,7 @@ static int mmphw_probe(struct platform_device *pdev)
 	pm_runtime_forbid(ctrl->dev);
 
 	ctrl->version = readl_relaxed(ctrl->reg_base + LCD_VERSION);
-
+	ctrl->irq_status = readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA);
 	/* register lcd internal clock firstly */
 	if (mmp_display_clk_init(ctrl) < 0) {
 		dev_err(ctrl->dev, "register clk failure\n");
@@ -2024,26 +2030,32 @@ static void mmphw_regs_store(struct mmphw_ctrl *ctrl)
 {
 	int i = 0;
 
-	if (ctrl->regs_store)
+	if (ctrl->regs_store) {
 		/* store registers */
 		while (i < ctrl->regs_len) {
 			ctrl->regs_store[i] =
 				readl_relaxed(ctrl->reg_base + i * 4);
 			i++;
 		}
+	} else
+		/* only store IRQ mask, becaue will clear IRQ mask when suspend */
+		ctrl->irq_status = readl_relaxed(ctrl->reg_base + SPU_IRQ_ENA);
 }
 
 static void mmphw_regs_recovery(struct mmphw_ctrl *ctrl)
 {
 	int i = 0;
 
-	if (ctrl->regs_store)
+	if (ctrl->regs_store) {
 		/* recovery registers */
 		while (i < ctrl->regs_len) {
 			writel_relaxed(ctrl->regs_store[i],
 				ctrl->reg_base + i * 4);
 			i++;
 		}
+	} else
+		/* only restore IRQ mask when resume */
+		writel_relaxed(ctrl->irq_status, ctrl->reg_base + SPU_IRQ_ENA);
 }
 
 #if defined(CONFIG_PM_SLEEP) || defined(CONFIG_PM_RUNTIME)
@@ -2053,13 +2065,26 @@ static int mmphw_runtime_suspend(struct device *dev)
 	struct mmphw_ctrl *ctrl = platform_get_drvdata(pdev);
 	struct mmp_path *path = ctrl->path_plats[0].path;
 	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
+	unsigned long flags;
 
+	/*
+	 * in smp mode, if core A just trigger LCD irq and don't start to run irq handler,
+	 * core B run early suspend and dsiable the HCLK, then when core A run to
+	 * handler, can't read/write LCD registers becasue HCLK is disabled by core B,
+	 * then the IRQ can't be cleard, will cause LCD IRQ storm when  core resume,
+	 * so just disable IRQ and clear it before entering suspend
+	*/
+	mutex_lock(&ctrl->access_ok);
+	spin_lock_irqsave(&path->irq_lock, flags);
 	ctrl->status = MMP_OFF;
-	if (ctrl->regs_store) {
-		mutex_lock(&ctrl->access_ok);
-		mmphw_regs_store(ctrl);
-		mutex_unlock(&ctrl->access_ok);
-	}
+	mmphw_regs_store(ctrl);
+	writel_relaxed(0x0, ctrl->reg_base + SPU_IRQ_ENA);
+	if (!DISP_GEN4(ctrl->version))
+		writel_relaxed(0x0, ctrl->reg_base + SPU_IRQ_ISR);
+	else
+		writel_relaxed(0xFFFFFFFF, ctrl->reg_base + SPU_IRQ_ISR);
+	spin_unlock_irqrestore(&path->irq_lock, flags);
+	mutex_unlock(&ctrl->access_ok);
 
 	if (vdma)
 		vdma->ops->runtime_onoff(0);
@@ -2073,13 +2098,24 @@ static int mmphw_runtime_resume(struct device *dev)
 	struct mmphw_ctrl *ctrl = platform_get_drvdata(pdev);
 	struct mmp_path *path = ctrl->path_plats[0].path;
 	struct mmp_vdma_info *vdma = path ? (path->overlays[0].vdma) : NULL;
+	unsigned long flags;
 
-	if (ctrl->regs_store) {
-		mutex_lock(&ctrl->access_ok);
+	/*
+	 * in smp mode, if core A just trigger LCD irq and don't start to run irq handler,
+	 * core B run early suspend and dsiable the HCLK, then when core A run to
+	 * handler, can't read/write LCD registers becasue HCLK is disabled by core B,
+	 * then the IRQ can't be cleard, will cause LCD IRQ storm when  core resume,
+	 * so just disable IRQ and clear it before entering suspend
+	*/
+	mutex_lock(&ctrl->access_ok);
+	if (path) {
+		spin_lock_irqsave(&path->irq_lock, flags);
 		mmphw_regs_recovery(ctrl);
-		mutex_unlock(&ctrl->access_ok);
-	}
-	ctrl->status = MMP_ON;
+		ctrl->status = MMP_ON;
+		spin_unlock_irqrestore(&path->irq_lock, flags);
+	} else
+		ctrl->status = MMP_ON;
+	mutex_unlock(&ctrl->access_ok);
 
 	if (vdma)
 		vdma->ops->runtime_onoff(1);

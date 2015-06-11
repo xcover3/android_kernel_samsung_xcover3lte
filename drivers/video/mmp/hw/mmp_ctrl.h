@@ -1238,6 +1238,7 @@ struct mmphw_ctrl {
 
 	u32 *regs_store;
 	u32 regs_len;
+	u32 irq_status;
 
 	/*pathes*/
 	int path_num;
