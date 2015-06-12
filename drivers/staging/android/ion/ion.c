@@ -771,6 +771,35 @@ void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle)
 }
 EXPORT_SYMBOL(ion_unmap_kernel);
 
+static struct mutex dfslock;
+static struct rb_root *ion_device_root;
+
+static int is_client_alive(struct ion_client *client)
+{
+	struct rb_node *node;
+	struct ion_client *tmp;
+	struct ion_device *dev;
+
+	node = ion_device_root->rb_node;
+	dev = container_of(node, struct ion_device, lock);
+
+	down_read(&dev->lock);
+	while (node) {
+		tmp = rb_entry(node, struct ion_client, node);
+		if (client < tmp)
+			node = node->rb_left;
+		else if (client > tmp)
+			node = node->rb_right;
+		else {
+			up_read(&dev->lock);
+			return 1;
+		}
+	}
+
+	up_read(&dev->lock);
+	return 0;
+}
+
 static int ion_debug_client_show(struct seq_file *s, void *unused)
 {
 	struct ion_client *client = s->private;
@@ -779,6 +808,12 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 	const char *names[ION_NUM_HEAP_IDS] = {NULL};
 	int i;
 
+	mutex_lock(&dfslock);
+	if (!is_client_alive(client)) {
+		seq_printf(s, "ion_client 0x%p dead, can't dump its buffers\n", client);
+		mutex_unlock(&dfslock);
+		return 0;
+	}
 	mutex_lock(&client->lock);
 	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
 		struct ion_handle *handle = rb_entry(n, struct ion_handle,
@@ -790,6 +825,7 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 		sizes[id] += handle->buffer->size;
 	}
 	mutex_unlock(&client->lock);
+	mutex_unlock(&dfslock);
 
 	seq_printf(s, "%16.16s: %16.16s\n", "heap_name", "size_in_bytes");
 	for (i = 0; i < ION_NUM_HEAP_IDS; i++) {
@@ -921,6 +957,7 @@ void ion_client_destroy(struct ion_client *client)
 	struct rb_node *n;
 
 	pr_debug("%s: %d\n", __func__, __LINE__);
+	mutex_lock(&dfslock);
 	while ((n = rb_first(&client->handles))) {
 		struct ion_handle *handle = rb_entry(n, struct ion_handle,
 						     node);
@@ -939,6 +976,7 @@ void ion_client_destroy(struct ion_client *client)
 	kfree(client->display_name);
 	kfree(client->name);
 	kfree(client);
+	mutex_unlock(&dfslock);
 }
 EXPORT_SYMBOL(ion_client_destroy);
 
@@ -1660,6 +1698,7 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	seq_printf(s, "%16.s %16.s %16.s\n", "client", "pid", "size");
 	seq_printf(s, "----------------------------------------------------\n");
 
+	mutex_lock(&dfslock);
 	for (n = rb_first(&dev->clients); n; n = rb_next(n)) {
 		struct ion_client *client = rb_entry(n, struct ion_client,
 						     node);
@@ -1677,6 +1716,7 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 				   client->pid, size);
 		}
 	}
+	mutex_unlock(&dfslock);
 
 	seq_printf(s, "\nlist of buffers allocated:\n");
 	seq_printf(s, "%8.s %8.s %8.s %6.s %16.s\n",
@@ -1863,6 +1903,7 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 	if (!idev)
 		return ERR_PTR(-ENOMEM);
 
+	ion_device_root = &(idev->clients);
 	idev->dev.minor = MISC_DYNAMIC_MINOR;
 	idev->dev.name = "ion";
 	idev->dev.fops = &ion_fops;
@@ -1897,6 +1938,7 @@ debugfs_done:
 	init_rwsem(&idev->lock);
 	plist_head_init(&idev->heaps);
 	idev->clients = RB_ROOT;
+	mutex_init(&dfslock);
 	return idev;
 }
 
