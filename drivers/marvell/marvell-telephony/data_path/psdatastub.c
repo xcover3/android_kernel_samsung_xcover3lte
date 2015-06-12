@@ -17,6 +17,7 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
+#include <asm/byteorder.h>
 
 #include "data_path.h"
 #include "psdatastub.h"
@@ -36,7 +37,15 @@ struct pduhdr {
 	__be16 length;
 	__u8 offset;
 	__u8 reserved;
-	int cid;
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+	u32 cid:31;
+	u32 simid:1;
+#elif defined(__BIG_ENDIAN_BITFIELD)
+	u32 simid:1;
+	u32 cid:31;
+#else
+#error "incorrect endian"
+#endif
 } __packed;
 
 struct GCFDATA {
@@ -186,7 +195,8 @@ fill:
 	hdr = (void *)__skb_push(skb, sizeof(*hdr));
 	memset(hdr, 0, sizeof(*hdr));
 	hdr->length = cpu_to_be16(len);
-	hdr->cid = cid;
+	hdr->cid = cid & 0x7fffffff;
+	hdr->simid = (unsigned)cid >> 31;
 	memset(skb_put(skb, tailpad), 0, tailpad);
 
 	data_path_xmit(psd_dp, skb, prio);
@@ -205,14 +215,15 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 
 	while (remains > 0) {
 		struct psd_user *user;
-		struct pduhdr	*hdr = (void *)p;
+		const struct pduhdr	*hdr = (void *)p;
 		u32				iplen, offset_len;
 		u32				tailpad;
 		u32				total_len;
-		int				sim_id;
+		u32				cid;
 
 		total_len = be16_to_cpu(hdr->length);
 		offset_len = hdr->offset;
+		cid = hdr->cid;
 
 		if (unlikely(total_len < offset_len)) {
 			pr_err("%s: packet error\n", __func__);
@@ -221,8 +232,6 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 
 		iplen = total_len - offset_len;
 		tailpad = padding_size(sizeof(*hdr) + iplen + offset_len);
-		sim_id = (hdr->cid >> 31) & 1;
-		hdr->cid &= ~(1 << 31);
 
 		if (unlikely(remains < (iplen + offset_len
 					+ sizeof(*hdr) + tailpad))) {
@@ -238,22 +247,22 @@ enum data_path_result psd_data_rx(unsigned char *data, unsigned int length)
 		p += offset_len;
 		remains -= offset_len;
 
-		if (hdr->cid == NETWORK_EMBMS_CID)
-			hdr->cid = embms_cid;
-		if (likely(hdr->cid >= 0 && hdr->cid < MAX_CID_NUM)) {
+		if (cid == NETWORK_EMBMS_CID)
+			cid = embms_cid;
+		if (likely(cid >= 0 && cid < MAX_CID_NUM)) {
 			rcu_read_lock();
-			user = rcu_dereference(psd_users[hdr->cid]);
+			user = rcu_dereference(psd_users[cid]);
 			if (user && user->on_receive)
 				user->on_receive(user->priv, p, iplen);
 			rcu_read_unlock();
 			if (!user)
 				pr_err_ratelimited(
 					"%s: no psd user for cid:%d\n",
-					__func__, hdr->cid);
+					__func__, cid);
 		} else
 			pr_err_ratelimited(
 				"%s: invalid cid:%d, simid:%d\n",
-				__func__, hdr->cid, sim_id);
+				__func__, cid, hdr->simid);
 
 		p += iplen + tailpad;
 		remains -= iplen + tailpad;
