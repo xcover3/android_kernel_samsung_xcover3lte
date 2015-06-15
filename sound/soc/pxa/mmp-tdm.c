@@ -637,10 +637,15 @@ int mmp_tdm_static_slot_alloc(struct snd_pcm_substream *substream,
 		tx_slot_tol = slot - tdm_man_priv->tx_unused_slot_tol;
 
 		/* always allocate 4 slots for playback */
-		if (STATIC_TX_SLOT > slot)
-			slot = STATIC_TX_SLOT;
-		if (STATIC_TX_SLOT > tx_slot_tol)
-			tx_slot_tol = STATIC_TX_SLOT;
+		for (i = 0; i < tx_num; i++) {
+			if (tx[i] > 0) {
+				if (STATIC_TX_SLOT > slot)
+					slot = STATIC_TX_SLOT;
+				if (STATIC_TX_SLOT > tx_slot_tol)
+					tx_slot_tol = STATIC_TX_SLOT;
+				break;
+			}
+		}
 
 		for (i = 0; i < rx_num; i++) {
 			if (rx[i] > slot)
