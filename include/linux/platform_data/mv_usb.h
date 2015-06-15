@@ -88,7 +88,7 @@ struct pxa_usb_extern_ops {
 } \
 )
 
-#if defined(CONFIG_VBUS_88PM80X) || defined (CONFIG_VBUS_88PM830)
+#if defined(CONFIG_VBUS_88PM88X) || defined(CONFIG_VBUS_88PM80X) || defined(CONFIG_VBUS_88PM830)
 extern int mv_udc_register_client(struct notifier_block *nb);
 extern int mv_udc_unregister_client(struct notifier_block *nb);
 extern struct pxa_usb_extern_ops *pxa_usb_get_extern_ops(unsigned int id);
