@@ -151,14 +151,14 @@ static int charger_cable_is_valid(struct pm88x_charger_info *info)
 
 	ret = regmap_read(info->chip->base_regmap, PM88X_STATUS1, &val);
 	if (ret < 0) {
-		dev_info(info->chip->dev, "%s: fail to get status\n", __func__);
+		dev_info(info->dev, "%s: fail to get status\n", __func__);
 		return 0;
 	}
 
 	/* 1 - identify cable online, 0 - identify cable offline */
 	ret = (val & PM88X_CHG_DET) ? 1 : 0;
 
-	dev_info(info->chip->dev, "%s: charger cable is %s\n",
+	dev_info(info->dev, "%s: charger cable is %s\n",
 		 __func__, ret ? "valid" : "invalid");
 	return ret;
 }
@@ -895,13 +895,13 @@ static irqreturn_t pm88x_chg_fail_handler(int irq, void *data)
 	regmap_read(info->chip->battery_regmap, PM88X_CHG_LOG1, &value);
 
 	if (value & PM88X_BATT_REMOVAL)
-		dev_info(info->chip->dev, "battery is plugged out.\n");
+		dev_info(info->dev, "battery is plugged out.\n");
 
 	if (value & PM88X_CHG_REMOVAL)
-		dev_info(info->chip->dev, "charger cable is plugged out.\n");
+		dev_info(info->dev, "charger cable is plugged out.\n");
 
 	if (value & PM88X_BATT_TEMP_NOK) {
-		dev_err(info->chip->dev, "battery temperature is abnormal.\n");
+		dev_err(info->dev, "battery temperature is abnormal.\n");
 		/* handled in battery driver */
 	}
 
@@ -914,12 +914,12 @@ static irqreturn_t pm88x_chg_fail_handler(int irq, void *data)
 	}
 
 	if (value & PM88X_OV_VBAT) {
-		dev_err(info->chip->dev, "battery voltage is abnormal.\n");
+		dev_err(info->dev, "battery voltage is abnormal.\n");
 		info->allow_chg_after_overvoltage = 0;
 	}
 
 	if (value & PM88X_CHG_TIMEOUT) {
-		dev_err(info->chip->dev, "charge timeout.\n");
+		dev_err(info->dev, "charge timeout.\n");
 		info->allow_chg_after_tout = 0;
 		dev_err(info->dev, "charger timeout! restart charging in %d min\n",
 				CHG_RESTART_DELAY);
@@ -929,7 +929,7 @@ static irqreturn_t pm88x_chg_fail_handler(int irq, void *data)
 
 	if (value & PM88X_OV_ITEMP)
 		/* handled in a dedicated interrupt */
-		dev_err(info->chip->dev, "internal temperature abnormal.\n");
+		dev_err(info->dev, "internal temperature abnormal.\n");
 
 	/* write to clear */
 	regmap_write(info->chip->battery_regmap, PM88X_CHG_LOG1, value);
@@ -948,7 +948,7 @@ static irqreturn_t pm88x_chg_done_handler(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	dev_info(info->chip->dev, "charging done, battery full.\n");
+	dev_info(info->dev, "charging done, battery full.\n");
 
 	/* charging is stopped by HW */
 	info->full = 1;
@@ -972,7 +972,7 @@ static irqreturn_t pm88x_chg_good_handler(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	dev_info(info->chip->dev, "chg_good interrupt is served\n");
+	dev_info(info->dev, "chg_good interrupt is served\n");
 
 	info->cable_online = charger_cable_is_valid(info);
 	if (!info->cable_online) {
@@ -1090,7 +1090,7 @@ static void pm88x_chg_state_machine(struct pm88x_charger_info *info)
 
 	/* notify when status or online is changed */
 	if (prev_status != info->pm88x_charger_status) {
-		dev_dbg(info->chip->dev, "charger status changed from %s to %s\n",
+		dev_dbg(info->dev, "charger status changed from %s to %s\n",
 			charger_status[prev_status], charger_status[info->pm88x_charger_status]);
 		update_psy = 1;
 	}
