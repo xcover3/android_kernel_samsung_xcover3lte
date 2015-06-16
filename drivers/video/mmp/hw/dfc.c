@@ -841,8 +841,19 @@ int dfc_request(struct notifier_block *b, unsigned long val, void *v)
 			pr_err("LCD DFC Failed: The rate is 0\n");
 			return NOTIFY_DONE;
 		}
-	} else
+	} else {
 		rate = path->original_rate;
+		/*
+		 * For example, if orginal rate is from PLL4, whose
+		 * rate is 450.66666M, the value from clk_get is 450M,
+		 * then when DIP_END comes, it will set rate 450M, which
+		 * will cause set rate to 442M, rather than 450.6666M.
+		 * To fix the float issue, we need to round up the orignal
+		 * rate, it ensure come back to the right rate for original
+		 * rate from PLL1 and PLL4.
+		 */
+		rate = rate + 1;
+	}
 
 	ret = dfc_set_rate(path, (unsigned long)rate, val);
 	if (ret < 0)
