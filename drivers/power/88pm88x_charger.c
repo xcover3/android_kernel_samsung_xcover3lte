@@ -448,6 +448,27 @@ static bool is_charger_info_invalid(struct pm88x_charger_info *info)
 		return false;
 }
 
+static int cable_type_to_psy_type(int charger_cable_type)
+{
+	switch (charger_cable_type) {
+	case POWER_SUPPLY_TYPE_USB:
+	case POWER_SUPPLY_TYPE_USB_DCP:
+	case POWER_SUPPLY_TYPE_USB_CDP:
+		return charger_cable_type;
+	case POWER_SUPPLY_TYPE_UNKNOWN:
+	default:
+		/*
+		 * power supply type is not supposed to be changed,
+		 * however it can be changed in our design.
+		 *
+		 * when healthd is intialized, only the power supply
+		 * whose type is valid will be used. so we have convert
+		 * it to a valid one.
+		 */
+		return POWER_SUPPLY_TYPE_USB;
+	}
+}
+
 static int pm88x_charger_set_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		const union power_supply_propval *val)
@@ -462,7 +483,8 @@ static int pm88x_charger_set_property(struct power_supply *psy,
 		pm88x_change_chg_status(info, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
-		psy->type = val->intval;
+		psy->type = cable_type_to_psy_type(val->intval);
+		info->charger_cable_type = val->intval;
 		pm88x_charger_set_supply_type(info, psy);
 		break;
 	default:
@@ -491,7 +513,7 @@ static int pm88x_charger_get_property(struct power_supply *psy,
 		val->intval = info->allow_chg_ext;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
-		val->intval = info->charger_cable_type;
+		/* this is never used, use power_supply.type instead */
 		break;
 	default:
 		return -EINVAL;
@@ -588,7 +610,7 @@ static void pm88x_charger_set_supply_type(struct pm88x_charger_info *info,
 					  struct power_supply *psy)
 {
 	mutex_lock(&info->type_lock);
-	switch (psy->type) {
+	switch (info->charger_cable_type) {
 	case POWER_SUPPLY_TYPE_USB:
 		info->limit_cur = 500;
 		info->type_is_valid = true;
@@ -621,9 +643,6 @@ static void pm88x_charger_set_supply_type(struct pm88x_charger_info *info,
 		break;
 	}
 	mutex_unlock(&info->type_lock);
-
-	/* record the charger cable type */
-	info->charger_cable_type = psy->type;
 
 	if (info->cable_online)
 		pm88x_config_charger(info);
