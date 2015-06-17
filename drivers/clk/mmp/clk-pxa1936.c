@@ -579,10 +579,26 @@ static struct mmp_clk_mix_clk_table gc3d_pptbl[] = {
 	{.rate = 832000000, .parent_index = 0, .xtc = 0x00066655, },
 };
 
+static struct mmp_clk_mix_clk_table gc3d_pptbl_pxa1936_TSMC_B0[] = {
+	{.rate = 156000000, .parent_index = 1, .xtc = 0x00000044, },
+	{.rate = 312000000, .parent_index = 1, .xtc = 0x00000044, },
+	{.rate = 416000000, .parent_index = 0, .xtc = 0x00055544, },
+	{.rate = 528000000, .parent_index = 2, .xtc = 0x00055544, },
+	{.rate = 624000000, .parent_index = 1, .xtc = 0x00055555, },
+	{.rate = 705000000, .parent_index = 3, .xtc = 0x00066655, },
+	{.rate = 832000000, .parent_index = 0, .xtc = 0x00066655, },
+};
+
 static struct mmp_clk_mix_config gc3d_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 3, 18, 15),
 	.table = gc3d_pptbl,
 	.table_size = ARRAY_SIZE(gc3d_pptbl),
+};
+
+static struct mmp_clk_mix_config gc3d_mix_config_pxa1936_TSMC_B0 = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 3, 18, 15),
+	.table = gc3d_pptbl_pxa1936_TSMC_B0,
+	.table_size = ARRAY_SIZE(gc3d_pptbl_pxa1936_TSMC_B0),
 };
 
 /* GC shader */
@@ -597,10 +613,26 @@ static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
 	{.rate = 832000000, .parent_index = 0, },
 };
 
+static struct mmp_clk_mix_clk_table gcsh_pptbl_pxa1936_TSMC_B0[] = {
+	{.rate = 156000000, .parent_index = 1, },
+	{.rate = 312000000, .parent_index = 1, },
+	{.rate = 416000000, .parent_index = 0, },
+	{.rate = 528000000, .parent_index = 2, },
+	{.rate = 624000000, .parent_index = 1, },
+	{.rate = 705000000, .parent_index = 3, },
+	{.rate = 832000000, .parent_index = 0, },
+};
+
 static struct mmp_clk_mix_config gcsh_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 28, 3, 21, 31),
 	.table = gcsh_pptbl,
 	.table_size = ARRAY_SIZE(gcsh_pptbl),
+};
+
+static struct mmp_clk_mix_config gcsh_mix_config_pxa1936_TSMC_B0 = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 28, 3, 21, 31),
+	.table = gcsh_pptbl_pxa1936_TSMC_B0,
+	.table_size = ARRAY_SIZE(gcsh_pptbl_pxa1936_TSMC_B0),
 };
 
 /* GC 2D */
@@ -848,11 +880,19 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				0x1, 0x1, 0x0, 0, &gc2d_lock);
 	clk_prepare_enable(clk);
 
-	gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
-	gc3d_mix_config.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU_XTC;
-	clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk",
-				(const char **)gc3d_parent_names, ARRAY_SIZE(gc3d_parent_names),
-				0, &gc3d_mix_config, &gc_lock);
+	if (get_helan3_svc_version() == SVC_TSMC_B0) {
+		gc3d_mix_config_pxa1936_TSMC_B0.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		gc3d_mix_config_pxa1936_TSMC_B0.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU_XTC;
+		clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk",
+					(const char **)gc3d_parent_names, ARRAY_SIZE(gc3d_parent_names),
+					0, &gc3d_mix_config_pxa1936_TSMC_B0, &gc_lock);
+	} else {
+		gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		gc3d_mix_config.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU_XTC;
+		clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk",
+					(const char **)gc3d_parent_names, ARRAY_SIZE(gc3d_parent_names),
+					0, &gc3d_mix_config, &gc_lock);
+	}
 #ifdef CONFIG_PM_DEVFREQ
 	__init_comp_devfreq_table(clk, DEVFREQ_GPU_3D);
 #endif
@@ -868,9 +908,17 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 
 	parent_names = (const char **)gcsh_parent_names;
 	parent_num = ARRAY_SIZE(gcsh_parent_names);
-	clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk",
-				(const char **)gcsh_parent_names, ARRAY_SIZE(gcsh_parent_names),
-				0, &gcsh_mix_config, &gc_lock);
+	if (get_helan3_svc_version() == SVC_TSMC_B0) {
+		gcsh_mix_config_pxa1936_TSMC_B0.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk",
+					(const char **)gcsh_parent_names, ARRAY_SIZE(gcsh_parent_names),
+					0, &gcsh_mix_config_pxa1936_TSMC_B0, &gc_lock);
+	} else {
+		gcsh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk",
+					(const char **)gcsh_parent_names, ARRAY_SIZE(gcsh_parent_names),
+					0, &gcsh_mix_config, &gc_lock);
+	}
 #ifdef CONFIG_PM_DEVFREQ
 	__init_comp_devfreq_table(clk, DEVFREQ_GPU_SH);
 #endif
