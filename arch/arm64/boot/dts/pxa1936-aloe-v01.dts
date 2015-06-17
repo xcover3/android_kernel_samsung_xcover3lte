@@ -57,6 +57,11 @@
 	model = "Marvell PXA1936 Aloe V01 Development Board";
 	compatible = "marvell,pxa1936-dkb", "marvell,pxa1936";
 	soc {
+		axi@d4200000 {  /* AXI */
+			sdh0: sdh@d4280000 {
+				cd-gpios = <&gpio 50 0>;
+			};
+		};
 		apb@d4000000 {
 			twsi1: i2c@d4010800 {
 				touch1: s3202@720p {
