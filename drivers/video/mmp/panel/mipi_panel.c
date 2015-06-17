@@ -975,11 +975,14 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 					&plat_data->disable_cmds);
 
 			if (of_get_named_gpio(child_np, "bl_gpio", 0) < 0) {
+				if (of_get_named_gpio(child_np, "pwm-cmd", 0) >= 0) {
 				mmp_dsi_panel_parse_cmds(child_np,
 					"marvell,dsi-panel-backlight-set-brightness-cmds",
 					&plat_data->brightness_cmds);
 				mmp_dsi_panel.set_brightness =
 					mmp_dsi_panel_set_bl_panel;
+				} else
+					mmp_dsi_panel.set_brightness = NULL;
 			} else
 				mmp_dsi_panel.set_brightness =
 					mmp_dsi_panel_set_bl_gpio;
