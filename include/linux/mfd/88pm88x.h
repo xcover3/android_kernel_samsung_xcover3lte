@@ -190,6 +190,7 @@ struct pm88x_chip {
 	u8 powerdown1;
 	u8 powerdown2;
 	u8 powerup;
+	s64 pre_ccnt_uc;
 	bool trimming_status;
 
 	struct notifier_block reboot_notifier;

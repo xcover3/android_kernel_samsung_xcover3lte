@@ -344,6 +344,51 @@ static void pm88x_verify_is_trimmed(struct pm88x_chip *chip)
 	}
 }
 
+/*
+ * fuel gauge initialization,
+ * stored CC for later use before GPADC enable.
+ */
+int pm88x_pre_fg_init(struct pm88x_chip *chip)
+{
+	int ret;
+	unsigned int val, mask;
+	u8 buf[5];
+
+	/*
+	 * set SD_PWRUP to enable sigma-delta
+	 * set CC_CLR_ON_RD to clear coulomb counter on read
+	 * set CC_EN to enable coulomb counter
+	 */
+	val = mask = PM88X_SD_PWRUP | PM88X_CC_CLR_ON_RD | PM88X_CC_EN;
+	ret = regmap_update_bits(chip->battery_regmap, PM88X_CC_CONFIG1,
+				 mask, val);
+	/* read columb counter to get the original SoC value */
+	regmap_read(chip->battery_regmap, PM88X_CC_CONFIG2, &val);
+	/*
+	 * set PM88X_CC_READ_REQ to read Qbat_cc,
+	 * if it has been set, then it means the data not ready
+	 */
+	if (!(val & PM88X_CC_READ_REQ))
+		regmap_update_bits(chip->battery_regmap, PM88X_CC_CONFIG2,
+				   PM88X_CC_READ_REQ, PM88X_CC_READ_REQ);
+	/* wait until Qbat_cc is ready */
+	do {
+		regmap_read(chip->battery_regmap, PM88X_CC_CONFIG2,
+			    &val);
+	} while ((val & PM88X_CC_READ_REQ));
+
+	ret = regmap_bulk_read(chip->battery_regmap, PM88X_CC_VAL1,
+			       buf, 5);
+	if (ret < 0)
+		return ret;
+	chip->pre_ccnt_uc = (s64) (((s64)(buf[4]) << 32)
+			 | (u64)(buf[3] << 24) | (u64)(buf[2] << 16)
+			 | (u64)(buf[1] << 8) | (u64)buf[0]);
+	dev_info(chip->dev, "buf[0 ~ 4] = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
+		 buf[0], buf[1], buf[2], buf[3], buf[4]);
+	return 0;
+}
+
 int pm88x_post_init_chip(struct pm88x_chip *chip)
 {
 	int ret;
@@ -375,6 +420,11 @@ int pm88x_post_init_chip(struct pm88x_chip *chip)
 	}
 	chip->rtc_wakeup = !!(val & PM88X_ALARM_WAKEUP);
 
+	ret = pm88x_pre_fg_init(chip);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to initial fuel gauge: %d\n", ret);
+		return ret;
+	}
 	parse_powerup_down_log(chip);
 
 	return 0;

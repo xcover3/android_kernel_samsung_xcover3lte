@@ -41,21 +41,6 @@
 
 #define PM88X_VBAT_LOW_TH		(0x18)
 
-#define PM88X_CC_CONFIG1		(0x01)
-#define PM88X_CC_EN			(1 << 0)
-#define PM88X_CC_CLR_ON_RD		(1 << 2)
-#define PM88X_SD_PWRUP			(1 << 3)
-
-#define PM88X_CC_CONFIG2		(0x02)
-#define PM88X_CC_READ_REQ		(1 << 0)
-#define PM88X_OFFCOMP_EN		(1 << 1)
-
-#define PM88X_CC_VAL1			(0x03)
-#define PM88X_CC_VAL2			(0x04)
-#define PM88X_CC_VAL3			(0x05)
-#define PM88X_CC_VAL4			(0x06)
-#define PM88X_CC_VAL5			(0x07)
-
 #define PM88X_IBAT_VAL1			(0x08)		/* LSB */
 #define PM88X_IBAT_VAL2			(0x09)
 #define PM88X_IBAT_VAL3			(0x0a)
@@ -1545,62 +1530,52 @@ static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 		return true;
 	}
 
-	/* 0. set the CCNT_LOW_TH before the CC_EN is set 23.43mC/LSB */
+	/* set the CCNT_LOW_TH before the CC_EN is set 23.43mC/LSB */
 	tmp = ccnt_data.alart_cc * 100 / 2343;
 	buf[0] = (u8)(tmp & 0xff);
 	buf[1] = (u8)((tmp & 0xff00) >> 8);
 	regmap_bulk_write(info->chip->battery_regmap, PM88X_CC_LOW_TH1, buf, 2);
 
-	/* 1. set the EOC battery current as 100mA, done in charger driver */
-
-	/* 2. use battery current to decide the EOC */
+	/* use battery current to decide the EOC */
 	data = mask = PM88X_IBAT_MEAS_EN;
 	ret = regmap_update_bits(info->chip->battery_regmap,
 				PM88X_IBAT_EOC_CONFIG, mask, data);
-	/*
-	 * 3. set SD_PWRUP to enable sigma-delta
-	 *    set CC_CLR_ON_RD to clear coulomb counter on read
-	 *    set CC_EN to enable coulomb counter
-	 */
-	data = mask = PM88X_SD_PWRUP | PM88X_CC_CLR_ON_RD | PM88X_CC_EN;
-	ret = regmap_update_bits(info->chip->battery_regmap, PM88X_CC_CONFIG1,
-				 mask, data);
-	if (ret < 0)
-		goto out;
+
+	/* enable CC by default */
 	pm88x_cc_enable_bootup(info);
 
-	/* 5. enable VBAT measurement */
+	/* enable VBAT measurement */
 	data = mask = PM88X_VBAT_MEAS_EN;
 	ret = regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG1,
 				 mask, data);
 	if (ret < 0)
 		goto out;
 
-	/* 6. hold the sleep counter until this bit is released or be reset */
+	/* hold the sleep counter until this bit is released or be reset */
 	data = mask = PM88X_SLP_CNT_HOLD;
 	ret = regmap_update_bits(info->chip->base_regmap,
 				 PM88X_SLP_CNT2, mask, data);
 	if (ret < 0)
 		goto out;
 
-	/* 7. set the VBAT threashold as 3000mV: 0x890 * 1.367mV/LSB = 2.996V */
+	/* set the VBAT threashold as 3000mV: 0x890 * 1.367mV/LSB = 2.996V */
 	ret = regmap_write(info->chip->gpadc_regmap, PM88X_VBAT_LOW_TH, 0x89);
 	if (ret < 0)
 		goto out;
 
-	/* 8. disable battery detection by HW */
+	/* disable battery detection by HW */
 	ret = regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG8,
 				 PM88X_GPADC_BD_EN, 0);
 	if (ret < 0)
 		goto out;
 
-	/* 9. disable battery temperature monitoring */
+	/* disable battery temperature monitoring */
 	ret = regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
 				 PM88X_BATTEMP_MON_EN, 0);
 	if (ret < 0)
 		goto out;
 
-	/* 10. disable battery temperature monitoring2 for 88pm886-A1 and 88pm880-xx */
+	/* disable battery temperature monitoring2 for 88pm886-A1 and 88pm880-xx */
 	switch (info->chip->type) {
 	case PM886:
 		if (info->chip->chip_id == PM886_A1)
@@ -1620,6 +1595,36 @@ static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 	}
 out:
 	return ret;
+}
+
+/* add stored CC to soc from saved. */
+static int pm88x_battery_init_calc_ccnt(struct pm88x_battery_info *info,
+				   struct ccnt *ccnt_val, int soc_from_save)
+{
+	int factor, last_cc, soc_to_save;
+	s64 ccnt_uc = 0, ccnt_mc = 0;
+
+	/* get the original SoC value */
+	ccnt_uc = info->chip->pre_ccnt_uc;
+	/* Factor is nC */
+	factor = (info->cc_fixup) * 715 / 100;
+	ccnt_uc = ccnt_uc * factor;
+	ccnt_uc = div_s64(ccnt_uc, 1000);
+	ccnt_mc = div_s64(ccnt_uc, 1000);
+	last_cc = (ccnt_val->max_cc / (1000 * PM88X_CAP_FAC100)) * soc_from_save;
+
+	/* add the value */
+	last_cc += ccnt_mc;
+	/* clap battery SoC for sanity check */
+	if (last_cc > ccnt_val->max_cc)
+		soc_to_save = 1000 * PM88X_CAP_FAC100;
+	if (last_cc < 0)
+		soc_to_save = 0;
+
+	soc_to_save = last_cc * 100 / (ccnt_val->max_cc / (10 * PM88X_CAP_FAC100));
+	dev_info(info->dev, "%s<-- ccnt_val->soc: %d%%, new->last_cc: %d mC\n",
+		 __func__, soc_to_save, last_cc);
+	return soc_to_save;
 }
 
 static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
@@ -1669,6 +1674,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	dev_info(info->dev,
 		 "---> %s: soc_from_saved = %d, reliable_from_saved = %d\n",
 		 __func__, soc_from_saved, reliable_from_saved);
+	soc_from_saved = pm88x_battery_init_calc_ccnt(info, ccnt_val, soc_from_saved);
 
 	/* ---------------------------------------------------------------- */
 	/*
@@ -1811,7 +1817,6 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 end:
 	/* update ccnt_data timely */
 	init_ccnt_data(ccnt_val, *initial_soc);
-	pm88x_battery_calc_ccnt(info, &ccnt_data);
 	dev_info(info->dev,
 		 "<---- %s: initial soc = %d\n", __func__, *initial_soc);
 
