@@ -25,6 +25,10 @@
 	memory {
 		reg = <0x00000000 0x10000000>;
 	};
+	
+	aliases {
+		i2c8 = &sensori2c;
+	};
 
 	soc {
 		devfreq-ddr {
@@ -881,6 +885,14 @@
 					MFP_DEFAULT;
 				};
 
+				sensor_i2c_pmx: sensor_i2c_pmx {
+					pinctrl-single,pins = <
+						GPIO79 AF0
+						GPIO80 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
 				ccic1_pmx_func1: ccic1_pmx_func1 {
 					pinctrl-single,pins = <
 						GPIO77 AF1
@@ -1078,6 +1090,18 @@
 					reg = <0x30>;
 					avdd-supply = <&ldo18>;
 				};
+			};
+
+			sensori2c: i2c-gpio@8 {
+				compatible = "i2c-gpio";
+				gpios = <&gpio 80 0 &gpio 79 0>;
+				i2c-gpio,delay-us = <3>;
+				i2c-gpio,timeout-ms = <100>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&sensor_i2c_pmx>;
+				status = "okay";
 			};
 
 			/* SSPA port 0 */

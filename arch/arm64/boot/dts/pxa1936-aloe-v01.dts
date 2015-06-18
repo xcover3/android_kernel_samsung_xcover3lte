@@ -199,6 +199,20 @@
 					avdd-supply = <&ldo16>;
 					};
 			};
+			sensori2c: i2c-gpio@8{
+				ltr_55x@23 {
+					compatible = "LITEON,ltr_55x";
+					reg = <0x23>;
+					interrupt-parent = <&gpio>;
+					interrupts = <20 0x1>;
+					irq-gpios = <&gpio 20 0>;
+					vdd-supply = <&ldo11>;
+					ps-threshold = <650>;
+					ps-hysteresis-threshold = <500>;
+					als-polling-time = <200>;
+					status = "okay";
+				};
+			};
 			map@d1200000 {
 				pmic-name = "88pm880";
 				vccmain-supply = <&buck1aslp>;
