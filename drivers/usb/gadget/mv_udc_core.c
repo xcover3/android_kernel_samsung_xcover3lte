@@ -2579,8 +2579,10 @@ static int mv_udc_psy_set_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_TYPE_USB_DCP:
 			udc->charger_type = DCP_CHARGER;
+			break;
 		case POWER_SUPPLY_TYPE_USB_CDP:
 			udc->charger_type = CDP_CHARGER;
+			break;
 		case POWER_SUPPLY_TYPE_USB:
 			udc->charger_type = SDP_CHARGER;
 			break;
