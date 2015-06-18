@@ -775,7 +775,9 @@ static int lis3dh_acc_disable(struct lis3dh_acc_data *acc)
 static int lis3dh_acc_misc_open(struct inode *inode, struct file *file)
 {
 	int err;
+
 	err = nonseekable_open(inode, file);
+
 	if (err < 0)
 		return err;
 
@@ -796,7 +798,6 @@ static long lis3dh_acc_misc_ioctl(struct file *file, unsigned int cmd,
 	int interval;
 	int xyz[3] = { 0 };
 	struct lis3dh_acc_data *acc = file->private_data;
-
 	switch (cmd) {
 	case LIS3DH_ACC_IOCTL_GET_DELAY:
 		interval = acc->pdata->poll_interval;
@@ -1125,6 +1126,7 @@ static const struct file_operations lis3dh_acc_misc_fops = {
 	.owner = THIS_MODULE,
 	.open = lis3dh_acc_misc_open,
 	.unlocked_ioctl = lis3dh_acc_misc_ioctl,
+	.compat_ioctl = lis3dh_acc_misc_ioctl,
 };
 
 static struct miscdevice lis3dh_acc_misc_device = {
@@ -1132,6 +1134,54 @@ static struct miscdevice lis3dh_acc_misc_device = {
 	.name = LIS3DH_ACC_DEV_NAME,
 	.fops = &lis3dh_acc_misc_fops,
 };
+
+static ssize_t show_lis3dh_delay(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lis3dh_acc_data *acc = lis3dh_acc_misc_data; //dev_get_drvdata(dev);
+    int interval = acc->pdata->poll_interval;
+	return snprintf(buf, PAGE_SIZE, "lis3dh %d\n", interval);
+}
+
+static ssize_t store_lis3dh_delay(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lis3dh_acc_data *acc = lis3dh_acc_misc_data;  //dev_get_drvdata(dev);
+	int interval = simple_strtoul(buf, NULL, 10);
+
+    if (interval < 0 || interval > 1000)
+			return -EINVAL;
+
+	acc->pdata->poll_interval = max(interval, acc->pdata->min_interval);
+	lis3dh_acc_update_odr(acc, acc->pdata->poll_interval);
+
+	return size;
+}
+
+static DEVICE_ATTR(delay_acc, 0666, show_lis3dh_delay, store_lis3dh_delay);
+
+static ssize_t show_lis3dh_enable(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lis3dh_acc_data *acc = lis3dh_acc_misc_data; //dev_get_drvdata(dev);
+	return snprintf(buf, PAGE_SIZE, "lis3dh %d\n", acc->enabled);
+}
+
+static ssize_t store_lis3dh_enable(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lis3dh_acc_data *acc = lis3dh_acc_misc_data;  //dev_get_drvdata(dev);
+	bool value;
+
+	if (strtobool(buf, &value))
+		return -EINVAL;
+    if (value) {
+        lis3dh_acc_enable(acc);
+    }else {
+		lis3dh_acc_disable(acc);
+    }
+	return size;
+}
+
+static DEVICE_ATTR(gsensor, 0666, show_lis3dh_enable, store_lis3dh_enable);
 
 static void lis3dh_acc_input_work_func(struct work_struct *work)
 {
@@ -1284,38 +1334,38 @@ static struct lis3dh_acc_platform_data *lis3dh_acc_parse_dt(struct device *dev)
 		dev_err(dev, "fail to get min_interval\n");
 		goto fail;
 	}
-	ret = of_property_read_u8(np, "g_range", &pdata->g_range);
-	if (ret) {
+	ret = of_property_read_u32(np, "g_range", (u32*)&pdata->g_range);
+	if(ret){
 		dev_err(dev, "fail to get g_range\n");
 		goto fail;
 	}
-	ret = of_property_read_u8(np, "axis_map_x", &pdata->axis_map_x);
-	if (ret) {
+	ret = of_property_read_u32(np, "axis_map_x", (u32*)&pdata->axis_map_x);
+	if(ret){
 		dev_err(dev, "fail to get axis_map_x\n");
 		goto fail;
 	}
-	ret = of_property_read_u8(np, "axis_map_y", &pdata->axis_map_y);
-	if (ret) {
+	ret = of_property_read_u32(np, "axis_map_y", (u32*)&pdata->axis_map_y);
+	if(ret){
 		dev_err(dev, "fail to get axis_map_y\n");
 		goto fail;
 	}
-	ret = of_property_read_u8(np, "axis_map_z", &pdata->axis_map_z);
-	if (ret) {
+	ret = of_property_read_u32(np, "axis_map_z", (u32*)&pdata->axis_map_z);
+	if(ret){
 		dev_err(dev, "fail to get axis_map_z\n");
 		goto fail;
 	}
-	ret = of_property_read_u8(np, "negate_x", &pdata->negate_x);
-	if (ret) {
+	ret = of_property_read_u32(np, "negate_x", (u32*)&pdata->negate_x);
+	if(ret){
 		dev_err(dev, "fail to get negate_x\n");
 		goto fail;
 	}
-	ret = of_property_read_u8(np, "negate_y", &pdata->negate_y);
-	if (ret) {
+	ret = of_property_read_u32(np, "negate_y", (u32*)&pdata->negate_y);
+	if(ret){
 		dev_err(dev, "fail to get negate_y\n");
 		goto fail;
 	}
-	ret = of_property_read_u8(np, "negate_z", &pdata->negate_z);
-	if (ret) {
+	ret = of_property_read_u32(np, "negate_z", (u32*)&pdata->negate_z);
+	if(ret){
 		dev_err(dev, "fail to get negate_z\n");
 		goto fail;
 	}
@@ -1335,6 +1385,8 @@ static int lis3dh_acc_probe(struct i2c_client *client,
 
 	int err = -1;
 	int tempvalue;
+    struct class *gs_class;
+    struct device *gs_cmd_dev;
 	pr_info("sprd-gsensor: -- %s -- start !\n", __func__);
 	pr_debug("%s: probe start.\n", LIS3DH_ACC_DEV_NAME);
 
@@ -1501,6 +1553,22 @@ static int lis3dh_acc_probe(struct i2c_client *client,
 			"misc LIS3DH_ACC_DEV_NAME register failed\n");
 		goto err_input_cleanup;
 	}
+#if 1
+	gs_class = class_create(THIS_MODULE,"xr-gs");//client->name
+	if(IS_ERR(gs_class))
+		printk("Failed to create class(xr-gs)!\n");
+	gs_cmd_dev = device_create(gs_class, NULL, 0, NULL, "device");//device
+	if(IS_ERR(gs_cmd_dev))
+		printk("Failed to create device(gs_cmd_dev)!\n");
+	if(device_create_file(gs_cmd_dev, &dev_attr_gsensor) < 0) // /sys/class/xr-gs/device/gsensor
+	{
+	    printk("Failed to create device file(%s)!\n", dev_attr_gsensor.attr.name);
+	}
+	if(device_create_file(gs_cmd_dev, &dev_attr_delay_acc) < 0) // /sys/class/xr-gs/device/delay_acc
+	{
+	    printk("Failed to create device file(%s)!\n", dev_attr_delay_acc.attr.name);
+	}
+#endif
 
 	lis3dh_acc_device_power_off(acc);
 
