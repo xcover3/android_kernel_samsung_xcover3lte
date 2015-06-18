@@ -2630,7 +2630,7 @@ static int mv_udc_psy_register(struct mv_udc *udc)
 		return -EINVAL;
 
 	udc->udc_psy.name = "mv-udc-psy";
-	udc->udc_psy.type = POWER_SUPPLY_TYPE_USB;
+	udc->udc_psy.type = POWER_SUPPLY_TYPE_UNKNOWN;
 	udc->udc_psy.supplied_to = mv_udc_psy_supplied_to;
 	udc->udc_psy.num_supplicants = ARRAY_SIZE(mv_udc_psy_supplied_to);
 	udc->udc_psy.properties = mv_udc_psy_props;
