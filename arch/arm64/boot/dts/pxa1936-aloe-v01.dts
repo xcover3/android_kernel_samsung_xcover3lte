@@ -212,6 +212,26 @@
 					als-polling-time = <200>;
 					status = "okay";
 				};
+
+				lis3dh_acc@19 {
+					compatible = "ST,lis3dh_acc";
+					reg = <0x19>;
+					interrupt-parent = <&gpio>;
+					interrupts = <11 0x1>;
+					irq-gpios = <&gpio 11 0>;
+					vdd-supply = <&ldo11>;
+					poll_interval = <10>;
+					min_interval = <10>;
+					g_range = <0x0>;
+					axis_map_y = <0>;
+					axis_map_x = <1>;
+					axis_map_z = <2>;
+					negate_x = <0>;
+					negate_y = <0>;
+					negate_z = <1>;
+					status = "okay";
+				};
+
 			};
 			map@d1200000 {
 				pmic-name = "88pm880";
