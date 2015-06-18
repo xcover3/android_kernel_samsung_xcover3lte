@@ -1671,6 +1671,14 @@ config SENSORS_LTR558_I2C
 	  Say Y here if you have a ltr558 and ltr553  device on the board and use I2C
 	  communication, else say N.
 
+config SENSORS_LTR55X_I2C
+	tristate "LTR 55X proximity device with I2C bus"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have a ltr55X device on the board and use I2C
+	  communication, else say N.
+
 config SENSOR_EPL2182
 	tristate "EPL 2182 proximity and ambient light sensor"
 	depends on I2C
