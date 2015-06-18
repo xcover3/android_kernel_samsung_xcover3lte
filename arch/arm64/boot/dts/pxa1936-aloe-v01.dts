@@ -213,6 +213,22 @@
 					status = "okay";
 				};
 
+				ltr_558als@23 {
+					compatible = "LITEON,ltr_558als";
+					pinctrl-names = "default"; pinctrl-0 = <&sensor_pins>;
+					reg = <0x23>;
+					interrupt-parent = <&gpio>;
+					interrupts = <20 0x1>;
+					irq-gpios = <&gpio 20 0>;
+					vdd-supply = <&ldo11>;
+					ps-threshold = <650>;
+					ps-hysteresis-threshold = <500>;
+					als-polling-time = <200>;
+					prox_name = "proximity";
+					als_name = "als";
+					status = "okay";
+				};
+
 				lis3dh_acc@19 {
 					compatible = "ST,lis3dh_acc";
 					reg = <0x19>;

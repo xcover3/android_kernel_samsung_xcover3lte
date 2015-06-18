@@ -893,6 +893,13 @@
 					MFP_LPM_FLOAT;
 				};
 
+				sensor_pins: sensor_pins {
+					pinctrl-single,pins = <
+						GPIO20 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
 				ccic1_pmx_func1: ccic1_pmx_func1 {
 					pinctrl-single,pins = <
 						GPIO77 AF1
