@@ -1,0 +1,30 @@
+config INPUT_LSM6DS3
+         tristate "STMicroelectronics LSM6DS3 sensor"
+         depends on I2C && SYSFS
+         help
+           This driver support the STMicroelectronics LSM6DS3 sensor.To compile this driver as a module, choose M here. The module will be called lsm6ds3.
+
+if INPUT_LSM6DS3
+choice
+	prompt "LSM6DS3 bus selection"
+	default INPUT_LSM6DS3_I2C
+
+config INPUT_LSM6DS3_I2C
+	bool "I2C"
+
+config INPUT_LSM6DS3_SPI
+	bool "SPI"
+endchoice
+
+choice
+	prompt "LSM6DS3 mode selection"
+	default LSM6DS3_POLLING_MODE
+
+config LSM6DS3_POLLING_MODE
+	bool "Polling"
+
+config LSM6DS3_FIFO_MODE
+	bool "FIFO trigger"
+endchoice
+
+endif

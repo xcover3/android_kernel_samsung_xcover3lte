@@ -1029,6 +1029,7 @@ source drivers/hwmon/pmbus/Kconfig
 source drivers/hwmon/bmi160/Kconfig
 source drivers/hwmon/bme280/Kconfig
 source drivers/hwmon/bmp280/Kconfig
+source drivers/hwmon/lsm6ds3/Kconfig
 
 config SENSORS_SHT15
 	tristate "Sensiron humidity and temperature sensors. SHT15 and compat."
