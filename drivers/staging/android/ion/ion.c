@@ -781,7 +781,7 @@ static int is_client_alive(struct ion_client *client)
 	struct ion_device *dev;
 
 	node = ion_device_root->rb_node;
-	dev = container_of(node, struct ion_device, lock);
+	dev = container_of(ion_device_root, struct ion_device, clients);
 
 	down_read(&dev->lock);
 	while (node) {
