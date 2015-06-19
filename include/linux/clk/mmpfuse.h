@@ -7,6 +7,7 @@ extern unsigned int get_iddq_130(void);
 extern unsigned int get_skusetting(void);
 extern unsigned int get_chipfab(void);
 extern int get_fuse_suspd_voltage(void); /* unit: mV */
+extern int is_helan3_stepping_TSMC_B0(void);
 
 enum fab {
 	TSMC = 0,

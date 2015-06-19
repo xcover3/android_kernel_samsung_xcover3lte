@@ -318,6 +318,20 @@ char *convert_step_revision(unsigned int step_id)
 	return "not SEC and TSMC chip";
 }
 
+/*
+ * This interface will be used by GC to detect whether chip
+ * stepping is TSMC_B0, and they will use it to distinguish
+ * GC3d pp table.
+ */
+int is_helan3_stepping_TSMC_B0(void)
+{
+	if (chip_stepping == TSMC_28LP_B020A || chip_stepping == TSMC_28LP_B121A)
+		return 1;
+
+	return 0;
+}
+EXPORT_SYMBOL(is_helan3_stepping_TSMC_B0);
+
 static int __init __init_read_droinfo(void)
 {
 	struct fuse_info arg;
