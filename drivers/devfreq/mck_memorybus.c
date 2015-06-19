@@ -1373,8 +1373,8 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 				* devfreq_throughput_data.freq_table[i] / 100 / 100;
 			devfreq_throughput_data.throughput_table[i].down =
 				(devfreq_throughput_data.upthreshold[i]
-				* devfreq_throughput_data.ddr_efficiency
 				- devfreq_throughput_data.downdifferential)
+				* devfreq_throughput_data.ddr_efficiency
 				* devfreq_throughput_data.freq_table[i] / 100 / 100;
 		} else {
 			devfreq_throughput_data.throughput_table[i].up =
