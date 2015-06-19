@@ -198,6 +198,15 @@
 				sensor6: mmc3524x@30 {
 					avdd-supply = <&ldo16>;
 					};
+				lsm6ds3@6a {
+					compatible = "ST,lsm6ds3";
+					reg = <0x6a>;
+					interrupts = <91 0x0>;
+					irq-gpios = <&gpio 91 0>;
+					interrupt-parent = <&gpio>;
+					dovdd_1v8-supply = <&buck2>;
+					st,drdy-int-pin = <1>;
+					};
 			};
 			sensori2c: i2c-gpio@8{
 				ltr_55x@23 {
