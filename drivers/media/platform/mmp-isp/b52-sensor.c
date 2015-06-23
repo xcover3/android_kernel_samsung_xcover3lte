@@ -2185,6 +2185,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 	},
 #endif
 
+#ifdef CONFIG_B52_CAMERA_OV8858_FRONT
+	{
+		.compatible = "ovt,ov8858r2a_front",
+		.data = &b52_ov8858_front,
+	},
+#endif
 #ifdef CONFIG_B52_CAMERA_OV5648
 	{
 		.compatible = "ovt,ov5648",

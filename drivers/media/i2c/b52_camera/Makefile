@@ -1,6 +1,7 @@
 obj-$(CONFIG_B52_CAMERA_OV13850)		+= ov13850.o
 obj-$(CONFIG_B52_CAMERA_IMX219)		+= imx219.o
 obj-$(CONFIG_B52_CAMERA_OV8858)         += ov8858.o
+obj-$(CONFIG_B52_CAMERA_OV8858_FRONT)         += ov8858_front.o
 obj-$(CONFIG_B52_CAMERA_OV5648)         += ov5648.o
 obj-$(CONFIG_B52_CAMERA_OV2680)         += ov2680.o
 obj-$(CONFIG_B52_CAMERA_SR544)		+= sr544.o

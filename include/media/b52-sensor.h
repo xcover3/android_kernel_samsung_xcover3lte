@@ -329,6 +329,7 @@ extern struct b52_sensor_data b52_ov13850_13M;
 extern struct b52_sensor_data b52_ov13850r2a_13M;
 extern struct b52_sensor_data b52_imx219;
 extern struct b52_sensor_data b52_ov8858;
+extern struct b52_sensor_data b52_ov8858_front;
 extern struct b52_sensor_data b52_ov5648;
 extern struct b52_sensor_data b52_ov2680;
 extern struct b52_sensor_data b52_sr544;
