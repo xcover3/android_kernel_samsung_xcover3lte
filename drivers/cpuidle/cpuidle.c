@@ -33,6 +33,14 @@ static int enabled_devices;
 static int off __read_mostly;
 static int initialized __read_mostly;
 
+void __weak cpuidle_c2_lock(void)
+{
+}
+
+void __weak cpuidle_c2_unlock(void)
+{
+}
+
 int cpuidle_disabled(void)
 {
 	return off;

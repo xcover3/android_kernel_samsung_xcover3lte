@@ -207,4 +207,7 @@ static inline int cpuidle_register_governor(struct cpuidle_governor *gov)
 #define CPUIDLE_DRIVER_STATE_START	0
 #endif
 
+void __weak cpuidle_c2_lock(void);
+void __weak cpuidle_c2_unlock(void);
+
 #endif /* _LINUX_CPUIDLE_H */
