@@ -206,6 +206,26 @@ static void __init pxa1908_sdhc_reset_all(void)
 	__raw_writel(reg_tmp | (1), apmu_base + APMU_SDH0);
 }
 
+#define PMU_USB_CLK_RES_CTRL	0x5c
+static void __init pxa1908_usb_reset_all(void)
+{
+	unsigned int reg_tmp;
+	void __iomem *apmu_base;
+
+	apmu_base = regs_addr_get_va(REGS_ADDR_APMU);
+	if (!apmu_base) {
+		pr_err("failed to get apmu_base va\n");
+		return;
+	}
+
+	/* use bit0 and bit3 to reset all usb controls */
+	__raw_writel(0, apmu_base + PMU_USB_CLK_RES_CTRL);
+	udelay(10);
+	reg_tmp = __raw_readl(apmu_base + PMU_USB_CLK_RES_CTRL);
+	if (reg_tmp)
+		pr_err("failed to clear usb controller\n");
+}
+
 static void __init helanx_irq_init(void)
 {
 	irqchip_init();
@@ -236,6 +256,7 @@ void __init helanx_timer_init(void)
 #endif
 	clocksource_of_init();
 
+	pxa1908_usb_reset_all();
 	pxa1908_sdhc_reset_all();
 }
 
