@@ -543,6 +543,9 @@ static void pm88x_vbus_config(struct pm88x_vbus_info *info)
 
 	regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, gpadc_en, gpadc_en);
 
+	/* wait until the voltage is stable */
+	usleep_range(10000, 20000);
+
 	/* read ID level, and set the thresholds for GPADC to prepare for interrupt */
 	pm88x_update_id_level();
 }
