@@ -152,6 +152,7 @@ obj-$(CONFIG_SENSORS_STK3X1X)	+= stk3x1x.o
 obj-$(CONFIG_SENSORS_LIS3DH)	+= lis3dh.o
 obj-$(CONFIG_SENSORS_TSL2772)	+= tsl277x.o
 obj-$(CONFIG_SENSORS_MC3XXX)	+= mc3xxx.o
+obj-$(CONFIG_SENSORS_BMA2X2)	+= bma2x2.o
 obj-$(CONFIG_SENSORS_LTR558_I2C)	+= ltr_558als.o
 obj-$(CONFIG_SENSOR_EPL2182)	+= epl2182.o
 obj-$(CONFIG_SENSORS_LTR55X_I2C)	+= ltr55x.o
