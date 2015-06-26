@@ -2,6 +2,7 @@ Marvell HD720 TFT LCD panel
 
 Required properties:
 - compatible: should be "marvell,mmp-hx8394"
+- compatible = "marvell,mmp-hx8394d_jt"
 
 
 Optional properties:
