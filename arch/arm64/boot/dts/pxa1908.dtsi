@@ -977,6 +977,12 @@
 		reg = <0x2 0x0>;
 	};
 
+	soc-camera@3 {
+		compatible = "soc-camera-pdrv";
+		status = "disabled";
+		reg = <0x3 0x0>;
+	};
+
 	plat_cam {
 		compatible = "marvell,platform-cam";
 		status = "disabled";
