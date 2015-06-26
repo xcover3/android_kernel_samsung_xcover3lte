@@ -4,6 +4,7 @@ obj-$(CONFIG_MMP_PANEL_LG4591)     += mipi_lg4591.o
 obj-$(CONFIG_MMP_PANEL_OTM1281A)   += mipi_otm1281a.o
 obj-$(CONFIG_MMP_PANEL_TD043MGEA1) += paral_td043mgea1.o
 obj-$(CONFIG_MMP_PANEL_HX8394)     += mipi_hx8394.o
+obj-$(CONFIG_MMP_PANEL_HX8394D)    += mipi_hx8394d_jt.o
 obj-$(CONFIG_MMP_PANEL_FL10802)     += mipi_fl10802.o
 obj-$(CONFIG_MMP_PANEL_OTM8018B)     += mipi_otm8018b.o
 obj-$(CONFIG_MMP_PANEL_OTM1283A)     += mipi_otm1283a.o
