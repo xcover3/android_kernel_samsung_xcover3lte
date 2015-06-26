@@ -84,5 +84,6 @@ obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C)     += synaptics_dsx_i2c.o
 obj-$(CONFIG_TOUCHSCREEN_MSG2133)       += msg2133.o
 obj-$(CONFIG_TOUCHSCREEN_88MS100)   += 88ms100_touch.o
 obj-$(CONFIG_TOUCHSCREEN_MSG2138)       += msg2138.o
+obj-$(CONFIG_TOUCHSCREEN_MSTAR)       += mstarTouchPanel/
 obj-$(CONFIG_TOUCHSCREEN_FT6206)	+= ft6206_ts.o
 obj-$(CONFIG_TOUCHSCREEN_FOCALTECH)	+= focaltech/

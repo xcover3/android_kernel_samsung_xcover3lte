@@ -1,0 +1,8 @@
+#
+# TI's mstar Touchscreen driver.
+#
+config TOUCHSCREEN_MSTAR
+        tristate "MSTAR touchscreen driver"
+	depends on I2C
+		help
+		Say Y here if enable support for the MSTAR touchscreen controller.
