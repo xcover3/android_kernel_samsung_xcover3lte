@@ -28,3 +28,9 @@ config SOC_CAMERA_SP0A20_ECS
 	default y
 	help
 		Support for the sp0a20 0.3M camera sensor.
+config SOC_CAMERA_SP2529_ECS
+	tristate "sp2529 support based on ECS"
+	depends on ECS_DRIVER_SUBDEV
+	default y
+	help
+		Support for the sp2529 2M camera sensor.
