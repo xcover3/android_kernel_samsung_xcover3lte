@@ -1942,7 +1942,7 @@ static void __init pxa1936_clk_init(struct device_node *np)
 	clst1_core_params.max_cpurate = max_freq_fused;
 
 	profile = get_chipprofile();
-	if (get_helan3_svc_version() == SVC_1_11 || get_helan3_svc_version() == SVC_TSMC_B0) {
+	if (get_helan3_svc_version() == SVC_1_11) {
 		if ((profile >= 13) && (ddr_mode == DDR_800M_2X) && (max_freq_fused < CORE_1p8G))
 			panic("<1.8GHz SKU chip Don't support DDR 800 2x mode when profile >= 13 , will panic.\n");
 
@@ -1967,7 +1967,10 @@ static void __init pxa1936_clk_init(struct device_node *np)
 
 		if (profile >= 12)
 			panic("1.8GHz SKU chip clst1 max freq doesn't support 1803M when profile >= 12\n");
+	} else if (get_helan3_svc_version() == SVC_TSMC_B0) {
+		pr_info("1.5GHz TSMC B0 chip clst0 support max freq is 1248M\n");
 	}
+
 #endif
 	/* let uboot cmdline param have the final judge */
 	if (max_freq) {
