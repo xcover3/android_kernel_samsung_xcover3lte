@@ -26,6 +26,7 @@
 #if GTP_ICS_SLOT_REPORT
     #include <linux/input/mt.h>
 #endif
+#include <linux/regulator/consumer.h>
 
 #if GTP_GESTURE_WAKEUP
 		int gestureflag = 1;
@@ -42,6 +43,7 @@ int gtp_rst_gpio;
 int gtp_int_gpio;
 int gtp_keyled_gpio;
 static int led_flag = 0;
+static struct regulator *vdd_ana;
 
 u8 config[GTP_CONFIG_MAX_LENGTH + GTP_ADDR_LENGTH]
                 = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
@@ -218,13 +220,15 @@ s32 gtp_i2c_read(struct i2c_client *client, u8 *buf, s32 len)
         struct goodix_ts_data *ts = i2c_get_clientdata(client);
     #endif
 
-    #if GTP_GESTURE_WAKEUP
+    //#if GTP_GESTURE_WAKEUP
+    if (gestureflag && gestureswitch){
         // reset chip would quit doze mode
         if (DOZE_ENABLED == doze_status)
         {
             return ret;
         }
-    #endif
+    //#endif
+	}
         GTP_ERROR("I2C Read: 0x%04X, %d bytes failed, errcode: %d! Process reset.", (((u16)(buf[0] << 8)) | buf[1]), len-2, ret);
     #if GTP_COMPATIBLE_MODE
         if (CHIP_TYPE_GT9F == ts->chip_type)
@@ -280,12 +284,14 @@ s32 gtp_i2c_write(struct i2c_client *client,u8 *buf,s32 len)
         struct goodix_ts_data *ts = i2c_get_clientdata(client);
     #endif
 
-    #if GTP_GESTURE_WAKEUP
+    //#if GTP_GESTURE_WAKEUP
+    if (gestureflag && gestureswitch){
         if (DOZE_ENABLED == doze_status)
         {
             return ret;
         }
-    #endif
+    }
+    //#endif
         GTP_ERROR("I2C Write: 0x%04X, %d bytes failed, errcode: %d! Process reset.", (((u16)(buf[0] << 8)) | buf[1]), len-2, ret);
     #if GTP_COMPATIBLE_MODE
         if (CHIP_TYPE_GT9F == ts->chip_type)
@@ -1425,8 +1431,13 @@ static s8 gtp_enter_sleep(struct goodix_ts_data * ts)
     }
 #endif
 
-    GTP_GPIO_OUTPUT(gtp_int_gpio, 0);
-    msleep(5);
+	if (gestureflag && gestureswitch){
+	    GTP_GPIO_OUTPUT(gtp_int_gpio, 0);
+	    msleep(5);
+	} else {
+	    GTP_GPIO_OUTPUT(gtp_int_gpio, 1);
+	    msleep(5);
+	}
 
     while(retry++ < 5)
     {
@@ -1462,10 +1473,17 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
 #if GTP_COMPATIBLE_MODE
     if (CHIP_TYPE_GT9F == ts->chip_type)
     {
-        u8 opr_buf[3] = {0x41, 0x80};
+	        u8 opr_buf[3] = {0x41, 0x80};
 
-        GTP_GPIO_OUTPUT(gtp_int_gpio, 1);
-        msleep(5);
+		if (gestureflag && gestureswitch){
+		        GTP_GPIO_OUTPUT(gtp_int_gpio, 1);
+		        msleep(5);
+		} else {
+			GTP_GPIO_OUTPUT(gtp_int_gpio, 0);
+			msleep(5);
+			GTP_GPIO_OUTPUT(gtp_int_gpio, 1);
+			msleep(5);
+		}
 
         for (retry = 0; retry < 10; ++retry)
         {
@@ -1523,7 +1541,8 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
 #else
     while(retry++ < 10)
     {
-#if GTP_GESTURE_WAKEUP
+//#if GTP_GESTURE_WAKEUP
+if (gestureflag && gestureswitch){
         if (DOZE_WAKEUP != doze_status)
         {
             GTP_INFO("Powerkey wakeup.");
@@ -1536,24 +1555,35 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
         gtp_irq_disable(ts);
         gtp_reset_guitar(ts->client, 10);
         gtp_irq_enable(ts);
-#else
-        GTP_GPIO_OUTPUT(gtp_int_gpio, 1);
-        msleep(5);
-#endif
+//#else
+} else {
+	if (gestureflag && gestureswitch){
+	        GTP_GPIO_OUTPUT(gtp_int_gpio, 1);
+        	msleep(5);
+	} else {
+		GTP_GPIO_OUTPUT(gtp_int_gpio, 0);
+		msleep(5);
+		GTP_GPIO_OUTPUT(gtp_int_gpio, 1);
+		msleep(5);
+	}
+}
+//#endif
 
         ret = gtp_i2c_test(ts->client);
         if (ret > 0)
         {
             GTP_INFO("GTP wakeup sleep.");
 
-        #if (!GTP_GESTURE_WAKEUP)
+        //#if (!GTP_GESTURE_WAKEUP)
+	if (!(gestureflag && gestureswitch)){
             {
                 gtp_int_sync(25);
             #if GTP_ESD_PROTECT
                 gtp_init_ext_watchdog(ts->client);
             #endif
             }
-        #endif
+        //#endif
+	}
 
             return ret;
         }
@@ -1959,7 +1989,7 @@ Output:
 static s8 gtp_request_io_port(struct goodix_ts_data *ts)
 {
 	s32 ret = 0;
-# if GTP_GESTURE_WAKEUP
+#if GTP_GESTURE_WAKEUP
 	if (edge_wakeup_gpio >= 0) {
 		ret = request_mfp_edge_wakeup(edge_wakeup_gpio,
 				NULL,
@@ -2628,8 +2658,6 @@ int gtp_parse_dt_cfg(struct device *dev, u8 *cfg, int *cfg_len, u8 sid)
 static int gtp_power_switch(struct i2c_client *client, int on)
 {
     struct goodix_ts_data *ts = i2c_get_clientdata(i2c_connect_client);
-	static struct regulator *vdd_ana;
-	static struct regulator *vcc_i2c;
 	int ret;
 
 	if (!vdd_ana) {
@@ -2959,11 +2987,12 @@ static void goodix_ts_suspend(struct goodix_ts_data *ts)
 #endif
 
 	//#if GTP_GESTURE_WAKEUP
-    if (gestureflag && gestureswitch)
+    if (gestureflag && gestureswitch){
 	    ret = gtp_enter_doze(ts);
-     else{
+    }else{
 	    if (ts->use_irq)
 	    {
+		msleep(3);
 		    gtp_irq_disable(ts);
 	    }
 	    else
@@ -2971,15 +3000,19 @@ static void goodix_ts_suspend(struct goodix_ts_data *ts)
 		    hrtimer_cancel(&ts->timer);
 	    }
 	    ret = gtp_enter_sleep(ts);
+	    msleep(58);
+	    if (regulator_set_suspend_mode(vdd_ana, REGULATOR_MODE_STANDBY) < 0)
+		    GTP_ERROR("GTP set LDO16 sleep off failed.\n");
+	    ret = gtp_power_switch(ts->client, 0);
       }
-//#endif
+ //#endif
     if (ret < 0)
     {
         GTP_ERROR("GTP early suspend failed.");
     }
     // to avoid waking up while not sleeping
     //  delay 48 + 10ms to ensure reliability
-    msleep(58);
+    //msleep(58);
     //ret = gtp_power_switch(ts->client, 0);
 }
 
@@ -3013,7 +3046,12 @@ static void goodix_ts_resume(struct goodix_ts_data *ts)
 		return;
 	}
 #endif
-
+	if (!(gestureflag && gestureswitch))
+	{
+		ret = gtp_power_switch(ts->client, 1);
+		if (regulator_set_suspend_mode(vdd_ana, REGULATOR_MODE_NORMAL) < 0)
+			GTP_ERROR("GTP set LDO16 active mode failed.\n");
+	}
 	//ret = gtp_power_switch(ts->client, 1);
 	ret = gtp_wakeup_sleep(ts);
 #if GTP_GESTURE_WAKEUP
