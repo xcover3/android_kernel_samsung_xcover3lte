@@ -1086,8 +1086,11 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 	/* offset are multipled by 10 times becasue the soc now is 1000% */
 	offset *= PM88X_CAP_FAC1000;
 
-	ccnt_val->soc = ccnt_val->real_soc * times;
-	ccnt_val->soc -= offset;
+	/* only do this at low temperature */
+	if (info->bat_params.temp < 0) {
+		ccnt_val->soc = ccnt_val->real_soc * times;
+		ccnt_val->soc -= offset;
+	}
 }
 
 /* correct SoC according to temp */
