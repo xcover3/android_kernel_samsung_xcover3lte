@@ -55,6 +55,19 @@
 		>;
 		DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_NONE;
 	};
+
+	sdh0_pmx_func1: sdh0_pmx_func1 {
+		pinctrl-single,pins = <
+			MMC1_DAT7 AF0
+			MMC1_DAT6 AF0
+			MMC1_DAT5 AF0
+			MMC1_DAT4 AF0
+			MMC1_WP AF1
+			MMC1_CD AF1 /* Above pins not used by sdh1, configured as GPIO */
+			GPIO50 AF0 /* GPIO50, used for sd card detect */
+		>;
+		MFP_DEFAULT;
+	};
 };
 
 &disp {
