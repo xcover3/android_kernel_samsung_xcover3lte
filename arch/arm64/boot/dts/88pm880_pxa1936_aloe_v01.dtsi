@@ -136,7 +136,7 @@
 	led {
 		gpio-en = <0>;
 		flash-en-gpio = <124>;
-		flash-txmsk-gpio = <19>;
+		flash-txmsk-gpio = <13>;
 		flash-timer = <500>;	/* ms */
 		cls-ov-set = <5000>;	/* mV */
 		cls-uv-set = <1200>;	/* mV */
