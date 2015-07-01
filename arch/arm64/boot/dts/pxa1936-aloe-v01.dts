@@ -48,6 +48,13 @@
 		 >;
 		 MFP_LPM_FLOAT;
 	 };
+
+	sdh1_pmx_func3: sdh1_pmx_func3 {
+		pinctrl-single,pins = <
+			GPIO97 AF0
+		>;
+		DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_NONE;
+	};
 };
 
 &disp {
@@ -649,6 +656,16 @@
 	};
 	b52isp_sc2_dma1 {
 	        status = "okay";
+	};
+
+	sd8x-rfkill {
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio 97 0>;
+		wib_1v8-supply = <&buck2>;
+		wib_3v3-supply = <&buck5>;
+		edge-wakeup-gpio = <&gpio 39 0>;
+		marvell,sdh-tuning-dvfs;
+		status = "okay";
 	};
 };
 
