@@ -1132,4 +1132,11 @@
 			     <0 110 4>,
 			     <0 111 4>;
 	};
+
+	mmplog {
+		compatible = "marvell,mmplog-heap";
+		mmplog-base = <0x08000000>;
+		mmplog-size = <0x100000>;
+		status = "okay";
+	};
 };
