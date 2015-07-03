@@ -318,6 +318,17 @@
 		status = "disabled";
 	};
 
+	panel5: nt35521 {
+		compatible = "marvell,mmp-nt35521";
+		marvell,path-name = "mmp_pnpath";
+		bl_gpio = <&gpio 100 0>;
+		panel_id = <0x21>;
+		rst_gpio = <&gpio 18 0>;
+		avdd-supply = <&ldo16>;
+		marvell,mipi-backlight;
+		status = "okay";
+	};
+
 	panel: mmp-dsi-panel {
 	       compatible = "marvell,mmp-dsi-panel";
 	       marvell,path-name = "mmp_pnpath";
@@ -325,10 +336,10 @@
 		* BACKLIGHT CONTROL BY GPIO
 		*/
 	       bl_gpio = <&gpio 100 0>;
-	       panel_esd = <0>;
+	       panel_esd = <2>;
 	       marvell,dsi-panel-num = <3>;
 	       status = "okay";
-       };
+	};
 
 	backlight: pwm_bl {
 		compatible = "pwm-backlight";
@@ -688,3 +699,4 @@
 #include "88pm88x_battery_485760ar.dtsi"
 #include "88pm880_pxa1936_aloe_v01.dtsi"
 #include "pxa1936-panel-r63315-l180_linlong.dtsi"
+#include "pxa1936-panel-nt35521-tft.dtsi"
