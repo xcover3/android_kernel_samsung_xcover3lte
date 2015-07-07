@@ -98,6 +98,8 @@ int ddr_800M_tsmc_svc[] = {1050, 950, 950, 950, 950, 950, 950, 950, 963,
 963, 963, 975, 1000, 1012, 1025, 1050};
 int ddr_800M_sec_svc[] = {1075, 975, 975, 975, 975, 975, 975, 975, 975,
 975, 975, 975, 1000, 1025, 1050, 1075};
+int ddr_800M_tsmc_b0_svc[] = {1037, 950, 950, 950, 950, 950, 950, 950,
+950, 950, 963, 975, 988, 1000, 1012, 1037};
 
 struct svtrng {
 	unsigned int min;
@@ -1570,6 +1572,9 @@ void adjust_ddr_svc(void)
 		ddr_voltage = ddr_800M_tsmc_svc[uiprofile];
 	else if (svc_version == SEC_SVC_1_01)
 		ddr_voltage = ddr_800M_sec_svc[uiprofile];
+	else if (svc_version == SVC_TSMC_B0)
+		ddr_voltage = ddr_800M_tsmc_b0_svc[uiprofile];
+
 	if (ddr_mode == DDR_800M && get_ddr_800M_4x())
 		for (i = 0; i < VL_MAX; i++)
 			if ((freqs_cmb[DDR][i] != 0) &&
