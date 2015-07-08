@@ -485,7 +485,7 @@ struct regval_tab ov8858r2a_vflip[] = {
 	{0x3820, 0x00, 0x6},
 };
 struct regval_tab ov8858r2a_hflip[] = {
-	{0x3821, 0x00, 0x6},
+	{0x3821, 0x06, 0x6},
 };
 
 struct b52_sensor_i2c_attr ov8858r2a_i2c_attr[] = {
