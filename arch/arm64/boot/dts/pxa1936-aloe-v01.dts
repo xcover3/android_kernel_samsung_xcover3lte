@@ -239,7 +239,7 @@
 					ps-threshold = <650>;
 					ps-hysteresis-threshold = <500>;
 					als-polling-time = <200>;
-					status = "okay";
+					status = "disabled";
 				};
 
 				ltr_558als@23 {
