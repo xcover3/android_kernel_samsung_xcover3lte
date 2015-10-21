@@ -67,6 +67,7 @@ static char fw_version[32] = "0.0.0.p0";
 
 #define AID_BLUETOOTH     1002	/* bluetooth subsystem */
 
+#define AID_NET_BT_STACK  3008	/* bluetooth: access config files */
 /** Define module name */
 #define MODULE_NAME  "bt_fm_nfc"
 
@@ -2216,7 +2217,7 @@ sbi_register_conf_dpc(bt_private *priv)
 				  mbt_dev->name);
 
 		/** chmod & chown for BT char device */
-		mbtchar_chown(dev_file, AID_SYSTEM, AID_BLUETOOTH);
+		mbtchar_chown(dev_file, AID_SYSTEM, AID_NET_BT_STACK);
 		mbtchar_chmod(dev_file, 0660);
 
 		/** create proc device */
@@ -2229,7 +2230,6 @@ sbi_register_conf_dpc(bt_private *priv)
 	if ((drv_mode & DRV_MODE_FM) &&
 	    (!(priv->bt_dev.devType == DEV_TYPE_AMP)) &&
 	    (priv->bt_dev.devFeature & DEV_FEATURE_FM)) {
-
 		/** alloc fm_dev */
 		fm_dev = alloc_fm_dev();
 		if (!fm_dev) {
