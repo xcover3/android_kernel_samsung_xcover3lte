@@ -148,6 +148,33 @@
 		status = "okay";
 	};
 
+        leds {
+		compatible = "gpio-leds";
+
+		led@1 {
+			label = "usr0";
+			gpios = <&gpio 5 0>;
+			default-state = "off";
+		};
+
+		led@2 {
+			label = "usr1";
+			gpios = <&gpio 6 0>;
+			default-state = "off";
+		};
+
+		led@3 {
+			label = "usr2";
+			gpios = <&gpio 8 0>;
+			default-state = "off";
+		};
+
+		led@4 {
+			label = "usr3";
+			gpios = <&gpio 15 0>;
+			default-state = "off";
+		};
+	};
 };
 #include "88pm88x.dtsi"
 #include "88pm886.dtsi"
