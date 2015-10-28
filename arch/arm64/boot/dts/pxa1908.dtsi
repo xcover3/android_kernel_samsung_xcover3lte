@@ -160,7 +160,7 @@
 				interrupts = <0 44 0x4>;
 				marvell,udc-name = "mv-udc";
 				marvell,udc-mode = <MV_USB_MODE_OTG>;
-				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
+				marvell,extern-attr = <0>;
 				marvell,otg-force-a-bus-req;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_USB>;
@@ -172,7 +172,7 @@
 				reg = <0xd4208100 0x200>;
 				marvell,ehci-name = "pxa-u2oehci";
 				marvell,udc-mode = <MV_USB_MODE_OTG>;
-				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
+				marvell,extern-attr = <0>;
 				marvell,otg-force-a-bus-req;
 				interrupts = <0 44 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_USB>;
@@ -187,7 +187,7 @@
 				marvell,ehci-name = "pxa-u2oehci";
 				marvell,otg-name = "mv-otg";
 				marvell,udc-mode = <MV_USB_MODE_OTG>;
-				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
+				marvell,extern-attr = <0>;
 				marvell,otg-force-a-bus-req;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_USB>;
