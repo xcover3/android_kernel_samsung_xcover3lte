@@ -127,6 +127,7 @@ static int pm88x_i2c_suspend(struct device *dev)
 	struct regulator *buck1slp;
 	int fuse_slpvolt = 0;
 
+#ifdef CONFIG_MRVL_MMP_CM3
 	if (!buck1slp_is_ever_changed) {
 		pr_info("%s: buck1_sleep is not being used by other modules.\n",
 			__func__);
@@ -149,6 +150,7 @@ static int pm88x_i2c_suspend(struct device *dev)
 	} else {
 		pr_info("%s: buck1_sleep is being used by other modules.\n", __func__);
 	}
+#endif
 
 	return 0;
 }
