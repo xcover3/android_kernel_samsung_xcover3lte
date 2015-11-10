@@ -124,6 +124,14 @@ endif
 ccflags-y := -fpic -mno-single-pic-base -fno-builtin -I$(obj)
 asflags-y := -DZIMAGE
 
+ifeq ($(CONFIG_ARM_ATAG_DTB_COMPAT),y)
+CFLAGS_atags_to_fdt.o := -fno-stack-protector
+CFLAGS_fdt.o := -fno-stack-protector
+CFLAGS_fdt_ro.o := -fno-stack-protector
+CFLAGS_fdt_rw.o := -fno-stack-protector
+CFLAGS_fdt_wip.o := -fno-stack-protector
+endif
+
 # Supply kernel BSS size to the decompressor via a linker symbol.
 KBSS_SZ = $(shell $(CROSS_COMPILE)size $(obj)/../../../../vmlinux | \
 		awk 'END{print $$3}')

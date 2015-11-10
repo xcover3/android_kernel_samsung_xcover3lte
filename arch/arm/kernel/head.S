@@ -83,7 +83,7 @@
 
 	__HEAD
 ENTRY(stext)
-#ifdef CONFIG_CPU_PXA1908
+#if defined(CONFIG_CPU_PXA1908) && !defined(CONFIG_ARM_APPENDED_DTB)
 	head_arm64_arg_fix
 	el2_setup
 #endif
