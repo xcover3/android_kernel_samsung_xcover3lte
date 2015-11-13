@@ -189,6 +189,7 @@
 				marvell,udc-mode = <MV_USB_MODE_OTG>;
 				marvell,extern-attr = <0>;
 				marvell,otg-force-a-bus-req;
+				marvell,otg-force-a-vbus-vld;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_USB>;
 				status = "disabled";

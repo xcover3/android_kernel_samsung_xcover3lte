@@ -124,6 +124,7 @@ struct mv_usb_platform_data {
 	unsigned int    disable_otg_clock_gating:1;
 	/* Force a_bus_req to be asserted */
 	unsigned int    otg_force_a_bus_req:1;
+	unsigned int    otg_force_a_vbus_vld:1;
 };
 
 enum charger_type {

@@ -417,7 +417,10 @@ static void mv_otg_update_inputs(struct mv_otg *mvotg)
 	}
 
 	otg_ctrl->a_sess_vld = !!(otgsc & OTGSC_STS_A_SESSION_VALID);
-	otg_ctrl->a_vbus_vld = !!(otgsc & OTGSC_STS_A_VBUS_VALID);
+	if (mvotg->pdata->otg_force_a_vbus_vld)
+		otg_ctrl->a_vbus_vld = 1;
+	else
+		otg_ctrl->a_vbus_vld = !!(otgsc & OTGSC_STS_A_VBUS_VALID);
 
 	dev_dbg(&mvotg->pdev->dev, "%s: ", __func__);
 	dev_dbg(&mvotg->pdev->dev, "id %d\n", otg_ctrl->id);
@@ -889,6 +892,8 @@ static int mv_otg_dt_parse(struct platform_device *pdev,
 	of_property_read_u32(np, "marvell,extern-attr", &(pdata->extern_attr));
 	pdata->otg_force_a_bus_req = of_property_read_bool(np,
 				"marvell,otg-force-a-bus-req");
+	pdata->otg_force_a_vbus_vld = of_property_read_bool(np,
+				"marvell,otg-force-a-vbus-vld");
 	pdata->disable_otg_clock_gating = of_property_read_bool(np,
 					"marvell,disable-otg-clock-gating");
 
