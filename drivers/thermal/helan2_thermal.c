@@ -660,7 +660,10 @@ static void mapping_cooling_dev(struct device_node *np)
 	voltage_mrvl_init(&(thermal_dev.thermal_volt));
 	tsen_update_policy();
 	register_debug_interface();
+#ifdef CONFIG_DEBUG
 	tsen_policy_dump(NULL, 0);
+#endif
+
 	return;
 }
 

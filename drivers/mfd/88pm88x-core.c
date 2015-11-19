@@ -249,6 +249,7 @@ static void parse_powerup_down_log(struct pm88x_chip *chip)
 	chip->powerdown1 = powerdown1;
 	chip->powerdown2 = powerdown2;
 
+#ifdef CONFIG_DEBUG
 	/* power up log */
 	dev_info(chip->dev, "powerup log 0x%x: 0x%x\n",
 		 PM88X_POWER_UP_LOG, powerup);
@@ -281,6 +282,7 @@ static void parse_powerup_down_log(struct pm88x_chip *chip)
 		dev_info(chip->dev, "|    %s     |    %x     |\n",
 			powerdown2_name[bit], (powerdown2 >> bit) & 1);
 	dev_info(chip->dev, " -------------------------------\n");
+#endif
 
 	/* write to clear power down log */
 	regmap_write(chip->base_regmap, PM88X_POWER_DOWN_LOG1, 0xff);

@@ -769,7 +769,7 @@ static void pxav3_request_done(struct mmc_request *mrq)
 	complete(&mrq->completion);
 }
 
-#define PXAV3_TUNING_DEBUG 1
+/* #define PXAV3_TUNING_DEBUG 1 */
 static int pxav3_send_tuning_cmd_adma(struct sdhci_host *host,
 		u32 opcode, int point, unsigned long flags)
 {
@@ -1056,7 +1056,7 @@ static int pxav3_bitmap_scan(unsigned long *bitmap,
 		p = next_zero_bit;
 	}
 
-	pr_info(">>>> bitmap max_window start = %d, size = %d\n",
+	pr_debug(">>>> bitmap max_window start = %d, size = %d\n",
 		max_window_start,
 		max_window_len);
 
@@ -1109,7 +1109,7 @@ static int hwdvc_stat_notifier_handler(struct notifier_block *nb,
 	else
 		is_dvfs_request_ok = 1;
 
-	pr_info("~~~~~~~now dvfs level is %d\n", atomic_read(&cur_dvfs_level));
+	pr_debug("~~~~~~~now dvfs level is %d\n", atomic_read(&cur_dvfs_level));
 	return NOTIFY_OK;
 }
 

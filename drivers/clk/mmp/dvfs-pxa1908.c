@@ -341,7 +341,7 @@ static struct dvc_plat_info dvc_pxa1908_info = {
 	.pmic_maxvl = 8,
 	.pmic_rampup_step = 12500,
 	/* by default print the debug msg into logbuf */
-	.dbglvl = 1,
+	.dbglvl = 0,
 	.regname = "vccmain",
 	/* real measured 8us + 4us, PMIC suggestes 16us for 12.5mV/us */
 	.extra_timer_dlyus = 16,

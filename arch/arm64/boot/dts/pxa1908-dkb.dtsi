@@ -81,22 +81,22 @@
 
 			twsi3: i2c@d4013800 {
 				sensor1: apds9930@39 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor2: bmi160@68 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor3: bme280@76 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor4: icm20628@69 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor5: mxc400x@15 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor6: mmc3524x@30 {
-					status = "okay";
+					status = "disable";
 				};
 			};
 		};
