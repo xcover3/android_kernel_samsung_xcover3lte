@@ -725,6 +725,8 @@ woal_cfg80211_assoc_ies_cfg(moal_private *priv, t_u8 *ie, int ie_len,
 			}
 			PRINTM(MIOCTL, "Set RSN IE\n");
 			break;
+		case EXT_CAPABILITY:
+			break;
 		case VENDOR_SPECIFIC_221:
 			pvendor_ie = (IEEEtypes_VendorSpecific_t *)pcurrent_ptr;
 			if (!memcmp

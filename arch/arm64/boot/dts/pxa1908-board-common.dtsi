@@ -1232,6 +1232,8 @@
 		drvdbg = <0x80007>;
 		dev_cap_mask = <0xffffcfff>;
 		init_cfg = "mrvl/wifi_init_cfg.conf";
+		txpwrlimit_cfg = "mrvl/txpwrlimit_cfg.bin";
+		cal_data_cfg = "mrvl/WlanCalData_ext.conf";
 		reg_alpha2 = "US";
 		p2p_enh = <1>;
 	};

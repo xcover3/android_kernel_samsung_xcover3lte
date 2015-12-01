@@ -77,13 +77,13 @@ CONFIG_DFS_TESTING_SUPPORT=y
 
 
 
-CONFIG_ANDROID_KERNEL=n
+CONFIG_ANDROID_KERNEL=y
 
 # Use static link for app build
 export CONFIG_STATIC_LINK=y
 
 #32bit app over 64bit kernel support
-CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=y
+CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
 #############################################################################
 # Select Platform Tools

@@ -1750,6 +1750,7 @@ woal_set_user_init_data(moal_handle *handle, int type)
 			}
 		}
 	} else if (type == TXPWRLIMIT_CFG_DATA) {
+                PRINTM(MMSG, "************ txpwrlimit_cfg: %s **********\n", txpwrlimit_cfg);
 		if (req_fw_nowait) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait
@@ -2017,6 +2018,8 @@ woal_init_fw_dpc(moal_handle *handle)
 
 	/** Cal data request */
 	memset(&param, 0, sizeof(mlan_init_param));
+
+        PRINTM(MMSG, "************ cal_data_cfg: %s **********\n", cal_data_cfg);
 	if (cal_data_cfg && strncmp(cal_data_cfg, "none", strlen("none"))) {
 		if (req_fw_nowait) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
