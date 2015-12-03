@@ -342,7 +342,6 @@
 				marvell,sdh-tuning-win-limit = <120>;
 				marvell,sdh-dvfs-levels = <1 7>; /* tuning from dvfs level 1 to 7 */
 				marvell,sdh-tuning-mode = <PXA_SDH_TUNING_DVFS>;
-				marvell,sdh-sdio-probe-tune;
 				status = "okay";
 			};
 		};
@@ -578,8 +577,6 @@
 				sdh1_pmx_func3: sdh1_pmx_func3 {
 						pinctrl-single,pins = <
 							GPIO7 AF0
-							GPIO71 AF0
-							GPIO14 AF0 /* WIFI_DCDC_EN */
 						>;
 						DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_NONE;
 				};
