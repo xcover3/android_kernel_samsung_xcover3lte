@@ -20,6 +20,7 @@
 #include <linux/uaccess.h>
 #include <linux/of.h>
 #include <linux/mutex.h>
+#include <linux/switch.h>
 #include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
 
@@ -64,6 +65,10 @@
 #define MIC_DET_PRD		(3 << 3)
 #define MIC_DET_DBS_32MS	(3 << 1)
 #define MIC_DET_PRD_CTN		(3 << 3)
+
+struct headset_switch_data {
+	struct switch_dev sdev;
+};
 
 struct pm886_hs_info {
 	struct pm88x_chip *chip;
@@ -355,7 +360,7 @@ FAKE_HOOK:
 			PM886_MIC_INT_EN,
 			PM886_MIC_INT_EN);
 
-	dev_err(info->dev, "fake hook interupt\n");
+	dev_dbg(info->dev, "fake hook interupt\n");
 }
 
 static void check_headset_short(struct pm886_hs_info *info)
@@ -444,6 +449,7 @@ static void pm886_headset_work(struct pm886_hs_info *info)
 
 	mic_set_volt_micbias(info->mic_bias_volt, info);
 	snd_soc_jack_report(info->hs_jack, report, SND_JACK_HEADSET);
+	switch_set_state(&info->psw_data_headset->sdev, report);
 	dev_dbg(info->dev, "hs status: %d\n", report);
 
 	/* enable hook irq if headset is present */
@@ -602,6 +608,11 @@ static int pm886_headset_probe(struct platform_device *pdev)
 
 	hs_info->chip = chip;
 	hs_info->mic_bias = regulator_get(&pdev->dev, "marvell,micbias");
+	hs_info->psw_data_headset =
+		devm_kzalloc(&pdev->dev, sizeof(struct headset_switch_data),
+				GFP_KERNEL);
+	if (!hs_info->psw_data_headset)
+		return -ENOMEM;
 
 	if (IS_ERR(hs_info->mic_bias)) {
 		hs_info->mic_bias = NULL;
@@ -722,11 +733,14 @@ static int pm886_headset_probe(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, 1);
 
-	if (ret < 0)
-		return ret;
-
 	headset_detect = pm886_headset_detect;
 	hook_detect = pm886_hook_detect;
+
+	hs_info->psw_data_headset->sdev.name = "h2w";
+	ret = switch_dev_register(&hs_info->psw_data_headset->sdev);
+	if (ret < 0)
+		dev_err(&pdev->dev, "Failed to register switch %s\n",
+			hs_info->psw_data_headset->sdev.name);
 
 	return 0;
 
@@ -745,6 +759,7 @@ static int pm886_headset_remove(struct platform_device *pdev)
 	cancel_work_sync(&hs_info->work_release);
 	cancel_work_sync(&hs_info->work_init);
 
+	switch_dev_unregister(&hs_info->psw_data_headset->sdev);
 	devm_kfree(&pdev->dev, hs_info);
 
 	return 0;
