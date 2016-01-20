@@ -45,6 +45,9 @@ extern void cm_call_smi(void *arg);
 extern int32_t _cm_get_out_write_idx(void);
 extern void _cm_update_out_write_idx(int32_t idx);
 
+extern uint32_t _cm_get_cb_req_num(void);
+extern uint32_t _cm_get_cb_rsp_num(void);
+
 /* get out empty size */
 uint32_t _out_empty_size(void)
 {
@@ -217,4 +220,14 @@ void tee_cm_get_msgm_head(void *msg_head)
 	_in_read((int8_t *)msg_head, sizeof(tee_msg_head_t), &idx);
 
 	return;
+}
+
+uint32_t tee_cm_get_cb_req_num(void)
+{
+	return _cm_get_cb_req_num();
+}
+
+uint32_t tee_cm_get_cb_rsp_num(void)
+{
+	return _cm_get_cb_rsp_num();
 }

@@ -212,6 +212,9 @@ osa_thread_t osa_create_thread(void (*func) (void *), void *arg,
 		return ret;
 	}
 
+	if (attr->flags & OSA_PF_FREEZER_SKIP)
+		ret->task->flags |= attr->flags;
+
 	while (_THREAD_UNKNOWN == ret->status)
 		yield();
 

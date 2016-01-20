@@ -42,6 +42,7 @@
 #include <linux/atomic.h>
 #include <linux/compat.h>
 #include <linux/uidgid.h>
+#include <linux/sched.h>
 
 #include "tee_mrvl_imp.h"
 #include "tee_client_api.h"

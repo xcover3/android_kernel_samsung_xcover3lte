@@ -36,11 +36,14 @@
 #define OSA_THRD_PRIO_ABOVE_IDLE    (6)
 #define OSA_THRD_PRIO_IDLE          (7)
 
+#define OSA_PF_FREEZER_SKIP	PF_FREEZER_SKIP	/* Freezer should not count it as freezable */
+
 struct osa_thread_attr {
 	uint8_t *name;
 	uint32_t prio;
 	void *stack_addr;
 	uint32_t stack_size;
+	uint32_t flags;
 };
 
 /* for OSA in secure world */

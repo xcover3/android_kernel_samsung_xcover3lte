@@ -38,6 +38,11 @@ extern void tee_cm_recv_data(uint8_t *buf);
 extern void tee_cm_smi(uint32_t flag);
 extern void tee_cm_get_msgm_head(void *msg_head);
 
+extern uint32_t tee_cm_get_cb_req_num(void);
+extern uint32_t tee_cm_get_cb_rsp_num(void);
+extern void tee_cm_update_cb_req_num(uint32_t req_tw);
+extern void tee_cm_update_cb_rsq_num(uint32_t rsp_tw);
+
 /* read RB phys address */
 static inline uint32_t _read_rb_phys_addr(void)
 {

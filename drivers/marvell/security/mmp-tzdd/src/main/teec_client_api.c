@@ -807,6 +807,7 @@ TEEC_Result TEEC_OpenSession(TEEC_Context *context,
 			unsigned long flags;
 			local_irq_save(flags);
 			current->flags |= PF_NOFREEZE;
+			current->flags |= PF_FREEZER_SKIP;
 			local_irq_restore(flags);
 		}
 		break;

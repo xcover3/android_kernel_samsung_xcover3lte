@@ -75,3 +75,17 @@ inline void _cm_update_out_write_idx(int32_t idx)
 
 	return;
 }
+
+inline uint32_t _cm_get_cb_req_num(void)
+{
+	cm_index_header_t *in_head = (cm_index_header_t*)in_header;
+
+	return in_head->req_tw;
+}
+
+inline uint32_t _cm_get_cb_rsp_num(void)
+{
+	cm_index_header_t *in_head = (cm_index_header_t*)in_header;
+
+	return in_head->rsp_tw;
+}

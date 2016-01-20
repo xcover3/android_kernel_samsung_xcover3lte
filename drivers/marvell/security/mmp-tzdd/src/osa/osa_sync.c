@@ -261,6 +261,7 @@ osa_err_t osa_wait_for_sem(osa_sem_t handle, int32_t msec)
 	}
 
 	down(&(sem->sem));
+
 	sem_up = true;
 
 	if (msec > 0)
@@ -401,19 +402,17 @@ osa_err_t osa_wait_for_sem(osa_sem_t handle, int32_t msec)
 	OSA_ASSERT(sem && IS_SEM_VALID(sem));
 
 	if (0 == msec) {
-
 		ret = down_trylock(&(sem->sem));
-		if (ret)
+		if (ret) {
 			return OSA_SEM_WAIT_FAILED;
-		else
+		} else {
 			return OSA_OK;
-
+		}
 	} else if (msec > 0) {
-
 		ret = down_timeout(&(sem->sem), (msec * HZ + 500) / 1000);
-		if (ret < 0)
+		if (ret < 0) {
 			return OSA_SEM_WAIT_TO;
-
+		}
 	} else
 		down(&(sem->sem));
 
@@ -491,7 +490,7 @@ static osa_mutex_t _osa_create_mutex(uint32_t init_val)
 	mutex = kmalloc(sizeof(struct _mutex), GFP_KERNEL);
 	if (!mutex) {
 		osa_dbg_print(DBG_ERR,
-			      "ERROR - failed to kmalloc in osa_create_mutex\n");
+			"ERROR - failed to kmalloc in osa_create_mutex\n");
 		return NULL;
 	}
 

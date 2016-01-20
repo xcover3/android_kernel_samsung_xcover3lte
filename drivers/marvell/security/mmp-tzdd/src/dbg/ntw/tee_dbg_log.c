@@ -20,10 +20,10 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
-#define _TEE_DBG_PROC_LOG_TMP_BUF_SZ (255)	/* max size of string */
-#define _TEE_DBG_PROC_LOG_BUF_SZ     \
-		(0x80000 - _TEE_DBG_PROC_LOG_TMP_BUF_SZ - sizeof(tee_dbg_log_t))
-#define _TEE_DBG_PROC_ENABLE         (0x55aa55aa)
+#define _TEE_DBG_PROC_LEVEL0	(0x00000000)
+#define _TEE_DBG_PROC_LEVEL1	(0x55aa55aa)
+#define _TEE_DBG_PROC_LEVEL2	(0x66bb66bb)
+#define _TEE_DBG_PROC_LEVEL3	(0x77cc77cc)
 
 #define IS_DBG_PROC_MAGIC_VALID(_m) \
 	(('P' == _m[0]) &&  \
@@ -31,71 +31,79 @@
 	 ('O' == _m[2]) &&   \
 	 ('c' == _m[3]))
 
+#define INIT_DBG_PROC_CTRL_MAGIC(_m)	do {	\
+		_m[0] = 'C';	\
+		_m[1] = 't';	\
+		_m[2] = 'R';	\
+		_m[3] = 'l';	\
+	} while (0)
+
 typedef struct _tee_dbg_log_t {
 	uint8_t magic[4];
 	uint32_t write_offset;
-	uint32_t round;
-	bool round_rollback;
+	uint64_t round;
+	uint32_t log_buf_sz;
 } tee_dbg_log_t;
 
 typedef struct _tee_dbg_log_ctl_t {
-	volatile uint32_t enable;
+	volatile uint8_t magic[4];
+	volatile uint32_t level;
 } tee_dbg_log_ctl_t;
 
 static tee_dbg_log_t *_g_tee_dbg_log_header;
 static tee_dbg_log_ctl_t *_g_tee_dbg_log_ctl_header;
 static uint8_t *_g_tee_dbg_log_buf;
+static uint32_t _g_tee_dbg_log_buf_sz;
 
 void tee_dbg_log_init(ulong_t buffer, ulong_t ctl)
 {
 	_g_tee_dbg_log_header = (tee_dbg_log_t *) buffer;
 	_g_tee_dbg_log_ctl_header = (tee_dbg_log_ctl_t *) ctl;
 	_g_tee_dbg_log_buf = (uint8_t *) (_g_tee_dbg_log_header + 1);
-	printk(KERN_ERR "proc log buf: %lx, ctl: %lx\n", buffer, ctl);
+
+	if (!IS_DBG_PROC_MAGIC_VALID(_g_tee_dbg_log_header->magic)) {
+		printk(KERN_ERR "proc log invalid magic\n");
+		return;
+	}
+	_g_tee_dbg_log_buf_sz = _g_tee_dbg_log_header->log_buf_sz;
+
+	INIT_DBG_PROC_CTRL_MAGIC(_g_tee_dbg_log_ctl_header->magic);
+
+	printk(KERN_ERR "proc log buf: 0x%lx, size: 0x%x, ctl: 0x%lx\n",
+		buffer, _g_tee_dbg_log_buf_sz, ctl);
+	return;
 }
 
 static uint32_t g_snapshot_write_offset;
-static uint32_t g_snapshot_round;
-static uint32_t g_snapshot_round_rollback;
-static uint32_t g_read_round;
+static uint64_t g_snapshot_round;
+static uint64_t g_read_round;
 static uint32_t g_read_offset;
 static uint32_t g_read_count;
-static bool g_proc_log_eanbled;
+static uint32_t g_proc_log_level;
 
 static void *log_seq_start(struct seq_file *s, loff_t *pos)
 {
 	g_snapshot_write_offset = _g_tee_dbg_log_header->write_offset;
 	g_snapshot_round = _g_tee_dbg_log_header->round;
-	g_snapshot_round_rollback = _g_tee_dbg_log_header->round_rollback;
 
-	if (!IS_DBG_PROC_MAGIC_VALID(_g_tee_dbg_log_header->magic))
+	if ((!IS_DBG_PROC_MAGIC_VALID(_g_tee_dbg_log_header->magic)) ||
+		(!_g_tee_dbg_log_buf_sz))
 		return NULL;
 
 	if (g_read_round == g_snapshot_round
-	    && g_read_offset == g_snapshot_write_offset)
+		&& g_read_offset == g_snapshot_write_offset)
 		/* nothing to read */
 		return NULL;
 
-	if (g_snapshot_round_rollback) {
-		if (g_snapshot_round != 0 ||
-		    g_snapshot_round != 0xFFFFFFFF ||
-		    g_snapshot_write_offset > g_read_offset) {
-			seq_printf(s,
-				   "=========================rollback==========================\n");
-			g_read_offset = g_snapshot_write_offset;
-			g_read_round = g_snapshot_round - 1;
-			g_snapshot_round_rollback = false;
-		}
-	} else {
-		if (g_snapshot_round > g_read_round + 1 ||
-		    (g_snapshot_round == g_read_round + 1
-		     && g_snapshot_write_offset > g_read_offset)) {
-			g_read_offset = g_snapshot_write_offset;
-			g_read_round = g_snapshot_round - 1;
-			seq_printf(s,
-				   "--------------------------rollback--------------------------\n");
-		}
+	if ((g_snapshot_round > g_read_round + 1) ||
+		(g_snapshot_round == g_read_round + 1
+		&& g_snapshot_write_offset > g_read_offset)) {
+		g_read_offset = g_snapshot_write_offset;
+		g_read_round = g_snapshot_round - 1;
+		seq_printf(s,
+				"--------------------------rollback--------------------------\n");
 	}
+
 	g_read_count = s->count;
 
 	return _g_tee_dbg_log_buf + g_read_offset;
@@ -103,15 +111,11 @@ static void *log_seq_start(struct seq_file *s, loff_t *pos)
 
 static void *log_seq_next(struct seq_file *s, void *v, loff_t *pos)
 {
-	g_read_offset += s->count - g_read_count + 1;
-	if (g_read_offset > _TEE_DBG_PROC_LOG_BUF_SZ) {
-		g_read_offset -= _TEE_DBG_PROC_LOG_BUF_SZ;
-		g_read_round++;
-	}
 	g_read_count = s->count;
-	if ((g_read_round == g_snapshot_round
-	     && g_read_offset >= g_snapshot_write_offset)
-	    || g_read_round > g_snapshot_round)
+
+	if (g_read_round == g_snapshot_round
+		&& g_read_offset == g_snapshot_write_offset)
+		/* nothing to read */
 		return NULL;
 
 	return _g_tee_dbg_log_buf + g_read_offset;
@@ -124,8 +128,20 @@ static void log_seq_stop(struct seq_file *s, void *v)
 
 static int log_seq_show(struct seq_file *s, void *v)
 {
-	seq_printf(s, "%s", (int8_t *) v);
-	return 0;
+	int ret;
+	ret = seq_printf(s, "%s", (int8_t *) v);
+	if (ret) {
+		/* over flow */
+	} else {
+		g_read_offset += s->count - g_read_count + 1;
+	}
+
+	if (g_read_offset > _g_tee_dbg_log_buf_sz) {
+		g_read_offset -= _g_tee_dbg_log_buf_sz;
+		g_read_round++;
+	}
+
+	return ret;
 }
 
 static const struct seq_operations log_seq_ops = {
@@ -150,8 +166,7 @@ static const struct file_operations log_file_ops = {
 
 static int ctl_seq_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "tee proc log %s\n",
-		   g_proc_log_eanbled ? "enabled" : "disabled");
+	seq_printf(m, "tee proc log level %d\n", g_proc_log_level);
 	return 0;
 }
 
@@ -167,17 +182,25 @@ static ssize_t ctl_write(struct file *file, const char *buf,
 
 	get_user(val, buf);
 	switch (val) {
-	case '1':
-		_g_tee_dbg_log_ctl_header->enable = _TEE_DBG_PROC_ENABLE;
-		g_proc_log_eanbled = true;
-		break;
 	case '0':
-		_g_tee_dbg_log_ctl_header->enable = 0;
-		g_proc_log_eanbled = false;
+		_g_tee_dbg_log_ctl_header->level = _TEE_DBG_PROC_LEVEL0;
+		g_proc_log_level = 0;
+		break;
+	case '1':
+		_g_tee_dbg_log_ctl_header->level = _TEE_DBG_PROC_LEVEL1;
+		g_proc_log_level = 1;
+		break;
+	case '2':
+		_g_tee_dbg_log_ctl_header->level = _TEE_DBG_PROC_LEVEL2;
+		g_proc_log_level = 2;
+		break;
+	case '3':
+		_g_tee_dbg_log_ctl_header->level = _TEE_DBG_PROC_LEVEL3;
+		g_proc_log_level = 3;
 		break;
 	default:
-		printk(KERN_ERR "value should be 1 or 0\n");
-		return 0;
+		printk(KERN_ERR "value should be 0/1/2/3\n");
+		return count;
 	}
 
 	return count;
