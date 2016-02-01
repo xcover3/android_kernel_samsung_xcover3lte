@@ -1607,6 +1607,12 @@ config SENSORS_APDS990X_MRVL
        This driver provides support the APDS990x deivce
          sensor.Read pressures and temperatures output.
 
+config SENSORS_AP3426
+       tristate "AP3426 light and proximity sensor"
+       depends on I2C && INPUT
+       help
+         This driver provides support for the Dyna Image AP3426 device.
+
 config SENSORS_GRIP
 	bool "grip(sar) sensor support"
 	default n

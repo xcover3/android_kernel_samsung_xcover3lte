@@ -1023,12 +1023,22 @@
 					reg = <0x15>;
 					acdd-supply = <&ldo4>;
 					status = "disabled";
-                               };
+                                };
 
 				sensor6: mmc3524x@30 {
 					compatible = "memsic,mmc3524x";
 					reg = <0x30>;
 					acdd-supply = <&ldo4>;
+					status = "disabled";
+				};
+
+				sensor7: ap3426@1E {
+					compatible = "dyna,ap3426";
+					reg = <0x1E>;
+					interrupt-parent = <&gpio>;
+					interrupts = <20 0x1>;
+					irq-gpios = <&gpio 20 0>;
+					avdd-supply = <&ldo4>;
 					status = "disabled";
 				};
 			};

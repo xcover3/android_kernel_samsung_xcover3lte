@@ -98,6 +98,9 @@
 				sensor6: mmc3524x@30 {
 					status = "disable";
 				};
+				sensor7: ap3426@1E {
+					status = "okay";
+				};
 			};
 		};
 	};
