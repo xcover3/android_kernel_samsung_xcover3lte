@@ -425,7 +425,7 @@
 				 */
 				mfp_pins_group_0: mfp_pins_group_0 {
 					pinctrl-single,pins = <
-						DF_IO8 AF0
+						/* DF_IO8 AF0 */
 						DF_IO9 AF0
 						DF_IO10 AF0
 						DF_IO11 AF0
@@ -451,6 +451,11 @@
 				mfp_pins_group_1: mfp_pins_group_1 {
 					pinctrl-single,pins = <
 						DF_IO14 AF0
+						DF_IO8 AF1 /* GPIO100 */
+						GPIO0 AF0
+						GPIO1 AF0
+						GPIO2 AF0
+						GPIO3 AF0
 					>;
 					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_NONE;
 				};
@@ -644,6 +649,26 @@
 					DS_FAST;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
 				};
 
+				spi0_pmx_func: spi0_pmx_func {
+				   pinctrl-single,pins = <
+					   GPIO33 AF2 /* GPIO33 SSP0_CLK */
+					   GPIO34 AF2 /* GPIO34 SSP0_FRM */
+					   GPIO35 AF2 /* GPIO35 SSP0_RX */
+					   GPIO36 AF2 /* GPIO36 SSP0_TX */
+					>;
+					MFP_DEFAULT;
+				};
+
+				spi1_pmx_func: spi1_pmx_func {
+				   pinctrl-single,pins = <
+					   DF_IO9 AF2  /* GPIO66 SSP2_CLK */
+					   DF_IO10 AF2 /* GPIO65 SSP2_FRM */
+					   DF_IO11 AF2 /* GPIO64 SSP2_TX */
+					   DF_IO12 AF2 /* GPIO63 SSP2_RX */
+					>;
+					MFP_DEFAULT;
+				};
+
 				sspa0_gpio: sspa0_gpio {
 					pinctrl-single,pins = <
 						GPIO21 AF0
@@ -664,10 +689,9 @@
 				};
 
 				twsi0_pmx_func: twsi0_pmx_func {
-					/* gpio53/54: AF1 */
 					pinctrl-single,pins = <
-						GPIO53 AF1
-						GPIO54 AF1
+						GPIO53 AF2
+						GPIO54 AF2
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -845,14 +869,12 @@
 			};
 
 			twsi0: i2c@d4011000 {
-			/*
 				pinctrl-names = "default","gpio";
 				pinctrl-0 = <&twsi0_pmx_func>;
 				pinctrl-1 = <&twsi0_pmx_gpio>;
 				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
-			*/
 				status = "okay";
-		        };
+			};
 
 			twsi1: i2c@d4010800 {
 				pinctrl-names = "default","gpio";
