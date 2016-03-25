@@ -98,6 +98,8 @@ struct driver_data {
 	int irq;
 	/* Support RX FIFO auto full control and endian swap */
 	unsigned int ssp_enhancement;
+	/* Use SSP2 for SPI Nor flash chip */
+	unsigned int ssp_nor_flash;
 #endif
 };
 

@@ -68,6 +68,9 @@ static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
 	OF_DEV_AUXDATA("regulator-leds", 0, "leds-regulator",
 						&keypad_backlight),
 #endif
+#ifdef CONFIG_SPI_PXA2XX
+	OF_DEV_AUXDATA("marvell,pxa910-spi", 0xd401c000, "pxa910-ssp.2", NULL),
+#endif
 	{}
 };
 

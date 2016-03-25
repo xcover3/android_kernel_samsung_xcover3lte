@@ -407,6 +407,7 @@
 					&range 55 55 0	/* GPIO0 ~ GPIO54 */
 					&range 110 32 0 /* GPIO67 ~ GPIO98 */
 					&range 52 1 0	/* GPIO124 */
+					&range 6 1 0	/* GPIO65 */
 				>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1>;
@@ -426,10 +427,6 @@
 				mfp_pins_group_0: mfp_pins_group_0 {
 					pinctrl-single,pins = <
 						/* DF_IO8 AF0 */
-						DF_IO9 AF0
-						DF_IO10 AF0
-						DF_IO11 AF0
-						DF_IO12 AF0
 						DF_IO13 AF0
 						DF_IO15 AF0
 					>;
@@ -650,21 +647,21 @@
 				};
 
 				spi0_pmx_func: spi0_pmx_func {
-				   pinctrl-single,pins = <
-					   GPIO33 AF2 /* GPIO33 SSP0_CLK */
-					   GPIO34 AF2 /* GPIO34 SSP0_FRM */
-					   GPIO35 AF2 /* GPIO35 SSP0_RX */
-					   GPIO36 AF2 /* GPIO36 SSP0_TX */
+					pinctrl-single,pins = <
+						GPIO33 AF2 /* GPIO33 SSP0_CLK */
+						GPIO34 AF2 /* GPIO34 SSP0_FRM */
+						GPIO35 AF2 /* GPIO35 SSP0_RX */
+						GPIO36 AF2 /* GPIO36 SSP0_TX */
 					>;
 					MFP_DEFAULT;
 				};
 
-				spi1_pmx_func: spi1_pmx_func {
-				   pinctrl-single,pins = <
-					   DF_IO9 AF2  /* GPIO66 SSP2_CLK */
-					   DF_IO10 AF2 /* GPIO65 SSP2_FRM */
-					   DF_IO11 AF2 /* GPIO64 SSP2_TX */
-					   DF_IO12 AF2 /* GPIO63 SSP2_RX */
+				spi2_pmx_func: spi2_pmx_func {
+					pinctrl-single,pins = <
+						DF_IO9 AF2 /* GPIO66 SSP2_CLK */
+						DF_IO10 AF1 /* GPIO65 SSP2_FRM */
+						DF_IO11 AF2 /* GPIO64 SSP2_TX */
+						DF_IO12 AF2 /* GPIO63 SSP2_RX */
 					>;
 					MFP_DEFAULT;
 				};
@@ -1062,6 +1059,37 @@
 					irq-gpios = <&gpio 20 0>;
 					avdd-supply = <&ldo4>;
 					status = "disabled";
+				};
+			};
+
+			spi_0: ssp@d401b000 {
+				status = "disabled";
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi0_pmx_func>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				spidev {
+					spi-max-frequency = <52000000>;
+					reg = <0>;
+					compatible = "rohm,dh2228fv";
+					status = "okay";
+				};
+			};
+
+			spi_2: ssp@d401c000 {
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi2_pmx_func>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				flash: m25p80@0 {
+					#address-cells = <1>;
+					#size-cells = <1>;
+					compatible = "sst,sst25wf040b";
+					spi-max-frequency = <40000000>;
+					reg = <0>;
 				};
 			};
 

@@ -519,7 +519,7 @@ static void pxa1U88_apb_periph_clk_init(struct pxa1U88_clk_unit *pxa_unit)
 		ARRAY_SIZE(ssp_parent_names), 0,
 		pxa_unit->apbc_base + APBC_SSP2, 4, 3, 0, NULL);
 	clk = mmp_clk_register_gate(NULL, "ssp2_clk", "ssp2_mux",
-				0,
+				CLK_SET_RATE_PARENT | CLK_SET_RATE_ENABLED,
 				pxa_unit->apbc_base + APBC_SSP2,
 				0x7, 0x3, 0x0, 0, NULL);
 	mmp_clk_add(unit, PXA1U88_CLK_SSP2, clk);
@@ -1494,7 +1494,6 @@ static void __init pxa1U88_misc_init(struct pxa1U88_clk_unit *pxa_unit)
 	val = __raw_readl(pxa_unit->apmu_base + APMU_DVC_DFC_DEBUG);
 	val |= (1 << 5);
 	__raw_writel(val, pxa_unit->apmu_base + APMU_DVC_DFC_DEBUG);
-
 }
 
 static void __init pxa1U88_clk_init(struct device_node *np)

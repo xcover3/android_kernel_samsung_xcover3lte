@@ -601,7 +601,7 @@
 
 				gcb2: gpio@d4019008 {
 					reg-offset = <0x8>;
-					gpio-ranges = <&pmx 3 110 29>;
+					gpio-ranges = <&pmx 1 6 1  &pmx 3 110 29>;
 				};
 
 				gcb3: gpio@d4019100 {
@@ -630,6 +630,37 @@
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 				interrupts = <0 9 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_KPC>;
+				status = "disabled";
+			};
+
+			spi_0: ssp@d401b000 {
+				compatible = "marvell,pxa910-spi";
+				marvell,ssp-enhancement;
+				reg = <0xd401b000 0x90>;
+				ssp-id = <0>;
+				interrupts = <0 3 IRQ_TYPE_LEVEL_HIGH>;
+				/* dma engineer, DRCMR offset, user_do_qos */
+				dmas = <&pdma0 52 1
+					&pdma0 53 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_SSP0>;
+				status = "disabled";
+			};
+
+			spi_2: ssp@d401c000 {
+				compatible = "marvell,pxa910-spi";
+				marvell,ssp-enhancement;
+				marvell,ssp-nor-flash;
+				reg = <0xd401c000 0x90>;
+				ssp-id = <2>;
+				interrupts = <0 1 IRQ_TYPE_LEVEL_HIGH>;
+				dmas = <&pdma0 60 1
+					&pdma0 61 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_SSP2>;
+				cs-gpios = <&gpio 65 0>;
 				status = "disabled";
 			};
 
