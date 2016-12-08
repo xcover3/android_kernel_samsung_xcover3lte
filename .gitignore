@@ -1,0 +1,111 @@
+#
+# NOTE! Don't add files that are generated in specific
+# subdirectories here. Add them in the ".gitignore" file
+# in that subdirectory instead.
+#
+# NOTE! Please use 'git ls-files -i --exclude-standard'
+# command after changing this file, to see if there are
+# any tracked files which get ignored after the change.
+#
+# Normal rules
+#
+.*
+*.o
+*.o.*
+*.a
+*.s
+*.ko
+*.so
+*.so.dbg
+*.mod.c
+*.i
+*.lst
+*.symtypes
+*.order
+modules.builtin
+*.elf
+*.bin
+*.gz
+*.bz2
+*.lzma
+*.xz
+*.lzo
+*.patch
+*.gcno
+*.dtb
+
+#
+# Top-level generic files
+#
+/tags
+/TAGS
+/linux
+/vmlinux
+/vmlinuz
+/System.map
+/Module.markers
+/Module.symvers
+
+#
+# Debian directory (make deb-pkg)
+#
+/debian/
+
+#
+# git files that we don't want to ignore even it they are dot-files
+#
+!.gitignore
+!.mailmap
+
+#
+# Generated include files
+#
+include/config
+include/linux/version.h
+include/generated
+arch/*/include/generated
+arch/arm/mach-msm/smd_rpc_sym.c
+scripts/basic/fixdep
+scripts/kconfig/conf
+scripts/kconfig/zconf.hash.c
+scripts/kconfig/zconf.lex.c
+scripts/kconfig/zconf.tab.c
+scripts/bin2c
+scripts/cgitinfo
+scripts/conmakehash
+scripts/dtc/dtc
+scripts/dtc/dtc-lexer.lex.c
+scripts/dtc/dtc-parser.tab.c
+scripts/dtc/dtc-parser.tab.h
+scripts/kallsyms
+scripts/mod/devicetable-offsets.h
+scripts/mod/elfconfig.h
+scripts/mod/mk_elfconfig
+scripts/mod/modpost
+scripts/pnmtologo
+scripts/selinux/genheaders/genheaders
+scripts/selinux/mdp/mdp
+scripts/sortextable
+
+# stgit generated dirs
+patches-*
+
+# quilt's files
+patches
+series
+
+# cscope files
+cscope.*
+ncscope.*
+
+# gnu global files
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
+*.orig
+*.rej
+*~
+\#*#
+
