@@ -1,0 +1,26 @@
+dist: xenial
+sudo: required
+before_install:
+ - sudo apt-get update -qyy
+ - sudo apt-get install -qyy curl bc make git build-essential
+ - wget http://security.ubuntu.com/ubuntu/pool/main/u/u-boot/u-boot-tools_2016.01+dfsg1-2ubuntu3_amd64.deb -O uboot.deb
+ - sudo dpkg -i uboot.deb
+# I prefer linaro 4.9 but maybe it is possible to use something else
+ - git clone https://github.com/aapav01/aarch64-linux-android-4.9-linaro
+before_script:
+ - export CROSS_COMPILE=$PWD/aarch64-linux-android-4.9-linaro/bin/aarch64-linux-android-
+ - export ARCH=arm64
+ - export PATH=$PATH:$PWD/aarch64-linux-android-4.9-linaro/bin/
+ - aarch64-linux-android-gcc --version
+script:
+# export your own config for example
+# - export DEFCONFIG=pakuhak_defconfig
+ - export DEFCONFIG=pxa1908_xcover3lte_eur_defconfig
+ - make -j2 $DEFCONFIG
+ - travis_wait make -j2 1>builds.log
+ - mkimage -A arm64 -O linux -T kernel -C gzip -a 01000000 -e 01000000 -d arch/arm64/boot/Image.gz -n "pxa1928dkb linux" arch/arm64/boot/uImage
+ - ls arch/arm64/boot/
+after_script:
+ - curl --upload-file builds.log https://transfer.sh/builds.log | grep transfer
+ - curl --upload-file arch/arm64/boot/Image.gz https://transfer.sh/Image.gz | grep transfer
+ - curl --upload-file arch/arm64/boot/uImage https://transfer.sh/uImage | grep transfer
