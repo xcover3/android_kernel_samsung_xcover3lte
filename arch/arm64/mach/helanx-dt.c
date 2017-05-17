@@ -14,6 +14,7 @@
 #include <linux/irqchip.h>
 #include <linux/irqchip/mmp.h>
 #include <linux/of_platform.h>
+#include <linux/of_fdt.h>
 #include <linux/clocksource.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
@@ -25,9 +26,32 @@
 #include "regs-addr.h"
 #include "mmpx-dt.h"
 #include "soc_camera_dkb.h"
+#if defined(CONFIG_MACH_J1LTE)
+#include "soc_camera_j1.h"
+#endif
+#if defined(CONFIG_MACH_J1ACELTE)
+#include "soc_camera_j1ace.h"
+#endif
+#if defined(CONFIG_MACH_XCOVER3LTE)
+#endif
+#ifdef CONFIG_MACH_XCOVER3LTE
+#include "soc_camera_xcover3lte.h"
+#endif
+#ifdef CONFIG_MACH_COREPRIMEVELTE
+#include "soc_camera_coreprimevelte.h"
+#endif 
+#ifdef CONFIG_MACH_J1ACELTE_LTN
+#include "soc_camera_j1ace.h"
+#endif
 
 #ifdef CONFIG_SD8XXX_RFKILL
 #include <linux/sd8x_rfkill.h>
+#endif
+#ifdef CONFIG_MACH_PXA_SAMSUNG
+#include <linux/sec-common.h>
+#endif
+#ifdef CONFIG_PROC_AVC
+#include <linux/proc_avc.h>
 #endif
 
 #ifdef CONFIG_LEDS_REGULATOR
