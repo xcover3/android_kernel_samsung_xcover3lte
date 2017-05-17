@@ -18,9 +18,7 @@
 
 #include <net/checksum.h>
 
-#include "common_datastub.h"
-#include "data_channel_kernel.h"
-#include "psd_data_channel.h"
+#include "psdatastub.h"
 #include "debugfs.h"
 
 #define PERSIST_DEVICE_NUM    8
@@ -39,7 +37,6 @@ struct ccinet_priv {
 	unsigned char cid;
 	signed char v6_cid;
 	spinlock_t lock;	/* use to protect critical session */
-	struct net_device_stats net_stats; /* status of the network device */
 };
 static struct net_device *net_devices[MAX_CID_NUM];
 
@@ -69,7 +66,6 @@ static int ccinet_stop(struct net_device *netdev)
 	struct ccinet_priv *devobj = netdev_priv(netdev);
 	netif_stop_queue(netdev);
 	/* netif_carrier_off(netdev); */
-	memset(&devobj->net_stats, 0, sizeof(devobj->net_stats));
 	if (devobj->v6_cid > -1) {
 		psd_unregister(&devobj->psd_user, devobj->v6_cid);
 		devobj->v6_cid = -1;
@@ -94,17 +90,23 @@ static netdev_tx_t ccinet_tx(struct sk_buff *skb, struct net_device *netdev)
 	if (skb->tstamp.tv64 == 0)
 		__net_timestamp(skb);
 
-	ret = sendPSDData(cid | devobj->sim_id << 31, skb);
+	ret = psd_data_tx(cid | devobj->sim_id << 31, skb);
 	if (ret == PSD_DATA_SEND_BUSY) {
 		return NETDEV_TX_BUSY;
 	} else if (ret == PSD_DATA_SEND_DROP) {
-		devobj->net_stats.tx_dropped++;
+		netdev->stats.tx_dropped++;
 	} else {
-		devobj->net_stats.tx_packets++;
-		devobj->net_stats.tx_bytes += skb->len;
+		netdev->stats.tx_packets++;
+		netdev->stats.tx_bytes += skb->len;
 	}
 	return NETDEV_TX_OK;
 
+}
+
+static u16 ccinet_select_queue(struct net_device *dev, struct sk_buff *skb,
+			      void *accel_priv, select_queue_fallback_t fallback)
+{
+	return psd_select_queue(skb);
 }
 
 static void ccinet_fc_cb(void *user_obj, bool is_throttle)
@@ -120,20 +122,10 @@ static void ccinet_fc_cb(void *user_obj, bool is_throttle)
 
 static void ccinet_tx_timeout(struct net_device *netdev)
 {
-	struct ccinet_priv *devobj = netdev_priv(netdev);
-
 	netdev_warn(netdev, "%s\n", __func__);
-	devobj->net_stats.tx_errors++;
+	netdev->stats.tx_errors++;
 	/* netif_wake_queue(netdev); */   /* Resume tx */
 	return;
-}
-
-static struct net_device_stats *ccinet_get_stats(struct net_device *dev)
-{
-	struct ccinet_priv *devobj;
-
-	devobj = netdev_priv(dev);
-	return &devobj->net_stats;
 }
 
 /*
@@ -147,7 +139,6 @@ static int ccinet_rx(void *user_obj, const unsigned char *packet,
 {
 	struct net_device *netdev = (struct net_device *)user_obj;
 	struct sk_buff *skb;
-	struct ccinet_priv *priv = netdev_priv(netdev);
 	struct iphdr *ip_header = (struct iphdr *)packet;
 	__be16	protocol;
 
@@ -158,7 +149,7 @@ static int ccinet_rx(void *user_obj, const unsigned char *packet,
 	} else {
 		netdev_err(netdev, "ccinet_rx: invalid ip version: %d\n",
 		       ip_header->version);
-		priv->net_stats.rx_dropped++;
+		netdev->stats.rx_dropped++;
 		goto out;
 	}
 
@@ -167,7 +158,7 @@ static int ccinet_rx(void *user_obj, const unsigned char *packet,
 		pr_notice_ratelimited(
 			"ccinet_rx: low on mem - packet dropped\n");
 
-		priv->net_stats.rx_dropped++;
+		netdev->stats.rx_dropped++;
 
 		goto out;
 
@@ -182,10 +173,10 @@ static int ccinet_rx(void *user_obj, const unsigned char *packet,
 	if (!checksum_enable)
 		skb->ip_summed = CHECKSUM_UNNECESSARY;	/* don't check it */
 	if (netif_rx(skb) == NET_RX_SUCCESS) {
-		priv->net_stats.rx_packets++;
-		priv->net_stats.rx_bytes += pktlen;
+		netdev->stats.rx_packets++;
+		netdev->stats.rx_bytes += pktlen;
 	} else {
-		priv->net_stats.rx_dropped++;
+		netdev->stats.rx_dropped++;
 		pr_notice_ratelimited(
 			"ccinet_rx: packet dropped by netif_rx\n");
 		goto out;
@@ -206,14 +197,11 @@ static int create_ccinet_netdev(unsigned char cid, bool locked)
 
 	if (net_devices[cid])
 		return -EEXIST;
-#ifdef	CONFIG_SSIPC_SUPPORT
-	sprintf(ifname, "rmnet%d", cid);
-#else
+
 	sprintf(ifname, "ccinet%d", cid);
-#endif
 	dev =
-	    alloc_netdev(sizeof(struct ccinet_priv), ifname,
-			 ccinet_setup);
+	    alloc_netdev_mqs(sizeof(struct ccinet_priv), ifname,
+			 ccinet_setup, PSD_QUEUE_CNT, 1);
 	if (!dev) {
 		pr_err("%s: alloc_netdev for %s fail\n",
 		       __func__, ifname);
@@ -304,7 +292,7 @@ static int ccinet_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			}
 		} else {
 			spin_unlock(&priv->lock);
-			netdev_warn(netdev,
+			netdev_dbg(netdev,
 				"%s: SIM%d want release cid%d, but not used before\n",
 				__func__, sim_id + 1, priv->cid);
 		}
@@ -364,8 +352,8 @@ static const struct net_device_ops cci_netdev_ops = {
 	.ndo_open		= ccinet_open,
 	.ndo_stop		= ccinet_stop,
 	.ndo_start_xmit	= ccinet_tx,
+	.ndo_select_queue	= ccinet_select_queue,
 	.ndo_tx_timeout		= ccinet_tx_timeout,
-	.ndo_get_stats	= ccinet_get_stats,
 	.ndo_do_ioctl = ccinet_ioctl
 };
 

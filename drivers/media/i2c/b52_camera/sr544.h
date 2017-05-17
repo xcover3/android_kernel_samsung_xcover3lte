@@ -12,7 +12,7 @@
 #define	B52_SR544_H
 
 #include <media/b52-sensor.h>
-#include <media/b52_api.h>
+
 #define OTP_DRV_START_ADDR  0x7220
 #define OTP_DRV_INFO_GROUP_COUNT  3
 #define OTP_DRV_INFO_SIZE  5
@@ -2146,12 +2146,6 @@ struct b52_sensor_i2c_attr sr544_i2c_attr[] = {
 		.addr = 0x28,
 	},
 };
-
-static int ev_bias_offset[] = {
-	-0x38, -0x30, -0x27, -0x1f, -0x17, -0x0b, 0,
-	0x0b, 0x16, 0x23, 0x2f, 0x3c, 0x48
-};
-
 #define N_SR544_I2C_ATTR ARRAY_SIZE(sr544_i2c_attr)
 #define N_SR544_INIT ARRAY_SIZE(sr544_res_init)
 #define N_SR544_ID ARRAY_SIZE(sr544_id)
@@ -2199,17 +2193,7 @@ struct b52_sensor_resolution sr544_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_8BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9804 = {
-	.type = VCM_DW9804,
-	.attr = &vcm_attr,
-};
 static struct b52_sensor_module sr544_SSG = {
-	.vcm = &vcm_dw9804,
 	.id = 0,
 };
 static int SR544_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
@@ -2296,7 +2280,6 @@ struct b52_sensor_data b52_sr544 = {
 		.tab = sr544_vflip,
 		.num = N_SR544_VFLIP,
 	},
-	.ev_bias_offset = ev_bias_offset,
 	.flip_change_phase =  0,
 	.gain_shift = 0x08,
 	.expo_shift = 0x00,

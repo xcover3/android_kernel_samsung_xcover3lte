@@ -79,7 +79,7 @@ struct mmpfb_info {
 
 static unsigned long virtual_x;
 static unsigned long virtual_y;
-static unsigned int	is_virtual_display;
+extern unsigned int	is_virtual_display;
 
 static inline void mmpfb_check_virtual_mode(struct mmp_mode *mode)
 {

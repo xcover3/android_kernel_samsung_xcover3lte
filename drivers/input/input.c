@@ -28,9 +28,6 @@
 #include <linux/mutex.h>
 #include <linux/rcupdate.h>
 #include "input-compat.h"
-#if defined(CONFIG_SEC_DEBUG)
-#include <linux/sec-debug.h>
-#endif
 
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("Input core");
@@ -284,10 +281,7 @@ static int input_get_disposition(struct input_dev *dev,
 
 	case EV_KEY:
 		if (is_event_supported(code, dev->keybit, KEY_MAX)) {
-#if defined(CONFIG_SEC_DEBUG)
-			if(code == KEY_VOLUMEDOWN || code == KEY_VOLUMEUP || code == KEY_POWER)
-				sec_debug_check_crash_key(code, value);
-#endif
+
 			/* auto-repeat bypasses state updates */
 			if (value == 2) {
 				disposition = INPUT_PASS_TO_HANDLERS;
@@ -1693,12 +1687,6 @@ static int input_dev_suspend(struct device *dev)
 	/* Turn off LEDs and sounds, if any are active. */
 	input_dev_toggle(input_dev, false);
 
-	// send dummy release event to avoid invalid key crash case
-#if defined(CONFIG_SEC_DEBUG)	
-	sec_debug_check_crash_key(KEY_VOLUMEUP, 0);
-	sec_debug_check_crash_key(KEY_VOLUMEDOWN, 0);
-	sec_debug_check_crash_key(KEY_POWER, 0);
-#endif
 	spin_unlock_irq(&input_dev->event_lock);
 
 	return 0;

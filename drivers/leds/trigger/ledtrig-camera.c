@@ -20,7 +20,6 @@
 
 DEFINE_LED_TRIGGER(ledtrig_flash);
 DEFINE_LED_TRIGGER(ledtrig_torch);
-DEFINE_LED_TRIGGER(ledtrig_ftorch);
 
 void ledtrig_flash_ctrl(bool on)
 {
@@ -38,19 +37,10 @@ void ledtrig_torch_ctrl(bool on)
 }
 EXPORT_SYMBOL_GPL(ledtrig_torch_ctrl);
 
-void ledtrig_ftorch_ctrl(bool on)
-{
-	enum led_brightness brt = on ? LED_FULL : LED_OFF;
-
-	led_trigger_event(ledtrig_ftorch, brt);
-}
-EXPORT_SYMBOL_GPL(ledtrig_ftorch_ctrl);
-
 static int __init ledtrig_camera_init(void)
 {
 	led_trigger_register_simple("flash", &ledtrig_flash);
 	led_trigger_register_simple("torch", &ledtrig_torch);
-	led_trigger_register_simple("ftorch", &ledtrig_ftorch);
 	return 0;
 }
 module_init(ledtrig_camera_init);
@@ -58,7 +48,6 @@ module_init(ledtrig_camera_init);
 static void __exit ledtrig_camera_exit(void)
 {
 	led_trigger_unregister_simple(ledtrig_torch);
-	led_trigger_unregister_simple(ledtrig_ftorch);
 	led_trigger_unregister_simple(ledtrig_flash);
 }
 module_exit(ledtrig_camera_exit);

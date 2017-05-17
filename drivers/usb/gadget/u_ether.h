@@ -21,7 +21,7 @@
 
 #include "gadget_chips.h"
 
-#define QMULT_DEFAULT 10
+#define QMULT_DEFAULT 25
 
 /*
  * dev_addr: initial value

@@ -58,10 +58,6 @@ static bool has_full_constraints;
 
 static struct dentry *debugfs_root;
 
-#if defined(CONFIG_MACH_J7MLTE)
-extern unsigned int lpcharge;
-#endif
-
 /*
  * struct regulator_map
  *
@@ -1069,16 +1065,6 @@ static int set_machine_constraints(struct regulator_dev *rdev,
 		}
 	}
 
-#if defined(CONFIG_MACH_J7MLTE)
-	if ((strcmp(rdev_get_name(rdev), "LDO3") == 0) && (lpcharge == 0)) {
-		ret = _regulator_do_enable(rdev);
-                if (ret < 0 && ret != -EINVAL) {
-                        rdev_err(rdev, "failed to enable\n");
-                        goto out;
-                }
-	}
-#endif
-
 	if ((rdev->constraints->ramp_delay || rdev->constraints->ramp_disable)
 		&& ops->set_ramp_delay) {
 		ret = ops->set_ramp_delay(rdev, rdev->constraints->ramp_delay);
@@ -1535,7 +1521,7 @@ struct regulator *regulator_get_optional(struct device *dev, const char *id)
 }
 EXPORT_SYMBOL_GPL(regulator_get_optional);
 
-/* Locks held by regulator_put() */
+/* regulator_list_mutex lock held by regulator_put() */
 static void _regulator_put(struct regulator *regulator)
 {
 	struct regulator_dev *rdev;
@@ -1550,12 +1536,14 @@ static void _regulator_put(struct regulator *regulator)
 	/* remove any sysfs entries */
 	if (regulator->dev)
 		sysfs_remove_link(&rdev->dev.kobj, regulator->supply_name);
+	mutex_lock(&rdev->mutex);
 	kfree(regulator->supply_name);
 	list_del(&regulator->list);
 	kfree(regulator);
 
 	rdev->open_count--;
 	rdev->exclusive = 0;
+	mutex_unlock(&rdev->mutex);
 
 	module_put(rdev->owner);
 }

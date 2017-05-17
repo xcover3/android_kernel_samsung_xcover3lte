@@ -172,16 +172,6 @@ static struct v4l2_ctrl_config b52isp_ctrl_set_fps_cfg = {
 	.step = 1,
 	.def = 0,
 };
-static struct v4l2_ctrl_config b52isp_ctrl_max_expo_cfg = {
-	.ops = &b52isp_ctrl_ops,
-	.id = V4L2_CID_PRIVATE_MAX_EXPO,
-	.name = "max_expo",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 0xffff,
-	.step = 1,
-	.def = 0,
-};
 struct b52isp_ctrl_colorfx_reg {
 	u32 reg;
 	u32 val;
@@ -310,9 +300,9 @@ static struct b52isp_ctrl_colorfx_reg __colorfx_sepia[] = {
 	{REG_SDE_YOFFSET,     0x00,  1, 0},
 	{REG_SDE_YOFFSET_1,   0x00,  1, 0},
 	{REG_SDE_UVOFFSET0,   0x01,  1, 0},
-	{REG_SDE_UVOFFSET0_1, 0xd7,  1, 0},
+	{REG_SDE_UVOFFSET0_1, 0xf0,  1, 0},
 	{REG_SDE_UVOFFSET1,   0x00,  1, 0},
-	{REG_SDE_UVOFFSET1_1, 0x18,  1, 0},
+	{REG_SDE_UVOFFSET1_1, 0x0d,  1, 0},
 	{REG_SDE_CTRL17,      0x00,  1, 0x7},
 	{REG_SDE_CTRL17,      0x00,  1, 0x8},
 	{REG_SDE_CTRL17,      0x00,  1, 0x10},
@@ -869,8 +859,8 @@ static const s64 ev_bias_qmenu[] = {
 };
 
 static const int ev_bias_offset[] = {
-	-0x3C, -0x33, -0x2B,-0x22, -0x1A, -0x0D, 0,
-	0x16, 0x2C, 0x53, 0x7A, 0x4B, 0x5A
+	-0x3C, -0x33, -0x2A, -0x21, -0x18, -0x0C, 0,
+	0x0F, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A
 };
 
 static const int ev_ext_offset[] = {
@@ -896,10 +886,10 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id, struct b52_sensor *sensor)
 			pr_err("exposure bias value %d is wrong\n", idx);
 			return -EINVAL;
 	}
-	if (sensor->drvdata->ev_bias_offset != NULL)
+	if (sensor != NULL && sensor->drvdata->ev_bias_offset != NULL)
 		offset = sensor->drvdata->ev_bias_offset[idx];
 	else
-	offset = ev_bias_offset[idx];
+		offset = ev_bias_offset[idx];
 
 	/* (low_def[id]+ high_def[id])/2+(EV offset) */
 	low_target = ((low_def[id] + high_def[id]) >> 1) + offset;
@@ -909,10 +899,6 @@ static int b52isp_ctrl_set_expo_bias(int idx, int id, struct b52_sensor *sensor)
 	b52_writeb(base + REG_FW_AEC_TARGET_HIGH, high_target);
 	ev_ext = ev_ext_offset[idx];
 	b52_writeb(base + REG_FW_AEC_TARGET_EV, ev_ext);
-	if (idx == 2 || idx == 3)
-		b52_writeb(base + REG_FW_AEC_STABLE_RANGE1, 0x02);
-	else
-		b52_writeb(base + REG_FW_AEC_STABLE_RANGE1, 0x04);
 	return 0;
 }
 
@@ -1022,23 +1008,6 @@ static int b52isp_ctrl_set_fps(struct b52isp_ctrls *ctrls, int id)
 		return -EINVAL;
 	vts = sensor->drvdata->vts_range.min * 30 / value;
 	b52_writew(base + REG_FW_VTS, vts);
-	b52_writel(base + REG_FW_MAX_CAM_EXP, vts - 16);
-	return 0;
-}
-static int b52isp_ctrl_set_max_expo(struct b52isp_ctrls *ctrls, int id)
-{
-	u32 base;
-	int ret = 0;
-	u32 lines = 0;
-	u16 max_expo = ctrls->max_expo->val;
-	struct b52_sensor *sensor = b52isp_ctrl_to_sensor(ctrls->max_expo);
-	if (!sensor)
-		return -EINVAL;
-	base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
-	ret = b52_sensor_call(sensor, to_expo_line, max_expo, &lines);
-	if (ret < 0)
-		return ret;
-	b52_writel(base + REG_FW_MAX_CAM_EXP, lines);
 	return 0;
 }
 static int b52isp_ctrl_set_3a_lock(struct v4l2_ctrl *ctrl, int id)
@@ -1609,19 +1578,15 @@ static int b52isp_ctrl_get_mean_y(struct b52isp_ctrls *ctrls, int id)
 static int b52isp_ctrl_get_aec_stable(struct b52isp_ctrls *ctrls, int id)
 {
 	u32 base = FW_P1_REG_BASE + id * FW_P1_P2_OFFSET;
-	#ifdef CONFIG_MACH_XCOVER3LTE
-		u8 status = b52_readb(REG_FW_AEC_RD_STATE1);
-	#else
-	u8 status = b52_readb(REG_FW_AEC_RD_STATE3);
-	#endif
+	u8 status = b52_readb(REG_FW_AEC_RD_STATE1);
 	if (status == AEC_STATE_STABLE)
 		ctrls->aec_stable->val = AEC_STATE_STABLE;
-	#ifdef CONFIG_MACH_XCOVER3LTE
-		else if (b52_readw(base + REG_FW_AEC_MAN_GAIN) == b52_readw(base + REG_FW_MAX_CAM_GAIN))
+	else if (b52_readw(base + REG_FW_AEC_MAN_GAIN) ==
+					b52_readw(base + REG_FW_MAX_CAM_GAIN))
 		ctrls->aec_stable->val = AEC_STATE_STABLE;
-		else if ((b52_readl(base + REG_FW_AEC_MAN_EXP) >> 4) == b52_readl(base + REG_FW_MIN_CAM_EXP))
+	else if ((b52_readl(base + REG_FW_AEC_MAN_EXP) >> 4) ==
+					b52_readl(base + REG_FW_MIN_CAM_EXP))
 		ctrls->aec_stable->val = AEC_STATE_STABLE;
-	#endif
 	else
 		ctrls->aec_stable->val = AEC_STATE_UNSTABLE;
 	return 0;
@@ -1899,9 +1864,6 @@ static int b52isp_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_PRIVATE_SET_FPS:
 		ret = b52isp_ctrl_set_fps(ctrls, id);
 		break;
-	case V4L2_CID_PRIVATE_MAX_EXPO:
-		ret = b52isp_ctrl_set_max_expo(ctrls, id);
-		break;
 	default:
 		pr_err("no to s_ctrl: %s (%d)\n", ctrl->name, ctrl->val);
 		ret = -EINVAL;
@@ -1925,7 +1887,7 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	struct v4l2_ctrl_handler *handler = &ctrls->ctrl_handler;
 	const struct v4l2_ctrl_ops *ops = &b52isp_ctrl_ops;
 
-	v4l2_ctrl_handler_init(handler, 38);
+	v4l2_ctrl_handler_init(handler, 37);
 
 	ctrls->saturation = v4l2_ctrl_new_std(handler, ops,
 			V4L2_CID_SATURATION, 0, 0xFFFF, 1, 0);
@@ -2042,8 +2004,6 @@ int b52isp_init_ctrls(struct b52isp_ctrls *ctrls)
 	ctrls->band_step->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	ctrls->set_fps = v4l2_ctrl_new_custom(handler,
 			&b52isp_ctrl_set_fps_cfg, NULL);
-	ctrls->max_expo = v4l2_ctrl_new_custom(handler,
-			&b52isp_ctrl_max_expo_cfg, NULL);
 	if (handler->error) {
 		pr_err("%s: failed to init all ctrls", __func__);
 		return handler->error;

@@ -845,6 +845,4 @@ config GPIO_VIPERBOARD
           River Tech's viperboard.h for detailed meaning
           of the module parameters.
 
-config SEC_GPIO_DVS
-	tristate "setting Samsung GPIO debugging and verification system"
 endif

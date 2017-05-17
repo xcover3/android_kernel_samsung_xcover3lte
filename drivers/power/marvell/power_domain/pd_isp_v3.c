@@ -76,7 +76,6 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 	void __iomem *base = pd->reg_base;
 	u32 val;
 	int ret = 0, loop = MAX_TIMEOUT;
-	int retry_times = 0;
 
 	val = readl(pd->reg_base + APMU_PWR_STATUS_REG);
 	if ((val & (1 << data->bit_pwr_stat)))
@@ -93,7 +92,6 @@ static int mmp_pd_isp_v3_power_on(struct generic_pm_domain *domain)
 	 * writel(val, base + APMU_CCIC_CLK_RES_CTRL);
 	 */
 
-retry:
 	/* set ISP HW on/off mode  */
 	val = readl(base + data->reg_clk_res_ctrl);
 	val |= (1 << data->bit_hw_mode);
@@ -127,10 +125,6 @@ retry:
 
 	if (loop <= 0) {
 		dev_err(pd->dev, "power on timeout\n");
-		if (retry_times++ <= 3) {
-			dev_err(pd->dev, "power on retrying %d times\n", retry_times);
-			goto retry;
-		}
 		ret = -EBUSY;
 		goto out;
 	}

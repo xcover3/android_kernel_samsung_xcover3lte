@@ -253,6 +253,7 @@ teec_cb_handle_t teec_reg_cb(const teec_cb_uuid_t *uuid,
     attr.prio = 0;             /* highest prio */
     attr.stack_addr = NULL;    /* not used */
     attr.stack_size = 0;       /* not used */
+    attr.flags = OSA_PF_FREEZER_SKIP;
     cb->worker = osa_create_thread(_teec_cb_worker, cb, &attr);
     OSA_ASSERT(cb->worker);
 

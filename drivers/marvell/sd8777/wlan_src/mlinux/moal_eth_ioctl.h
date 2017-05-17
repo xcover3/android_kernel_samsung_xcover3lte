@@ -194,6 +194,7 @@ Change log:
 #endif
 #define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
 #define PRIV_CMD_AUTO_TDLS          "autotdls"
+
 #define PRIV_CMD_TDLS_IDLE_TIME          "tdls_idle_time"
 
 /** Private command ID for Android default commands */

@@ -19,6 +19,12 @@
 extern struct soc_camera_desc soc_camera_desc_0;
 #endif
 
+#ifdef CONFIG_SOC_CAMERA_SP2529_ECS
+#define SP2529_PWDN_PIN 70
+#define SP2529_RESET_PIN 69
+#define SP2529_CCIC_PORT 1
+extern struct soc_camera_desc soc_camera_desc_4;
+#endif
 #ifdef CONFIG_SOC_CAMERA_OV5640_ECS
 #define OV5640_PWDN_PIN_1L88 80
 #define OV5640_RESET_PIN_1L88 67

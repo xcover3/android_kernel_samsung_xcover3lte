@@ -13,12 +13,6 @@
 
 #include <asm/cacheflush.h>
 #include <asm/system_misc.h>
-#ifdef CONFIG_SEC_DEBUG
-#include <linux/sec-debug.h>
-
-DECLARE_PER_CPU(struct sec_debug_core_t, sec_debug_aarch64_core_reg);
-DECLARE_PER_CPU(struct sec_debug_mmu_reg_t, sec_debug_aarch64_mmu_reg);
-#endif
 
 static atomic_t waiting_for_crash_ipi;
 /*
@@ -42,12 +36,6 @@ void machine_crash_nonpanic_core(void *unused)
 	pr_debug("CPU %u will stop doing anything useful since another CPU has crashed\n",
 	       smp_processor_id());
 	crash_save_cpu(&regs, smp_processor_id());
-#ifdef CONFIG_SEC_DEBUG
-	sec_debug_save_mmu_reg(&per_cpu(sec_debug_aarch64_mmu_reg,
-						smp_processor_id()));
-	sec_debug_save_core_reg(&per_cpu(sec_debug_aarch64_core_reg,
-						smp_processor_id()));
-#endif
 	flush_cache_all();
 
 	atomic_dec(&waiting_for_crash_ipi);

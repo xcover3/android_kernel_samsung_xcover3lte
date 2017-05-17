@@ -743,12 +743,10 @@ wlan_cmd_802_11_associate(IN mlan_private *pmpriv,
 
 	wlan_cmd_append_generic_ie(pmpriv, &pos);
 
-#if 0 /* Bug1627 : P150618-05515 : Voda UK issue */
 	if (pbss_desc->pmd_ie)
 		wlan_cmd_append_pass_through_ie(pmpriv,
 						(IEEEtypes_Generic_t *)
 						pbss_desc->pmd_ie, &pos);
-#endif
 	wlan_cmd_append_tsf_tlv(pmpriv, &pos, pbss_desc);
 
 	if (wlan_11d_create_dnld_countryinfo(pmpriv, (t_u8)pbss_desc->bss_band)) {
@@ -1382,7 +1380,7 @@ wlan_cmd_802_11_ad_hoc_start(IN mlan_private *pmpriv,
 			pht_cap->header.type = wlan_cpu_to_le16(HT_CAPABILITY);
 			pht_cap->header.len = sizeof(HTCap_t);
 			rx_mcs_supp =
-				GET_RXMCSSUPP(pmadapter->usr_dev_mcs_support);
+				GET_RXMCSSUPP(pmpriv->usr_dev_mcs_support);
 			/* Set MCS for 1x1/2x2 */
 			memset(pmadapter,
 			       (t_u8 *)pht_cap->ht_cap.supported_mcs_set, 0xff,

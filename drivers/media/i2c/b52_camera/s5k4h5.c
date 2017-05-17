@@ -30,10 +30,6 @@
 #include "s5k4h5.h"
 #include <media/mv_sc2_twsi_conf.h>
 #include <linux/clk.h>
-
-extern char gVendor_ID[12];
-extern char *cam_checkfw_factory;
-
 static int S5K4H5_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
 #if 0
@@ -155,14 +151,12 @@ static void S5K4H5_erase_page(struct v4l2_subdev *sd, char page)
 	tab.val = 0xee;
 	tab.mask = 0xff;
 	/* wait for last step over */
-	do
+	while (S5K4H5_vcm_read_reg(sd, 0x05) & 0x02)
 		usleep_range(100, 300);
-	while (S5K4H5_vcm_read_reg(sd, 0x05) & 0x02);
 	b52_cmd_write_i2c(&data);
 	/* wait for last step over */
-	do
+	while (S5K4H5_vcm_read_reg(sd, 0x05) & 0x02)
 		usleep_range(2500, 3000);
-	while (S5K4H5_vcm_read_reg(sd, 0x05) & 0x02);
 }
 static int S5K4H5_otp_write(struct v4l2_subdev *sd,
 		unsigned int offset, char *buffer, int len)
@@ -207,7 +201,7 @@ static int S5K4H5_otp_write(struct v4l2_subdev *sd,
 #define FULL_LEN 0x2000
 
 
-#define MODULE_OFFSET	0x0030
+#define MODULE_OFFSET	0x08b0
 #define AF_OFFSET	0x0100
 #define GWB_OFFSET	0x0140
 #define WB_OFFSET	0x0900
@@ -230,17 +224,6 @@ static int S5K4H5_read_data(struct v4l2_subdev *sd,
 		for (i = 0; i < len; i++)
 			bank_grp1[i] = S5K4H5_eflash_read_reg(sd, bank_addr++);
 		paddr = otp->user_otp->module_data;
-		for(i=0;i<11;i++){
-			gVendor_ID[i]=bank_grp1[i];
-
-		}	
-		
-		if (gVendor_ID[10] == 'M') {
-			cam_checkfw_factory = "OK";
-		} else {
-			cam_checkfw_factory = "NG";
-		}
-
 		if (copy_to_user(paddr, &bank_grp1[0],
 							len)) {
 			ret = -EIO;
@@ -359,7 +342,7 @@ static int S5K4H5_update_otp(struct v4l2_subdev *sd,
 		module_id = otp->user_otp->module_data;
 		ret = S5K4H5_read_data(sd, otp);
 		if (otp->user_otp->module_data_len > 0)
-			pr_debug("Marvell_Unifiled_OTP_ID_INF for S5K4H5: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
+			pr_err("Marvell_Unifiled_OTP_ID_INF for S5K4H5: Module=0x%x, Lens=0x%x, VCM=0x%x, DriverIC=0x%x\n",
 				*module_id, 0, 0, 0);
 		return ret;
 	}
@@ -373,11 +356,11 @@ static int S5K4H5_s_power(struct v4l2_subdev *sd, int on)
 	struct sensor_power *power;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
+
 	power = (struct sensor_power *) &(sensor->power);
 	if (on) {
 		if (power->ref_cnt++ > 0)
 			return 0;
-#if 0
 		power->pwdn = devm_gpiod_get(&client->dev, "pwdn");
 		if (IS_ERR(power->pwdn)) {
 			dev_warn(&client->dev, "Failed to get gpio pwdn\n");
@@ -401,8 +384,13 @@ static int S5K4H5_s_power(struct v4l2_subdev *sd, int on)
 				goto rst_err;
 			}
 		}
-#endif
-		
+		if (power->dovdd_1v8) {
+			regulator_set_voltage(power->dovdd_1v8,
+						1800000, 1800000);
+			ret = regulator_enable(power->dovdd_1v8);
+			if (ret < 0)
+				goto dovdd_err;
+		}
 		if (power->avdd_2v8) {
 			regulator_set_voltage(power->avdd_2v8,
 						2800000, 2800000);
@@ -410,7 +398,6 @@ static int S5K4H5_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				goto avdd_err;
 		}
-
 		if (power->dvdd_1v2) {
 			regulator_set_voltage(power->dvdd_1v2,
 						1200000, 1200000);
@@ -418,20 +405,25 @@ static int S5K4H5_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				goto dvdd_err;
 		}
-		
 		if (power->af_2v8) {
 			regulator_set_voltage(power->af_2v8,
 						2800000, 2800000);
 			ret = regulator_enable(power->af_2v8);
 			if (ret < 0)
-					goto af_err;
+				goto af_err;
 		}
+		if (power->pwdn)
+			gpiod_set_value_cansleep(power->pwdn, 0);
 
-		msleep(2);
-		power->dovdd_1v8_gpio = devm_gpiod_get(&client->dev, "dovdd_1v8_gpio");
-		if (power->dovdd_1v8_gpio)
-			ret = gpiod_direction_output(power->dovdd_1v8_gpio, 1);
+		clk_set_rate(sensor->clk, sensor->mclk);
+		clk_prepare_enable(sensor->clk);
 
+		if (power->rst) {
+			if (sensor->drvdata->reset_delay)
+				reset_delay = sensor->drvdata->reset_delay;
+			usleep_range(reset_delay, reset_delay + 10);
+			gpiod_set_value_cansleep(power->rst, 0);
+		}
 		if (sensor->i2c_dyn_ctrl) {
 			ret = sc2_select_pins_state(sensor->pos - 1,
 					SC2_PIN_ST_SCCB, SC2_MOD_B52ISP);
@@ -440,23 +432,6 @@ static int S5K4H5_s_power(struct v4l2_subdev *sd, int on)
 				goto i2c_err;
 			}
 		}
-
-		msleep(5);
-		clk_set_rate(sensor->clk, sensor->mclk);
-		clk_prepare_enable(sensor->clk);
-		
-		power->rst = devm_gpiod_get(&client->dev, "reset");
-		if (power->rst) {
-			ret = gpiod_direction_output(power->rst, 1);
-			if (sensor->drvdata->reset_delay)
-				reset_delay = sensor->drvdata->reset_delay;
-				usleep_range(reset_delay, reset_delay + 10);
-			if (sensor->drvdata->reset_delay)
-				reset_delay = sensor->drvdata->reset_delay;
-			usleep_range(reset_delay, reset_delay + 10);
-		}
-		udelay(900);
-	
 	} else {
 		if (WARN_ON(power->ref_cnt == 0))
 			return -EINVAL;
@@ -475,28 +450,23 @@ static int S5K4H5_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				pr_err("b52 sensor gpio pin is not configured\n");
 		}
-		
-		if (power->af_2v8)
-			regulator_disable(power->af_2v8);
-
-		clk_disable_unprepare(sensor->clk);
-		
 		if (power->rst)
 			gpiod_set_value_cansleep(power->rst, 1);
-
-		if (power->dovdd_1v8_gpio)
-			gpiod_set_value_cansleep(power->dovdd_1v8_gpio, 1);
-		
+		clk_disable_unprepare(sensor->clk);
+		if (power->pwdn)
+			gpiod_set_value_cansleep(power->pwdn, 1);
 		if (power->dvdd_1v2)
 			regulator_disable(power->dvdd_1v2);
-		
+		if (power->dovdd_1v8)
+			regulator_disable(power->dovdd_1v8);
 		if (power->avdd_2v8)
 			regulator_disable(power->avdd_2v8);
-		
+		if (power->af_2v8)
+			regulator_disable(power->af_2v8);
 		if (sensor->power.rst)
 			devm_gpiod_put(&client->dev, sensor->power.rst);
-		if (sensor->power.dovdd_1v8_gpio)
-			devm_gpiod_put(&client->dev, sensor->power.dovdd_1v8_gpio);
+		if (sensor->power.pwdn)
+			devm_gpiod_put(&client->dev, sensor->power.pwdn);
 		sensor->sensor_init = 0;
 	}
 

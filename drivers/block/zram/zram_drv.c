@@ -134,10 +134,10 @@ static ssize_t mem_used_total_show(struct device *dev,
 
 	down_read(&zram->init_lock);
 	if (zram->init_done)
-		val = zs_get_total_pages(meta->mem_pool);
+		val = zs_get_total_size_bytes(meta->mem_pool);
 	up_read(&zram->init_lock);
 
-	return sprintf(buf, "%llu\n", val << PAGE_SHIFT);
+	return sprintf(buf, "%llu\n", val);
 }
 
 /* flag operations needs meta->tb_lock */
@@ -223,7 +223,7 @@ static struct zram_meta *zram_meta_alloc(u64 disksize)
 		goto free_buffer;
 	}
 
-	meta->mem_pool = zs_create_pool(GFP_NOIO | __GFP_HIGHMEM, NULL);
+	meta->mem_pool = zs_create_pool(GFP_NOIO | __GFP_HIGHMEM);
 	if (!meta->mem_pool) {
 		pr_err("Error creating memory pool\n");
 		goto free_table;
@@ -312,8 +312,6 @@ static void zram_free_page(struct zram *zram, size_t index)
 
 	atomic64_sub(meta->table[index].size, &zram->stats.compr_size);
 	atomic_dec(&zram->stats.pages_stored);
-	zram_pages_stored = (u64)atomic_read(&zram->stats.pages_stored);
-	zram_compressed_size = (u64)(atomic64_read(&zram->stats.compr_size) >> PAGE_SHIFT);
 
 	meta->table[index].handle = 0;
 	meta->table[index].size = 0;
@@ -516,8 +514,6 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 	/* Update stats */
 	atomic64_add(clen, &zram->stats.compr_size);
 	atomic_inc(&zram->stats.pages_stored);
-	zram_pages_stored = (u64)atomic_read(&zram->stats.pages_stored);
-	zram_compressed_size = (u64)(atomic64_read(&zram->stats.compr_size) >> PAGE_SHIFT);
 	if (clen <= PAGE_SIZE / 2)
 		atomic_inc(&zram->stats.good_compress);
 

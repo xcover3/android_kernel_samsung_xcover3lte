@@ -9,6 +9,7 @@
 #
 # Normal rules
 #
+.*
 *.o
 *.o.*
 *.a
@@ -28,10 +29,10 @@ modules.builtin
 *.bz2
 *.lzma
 *.xz
+*.lz4
 *.lzo
 *.patch
 *.gcno
-*.dtb
 
 #
 # Top-level generic files
@@ -60,31 +61,8 @@ modules.builtin
 # Generated include files
 #
 include/config
-include/linux/version.h
 include/generated
 arch/*/include/generated
-arch/arm/mach-msm/smd_rpc_sym.c
-scripts/basic/fixdep
-scripts/kconfig/conf
-scripts/kconfig/zconf.hash.c
-scripts/kconfig/zconf.lex.c
-scripts/kconfig/zconf.tab.c
-scripts/bin2c
-scripts/cgitinfo
-scripts/conmakehash
-scripts/dtc/dtc
-scripts/dtc/dtc-lexer.lex.c
-scripts/dtc/dtc-parser.tab.c
-scripts/dtc/dtc-parser.tab.h
-scripts/kallsyms
-scripts/mod/devicetable-offsets.h
-scripts/mod/elfconfig.h
-scripts/mod/mk_elfconfig
-scripts/mod/modpost
-scripts/pnmtologo
-scripts/selinux/genheaders/genheaders
-scripts/selinux/mdp/mdp
-scripts/sortextable
 
 # stgit generated dirs
 patches-*
@@ -104,7 +82,19 @@ GSYMS
 GTAGS
 
 *.orig
-*.rej
 *~
 \#*#
 
+#
+# Leavings from module signing
+#
+extra_certificates
+signing_key.priv
+signing_key.x509
+x509.genkey
+
+# Kconfig presets
+all.config
+# cgitinfo tool about
+kernel/gitinfo.S
+scripts/cgitinfo

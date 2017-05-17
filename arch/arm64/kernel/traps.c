@@ -33,16 +33,11 @@
 
 #include <asm/atomic.h>
 #include <asm/debug-monitors.h>
-#include <asm/insn.h>
 #include <asm/traps.h>
 #include <asm/stacktrace.h>
 #include <asm/exception.h>
 #include <asm/system_misc.h>
-#include <asm/esr.h>
-#ifdef CONFIG_SEC_DEBUG
-#include <linux/sec-debug.h>
-#include <linux/arm-coresight.h>
-#endif
+
 #ifdef CONFIG_PXA_RAMDUMP
 #include "linux/ramdump.h"
 #endif
@@ -234,10 +229,6 @@ static DEFINE_RAW_SPINLOCK(die_lock);
  */
 void die(const char *str, struct pt_regs *regs, int err)
 {
-#ifdef CONFIG_SEC_DEBUG
-	arch_stop_trace();
-	stop_ftracing();
-#endif
 	struct thread_info *thread = current_thread_info();
 	int ret;
 
@@ -554,70 +545,6 @@ static int aarch32_swp_handler(struct pt_regs *regs)
 	return 0;
 }
 
-static LIST_HEAD(undef_hook);
-static DEFINE_RAW_SPINLOCK(undef_lock);
-
-void register_undef_hook(struct undef_hook *hook)
-{
-	unsigned long flags;
-
-	raw_spin_lock_irqsave(&undef_lock, flags);
-	list_add(&hook->node, &undef_hook);
-	raw_spin_unlock_irqrestore(&undef_lock, flags);
-}
-
-void unregister_undef_hook(struct undef_hook *hook)
-{
-	unsigned long flags;
-
-	raw_spin_lock_irqsave(&undef_lock, flags);
-	list_del(&hook->node);
-	raw_spin_unlock_irqrestore(&undef_lock, flags);
-}
-
-static int call_undef_hook(struct pt_regs *regs)
-{
-	struct undef_hook *hook;
-	unsigned long flags;
-	u32 instr;
-	int (*fn)(struct pt_regs *regs, u32 instr) = NULL;
-	void __user *pc = (void __user *)instruction_pointer(regs);
-
-	if (!user_mode(regs))
-		return 1;
-
-	if (compat_thumb_mode(regs)) {
-		/* 16-bit Thumb instruction */
-		if (get_user(instr, (u16 __user *)pc))
-			goto exit;
-		instr = le16_to_cpu(instr);
-		if (aarch32_insn_is_wide(instr)) {
-			u32 instr2;
-
-			if (get_user(instr2, (u16 __user *)(pc + 2)))
-				goto exit;
-			instr2 = le16_to_cpu(instr2);
-			instr = (instr << 16) | instr2;
-		}
-	} else {
-		/* 32-bit ARM instruction */
-		if (get_user(instr, (u32 __user *)pc))
-			goto exit;
-		instr = le32_to_cpu(instr);
-	}
-
-	raw_spin_lock_irqsave(&undef_lock, flags);
-	list_for_each_entry(hook, &undef_hook, node)
-		if ((instr & hook->instr_mask) == hook->instr_val &&
-			(regs->pstate & hook->pstate_mask) == hook->pstate_val)
-			fn = hook->fn;
-
-	raw_spin_unlock_irqrestore(&undef_lock, flags);
-exit:
-	return fn ? fn(regs, instr) : 1;
-}
-
-
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
 	siginfo_t info;
@@ -632,9 +559,6 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 		return;
 
 	if (!aarch32_swp_handler(regs))
-		return;
-
-	if (call_undef_hook(regs) == 0)
 		return;
 
 	if (show_unhandled_signals && unhandled_signal(current, SIGILL) &&
@@ -683,24 +607,11 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 {
 	siginfo_t info;
 	void __user *pc = (void __user *)instruction_pointer(regs);
-#ifdef CONFIG_FORCE_INSTRUCTION_ALIGNMENT
-       if ((esr >> ESR_EL1_EC_SHIFT == ESR_EL1_EC_PC_ALIGN) &&
-		       compat_user_mode(regs) && !compat_thumb_mode(regs)) {
-	       int isize = 4;
-	       pr_crit("Bad mode in %s handler detected, code 0x%08x\n", handler[reason], esr);
-	       printk("pc : [<%016llx>] lr : [<%016llx>] pstate: %08llx\n",
-			       instruction_pointer(regs), regs->compat_lr, regs->compat_sp);
-	       instruction_pointer(regs) &= ~(isize + (-1UL));
-	       pr_err("[%s] force instruction alignment pc <%016llx>\n", __func__, instruction_pointer(regs));
-	       return;
-       }
-#endif
 	console_verbose();
 
 	pr_crit("Bad mode in %s handler detected, code 0x%08x\n",
 		handler[reason], esr);
 	__show_regs(regs);
-
 
 	info.si_signo = SIGILL;
 	info.si_errno = 0;

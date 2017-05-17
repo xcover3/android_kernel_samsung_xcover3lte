@@ -104,4 +104,7 @@ wlf	Wolfson Microelectronics
 wm	Wondermedia Technologies, Inc.
 xlnx	Xilinx
 focaltech	focaltech
+mstar	mstar
 simple-bus
+epl	ELAN
+pwm-backlight

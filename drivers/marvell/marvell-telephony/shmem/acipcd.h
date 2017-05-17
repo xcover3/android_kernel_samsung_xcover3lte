@@ -26,81 +26,12 @@
 
 #include <linux/pxa9xx_acipc.h>
 
-/* some arbitrary definitions */
-#define ACIPC_MUDP_KEY	ACIPC_SHM_PACKET_NOTIFY
-#define PACKET_SENT		0x11
-#define PEER_SYNC		0x5
-
-/*
- * the following acipc_notify_* inline functions are used to generate
- * interrupt from AP to CP.
- */
-/* generate peer sync interrupt */
-static inline void acipc_notify_peer_sync(void)
-{
-	ACIPCDataSend(ACIPC_MUDP_KEY, PEER_SYNC << 8);
-}
-
-/* notify cp that new packet available in the socket buffer */
-static inline void acipc_notify_packet_sent(void)
-{
-	ACIPCDataSend(ACIPC_MUDP_KEY, PACKET_SENT << 8);
-}
-
-/* notify cp that flow control state has been changed */
-static inline void acipc_notify_port_fc(void)
-{
-	ACIPCEventSet(ACIPC_PORT_FLOWCONTROL);
-}
-
-/* notify cp that cp can continue transmission */
-static inline void acipc_notify_cp_tx_resume(void)
-{
-	pr_warn("MSOCK: acipc_notify_cp_tx_resume!!!\n");
-	ACIPCEventSet(ACIPC_RINGBUF_TX_RESUME);
-}
-
-/*notify cp that ap transmission is stopped, please resume me later */
-static inline void acipc_notify_ap_tx_stopped(void)
-{
-	pr_warn("MSOCK: acipc_notify_ap_tx_stopped!!!\n");
-	ACIPCEventSet(ACIPC_RINGBUF_TX_STOP);
-}
-
-/* notify cp psd that new packet available in the socket buffer */
-static inline void acipc_notify_psd_packet_sent(void)
-{
-	ACIPCEventSet(ACIPC_SHM_PSD_PACKET_NOTIFY);
-}
-
-/* notify cp diag that new packet available in the socket buffer */
-static inline void acipc_notify_diag_packet_sent(void)
-{
-	ACIPCEventSet(ACIPC_SHM_DIAG_PACKET_NOTIFY);
-}
-
-/* notify cp psd that cp can continue transmission */
-static inline void acipc_notify_cp_psd_tx_resume(void)
-{
-	pr_warn_ratelimited(
-		"MSOCK: acipc_notify_cp_psd_tx_resume!!!\n");
-	ACIPCEventSet(ACIPC_RINGBUF_PSD_TX_RESUME);
-}
-
-/*notify cp psd that ap transmission is stopped, please resume me later */
-static inline void acipc_notify_ap_psd_tx_stopped(void)
-{
-	pr_warn_ratelimited(
-		"MSOCK: acipc_notify_ap_psd_tx_stopped!!!\n");
-	ACIPCEventSet(ACIPC_RINGBUF_PSD_TX_STOP);
-}
-
 /*notify cp that ap will reset cp to let cp exit WFI state */
 static inline void acipc_notify_reset_cp_request(void)
 {
 	pr_warn(
 		"MSOCK: acipc_notify_reset_cp_request!!!\n");
-	ACIPCEventSet(ACIPC_MODEM_DDR_UPDATE_REQ);
+	acipc_event_set(ACIPC_MODEM_DDR_UPDATE_REQ);
 }
 
 extern int acipc_init(u32 lpm_qos);

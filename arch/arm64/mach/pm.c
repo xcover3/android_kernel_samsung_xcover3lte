@@ -18,10 +18,6 @@
 #include <asm/cputype.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/clk/mmpfuse.h>
-#ifdef CONFIG_SEC_GPIO_DVS
-#include <linux/secgpio_dvs.h>
-#endif
-
 #include "pm.h"
 
 struct platform_suspend *mmp_suspend;
@@ -43,14 +39,6 @@ static int notrace mcpm_powerdown_finisher(unsigned long arg)
 static int mmp_pm_enter(suspend_state_t state)
 {
 	unsigned int real_idx = mmp_suspend->suspend_state;
-
-#ifdef CONFIG_SEC_GPIO_DVS
-	/************************ Caution !!! ****************************
-	This function must be located in appropriate SLEEP position
-	in accordance with the specification of each BB vendor.
-	************************ Caution !!! ****************************/
-	gpio_dvs_check_sleepgpio();
-#endif
 
 	if (mmp_suspend->ops->pre_suspend_check) {
 		if (mmp_suspend->ops->pre_suspend_check())

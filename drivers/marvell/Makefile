@@ -21,5 +21,4 @@ obj-$(CONFIG_MRVL_PANIC_FLUSH) += emmd/
 obj-$(CONFIG_MRVL_SW_JTAG) += sw_jtag/
 obj-$(CONFIG_MRVL_SKMALLOC) += kmalloc/
 obj-$(CONFIG_MRVL_MMP_MODEM) += marvell-telephony/
-obj-$(CONFIG_MRVL_GPU_GALCORE) += graphics/galcore_src/
 obj-$(CONFIG_MRVL_RSV_PAGE) += rsv_emmc/

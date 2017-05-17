@@ -20,6 +20,7 @@
  * 5. held status registers in SQU;
  * 6. (eden)PMIC power up/down log;
  * 7. (eden)reset status registers;
+ * 8. pmic up/down status;
  *
  * note: RDC for RAMDUMP is defined @0x8140400,size is 0x400, so we will
  * use 0x8140000~0x8140400 to save above info.
@@ -46,6 +47,7 @@ struct emmd_page {
 	unsigned int held_status[CRASH_PAGE_SIZE_HELDSTATUS];
 	unsigned int pmic_regs[CRASH_PAGE_SIZE_PMIC];
 	unsigned int reset_status[CRASH_PAGE_SIZE_RESET_STATUS];
+	unsigned int pmic_power_status;
 };
 extern struct emmd_page *emmd_page;
 

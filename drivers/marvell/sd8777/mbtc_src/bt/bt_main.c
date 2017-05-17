@@ -4,7 +4,7 @@
   * driver. It includes init, exit, open, close and main
   * thread etc..
   *
-  * Copyright (C) 2007-2015, Marvell International Ltd.
+  * Copyright (C) 2007-2014, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -29,7 +29,7 @@
   *
   * @section copyright_sec Copyright
   *
-  * Copyright (C) 2007-2015, Marvell International Ltd.
+  * Copyright (C) 2007-2014, Marvell International Ltd.
   *
   */
 
@@ -67,8 +67,7 @@ static char fw_version[32] = "0.0.0.p0";
 
 #define AID_BLUETOOTH     1002	/* bluetooth subsystem */
 
-#define AID_NET_BT_STACK	3008	/* bluetooth stack */
-
+#define AID_NET_BT_STACK  3008	/* bluetooth: access config files */
 /** Define module name */
 #define MODULE_NAME  "bt_fm_nfc"
 
@@ -2231,7 +2230,6 @@ sbi_register_conf_dpc(bt_private *priv)
 	if ((drv_mode & DRV_MODE_FM) &&
 	    (!(priv->bt_dev.devType == DEV_TYPE_AMP)) &&
 	    (priv->bt_dev.devFeature & DEV_FEATURE_FM)) {
-
 		/** alloc fm_dev */
 		fm_dev = alloc_fm_dev();
 		if (!fm_dev) {
@@ -2556,9 +2554,7 @@ bt_send_hw_remove_event(bt_private *priv)
 		return;
 	}
 	if (priv->bt_dev.m_dev[BT_SEQ].spec_type != BLUEZ_SPEC)
-		mbt_dev =
-			(struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].
-			dev_pointer;
+		mbt_dev = (struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].dev_pointer;
 #define HCI_HARDWARE_ERROR_EVT  0x10
 #define HCI_HARDWARE_REMOVE     0x24
 	skb = bt_skb_alloc(3, GFP_ATOMIC);

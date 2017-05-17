@@ -717,7 +717,7 @@ int pxa910_diag_gserial_setup(struct usb_gadget *g, unsigned count)
 	struct usb_cdc_line_coding coding;
 	int status;
 
-	if (count == 0 || (GS_DIAG_PORT_BASE+count) > PXA910_N_PORTS)
+	if (count == 0 || count > PXA910_N_PORTS)
 		return -EINVAL;
 
 	gs_diag_tty_driver = alloc_tty_driver(count);

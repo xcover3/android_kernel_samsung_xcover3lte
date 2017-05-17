@@ -10,6 +10,7 @@
 
 #define ISPSD_PAD_MAX	15
 #define GID_ISP_SUBDEV	0xBEEFCAFE
+#define GID_SENSOR_SUBDEV 0xAEEFCAFE
 
 enum isp_gdev_type {
 	ISP_GDEV_NONE	= 0,

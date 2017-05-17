@@ -16,22 +16,6 @@
 static int rpm_resume(struct device *dev, int rpmflags);
 static int rpm_suspend(struct device *dev, int rpmflags);
 
-#ifdef CONFIG_PM_RUNTIME
-void pm_runtime_get_noresume(struct device *dev)
-{
-	atomic_inc(&dev->power.usage_count);
-	TRACE_PRINTK_DEBUG(dev);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_get_noresume);
-
-void pm_runtime_put_noidle(struct device *dev)
-{
-	atomic_add_unless(&dev->power.usage_count, -1, 0);
-	TRACE_PRINTK_DEBUG(dev);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_put_noidle);
-#endif
-
 /**
  * update_pm_runtime_accounting - Update the time accounting of power states
  * @dev: Device to update the accounting for
@@ -218,7 +202,6 @@ static int rpm_check_suspend_allowed(struct device *dev)
 {
 	int retval = 0;
 
-	TRACE_PRINTK_DEBUG(dev);
 	if (dev->power.runtime_error)
 		retval = -EINVAL;
 	else if (dev->power.disable_depth > 0)
@@ -285,7 +268,6 @@ static int rpm_idle(struct device *dev, int rpmflags)
 	int (*callback)(struct device *);
 	int retval;
 
-	TRACE_PRINTK_DEBUG(dev);
 	trace_rpm_idle(dev, rpmflags);
 	retval = rpm_check_suspend_allowed(dev);
 	if (retval < 0)
@@ -419,7 +401,6 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 	trace_rpm_suspend(dev, rpmflags);
 
  repeat:
-	TRACE_PRINTK_DEBUG(dev); 	
 	retval = rpm_check_suspend_allowed(dev);
 
 	if (retval < 0)
@@ -612,7 +593,6 @@ static int rpm_resume(struct device *dev, int rpmflags)
 	trace_rpm_resume(dev, rpmflags);
 
  repeat:
-	TRACE_PRINTK_DEBUG(dev); 	
 	if (dev->power.runtime_error)
 		retval = -EINVAL;
 	else if (dev->power.disable_depth == 1 && dev->power.is_suspended
@@ -910,7 +890,6 @@ int __pm_runtime_idle(struct device *dev, int rpmflags)
 	might_sleep_if(!(rpmflags & RPM_ASYNC) && !dev->power.irq_safe);
 
 	if (rpmflags & RPM_GET_PUT) {
-		TRACE_PRINTK_DEBUG(dev);		
 		if (!atomic_dec_and_test(&dev->power.usage_count))
 			return 0;
 	}
@@ -943,7 +922,6 @@ int __pm_runtime_suspend(struct device *dev, int rpmflags)
 	might_sleep_if(!(rpmflags & RPM_ASYNC) && !dev->power.irq_safe);
 
 	if (rpmflags & RPM_GET_PUT) {
-		TRACE_PRINTK_DEBUG(dev);		
 		if (!atomic_dec_and_test(&dev->power.usage_count))
 			return 0;
 	}
@@ -974,10 +952,8 @@ int __pm_runtime_resume(struct device *dev, int rpmflags)
 
 	might_sleep_if(!(rpmflags & RPM_ASYNC) && !dev->power.irq_safe);
 
-	if (rpmflags & RPM_GET_PUT) {
- 		atomic_inc(&dev->power.usage_count);
-		TRACE_PRINTK_DEBUG(dev);
-	}
+	if (rpmflags & RPM_GET_PUT)
+		atomic_inc(&dev->power.usage_count);
 
 	spin_lock_irqsave(&dev->power.lock, flags);
 	retval = rpm_resume(dev, rpmflags);
@@ -1194,7 +1170,6 @@ void __pm_runtime_disable(struct device *dev, bool check_resume)
 		__pm_runtime_barrier(dev);
 
  out:
-	TRACE_PRINTK_DEBUG(dev); 	
 	spin_unlock_irq(&dev->power.lock);
 }
 EXPORT_SYMBOL_GPL(__pm_runtime_disable);
@@ -1209,10 +1184,9 @@ void pm_runtime_enable(struct device *dev)
 
 	spin_lock_irqsave(&dev->power.lock, flags);
 
-	if (dev->power.disable_depth > 0) {
- 		dev->power.disable_depth--;
-		TRACE_PRINTK_DEBUG(dev);
-	} else
+	if (dev->power.disable_depth > 0)
+		dev->power.disable_depth--;
+	else
 		dev_warn(dev, "Unbalanced %s!\n", __func__);
 
 	spin_unlock_irqrestore(&dev->power.lock, flags);
@@ -1235,7 +1209,6 @@ void pm_runtime_forbid(struct device *dev)
 
 	dev->power.runtime_auto = false;
 	atomic_inc(&dev->power.usage_count);
-	TRACE_PRINTK_DEBUG(dev);	
 	rpm_resume(dev, 0);
 
  out:
@@ -1256,7 +1229,6 @@ void pm_runtime_allow(struct device *dev)
 		goto out;
 
 	dev->power.runtime_auto = true;
-	TRACE_PRINTK_DEBUG(dev);	
 	if (atomic_dec_and_test(&dev->power.usage_count))
 		rpm_idle(dev, RPM_AUTO);
 
@@ -1325,7 +1297,6 @@ static void update_autosuspend(struct device *dev, int old_delay, int old_use)
 		/* If it used to be allowed then prevent it. */
 		if (!old_use || old_delay >= 0) {
 			atomic_inc(&dev->power.usage_count);
-			TRACE_PRINTK_DEBUG(dev);			
 			rpm_resume(dev, 0);
 		}
 	}
@@ -1334,10 +1305,8 @@ static void update_autosuspend(struct device *dev, int old_delay, int old_use)
 	else {
 
 		/* If it used to be prevented then allow it. */
-		if (old_use && old_delay < 0) {
- 			atomic_dec(&dev->power.usage_count);
-			TRACE_PRINTK_DEBUG(dev);
-		}
+		if (old_use && old_delay < 0)
+			atomic_dec(&dev->power.usage_count);
 
 		/* Maybe we can autosuspend now. */
 		rpm_idle(dev, RPM_AUTO);
@@ -1387,122 +1356,6 @@ void __pm_runtime_use_autosuspend(struct device *dev, bool use)
 }
 EXPORT_SYMBOL_GPL(__pm_runtime_use_autosuspend);
 
-int pm_runtime_idle(struct device *dev)
-{
-	return __pm_runtime_idle(dev, 0);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_idle);
-
-int pm_runtime_suspend(struct device *dev)
-{
-	return __pm_runtime_suspend(dev, 0);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_suspend);
-
-int pm_runtime_autosuspend(struct device *dev)
-{
-	return __pm_runtime_suspend(dev, RPM_AUTO);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_autosuspend);
-
-int pm_runtime_resume(struct device *dev)
-{
-	return __pm_runtime_resume(dev, 0);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_resume);
-
-int pm_request_idle(struct device *dev)
-{
-	return __pm_runtime_idle(dev, RPM_ASYNC);
-}
-EXPORT_SYMBOL_GPL(pm_request_idle);
-
-int pm_request_resume(struct device *dev)
-{
-	return __pm_runtime_resume(dev, RPM_ASYNC);
-}
-EXPORT_SYMBOL_GPL(pm_request_resume);
-
-int pm_request_autosuspend(struct device *dev)
-{
-	return __pm_runtime_suspend(dev, RPM_ASYNC | RPM_AUTO);
-}
-EXPORT_SYMBOL_GPL(pm_request_autosuspend);
-
-int pm_runtime_get(struct device *dev)
-{
-	return __pm_runtime_resume(dev, RPM_GET_PUT | RPM_ASYNC);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_get);
-
-int pm_runtime_get_sync(struct device *dev)
-{
-	return __pm_runtime_resume(dev, RPM_GET_PUT);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_get_sync);
-
-int pm_runtime_put(struct device *dev)
-{
-	return __pm_runtime_idle(dev, RPM_GET_PUT | RPM_ASYNC);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_put);
-
-int pm_runtime_put_autosuspend(struct device *dev)
-{
-	return __pm_runtime_suspend(dev,
-	    RPM_GET_PUT | RPM_ASYNC | RPM_AUTO);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_put_autosuspend);
-
-int pm_runtime_put_sync(struct device *dev)
-{
-	return __pm_runtime_idle(dev, RPM_GET_PUT);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_put_sync);
-
-int pm_runtime_put_sync_suspend(struct device *dev)
-{
-	return __pm_runtime_suspend(dev, RPM_GET_PUT);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_put_sync_suspend);
-
-int pm_runtime_put_sync_autosuspend(struct device *dev)
-{
-	return __pm_runtime_suspend(dev, RPM_GET_PUT | RPM_AUTO);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_put_sync_autosuspend);
-
-int pm_runtime_set_active(struct device *dev)
-{
-	return __pm_runtime_set_status(dev, RPM_ACTIVE);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_set_active);
-
-void pm_runtime_set_suspended(struct device *dev)
-{
-	__pm_runtime_set_status(dev, RPM_SUSPENDED);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_set_suspended);
-
-void pm_runtime_disable(struct device *dev)
-{
-	__pm_runtime_disable(dev, true);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_disable);
-
-void pm_runtime_use_autosuspend(struct device *dev)
-{
-	__pm_runtime_use_autosuspend(dev, true);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_use_autosuspend);
-
-void pm_runtime_dont_use_autosuspend(struct device *dev)
-{
-	__pm_runtime_use_autosuspend(dev, false);
-}
-EXPORT_SYMBOL_GPL(pm_runtime_dont_use_autosuspend);
-
-
 /**
  * pm_runtime_init - Initialize runtime PM fields in given device object.
  * @dev: Device object to initialize.
@@ -1514,7 +1367,6 @@ void pm_runtime_init(struct device *dev)
 
 	dev->power.disable_depth = 1;
 	atomic_set(&dev->power.usage_count, 0);
-	TRACE_PRINTK_DEBUG(dev);	
 
 	dev->power.runtime_error = 0;
 

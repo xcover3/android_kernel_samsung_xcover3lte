@@ -1,7 +1,7 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright (C) 2003-2015, Marvell International Ltd.
+ Copyright (C) 2003-2014, Marvell International Ltd.
 
  This software file (the "File") is distributed by Marvell International
  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -174,14 +174,12 @@ proc command to enable BT test mode
 
 	a) chmod 777 fmapp (optional)
 	b) Run fmapp utility based on usage below
-		Usage: fmapp <Options> devicename ogf ocf [command content]
-		devicename example: mfmchar0 /mnfccahr0
-		FM ogf/ocf example: 0x3f 0x280
-		NFC ogf/ocf example: 0x3f 0x281
+		Usage: fmapp <Options> devicename [command content]
+		devicename example: mfmchar0
+
 	Options:
 		-h: Display help
 		-v: Verbose
 
 3) TEST EXAMPLES
-    ./fmapp mfmchar0 0x3f 0x280 0x01 0x01
-    ./fmapp mnfcchar0 0x3f 0x281 0x20 0x00 0x01 0x01
+	./fmapp mfmchar0 0x02 0x03

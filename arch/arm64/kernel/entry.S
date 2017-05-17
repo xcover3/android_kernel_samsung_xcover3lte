@@ -25,9 +25,9 @@
 #include <asm/asm-offsets.h>
 #include <asm/errno.h>
 #include <asm/esr.h>
-#include <asm/ptrace.h>
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
+#include <asm/unistd32.h>
 
 /*
  * Bad Abort numbers
@@ -638,9 +638,8 @@ el0_svc_naked:					// compat entry point
 	enable_irq
 
 	get_thread_info tsk
-	ldr	x16, [tsk, #TI_FLAGS]		// check for syscall hooks
-	tst	x16, #_TIF_SYSCALL_WORK
-	b.ne	__sys_trace
+	ldr	x16, [tsk, #TI_FLAGS]		// check for syscall tracing
+	tbnz	x16, #TIF_SYSCALL_TRACE, __sys_trace // are we tracing syscalls?
 	adr	lr, ret_fast_syscall		// return address
 	cmp     scno, sc_nr                     // check upper syscall limit
 	b.hs	ni_sys
@@ -656,13 +655,10 @@ ENDPROC(el0_svc)
 	 * switches, and waiting for our parent to respond.
 	 */
 __sys_trace:
-	mov	x0, sp
-	bl	syscall_trace_enter
+	mov	x1, sp
+	mov	w0, #0				// trace entry
+	bl	syscall_trace
 	adr	lr, __sys_trace_return		// return address
-	cmp	w0, #RET_SKIP_SYSCALL_TRACE	// skip syscall and tracing?
-	b.eq	ret_to_user
-	cmp	w0, #RET_SKIP_SYSCALL		// skip syscall?
-	b.eq	__sys_trace_return_skipped
 	uxtw	scno, w0			// syscall number (possibly new)
 	mov	x1, sp				// pointer to regs
 	cmp	scno, sc_nr			// check upper syscall limit
@@ -676,9 +672,9 @@ __sys_trace:
 
 __sys_trace_return:
 	str	x0, [sp]			// save returned x0
-__sys_trace_return_skipped:			// x0 already in regs[0]
-	mov	x0, sp
-	bl	syscall_trace_exit
+	mov	x1, sp
+	mov	w0, #1				// trace exit
+	bl	syscall_trace
 	b	ret_to_user
 
 /*

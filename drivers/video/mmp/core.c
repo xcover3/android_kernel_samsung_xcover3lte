@@ -184,7 +184,6 @@ struct mmp_path *mmp_register_path(struct mmp_path_info *info)
 	mutex_init(&path->access_ok);
 	spin_lock_init(&path->commit_lock);
 	spin_lock_init(&path->irq_lock);
-	spin_lock_init(&path->vcnt_lock);
 	path->dev = info->dev;
 	path->id = info->id;
 	path->name = info->name;

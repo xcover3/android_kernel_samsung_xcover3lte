@@ -47,7 +47,6 @@
 #define PXA_FLAG_TX_SEL_BUS_CLK (1<<7)
 
 /* for eMMC chip */
-#define MMC_CAP2_CACHE_CTRL	(1 << 1)	/* Allow cache control */
 #define SDHCI_QUIRK_BROKEN_ADMA                         (1<<6)
 /* Controller enable HW bus clock gating by default */
 #define SDHCI_QUIRK2_BUS_CLK_GATE_ENABLED		(1<<12)
@@ -68,6 +67,8 @@
 #define MMC_CAP_UHS_DDR50	(1 << 19)	/* Host supports UHS DDR50 mode */
 
 #define SDHCI_QUIRK_INVERTED_WRITE_PROTECT              (1<<16)
+
+#define SDHCI_QUIRK2_HOST_NO_CMD23			(1<<1)
 
 /* some SD host need to set IO capability by SOC part register */
 #define SDHCI_QUIRK2_SET_AIB_MMC			(1<<14)
@@ -101,6 +102,8 @@
 #define SDHCI_QUIRK2_TUNING_BROKEN                      (1<<20)
 /* Vqmmc needs always on to keep host power on for card detection */
 #define SDHCI_QUIRK2_VQMMC_ALWAYS_ON			(1<<21)
+/* Need set fixed voltage for avoid CRC error */
+#define SDHCI_QUIRK2_FIXED_VOLTAGE			(1<<22)
 /* DMA need internal clock force on */
 #define SDHCI_QUIRK2_DMA_CLOCK_FORCE_ON			(1<<23)
 

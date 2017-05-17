@@ -78,6 +78,8 @@ enum OTP_TYPE {
 	SENSOR_TO_SENSOR = 1,
 	SENSOR_TO_ISP = 2,
 	ISP_TO_SENSOR = 3,
+	VERIFY_CRC = 4,
+	GEN_CRC = 5,
 };
 struct sensor_otp {
 	enum OTP_TYPE	otp_type;
@@ -85,6 +87,7 @@ struct sensor_otp {
 	__u16			wb_otp_len;
 	__u16			vcm_otp_len;
 	__u16			module_data_len;
+	__u32			crc_status;
 	void				*otp_data;
 	void				*module_data;
 	void				*full_otp;
@@ -173,6 +176,12 @@ enum v4l2_priv_colorfx {
 	V4L2_PRIV_COLORFX_SOLARIZATION  = 13,
 	V4L2_PRIV_COLORFX_MAX,
 };
+enum guest_type {
+	GUEST_SENSOR = 0,
+	GUEST_VCM,
+	GUEST_FLASH,
+	GUEST_MAX,
+};
 
 enum b52_vcm_type {
 	VCM_BUILD_IN = 0,
@@ -187,13 +196,10 @@ enum b52_vcm_type {
 	VCM_NONE,
 };
 
-enum b52_flash_type {
-	FLASH_GPIO = 0,
-	FLASH_BOARD,
-	FLASH_NONE,
+enum B52_flash_type {
+	flash_id_gpio = 0,
+	flash_id_broad,
 };
-
-
 #define CID_AF_SNAPSHOT	1
 #define CID_AF_CONTINUOUS	2
 
@@ -293,12 +299,18 @@ enum b52_flash_type {
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x100C)
 #define V4L2_CID_PRIVATE_SET_FPS \
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x100D)
-#define V4L2_CID_PRIVATE_FLASH_DURATION \
+#define V4L2_CID_ENUM_SENSOR\
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x100E)
-#define V4L2_CID_PRIVATE_FLASH_CURRENT \
+#define V4L2_CID_ENUM_VCM\
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x100F)
-#define V4L2_CID_PRIVATE_MAX_EXPO \
+#define V4L2_CID_ENUM_FLASH\
 	(V4L2_CID_CAMERA_CLASS_BASE + 0x1010)
+#define V4L2_CID_VCM_SELECT_TYPE\
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1011)
+#define V4L2_CID_FLASH_SELECT_TYPE\
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1012)
+#define V4L2_CID_PRIVATE_FLASH_DURATION \
+	(V4L2_CID_CAMERA_CLASS_BASE + 0x1013)
 #define V4L2_PLANE_SIGNATURE_PIPELINE_META	\
 	v4l2_fourcc('M', 'E', 'T', 'A')
 #define V4L2_PLANE_SIGNATURE_PIPELINE_INFO	\

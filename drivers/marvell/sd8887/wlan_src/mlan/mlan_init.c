@@ -275,6 +275,8 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 		(t_u8 *)ALIGN_ADDR(pmadapter->mp_regs_buf, DMA_ALIGNMENT);
 
 #if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
+	pmadapter->max_sp_tx_size = MAX_SUPPORT_AMSDU_SIZE;
+	pmadapter->max_sp_rx_size = MAX_SUPPORT_AMSDU_SIZE;
 	ret = wlan_alloc_sdio_mpa_buffers(pmadapter, mp_tx_aggr_buf_size,
 					  mp_rx_aggr_buf_size);
 	if (ret != MLAN_STATUS_SUCCESS) {
@@ -482,6 +484,14 @@ wlan_init_priv(pmlan_private priv)
 	priv->port_open = MFALSE;
 
 	ret = wlan_add_bsspriotbl(priv);
+
+	priv->usr_dev_mcs_support = 0;
+	priv->usr_dot_11n_dev_cap_bg = 0;
+	priv->usr_dot_11n_dev_cap_a = 0;
+	priv->usr_dot_11ac_mcs_support = 0;
+	priv->usr_dot_11ac_dev_cap_bg = 0;
+	priv->usr_dot_11ac_dev_cap_a = 0;
+
 	LEAVE();
 	return ret;
 }
@@ -565,6 +575,7 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
+	pmadapter->rx_pkts_queued = 0;
 	pmadapter->cmd_resp_received = MFALSE;
 	pmadapter->event_received = MFALSE;
 	pmadapter->data_received = MFALSE;
@@ -655,9 +666,6 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	       sizeof(pmadapter->event_body));
 	pmadapter->hw_dot_11n_dev_cap = 0;
 	pmadapter->hw_dev_mcs_support = 0;
-	pmadapter->usr_dot_11n_dev_cap_bg = 0;
-	pmadapter->usr_dot_11n_dev_cap_a = 0;
-	pmadapter->usr_dev_mcs_support = 0;
 	pmadapter->coex_rx_winsize = 1;
 #ifdef STA_SUPPORT
 	pmadapter->chan_bandwidth = 0;
@@ -667,9 +675,6 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 
 	pmadapter->hw_dot_11ac_dev_cap = 0;
 	pmadapter->hw_dot_11ac_mcs_support = 0;
-	pmadapter->usr_dot_11ac_dev_cap_bg = 0;
-	pmadapter->usr_dot_11ac_dev_cap_a = 0;
-	pmadapter->usr_dot_11ac_mcs_support = 0;
 
 	/* Initialize 802.11d */
 	wlan_11d_init(pmadapter);
@@ -812,9 +817,6 @@ wlan_init_lock_list(IN pmlan_adapter pmadapter)
 			    &pmadapter->rx_data_queue, MTRUE,
 			    pmadapter->callbacks.moal_init_lock);
 	util_scalar_init((t_void *)pmadapter->pmoal_handle,
-			 &pmadapter->rx_pkts_queued, 0,
-			 MNULL, pmadapter->callbacks.moal_init_lock);
-	util_scalar_init((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->pending_bridge_pkts, 0,
 			 MNULL, pmadapter->callbacks.moal_init_lock);
 	/* Initialize cmd_free_q */
@@ -942,8 +944,6 @@ wlan_free_lock_list(IN pmlan_adapter pmadapter)
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->rx_data_queue, pcb->moal_free_lock);
 
-	util_scalar_free((t_void *)pmadapter->pmoal_handle,
-			 &pmadapter->rx_pkts_queued, pcb->moal_free_lock);
 	util_scalar_free((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->pending_bridge_pkts, pcb->moal_free_lock);
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,

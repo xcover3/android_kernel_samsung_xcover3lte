@@ -46,7 +46,7 @@
 #include "bt_sdio.h"
 
 /** Version */
-#define VERSION "C3X14111"
+#define VERSION "C3X14112"
 
 /** Driver version */
 static char mbt_driver_version[] = "SD8XXX-%s-" VERSION "-(" "FP" FPNUM ")"
@@ -111,6 +111,7 @@ static char *cal_cfg;
 static char *cal_cfg_ext;
 /** Init MAC address */
 static char *bt_mac;
+static int mbt_gpio_pin;
 
 /** Setting mbt_drvdbg value based on DEBUG level */
 #ifdef DEBUG_LEVEL1
@@ -351,6 +352,7 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 		case BT_CMD_ENABLE_WRITE_SCAN:
 			// case BT_CMD_ENABLE_DEVICE_TESTMODE:
 		case BT_CMD_RESET:
+		case BT_CMD_SET_GPIO_PIN:
 			priv->bt_dev.sendcmdflag = FALSE;
 			priv->adapter->cmd_complete = TRUE;
 			wake_up_interruptible(&priv->adapter->cmd_wait_q);
@@ -363,6 +365,35 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 				snprintf(fw_version, sizeof(fw_version),
 					 "%u.%u.%u.p%u", pos[2], pos[1], pos[0],
 					 pos[3]);
+				priv->bt_dev.sendcmdflag = FALSE;
+				priv->adapter->cmd_complete = TRUE;
+				wake_up_interruptible(&priv->adapter->
+						      cmd_wait_q);
+				break;
+			}
+		case BT_CMD_HISTOGRAM:
+			{
+				u8 *status =
+					skb->data + HCI_EVENT_HDR_SIZE +
+					sizeof(struct hci_ev_cmd_complete);
+				u8 *pos =
+					(skb->data + HCI_EVENT_HDR_SIZE +
+					 sizeof(struct hci_ev_cmd_complete) +
+					 1);
+				if (*status == 0) {
+					priv->hist_data_len =
+						hdr->plen -
+						sizeof(struct
+						       hci_ev_cmd_complete) - 1;
+					if (priv->hist_data_len >
+					    sizeof(priv->hist_data))
+						priv->hist_data_len =
+							sizeof(priv->hist_data);
+					memcpy(priv->hist_data, pos,
+					       priv->hist_data_len);
+					PRINTM(CMD, "histogram len=%d\n",
+					       priv->hist_data_len);
+				}
 				priv->bt_dev.sendcmdflag = FALSE;
 				priv->adapter->cmd_complete = TRUE;
 				wake_up_interruptible(&priv->adapter->
@@ -429,6 +460,8 @@ bt_process_event(bt_private *priv, struct sk_buff *skb)
 		goto exit;
 	}
 	switch (pevent->data[0]) {
+	case BT_CMD_HISTOGRAM:
+		break;
 	case BT_CMD_AUTO_SLEEP_MODE:
 		if (pevent->data[2] == BT_STATUS_SUCCESS) {
 			if (pevent->data[1] == BT_PS_ENABLE)
@@ -1048,6 +1081,51 @@ exit:
 }
 
 /**
+ *  @brief This function to get histogram
+ *
+ *  @param priv    A pointer to bt_private structure
+ *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
+ */
+int
+bt_get_histogram(bt_private *priv)
+{
+	struct sk_buff *skb = NULL;
+	int ret = BT_STATUS_SUCCESS;
+	BT_CMD *pcmd;
+	ENTER();
+	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
+	if (skb == NULL) {
+		PRINTM(WARN, "No free skb\n");
+		ret = BT_STATUS_FAILURE;
+		goto exit;
+	}
+	pcmd = (BT_CMD *)skb->data;
+	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_HISTOGRAM;
+	pcmd->length = 0;
+	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
+	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
+	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
+	skb_queue_head(&priv->adapter->tx_queue, skb);
+	PRINTM(CMD, "Queue Histogram cmd(0x%x)\n", pcmd->ocf_ogf);
+	priv->bt_dev.sendcmdflag = TRUE;
+	priv->bt_dev.send_cmd_ocf = BT_CMD_HISTOGRAM;
+	priv->adapter->cmd_complete = FALSE;
+	priv->hist_data_len = 0;
+	memset(priv->hist_data, 0, sizeof(priv->hist_data));
+	wake_up_interruptible(&priv->MainThread.waitQ);
+	if (!os_wait_interruptible_timeout
+	    (priv->adapter->cmd_wait_q, priv->adapter->cmd_complete,
+	     WAIT_UNTIL_CMD_RESP)) {
+		ret = BT_STATUS_FAILURE;
+		PRINTM(MSG, "BT: histogram timeout:\n");
+		bt_cmd_timeout_func(priv, BT_CMD_HISTOGRAM);
+	}
+exit:
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function enables power save mode
  *
  *  @param priv    A pointer to bt_private structure
@@ -1477,6 +1555,56 @@ bt_enable_test_mode(bt_private *priv)
 		PRINTM(ERROR,
 		       "BT test_mode: Enable device under testmode fail\n");
 
+exit:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function set GPIO pin
+ *
+ *  @param priv    A pointer to bt_private structure
+ *
+ *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
+ */
+int
+bt_set_gpio_pin(bt_private *priv)
+{
+	struct sk_buff *skb = NULL;
+	int ret = BT_STATUS_SUCCESS;
+	/**Interrupt falling edge **/
+	u8 gpio_int_edge = INT_FALLING_EDGE;
+	/**Delay 50 usec **/
+	u8 gpio_pulse_width = DELAY_50_US;
+	BT_CMD *pcmd;
+	ENTER();
+	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
+	if (skb == NULL) {
+		PRINTM(WARN, "No free skb\n");
+		ret = BT_STATUS_FAILURE;
+		goto exit;
+	}
+	pcmd = (BT_CMD *)skb->data;
+	pcmd->ocf_ogf = (VENDOR_OGF << 10) | BT_CMD_SET_GPIO_PIN;
+	pcmd->data[0] = mbt_gpio_pin;
+	pcmd->data[1] = gpio_int_edge;
+	pcmd->data[2] = gpio_pulse_width;
+	pcmd->length = 3;
+	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
+	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
+	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
+	skb_queue_head(&priv->adapter->tx_queue, skb);
+	priv->bt_dev.sendcmdflag = TRUE;
+	priv->bt_dev.send_cmd_ocf = BT_CMD_SET_GPIO_PIN;
+	priv->adapter->cmd_complete = FALSE;
+	wake_up_interruptible(&priv->MainThread.waitQ);
+	if (!os_wait_interruptible_timeout(priv->adapter->cmd_wait_q,
+					   priv->adapter->cmd_complete,
+					   WAIT_UNTIL_CMD_RESP)) {
+		ret = BT_STATUS_FAILURE;
+		PRINTM(MSG, "BT: Set GPIO pin: timeout!\n");
+		bt_cmd_timeout_func(priv, BT_CMD_SET_GPIO_PIN);
+	}
 exit:
 	LEAVE();
 	return ret;
@@ -1963,6 +2091,14 @@ bt_init_from_dev_tree(void)
 			    (dt_node, prop->name, &string_data)) {
 				bt_mac = (char *)string_data;
 				PRINTM(CMD, "bt_mac=%s\n", bt_mac);
+			}
+		} else if (!strncmp
+			   (prop->name, "mbt_gpio_pin",
+			    strlen("mbt_gpio_pin"))) {
+			if (!of_property_read_u32
+			    (dt_node, prop->name, &data)) {
+				mbt_gpio_pin = data;
+				PRINTM(CMD, "mbt_gpio_pin=%d\n", mbt_gpio_pin);
 			}
 		}
 	}
@@ -2543,6 +2679,13 @@ bt_reinit_fw(bt_private *priv)
 	priv->adapter->is_suspended = FALSE;
 	priv->adapter->hs_skip = 0;
 	priv->adapter->num_cmd_timeout = 0;
+	if (mbt_gpio_pin) {
+		ret = bt_set_gpio_pin(priv);
+		if (ret < 0) {
+			PRINTM(FATAL, "GPIO pin set failed!\n");
+			goto done;
+		}
+	}
 	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
 	if (ret < 0) {
 		PRINTM(FATAL, "Module cfg command send failed!\n");
@@ -2671,6 +2814,13 @@ sbi_register_conf_dpc(bt_private *priv)
 
 	if (mbt_dev)
 		mbt_dev->type = dev_type;
+	if (mbt_gpio_pin) {
+		ret = bt_set_gpio_pin(priv);
+		if (ret < 0) {
+			PRINTM(FATAL, "GPIO pin set failed!\n");
+			goto done;
+		}
+	}
 
 	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
 	if (ret < 0) {
@@ -3286,3 +3436,6 @@ MODULE_PARM_DESC(debug_intf,
 		 "1: Enable debug interface; 0: Disable debug interface ");
 module_param(debug_name, charp, 0);
 MODULE_PARM_DESC(debug_name, "Debug interface name");
+module_param(mbt_gpio_pin, int, 0);
+MODULE_PARM_DESC(mbt_gpio_pin,
+		 "GPIO pin to interrupt host. 0xFFFF: disable GPIO interrupt mode; Others: GPIO pin assigned to generate pulse to host.");

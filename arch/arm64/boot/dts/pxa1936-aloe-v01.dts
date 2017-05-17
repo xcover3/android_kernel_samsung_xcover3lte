@@ -1,0 +1,702 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Yi Zhang <yizhang@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "pxa1936-board-common.dtsi"
+
+&pmx {
+	mfp_pins_group_0: mfp_pins_group_0 {
+		pinctrl-single,pins = <
+			DF_IO9 AF0
+			DF_IO10 AF0
+			DF_IO11 AF0
+			DF_IO12 AF0
+			DF_IO13 AF0
+			DF_IO15 AF0
+		>;
+		DS_MEDIUM;PULL_DOWN;EDGE_NONE;LPM_NONE;
+	};
+
+	mfp_pins_group_2: mfp_pins_group_2 {
+		pinctrl-single,pins = <
+			GPIO12 AF0
+			GPIO13 AF0
+			GPIO14 AF0
+			GPIO15 AF0
+		>;
+		DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_NONE;
+	};
+
+	disp_func: disp_func {
+		pinctrl-single,pins = <
+			DF_IO8	AF4
+		>;
+		MFP_LPM_PULL_DW;
+	};
+
+	touch_pins_aloe: touch_pins_aloe {
+		pinctrl-single,pins = <
+			GPIO76 AF0
+			GPIO78 AF0
+			GPIO98 AF0
+		 >;
+		 MFP_LPM_FLOAT;
+	 };
+
+	sdh1_pmx_func3: sdh1_pmx_func3 {
+		pinctrl-single,pins = <
+			GPIO97 AF0
+		>;
+		DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_NONE;
+	};
+
+	sdh0_pmx_func1: sdh0_pmx_func1 {
+		pinctrl-single,pins = <
+			MMC1_DAT7 AF0
+			MMC1_DAT6 AF0
+			MMC1_DAT5 AF0
+			MMC1_DAT4 AF0
+			MMC1_WP AF1
+			MMC1_CD AF1 /* Above pins not used by sdh1, configured as GPIO */
+			GPIO50 AF0 /* GPIO50, used for sd card detect */
+		>;
+		MFP_DEFAULT;
+	};
+};
+
+&disp {
+	pinctrl-0 = <&disp_func>;
+};
+/ {
+	model = "Marvell PXA1936 Aloe V01 Development Board";
+	compatible = "marvell,pxa1936-dkb", "marvell,pxa1936";
+	soc {
+		axi@d4200000 {  /* AXI */
+			sdh0: sdh@d4280000 {
+				cd-gpios = <&gpio 50 0>;
+			};
+		};
+		apb@d4000000 {
+			twsi1: i2c@d4010800 {
+				touch1: s3202@720p {
+					avdd-supply = <&ldo6>;
+				};
+
+				touch2: s3202@1080p {
+					avdd-supply = <&ldo6>;
+				};
+				touch4: goodix_ts@5d {
+					compatible = "goodix,gt9xx_ts";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins_aloe>;
+					reg = <0x5d>;
+					interrupt-parent = <&gpio>;
+					interrupts = <78 0x1>;
+					irq-gpios = <&gpio 78 0>;
+					reset-gpios = <&gpio 76 0>;
+					keyled_gpios = <&gpio 98 0>;
+					goodix,cfg-group = <0>;
+					goodix,max-height = <1280>;
+					goodix,max-width = <720>;
+					avdd-supply = <&ldo16>;
+					goodix,cfg-group0 = [
+						41 D0 02 00 05 05 35 01 01 08 28
+						0F 50 32 03 05 00 00 FF 7F 00 00
+						00 17 19 1D 14 8B 2B 0D 2D 2B 0F
+						0A 03 14 00 82 33 1D 28 01 00 00
+						00 00 00 32 00 14 7A 23 3C 94 C5
+						02 07 00 00 04 A1 24 00 96 29 00
+						8B 2D 00 82 33 00 7A 38 00 7A 18
+						38 58 00 F0 4A 3A FF FF 27 00 00
+						00 00 00 00 00 00 00 00 00 00 00
+						0F 19 03 05 15 42 F8 0F 0F 30 00
+						46 32 02 04 06 08 0A 0C 0E 10 12
+						14 16 18 1A FF 00 00 00 00 00 00
+						00 00 00 00 00 00 00 00 00 00 16
+						18 1C 1D 1E 1F 20 21 22 24 26 00
+						02 04 06 08 0A 0C 0F 10 12 13 FF
+						FF FF FF 00 00 00 FF FF FF FF FF
+						FF FF FF FF FF FF FF FF 33 01];
+					goodix,cfg-group1 = [
+                                               41 38 04 80 07 05 35 01 01 08 28 0F
+                                               50 32 03 05 00 00 FF 7F 00 00 00 17
+                                               19 1D 14 8B 2B 0D 2D 2B 0F 0A 03 14
+                                               00 82 33 1D 28 01 00 00 00 00 00 32
+                                               00 14 7A 23 3C 94 C5 02 07 00 00 04
+                                               A1 24 00 96 29 00 8B 2D 00 82 33 00
+                                               7A 38 00 7A 18 38 58 00 F0 4A 3A FF
+                                               FF 27 00 00 00 00 00 00 00 00 00 00
+                                               00 00 00 0F 19 03 05 15 42 F8 0F 0F
+                                               30 00 46 32 02 04 06 08 0A 0C 0E 10
+                                               12 14 16 18 1A FF 00 00 00 00 00 00
+                                               00 00 00 00 00 00 00 00 00 00 16 18
+                                               1C 1D 1E 1F 20 21 22 24 26 00 02 04
+                                               06 08 0A 0C 0F 10 12 13 FF FF FF FF
+                                               00 00 00 FF FF FF FF FF FF FF FF FF
+                                               FF FF FF FF 47 01];
+					status = "okay";
+				};
+				touch6: ft5x0x_ts@38 {
+					compatible = "focaltech,focaltech_ts";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins_aloe>;
+					reg = <0x38>;
+					interrupt-parent = <&gpio>;
+					interrupts = <78 0x1>;
+					focaltech,abs-x-max = <1080>;
+					focaltech,abs-y-max = <1920>;
+					irq-gpios = <&gpio 78 0>;
+					reset-gpios = <&gpio 76 0>;
+					focaltech,v_tsp-supply = <&ldo16>;
+					focaltech,virtualkeys = <
+						540 2000 40 40
+					>;
+					status = "okay";
+				};
+
+			};
+
+			twsi2: i2c@d4037000 {
+				status = "okay";
+
+				pmic0: 88pm880@30 {
+					reg = <0x30>;
+					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-parent = <&gic>;
+
+					dvc {
+						pinctrl-names = "default";
+						pinctrl-0 = <&dvc_pmx_func>;
+					};
+
+					/*
+					 * TODO: remove later, fake ldo,
+					 * to pass compile
+					 */
+					ldo19: regulator-ldo19 {
+					};
+				};
+
+				pmic2: 88pm860@38 {
+					compatible = "marvell,88pm860";
+					reg = <0x38>;
+					marvell,pmic-type = <1>;
+					/* no codec_int currently, comment out now */
+					/*
+					interrupt-parent = <&gpio>;
+					interrupts = <124 0x1>;
+					marvell,88pm805-irq-write-clear;
+					*/
+					pm860_codec: pm860_codec {
+						compatible = "marvell,88pm860-codec";
+						#dailink-cells = <1>;
+					};
+				};
+			};
+			twsi3: i2c@d4013800 {
+				status = "okay";
+				sensor1: apds9930@39 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor2: bmi160@68 {
+					avdd-supply = <&ldo16>;
+					};
+
+				sensor3: bme280@76 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor4: icm20628@69 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor5: mxc400x@15 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor6: mmc3524x@30 {
+					avdd-supply = <&ldo16>;
+					};
+				lsm6ds3@6a {
+					compatible = "ST,lsm6ds3";
+					reg = <0x6a>;
+					interrupts = <91 0x0>;
+					irq-gpios = <&gpio 91 0>;
+					interrupt-parent = <&gpio>;
+					dovdd_1v8-supply = <&buck2>;
+					st,drdy-int-pin = <1>;
+					};
+			};
+			sensori2c: i2c-gpio@8{
+				ltr_55x@23 {
+					compatible = "LITEON,ltr_55x";
+					reg = <0x23>;
+					interrupt-parent = <&gpio>;
+					interrupts = <20 0x1>;
+					irq-gpios = <&gpio 20 0>;
+					vdd-supply = <&ldo11>;
+					ps-threshold = <650>;
+					ps-hysteresis-threshold = <500>;
+					als-polling-time = <200>;
+					status = "disabled";
+				};
+
+				ltr_558als@23 {
+					compatible = "LITEON,ltr_558als";
+					pinctrl-names = "default"; pinctrl-0 = <&sensor_pins>;
+					reg = <0x23>;
+					interrupt-parent = <&gpio>;
+					interrupts = <20 0x1>;
+					irq-gpios = <&gpio 20 0>;
+					vdd-supply = <&ldo11>;
+					ps-threshold = <650>;
+					ps-hysteresis-threshold = <500>;
+					als-polling-time = <200>;
+					prox_name = "proximity";
+					als_name = "als";
+					status = "okay";
+				};
+
+				lis3dh_acc@19 {
+					compatible = "ST,lis3dh_acc";
+					reg = <0x19>;
+					interrupt-parent = <&gpio>;
+					interrupts = <11 0x1>;
+					irq-gpios = <&gpio 11 0>;
+					vdd-supply = <&ldo11>;
+					poll_interval = <10>;
+					min_interval = <10>;
+					g_range = <0x0>;
+					axis_map_y = <0>;
+					axis_map_x = <1>;
+					axis_map_z = <2>;
+					negate_x = <0>;
+					negate_y = <0>;
+					negate_z = <1>;
+					status = "okay";
+				};
+
+			};
+			map@d1200000 {
+				pmic-name = "88pm880";
+				vccmain-supply = <&buck1aslp>;
+			};
+		};
+
+		axi@d4200000 {  /* AXI */
+			/* SD card */
+			sdh0: sdh@d4280000 {
+			      vqmmc-supply    = <&ldo10>;
+			      vmmc-supply     = <&ldo14>;
+			};
+		};
+	};
+
+	vibrator {
+		compatible = "marvell,simple-vibrator";
+		min_timeout = <0>;
+		vibrator-supply = <&ldo6>;
+		status = "okay";
+	};
+
+	panel1: r63311 {
+		rst_gpio = <&gpio 98 0>;
+		power_gpio = <&gpio 96 0>;
+		marvell,mipi-backlight;
+		status = "disabled";
+	};
+	panel2: hx8394 {
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo6>;
+		status = "disabled";
+	};
+
+	panel3: lg4591 {
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo6>;
+		status = "disabled";
+	};
+
+	panel5: nt35521 {
+		compatible = "marvell,mmp-nt35521";
+		marvell,path-name = "mmp_pnpath";
+		bl_gpio = <&gpio 100 0>;
+		panel_id = <0x21>;
+		rst_gpio = <&gpio 18 0>;
+		avdd-supply = <&ldo16>;
+		marvell,mipi-backlight;
+		status = "okay";
+	};
+
+	panel: mmp-dsi-panel {
+	       compatible = "marvell,mmp-dsi-panel";
+	       marvell,path-name = "mmp_pnpath";
+	       /*
+		* BACKLIGHT CONTROL BY GPIO
+		*/
+	       bl_gpio = <&gpio 100 0>;
+	       panel_esd = <2>;
+	       marvell,dsi-panel-num = <3>;
+	       status = "okay";
+	};
+
+	backlight: pwm_bl {
+		compatible = "pwm-backlight";
+		pwms = <&pwm4 0 50000>;
+		brightness-levels = <
+		 0  1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30
+		   31  32  33  34  35  36  37  38  39  40  41  42  43  44  45  46  47  48  49  50  51  52  53  54  55  56  57  58  59  60
+		   61  62  63  64  65  66  67  68  69  70  71  72  73  74  75  76  77  78  79  80  81  82  83  84  85  86  87  88  89  90
+		   91  92  93  94  95  96  97  98  99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120
+                  121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150
+                  151 152 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180
+	          181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207 208 209 210
+		  211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240
+		  241 242 243 244 245 246 247 248 249 250 251 252 253 254 255
+		>;
+		default-brightness-level = <24>;
+		status = "okay";
+	};
+
+	mmp_m3_1: apsenhb {
+		pmicver = <2>;
+		vm3pwr-supply = <&ldo3>;
+		vccmain-supply = <&buck1aslp>;
+	};
+
+	mmp_m3_2: cm3senhb {
+		pmicver = <2>;
+		vm3pwr-supply = <&ldo3>;
+		senpwr-supply = <&ldo16>;
+		vccmain-supply = <&buck1aslp>;
+	};
+
+	mcam0:mcam@0 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 68 0>;
+		reset-gpios = <&gpio 67 0>;
+		/*
+		af_2v8-supply = <&ldo10>;
+		avdd_2v8-supply = <&ldo11>;
+		dovdd_1v8-supply = <&voutsw>;
+		dvdd_1v2-supply = <&ldo12>;
+		*/
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "disable";
+	};
+
+	mcam1:mcam@1 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 70 0>;
+		reset-gpios = <&gpio 69 0>;
+
+		af_2v8-supply = <&ldo8>;
+		avdd_2v8-supply = <&ldo7>;
+		dovdd_1v8-supply = <&buck2>;
+		dvdd_1v2-supply = <&ldo17>;
+
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "okay";
+	};
+
+	soc-camera@0 {
+		status = "okay";
+	};
+
+	soc-camera@1 {
+		status = "okay";
+	};
+
+	plat_cam {
+		status = "okay";
+		frontsensor {
+			compatible = "marvell,frontsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			OV2680f: sensor@0 {
+				compatible = "ovt,ov2680";
+				status = "okay";
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x38>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1900>;
+				dphy5 = <0x4711>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 70 1>;
+				reset-gpios = <&gpio 69 1>;
+			};
+                       S5K5E3F: sensor@1 {
+                               compatible = "samsung,s5k5e3";
+                               status = "okay";
+                               reg = <0x10>;
+                               clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+                               clock-names = "SC2MCLK";
+                               sc2-i2c-dyn-ctrl;
+                               adapter = <0x1>;
+                               sensor-pos = <1>;
+                               mclk = <26000000>;
+                               dphy3 = <0x5100>;
+                               dphy5 = <0xff>;
+                               dphy6 = <0x1001>;
+                               af_2v8-supply = <&ldo8>;
+                               avdd_2v8-supply = <&ldo7>;
+                               dovdd_1v8-supply = <&buck2>;
+                               dvdd_1v2-supply = <&ldo17>;
+                               pwdn-gpios = <&gpio 70 1>;
+                               reset-gpios = <&gpio 69 1>;
+                       };
+			OV8858R2A_F: sensor@2 {
+				compatible = "ovt,ov8858r2a_front";
+				status = "okay";
+				reg = <0x10>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&ldo4>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 70 1>;
+				reset-gpios = <&gpio 69 1>;
+			};
+
+		};
+		backsensor {
+			compatible = "marvell,backsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			OV5642: sensor@0 {
+				compatible = "ovt,ov5642";
+				sensor-name = "ovt,ov5642";
+				reg = <0x3c>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				adapter = <0x1>;
+				status = "okay";
+				mclk = <24000000>;
+				sensor-pos = <1>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				/*
+				af_2v8-supply = <&ldo10>;
+				avdd_2v8-supply = <&ldo11>;
+				dovdd_1v8-supply = <&voutsw>;
+				dvdd_1v2-supply = <&ldo12>;
+				*/
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			OV13850: sensor@1 {
+				compatible = "ovt,ov13850";
+				status = "okay";
+				reg = <0x10>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <24000000>;
+				dphy3 = <0xff4115>;
+				dphy5 = <0x247ff>;
+				dphy6 = <0x4001001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			SR544: sensor@2 {
+				compatible = "samsung,sr544";
+				status = "okay";
+				reg = <0x28>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			imx219: sensor@3 {
+				compatible = "sony,imx219";
+				status = "okay";
+				reg = <0x1A>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			OV13850R2A: sensor@4 {
+				compatible = "ovt,ov13850r2a";
+				status = "okay";
+				reg = <0x36>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <24000000>;
+				dphy3 = <0xff4116>;
+				dphy5 = <0x247ff>;
+				dphy6 = <0x4001001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&ldo4>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			S5K3L2: sensor@5 {
+				compatible = "samsung,s5k3l2";
+				status = "okay";
+				reg = <0x2d>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0xff4115>;
+				dphy5 = <0x247ff>;
+				dphy6 = <0x4001001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			S5K5E3B: sensor@6 {
+                                compatible = "samsung,s5k5e3";
+                                status = "okay";
+                                reg = <0x10>;
+                                clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+                                clock-names = "SC2MCLK";
+                                sc2-i2c-dyn-ctrl;
+                                adapter = <0x1>;
+                                sensor-pos = <1>;
+                                mclk = <26000000>;
+                                dphy3 = <0x5100>;
+                                dphy5 = <0xff>;
+                                dphy6 = <0x1001>;
+                                af_2v8-supply = <&ldo8>;
+                                avdd_2v8-supply = <&ldo7>;
+                                dovdd_1v8-supply = <&buck2>;
+                                dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			OV5648: sensor@7 {
+				compatible = "ovt,ov5648";
+				status = "okay";
+				reg = <0x36>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v5-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			OV8858R2A: sensor@8 {
+				compatible = "ovt,ov8858r2a";
+				status = "okay";
+				reg = <0x10>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+		};
+	};
+
+	b52isp_sc2_csi0 {
+	        status = "okay";
+	};
+	b52isp_sc2_csi1 {
+			csi_mux_repacked;
+	        status = "okay";
+	};
+	b52isp_sc2_dma0 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma1 {
+	        status = "okay";
+	};
+
+	sd8x-rfkill {
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio 97 0>;
+		wib_1v8-supply = <&buck2>;
+		wib_3v3-supply = <&buck5>;
+		edge-wakeup-gpio = <&gpio 39 0>;
+		marvell,sdh-tuning-dvfs;
+		status = "okay";
+	};
+};
+
+#include "88pm88x.dtsi"
+#include "88pm880.dtsi"
+#include "88pm88x_battery_common.dtsi"
+#include "88pm88x_battery_485760ar.dtsi"
+#include "88pm880_pxa1936_aloe_v01.dtsi"
+#include "pxa1936-panel-r63315-l180_linlong.dtsi"
+#include "pxa1936-panel-nt35521-tft.dtsi"

@@ -30,10 +30,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <linux/spinlock.h>
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-#include <linux/sec-common.h>
 #include <linux/edge_wakeup_mmp.h>
-#endif
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
@@ -45,15 +42,9 @@ struct gpio_button_data {
 	spinlock_t lock;
 	bool disabled;
 	bool key_pressed;
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	bool key_state;
-#endif
 };
 
 struct gpio_keys_drvdata {
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	struct device *sec_key;
-#endif
 	const struct gpio_keys_platform_data *pdata;
 	struct input_dev *input;
 	struct mutex disable_lock;
@@ -344,24 +335,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		if (state)
 			input_event(input, type, button->code, button->value);
 	} else {
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-		bdata->key_state = state;
-
-		/* InputReader is operated like a below.
-		 * when value of SW_FLIPCOVER is 1, Flipcover's state is open.
-		 * and value of SW_FLIPCOVER is 0, Flipcover's state is close.
-		 * so, invert a value.
-		 */
-		if (button->code == SW_FLIPCOVER)
-			state = !state;
-#endif
 		input_event(input, type, button->code, !!state);
-#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
-		pr_info("[KEY] %d gpio_key %s\n",
-			button->code, state ? "Press" : "Release");
-#else
-		pr_info("[KEY] gpio_key %s\n", state ? "Press" : "Release");
-#endif
 	}
 	input_sync(input);
 }
@@ -603,10 +577,6 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 	int error;
 	int nbuttons;
 	int i;
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	int n_wakeup_src;
-	unsigned int *gpios;
-#endif
 
 	node = dev->of_node;
 	if (!node) {
@@ -631,23 +601,11 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 	pdata->nbuttons = nbuttons;
 
 	pdata->rep = !!of_get_property(node, "autorepeat", NULL);
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	pdata->n_wakeup_src = n_wakeup_src = of_gpio_named_count(node, "edge-wakeup-gpios");
-	if (n_wakeup_src <= 0) {
-		dev_err(dev, "no edge-wakeup-gpios defined\n");
-	}
 
-	gpios = devm_kzalloc(dev, sizeof(unsigned int) * n_wakeup_src, GFP_KERNEL);
-	if (!gpios) {
-		dev_err(dev, "could not allocate memory for gpios\n");
-		return ERR_PTR(-ENOMEM);
-	}
+	pdata->edge_wakeup_gpio = -1;
+	if (of_property_read_u32(node, "edge-wakeup-gpio", &pdata->edge_wakeup_gpio))
+		dev_err(dev, "no edge-wakeup-gpio defined\n");
 
-	for (i = 0; i < n_wakeup_src; i++){
-		gpios[i] = of_get_named_gpio(node, "edge-wakeup-gpios", i);
-	}
-	pdata->edge_wakeup_gpio_tbl = gpios;
-#endif
 	i = 0;
 	for_each_child_of_node(node, pp) {
 		int gpio;
@@ -732,56 +690,6 @@ static void gpio_remove_key(struct gpio_button_data *bdata)
 		gpio_free(bdata->button->gpio);
 }
 
-void gpio_keys_trigger_wakeup(int gpio, void *data)
-{
-	printk(KERN_INFO"%s:%d\n", __func__, gpio);
-	return;
-}
-
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-static ssize_t show_key_state(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
-	struct gpio_button_data *bdata;
-	bool state = false;
-	char *str = NULL;
-	int i;
-
-	for (i = 0; i < ddata->pdata->nbuttons; i++) {
-		bdata = &ddata->data[i];
-
-		if (!strcmp(attr->attr.name, "sec_key_pressed")) {
-			if (bdata->button->type == EV_KEY)
-				state |= bdata->key_state;
-
-			str = state ? "PRESS" : "RELEASE";
-		} else if (!strcmp(attr->attr.name, "hall_detect")) {
-			if (bdata->button->type == EV_SW)
-				state = bdata->key_state;
-
-			str = !state ? "OPEN" : "CLOSE";
-		}
-
-	}
-
-	return sprintf(buf, "%s", str);
-}
-
-static DEVICE_ATTR(sec_key_pressed, S_IRUGO, show_key_state, NULL);
-static DEVICE_ATTR(hall_detect, S_IRUGO, show_key_state, NULL);
-
-static struct attribute *key_attributes[] = {
-	&dev_attr_sec_key_pressed.attr,
-	&dev_attr_hall_detect.attr,
-	NULL,
-};
-
-static struct attribute_group key_attr_group = {
-	.attrs = key_attributes,
-};
-#endif
-
 static int gpio_keys_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -797,18 +705,14 @@ static int gpio_keys_probe(struct platform_device *pdev)
 		if (IS_ERR(pdata))
 			return PTR_ERR(pdata);
 	}
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	for (i = 0; i < pdata->n_wakeup_src; i++){
-		ret = request_mfp_edge_wakeup(pdata->edge_wakeup_gpio_tbl[i], 
-			gpio_keys_trigger_wakeup, (void *)pdata, dev);
+
+	if (pdata->edge_wakeup_gpio >= 0) {
+		ret = request_mfp_edge_wakeup(pdata->edge_wakeup_gpio, NULL,
+						(void *)pdata, dev);
 		if (ret)
-			printk(KERN_ERR"failed to request edge wakeup for gpio_key[%d].\n",
-				pdata->edge_wakeup_gpio_tbl[i]);
-		else
-			printk(KERN_INFO"gpio %d is requested as edge wakeup source\n",
-				pdata->edge_wakeup_gpio_tbl[i]);
+			dev_err(dev, "failed to request edge wakeup.\n");
 	}
-#endif
+
 	ddata = kzalloc(sizeof(struct gpio_keys_drvdata) +
 			pdata->nbuttons * sizeof(struct gpio_button_data),
 			GFP_KERNEL);
@@ -867,20 +771,6 @@ static int gpio_keys_probe(struct platform_device *pdev)
 		goto fail3;
 	}
 
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	ddata->sec_key = device_create(sec_class, NULL,
-					(dev_t)0, ddata, "sec_key");
-	if (IS_ERR(ddata->sec_key)) {
-		error = PTR_ERR(ddata->sec_key);
-		dev_err(dev,
-			"Failed to create device for sec key(%d)\n", error);
-	}
-
-	error = sysfs_create_group(&ddata->sec_key->kobj, &key_attr_group);
-	if (error)
-		dev_err(dev, "Failed to create sysfs for sec key(%d)\n", error);
-#endif
-
 	device_init_wakeup(&pdev->dev, wakeup);
 
 	return 0;
@@ -892,10 +782,8 @@ static int gpio_keys_probe(struct platform_device *pdev)
 		gpio_remove_key(&ddata->data[i]);
 
  fail1:
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	for (i = 0; i < pdata->n_wakeup_src; i++)
-		remove_mfp_edge_wakeup(pdata->edge_wakeup_gpio_tbl[i]);
-#endif
+	remove_mfp_edge_wakeup(pdata->edge_wakeup_gpio);
+
 	input_free_device(input);
 	kfree(ddata);
 	/* If we have no platform data, we allocated pdata dynamically. */
@@ -910,20 +798,13 @@ static int gpio_keys_remove(struct platform_device *pdev)
 	struct gpio_keys_drvdata *ddata = platform_get_drvdata(pdev);
 	struct input_dev *input = ddata->input;
 	int i;
-#ifdef CONFIG_MACH_PXA_SAMSUNG
 	int ret;
-	for (i = 0; i < ddata->pdata->n_wakeup_src; i++){
-		if (ddata->pdata->edge_wakeup_gpio_tbl[i] >= 0) {
-			ret = remove_mfp_edge_wakeup(ddata->pdata->edge_wakeup_gpio_tbl[i]);
-			if (ret)
-				dev_err(&pdev->dev, "failed to remove edge wakeup for gpio_key[%d].\n",
-					ddata->pdata->edge_wakeup_gpio_tbl[i]);
-		}
-	}
 
-	sysfs_remove_group(&ddata->sec_key->kobj, &key_attr_group);
-	device_destroy(sec_class, (dev_t)0);
-#endif
+	if (ddata->pdata->edge_wakeup_gpio >= 0) {
+		ret = remove_mfp_edge_wakeup(ddata->pdata->edge_wakeup_gpio);
+		if (ret)
+			dev_err(&pdev->dev, "failed to remove edge wakeup.\n");
+	}
 
 	sysfs_remove_group(&pdev->dev.kobj, &gpio_keys_attr_group);
 

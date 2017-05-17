@@ -45,11 +45,7 @@ obj-$(CONFIG_PINCTRL_DB8500)	+= pinctrl-nomadik-db8500.o
 obj-$(CONFIG_PINCTRL_DB8540)	+= pinctrl-nomadik-db8540.o
 obj-$(CONFIG_PINCTRL_PALMAS)	+= pinctrl-palmas.o
 obj-$(CONFIG_PINCTRL_ROCKCHIP)	+= pinctrl-rockchip.o
-ifeq ($(CONFIG_ARM64),y)
-obj-$(CONFIG_PINCTRL_SINGLE)	+= pinctrl-single.o pinctrl-mmp-edgewakeup.o pinctrl-mmp.o
-else
 obj-$(CONFIG_PINCTRL_SINGLE)	+= pinctrl-single.o pinctrl-mmp-edgewakeup.o
-endif
 obj-$(CONFIG_PINCTRL_SIRF)	+= sirf/
 obj-$(CONFIG_PINCTRL_SUNXI)	+= pinctrl-sunxi.o
 obj-$(CONFIG_PINCTRL_TEGRA)	+= pinctrl-tegra.o

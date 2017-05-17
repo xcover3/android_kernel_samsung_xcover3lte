@@ -34,6 +34,8 @@ struct host_subdev_pdata {
 
 int host_subdev_add_guest(struct isp_host_subdev *hsd,
 				struct v4l2_subdev *guest);
+struct v4l2_subdev *host_subdev_get_guest(struct v4l2_subdev *hsd,
+				int entity_type);
 int host_subdev_remove_guest(struct isp_host_subdev *hsd,
 				struct v4l2_subdev *guest);
 struct isp_host_subdev *host_subdev_create(struct device *dev,

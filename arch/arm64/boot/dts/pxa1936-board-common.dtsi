@@ -8,12 +8,14 @@
  */
 
 /memreserve/ 0x08100000 0x00040000;     /* ramoops buffer (256KB) */
+/memreserve/ 0x08140000 0x00008000;     /* share buffer with ATF (32KB) */
 /memreserve/ 0x09000000 0x01000000;	/* GPU Reserved mem (16MB) */
 /memreserve/ 0x17000000 0x01800000;     /* Frame buffer (24MB) */
 /memreserve/ 0x0a000000 0x00080000;     /* CM3 shared buffer(512KB) */
 #include "pxa1936.dtsi"
 #include "pxa1908-pinfunc.h"
 #include <dt-bindings/mmc/pxa_sdhci.h>
+#include <dt-bindings/input/input.h>
 
 / {
 	chosen {
@@ -22,6 +24,10 @@
 
 	memory {
 		reg = <0x00000000 0x10000000>;
+	};
+	
+	aliases {
+		i2c8 = &sensori2c;
 	};
 
 	soc {
@@ -307,6 +313,7 @@
 
 				/* as HW design, only SD Card's host has AIB_MMC register */
 				marvell,sdh-quirks2 = <(
+						SDHCI_QUIRK2_HOST_NO_CMD23 |
 						SDHCI_QUIRK2_SET_AIB_MMC |
 						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
 						SDHCI_QUIRK2_TIMEOUT_SHORT
@@ -879,6 +886,21 @@
 					MFP_DEFAULT;
 				};
 
+				sensor_i2c_pmx: sensor_i2c_pmx {
+					pinctrl-single,pins = <
+						GPIO79 AF0
+						GPIO80 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
+				sensor_pins: sensor_pins {
+					pinctrl-single,pins = <
+						GPIO20 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+
 				ccic1_pmx_func1: ccic1_pmx_func1 {
 					pinctrl-single,pins = <
 						GPIO77 AF1
@@ -990,6 +1012,26 @@
 					synaptics,sensor_margin_x = <0>;
 					synaptics,sensor_margin_y = <0>;
 				};
+
+				touch3: s3202@20 {
+					compatible = "synaptics,s3202-touch";
+					pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+					reg = <0x20>;
+					interrupt-parent = <&gpio>;
+					interrupts = <72 0x1>;
+					/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+					synaptics,irq-flags =  <0x2002>;
+					synaptics,irq-gpios = <&gpio 72 0>;
+					synaptics,reset-gpios = <&gpio 75 0>;
+					synaptics,sensor_res_x = <1080>;
+					synaptics,sensor_res_y = <1920>;
+					synaptics,sensor_max_x = <1080>;
+					synaptics,sensor_max_y = <1920>;
+					synaptics,sensor_margin_x = <0>;
+					synaptics,sensor_margin_y = <0>;
+					synaptics,button_maps = /bits/ 8 <KEY_MENU KEY_HOMEPAGE KEY_BACK>;
+					synaptics,num_button = <3>;
+				};
 			};
 
 			twsi3: i2c@d4013800 {
@@ -1056,6 +1098,18 @@
 					reg = <0x30>;
 					avdd-supply = <&ldo18>;
 				};
+			};
+
+			sensori2c: i2c-gpio@8 {
+				compatible = "i2c-gpio";
+				gpios = <&gpio 80 0 &gpio 79 0>;
+				i2c-gpio,delay-us = <3>;
+				i2c-gpio,timeout-ms = <100>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&sensor_i2c_pmx>;
+				status = "okay";
 			};
 
 			/* SSPA port 0 */
@@ -1133,6 +1187,13 @@
 			console-size = <0x30000>;
 			dump-oops = <0>;
 			status = "okay";
+		};
+
+		/* Share address and length with ATF */
+		atf {
+			compatible = "marvell, atf";
+			share-address = <0x8140000>;
+			share-size = <0x8000>;
 		};
 	};
 
@@ -1267,14 +1328,6 @@
 		};
 	};
 
-	vibrator {
-		compatible = "marvell,pwm-vibrator";
-		pwms = <&pwm4 0 1000>;
-		min_timeout = <0>;
-		duty_cycle = <800>;
-		vibrator-supply = <&ldo9>;
-	};
-
 	panel1: r63311 {
 		compatible = "marvell,mmp-r63311";
 		marvell,path-name = "mmp_pnpath";
@@ -1302,7 +1355,6 @@
 		wib_3v3-supply = <&buck5>;
 		edge-wakeup-gpio = <&gpio 39 0>;
 		marvell,sdh-tuning-dvfs;
-		marvell,sdh-edge-wakeup-register-once;
 		status = "okay";
 	};
 

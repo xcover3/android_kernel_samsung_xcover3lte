@@ -45,19 +45,10 @@ struct bug_entry {
  * users don't need to reboot ASAP and can mostly shut down cleanly.
  */
 #ifndef HAVE_ARCH_BUG
-#ifdef CONFIG_SEC_DEBUG
-#define BUG() do { \
-	char *killer = NULL; \
-	printk("BUG: failure at %s:%d/%s()!\n", __FILE__, __LINE__, __func__); \
-	wmb(); \
-	*killer = 1; \
-} while (0)
-#else
 #define BUG() do { \
 	printk("BUG: failure at %s:%d/%s()!\n", __FILE__, __LINE__, __func__); \
 	panic("BUG!"); \
 } while (0)
-#endif
 #endif
 
 #ifndef HAVE_ARCH_BUG_ON

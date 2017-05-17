@@ -1331,6 +1331,9 @@ typedef MLAN_PACK_START struct {
 /** category public */
 #define CATEGORY_PUBLIC         4
 
+/** action code for 20/40 BSS Coexsitence Management frame */
+#define BSS_20_40_COEX 0
+
 #ifdef STA_SUPPORT
 /** Macro for maximum size of scan response buffer */
 #define MAX_SCAN_RSP_BUF (16 * 1024)

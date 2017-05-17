@@ -178,12 +178,6 @@ extern unsigned long get_cpu_nr_running(unsigned int cpu);
 #ifdef CONFIG_RUNTIME_COMPCACHE
 unsigned long this_cpu_loadx(int i);
 #endif /* CONFIG_RUNTIME_COMPCACHE */
-#ifdef CONFIG_HMP_BOOST
-extern unsigned long nr_running_cpu(unsigned int cpu);
-extern int register_hmp_task_migration_notifier(struct notifier_block *nb);
-#define HMP_UP_MIGRATION       0
-#define HMP_DOWN_MIGRATION     1
-#endif
 
 extern void calc_global_load(unsigned long ticks);
 extern void update_cpu_load_nohz(void);
@@ -999,19 +993,6 @@ struct hmp_domain {
 	struct cpumask possible_cpus;
 	struct list_head hmp_domains;
 };
-
-extern int set_hmp_boost(int enable);
-#ifdef CONFIG_HMP_BOOST
-extern int set_hmp_semiboost(int enable);
-extern int set_hmp_boostpulse(int duration);
-extern int get_hmp_boost(void);
-extern int get_hmp_semiboost(void);
-extern int set_hmp_up_threshold(int value);
-extern int set_hmp_down_threshold(int value);
-extern int set_active_down_migration(int enable);
-extern int set_hmp_aggressive_up_migration(int enable);
-extern int set_hmp_aggressive_yield(int enable);
-#endif /* CONFIG_HMP_BOOST */
 #endif /* CONFIG_SCHED_HMP */
 #else /* CONFIG_SMP */
 

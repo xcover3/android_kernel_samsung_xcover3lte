@@ -47,6 +47,39 @@ struct pm88x_dvc_extra {
 	struct pm88x_dvc *dvc;
 };
 
+struct pm88x_dvc_desc {
+	char *name;
+	char pin_status[10];
+	unsigned int mode_reg;
+	unsigned int mode_mask;
+	unsigned int val_reg;
+	unsigned int val_mask;
+};
+
+#define PM88X_DVC_DESC(_name, _mode_reg, _mode_mask, _val_reg, _val_mask)	\
+{										\
+	.name		= _name,						\
+	.mode_reg	= _mode_reg,						\
+	.mode_mask	= _mode_mask,						\
+	.val_reg	= _val_reg,						\
+	.val_mask	= _val_mask,						\
+}
+
+static struct pm88x_dvc_desc pm886_dvc_desc_info[] = {
+	PM88X_DVC_DESC("DVC1", 0x32, 0x0e, 0x32, 0x01),
+	PM88X_DVC_DESC("DVC2", 0x32, 0xe0, 0x32, 0x10),
+	PM88X_DVC_DESC("DVC3", 0x30, 0xe0, 0x30, 0x10),
+};
+
+static struct pm88x_dvc_desc pm880_dvc_desc_info[] = {
+	PM88X_DVC_DESC("DVC1", 0x32, 0x0e, 0x32, 0x01),
+	PM88X_DVC_DESC("DVC2", 0x32, 0xe0, 0x32, 0x10),
+	PM88X_DVC_DESC("DVC3", 0x33, 0x0e, 0x33, 0x01),
+	PM88X_DVC_DESC("DVC4", 0x33, 0xe0, 0x33, 0x10),
+	PM88X_DVC_DESC("DVC5", 0x34, 0x0e, 0x34, 0x01),
+	PM88X_DVC_DESC("DVC6", 0x34, 0xe0, 0x34, 0x10),
+};
+
 struct pm88x_dvc buck1b_dvc = {
 	.desc.current_reg = PM880_BUCK1B_VOUT,
 	.desc.mid_reg_val = 0x50,
@@ -108,6 +141,26 @@ static void pm880_level_to_reg(u8 level)
 	}
 
 	g_dvc->desc.current_reg = PM880_BUCK1_VOUT + level;
+}
+
+static void pm880_buck1b_level_to_reg(u8 level)
+{
+	if (level < 0 || level >= buck1b_dvc.desc.max_level) {
+		dev_err(g_dvc->dev, "DVC level is out of range!\n");
+		return;
+	}
+
+	g_dvc->desc.current_reg = PM880_BUCK1B_VOUT + level;
+}
+
+static void pm880_buck7_level_to_reg(u8 level)
+{
+	if (level < 0 || level >= buck7_dvc.desc.max_level) {
+		dev_err(g_dvc->dev, "DVC level is out of range!\n");
+		return;
+	}
+
+	g_dvc->desc.current_reg = PM880_BUCK7_VOUT + level;
 }
 
 /*
@@ -263,20 +316,54 @@ static int pm88x_update_print(struct pm88x_chip *chip, struct pm88x_dvc_extra *e
 	return 0;
 }
 
+static int pm88x_dvc_sts_print(struct pm88x_chip *chip, struct pm88x_dvc_desc *desc, int num)
+{
+	struct regmap *regmap;
+	int i, j, ret = 0, val = 0;
+	u8 vals[2][5] = { {0x30, 0x31, 0x32, 0x33, 0x34} };
+
+	regmap = chip->base_regmap;
+
+	ret = regmap_bulk_read(regmap, 0x30, vals[1], 5);
+	if (ret < 0)
+		return ret;
+
+	for (i = 0; i < num; i++) {
+		for (j = 0; j < 5; j++) {
+			if (desc[i].mode_reg == vals[0][j]) {
+				val = vals[1][j];
+
+				if (((val & desc[i].mode_mask) >>
+						(ffs(desc[i].mode_mask) - 1)) == 0x02) {
+					sprintf(desc[i].pin_status, "%7d", (val & desc[i].val_mask)
+							>> (ffs(desc[i].val_mask) - 1));
+				} else
+					sprintf(desc[i].pin_status, "Disable");
+			}
+		}
+	}
+	return ret;
+}
+
 int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
 {
 	struct pm88x_dvc_print *print_temp;
 	struct pm88x_dvc_extra extra[3];
-	int i, j, extra_num, sets_num, len = 0;
+	struct pm88x_dvc_desc *desc;
+	int i, j, extra_num, sets_num, desc_num, len = 0;
 	ssize_t ret;
 	switch (chip->type) {
 	case PM886:
+		desc = pm886_dvc_desc_info;
+		desc_num = ARRAY_SIZE(pm886_dvc_desc_info);
 		extra[0].name = "BUCK1";
 		extra[0].dvc = g_dvc;
 		extra_num = 1;
 		sets_num = 8;
 		break;
 	case PM880:
+		desc = pm880_dvc_desc_info;
+		desc_num = ARRAY_SIZE(pm880_dvc_desc_info);
 		extra[0].name = "BUCK1A";
 		extra[0].dvc = g_dvc;
 		extra[1].name = "BUCK1B";
@@ -297,7 +384,32 @@ int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
 		return -ENOMEM;
 	}
 
-	len += sprintf(buf + len, "\nDynamic Voltage Setting");
+	len += sprintf(buf + len, "\nDynamic Voltage Setting\n");
+
+	for (i = desc_num; i > 0; i--)
+		len += sprintf(buf + len, "----------");
+	len += sprintf(buf + len, "-\n|");
+
+	for (i = desc_num; i > 0; i--)
+		len += sprintf(buf + len, "   DVC%d  |", i);
+	len += sprintf(buf + len, "\n");
+
+	for (i = desc_num; i > 0; i--)
+		len += sprintf(buf + len, "----------");
+	len += sprintf(buf + len, "-\n|");
+
+	ret = pm88x_dvc_sts_print(chip, desc, desc_num);
+	if (ret < 0) {
+		pr_err("Print of DVC%d status failed\n", i + 1);
+		goto out_print;
+	}
+	for (i = desc_num - 1; i >= 0; i--)
+		len += sprintf(buf + len, " %-7s |", desc[i].pin_status);
+
+	len += sprintf(buf + len, "\n-");
+	for (i = desc_num; i > 0; i--)
+		len += sprintf(buf + len, "----------");
+
 	len += sprintf(buf + len, "\n--------");
 	for (i = 0; i < extra_num; i++)
 		len += sprintf(buf + len, "----------");
@@ -335,6 +447,93 @@ int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
 	ret = len;
 out_print:
 	kfree(print_temp);
+	return ret;
+}
+
+static int pm88x_dvc_update_volt(struct pm88x_chip *chip, struct pm88x_dvc_extra *extra,
+				 struct pm88x_debug_info *info, int index)
+{
+	struct regmap *regmap = chip->buck_regmap;
+	int i, start_lvl, end_lvl, ret = 0;
+
+	if (info->lvl >= 0) {
+		start_lvl = info->lvl;
+		end_lvl = info->lvl + 1;
+	} else {
+		start_lvl = 0;
+		end_lvl = extra->dvc->desc.max_level;
+	}
+
+	for (i = start_lvl; i < end_lvl; i++) {
+		if (!index) {
+			pm88x_dvc_set_volt(i, info->lvl_volt);
+			pr_info("DVC: %s, level: %d voltage is set to %d mV.\n",
+				info->name, i, info->lvl_volt / 1000);
+		} else {
+			if (info->lvl_volt < extra->dvc->desc.min_uV ||
+				info->lvl_volt > extra->dvc->desc.max_uV) {
+				dev_err(g_dvc->dev, "the expected voltage is out of range!\n");
+				return -EINVAL;
+			}
+
+			extra->dvc->ops.level_to_reg(i);
+
+			ret = regmap_update_bits(regmap, extra->dvc->desc.current_reg,
+						 0x7f, map_volt_to_reg(info->lvl_volt));
+			if (ret < 0)
+				return ret;
+			pr_info("DVC: %s, level: %d voltage is set to %d mV.\n",
+				info->name, i, info->lvl_volt / 1000);
+		}
+	}
+
+	return ret;
+}
+
+int pm88x_dvc_debug_write(struct pm88x_chip *chip, char *buf, struct pm88x_debug_info *info)
+{
+	struct pm88x_dvc_extra extra[3];
+	int i, extra_num, ret = 0, name_flag = 0, setting_flag = 0;
+
+	switch (chip->type) {
+	case PM886:
+		extra[0].name = "BUCK1";
+		extra[0].dvc = g_dvc;
+		extra_num = 1;
+		break;
+	case PM880:
+		buck1b_dvc.ops.level_to_reg = pm880_buck1b_level_to_reg;
+		buck7_dvc.ops.level_to_reg = pm880_buck7_level_to_reg;
+		extra[0].name = "BUCK1A";
+		extra[0].dvc = g_dvc;
+		extra[1].name = "BUCK1B";
+		extra[1].dvc = &buck1b_dvc;
+		extra[2].name = "BUCK7";
+		extra[2].dvc = &buck7_dvc;
+		extra_num = 3;
+		break;
+	default:
+		pr_err("%s: Cannot find chip type.\n", __func__);
+		return -ENODEV;
+	}
+
+	for (i = 0; i < extra_num; i++) {
+		if (!strcmp(info->name, extra[i].name)) {
+			name_flag = 1;
+			if (info->lvl_volt > 0) {
+				setting_flag = 1;
+				ret = pm88x_dvc_update_volt(chip, &extra[i], info, i);
+				if (ret < 0)
+					return ret;
+			}
+		}
+	}
+
+	if (!name_flag && info->name[0])
+		pr_err("DVC: name does not exist.\n");
+	else if (!setting_flag)
+		ret = pm88x_display_dvc(chip, buf);
+
 	return ret;
 }
 

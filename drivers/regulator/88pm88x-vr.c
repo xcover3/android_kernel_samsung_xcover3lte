@@ -383,6 +383,57 @@ static int pm88x_get_vvr_vol(unsigned int val, unsigned int n_linear_ranges,
 	return volt;
 }
 
+static int pm88x_vr_map_volt_reg(struct regulator_desc *desc, int uV)
+{
+	const struct regulator_linear_range *range;
+	int i, reg = -EINVAL;
+
+	for (i = 0; i < desc->n_linear_ranges; i++) {
+		range = &desc->linear_ranges[i];
+		if (!range)
+			return -EINVAL;
+
+		if ((uV >= range->min_uV) &&
+				(uV <= (range->min_uV + range->uV_step *
+				(range->max_sel - range->min_sel)))) {
+			reg = (uV - range->min_uV) / range->uV_step + range->min_sel;
+			break;
+		}
+	}
+	return reg;
+}
+
+static int pm88x_vr_slp_set_voltage(struct regmap *map, struct pm88x_buck_slp_info *info, int volt)
+{
+	int val, ret;
+
+	val = pm88x_vr_map_volt_reg(&info->desc, volt);
+	if (val < 0)
+		return val;
+	val <<= ffs(info->desc.vsel_mask) - 1;
+	ret = regmap_update_bits(map, info->desc.vsel_reg, info->desc.vsel_mask, val);
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
+static int pm88x_vr_audio_set_voltage(struct regmap *map, struct pm88x_buck_audio_info *info,
+				      int volt)
+{
+	int val, ret;
+
+	val = pm88x_vr_map_volt_reg(&info->desc, volt);
+	if (val < 0)
+		return val;
+	val <<= ffs(info->desc.vsel_mask) - 1;
+	ret = regmap_update_bits(map, info->desc.vsel_reg, info->desc.vsel_mask, val);
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
 /* The function check if the regulator register is configured to enable/disable */
 static int pm88x_check_en(struct regmap *map, unsigned int reg, unsigned int mask)
 {
@@ -396,6 +447,43 @@ static int pm88x_check_en(struct regmap *map, unsigned int reg, unsigned int mas
 	value = enable1 & mask;
 
 	return value;
+}
+
+static int pm88x_vr_slp_enable(struct regmap *map, struct pm88x_buck_slp_info *info, int enable)
+{
+	int ret;
+
+	ret = regmap_update_bits(map, info->desc.enable_reg, info->desc.enable_mask,
+				 enable << (ffs(info->desc.enable_mask) - 1));
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
+static int pm88x_vr_audio_enable(struct regmap *map, struct pm88x_buck_audio_info *info,
+		int enable)
+{
+	int ret;
+
+	ret = regmap_update_bits(map, info->desc.enable_reg, info->desc.enable_mask,
+				 enable << (ffs(info->desc.enable_mask) - 1));
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
+static int pm88x_vr_vr_enable(struct regmap *map, struct pm88x_vr_info *info, int enable)
+{
+	int ret;
+
+	ret = regmap_update_bits(map, info->desc.enable_reg, info->desc.enable_mask,
+				 enable << (ffs(info->desc.enable_mask) - 1));
+	if (ret < 0)
+		return ret;
+
+	return ret;
 }
 
 /* The function return the value in the regulator voltage register */
@@ -565,6 +653,115 @@ int pm88x_display_vr(struct pm88x_chip *chip, char *buf)
 	ret = len;
 out_print:
 	kfree(print_temp);
+	return ret;
+}
+
+int pm88x_vr_debug_write(struct pm88x_chip *chip, char *buf, struct pm88x_debug_info *info)
+{
+	struct pm88x_buck_slp_info *slp_info = NULL;
+	struct pm88x_buck_audio_info *audio_info = NULL;
+	struct pm88x_vr_info *vr_info = NULL;
+	struct regmap *map;
+	char *slp_mode_str[] = {"off", "active_slp", "sleep", "active"};
+	int slp_num, audio_num, vr_num, i, name_flag = 0, setting_flag = 0, ret = 0;
+
+	switch (chip->type) {
+	case PM886:
+		slp_info = pm886_buck_slp_configs;
+		slp_num = ARRAY_SIZE(pm886_buck_slp_configs);
+		vr_info = pm88x_vr_configs;
+		vr_num = ARRAY_SIZE(pm88x_vr_configs);
+		break;
+	case PM880:
+		slp_info = pm880_buck_slp_configs;
+		slp_num = ARRAY_SIZE(pm880_buck_slp_configs);
+		audio_info = pm880_buck_audio_configs;
+		audio_num = ARRAY_SIZE(pm880_buck_audio_configs);
+		vr_info = pm88x_vr_configs;
+		vr_num = ARRAY_SIZE(pm88x_vr_configs);
+		break;
+	default:
+		pr_err("%s: Cannot find chip type.\n", __func__);
+		return -ENODEV;
+	}
+
+	if (slp_info) {
+		map = nr_to_regmap(chip, slp_info->page_nr);
+		for (i = 0; i < slp_num; i++) {
+			if (!strcmp(info->name, slp_info[i].desc.name)) {
+				name_flag = 1;
+				if ((info->en >= 0) && (info->en < 4)) {
+					setting_flag = 1;
+					ret = pm88x_vr_slp_enable(map, &slp_info[i], info->en);
+					if (ret < 0)
+						return ret;
+					pr_info("VR: %s is %s.\n", info->name,
+						slp_mode_str[info->en]);
+				}
+				if (info->volt >= 0) {
+					setting_flag = 1;
+					ret = pm88x_vr_slp_set_voltage(map, &slp_info[i],
+								     info->volt);
+					if (ret < 0)
+						return ret;
+					pr_info("LDO: %s voltage is set to %d mV.\n",
+						info->name, info->volt / 1000);
+				}
+				goto out;
+			}
+		}
+	}
+
+	if (audio_info) {
+		map = nr_to_regmap(chip, audio_info->page_nr);
+		for (i = 0; i < audio_num; i++) {
+			if (!strcmp(info->name, audio_info[i].desc.name)) {
+				name_flag = 1;
+				if ((info->en == 0) || (info->en == 1)) {
+					setting_flag = 1;
+					ret = pm88x_vr_audio_enable(map, &audio_info[i], info->en);
+					if (ret < 0)
+						return ret;
+					pr_info("VR: %s is %s.\n", info->name,
+						info->en ? "enabled" : "disabled");
+				}
+				if (info->volt >= 0) {
+					setting_flag = 1;
+					ret = pm88x_vr_audio_set_voltage(map, &audio_info[i],
+								     info->volt);
+					if (ret < 0)
+						return ret;
+					pr_info("LDO: %s voltage is set to %d mV.\n",
+						info->name, info->volt / 1000);
+				}
+				goto out;
+			}
+		}
+	}
+
+	if (vr_info) {
+		map = nr_to_regmap(chip, vr_info->page_nr);
+		for (i = 0; i < vr_num; i++) {
+			if (!strcmp(info->name, vr_info[i].desc.name)) {
+				name_flag = 1;
+				if ((info->en == 0) || (info->en == 1)) {
+					setting_flag = 1;
+					ret = pm88x_vr_vr_enable(map, &vr_info[i], info->en);
+					if (ret < 0)
+						return ret;
+					pr_info("VR: %s is %s.\n", info->name,
+						info->en ? "enabled" : "disabled");
+				}
+			}
+		}
+	}
+
+out:
+	if (!name_flag && info->name[0])
+		pr_err("VR: name does not exist.\n");
+	else if (!setting_flag)
+		ret = pm88x_display_vr(chip, buf);
+
 	return ret;
 }
 

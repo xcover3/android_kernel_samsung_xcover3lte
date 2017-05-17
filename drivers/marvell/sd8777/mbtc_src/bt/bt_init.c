@@ -3,7 +3,7 @@
   * @brief This file contains the init functions for BlueTooth
   * driver.
   *
-  * Copyright (C) 2011-2015, Marvell International Ltd.
+  * Copyright (C) 2011-2014, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -334,8 +334,7 @@ bt_process_init_cfg(bt_private *priv, u8 *data, u32 size)
 		if (strncmp((char *)pos, "mac_addr", 8) == 0) {
 			intf_s = (u8 *)strchr((const char *)pos, '=');
 			if (intf_s != NULL)
-				intf_e = (u8 *)strchr((const char *)intf_s,
-						      ':');
+				intf_e = (u8 *)strchr((const char *)intf_s,':');
 			else
 				intf_e = NULL;
 			if (intf_s != NULL && intf_e != NULL) {
@@ -352,8 +351,7 @@ bt_process_init_cfg(bt_private *priv, u8 *data, u32 size)
 				    (dev_name,
 				     priv->bt_dev.m_dev[BT_SEQ].name) == 0) {
 					/* found hci device */
-					strncpy((char *)bt_addr,
-						(const char *)intf_e + 1,
+					strncpy((char *)bt_addr, (const char *)intf_e + 1,
 						MAX_MAC_ADDR_LEN - 1);
 					bt_addr[MAX_MAC_ADDR_LEN - 1] = '\0';
 					/* Convert MAC format */
@@ -379,15 +377,13 @@ bt_process_init_cfg(bt_private *priv, u8 *data, u32 size)
 		else if (strncmp((char *)pos, "bt_reg", 6) == 0) {
 			intf_s = (u8 *)strchr((const char *)pos, '=');
 			if (intf_s != NULL)
-				intf_e = (u8 *)strchr((const char *)intf_s,
-						      ',');
+				intf_e = (u8 *)strchr((const char *)intf_s, ',');
 			else
 				intf_e = NULL;
 			if (intf_s != NULL && intf_e != NULL) {
 				/* Copy type */
 				memset(buf, 0, sizeof(buf));
-				strncpy((char *)buf, (const char *)intf_s + 1,
-					1);
+				strncpy((char *)buf, (const char *)intf_s + 1, 1);
 				buf[1] = '\0';
 				if (0 == bt_atoi(&setting, (char *)buf))
 					type = (u8)setting;
@@ -413,8 +409,7 @@ bt_process_init_cfg(bt_private *priv, u8 *data, u32 size)
 				}
 				/* Copy offset */
 				memset(buf, 0, sizeof(buf));
-				strncpy((char *)buf, (const char *)intf_s,
-					intf_e - intf_s);
+				strncpy((char *)buf, (const char *)intf_s, intf_e - intf_s);
 				buf[intf_e - intf_s] = '\0';
 				if (0 == bt_atoi(&setting, (char *)buf))
 					offset = (u32)setting;
@@ -644,10 +639,8 @@ bt_cal_config(bt_private *priv, char *cal_file, char *mac)
 					 priv->init_user_conf_wait_flag);
 		cfg = priv->init_user_cfg;
 	} else {
-		if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) <
-		    0) {
-			PRINTM(FATAL, "BT: request_firmware() %s failed\n",
-			       cal_file);
+		if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) < 0) {
+			PRINTM(FATAL, "BT: request_firmware() %s failed\n", cal_file);
 			ret = BT_STATUS_FAILURE;
 			goto done;
 		}
@@ -709,10 +702,8 @@ bt_cal_config_ext(bt_private *priv, char *cal_file)
 					 priv->init_user_conf_wait_flag);
 		cfg = priv->init_user_cfg;
 	} else {
-		if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) <
-		    0) {
-			PRINTM(FATAL, "BT: request_firmware() %s failed\n",
-			       cal_file);
+		if ((request_firmware(&cfg, cal_file, priv->hotplug_device)) < 0) {
+			PRINTM(FATAL, "BT: request_firmware() %s failed\n", cal_file);
 			ret = BT_STATUS_FAILURE;
 			goto done;
 		}

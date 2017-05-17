@@ -35,10 +35,6 @@
 #include <asm/system_misc.h>
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
-#ifdef CONFIG_SEC_DEBUG
-#include <linux/sec-debug.h>
-#include <linux/arm-coresight.h>
-#endif
 
 static const char *fault_name(unsigned int esr);
 
@@ -93,10 +89,6 @@ static void __do_kernel_fault(struct mm_struct *mm, unsigned long addr,
 	if (fixup_exception(regs))
 		return;
 
-#ifdef CONFIG_SEC_DEBUG
-	arch_stop_trace();
-	stop_ftracing();
-#endif
 	/*
 	 * No handler, we'll have to terminate things with extreme prejudice.
 	 */

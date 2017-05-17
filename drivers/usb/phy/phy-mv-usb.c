@@ -226,6 +226,8 @@ static int mv_otg_reset(struct mv_otg *mvotg)
 	writel(tmp, &mvotg->op_regs->usbsts);
 
 	portsc = readl(&mvotg->op_regs->portsc[0]);
+	/* add delay before set PHCD bit */
+	udelay(400);
 	portsc |= PORTSCX_PORT_PHCD;
 	writel(portsc, &mvotg->op_regs->portsc[0]);
 	return 0;
@@ -413,16 +415,19 @@ static void mv_otg_update_inputs(struct mv_otg *mvotg)
 		otg_ctrl->id = 0;
 		otg_ctrl->a_bus_req = 1;
 	}
-#ifndef CONFIG_USB_NOTIFY_LAYER
+
 	otg_ctrl->a_sess_vld = !!(otgsc & OTGSC_STS_A_SESSION_VALID);
-	otg_ctrl->a_vbus_vld = !!(otgsc & OTGSC_STS_A_VBUS_VALID);
-#endif
-	dev_info(&mvotg->pdev->dev, "%s: ", __func__);
-	dev_info(&mvotg->pdev->dev, "id %d\n", otg_ctrl->id);
-	dev_info(&mvotg->pdev->dev, "b_sess_vld %d\n", otg_ctrl->b_sess_vld);
-	dev_info(&mvotg->pdev->dev, "b_sess_end %d\n", otg_ctrl->b_sess_end);
-	dev_info(&mvotg->pdev->dev, "a_vbus_vld %d\n", otg_ctrl->a_vbus_vld);
-	dev_info(&mvotg->pdev->dev, "a_sess_vld %d\n", otg_ctrl->a_sess_vld);
+	if (mvotg->pdata->otg_force_a_vbus_vld)
+		otg_ctrl->a_vbus_vld = 1;
+	else
+		otg_ctrl->a_vbus_vld = !!(otgsc & OTGSC_STS_A_VBUS_VALID);
+
+	dev_dbg(&mvotg->pdev->dev, "%s: ", __func__);
+	dev_dbg(&mvotg->pdev->dev, "id %d\n", otg_ctrl->id);
+	dev_dbg(&mvotg->pdev->dev, "b_sess_vld %d\n", otg_ctrl->b_sess_vld);
+	dev_dbg(&mvotg->pdev->dev, "b_sess_end %d\n", otg_ctrl->b_sess_end);
+	dev_dbg(&mvotg->pdev->dev, "a_vbus_vld %d\n", otg_ctrl->a_vbus_vld);
+	dev_dbg(&mvotg->pdev->dev, "a_sess_vld %d\n", otg_ctrl->a_sess_vld);
 }
 
 static void mv_otg_update_state(struct mv_otg *mvotg)
@@ -449,12 +454,8 @@ static void mv_otg_update_state(struct mv_otg *mvotg)
 		if (otg_ctrl->id)
 			phy->state = OTG_STATE_B_IDLE;
 		else if (!(otg_ctrl->a_bus_drop) &&
-			 (otg_ctrl->a_bus_req || otg_ctrl->a_srp_det)) {
+			 (otg_ctrl->a_bus_req || otg_ctrl->a_srp_det))
 			phy->state = OTG_STATE_A_WAIT_VRISE;
-#ifdef CONFIG_USB_NOTIFY_LAYER
-			otg_ctrl->a_vbus_vld = 1;
-#endif
-		}
 		break;
 	case OTG_STATE_A_WAIT_VRISE:
 		if (otg_ctrl->a_vbus_vld)
@@ -487,12 +488,8 @@ static void mv_otg_update_state(struct mv_otg *mvotg)
 	case OTG_STATE_A_WAIT_VFALL:
 		if (otg_ctrl->id
 		    || (!otg_ctrl->b_conn && otg_ctrl->a_sess_vld)
-		    || otg_ctrl->a_bus_req) {
+		    || otg_ctrl->a_bus_req)
 			phy->state = OTG_STATE_A_IDLE;
-#ifdef CONFIG_USB_NOTIFY_LAYER
-			otg_ctrl->a_vbus_vld = 0;
-#endif
-		}
 		break;
 	case OTG_STATE_A_VBUS_ERR:
 		if (otg_ctrl->id || otg_ctrl->a_clr_err
@@ -549,30 +546,13 @@ run:
 		switch (phy->state) {
 		case OTG_STATE_B_IDLE:
 			otg->default_a = 0;
-#ifdef CONFIG_USB_NOTIFY_LAYER
-			/*Checking OTG_STATE_UNDEFINED is not needed.
-			 * Because USB Notify Layer is called after gadget
-			 * driver registered. */
-			if (old_state == OTG_STATE_B_PERIPHERAL)
-#else
 			if (old_state == OTG_STATE_B_PERIPHERAL ||
 					old_state == OTG_STATE_UNDEFINED)
-#endif
 				mv_otg_start_periphrals(mvotg, 0);
 			mv_otg_reset(mvotg);
 			mv_otg_disable(mvotg);
-#ifdef CONFIG_USB_NOTIFY_LAYER
-			if(pxa_usb_has_extern_call(PXA_USB_DEV_OTG, vbus, pm_usb_sw)) {
-				pxa_usb_extern_call(PXA_USB_DEV_OTG, vbus, pm_usb_sw, false);
-			}
-#endif
 			break;
 		case OTG_STATE_B_PERIPHERAL:
-#ifdef CONFIG_USB_NOTIFY_LAYER
-			if(pxa_usb_has_extern_call(PXA_USB_DEV_OTG, vbus, pm_usb_sw)) {
-				pxa_usb_extern_call(PXA_USB_DEV_OTG, vbus, pm_usb_sw, true);
-			}
-#endif
 			mv_otg_enable(mvotg);
 			mv_otg_start_periphrals(mvotg, 1);
 			break;
@@ -912,6 +892,8 @@ static int mv_otg_dt_parse(struct platform_device *pdev,
 	of_property_read_u32(np, "marvell,extern-attr", &(pdata->extern_attr));
 	pdata->otg_force_a_bus_req = of_property_read_bool(np,
 				"marvell,otg-force-a-bus-req");
+	pdata->otg_force_a_vbus_vld = of_property_read_bool(np,
+				"marvell,otg-force-a-vbus-vld");
 	pdata->disable_otg_clock_gating = of_property_read_bool(np,
 					"marvell,disable-otg-clock-gating");
 
@@ -930,7 +912,6 @@ static int mv_otg_probe(struct platform_device *pdev)
 	const __be32 *prop;
 	unsigned int proplen;
 
-	pr_info("usb: %s\n", __func__);
 	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (pdata == NULL) {
 		dev_err(&pdev->dev, "failed to allocate platform data\n");

@@ -18,7 +18,20 @@
 				<0x4 0x24 0x30 0x20>,	/* enable buck1a sleep mode */
 				<0x4 0x91 0x08 0x00>,	/* disable buck5 low ripple PFM mode */
 				<0x1 0x5c 0xf0 0xa0>,	/* set LDO11_SET_SLP to 2.8V */
-				<0x1 0x5d 0x30 0x20>;	/* set LDO11_SLP to be LDO11_SET_SLP value on sleep */
+				<0x1 0x5d 0x30 0x20>,	/* set LDO11_SLP to be LDO11_SET_SLP value on sleep */
+				<0x1 0x51 0x30 0x00>,	/* set LDO9_SLP value to be off in sleep */
+				<0x2 0x06 0x33 0x33>,	/* set sleep mode enabled, duty cycle mode , scale x2*/
+				<0x2 0x08 0x0F 0x0F>,	/* increase MEAS off time */
+				<0x1 0x2d 0x30 0x00>,	/* turn off LDO3 (AGPS) */
+				<0x1 0x33 0x30 0x20>,	/* sleep state lcd ldo4 */
+				<0x1 0x39 0x30 0x20>,	/* sleep state for lcd ldo5 */
+				<0x1 0x45 0x30 0x00>,	/* turn off camera ldo7 */
+				<0x1 0x4b 0x30 0x00>,	/* turn off camera ldo8 */
+				<0x4 0x3c 0x30 0x20>,	/* enable buck1b sleep mode */
+				<0x4 0x6c 0x30 0x20>,	/* enable buck3 sleep mode */
+				<0x4 0xb4 0x30 0x20>;	/* enable buck7 sleep mode */
+
+
 
 	/* using lables, so no need for nesting */
 	/* ---buck--- */
@@ -125,6 +138,8 @@
 		gpadc-temp-no = <1>;
 
 		cc-fixup = <102>;
+		power-off-extreme-th = <3200 3400>; /* extreme power off threshold */
+
 	};
 
 	charger {
@@ -188,5 +203,8 @@
 
 	vbus {
 		gpadc-number = <3>;
+		id-ov-sampling;
+		id-ov-samp-count = <10>; /* number of samples */
+		id-ov-samp-sleep = <100>; /* sleep between each sample [mS] */
 	};
 };

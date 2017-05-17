@@ -128,6 +128,8 @@ t_u8 wlan_validate_chan_offset(IN mlan_private *pmpriv,
 /** get channel offset */
 t_u8 wlan_get_second_channel_offset(int chan);
 
+void wlan_update_11n_cap(mlan_private *pmpriv);
+
 /** clean up txbastream_tbl */
 void wlan_11n_cleanup_txbastream_tbl(mlan_private *priv, t_u8 *ra);
 /**
@@ -273,29 +275,6 @@ wlan_is_ampdu_allowed(mlan_private *priv, raListTbl *ptr, int tid)
 }
 
 /**
- *  @brief This function checks whether AMSDU is allowed for BA stream
- *
- *  @param priv     A pointer to mlan_private
- *  @param ptr      A pointer to RA list table
- *  @param tid	    TID value for ptr
- *
- *  @return         MTRUE or MFALSE
- */
-static int INLINE
-wlan_is_amsdu_in_ampdu_allowed(mlan_private *priv, raListTbl *ptr, int tid)
-{
-	TxBAStreamTbl *ptx_tbl;
-	ENTER();
-	ptx_tbl = wlan_11n_get_txbastream_tbl(priv, tid, ptr->ra);
-	if (ptx_tbl) {
-		LEAVE();
-		return ptx_tbl->amsdu;
-	}
-	LEAVE();
-	return MFALSE;
-}
-
-/**
  *  @brief This function checks whether AMSDU is allowed or not
  *
  *  @param priv     A pointer to mlan_private
@@ -407,32 +386,6 @@ wlan_find_stream_to_delete(mlan_private *priv,
 
 	LEAVE();
 	return ret;
-}
-
-/**
- *  @brief This function checks whether BA stream is setup
- *
- *  @param priv     A pointer to mlan_private
- *  @param ptr      A pointer to RA list table
- *  @param tid	    TID value for ptr
- *
- *  @return         MTRUE or MFALSE
- */
-static int INLINE
-wlan_is_bastream_setup(mlan_private *priv, raListTbl *ptr, int tid)
-{
-	TxBAStreamTbl *ptx_tbl;
-
-	ENTER();
-
-	ptx_tbl = wlan_11n_get_txbastream_tbl(priv, tid, ptr->ra);
-	if (ptx_tbl) {
-		LEAVE();
-		return IS_BASTREAM_SETUP(ptx_tbl) ? MTRUE : MFALSE;
-	}
-
-	LEAVE();
-	return MFALSE;
 }
 
 /**

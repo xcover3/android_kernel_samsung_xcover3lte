@@ -342,7 +342,7 @@ woal_log_read(struct seq_file *sfp, void *data)
 
 	memset(&stats, 0x00, sizeof(stats));
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
+	    woal_get_stats_info(priv, MOAL_PROC_WAIT, &stats)) {
 		PRINTM(MERROR,
 		       "woal_log_read: Get log: Failed to get stats info!");
 		MODULE_PUT;

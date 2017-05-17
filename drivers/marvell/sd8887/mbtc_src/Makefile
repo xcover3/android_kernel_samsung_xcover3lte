@@ -35,7 +35,6 @@ endif
 
 
 
-
 # KERNELDIR point to the installed kernel directory
 # for PXA3XX BSP.
 # KERNELDIR can be set on the command line

@@ -47,7 +47,7 @@
 				marvell,debounce-interval = <30>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&keypad_in_func>;
-				status = "okay";
+				status = "disable";
 			};
 
 			keyreset {
@@ -81,21 +81,24 @@
 
 			twsi3: i2c@d4013800 {
 				sensor1: apds9930@39 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor2: bmi160@68 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor3: bme280@76 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor4: icm20628@69 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor5: mxc400x@15 {
-					status = "okay";
+					status = "disable";
 				};
 				sensor6: mmc3524x@30 {
+					status = "disable";
+				};
+				sensor7: ap3426@1E {
 					status = "okay";
 				};
 			};
@@ -105,12 +108,9 @@
 	sd8x-rfkill {
 		sd-host = <&sdh1>;
 		pd-gpio = <&gpio 7 0>;
-		rst-gpio = <&gpio 71 0>;
 		wib_3v3-supply = <&ldo15>;
 		wib_1v8-supply = <&buck2>;
-		3v3-ldo-gpio = <&gpio 14 0>;
 		edge-wakeup-gpio = <&gpio 39 0>;
-		marvell,sdh-tuning-dvfs;
 		status = "okay";
 	};
 
@@ -149,9 +149,36 @@
 		status = "okay";
 	};
 
+        leds {
+		compatible = "gpio-leds";
+
+		led@1 {
+			label = "usr0";
+			gpios = <&gpio 5 0>;
+			default-state = "off";
+		};
+
+		led@2 {
+			label = "usr1";
+			gpios = <&gpio 6 0>;
+			default-state = "off";
+		};
+
+		led@3 {
+			label = "usr2";
+			gpios = <&gpio 8 0>;
+			default-state = "off";
+		};
+
+		led@4 {
+			label = "usr3";
+			gpios = <&gpio 15 0>;
+			default-state = "off";
+		};
+	};
 };
 #include "88pm88x.dtsi"
 #include "88pm886.dtsi"
 #include "88pm88x_battery_common.dtsi"
-#include "88pm88x_sp4555557sa.dtsi"
+#include "88pm88x_battery_485760ar.dtsi"
 #include "88pm886_pxa1908_dkb.dtsi"

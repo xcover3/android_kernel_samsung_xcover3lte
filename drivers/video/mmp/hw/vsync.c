@@ -44,8 +44,10 @@ static void mmp_overlay_vsync_notify_init(struct mmp_vsync *vsync, struct mmp_ov
 
 static void mmp_set_irq(struct mmp_vsync *vsync, int on)
 {
-	if (vsync->type == LCD_VSYNC || vsync->type == LCD_SPECIAL_VSYNC)
-		mmp_path_set_irq(vsync->path, on);
+	if (vsync->type == LCD_VSYNC)
+		mmp_path_set_irq(vsync->path, VSYNC_IRQ, on);
+	else if (vsync->type == LCD_SPECIAL_VSYNC)
+		mmp_path_set_irq(vsync->path, SPECIAL_IRQ, on);
 	else if (vsync->type == DSI_VSYNC || vsync->type == DSI_SPECIAL_VSYNC)
 		mmp_dsi_set_irq(vsync->dsi, on);
 }

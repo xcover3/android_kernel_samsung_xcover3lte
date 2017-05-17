@@ -467,8 +467,8 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		pmadapter->callbacks.moal_hist_data_add(pmadapter->pmoal_handle,
 							pmbuf->bss_index,
 							adj_rx_rate,
-							prx_pd->snr,
-							prx_pd->nf);
+							prx_pd->snr, prx_pd->nf,
+							prx_pd->antenna);
 	}
 
 	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
@@ -489,6 +489,7 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 done:
 	if (ret != MLAN_STATUS_PENDING)
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
+
 	LEAVE();
 
 	return ret;

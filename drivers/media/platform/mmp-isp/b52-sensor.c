@@ -23,475 +23,26 @@
 #include <uapi/media/b52_api.h>
 #include <linux/clk.h>
 #include <media/mv_sc2_twsi_conf.h>
+#include <media/b52socisp/host_isd.h>
 #include "plat_cam.h"
-#include <linux/mfd/88pm88x.h>
 
 static int otp_ctrl = -1;
-static enum b52_sensor_mode s_mode;
 module_param(otp_ctrl, int, 0644);
-
-struct class *camera_class = NULL;
-struct device *cam_dev_rear, *cam_dev_front;
-static const struct v4l2_ctrl_ops b52_ctrl_ops;
-
-#ifdef CONFIG_ISP_USE_TWSI3
-#include <linux/i2c.h>
-int twsi_read_i2c_bb(u16 addr, u8 reg, u8 *val)
-{
-	int ret;
-	struct i2c_adapter *adapter;
-	struct i2c_msg msg[] = {
-		{
-			.addr	= addr,
-			.flags	= 0,
-			.len	= 1,
-			.buf	= (u8 *)&reg,
-		},
-		{
-			.addr	= addr,
-			.flags	= I2C_M_RD,
-			.len	= 1,
-			.buf	= val,
-		},
-	};
-	*val = 0;
-	adapter = i2c_get_adapter(2);
-	if (adapter == NULL)
-		return -1;
-	ret = i2c_transfer(adapter, msg, 2);
-	return 0;
-}
-int twsi_read_i2c(u16 addr, u16 reg, u16 *val)
-{
-	int ret;
-	struct i2c_adapter *adapter;
-	struct i2c_msg msg[] = {
-		{
-			.addr	= addr,
-			.flags	= 0,
-			.len	= 2,
-			.buf	= (u8 *)&reg,
-		},
-		{
-			.addr	= addr,
-			.flags	= I2C_M_RD,
-			.len	= 1,
-			.buf	= (u8 *)val,
-		},
-	};
-	*val = 0;
-	reg = swab16(reg);
-	adapter = i2c_get_adapter(2);
-	if (adapter == NULL)
-		return -1;
-	ret = i2c_transfer(adapter, msg, 2);
-	return 0;
-}
-struct reg_tab_wb {
-		u16 reg;
-		u8 val;
-} __packed;
-struct reg_tab_bb {
-		u8 reg;
-		u8 val;
-} __packed;
-
-int twsi_write_i2c(u16 addr, u16 reg, u8 val)
-{
-	struct i2c_msg msg;
-	struct reg_tab_wb buf;
-	int ret = 0;
-	struct i2c_adapter *adapter;
-	reg = swab16(reg);
-	buf.reg = reg;
-	buf.val = val;
-	msg.addr	= addr;
-	msg.flags	= 0;
-	msg.len		= 3;
-	msg.buf		= (u8 *)&buf;
-	adapter = i2c_get_adapter(2);
-	ret = i2c_transfer(adapter, &msg, 1);
-	if (ret < 0)
-		return ret;
-	return 0;
-}
-#define DM9714L_DATA_SHIFT 0x4
-static int b52_sensor_g_focus_twsi(struct v4l2_subdev *sd, u16 *val)
-{
-	int ret = 0;
-	u8 reg;
-	u8 val1;
-	struct i2c_adapter *adapter;
-	struct b52_sensor_vcm *vcm;
-	enum b52_sensor_vcm_type vcm_type;
-	struct i2c_msg msg = {
-			.flags	= I2C_M_RD,
-			.len	= 2,
-			.buf	= (u8 *)val,
-	};
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
-	vcm = sensor->drvdata->module->vcm;
-	vcm_type =  vcm->type;
-	msg.addr = vcm->attr->addr;
-	adapter = i2c_get_adapter(2);
-	if (adapter == NULL)
-		return -1;
-	*val = 0;
-	switch (vcm_type) {
-	case DW9714:
-		ret = i2c_transfer(adapter, &msg, 1);
-		*val = (*val >> DM9714L_DATA_SHIFT) & 0xffff;
-		break;
-	case DW9804:
-		reg = (u8)vcm->pos_reg_lsb;
-		ret = twsi_read_i2c_bb(msg.addr, reg, (u8 *)val);
-		*val = *val & 0xff;
-		reg = (u8)vcm->pos_reg_msb;
-		ret = twsi_read_i2c_bb(msg.addr, reg, &val1);
-		*val = ((val1 & 0x3) << 8) | *val;
-		break;
-	case DW9718:
-		reg = (u8)vcm->pos_reg_lsb;
-		ret = twsi_read_i2c_bb(msg.addr, reg, (u8 *)val);
-		*val = *val & 0xff;
-		reg = (u8)vcm->pos_reg_msb;
-		ret = twsi_read_i2c_bb(msg.addr, reg, &val1);
-		*val = ((val1 & 0x3) << 8) | *val;
-		break;
-	default:
-		ret = -EIO;
-		pr_err("not support current vcm type\n");
+/* supported controls */
+static struct v4l2_queryctrl sensor_qctrl[] = {
+	{
+		.id = V4L2_CID_ENUM_SENSOR,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "enum sensor",
+		.minimum = 0,
+		.maximum = 1,
+		.step = 1,
+		.default_value = 0x0001,
+		.flags = 0,
+	}, {
 	}
+};
 
-
-	return ret;
-}
-static int b52_sensor_s_focus_twsi(struct v4l2_subdev *sd, u16 val)
-{
-	int ret = 0;
-	struct i2c_adapter *adapter;
-	struct b52_sensor_vcm *vcm;
-	struct reg_tab_bb buf;
-	enum b52_sensor_vcm_type vcm_type;
-	u8 val_buf[2];
-	struct i2c_msg msg;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
-	if (sensor->drvdata->num_module == 0)
-		return 0;
-
-	vcm = sensor->drvdata->module->vcm;
-	vcm_type =  vcm->type;
-	msg.addr = vcm->attr->addr;
-	msg.flags = 0;
-	msg.len = 2;
-	adapter = i2c_get_adapter(2);
-	if (adapter == NULL)
-		return -1;
-
-	switch (vcm_type) {
-	case DW9714:
-		msg.buf = val_buf;
-		val = (val << 4) | 0x0f;
-		msg.buf[0] = (val>>8) & 0x3f;
-		msg.buf[1] = val & 0xff;
-		ret = i2c_transfer(adapter, &msg, 1);
-		break;
-	case DW9804:
-		msg.buf = (u8 *)&buf;
-		buf.reg = (u8)vcm->pos_reg_msb;
-		buf.val = (u8)((val >> 8) & 0x3);
-		ret = i2c_transfer(adapter, &msg, 1);
-		buf.reg = (u8)vcm->pos_reg_lsb;
-		buf.val = (u8)(val & 0xff);
-		ret |= i2c_transfer(adapter, &msg, 1);
-		break;
-	case DW9718:
-		msg.buf = (u8 *)&buf;
-		buf.reg = (u8)vcm->pos_reg_msb;
-		buf.val = (u8)((val >> 8) & 0x3);
-		ret = i2c_transfer(adapter, &msg, 1);
-		buf.reg = (u8)vcm->pos_reg_lsb;
-		buf.val = (u8)(val & 0xff);
-		ret |= i2c_transfer(adapter, &msg, 1);
-		break;
-	default:
-		ret = 0;
-		pr_err("not support current vcm type\n");
-	}
-	return ret;
-}
-
-static int b52_sensor_s_expo(struct v4l2_subdev *sd, u32 expo, u16 vts)
-{
-	const struct b52_sensor_regs *reg;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
-	if (sensor->drvdata->type == SONY_SENSOR)
-		expo = (expo >> 4) & 0xFFFF;
-
-	reg = &sensor->drvdata->vts_reg;
-	b52_sensor_call(sensor, i2c_write, reg->tab[0].reg, vts, reg->num);
-
-	reg = &sensor->drvdata->expo_reg;
-	b52_sensor_call(sensor, i2c_write, reg->tab[0].reg, expo, reg->num);
-
-	return 0;
-}
-
-static int b52_sensor_s_gain(struct v4l2_subdev *sd, u32 gain)
-{
-	int max;
-	u32 ag, dg;
-	const struct b52_sensor_regs *reg;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
-	reg = &sensor->drvdata->gain_reg[B52_SENSOR_AG];
-	max = sensor->drvdata->gain_range[B52_SENSOR_AG].max;
-
-	ag = (gain <= max) ? gain : max;
-	ag <<= sensor->drvdata->gain_shift;
-	if (sensor->drvdata->type == SONY_SENSOR)
-		ag = (256*16 - 256*256/ag + 8)/16;
-	b52_sensor_call(sensor, i2c_write, reg->tab[0].reg, ag, reg->num);
-
-	reg = &sensor->drvdata->gain_reg[B52_SENSOR_DG];
-	if (reg->tab == NULL) {
-		if (gain > max)
-			pr_err("gain value is incorrect: %d\n", gain);
-		return 0;
-	}
-
-	if (gain <= max)
-		dg = B52_GAIN_UNIT << 4;
-	else
-		dg = (gain << 8) / max;
-	dg <<= sensor->drvdata->gain_shift;
-	if (sensor->drvdata->type != SONY_SENSOR)
-		dg = (dg + 8) >> 4;
-	b52_sensor_call(sensor, i2c_write, reg->tab[0].reg, dg, reg->num);
-
-	return 0;
-}
-
-static int copy_files_for_60hz(void){
-#define COPY_FROM_60HZ_TABLE(TABLE_NAME, ANTI_BANDING_SETTING) \
-	memcpy (TABLE_NAME, TABLE_NAME##_##ANTI_BANDING_SETTING, \
-			sizeof(TABLE_NAME))
-	printk("%s: Enter \n",__func__);
-/*
-	COPY_FROM_60HZ_TABLE (sr352_Init_Reg, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_recording_50Hz_HD, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_recording_50Hz_30fps, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_recording_50Hz_25fps, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_recording_50Hz_15fps, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_recording_50Hz_modeOff, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_SceneOff, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Landscape, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Party, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Sunset, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Dawn, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Fall, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Nightshot, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Backlight, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Candle, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Beach, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Sports, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Firework, 60hz);
-	COPY_FROM_60HZ_TABLE (sr352_Portrait, 60hz);
-*/
-	printk("%s: copy done!\n", __func__);
-}
-static int check_table_size_for_60hz(void){
-#define IS_SAME_NUM_OF_ROWS(TABLE_NAME) \
-	(sizeof(TABLE_NAME) == sizeof(TABLE_NAME##_60hz))
-/*
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Init_Reg) ) return (-1);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_recording_50Hz_HD) ) return (-2);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_recording_50Hz_30fps) ) return (-3);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_recording_50Hz_25fps) ) return (-4);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_recording_50Hz_15fps) ) return (-5);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_recording_50Hz_modeOff) ) return (-6);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_SceneOff) ) return (-7);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Landscape) ) return (-8);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Party) ) return (-9);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Sunset) ) return (-10);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Dawn) ) return (-11);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Fall) ) return (-12);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Nightshot) ) return (-13);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Backlight) ) return (-14);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Candle) ) return (-15);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Beach) ) return (-16);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Sports) ) return (-17);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Firework) ) return (-18);
-	if ( !IS_SAME_NUM_OF_ROWS(sr352_Portrait) ) return (-19);
-*/
-	printk("%s: Success !\n", __func__);
-	return 0;
-}
-static int b52_sensor_cmd_read_twsi(struct v4l2_subdev *sd, u16 addr,
-		u32 *val, u8 num)
-{
-	int i;
-	int shift = 0;
-	struct regval_tab tab[3];
-	struct b52_cmd_i2c_data data;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
-	if (!sensor || !val || (num == 0)) {
-		pr_err("%s, error param\n", __func__);
-		return -EINVAL;
-	}
-
-	if (num > 3) {
-		pr_err("%s, read num too long\n", __func__);
-		return -EINVAL;
-	}
-
-	data.attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
-	data.tab = tab;
-	data.num = num;
-	data.pos = sensor->pos;
-	for (i = 0; i < data.num; i++)
-		twsi_read_i2c(data.attr->addr, addr + i, &data.tab[i].val);
-
-	if (num == 1) {
-		*val = tab[0].val;
-	} else if (num == 2) {
-		if (data.attr->val_len == I2C_8BIT)
-			shift = 8;
-		else if (data.attr->val_len == I2C_16BIT)
-			shift = 16;
-		*val = (tab[0].val << shift) | tab[1].val;
-	} else if (num == 3) {
-		if (data.attr->val_len == I2C_8BIT)
-			shift = 8;
-		else {
-			pr_err("wrong i2c len for num %d\n", num);
-			return -EINVAL;
-		}
-
-		*val = (tab[0].val << shift * 2) |
-			   (tab[1].val << shift * 1) |
-			   (tab[2].val << shift * 0);
-	}
-
-	return 0;
-}
-
-static int b52_sensor_cmd_write_twsi(struct v4l2_subdev *sd, u16 addr,
-		u32 val, u8 num)
-{
-	int shift = 0, i;
-	struct regval_tab tab[3];
-	const struct b52_sensor_i2c_attr *attr;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
-	if (!sensor || num == 0) {
-		pr_err("%s, error param\n", __func__);
-		return -EINVAL;
-	}
-
-	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
-
-	switch (num) {
-	case 1:
-		tab[0].reg = addr;
-		tab[0].val = val;
-		break;
-	case 2:
-		if (attr->val_len == I2C_8BIT)
-			shift = 8;
-		else if (attr->val_len == I2C_16BIT)
-			shift = 16;
-
-		tab[0].reg = addr;
-		tab[0].val = (val >> shift) & ((1 << shift) - 1);
-
-		tab[1].reg = addr + 1;
-		tab[1].val = val & ((1 << shift) - 1);
-		break;
-	case 3:
-		if (attr->val_len == I2C_8BIT)
-			shift = 8;
-		else {
-			pr_err("wrong i2c len for num %d\n", num);
-			return -EINVAL;
-		}
-
-		tab[0].reg = addr;
-		tab[0].val = (val >> shift * 2) & ((1 << shift) - 1);
-
-		tab[1].reg = addr + 1;
-		tab[1].val = (val >> shift * 1) & ((1 << shift) - 1);
-
-		tab[2].reg = addr + 2;
-		tab[2].val = (val >> shift * 0) & ((1 << shift) - 1);
-		break;
-	default:
-		pr_err("%s, write num no correct\n", __func__);
-		return -EINVAL;
-	}
-
-	for (i = 0; i < num; i++)
-		twsi_write_i2c(attr->addr, tab[i].reg, tab[i].val);
-
-	return 0;
-}
-static int b52_sensor_g_cur_fmt_twsi(struct v4l2_subdev *sd,
-	struct b52_cmd_i2c_data *data)
-{
-	int i;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-	if (!data) {
-		pr_err("%s, error param\n", __func__);
-		return -EINVAL;
-	}
-
-	mutex_lock(&sensor->lock);
-
-	data->attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
-	data->tab  = sensor->mf_regs.tab;
-/*not write sensor setting in set_format command*/
-/*	data->num  = sensor->mf_regs.num; */
-	data->num  = 0;
-	data->pos  = sensor->pos;
-	for (i = 0; i < data->num; i++)
-		twsi_write_i2c(data->attr->addr,
-				data->tab[i].reg,
-				data->tab[i].val);
-	mutex_unlock(&sensor->lock);
-
-	return 0;
-}
-
-static int __b52_sensor_cmd_write(const struct b52_sensor_i2c_attr
-		*i2c_attr, const struct b52_sensor_regs *regs, u8 pos)
-{
-	struct b52_cmd_i2c_data data;
-	int i;
-
-	if (!i2c_attr || !regs) {
-		pr_err("%s, error param\n", __func__);
-		return -EINVAL;
-	}
-
-	if (regs->num == 0)
-		return 0;
-
-	data.attr = i2c_attr;
-	data.tab  = regs->tab;
-	data.num  = regs->num;
-	data.pos  = pos;
-	for (i = 0; i < data.num; i++)
-		twsi_write_i2c(data.attr->addr,
-				data.tab[i].reg,
-				data.tab[i].val);
-	/*FIXME:how to get completion*/
-	return 0;
-}
-#else
 static int __b52_sensor_cmd_write(const struct b52_sensor_i2c_attr
 		*i2c_attr, const struct b52_sensor_regs *regs, u8 pos)
 {
@@ -652,10 +203,9 @@ static int b52_sensor_g_cur_fmt(struct v4l2_subdev *sd,
 }
 
 
-#endif
 struct b52_sensor *b52_get_sensor(struct media_entity *entity)
 {
-	struct v4l2_subdev *sd;
+	struct v4l2_subdev *sd, *hsd;
 	struct media_device *mdev = entity->parent;
 	struct media_entity_graph graph;
 	struct media_entity *sensor_entity = NULL;
@@ -663,7 +213,7 @@ struct b52_sensor *b52_get_sensor(struct media_entity *entity)
 	mutex_lock(&mdev->graph_mutex);
 	media_entity_graph_walk_start(&graph, entity);
 	while ((entity = media_entity_graph_walk_next(&graph)))
-		if (entity->type == MEDIA_ENT_T_V4L2_SUBDEV_SENSOR) {
+		if (entity->type == MEDIA_ENT_T_V4L2_SUBDEV_HOST) {
 			sensor_entity = entity;
 			break;
 		}
@@ -674,7 +224,8 @@ struct b52_sensor *b52_get_sensor(struct media_entity *entity)
 		return NULL;
 	}
 
-	sd = container_of(sensor_entity, struct v4l2_subdev, entity);
+	hsd = container_of(sensor_entity, struct v4l2_subdev, entity);
+	sd = host_subdev_get_guest(hsd, MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	return to_b52_sensor(sd);
 }
 EXPORT_SYMBOL(b52_get_sensor);
@@ -689,68 +240,8 @@ static int b52_sensor_isp_read(const struct b52_sensor_i2c_attr *attr,
 		pr_err("%s, error param\n", __func__);
 		return -EINVAL;
 	}
-#ifdef CONFIG_ISP_USE_TWSI3
-	return twsi_read_i2c(attr->addr, reg, val);
-#else
 	return b52_isp_read_i2c(attr, reg, val, pos);
-#endif
 }
-
-#ifdef CONFIG_ISP_USE_TWSI3
-static int b52_vcm_init(struct b52_sensor_vcm *vcm)
-{
-	int ret = 0;
-	int written_num = 0;
-	struct i2c_adapter *adapter;
-	struct reg_tab_bb buf;
-	enum b52_sensor_vcm_type vcm_type;
-	struct i2c_msg msg;
-
-	if (!vcm)
-		return 0;
-
-	vcm_type =  vcm->type;
-	msg.addr = vcm->attr->addr;
-	msg.flags = 0;
-	msg.len = 2;
-	adapter = i2c_get_adapter(2);
-	if (adapter == NULL) {
-		pr_err("%s: Unable to get adapter\n", __func__);
-		return -1;
-	}
-
-	switch (vcm_type) {
-	case DW9714:
-		break;
-	case DW9804:
-		msg.buf = (u8 *)&buf;
-		while (written_num < vcm->init.num) {
-			buf.reg = (u8)vcm->init.tab[written_num].reg;
-			buf.val = (u8)vcm->init.tab[written_num].val;
-			ret = i2c_transfer(adapter, &msg, 1);
-			if (ret < 0)
-				return ret;
-			written_num++;
-		}
-		break;
-	case DW9718:
-		msg.buf = (u8 *)&buf;
-		while (written_num < vcm->init.num) {
-			buf.reg = (u8)vcm->init.tab[written_num].reg;
-			buf.val = (u8)vcm->init.tab[written_num].val;
-			ret |= i2c_transfer(adapter, &msg, 1);
-			written_num++;
-		}
-		break;
-	default:
-		pr_err("not support current vcm type\n");
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-}
-#endif
 
 static int b52_sensor_init(struct v4l2_subdev *sd)
 {
@@ -760,9 +251,6 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 	struct b52_sensor_regs regs;
 	const struct b52_sensor_i2c_attr *attr;
 	struct b52_sensor_module *module;
-#ifdef CONFIG_ISP_USE_TWSI3
-	struct b52_sensor_vcm *vcm;
-#endif
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 
 	if (!sensor) {
@@ -825,18 +313,9 @@ static int b52_sensor_init(struct v4l2_subdev *sd)
 	else
 		sensor->cur_mod_id = -ENODEV;
 
-#ifdef CONFIG_ISP_USE_TWSI3
-	if (sensor->drvdata->num_module != 0) {
-		vcm = sensor->drvdata->module->vcm;
-		/* init vcm setting */
-		ret = b52_vcm_init(vcm);
-		if (ret < 0)
-			pr_err("%s, error param\n", __func__);
-	}
-#endif
 	ret = v4l2_ctrl_handler_setup(&sensor->ctrls.ctrl_hdl);
 	if (ret < 0)
-		pr_err("%s: setup hadnler failed\n", __func__);
+		pr_err("%s: setup handler failed\n", __func__);
 	sensor->sensor_init = 1;
 
 	return ret;
@@ -980,70 +459,7 @@ static int b52_sensor_put_power(struct v4l2_subdev *sd)
 	return 0;
 }
 
-static int b52_sensor_g_vcm_info(struct v4l2_subdev *sd,
-		struct b52_sensor_vcm *vcm)
-{
-	struct b52_sensor *sensor = to_b52_sensor(sd);
 
-	if (sensor->cur_mod_id < 0) {
-		pr_err("%s: no module, no vcm\n", __func__);
-		return -ENODEV;
-	}
-	if (sensor->drvdata->num_module == 0)
-		return 1;
-	else
-		*vcm = *sensor->drvdata->module[sensor->cur_mod_id].vcm;
-
-	return 0;
-}
-
-static int b52_sensor_s_vcm_lp(struct v4l2_subdev *sd)
-{
-	int ret;
-	struct b52_sensor_vcm vcm;
-	struct b52_sensor_i2c_attr attr  = {
-		.reg_len = I2C_8BIT,
-		.val_len = I2C_8BIT,
-	};
-	int vcm_type;
-	struct b52_cmd_i2c_data data;
-	struct regval_tab tab[2];
-	struct b52_sensor *sensor = to_b52_sensor(sd)
-	ret = b52_sensor_g_vcm_info(sd, &vcm);
-	if (ret)
-		return ret;
-	vcm_type = vcm.type;
-	attr.addr = vcm.attr->addr;
-	data.attr = &attr;
-	data.tab = tab;
-	data.num = 1;
-	data.pos = sensor->pos;
-	tab[0].mask = 0xff;
-	tab[1].mask = 0xff;
-	switch (vcm_type) {
-	case VCM_DW9714:
-		tab[0].reg = 0x80;
-		tab[0].val = 0x00;
-		break;
-	case VCM_DW9804:
-		tab[0].reg = 0x03;
-		tab[0].val = 0x00;
-		tab[1].reg = 0x04;
-		tab[1].val = 0x00;
-		data.num = 2;
-		break;
-	case VCM_DW9718:
-		tab[0].reg = 0x00;
-		tab[0].val = 0x01;
-		break;
-	default:
-		pr_err("not support current vcm type\n");
-		ret = -EINVAL;
-		break;
-	}
-	b52_cmd_write_i2c(&data);
-	return 0;
-}
 
 static int b52_sensor_gain_to_iso(struct v4l2_subdev *sd,
 		u32 gain, u32 *iso)
@@ -1366,24 +782,13 @@ static int b52_sensor_g_csi(struct v4l2_subdev *sd,
 }
 static struct b52_sensor_ops b52_sensor_def_ops = {
 	.init          = b52_sensor_init,
-#ifdef CONFIG_ISP_USE_TWSI3
-	.i2c_read      = b52_sensor_cmd_read_twsi,
-	.i2c_write     = b52_sensor_cmd_write_twsi,
-	.g_cur_fmt     = b52_sensor_g_cur_fmt_twsi,
-	.s_focus       = b52_sensor_s_focus_twsi,
-	.g_focus       = b52_sensor_g_focus_twsi,
-	.s_expo        = b52_sensor_s_expo,
-	.s_gain        = b52_sensor_s_gain,
-#else
 	.i2c_read      = b52_sensor_cmd_read,
 	.i2c_write     = b52_sensor_cmd_write,
 	.g_cur_fmt     = b52_sensor_g_cur_fmt,
-#endif
 	.get_power     = b52_sensor_get_power,
 	.put_power     = b52_sensor_put_power,
 	.detect_sensor = b52_sensor_detect_sensor,
 	/* .detect_vcm    = b52_sensor_detect_vcm,*/
-	.g_vcm_info    = b52_sensor_g_vcm_info,
 	.g_cur_fps     = b52_sensor_g_cur_fps,
 	.g_param_range = b52_sensor_g_param_range,
 	.g_aecagc_reg  = b52_sensor_g_aecagc_reg,
@@ -1619,15 +1024,12 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 			usleep_range(reset_delay, reset_delay + 10);
 			gpiod_set_value_cansleep(power->rst, 0);
 		}
-
 	} else {
 		if (WARN_ON(power->ref_cnt == 0))
 			return -EINVAL;
 
 		if (--power->ref_cnt > 0)
 			return 0;
-		if (check_load_firmware())
-			b52_sensor_s_vcm_lp(sd);
 		if (power->rst)
 			gpiod_set_value_cansleep(power->rst, 1);
 		if (power->dvdd_1v2)
@@ -1652,7 +1054,6 @@ static int b52_sensor_s_power(struct v4l2_subdev *sd, int on)
 				pr_err("b52 sensor gpio pin is not configured\n");
 		}
 		clk_disable_unprepare(sensor->clk);
-
 		WARN_ON(plat_tune_isp(0) < 0);
 
 		sensor->sensor_init = 0;
@@ -1707,7 +1108,6 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 
 		regs = &sensor->drvdata->streamoff;
 	}
-
 	attr = &sensor->drvdata->i2c_attr[sensor->cur_i2c_idx];
 	while (try_count-- > 0) {
 		ret = __b52_sensor_cmd_write(attr, regs, sensor->pos);
@@ -1719,6 +1119,12 @@ static int b52_sensor_s_stream(struct v4l2_subdev *sd, int enable)
 	return ret;
 }
 
+static int b52_sensor_g_mbus_config(struct v4l2_subdev *sd,
+					struct v4l2_mbus_config *cfg)
+{
+	cfg->type = V4L2_MBUS_CSI2;
+	return 0;
+}
 static enum v4l2_mbus_pixelcode b52_sensor_get_real_mbus(
 	    struct v4l2_subdev *sd, enum v4l2_mbus_pixelcode code)
 {
@@ -1996,15 +1402,10 @@ static int b52_sensor_set_fmt(struct v4l2_subdev *sd,
 	mf->code = b52_sensor_get_real_mbus(sd, data->mbus_fmt[i].mbus_code);
 	mf->colorspace = data->mbus_fmt[i].colorspace;
 
-	for (j = 0; j < data->num_res; j++){
-		if(((s_mode != 0) ? (data->res[j].sensor_mode == s_mode) : 1)&&
-			mf->width == data->res[j].width &&
+	for (j = 0; j < data->num_res; j++)
+		if (mf->width == data->res[j].width &&
 			mf->height == data->res[j].height)
 			break;
-	}
-
-	s_mode = SENSOR_NORMAL_MODE;
-
 
 	if (j >= data->num_res) {
 		pr_info("%s: frame size not match\n", __func__);
@@ -2090,8 +1491,23 @@ static int b52_sensor_link_setup(struct media_entity *entity,
 	return 0;
 }
 
+static int b52_sensor_queryctrl(struct v4l2_subdev *sd,
+					struct v4l2_queryctrl *qc)
+{
+	int i;
+	int ret = -EINVAL;
+	for (i = 0; i < ARRAY_SIZE(sensor_qctrl); i++)
+		if (qc->id && qc->id == sensor_qctrl[i].id) {
+			*qc = sensor_qctrl[i];
+			ret = 0;
+			break;
+		}
+	return ret;
+}
+
 static struct v4l2_subdev_video_ops b52_sensor_video_ops = {
 	.s_stream = b52_sensor_s_stream,
+	.g_mbus_config = b52_sensor_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops b52_sensor_pad_ops = {
@@ -2267,6 +1683,7 @@ struct sensor_otp32 {
 	__u16	wb_otp_len;
 	__u16	vcm_otp_len;
 	__u16   module_data_len;
+	__u32	crc_status;
 	compat_caddr_t	otp_data;
 	compat_caddr_t	module_data;
 	compat_caddr_t	full_otp;
@@ -2293,7 +1710,8 @@ static int get_sensor_otp32(struct sensor_otp *kp,
 			get_user(kp->vcm_otp_len, &up->vcm_otp_len) ||
 			get_user(kp->module_data_len, &up->module_data_len) ||
 			get_user(kp->full_otp_offset, &up->full_otp_offset) ||
-			get_user(kp->full_otp_len, &up->full_otp_len))
+			get_user(kp->full_otp_len, &up->full_otp_len) ||
+			get_user(kp->crc_status, &up->crc_status))
 		return -EFAULT;
 	kp->otp_data = compat_ptr(tmp1);
 	kp->module_data = compat_ptr(tmp2);
@@ -2340,6 +1758,7 @@ static long b52_sensor_ioctl32(struct v4l2_subdev *sd,
 static struct v4l2_subdev_core_ops b52_sensor_core_ops = {
 	.s_power = b52_sensor_s_power,
 	.ioctl	= b52_sensor_ioctl,
+	.queryctrl = b52_sensor_queryctrl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = b52_sensor_ioctl32,
 #endif
@@ -2398,68 +1817,11 @@ error:
 	return ret;
 }
 
-/*FIXME: refine the min/max*/
-#define FLASH_TIMEOUT_MIN		100000	/* us */
-#define FLASH_TIMEOUT_MAX		100000
-#define FLASH_TIMEOUT_STEP		50000
-
-#define FLASH_INTENSITY_MIN         100 /* mA */
-#define FLASH_INTENSITY_STEP		20
-#define FLASH_INTENSITY_MAX         100 /* mA */
-
-#define TORCH_INTENSITY_MIN         100  /* mA */
-#define TORCH_INTENSITY_MAX         100
-#define TORCH_INTENSITY_STEP        20
-
-static int b52_sensor_config_flash(
-		struct b52_sensor_flash *flash)
-{
-	pr_debug("%s\n", __func__);
-	return 0;
-}
-
-static int b52_sensor_set_flash(
-		struct b52_sensor_flash *flash, int on, int pos)
-{
-	if (pos == 0)
-		ledtrig_flash_ctrl(on);
-	/*TBD add front camera flash support */
-	flash->flash_status = on;
-
-	return 0;
-}
-
-static int b52_sensor_set_torch(
-		struct b52_sensor_flash *flash, int on, int pos)
-{
-	if (pos == 0)
-		ledtrig_torch_ctrl(on);
-	else
-		ledtrig_ftorch_ctrl(on);
-	/*TBD add front camera torch support */
-	flash->flash_status = on;
-
-	return 0;
-}
-
-static int b52_sensor_get_flash_duration(
-		struct b52_sensor_flash *flash, int *value)
-{
-	return get_flash_duration(value);
-}
-static int b52_sensor_set_flash_current(
-		struct b52_sensor_flash *flash, int value)
-{
-	return set_torch_current(value);
-}
-
 static int b52_sensor_g_ctrl(struct v4l2_ctrl *ctrl)
 {
 	int i;
-	struct b52_sensor_flash *flash;
 	struct b52_sensor *sensor = container_of(
 			ctrl->handler, struct b52_sensor, ctrls.ctrl_hdl);
-	flash = &sensor->flash;
 
 	switch (ctrl->id) {
 	case V4L2_CID_HBLANK:
@@ -2478,17 +1840,6 @@ static int b52_sensor_g_ctrl(struct v4l2_ctrl *ctrl)
 		ctrl->val64 = sensor->pixel_rate;
 		break;
 
-	case V4L2_CID_FLASH_FAULT:
-		break;
-
-	case V4L2_CID_FLASH_STROBE_STATUS:
-		ctrl->val = flash->flash_status;
-		break;
-
-	case V4L2_CID_PRIVATE_FLASH_DURATION:
-		return b52_sensor_get_flash_duration(flash, &ctrl->val);
-		break;
-
 	default:
 		pr_err("%s: ctrl not support\n", __func__);
 		return -EINVAL;
@@ -2501,12 +1852,8 @@ static int b52_sensor_g_ctrl(struct v4l2_ctrl *ctrl)
 
 static int b52_sensor_s_ctrl(struct v4l2_ctrl *ctrl)
 {
-	int sensor_pos;
-	struct b52_sensor_flash *flash;
 	struct b52_sensor *sensor = container_of(
 			ctrl->handler, struct b52_sensor, ctrls.ctrl_hdl);
-	flash = &sensor->flash;
-	sensor_pos = sensor->sensor_pos;
 
 	/*FIXME: implement flash config and set function*/
 	switch (ctrl->id) {
@@ -2518,70 +1865,10 @@ static int b52_sensor_s_ctrl(struct v4l2_ctrl *ctrl)
 		b52_sensor_call(sensor, s_flip, 1, ctrl->val);
 		break;
 
-	case V4L2_CID_FLASH_LED_MODE:
-		flash->led_mode = ctrl->val;
-		b52_sensor_config_flash(flash);
-		break;
-
-	case V4L2_CID_FLASH_STROBE_SOURCE:
-		flash->strobe_source = ctrl->val;
-		b52_sensor_config_flash(flash);
-		break;
-
-	case V4L2_CID_FLASH_STROBE:
-		if (flash->led_mode == V4L2_FLASH_LED_MODE_FLASH)
-			b52_sensor_set_flash(flash, 1, sensor_pos);
-		else if (flash->led_mode == V4L2_FLASH_LED_MODE_TORCH)
-			b52_sensor_set_torch(flash, 1, sensor_pos);
-		else
-			return -EBUSY;
-		break;
-
-	case V4L2_CID_FLASH_STROBE_STOP:
-		if (flash->led_mode == V4L2_FLASH_LED_MODE_FLASH)
-			b52_sensor_set_flash(flash, 0, sensor_pos);
-		else if (flash->led_mode == V4L2_FLASH_LED_MODE_TORCH)
-			b52_sensor_set_torch(flash, 0, sensor_pos);
-		else
-			return -EBUSY;
-		break;
-
-	case V4L2_CID_FLASH_TIMEOUT:
-		flash->timeout = ctrl->val;
-
-		if (flash->led_mode != V4L2_FLASH_LED_MODE_FLASH)
-			break;
-		break;
-
-	case V4L2_CID_FLASH_INTENSITY:
-		flash->flash_current = (ctrl->val - FLASH_INTENSITY_MIN)
-				     / FLASH_INTENSITY_STEP;
-
-		if (flash->led_mode != V4L2_FLASH_LED_MODE_FLASH)
-			break;
-
-		b52_sensor_config_flash(flash);
-		break;
-
-	case V4L2_CID_FLASH_TORCH_INTENSITY:
-		/*FIXME*/
-		flash->torch_current = (ctrl->val - TORCH_INTENSITY_MIN)
-			/ TORCH_INTENSITY_STEP;
-
-		if (flash->led_mode != V4L2_FLASH_LED_MODE_TORCH)
-			break;
-
-		b52_sensor_config_flash(flash);
-		break;
-
 	case V4L2_CID_PRIVATE_SENSOR_OTP_CONTROL:
 		sensor->otp.otp_ctrl = ctrl->val;
 		break;
 
-	case V4L2_CID_PRIVATE_FLASH_CURRENT:
-		b52_sensor_set_flash_current(flash, ctrl->val);
-		break;
-			
 	default:
 		pr_err("%s: ctrl %x not support\n", __func__, ctrl->id);
 		return -EINVAL;
@@ -2606,57 +1893,6 @@ static struct v4l2_ctrl_config b52_sensor_otp_ctrl_cfg = {
 	.def = V4L2_CID_SENSOR_OTP_CONTROL_WB | V4L2_CID_SENSOR_OTP_CONTROL_LENC,
 };
 
-static struct v4l2_ctrl_config b52_sensor_flash_duration_cfg = {
-	.ops = &b52_sensor_ctrl_ops,
-	.id = V4L2_CID_PRIVATE_FLASH_DURATION,
-	.name = "B52 Flash durtation",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 0xffff,
-	.step = 1,
-	.def = 1,
-};
-
-static struct v4l2_ctrl_config b52_sensor_flash_current_cfg = {
-	.ops = &b52_sensor_ctrl_ops,
-	.id = V4L2_CID_PRIVATE_FLASH_CURRENT,
-	.name = "B52 Flash current",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 0xffff,
-	.step = 1,
-	.def = 1,
-};
-
-static int b52_s_ctrl(struct v4l2_ctrl *ctrl)
-{
-	int ret = 0;
-
-	switch (ctrl->id) {
-	case V4L2_CID_PRIVATE_B52_VIDEO_MODE:
-		s_mode = ctrl->val;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return ret;
-}
-static const struct v4l2_ctrl_ops b52_ctrl_ops = {
-	.s_ctrl = b52_s_ctrl,
-};
-
-static struct v4l2_ctrl_config b52_ctrl_video_mode_cfg = {
-	.ops = &b52_ctrl_ops,
-	.id = V4L2_CID_PRIVATE_B52_VIDEO_MODE,
-	.name = "video mode",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = VIDEO_TO_NORMAL,
-	.max = VIDEO_TO_CALL,
-	.step = 1,
-	.def = VIDEO_TO_NORMAL,
-};
-
 static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 {
 	int i;
@@ -2664,12 +1900,11 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 	u32 max = 0;
 	struct v4l2_ctrl *ctrl;
 	struct b52isp_sensor_ctrls *ctrls;
-	struct b52_sensor_flash *flash = &sensor->flash;
 	const struct b52_sensor_data *data = sensor->drvdata;
 
 	ctrls = &sensor->ctrls;
 
-	v4l2_ctrl_handler_init(&ctrls->ctrl_hdl, 20);
+	v4l2_ctrl_handler_init(&ctrls->ctrl_hdl, 9);
 
 	ctrls->hflip = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
 			&b52_sensor_ctrl_ops,
@@ -2729,71 +1964,8 @@ static int b52_sensor_init_ctrls(struct b52_sensor *sensor)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			V4L2_CTRL_FLAG_READ_ONLY;
 
-	v4l2_ctrl_new_std_menu(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_LED_MODE, 2, ~7,
-			V4L2_FLASH_LED_MODE_NONE);
-
-	flash->strobe_source = V4L2_FLASH_STROBE_SOURCE_SOFTWARE;
-	v4l2_ctrl_new_std_menu(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_STROBE_SOURCE, 0, ~1,
-			V4L2_FLASH_STROBE_SOURCE_SOFTWARE);
-
-	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_STROBE, 0, 1, 1, 0);
-
-	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_STROBE_STOP, 0, 1, 1, 0);
-
-	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_STROBE_STATUS, 0, 1, 1, 0);
-	if (ctrl != NULL)
-		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
-			V4L2_CTRL_FLAG_READ_ONLY;
-
-	flash->timeout = FLASH_TIMEOUT_MIN;
-	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_TIMEOUT, FLASH_TIMEOUT_MIN,
-			FLASH_TIMEOUT_MAX, FLASH_TIMEOUT_STEP,
-			FLASH_TIMEOUT_MIN);
-
-	flash->flash_current = FLASH_INTENSITY_MIN;
-	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_INTENSITY, FLASH_INTENSITY_MIN,
-			FLASH_INTENSITY_MAX, FLASH_INTENSITY_STEP,
-			FLASH_INTENSITY_MIN);
-
-	v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_TORCH_INTENSITY,
-			TORCH_INTENSITY_MIN, TORCH_INTENSITY_MAX,
-			TORCH_INTENSITY_STEP,
-			TORCH_INTENSITY_MIN);
-
-	ctrl = v4l2_ctrl_new_std(&ctrls->ctrl_hdl,
-			&b52_sensor_ctrl_ops,
-			V4L2_CID_FLASH_FAULT, 0,
-			V4L2_FLASH_FAULT_OVER_VOLTAGE |
-			V4L2_FLASH_FAULT_TIMEOUT |
-			V4L2_FLASH_FAULT_OVER_TEMPERATURE |
-			V4L2_FLASH_FAULT_SHORT_CIRCUIT, 0, 0);
-	if (ctrl != NULL)
-		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
-			V4L2_CTRL_FLAG_READ_ONLY;
-
 	v4l2_ctrl_new_custom(&ctrls->ctrl_hdl, &b52_sensor_otp_ctrl_cfg, NULL);
-	ctrl = v4l2_ctrl_new_custom(&ctrls->ctrl_hdl, &b52_sensor_flash_duration_cfg, NULL);
-	if (ctrl != NULL)
-		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE | V4L2_CTRL_FLAG_READ_ONLY;
-	v4l2_ctrl_new_custom(&ctrls->ctrl_hdl, &b52_sensor_flash_current_cfg, NULL);
 
-	v4l2_ctrl_new_custom(&ctrls->ctrl_hdl, &b52_ctrl_video_mode_cfg, NULL);
 	sensor->sd.ctrl_handler = &ctrls->ctrl_hdl;
 
 	return ctrls->ctrl_hdl.error;
@@ -2829,162 +2001,9 @@ static int b52_sensor_alloc_fmt_regs(struct b52_sensor *sensor)
 	return 0;
 }
 
-/**********************************************/
-char gVendor_ID[12] = {0};
-ssize_t rear_camera_type(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_type: ISP\n");
-#if defined(CONFIG_B52_CAMERA_SR544)
-	return sprintf(buf, "SILICONFILE_SR544\n");
-#else
-	return sprintf(buf, "SLSI_S5K4H5YC\n");
-#endif
-
-}
-ssize_t rear_camerafw_type(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_type: %s %s \n", gVendor_ID, gVendor_ID);
-	return sprintf(buf, "%s %s\n", gVendor_ID, gVendor_ID);
-}
-
-ssize_t rear_camera_full(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_type: %s %s %s\n", gVendor_ID, gVendor_ID, gVendor_ID);
-	return sprintf(buf, "%s %s %s\n", gVendor_ID, gVendor_ID, gVendor_ID);
-}
-
-
-static u16 VENDOR_ID = 0xFFFF;
-ssize_t rear_camera_vendorid(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_vendorid\n");
-
-	return sprintf(buf, "0x%04X\n", VENDOR_ID);
-}
-char *cam_checkfw_factory = "OK";
-char *cam_checkfw_user = "OK";
-ssize_t rear_camera_checkfw_factory(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_checkfw_factory : %s\n",cam_checkfw_factory);
-
-	return sprintf(buf, "%s\n", cam_checkfw_factory);
-}
-
-ssize_t rear_camera_checkfw_user(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_checkfw_user : %s\n",cam_checkfw_user);
-
-	return sprintf(buf, "%s\n", cam_checkfw_user);
-}
-#if defined(CONFIG_MACH_GRANDPRIMEVELTE)
-char *rear_camera_info_val = "ISP=INT;CALMEM=N;READVER=SYSFS;COREVOLT=N;UPGRADE=N;CC=N;OIS=N;";
-#else
-char *rear_camera_info_val = "ISP=INT;CALMEM=N;READVER=SYSFS;COREVOLT=N;UPGRADE=N;CC=N;OIS=N;";
-#endif
-ssize_t rear_camera_info(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_info_val : %s\n", rear_camera_info_val);
-
-	return sprintf(buf, "%s\n", rear_camera_info_val);
-}
-
-static DEVICE_ATTR(rear_vendorid, S_IRUGO | S_IXOTH,  rear_camera_vendorid, NULL);
-static DEVICE_ATTR(rear_camtype, S_IRUGO | S_IXOTH,  rear_camera_type, NULL);
-static DEVICE_ATTR(rear_camfw, S_IRUGO | S_IXOTH,  rear_camerafw_type, NULL);
-static DEVICE_ATTR(rear_camfw_full, S_IRUGO | S_IXOTH,  rear_camera_full, NULL);
-static DEVICE_ATTR(rear_checkfw_factory, S_IRUGO | S_IXOTH,  rear_camera_checkfw_factory, NULL);
-static DEVICE_ATTR(rear_checkfw_user, S_IRUGO | S_IXOTH,  rear_camera_checkfw_user, NULL);
-static DEVICE_ATTR(rear_caminfo, S_IRUGO | S_IXOTH,  rear_camera_info, NULL);
-
-static ssize_t front_camera_fw_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-#if defined(CONFIG_SOC_CAMERA_SR200)
- 	char front_cam_fw_ver[25] = "SR200PC20M N\n";
-#else
- 	char front_cam_fw_ver[25] = "S5K5E3YX N\n";
-#endif
-	return sprintf(buf, "%s", front_cam_fw_ver);
-}
-
-static ssize_t front_camera_type_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-#if defined(CONFIG_SOC_CAMERA_SR200)
- 	char cam_type[] = "SILICONFILE_SR200PC20\n";
-#else
-	char cam_type[] = "SLSI_S5K5E3YX\n";
-#endif
-	return sprintf(buf, "%s", cam_type);
-}
-
-static ssize_t front_camera_flash_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	char cam_flash[] = "sr200pc20_NONE\n";
-
-	return sprintf(buf, "%s", cam_flash);
-}
-
-#if defined(CONFIG_SOC_CAMERA_SR200)
-char front_cam_fw_full_ver[40] = "SR200PC20M N N\n";
-#else
-char front_cam_fw_full_ver[40] = "S5K5E3YX N N\n";
-#endif
-
-ssize_t front_camera_full(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("rear_camera_type: %s\n", front_cam_fw_full_ver);
-	return sprintf(buf, "%s\n", front_cam_fw_full_ver);
-}
-
-#if defined(CONFIG_MACH_GRANDPRIMEVELTE)
-char *front_camera_info_val = "ISP=INT;CALMEM=N;READVER=SYSFS;COREVOLT=N;UPGRADE=N;CC=N;OIS=N;";
-#else
-char *front_camera_info_val = "ISP=INT;CALMEM=N;READVER=SYSFS;COREVOLT=N;UPGRADE=N;CC=N;OIS=N;";
-#endif
-ssize_t front_camera_info(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	printk("front_camera_info_val : %s\n", front_camera_info_val);
-
-	return sprintf(buf, "%s\n", front_camera_info_val);
-}
-
-static DEVICE_ATTR(front_camtype, S_IRUGO | S_IXOTH, front_camera_type_show, NULL);
-static DEVICE_ATTR(front_camfw, S_IRUGO | S_IXOTH, front_camera_fw_show, NULL);
-static DEVICE_ATTR(front_flash, S_IRUGO | S_IXOTH, front_camera_flash_show, NULL);
-static DEVICE_ATTR(front_camfw_full, S_IRUGO | S_IXOTH,  front_camera_full, NULL);
-static DEVICE_ATTR(front_caminfo, S_IRUGO | S_IXOTH,  front_camera_info, NULL);
-/**********************************************/
-
 static const struct of_device_id fimc_is_sensor_of_match[];
 static const struct of_device_id b52_sensor_of_match[];
 
-int camera_antibanding_val = 2; /*default : CAM_BANDFILTER_50HZ = 2*/
-int camera_antibanding_get (void) {
-	return camera_antibanding_val;
-}
-ssize_t camera_antibanding_show (struct device *dev, struct device_attribute *attr, char *buf) {
-	int count;
-	count = sprintf(buf, "%d", camera_antibanding_val);
-	printk("%s : antibanding is %d \n", __func__, camera_antibanding_val);
-	return count;
-}
-ssize_t camera_antibanding_store (struct device *dev, struct device_attribute *attr, const char *buf, size_t size) {
-	int tmp = 0;
-	sscanf(buf, "%d", &tmp);
-	if ((2 == tmp) || (3 == tmp)) { /* CAM_BANDFILTER_50HZ = 2, CAM_BANDFILTER_60HZ = 3*/
-		camera_antibanding_val = tmp;
-	}
-	return size;
-}
-static struct device_attribute camera_antibanding_attr = {
-	.attr = {
-		.name = "Cam_antibanding",
-		.mode = (S_IRUSR|S_IRGRP | S_IWUSR|S_IWGRP)},
-	.show = camera_antibanding_show,
-	.store = camera_antibanding_store
-};
 static int b52_sensor_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
@@ -2995,7 +2014,6 @@ static int b52_sensor_probe(struct i2c_client *client,
 	struct v4l2_subdev *sd;
 	struct device_node *np = dev->of_node;
 	u32 skip_detect;
-	static int sysfs_init = 0;
 
 	of_id = of_match_node(b52_sensor_of_match, dev->of_node);
 	if (!of_id)
@@ -3065,7 +2083,7 @@ static int b52_sensor_probe(struct i2c_client *client,
 	sd = &sensor->sd;
 	v4l2_i2c_subdev_init(sd, client, &b52_sensor_sd_ops);
 	sd->internal_ops = &b52_sensor_sd_internal_ops;
-	snprintf(sd->name, sizeof(sd->name), sensor->drvdata->name);
+	sprintf(sd->name, "sensor:%s", sensor->drvdata->name);
 	sensor->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 
 	b52_sensor_set_defalut(sensor);
@@ -3097,58 +2115,6 @@ detect_done:
 	ret = media_entity_init(&sd->entity, 1, &sensor->pad, 0);
 	if (ret)
 		goto error;
-
-	/*++ added for camera sysfs++*/
-	if(sysfs_init == 0){
-		sysfs_init = 1;
-		if(camera_class == NULL)
-			camera_class = class_create(THIS_MODULE, "camera");
-		if (IS_ERR(camera_class))
-			printk("Failed to create camera_class!\n");
-
-		if(cam_dev_rear == NULL)
-			cam_dev_rear = device_create(camera_class, NULL, 0, "%s", "rear");
-		if (IS_ERR(cam_dev_rear))
-			printk("Failed to create deivce (cam_dev_rear)\n");
-		if(cam_dev_front == NULL)
-			cam_dev_front = device_create(camera_class, NULL,0, "%s", "front");
-		if (IS_ERR(cam_dev_front))
-			printk("Failed to create deivce (cam_dev_front)\n");
-
-		if (device_create_file(cam_dev_rear, &dev_attr_rear_camtype) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_camtype.attr.name);
-		if (device_create_file(cam_dev_rear, &dev_attr_rear_camfw) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_camfw.attr.name);
-		if (device_create_file(cam_dev_rear, &dev_attr_rear_camfw_full) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_camfw_full.attr.name);
-		if (device_create_file(cam_dev_rear, &dev_attr_rear_vendorid) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_vendorid.attr.name);
-		if (device_create_file(cam_dev_rear, &dev_attr_rear_checkfw_factory) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_checkfw_factory.attr.name);
-		if (device_create_file(cam_dev_rear, &dev_attr_rear_checkfw_user) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_checkfw_user.attr.name);
-		if (device_create_file(cam_dev_rear, &camera_antibanding_attr) < 0) 
-			printk("Failed to create device file: %s\n", camera_antibanding_attr.attr.name);
-		if (device_create_file(cam_dev_rear, &dev_attr_rear_caminfo) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_caminfo.attr.name);
-
-		if (device_create_file(cam_dev_front, &dev_attr_front_camtype) < 0)
-			printk("Failed to create device file: %s\n", dev_attr_front_camtype.attr.name);
-		if (device_create_file(cam_dev_front, &dev_attr_front_camfw) < 0)
-			printk("Failed to create device file: %s\n", dev_attr_front_camfw.attr.name);
-		if (device_create_file(cam_dev_front, &dev_attr_front_flash) < 0)
-			printk("Failed to create device file: %s\n", dev_attr_front_flash.attr.name);
-		if (device_create_file(cam_dev_front, &dev_attr_front_camfw_full) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_front_camfw_full.attr.name);
-		if (device_create_file(cam_dev_front, &dev_attr_front_caminfo) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_front_caminfo.attr.name);
-
-		/*-- camera sysfs --*/
-	}
-
-#ifdef CONFIG_ISP_USE_TWSI3
-	b52_init_workqueue((void *)sensor);
-#endif
 	return ret;
 #if 0
 	sensor->mf.code = data->mbus_fmt[0].mbus_code;
@@ -3219,6 +2185,12 @@ static const struct of_device_id b52_sensor_of_match[] = {
 	},
 #endif
 
+#ifdef CONFIG_B52_CAMERA_OV8858_FRONT
+	{
+		.compatible = "ovt,ov8858r2a_front",
+		.data = &b52_ov8858_front,
+	},
+#endif
 #ifdef CONFIG_B52_CAMERA_OV5648
 	{
 		.compatible = "ovt,ov5648",

@@ -20,34 +20,17 @@
 #include <linux/uaccess.h>
 #include <linux/of.h>
 #include <linux/mutex.h>
+#include <linux/switch.h>
 #include <linux/mfd/88pm88x.h>
 #include <linux/mfd/88pm886.h>
-#if defined (SEC_USE_SAMSUNG_JACK_API)
-#if defined (CONFIG_SWITCH)
-#include <linux/switch.h>
-#else
-#include <linux/extcon.h>
-#endif
-#endif
 
-#define PM88X_GPIO_CTRL4		(0x33)
-#define PM88X_HSDET3_MODE		(5 << 5)
-#define PM88X_GNDDET2			(0x3b)
-#define PM88X_HSDET_SAFE		(1 << 7)
 
-#define PM886_GPIO_CTRL4		(0x35)
-#define PM886_HSDET3_MODE		(5 << 5)
-#define PM886_GNDDET2			(0x3b)
-#define PM886_HSDET_SAFE		(1 << 7)
 #define PM886_HEADSET_CNTRL		(0x38)
-#define PM886_CONTINUOUSE_PERIOD	(3 << 2)
 #define PM886_HEADSET_DET_EN		(1 << 7)
-#define PM886_HEADSET_AUTO		(1 << 6)
 #define PM886_HSDET_SLP			(1 << 1)
 #define PM886_MIC_DET_TH		300
 #define PM886_PRESS_RELEASE_TH		300
 #define PM886_HOOK_PRESS_TH		20
-#define PM886_VOC_CMD_PRESS_TH		40   //voc cmd
 #define PM886_VOL_UP_PRESS_TH		60
 #define PM886_VOL_DOWN_PRESS_TH		110
 #define PM886_HK_DELTA			10
@@ -83,6 +66,10 @@
 #define MIC_DET_DBS_32MS	(3 << 1)
 #define MIC_DET_PRD_CTN		(3 << 3)
 
+struct headset_switch_data {
+	struct switch_dev sdev;
+};
+
 struct pm886_hs_info {
 	struct pm88x_chip *chip;
 	struct device *dev;
@@ -99,13 +86,9 @@ struct pm886_hs_info {
 	int mic_bias_volt;
 	int mic_bias_range;
 	int headset_flag;
-	int gpio5v_detect_mode;
 	int hook_press_th;
 	int vol_up_press_th;
 	int vol_down_press_th;
-#ifdef SEC_USE_VOICE_ASSIST_KEY
-	int voc_command_press_th;  //KSND voc cmd
-#endif
 	int mic_det_th;
 	int press_release_th;
 	int hs_status, hk_status;
@@ -114,9 +97,6 @@ struct pm886_hs_info {
 	struct mutex hs_mutex;
 	struct timer_list hook_timer;
 	struct device *hsdetect_dev;
-#if defined (SEC_USE_HS_SYSFS)
-	int hk_adc;
-#endif
 };
 
 enum {
@@ -128,31 +108,12 @@ enum {
 
 static struct pm886_hs_info *hs_info;
 
-/* currently we only support button 0, 1, 2, 3  */
+/* currently we only support button 0, 1, 2 */
 static char *pm886_jk_btn[] = {
 	"hook",
 	"vol up",
 	"vol down",
-	"voc assist"
 };
-
-static char *sec_jack_status[] = {
-	"NONE",
-	"HEADSET_4POLE",
-	"HEADSET_3POLE",
-};
-
-#if defined (SEC_USE_SAMSUNG_JACK_API)
-#if defined (CONFIG_SWITCH)
-struct switch_dev switch_jack_detection = {
-	.name = "h2w",
-};
-#else
-struct extcon_dev extcon_jack_detection = {
-	.name = "h2w",
-};
-#endif
-#endif
 
 static int gpadc_measure_voltage(struct pm886_hs_info *info, int which)
 {
@@ -208,7 +169,7 @@ static void gpadc_set_threshold(struct pm886_hs_info *info, int min,
 static int pm886_handle_voltage(struct pm886_hs_info *info, int voltage)
 {
 	int report = 0, button = 0, hk_avg;
-	int mask = SND_JACK_BTN_0 | SND_JACK_BTN_1 | SND_JACK_BTN_2 | SND_JACK_BTN_3;
+	int mask = SND_JACK_BTN_0 | SND_JACK_BTN_1 | SND_JACK_BTN_2;
 
 	if (voltage < info->press_release_th) {
 		/* press event */
@@ -223,11 +184,6 @@ static int pm886_handle_voltage(struct pm886_hs_info *info, int voltage)
 				hk_avg = info->hk_avg * info->hk_num + voltage;
 				info->hk_num = info->hk_num + 1;
 				info->hk_avg = hk_avg / info->hk_num;
-#ifdef SEC_USE_VOICE_ASSIST_KEY
-			} else if (voltage < info->voc_command_press_th) {  //for voc cmd key
-				report = SND_JACK_BTN_3;
-				button = 3;
-#endif
 			} else if (voltage < info->vol_up_press_th) {
 				report = SND_JACK_BTN_1;
 				button = 1;
@@ -238,12 +194,8 @@ static int pm886_handle_voltage(struct pm886_hs_info *info, int voltage)
 				return -EINVAL;
 
 			snd_soc_jack_report(info->hk_jack, report, mask);
-#if defined (SEC_USE_HS_SYSFS)
-			info->hk_adc = voltage;
-#endif			
 			info->hk_status = report;
 			gpadc_set_threshold(info, 0, info->press_release_th);
-  			pr_info("%s: [%s] is pressed![%d mV]\n", __func__, pm886_jk_btn[button], voltage);
 		} else
 			return -EINVAL;
 	} else {
@@ -257,12 +209,6 @@ static int pm886_handle_voltage(struct pm886_hs_info *info, int voltage)
 				kobject_uevent(&info->hsdetect_dev->kobj,
 					       KOBJ_ONLINE);
 				break;
-#ifdef SEC_USE_VOICE_ASSIST_KEY
-			case SND_JACK_BTN_3: //for voc cmd key
-				info->hk_jack->jack->type = SND_JACK_BTN_3;
-				button = 3;
-				break;
-#endif
 			case SND_JACK_BTN_1:
 				info->hk_jack->jack->type = SND_JACK_BTN_1;
 				button = 1;
@@ -271,25 +217,19 @@ static int pm886_handle_voltage(struct pm886_hs_info *info, int voltage)
 				info->hk_jack->jack->type = SND_JACK_BTN_2;
 				button = 2;
 				break;
-
 			default:
 				return -EINVAL;
 			}
 
 			snd_soc_jack_report(info->hk_jack, report, mask);
 			info->hk_jack->jack->type = mask;
-#if defined (SEC_USE_HS_SYSFS)
-			info->hk_adc = 0;
-#endif			
 			info->hk_status = report;
 			gpadc_set_threshold(info, info->press_release_th, 0);
-
-   			pr_info("%s: [%s] is released![%d mV]\n", __func__, pm886_jk_btn[button], voltage);
 		} else
 			return -EINVAL;
 	}
 
-	trace_printk("%s to %d\n", pm886_jk_btn[button], (report > 0));
+	dev_dbg(info->dev, "%s to %d\n", pm886_jk_btn[button], (report > 0));
 
 	return 0;
 }
@@ -311,8 +251,19 @@ static void mic_set_volt_micbias(int volt_mv, struct pm886_hs_info *info)
 
 static void mic_set_power(int on, struct pm886_hs_info *info)
 {
-	printk("mic_set_power do nothing");
-	return;
+	int ret = 0;
+
+	if (on)
+		ret = regulator_enable(info->mic_bias);
+	else
+		ret = regulator_disable(info->mic_bias);
+
+	if (ret) {
+		dev_err(info->dev,
+			"failed to enable/disable regulator: %d\n", ret);
+		return;
+	}
+
 }
 
 static void pm886_hook_int(struct pm886_hs_info *info, int enable)
@@ -359,8 +310,7 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 	int ret;
 	unsigned int value, voltage;
 
-	msleep(50);    //KSND Skip the event within 50ms
-	voltage = gpadc_measure_voltage(info, VOLTAGE_AVG);
+	msleep(50);
 
 	ret = regmap_read(info->map, PM886_MIC_CNTRL, &value);
 	if (ret < 0) {
@@ -375,11 +325,13 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 
 	if (!value) {
 		/* in case of headset unpresent, do nothing */
-		trace_printk("hook: false exit\n");
+		dev_dbg(info->dev, "hook: false exit\n");
 		goto FAKE_HOOK;
 	}
 
-	trace_printk("voltage %d avg %d\n", voltage, info->hk_avg);
+	voltage = gpadc_measure_voltage(info, VOLTAGE_AVG);
+
+	dev_dbg(info->dev, "voltage %d avg %d\n", voltage, info->hk_avg);
 	/*
 	 * below numbers are got by experience:
 	 * SS hs: hook vol = ~50; false hook = ~35, so set false_th = 40
@@ -387,16 +339,14 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 	 * these value can be adjust for specific hs
 	 * on pxa1908 hook voltage is ~27.
 	 */
-#if 0 //Remove the workaround for J1LTE
 	if (voltage < info->hook_press_th) {
 		if (info->hk_avg
 		    && (abs(info->hk_avg - voltage) > PM886_HK_DELTA))
 			goto FAKE_HOOK;
 		else if (!info->hk_avg)
-			if (voltage > 35 && voltage < info->hook_press_th - 20)
+			if (voltage > 35 && voltage < info->hook_press_th - 40)
 				goto FAKE_HOOK;
 	}
-#endif
 
 	pm886_handle_voltage(info, voltage);
 	regmap_update_bits(info->map, PM886_INT_ENA_3,
@@ -405,11 +355,12 @@ static void pm886_hook_work(struct pm886_hs_info *info)
 	return;
 
 FAKE_HOOK:
+	if (value)
 		regmap_update_bits(info->map, PM886_INT_ENA_3,
 			PM886_MIC_INT_EN,
 			PM886_MIC_INT_EN);
 
-	dev_err(info->dev, "fake hook interupt\n");
+	dev_dbg(info->dev, "fake hook interupt\n");
 }
 
 static void check_headset_short(struct pm886_hs_info *info)
@@ -426,11 +377,8 @@ static void check_headset_short(struct pm886_hs_info *info)
 
 static void pm886_headset_work(struct pm886_hs_info *info)
 {
-	unsigned int value, voltage = 0;
+	unsigned int value, voltage;
 	int ret, report = 0;
-#if defined (SEC_USE_SAMSUNG_JACK_API)
-    int jack_type = 0;
-#endif
 
 	if (info == NULL)
 		return;
@@ -463,7 +411,6 @@ static void pm886_headset_work(struct pm886_hs_info *info)
 			PM886_MIC_DET_MEAS_EN, PM886_MIC_DET_MEAS_EN);
 		msleep(200);
 		voltage = gpadc_measure_voltage(info, VOLTAGE_AVG);
-
 		if (voltage < info->mic_det_th) {
 			report = SND_JACK_HEADPHONE;
 			if (info->mic_bias)
@@ -501,26 +448,9 @@ static void pm886_headset_work(struct pm886_hs_info *info)
 	}
 
 	mic_set_volt_micbias(info->mic_bias_volt, info);
-
-#if defined (SEC_USE_SAMSUNG_JACK_API)
-    //Convert type
-    if( report == SND_JACK_HEADSET ){
-        jack_type = SEC_HEADSET_4POLE;
-    } else if( report == SND_JACK_HEADPHONE ){
-        jack_type = SEC_HEADSET_3POLE;
-    } else {
-        jack_type = SEC_JACK_NO_DEVICE;
-    }
-#if defined (CONFIG_SWITCH)
-	switch_set_state(&switch_jack_detection, jack_type);
-#else	
-    extcon_set_state(&extcon_jack_detection, jack_type);
-#endif
-#endif
-    snd_soc_jack_report(info->hs_jack, report, SND_JACK_HEADSET);
-	trace_printk("hs status: %d\n", report);
-
-	pr_info("%s: %s State [%d mV] \n",__func__ , sec_jack_status[jack_type],voltage );
+	snd_soc_jack_report(info->hs_jack, report, SND_JACK_HEADSET);
+	switch_set_state(&info->psw_data_headset->sdev, report);
+	dev_dbg(info->dev, "hs status: %d\n", report);
 
 	/* enable hook irq if headset is present */
 	if (info->hs_status == SND_JACK_HEADSET)
@@ -530,8 +460,6 @@ static void pm886_headset_work(struct pm886_hs_info *info)
 static irqreturn_t pm886_headset_handler(int irq, void *data)
 {
 	struct pm886_hs_info *info = data;
-
-	pr_info("%s: KSND Headset Interrupt!! \n", __func__ );
 
 	if (info->hs_jack != NULL) {
 		/*
@@ -549,8 +477,6 @@ static irqreturn_t pm886_headset_handler(int irq, void *data)
 static irqreturn_t pm886_hook_handler(int irq, void *data)
 {
 	struct pm886_hs_info *info = data;
-
-	pr_info("%s: KSND Hook Interrupt!! \n", __func__ );
 
 	mod_timer(&info->hook_timer, jiffies + msecs_to_jiffies(150));
 
@@ -596,103 +522,6 @@ int pm886_hook_detect(struct snd_soc_jack *jack)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(pm886_hook_detect);
-
-#if defined (SEC_USE_HS_SYSFS)
-static ssize_t  key_state_onoff_show(struct device *dev,	struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-	return sprintf(buf, "%s\n", (info->hk_status)? "1":"0");
-}
-
-static ssize_t  earjack_state_onoff_show(struct device *dev,	struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-	return sprintf(buf, "%s\n", (info->hs_status) ? "1":"0");
-}
-
-static ssize_t  mic_adc_show(struct device *dev,	struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-    return sprintf(buf, "%d\n",info->hk_adc);
-}
-
-static DEVICE_ATTR(key_state, 0444 , key_state_onoff_show, NULL);
-static DEVICE_ATTR(state, 0444 , earjack_state_onoff_show, NULL);
-static DEVICE_ATTR(mic_adc, 0444 , mic_adc_show, NULL);
-
-#if defined (SEC_USE_HS_INFO_SYSFS)
-static ssize_t earjack_adc_show(struct device *dev,	struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-
-	int voltage = 0;
-	mic_set_power(1, info);
-
-	/* enable MIC detection also enable measurement */
-	regmap_update_bits(info->map, PM886_MIC_CNTRL, PM886_MICDET_EN,
-			PM886_MICDET_EN);
-	regmap_update_bits(info->map_gpadc, PM886_GPADC_MEAS_EN2,
-			PM886_MIC_DET_MEAS_EN, PM886_MIC_DET_MEAS_EN);
-	msleep(200);
-
-	voltage = gpadc_measure_voltage(info, VOLTAGE_AVG);
-	return sprintf(buf, "%d mV\n", voltage);
-}
-
-static ssize_t hook_adc_show(struct device *dev,	struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-	int val[2]  = {0,};
-
-	val[0] = 0;
-	val[1] = info->hook_press_th;
-
-    return sprintf(buf, "%d %d\n",val[0],val[1]);
-}
-
-#ifdef SEC_USE_VOICE_ASSIST_KEY
-static ssize_t voccmd_adc_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-	int val[2]  = {0,};
-
-	val[0] = info->vol_down_press_th+1;
-	val[1] = info->voc_command_press_th;
-
-	return sprintf(buf, "%d %d\n",val[0],val[1]);
-}
-#endif
-
-static ssize_t volup_adc_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-	int val[2]  = {0,};
-
-	val[0] = info->hook_press_th+1;
-	val[1] = info->vol_up_press_th;
-
-	return sprintf(buf, "%d %d\n",val[0],val[1]);
-}
-
-static ssize_t voldown_adc_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct pm886_hs_info *info = (struct pm886_hs_info *)dev_get_drvdata(dev);
-	int val[2]  = {0,};
-
-	val[0] = info->vol_up_press_th+1;
-	val[1] = info->vol_down_press_th;
-
-	return sprintf(buf, "%d %d\n",val[0],val[1]);
-}
-
-static DEVICE_ATTR(jack_adc, 0444, earjack_adc_show, NULL);
-static DEVICE_ATTR(send_end_btn_adc, S_IRUGO, hook_adc_show, NULL);
-static DEVICE_ATTR(voc_cmd_btn_adc, S_IRUGO, voccmd_adc_show, NULL);
-static DEVICE_ATTR(vol_up_btn_adc, S_IRUGO, volup_adc_show, NULL);
-static DEVICE_ATTR(vol_down_btn_adc, S_IRUGO, voldown_adc_show, NULL);
-#endif
-
-#endif
 
 static void pm886_init_work(struct work_struct *work)
 {
@@ -749,11 +578,6 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	int irq_headset, irq_hook, ret = 0;
 	struct resource *headset_resource, *mic_resource;
 
-#if defined (SEC_USE_HS_SYSFS)
-	struct class *audio;
-	struct device *earjack;
-#endif	
-
 	headset_resource = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!headset_resource) {
 		dev_err(&pdev->dev, "No resource for headset!\n");
@@ -784,6 +608,11 @@ static int pm886_headset_probe(struct platform_device *pdev)
 
 	hs_info->chip = chip;
 	hs_info->mic_bias = regulator_get(&pdev->dev, "marvell,micbias");
+	hs_info->psw_data_headset =
+		devm_kzalloc(&pdev->dev, sizeof(struct headset_switch_data),
+				GFP_KERNEL);
+	if (!hs_info->psw_data_headset)
+		return -ENOMEM;
 
 	if (IS_ERR(hs_info->mic_bias)) {
 		hs_info->mic_bias = NULL;
@@ -802,32 +631,22 @@ static int pm886_headset_probe(struct platform_device *pdev)
 			"marvell,vol-up-press-th", &hs_info->vol_up_press_th))
 			dev_dbg(&pdev->dev, "Do not get vol up threshold\n");
 		if (of_property_read_u32(pdev->dev.of_node,
-			"marvell,vol-down-press-th", &hs_info->vol_down_press_th))
+					 "marvell,vol-down-press-th",
+					 &hs_info->vol_down_press_th))
 			dev_dbg(&pdev->dev, "Do not get vol down threshold\n");
-#ifdef SEC_USE_VOICE_ASSIST_KEY
-		if (of_property_read_u32(pdev->dev.of_node,
-			"marvell,voc-command-press-th", &hs_info->voc_command_press_th))
-			dev_dbg(&pdev->dev, "Do not get voice command threshold\n");
-#endif
 		if (of_property_read_u32(pdev->dev.of_node,
 			"marvell,mic-det-th", &hs_info->mic_det_th))
-			dev_dbg(&pdev->dev,	"Do not get mic detect threshold\n");
+			dev_dbg(&pdev->dev,
+				"Do not get mic detect threshold\n");
 		if (of_property_read_u32(pdev->dev.of_node,
 			"marvell,press-release-th", &hs_info->press_release_th))
 			dev_dbg(&pdev->dev,
 				"Do not get press release threshold\n");
 		if (of_property_read_u32(pdev->dev.of_node,
-			"marvell,gpio5v-detect-mode", &hs_info->gpio5v_detect_mode))
-			dev_dbg(&pdev->dev,
-				"Do not get gpio5v detect mode flag\n");
-		if (of_property_read_u32(pdev->dev.of_node,
 			"marvell,micbias-volt", &hs_info->mic_bias_volt))
 			dev_dbg(&pdev->dev, "Do not get micbias voltage\n");
 	} else {
 		hs_info->hook_press_th = PM886_HOOK_PRESS_TH;
-#ifdef SEC_USE_VOICE_ASSIST_KEY
-		hs_info->voc_command_press_th= PM886_VOC_CMD_PRESS_TH; //KSND Voc CMD key
-#endif
 		hs_info->vol_up_press_th = PM886_VOL_UP_PRESS_TH;
 		hs_info->vol_down_press_th = PM886_VOL_DOWN_PRESS_TH;
 		hs_info->mic_det_th = PM886_MIC_DET_TH;
@@ -845,7 +664,7 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	if (hs_info->mic_bias_volt <= 2000)
 		hs_info->mic_bias_range = 1850;
 	else
-		hs_info->mic_bias_range = 1400;
+		hs_info->mic_bias_range = 3100;
 
 	hs_info->map = chip->base_regmap;
 	hs_info->map_gpadc = chip->gpadc_regmap;
@@ -856,9 +675,6 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	hs_info->hk_status = 0;
 	hs_info->hk_avg = 0;
 	hs_info->hk_num = 0;
-#if defined (SEC_USE_HS_SYSFS)
-	hs_info->hk_adc = 0;
-#endif	
 
 	mutex_init(&hs_info->hs_mutex);
 
@@ -897,66 +713,6 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, hs_info);
 	hs_info->hsdetect_dev = &pdev->dev;
 
-#if defined (SEC_USE_SAMSUNG_JACK_API)
-#if defined (CONFIG_SWITCH)
-	ret = switch_dev_register(&switch_jack_detection);
-#else	
-    ret = extcon_dev_register(&extcon_jack_detection);
-#endif
-    if (ret < 0) {
-        pr_err("%s : Failed to register switch device\n", __func__);
-        goto err_out;
-    }
-#endif
-
-#if defined (SEC_USE_HS_SYSFS)
-    /* sys fs for factory test */
-    audio = class_create(THIS_MODULE, "audio");
-    if (IS_ERR(audio))
-        pr_err("Failed to create class(audio)!\n");
-        
-    earjack = device_create(audio, NULL, 0, hs_info, "earjack");
-    if (IS_ERR(earjack))
-        pr_err("Failed to create device(earjack)!\n");
-
-    ret = device_create_file(earjack, &dev_attr_key_state);
-    if (ret)
-        pr_err("Failed to create device file in sysfs entries!\n");
-            
-    ret = device_create_file(earjack, &dev_attr_state);
-    if (ret)
-        pr_err("Failed to create device file in sysfs entries!\n");
-
-	ret = device_create_file(earjack, &dev_attr_mic_adc);
-	if (ret)
-		pr_err("Failed to create device file in sysfs entries!\n");
-
-#if defined (SEC_USE_HS_INFO_SYSFS)
-    ret = device_create_file(earjack, &dev_attr_jack_adc);
-    if (ret)
-        pr_err("Failed to create device file in sysfs entries(%s)!\n", dev_attr_jack_adc.attr.name);
-
-    ret = device_create_file(earjack, &dev_attr_send_end_btn_adc);
-    if (ret)
-        pr_err("Failed to create device file in sysfs entries!\n");
-
-    ret = device_create_file(earjack, &dev_attr_vol_up_btn_adc);
-    if (ret)
-        pr_err("Failed to create device file in sysfs entries!\n");
-
-    ret = device_create_file(earjack, &dev_attr_vol_down_btn_adc);
-    if (ret)
-        pr_err("Failed to create device file in sysfs entries!\n");
-#ifdef SEC_USE_VOICE_ASSIST_KEY
-	ret = device_create_file(earjack, &dev_attr_voc_cmd_btn_adc);
-	if (ret)
-		pr_err("Failed to create device file in sysfs entries!\n");
-#endif
-#endif			
-
-	dev_set_drvdata(earjack, hs_info);  
-#endif	
-
 	/* Hook:32 ms debounce time */
 	regmap_update_bits(hs_info->map, PM886_MIC_CNTRL, MIC_DET_DBS,
 			   MIC_DET_DBS_32MS);
@@ -964,32 +720,9 @@ static int pm886_headset_probe(struct platform_device *pdev)
 	regmap_update_bits(hs_info->map, PM886_MIC_CNTRL, MIC_DET_PRD,
 			   MIC_DET_PRD_CTN);
 
-	if (hs_info->gpio5v_detect_mode) {
-		if (chip->type == PM886) {
-			//for PM886(1908)
-			/* set HSDET3 mode */
-			regmap_update_bits(hs_info->map, PM88X_GPIO_CTRL4,
-				PM88X_HSDET3_MODE, PM88X_HSDET3_MODE);
-			/* enable hsdet safe */
-			regmap_update_bits(hs_info->map, PM88X_GNDDET2,
-				PM88X_HSDET_SAFE, PM88X_HSDET_SAFE);
-		} else {
-			//for PM880(1936)
-			/* set HSDET3 mode */
-			regmap_update_bits(hs_info->map, PM886_GPIO_CTRL4,
-				PM886_HSDET3_MODE, PM886_HSDET3_MODE);
-			/* enable hsdet safe */
-			regmap_update_bits(hs_info->map, PM886_GNDDET2,
-				PM886_HSDET_SAFE, PM886_HSDET_SAFE);
-		}
-	}
-
 	disable_irq(hs_info->irq_headset);
 	regmap_update_bits(hs_info->map, PM886_HEADSET_CNTRL,
 			   PM886_HEADSET_DET_EN, PM886_HEADSET_DET_EN);
-	regmap_update_bits(hs_info->map, PM886_HEADSET_CNTRL,
-		   PM886_HEADSET_AUTO, PM886_HEADSET_AUTO);
-
 	enable_irq(hs_info->irq_headset);
 
 	if (chip->type == PM880) {
@@ -1000,11 +733,14 @@ static int pm886_headset_probe(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, 1);
 
-	if (ret < 0)
-		return ret;
-
 	headset_detect = pm886_headset_detect;
 	hook_detect = pm886_hook_detect;
+
+	hs_info->psw_data_headset->sdev.name = "h2w";
+	ret = switch_dev_register(&hs_info->psw_data_headset->sdev);
+	if (ret < 0)
+		dev_err(&pdev->dev, "Failed to register switch %s\n",
+			hs_info->psw_data_headset->sdev.name);
 
 	return 0;
 
@@ -1023,6 +759,7 @@ static int pm886_headset_remove(struct platform_device *pdev)
 	cancel_work_sync(&hs_info->work_release);
 	cancel_work_sync(&hs_info->work_init);
 
+	switch_dev_unregister(&hs_info->psw_data_headset->sdev);
 	devm_kfree(&pdev->dev, hs_info);
 
 	return 0;

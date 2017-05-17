@@ -27,10 +27,6 @@
 #ifdef CONFIG_PXA_RAMDUMP
 #include <linux/ramdump.h>
 #endif
-#ifdef CONFIG_SEC_DEBUG
-#include <linux/sec-debug.h>
-#include <linux/arm-coresight.h>
-#endif
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -85,10 +81,6 @@ void panic(const char *fmt, ...)
 	long i, i_next = 0;
 	int state = 0;
 
-#ifdef CONFIG_SEC_DEBUG
-	arch_stop_trace();
-	stop_ftracing();
-#endif
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
 	 * from deadlocking the first cpu that invokes the panic, since

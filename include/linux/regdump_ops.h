@@ -37,6 +37,11 @@ static inline int regdump_cond_true(struct regdump_ops *ops)
 	return 1;
 }
 
+static inline int regdump_cond_false(struct regdump_ops *ops)
+{
+	return 0;
+}
+
 #ifdef CONFIG_REGDUMP
 extern int dump_reg_to_mem(void);
 extern int dump_reg_to_console(void);
@@ -47,5 +52,6 @@ extern int unregister_regdump_ops(struct regdump_ops *ops);
 #define unregister_regdump_ops(ops)	do {} while (0)
 #define dump_reg_to_mem()		do {} while (0)
 #define regdump_cond_true()		do {} while (0)
+#define regdump_cond_false()		do {} while (0)
 #endif
 #endif

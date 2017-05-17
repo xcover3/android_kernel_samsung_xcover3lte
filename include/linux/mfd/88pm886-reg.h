@@ -56,4 +56,8 @@
 #define PM886_LDO15_SLP_CTRL	(0x75)
 #define PM886_LDO16_SLP_CTRL	(0x7b)
 
+/* test registers */
+#define PM886_TEST_OTP5COPY7	(0x8a)
+#define PM886_OTP_OOL_TEMP_DIS	(0x01 << 7)
+
 #endif

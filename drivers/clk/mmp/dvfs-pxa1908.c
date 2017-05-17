@@ -243,7 +243,7 @@ static unsigned long freqs_cmb_1908[VM_RAIL_MAX][VL_MAX] = {
 	/* GC3D */
 	{ 312000, 312000, 312000, 416000, 624000, 705000, 705000, 832000 },
 	/* GC2D */
-	{ 156000, 156000, 156000, 312000, 312000, 312000, 416000, 624000 },
+	{ 156000, 156000, 156000, 312000, 312000, 416000, 416000, 624000 },
 	/* GCSHADER */
 	{ 312000, 312000, 416000, 416000, 624000, 624000, 705000, 832000 },
 	/* GC ACLK */
@@ -269,41 +269,39 @@ static unsigned long freqs_cmb_1908[VM_RAIL_MAX][VL_MAX] = {
 /* 8 VLs PMIC setting */
 /* FIXME: adjust according to SVC */
 static int vm_millivolts_1908_svcsec[][VL_MAX] = {
-	{1025, 1075, 1075, 1150, 1150, 1175, 1225, 1300},
-	{1025, 1075, 1075, 1150, 1150, 1175, 1225, 1300},
-	{963,  975,  988,  988,  988,  1013, 1075, 1125},/* Profile2 */
-	{963,  975,  988,  988,  1000, 1025, 1088, 1138},
-	{963,  975,  988,  988,  1000, 1038, 1088, 1163},
+	{1025, 1075, 1075, 1125, 1125, 1175, 1225, 1300},
+	{1025, 1075, 1075, 1125, 1125, 1175, 1225, 1300},
+	{975,  975,  988,  988,  988,  1000, 1063, 1125},/* Profile2 */
+	{975,  975,  988,  988,  1000, 1013, 1075, 1138},
+	{975,  975,  988,  988,  1000, 1025, 1075, 1163},
 
-	{963,  975,  988,  988,  1013, 1050, 1100, 1175},
-	{963,  975,  988,  1000, 1013, 1050, 1100, 1200}, /* Profile6 */
-	{975,  975,  988,  1013, 1025, 1063, 1113, 1213},
-	{975,  975,  988,  1025, 1038, 1075, 1125, 1238},
-	{975,  975,  988,  1038, 1050, 1088, 1125, 1250},
+	{975,  975,  988,  988,  1013, 1038, 1088, 1175},
+	{975,  975,  988,  1000, 1013, 1038, 1100, 1200}, /* Profile6 */
+	{975,  975,  988,  1013, 1025, 1050, 1113, 1213},
+	{975,  975,  988,  1025, 1038, 1063, 1113, 1238},
+	{975,  975,  988,  1038, 1050, 1075, 1125, 1250},
 
-	{975,  975,  988,  1038, 1050, 1088, 1125, 1250},
-	{988,  1025, 1025, 1075, 1075, 1125, 1163, 1300},/* Profile11 */
-	{988,  1025, 1025, 1075, 1075, 1125, 1163, 1300},
+	{975,  975,  988,  1038, 1050, 1075, 1125, 1250},
+	{988,  1025, 1025, 1075, 1075, 1125, 1163, 1275},/* Profile11 */
+	{988,  1025, 1025, 1075, 1075, 1125, 1163, 1275},
 	{1000, 1050, 1050, 1100, 1100, 1150, 1200, 1300},/* Profile13 */
 	{1000, 1050, 1050, 1100, 1100, 1150, 1200, 1300},
-	{1025, 1075, 1075, 1150, 1150, 1175, 1225, 1300},/* Profile15 */
+	{1025, 1075, 1075, 1125, 1125, 1175, 1225, 1225},/* Profile15 */
 };
 
-#if 0 /* FIX ME (unused) */
 static struct cpmsa_dvc_info cpmsa_dvc_info_1908sec = {
 	.cpdvcinfo[0] = {416, VL2},
 	.cpdvcinfo[1] = {624, VL3},
 	.cpdvcinfo[2] = {832, VL6},
-	.msadvcvl = VL2,
+	.msadvcvl[0] = {416, VL2},
 };
-#endif
 
 /*
  * dvfs_rail_component.freqs is inited dynamicly, due to different stepping
  * may have different VL combination
  */
 static struct dvfs_rail_component vm_rail_comp_tbl_dvc[VM_RAIL_MAX] = {
-	INIT_DVFS("cpu", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
+	INIT_DVFS("cpu", true, ACTIVE_RAIL_FLAG, NULL),
 	INIT_DVFS("ddr", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
 	INIT_DVFS("axi", true, ACTIVE_M2_RAIL_FLAG, NULL),
 	INIT_DVFS("gc3d_clk", true, ACTIVE_M2_D1P_RAIL_FLAG, NULL),
@@ -343,7 +341,7 @@ static struct dvc_plat_info dvc_pxa1908_info = {
 	.pmic_maxvl = 8,
 	.pmic_rampup_step = 12500,
 	/* by default print the debug msg into logbuf */
-	.dbglvl = 1,
+	.dbglvl = 0,
 	.regname = "vccmain",
 	/* real measured 8us + 4us, PMIC suggestes 16us for 12.5mV/us */
 	.extra_timer_dlyus = 16,
@@ -365,7 +363,7 @@ int __init setup_pxa1908_dvfs_platinfo(void)
 	plat_set_vl_min(0);
 	plat_set_vl_max(dvc_pxa1908_info.num_volts);
 
-	//fillcpdvcinfo(&cpmsa_dvc_info_1908sec);
+	fillcpdvcinfo(&cpmsa_dvc_info_1908sec);
 
 	/* register the platform info into dvfs-dvc.c(hwdvc driver) */
 	hwdvc_base = ioremap(HWDVC_BASE, SZ_16K);

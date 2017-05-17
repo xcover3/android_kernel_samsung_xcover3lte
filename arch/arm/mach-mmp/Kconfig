@@ -132,15 +132,19 @@ config MACH_HELANX_DT
 	  Include support for Marvell MMP2 based platforms using
 	  the device tree. It targets at pxa1908  and etc.
 
-config MACH_J1ACELTE_LTN
-	bool "Samsung's PXA1908 J1 ACE LTE LTN Development Board"
-	select CPU_PXA1908
+config MACH_PXA1978_DT
+	bool "Support PXA1978 (SBNB) with device tree"
+	depends on !CPU_MOHAWK && !CPU_PJ4
+	select CPU_PXA988
 	select USE_OF
 	select PINCTRL
 	select PINCTRL_SINGLE
+	select ARM_DC_DIS_NOHIT
 	help
-	  Say 'Y' here if you want to support the Samsung PXA1908-based
-	  J1 ACE LTE LTN Development Board.
+	  Include support for PXA1978 (SBNB) platforms using
+	  the device tree. This SoC has Marvell Whitney ARMv7
+	  core. PXA988 is selected for compatibility.
+
 endmenu
 
 config CPU_PXA168
@@ -207,4 +211,12 @@ config CPU_PXA1908
 config MMP_SRAM
 	bool
 
+config ARM_DC_DIS_NOHIT
+	bool
+	depends on CPU_V7
+	default n
+	help
+	  Say 'Y' if your ARMv7 CPU has non-cached access enforced
+	  when SCTLR.C=0. This requires special handling when
+	  disabling D-Cache.
 endif

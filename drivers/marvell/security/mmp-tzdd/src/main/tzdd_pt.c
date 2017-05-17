@@ -20,18 +20,19 @@
 #include "tzdd_internal.h"
 #include "tzdd_pt_core.h"
 
+extern uint32_t tee_cm_get_cb_req_num(void);
+extern uint32_t tee_cm_get_cb_rsp_num(void);
+
 #ifdef CONFIG_64BIT
-#define CALL_SMC            (0x72000000)
-#define CALL_IPI            (0x73000000)
+#define CALL_SMC			(0x72000000)
+#define CALL_IPI			(0x73000000)
 #else
-#define CALL_SMC            (0x33000000)
-#define CALL_IPI            (0x34000000)
+#define CALL_SMC			(0x33000000)
+#define CALL_IPI			(0x34000000)
 #endif
 
 static uint32_t _g_tzdd_send_num;
 static bool _g_pt_thread_stop_flag;
-
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
 
 uint32_t g_msg_sent;
 uint32_t g_msg_recv;
@@ -41,8 +42,6 @@ uint32_t g_pre_ipi_num;
 uint32_t g_pst_ipi_num;
 uint32_t g_pre_dmy_num;
 uint32_t g_pst_dmy_num;
-
-#endif /* TEE_DEBUG_ENALBE_PROC_FS_LOG */
 
 static int tzdd_proxy_thread(void *data)
 {
@@ -61,6 +60,7 @@ static int tzdd_proxy_thread(void *data)
 	set_cpus_allowed_ptr(current, cpumask_of(0));
 	TZDD_DBG("tzdd_proxy_thread on cpu %d\n", smp_processor_id());
 
+	current->flags |= PF_FREEZER_SKIP;
 	nice = task_nice(current);
 	TZDD_DBG("tzdd_proxy_thread: nice = %d\n", nice);
 
@@ -96,19 +96,13 @@ static int tzdd_proxy_thread(void *data)
 			}
 			tee_add_time_record_point("npct");
 			/* Call IPI to TW */
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
 			g_pre_ipi_num++;
-#endif
 			tee_cm_smi(CALL_IPI);
 
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
 			g_pst_ipi_num++;
-#endif
 			tee_add_time_record_point("npbt");
 			_g_tzdd_send_num++;
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
 			g_msg_sent++;
-#endif
 		}
 
 		res_size = tee_cm_get_data_size();
@@ -118,33 +112,27 @@ static int tzdd_proxy_thread(void *data)
 			msg_flag = tzdd_pt_recv();
 			if (msg_flag == TEE_MSG_IGNORE_COUNTER) {
 				/* do nothing */
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
 				g_msg_ignd++;
-#endif
 			} else {	/* TEE_MSG_FAKE && TEE_MSG_NORMAL */
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
 				if (TEE_MSG_NORMAL == msg_flag)
 					g_msg_recv++;
 				else if (TEE_MSG_FAKE == msg_flag)
 					g_msg_fake++;
 				else
 					OSA_ASSERT(0);
-#endif
 				_g_tzdd_send_num--;
 			}
 
 			res_size = tee_cm_get_data_size();
 		}
 		tee_add_time_record_point("nprm");
-		if (_g_tzdd_send_num) {
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
-			g_pre_dmy_num++;
-#endif
-			tee_cm_smi(CALL_SMC);
-#ifdef TEE_DEBUG_ENALBE_PROC_FS_LOG
-			g_pst_dmy_num++;
-#endif
-		} else {
+		/*
+		 * all the requests are trapped in the callbacks in secure world.
+		 * requests from secure world are all served by PT.
+		 * */
+		if (0 ==_g_tzdd_send_num ||
+				((_g_tzdd_send_num == (tee_cm_get_cb_req_num() - tee_cm_get_cb_rsp_num()))
+				&& (tee_cm_get_cb_req_num() == g_msg_ignd))) {
 			/* release D1P LPM constraint */
 			if (true == is_lpm_blocked) {
 				pm_qos_update_request(&(dev->tzdd_lpm_cons),
@@ -162,6 +150,11 @@ static int tzdd_proxy_thread(void *data)
 				break;
 			}
 			tee_add_time_record_point("npet");
+		} else {
+			g_pre_dmy_num++;
+
+			tee_cm_smi(CALL_SMC);
+			g_pst_dmy_num++;
 		}
 	}
 

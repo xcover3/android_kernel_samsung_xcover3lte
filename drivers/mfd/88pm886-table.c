@@ -22,186 +22,6 @@
 #define PM886_BUCK_NAME		"88pm886-buck"
 #define PM886_LDO_NAME		"88pm886-ldo"
 
-static bool pm886_base_writeable_reg(struct device *dev, unsigned int reg)
-{
-	bool ret = false;
-
-	switch (reg) {
-	case 0x00:
-	case 0x01:
-	case 0x05 ... 0x08:
-	case 0x0a ... 0x0d:
-	case 0x14:
-	case 0x15:
-	case 0x17 ... 0x19:
-	case 0x1d:
-	case 0x1f ... 0x23:
-	case 0x25:
-	case 0x30 ... 0x33:
-	case 0x36:
-	case 0x38 ... 0x3b:
-	case 0x40 ... 0x48:
-	case 0x50 ... 0x5c:
-	case 0x61 ... 0x6d:
-	case 0x6f:
-	case 0xce ... 0xef:
-		ret = true;
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
-static bool pm886_power_writeable_reg(struct device *dev, unsigned int reg)
-{
-	bool ret = false;
-
-	switch (reg) {
-	case 0x00 ... 0x03:
-	case 0x06:
-	case 0x08 ... 0x0a:
-	case 0x0e ... 0x10:
-	case 0x16:
-	case 0x19:
-	case 0x1a:
-	case 0x20:
-	case 0x21:
-	case 0x23:
-	case 0x26:
-	case 0x27 ... 0x29:
-	case 0x2c ... 0x2f:
-	case 0x32:
-	case 0x33:
-	case 0x35:
-	case 0x38:
-	case 0x39:
-	case 0x3b:
-	case 0x3e:
-	case 0x3f:
-	case 0x41:
-	case 0x44:
-	case 0x45:
-	case 0x47:
-	case 0x4a:
-	case 0x4b:
-	case 0x4d:
-	case 0x50:
-	case 0x51:
-	case 0x53:
-	case 0x56:
-	case 0x57:
-	case 0x59:
-	case 0x5c:
-	case 0x5d:
-	case 0x5f:
-	case 0x62:
-	case 0x63:
-	case 0x65:
-	case 0x68:
-	case 0x69:
-	case 0x6b:
-	case 0x6e:
-	case 0x6f:
-	case 0x71:
-	case 0x74:
-	case 0x75:
-	case 0x77:
-	case 0x7a:
-	case 0x7b:
-	case 0x7d:
-	case 0x9a ... 0xa8:
-	case 0xac ... 0xb3:
-	case 0xba ... 0xc1:
-	case 0xc8 ... 0xcd:
-	case 0xcf:
-	case 0xd6 ... 0xdb:
-	case 0xdd:
-		ret = true;
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
-static bool pm886_gpadc_writeable_reg(struct device *dev, unsigned int reg)
-{
-	bool ret = false;
-
-	switch (reg) {
-	case 0x00 ... 0x03:
-	case 0x05 ... 0x08:
-	case 0x0a ... 0x0e:
-	case 0x13:
-	case 0x14:
-	case 0x18:
-	case 0x1a:
-	case 0x1b:
-	case 0x20 ... 0x26:
-	case 0x28:
-	case 0x2a:
-	case 0x2b:
-	case 0x30 ... 0x34:
-	case 0x38:
-	case 0x3d:
-	case 0x40 ... 0x43:
-	case 0x46 ... 0x5d:
-	case 0x80:
-	case 0x81:
-	case 0x84 ... 0x8b:
-	case 0x90:
-	case 0x91:
-	case 0x94 ... 0x9b:
-	case 0xa0:
-	case 0xa1:
-	case 0xa4 ... 0xad:
-	case 0xb0 ... 0xb3:
-	case 0xc0 ... 0xc7:
-		ret = true;
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
-static bool pm886_battery_writeable_reg(struct device *dev, unsigned int reg)
-{
-	bool ret = false;
-
-	switch (reg) {
-	case 0x00 ... 0x15:
-	case 0x28 ... 0x31:
-	case 0x34 ... 0x36:
-	case 0x3e ... 0x40:
-	case 0x42 ... 0x45:
-	case 0x47:
-	case 0x4a ... 0x51:
-	case 0x53:
-	case 0x54:
-	case 0x58:
-	case 0x5b:
-	case 0x60 ... 0x63:
-	case 0x65:
-	case 0x6b ... 0x71:
-		ret = true;
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
-static bool pm886_test_writeable_reg(struct device *dev, unsigned int reg)
-{
-	return true;
-}
-
 const struct regmap_config pm886_base_i2c_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
@@ -249,6 +69,12 @@ static const struct resource ldo_resources[] = {
 	},
 };
 
+static const struct resource vr_resources[] = {
+	{
+	.name = PM88X_VIRTUAL_REGULATOR_NAME,
+	},
+};
+
 const struct mfd_cell pm886_cell_devs[] = {
 	CELL_DEV(PM886_BUCK_NAME, buck_resources, "marvell,88pm886-buck1", 0),
 	CELL_DEV(PM886_BUCK_NAME, buck_resources, "marvell,88pm886-buck2", 1),
@@ -290,12 +116,9 @@ static const struct reg_default pm886_base_patch[] = {
 	{PM88X_AON_CTRL2, 0x2a},  /* output 32kHZ from XO */
 	{PM88X_BK_OSC_CTRL1, 0x0f}, /* OSC_FREERUN = 1, to lock FLL */
 	{PM88X_LOWPOWER2, 0x20}, /* XO_LJ = 1, enable low jitter for 32kHZ */
-	{PM88X_LOWPOWER4, 0xc8}, /* OV_VSYS and UV_VSYS1 comparators on VSYS disabled, VSYS_OVER_TH : 5.6V */
-#if defined(CONFIG_MACH_J1ACELTE)
-	{PM88X_BK_OSC_CTRL3, 0xc8}, /* set the duty cycle of charger DC/DC to max */
-#else
+	/* enable LPM for internal reference group in sleep */
+	{PM88X_LOWPOWER4, 0xc0},
 	{PM88X_BK_OSC_CTRL3, 0xc0}, /* set the duty cycle of charger DC/DC to max */
-#endif
 };
 
 static const struct reg_default pm886_power_patch[] = {

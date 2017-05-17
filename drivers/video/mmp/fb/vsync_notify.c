@@ -25,8 +25,9 @@
 
 void mmpfb_wait_vsync(struct mmpfb_info *fbi)
 {
-	dev_dbg(fbi->dev, "wait vsync: vcnt %d, irq_en_ref: %d\n",
-			atomic_read(&fbi->vsync.vcnt), atomic_read(&fbi->path->irq_en_ref));
+	dev_dbg(fbi->dev, "wait vsync: vcnt %d, dispd_ref: %d, vsync_ref: %d\n",
+			atomic_read(&fbi->vsync.vcnt), atomic_read(&fbi->path->irq_dispd_en_ref),
+			atomic_read(&fbi->path->irq_vsync_en_ref));
 	/*
 	 * for N buffer cases,
 	 * #1- (N-2) buffers passed in one frame:
@@ -76,10 +77,10 @@ static ssize_t mmpfb_vsync_store(
 
 	if (sysfs_streq(buf, "u1")) {
 		fbi->vsync.en = 1;
-		mmp_path_set_irq(fbi->path, 1);
+		mmp_path_set_irq(fbi->path, VSYNC_IRQ, IRQ_ENA);
 	} else if (sysfs_streq(buf, "u0")) {
 		fbi->vsync.en = 0;
-		mmp_path_set_irq(fbi->path, 0);
+		mmp_path_set_irq(fbi->path, VSYNC_IRQ, IRQ_DIS);
 	} else {
 		dev_dbg(fbi->dev, "invalid input, please echo as follow:\n");
 		dev_dbg(fbi->dev, "\tu1: enable vsync uevent\n");

@@ -1721,23 +1721,6 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	p->se.vruntime			= 0;
 	INIT_LIST_HEAD(&p->se.group_node);
 
-
-#ifdef CONFIG_HMP_BOOST
-/*
- * Load-tracking only depends on SMP, FAIR_GROUP_SCHED dependency below may be
- * removed when useful for applications beyond shares distribution (e.g.
- * load-balance).
- */
-#if defined(CONFIG_SMP) && defined(CONFIG_FAIR_GROUP_SCHED)
-	p->se.avg.runnable_avg_period = 0;
-	p->se.avg.runnable_avg_sum = 0;
-#ifdef CONFIG_SCHED_HMP
-	p->se.avg.hmp_last_up_migration = 0;
-	p->se.avg.hmp_last_down_migration = 0;
-#endif
-#endif
-
-#else
 #ifdef CONFIG_SCHED_HMP
 	/* keep LOAD_AVG_MAX in sync with fair.c if load avg series is changed */
 #define LOAD_AVG_MAX 47742
@@ -1754,8 +1737,6 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 		}
 	} /* hmp_enabled */
 #endif
-#endif
-
 #ifdef CONFIG_SCHEDSTATS
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
 #endif
@@ -2344,13 +2325,6 @@ unsigned long nr_running(void)
 	return sum;
 }
 
-#ifdef CONFIG_HMP_BOOST
-unsigned long nr_running_cpu(unsigned int cpu)
-{
-	return cpu_rq(cpu)->nr_running;
-}
-#endif
-
 /*
  * get task number of cpu
  */
@@ -2683,7 +2657,6 @@ pick_next_task(struct rq *rq)
 	}
 
 	BUG(); /* the idle class will always have a runnable task */
-	return NULL;
 }
 
 /*
@@ -7003,11 +6976,6 @@ void __init sched_init(void)
 		rq->idle_stamp = 0;
 		rq->avg_idle = 2*sysctl_sched_migration_cost;
 		rq->max_idle_balance_cost = sysctl_sched_migration_cost;
-
-#ifdef CONFIG_SCHED_HMP
-		rq->capacity = 1024;
-		rq->hmp_flags = 0;
-#endif
 
 		INIT_LIST_HEAD(&rq->cfs_tasks);
 

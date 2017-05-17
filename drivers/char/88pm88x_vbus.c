@@ -1,5 +1,5 @@
 /*
- * 88pm886 VBus driver for Marvell USB
+ * 88pm88x VBus driver for Marvell USB
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -17,8 +17,10 @@
 #include <linux/of_device.h>
 #include <linux/platform_data/mv_usb.h>
 
-#define PM88X_USB_OTG_EN		(1 << 7)
+#define PM88X_VBUS_LOW_TH (0x1a)
+#define PM88X_VBUS_UPP_TH (0x2a)
 
+#define PM88X_USB_OTG_EN		(1 << 7)
 #define PM88X_CHG_CONFIG4		(0x2B)
 #define PM88X_VBUS_SW_EN		(1 << 0)
 
@@ -30,8 +32,11 @@
 #define PM88X_OTG_BST_VSET_MASK		(0x7)
 #define PM88X_OTG_BST_VSET(x)		((x - 3750) / 250)
 
-#define USB_OTG_MIN			4800 /* mV */
-#define USB_INSERTION			4400 /* mV */
+#define PM88X_CHG_STATUS2		(0x43)
+#define PM88X_USB_LIM_OK		(1 << 3)
+#define PM88X_VBUS_SW_OV		(1 << 0)
+
+#define USB_OTG_MIN			(4800) /* mV */
 
 /* choose 0x100(87.5mV) as threshold */
 #define OTG_IDPIN_TH			(0x100)
@@ -42,19 +47,31 @@
  * as a W/A since there's currently a BUG per JIRA PM886-9
  * will be refined once fix is available
  */
-#define PM886A0_VBUS_2_VALUE(v)		((v << 9) / 700)
-#define PM886A0_VALUE_2_VBUS(val)		((val * 700) >> 9)
+#define PM886A0_VBUS_VOLT2REG(volt)	((volt << 9) / 700)
+#define PM886A0_VBUS_REG2VOLT(regval)		((regval * 700) >> 9)
 
 /* 1.709 mV/LSB */
-#define PM88X_VBUS_2_VALUE(v)		((v << 9) / 875)
-#define PM88X_VALUE_2_VBUS(val)		((val * 875) >> 9)
+#define PM88X_VBUS_VOLT2REG(volt)		((volt << 9) / 875)
+#define PM88X_VBUS_REG2VOLT(regval)		((regval * 875) >> 9)
+
+#define VBUS_TH_VOLT2REG(volt)		((((volt * 1000) / 1709) & 0xff0) >> 4)
+#define VBUS_TH_VOLT2REG_886A0(volt)	((((volt * 1000) / 1367) & 0xff0) >> 4)
 
 struct pm88x_vbus_info {
 	struct pm88x_chip	*chip;
+	struct work_struct	meas_id_work;
 	int			vbus_irq;
 	int			id_irq;
+	int			id_level;
 	int			vbus_gpio;
 	int			id_gpadc;
+	bool			id_ov_sampling;
+	int			id_ov_samp_count;
+	int			id_ov_samp_sleep;
+	int			chg_in;
+	unsigned int		gpadc_meas;
+	unsigned int		gpadc_upp_th;
+	unsigned int		gpadc_low_th;
 	struct delayed_work	pxa_notify;
 };
 
@@ -75,71 +92,174 @@ static void pm88x_vbus_check_errors(struct pm88x_vbus_info *info)
 		regmap_write(info->chip->battery_regmap, PM88X_OTG_LOG1, val);
 }
 
-static int pm88x_get_vbus(unsigned int *level)
+enum vbus_volt_range {
+	OFFLINE_RANGE = 0, /* vbus_volt_threshold[0, 1]*/
+	ONLINE_RANGE,  /* vbus_volt_threshold[2, 3]*/
+	ABNORMAL_RANGE, /* vbus_volt_threshold[4, 5]*/
+	MAX_RANGE,
+};
+
+struct volt_threshold {
+	unsigned int lo; /* mV */
+	unsigned int hi;
+	int range_id;
+};
+
+/* change according to chip: 5250mV and 5160mV */
+static const struct volt_threshold vbus_volt[] = {
+	[0] = {.lo = 0, .hi = 4000, .range_id = OFFLINE_RANGE},
+	[1] = {.lo = 3500, .hi = 5250, .range_id = ONLINE_RANGE},
+	[2] = {.lo = 5160, .hi = 6000, .range_id = ABNORMAL_RANGE},
+};
+
+static void config_vbus_threshold(struct pm88x_chip *chip, int range_id)
+{
+	unsigned int lo_volt, hi_volt, lo_reg, hi_reg;
+
+	lo_volt = vbus_volt[range_id].lo;
+	hi_volt = vbus_volt[range_id].hi;
+
+	switch (chip->type) {
+	case PM886:
+		if (chip->chip_id == PM886_A0) {
+			hi_reg = VBUS_TH_VOLT2REG_886A0(hi_volt);
+			lo_reg = VBUS_TH_VOLT2REG_886A0(lo_volt);
+		} else {
+			hi_reg = VBUS_TH_VOLT2REG(hi_volt);
+			lo_reg = VBUS_TH_VOLT2REG(lo_volt);
+		}
+		break;
+	default:
+		hi_reg = VBUS_TH_VOLT2REG(hi_volt);
+		lo_reg = VBUS_TH_VOLT2REG(lo_volt);
+		break;
+	}
+
+	regmap_write(chip->gpadc_regmap, PM88X_VBUS_LOW_TH, lo_reg);
+	regmap_write(chip->gpadc_regmap, PM88X_VBUS_UPP_TH, hi_reg);
+}
+
+static int get_vbus_volt(struct pm88x_chip *chip)
 {
 	int ret, val, voltage;
 	unsigned char buf[2];
 
-	ret = regmap_bulk_read(vbus_info->chip->gpadc_regmap,
+	ret = regmap_bulk_read(chip->gpadc_regmap,
 				PM88X_VBUS_MEAS1, buf, 2);
 	if (ret)
 		return ret;
 
 	val = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
-	switch (vbus_info->chip->type) {
+
+	switch (chip->type) {
 	case PM886:
-		if (vbus_info->chip->chip_id == PM886_A0) {
-			voltage = PM886A0_VALUE_2_VBUS(val);
-			break;
-		}
+		if (chip->chip_id == PM886_A0)
+			voltage = PM886A0_VBUS_REG2VOLT(val);
+		else
+			voltage = PM88X_VBUS_REG2VOLT(val);
+		break;
 	default:
-		voltage = PM88X_VALUE_2_VBUS(val);
+		voltage = PM88X_VBUS_REG2VOLT(val);
 		break;
 	}
 
-	/* read pm886 status to decide it's cable in or out */
-	regmap_read(vbus_info->chip->base_regmap, PM88X_STATUS1, &val);
+	return voltage;
+}
 
-	/* cable in */
-	if (val & PM88X_CHG_DET) {
-		if (voltage >= USB_INSERTION) {
+/*
+ * this function is only triggered by interrupt:
+ * - when vbus interrupt happens, it must have cross the threashold
+ * so no need to care about overlap
+ */
+static int get_current_range(struct pm88x_chip *chip)
+{
+	int current_vbus_volt, i, size;
+
+	current_vbus_volt = get_vbus_volt(chip);
+	dev_info(chip->dev, "now, vbus voltage = %dmV\n", current_vbus_volt);
+
+	size = ARRAY_SIZE(vbus_volt);
+
+	for (i = 0; i < size; i++) {
+		if (current_vbus_volt >= vbus_volt[i].lo &&
+		    current_vbus_volt <= vbus_volt[i].hi)
+				return vbus_volt[i].range_id;
+	}
+
+	return -EINVAL;
+}
+
+static int pm88x_otg_boost_on(struct pm88x_chip *chip)
+{
+	unsigned int data;
+
+	if (!chip)
+		return 0;
+
+	regmap_read(chip->battery_regmap, PM88X_CHG_CONFIG1, &data);
+
+	return data & PM88X_USB_OTG_EN;
+}
+
+static int pm88x_get_vbus(unsigned int *level)
+{
+	int volt, current_range;
+
+	/* otg boost enabled case */
+	if (pm88x_otg_boost_on(vbus_info->chip)) {
+		volt = get_vbus_volt(vbus_info->chip);
+		if (volt >= USB_OTG_MIN)
 			*level = VBUS_HIGH;
-			dev_dbg(vbus_info->chip->dev,
-				"%s: USB cable is valid! (%dmV)\n",
-				__func__, voltage);
-		} else {
+		else
 			*level = VBUS_LOW;
-			dev_err(vbus_info->chip->dev,
-				"%s: USB cable not valid! (%dmV)\n",
-				__func__, voltage);
-		}
-	/* cable out */
-	} else {
-		/* OTG mode */
-		if (voltage >= USB_OTG_MIN) {
-			*level = VBUS_HIGH;
+		return 0;
+	}
+
+	current_range = get_current_range(vbus_info->chip);
+	switch (current_range) {
+	case ONLINE_RANGE:
+		*level = VBUS_HIGH;
+		/* set charging flag, and disable OTG interrupts */
+		if (!vbus_info->chg_in) {
 			dev_dbg(vbus_info->chip->dev,
-				"%s: OTG voltage detected!(%dmV)\n",
-				__func__, voltage);
-		} else {
-			*level = VBUS_LOW;
-			dev_dbg(vbus_info->chip->dev,
-				"%s: Cable out / OTG disabled !(%dmV)\n", __func__, voltage);
-			/* Open USB_SW in order to save power at low power mode */
-			switch (vbus_info->chip->type) {
-			case PM886:
-				if (vbus_info->chip->chip_id == PM886_A0)
-					break;
-			default:
-				regmap_update_bits(vbus_info->chip->battery_regmap,
-					PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, 0);
-				break;
-			}
-			pm88x_vbus_check_errors(vbus_info);
+				"set charging flag, and disable OTG interrupts\n");
+			vbus_info->chg_in = 1;
+			disable_irq(vbus_info->id_irq);
 		}
+		break;
+	default:
+	case OFFLINE_RANGE:
+		*level = VBUS_LOW;
+		pm88x_vbus_check_errors(vbus_info);
+		/* clear charging flag, and enable OTG interrupts */
+		if (vbus_info->chg_in) {
+			dev_dbg(vbus_info->chip->dev,
+				"clear charging flag, and enable OTG interrupts\n");
+			vbus_info->chg_in = 0;
+			enable_irq(vbus_info->id_irq);
+		}
+		break;
 	}
 
 	return 0;
+}
+
+static int pm88x_vbus_sw_control(bool enable)
+{
+	int ret = 0;
+	unsigned int val = enable ? PM88X_VBUS_SW_EN : 0;
+
+	switch (vbus_info->chip->type) {
+	case PM886:
+		if (vbus_info->chip->chip_id == PM886_A0)
+			break;
+	default:
+		ret = regmap_update_bits(vbus_info->chip->battery_regmap,
+			PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, val);
+		break;
+	}
+
+	return ret;
 }
 
 static int pm88x_set_vbus(unsigned int vbus)
@@ -153,18 +273,15 @@ static int pm88x_set_vbus(unsigned int vbus)
 		if (ret)
 			return ret;
 
-		switch (vbus_info->chip->type) {
-		case PM886:
-			if (vbus_info->chip->chip_id == PM886_A0)
-				break;
-		default:
-			ret = regmap_update_bits(vbus_info->chip->battery_regmap,
-				PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, PM88X_VBUS_SW_EN);
-			break;
-		}
-	} else
+		ret = pm88x_vbus_sw_control(true);
+	} else {
 		ret = regmap_update_bits(vbus_info->chip->battery_regmap, PM88X_CHG_CONFIG1,
 					PM88X_USB_OTG_EN, 0);
+		if (ret)
+			return ret;
+
+		ret = pm88x_vbus_sw_control(false);
+	}
 
 	if (ret)
 		return ret;
@@ -184,56 +301,132 @@ static int pm88x_set_vbus(unsigned int vbus)
 	return 0;
 }
 
-#ifndef CONFIG_USB_NOTIFY_LAYER
-static int pm88x_read_id_val(unsigned int *level)
+static int pm88x_ext_read_id_level(unsigned int *level)
 {
-	unsigned int meas, upp_th, low_th;
-	unsigned char buf[2];
-	int ret, data;
-
-	switch (vbus_info->id_gpadc) {
-	case PM88X_GPADC0:
-		meas = PM88X_GPADC0_MEAS1;
-		low_th = PM88X_GPADC0_LOW_TH;
-		upp_th = PM88X_GPADC0_UPP_TH;
-		break;
-	case PM88X_GPADC1:
-		meas = PM88X_GPADC1_MEAS1;
-		low_th = PM88X_GPADC1_LOW_TH;
-		upp_th = PM88X_GPADC1_UPP_TH;
-		break;
-	case PM88X_GPADC2:
-		meas = PM88X_GPADC2_MEAS1;
-		low_th = PM88X_GPADC2_LOW_TH;
-		upp_th = PM88X_GPADC2_UPP_TH;
-		break;
-	case PM88X_GPADC3:
-		meas = PM88X_GPADC3_MEAS1;
-		low_th = PM88X_GPADC3_LOW_TH;
-		upp_th = PM88X_GPADC3_UPP_TH;
-		break;
-	default:
-		return -ENODEV;
-	}
-
-	ret = regmap_bulk_read(vbus_info->chip->gpadc_regmap, meas, buf, 2);
-	if (ret)
-		return ret;
-
-	data = ((buf[0] & 0xFF) << 4) | (buf[1] & 0xF);
-
-	if (data > OTG_IDPIN_TH) {
-		regmap_write(vbus_info->chip->gpadc_regmap, low_th, OTG_IDPIN_TH >> 4);
-		regmap_write(vbus_info->chip->gpadc_regmap, upp_th, 0xff);
+	if (vbus_info->chg_in) {
 		*level = VBUS_HIGH;
-	} else {
-		regmap_write(vbus_info->chip->gpadc_regmap, low_th, 0);
-		regmap_write(vbus_info->chip->gpadc_regmap, upp_th, OTG_IDPIN_TH >> 4);
-		*level = VBUS_LOW;
+		dev_info(vbus_info->chip->dev, "idpin requested during charging state\n");
+		return 0;
 	}
+
+	*level = vbus_info->id_level;
 
 	return 0;
 };
+
+static int pm88x_get_id_level(unsigned int *level)
+{
+	int ret, data;
+	unsigned char buf[2];
+
+	ret = regmap_bulk_read(vbus_info->chip->gpadc_regmap, vbus_info->gpadc_meas, buf, 2);
+	if (ret)
+		return ret;
+
+	data = ((buf[0] & 0xff) << 4) | (buf[1] & 0x0f);
+	if (data > OTG_IDPIN_TH)
+		*level = VBUS_HIGH;
+	else
+		*level = VBUS_LOW;
+
+	dev_dbg(vbus_info->chip->dev,
+		"usb id voltage = %d mV, level is %s\n",
+		(((data) & 0xfff) * 175) >> 9, (*level == 1 ? "HIGH" : "LOW"));
+
+	return 0;
+}
+
+static int pm88x_update_id_level(void)
+{
+	int ret;
+
+	ret = pm88x_get_id_level(&vbus_info->id_level);
+	if (ret)
+		return ret;
+
+	if (vbus_info->id_level) {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, OTG_IDPIN_TH >> 4);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, 0xff);
+	} else {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, 0);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, OTG_IDPIN_TH >> 4);
+	}
+
+	dev_info(vbus_info->chip->dev, "idpin is %s\n", vbus_info->id_level ? "HIGH" : "LOW");
+	return 0;
+}
+
+static void pm88x_meas_id_work(struct work_struct *work)
+{
+	int i = 0;
+	unsigned int level, last_level = 1;
+
+	/*
+	 * 1.loop until the line is stable
+	 * 2.in every iteration do the follwing:
+	 *	- measure the line voltage
+	 *	- check if the voltage is the same as the previous value
+	 *	- if not, start the loop again (set loop index to 0)
+	 *	- if yes, continue the loop to next iteration
+	 * 3.if we get x (id_meas_count) identical results, loop end
+	 */
+	while (i < vbus_info->id_ov_samp_count) {
+		pm88x_get_id_level(&level);
+
+		if (i == 0) {
+			last_level = level;
+			i++;
+		} else if (level != last_level) {
+			i = 0;
+		} else {
+			i++;
+		}
+
+		msleep(vbus_info->id_ov_samp_sleep);
+	}
+
+	/* set the GPADC thrsholds for next insertion/removal */
+	if (last_level) {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, OTG_IDPIN_TH >> 4);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, 0xff);
+	} else {
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_low_th, 0);
+		regmap_write(vbus_info->chip->gpadc_regmap,
+			vbus_info->gpadc_upp_th, OTG_IDPIN_TH >> 4);
+	}
+
+	/* after the line is stable, we can enable the id interrupt */
+	enable_irq(vbus_info->id_irq);
+
+	/* in case we missed interrupt till we enable it, we take one more measurment */
+	pm88x_get_id_level(&level);
+
+	/*
+	 * if the last measurment is different from the stable value,
+	 *  need to start the process again
+	*/
+	if (level != last_level) {
+		disable_irq(vbus_info->id_irq);
+		schedule_work(&vbus_info->meas_id_work);
+		return;
+	}
+
+	/* notify to wake up the usb subsystem if ID pin value changed */
+	if (last_level != vbus_info->id_level) {
+		vbus_info->id_level = last_level;
+		pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_ID, 0);
+
+		dev_info(vbus_info->chip->dev, "idpin is %s\n",
+			vbus_info->id_level ? "HIGH" : "LOW");
+	}
+}
 
 static int pm88x_init_id(void)
 {
@@ -245,33 +438,75 @@ static void pm88x_pxa_notify(struct work_struct *work)
 	struct pm88x_vbus_info *info =
 		container_of(work, struct pm88x_vbus_info, pxa_notify.work);
 	/*
-	 * 88pm886 has no ability to distinguish
+	 * 88pm88x has no ability to distinguish
 	 * AC/USB charger, so notify usb framework to do it
 	 */
 	pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_VBUS, 0);
-	dev_dbg(info->chip->dev, "88pm886 vbus pxa usb is notified..\n");
+	dev_dbg(info->chip->dev, "88pm88x vbus pxa usb is notified..\n");
+}
+
+static void dump_vbus_ov_status(struct pm88x_vbus_info *info)
+{
+	int ret;
+	unsigned int val;
+	bool usb_lim_ok, vbus_sw_ov, vbus_sw_en;
+
+	ret = regmap_read(info->chip->battery_regmap, PM88X_CHG_STATUS2, &val);
+	if (ret) {
+		dev_err(info->chip->dev, "fail to read charger status: %d\n", ret);
+		return;
+	}
+
+	usb_lim_ok = !!(val & PM88X_USB_LIM_OK);
+	vbus_sw_ov = !!(val & PM88X_VBUS_SW_OV);
+
+	ret = regmap_read(info->chip->battery_regmap, PM88X_CHG_CONFIG4, &val);
+	if (ret) {
+		dev_err(info->chip->dev, "fail to read charger config 4: %d\n", ret);
+		return;
+	}
+
+	vbus_sw_en = !!(val & PM88X_VBUS_SW_EN);
+
+	/*
+	 * usb_lim_ok = 1, 4V < VBUS < 6V
+	 * vbus_sw_ov = 1, VBUS > 5.25V or VBUS_SW_EN = 0, VBUS switch is opened.
+	 */
+	dev_info(info->chip->dev, "usb_lim_ok:%d vbus_sw_ov:%d vbus_sw_en:%d\n",
+		 usb_lim_ok, vbus_sw_ov, vbus_sw_en);
 }
 
 static irqreturn_t pm88x_vbus_handler(int irq, void *data)
 {
-
+	int current_range;
 	struct pm88x_vbus_info *info = data;
-	/*
-	 * Close USB_SW to allow USB 5V to USB PHY in case of cable
-	 * insertion. in case of removal this will be called and the
-	 * switch will be opened at pm88x_get_vbus
-	 */
-	switch (vbus_info->chip->type) {
-	case PM886:
-		if (vbus_info->chip->chip_id == PM886_A0)
-			break;
-	default:
-		regmap_update_bits(vbus_info->chip->battery_regmap,
-			PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, PM88X_VBUS_SW_EN);
-		break;
+
+	dev_info(info->chip->dev, "88pm88x vbus interrupt is served..\n");
+
+	/* if vbus raise caused by OTG boost, ignore it */
+	if (pm88x_otg_boost_on(info->chip)) {
+		dev_info(info->chip->dev, "OTG boost case, exit\n");
+		return IRQ_HANDLED;
 	}
 
-	dev_dbg(info->chip->dev, "88pm886 vbus interrupt is served..\n");
+	current_range = get_current_range(vbus_info->chip);
+	if (current_range < 0) {
+		dev_err(info->chip->dev, "what happened to vbus?\n");
+		/* stop configuring ranges */
+		goto out;
+	}
+
+	/* set new range */
+	config_vbus_threshold(vbus_info->chip, current_range);
+
+	/* close the USB_SW for online, open the USB_SW for offline to save power */
+	if (current_range == ONLINE_RANGE)
+		pm88x_vbus_sw_control(true);
+	else
+		pm88x_vbus_sw_control(false);
+
+out:
+	dump_vbus_ov_status(info);
 	/* allowing 7.5msec for the SW to close */
 	schedule_delayed_work(&info->pxa_notify, usecs_to_jiffies(7500));
 	return IRQ_HANDLED;
@@ -281,36 +516,26 @@ static irqreturn_t pm88x_id_handler(int irq, void *data)
 {
 	struct pm88x_vbus_info *info = data;
 
-	 /* notify to wake up the usb subsystem if ID pin is pulled down */
-	pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_ID, 0);
-	dev_dbg(info->chip->dev, "88pm886 id interrupt is served..\n");
+	dev_info(info->chip->dev, "88pm88x id interrupt is served..\n");
+
+	if (info->id_ov_sampling) {
+		/* disable id interrupt, and start measurment process */
+		disable_irq_nosync(info->id_irq);
+		schedule_work(&info->meas_id_work);
+	} else {
+		/* update id value */
+		pm88x_update_id_level();
+
+		/* notify to wake up the usb subsystem if ID pin is pulled down */
+		pxa_usb_notify(PXA_USB_DEV_OTG, EVENT_ID, 0);
+	}
+
 	return IRQ_HANDLED;
 }
-#else
-static int pm88x_usb_sw_setting(bool state)
-{
-	if (vbus_info->chip->chip_id != PM886_A0) {
-		if(state) {
-			/* Close USB_SW */
-			regmap_update_bits(vbus_info->chip->battery_regmap,
-				PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, PM88X_VBUS_SW_EN);
-			pr_info("88pm886 %s: USB_SW manual close\n", __func__);
-		} else {
-			/* Open USB_SW in order to save power at low power mode */
-			regmap_update_bits(vbus_info->chip->battery_regmap,
-				PM88X_CHG_CONFIG4, PM88X_VBUS_SW_EN, 0);
-			/* allowing 7.5msec for the SW to close */
-			mdelay(10);
-			pr_info("88pm886 %s: USB_SW manual open\n", __func__);
-		}
-	}
-	return 0;
-}
-#endif
 
 static void pm88x_vbus_config(struct pm88x_vbus_info *info)
 {
-	unsigned int en, low_th, upp_th;
+	unsigned int gpadc_en;
 
 	if (!info)
 		return;
@@ -325,39 +550,69 @@ static void pm88x_vbus_config(struct pm88x_vbus_info *info)
 	/* set id gpadc low/upp threshold and enable it */
 	switch (info->id_gpadc) {
 	case PM88X_GPADC0:
-		low_th = PM88X_GPADC0_LOW_TH;
-		upp_th = PM88X_GPADC0_UPP_TH;
-		en = PM88X_GPADC0_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC0_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC0_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC0_UPP_TH;
+		gpadc_en = PM88X_GPADC0_MEAS_EN;
 		break;
 	case PM88X_GPADC1:
-		low_th = PM88X_GPADC1_LOW_TH;
-		upp_th = PM88X_GPADC1_UPP_TH;
-		en = PM88X_GPADC1_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC1_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC1_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC1_UPP_TH;
+		gpadc_en = PM88X_GPADC1_MEAS_EN;
 		break;
 	case PM88X_GPADC2:
-		low_th = PM88X_GPADC2_LOW_TH;
-		upp_th = PM88X_GPADC2_UPP_TH;
-		en = PM88X_GPADC2_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC2_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC2_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC2_UPP_TH;
+		gpadc_en = PM88X_GPADC2_MEAS_EN;
 		break;
 	case PM88X_GPADC3:
-		low_th = PM88X_GPADC3_LOW_TH;
-		upp_th = PM88X_GPADC3_UPP_TH;
-		en = PM88X_GPADC3_MEAS_EN;
+		info->gpadc_meas = PM88X_GPADC3_MEAS1;
+		info->gpadc_low_th = PM88X_GPADC3_LOW_TH;
+		info->gpadc_upp_th = PM88X_GPADC3_UPP_TH;
+		gpadc_en = PM88X_GPADC3_MEAS_EN;
 		break;
 	default:
 		return;
 	}
 
-	/* set the threshold for GPADC to prepare for interrupt */
-	regmap_write(info->chip->gpadc_regmap, low_th, OTG_IDPIN_TH >> 4);
-	regmap_write(info->chip->gpadc_regmap, upp_th, 0xff);
+	regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, gpadc_en, gpadc_en);
 
-	regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG2, en, en);
+	/* wait until the voltage is stable */
+	usleep_range(10000, 20000);
+
+	/* read ID level, and set the thresholds for GPADC to prepare for interrupt */
+	pm88x_update_id_level();
 }
 
 static int pm88x_vbus_dt_init(struct device_node *np, struct pm88x_vbus_info *usb)
 {
-	return of_property_read_u32(np, "gpadc-number", &usb->id_gpadc);
+	int ret;
+
+	ret = of_property_read_u32(np, "gpadc-number", &usb->id_gpadc);
+	if (ret) {
+		pr_err("cannot get gpadc number.\n");
+		return -EINVAL;
+	}
+
+	usb->id_ov_sampling = of_property_read_bool(np, "id-ov-sampling");
+
+	if (usb->id_ov_sampling) {
+		ret = of_property_read_u32(np, "id-ov-samp-count", &usb->id_ov_samp_count);
+		if (ret) {
+			pr_err("cannot get id measurments count.\n");
+			return -EINVAL;
+		}
+
+		ret = of_property_read_u32(np, "id-ov-samp-sleep", &usb->id_ov_samp_sleep);
+		if (ret) {
+			pr_err("cannot get id sleep time.\n");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
 }
 
 static void pm88x_vbus_fixup(struct pm88x_vbus_info *info)
@@ -389,7 +644,7 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct pm88x_vbus_info *usb;
 	struct device_node *node = pdev->dev.of_node;
-	int ret;
+	int ret, current_range;
 
 	/* vbus_info global variable used by get/set_vbus */
 	vbus_info = usb = devm_kzalloc(&pdev->dev,
@@ -402,11 +657,20 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 		usb->id_gpadc = PM88X_NO_GPADC;
 
 	usb->chip = chip;
+	usb->id_level = 1;
+	usb->chg_in = 0;
 
+	current_range = get_current_range(chip);
+	if (current_range < 0) {
+		dev_err(chip->dev, "what happened to vbus?\n");
+		return -EINVAL;
+	}
+
+	/* set new range */
+	config_vbus_threshold(chip, current_range);
 	/* do it before enable interrupt */
 	pm88x_vbus_fixup(usb);
 
-#ifndef CONFIG_USB_NOTIFY_LAYER
 	usb->vbus_irq = platform_get_irq(pdev, 0);
 	if (usb->vbus_irq < 0) {
 		dev_err(&pdev->dev, "failed to get vbus irq\n");
@@ -414,15 +678,13 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	/* global variable used by get/set_vbus */
-	vbus_info = usb;
-
 	INIT_DELAYED_WORK(&usb->pxa_notify, pm88x_pxa_notify);
+	INIT_WORK(&usb->meas_id_work, pm88x_meas_id_work);
 
 	ret = devm_request_threaded_irq(&pdev->dev, usb->vbus_irq, NULL,
 					pm88x_vbus_handler,
 					IRQF_ONESHOT | IRQF_NO_SUSPEND,
-					"usb detect", usb);
+					"vbus detect", usb);
 	if (ret) {
 		dev_info(&pdev->dev,
 			"cannot request irq for VBUS, return\n");
@@ -449,34 +711,26 @@ static int pm88x_vbus_probe(struct platform_device *pdev)
 			goto out;
 		}
 	}
-#else
-	/* global variable used by get/set_vbus */
-	vbus_info = usb;
-#endif
+
 	platform_set_drvdata(pdev, usb);
 	device_init_wakeup(&pdev->dev, 1);
 
-#ifndef CONFIG_USB_NOTIFY_LAYER
 	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, set_vbus,
 				pm88x_set_vbus);
 	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, get_vbus,
 				pm88x_get_vbus);
+
 	if (usb->id_gpadc != PM88X_NO_GPADC) {
 		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, get_idpin,
-					pm88x_read_id_val);
+					pm88x_ext_read_id_level);
 		pxa_usb_set_extern_call(PXA_USB_DEV_OTG, idpin, init,
 					pm88x_init_id);
 	}
-#else
-	pxa_usb_set_extern_call(PXA_USB_DEV_OTG, vbus, pm_usb_sw,
-				pm88x_usb_sw_setting);
-#endif
+
 	return 0;
 
-#ifndef CONFIG_USB_NOTIFY_LAYER
 out:
 	return ret;
-#endif
 }
 
 static int pm88x_vbus_remove(struct platform_device *pdev)
@@ -514,7 +768,7 @@ static void pm88x_vbus_exit(void)
 }
 module_exit(pm88x_vbus_exit);
 
-MODULE_DESCRIPTION("VBUS driver for Marvell Semiconductor 88PM886");
+MODULE_DESCRIPTION("VBUS driver for Marvell Semiconductor 88PM88X");
 MODULE_AUTHOR("Shay Pathov <shayp@marvell.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:88pm88x-vbus");

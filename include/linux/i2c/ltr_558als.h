@@ -130,6 +130,8 @@
 
 struct ltr558_pls_platform_data {
 	int irq_gpio_number;
+	char const *prox_name;
+	char const *als_name;
 };
 
 #endif

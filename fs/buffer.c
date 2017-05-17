@@ -227,7 +227,7 @@ __find_get_block_slow(struct block_device *bdev, sector_t block)
 	int all_mapped = 1;
 
 	index = block >> (PAGE_CACHE_SHIFT - bd_inode->i_blkbits);
-	page = find_get_page(bd_mapping, index);
+	page = find_get_page_flags(bd_mapping, index, FGP_ACCESSED);
 	if (!page)
 		goto out;
 
@@ -643,13 +643,6 @@ void mark_buffer_dirty_inode(struct buffer_head *bh, struct inode *inode)
 	}
 }
 EXPORT_SYMBOL(mark_buffer_dirty_inode);
-
-void mark_buffer_dirty_inode_sync(struct buffer_head *bh, struct inode *inode)
-{
-	set_buffer_sync_flush(bh);
-	mark_buffer_dirty_inode(bh, inode);
-}
-EXPORT_SYMBOL(mark_buffer_dirty_inode_sync);
 
 /*
  * Mark the page dirty, and set it dirty in the radix tree, and mark the inode
@@ -1198,34 +1191,6 @@ void mark_buffer_dirty(struct buffer_head *bh)
 }
 EXPORT_SYMBOL(mark_buffer_dirty);
 
-void mark_buffer_dirty_sync(struct buffer_head *bh)
-{
-	WARN_ON_ONCE(!buffer_uptodate(bh));
-
-	/*
-	 * Very *carefully* optimize the it-is-already-dirty case.
-	 *
-	 * Don't let the final "is it dirty" escape to before we
-	 * perhaps modified the buffer.
-	 */
-	if (buffer_dirty(bh)) {
-		smp_mb();
-		if (buffer_dirty(bh))
-			return;
-	}
-
-	set_buffer_sync_flush(bh);
-	if (!test_set_buffer_dirty(bh)) {
-		struct page *page = bh->b_page;
-		if (!TestSetPageDirty(page)) {
-			struct address_space *mapping = page_mapping(page);
-			if (mapping)
-				__set_page_dirty(page, mapping, 0);
-		}
-	}
-}
-EXPORT_SYMBOL(mark_buffer_dirty_sync);
-
 /*
  * Decrement a buffer_head's reference count.  If all buffers against a page
  * have zero reference count, are clean and unlocked, and if the page is clean
@@ -1402,12 +1367,13 @@ __find_get_block(struct block_device *bdev, sector_t block, unsigned size)
 	struct buffer_head *bh = lookup_bh_lru(bdev, block, size);
 
 	if (bh == NULL) {
+		/* __find_get_block_slow will mark the page accessed */
 		bh = __find_get_block_slow(bdev, block);
 		if (bh)
 			bh_lru_install(bh);
-	}
-	if (bh)
+	} else
 		touch_buffer(bh);
+
 	return bh;
 }
 EXPORT_SYMBOL(__find_get_block);
@@ -1519,16 +1485,27 @@ EXPORT_SYMBOL(set_bh_page);
 /*
  * Called when truncating a buffer on a page completely.
  */
+
+/* Bits that are cleared during an invalidate */
+#define BUFFER_FLAGS_DISCARD \
+	(1 << BH_Mapped | 1 << BH_New | 1 << BH_Req | \
+	 1 << BH_Delay | 1 << BH_Unwritten)
+
 static void discard_buffer(struct buffer_head * bh)
 {
+	unsigned long b_state, b_state_old;
+
 	lock_buffer(bh);
 	clear_buffer_dirty(bh);
 	bh->b_bdev = NULL;
-	clear_buffer_mapped(bh);
-	clear_buffer_req(bh);
-	clear_buffer_new(bh);
-	clear_buffer_delay(bh);
-	clear_buffer_unwritten(bh);
+	b_state = bh->b_state;
+	for (;;) {
+		b_state_old = cmpxchg(&bh->b_state, b_state,
+				      (b_state & ~BUFFER_FLAGS_DISCARD));
+		if (b_state_old == b_state)
+			break;
+		b_state = b_state_old;
+	}
 	unlock_buffer(bh);
 }
 
@@ -3095,11 +3072,6 @@ int _submit_bh(int rw, struct buffer_head *bh, unsigned long bio_flags)
 		rw |= REQ_META;
 	if (buffer_prio(bh))
 		rw |= REQ_PRIO;
-
-	if(buffer_sync_flush(bh)) {
-		rw |= REQ_SYNC;
-		clear_buffer_sync_flush(bh);
-	}
 
 	bio_get(bio);
 	submit_bio(rw, bio);

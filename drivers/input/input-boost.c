@@ -27,8 +27,7 @@
 #include <linux/uaccess.h>
 
 #define DEFAULT_BOOST_TIME		200000
-#define MAX_FREQ			0x7FFFFFFF
-#define MIN_DDR_FREQ			416000
+#define MAX_FREQ		0x7FFFFFFF
 
 struct input_boost_config {
 	unsigned long boost_cpu_freq;
@@ -61,7 +60,7 @@ static struct input_boost_config boost_config = {
 #ifdef CONFIG_ARM_MMP_BL_CPUFREQ
 	MAX_FREQ, DEFAULT_BOOST_TIME,
 #endif
-	MIN_DDR_FREQ, DEFAULT_BOOST_TIME,
+	MAX_FREQ, DEFAULT_BOOST_TIME,
 	MAX_FREQ, DEFAULT_BOOST_TIME,
 	MAX_FREQ, DEFAULT_BOOST_TIME,
 	MAX_FREQ, DEFAULT_BOOST_TIME,
@@ -84,7 +83,6 @@ static struct pm_qos_request touchboost_ddr_qos_min = {
 };
 #endif
 
-#if 0
 static struct pm_qos_request touchboost_gpu3d_qos_min = {
 	.name = "input_boost",
 };
@@ -97,12 +95,10 @@ static struct pm_qos_request touchboost_gpush_qos_min = {
 	.name = "input_boost",
 };
 
-
 #ifdef CONFIG_VPU_DEVFREQ
 static struct pm_qos_request touchboost_vpu_qos_min = {
 	.name = "input_boost",
 };
-#endif
 #endif
 
 static unsigned int boost_enabled;
@@ -119,7 +115,6 @@ static struct work_struct inputboost_wk;
  */
 static void inputboost_work(struct work_struct *w)
 {
-#ifndef CONFIG_INPUT_BOOSTER
 	/* boost cpu to max frequency 200ms by default */
 	if (boost_config.boost_cpu_time)
 		pm_qos_update_request_timeout(&inputboost_cpu_qos_min,
@@ -130,7 +125,6 @@ static void inputboost_work(struct work_struct *w)
 		pm_qos_update_request_timeout(&inputboost_big_cpu_qos_min,
 				boost_config.boost_big_cpu_freq, boost_config.boost_big_cpu_time);
 #endif
-#endif
 
 #ifdef CONFIG_DDR_DEVFREQ
 	/* boost ddr to a limit frequency */
@@ -138,8 +132,6 @@ static void inputboost_work(struct work_struct *w)
 		pm_qos_update_request_timeout(&touchboost_ddr_qos_min,
 				boost_config.boost_ddr_freq, boost_config.boost_ddr_time);
 #endif
-
-#if 0
 	/* boost gpu0(3D) to a limit frequency */
 	if (boost_config.boost_gc3d_time)
 		pm_qos_update_request_timeout(&touchboost_gpu3d_qos_min,
@@ -155,13 +147,11 @@ static void inputboost_work(struct work_struct *w)
 		pm_qos_update_request_timeout(&touchboost_gpush_qos_min,
 				boost_config.boost_gcsh_freq, boost_config.boost_gcsh_time);
 
-
 #ifdef CONFIG_VPU_DEVFREQ
 	/* boost vpu to a limit frequency */
 	if (boost_config.boost_vpu_time)
 		pm_qos_update_request_timeout(&touchboost_vpu_qos_min,
 				boost_config.boost_vpu_freq, boost_config.boost_vpu_time);
-#endif
 #endif
 
 }
@@ -358,8 +348,6 @@ static int __init boost_init(void)
 	pm_qos_add_request(&touchboost_ddr_qos_min,
 		   PM_QOS_DDR_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
 #endif
-
-#if 0
 	pm_qos_add_request(&touchboost_gpu3d_qos_min,
 		PM_QOS_GPUFREQ_3D_MIN, PM_QOS_DEFAULT_VALUE);
 
@@ -369,11 +357,9 @@ static int __init boost_init(void)
 	pm_qos_add_request(&touchboost_gpush_qos_min,
 		PM_QOS_GPUFREQ_SH_MIN, PM_QOS_DEFAULT_VALUE);
 
-
 #ifdef CONFIG_VPU_DEVFREQ
 	pm_qos_add_request(&touchboost_vpu_qos_min,
 		PM_QOS_VPU_DEVFREQ_MIN, PM_QOS_DEFAULT_VALUE);
-#endif
 #endif
 
 	INIT_WORK(&inputboost_wk, inputboost_work);

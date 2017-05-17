@@ -1094,7 +1094,7 @@ void crash_kexec(struct pt_regs *regs)
 	 * sufficient.  But since I reuse the memory...
 	 */
 	if (mutex_trylock(&kexec_mutex)) {
-#ifndef CONFIG_SEC_DEBUG
+#ifndef	CONFIG_MRVL_PANIC_FLUSH
 		if (kexec_crash_image) {
 #endif
 			struct pt_regs fixed_regs;
@@ -1102,7 +1102,7 @@ void crash_kexec(struct pt_regs *regs)
 			crash_setup_regs(&fixed_regs, regs);
 			crash_save_vmcoreinfo();
 			machine_crash_shutdown(&fixed_regs);
-#ifndef CONFIG_SEC_DEBUG
+#ifndef	CONFIG_MRVL_PANIC_FLUSH
 			machine_kexec(kexec_crash_image);
 		}
 #endif

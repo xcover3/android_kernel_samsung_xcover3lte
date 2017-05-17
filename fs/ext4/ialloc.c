@@ -320,9 +320,6 @@ out:
 		if (!fatal)
 			fatal = err;
 	} else {
-		/* for debugging, sangwoo2.lee */
-		print_bh(sb, bitmap_bh, 0, EXT4_BLOCK_SIZE(sb));
-		/* for debugging */
 		ext4_error(sb, "bit already cleared for inode %lu", ino);
 		set_bit(EXT4_GROUP_INFO_IBITMAP_CORRUPT_BIT, &grp->bb_state);
 	}

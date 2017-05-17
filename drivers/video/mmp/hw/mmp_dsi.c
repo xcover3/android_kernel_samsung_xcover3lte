@@ -39,14 +39,6 @@
 #include <video/mipi_display.h>
 #include "mmp_ctrl.h"
 #include "mmp_dsi.h"
-#include <linux/timer.h>
-
-#ifdef CONFIG_MMP_ADAPTIVE_FPS
-static void count_fps_work(struct work_struct *pwork);
-extern int adaptive_fps_init(struct device *dev);
-extern void adaptive_fps_uninit(struct device *dev);
-extern void update_fps(struct mmp_dsi *mmp_dsi, unsigned int fps);
-#endif
 
 /* dsi phy timing */
 static struct dsi_phy_timing dphy_timing = {
@@ -554,15 +546,15 @@ static void dsi_set_dphy_timing(struct mmp_dsi *dsi)
 	reg = (ck_exit << DSI_PHY_TIME_2_CFG_CSR_TIME_CK_EXIT_SHIFT)
 		| (ck_trail << DSI_PHY_TIME_2_CFG_CSR_TIME_CK_TRAIL_SHIFT)
 		| (ck_zero << DSI_PHY_TIME_2_CFG_CSR_TIME_CK_ZERO_SHIFT)
-		| (lpx_clk - 1);
+		| lpx_clk;
 	writel_relaxed(reg, phy_timing2_reg);
 
-	reg = ((lpx_clk - 1) << DSI_PHY_TIME_3_CFG_CSR_TIME_LPX_SHIFT) |
+	reg = (lpx_clk << DSI_PHY_TIME_3_CFG_CSR_TIME_LPX_SHIFT) |
 	      dphy_timing.req_ready;
 	writel_relaxed(reg, phy_timing3_reg);
 }
 
-void dsi_set_ctrl0(struct mmp_dsi_regs *dsi_regs,
+static void dsi_set_ctrl0(struct mmp_dsi_regs *dsi_regs,
 		u32 mask, u32 set)
 {
 	u32 tmp;
@@ -661,13 +653,13 @@ static void dsi_set_video_panel(struct mmp_dsi *dsi)
 	hex_b = to_dsi_bcnt(DSI_EX_PIXEL_CNT, bpp);
 	httl_b = hact_b + hsync_b + hfp_b + hbp_b + hex_b;
 
+	slot_cnt0 = slot_cnt1 = (httl_b - hact_b) / dsi->setting.lanes + 3;
 	hact = hact_b / dsi->setting.lanes;
 	hfp = hfp_b / dsi->setting.lanes;
 	hbp = hbp_b / dsi->setting.lanes;
 	hsync = hsync_b / dsi->setting.lanes;
 	httl = (hact_b + hfp_b + hbp_b + hsync_b) / dsi->setting.lanes;
 
-	slot_cnt0 = slot_cnt1 = httl - hact + 3;
 	/* word count in the unit of byte */
 	hsa_wc = (dsi->setting.burst_mode == DSI_BURST_MODE_SYNC_PULSE) ?
 		(hsync_b - hss_bcnt - lgp_over_head) : 0;
@@ -936,7 +928,7 @@ static unsigned long clk_calculate(struct mmp_dsi *dsi)
 	struct mmp_path *path = mmp_get_path(dsi->plat_path_name);
 	struct mmphw_ctrl *ctrl = path_to_ctrl(path);
 	struct mmp_mode *mode = &dsi->mode;
-	u32 total_w, total_h, byteclk, bitclk, bitclk_div = 1, bpp, rgb_type, refresh;
+	u32 total_w, total_h, byteclk, bitclk, bitclk_div = 1, bpp, rgb_type;
 
 	bpp = dsi_get_rgb_type_from_inputfmt(mode->pix_fmt_out, &rgb_type);
 	if (unlikely(!bpp))
@@ -944,9 +936,8 @@ static unsigned long clk_calculate(struct mmp_dsi *dsi)
 	if (get_total_screen_size(mode, &total_w, &total_h) < 0)
 		return 0;
 
-	refresh = mode->real_refresh ? mode->real_refresh : mode->refresh;
 	byteclk = ((total_w * (bpp >> 3)) * total_h *
-			refresh) / dsi->setting.lanes;
+			 mode->refresh) / dsi->setting.lanes;
 	bitclk = byteclk << 3;
 
 	/* The minimum of DSI pll is 150MHz */
@@ -1009,9 +1000,8 @@ static void dsi_ulps_set_on(struct mmp_dsi_port *dsi_port, int status)
 			DSI_CTRL_0_CFG_LCD1_TX_EN | DSI_CTRL_0_CFG_LCD1_EN,
 			0x0);
 
-		if (!dsi->setting.non_continuous_clk)
-			/* disable continuous clock */
-			dsi_set_dphy_ctrl1(dsi_regs, 0x1, 0x0, dsi->version);
+		/* disable continuous clock */
+		dsi_set_dphy_ctrl1(dsi_regs, 0x1, 0x0, dsi->version);
 
 		/* reset DSI modules */
 		dsi_set_ctrl0(dsi_regs, 0x0, DSI_CTRL_0_CFG_SOFT_RST);
@@ -1051,8 +1041,8 @@ static void dsi_set_on(struct mmp_dsi *dsi, int status)
 		dsi_set_dphy_ctrl1(dsi_regs, 0, DPHY_CFG_VDD_VALID,
 				dsi->version);
 
-		if (path && path->panel && path->panel->set_power)
-			path->panel->set_power(path->panel, MMP_ON);
+		/* turn on DSI continuous clock for HS */
+		dsi_set_dphy_ctrl1(dsi_regs, 0x0, 0x1, dsi->version);
 
 		/* set dphy timing */
 		dsi_set_dphy_timing(dsi);
@@ -1063,10 +1053,6 @@ static void dsi_set_on(struct mmp_dsi *dsi, int status)
 		if (path && path->panel && path->panel->set_status)
 			path->panel->set_status(path->panel, MMP_ON);
 
-		if (!dsi->setting.non_continuous_clk)
-			/* turn on DSI continuous clock for HS */
-			dsi_set_dphy_ctrl1(dsi_regs, 0x0, 0x1, dsi->version);
-
 		/* set video panel */
 		dsi_set_video_panel(dsi);
 
@@ -1075,18 +1061,13 @@ static void dsi_set_on(struct mmp_dsi *dsi, int status)
 		if (path && path->panel && path->panel->panel_start)
 			path->panel->panel_start(path->panel, 1);
 	} else {
-		if (path && path->panel && path->panel->panel_start)
-			path->panel->panel_start(path->panel, 0);
-
+		if (path && path->panel && path->panel->set_status)
+			path->panel->set_status(path->panel, MMP_OFF);
 		/* disable data lanes */
 		dsi_lanes_enable(dsi, 0);
 
-		if (!dsi->setting.non_continuous_clk)
-			/* disable continuous clock for HS */
-			dsi_set_dphy_ctrl1(dsi_regs, 0x1, 0x0, dsi->version);
-
-		if (path && path->panel && path->panel->set_status)
-			path->panel->set_status(path->panel, MMP_OFF);
+		/* disable continuous clock for HS */
+		dsi_set_dphy_ctrl1(dsi_regs, 0x1, 0x0, dsi->version);
 
 		/* digital and analog power off */
 		dsi_set_dphy_ctrl1(dsi_regs, DPHY_CFG_VDD_VALID, 0,
@@ -1330,7 +1311,7 @@ static int mmp_dsi_probe_dt(struct platform_device *pdev, struct mmp_dsi *dsi)
 	} else {
 		dsi->setting.master_mode = 1;
 		dsi->setting.hfp_en = 0;
-		dsi->setting.hbp_en = 0;
+		dsi->setting.hbp_en = 1;
 	}
 	return 0;
 out:
@@ -1388,7 +1369,6 @@ static int mmp_dsi_probe(struct platform_device *pdev)
 		dsi->setting.hbp_en = mi->hbp_en;
 		dsi->setting.hfp_en = mi->hfp_en;
 		dsi->setting.master_mode = 1;
-		dsi->setting.non_continuous_clk = 0;
 	}
 	dsi->dev = &pdev->dev;
 	dsi->set_status = dsi_set_status;
@@ -1456,39 +1436,9 @@ static int mmp_dsi_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-#ifdef CONFIG_MMP_ADAPTIVE_FPS
-	ret = adaptive_fps_init(&pdev->dev);
-	if (ret < 0) {
-		dev_err(dsi->dev, "%s: Failed to register dsi dbg interface\n", __func__);
-		goto failed;
-	}
-
-	{
-		extern void mmp_register_adaptive_fps_handler(struct device *,
-				struct mmp_vsync *);
-		mmp_register_adaptive_fps_handler(dsi->dev, &dsi->special_vsync);
-	}
-
-	dsi->framecnt =
-		(struct mmp_framecnt *)kmalloc(sizeof(struct mmp_framecnt), GFP_KERNEL);
-	dsi->framecnt->dsi= dsi;
-
-	dsi->framecnt->wq =
-		alloc_workqueue("fps-cnt", WQ_HIGHPRI |
-				WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
-	if (!dsi->framecnt->wq) {
-		pr_info("%s, Adaptive fps alloc_workqueue failed \n", __func__);
-		return 0;
-	}
-	INIT_WORK(&dsi->framecnt->work, count_fps_work);
-
-	atomic_set(&dsi->framecnt->frame_cnt, 0);
-	dsi->framecnt->is_doing_wq = 0;
-#endif
 #ifdef CONFIG_MMP_DISP_DFC
 	mmp_register_dfc_handler(dsi->dev, &dsi->special_vsync);
 #endif
-
 
 	return 0;
 failed:
@@ -1501,45 +1451,10 @@ failed:
 	return ret;
 }
 
-#ifdef CONFIG_MMP_ADAPTIVE_FPS
-static void count_fps_work(struct work_struct *pwork)
-{
-	struct mmp_framecnt *pframecnt =
-		container_of(pwork, struct mmp_framecnt, work);
-	struct mmp_dsi *dsi= pframecnt->dsi;
-	struct mmp_mode *mode = &dsi->mode;
-	int ori_fps = dsi->framecnt->default_fps;
-	int cur_fps = 0;
-
-	pframecnt->is_doing_wq = 1;
-
-	if (mode->real_refresh != ori_fps)
-		update_fps(dsi, ori_fps);
-
-	while (1) {
-		cur_fps = atomic_read(&dsi->framecnt->frame_cnt);
-		msleep(dsi->framecnt->wait_time);
-
-		if (cur_fps == (int)atomic_read(&dsi->framecnt->frame_cnt)) {
-			update_fps(dsi, dsi->framecnt->switch_fps);
-			atomic_set(&dsi->framecnt->frame_cnt, 0);
-			pframecnt->is_doing_wq = 0;
-			return;
-		}
-
-		atomic_set(&dsi->framecnt->frame_cnt, 0);
-	}
-}
-#endif
-
 static int mmp_dsi_remove(struct platform_device *pdev)
 {
 	struct mmp_dsi *dsi = platform_get_drvdata(pdev);
 
-#ifdef CONFIG_MMP_ADAPTIVE_FPS
-	adaptive_fps_uninit(dsi->dev);
-	destroy_workqueue(dsi->framecnt->wq);
-#endif
 	dsi_dbg_uninit(dsi->dev);
 	mmp_unregister_dsi(dsi);
 	platform_set_drvdata(pdev, NULL);

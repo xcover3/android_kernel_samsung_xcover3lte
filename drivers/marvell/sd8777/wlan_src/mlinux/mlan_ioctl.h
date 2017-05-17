@@ -69,6 +69,7 @@ enum _mlan_ioctl_req_id {
 #ifdef UAP_SUPPORT
 	MLAN_OID_UAP_CFG_WMM_PARAM = 0x00020015,
 #endif
+	MLAN_OID_BSS_11D_CHECK_CHANNEL = 0x00020016,
 
 	/* Radio Configuration Group */
 	MLAN_IOCTL_RADIO_CFG = 0x00030000,
@@ -1012,6 +1013,16 @@ typedef struct _mlan_ds_band_cfg {
 	t_u32 fw_bands;
 } mlan_ds_band_cfg;
 
+/** Type definition of mlan_ds_ant_cfg_1x1 for MLAN_OID_ANT_CFG */
+typedef struct _mlan_ds_ant_cfg_1x1 {
+    /** Antenna mode */
+	t_u32 antenna;
+    /** Evaluate time */
+	t_u16 evaluate_time;
+    /** Current antenna */
+	t_u16 current_antenna;
+} mlan_ds_ant_cfg_1x1, *pmlan_ds_ant_cfg_1x1;
+
 #ifdef WIFI_DIRECT_SUPPORT
 /** Type definition of mlan_ds_remain_chan for MLAN_OID_REMAIN_CHAN_CFG */
 typedef struct _mlan_ds_remain_chan {
@@ -1039,7 +1050,7 @@ typedef struct _mlan_ds_radio_cfg {
 	/** Band info for MLAN_OID_BAND_CFG */
 		mlan_ds_band_cfg band_cfg;
 	/** Antenna info for MLAN_OID_ANT_CFG */
-		t_u32 antenna;
+		mlan_ds_ant_cfg_1x1 ant_cfg_1x1;
 #ifdef WIFI_DIRECT_SUPPORT
 	/** remain on channel for MLAN_OID_REMAIN_CHAN_CFG */
 		mlan_ds_remain_chan remain_chan;
@@ -3101,6 +3112,10 @@ typedef struct _mlan_ds_misc_rx_packet_coalesce {
 	t_u16 delay;
 } mlan_ds_misc_rx_packet_coalesce;
 #endif
+
+#define WOWLAN_MAX_PATTERN_LEN		20
+#define WOWLAN_MAX_OFFSET_LEN		50
+#define MAX_NUM_FILTERS              10
 
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {

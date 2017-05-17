@@ -426,8 +426,8 @@ static void giveback(struct driver_data *drv_data)
 			cs_deassert(drv_data);
 	}
 
-	spi_finalize_current_message(drv_data->master);
 	drv_data->cur_chip = NULL;
+	spi_finalize_current_message(drv_data->master);
 	unset_dvfm_constraint(drv_data);
 }
 
@@ -593,8 +593,9 @@ static irqreturn_t pxa2xx_spi_int(int irq, void *dev_id)
 		return IRQ_NONE;
 
 	if (!drv_data->cur_msg) {
-
+		/* Disable SSPx port */
 		write_SSCR0(read_SSCR0(reg) & ~SSCR0_SSE, reg);
+		/* Disable TXFIFO/RXFIFO/RX-Timeout interrupt */
 		write_SSCR1(read_SSCR1(reg) & ~drv_data->int_cr1, reg);
 		if (!pxa25x_ssp_comp(drv_data))
 			write_SSTO(0, reg);
@@ -777,8 +778,10 @@ static void pump_transfers(unsigned long data)
 					    SSCR2_RD_ENDIAN_16BITS;
 			bits = 32;
 			drv_data->n_bytes = 4;
-			drv_data->read = u32_reader;
-			drv_data->write = u32_writer;
+			drv_data->read = drv_data->read != null_reader ?
+				u32_reader : null_reader;
+                        drv_data->write = drv_data->write != null_writer ?
+				u32_writer : null_writer;
 
 			if (chip->enable_dma) {
 				if (pxa2xx_spi_set_dma_burst_and_threshold(chip,
@@ -802,7 +805,6 @@ static void pump_transfers(unsigned long data)
 	if (pxa2xx_spi_dma_is_possible(drv_data->len))
 		drv_data->dma_mapped = pxa2xx_spi_map_dma_buffers(drv_data);
 	if (drv_data->dma_mapped) {
-
 		/* Ensure we have the correct interrupt handler */
 		drv_data->transfer_handler = pxa2xx_spi_dma_transfer;
 
@@ -828,6 +830,7 @@ static void pump_transfers(unsigned long data)
 		if ((read_SSITF(reg) & 0xffff) != chip->lpss_tx_threshold)
 			write_SSITF(chip->lpss_tx_threshold, reg);
 	}
+
 
 	/* see if we need to reload the config registers */
 	if ((read_SSCR0(reg) != cr0)
@@ -933,6 +936,7 @@ static int setup(struct spi_device *spi)
 	struct driver_data *drv_data = spi_master_get_devdata(spi->master);
 	unsigned int clk_div;
 	uint tx_thres, tx_hi_thres, rx_thres;
+	int ret = 0;
 
 	if (is_lpss_ssp(drv_data)) {
 		tx_thres = LPSS_TX_LOTHRESH_DFLT;
@@ -961,10 +965,14 @@ static int setup(struct spi_device *spi)
 				kfree(chip);
 				return -EINVAL;
 			}
-
 			chip->frm = spi->chip_select;
-		} else
+		} else if (drv_data->ssp_nor_flash) {
+			chip->gpio_cs = spi->cs_gpio;
+			chip->gpio_cs_inverted = spi->mode & SPI_CS_HIGH;
+		}
+		else
 			chip->gpio_cs = -1;
+
 		chip->enable_dma = 0;
 		chip->timeout = TIMOUT_DFLT;
 	}
@@ -1013,8 +1021,13 @@ static int setup(struct spi_device *spi)
 		}
 	}
 
-	/* clk_div represent to Bit17-8 bits of CS0 */
+	/* clk_div represent to Bit19-8 bits of CS0 */
 	clk_div = ssp_get_clk_div(drv_data, spi->max_speed_hz);
+
+	/* Clock rate setting not in SSCR0 for Marvell SSP2 */
+	if (drv_data->ssp_nor_flash)
+		clk_set_rate(drv_data->clk, spi->max_speed_hz);
+
 	chip->speed_hz = spi->max_speed_hz;
 
 	chip->cr0 = clk_div
@@ -1030,8 +1043,12 @@ static int setup(struct spi_device *spi)
 	if (spi->mode & SPI_LOOP)
 		chip->cr1 |= SSCR1_LBM;
 
+	if (drv_data->ssp_nor_flash)
+		dev_dbg(&spi->dev, "%ld Hz actual, %s\n",
+			clk_get_rate(drv_data->clk),
+			chip->enable_dma ? "DMA" : "PIO");
 	/* NOTE:  PXA25x_SSP _could_ use external clocking ... */
-	if (!pxa25x_ssp_comp(drv_data))
+	else if (!pxa25x_ssp_comp(drv_data))
 		dev_dbg(&spi->dev, "%ld Hz actual, %s\n",
 			drv_data->max_clk_rate
 				/ (1 + ((chip->cr0 & SSCR0_SCR(0xfff)) >> 8)),
@@ -1041,7 +1058,6 @@ static int setup(struct spi_device *spi)
 			drv_data->max_clk_rate / 2
 				/ (1 + ((chip->cr0 & SSCR0_SCR(0x0ff)) >> 8)),
 			chip->enable_dma ? "DMA" : "PIO");
-
 
 	/* Enable rx fifo auto full control */
 	if (drv_data->ssp_enhancement)
@@ -1066,7 +1082,21 @@ static int setup(struct spi_device *spi)
 	spi_set_ctldata(spi, chip);
 
 	if (drv_data->ssp_type == CE4100_SSP)
-		return 0;
+		return ret;
+
+	/* Configure SSP2_FRM as GPIO for SPI #CS */
+	if (drv_data->ssp_nor_flash && gpio_is_valid(chip->gpio_cs)) {
+		ret = gpio_request(chip->gpio_cs, dev_name(&spi->dev));
+		if (ret) {
+			dev_err(&spi->dev, "failed to request chip select GPIO%d\n",
+				 chip->gpio_cs);
+			return ret;
+		}
+
+		ret = gpio_direction_output(chip->gpio_cs,
+					!chip->gpio_cs_inverted);
+		return ret;
+	}
 
 	return setup_cs(spi, chip, chip_info);
 }
@@ -1228,6 +1258,11 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	/* Receive FIFO auto full ctrl enable */
 	if (of_get_property(np, "marvell,ssp-enhancement", NULL))
 		drv_data->ssp_enhancement = 1;
+
+	/* Use SSP2 port for SPI Nor flash */
+	if (of_get_property(np, "marvell,ssp-nor-flash", NULL))
+		drv_data->ssp_nor_flash = 1;
+
 	/*
 	 * the null DMA buf should malloc form DMA_ZONE
 	 * and align of DMA_ALIGNMENT
@@ -1267,7 +1302,6 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		master->bus_num = bus_num;
 	drv_data->ssdr_physical = iores->start + SSDR;
 	drv_data->clk = devm_clk_get(dev, NULL);
-
 #else
 	ssp = pxa_ssp_request(pdev->id, pdev->name);
 	if (!ssp)
@@ -1356,6 +1390,11 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	tasklet_init(&drv_data->pump_transfers, pump_transfers,
 		     (unsigned long)drv_data);
 
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 50);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+
 	/* Register with the SPI framework */
 	platform_set_drvdata(pdev, drv_data);
 	status = devm_spi_register_master(&pdev->dev, master);
@@ -1363,11 +1402,6 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "problem registering spi master\n");
 		goto out_error_clock_enabled;
 	}
-
-	pm_runtime_set_autosuspend_delay(&pdev->dev, 50);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	return status;
 

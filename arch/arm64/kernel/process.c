@@ -277,9 +277,9 @@ void __show_regs(struct pt_regs *regs)
 	       regs->pc, lr, regs->pstate);
 	pr_info("sp : %016llx\n", sp);
 	for (i = top_reg; i >= 0; i--) {
-		printk("R%-2d: %016llx ", i, regs->regs[i]);
+		pr_info("R%-2d: %016llx ", i, regs->regs[i]);
 		if (i % 2 == 0)
-			printk("\n");
+			pr_info("\n");
 	}
 	pr_info("\n");
 	show_extra_register_data(regs, 128);

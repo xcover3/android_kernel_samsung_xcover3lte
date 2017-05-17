@@ -102,21 +102,6 @@ typedef struct _datahandle {
 	struct _datahandle *next;
 } DATAHANDLELIST;
 
-typedef struct {
-	UINT32 cid;
-	UINT32 len;		/* length of databuf */
-	UINT8 *databuf;
-} GCFDATA;
-
-#ifdef CONFIG_COMPAT
-#include <linux/compat.h>
-struct GCFDATA32 {
-	UINT32 cid;
-	UINT32 len;		/* length of databuf */
-	compat_uptr_t databuf;
-};
-#endif
-
 typedef enum CIDATTYPE_TAG {
 
 	CI_DAT_TYPE_PPP = 0,    /**< PPP */

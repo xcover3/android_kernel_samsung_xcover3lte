@@ -26,6 +26,9 @@
 #define FW_FILE_V325          "ispfw_v325.bin"
 #define FW_FILE_V326          "ispfw_v326.bin"
 
+#define ISP_FW325 0x25
+#define ISP_FW326 0x26
+
 enum mcu_cmd_name {
 	CMD_TEST = 0,
 	CMD_RAW_DUMP,
@@ -94,7 +97,7 @@ struct b52isp_cmd {
 	/* A source can be a image sensor or memory input */
 	union {
 		const void				*memory_sensor_data;
-		struct v4l2_subdev		*sensor;
+		struct v4l2_subdev		*hsd;
 	};
 	struct {
 		int			axi_id;
@@ -125,6 +128,7 @@ int b52_load_fw(struct device *dev, void __iomem *base, int enable,
 int b52_get_metadata_len(int path);
 int b52_hdl_cmd(struct b52isp_cmd *cmd);
 int b52_ctrl_mac_irq(u8 mac_id, u8 port_id, int enable);
+void b52_enable_mac_clk(u8 mac_id, int enable);
 void b52_clear_mac_rdy_bit(u8 mac, u8 port);
 void b52_clear_overflow_flag(u8 mac, u8 port);
 int b52_update_mac_addr(dma_addr_t *addr, dma_addr_t meta,
@@ -183,9 +187,6 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 #define DATA_BGAIN            (DATA_BUF_START + 0x232)
 #define DATA_GGAIN            (DATA_BUF_START + 0x234)
 #define DATA_RGAIN            (DATA_BUF_START + 0x236)
-
-/*VTS apply to sensor*/
-#define VTS_SYNC_TO_SENSOR            (0x3303d)
 
 /* CMD set registers */
 #define CMD_REG0            (0x63900)
@@ -389,9 +390,16 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 	#define MCU_SW_RST		(0x1)
 	#define RELEASE_SW_RST		(0x0)
 #define REG_TOP_CLK_RST0	(0x6301a)
+	#define SCCB_1_CLK_EN   (0x1 << 5)
+	#define SCCB_2_CLK_EN   (0x1 << 6)
 #define REG_TOP_CLK_RST1	(0x6301b)
+	#define MAC_1_CLK_EN    (0x1 << 4)
+	#define MAC_2_CLK_EN    (0x1 << 5)
+	#define PIPE_1_CLK_EN   (0x1 << 6)
+	#define PIPE_2_CLK_EN   (0x1 << 7)
 #define REG_TOP_CLK_RST2	(0x6301c)
 #define REG_TOP_CLK_RST3	(0x6301d)
+	#define MAC_3_CLK_EN    (0x1 << 4)
 #define REG_TOP_CORE_CTRL0_H	(0x63022)
 #define REG_TOP_CORE_CTRL0_L	(0x63023)
 #define REG_TOP_CORE_CTRL1_H	(0x63024)
@@ -423,6 +431,11 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 #define REG_ISP_TOP11                (0xb)
 #define REG_ISP_TOP12                (0xc)
 #define REG_ISP_TOP13                (0xd)
+
+#define REG_ISP_TOP80                (0x50)
+#define REG_ISP_TOP99                (0x63)
+#define REG_ISP_TOP100               (0x64)
+
 /*
  * ISP input size:
  * horizol: 0x10[12:8], 0x11[7:0]
@@ -668,6 +681,9 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 	#define R_RDY_0                  (1 << 0)
 	#define R_RDY_1                  (1 << 1)
 #define REG_MAC_INT_SRC			(0xD1)
+#define REG_FW_MAC1_INT_SRC			(0x335dd)
+#define REG_FW_MAC2_INT_SRC			(0x335de)
+#define REG_FW_MAC3_INT_SRC			(0x335df)
 	#define INT_SRC_W1			(1 << 0)
 	#define INT_SRC_W2			(1 << 1)
 #define VIRT_IRQ_START			(1 << 0)
@@ -753,7 +769,6 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 #define REG_FW_AEC_RD_GAIN2         (0x30044)
 #define REG_FW_AEC_RD_STATE1        (0x30205)
 #define REG_FW_AEC_RD_STATE2        (0x30035)
-#define REG_FW_AEC_RD_STATE3        (0x30373)
 	#define AEC_STATE_STABLE   (0x1)
 	#define AEC_STATE_UNSTABLE (0x0)
 #define  REG_FW_MEAN_Y				(0x30206)
@@ -822,7 +837,6 @@ extern void b52isp_set_ddr_threshold(struct work_struct *work, int up);
 
 #define REG_FW_VTS                  (0x04c)
 #define REG_FW_CURR_VTS             (0x050)
-#define REG_FW_AEC_DGAIN_CHANNEL	(0x052)
 #define REG_FW_AEC_GAIN_SHIFT		(0x053)
 
 #define REG_FW_SSOR_DEV_ID          (0x056)

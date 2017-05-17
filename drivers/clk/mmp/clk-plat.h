@@ -8,6 +8,9 @@ extern int ddr_get_dvc_level(int rate);
 extern int setup_pxa1908_dvfs_platinfo(void);
 extern int setup_pxa1936_dvfs_platinfo(void);
 extern unsigned int get_helan3_max_freq(void);
+extern unsigned int get_helan3_svc_version(void);
+extern int fill_ddr_800M_4x(int status);
+extern int get_ddr_800M_4x(void);
 #endif
 
 /* supported DDR chip type */
@@ -16,6 +19,7 @@ enum ddr_type {
 	DDR_533M,
 	DDR_667M,
 	DDR_800M,
+	DDR_800M_2X,
 	DDR_TYPE_MAX,
 };
 

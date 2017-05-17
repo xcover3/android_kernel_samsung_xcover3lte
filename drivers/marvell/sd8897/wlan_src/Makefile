@@ -224,8 +224,6 @@ ifeq ($(CONFIG_ANDROID_KERNEL), y)
 	EXTRA_CFLAGS += -DANDROID_KERNEL
 endif
 
-EXTRA_CFLAGS += -DSEC_FCC_CERT
-
 #############################################################################
 # Make Targets
 #############################################################################

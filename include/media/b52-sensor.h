@@ -39,7 +39,6 @@ enum b52_sensor_type {
 	SONY_SENSOR,
 	SAMSUNG_SENSOR,
 	HYNIX_SENSOR,
-	SAMSUNG_ASNY_SENSOR,
 };
 
 enum b52_sensor_gain_type {
@@ -86,14 +85,6 @@ enum b52_sensor_res_prop {
 	SENSOR_RES_MAX,
 };
 
-/*sensor mode*/
-enum b52_sensor_mode {
-	SENSOR_NORMAL_MODE=0,
-	SENSOR_PREVIEW_MODE,
-	SENSOR_VIDEO_MODE,
-	SENSOR_CAPTURE_MODE,
-};
-
 /*HB >= 7% one line length, unit pixel */
 /*not include exposure, gain and VTS cfg*/
 struct b52_sensor_resolution {
@@ -101,7 +92,6 @@ struct b52_sensor_resolution {
 	u32 height;
 	u32 hts;
 	u32 min_vts;
-	enum b52_sensor_mode sensor_mode;
 	enum b52_sensor_res_prop prop;
 	struct b52_sensor_regs regs;
 };
@@ -222,7 +212,7 @@ struct b52_sensor_data {
 	struct b52_sensor_regs af_reg;
 	/* the bias must have 13 item*/
 	int *ev_bias_offset;
-	u8 dgain_channel;
+
 	u8 gain_shift;
 	u8 expo_shift;
 	int calc_dphy;
@@ -252,7 +242,6 @@ struct b52_sensor_ops {
 	int (*detect_sensor)(struct v4l2_subdev *);
 	int (*detect_vcm)(struct v4l2_subdev *);
 	int (*g_cur_fmt)(struct v4l2_subdev *, struct b52_cmd_i2c_data *);
-	int (*g_vcm_info)(struct v4l2_subdev *, struct b52_sensor_vcm *);
 	int (*gain_to_iso)(struct v4l2_subdev *, u32 gain, u32 *iso);
 	int (*iso_to_gain)(struct v4l2_subdev *, u32 iso, u32 *gain);
 	int (*to_expo_line)(struct v4l2_subdev *, u32 time, u32 *lines);
@@ -282,17 +271,7 @@ struct sensor_power {
 	struct regulator *dvdd_1v2;
 	struct gpio_desc *pwdn;
 	struct gpio_desc *rst;
-	struct gpio_desc *dovdd_1v8_gpio;
 	int ref_cnt;
-};
-
-struct b52_sensor_flash {
-	enum v4l2_flash_led_mode led_mode;
-	enum v4l2_flash_strobe_source strobe_source;
-	u32 timeout;
-	u32 flash_current;
-	u32 torch_current;
-	int flash_status;
 };
 
 struct b52isp_sensor_ctrls {
@@ -319,8 +298,6 @@ struct b52_sensor {
 	u32 pixel_rate;
 	struct mipi_csi2 csi;
 
-	struct b52_sensor_flash flash;
-
 	struct b52isp_sensor_ctrls ctrls;
 
 	int cur_mod_id;
@@ -336,7 +313,6 @@ struct b52_sensor {
 	int sensor_init;
 	atomic_t	stream_cnt;
 	int board_prop_id;
-	int sensor_pos;/* 0 is back sensor, 1 is front sensor*/
 
 	struct blocking_notifier_head nh;
 };
@@ -353,6 +329,7 @@ extern struct b52_sensor_data b52_ov13850_13M;
 extern struct b52_sensor_data b52_ov13850r2a_13M;
 extern struct b52_sensor_data b52_imx219;
 extern struct b52_sensor_data b52_ov8858;
+extern struct b52_sensor_data b52_ov8858_front;
 extern struct b52_sensor_data b52_ov5648;
 extern struct b52_sensor_data b52_ov2680;
 extern struct b52_sensor_data b52_sr544;
@@ -367,12 +344,4 @@ extern void b52_init_workqueue(void *data);
 /* this two api for SSG J1 only*/
 int b52isp_set_focus_distance(u32 distance, int id);
 int check_load_firmware(void);
-
-#define NORMAL_STATUS 0
-#define VIDEO_TO_NORMAL 1
-#define NORMAL_TO_VIDEO 2
-#define VIDEO_TO_CALL 3
-#define V4L2_CID_PRIVATE_B52_VIDEO_MODE \
-	(V4L2_CID_CAMERA_CLASS_BASE + 0x1001)
-
 #endif

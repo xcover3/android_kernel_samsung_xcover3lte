@@ -6,6 +6,7 @@ Required properties:
   - "marvell,pxa270-pwm"
   - "marvell,pxa168-pwm"
   - "marvell,pxa910-pwm"
+  - "marvell,pxa25x-pwm"
 - reg: Physical base address and length of the registers used by the PWM channel
   Note that one device instance must be created for each PWM that is used, so the
   length covers only the register window for one PWM output, not that of the

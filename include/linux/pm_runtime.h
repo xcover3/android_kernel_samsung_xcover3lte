@@ -14,12 +14,6 @@
 #include <linux/pm.h>
 
 #include <linux/jiffies.h>
-#include <asm/stacktrace.h>
-#include <linux/kernel.h>
-
-#ifdef CONFIG_ARM
-#include <asm/ftrace.h>
-#endif
 
 /* Runtime PM flag argument bits */
 #define RPM_ASYNC		0x01	/* Request is asynchronous */
@@ -38,17 +32,6 @@ static inline int pm_generic_runtime_resume(struct device *dev) { return 0; }
 #endif
 
 #ifdef CONFIG_PM_RUNTIME
-
-#define TRACE_PRINTK_DEBUG(dev) \
-	do { \
-		if (dev->kobj.name && !strcmp(dev->kobj.name, "c0400000.gpu")) { \
-			trace_printk("%d: [%p] [%p] [%p] [%p], usg_cnt[%d], dis_depth[%d]\n", \
-				__LINE__, return_address(0), return_address(1), \
-				return_address(2), return_address(3), \
-				atomic_read(&dev->power.usage_count), \
-				dev->power.disable_depth);	\
-		} \
-	} while(0) \
 
 extern struct workqueue_struct *pm_wq;
 
@@ -70,13 +53,21 @@ extern unsigned long pm_runtime_autosuspend_expiration(struct device *dev);
 extern void pm_runtime_update_max_time_suspended(struct device *dev,
 						 s64 delta_ns);
 extern void pm_runtime_set_memalloc_noio(struct device *dev, bool enable);
-extern void pm_runtime_get_noresume(struct device *dev);
-extern void pm_runtime_put_noidle(struct device *dev);
 
 static inline bool pm_children_suspended(struct device *dev)
 {
 	return dev->power.ignore_children
 		|| !atomic_read(&dev->power.child_count);
+}
+
+static inline void pm_runtime_get_noresume(struct device *dev)
+{
+	atomic_inc(&dev->power.usage_count);
+}
+
+static inline void pm_runtime_put_noidle(struct device *dev)
+{
+	atomic_add_unless(&dev->power.usage_count, -1, 0);
 }
 
 static inline bool device_run_wake(struct device *dev)
@@ -173,24 +164,100 @@ static inline void pm_runtime_set_memalloc_noio(struct device *dev,
 
 #endif /* !CONFIG_PM_RUNTIME */
 
-extern int pm_runtime_idle(struct device *dev);
-extern int pm_runtime_suspend(struct device *dev);
-extern int pm_runtime_autosuspend(struct device *dev);
-extern int pm_runtime_resume(struct device *dev);
-extern int pm_request_idle(struct device *dev);
-extern int pm_request_resume(struct device *dev);
-extern int pm_request_autosuspend(struct device *dev);
-extern int pm_runtime_get(struct device *dev);
-extern int pm_runtime_get_sync(struct device *dev);
-extern int pm_runtime_put(struct device *dev);
-extern int pm_runtime_put_autosuspend(struct device *dev);
-extern int pm_runtime_put_sync(struct device *dev);
-extern int pm_runtime_put_sync_suspend(struct device *dev);
-extern int pm_runtime_put_sync_autosuspend(struct device *dev);
-extern int pm_runtime_set_active(struct device *dev);
-extern void pm_runtime_set_suspended(struct device *dev);
-extern void pm_runtime_disable(struct device *dev);
-extern void pm_runtime_use_autosuspend(struct device *dev);
-extern void pm_runtime_dont_use_autosuspend(struct device *dev);
+static inline int pm_runtime_idle(struct device *dev)
+{
+	return __pm_runtime_idle(dev, 0);
+}
+
+static inline int pm_runtime_suspend(struct device *dev)
+{
+	return __pm_runtime_suspend(dev, 0);
+}
+
+static inline int pm_runtime_autosuspend(struct device *dev)
+{
+	return __pm_runtime_suspend(dev, RPM_AUTO);
+}
+
+static inline int pm_runtime_resume(struct device *dev)
+{
+	return __pm_runtime_resume(dev, 0);
+}
+
+static inline int pm_request_idle(struct device *dev)
+{
+	return __pm_runtime_idle(dev, RPM_ASYNC);
+}
+
+static inline int pm_request_resume(struct device *dev)
+{
+	return __pm_runtime_resume(dev, RPM_ASYNC);
+}
+
+static inline int pm_request_autosuspend(struct device *dev)
+{
+	return __pm_runtime_suspend(dev, RPM_ASYNC | RPM_AUTO);
+}
+
+static inline int pm_runtime_get(struct device *dev)
+{
+	return __pm_runtime_resume(dev, RPM_GET_PUT | RPM_ASYNC);
+}
+
+static inline int pm_runtime_get_sync(struct device *dev)
+{
+	return __pm_runtime_resume(dev, RPM_GET_PUT);
+}
+
+static inline int pm_runtime_put(struct device *dev)
+{
+	return __pm_runtime_idle(dev, RPM_GET_PUT | RPM_ASYNC);
+}
+
+static inline int pm_runtime_put_autosuspend(struct device *dev)
+{
+	return __pm_runtime_suspend(dev,
+	    RPM_GET_PUT | RPM_ASYNC | RPM_AUTO);
+}
+
+static inline int pm_runtime_put_sync(struct device *dev)
+{
+	return __pm_runtime_idle(dev, RPM_GET_PUT);
+}
+
+static inline int pm_runtime_put_sync_suspend(struct device *dev)
+{
+	return __pm_runtime_suspend(dev, RPM_GET_PUT);
+}
+
+static inline int pm_runtime_put_sync_autosuspend(struct device *dev)
+{
+	return __pm_runtime_suspend(dev, RPM_GET_PUT | RPM_AUTO);
+}
+
+static inline int pm_runtime_set_active(struct device *dev)
+{
+	return __pm_runtime_set_status(dev, RPM_ACTIVE);
+}
+
+static inline void pm_runtime_set_suspended(struct device *dev)
+{
+	__pm_runtime_set_status(dev, RPM_SUSPENDED);
+}
+
+static inline void pm_runtime_disable(struct device *dev)
+{
+	__pm_runtime_disable(dev, true);
+}
+
+static inline void pm_runtime_use_autosuspend(struct device *dev)
+{
+	__pm_runtime_use_autosuspend(dev, true);
+}
+
+static inline void pm_runtime_dont_use_autosuspend(struct device *dev)
+{
+	__pm_runtime_use_autosuspend(dev, false);
+}
 
 #endif

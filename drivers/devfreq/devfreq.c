@@ -1011,13 +1011,10 @@ static ssize_t max_freq_store(struct device *dev, struct device_attribute *attr,
 
 	mutex_lock(&df->lock);
 	min = df->min_freq;
-
-	/* allow value is less than min
 	if (value && min && value < min) {
 		ret = -EINVAL;
 		goto unlock;
 	}
-	*/
 
 	if (df->max_freq == value) {
 		ret = count;

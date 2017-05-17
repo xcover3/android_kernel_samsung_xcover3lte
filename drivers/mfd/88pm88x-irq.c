@@ -59,11 +59,11 @@
 #define PM88X_CHG_FAIL_INT_ENA4		(1 << 0)
 #define PM88X_CHG_DONE_INT_ENA4		(1 << 1)
 #define PM88X_RSVED2_INT_ENA4		(1 << 2)
-#define PM88X_OTG_FAIL_INT_ENA4		(1 << 3)
-#define PM88X_RSVED4_INT_ENA4		(1 << 4)
+#define PM88X_CFD_FAIL_INT_ENA4		(1 << 3)
+#define PM88X_OTG_FAIL_INT_ENA4		(1 << 4)
 #define PM88X_CHG_ILIM_INT_ENA4		(1 << 5)
-#define PM88X_CC_INT_ENA4		(1 << 6)
-#define PM88X_RSVED7_INT_ENA4		(1 << 7)
+#define PM88X_RSVED6_INT_ENA4		(1 << 6)
+#define PM88X_CC_INT_ENA4		(1 << 7)
 
 #define PM88X_MISC_CONFIG2		(0x15)
 #define PM88X_INV_INT			(1 << 0)
@@ -74,54 +74,38 @@
 
 static const struct regmap_irq pm88x_irqs[] = {
 	/* INT0 */
-	[PM88X_IRQ_ONKEY] = {.reg_offset = 0, .mask = PM88X_ONKEY_INT_ENA1,},
-	[PM88X_IRQ_EXTON] = {.reg_offset = 0, .mask = PM88X_EXTON_INT_ENA1,},
+	[PM88X_IRQ_ONKEY] =    {.reg_offset = 0, .mask = PM88X_ONKEY_INT_ENA1,},
+	[PM88X_IRQ_EXTON] =    {.reg_offset = 0, .mask = PM88X_EXTON_INT_ENA1,},
 	[PM88X_IRQ_CHG_GOOD] = {.reg_offset = 0, .mask = PM88X_CHG_INT_ENA1,},
-	[PM88X_IRQ_BAT_DET] = {.reg_offset = 0, .mask = PM88X_BAT_INT_ENA1,},
-	[PM88X_IRQ_RTC] = {.reg_offset = 0, .mask = PM88X_RTC_INT_ENA1,},
-	[PM88X_IRQ_CLASSD] = { .reg_offset = 0, .mask = PM88X_CLASSD_INT_ENA1,},
-	[PM88X_IRQ_XO] = {.reg_offset = 0, .mask = PM88X_XO_INT_ENA1,},
-	[PM88X_IRQ_GPIO] = {.reg_offset = 0, .mask = PM88X_GPIO_INT_ENA1,},
+	[PM88X_IRQ_BAT_DET] =  {.reg_offset = 0, .mask = PM88X_BAT_INT_ENA1,},
+	[PM88X_IRQ_RTC] =      {.reg_offset = 0, .mask = PM88X_RTC_INT_ENA1,},
+	[PM88X_IRQ_CLASSD] =   { .reg_offset = 0, .mask = PM88X_CLASSD_INT_ENA1,},
+	[PM88X_IRQ_XO] =       {.reg_offset = 0, .mask = PM88X_XO_INT_ENA1,},
+	[PM88X_IRQ_GPIO] =     {.reg_offset = 0, .mask = PM88X_GPIO_INT_ENA1,},
 
 	/* INT1 */
-	[PM88X_IRQ_VBAT] = {.reg_offset = 1, .mask = PM88X_VBAT_INT_ENA2,},
-	[PM88X_IRQ_VBUS] = {.reg_offset = 1, .mask = PM88X_VBUS_INT_ENA2,},
-	[PM88X_IRQ_ITEMP] = {.reg_offset = 1, .mask = PM88X_ITEMP_INT_ENA2,},
-	[PM88X_IRQ_BUCK_PGOOD] = {
-		.reg_offset = 1,
-		.mask = PM88X_BUCK_PGOOD_INT_ENA2,
-	},
-	[PM88X_IRQ_LDO_PGOOD] = {
-		.reg_offset = 1,
-		.mask = PM88X_LDO_PGOOD_INT_ENA2,
-	},
+	[PM88X_IRQ_VBAT] =       {.reg_offset = 1, .mask = PM88X_VBAT_INT_ENA2,},
+	[PM88X_IRQ_VBUS] =       {.reg_offset = 1, .mask = PM88X_VBUS_INT_ENA2,},
+	[PM88X_IRQ_ITEMP] =      {.reg_offset = 1, .mask = PM88X_ITEMP_INT_ENA2,},
+	[PM88X_IRQ_BUCK_PGOOD] = {.reg_offset = 1, .mask = PM88X_BUCK_PGOOD_INT_ENA2,},
+	[PM88X_IRQ_LDO_PGOOD] =  {.reg_offset = 1, .mask = PM88X_LDO_PGOOD_INT_ENA2,},
+
 	/* INT2 */
-	[PM88X_IRQ_GPADC0] = {.reg_offset = 2, .mask = PM88X_GPADC0_INT_ENA3,},
-	[PM88X_IRQ_GPADC1] = {.reg_offset = 2, .mask = PM88X_GPADC1_INT_ENA3,},
-	[PM88X_IRQ_GPADC2] = {.reg_offset = 2, .mask = PM88X_GPADC2_INT_ENA3,},
-	[PM88X_IRQ_GPADC3] = {.reg_offset = 2, .mask = PM88X_GPADC3_INT_ENA3,},
+	[PM88X_IRQ_GPADC0] =  {.reg_offset = 2, .mask = PM88X_GPADC0_INT_ENA3,},
+	[PM88X_IRQ_GPADC1] =  {.reg_offset = 2, .mask = PM88X_GPADC1_INT_ENA3,},
+	[PM88X_IRQ_GPADC2] =  {.reg_offset = 2, .mask = PM88X_GPADC2_INT_ENA3,},
+	[PM88X_IRQ_GPADC3] =  {.reg_offset = 2, .mask = PM88X_GPADC3_INT_ENA3,},
 	[PM88X_IRQ_MIC_DET] = {.reg_offset = 2, .mask = PM88X_MIC_INT_ENA3,},
-	[PM88X_IRQ_HS_DET] = {.reg_offset = 2, .mask = PM88X_HS_INT_ENA3,},
+	[PM88X_IRQ_HS_DET] =  {.reg_offset = 2, .mask = PM88X_HS_INT_ENA3,},
 	[PM88X_IRQ_GND_DET] = {.reg_offset = 2, .mask = PM88X_GND_INT_ENA3,},
 
 	/* INT3 */
-	[PM88X_IRQ_CHG_FAIL] = {
-		.reg_offset = 3,
-		.mask = PM88X_CHG_FAIL_INT_ENA4,
-	},
-	[PM88X_IRQ_CHG_DONE] = {
-		.reg_offset = 3,
-		.mask = PM88X_CHG_DONE_INT_ENA4,
-	},
-	[PM88X_IRQ_OTG_FAIL] = {
-		.reg_offset = 3,
-		.mask = PM88X_OTG_FAIL_INT_ENA4,
-	},
-	[PM88X_IRQ_CHG_ILIM] = {
-		.reg_offset = 3,
-		.mask = PM88X_CHG_ILIM_INT_ENA4,
-	},
-	[PM88X_IRQ_CC] = {.reg_offset = 3, .mask = PM88X_CC_INT_ENA4,},
+	[PM88X_IRQ_CHG_FAIL] = {.reg_offset = 3, .mask = PM88X_CHG_FAIL_INT_ENA4,},
+	[PM88X_IRQ_CHG_DONE] = {.reg_offset = 3, .mask = PM88X_CHG_DONE_INT_ENA4,},
+	[PM88X_IRQ_CFD_FAIL] = {.reg_offset = 3, .mask = PM88X_CFD_FAIL_INT_ENA4,},
+	[PM88X_IRQ_OTG_FAIL] = {.reg_offset = 3, .mask = PM88X_OTG_FAIL_INT_ENA4,},
+	[PM88X_IRQ_CHG_ILIM] = {.reg_offset = 3, .mask = PM88X_CHG_ILIM_INT_ENA4,},
+	[PM88X_IRQ_CC] =       {.reg_offset = 3, .mask = PM88X_CC_INT_ENA4,},
 };
 
 struct regmap_irq_chip pm88x_irq_chip = {

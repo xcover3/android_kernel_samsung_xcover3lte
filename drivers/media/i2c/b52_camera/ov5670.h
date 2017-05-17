@@ -10,9 +10,8 @@
 
 #ifndef	B52_OV5670_H
 #define	B52_OV5670_H
-#include <media/b52_api.h>
+
 #include <media/b52-sensor.h>
-#include <media/b52_api.h>
 
 /*chang by customer's typical value*/
 #define rg_ratio_typical 0x131

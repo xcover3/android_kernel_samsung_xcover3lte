@@ -12,7 +12,7 @@
 #define	B52_S5K3L2_H
 
 #include <media/b52-sensor.h>
-#include <media/b52_api.h>
+
 #define OTP_DRV_START_ADDR  0x7220
 #define OTP_DRV_INFO_GROUP_COUNT  3
 #define OTP_DRV_INFO_SIZE  5
@@ -30,7 +30,7 @@ struct regval_tab S5K3L2_res_init[] = {
 	{0xFCFC, 0xD000},
 	{0x6010, 0x0001},
 	/*p3*/
-	{SENSOR_MDELAY, SENSOR_MDELAY, 10},
+	{SENSOR_MDELAY, SENSOR_MDELAY, 500},
 	{0x6214, 0x7970},
 	{0x6218, 0x7150},
 	{0x6004, 0x0001},
@@ -954,8 +954,8 @@ struct regval_tab  S5K3L2_ag[] = {
 	{0x0205, 0x20, 0xff},
 };
 struct regval_tab  S5K3L2_dg[] = {
-	{0x020E, 0x00, 0xff},
-	{0x020F, 0x01, 0xff},
+	{0x1080, 0x00, 0xff},
+	{0x1081, 0x01, 0xff},
 };
 struct regval_tab S5K3L2_vflip[] = {
 	{0x0100, 0x0000, 0x0002},
@@ -970,10 +970,6 @@ struct b52_sensor_i2c_attr S5K3L2_i2c_attr[] = {
 		.addr = 0x2d,
 	},
 };
-static int ev_bias_offset[] = {
-	-0x3C, -0x33, -0x2A, -0x21, -0x18, -0x0C, 0,
-	0x0F, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A
-};
 #define N_S5K3L2_I2C_ATTR ARRAY_SIZE(S5K3L2_i2c_attr)
 #define N_S5K3L2_INIT ARRAY_SIZE(S5K3L2_res_init)
 #define N_S5K3L2_ID ARRAY_SIZE(S5K3L2_id)
@@ -984,7 +980,6 @@ static int ev_bias_offset[] = {
 #define N_S5K3L2_EXPO ARRAY_SIZE(S5K3L2_expo)
 #define N_S5K3L2_FRATIONALEXPO ARRAY_SIZE(S5K3L2_frationalexp)
 #define N_S5K3L2_AG ARRAY_SIZE(S5K3L2_ag)
-#define N_S5K3L2_DG ARRAY_SIZE(S5K3L2_dg)
 #define N_S5K3L2_VFLIP ARRAY_SIZE(S5K3L2_vflip)
 #define N_S5K3L2_HFLIP ARRAY_SIZE(S5K3L2_hflip)
 #define N_S5K3L2_STREAM_ON ARRAY_SIZE(S5K3L2_stream_on)
@@ -1010,17 +1005,7 @@ struct b52_sensor_resolution S5K3L2_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_8BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9806 = {
-	.type = VCM_DW9806,
-	.attr = &vcm_attr,
-};
 static struct b52_sensor_module S5K3L2_SSG = {
-	.vcm = &vcm_dw9806,
 	.id = 0,
 };
 static int S5K3L2_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
@@ -1091,8 +1076,8 @@ struct b52_sensor_data b52_s5k3l2 = {
 			.num = N_S5K3L2_AG,
 		},
 		[B52_SENSOR_DG] = {
-			.tab = S5K3L2_dg,
-			.num = N_S5K3L2_DG,
+			.tab = NULL,
+			.num = 0,
 		},
 	},
 	.hflip = {
@@ -1103,7 +1088,6 @@ struct b52_sensor_data b52_s5k3l2 = {
 		.tab = S5K3L2_vflip,
 		.num = N_S5K3L2_VFLIP,
 	},
-	.ev_bias_offset = ev_bias_offset,
 	.flip_change_phase =  0,
 	/* A gain format is 8.5 */
 	.gain_shift = 0x00,

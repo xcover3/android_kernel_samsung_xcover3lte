@@ -8,11 +8,9 @@
 #include <linux/regulator/machine.h>
 #include <linux/pwm.h>
 #include <linux/slab.h>
-#include <linux/of_gpio.h>
-#include <linux/wakelock.h>
-#include "../staging/android/timed_output.h"
+#include <linux/of.h>
 
-static struct wake_lock vib_wake_lock;
+#include "../staging/android/timed_output.h"
 
 struct pwm_vibrator_info {
 	struct device *dev;
@@ -26,8 +24,6 @@ struct pwm_vibrator_info {
 	int min_timeout;
 	unsigned int period;
 	unsigned int duty_cycle;
-	int vib_ldo_en;
-	int vdd_type;
 };
 
 #define VIBRA_OFF_VALUE	0
@@ -36,32 +32,23 @@ struct pwm_vibrator_info {
 static void vibrator_ldo_control(struct pwm_vibrator_info *info, int enable)
 {
 	int ret;
-
-	if (info->vdd_type) {
-		gpio_set_value(info->vib_ldo_en, enable);
-	} else {
-		info->vib_regulator = regulator_get(info->dev, "vibrator");
-		if (IS_ERR(info->vib_regulator)) {
-			dev_err(info->dev, "get vibrator ldo fail!\n");
-			return;
-		}
-
-		if (enable) {
-			regulator_set_voltage(info->vib_regulator,
-						3300000, 3300000);
-			ret = regulator_enable(info->vib_regulator);
-			if (ret)
-				dev_err(info->dev,
-					"enable vibrator ldo fail!\n");
-		} else {
-			ret = regulator_disable(info->vib_regulator);
-			if (ret)
-				dev_err(info->dev,
-					"disable vibrator ldo fail!\n");
-		}
-
-		regulator_put(info->vib_regulator);
+	info->vib_regulator = regulator_get(info->dev, "vibrator");
+	if (IS_ERR(info->vib_regulator)) {
+		dev_err(info->dev, "get vibrator ldo fail!\n");
+		return;
 	}
+
+	if (enable) {
+		regulator_set_voltage(info->vib_regulator, 3000000, 3000000);
+		ret = regulator_enable(info->vib_regulator);
+		if (ret)
+			dev_err(info->dev, "enable vibrator ldo fail!\n");
+	} else {
+		ret = regulator_disable(info->vib_regulator);
+		if (ret)
+			dev_err(info->dev, "disable vibrator ldo fail!\n");
+	}
+	regulator_put(info->vib_regulator);
 }
 
 static int get_vibrator_platdata(struct device_node *np,
@@ -80,20 +67,6 @@ static int get_vibrator_platdata(struct device_node *np,
 		dev_dbg(info->dev, "vibrator duty cycle is not set\n");
 	else
 		info->duty_cycle = value;
-
-	ret = of_property_read_u32(np, "vdd_type", &value);
-	if (ret < 0)
-		dev_dbg(info->dev, "vibrator vdd type is not set\n");
-	else
-		info->vdd_type = value;
-
-	if (info->vdd_type) {
-		ret = of_get_named_gpio(np, "vib_ldo_en", 0);
-		if (ret < 0)
-			dev_dbg(info->dev, "vibrator vdd type is not set\n");
-		else
-			info->vib_ldo_en = ret;
-	}
 
 	return 0;
 }
@@ -130,8 +103,6 @@ static void vibrator_off_worker(struct work_struct *work)
 
 	info = container_of(work, struct pwm_vibrator_info, vibrator_off_work);
 	pwm_control_vibrator(info, VIBRA_OFF_VALUE);
-	if(wake_lock_active(&vib_wake_lock))
-		wake_unlock(&vib_wake_lock);
 }
 
 static void on_vibrate_timer_expired(unsigned long x)
@@ -152,16 +123,12 @@ static void vibrator_enable_set_timeout(struct timed_output_dev *sdev,
 	if (timeout <= 0) {
 		pwm_control_vibrator(info, VIBRA_OFF_VALUE);
 		del_timer(&info->vibrate_timer);
-		if(wake_lock_active(&vib_wake_lock))
-			wake_unlock(&vib_wake_lock);
 	} else {
 		if (info->min_timeout)
 			timeout = (timeout < info->min_timeout) ?
 				   info->min_timeout : timeout;
 
 		pwm_control_vibrator(info, VIBRA_ON_VALUE);
-		if(!wake_lock_active(&vib_wake_lock))
-			wake_lock(&vib_wake_lock);
 		mod_timer(&info->vibrate_timer,
 			  jiffies + msecs_to_jiffies(timeout));
 	}
@@ -202,13 +169,6 @@ static int vibrator_probe(struct platform_device *pdev)
 	if ((np != NULL) && (info != NULL))
 		get_vibrator_platdata(np, info);
 
-	if (info->vdd_type) {
-		ret = gpio_request(info->vib_ldo_en, "pwm_vibrator");
-		if (ret < 0)
-			dev_err(&pdev->dev,
-				"unable to request gpio(%d)\n", ret);
-	}
-
 	info->dev = &pdev->dev;
 	/* Setup timed_output obj */
 	info->vibrator_timed_dev.name = "vibrator";
@@ -229,7 +189,6 @@ static int vibrator_probe(struct platform_device *pdev)
 	info->vibrate_timer.function = on_vibrate_timer_expired;
 	info->vibrate_timer.data = (unsigned long)info;
 	platform_set_drvdata(pdev, info);
-	wake_lock_init(&vib_wake_lock, WAKE_LOCK_SUSPEND, "vib_present");
 	return 0;
 }
 
@@ -238,7 +197,6 @@ static int vibrator_remove(struct platform_device *pdev)
 	struct pwm_vibrator_info *info;
 	info = platform_get_drvdata(pdev);
 	timed_output_dev_unregister(&info->vibrator_timed_dev);
-	wake_lock_destroy(&vib_wake_lock);
 	return 0;
 }
 
@@ -274,4 +232,3 @@ module_exit(vibrator_exit);
 
 MODULE_DESCRIPTION("Android Vibrator driver");
 MODULE_LICENSE("GPL");
-

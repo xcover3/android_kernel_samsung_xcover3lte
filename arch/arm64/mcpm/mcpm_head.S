@@ -25,13 +25,6 @@
 	.macro	pr_dbg	string
 	.endm
 
-	.macro	mem_dbg	tmp
-	adr	x0, mcpm_members
-	ldr	x1, [x0, #S_X4]
-	add	x1, x0, x1
-	mov	x0, \tmp
-	str	x0, [x1, x4, lsl #3]
-	.endm
 	.align
 
 ENTRY(mcpm_entry_point)
@@ -52,8 +45,6 @@ ENTRY(mcpm_entry_point)
 	 * MMU is off so we need to get to various variables in a
 	 * position independent way.
 	 */
-	mem_dbg	#0x5a5a
-
 	adr	x5, mcpm_members
 	ldp	x6, x7, [x5]
 	ldp	x8, x11, [x5, #S_X2]
@@ -201,7 +192,6 @@ mcpm_entry_gated:
 4:
 	dmb	ish
 	pr_dbg  "released\n"
-	mem_dbg	#0x5c5c
 
 	br	x5
 
@@ -212,7 +202,6 @@ mcpm_members:
 	.quad	mcpm_power_up_setup_phys - mcpm_members
 	.quad	mcpm_sync - mcpm_members
 	.quad	first_man_locks - mcpm_members
-	.quad	mcpm_dbg - mcpm_members
 
 ENDPROC(mcpm_entry_point)
 
@@ -231,7 +220,3 @@ ENTRY(mcpm_entry_vectors)
 	.type	mcpm_power_up_setup_phys, #object
 ENTRY(mcpm_power_up_setup_phys)
 	.space	8
-
-	.type	mcpm_dbg, #object
-ENTRY(mcpm_dbg)
-	.space	8 * MAX_NR_CLUSTERS * MAX_CPUS_PER_CLUSTER

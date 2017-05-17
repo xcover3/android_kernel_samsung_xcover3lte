@@ -204,10 +204,11 @@ static int mmp_dsi_panel_parse_video_mode(
 	ret = of_property_read_u32(np, "marvell,dsi-v-sync-width",
 			&plat_data->mode.vsync_len);
 
+	ret = of_property_read_u32(np, "marvell,dsi-panel-refresh",
+			&plat_data->mode.refresh);
 	if (ret)
 		ret = -EINVAL;
 
-	plat_data->mode.refresh = 60;
 	plat_data->mode.pix_fmt_out = PIXFMT_BGR888PACK;
 	plat_data->mode.hsync_invert = 0;
 	plat_data->mode.vsync_invert = 0;
@@ -238,7 +239,6 @@ static int mmp_dsi_panel_parse_dt_pin(struct device_node *np,
 		return -EINVAL;
 
 	if (pin->type == EXT_PIN_REGULATOR) {
-		struct device_node *node;
 		struct regulator *supply;
 		char *supply_name;
 
@@ -246,32 +246,21 @@ static int mmp_dsi_panel_parse_dt_pin(struct device_node *np,
 				propname, "-value", &pin->value);
 		if (unlikely(ret))
 			pin->value = 0;
-
-		len = strlen(propname) + strlen("-supply") + 1;
+		len = strlen(propname) + strlen("-") + strlen(pin->name) + 1;
 		supply_name = kmalloc(sizeof(char) * len, GFP_KERNEL);
 		if (unlikely(!supply_name))
 			return -ENOMEM;
-		snprintf(supply_name, len, "%s-supply", propname);
-
-		node = of_parse_phandle(np, supply_name, 0);
-		if (!node) {
-			pr_err("%s: failed to parse %s\n",
-					__func__, supply_name);
-			kfree(supply_name);
-			return -EINVAL;
-		}
-		supply = regulator_get(dev, node->name);
+		snprintf(supply_name, len, "%s-%s", propname, pin->name);
+		supply = regulator_get(dev, supply_name);
 		if (IS_ERR_OR_NULL(supply)) {
 			pr_err("%s regulator(%s) get error!\n",
-					__func__, node->name);
-			of_node_put(node);
+					__func__, supply_name);
 			kfree(supply_name);
 			regulator_put(supply);
 			return -EINVAL;
 		}
 		pin->supply = supply;
-		pr_info("%s, get regulator(%s)\n", pin->name, node->name);
-		of_node_put(node);
+		pr_info("%s, get regulator(%s)\n", pin->name, supply_name);
 		kfree(supply_name);
 	} else {
 		char *gpio_name;
@@ -310,7 +299,8 @@ static int mmp_dsi_panel_parse_dt_pin_ctrl(struct device_node *np,
 	struct ext_pin_ctrl *tctrl;
 	struct device_node *node;
 	u32 *arr;
-	size_t size, nr_arr, nr_ctrl_dt;
+	size_t nr_arr, nr_ctrl_dt;
+	int size;
 	int i, ret;
 
 	of_get_property(np, propname, &size);
@@ -903,7 +893,7 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 	struct device_node *pin_node;
 	struct device_node *videomode_node;
 	u32 panel_num;
-	struct device_node *child_np;
+	struct device_node *child_np = NULL;
 	int i = 0;
 	u32 esd_enable;
 
@@ -985,11 +975,14 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 					&plat_data->disable_cmds);
 
 			if (of_get_named_gpio(child_np, "bl_gpio", 0) < 0) {
+				if (of_get_named_gpio(child_np, "pwm-cmd", 0) >= 0) {
 				mmp_dsi_panel_parse_cmds(child_np,
 					"marvell,dsi-panel-backlight-set-brightness-cmds",
 					&plat_data->brightness_cmds);
 				mmp_dsi_panel.set_brightness =
 					mmp_dsi_panel_set_bl_panel;
+				} else
+					mmp_dsi_panel.set_brightness = NULL;
 			} else
 				mmp_dsi_panel.set_brightness =
 					mmp_dsi_panel_set_bl_gpio;
@@ -1001,8 +994,7 @@ static int mmp_dsi_panel_probe(struct platform_device *pdev)
 			if (ret < 0) {
 				mmp_dsi_panel.ddrfreq_qos =
 					PM_QOS_DEFAULT_VALUE;
-				pr_debug("panel %s didn't has ddrfreq min ",
-						"request\n",
+				pr_debug("panel %s didn't has ddrfreq min request\n",
 						mmp_dsi_panel.name);
 			} else {
 				mmp_dsi_panel.ddrfreq_qos_req_min.name = "lcd";
@@ -1075,7 +1067,7 @@ static int mmp_dsi_panel_remove(struct platform_device *dev)
 	return 0;
 }
 
-static int mmp_dsi_panel_shutdown(struct platform_device *dev)
+static void mmp_dsi_panel_shutdown(struct platform_device *dev)
 {
 #ifdef CONFIG_DDR_DEVFREQ
 	if (mmp_dsi_panel.ddrfreq_qos != PM_QOS_DEFAULT_VALUE)
@@ -1087,8 +1079,6 @@ static int mmp_dsi_panel_shutdown(struct platform_device *dev)
 	mmp_dsi_panel_set_status(&mmp_dsi_panel, 0);
 	mmp_unregister_panel(&mmp_dsi_panel);
 	kfree(mmp_dsi_panel.plat_data);
-
-	return 0;
 }
 
 #ifdef CONFIG_OF

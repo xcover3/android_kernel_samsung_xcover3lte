@@ -150,7 +150,7 @@ config FW_LOADER_USER_HELPER
 	help
 	  This option enables / disables the invocation of user-helper
 	  (e.g. udev) for loading firmware files as a fallback after the
-	  direct file loading in kernel fails.	The user-mode helper is
+	  direct file loading in kernel fails.  The user-mode helper is
 	  no longer required unless you have a special firmware file that
 	  resides in a non-standard path.
 
@@ -195,11 +195,6 @@ config GENERIC_CPU_AUTOPROBE
 
 config SOC_BUS
 	bool
-
-config SEC_COMMON
-	bool "Samsung sec-common class support"
-	help
-		Samsung kernel design need this framework for some device driver
 
 source "drivers/base/regmap/Kconfig"
 

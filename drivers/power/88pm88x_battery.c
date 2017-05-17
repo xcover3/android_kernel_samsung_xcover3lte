@@ -27,9 +27,8 @@
 #include <linux/notifier.h>
 #include <linux/pm.h>
 
-#ifdef CONFIG_USB_MV_UDC
-#include <linux/platform_data/mv_usb.h>
-#endif
+
+#define MY_PSY_NAME			"88pm88x-fuelgauge"
 
 #define PM88X_VBAT_MEAS_EN		(1 << 1)
 #define PM88X_GPADC_BD_PREBIAS		(1 << 4)
@@ -38,23 +37,9 @@
 #define PM88X_BATT_TEMP_SEL		(1 << 7)
 #define PM88X_BATT_TEMP_SEL_GP1		(0 << 7)
 #define PM88X_BATT_TEMP_SEL_GP3		(1 << 7)
+#define PM88X_GPADC_SPARE2		(0xc2)
 
 #define PM88X_VBAT_LOW_TH		(0x18)
-
-#define PM88X_CC_CONFIG1		(0x01)
-#define PM88X_CC_EN			(1 << 0)
-#define PM88X_CC_CLR_ON_RD		(1 << 2)
-#define PM88X_SD_PWRUP			(1 << 3)
-
-#define PM88X_CC_CONFIG2		(0x02)
-#define PM88X_CC_READ_REQ		(1 << 0)
-#define PM88X_OFFCOMP_EN		(1 << 1)
-
-#define PM88X_CC_VAL1			(0x03)
-#define PM88X_CC_VAL2			(0x04)
-#define PM88X_CC_VAL3			(0x05)
-#define PM88X_CC_VAL4			(0x06)
-#define PM88X_CC_VAL5			(0x07)
 
 #define PM88X_IBAT_VAL1			(0x08)		/* LSB */
 #define PM88X_IBAT_VAL2			(0x09)
@@ -87,7 +72,13 @@
 #define LOW_BAT_INTERVAL		(HZ * 5)
 #define LOW_BAT_CAP			(15)
 
-#define ROUND_SOC(_x)			(((_x) + 5) / 10 * 10)
+#define PM88X_CAP_FAC100		(100)	/* fraction's multiplication factor 100 */
+#define PM88X_CAP_FAC1000		(PM88X_CAP_FAC100 * 10)
+#define PM88X_DIV_FAC1000(_x)		((_x) / PM88X_CAP_FAC1000)
+#define PM88X_MUL_FAC1000(_x)		((_x) * PM88X_CAP_FAC1000)
+#define DATA_TO_SOC(_x)			(((_x) & 0x7f) * 1000 + ((_x) >> 16))
+#define ROUND_SOC(_x)			\
+	(((_x) + 5 * PM88X_CAP_FAC100) / PM88X_CAP_FAC1000 * PM88X_CAP_FAC1000)
 
 /* this flag is used to decide whether the ocv_flag needs update */
 static atomic_t in_resume = ATOMIC_INIT(0);
@@ -97,6 +88,7 @@ static atomic_t in_resume = ATOMIC_INIT(0);
  * or lower than 3.0V, this flag is true;
  */
 static bool is_extreme_low;
+static int power_off_cnt;
 
 enum {
 	ALL_SAVED_DATA,
@@ -153,15 +145,14 @@ struct pm88x_battery_info {
 
 	bool			use_ntc;
 	bool			bat_temp_monitor_en;
-	bool			use_sw_bd;
 	int			gpadc_det_no;
 	int			gpadc_temp_no;
 
-	int			ocv_is_realiable;
+	int			ocv_is_reliable;
 	int			range_low_th;
 	int			range_high_th;
 	int			sleep_counter_th;
-
+	int			power_off_extreme_th[2];
 	int			power_off_th;
 	int			safe_power_off_th;
 	int			power_off_cnt_th[3]; /* low-temp, standard-temp, high-temp */
@@ -197,8 +188,7 @@ struct pm88x_battery_info {
 static int ocv_table[100];
 
 static char *supply_interface[] = {
-	"ac",
-	"usb",
+	"88pm88x-charger",
 };
 
 struct ccnt {
@@ -216,14 +206,14 @@ static struct ccnt ccnt_data;
 
 /*
  * the save_buffer mapping:
- *
- * | o o o o   o o o | o ||         o      | o o o   o o o o |
- * |<--- cycles ---->|   ||ocv_is_realiable|      SoC        |
- * |---RTC_SPARE6(0xef)--||-----------RTC_SPARE5(0xee)-------|
+ * support SoC 99.999%
+ * | x x x x  x x o o ||o o o o  o o o o|| o o o o   o o o | o ||         o      | o o o   o o o o |
+ * |   SoC(fractional)      ||<--- cycles ---->|   ||ocv_is_reliable |  SoC(integer)  |
+ * |--GPADC_SPARE3(0xc3)--||--GPADC_SPARE2(0xc2)--||---RTC_SPARE6(0xef)--||--RTC_SPARE5(0xee)--|
  */
 struct save_buffer {
 	int soc;
-	int ocv_is_realiable;
+	int ocv_is_reliable;
 	int padding;
 	int cycles;
 };
@@ -245,22 +235,23 @@ static void pm88x_bat_disable_irq(struct pm88x_bat_irq *irq)
 
 }
 
-/* pay attention that we enlarge the capacity to 1000% */
+/* pay attention that we enlarge the capacity to 100000% */
 static int clamp_soc(int soc)
 {
 	soc = max(0, soc);
-	soc = min(1000, soc);
+	soc = min(1000 * PM88X_CAP_FAC100, soc);
 	return soc;
 }
 
 /*
  * - saved SoC
- * - ocv_is_realiable flag
+ * - ocv_is_reliable flag
+ * - support 99.999%
  */
 static int get_extern_data(struct pm88x_battery_info *info, int flag)
 {
-	u8 buf[2];
-	unsigned int val;
+	u8 buf[4];
+	unsigned int val = 0;
 	int ret;
 
 	if (!info) {
@@ -278,6 +269,16 @@ static int get_extern_data(struct pm88x_battery_info *info, int flag)
 		}
 
 		val = (buf[0] & 0xff) | ((buf[1] & 0xff) << 8);
+		ret = regmap_bulk_read(info->chip->gpadc_regmap,
+				       PM88X_GPADC_SPARE2, buf + 2, 2);
+		if (ret < 0) {
+			val = 0;
+			break;
+		}
+
+		/* use 10 bits for fraction part */
+		val |= ((buf[2] & 0xff) | ((buf[3] & 0x3) << 8)) << 16;
+
 		break;
 	default:
 		val = 0;
@@ -288,10 +289,11 @@ static int get_extern_data(struct pm88x_battery_info *info, int flag)
 	dev_dbg(info->dev, "%s: val = 0x%x\n", __func__, val);
 	return val;
 }
+
 static void set_extern_data(struct pm88x_battery_info *info, int flag, int data)
 {
-	u8 buf[2];
-	unsigned int val;
+	u8 buf[4];
+	unsigned int val = 0;
 	int ret;
 
 	if (!info) {
@@ -315,6 +317,13 @@ static void set_extern_data(struct pm88x_battery_info *info, int flag, int data)
 			return;
 		dev_dbg(info->dev, "%s: buf[1] = 0x%x\n", __func__, buf[1]);
 
+		buf[2] = (data >> 16) & 0xff;
+		buf[3] = (data >> 24) & 0x3;	/* use 10 bits for fraction part */
+		/* GPADC2 SAPRE 2/3 for SoC fractional part */
+		ret = regmap_bulk_write(info->chip->gpadc_regmap,
+					PM88X_GPADC_SPARE2, buf + 2, 2);
+		if (ret < 0)
+			return;
 		break;
 	default:
 		dev_err(info->dev, "%s: unexpected case %d.\n", __func__, flag);
@@ -331,17 +340,16 @@ static int pm88x_battery_write_buffer(struct pm88x_battery_info *info,
 
 	/* convert 0% as 128% */
 	if (value->soc == 0)
-		tmp_soc = 0x7f;
+		tmp_soc = PM88X_MUL_FAC1000(0x7f);
 	else
 		tmp_soc = value->soc;
-
 	/* save values in RTC registers */
-	data = (tmp_soc & 0x7f) | (value->ocv_is_realiable << 7);
-
+	data = (PM88X_DIV_FAC1000(tmp_soc) & 0x7f) | (value->ocv_is_reliable << 7);
 	/* bits 0 is used for other purpose, so give up it */
 	data |= (value->cycles & 0xfe) << 8;
+	/* fraction part, 10 bits */
+	data |= ((tmp_soc % PM88X_CAP_FAC1000) & 0x3ff) << 16;
 	set_extern_data(info, ALL_SAVED_DATA, data);
-
 	return 0;
 }
 
@@ -352,13 +360,12 @@ static int pm88x_battery_read_buffer(struct pm88x_battery_info *info,
 
 	/* read values from RTC registers */
 	data = get_extern_data(info, ALL_SAVED_DATA);
-
-	value->soc = data & 0x7f;
+	value->soc = DATA_TO_SOC(data);
 	/* check whether the capacity is 0% */
-	if (value->soc == 0x7f)
+	if (value->soc == PM88X_MUL_FAC1000(0x7f))
 		value->soc = 0;
 
-	value->ocv_is_realiable = (data & 0x80) >> 7;
+	value->ocv_is_reliable = (data & 0x80) >> 7;
 	value->cycles = (data >> 8) & 0xfe;
 	if (value->cycles < 0)
 		value->cycles = 0;
@@ -368,7 +375,7 @@ static int pm88x_battery_read_buffer(struct pm88x_battery_info *info,
 	 * it may be casused by backup battery totally discharged
 	 */
 	if (data == 0) {
-		dev_err(info->dev, "attention: saved value isn't realiable!\n");
+		dev_err(info->dev, "attention: saved value isn't reliable!\n");
 		return -EINVAL;
 	}
 
@@ -426,58 +433,10 @@ static int pm88x_battery_get_charger_status(struct pm88x_battery_info *info)
 	return status;
 }
 
-static int pm88x_enable_bat_detect(struct pm88x_battery_info *info, bool enable)
-{
-	int data, mask, ret = 0;
-
-	/*
-	 * 0. gpadc is in non-stop mode
-	 *    enable at least another measurement
-	 *    done in the mfd driver
-	 */
-
-	/* 1. choose gpadc 1/3 to detect battery */
-	switch (info->gpadc_det_no) {
-	case 1:
-		data = 0;
-		mask = PM88X_BD_GP_SEL;
-		/* choose gpadc1 for battery temperature monitoring algo */
-		regmap_update_bits(info->chip->gpadc_regmap,
-				   PM88X_GPADC_CONFIG8,
-				   PM88X_BATT_TEMP_SEL,
-				   PM88X_BATT_TEMP_SEL_GP1);
-		break;
-	case 3:
-		/* choose gpadc3 for battery temperature monitoring algo */
-		data = mask = PM88X_BD_GP_SEL;
-		regmap_update_bits(info->chip->gpadc_regmap,
-				   PM88X_GPADC_CONFIG8,
-				   PM88X_BATT_TEMP_SEL,
-				   PM88X_BATT_TEMP_SEL_GP3);
-		break;
-	default:
-		dev_err(info->dev,
-			"wrong gpadc number: %d\n", info->gpadc_det_no);
-		return -EINVAL;
-	}
-
-	if (enable) {
-		data |= (PM88X_GPADC_BD_EN | PM88X_GPADC_BD_PREBIAS);
-		mask |= (PM88X_GPADC_BD_EN | PM88X_GPADC_BD_PREBIAS);
-	} else {
-		data = 0;
-		mask = PM88X_GPADC_BD_EN | PM88X_GPADC_BD_PREBIAS;
-	}
-
-	ret = regmap_update_bits(info->chip->gpadc_regmap,
-				 PM88X_GPADC_CONFIG8, mask, data);
-	return ret;
-}
-
 static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 {
 	static bool present;
-	int data, ret = 0;
+	int volt, ret = 0;
 
 	if (!info) {
 		pr_err("%s: empty battery info.\n", __func__);
@@ -485,80 +444,36 @@ static bool pm88x_check_battery_present(struct pm88x_battery_info *info)
 	}
 
 	if (info->use_ntc) {
-		if (info->use_sw_bd) {
-			/*
-			 * 1. bias_current = 1uA
-			 * 2. check the gpadc voltage: if < 1.8V, present
-			 *    0.6 * Vsys = 0.6 * 3V = 1.8V
-			 */
-			int gp = info->gpadc_det_no;
-			int volt;
+		/*
+		 * 1. set bias_current = 1uA
+		 * 2. check the gpadc voltage:
+		 *    if < 0.7V --> present
+		 *    else --> not present
+		 */
 
-			if (gp != 0 && gp != 2) {
-				dev_err(info->dev,
-					"%s: wrong_gpadc = %d\n", __func__, gp);
-				present = true;
-				return present;
-			}
-
-			switch (info->chip->type) {
-			case PM886:
-				if (info->chip->chip_id == PM886_A1) {
-					/*
-					 * disable battery temperature monitoring:
-					 * clear bit4
-					 */
-					regmap_update_bits(info->chip->battery_regmap,
-							   PM88X_CHG_CONFIG1,
-							   PM88X_BATTEMP_MON_EN, 0);
-					/*
-					 * select GPADC3 as external input for
-					 * battery tempeareure monitoring algorithm
-					 */
-					regmap_update_bits(info->chip->gpadc_regmap,
-							   PM88X_GPADC_CONFIG8,
-							   PM88X_BATT_TEMP_SEL,
-							   PM88X_BATT_TEMP_SEL_GP3);
-				}
-				break;
-			default:
-				break;
-			}
-			/* enable bias current */
-			ret = extern_pm88x_gpadc_set_current_generator(gp, 1);
-			if (ret < 0)
-				goto out;
-			/* set bias_current = 1uA */
-			ret = extern_pm88x_gpadc_set_bias_current(gp, 1);
-			if (ret < 0)
-				goto out;
-			/* measure the gpadc voltage */
-			ret = extern_pm88x_gpadc_get_volt(gp, &volt);
-			if (ret < 0)
-				goto out;
-			if (volt < 700000)
-				present = true;
-			else
-				present = false;
-
-		} else {
-			/* use gpadc 1/3 to detect battery */
-			ret = pm88x_enable_bat_detect(info, true);
-			if (ret < 0) {
-				present = true;
-				goto out;
-			}
-			regmap_read(info->chip->base_regmap, PM88X_STATUS1, &data);
-			present = !!(data & PM88X_BAT_DET);
-
-			/* disable battery detection to measure temperature */
-			pm88x_enable_bat_detect(info, false);
-
-		}
-	} else {
+		/* enable bias current */
+		ret = extern_pm88x_gpadc_set_current_generator(info->gpadc_det_no, 1);
+		if (ret < 0)
+			goto out;
+		/* set bias_current = 1uA */
+		ret = extern_pm88x_gpadc_set_bias_current(info->gpadc_det_no, 1);
+		if (ret < 0)
+			goto out;
+		/* measure the gpadc voltage */
+		ret = extern_pm88x_gpadc_get_volt(info->gpadc_det_no, &volt);
+		if (ret < 0)
+			goto out;
+		if (volt < 700000)
+			present = true;
+		else
+			present = false;
+		dev_info(info->dev, "%s: GPADC%d=%d(mV), battery %s\n",
+			 __func__, info->gpadc_det_no, volt / 1000,
+			 present ? "present" : "not present");
+	} else
 		/* battery is _not_ removable */
 		present = true;
-	}
+
 out:
 	if (ret < 0)
 		present = true;
@@ -597,6 +512,9 @@ static bool check_battery_change(struct pm88x_battery_info *info,
 				 int new_soc, int saved_soc)
 {
 	int status, remove_th;
+	/* pay attention that new soc and saved soc  reduce the capacity to 100% */
+	new_soc = PM88X_DIV_FAC1000(new_soc);
+	saved_soc = PM88X_DIV_FAC1000(saved_soc);
 	if (!info) {
 		pr_err("%s: empty battery info!\n", __func__);
 		return true;
@@ -633,6 +551,7 @@ static bool check_soc_range(struct pm88x_battery_info *info, int soc)
 		return true;
 	}
 
+	/* pay attention that soc  reduce the capacity to 100% */
 	if ((soc > info->range_low_th) && (soc < info->range_high_th))
 		return false;
 	else
@@ -693,7 +612,7 @@ static int pm88x_get_soc_from_ocv(int ocv)
 		}
 	}
 out:
-	return soc;
+	return PM88X_MUL_FAC1000(soc);
 }
 
 static int pm88x_get_ibat_cc(struct pm88x_battery_info *info)
@@ -763,11 +682,30 @@ static void find_match(struct pm88x_battery_info *info,
 		*high = end - 1;
 }
 
+/*
+ * if the fake temperature is equeal or greater than 2000, don't use it.
+ * otherwise, we will use it to fake the battery temperature.
+ */
+static int battery_fake_temp = 2000; /* 2000/10=200C */
+
+static inline bool is_battery_temp_faked(void)
+{
+	return (battery_fake_temp < 2000) ? true : false;
+}
+
+static inline int get_battery_fake_temp(void)
+{
+	return battery_fake_temp;
+}
+
 static int pm88x_get_batt_temp(struct pm88x_battery_info *info)
 {
 	struct iio_channel *channel = info->chan[TEMP_CHAN];
 	int ohm, ret, default_temp = 25;
 	int temp, low, high, low_temp, high_temp, low_ohm, high_ohm;
+
+	if (is_battery_temp_faked())
+		return get_battery_fake_temp()/10;
 
 	if (!info->bat_temp_monitor_en)
 		return default_temp;
@@ -822,9 +760,23 @@ enum {
 	MAX_RANGE,
 };
 
+static inline const char *range_to_string(int range)
+{
+	const char *bat_range[] = {
+		"COLD_NO_CHARGING",
+		"LOW_TEMP",
+		"STD_TEMP",
+		"HIGH_TEMP",
+		"HOT_NO_CHARGING",
+	};
+	return range < ARRAY_SIZE(bat_range) ? bat_range[range] : "Unknown";
+}
+
 static int pm88x_get_batt_health(struct pm88x_battery_info *info)
 {
-	int temp, health, range, old_range = MAX_RANGE;
+	int temp, health, range;
+	static int old_range = MAX_RANGE;
+
 	if (!info->bat_params.present) {
 		info->bat_params.health = POWER_SUPPLY_HEALTH_UNKNOWN;
 		return 0;
@@ -850,23 +802,20 @@ static int pm88x_get_batt_health(struct pm88x_battery_info *info)
 	}
 
 	if ((old_range != range) && (old_range != MAX_RANGE)) {
-		dev_dbg(info->dev, "temperature changes: %d --> %d\n",
-			old_range, range);
-		power_supply_changed(&info->battery);
+		dev_info(info->dev, "temperature changes: %s --> %s\n",
+				range_to_string(old_range), range_to_string(range));
 	}
 	old_range = range;
 
 	return health;
 }
 
-static int pm88x_cycles_notifier_call(struct notifier_block *nb,
-				       unsigned long val, void *v)
+static void pm88x_battery_handle_cycle(struct pm88x_battery_info *info,
+				       int charger_is_online)
 {
-	struct pm88x_battery_info *info =
-		container_of(nb, struct pm88x_battery_info, nb);
 	int chg_status;
 
-	dev_dbg(info->dev, "notifier call is called.\n");
+	dev_dbg(info->dev, "%s is called.\n", __func__);
 	chg_status = pm88x_battery_get_charger_status(info);
 	/* ignore whether charger is plug in or out if battery is FULL */
 	if (chg_status == POWER_SUPPLY_STATUS_FULL) {
@@ -876,13 +825,12 @@ static int pm88x_cycles_notifier_call(struct notifier_block *nb,
 			dev_info(info->dev, "update: battery cycle = %d\n",
 				 info->bat_params.cycle_nums);
 		}
-		return NOTIFY_DONE;
+		return;
 	}
 
 	mutex_lock(&info->cycle_lock);
-	switch (val) {
-		/* charger cable removal */
-	case NULL_CHARGER:
+	/* charger cable removal */
+	if (!charger_is_online) {
 		if (info->bat_params.soc > info->soc_high_th_cycle) {
 			if (info->valid_cycle) {
 				info->bat_params.cycle_nums++;
@@ -897,8 +845,7 @@ static int pm88x_cycles_notifier_call(struct notifier_block *nb,
 				info->bat_params.cycle_nums);
 			info->valid_cycle = false;
 		}
-		break;
-	default:
+	} else {
 		if (info->bat_params.soc < info->soc_low_th_cycle) {
 			info->valid_cycle = true;
 			dev_info(info->dev,
@@ -910,11 +857,8 @@ static int pm88x_cycles_notifier_call(struct notifier_block *nb,
 				 "no need to monitor: battery cycle = %d\n",
 				 info->bat_params.cycle_nums);
 		}
-		break;
 	}
 	mutex_unlock(&info->cycle_lock);
-
-	return NOTIFY_OK;
 }
 
 static int pm88x_battery_get_slp_cnt(struct pm88x_battery_info *info)
@@ -941,7 +885,7 @@ out:
 }
 
 /*
- * check whether it's the right point to set ocv_is_realiable flag
+ * check whether it's the right point to set ocv_is_reliable flag
  * if yes, set it;
  *   else, leave it as 0;
  */
@@ -962,7 +906,7 @@ static void check_set_ocv_flag(struct pm88x_battery_info *info,
 	}
 
 	/* save old SOC in case to recover */
-	old_soc = ROUND_SOC(ccnt_val->soc) / 10; /* 100% */
+	old_soc = PM88X_DIV_FAC1000(ROUND_SOC(ccnt_val->soc)); /* 100% */
 	low_th = info->range_low_th;
 	high_th = info->range_high_th;
 
@@ -977,29 +921,29 @@ static void check_set_ocv_flag(struct pm88x_battery_info *info,
 	}
 	dev_info(info->dev, "%s: battery has slept %d seconds.\n", __func__, slp_cnt);
 
-	if (info->ocv_is_realiable) {
-		dev_info(info->dev, "%s: ocv_is_realiable is true.\n", __func__);
+	if (info->ocv_is_reliable) {
+		dev_info(info->dev, "%s: ocv_is_reliable is true.\n", __func__);
 		return;
 	}
 
 	/* read last sleep voltage and calc new SOC */
 	vol = pm88x_get_batt_vol(info, 0);
-	new_soc = pm88x_get_soc_from_ocv(vol);
+	new_soc = pm88x_get_soc_from_ocv(vol) / 1000;
 
 	/* check if the new SoC is in good range or not */
 	soc_in_good_range = check_soc_range(info, new_soc);
 	if (soc_in_good_range) {
-		info->ocv_is_realiable = 1;
+		info->ocv_is_reliable = 1;
 		tmp_soc = new_soc;
 		dev_info(info->dev, "good range: new SoC = %d\n", new_soc);
 	} else {
-		info->ocv_is_realiable = 0;
+		info->ocv_is_reliable = 0;
 		tmp_soc = old_soc;
 		dev_info(info->dev, "in bad range (%d), no update\n", old_soc);
 	}
 
-	ccnt_val->soc = tmp_soc * 10;
-	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
+	ccnt_val->soc = PM88X_MUL_FAC1000(tmp_soc);
+	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc) / PM88X_CAP_FAC100;
 }
 
 static int pm88x_battery_calc_ccnt(struct pm88x_battery_info *info,
@@ -1050,7 +994,7 @@ static int pm88x_battery_calc_ccnt(struct pm88x_battery_info *info,
 
 	/* 3. clap battery SoC for sanity check */
 	if (ccnt_val->last_cc > ccnt_val->max_cc) {
-		ccnt_val->soc = 1000;
+		ccnt_val->soc = 1000 * PM88X_CAP_FAC100;
 		ccnt_val->last_cc = ccnt_val->max_cc;
 	}
 	if (ccnt_val->last_cc < 0) {
@@ -1060,7 +1004,7 @@ static int pm88x_battery_calc_ccnt(struct pm88x_battery_info *info,
 
 	/* keep updating the last_cc */
 	if (!ccnt_val->bypass_cc)
-		ccnt_val->soc = ccnt_val->last_cc * 100 / (ccnt_val->max_cc / 10);
+		ccnt_val->soc = ccnt_val->last_cc * 100 / (PM88X_DIV_FAC1000(ccnt_val->max_cc));
 	else
 		dev_info(info->dev, "%s: CC is bypassed.\n", __func__);
 
@@ -1069,14 +1013,14 @@ static int pm88x_battery_calc_ccnt(struct pm88x_battery_info *info,
 		 __func__, ccnt_val->soc, ccnt_val->last_cc);
 
 	if (ccnt_val->real_last_cc > ccnt_val->max_cc) {
-		ccnt_val->real_soc = 1000;
+		ccnt_val->real_soc = 1000 * PM88X_CAP_FAC100;
 		ccnt_val->real_last_cc = ccnt_val->max_cc;
 	}
 	if (ccnt_val->real_last_cc < 0) {
 		ccnt_val->real_soc = 0;
 		ccnt_val->real_last_cc = 0;
 	}
-	ccnt_val->real_soc = ccnt_val->real_last_cc * 100 / (ccnt_val->max_cc / 10);
+	ccnt_val->real_soc = ccnt_val->real_last_cc * 100 / (PM88X_DIV_FAC1000(ccnt_val->max_cc));
 
 	dev_dbg(info->dev,
 		 "%s<-- ccnt_val->real_soc: %d%%, new->real_last_cc: %d mC\n",
@@ -1140,17 +1084,19 @@ static void pm88x_battery_correct_low_temp(struct pm88x_battery_info *info,
 	}
 
 	/* offset are multipled by 10 times becasue the soc now is 1000% */
-	offset *= 10;
+	offset *= PM88X_CAP_FAC1000;
 
-	ccnt_val->soc = ccnt_val->real_soc * times;
-	ccnt_val->soc -= offset;
+	/* only do this at low temperature */
+	if (info->bat_params.temp < 0) {
+		ccnt_val->soc = ccnt_val->real_soc * times;
+		ccnt_val->soc -= offset;
+	}
 }
 
 /* correct SoC according to temp */
 static void correct_soc_by_temp(struct pm88x_battery_info *info,
 				struct ccnt *ccnt_val)
 {
-	static int power_off_cnt;
 	/*
 	 * low temperature
 	 * if power_off_cnt > power_off_cnt_th[0],
@@ -1162,7 +1108,7 @@ static void correct_soc_by_temp(struct pm88x_battery_info *info,
 				 __func__, info->bat_params.volt);
 			power_off_cnt = 0;
 			if (ccnt_val->soc > 0)
-				ccnt_val->soc -= 10;
+				ccnt_val->soc -= PM88X_CAP_FAC1000;
 		} else {
 			dev_info(info->dev, "hit power off cnt at low temp = %d\n", power_off_cnt);
 			power_off_cnt++;
@@ -1173,7 +1119,7 @@ static void correct_soc_by_temp(struct pm88x_battery_info *info,
 				 __func__, info->bat_params.volt);
 			power_off_cnt = 0;
 			if (ccnt_val->soc > 0)
-				ccnt_val->soc -= 10;
+				ccnt_val->soc -= PM88X_CAP_FAC1000;
 		} else {
 			dev_info(info->dev, "hit power off cnt at room temp = %d\n", power_off_cnt);
 			power_off_cnt++;
@@ -1186,6 +1132,7 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 				      struct ccnt *ccnt_val)
 {
 	static int chg_status, old_soc;
+	static int extreme_power_off_cnt, ramp_cnt;
 
 	info->bat_params.volt = pm88x_get_batt_vol(info, 1);
 	if (info->bat_params.status == POWER_SUPPLY_STATUS_UNKNOWN) {
@@ -1213,9 +1160,8 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 			ccnt_val->bypass_cc = false;
 
 		/* the column counter has reached 99% here, clamp it to 99% */
-		ccnt_val->soc = (ccnt_val->soc >= 990) ? 990 : ccnt_val->soc;
-		ccnt_val->previous_soc = (ccnt_val->previous_soc >= 990) ? 990 : ccnt_val->previous_soc;
-
+		ccnt_val->soc = (ccnt_val->soc >= 990 * PM88X_CAP_FAC100) ?
+							990 * PM88X_CAP_FAC100 : ccnt_val->soc;
 		/*
 		 * in supplement mode, if the load is so heavy that
 		 * it exceeds the charger's capability to power the system, the
@@ -1249,19 +1195,25 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		dev_dbg(info->dev, "%s: before: full-->capacity: %d\n",
 			__func__, ccnt_val->soc);
 
-		if (ccnt_val->soc < 1000) {
+		if (ccnt_val->soc < 1000 * PM88X_CAP_FAC100) {
 			dev_info(info->dev,
 				 "%s: %d: capacity %d%% < 1000%%, ramp up..\n",
 				 __func__, __LINE__, ccnt_val->soc);
-			ccnt_val->soc += 10;
+			if (ramp_cnt > 5) {
+				ccnt_val->soc += PM88X_CAP_FAC1000;
+				ramp_cnt = 0;
+			} else {
+				ramp_cnt++;
+			}
 			ccnt_val->real_soc = ccnt_val->soc;
 			info->bat_params.status = POWER_SUPPLY_STATUS_CHARGING;
 		}
 
-		if (ccnt_val->soc >= 1000) {
-			ccnt_val->soc = 1000;
-			ccnt_val->real_soc = 1000;
+		if (ccnt_val->soc >= 1000 * PM88X_CAP_FAC100) {
+			ccnt_val->soc = 1000 * PM88X_CAP_FAC100;
+			ccnt_val->real_soc = 1000 * PM88X_CAP_FAC100;
 			info->bat_params.status = POWER_SUPPLY_STATUS_FULL;
+			ramp_cnt = 0;
 
 			ccnt_val->last_cc = ccnt_val->max_cc;
 			/* also align the real_last_cc for low temperature scenario */
@@ -1296,21 +1248,48 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		 * (it shows the voltage is really very low,
 		 *  we set is_extreme_low to indicate this condition)
 		 *         then every time we arrive here,
-		 *         the soc is decreased with 1% step
+		 * if capacity is no less than 1%
+		 *   if voltage < power_off_extreme_th[0]
+		 *    the soc is decreased with 1% step
+		 *   else if voltage > power_off_extreme_th[1]
+		 *    jump out extreme low.
+		 * otherwise
+		 *   if extreme_power_off_cnt++ > 5
+		 *    soc = 0
 		 */
 		if (is_extreme_low) {
 			dev_info(info->dev, "%s: extreme_low : voltage = %d\n",
 				 __func__, info->bat_params.volt);
-			/* battery voltage interrupt */
-			pm88x_bat_disable_irq(&info->irqs[1]);
-			if (ccnt_val->soc > 10)
-				ccnt_val->soc -= 10;
-			else if (info->bat_params.volt < info->safe_power_off_th) {
-				/* if soc <=1, when the volt is lower than safe_power_off_th, set soc=0;
-				 * else keep soc=1.
-				 */
-				dev_info(info->dev, "%s: volt lower than safe_power_off_th\n", __func__);
+			if (ccnt_val->soc > PM88X_CAP_FAC1000) {
+				if (info->bat_params.volt < info->power_off_extreme_th[0]) {
+					/* battery voltage interrupt */
+					pm88x_bat_disable_irq(&info->irqs[1]);
+					ccnt_val->soc -= PM88X_CAP_FAC1000;
+				} else if (info->bat_params.volt > info->power_off_extreme_th[1]) {
+					mutex_lock(&info->volt_lock);
+					is_extreme_low = false;
+					/* battery voltage interrupt */
+					pm88x_bat_enable_irq(&info->irqs[1]);
+					mutex_unlock(&info->volt_lock);
+					extreme_power_off_cnt = 0;
+				} else {
+					power_off_cnt++;
+				}
+			} else {
+				if (info->bat_params.volt < info->power_off_th) {
+					dev_info(info->dev, "extreme_power_off_cnt = %d\n",
+						extreme_power_off_cnt);
+					extreme_power_off_cnt++;
+				}
+				if (power_off_cnt > 5)
+					extreme_power_off_cnt = 6;
+			}
+			if (extreme_power_off_cnt > 5) {
+				dev_info(info->dev, "too urgent, I prefer to power off, bye.\n");
 				ccnt_val->soc = 0;
+				ccnt_val->previous_soc = 0;
+				extreme_power_off_cnt = 0;
+				power_off_cnt = 0;
 			}
 		} else {
 			if (info->bat_params.volt <= info->power_off_th)
@@ -1357,22 +1336,22 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 		 * the following line is not right
 		 * ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
 		 */
-		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc);
+		ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc) / PM88X_CAP_FAC100;
 	}
 
 	/* corner case: we need 1% step */
-	if (likely(abs(ccnt_val->previous_soc - ccnt_val->soc) <= 10)) {
+	if (likely(abs(ccnt_val->previous_soc - ccnt_val->soc) <= PM88X_CAP_FAC1000)) {
 		dev_dbg(info->dev,
 			"%s: the step is fine: previous = %d%%, soc = %d%%\n",
 			__func__, ccnt_val->previous_soc, ccnt_val->soc);
 	} else {
-		if (ccnt_val->previous_soc - ccnt_val->soc > 10) {
-			ccnt_val->soc = ccnt_val->previous_soc - 10;
+		if (ccnt_val->previous_soc - ccnt_val->soc > PM88X_CAP_FAC1000) {
+			ccnt_val->soc = ccnt_val->previous_soc - PM88X_CAP_FAC1000;
 			dev_info(info->dev,
 				 "%s: discharging too fast: previous = %d%%, soc = %d%%\n",
 				 __func__, ccnt_val->previous_soc, ccnt_val->soc);
 		} else {
-			ccnt_val->soc = ccnt_val->previous_soc + 10;
+			ccnt_val->soc = ccnt_val->previous_soc + PM88X_CAP_FAC1000;
 			dev_info(info->dev,
 				 "%s: charging too fast? previous = %d%%, soc = %d%%\n",
 				 __func__, ccnt_val->previous_soc, ccnt_val->soc);
@@ -1387,7 +1366,7 @@ static void pm88x_battery_correct_soc(struct pm88x_battery_info *info,
 	ccnt_val->soc = clamp_soc(ccnt_val->soc);
 	ccnt_val->previous_soc = ccnt_val->soc;
 
-	ccnt_val->soc = ROUND_SOC(ccnt_val->soc);
+	ccnt_val->soc = (ccnt_val->soc);
 
 	return;
 }
@@ -1420,17 +1399,37 @@ static void pm88x_bat_update_status(struct pm88x_battery_info *info)
 
 	pm88x_battery_calc_ccnt(info, &ccnt_data);
 	pm88x_battery_correct_soc(info, &ccnt_data);
-	info->bat_params.soc = ccnt_data.soc / 10;
+	info->bat_params.soc = ROUND_SOC(ccnt_data.soc) / 1000;
 
 	mutex_unlock(&info->update_lock);
+}
+
+static inline const char *bat_status_to_string(int status)
+{
+	switch (status) {
+	case POWER_SUPPLY_STATUS_UNKNOWN:
+		return "UNKNOWN";
+	case POWER_SUPPLY_STATUS_CHARGING:
+		return "CHARGING";
+	case POWER_SUPPLY_STATUS_DISCHARGING:
+		return "DISCHARGING";
+	case POWER_SUPPLY_STATUS_NOT_CHARGING:
+		return "NOT_CHARGING";
+	case POWER_SUPPLY_STATUS_FULL:
+		return "FULL";
+	default:
+		break;
+	}
+
+	return "Unknown";
 }
 
 static void pm88x_battery_monitor_work(struct work_struct *work)
 {
 	struct pm88x_battery_info *info;
 	static int prev_cap = -1;
-	static int prev_volt = -1;
 	static int prev_status = -1;
+	static int prev_health = -1;
 
 	info = container_of(work, struct pm88x_battery_info, monitor_work.work);
 
@@ -1446,24 +1445,27 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 	 * send a notification when:
 	 * 1. capacity or status is changed - in order to update Android
 	 * 2. status is FULL - trigger the charger driver to check the recharge threshold
+	 * 3. health is changed - trigger the charger driver to check charging
 	 */
 	if ((prev_cap != info->bat_params.soc)
 	    || (prev_status != info->bat_params.status)
+	    || (prev_health != info->bat_params.health)
 	    || (info->bat_params.status == POWER_SUPPLY_STATUS_FULL)) {
 
 		power_supply_changed(&info->battery);
 		prev_cap = info->bat_params.soc;
-		prev_volt = info->bat_params.volt;
 		prev_status = info->bat_params.status;
+		prev_health = info->bat_params.health;
 		dev_info(info->dev,
-			 "cap=%d, temp=%d, volt=%d, ocv_is_realiable=%d\n",
+			 "status=%s, cap=%d, temp=%d, volt=%d, ibat=%d, ocv_is_reliable=%d\n",
+			 bat_status_to_string(info->bat_params.status),
 			 info->bat_params.soc, info->bat_params.temp / 10,
-			 info->bat_params.volt, info->ocv_is_realiable);
+			 info->bat_params.volt, info->bat_params.ibat, info->ocv_is_reliable);
 	}
 
 	/* save the recent value in non-volatile memory */
-	extern_data.soc = ccnt_data.soc / 10;
-	extern_data.ocv_is_realiable = info->ocv_is_realiable;
+	extern_data.soc = ccnt_data.soc;
+	extern_data.ocv_is_reliable = info->ocv_is_reliable;
 	extern_data.cycles = info->bat_params.cycle_nums;
 	pm88x_battery_write_buffer(info, &extern_data);
 
@@ -1478,13 +1480,47 @@ static void pm88x_battery_monitor_work(struct work_struct *work)
 
 static void pm88x_charged_work(struct work_struct *work)
 {
-	struct pm88x_battery_info *info =
-		container_of(work, struct pm88x_battery_info,
-			     charged_work.work);
+	union power_supply_propval val;
+	static struct power_supply *psy;
+	int ret;
+	struct pm88x_battery_info *info = container_of(work,
+						       struct pm88x_battery_info,
+						       charged_work.work);
+	if (!psy)
+		psy = power_supply_get_by_name("88pm88x-charger");
+
+	if (!psy && !psy->get_property)
+		val.intval = 0;
+	else {
+		ret = psy->get_property(psy, POWER_SUPPLY_PROP_ONLINE, &val);
+		if (ret) {
+			dev_err(info->dev, "get charger online property fails.\n");
+			val.intval = 1;
+		}
+	}
+
+	pm88x_battery_handle_cycle(info, val.intval);
 
 	pm88x_bat_update_status(info);
 	power_supply_changed(&info->battery);
 	return;
+}
+
+static void pm88x_cc_enable_bootup(struct pm88x_battery_info *info)
+{
+	if (!info) {
+		pr_err("%s: empty battery info.\n", __func__);
+		return;
+	}
+
+	/* 1. base page 0x1f.0 = 1 ---> unlock test page */
+	regmap_write(info->chip->base_regmap, 0x1f, 0x1);
+	/* 2. enable cc as default when boots up */
+	regmap_write(info->chip->test_regmap, 0x50, 0x01);
+	regmap_write(info->chip->test_regmap, 0x51, 0x6B);
+	regmap_write(info->chip->test_regmap, 0x58, 0x0B);
+	/* 3. base page 0x1f.0 = 0 --> lock the test page */
+	regmap_write(info->chip->base_regmap, 0x1f, 0x0);
 }
 
 static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
@@ -1497,54 +1533,101 @@ static int pm88x_setup_fuelgauge(struct pm88x_battery_info *info)
 		return true;
 	}
 
-	/* 0. set the CCNT_LOW_TH before the CC_EN is set 23.43mC/LSB */
+	/* set the CCNT_LOW_TH before the CC_EN is set 23.43mC/LSB */
 	tmp = ccnt_data.alart_cc * 100 / 2343;
 	buf[0] = (u8)(tmp & 0xff);
 	buf[1] = (u8)((tmp & 0xff00) >> 8);
 	regmap_bulk_write(info->chip->battery_regmap, PM88X_CC_LOW_TH1, buf, 2);
 
-	/* 1. set PM88X_OFFCOMP_EN to compensate Ibat, SWOFF_EN = 0 */
-	data = mask = PM88X_OFFCOMP_EN;
-	ret = regmap_update_bits(info->chip->battery_regmap, PM88X_CC_CONFIG2,
-				 mask, data);
-	if (ret < 0)
-		goto out;
-
-	/* 2. set the EOC battery current as 100mA, done in charger driver */
-
-	/* 3. use battery current to decide the EOC */
+	/* use battery current to decide the EOC */
 	data = mask = PM88X_IBAT_MEAS_EN;
 	ret = regmap_update_bits(info->chip->battery_regmap,
 				PM88X_IBAT_EOC_CONFIG, mask, data);
-	/*
-	 * 4. set SD_PWRUP to enable sigma-delta
-	 *    set CC_CLR_ON_RD to clear coulomb counter on read
-	 *    set CC_EN to enable coulomb counter
-	 */
-	data = mask = PM88X_SD_PWRUP | PM88X_CC_CLR_ON_RD | PM88X_CC_EN;
-	ret = regmap_update_bits(info->chip->battery_regmap, PM88X_CC_CONFIG1,
-				 mask, data);
-	if (ret < 0)
-		goto out;
 
-	/* 5. enable VBAT measurement */
+	/* enable CC by default */
+	pm88x_cc_enable_bootup(info);
+
+	/* enable VBAT measurement */
 	data = mask = PM88X_VBAT_MEAS_EN;
 	ret = regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG1,
 				 mask, data);
 	if (ret < 0)
 		goto out;
 
-	/* 6. hold the sleep counter until this bit is released or be reset */
+	/* hold the sleep counter until this bit is released or be reset */
 	data = mask = PM88X_SLP_CNT_HOLD;
 	ret = regmap_update_bits(info->chip->base_regmap,
 				 PM88X_SLP_CNT2, mask, data);
 	if (ret < 0)
 		goto out;
 
-	/* 7. set the VBAT threashold as 3000mV: 0x890 * 1.367mV/LSB = 2.996V */
+	/* set the VBAT threashold as 3000mV: 0x890 * 1.367mV/LSB = 2.996V */
 	ret = regmap_write(info->chip->gpadc_regmap, PM88X_VBAT_LOW_TH, 0x89);
+	if (ret < 0)
+		goto out;
+
+	/* disable battery detection by HW */
+	ret = regmap_update_bits(info->chip->gpadc_regmap, PM88X_GPADC_CONFIG8,
+				 PM88X_GPADC_BD_EN, 0);
+	if (ret < 0)
+		goto out;
+
+	/* disable battery temperature monitoring */
+	ret = regmap_update_bits(info->chip->battery_regmap, PM88X_CHG_CONFIG1,
+				 PM88X_BATTEMP_MON_EN, 0);
+	if (ret < 0)
+		goto out;
+
+	/* disable battery temperature monitoring2 for 88pm886-A1 and 88pm880-xx */
+	switch (info->chip->type) {
+	case PM886:
+		if (info->chip->chip_id == PM886_A1)
+			ret = regmap_update_bits(info->chip->battery_regmap,
+						 PM88X_CHG_CONFIG1,
+						 PM88X_BATTEMP_MON2_DIS,
+						 PM88X_BATTEMP_MON2_DIS);
+		break;
+	case PM880:
+		ret = regmap_update_bits(info->chip->battery_regmap,
+					 PM88X_CHG_CONFIG1,
+					 PM88X_BATTEMP_MON2_DIS,
+					 PM88X_BATTEMP_MON2_DIS);
+		break;
+	default:
+		break;
+	}
 out:
 	return ret;
+}
+
+/* add stored CC to soc from saved. */
+static int pm88x_battery_init_calc_ccnt(struct pm88x_battery_info *info,
+				   struct ccnt *ccnt_val, int soc_from_save)
+{
+	int factor, last_cc, soc_to_save;
+	s64 ccnt_uc = 0, ccnt_mc = 0;
+
+	/* get the original SoC value */
+	ccnt_uc = info->chip->pre_ccnt_uc;
+	/* Factor is nC */
+	factor = (info->cc_fixup) * 715 / 100;
+	ccnt_uc = ccnt_uc * factor;
+	ccnt_uc = div_s64(ccnt_uc, 1000);
+	ccnt_mc = div_s64(ccnt_uc, 1000);
+	last_cc = (ccnt_val->max_cc / (1000 * PM88X_CAP_FAC100)) * soc_from_save;
+
+	/* add the value */
+	last_cc += ccnt_mc;
+	/* clap battery SoC for sanity check */
+	if (last_cc > ccnt_val->max_cc)
+		soc_to_save = 1000 * PM88X_CAP_FAC100;
+	if (last_cc < 0)
+		soc_to_save = 0;
+
+	soc_to_save = last_cc * 100 / (ccnt_val->max_cc / (10 * PM88X_CAP_FAC100));
+	dev_info(info->dev, "%s<-- ccnt_val->soc: %d%%, new->last_cc: %d mC\n",
+		 __func__, soc_to_save, last_cc);
+	return soc_to_save;
 }
 
 static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
@@ -1554,7 +1637,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	int slp_volt, soc_from_vbat_slp, soc_from_saved, slp_cnt;
 	int active_volt, soc_from_vbat_active;
 	int cycles_from_saved, saved_is_valid, ever_low_temp;
-	bool battery_is_changed, soc_in_good_range, realiable_from_saved;
+	bool battery_is_changed, soc_in_good_range, reliable_from_saved;
 
 	/*---------------- the following gets the initial_soc --------------*/
 	/*
@@ -1584,16 +1667,17 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	/*
 	 *  if system comes here because of software reboot
 	 *  and
-	 *  soc_from_saved is not realiable, use soc_from_vbat_slp
+	 *  soc_from_saved is not reliable, use soc_from_vbat_slp
 	 */
 
 	saved_is_valid = pm88x_battery_read_buffer(info, &extern_data);
 	soc_from_saved = extern_data.soc;
-	realiable_from_saved = extern_data.ocv_is_realiable;
+	reliable_from_saved = extern_data.ocv_is_reliable;
 	cycles_from_saved = extern_data.cycles;
 	dev_info(info->dev,
-		 "---> %s: soc_from_saved = %d, realiable_from_saved = %d\n",
-		 __func__, soc_from_saved, realiable_from_saved);
+		 "---> %s: soc_from_saved = %d, reliable_from_saved = %d\n",
+		 __func__, soc_from_saved, reliable_from_saved);
+	soc_from_saved = pm88x_battery_init_calc_ccnt(info, ccnt_val, soc_from_saved);
 
 	/* ---------------------------------------------------------------- */
 	/*
@@ -1617,7 +1701,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	 * there are two cases:
 	 * a) plug into the charger cable first
 	 * b) then plug into the battery
-	 * in this case the vbat_slp is a random value, it's not realiable
+	 * in this case the vbat_slp is a random value, it's not reliable
 	 * if SoC saved is not valid, use soc_from_vbat_active
 	 * OR
 	 * a) plug into the battery first
@@ -1625,17 +1709,26 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	 * if SoC saved is not valid, use soc_from_vbat_slp
 	 */
 	if (info->chip->powerup & 0x2) {
-		if (abs(soc_from_vbat_slp - soc_from_vbat_active) > 40) {
-			/* plug into the charger cable first */
-			if (saved_is_valid < 0 || abs(soc_from_vbat_active - soc_from_saved) > 20)
+		dev_info(info->dev, "%s: chg wakeup\n", __func__);
+		if (saved_is_valid < 0) {
+			if ((soc_from_vbat_active - soc_from_vbat_slp) > 0)
 				*initial_soc = soc_from_vbat_active;
 			else
-				*initial_soc = soc_from_saved;
-		} else if (saved_is_valid >= 0 && abs(soc_from_vbat_slp - soc_from_saved) < 60) {
-			/* plug into the battery first */
-			*initial_soc = soc_from_saved;
+				*initial_soc = soc_from_vbat_slp;
+			info->ocv_is_reliable = false;
+		} else if ((soc_from_vbat_active - soc_from_vbat_slp) > 0) {
+			*initial_soc = soc_from_vbat_active;
 		} else {
-			*initial_soc = soc_from_vbat_slp;
+			battery_is_changed = check_battery_change(info, soc_from_vbat_slp,
+							  soc_from_saved);
+			if (battery_is_changed)
+				*initial_soc = soc_from_vbat_slp;
+			else
+				*initial_soc = soc_from_saved;
+
+			dev_info(info->dev,
+					"%s: soc_from_vbat_slp=%d, soc_from_saved=%d\n",
+					__func__, soc_from_vbat_slp, soc_from_saved);
 		}
 		*initial_cycles = cycles_from_saved;
 		goto end;
@@ -1646,10 +1739,10 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 			 "---> %s: arrive here from reboot.\n", __func__);
 		if (saved_is_valid < 0) {
 			*initial_soc = soc_from_vbat_active;
-			info->ocv_is_realiable = false;
+			info->ocv_is_reliable = false;
 		} else {
 			*initial_soc = soc_from_saved;
-			info->ocv_is_realiable = realiable_from_saved;
+			info->ocv_is_reliable = reliable_from_saved;
 		}
 		*initial_cycles = cycles_from_saved;
 		goto end;
@@ -1672,12 +1765,12 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	battery_is_changed = check_battery_change(info, soc_from_vbat_slp,
 						  soc_from_saved);
 	/*
-	 * the data saved is not realiable,
+	 * the data saved is not reliable,
 	 * suppose the battery has been changed
 	 */
 	if (saved_is_valid < 0) {
 		dev_info(info->dev,
-			 "%s: the data saved is not realiable.\n", __func__);
+			 "%s: the data saved is not reliable.\n", __func__);
 		battery_is_changed = true;
 	}
 
@@ -1685,7 +1778,7 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 	if (battery_is_changed) {
 		dev_info(info->dev, "----> %s: battery is changed\n", __func__);
 		*initial_soc = soc_from_vbat_slp;
-		info->ocv_is_realiable = false;
+		info->ocv_is_reliable = false;
 		/* let's assume it's new battery */
 		*initial_cycles = 0;
 		goto end;
@@ -1698,28 +1791,28 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 
 	if (slp_cnt < info->sleep_counter_th) {
 		*initial_soc = soc_from_saved;
-		info->ocv_is_realiable = realiable_from_saved;
+		info->ocv_is_reliable = reliable_from_saved;
 		dev_info(info->dev,
 			 "---> %s: battery is unchanged, and not relaxed:\n",
 			 __func__);
 		dev_info(info->dev,
-			 "\t\t use soc_from_saved and realiable_from_saved.\n");
+			 "\t\t use soc_from_saved and reliable_from_saved.\n");
 		goto end;
 	}
 
 	dev_info(info->dev,
 		 "---> %s: battery is unchanged and relaxed\n", __func__);
 
-	soc_in_good_range = check_soc_range(info, soc_from_vbat_slp);
+	soc_in_good_range = check_soc_range(info, PM88X_DIV_FAC1000(soc_from_vbat_slp));
 	dev_info(info->dev, "soc_in_good_range = %d\n", soc_in_good_range);
 	if (soc_in_good_range) {
 		*initial_soc = soc_from_vbat_slp;
-		info->ocv_is_realiable = true;
+		info->ocv_is_reliable = true;
 		dev_info(info->dev,
 			 "OCV is in good range, use soc_from_vbat_slp.\n");
 	} else {
 		*initial_soc = soc_from_saved;
-		info->ocv_is_realiable = realiable_from_saved;
+		info->ocv_is_reliable = reliable_from_saved;
 		dev_info(info->dev,
 			 "OCV is in bad range, use soc_from_saved.\n");
 	}
@@ -1727,7 +1820,6 @@ static void pm88x_init_soc_cycles(struct pm88x_battery_info *info,
 end:
 	/* update ccnt_data timely */
 	init_ccnt_data(ccnt_val, *initial_soc);
-
 	dev_info(info->dev,
 		 "<---- %s: initial soc = %d\n", __func__, *initial_soc);
 
@@ -1786,7 +1878,7 @@ static int pm88x_init_fuelgauge(struct pm88x_battery_info *info)
 	info->bat_params.present = pm88x_check_battery_present(info);
 	/* 2. get initial_soc and initial_cycles */
 	pm88x_init_soc_cycles(info, &ccnt_data, &initial_soc, &initial_cycles);
-	info->bat_params.soc = initial_soc;
+	info->bat_params.soc = PM88X_DIV_FAC1000(ROUND_SOC(initial_soc));
 	info->bat_params.cycle_nums = initial_cycles;
 	/* 3. the following initial the software status */
 	if (info->bat_params.present == 0) {
@@ -1799,28 +1891,6 @@ static int pm88x_init_fuelgauge(struct pm88x_battery_info *info)
 	info->bat_params.status = pm88x_battery_get_charger_status(info);
 	/* 4. hardcode type[Lion] */
 	info->bat_params.tech = POWER_SUPPLY_TECHNOLOGY_LION;
-
-	/*
-	 * 5. disable battery temperature monitoring2 for 88pm886 A1 and 88pm880 A0/A1:
-	 * set bit5
-	 */
-	switch (info->chip->type) {
-	case PM886:
-		if (info->chip->chip_id == PM886_A1)
-			regmap_update_bits(info->chip->battery_regmap,
-					   PM88X_CHG_CONFIG1,
-					   PM88X_BATTEMP_MON2_DIS,
-					   PM88X_BATTEMP_MON2_DIS);
-		break;
-	case PM880:
- 		regmap_update_bits(info->chip->battery_regmap,
- 				   PM88X_CHG_CONFIG1,
- 				   PM88X_BATTEMP_MON2_DIS,
- 				   PM88X_BATTEMP_MON2_DIS);
-		break;
-	default:
-		break;
-	}
 
 	return 0;
 }
@@ -1906,10 +1976,10 @@ static int pm88x_batt_get_prop(struct power_supply *psy,
 
 static void init_ccnt_data(struct ccnt *ccnt_val, int value)
 {
-	ccnt_val->soc = 10 * value; /* multiply 10 */
+	ccnt_val->soc = value; /* multiply 10 */
 	ccnt_val->real_soc = ccnt_val->soc;
 
-	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * ROUND_SOC(ccnt_val->soc);
+	ccnt_val->last_cc = (ccnt_val->max_cc / 1000) * (ccnt_val->soc) / PM88X_CAP_FAC100;
 	ccnt_val->real_last_cc = ccnt_val->last_cc;
 
 	ccnt_val->previous_soc = ccnt_val->soc;
@@ -1928,7 +1998,18 @@ static int pm88x_batt_set_prop_capacity(struct pm88x_battery_info *info, int dat
 	}
 
 	info->bat_params.soc = data;
-	init_ccnt_data(&ccnt_data, data);
+	init_ccnt_data(&ccnt_data, PM88X_MUL_FAC1000(data));
+
+	return 0;
+}
+
+static int pm88x_batt_set_prop_temp(struct pm88x_battery_info *info, int data)
+{
+	battery_fake_temp = data;
+
+	dev_info(info->dev, "fake temperature is %s\n",
+		 is_battery_temp_faked() ? "enabled" : "disabled");
+	dev_info(info->dev, "fake temperature is %dC\n", battery_fake_temp/10);
 
 	return 0;
 }
@@ -1944,6 +2025,9 @@ static int pm88x_batt_set_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 		ret = pm88x_batt_set_prop_capacity(info, val->intval);
 		break;
+	case POWER_SUPPLY_PROP_TEMP:
+		ret = pm88x_batt_set_prop_temp(info, val->intval);
+		break;
 	default:
 		ret = -EPERM;
 		break;
@@ -1957,6 +2041,7 @@ static int pm88x_batt_property_is_writeable(struct power_supply *psy,
 {
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CAPACITY:
+	case POWER_SUPPLY_PROP_TEMP:
 		return 1;
 	default:
 		return 0;
@@ -2038,11 +2123,6 @@ static int pm88x_battery_dt_init(struct device_node *np,
 	}
 
 	info->bat_temp_monitor_en = of_property_read_bool(np, "bat-temp-monitor-en");
-
-	if (of_get_property(np, "bat-software-battery-detection", NULL))
-		info->use_sw_bd = true;
-	else
-		info->use_sw_bd = false;
 
 	ret = of_property_read_u32(np, "gpadc-temp-no", &info->gpadc_temp_no);
 	if (ret)
@@ -2137,6 +2217,8 @@ static int pm88x_battery_dt_init(struct device_node *np,
 	 * multipiled by 100
 	 */
 	ret = of_property_read_u32(np, "cc-fixup", &info->cc_fixup);
+	ret = of_property_read_u32_array(np, "power-off-extreme-th",
+					 info->power_off_extreme_th, 2);
 
 	return 0;
 }
@@ -2216,6 +2298,8 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	info->soc_high_th_cycle = 85;
 
 	info->cc_fixup = 100;
+	info->power_off_extreme_th[0] = 3200;
+	info->power_off_extreme_th[1] = 3400;
 
 	pdata = pdev->dev.platform_data;
 	ret = pm88x_battery_dt_init(node, info);
@@ -2262,7 +2346,17 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 
 	pm88x_bat_update_status(info);
 
-	info->battery.name = "battery";
+	info->bat_wqueue = create_singlethread_workqueue("88pm88x-battery-wq");
+	if (!info->bat_wqueue) {
+		dev_info(chip->dev, "%s: failed to create wq.\n", __func__);
+		ret = -ESRCH;
+		goto out_free;
+	}
+
+	INIT_DELAYED_WORK(&info->charged_work, pm88x_charged_work);
+	INIT_DELAYED_WORK(&info->monitor_work, pm88x_battery_monitor_work);
+
+	info->battery.name = MY_PSY_NAME;
 	info->battery.type = POWER_SUPPLY_TYPE_BATTERY;
 	info->battery.properties = pm88x_batt_props;
 	info->battery.num_properties = ARRAY_SIZE(pm88x_batt_props);
@@ -2274,13 +2368,6 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 	info->battery.num_supplicants = ARRAY_SIZE(supply_interface);
 	ret = power_supply_register(&pdev->dev, &info->battery);
 	info->battery.dev->parent = &pdev->dev;
-
-	info->bat_wqueue = create_singlethread_workqueue("88pm88x-battery-wq");
-	if (!info->bat_wqueue) {
-		dev_info(chip->dev, "%s: failed to create wq.\n", __func__);
-		ret = -ESRCH;
-		goto out;
-	}
 
 	/* interrupt should be request in the last stage */
 	for (i = 0; i < info->irq_nums; i++) {
@@ -2298,22 +2385,10 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 		}
 	}
 
-	INIT_DELAYED_WORK(&info->charged_work, pm88x_charged_work);
-	INIT_DELAYED_WORK(&info->monitor_work, pm88x_battery_monitor_work);
-
 	pm_stay_awake(info->dev);
 	/* update the status timely */
 	queue_delayed_work(info->bat_wqueue, &info->monitor_work, 0);
 
-	info->nb.notifier_call = pm88x_cycles_notifier_call;
-#ifdef CONFIG_USB_MV_UDC
-	ret = mv_udc_register_client(&info->nb);
-	if (ret < 0) {
-		dev_err(info->dev,
-			"%s: failed to register client!\n", __func__);
-		goto out_irq;
-	}
-#endif
 	device_init_wakeup(&pdev->dev, 1);
 	dev_info(info->dev, "%s is successful to be probed.\n", __func__);
 
@@ -2322,7 +2397,6 @@ static int pm88x_battery_probe(struct platform_device *pdev)
 out_irq:
 	while (--i >= 0)
 		devm_free_irq(info->dev, info->irqs[i].irq, info);
-out:
 	power_supply_unregister(&info->battery);
 out_free:
 	kfree(info->temp_ohm_table);
@@ -2349,9 +2423,6 @@ static int pm88x_battery_remove(struct platform_device *pdev)
 	kfree(info->temp_ohm_table);
 	pm88x_battery_release_adc(info);
 
-#ifdef CONFIG_USB_MV_UDC
-	mv_udc_unregister_client(&info->nb);
-#endif
 	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
@@ -2371,7 +2442,7 @@ static int pm88x_battery_resume(struct device *dev)
 
 	/*
 	 * avoid to reading in short sleep case
-	 * to update ocv_is_realiable flag effectively
+	 * to update ocv_is_reliable flag effectively
 	 */
 	pm_stay_awake(info->dev);
 	atomic_set(&in_resume, 1);

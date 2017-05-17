@@ -782,12 +782,9 @@ struct kobject *cpufreq_global_kobject;
 struct kset *cpufreq_kset;
 static int cpufreq_uevent_filter(struct kset *kset, struct kobject *kobj)
 {
-	struct kobj_type *ktype = get_ktype(kobj);
+	if (!cpufreq_suspended)
+		return 1;
 
-	if (ktype == &ktype_cpufreq) {
-		if (!cpufreq_suspended)
-			return 1;
-	}
 	return 0;
 }
 
@@ -1385,9 +1382,10 @@ static int __cpufreq_remove_dev_finish(struct device *dev,
 	unsigned long flags;
 	struct cpufreq_policy *policy;
 
-	read_lock_irqsave(&cpufreq_driver_lock, flags);
+	write_lock_irqsave(&cpufreq_driver_lock, flags);
 	policy = per_cpu(cpufreq_cpu_data, cpu);
-	read_unlock_irqrestore(&cpufreq_driver_lock, flags);
+	per_cpu(cpufreq_cpu_data, cpu) = NULL;
+	write_unlock_irqrestore(&cpufreq_driver_lock, flags);
 
 	if (!policy) {
 		pr_debug("%s: No cpu_data found\n", __func__);
@@ -1442,7 +1440,6 @@ static int __cpufreq_remove_dev_finish(struct device *dev,
 		}
 	}
 
-	per_cpu(cpufreq_cpu_data, cpu) = NULL;
 	return 0;
 }
 

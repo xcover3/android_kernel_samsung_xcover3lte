@@ -283,10 +283,8 @@ static int sd8x_pwr_ctrl(struct sd8x_rfkill_platform_data *pdata, int on)
 		}
 	} else {
 		if (gpio_power_down >= 0)
-		{
-			pr_info("%s : pd to low\n", __func__);
 			gpio_direction_output(gpio_power_down, 0);
-		}
+
 		sd8x_1v8_3v3_control(pdata, 0);
 	}
 
@@ -412,8 +410,8 @@ static int sd8x_pwr_off(struct sd8x_rfkill_platform_data *pdata)
 	host = mmc_priv(pdata->mmc);
 
 	/* First: tell SDIO bus the device will be power off */
-//	if (host->mmc  && host->mmc->card)
-//		mmc_disable_sdio(host->mmc);
+	if (host->mmc  && host->mmc->card)
+		mmc_disable_sdio(host->mmc);
 
 	/* Second: power off sd8x device */
 	sd8x_pwr_ctrl(pdata, 0);
@@ -423,18 +421,6 @@ static int sd8x_pwr_off(struct sd8x_rfkill_platform_data *pdata)
 
 	/* TODO: check sdio device can't be detected indeed */
 
-	if (pdata->mmc) {
-		unsigned long timeout_secs = 1;
-		unsigned long timeout = msecs_to_jiffies(timeout_secs * 1000);
-		if (0 == mmc_detect_change_sync(pdata->mmc,
-						msecs_to_jiffies(10),
-						timeout)) {
-			printk(KERN_WARNING
-			       "mmc detect has taken %u ms, "
-			       "something wrong\n",
-			       jiffies_to_msecs(timeout));
-		}
-	}
 	/* Last: update the status */
 	pm_runtime_put_sync(host->mmc->parent);
 
@@ -644,9 +630,6 @@ static int sd8x_rfkill_probe_dt(struct platform_device *pdev)
 		pdata->wib_sdio_1v8 = wib_sdio_1v8;
 	}
 
-	if (of_property_read_bool(np, "marvell,sdh-tuning-dvfs"))
-		pdata->probe_force_tuning = true;
-
 	return 0;
 }
 #else
@@ -695,11 +678,10 @@ static int sd8x_rfkill_probe(struct platform_device *pdev)
 	 * devices by default
 	 * TODO: enhance it if there is different choose in future
 	 */
-	if (pdata->probe_force_tuning) {
+	if (pdata->mmc->sdio_probe_tune) {
 		pdata->is_on = 0;
-		pdata->mmc->detect_tuning = true;
 		sd8x_pwr_on(pdata);
-		pdata->mmc->detect_tuning = false;
+		pdata->mmc->sdio_probe_tune = false;
 		sd8x_pwr_off(pdata);
 	} else {
 		sd8x_pwr_ctrl(pdata, 0);
@@ -728,7 +710,7 @@ static int sd8x_rfkill_remove(struct platform_device *pdev)
 {
 	struct sd8x_rfkill_platform_data *pdata;
 	pdata = pdev->dev.platform_data;
-	pr_info("%s\n", __func__);
+
 	if (pdata->wib_3v3)
 		regulator_put(pdata->wib_3v3);
 
@@ -738,15 +720,6 @@ static int sd8x_rfkill_remove(struct platform_device *pdev)
 	if (pdata->wib_sdio_1v8)
 		regulator_put(pdata->wib_sdio_1v8);
 	return 0;
-}
-static void sd8x_rfkill_shutdown(struct platform_device *pdev)
-{
-	struct sd8x_rfkill_platform_data *pdata;
-	pdata = pdev->dev.platform_data;
-	pr_info("%s\n", __func__);
-	sd8x_pwr_off(pdata);
-	
-	return;
 }
 
 static int sd8x_rfkill_suspend(struct platform_device *pdev,
@@ -763,7 +736,6 @@ static int sd8x_rfkill_resume(struct platform_device *pdev)
 static struct platform_driver sd8x_rfkill_platform_driver = {
 	.probe = sd8x_rfkill_probe,
 	.remove = sd8x_rfkill_remove,
-	.shutdown = sd8x_rfkill_shutdown, 
 	.driver = {
 		   .name = SD8X_DEV_NAME,
 		   .owner = THIS_MODULE,

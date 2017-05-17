@@ -115,22 +115,6 @@ struct mmc_ext_csd {
 
 	unsigned int            feature_support;
 #define MMC_DISCARD_FEATURE	BIT(0)                  /* CMD38 feature */
-				/*
-				 * It's for eMMC 5.0 or later device
-				 * [63:56] : DEVICE_LIFE_TIME_EST_TYPE_B [269]
-				 * [55:48] : DEVICE_LIFE_TIME_EST_TYPE_A [268]
-				 * [47:40] : PRE_EOL_INFO [267]
-				 * [39:32] : OPTIMAL_TRIM_UNIT_SIZE [264]
-				 * [31:16] : DEVICE_VERSION [263-262]
-				 * [15:08] : HC_ERASE_GRP_SIZE [224]
-				 * [07:00] : HC_WP_GRP_SIZE [221]
-				 */
-	unsigned long long	smart_info;
-				/*
-				 * It's for eMMC 5.0 or later device
-				 * [63:00] : FIRMWARE_VERSION [261-254]
-				 */
-	unsigned long long	fwdate;
 };
 
 struct sd_scr {
@@ -292,9 +276,6 @@ struct mmc_card {
 #define MMC_QUIRK_SEC_ERASE_TRIM_BROKEN (1<<10)	/* Skip secure for erase/trim */
 #define MMC_QUIRK_BROKEN_IRQ_POLLING	(1<<11)	/* Polling SDIO_CCCR_INTx could create a fake interrupt */
 
-#define MMC_QUIRK_SANDISK_MLC (1<<30)			/* Check the iNAND MLC */
-#define MMC_QUIRK_MOVINAND_TLC (1<<31)			/* Check the moviNAND TLC */
-
 	unsigned int		erase_size;	/* erase size in sectors */
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
  	unsigned int		pref_erase;	/* in sectors */
@@ -320,10 +301,6 @@ struct mmc_card {
 	struct sdio_func_tuple	*tuples;	/* unknown common tuples */
 
 	unsigned int		sd_bus_speed;	/* Bus Speed Mode set for the card */
-
-	struct device_attribute	bkops_attr;	/* for enable/disable bkops mode */
-	u8			bkops_enable;	/* bkops mode on/off */
-	spinlock_t		bkops_lock;	/* lock for bkops_enable filed */
 
 	struct dentry		*debugfs_root;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */

@@ -125,7 +125,6 @@ void cpuidle_c2_lock(void)
 	su[POWER_MODE_APPS_IDLE].disable = 1;
 	su[POWER_MODE_SYS_SLEEP_VCTCXO_OFF].disable = 1;
 }
-EXPORT_SYMBOL_GPL(cpuidle_c2_lock);
 
 void cpuidle_c2_unlock(void)
 {
@@ -136,7 +135,6 @@ void cpuidle_c2_unlock(void)
 	for (i = 0; i < arm64_idle_driver.state_count; i++)
 		su[i].disable = (states_disabled_cpu0 & (1 << i))?1:0;
 }
-EXPORT_SYMBOL_GPL(cpuidle_c2_unlock);
 
 /*
  * arm64_enter_state - Programs CPU to enter the specified state

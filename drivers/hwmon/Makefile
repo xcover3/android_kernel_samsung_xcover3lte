@@ -147,21 +147,22 @@ obj-$(CONFIG_SENSORS_LPS331AP)	+= lps331ap.o
 obj-$(CONFIG_SENSORS_BMP18X)	+= bmp18x-core.o bmp18x-i2c.o
 obj-$(CONFIG_SENSORS_APDS9930)	+= apds9930.o
 obj-$(CONFIG_SENSORS_APDS990X_MRVL)	+= apds990x.o
+obj-$(CONFIG_SENSORS_AP3426)    += ap3426.o
 obj-$(CONFIG_SENSORS_GRIP)	+= grip_sensor.o
 obj-$(CONFIG_SENSORS_STK3X1X)	+= stk3x1x.o
 obj-$(CONFIG_SENSORS_LIS3DH)	+= lis3dh.o
 obj-$(CONFIG_SENSORS_TSL2772)	+= tsl277x.o
 obj-$(CONFIG_SENSORS_MC3XXX)	+= mc3xxx.o
+obj-$(CONFIG_SENSORS_BMA2X2)	+= bma2x2.o
 obj-$(CONFIG_SENSORS_LTR558_I2C)	+= ltr_558als.o
 obj-$(CONFIG_SENSOR_EPL2182)	+= epl2182.o
-obj-$(CONFIG_SENSORS_SEC_THERMISTOR)	+= sec_thermistor.o
-
+obj-$(CONFIG_SENSORS_LTR55X_I2C)	+= ltr55x.o
 obj-$(CONFIG_PMBUS)		+= pmbus/
 obj-y				+= bmi160/
 
 obj-y				+= bmp280/
 obj-y				+= bme280/
-obj-y				+= sec/
+obj-y				+= lsm6ds3/
 obj-$(CONFIG_SENSORS_MMX3524X_MXC400X)	+= memsic/mxc400x.o memsic/ptaccs.o memsic/mmc3524x.o memsic/mecs.o
 ccflags-$(CONFIG_HWMON_DEBUG_CHIP) := -DDEBUG
 

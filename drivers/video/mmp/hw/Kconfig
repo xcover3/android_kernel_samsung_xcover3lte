@@ -51,11 +51,4 @@ config MMP_VIRTUAL_RESOLUTION_Y
 	default 1280
 	help
 		Set the y resolution for virtual resolution
-
-config MMP_ADAPTIVE_FPS
-	bool "mmp display controller adaptive fps support"
-	depends on MMP_DISP_CONTROLLER
-	default n
-	help
-		Adaptive fps
 endif

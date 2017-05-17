@@ -69,6 +69,11 @@ enum _mlan_ioctl_req_id {
 #ifdef UAP_SUPPORT
 	MLAN_OID_UAP_CFG_WMM_PARAM = 0x00020015,
 #endif
+	MLAN_OID_BSS_11D_CHECK_CHANNEL = 0x00020016,
+#ifdef UAP_SUPPORT
+	MLAN_OID_UAP_SCAN_CHANNELS = 0x00020018,
+	MLAN_OID_UAP_CHANNEL = 0x00020019,
+#endif
 
 	/* Radio Configuration Group */
 	MLAN_IOCTL_RADIO_CFG = 0x00030000,
@@ -609,6 +614,12 @@ typedef struct _mlan_ssid_bssid {
 /** Maximum value of 4 byte configuration */
 #define MAX_VALID_DWORD         0x7FFFFFFF	/* (1 << 31) - 1 */
 
+/** setting for band_config - band=5GHZ */
+#define BAND_CONFIG_5GHZ        0x01
+/** default UAP BAND 2.4G */
+#define DEFAULT_UAP_BAND		0
+/** default UAP channel 6 */
+#define DEFAULT_UAP_CHANNEL		6
 /** Band config ACS mode */
 #define BAND_CONFIG_ACS_MODE    0x40
 /** Band config manual */
@@ -921,6 +932,27 @@ typedef struct _mlan_deauth_param {
     /** deauth reason */
 	t_u16 reason_code;
 } mlan_deauth_param;
+
+/** mlan_uap_scan_channels */
+typedef struct _mlan_uap_scan_channels {
+    /** flag for remove nop channel*/
+	t_u8 remove_nop_channel;
+	/** num of removed channel */
+	t_u8 num_remvoed_channel;
+    /** Number of channels in scan_channel_list */
+	t_u32 num_of_chan;
+    /** scan channel list in ACS mode */
+	scan_chan_list chan_list[MLAN_MAX_CHANNEL];
+} mlan_uap_scan_channels;
+
+/** mlan_uap_channel */
+typedef struct _mlan_uap_channel {
+    /** band cfg */
+	t_u8 band_cfg;
+    /** channel */
+	t_u8 channel;
+} mlan_uap_channel;
+
 #endif
 
 #ifdef WIFI_DIRECT_SUPPORT
@@ -969,6 +1001,10 @@ typedef struct _mlan_ds_bss {
 		mlan_deauth_param deauth_param;
 	/** AP Wmm parameters for MLAN_OID_UAP_CFG_WMM_PARAM */
 		wmm_parameter_t ap_wmm_para;
+		/** ap scan channels for MLAN_OID_UAP_SCAN_CHANNELS*/
+		mlan_uap_scan_channels ap_scan_channels;
+	/** ap channel for MLAN_OID_UAP_CHANNEL*/
+		mlan_uap_channel ap_channel;
 #endif
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	/** BSS role for MLAN_OID_BSS_ROLE */
@@ -1039,6 +1075,15 @@ typedef struct _mlan_ds_ant_cfg {
     /** Rx antenna mode */
 	t_u32 rx_antenna;
 } mlan_ds_ant_cfg, *pmlan_ds_ant_cfg;
+/** Type definition of mlan_ds_ant_cfg_1x1 for MLAN_OID_ANT_CFG */
+typedef struct _mlan_ds_ant_cfg_1x1 {
+    /** Antenna mode */
+	t_u32 antenna;
+    /** Evaluate time */
+	t_u16 evaluate_time;
+    /** Current antenna */
+	t_u16 current_antenna;
+} mlan_ds_ant_cfg_1x1, *pmlan_ds_ant_cfg_1x1;
 
 #ifdef WIFI_DIRECT_SUPPORT
 /** Type definition of mlan_ds_remain_chan for MLAN_OID_REMAIN_CHAN_CFG */
@@ -1069,7 +1114,7 @@ typedef struct _mlan_ds_radio_cfg {
 	/** Antenna info for MLAN_OID_ANT_CFG */
 		mlan_ds_ant_cfg ant_cfg;
 	/** Antenna info for MLAN_OID_ANT_CFG */
-		t_u32 antenna;
+		mlan_ds_ant_cfg_1x1 ant_cfg_1x1;
 #ifdef WIFI_DIRECT_SUPPORT
 	/** remain on channel for MLAN_OID_REMAIN_CHAN_CFG */
 		mlan_ds_remain_chan remain_chan;
@@ -2093,7 +2138,7 @@ typedef struct _mlan_ds_power_cfg {
 #define HOST_SLEEP_COND_IPV6_PACKET     MBIT(31)
 
 /** Host sleep config conditions: Default */
-#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT)
+#define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT | HOST_SLEEP_COND_IPV6_PACKET)
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO     0xff
 /** Host sleep config gap : Default */
@@ -3447,6 +3492,10 @@ typedef struct _mlan_ds_misc_rx_packet_coalesce {
 	t_u16 delay;
 } mlan_ds_misc_rx_packet_coalesce;
 #endif
+
+#define WOWLAN_MAX_PATTERN_LEN		20
+#define WOWLAN_MAX_OFFSET_LEN		50
+#define MAX_NUM_FILTERS              10
 
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {

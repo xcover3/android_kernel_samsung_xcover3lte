@@ -525,7 +525,6 @@ static int __init pxa1908_lowpower_init(void)
 {
 	u32 apcr;
 	u32 sccr;
-	u32 dvfc_debug;
 
 	if (!of_machine_is_compatible("marvell,pxa1908"))
 		return -ENODEV;
@@ -544,15 +543,9 @@ static int __init pxa1908_lowpower_init(void)
 	apcr |= PMUM_DTCMSD | PMUM_BBSD | PMUM_MSASLPEN;
 	apcr &= ~(PMUM_STBYEN | DISABLE_ALL_WAKEUP_PORTS);
 	writel_relaxed(apcr, mpmu_virt_addr + APCR);
-
-
-	dvfc_debug = readl_relaxed(apmu_virt_addr + DVC_DFC_DEBUG);
-	dvfc_debug |= AP_DVC_EN_FOR_FAST_WAKEUP;
-	writel_relaxed(dvfc_debug, apmu_virt_addr + DVC_DFC_DEBUG);
-
 	/* TODO: Is 10us still valid for CA53? */
 	/* set the power stable timer as 10us */
-	writel_relaxed(0x2c307, apmu_virt_addr + STBL_TIMER);
+	writel_relaxed(0x28207, apmu_virt_addr + STBL_TIMER);
 	/*
 	 * NOTE: bit0 and bit2 should always be set in SCCR.
 	 * 1. bit2: Force the modem into sleep mode. system can't

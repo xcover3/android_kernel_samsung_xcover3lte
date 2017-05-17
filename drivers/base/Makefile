@@ -23,7 +23,6 @@ obj-$(CONFIG_REGMAP)	+= regmap/
 obj-$(CONFIG_REGDUMP) += regdump.o
 obj-$(CONFIG_SOC_BUS) += soc.o
 obj-$(CONFIG_PINCTRL) += pinctrl.o
-obj-$(CONFIG_SEC_COMMON)	+= sec-common.o
 
 ccflags-$(CONFIG_DEBUG_DRIVER) := -DDEBUG
 

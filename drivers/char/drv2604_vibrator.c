@@ -88,8 +88,8 @@
 #define WAVEFORMSEQ_TERMINATE	0
 
 /* definitions */
-#define WAIT_FOR_CAL_MSEC		500
-#define CHECK_CAL_PROCESS_RETRIES	5
+#define WAIT_FOR_CAL_MSEC		50 /* waste up to 50ms after done */
+#define CHECK_CAL_PROCESS_RETRIES	50
 #define VIBRA_OFF_VALUE	0
 #define VIBRA_ON_VALUE		1
 #define LDO_VOLTAGE_3p3V	3300000

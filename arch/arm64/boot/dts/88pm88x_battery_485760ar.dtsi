@@ -8,8 +8,8 @@
 	charger {
 		prechg-current = <450>;
 		prechg-voltage = <3000>;
-		fastchg-voltage = <4350>;
-		fastchg-cur = <1000>;
+		fastchg-voltage = <4350 4350 4350>; /* LTR, STR, HTR */
+		fastchg-cur = <1000 1000 1000>; /* LTR, STR, HTR */
 		fastchg-eoc = <120>;
 		fastchg-tout = <8>;
 		recharge-thr = <200>;
@@ -41,11 +41,11 @@
 
 		/* battery temerature feature parameters */
 
-		abs-lowest-temp = <20>;
-		t1-degree = <0>;	/* -20C */
-		t2-degree = <20>;	/* 0C */
-		t3-degree = <65>;	/* 45C */
-		t4-degree = <83>;	/* 63C */
+		abs-lowest-temp = <0>;
+		t1-degree = <0>;	/* 0C */
+		t2-degree = <10>;	/* 10C */
+		t3-degree = <30>;	/* 30C */
+		t4-degree = <45>;	/* 45C */
 
 		times-in-minus-ten = <2>;
 		offset-in-minus-ten = <100>;

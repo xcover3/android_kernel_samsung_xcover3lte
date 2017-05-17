@@ -25,9 +25,6 @@
  */
 static const unsigned max_num_devices = 32;
 
-extern u64 zram_compressed_size = 0;
-extern u64 zram_pages_stored = 0;
-
 /*-- Configurable parameters */
 
 /*

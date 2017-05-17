@@ -596,8 +596,6 @@ struct rq {
 #ifdef CONFIG_SCHED_HMP
 	struct task_struct *migrate_task;
 	int wake_for_idle_pull;
-	unsigned long hmp_flags;
-	int capacity;
 #endif
 	/* cpu of this runqueue: */
 	int cpu;

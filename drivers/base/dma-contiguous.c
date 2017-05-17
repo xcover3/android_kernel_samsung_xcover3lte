@@ -32,10 +32,6 @@
 #include <linux/swap.h>
 #include <linux/mm_types.h>
 #include <linux/dma-contiguous.h>
-#ifdef CONFIG_OF
-#include <linux/of_fdt.h>
-#include <linux/of.h>
-#endif
 
 struct cma {
 	unsigned long	base_pfn;
@@ -64,9 +60,6 @@ int cma_available;
  * should use cma= kernel parameter.
  */
 static const phys_addr_t size_bytes = CMA_SIZE_MBYTES * SZ_1M;
-#ifdef CONFIG_OF
-static phys_addr_t __initdata cma_size_bytes;
-#endif
 static phys_addr_t size_cmdline = -1;
 
 static int __init early_cma(char *p)
@@ -76,28 +69,6 @@ static int __init early_cma(char *p)
 	return 0;
 }
 early_param("cma", early_cma);
-
-#ifdef CONFIG_OF
-static int __init cma_fdt_find_info(unsigned long node, const char *uname,
-						int depth, void *data)
-{
-	__be32 *prop;
-	unsigned long len;
-
-	if (!of_flat_dt_is_compatible(node, "linux,cma-heap"))
-		return 0;
-
-	prop = of_get_flat_dt_prop(node, "cma-size", &len);
-	if (!prop || (len != sizeof(unsigned int))) {
-		pr_err("%s: Can't find cma size property\n", __func__);
-		return 0;
-	}
-
-	cma_size_bytes = be32_to_cpu(prop[0]);
-
-	return 1;
-}
-#endif
 
 #ifdef CONFIG_CMA_SIZE_PERCENTAGE
 
@@ -140,10 +111,7 @@ void __init dma_contiguous_reserve(phys_addr_t limit)
 	phys_addr_t selected_size = 0;
 
 	pr_debug("%s(limit %08lx)\n", __func__, (unsigned long)limit);
-#ifdef CONFIG_OF
-	if (of_scan_flat_dt(cma_fdt_find_info, NULL))
-		selected_size = cma_size_bytes;
-#else
+
 	if (size_cmdline != -1) {
 		selected_size = size_cmdline;
 	} else {
@@ -157,7 +125,7 @@ void __init dma_contiguous_reserve(phys_addr_t limit)
 		selected_size = max(size_bytes, cma_early_percent_memory());
 #endif
 	}
-#endif	// CONFIG_OF
+
 	if (selected_size && !dma_contiguous_default_area) {
 		pr_debug("%s: reserving %ld MiB for global area\n", __func__,
 			 (unsigned long)selected_size / SZ_1M);

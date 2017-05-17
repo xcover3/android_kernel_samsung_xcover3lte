@@ -60,7 +60,7 @@ static char manufacturer_cmd_access_protect[] = {0xB0, 0x04};
 static char backlight_ctrl[] = {0xCE, 0x00, 0x01, 0x88, 0xC1, 0x00, 0x1E, 0x04};
 static char nop[] = {0x0};
 static char seq_test_ctrl[] = {0xD6, 0x01};
-static char write_display_brightness[] = {0x51, 0x0F, 0xFF};
+static char write_display_brightness[] = {0x51, 0x00, 0x00};
 static char write_ctrl_display[] = {0x53, 0x24};
 
 static struct mmp_dsi_cmd_desc r63311_display_on_cmds[] = {
@@ -445,6 +445,7 @@ static int r63311_probe(struct platform_device *pdev)
 			pr_debug("panel %s has ddrfreq min request: %u\n",
 				 panel_r63311.name, panel_r63311.ddrfreq_qos);
 		}
+#endif
 		ret = of_property_read_u32(np, "mipi-backlight-max_brightness",
 				&panel_r63311.max_brightness);
 		if (ret < 0) {
@@ -463,7 +464,6 @@ static int r63311_probe(struct platform_device *pdev)
 			"min brightness not found, set default as %u\n",
 					panel_r63311.min_brightness);
 		}
-#endif
 	} else {
 		/* get configs from platform data */
 		mi = pdev->dev.platform_data;

@@ -36,6 +36,8 @@
 #include <linux/debugfs-pxa.h>
 #endif
 
+#include "mmp-cpufreq-comm.h"
+
 /* Unit of various frequencies:
  * clock driver: Hz
  * cpufreq framework/driver & QoS framework/interface: KHz
@@ -88,6 +90,9 @@ struct cpufreq_cluster {
 
 	char *clk_name;
 	struct clk *clk;
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	struct cpufreq_ddr_upthrd *cdu;
+#endif
 
 	struct cpufreq_policy *policy;
 	struct cpufreq_frequency_table *freq_table;
@@ -118,18 +123,6 @@ static LIST_HEAD(clst_list);
 /* Locks used to serialize cpufreq target request. */
 static DEFINE_MUTEX(mmp_cpufreq_lock);
 
-static char *__cpufreq_printf(const char *fmt, ...)
-{
-	va_list vargs;
-	char *buf;
-
-	va_start(vargs, fmt);
-	buf = kvasprintf(GFP_KERNEL, fmt, vargs);
-	va_end(vargs);
-
-	return buf;
-}
-
 /*
  * We have two modes to handle cpufreq on dual clusters:
  * 1. When there are no limitations from policy, thermal, etc, frequencies
@@ -141,7 +134,6 @@ static char *__cpufreq_printf(const char *fmt, ...)
  * or "echo 1 (or 0) > /sys/kernel/debug/pxa/vl_cpufreq"
  * to enable or disable voltage based cpufreq.
  */
-/* For LITTLE min lock issue */
 static unsigned int vl_cpufreq_enable = 0;
 static int __init __cpufreq_mode_setup(char *str)
 {
@@ -397,7 +389,7 @@ static int __cpufreq_freq_max_notify(
 
 	if (!clk_set_rate(policy->clk, freqs.new * 1000)) {
 		ret = NOTIFY_OK;
-		if (clst->clst_index == 0)
+		if (clst->clst_index == LITTLE_CLST)
 			cpufreq_lfreq_index = index;
 	} else {
 		freqs.new = freqs.old;
@@ -405,6 +397,11 @@ static int __cpufreq_freq_max_notify(
 	}
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
+
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	clst->cdu->new_cpu_rate = freqs.new;
+	cpufreq_ddr_upthrd_send_req(clst->cdu);
+#endif
 
 	return ret;
 }
@@ -574,6 +571,13 @@ static int mmp_bL_cpufreq_init(struct cpufreq_policy *policy)
 			pm_qos_add_notifier(clst->vl_qos_min_id, &clst->vl_min_notifier);
 		cpufreq_register_notifier(&clst->cpufreq_policy_notifier, CPUFREQ_POLICY_NOTIFIER);
 
+		#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+		clst->cdu = cpufreq_ddr_upthrd_init(clst->clk);
+		if (!clst->cdu) {
+			pr_err("%s: fail to get a valid cdu for ddr_thrd.\n", __func__);
+			goto err_out;
+		}
+		#endif
 	}
 
 	ret = cpufreq_table_validate_and_show(policy, clst->freq_table);

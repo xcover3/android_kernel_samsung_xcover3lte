@@ -146,6 +146,17 @@ config UIO_CODA7542
 
          If you compile this as a module, it will be called uio_coda7542.
 
+config UIO_CODAL
+       tristate "CODAL UIO device driver"
+       depends on UIO
+       default n
+       help
+         Enable this config, allow userspace to use the IO interface of
+	 the Chip&Media multi-format video decoder engine codaL, which
+	 include encoder/decoder/JPU (jpg processor unit).
+
+         If you compile this as a module, it will be called uio_codaL.
+
 config UIO_HANTRO
 	tristate "Hantro UIO device driver"
 	depends on UIO && ARCH_MMP

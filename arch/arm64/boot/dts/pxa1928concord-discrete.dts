@@ -1,0 +1,13 @@
+/*
+ *  Copyright (C) 2012 Marvell Technology Group Ltd.
+ *  Author: Jing Xiang <jxiang@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+#define PXA1928_DISCRETE
+
+#include "pxa1928concord-pinfunc.h"
+#include "pxa1928concord.dts"

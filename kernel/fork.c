@@ -161,19 +161,20 @@ static inline void free_thread_info(struct thread_info *ti)
 }
 # else
 
-static struct kmem_cache *thread_info_cache;
-#ifdef CONFIG_THREADINFO_MEMPOOL
-static mempool_t *thread_info_pool;
+#if defined(CONFIG_THREADINFO_MEMPOOL)
+static mempool_t	*thread_info_pool;
 #endif
+
+static struct kmem_cache *thread_info_cache;
 
 static struct thread_info *alloc_thread_info_node(struct task_struct *tsk,
 						  int node)
 {
-#ifdef CONFIG_THREADINFO_MEMPOOL
+#if defined(CONFIG_THREADINFO_MEMPOOL)
 	return mempool_alloc(thread_info_pool, THREADINFO_GFP_ACCOUNTED);
 #else
 #ifdef CONFIG_ARM64_THREADINFO_SLABCACHE
-	return kmem_cache_alloc_node(thread_info_cache, THREADINFO_GFP_ACCOUNTED, node);
+	return kmem_cache_alloc_node(thread_info_cache, THREADINFO_GFP_ACCOUNTED, node)
 #else
 	return kmem_cache_alloc_node(thread_info_cache, THREADINFO_GFP, node);
 #endif
@@ -182,7 +183,7 @@ static struct thread_info *alloc_thread_info_node(struct task_struct *tsk,
 
 static void free_thread_info(struct thread_info *ti)
 {
-#ifdef CONFIG_THREADINFO_MEMPOOL
+#if defined(CONFIG_THREADINFO_MEMPOOL)
 	mempool_free(ti, thread_info_pool);
 #else
 	kmem_cache_free(thread_info_cache, ti);
@@ -194,26 +195,26 @@ void thread_info_cache_init(void)
 	thread_info_cache = kmem_cache_create("thread_info", THREAD_SIZE,
 					      THREAD_SIZE, 0, NULL);
 	BUG_ON(thread_info_cache == NULL);
-#ifdef CONFIG_THREADINFO_MEMPOOL
-	unsigned int min_nr, ratio;
 
-	if (totalram_pages >= 1536 * 256 && totalram_pages < 2048 * 256)
-		ratio = 50;	// 2.0GiB RAM Device
-	else if (totalram_pages >= 1024 * 256 && totalram_pages < 1536 * 256)
-		ratio = 60;	// 1.5GiB RAM Device
-	else if (totalram_pages >= 768 * 256 && totalram_pages < 1024 * 256)
-		ratio = 75;	// 1.0GiB RAM Device
-	else if (totalram_pages >= 512 * 256 && totalram_pages < 768 * 256)
-		ratio = 80;	// 768MiB RAM Device
-	else
-		ratio = 90;	// 512MiB RAM Device
+#if defined(CONFIG_THREADINFO_MEMPOOL)
+#define MAX_MEMPOOL_THREADS 50
+#define NUM_OF_PAGES_512M   (512 * 1024 * 1024 / PAGE_SIZE)
+	{
+		int min_nr;
 
-	min_nr = (totalram_pages * ratio / 10000) / (THREAD_SIZE / PAGE_SIZE);
-	pr_info("thread_info mempool reserved : %d \n", min_nr);
+		if (totalram_pages > NUM_OF_PAGES_512M) {
+					/* 0.8% of totalpages */
+			min_nr = (totalram_pages * 8 / 1000) / (THREAD_SIZE / PAGE_SIZE);
+			pr_info("thread_info mempool reserved : %d\n", min_nr);
+		} else {
+			min_nr = MAX_MEMPOOL_THREADS;
+			pr_info("thread_info mempool reserved : %d\n", min_nr);
+		}
 
-	thread_info_pool = mempool_create(min_nr, mempool_alloc_slab,
-			mempool_free_slab, thread_info_cache);
-	BUG_ON(thread_info_pool == NULL);
+		thread_info_pool = mempool_create(min_nr, mempool_alloc_slab,
+				mempool_free_slab, thread_info_cache);
+		BUG_ON(thread_info_pool == NULL);
+	}
 #endif
 }
 # endif

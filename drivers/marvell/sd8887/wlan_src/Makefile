@@ -230,8 +230,6 @@ ifdef CONFIG_MRVL_SKMALLOC_WIRELESS_EN
 	EXTRA_CFLAGS += -DSUPPER_KMALLOC
 endif
 
-EXTRA_CFLAGS += -DSEC_FCC_CERT
-
 #############################################################################
 # Make Targets
 #############################################################################

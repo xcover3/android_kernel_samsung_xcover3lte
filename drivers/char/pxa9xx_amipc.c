@@ -520,7 +520,7 @@ static long amipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case AMIPC_SEND_DATA:
 		amipc_data_send(amipc_arg.event, amipc_arg.data1,
-				amipc_arg.data2, DEFAULT_TIMEOUT);
+				amipc_arg.data2, 0);
 		break;
 	case AMIPC_READ_DATA:
 		amipc_data_read(amipc_arg.event, &(amipc_arg.data1),

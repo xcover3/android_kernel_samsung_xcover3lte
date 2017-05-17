@@ -32,11 +32,7 @@
 #include <crypto/algapi.h>
 #include <crypto/cryptd.h>
 #include <crypto/ablk_helper.h>
-#ifdef CONFIG_X86
 #include <asm/simd.h>
-#else
-#include <asm-generic/simd.h>
-#endif
 
 int ablk_set_key(struct crypto_ablkcipher *tfm, const u8 *key,
 		 unsigned int key_len)

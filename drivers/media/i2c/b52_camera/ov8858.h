@@ -12,7 +12,7 @@
 #define	B52_OV8858R2A_H
 
 #include <media/b52-sensor.h>
-#include <media/b52_api.h>
+
 #define OTP_DRV_START_ADDR  0x7010
 #define OTP_DRV_LENC_START_ADDR 0x7028
 #define OTP_DRV_LENC_SIZE  240
@@ -460,7 +460,7 @@ struct regval_tab ov8858r2a_id[] = {
 };
 struct regval_tab ov8858r2a_vts[] = {
 	{0x380e, 0x09, 0x7f},
-	{0x380f, 0xaa, 0xff},
+	{0x380f, 0xdc, 0xff},
 };
 struct regval_tab ov8858r2a_stream_on[] = {
 	{0x0100, 0x01, 0xff},
@@ -482,21 +482,10 @@ struct regval_tab ov8858r2a_af[] = {
 	{0x3619, 0x00, 0xff},
 };
 struct regval_tab ov8858r2a_vflip[] = {
-	{0x3620, 0x00, 0x4},
+	{0x3820, 0x00, 0x6},
 };
 struct regval_tab ov8858r2a_hflip[] = {
-	{0x3621, 0x00, 0x4},
-};
-struct regval_tab ov8858r2a_vcm_id[] = {
-	{0x00, 0xF1, 0xff},
-};
-struct regval_tab ov8858r2a_vcm_init[] = {
-	/* control register */
-	{0x01, 0x00, 0x03},
-	/* mode register */
-	{0x02, 0x00, 0xC0},
-	/* period register */
-	{0x03, 0x7C, 0xFF},
+	{0x3821, 0x06, 0x6},
 };
 
 struct b52_sensor_i2c_attr ov8858r2a_i2c_attr[] = {
@@ -509,8 +498,6 @@ struct b52_sensor_i2c_attr ov8858r2a_i2c_attr[] = {
 #define N_OV8858R2A_I2C_ATTR ARRAY_SIZE(ov8858r2a_i2c_attr)
 #define N_OV8858R2A_INIT ARRAY_SIZE(ov8858r2a_res_init)
 #define N_OV8858R2A_ID ARRAY_SIZE(ov8858r2a_id)
-#define N_OV8858R2A_VCM_ID ARRAY_SIZE(ov8858r2a_vcm_id)
-#define N_OV8858R2A_VCM_INIT ARRAY_SIZE(ov8858r2a_vcm_init)
 #define N_OV8858R2A_FMT_RAW10 ARRAY_SIZE(ov8858r2a_fmt_raw10)
 #define N_OV8858R2A_2M ARRAY_SIZE(ov8858r2a_res_2M)
 #define N_OV8858R2A_8M ARRAY_SIZE(ov8858r2a_res_8M)
@@ -554,28 +541,7 @@ struct b52_sensor_resolution ov8858r2a_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_16BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9718 = {
-	.name = "dw9718",
-	.type = VCM_DW9718,
-	.attr = &vcm_attr,
-	.pos_reg_msb = 0x02,
-	.pos_reg_lsb = 0x03,
-	.id = {
-		.tab = ov8858r2a_vcm_id,
-		.num = N_OV8858R2A_VCM_ID,
-	},
-	.init = {
-		.tab = ov8858r2a_vcm_init,
-		.num = N_OV8858R2A_VCM_INIT,
-	},
-};
 static struct b52_sensor_module ov8858r2a_SUNNY = {
-	.vcm = &vcm_dw9718,
 	.id = 0x6,
 };
 static int OV8858R2A_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
@@ -618,12 +584,12 @@ struct b52_sensor_data b52_ov8858 = {
 		.numerator = 100,
 		.denominator = 0x10,
 	},
-	.vts_range = {0X0ba0, 0x7fff},
+	.vts_range = {0x09dc, 0x7fff},
 	.gain_range = {
 		[B52_SENSOR_AG] = {0x0010, 0x00f8},
 		[B52_SENSOR_DG] = {0x0010, 0x0010},
 	},
-	.expo_range = {0x00010, 0xb90},
+	.expo_range = {0x0010, 0x09cc},
 	.focus_range = {0x0010, 0x03ff},
 	.vts_reg = {
 		.tab = ov8858r2a_vts,

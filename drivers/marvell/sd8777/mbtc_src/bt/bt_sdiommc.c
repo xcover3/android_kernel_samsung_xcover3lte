@@ -2,7 +2,7 @@
  *  @brief This file contains SDIO IF (interface) module
  *  related functions.
  *
- * Copyright (C) 2007-2015, Marvell International Ltd.
+ * Copyright (C) 2007-2014, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -716,7 +716,7 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 			   priv->firmware->size)) {
 		PRINTM(ERROR,
 		       "BT: sd_init_fw_dpc failed (download fw with nowait: %d). Terminating download\n",
-		       bt_req_fw_nowait);
+			   bt_req_fw_nowait);
 		sdio_release_host(card->func);
 		ret = BT_STATUS_FAILURE;
 		goto done;
@@ -880,9 +880,7 @@ sd_card_to_host(bt_private *priv)
 
 	ENTER();
 	if (priv->bt_dev.m_dev[BT_SEQ].spec_type != BLUEZ_SPEC)
-		mbt_dev =
-			(struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].
-			dev_pointer;
+		mbt_dev = (struct mbt_dev *)priv->bt_dev.m_dev[BT_SEQ].dev_pointer;
 	if (!card || !card->func) {
 		PRINTM(ERROR, "BT: card or function is NULL!\n");
 		ret = BT_STATUS_FAILURE;

@@ -21,8 +21,10 @@
 #define MSOCKET_H_
 
 #include <linux/skbuff.h>
+#include <linux/clk/mmpcpdvc.h>
 #include "pxa_cp_load_ioctl.h"
 #include "shm.h"
+#include "util.h"
 
 /* the magic is 8-bit byte, should not use 300 */
 /* #define MSOCKET_MAJOR         300   */  /* The major number of the devices */
@@ -60,12 +62,11 @@ extern bool m3_is_synced;
 extern struct completion m3_peer_sync;
 
 struct rm_m3_addr;
-extern int cp_shm_ch_init(const struct cpload_cp_addr *addr, u32 lpm_qos);
-extern void cp_shm_ch_deinit(void);
 extern int m3_shm_ch_init(const struct rm_m3_addr *addr);
 extern void m3_shm_ch_deinit(void);
 
-extern void register_first_cp_synced(void (*ready_cb)(void));
+extern int register_first_cp_synced(struct notifier_block *nb);
+
 
 extern int msocket(int port);
 extern int msocket_with_cb(int port,
@@ -85,4 +86,59 @@ extern void msocket_recv_unthrottled(int sock);
  * extern int msend_skb(int sock, struct sk_buff *skb, int flags);
  * extern int mrecv_skb(int sock, struct sk_buff **pskb, int flags);
 */
+DECLARE_BLOCKING_NOTIFIER(cp_link_status);
+
+struct cp_keysection {
+#define PMIC_MASTER_FLAG	0x4D415354
+	/* PMIC SSP master status setting query */
+	volatile unsigned int ap_pcm_master;
+	volatile unsigned int cp_pcm_master;
+	volatile unsigned int modem_ddrfreq;
+
+	/* DIAG specific info */
+	volatile unsigned int diag_header_ptr;
+	volatile unsigned int diag_cp_db_ver;
+	volatile unsigned int diag_ap_db_ver;
+
+	volatile unsigned int reset_request;
+	volatile unsigned int ap_pm_status_request;
+	volatile unsigned int profile_number;
+
+	/* dvc voltage table number */
+	volatile unsigned int dvc_vol_tbl_num;
+	volatile unsigned int dvc_vol_tbl[16];
+
+#define VERSION_MAGIC_FLAG 0x56455253
+#define VERSION_NUMBER_FLAG 0x1
+	volatile unsigned int version_magic;
+	volatile unsigned int version_number;
+
+	volatile unsigned int dfc_dclk_num;
+	volatile unsigned int dfc_dclk[16];
+
+	/*L+G or G+L*/
+	volatile unsigned int network_mode;
+
+	/* uuid reserved for SSIPC solution */
+	volatile unsigned int uuid_high;
+	volatile unsigned int uuid_low;
+
+	/* dvc voltage and frequency */
+	volatile unsigned int cp_freq[MAX_CP_PPNUM];
+	volatile unsigned int cp_vol[MAX_CP_PPNUM];
+	volatile unsigned int msa_dvc_vol;
+};
+
+extern struct cp_keysection *cpks;
+extern struct mutex cpks_lock;
+extern struct dentry *cpks_rootdir;
+
+extern struct dentry *msocket_debugfs_root_dir;
+
+/* check if cp pmic is in master mode */
+static inline bool shm_is_cp_pmic_master(struct shm_rbctl *rbctl)
+{
+	return cpks->cp_pcm_master == PMIC_MASTER_FLAG;
+}
+
 #endif /* MSOCKET_H_ */

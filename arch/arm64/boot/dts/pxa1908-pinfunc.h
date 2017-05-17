@@ -230,11 +230,6 @@
 #define PRI_TMS			0x00b8
 #define PRI_TCK			0x00bc
 #define PRI_TDO			0x00c0
-#define SLAVE_RESET_OUT 0x00c8
-
-#define USIM2_UCLK		0x0260
-#define USIM2_UIO		0x0264
-#define USIM2_URSTn		0x0268
 
 #define ND_IO10			DF_IO10
 #define ND_IO11			DF_IO11
@@ -242,7 +237,6 @@
 #define ND_IO13			DF_IO13
 #define ND_IO14			DF_IO14
 #define ND_IO15			DF_IO15
-#define ND_IO9			DF_IO9
 #define ND_IO7			DF_IO7
 #define ND_IO6			DF_IO6
 #define ND_IO5			DF_IO5

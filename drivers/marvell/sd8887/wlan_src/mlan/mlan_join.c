@@ -915,6 +915,7 @@ wlan_cmd_802_11_associate(IN mlan_private *pmpriv,
 
 	if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info)
 	    && (!pbss_desc->disable_11n)
+	    && (pbss_desc->bss_band & BAND_A)
 	    && (pmpriv->config_bands & BAND_GAC
 		|| pmpriv->config_bands & BAND_AAC))
 		wlan_cmd_append_11ac_tlv(pmpriv, pbss_desc, &pos);
@@ -1599,7 +1600,7 @@ wlan_cmd_802_11_ad_hoc_start(IN mlan_private *pmpriv,
 			pht_cap->header.type = wlan_cpu_to_le16(HT_CAPABILITY);
 			pht_cap->header.len = sizeof(HTCap_t);
 			rx_mcs_supp =
-				GET_RXMCSSUPP(pmadapter->usr_dev_mcs_support);
+				GET_RXMCSSUPP(pmpriv->usr_dev_mcs_support);
 			/* Set MCS for 1x1/2x2 */
 			memset(pmadapter,
 			       (t_u8 *)pht_cap->ht_cap.supported_mcs_set, 0xff,
@@ -1650,7 +1651,7 @@ wlan_cmd_802_11_ad_hoc_start(IN mlan_private *pmpriv,
 			pht_cap->header.len = sizeof(VHT_capa_t);
 			/* rx MCS Map */
 			mcs_map_user =
-				GET_DEVRXMCSMAP(pmadapter->
+				GET_DEVRXMCSMAP(pmpriv->
 						usr_dot_11ac_mcs_support);
 			pvht_cap->vht_cap.mcs_sets.rx_mcs_map =
 				wlan_cpu_to_le16(mcs_map_user);
@@ -1665,7 +1666,7 @@ wlan_cmd_802_11_ad_hoc_start(IN mlan_private *pmpriv,
 						 rx_max_rate);
 			/* tx MCS map */
 			mcs_map_user =
-				GET_DEVTXMCSMAP(pmadapter->
+				GET_DEVTXMCSMAP(pmpriv->
 						usr_dot_11ac_mcs_support);
 			pvht_cap->vht_cap.mcs_sets.tx_mcs_map =
 				wlan_cpu_to_le16(mcs_map_user);
@@ -1707,7 +1708,7 @@ wlan_cmd_802_11_ad_hoc_start(IN mlan_private *pmpriv,
 								 chan_bandwidth);
 				/* basic MCS (rx MCS Map) */
 				pvht_op->basic_MCS_map =
-					GET_DEVRXMCSMAP(pmadapter->
+					GET_DEVRXMCSMAP(pmpriv->
 							usr_dot_11ac_mcs_support);
 				pvht_op->basic_MCS_map =
 					wlan_cpu_to_le16(pvht_op->

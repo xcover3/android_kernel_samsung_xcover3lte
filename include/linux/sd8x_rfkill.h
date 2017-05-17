@@ -59,8 +59,6 @@ struct sd8x_rfkill_platform_data {
 
 	/* power status */
 	int is_on;
-
-	int probe_force_tuning;
 };
 
 int sd8x_sdh_init(struct device *dev, irq_handler_t detect_irq, void *data);

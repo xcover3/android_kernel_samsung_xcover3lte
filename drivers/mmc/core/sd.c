@@ -27,10 +27,6 @@
 #include "sd.h"
 #include "sd_ops.h"
 
-#ifdef _MMC_SAFE_ACCESS_
-extern int mmc_is_available;
-#endif
-
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -1087,10 +1083,6 @@ static void mmc_sd_detect(struct mmc_host *host)
 	int retries = 5;
 #endif
 
-#ifdef _MMC_SAFE_ACCESS_
-	int slowcount = 50;
-#endif
-
 	BUG_ON(!host);
 	BUG_ON(!host->card);
 
@@ -1099,8 +1091,6 @@ static void mmc_sd_detect(struct mmc_host *host)
 	/*
 	 * Just check if our card has been removed.
 	 */
-
-send_again:
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	while(retries) {
 		err = mmc_send_status(host->card, NULL);
@@ -1118,21 +1108,10 @@ send_again:
 #else
 	err = _mmc_detect_card_removed(host);
 #endif
-#ifdef _MMC_SAFE_ACCESS_
-	slowcount--;
-	if((mmc_is_available == 0) && (err == 0) && (slowcount != 0)){
-		mdelay(10);
-		goto send_again;
-	}
-#endif
 
 	mmc_put_card(host->card);
-#ifdef	_MMC_SAFE_ACCESS_
-	if(err || (slowcount == 0 && mmc_is_available == 0)) {
-#else
 
 	if (err) {
-#endif
 		mmc_sd_remove(host);
 
 		mmc_claim_host(host);

@@ -43,9 +43,6 @@ struct regval_tab sr544_otp[] = {
 	{0x010b, (0x0680)&0xff, 0xff},
 	{0x0102, 0x01, 0xff},
 };
-
-extern int check_load_firmware(void);
-
 static int SR544_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
 
@@ -192,10 +189,6 @@ __maybe_unused int SR544_check_crc32(
 #define GROUP2_GOLDEN_OFFSET 0x40
 #define GROUP3_CURRENT_OFFSET 0
 #define GROUP4_LSC_OFFSET 0x0c
-
-extern char gVendor_ID[12];
-extern char *cam_checkfw_factory;
-
 static int SR544_read_data(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *otp)
 {
@@ -276,17 +269,6 @@ static int SR544_read_data(struct v4l2_subdev *sd,
 		for (i = 0; i < len; i++)
 			bank_grp1[i] = SR544_read_reg(sd, 0x0108);
 		paddr = otp->user_otp->module_data;
-
-		for(i=0;i<11;i++){
-			gVendor_ID[i]=bank_grp1[i];
-
-		}	
-		
-		if (gVendor_ID[10] == 'M') {
-			cam_checkfw_factory = "OK";
-		} else {
-			cam_checkfw_factory = "NG";
-		}
 		if (copy_to_user(paddr, &bank_grp1[0],
 							len)) {
 			ret = -EIO;
@@ -419,14 +401,6 @@ static int SR544_s_power(struct v4l2_subdev *sd, int on)
 				goto rst_err;
 			}
 		}
-		if (power->af_2v8) {
-			regulator_set_voltage(power->af_2v8,
-						2800000, 2800000);
-			ret = regulator_enable(power->af_2v8);
-			if (ret < 0)
-				goto af_err;
-		}
-		usleep_range(5000, 8000);
 		if (power->dovdd_1v8) {
 			regulator_set_voltage(power->dovdd_1v8,
 						1800000, 1800000);
@@ -434,7 +408,6 @@ static int SR544_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				goto dovdd_err;
 		}
-		usleep_range(5000, 8000);
 		if (power->avdd_2v8) {
 			regulator_set_voltage(power->avdd_2v8,
 						2800000, 2800000);
@@ -442,7 +415,6 @@ static int SR544_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				goto avdd_err;
 		}
-		usleep_range(5000, 8000);
 		if (power->dvdd_1v2) {
 			regulator_set_voltage(power->dvdd_1v2,
 						1200000, 1200000);
@@ -450,13 +422,19 @@ static int SR544_s_power(struct v4l2_subdev *sd, int on)
 			if (ret < 0)
 				goto dvdd_err;
 		}
-		usleep_range(5000, 8000);
+		if (power->af_2v8) {
+			regulator_set_voltage(power->af_2v8,
+						2800000, 2800000);
+			ret = regulator_enable(power->af_2v8);
+			if (ret < 0)
+				goto af_err;
+		}
 		if (power->pwdn)
 			gpiod_set_value_cansleep(power->pwdn, 0);
-	usleep_range(5000, 8000);
+
 		clk_set_rate(sensor->clk, sensor->mclk);
 		clk_prepare_enable(sensor->clk);
-		msleep(15);
+
 		if (power->rst) {
 			if (sensor->drvdata->reset_delay)
 				reset_delay = sensor->drvdata->reset_delay;
@@ -491,33 +469,17 @@ static int SR544_s_power(struct v4l2_subdev *sd, int on)
 		}
 		if (power->rst)
 			gpiod_set_value_cansleep(power->rst, 1);
-
-		msleep(10);
-		
 		clk_disable_unprepare(sensor->clk);
-		
 		if (power->pwdn)
 			gpiod_set_value_cansleep(power->pwdn, 1);
-		
 		if (power->dvdd_1v2)
 			regulator_disable(power->dvdd_1v2);
-
-		msleep(1);
-
-		if (power->avdd_2v8)
-			regulator_disable(power->avdd_2v8);
-		
-		msleep(1);
-
 		if (power->dovdd_1v8)
 			regulator_disable(power->dovdd_1v8);
-
-		
-		msleep(1);
-		
+		if (power->avdd_2v8)
+			regulator_disable(power->avdd_2v8);
 		if (power->af_2v8)
 			regulator_disable(power->af_2v8);
-		
 		if (sensor->power.rst)
 			devm_gpiod_put(&client->dev, sensor->power.rst);
 		if (sensor->power.pwdn)

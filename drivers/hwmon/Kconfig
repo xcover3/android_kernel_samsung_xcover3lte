@@ -1029,7 +1029,7 @@ source drivers/hwmon/pmbus/Kconfig
 source drivers/hwmon/bmi160/Kconfig
 source drivers/hwmon/bme280/Kconfig
 source drivers/hwmon/bmp280/Kconfig
-source drivers/hwmon/sec/Kconfig
+source drivers/hwmon/lsm6ds3/Kconfig
 
 config SENSORS_SHT15
 	tristate "Sensiron humidity and temperature sensors. SHT15 and compat."
@@ -1607,6 +1607,12 @@ config SENSORS_APDS990X_MRVL
        This driver provides support the APDS990x deivce
          sensor.Read pressures and temperatures output.
 
+config SENSORS_AP3426
+       tristate "AP3426 light and proximity sensor"
+       depends on I2C && INPUT
+       help
+         This driver provides support for the Dyna Image AP3426 device.
+
 config SENSORS_GRIP
 	bool "grip(sar) sensor support"
 	default n
@@ -1664,12 +1670,28 @@ config SENSORS_MC3XXX
 
 	  To compile this driver as a module, choose M here.
 
+config SENSORS_BMA2X2
+        tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support"
+        depends on I2C
+        default n
+        help
+          If you say yes here you get support for Bosch Sensortec's
+          acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+
 config SENSORS_LTR558_I2C
 	tristate "LTR 558 proximity device with I2C bus"
 	depends on I2C
 	default n
 	help
 	  Say Y here if you have a ltr558 and ltr553  device on the board and use I2C
+	  communication, else say N.
+
+config SENSORS_LTR55X_I2C
+	tristate "LTR 55X proximity device with I2C bus"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have a ltr55X device on the board and use I2C
 	  communication, else say N.
 
 config SENSOR_EPL2182
@@ -1710,14 +1732,4 @@ config SENSORS_ATK0110
 
 endif # ACPI
 
-
-config SENSORS_SEC_THERMISTOR
-	tristate "SEC Thermistor support"
-	default y
-	help
-	  This driver supports SEC Thermistor sensor reading and its
-	  interpretation. The driver uses s3c adc driver and needs
-	  adc-temperature
-
 endif # HWMON
-

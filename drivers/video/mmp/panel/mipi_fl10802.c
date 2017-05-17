@@ -40,9 +40,13 @@
 #include <linux/fb.h>
 #include <video/mmp_disp.h>
 #include <video/mipi_display.h>
+#include <video/mmp_esd.h>
+
+#define TRACE pr_err("@@ %s, %d\n", __func__, __LINE__);
 
 struct fl10802_plat_data {
 	struct mmp_panel *panel;
+	u32 esd_enable;
 	void (*plat_onoff)(int status);
 	void (*plat_set_backlight)(struct mmp_panel *panel, int level);
 };
@@ -55,19 +59,19 @@ static char display_on[] = {0x29};
 #define LPM 1
 
 static char cpt_cmd0[] = {0xB9, 0xF1, 0x08, 0x01};
-static char cpt_cmd1[] = {0xB1, 0x22, 0x1D, 0x1D, 0x87};
+static char cpt_cmd1[] = {0xB1, 0x22, 0x1A, 0x1A, 0x87};
 static char cpt_cmd2[] = {0xB2, 0x22};
 static char cpt_cmd3[] = {0xB3, 0x01, 0x00, 0x06, 0x06, 0x18, 0x13, 0x39, 0x35};
 static char cpt_cmd4[] = {
 	0xBA, 0x31, 0x00, 0x44, 0x25,
-	0x91, 0x0A, 0x00, 0x00, 0xC1,
+	0xC1, 0x0A, 0x00, 0x00, 0xC1,
 	0x00, 0x00, 0x00, 0x0D, 0x02,
 	0x4F, 0xB9, 0xEE
 };
 static char cpt_cmd5[] = {0xE3, 0x09, 0x09, 0x03, 0x03, 0x00};
 static char cpt_cmd6[] = {0xB4, 0x02};
 static char cpt_cmd7[] = {0xB5, 0x07,  0x07};
-static char cpt_cmd8[] = {0xB6, 0x30, 0x30};
+static char cpt_cmd8[] = {0xB6, 0x20, 0x20};
 static char cpt_cmd9[] = {0xB8, 0x64, 0x28};
 static char cpt_cmd10[] = {0xCC, 0x00};
 static char cpt_cmd11[] = {0xBC, 0x47};
@@ -92,13 +96,13 @@ static char cpt_cmd13[] = {
 	0x00, 0x00, 0x00
 };
 static char cpt_cmd14[] = {
-	0xE0, 0x00, 0x0C, 0x14, 0x0E,
-	0x0E, 0x3F, 0x27, 0x31, 0x06,
-	0x0E, 0x10, 0x15, 0x16, 0x16,
-	0x16, 0x13, 0x17, 0x00, 0x0C,
-	0x14, 0x0E, 0x0E, 0x37, 0x27,
-	0x31, 0x06, 0x0E, 0x10, 0x15,
-	0x16, 0x16, 0x16, 0x13, 0x17
+	0xE0, 0x00, 0x00, 0x08, 0x10,
+	0x19, 0x2A, 0x25, 0x37, 0x09,
+	0x10, 0x11, 0x15, 0x18, 0x16,
+	0x16, 0x16, 0x1B, 0x00, 0x00,
+	0x08, 0x10, 0x19, 0x2A, 0x25,
+	0x37, 0x09, 0x10, 0x11, 0x15,
+	0x18, 0x16, 0x16, 0x16, 0x1B
 };
 
 static struct mmp_dsi_cmd_desc fl10802_cpt_display_on_cmds[] = {
@@ -252,6 +256,76 @@ static void fl10802_set_status(struct mmp_panel *panel, int status)
 					status_name(status));
 }
 
+static void fl10802_esd_onoff(struct mmp_panel *panel, int status)
+{
+	struct fl10802_plat_data *plat = panel->plat_data;
+
+	if (status) {
+		if (plat->esd_enable)
+			esd_start(&panel->esd);
+	} else {
+		if (plat->esd_enable)
+			esd_stop(&panel->esd);
+	}
+}
+
+static void fl10802_esd_recover(struct mmp_panel *panel)
+{
+	struct mmp_path *path = mmp_get_path(panel->plat_path_name);
+	static int count = 1;
+
+	/*
+	 * FIXME: skip the first esd_recover
+	 * since the first esd check will fail.
+	 */
+	if (count++ > 1)
+		esd_panel_recover(path);
+}
+
+/*
+ * FL10802 read id
+ */
+static u8 fl10802a_pkt_size_cmd[] = {0x06};
+static char cpt_cmd_B9[] = {0xB9, 0xF1, 0x08, 0x01};
+
+static u8 read_id_0xfl10802a[] = {0xD0};
+static struct mmp_dsi_cmd_desc fl10802a_read_id_cmds[] = {
+	{MIPI_DSI_GENERIC_LONG_WRITE, 0, 0, sizeof(cpt_cmd_B9),
+		cpt_cmd_B9},
+	{MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE, 0, 0,
+		sizeof(fl10802a_pkt_size_cmd), fl10802a_pkt_size_cmd},
+	{MIPI_DSI_DCS_READ, 0, 0,
+		sizeof(read_id_0xfl10802a), read_id_0xfl10802a},
+};
+
+static int fl10802_get_status(struct mmp_panel *panel)
+{
+	struct mmp_dsi_buf dbuf;
+	u32 read_id = 0;
+	int ret;
+
+	ret = mmp_panel_dsi_rx_cmd_array(panel, &dbuf,
+		fl10802a_read_id_cmds,
+		ARRAY_SIZE(fl10802a_read_id_cmds));
+	if (ret < 0) {
+		pr_err("[ERROR] DSI receive failure!\n");
+		return 1;
+	}
+
+	read_id = 0;
+	read_id |= dbuf.data[0]<<8;
+	read_id |= dbuf.data[5];
+
+	if (read_id != FL10802_ID) {
+		pr_err("[ERROR] panel status is 0x%x\n", read_id);
+		return 1;
+	} else {
+		pr_debug("panel status is 0x%x\n", read_id);
+	}
+
+	return 0;
+}
+
 static struct mmp_mode mmp_modes_fl10802[] = {
 	[0] = {
 		.pixclock_freq = 34651440,
@@ -289,6 +363,9 @@ static struct mmp_panel panel_fl10802 = {
 	.is_avdd = 0,
 	.get_modelist = fl10802_get_modelist,
 	.set_status = fl10802_set_status,
+	.get_status = fl10802_get_status,
+	.panel_esd_recover = fl10802_esd_recover,
+	.esd_set_onoff = fl10802_esd_onoff,
 };
 
 static int fl10802_bl_update_status(struct backlight_device *bl)
@@ -400,6 +477,7 @@ static int fl10802_probe(struct platform_device *pdev)
 	struct backlight_properties props;
 	struct backlight_device *bl;
 	int ret;
+	u32 esd_enable;
 
 	plat_data = kzalloc(sizeof(*plat_data), GFP_KERNEL);
 	if (!plat_data)
@@ -420,10 +498,15 @@ static int fl10802_probe(struct platform_device *pdev)
 		if (of_find_property(np, "avdd-supply", NULL))
 			panel_fl10802.is_avdd = 1;
 
-                if (of_get_named_gpio(np, "bl_gpio", 0) < 0)
-                        pr_debug("%s: get bl_gpio failed\n", __func__);
-                else
-                        plat_data->plat_set_backlight = fl10802_panel_set_bl;
+		if (of_property_read_u32(np, "panel_esd", &esd_enable))
+			plat_data->esd_enable = 0;
+
+		plat_data->esd_enable = esd_enable;
+
+		if (of_get_named_gpio(np, "bl_gpio", 0) < 0)
+			pr_debug("%s: get bl_gpio failed\n", __func__);
+		else
+			plat_data->plat_set_backlight = fl10802_panel_set_bl;
 
 	} else {
 		/* get configs from platform data */
@@ -436,12 +519,16 @@ static int fl10802_probe(struct platform_device *pdev)
 		plat_data->plat_onoff = mi->plat_set_onoff;
 		panel_fl10802.plat_path_name = mi->plat_path_name;
 		plat_data->plat_set_backlight = mi->plat_set_backlight;
+		plat_data->esd_enable = mi->esd_enable;
 	}
 
 	plat_data->panel = &panel_fl10802;
 	panel_fl10802.plat_data = plat_data;
 	panel_fl10802.dev = &pdev->dev;
 	mmp_register_panel(&panel_fl10802);
+
+	if (plat_data->esd_enable)
+		esd_init(&panel_fl10802);
 
 	/*
 	 * if no panel or plat associate backlight control,

@@ -40,6 +40,9 @@
 #define SC2_CH_NUM 16
 #define SC2_CH_MASK (~0xffff)
 
+#define	SC2_MODE_CCIC	1
+#define	SC2_MODE_B52ISP	2
+
 enum msc2_dma_desc_status {
 	MSC2_DESC_UNALLOCATED = 0,
 	MSC2_DESC_ALLOCATED,
@@ -191,8 +194,8 @@ struct ccic_ctrl_ops {
 				unsigned int mbus_flags, int enable);
 	void (*power_up)(struct ccic_ctrl_dev *ctrl_dev);
 	void (*power_down)(struct ccic_ctrl_dev *ctrl_dev);
-	void (*clk_enable)(struct ccic_ctrl_dev *ctrl_dev);
-	void (*clk_disable)(struct ccic_ctrl_dev *ctrl_dev);
+	void (*clk_enable)(struct ccic_ctrl_dev *ctrl_dev, int mode);
+	void (*clk_disable)(struct ccic_ctrl_dev *ctrl_dev, int mode);
 	void (*clk_change)(struct ccic_ctrl_dev *ctrl_dev,
 				u32 mipi_bps, u8 lanes, u8 bpp);
 };

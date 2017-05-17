@@ -450,6 +450,7 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 done:
 	if (ret != MLAN_STATUS_PENDING)
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
+
 	LEAVE();
 
 	return ret;

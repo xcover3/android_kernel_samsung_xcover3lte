@@ -243,7 +243,7 @@ static inline void isp_clr32(struct isp_block *block,
 #define d_inf(level, fmt, arg...)					\
 	do {								\
 		if (trace >= level)					\
-			pr_debug("%s: " fmt "\n", KBUILD_BASENAME,	\
+			pr_info("%s: " fmt "\n", KBUILD_BASENAME,	\
 							## arg);	\
 	} while (0)
 #endif

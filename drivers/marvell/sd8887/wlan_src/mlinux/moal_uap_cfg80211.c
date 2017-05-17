@@ -1514,6 +1514,7 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
+	int enable_11d = MTRUE;
 
 	ENTER();
 
@@ -1605,6 +1606,13 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 #endif
 #endif
 
+	ret = woal_uap_get_set_11d(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				   &enable_11d);
+	if (ret) {
+		PRINTM(MERROR, "Failed to set ENABLE_11D\n");
+		goto done;
+	}
+
 	/* if the bss is stopped, then start it */
 	if (priv->bss_started == MFALSE) {
 		if (MLAN_STATUS_SUCCESS !=
@@ -1662,7 +1670,8 @@ woal_cfg80211_set_beacon(struct wiphy *wiphy,
 							  params->tail_len,
 							  NULL, 0, NULL, 0,
 							  NULL, 0,
-							  MGMT_MASK_BEACON);
+							  MGMT_MASK_BEACON,
+							  MOAL_IOCTL_WAIT);
 			if (ret)
 				goto done;
 		}
@@ -1780,6 +1789,17 @@ done:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+/**
+ * @brief del station
+ *
+ * @param wiphy           A pointer to wiphy structure
+ * @param dev             A pointer to net_device structure
+ * @param param           A pointer tostation_del_parameters structure
+ *
+ * @return                0 -- success, otherwise fail
+ */
+#else
 /**
  * @brief del station
  *
@@ -1789,14 +1809,22 @@ done:
  *
  * @return                0 -- success, otherwise fail
  */
+#endif
 int
 woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+			  struct station_del_parameters *param)
+#else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 			  const u8 *mac_addr)
 #else
 			  u8 *mac_addr)
 #endif
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	const u8 *mac_addr = NULL;
+#endif
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	ENTER();
 	if (priv->media_connected == MFALSE) {
@@ -1804,12 +1832,15 @@ woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 		LEAVE();
 		return 0;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	mac_addr = param->mac;
+#endif
     /** we will not send deauth to p2p interface, it might cause WPS failure */
 	if (mac_addr) {
 		PRINTM(MMSG, "wlan: deauth station " MACSTR "\n",
 		       MAC2STR(mac_addr));
 #ifdef WIFI_DIRECT_SUPPORT
-		if (!priv->phandle->is_go_timer_set &&
+		if (!priv->phandle->is_go_timer_set ||
 		    priv->bss_type != MLAN_BSS_TYPE_WIFIDIRECT)
 #endif
 			woal_deauth_station(priv, (u8 *)mac_addr);
@@ -1877,9 +1908,14 @@ woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 			PRINTM(MIOCTL, "Get station: " MACSTR " RSSI=%d\n",
 			       MAC2STR(mac),
 			       (int)info->param.sta_list.info[i].rssi);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+			stainfo->filled = BIT(NL80211_STA_INFO_INACTIVE_TIME) |
+				BIT(NL80211_STA_INFO_SIGNAL);
+#else
 			stainfo->filled =
 				STATION_INFO_INACTIVE_TIME |
 				STATION_INFO_SIGNAL;
+#endif
 			stainfo->inactive_time = 0;
 			stainfo->signal = info->param.sta_list.info[i].rssi;
 			ret = 0;

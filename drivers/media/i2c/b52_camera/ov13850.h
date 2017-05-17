@@ -11,9 +11,8 @@
 #ifndef	B52_OV13850_H
 #define	B52_OV13850_H
 
-#include <media/b52_api.h>
 #include <media/b52-sensor.h>
-#include <media/b52_api.h>
+
 #define OTP_DRV_START_ADDR  0x7220
 #define OTP_DRV_INFO_GROUP_COUNT  3
 #define OTP_DRV_INFO_SIZE  5
@@ -22,8 +21,6 @@
 #define OTP_DRV_LSC_GROUP_COUNT  3
 #define OTP_DRV_LSC_SIZE  62
 #define OTP_DRV_LSC_REG_ADDR  0x5200
-#define OTP_DRV_VCM_GROUP_COUNT  3
-#define OTP_DRV_VCM_SIZE  3
 #define bg_ratio_typical 0x400
 #define rg_ratio_typical 0x400
 
@@ -421,6 +418,7 @@ struct regval_tab ov13850_13M_res_init[] = {
 	{0x5b09, 0x02},
 	{0x5e00, 0x00},
 	{0x5e10, 0x1c},
+	{0x3503, 0x23},
 };
 
 struct regval_tab ov13850_fmt_raw10[] = {
@@ -624,17 +622,7 @@ struct b52_sensor_resolution ov13850_13M_res[] = {
 		},
 	},
 };
-static struct b52_sensor_i2c_attr vcm_attr = {
-	.reg_len = I2C_8BIT,
-	.val_len = I2C_8BIT,
-	.addr = 0x0c,
-};
-static struct b52_sensor_vcm vcm_dw9714 = {
-	.type = VCM_DW9714,
-	.attr = &vcm_attr,
-};
 static struct b52_sensor_module ov13850_SUNNY = {
-	.vcm = &vcm_dw9714,
 	.id = 0,
 };
 static int OV13850_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);

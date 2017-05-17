@@ -30,9 +30,6 @@
 #include "s5k3l2.h"
 #include <media/mv_sc2_twsi_conf.h>
 #include <linux/clk.h>
-extern char gVendor_ID[12];
-extern char *cam_checkfw_factory;
-
 static int S5K3L2_get_mipiclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk)
 {
 	u32 op_sys_clk_div;
@@ -185,10 +182,12 @@ static int S5K3L2_otp_write(struct v4l2_subdev *sd,
 		S5K3L2_erase_page(sd, tmp_addr>>10);
 		tmp_addr += EFLSH_PAGE_SIZE;
 	}
+
 	tmp_addr = head;
 	i = 0;
 	while (tmp_addr < tail)
 		S5K3L2_eflash_write_reg(sd, tmp_addr++, tmp_buffer[i++]);
+
 	return 0;
 }
 #define GROUP1_LEN 0x100
@@ -196,7 +195,7 @@ static int S5K3L2_otp_write(struct v4l2_subdev *sd,
 #define GROUP3_LEN 0x100
 #define GROUP4_LEN 0x800
 
-#define MODULE_OFFSET	0x0030
+#define MODULE_OFFSET	0x08b0
 #define AF_OFFSET	0x0100
 #define GWB_OFFSET	0x0140
 #define WB_OFFSET	0x0900
@@ -218,18 +217,6 @@ static int S5K3L2_read_data(struct v4l2_subdev *sd,
 		for (i = 0; i < len; i++)
 			bank_grp1[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
 		paddr = otp->user_otp->module_data;
-
-		for(i=0;i<11;i++){
-			gVendor_ID[i]=bank_grp1[i];
-
-		}	
-		
-		if (gVendor_ID[10] == 'M') {
-			cam_checkfw_factory = "OK";
-		} else {
-			cam_checkfw_factory = "NG";
-		}
-
 		if (copy_to_user(paddr, &bank_grp1[0],
 							len)) {
 			ret = -EIO;
@@ -296,10 +283,193 @@ err:
 	devm_kfree(sd->dev, bank_grp4);
 	return ret;
 }
+
+static void makeCRCtable(unsigned long *table, unsigned long id)
+{
+	unsigned long i, j, k;
+	for (i = 0; i < 256; ++i) {
+		k = i;
+		for (j = 0; j < 8; ++j) {
+			if (k & 1)
+				k = (k >> 1) ^ id;
+			else
+				k >>= 1;
+		}
+		table[i] = k;
+	}
+}
+
+static unsigned long getCRC(unsigned short *mem, signed long count,
+	unsigned short *crcH, unsigned short *crcL, unsigned long *table)
+{
+	unsigned long CRC = 0;
+	unsigned char mem0, mem1;
+	int i;
+	CRC = ~CRC;
+	for (i = 0; i < count; i++) {
+		mem0 = (unsigned char)(mem[i] & 0x00ff);
+		mem1 = (unsigned char)((mem[i] >> 8) & 0x00ff);
+		CRC = table[(CRC ^ (mem0)) & 0xFF] ^ (CRC >> 8);
+		CRC = table[(CRC ^ (mem1)) & 0xFF] ^ (CRC >> 8);
+	}
+	CRC = ~CRC;
+	if (crcH)
+		*crcH = (unsigned short)((CRC >> 16) & (0x0000ffff));
+	if (crcL)
+		*crcL = (unsigned short)((CRC) & (0x0000ffff));
+	return CRC;
+}
+
+
+static int S5K3L2_verify_crc(struct v4l2_subdev *sd,
+				struct b52_sensor_otp *otp)
+{
+	int i;
+	int ret = 0;
+	unsigned short crcH, crcL;
+	unsigned short tmpH, tmpL;
+	ushort bank_addr;
+	unsigned long *table =  devm_kzalloc(sd->dev,
+					256 * sizeof(long), GFP_KERNEL);
+	char *bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
+	char *bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
+	char *bank_grp3 = devm_kzalloc(sd->dev, GROUP3_LEN, GFP_KERNEL);
+	char *bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
+	makeCRCtable(table, 0xEDB88320);
+	bank_addr = 0;
+	for (i = 0; i < GROUP1_LEN; i++)
+		bank_grp1[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp1,
+				GROUP1_LEN / 2 - 2, &crcH, &crcL, table);
+
+	tmpL = bank_grp1[GROUP1_LEN - 4] | (bank_grp1[GROUP1_LEN - 3]  << 8);
+	tmpH = bank_grp1[GROUP1_LEN - 2] | (bank_grp1[GROUP1_LEN - 1]  << 8);
+	if (tmpL != crcL || tmpH != crcH) {
+		ret = 2;
+		pr_err("verify the group1 crc fail\n");
+		goto out;
+	}
+	bank_addr = GROUP1_LEN;
+	for (i = 0; i < GROUP2_LEN; i++)
+		bank_grp2[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp2,
+				GROUP2_LEN / 2 - 2, &crcH, &crcL, table);
+
+	tmpL = bank_grp2[GROUP2_LEN - 4] | (bank_grp2[GROUP2_LEN - 3]  << 8);
+	tmpH = bank_grp2[GROUP2_LEN - 2] | (bank_grp2[GROUP2_LEN - 1]  << 8);
+	if (tmpL != crcL || tmpH != crcH) {
+		ret = 2;
+		pr_err("verify the group2 crc fail\n");
+		goto out;
+	}
+	bank_addr = GROUP1_LEN + GROUP2_LEN;
+	for (i = 0; i < GROUP3_LEN; i++)
+		bank_grp3[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp3,
+				GROUP3_LEN / 2 - 2, &crcH, &crcL, table);
+
+	tmpL = bank_grp3[GROUP3_LEN - 4] | (bank_grp3[GROUP3_LEN - 3]  << 8);
+	tmpH = bank_grp3[GROUP3_LEN - 2] | (bank_grp3[GROUP3_LEN - 1]  << 8);
+	if (tmpL != crcL || tmpH != crcH) {
+		ret = 2;
+		pr_err("verify the group3 crc fail\n");
+		goto out;
+	}
+	bank_addr = GROUP1_LEN + GROUP2_LEN + GROUP3_LEN;
+	for (i = 0; i < GROUP4_LEN; i++)
+		bank_grp4[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp4,
+				GROUP4_LEN / 2 - 2, &crcH, &crcL, table);
+
+	tmpL = bank_grp4[GROUP4_LEN - 4] | (bank_grp4[GROUP4_LEN - 3]  << 8);
+	tmpH = bank_grp4[GROUP4_LEN - 2] | (bank_grp4[GROUP4_LEN - 1]  << 8);
+	if (tmpL != crcL || tmpH != crcH) {
+		ret = 2;
+		pr_err("verify the group4 crc fail\n");
+		goto out;
+	}
+out:
+	otp->user_otp->crc_status = ret;
+	devm_kfree(sd->dev, bank_grp1);
+	devm_kfree(sd->dev, bank_grp2);
+	devm_kfree(sd->dev, bank_grp3);
+	devm_kfree(sd->dev, bank_grp4);
+	devm_kfree(sd->dev, table);
+	return 0;
+}
+
+static int S5K3L2_gen_crc(struct v4l2_subdev *sd,
+				struct b52_sensor_otp *otp)
+{
+	int i;
+	unsigned short crcH, crcL;
+	unsigned char crcGen[4];
+	ushort bank_addr;
+	unsigned long *table =  devm_kzalloc(sd->dev,
+					256 * sizeof(long), GFP_KERNEL);
+	char *bank_grp1 = devm_kzalloc(sd->dev, GROUP1_LEN, GFP_KERNEL);
+	char *bank_grp2 = devm_kzalloc(sd->dev, GROUP2_LEN, GFP_KERNEL);
+	char *bank_grp3 = devm_kzalloc(sd->dev, GROUP3_LEN, GFP_KERNEL);
+	char *bank_grp4 = devm_kzalloc(sd->dev, GROUP4_LEN, GFP_KERNEL);
+	makeCRCtable(table, 0xEDB88320);
+
+	bank_addr = 0;
+	for (i = 0; i < GROUP1_LEN; i++)
+		bank_grp1[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp1,
+				GROUP1_LEN / 2 - 2, &crcH, &crcL, table);
+	crcGen[0] = crcL & 0xff;
+	crcGen[1] = (crcL >> 8) & 0xff;
+	crcGen[2] = crcH & 0xff;
+	crcGen[3] = (crcH >> 8) & 0xff;
+	S5K3L2_otp_write(sd, GROUP1_LEN - 4, crcGen, 4);
+	bank_addr = GROUP1_LEN;
+	for (i = 0; i < GROUP2_LEN; i++)
+		bank_grp2[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp2,
+				GROUP2_LEN / 2 - 2, &crcH, &crcL, table);
+	crcGen[0] = crcL & 0xff;
+	crcGen[1] = (crcL >> 8) & 0xff;
+	crcGen[2] = crcH & 0xff;
+	crcGen[3] = (crcH >> 8) & 0xff;
+	S5K3L2_otp_write(sd, GROUP1_LEN + GROUP2_LEN - 4, crcGen, 4);
+
+	bank_addr = GROUP1_LEN + GROUP2_LEN;
+	for (i = 0; i < GROUP3_LEN; i++)
+		bank_grp3[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp3,
+				GROUP3_LEN / 2 - 2, &crcH, &crcL, table);
+	crcGen[0] = crcL & 0xff;
+	crcGen[1] = (crcL >> 8) & 0xff;
+	crcGen[2] = crcH & 0xff;
+	crcGen[3] = (crcH >> 8) & 0xff;
+	S5K3L2_otp_write(sd, GROUP1_LEN + GROUP2_LEN
+					+ GROUP3_LEN - 4, crcGen, 4);
+
+	bank_addr = GROUP1_LEN + GROUP2_LEN + GROUP3_LEN;
+	for (i = 0; i < GROUP4_LEN; i++)
+		bank_grp4[i] = S5K3L2_eflash_read_reg(sd, bank_addr++);
+	getCRC((unsigned short *)bank_grp4,
+				GROUP4_LEN / 2 - 2, &crcH, &crcL, table);
+	crcGen[0] = crcL & 0xff;
+	crcGen[1] = (crcL >> 8) & 0xff;
+	crcGen[2] = crcH & 0xff;
+	crcGen[3] = (crcH >> 8) & 0xff;
+	S5K3L2_otp_write(sd, GROUP1_LEN + GROUP2_LEN
+				+ GROUP3_LEN + GROUP4_LEN - 4, crcGen, 4);
+
+	devm_kfree(sd->dev, bank_grp1);
+	devm_kfree(sd->dev, bank_grp2);
+	devm_kfree(sd->dev, bank_grp3);
+	devm_kfree(sd->dev, bank_grp4);
+	devm_kfree(sd->dev, table);
+	return 0;
+}
+
 static int S5K3L2_update_otp(struct v4l2_subdev *sd,
 				struct b52_sensor_otp *otp)
 {
-	int ret;
+	int ret =  -1;
 	char *module_id;
 	char *tmp_write = NULL;
 	if (otp->user_otp == NULL)
@@ -340,7 +510,11 @@ static int S5K3L2_update_otp(struct v4l2_subdev *sd,
 				*module_id, 0, 0, 0);
 		return ret;
 	}
-	return -1;
+	if (otp->otp_type ==  VERIFY_CRC)
+		ret = S5K3L2_verify_crc(sd, otp);
+	if (otp->otp_type ==  GEN_CRC)
+		ret = S5K3L2_gen_crc(sd, otp);
+	return ret;
 }
 
 static int S5K3L2_s_power(struct v4l2_subdev *sd, int on)

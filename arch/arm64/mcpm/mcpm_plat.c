@@ -32,7 +32,7 @@
 #include <asm/mcpm_plat.h>
 #include <asm/memory.h>
 #include <linux/clk/mmpdcstat.h>
-#include <trace/events/pxa.h>
+
 
 #define LPM_NUM			16
 
@@ -380,7 +380,6 @@ static void mcpm_plat_pm_down(void *arg)
 		cpu_dcstat_event(cpu_dcstat_clk, cpu,
 				 CPU_M2_OR_DEEPER_ENTER, *idx);
 
-	trace_pxa_cpu_idle(LPM_ENTRY(*idx), cpu, cluster);
 	cpu_dcstat_event(cpu_dcstat_clk, cpu, CPU_IDLE_ENTER, *idx);
 #ifdef CONFIG_VOLDC_STAT
 	vol_dcstat_event(VLSTAT_LPM_ENTRY, *idx, 0);
@@ -469,7 +468,6 @@ static void mcpm_plat_pm_powered_up(void)
 	cluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 
 	BUG_ON(cluster >= MAX_NR_CLUSTERS || cpu >= MAX_CPUS_PER_CLUSTER);
-	trace_pxa_cpu_idle(LPM_EXIT(0), cpu, cluster);
 
 	local_irq_save(flags);
 	arch_spin_lock(&mcpm_plat_lpm_lock);

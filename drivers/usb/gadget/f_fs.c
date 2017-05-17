@@ -1854,7 +1854,7 @@ error:
 static void __ffs_event_add(struct ffs_data *ffs,
 			    enum usb_functionfs_event_type type)
 {
-	enum usb_functionfs_event_type rem_type1 = type, rem_type2 = type;
+	enum usb_functionfs_event_type rem_type1, rem_type2 = type;
 	int neg = 0;
 
 	/*

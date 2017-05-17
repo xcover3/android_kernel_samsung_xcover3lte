@@ -1,0 +1,13 @@
+* epl ambient light + proximity sensors module
+- compatible = "epl,epl2182"
+- reg : register offset
+- interrupts : interrupt
+Example:
+epl2182@49 {
+	compatible = "epl,epl2182";
+	reg = <0x49>;
+	interrupt-parent = <&gpio>;
+	interrupts = <4 0x1>;
+	irq-gpios = <&gpio 4 0>;
+	avdd-supply = <&ldo4>;
+};

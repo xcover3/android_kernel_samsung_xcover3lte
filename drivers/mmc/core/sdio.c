@@ -815,7 +815,6 @@ try_again:
 		err = mmc_sdio_init_uhs_card(card);
 		if (err)
 			goto remove;
-
 		/* Card is an ultra-high-speed card */
 		mmc_card_set_uhs(card);
 	} else {
@@ -1237,11 +1236,8 @@ int mmc_attach_sdio(struct mmc_host *host)
 	if (err)
 		goto err;
 
-	if (host->detect_tuning) {
-		pr_info("break %s without adding sdio functions\n",
-			__func__);
+	if (host->sdio_probe_tune)
 		return 0;
-	}
 
 	card = host->card;
 

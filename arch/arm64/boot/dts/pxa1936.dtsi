@@ -9,12 +9,12 @@
  */
 
 /include/ "skeleton.dtsi"
-#include "pxa1936-pinfunc.h"
+#include "pxa1908-pinfunc.h"
 #include "pxa1936-pm.h"
-#include <dt-bindings/clock/marvell-pxa1936.h>
+#include "../../../../include/dt-bindings/clock/marvell-pxa1936.h"
 #include <dt-bindings/clock/marvell-audio-map.h>
-#include <dt-bindings/interrupt-controller/irq.h>
-#include <dt-bindings/usb/mv_usb.h>
+#include "../../../../include/dt-bindings/interrupt-controller/irq.h"
+#include "../../../../include/dt-bindings/usb/mv_usb.h"
 
 / {
 	interrupt-parent = <&gic>;
@@ -234,11 +234,29 @@
 				marvell,3d-clk-freq-combine =
 						 <156000 78000>,
 						 <312000 156000>,
-						 <624000 312000>;
+						 <624000 312000>,
+						 <832000 416000>;
 				marvell,sh-clk-freq-combine =
 						 <156000 78000>,
 						 <312000 156000>,
-						 <624000 312000>;
+						 <624000 312000>,
+						 <832000 416000>;
+				marvell,3d-clk-freq-combine_TSMC_B0 =
+						 <156000 78000>,
+						 <312000 156000>,
+						 <416000 208000>,
+						 <528000 312000>,
+						 <624000 312000>,
+						 <705000 416000>,
+						 <832000 416000>;
+				marvell,sh-clk-freq-combine_TSMC_B0 =
+						 <156000 78000>,
+						 <312000 156000>,
+						 <416000 208000>,
+						 <528000 312000>,
+						 <624000 312000>,
+						 <705000 416000>,
+						 <832000 416000>;
 				status = "disabled";
 			};
 
@@ -259,6 +277,22 @@
 				reg = <0xd420d000 0x1000>,
 				      <0x0 0>;
 				interrupts = <0 25 0x4>;
+				status = "disabled";
+			};
+
+			codaL_vpu: codaL_vpu@d420d000 {
+				compatible = "mrvl,mmp-codaL";
+				reg = <0xd420d000 0x1000>,
+				      <0x0 0>;
+				interrupts = <0 25 0x4>;
+				status = "disabled";
+			};
+
+			codaL_JPG: codaL_JPG@d420d000 {
+				compatible = "mrvl,mmp-codaL";
+				reg = <0xd420d000 0x1000>,
+				      <0x0 0>;
+				interrupts = <0 46 0x4>;
 				status = "disabled";
 			};
 
@@ -412,6 +446,14 @@
 				compatible = "marvell,mmp-debug";
 				reg = <0xd42a0000 0x800>;
 				version = <1>;
+				interrupts = <0 62 0x4>;
+				/*
+				 * 0x0: No mode enabled
+				 * 0x1: Enable interrupt mode
+				 * 0x2: Enable data abort mode
+				 * 0x3: Enable interrupt and data abort modes;
+				 */
+				detection_modes = <0x3>;
 			};
 
 			ccic1: ccic@d420a000 {
@@ -614,11 +656,6 @@
 				status = "okay";
 			};
 
-			mfpr: mfpr@d401e000 {
-				compatible = "marvell,mmp-mfp-leftover";
-				status = "disable";
-			};
-
 			gpio: gpio@d4019000 {
 				compatible = "marvell,mmp-gpio";
 				#address-cells = <1>;
@@ -709,6 +746,7 @@
 				bit_apb = <2>;
 				pll_sel = <0>;
 				power_ctrl = <0>;
+				audio_xtc = <0xd4282cac 0x38011011>;
 				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
 				status = "disabled";
 			};
@@ -734,7 +772,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				reg = <0xd4011000 0x64>;
-				interrupts = <0 7 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1936_CLK_TWSI0>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -748,7 +786,6 @@
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
 
-				marvell,i2c-always-on;
 				status = "disabled";
 			};
 
@@ -757,7 +794,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				reg = <0xd4010800 0x64>;
-				interrupts = <0 33 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 33 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1936_CLK_TWSI1>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -766,7 +803,6 @@
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
 
-				marvell,i2c-always-on;
 				status = "disabled";
 			};
 
@@ -774,7 +810,7 @@
 				compatible = "mrvl,mmp-twsi";
 				#address-cells = <1>;
 				#size-cells = <0>;
-				interrupts = <0 54 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 54 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1936_CLK_TWSI2>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -795,7 +831,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				reg = <0xd4013800 0x64>;
-				interrupts = <0 93 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 93 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1936_CLK_TWSI3>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -809,7 +845,6 @@
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
 
-				marvell,i2c-always-on;
 				status = "disabled";
 			};
 
@@ -895,7 +930,6 @@
 			cp-load {
 				compatible = "marvell,cp_load";
 				cp-type = <3>; /* pxa1908 */
-				por-offset = <0x0>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				remap-smc-funcid = <0xc2003001>;
 				status = "disabled";
@@ -928,11 +962,6 @@
 			reg = <0xd4282c00 0x1ac>;
 		};
 
-		dmcu: dmcu@c0100000 {
-			compatible = "marvell,mmp-dmcu";
-			reg = <0xc0100000 0x880>;
-		};
-
 		wdtrtc: wdtrtc@d4010000 {
 			compatible = "marvell,mmp-wdt-rtc";
 			reg = <0xd4010000 0x100>;
@@ -963,13 +992,12 @@
 		      <0xd403b000 0x1000>,
 		      <0xd4090000 0x1000>,
 		      <0xd4282c00 0x400>,
-		      <0xd1df0000 0x98>;
-		reg-names = "mpmu", "apmu", "apbc", "apbcp", "apbs", "ciu", "dciu";
+		      <0xd1df0000 0x98>,
+			  <0xd420F000 0x850>;
+		reg-names = "mpmu", "apmu", "apbc", "apbcp", "apbs", "ciu", "dciu", "sc2desc";
 		#clock-cells = <1>;
         };
-	usb_notifier {
-	    compatible = "samsung,usb-notifier";
-	};
+
 	mmp_m3_1: apsenhb {
 		compatible = "marvell,mmp-m3";
 		ipver = <2>;
@@ -1091,5 +1119,24 @@
 		dmas = <&pdma0 0xFF 0>;
 		dma-names =  "iml-dma";
 		status = "disabled";
+	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0 84 4>,
+			     <0 85 4>,
+			     <0 86 4>,
+			     <0 87 4>,
+			     <0 108 4>,
+			     <0 109 4>,
+			     <0 110 4>,
+			     <0 111 4>;
+	};
+
+	mmplog {
+		compatible = "marvell,mmplog-heap";
+		mmplog-base = <0x08000000>;
+		mmplog-size = <0x100000>;
+		status = "okay";
 	};
 };

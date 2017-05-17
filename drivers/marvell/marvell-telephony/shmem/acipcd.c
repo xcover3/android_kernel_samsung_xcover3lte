@@ -30,24 +30,15 @@
 #include <linux/pm_qos.h>
 
 #include "acipcd.h"
-#include "shm.h"
 #include "portqueue.h"
 #include "msocket.h"
 #include "pxa_cp_load.h"
 
 struct wakeup_source acipc_wakeup; /* used to ensure Workqueue scheduled. */
 /* forward static function prototype, these all are interrupt call-backs */
-static u32 acipc_cb_rb_stop(u32 status);
-static u32 acipc_cb_rb_resume(u32 status);
-static u32 acipc_cb_port_fc(u32 status);
-static u32 acipc_cb_psd_rb_stop(u32 status);
-static u32 acipc_cb_psd_rb_resume(u32 status);
-static u32 acipc_cb_psd_cb(u32 status);
-static u32 acipc_cb(u32 status);
 #ifdef CONFIG_DDR_DEVFREQ
 static u32 acipc_cb_modem_ddrfreq_update(u32 status);
 #endif
-static u32 acipc_cb_diag_cb(u32 status);
 
 static u32 acipc_cb_event_notify(u32 status);
 static u32 acipc_cb_block_cpuidle_axi(u32 status);
@@ -79,8 +70,8 @@ static void acipc_modem_ddr_freq_update_handler(struct work_struct *work)
 	static int cur_ddrfreq;
 
 	pr_info("acipc_cb_modem_ddrfreq_update: %d\n",
-	       (unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq);
-	if ((unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq ==
+	       (unsigned int)cpks->modem_ddrfreq);
+	if ((unsigned int)cpks->modem_ddrfreq ==
 	    MODEM_DDRFREQ_HI) {
 		if (cur_ddrfreq == MODEM_DDRFREQ_HI)
 			return;
@@ -90,7 +81,7 @@ static void acipc_modem_ddr_freq_update_handler(struct work_struct *work)
 		cur_ddrfreq = MODEM_DDRFREQ_HI;
 	}
 
-	if ((unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq ==
+	if ((unsigned int)cpks->modem_ddrfreq ==
 	    MODEM_DDRFREQ_MID) {
 		if (cur_ddrfreq == MODEM_DDRFREQ_MID)
 			return;
@@ -100,7 +91,7 @@ static void acipc_modem_ddr_freq_update_handler(struct work_struct *work)
 		cur_ddrfreq = MODEM_DDRFREQ_MID;
 	}
 
-	if ((unsigned int)shm_rbctl[shm_rb_main].skctl_va->modem_ddrfreq ==
+	if ((unsigned int)cpks->modem_ddrfreq ==
 	    MODEM_DDRFREQ_LOW) {
 		if (cur_ddrfreq == MODEM_DDRFREQ_LOW)
 			return;
@@ -118,27 +109,10 @@ int acipc_init(u32 lpm_qos)
 	wakeup_source_init(&acipc_wakeup, "acipc_wakeup");
 
 	/* we do not check any return value */
-	ACIPCEventBind(ACIPC_MUDP_KEY, acipc_cb, ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_RINGBUF_TX_STOP, acipc_cb_rb_stop,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_RINGBUF_TX_RESUME, acipc_cb_rb_resume,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_PORT_FLOWCONTROL, acipc_cb_port_fc,
+	acipc_event_bind(ACIPC_MODEM_DDR_UPDATE_REQ, acipc_cb_event_notify,
 		       ACIPC_CB_NORMAL, NULL);
 
-	ACIPCEventBind(ACIPC_RINGBUF_PSD_TX_STOP, acipc_cb_psd_rb_stop,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_RINGBUF_PSD_TX_RESUME, acipc_cb_psd_rb_resume,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_SHM_PSD_PACKET_NOTIFY, acipc_cb_psd_cb,
-		       ACIPC_CB_NORMAL, NULL);
-	ACIPCEventBind(ACIPC_SHM_DIAG_PACKET_NOTIFY, acipc_cb_diag_cb,
-		       ACIPC_CB_NORMAL, NULL);
-
-	ACIPCEventBind(ACIPC_MODEM_DDR_UPDATE_REQ, acipc_cb_event_notify,
-		       ACIPC_CB_NORMAL, NULL);
-
-	ACIPCEventBind(ACIPC_IPM, acipc_cb_block_cpuidle_axi,
+	acipc_event_bind(ACIPC_IPM, acipc_cb_block_cpuidle_axi,
 		       ACIPC_CB_NORMAL, NULL);
 
 	pm_qos_cpuidle_block_axi = lpm_qos;
@@ -159,17 +133,13 @@ int acipc_init(u32 lpm_qos)
 /* acipc_exit used to unregister interrupt call-back function */
 void acipc_exit(void)
 {
-	ACIPCEventUnBind(ACIPC_SHM_PSD_PACKET_NOTIFY);
-	ACIPCEventUnBind(ACIPC_RINGBUF_PSD_TX_RESUME);
-	ACIPCEventUnBind(ACIPC_RINGBUF_PSD_TX_STOP);
-	ACIPCEventUnBind(ACIPC_PORT_FLOWCONTROL);
-	ACIPCEventUnBind(ACIPC_RINGBUF_TX_RESUME);
-	ACIPCEventUnBind(ACIPC_RINGBUF_TX_STOP);
-	ACIPCEventUnBind(ACIPC_MUDP_KEY);
-	ACIPCEventUnBind(ACIPC_SHM_DIAG_PACKET_NOTIFY);
-	ACIPCEventUnBind(ACIPC_MODEM_DDR_UPDATE_REQ);
+	acipc_event_unbind(ACIPC_PORT_FLOWCONTROL);
+	acipc_event_unbind(ACIPC_RINGBUF_TX_RESUME);
+	acipc_event_unbind(ACIPC_RINGBUF_TX_STOP);
+	acipc_event_unbind(ACIPC_MUDP_KEY);
+	acipc_event_unbind(ACIPC_MODEM_DDR_UPDATE_REQ);
 
-	ACIPCEventUnBind(ACIPC_IPM);
+	acipc_event_unbind(ACIPC_IPM);
 
 	pm_qos_remove_request(&cp_block_cpuidle_axi);
 
@@ -179,73 +149,6 @@ void acipc_exit(void)
 	destroy_workqueue(acipc_wq);
 	pm_qos_remove_request(&modem_ddr_cons);
 #endif
-}
-
-/* cp xmit stopped notify interrupt */
-static u32 acipc_cb_rb_stop(u32 status)
-{
-	return shm_rb_stop_cb(&shm_rbctl[shm_rb_main]);
-}
-
-/* cp wakeup ap xmit interrupt */
-static u32 acipc_cb_rb_resume(u32 status)
-{
-	return shm_rb_resume_cb(&shm_rbctl[shm_rb_main]);
-}
-
-/* cp notify ap port flow control */
-static u32 acipc_cb_port_fc(u32 status)
-{
-	return shm_port_fc_cb(&shm_rbctl[shm_rb_main]);
-}
-
-/* cp psd xmit stopped notify interrupt */
-static u32 acipc_cb_psd_rb_stop(u32 status)
-{
-	return shm_rb_stop_cb(&shm_rbctl[shm_rb_psd]);
-}
-
-/* cp psd wakeup ap xmit interrupt */
-static u32 acipc_cb_psd_rb_resume(u32 status)
-{
-	return shm_rb_resume_cb(&shm_rbctl[shm_rb_psd]);
-}
-
-/* psd new packet arrival interrupt */
-static u32 acipc_cb_psd_cb(u32 status)
-{
-	return shm_packet_send_cb(&shm_rbctl[shm_rb_psd]);
-}
-
-/* diag new packet arrival interrupt */
-static u32 acipc_cb_diag_cb(u32 status)
-{
-	return shm_packet_send_cb(&shm_rbctl[shm_rb_diag]);
-}
-
-/* new packet arrival interrupt */
-static u32 acipc_cb(u32 status)
-{
-	u32 data;
-	u16 event;
-
-	ACIPCDataRead(&data);
-	event = (data & 0xFF00) >> 8;
-
-	switch (event) {
-	case PACKET_SENT:
-		shm_packet_send_cb(&shm_rbctl[shm_rb_main]);
-		break;
-
-	case PEER_SYNC:
-		shm_peer_sync_cb(&shm_rbctl[shm_rb_main]);
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
 }
 
 #ifdef CONFIG_DDR_DEVFREQ
@@ -259,11 +162,11 @@ static u32 acipc_cb_modem_ddrfreq_update(u32 status)
 
 static u32 acipc_cb_reset_cp_confirm(u32 status)
 {
-	if (shm_rbctl[shm_rb_main].skctl_va->reset_request
+	if (cpks->reset_request
 		== RESET_CP_REQUEST_DONE)
 		complete(&reset_cp_confirm);
 
-	shm_rbctl[shm_rb_main].skctl_va->reset_request = 0;
+	cpks->reset_request = 0;
 	return 0;
 }
 
@@ -278,30 +181,27 @@ static u32 acipc_cb_event_notify(u32 status)
 
 void acipc_reset_cp_request(void)
 {
-	struct shm_rbctl *rbctl;
-
-	rbctl = &shm_rbctl[shm_rb_main];
-	mutex_lock(&rbctl->va_lock);
-	if (!rbctl->skctl_va) {
-		mutex_unlock(&rbctl->va_lock);
+	mutex_lock(&cpks_lock);
+	if (!cpks) {
+		mutex_unlock(&cpks_lock);
 		return;
 	}
-	shm_rbctl[shm_rb_main].skctl_va->reset_request = RESET_CP_REQUEST;
+	cpks->reset_request = RESET_CP_REQUEST;
 	reinit_completion(&reset_cp_confirm);
 	acipc_notify_reset_cp_request();
-	mutex_unlock(&rbctl->va_lock);
+	mutex_unlock(&cpks_lock);
 	if (wait_for_completion_timeout(&reset_cp_confirm, 2 * HZ))
 		pr_info("reset cp request success!\n");
 	else
 		pr_err("reset cp request fail!\n");
 
-	mutex_lock(&rbctl->va_lock);
-	if (!rbctl->skctl_va) {
-		mutex_unlock(&rbctl->va_lock);
+	mutex_lock(&cpks_lock);
+	if (!cpks) {
+		mutex_unlock(&cpks_lock);
 		return;
 	}
-	shm_rbctl[shm_rb_main].skctl_va->reset_request = 0;
-	mutex_unlock(&rbctl->va_lock);
+	cpks->reset_request = 0;
+	mutex_unlock(&cpks_lock);
 	return;
 }
 
@@ -318,7 +218,7 @@ static u32 acipc_cb_block_cpuidle_axi(u32 status)
 	bool block = false;
 	u32 pm_status = 0;
 
-	pm_status = shm_rbctl[shm_rb_main].skctl_va->ap_pm_status_request;
+	pm_status = cpks->ap_pm_status_request;
 	if (pm_status == REQ_AP_D2_STATUS) {
 		block = false;
 	} else if (pm_status == REQ_AP_ND2_STATUS) {

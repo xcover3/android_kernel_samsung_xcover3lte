@@ -33,13 +33,6 @@
 #define PM8XXX_HOOK_VOL_PRESSED			1
 #define PM8XXX_HOOK_VOL_RELEASED		0
 
-//KSND
-#if defined(CONFIG_SND_SOC_88PM88X_SYSFS)
-#define SEC_USE_HS_SYSFS
-//#define SEC_USE_HS_INFO_SYSFS
-#endif
-#define SEC_USE_SAMSUNG_JACK_API
-#define SEC_USE_VOICE_ASSIST_KEY
 
 enum {
 	HOOK_RELEASED = 0,
@@ -52,14 +45,6 @@ enum {
 	VOL_UP_PRESSED,
 	VOL_DOWN_PRESSED,
 };
-
-#if defined (SEC_USE_SAMSUNG_JACK_API)
-enum {
-	SEC_JACK_NO_DEVICE				= 0x0,
-	SEC_HEADSET_4POLE				= 0x01 << 0,
-	SEC_HEADSET_3POLE				= 0x01 << 1,
-};
-#endif
 
 struct PM8XXX_HS_IOCTL {
 	int hsdetect_status;

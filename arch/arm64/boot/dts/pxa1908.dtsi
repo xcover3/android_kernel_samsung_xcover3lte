@@ -1,6 +1,7 @@
 /*
- *	Copyright (C) 2014 Marvell Technology Group Ltd.
- *	Copyright (C) 2014 Samsung Electronics Co, Ltd.
+ *  Copyright (C) 2013 Marvell Technology Group Ltd.
+ *  Author: Chao Xie <chao.xie@marvell.com>
+ *          Dongjiu Geng <djgeng@marvell.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -10,11 +11,10 @@
 /include/ "skeleton.dtsi"
 #include "pxa1908-pinfunc.h"
 #include "pxa1908-pm.h"
-#include <dt-bindings/clock/marvell-pxa1U88.h>
+#include "../../../../include/dt-bindings/clock/marvell-pxa1U88.h"
 #include <dt-bindings/clock/marvell-audio-map.h>
-#include <dt-bindings/interrupt-controller/irq.h>
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/usb/mv_usb.h>
+#include "../../../../include/dt-bindings/interrupt-controller/irq.h"
+#include "../../../../include/dt-bindings/usb/mv_usb.h"
 
 / {
 	interrupt-parent = <&gic>;
@@ -160,7 +160,7 @@
 				interrupts = <0 44 0x4>;
 				marvell,udc-name = "mv-udc";
 				marvell,udc-mode = <MV_USB_MODE_OTG>;
-				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
+				marvell,extern-attr = <0>;
 				marvell,otg-force-a-bus-req;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_USB>;
@@ -172,7 +172,7 @@
 				reg = <0xd4208100 0x200>;
 				marvell,ehci-name = "pxa-u2oehci";
 				marvell,udc-mode = <MV_USB_MODE_OTG>;
-				marvell,extern-attr = <MV_USB_HAS_VBUS_DETECTION>;
+				marvell,extern-attr = <0>;
 				marvell,otg-force-a-bus-req;
 				interrupts = <0 44 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_USB>;
@@ -187,8 +187,9 @@
 				marvell,ehci-name = "pxa-u2oehci";
 				marvell,otg-name = "mv-otg";
 				marvell,udc-mode = <MV_USB_MODE_OTG>;
-				marvell,extern-attr = <MV_USB_HAS_VBUS_IDPIN_DETECTION>;
+				marvell,extern-attr = <0>;
 				marvell,otg-force-a-bus-req;
+				marvell,otg-force-a-vbus-vld;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				clocks = <&soc_clocks PXA1U88_CLK_USB>;
 				status = "disabled";
@@ -354,8 +355,9 @@
 						<208000 208000>,
 						<312000 312000>,
 						<416000 416000>,
-						<528000 528500>;
+						<528000 416000>;
 				marvell,qos;
+				vpu-governor = "simple_ondemand";
 				status = "disabled";
 			};
 
@@ -377,7 +379,7 @@
 				   compatible = "marvell,mmp-sc2ccic";
 				   reg = <0xd420a000 0x2ff>;
 				   reg-names = "ccic-regs";
-				   dma-burst = <64>;
+				   dma-burst = <256>;
 				   mclk-src = <3>;
 				   mclk-div = <13>;
 				   interrupts = <0 42 0x4>;
@@ -573,11 +575,6 @@
 				status = "okay";
 			};
 
-			mfpr: mfpr@d401e000 {
-				compatible = "marvell,mmp-mfp-leftover";
-				status = "disable";
-			};
-
 			gpio: gpio@d4019000 {
 				compatible = "marvell,mmp-gpio";
 				#address-cells = <1>;
@@ -604,7 +601,7 @@
 
 				gcb2: gpio@d4019008 {
 					reg-offset = <0x8>;
-					gpio-ranges = <&pmx 3 110 29>;
+					gpio-ranges = <&pmx 1 6 1  &pmx 3 110 29>;
 				};
 
 				gcb3: gpio@d4019100 {
@@ -633,6 +630,37 @@
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 				interrupts = <0 9 0x4>;
 				clocks = <&soc_clocks PXA1U88_CLK_KPC>;
+				status = "disabled";
+			};
+
+			spi_0: ssp@d401b000 {
+				compatible = "marvell,pxa910-spi";
+				marvell,ssp-enhancement;
+				reg = <0xd401b000 0x90>;
+				ssp-id = <0>;
+				interrupts = <0 3 IRQ_TYPE_LEVEL_HIGH>;
+				/* dma engineer, DRCMR offset, user_do_qos */
+				dmas = <&pdma0 52 1
+					&pdma0 53 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_SSP0>;
+				status = "disabled";
+			};
+
+			spi_2: ssp@d401c000 {
+				compatible = "marvell,pxa910-spi";
+				marvell,ssp-enhancement;
+				marvell,ssp-nor-flash;
+				reg = <0xd401c000 0x90>;
+				ssp-id = <2>;
+				interrupts = <0 1 IRQ_TYPE_LEVEL_HIGH>;
+				dmas = <&pdma0 60 1
+					&pdma0 61 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_SSP2>;
+				cs-gpios = <&gpio 65 0>;
 				status = "disabled";
 			};
 
@@ -683,7 +711,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				reg = <0xd4011000 0x64>;
-				interrupts = <0 7 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1U88_CLK_TWSI0>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -697,7 +725,6 @@
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
 
-				marvell,i2c-always-on;
 				status = "disabled";
 			};
 
@@ -706,7 +733,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				reg = <0xd4010800 0x64>;
-				interrupts = <0 33 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 33 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1U88_CLK_TWSI1>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -715,7 +742,6 @@
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
 
-				marvell,i2c-always-on;
 				status = "disabled";
 			};
 
@@ -723,7 +749,7 @@
 				compatible = "mrvl,mmp-twsi";
 				#address-cells = <1>;
 				#size-cells = <0>;
-				interrupts = <0 54 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 54 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1U88_CLK_TWSI2>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -744,7 +770,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				reg = <0xd4013800 0x64>;
-				interrupts = <0 93 IRQF_TRIGGER_HIGH>;
+				interrupts = <0 93 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks PXA1U88_CLK_TWSI3>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 
@@ -758,7 +784,6 @@
 				marvell,i2c-iwcr = <0x142a>;
 				marvell,i2c-enable-bus-rst;
 
-				marvell,i2c-always-on;
 				status = "disabled";
 			};
 
@@ -840,7 +865,6 @@
 			cp-load {
 				compatible = "marvell,cp_load";
 				cp-type = <3>; /* pxa1908 */
-				por-offset = <0x0>;
 				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
 				remap-smc-funcid = <0xd0002001>;
 				status = "disabled";
@@ -953,7 +977,6 @@
 				<&soc_clocks PXA1U88_CLK_SC2_MCLK>;
 		clock-names = "SC2AXICLK", "SC2MCLK";
 		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-		ddr-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 		status = "disabled";
 		reg = <0x0 0x0>;
 	};
@@ -964,7 +987,6 @@
 				<&soc_clocks PXA1U88_CLK_SC2_MCLK>;
 		clock-names = "SC2AXICLK", "SC2MCLK";
 		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
-		ddr-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
 		status = "disabled";
 		reg = <0x1 0x0>;
 	};
@@ -985,6 +1007,12 @@
 		compatible = "soc-camera-pdrv";
 		status = "disabled";
 		reg = <0x2 0x0>;
+	};
+
+	soc-camera@3 {
+		compatible = "soc-camera-pdrv";
+		status = "disabled";
+		reg = <0x3 0x0>;
 	};
 
 	plat_cam {
@@ -1042,8 +1070,11 @@
 		status = "disabled";
 	};
 
-	usb_notifier {
-	    compatible = "samsung,usb-notifier";
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0 84 4>,
+			     <0 85 4>,
+			     <0 86 4>,
+			     <0 87 4>;
 	};
-
 };

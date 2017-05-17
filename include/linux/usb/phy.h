@@ -126,9 +126,6 @@ struct usb_phy {
 			enum usb_device_speed speed);
 	int	(*notify_disconnect)(struct usb_phy *x,
 			enum usb_device_speed speed);
-#ifdef CONFIG_USB_PHY_TUNE
-	int (*tune)(struct usb_phy *x, bool phy_state);
-#endif
 };
 
 /**
@@ -215,16 +212,7 @@ usb_phy_vbus_off(struct usb_phy *x)
 
 	return x->set_vbus(x, false);
 }
-#ifdef CONFIG_USB_PHY_TUNE
-static inline int
-usb_phy_tune(struct usb_phy *x, bool val)
-{
-	int ret = 0;
-	 if (x)
-		 ret = x->tune(x, val);
-	 return ret;
-}
-#endif
+
 /* for usb host and peripheral controller drivers */
 #if IS_ENABLED(CONFIG_USB_PHY)
 extern struct usb_phy *usb_get_phy(enum usb_phy_type type);

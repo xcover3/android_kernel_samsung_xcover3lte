@@ -28,13 +28,10 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include "mmpfb.h"
-#include "../hw/mmp_ctrl.h"
-#if defined(CONFIG_SEC_DEBUG)
-#include <linux/sec-debug.h>
-#endif
 
 /* As bootloader always enable display, so we usually skip power on sequence in kernel */
 static unsigned int no_skipped_power_on;
+unsigned int is_virtual_display;
 static int __init early_fbboot(char *str)
 {
 	/* If no_skipped_power_on, kernel will follow normal display power on sequence */
@@ -51,16 +48,6 @@ static int __init early_resolution(char *str)
 
 	width_str = strchr(str, 'x');
 	height_str = strsep(&str, "x");
-
-	if (unlikely(!width_str)) {
-		pr_err("%s, width not found\n", __func__);
-		return -EINVAL;
-	}
-
-	if (unlikely(!height_str)) {
-		pr_err("%s, height not found\n", __func__);
-		return -EINVAL;
-	}
 
 	ret = kstrtoul(height_str, 0, &virtual_x);
 	if (ret < 0) {
@@ -487,7 +474,6 @@ static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 {
 	struct mmpfb_info *fbi = info->par;
 	int decompress_en;
-	unsigned long flags;
 
 	if (!mmp_path_ctrl_safe(fbi->path))
 		return -EINVAL;
@@ -496,36 +482,11 @@ static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 	 * Pan_display will enable irq,
 	 * IRQ will be disabled in irq handler.
 	 */
-	if (!atomic_read(&fbi->path->irq_en_count)) {
-		atomic_inc(&fbi->path->irq_en_count);
-		mmp_path_set_irq(fbi->path, 1);
+	if (!atomic_read(&fbi->path->irq_vsync_en_count)) {
+		atomic_inc(&fbi->path->irq_vsync_en_count);
+		mmp_path_set_irq(fbi->path, VSYNC_IRQ, IRQ_ENA);
 	}
 
-	/*
-	 * Check if many pan_display comes in one frame, if yes,
-	 * need to wait vsync.
-	 */
-	mmpfb_wait_vsync(fbi);
-
-	/*
-	 * update buffer: need spin lock to protect
-	 */
-	spin_lock_irqsave(&fbi->path->vcnt_lock, flags);
-	/*
-	 * If the pan_display is delayed to next frame,it will try to
-	 * enable irq, IRQ will be disabled in irq handler.
-	 */
-	if (atomic_read(&fbi->vsync.vcnt) == 2) {
-		atomic_dec(&fbi->vsync.vcnt);
-		if (!atomic_read(&fbi->path->irq_en_count)) {
-			atomic_inc(&fbi->path->irq_en_count);
-			mmp_path_set_irq(fbi->path, 1);
-		}
-	}
-
-	/*
-	 * update buffer info
-	 */
 	decompress_en = !!(var->reserved[0] & DECOMPRESS_MODE);
 	pr_debug("%s: decompress_en : %d\n", __func__, decompress_en);
 	if (decompress_en != fbi->overlay->decompress) {
@@ -534,7 +495,8 @@ static int mmpfb_pan_display(struct fb_var_screeninfo *var,
 	}
 	mmpfb_set_address(var, fbi);
 	mmp_path_set_trigger(fbi->path);
-	spin_unlock_irqrestore(&fbi->path->vcnt_lock, flags);
+
+	mmpfb_wait_vsync(fbi);
 
 	return 0;
 }
@@ -624,16 +586,13 @@ static void mmpfb_power(struct mmpfb_info *fbi, int power)
 static int mmpfb_blank(int blank, struct fb_info *info)
 {
 	struct mmpfb_info *fbi = info->par;
-	struct mmphw_ctrl *ctrl = path_to_ctrl(fbi->path);
 
 	if (blank == FB_BLANK_UNBLANK) {
-		pm_runtime_forbid(ctrl->dev);
 		mmpfb_power(fbi, MMP_ON);
 		fb_set_suspend(info, 0);
 	} else {
 		fb_set_suspend(info, 1);
 		mmpfb_power(fbi, MMP_OFF);
-		pm_runtime_allow(ctrl->dev);
 	}
 
 	return 0;
@@ -992,11 +951,6 @@ static int mmpfb_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_forbid(&pdev->dev);
 	no_skipped_power_on = 1;
-#if defined(CONFIG_SEC_DEBUG)
-	sec_getlog_supply_fbinfo(phys_to_virt(info->fix.smem_start),
-			info->var.xres_virtual, info->var.yres_virtual / fbi->buffer_num,
-			info->var.bits_per_pixel, fbi->buffer_num);
-#endif
 
 	return 0;
 
@@ -1013,17 +967,6 @@ failed:
 	framebuffer_release(info);
 
 	return ret;
-}
-
-void mmpfb_shutdown(struct platform_device *pdev)
-{
-	struct mmpfb_info *fbi = platform_get_drvdata(pdev);
-	struct fb_info *info = fbi->fb_info;
-
-	pr_info("%s\n", __func__);
-	fb_set_suspend(info, 1);
-
-	mmpfb_power(fbi, MMP_OFF);
 }
 
 #if defined(CONFIG_PM_RUNTIME) || defined(CONFIG_PM_SLEEP)
@@ -1072,7 +1015,6 @@ static struct platform_driver mmpfb_driver = {
 		.of_match_table = of_match_ptr(mmp_fb_dt_match),
 	},
 	.probe		= mmpfb_probe,
-	.shutdown	= mmpfb_shutdown,
 };
 
 static int mmpfb_init(void)

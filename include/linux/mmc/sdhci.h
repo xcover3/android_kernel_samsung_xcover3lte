@@ -126,8 +126,11 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_TUNING_BROKEN			(1<<20)
 /* Vqmmc needs always on to keep host power on for card detection */
 #define SDHCI_QUIRK2_VQMMC_ALWAYS_ON			(1<<21)
+/* Need set fixed voltage for avoid CRC error */
+#define SDHCI_QUIRK2_FIXED_VOLTAGE			(1<<22)
 /* DMA need internal clock force on */
 #define SDHCI_QUIRK2_DMA_CLOCK_FORCE_ON			(1<<23)
+
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
 
@@ -199,6 +202,7 @@ struct sdhci_host {
 	struct work_struct card_work;
 
 	struct timer_list timer;	/* Timer for timeouts */
+	int	timer_ahead;
 
 	u32 caps;		/* Alternative CAPABILITY_0 */
 	u32 caps1;		/* Alternative CAPABILITY_1 */

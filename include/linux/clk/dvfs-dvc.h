@@ -117,5 +117,6 @@ struct hwdvc_notifier_data {
 };
 extern int hwdvc_notifier_register(struct notifier_block *n);
 extern int hwdvc_notifier_unregister(struct notifier_block *n);
+extern int __init dvc_table_debugfs_init(struct dentry *clk_debugfs_root);
 
 #endif

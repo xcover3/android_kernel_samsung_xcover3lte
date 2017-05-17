@@ -21,9 +21,6 @@
 #include <linux/regmap.h>
 #include <linux/slab.h>
 #include <linux/of.h>
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-#include <linux/sec-common.h>
-#endif
 
 #define PM88X_ONKEY_STS1		(0x1 << 0)
 
@@ -82,10 +79,6 @@ struct pm88x_onkey_info {
 	int long_key_press_time;
 	int hwrst_db_period;	/* hardware reset debounce period */
 	int hwrst_type;
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	struct device *sec_powerkey;
-	bool state;
-#endif
 };
 
 static int pm88x_config_gpio(struct pm88x_onkey_info *info)
@@ -191,66 +184,11 @@ static irqreturn_t pm88x_onkey_handler(int irq, void *data)
 			cancel_delayed_work(&info->long_onkey_rst_work);
 	}
 	input_report_key(info->idev, KEY_POWER, val);
-
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	info->state = val;
-#endif
-#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
-	pr_info("[KEY] %d key %s\n", KEY_POWER, val ? "Press" : "Release");
-#else
-	pr_info("[KEY] key %s\n", val ? "Press" : "Release");
-#endif
-
 	input_sync(info->idev);
 
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-static ssize_t show_key_status(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	struct pm88x_onkey_info *info = dev_get_drvdata(dev);
-	bool state = info->state;
-
-	return sprintf(buf, state ? "PRESS" : "RELEASE");
-}
-
-static ssize_t store_key(struct device *dev, struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	struct pm88x_onkey_info *info = dev_get_drvdata(dev);
-	unsigned int val;
-
-	if (!strncmp(buf, "1", 1))
-		val = 1;
-	else if (!strncmp(buf, "0", 1))
-		val = 0;
-	else
-		return count;
-
-	input_report_key(info->idev, KEY_POWER, val);
-	info->state = val;
-
-	pr_info("[KEY] %d key %s by SW\n", KEY_POWER, val ? "Press" : "Release");
-
-	input_sync(info->idev);
-
-	return count;
-}
-
-static DEVICE_ATTR(sec_powerkey_pressed,
-	S_IRUGO | S_IWUSR | S_IWGRP, show_key_status, store_key);
-
-static struct attribute *powerkey_attributes[] = {
-	&dev_attr_sec_powerkey_pressed.attr,
-	NULL,
-};
-
-static struct attribute_group powerkey_attr_group = {
-	.attrs = powerkey_attributes,
-};
-#endif
 static SIMPLE_DEV_PM_OPS(pm88x_onkey_pm_ops, NULL, NULL);
 
 static int pm88x_onkey_dt_init(struct device_node *np,
@@ -403,23 +341,6 @@ static int pm88x_onkey_probe(struct platform_device *pdev)
 	regmap_update_bits(info->map, PM88X_AON_CTRL7,
 			   PM88X_FAULT_WU_EN, PM88X_FAULT_WU_EN);
 
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	info->sec_powerkey = device_create(sec_class, NULL,
-		MKDEV(0, 0), info, "sec_powerkey");
-
-	if (IS_ERR(info->sec_powerkey)) {
-		err = PTR_ERR(info->sec_powerkey);
-		dev_err(&pdev->dev,
-			"Failed to create device for sec_powerkey(%d)\n", err);
-	}
-
-	err = sysfs_create_group(&info->sec_powerkey->kobj,
-					&powerkey_attr_group);
-	if (err)
-		dev_err(&pdev->dev,
-			"Failed to create sysfs for sec_powerkey(%d)\n", err);
-#endif
-
 	return 0;
 
 out_register:
@@ -431,11 +352,6 @@ out:
 static int pm88x_onkey_remove(struct platform_device *pdev)
 {
 	struct pm88x_onkey_info *info = platform_get_drvdata(pdev);
-
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	sysfs_remove_group(&info->sec_powerkey->kobj, &powerkey_attr_group);
-	device_destroy(sec_class, MKDEV(0, 0));
-#endif
 
 	if (info->disable_long_key_rst)
 		cancel_delayed_work(&info->long_onkey_rst_work);

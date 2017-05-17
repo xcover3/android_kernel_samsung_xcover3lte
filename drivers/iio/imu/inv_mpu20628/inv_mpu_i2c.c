@@ -169,12 +169,13 @@ int mpu_memory_write(struct inv_mpu_state *st, u8 mpu_addr, u16 mem_addr,
 	INV_I2C_INC_MPUWRITE(3 + 3 + (2 + len));
 #if CONFIG_DYNAMIC_DEBUG
 	{
-		char *write = 0;
-		pr_debug("%s WM%02X%02X%02X%s%s - %d\n", st->hw->name,
-			 mpu_addr, bank[1], addr[1],
-			 wr_pr_debug_begin(data, len, write),
-			 wr_pr_debug_end(write),
-			 len);
+		char *write = NULL;
+		write = wr_pr_debug_begin(data, len, write);
+		if (write != NULL) {
+			pr_debug("%s WM%02X%02X%02X%s - %d\n", st->hw->name,
+				 mpu_addr, bank[1], addr[1], write, len);
+			wr_pr_debug_end(write);
+		}
 	}
 #endif
 
@@ -466,9 +467,8 @@ static int inv_mpu_resume(struct device *dev)
 							BIT_FIFO_OVERFLOW_EN_0);
 			inv_switch_power_in_lp(st, false);
 		}
-	} else {
-		inv_switch_power_in_lp(st, true);
 	}
+	inv_set_power(st, true);
 	mutex_unlock(&indio_dev->mlock);
 	/* add code according to different request End */
 	mutex_unlock(&st->suspend_resume_lock);
@@ -500,10 +500,8 @@ static int inv_mpu_suspend(struct device *dev)
 			inv_plat_single_write(st, REG_INT_ENABLE_2, 0);
 			inv_switch_power_in_lp(st, false);
 		}
-	} else {
-		/* in non DMP case, just turn off the power */
-		inv_set_power(st, false);
 	}
+	inv_set_power(st, false);
 	/* add code according to different request End */
 	st->suspend_state = true;
 	msleep(100);

@@ -37,13 +37,13 @@
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
 #include <linux/mman.h>
+#include <linux/notifier.h>
 
 #include "pxa_cp_load.h"
 #include "pxa_cp_load_ioctl.h"
 #include "common_regs.h"
-#include "msocket.h"
-#include "shm.h"
 #include "shm_map.h"
+#include "util.h"
 
 static struct cp_dev *global_cp;
 uint32_t arbel_bin_phys_addr;
@@ -128,16 +128,6 @@ void checkloadinfo(void)
 	);
 }
 
-static ssize_t cp_por_offset_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	int len;
-	len = sprintf(buf, "%u\n", global_cp->por_offset);
-	return len;
-}
-
-static DEVICE_ATTR(cp_por_offset, 0444, cp_por_offset_show, NULL);
-
 static ssize_t cp_store(struct device *sys_dev, struct device_attribute *attr,
 			const char *buf, size_t len)
 {
@@ -174,7 +164,6 @@ static ssize_t cp_show(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(cp, 0644, cp_show, cp_store);
 static struct attribute *cp_attr[] = {
 	&dev_attr_cp.attr,
-	&dev_attr_cp_por_offset.attr,
 };
 
 static int cp_add(struct device *dev, struct subsys_interface *sif)
@@ -260,17 +249,14 @@ int cp_mmap(struct file *file, struct vm_area_struct *vma)
 	return 0;
 }
 
+DEFINE_BLOCKING_NOTIFIER(cp_mem_set);
+
 /*
  * actions after memory address set
  */
 static void post_mem_set(struct cpload_cp_addr *addr)
 {
-	if (addr->first_boot)
-		cp_shm_ch_init(addr, global_cp->lpm_qos);
-	else {
-		tel_shm_exit(shm_grp_cp);
-		tel_shm_init(shm_grp_cp, addr);
-	}
+	notify_cp_mem_set(global_cp->lpm_qos, addr);
 }
 
 static long cp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -436,14 +422,6 @@ static int cp_load_probe(struct platform_device *pdev)
 
 	if (cp_set_ops())
 		goto err6;
-
-	if (of_property_read_u32(pdev->dev.of_node, "por-offset",
-					&global_cp->por_offset)) {
-		pr_info("%s : default por-offset: 0 used", __func__);
-		global_cp->por_offset = 0;
-	} else
-		pr_info("%s : por-offset is 0x%08x",
-			__func__, global_cp->por_offset);
 
 	return 0;
 

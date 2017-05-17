@@ -553,11 +553,6 @@ config LEDS_RGB
 	default n
 	help
 	  This option enables dkb RGB leds.
-config SEC_VIBRATOR
-	bool "Support SEC Vibrator"
-	default n
-	help
-	  This option enables sec designed ldo vibrator.
 
 config SD8XXX_RFKILL
         tristate "Rfkill power control for Marvell sd8xxx wlan/bt/fm"

@@ -117,6 +117,8 @@ extern t_u32 wlan_wmm_process_association_req(pmlan_private priv,
 void wlan_wmm_setup_queue_priorities(pmlan_private priv,
 				     IEEEtypes_WmmParameter_t *wmm_ie);
 
+/* Get tid_down from tid */
+int wlan_get_wmm_tid_down(mlan_private *priv, int tid);
 /** Downgrade WMM priority queue */
 void wlan_wmm_setup_ac_downgrade(pmlan_private priv);
 /** select WMM queue */

@@ -135,24 +135,3 @@ u64 notrace trace_clock_counter(void)
 {
 	return atomic64_add_return(1, &trace_counter);
 }
-
-/* kernel/printk/printk.c */
-u64 notrace trace_print_clock(void)
-{
-	struct timespec ts;
-	u64 ts_nsec;
-
-	preempt_disable_notrace();
-
-	read_persistent_clock(&ts);
-	if (!ts.tv_sec && !ts.tv_nsec) {
-		ts_nsec = local_clock();
-		ts = ns_to_timespec(ts_nsec);
-		monotonic_to_bootbased(&ts);
-	}
-	ts_nsec = timespec_to_ns(&ts);
-
-	preempt_enable_notrace();
-
-	return ts_nsec;
-}

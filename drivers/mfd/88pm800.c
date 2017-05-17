@@ -32,9 +32,6 @@
 #include <linux/reboot.h>
 #include "88pm8xx-config.h"
 #include "88pm8xx-debugfs.h"
-#ifdef CONFIG_SEC_DEBUG
-#include <linux/sec-common.h>
-#endif
 
 #define PM80X_BASE_REG_NUM		0xf0
 #define PM80X_POWER_REG_NUM		0x9b
@@ -410,14 +407,6 @@ static const struct regmap_irq pm800_irqs[] = {
 	},
 };
 
-#if defined(CONFIG_SEC_DEBUG)
-static u8 power_on_reason;
-unsigned char pm80x_get_power_on_reason(void)
-{
-	return power_on_reason;
-}
-#endif
-
 static int device_gpadc_init(struct pm80x_chip *chip,
 				       struct pm80x_platform_data *pdata)
 {
@@ -778,29 +767,8 @@ static int device_800_init(struct pm80x_chip *chip,
 				     struct pm80x_platform_data *pdata)
 {
 	int ret;
-	unsigned int val, data;
+	unsigned int val;
 
-#if defined(CONFIG_SEC_DEBUG)
-	/* read power on reason from PMIC general use register */
-	ret = regmap_read(chip->regmap, PMIC_GENERAL_USE_REGISTER, &data);
-	if (ret < 0) {
-		dev_err(chip->dev, "Failed to read PMIC_GENERAL_USE_REGISTER : %d\n"
-				, ret);
-		goto out;
-	}
-
-	pr_info("%s read register PMIC_GENERAL_USE_REGISTER [%d]\n", __func__,
-			data);
-	val = data & (PMIC_GENERAL_USE_REBOOT_DN_MASK);
-	/* read power on reason from PMIC general use register */
-	if (val != PMIC_GENERAL_USE_BOOT_BY_FULL_RESET)
-	{
-		data &= ~(PMIC_GENERAL_USE_REBOOT_DN_MASK);
-		data |= PMIC_GENERAL_USE_BOOT_BY_HW_RESET;
-		regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,data);
-	}
-	power_on_reason = (u8)val;
-#endif
 	/*
 	 * alarm wake up bit will be clear in device_irq_init(),
 	 * read before that
@@ -897,124 +865,10 @@ static int pm800_dt_init(struct device_node *np,
 }
 
 static int reboot_notifier_func(struct notifier_block *this,
-		unsigned long code, void *p)
+		unsigned long code, void *cmd)
 {
-#ifdef CONFIG_SEC_DEBUG
 	int data;
 	struct pm80x_chip *chip;
-	unsigned char pmic_download_register = 0;
-	char *cmd = p;
-
-	pr_info("reboot notifier...\n");
-
-	chip = container_of(this, struct pm80x_chip, reboot_notifier);
-	regmap_read(chip->regmap, PMIC_GENERAL_USE_REGISTER, &data);
-	data &= ~(PMIC_GENERAL_USE_REBOOT_DN_MASK);
-
-	if (cmd) {
-		if (!strcmp(cmd, "recovery")) {
-			pr_info("Device will enter recovery mode on next booting\n");
-			data |= PMIC_GENERAL_USE_BOOT_BY_FULL_RESET;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "recovery_done")) {
-			data |= PMIC_GENERAL_USE_BOOT_BY_RECOVERY_DONE;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "arm11_fota")) {
-			data |= PMIC_GENERAL_USE_BOOT_BY_FOTA;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "alarm")) {
-			data |= PMIC_GENERAL_USE_BOOT_BY_RTC_ALARM;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "debug0x4f4c")) {
-			data |= PMIC_GENERAL_USE_BOOT_BY_DEBUGLEVEL_LOW;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "debug0x494d")) {
-			data |= PMIC_GENERAL_USE_BOOT_BY_DEBUGLEVEL_MID;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "debug0x4948")) {
-			data |= PMIC_GENERAL_USE_BOOT_BY_DEBUGLEVEL_HIGH;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "GlobalActions restart")) {
-			data |= PMIC_GENERAL_USE_BOOT_BY_INTENDED_RESET;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strcmp(cmd, "download")) {
-			pmic_download_register = PMIC_GENERAL_DOWNLOAD_MODE_FUS
-							+ DOWNLOAD_FUS_SUD_BASE;
-			data |= pmic_download_register;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else if (!strncmp(cmd, "sud", 3)) {
-			/* Value : 21 ~ 29 */
-			pmic_download_register = cmd[3] - '0' +
-							DOWNLOAD_FUS_SUD_BASE;
-			data |= pmic_download_register;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-									data);
-		} else {
-			if (get_recoverymode() == 1) {
-				pr_info("reset noti recovery mode\n");
-				data |= PMIC_GENERAL_USE_BOOT_BY_RECOVERY_DONE;
-				regmap_write(chip->regmap,
-					PMIC_GENERAL_USE_REGISTER, data);
-			} else {
-				pr_info("reset noti intended\n");
-				data |= PMIC_GENERAL_USE_BOOT_BY_INTENDED_RESET;
-				regmap_write(chip->regmap,
-					PMIC_GENERAL_USE_REGISTER, data);
-			}
-		}
-	} else {
-		if (get_recoverymode() == 1) {
-			pr_info("reset noti recovery p = null\n");
-			data |= PMIC_GENERAL_USE_BOOT_BY_RECOVERY_DONE;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-								data);
-		} else {
-			pr_info("reset noti intended p = null\n");
-			data |= PMIC_GENERAL_USE_BOOT_BY_INTENDED_RESET;
-			regmap_write(chip->regmap, PMIC_GENERAL_USE_REGISTER,
-								data);
-		}
-	}
-
-	if (code != SYS_POWER_OFF) {
-		pr_info("enable PMIC watchdog\n");
-		regmap_read(chip->regmap, PM800_WAKEUP1, &data);
-		pr_info("PM800_WAKEUP1 Reg(0x%02x) is 0x%02x\n",
-				PM800_WAKEUP1, data);
-		data |= PM800_WAKEUP1_WD_MODE;
-		regmap_write(chip->regmap, PM800_WAKEUP1, data);
-
-		regmap_read(chip->regmap, PM800_WAKEUP2, &data);
-		pr_info("PM800_WAKEUP2 Reg(0x%02x) is 0x%02x\n",
-				PM800_WAKEUP2, data);
-		data &= ~(PM800_WD_TIMER_ACT_MASK);
-		data |= PM800_WD_TIMER_ACT_8S;
-		regmap_write(chip->regmap,
-				PM800_WAKEUP2, data);
-		pr_info("0x%02x is written to PM800_WAKEUP2 Reg(0x%02x)\n",
-				data, PM800_WAKEUP2);
-
-		regmap_write(chip->regmap, PM800_WATCHDOG_REG,
-				PM800_WD_EN);
-		regmap_read(chip->regmap, PM800_WATCHDOG_REG, &data);
-		pr_info("WATCHDOG Reg(0x%02x) is 0x%02x\n",
-				PM800_WATCHDOG_REG, data);
-	}
-
-	return 0;
-#else
-	int data;
-	struct pm80x_chip *chip;
-	char *cmd = p;
 
 	pr_info("reboot notifier...\n");
 
@@ -1036,7 +890,6 @@ static int reboot_notifier_func(struct notifier_block *this,
 	}
 
 	return 0;
-#endif
 }
 
 static int pm800_probe(struct i2c_client *client,

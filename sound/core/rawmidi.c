@@ -1545,7 +1545,7 @@ static int snd_rawmidi_dev_register(struct snd_device *device)
 	char name[16];
 	struct snd_rawmidi *rmidi = device->device_data;
 
-	if (rmidi->device >= SNDRV_RAWMIDI_DEVICES || rmidi->card->number >= SNDRV_CARDS)
+	if (rmidi->device >= SNDRV_RAWMIDI_DEVICES)
 		return -ENOMEM;
 	mutex_lock(&register_mutex);
 	if (snd_rawmidi_search(rmidi->card, rmidi->device)) {

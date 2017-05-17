@@ -5618,7 +5618,7 @@ woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 	int ret = 0;
 	mlan_ds_radio_cfg *radio = NULL;
 	mlan_ioctl_req *req = NULL;
-	int data = 0;
+	int data[3] = { 0 };
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -5632,12 +5632,17 @@ woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 	radio->sub_command = MLAN_OID_ANT_CFG;
 	req->req_id = MLAN_IOCTL_RADIO_CFG;
 	if (wrq->u.data.length) {
-		if (copy_from_user(&data, wrq->u.data.pointer, sizeof(int))) {
+		if (copy_from_user
+		    (data, wrq->u.data.pointer,
+		     wrq->u.data.length * sizeof(int))) {
 			PRINTM(MERROR, "Copy from user failed\n");
 			ret = -EFAULT;
 			goto done;
 		}
-		radio->param.antenna = data;
+
+		radio->param.ant_cfg_1x1.antenna = data[0];
+		if (wrq->u.data.length == 2)
+			radio->param.ant_cfg_1x1.evaluate_time = data[1];
 		req->action = MLAN_ACT_SET;
 	} else
 		req->action = MLAN_ACT_GET;
@@ -5648,8 +5653,16 @@ woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 	}
 	if (!wrq->u.data.length) {
 		wrq->u.data.length = 1;
-		data = radio->param.antenna;
-		if (copy_to_user(wrq->u.data.pointer, &data, sizeof(int))) {
+		data[0] = (int)radio->param.ant_cfg_1x1.antenna;
+		data[1] = (int)radio->param.ant_cfg_1x1.evaluate_time;
+		data[2] = (int)radio->param.ant_cfg_1x1.current_antenna;
+		if (data[0] == 0xffff && data[2] > 0)
+			wrq->u.data.length = 3;
+		else if (data[0] == 0xffff)
+			wrq->u.data.length = 2;
+		if (copy_to_user
+		    (wrq->u.data.pointer, data,
+		     wrq->u.data.length * sizeof(int))) {
 			ret = -EFAULT;
 			goto done;
 		}

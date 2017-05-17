@@ -31,6 +31,8 @@
 typedef struct {
 	int32_t idx_read;	/* res pool read index */
 	int32_t idx_write;	/* req pool write index */
+	uint32_t req_tw;  /* call back request number */
+	uint32_t rsp_tw;  /* call back response number */
 } cm_index_header_t;
 
 /* smi trap arguments */

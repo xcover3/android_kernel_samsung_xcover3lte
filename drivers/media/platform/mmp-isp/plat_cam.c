@@ -388,7 +388,7 @@ int plat_vnode_get_topology(struct plat_vnode *pvnode, struct plat_topology *top
 				goto unlock;
 			}
 			if (WARN_ON(pad->entity->type !=
-				MEDIA_ENT_T_V4L2_SUBDEV_SENSOR)) {
+				MEDIA_ENT_T_V4L2_SUBDEV_HOST)) {
 				ret = -EPIPE;
 				goto unlock;
 			}
@@ -545,7 +545,7 @@ static int plat_find_link(struct media_entity *start,
 	 * we can assume that it can act as a pipeline source */
 	if ((start == NULL) && (i >= end->num_links)) {
 		struct v4l2_subdev *sd = NULL;
-		if (end->type == MEDIA_ENT_T_V4L2_SUBDEV_SENSOR)
+		if (end->type == MEDIA_ENT_T_V4L2_SUBDEV_HOST)
 			sd = media_entity_to_v4l2_subdev(end);
 		if (subdev_has_fn(sd, pad, set_fmt))
 			return 0;
@@ -1044,15 +1044,17 @@ static int pcam_setup_links(struct isp_build *build,
 				&sd[SDCODE_B52ISP_IDI2]->subdev.entity,
 				B52PAD_IDI_IN);
 
-	if (sensor_sd[0])
+	if (sensor_sd[0]) {
 		pcam_add_link(&sensor_sd[0]->entity, 0,
 			&sd[SDCODE_CCICV2_CSI0]->subdev.entity,
 			CCIC_CSI_PAD_IN);
+	}
 
-	if (sensor_sd[1])
+	if (sensor_sd[1]) {
 		pcam_add_link(&sensor_sd[1]->entity, 0,
 			&sd[SDCODE_CCICV2_CSI1]->subdev.entity,
 			CCIC_CSI_PAD_IN);
+	}
 
 	return 0;
 }
@@ -1167,14 +1169,7 @@ static inline int plat_change_isp_clk(struct isp_subdev *isd,
 	}
 
 	/* default use 30fps */
-
-	/*Here is the special case for S5K3L2 sensor.
-	* We will use 416Mhz as pipeline clock in video and capture mode.
-	*/
-	if (strncmp(sensor->drvdata->name, "samsung.s5k3l2", 14) == 0)
-		b52isp_idi_change_clock(blk, fmt.format.width, 2322, 30);
-	else
-		b52isp_idi_change_clock(blk, fmt.format.width, fmt.format.height, 30);
+	b52isp_idi_change_clock(blk, fmt.format.width, fmt.format.height, 30);
 	return 0;
 }
 
@@ -1275,18 +1270,15 @@ int plat_tune_isp(int on)
 EXPORT_SYMBOL(plat_tune_isp);
 
 static int plat_setup_sensor(struct isp_build *isb,
-		struct v4l2_subdev **sensor_sd)
+		struct v4l2_subdev **sensor_host_sd)
 {
 	int ret;
-	struct b52_sensor *b52_sensor;
+	struct b52_sensor *b52_sensor_host;
 	struct isp_host_subdev *hsd;
-#ifdef CONFIG_SUBDEV_VCM
 	struct vcm_data vdata;
-#endif
-#ifdef CONFIG_SUBDEV_FLASH
 	struct flash_data fdata;
-#endif
 	char hostname[20];
+	struct v4l2_subdev *sensor_sd;
 
 	ret = plat_tune_power(isb, SDCODE_B52ISP_IDI1, 1);
 	ret |= plat_tune_power(isb, SDCODE_CCICV2_CSI0, 1);
@@ -1296,19 +1288,74 @@ static int plat_setup_sensor(struct isp_build *isb,
 		return ret;
 	}
 
-	sensor_sd[0] = b52_detect_sensor(isb, "backsensor");
-	if (sensor_sd[0]) {
-		b52_sensor = container_of(sensor_sd[0], struct b52_sensor, sd);
-		blocking_notifier_chain_register(&b52_sensor->nh, &plat_sensor_nb);
-		b52_sensor->sensor_pos = 0;
+	sensor_sd = b52_detect_sensor(isb, "backsensor");
+	if (sensor_sd) {
+#ifdef CONFIG_HOST_SUBDEV
+		sprintf(hostname, "%s", &sensor_sd->name[7]);
+		hsd = host_subdev_create(isb->dev, hostname, 3,
+							&hsd_bundle_behaviors);
+		hsd->isd.build = isb;
+		ret = v4l2_device_register_subdev(&isb->v4l2_dev,
+							&hsd->isd.subdev);
+		b52_sensor_host = container_of(sensor_sd,
+							struct b52_sensor, sd);
+		blocking_notifier_chain_register(&b52_sensor_host->nh,
+							&plat_sensor_nb);
+		host_subdev_add_guest(hsd, sensor_sd);
+		ret = hsd->group(hsd, 1);
+		if (ret) {
+			pr_err("init sensor host group fail\n");
+			return -1;
+		}
+		sensor_host_sd[0] =  &hsd->isd.subdev;
+#ifdef CONFIG_SUBDEV_VCM
+		vdata.hsd = hsd;
+		vdata.v4l2_dev = &isb->v4l2_dev;
+		vcm_subdev_create(isb->dev, NULL, 0, &vdata);
+#endif
+#ifdef CONFIG_SUBDEV_FLASH
+		fdata.hsd = hsd;
+		fdata.v4l2_dev = &isb->v4l2_dev;
+		flash_subdev_create(isb->dev, NULL, 0, &fdata);
+#endif
+#endif
+
 	} else
 		pr_info("plat detect back sensor failed\n");
 
-	sensor_sd[1] = b52_detect_sensor(isb, "frontsensor");
-	if (sensor_sd[1]) {
-		b52_sensor = container_of(sensor_sd[1], struct b52_sensor, sd);
-		blocking_notifier_chain_register(&b52_sensor->nh, &plat_sensor_nb);
-		b52_sensor->sensor_pos = 1;
+	sensor_sd = b52_detect_sensor(isb, "frontsensor");
+	if (sensor_sd) {
+
+#ifdef CONFIG_HOST_SUBDEV
+		sprintf(hostname, "%s", &sensor_sd->name[7]);
+		hsd = host_subdev_create(isb->dev, hostname,
+						4, &hsd_bundle_behaviors);
+		hsd->isd.build = isb;
+		ret = v4l2_device_register_subdev(&isb->v4l2_dev,
+							&hsd->isd.subdev);
+		b52_sensor_host = container_of(sensor_sd,
+							struct b52_sensor, sd);
+		blocking_notifier_chain_register(&b52_sensor_host->nh,
+							&plat_sensor_nb);
+		host_subdev_add_guest(hsd, sensor_sd);
+		ret = hsd->group(hsd, 1);
+		if (ret) {
+			pr_err("init sensor host group fail\n");
+			return -1;
+		}
+		sensor_host_sd[1] =  &hsd->isd.subdev;
+#ifdef CONFIG_SUBDEV_VCM
+		vdata.hsd = hsd;
+		vdata.v4l2_dev = &isb->v4l2_dev;
+		vcm_subdev_create(isb->dev, NULL, 1, &vdata);
+#endif
+#ifdef CONFIG_SUBDEV_FLASH
+		fdata.hsd = hsd;
+		fdata.v4l2_dev = &isb->v4l2_dev;
+		flash_subdev_create(isb->dev, NULL, 1, &fdata);
+#endif
+#endif
+
 	} else
 		pr_info("detect front sensor failed\n");
 
@@ -1334,7 +1381,7 @@ static int plat_cam_remove(struct platform_device *pdev)
 static int plat_cam_probe(struct platform_device *pdev)
 {
 	struct plat_cam *cam;
-	struct v4l2_subdev *sensor_sd[2];
+	struct v4l2_subdev *sensor_host_sd[2];
 	int ret;
 
 	/* by this time, suppose all agents are registered */
@@ -1359,8 +1406,8 @@ static int plat_cam_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	memset(sensor_sd, 0, sizeof(sensor_sd));
-	plat_setup_sensor(cam->isb, sensor_sd);
+	memset(sensor_host_sd, 0, sizeof(sensor_host_sd));
+	plat_setup_sensor(cam->isb, sensor_host_sd);
 
 	/* Create all the file nodes for each subdev */
 	ret = isp_build_attach_ispsd(cam->isb);
@@ -1368,7 +1415,7 @@ static int plat_cam_probe(struct platform_device *pdev)
 		return ret;
 
 	/* Setup the link between entities, this is totally platform specific */
-	ret = pcam_setup_links(cam->isb, sensor_sd);
+	ret = pcam_setup_links(cam->isb, sensor_host_sd);
 	if (ret < 0)
 		return ret;
 

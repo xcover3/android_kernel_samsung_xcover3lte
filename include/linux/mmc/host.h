@@ -19,7 +19,6 @@
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/pm.h>
-#define _MMC_SAFE_ACCESS_
 
 enum timing_type {
 	MMC_TIMING_LEGACY = 0, /* 0~25MHz */
@@ -311,7 +310,6 @@ struct mmc_host {
 #define MMC_CAP2_BUS_AUTO_CLK_GATE		(1 << 22)   /* host can auto gate bus clk */
 #define MMC_CAP2_NO_VOLTAGE_SWITCH		(1 << 23)   /* Don't need voltage switch */
 #define MMC_CAP2_BKOPS_EN			(1 << 24)   /* Enable bkops from host side */
-#define MMC_CAP2_SECURE_ERASE_EN		(1 << 31)
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
@@ -362,7 +360,6 @@ struct mmc_host {
 	struct wake_lock	detect_wake_lock;
 	void                    *detect_complete;
 	int			detect_change;	/* card detect flag */
-	bool			detect_tuning;	/* detect card only for sdh tuning purpose */
 	struct mmc_slot		slot;
 
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
@@ -378,6 +375,7 @@ struct mmc_host {
 	atomic_t		sdio_irq_thread_abort;
 	unsigned int            irq_wakeup;
 	unsigned int            break_suspend;
+	bool			sdio_probe_tune;
 
 	mmc_pm_flag_t		pm_flags;	/* requested pm features */
 

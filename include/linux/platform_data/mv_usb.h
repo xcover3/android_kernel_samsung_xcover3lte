@@ -38,7 +38,6 @@ struct pxa_usb_vbus_ops {
 	int (*get_vbus)(unsigned int *level);
 	int (*set_vbus)(unsigned int level);
 	int (*init)(void);
-	int (*pm_usb_sw)(bool sw);
 };
 
 enum {
@@ -89,7 +88,7 @@ struct pxa_usb_extern_ops {
 } \
 )
 
-#if defined(CONFIG_VBUS_88PM80X) || defined (CONFIG_VBUS_88PM830)
+#if defined(CONFIG_VBUS_88PM88X) || defined(CONFIG_VBUS_88PM80X) || defined(CONFIG_VBUS_88PM830)
 extern int mv_udc_register_client(struct notifier_block *nb);
 extern int mv_udc_unregister_client(struct notifier_block *nb);
 extern struct pxa_usb_extern_ops *pxa_usb_get_extern_ops(unsigned int id);
@@ -125,6 +124,7 @@ struct mv_usb_platform_data {
 	unsigned int    disable_otg_clock_gating:1;
 	/* Force a_bus_req to be asserted */
 	unsigned int    otg_force_a_bus_req:1;
+	unsigned int    otg_force_a_vbus_vld:1;
 };
 
 enum charger_type {

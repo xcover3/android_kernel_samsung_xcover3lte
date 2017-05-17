@@ -205,7 +205,7 @@ typedef enum _KEY_INFO_WAPI {
 
 /** The number of times to try when waiting for downloaded firmware to
      become active when multiple interface is present */
-#define MAX_MULTI_INTERFACE_POLL_TRIES  1000
+#define MAX_MULTI_INTERFACE_POLL_TRIES  150
 
 /** The number of times to try when waiting for downloaded firmware to
      become active. (polling the scratch register). */
@@ -1540,8 +1540,8 @@ typedef MLAN_PACK_START struct _RxPD {
 	t_u8 reserved[3];
     /** TDLS flags, bit 0: 0=InfraLink, 1=DirectLink */
 	t_u8 flags;
-    /** Reserved */
-	t_u8 reserved_1;
+    /**For SD8887 antenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
+	t_u8 antenna;
 } MLAN_PACK_END RxPD, *PRxPD;
 
 #ifdef UAP_SUPPORT
@@ -1600,8 +1600,8 @@ typedef MLAN_PACK_START struct _UapRxPD {
      * [Bit 1]  HT Bandwidth: BW20 = 0, BW40 = 1
      * [Bit 2]  HT Guard Interval: LGI = 0, SGI = 1 */
 	t_u8 ht_info;
-    /** Reserved */
-	t_u8 reserved;
+    /** For SD8887 ntenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
+	t_u8 antenna;
 } MLAN_PACK_END UapRxPD, *PUapRxPD;
 
 /** Fixed size of station association event */
@@ -3667,6 +3667,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_ANTENNA {
 	t_u16 action;
     /**  Antenna or 0xffff (diversity) */
 	t_u16 antenna_mode;
+    /** Evaluate time */
+	t_u16 evaluate_time;
+    /** Current antenna */
+	t_u16 current_antenna;
 } MLAN_PACK_END HostCmd_DS_802_11_RF_ANTENNA;
 
 /** HostCmd_DS_802_11_IBSS_STATUS */

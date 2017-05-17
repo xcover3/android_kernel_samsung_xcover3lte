@@ -663,8 +663,7 @@ wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 	for (j = pmadapter->priv_num - 1; j >= 0; --j) {
 		if (!(util_peek_list(pmadapter->pmoal_handle,
 				     &pmadapter->bssprio_tbl[j].bssprio_head,
-				     pmadapter->callbacks.moal_spin_lock,
-				     pmadapter->callbacks.moal_spin_unlock)))
+				     MNULL, MNULL)))
 			continue;
 
 		if (pmadapter->bssprio_tbl[j].bssprio_cur ==
@@ -1133,14 +1132,13 @@ wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 		return MLAN_STATUS_SUCCESS;
 	}
 
-	if (!ptr->is_11n_enabled || wlan_is_bastream_setup(priv, ptr, tid)
+	if (!ptr->is_11n_enabled || ptr->ba_status
 #ifdef STA_SUPPORT
 	    || priv->wps.session_enable
 #endif /* STA_SUPPORT */
 		) {
-		if (ptr->is_11n_enabled &&
-		    wlan_is_bastream_setup(priv, ptr, tid)
-		    && wlan_is_amsdu_in_ampdu_allowed(priv, ptr, tid)
+		if (ptr->is_11n_enabled && ptr->ba_status
+		    && ptr->amsdu_in_ampdu
 		    && wlan_is_amsdu_allowed(priv, ptr, tid)
 		    && (wlan_num_pkts_in_txq(priv, ptr, pmadapter->tx_buf_size)
 			>= MIN_NUM_AMSDU)) {
@@ -1155,19 +1153,28 @@ wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 				PRINTM(MINFO,
 				       "BA setup threshold %d reached. tid=%d\n",
 				       ptr->packet_count, tid);
-				wlan_11n_create_txbastream_tbl(priv, ptr->ra,
-							       tid,
-							       BA_STREAM_SETUP_INPROGRESS);
-				wlan_send_addba(priv, tid, ptr->ra);
+				if (!wlan_11n_get_txbastream_tbl
+				    (priv, tid, ptr->ra)) {
+					wlan_11n_create_txbastream_tbl(priv,
+								       ptr->ra,
+								       tid,
+								       BA_STREAM_SETUP_INPROGRESS);
+					wlan_send_addba(priv, tid, ptr->ra);
+				}
 			} else if (wlan_find_stream_to_delete(priv, ptr,
 							      tid, &tid_del,
 							      ra)) {
 				PRINTM(MDAT_D, "tid_del=%d tid=%d\n", tid_del,
 				       tid);
-				wlan_11n_create_txbastream_tbl(priv, ptr->ra,
-							       tid,
-							       BA_STREAM_SETUP_INPROGRESS);
-				wlan_send_delba(priv, MNULL, tid_del, ra, 1);
+				if (!wlan_11n_get_txbastream_tbl
+				    (priv, tid, ptr->ra)) {
+					wlan_11n_create_txbastream_tbl(priv,
+								       ptr->ra,
+								       tid,
+								       BA_STREAM_SETUP_INPROGRESS);
+					wlan_send_delba(priv, MNULL, tid_del,
+							ra, 1);
+				}
 			}
 		}
 		if (wlan_is_amsdu_allowed(priv, ptr, tid) &&
@@ -1694,6 +1701,8 @@ wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 		if (!ra_list)
 			break;
 		ra_list->max_amsdu = 0;
+		ra_list->ba_status = BA_STREAM_NOT_SETUP;
+		ra_list->amsdu_in_ampdu = MFALSE;
 		if (queuing_ra_based(priv)) {
 			ra_list->is_11n_enabled = wlan_is_11n_enabled(priv, ra);
 			if (ra_list->is_11n_enabled)
@@ -2010,6 +2019,8 @@ wlan_ralist_update(mlan_private *priv, t_u8 *old_ra, t_u8 *new_ra)
 			ra_list->packet_count = 0;
 			ra_list->ba_packet_threshold =
 				wlan_get_random_ba_threshold(priv->adapter);
+			ra_list->amsdu_in_ampdu = MFALSE;
+			ra_list->ba_status = BA_STREAM_NOT_SETUP;
 			PRINTM(MINFO,
 			       "ralist_update: %p, %d, " MACSTR "-->" MACSTR
 			       "\n", ra_list, ra_list->is_11n_enabled,
@@ -2472,12 +2483,13 @@ wlan_wmm_process_tx(pmlan_adapter pmadapter)
 	do {
 		if (wlan_dequeue_tx_packet(pmadapter))
 			break;
-		if (pmadapter->sdio_ireg) {
+		if (pmadapter->sdio_ireg & UP_LD_CMD_PORT_HOST_INT_STATUS) {
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 			wlan_send_mp_aggr_buf(pmadapter);
 #endif
 			break;
 		}
+
 		/* Check if busy */
 	} while (!pmadapter->data_sent && !pmadapter->tx_lock_flag
 		 && !wlan_wmm_lists_empty(pmadapter));
@@ -3584,4 +3596,19 @@ wlan_dump_ralist(mlan_private *priv)
 		}
 	}
 	return;
+}
+
+/**
+ *  @brief get tid down
+ *
+ *  @param priv         A pointer to mlan_private structure
+ * 	@param tid 			tid
+ *
+ *  @return             tid_down
+ *
+ */
+int
+wlan_get_wmm_tid_down(mlan_private *priv, int tid)
+{
+	return wlan_wmm_downgrade_tid(priv, tid);
 }

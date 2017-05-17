@@ -640,11 +640,11 @@ amsduaggrctrl
 antcfg
 	This command is used to set/get the mode of Tx/Rx path.
 
+    For chip which support STREAM_2X2
 	where value of m is:
 		Bit 0   -- Tx Path A
 		Bit 1   -- Tx Path B
 		Bit 0-1 -- Tx Path A+B
-
 	where value of n is:
 		Bit 0   -- Rx Path A
 		Bit 1   -- Rx Path B
@@ -655,6 +655,21 @@ antcfg
 		mlanutl mlan0 antcfg             : Get Tx and Rx path
 		mlanutl mlan0 antcfg 3           : Set Tx and Rx path to A+B
 		mlanutl mlan0 antcfg 1 3         : Set Tx path to A and Rx path to A+B
+    For chip which support SAD
+    	where value of m is:
+		Bit 0   -- Tx/Rx antenna 1
+		Bit 1   -- Tx/Rx antenna 2
+		...
+		0xFFFF  -- Tx/Rx antenna diversity
+
+        where value of n is:
+                if m = 0xFFFF, SAD evaluate time interval,default value is 6s(0x1770)
+
+	Examples:
+		mlanutl mlan0 antcfg               : Get Tx/Rx antenna mode
+		mlanutl mlan0 antcfg 1             : Set Tx/Rx antenna 1
+		mlanutl mlan0 antcfg 0xFFFF        : Set Tx/Rx antenna diversity
+		mlanutl mlan0 antcfg 0xFFFF 0x1770 : Set antenna evaluate time interval to 6s
 
 arpfilter
 	This command is used to configure the ARP filtering parameters.
@@ -2880,4 +2895,5 @@ rxpktcoal_cfg
 
         RX packet coalescing parameters can be changed only when device is in
         idle state i.e. all interfaces are disconnected.
+
 ===============================================================================

@@ -6624,19 +6624,6 @@ woal_request_country_power_table(moal_private * priv, char *country)
 
 	handle = priv->phandle;
 
-#ifdef SEC_FCC_CERT
-	if (!strlen(country)) {
-		PRINTM(MIOCTL, "Recover original power table\n");
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_user_init_data(handle, TXPWRLIMIT_CFG_DATA)) {
-			PRINTM(MFATAL, 
-			       "Download power table to firmware failed\n");
-			ret = MLAN_STATUS_FAILURE;
-		}
-		LEAVE();
-		return ret;
-	}
-#endif
 	/* Replace XX with ISO 3166-1 alpha-2 country code */
 	strncpy(strstr(country_name, "XX"), country, strlen(country));
 

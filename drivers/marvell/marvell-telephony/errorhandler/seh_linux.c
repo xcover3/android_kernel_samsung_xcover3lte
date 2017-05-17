@@ -611,7 +611,7 @@ static int seh_open(struct inode *inode, struct file *filp)
 	if (seh_open_count) {
 		seh_open_count++;
 		spin_unlock(&seh_init_lock);
-		DPRINT("seh is opened by process id: %d(%s)\n",
+		DPRINT("seh is opened by process id: %d(\"%s\")\n",
 		       current->tgid, current->comm);
 		return 0;
 	}
@@ -621,7 +621,7 @@ static int seh_open(struct inode *inode, struct file *filp)
 	spin_unlock(&seh_init_lock);
 
 	LEAVE();
-	DPRINT("seh is opened by process id: %d(%s)\n", current->tgid,
+	DPRINT("seh is opened by process id: %d(\"%s\")\n", current->tgid,
 	       current->comm);
 	return 0;
 }
@@ -645,7 +645,7 @@ static ssize_t seh_read(struct file *filp, char *buf, size_t count,
 		up(&dev->read_sem);		/* release the lock */
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
-		DPRINT("%s reading: going to sleep\n", current->comm);
+		DPRINT("\"%s\" reading: going to sleep\n", current->comm);
 		if (wait_event_interruptible
 		    (dev->readq, (!list_empty(&dev->msg_head))))
 			/* signal: tell the fs layer to handle it */
@@ -663,7 +663,7 @@ static ssize_t seh_read(struct file *filp, char *buf, size_t count,
 			up(&dev->read_sem);
 			return -EFAULT;
 		}
-		DPRINT("%s read %li bytes, msgId: %d\n", current->comm,
+		DPRINT("\"%s\" read %li bytes, msgId: %d\n", current->comm,
 		       (long)count, msg->msg.msgId);
 
 		if (msg->msg.msgId == EEH_CP_SILENT_RESET_MSG)
@@ -1023,7 +1023,7 @@ static int seh_release(struct inode *inode, struct file *filp)
 	spin_lock(&seh_init_lock);
 	--seh_open_count;
 	spin_unlock(&seh_init_lock);
-	DPRINT("seh is closed by process id: %d(%s)\n", current->tgid,
+	DPRINT("seh is closed by process id: %d(\"%s\")\n", current->tgid,
 	       current->comm);
 
 	return 0;

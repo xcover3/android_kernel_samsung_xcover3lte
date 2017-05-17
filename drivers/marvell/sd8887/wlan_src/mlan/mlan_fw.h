@@ -211,7 +211,7 @@ typedef enum _KEY_INFO_WAPI {
 
 /** The number of times to try when waiting for downloaded firmware to
      become active when multiple interface is present */
-#define MAX_MULTI_INTERFACE_POLL_TRIES  1000
+#define MAX_MULTI_INTERFACE_POLL_TRIES  150
 
 /** The number of times to try when waiting for downloaded firmware to
      become active. (polling the scratch register). */
@@ -1732,8 +1732,8 @@ typedef MLAN_PACK_START struct _RxPD {
 	t_u8 reserved[3];
     /** TDLS flags, bit 0: 0=InfraLink, 1=DirectLink */
 	t_u8 flags;
-    /** Reserved */
-	t_u8 reserved_1;
+    /**For SD8887 antenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
+	t_u8 antenna;
 } MLAN_PACK_END RxPD, *PRxPD;
 
 #ifdef UAP_SUPPORT
@@ -1795,8 +1795,8 @@ typedef MLAN_PACK_START struct _UapRxPD {
      *  [Bit 6] LDPC support Enabled = 1
      *  [Bit 7] Reserved */
 	t_u8 rate_info;
-    /** Reserved */
-	t_u8 reserved;
+    /** For SD8887 ntenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
+	t_u8 antenna;
 } MLAN_PACK_END UapRxPD, *PUapRxPD;
 
 /** Fixed size of station association event */
@@ -2588,6 +2588,29 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PS_MODE_ENH {
 		auto_ps_param auto_ps;
 	} params;
 } MLAN_PACK_END HostCmd_DS_802_11_PS_MODE_ENH;
+
+/** FW VERSION tlv */
+#define TLV_TYPE_FW_VER_INFO        (PROPRIETARY_TLV_BASE_ID + 0xC7)	/* 0x1C7
+									 */
+
+/** MrvlIEtypes_fw_ver_info_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_fw_ver_info_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** API id */
+	t_u16 api_id;
+    /** major version */
+	t_u8 major_ver;
+    /** minor version */
+	t_u8 minor_ver;
+} MLAN_PACK_END MrvlIEtypes_fw_ver_info_t;
+
+/** API ID */
+enum API_VER_ID {
+	KEY_API_VER_ID = 1,
+	FW_API_VER_ID = 2,
+	UAP_FW_API_VER_ID = 3,
+};
 
 /** HostCmd_DS_GET_HW_SPEC */
 typedef MLAN_PACK_START struct _HostCmd_DS_GET_HW_SPEC {
@@ -4633,9 +4656,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_mac_filter_t {
     /** STA MAC addresses buffer */
 	t_u8 mac_address[1];
 } MLAN_PACK_END MrvlIEtypes_mac_filter_t;
-
-/** setting for band_config - band=5GHZ */
-#define BAND_CONFIG_5GHZ        0x01
 
 /** Band_Config_t */
 typedef MLAN_PACK_START struct _Band_Config_t {

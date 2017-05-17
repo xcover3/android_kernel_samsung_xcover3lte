@@ -1148,8 +1148,6 @@ static int soc_camera_streamon(struct file *file, void *priv,
 		if (ret < 0)
 			return ret;
 	}
-
-	v4l2_subdev_call(sd, video, s_stream, 1);
 	/* This calls buf_queue from host driver's videobuf_queue_ops */
 	if (ici->ops->init_videobuf)
 		ret = videobuf_streamon(&icd->vb_vidq);
@@ -1157,6 +1155,9 @@ static int soc_camera_streamon(struct file *file, void *priv,
 		ret = vb2_streamon(&icd->vb2_vidq, i);
 
 	icd->state = SOCAM_STATE_STREAM;
+
+	if (!ret)
+		v4l2_subdev_call(sd, video, s_stream, 1);
 
 	return ret;
 }
@@ -1371,13 +1372,6 @@ static int soc_camera_s_register(struct file *file, void *fh,
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 
 	return v4l2_subdev_call(sd, core, s_register, reg);
-}
-
-static int soc_camera_g_chip_info (struct file *file, void *fh,
-					struct v4l2_dbg_chip_info *chip)
-{
-	/* Dumy function for g,s register */
-	return 0;
 }
 #endif
 
@@ -2215,7 +2209,6 @@ static const struct v4l2_ioctl_ops soc_camera_ioctl_ops = {
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.vidioc_g_register	 = soc_camera_g_register,
 	.vidioc_s_register	 = soc_camera_s_register,
-	.vidioc_g_chip_info	 = soc_camera_g_chip_info,
 #endif
 };
 

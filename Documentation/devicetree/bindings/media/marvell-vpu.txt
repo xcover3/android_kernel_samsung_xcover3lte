@@ -21,6 +21,22 @@ coda7542: coda7542@d420d000 {
 	status = "disabled";
 };
 
+codaL_vpu: codaL_vpu@d420d000 {
+	compatible = "mrvl,mmp-codaL";
+	reg = <0xd420d000 0x1000>,
+	      <0x0 0>;
+	interrupts = <0 25 0x4>;
+	status = "disabled";
+};
+
+codaL_JPG: codaL_JPG@d420d000 {
+	compatible = "mrvl,mmp-codaL";
+	reg = <0xd420d000 0x1000>,
+	      <0x0 0>;
+	interrupts = <0 46 0x4>;
+	status = "disabled";
+};
+
 axi@f0400000 {
 	compatible = "mrvl,axi-bus", "simple-bus";
 	#address-cells = <1>;

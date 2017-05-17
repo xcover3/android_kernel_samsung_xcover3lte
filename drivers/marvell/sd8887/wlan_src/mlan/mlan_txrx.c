@@ -222,9 +222,7 @@ wlan_recv_packet_complete(IN pmlan_adapter pmadapter,
 			  IN pmlan_buffer pmbuf, IN mlan_status status)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	pmlan_private pmp;
 	pmlan_callbacks pcb;
-	pmlan_buffer pmbuf_parent;
 
 	ENTER();
 
@@ -232,24 +230,8 @@ wlan_recv_packet_complete(IN pmlan_adapter pmadapter,
 	pcb = &pmadapter->callbacks;
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 
-	pmp = pmadapter->priv[pmbuf->bss_index];
-
 	if (pmbuf->pparent) {
-		pmbuf_parent = pmbuf->pparent;
-
-		pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
-						    pmp->rx_pkt_lock);
-		--pmbuf_parent->use_count;
-		if (!pmbuf_parent->use_count) {
-			pmadapter->callbacks.moal_spin_unlock(pmadapter->
-							      pmoal_handle,
-							      pmp->rx_pkt_lock);
-			wlan_free_mlan_buffer(pmadapter, pmbuf_parent);
-		} else {
-			pmadapter->callbacks.moal_spin_unlock(pmadapter->
-							      pmoal_handle,
-							      pmp->rx_pkt_lock);
-		}
+	/** we will free the pparaent at the end of deaggr */
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 	} else {
 		wlan_free_mlan_buffer(pmadapter, pmbuf);

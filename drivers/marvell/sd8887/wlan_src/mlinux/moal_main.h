@@ -123,11 +123,26 @@ Change log:
  * CONFIG_USB_SUSPEND
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#ifdef CONFIG_PM
+#ifndef CONFIG_USB_SUSPEND
+#define CONFIG_USB_SUSPEND
+#endif
+#endif
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 #ifdef CONFIG_PM_RUNTIME
 #ifndef CONFIG_USB_SUSPEND
 #define CONFIG_USB_SUSPEND
 #endif
 #endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
+#endif
+
+/**
+ * Linux kernel later 3.10 use strncasecmp instead of strnicmp
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+#define strnicmp strncasecmp
 #endif
 
 /** Define BOOLEAN */
@@ -893,6 +908,17 @@ typedef struct _hgm_data {
 	atomic_t num_samples;
 } hgm_data;
 
+/** max antenna number */
+#define MAX_ANTENNA_NUM			3
+
+/* wlan_hist_proc_data */
+typedef struct _wlan_hist_proc_data {
+    /** antenna */
+	u8 ant_idx;
+	/** Private structure */
+	struct _moal_private *priv;
+} wlan_hist_proc_data;
+
 /** Private structure for MOAL */
 struct _moal_private {
 	/** Handle structure */
@@ -1042,6 +1068,10 @@ struct _moal_private {
 	struct proc_dir_entry *proc_entry;
 	/** Proc entry name */
 	char proc_entry_name[IFNAMSIZ];
+    /** proc entry for hist */
+	struct proc_dir_entry *hist_entry;
+	/** ant_hist_proc_data */
+	wlan_hist_proc_data hist_proc[MAX_ANTENNA_NUM];
 	/** PROC wait queue */
 	wait_queue_head_t proc_wait_q __ATTRIB_ALIGN__;
 #endif				/* CONFIG_PROC_FS */
@@ -1125,7 +1155,7 @@ struct _moal_private {
 	struct list_head tx_stat_queue;
 
     /** rx hgm data */
-	hgm_data *hist_data;
+	hgm_data *hist_data[3];
 };
 /** card info */
 typedef struct _card_info {
@@ -1321,6 +1351,8 @@ struct _moal_handle {
 #ifdef STA_CFG80211
 	/** CFG80211 scan request description */
 	struct cfg80211_scan_request *scan_request;
+	/** Scan Private pointer */
+	moal_private *scan_priv;
 #endif
 #endif
 	/** main state */
@@ -1355,6 +1387,9 @@ struct _moal_handle {
 	t_s8 driver_version[MLAN_MAX_VER_STR_LEN];
 	char *fwdump_fname;
 	struct wake_lock wake_lock;
+	t_u8 histogram_table_num;
+	/* feature_control */
+	t_u8 feature_control;
 };
 /**
  *  @brief set trans_start for each TX queue.
@@ -1762,7 +1797,7 @@ typedef struct _HostCmd_DS_802_11_CFG_DATA {
 #define DEF_REPEAT_COUNT	 6
 
 /** default rssi low threshold */
-#define DEFAULT_RSSI_LOW_THRESHOLD 70
+#define DEFAULT_RSSI_LOW_THRESHOLD 75
 /** RSSI HYSTERSIS */
 #define RSSI_HYSTERESIS		6
 /** lowest rssi threshold */
@@ -1943,6 +1978,8 @@ void woal_send_iwevcustom_event(moal_private *priv, char *str);
 /** Get channel list */
 mlan_status woal_get_channel_list(moal_private *priv, t_u8 wait_option,
 				  mlan_chan_list *chanlist);
+mlan_status woal_11d_check_ap_channel(moal_private *priv, t_u8 wait_option,
+				      mlan_ssid_bssid *ssid_bssid);
 #endif
 /** Set/Get retry count */
 mlan_status woal_set_get_retry(moal_private *priv, t_u32 action,
@@ -2156,7 +2193,8 @@ int wlan_get_scan_table_ret_entry(BSSDescriptor_t *pbss_desc, t_u8 **ppbuffer,
 				  int *pspace_left);
 BOOLEAN woal_ssid_valid(mlan_802_11_ssid *pssid);
 int woal_is_connected(moal_private *priv, mlan_ssid_bssid *ssid_bssid);
-int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen);
+int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
+		      t_u8 wait_option);
 void woal_tcp_ack_tx_indication(moal_private *priv, mlan_buffer *pmbuf);
 
 void woal_flush_tx_stat_queue(moal_private *priv);
@@ -2170,8 +2208,12 @@ mlan_status woal_rx_pkt_coalesce_cfg(moal_private *priv, t_u16 *enable,
 				     t_u8 wait_option, t_u8 action);
 #endif
 mlan_status woal_set_low_pwr_mode(moal_handle *handle, t_u8 wait_option);
+mlan_status woal_set_user_antcfg(moal_handle *handle, t_u8 wait_option);
 void woal_hist_data_reset(moal_private *priv);
-void woal_hist_data_add(moal_private *priv, t_u8 rx_rate, t_s8 snr, t_s8 nflr);
+void woal_hist_do_reset(void *data);
+void woal_hist_reset_table(moal_private *priv, t_u8 antenna);
+void woal_hist_data_add(moal_private *priv, t_u8 rx_rate, t_s8 snr, t_s8 nflr,
+			t_u8 antenna);
 mlan_status woal_set_hotspotcfg(moal_private *priv, t_u8 wait_option,
 				t_u32 hotspotcfg);
 #endif /* _MOAL_MAIN_H */

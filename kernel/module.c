@@ -63,60 +63,7 @@
 #include <linux/fips.h>
 #include <uapi/linux/module.h>
 #include "module-internal.h"
-#ifdef CONFIG_TIMA_LKMAUTH
-#include <tee_client_api.h>
-#include <linux/kobject.h>
 
-TEEC_Context lkm_context;
-TEEC_Session lkm_session;
-#define TEE_TIMA_LKM_SRV_UUID \
-     { \
-         0xfcfcfcfc, 0x0000, 0x0000, \
-         {  \
-             0x00, 0x00, 0x00, 0x00, \
-             0x00, 0x00, 0x00, 0x08, \
-         }, \
-     }
-static const TEEC_UUID lkm_uuid = TEE_TIMA_LKM_SRV_UUID;
-DEFINE_MUTEX(lkmauth_mutex);
-
-extern struct device *tima_uevent_dev;
-
-#define SVC_LKMAUTH_ID              0x00050000
-#define LKMAUTH_CREATE_CMD(x) (SVC_LKMAUTH_ID | x)
-
-/**
- * Commands for TZ LKMAUTH application.
- * */
-typedef enum
-{
-  LKMAUTH_CMD_AUTH        = LKMAUTH_CREATE_CMD(0x00000000),
-  LKMAUTH_CMD_UNKNOWN     = LKMAUTH_CREATE_CMD(0x7FFFFFFF)
-} lkmauth_cmd_type;
-
-/**
- * Return values of TZ LKMAUTH application.
- * */
-typedef enum
-{
-  LKMAUTH_VERIFICATION_SUCCESS,
-  LKMAUTH_HASH_MISMATCH,
-  LKMAUTH_BAD_PARAMETER,
-  LKMAUTH_MEM_ALLOC_FAIL,
-  LKMAUTH_DIGEST_API_FAIL
-} lkmauth_ret_code;
-
-typedef struct lkmauth_rsp_s
-{
-  /** First 4 bytes should always be command id */
-  lkmauth_cmd_type cmd_id;
-  lkmauth_ret_code ret;
-  union {
-    unsigned char hash[20];
-    char result_ondemand[256];
-  }  __attribute__ ((packed)) result;
-} __attribute__ ((packed)) lkmauth_rsp_t;
-#endif
 #define CREATE_TRACE_POINTS
 #include <trace/events/module.h>
 
@@ -2412,101 +2359,6 @@ static void add_kallsyms(struct module *mod, const struct load_info *info)
 }
 #endif /* CONFIG_KALLSYMS */
 
-#ifdef	CONFIG_TIMA_LKMAUTH
-
-static int lkmauth(Elf_Ehdr *hdr, int len)
-{
-	int ret = -1; /* value to be returned for lkmauth */
-	char *envp[3], *status, *result;
-	TEEC_Operation      op;
-	TEEC_SharedMemory sharedMem;
-	TEEC_Result tee_result = TEEC_SUCCESS;
-	lkmauth_rsp_t twrsp;
-	uint32_t returnOrigin;
-
-	mutex_lock(&lkmauth_mutex);
-	pr_warn("TIMA: lkmauth--launch the tzapp to check kernel module; module len is %d\n", len);
-	tee_result = TEEC_InitializeContext(NULL, &lkm_context);
-	if(tee_result  != TEEC_SUCCESS) {
-	    pr_err("TIMA: lkmauth--failed to initialize, tee_result = %x.\n", tee_result);
-	}
-	memset(&op, 0, sizeof(TEEC_Operation));
-	op.paramTypes = TEEC_PARAM_TYPES(
-		 TEEC_NONE, TEEC_NONE, TEEC_NONE, TEEC_NONE);
-	tee_result = TEEC_OpenSession(&lkm_context, &lkm_session, &lkm_uuid, TEEC_LOGIN_APPLICATION, NULL, &op, NULL);
-	if(tee_result  != TEEC_SUCCESS) {
-	    pr_err("TIMA: lkmauth--failed to Open Session, tee_result = %x.\n", tee_result);
-	}
-	sharedMem.buffer = hdr;
-	sharedMem.size = len;
-	sharedMem.flags = TEEC_MEM_INPUT;
-	tee_result = TEEC_RegisterSharedMemory(&lkm_context, &sharedMem);
-	if(tee_result  != TEEC_SUCCESS) {
-	    pr_err("TIMA: lkmauth--failed to register share memory, tee_result = %x.\n", tee_result);
-	}
-	op.paramTypes = TEEC_PARAM_TYPES(
-		 TEEC_MEMREF_WHOLE, TEEC_MEMREF_TEMP_OUTPUT, TEEC_NONE, TEEC_NONE);
-	op.params[0].memref.parent = &sharedMem;
-	op.params[0].memref.size = len;
-	op.params[0].memref.offset = 0;
-	op.params[1].tmpref.buffer = &twrsp;
-	op.params[1].tmpref.size = sizeof(twrsp);
-	tee_result = TEEC_InvokeCommand(&lkm_session, LKMAUTH_CMD_AUTH, &op, &returnOrigin);
-
-	if(tee_result  != TEEC_SUCCESS) {
-	    pr_err("TIMA: lkmauth--failed to send cmd to tw, tee_result = %x,returnOrigin = %x\n", tee_result, returnOrigin);
-	}
-	if(twrsp.ret == LKMAUTH_VERIFICATION_SUCCESS) {
-	    pr_warn("TIMA: lkmauth--verification succeeded.\n");
-	    ret=0;
-	}
-	else
-	{
-	    pr_err("TIMA: lkmauth--verification failed %x\n", twrsp.ret);
-	    ret = -1;
-
-	    /* Send a notification through uevent. Note that the lkmauth tzapp
-	    * should have already raised an alert in TZ Security log.
-	    */
-	    status = kzalloc(16, GFP_KERNEL);
-	    if (!status) {
-	        pr_err("TIMA: lkmauth--%s kmalloc failed.\n", __func__);
-	        goto lkmauth_ret;
-	    }
-	    snprintf(status , 16 , "TIMA_STATUS=%d", ret);
-	    envp[0] = status;
-	    result = kzalloc(256, GFP_KERNEL);
-	    if (!result) {
-	        pr_err("TIMA: lkmauth--%s kmalloc failed.\n", __func__);
-	        kfree(envp[0]);
-	        goto lkmauth_clean;
-	    }
-	    if(twrsp.ret == LKMAUTH_HASH_MISMATCH)
-	    {
-	        snprintf(result , 256, "TIMA_RESULT=%s", "lkm_modified");
-	    }
-	    else
-	    {
-	        snprintf(result , 256, "TIMA_RESULT=%s", "LKMAUTH Internal Error");
-	    }
-	    pr_warn("Result (%s) \n", result);
-	    envp[1] = result;
-	    envp[2] = NULL;
-	    kobject_uevent_env(&tima_uevent_dev->kobj, KOBJ_CHANGE, envp);
-	    kfree(envp[0]);
-	    kfree(envp[1]);
-	}
-lkmauth_clean:
-	TEEC_CloseSession(&lkm_session);
-	TEEC_ReleaseSharedMemory(&sharedMem);
-	TEEC_FinalizeContext(&lkm_context);
-
-lkmauth_ret:
-	mutex_unlock(&lkmauth_mutex);
-	return ret;
-}
-#endif
-
 static void dynamic_debug_setup(struct _ddebug *debug, unsigned int num)
 {
 	if (!debug)
@@ -2623,11 +2475,7 @@ static int elf_header_check(struct load_info *info)
 	    || (info->hdr->e_shnum * sizeof(Elf_Shdr) >
 		info->len - info->hdr->e_shoff))
 		return -ENOEXEC;
-#ifdef CONFIG_TIMA_LKMAUTH
-	if (lkmauth(info->hdr, info->len) != 0) {
-		return -ENOEXEC;
-	}
-#endif
+
 	return 0;
 }
 

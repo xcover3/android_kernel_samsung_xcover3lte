@@ -267,8 +267,8 @@ static int pm88x_rtc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to read initial time.\n");
 		goto out;
 	}
-	if ((tm.tm_year < 115) || (tm.tm_year > 138)) {
-		tm.tm_year = 115;
+	if ((tm.tm_year < 70) || (tm.tm_year > 138)) {
+		tm.tm_year = 70;
 		tm.tm_mon = 0;
 		tm.tm_mday = 1;
 		tm.tm_hour = 0;

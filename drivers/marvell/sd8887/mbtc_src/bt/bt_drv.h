@@ -310,6 +310,43 @@ os_sched_timeout(u32 millisec)
 #define __ATTRIB_PACK__ __attribute__((packed))
 #endif
 
+/** BT histogram command */
+#define BT_CMD_HISTOGRAM            0xEA
+/** max antenna num */
+#define MAX_ANTENNA_NUM             2
+/** BDR 1M */
+#define BDR_RATE_1M					1
+/** EDR 2/3 M */
+#define EDR_RATE_2_3M			    2
+/** BLE 1M */
+#define BLE_RATE_1M                 5
+/** max bt link number */
+#define MAX_BT_LINK                 10
+/** max ble link number */
+#define MAX_BLE_LINK                16
+
+typedef struct _bt_link_stat {
+    /** txrx rate 1: BDR_1M, 2:EDR 2/3 M, 3:BLE 1M */
+	u8 txrxrate;
+    /** power: -30 = N = 20 dbm*/
+	s8 txpower;
+    /** rssi: -127 to +20 (For BT), -128 to +127 (For BLE) */
+	s8 rssi;
+} __ATTRIB_PACK__ bt_link_stat;
+
+typedef struct _bt_histogram_data {
+	u8 antenna;
+	u8 powerclass;
+	bt_link_stat link[MAX_BT_LINK + MAX_BLE_LINK];
+} __ATTRIB_PACK__ bt_histogram_data;
+
+typedef struct _bt_hist_proc_data {
+    /** antenna */
+	u8 antenna;
+	/** Private structure */
+	struct _bt_private *pbt;
+} bt_hist_proc_data;
+
 /** Data structure for the Marvell Bluetooth device */
 typedef struct _bt_dev {
 	/** device name */
@@ -452,6 +489,8 @@ struct proc_private_data {
 struct device_proc {
 	/** Proc directory entry */
 	struct proc_dir_entry *proc_entry;
+    /** proc entry for hist */
+	struct proc_dir_entry *hist_entry;
 	/** num of proc files */
 	u8 num_proc_files;
 	/** pointer to proc_private_data */
@@ -497,7 +536,15 @@ typedef struct _bt_private {
 	int debug_device_pending;
 	int debug_ocf_ogf[2];
 	u8 fw_reload;
+	/* hist_data_len */
+	u8 hist_data_len;
+    /** hist data */
+	bt_histogram_data hist_data[MAX_ANTENNA_NUM];
+    /** hist proc data */
+	bt_hist_proc_data hist_proc[MAX_ANTENNA_NUM];
 } bt_private, *pbt_private;
+
+int bt_get_histogram(bt_private *priv);
 
 /** Disable interrupt */
 #define OS_INT_DISABLE	spin_lock_irqsave(&priv->driver_lock, \
@@ -624,7 +671,7 @@ int fm_set_intr_mask(bt_private *priv, u32 mask);
 
 /** The number of times to try when waiting for downloaded firmware to
     become active when multiple interface is present */
-#define MAX_MULTI_INTERFACE_POLL_TRIES  1000
+#define MAX_MULTI_INTERFACE_POLL_TRIES  150
 
 /** The number of times to try when waiting for downloaded firmware to
      become active. (polling the scratch register). */
@@ -776,6 +823,14 @@ int bt_cal_config(bt_private *priv, char *cfg_file, char *mac);
 /** BT set user defined calibration ext data */
 int bt_cal_config_ext(bt_private *priv, char *cfg_file);
 int bt_init_mac_address(bt_private *priv, char *mac);
+int bt_set_gpio_pin(bt_private *priv);
+/** Bluetooth command : Set gpio pin */
+#define BT_CMD_SET_GPIO_PIN     0xEC
+/** Interrupt Raising Edge**/
+#define INT_RASING_EDGE  0
+/** Interrupt Falling Edge**/
+#define INT_FALLING_EDGE 1
+#define DELAY_50_US      50
 
 typedef struct _BT_HCI_CMD {
 	/** OCF OGF */

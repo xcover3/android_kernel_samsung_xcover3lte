@@ -364,7 +364,7 @@ static int __init hwdvc_enable_cpdp_dvc(void)
 	 */
 	pmudvc_xp.v = DVC_REG_READ(DVC_CP);
 	pmudvc_xp.b.lpm_vl = VL0;
-	pmudvc_xp.b.lpm_avc_en = 0;
+	pmudvc_xp.b.lpm_avc_en = 1;
 	pmudvc_xp.b.act_vl = cp_pmudvc_lvl;
 	pmudvc_xp.b.act_vcreq = 1;
 	DVC_REG_WRITE(pmudvc_xp.v, DVC_CP);
@@ -1144,6 +1144,7 @@ static int __init dvfs_dvc_create_debug_node(void)
 		goto err_voltage;
 
 	dvfs_debugfs_init(dvfs_node);
+	dvc_table_debugfs_init(dvfs_node);
 	return 0;
 
 err_voltage:

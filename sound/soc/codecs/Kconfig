@@ -582,19 +582,3 @@ config SND_SOC_88PM88X_HS
 
 config DUAL_SPEAKER
 	tristate "Dual Speaker"
-
-config SND_SOC_88PM88X_EARIC
-	tristate "88PM88X Ear Detection IC with AP interrupt KSND"
-	depends on SND_SOC_88PM88X_HS 
-	default n
-	help
-	  Say Y if you want to use sysfs
-	  for checking headset adc or state
-
-config SND_SOC_88PM88X_SYSFS
-	bool "EarJack & BTN adc sysfs KSND"
-	depends on SND_SOC_88PM88X_HS
-	default n
-	help
-	  This is sysfs for headset driver jack type and
-	  btn type adc values.

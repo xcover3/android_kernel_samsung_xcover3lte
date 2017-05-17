@@ -769,7 +769,7 @@ static void pxav3_request_done(struct mmc_request *mrq)
 	complete(&mrq->completion);
 }
 
-#define PXAV3_TUNING_DEBUG 1
+/* #define PXAV3_TUNING_DEBUG 1 */
 static int pxav3_send_tuning_cmd_adma(struct sdhci_host *host,
 		u32 opcode, int point, unsigned long flags)
 {
@@ -1077,16 +1077,16 @@ static void pxav3_print_bitmap(unsigned long *bitmap, int length)
 	 */
 	int p = 0, next_zero_bit;
 
-	pr_debug("==== dump bitmap of length %d ====\n", length);
+	pr_info("==== dump bitmap of length %d ====\n", length);
 	while (p < length) {
 		p = find_next_bit(bitmap, length, p);
 		next_zero_bit = find_next_zero_bit(bitmap, length, p);
 		if (p < length)
-			pr_debug("[%d, %d]\n",
+			pr_info("[%d, %d]\n",
 				p, next_zero_bit - 1);
 		p = next_zero_bit;
 	}
-	pr_debug("==== dump bitmap end ====\n");
+	pr_info("==== dump bitmap end ====\n");
 
 }
 
@@ -1549,6 +1549,9 @@ static void pxav3_get_of_perperty(struct sdhci_host *host,
 
 	if (of_property_read_bool(np, "marvell,sdh-pm-runtime-en"))
 		pdata->flags |= PXA_FLAG_EN_PM_RUNTIME;
+
+	if (of_property_read_bool(np, "marvell,sdh-sdio-probe-tune"))
+		host->mmc->sdio_probe_tune = true;
 
 	if (!of_property_read_u32(np, "marvell,sdh-flags", &tmp))
 		pdata->flags |= tmp;

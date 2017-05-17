@@ -30,6 +30,7 @@
 #include <media/videobuf2-dma-sg.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
+#include <linux/cputype.h>
 
 #include <media/mrvl-camera.h> /* TBD refined */
 
@@ -806,39 +807,43 @@ static void ccic_power_down(struct ccic_ctrl_dev *ctrl_dev)
  * TBD: calculate the clk rate dynamically based on
  * fps, resolution and other arguments.
  */
-static void ccic_clk_set_rate(struct ccic_ctrl_dev *ctrl_dev)
+static void ccic_clk_set_rate(struct ccic_ctrl_dev *ctrl_dev, int mode)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
 
 	clk_set_rate(ctrl_dev->csi_clk, 312000000);
-	clk_set_rate(ctrl_dev->clk4x, 312000000);
+	if (mode == SC2_MODE_B52ISP)
+		clk_set_rate(ctrl_dev->clk4x, 312000000);
 	if (ccic_dev->ahb_enable)
 		clk_set_rate(ctrl_dev->ahb_clk, 156000000);
 	return;
 }
 
-static void ccic_clk_enable(struct ccic_ctrl_dev *ctrl_dev)
+static void ccic_clk_enable(struct ccic_ctrl_dev *ctrl_dev, int mode)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
-	ccic_clk_set_rate(ctrl_dev);
+	ccic_clk_set_rate(ctrl_dev, mode);
 	clk_prepare_enable(ctrl_dev->dphy_clk);
 	clk_prepare_enable(ctrl_dev->csi_clk);
-	clk_prepare_enable(ctrl_dev->clk4x);
+	if (mode == SC2_MODE_B52ISP)
+		clk_prepare_enable(ctrl_dev->clk4x);
 	if (ccic_dev->ahb_enable)
 		clk_prepare_enable(ctrl_dev->ahb_clk);
 }
 
-static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev)
+static void ccic_clk_disable(struct ccic_ctrl_dev *ctrl_dev, int mode)
 {
 	struct msc2_ccic_dev *ccic_dev = ctrl_dev->ccic_dev;
 
 	if (ccic_dev->ahb_enable)
 		clk_disable_unprepare(ctrl_dev->ahb_clk);
-	clk_disable_unprepare(ctrl_dev->clk4x);
+	if (mode == SC2_MODE_B52ISP)
+		clk_disable_unprepare(ctrl_dev->clk4x);
 	clk_disable_unprepare(ctrl_dev->csi_clk);
 	clk_disable_unprepare(ctrl_dev->dphy_clk);
 }
 
+/*this only for SC2_MODE_B52ISP */
 static void ccic_clk_change(struct ccic_ctrl_dev *ctrl_dev,
 					u32 mipi_bps, u8 lanes, u8 bpp)
 {
@@ -852,6 +857,8 @@ static void ccic_clk_change(struct ccic_ctrl_dev *ctrl_dev,
 		rate = 312000000;
 	else if (rate < 416000000)
 		rate = 416000000;
+	else if (rate < 528000000 && cpu_is_pxa1936())
+		rate = 528000000;
 	else
 		rate = 624000000;
 
@@ -868,6 +875,8 @@ static void ccic_clk_change(struct ccic_ctrl_dev *ctrl_dev,
 		rate = 312000000;
 	else if (rate < 416000000)
 		rate = 416000000;
+	else if (rate < 528000000 && cpu_is_pxa1936())
+		rate = 528000000;
 	else
 		rate = 624000000;
 

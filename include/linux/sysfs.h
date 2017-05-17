@@ -182,10 +182,6 @@ int sysfs_schedule_callback(struct kobject *kobj, void (*func)(void *),
 			    void *data, struct module *owner);
 
 int __must_check sysfs_create_dir_ns(struct kobject *kobj, const void *ns);
-#if defined(CONFIG_MMC_BKOPS_NODE_UID) || defined(CONFIG_MMC_BKOPS_NODE_GID)
-int __must_check sysfs_chown_file(struct kobject *kobj,
-		const struct attribute *attr, uid_t uid, gid_t gid);
-#endif
 void sysfs_remove_dir(struct kobject *kobj);
 int __must_check sysfs_rename_dir_ns(struct kobject *kobj, const char *new_name,
 				     const void *new_ns);

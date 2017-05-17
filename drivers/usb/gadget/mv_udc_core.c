@@ -31,6 +31,7 @@
 #include <linux/pm.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/types.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/of.h>
@@ -39,6 +40,7 @@
 #include <linux/pm_qos.h>
 #include <asm/unaligned.h>
 #include <dt-bindings/usb/mv_usb.h>
+#include <linux/power_supply.h>
 
 #include "mv_udc.h"
 
@@ -75,6 +77,23 @@ static void mv_udc_disable(struct mv_udc *udc);
 static void nuke(struct mv_ep *ep, int status);
 static void stop_activity(struct mv_udc *udc, struct usb_gadget_driver *driver);
 static void call_charger_notifier(struct mv_udc *udc);
+
+static enum power_supply_type map_charger_type(unsigned int type)
+{
+	switch (type) {
+	case NULL_CHARGER:
+		return POWER_SUPPLY_TYPE_UNKNOWN;
+	case DCP_CHARGER:
+		return POWER_SUPPLY_TYPE_USB_DCP;
+	case CDP_CHARGER:
+		return POWER_SUPPLY_TYPE_USB_CDP;
+	case SDP_CHARGER:
+	case DEFAULT_CHARGER:
+	case NONE_STANDARD_CHARGER:
+	default:
+		return POWER_SUPPLY_TYPE_USB;
+	}
+}
 
 /* for endpoint 0 operations */
 static const struct usb_endpoint_descriptor mv_ep0_desc = {
@@ -676,7 +695,7 @@ static int  mv_ep_disable(struct usb_ep *_ep)
 	udc = ep->udc;
 
 	if (!udc->vbus_active) {
-		dev_info(&udc->dev->dev,
+		dev_dbg(&udc->dev->dev,
 			"usb already plug out!\n");
 		return -EINVAL;
 	}
@@ -1175,14 +1194,12 @@ static int udc_reset(struct mv_udc *udc)
 
 	/* set controller to device mode */
 	tmp = readl(&udc->op_regs->usbmode);
-	printk("UDC: %s usbmode = 0x%08x\n", __func__, tmp);
 	tmp |= USBMODE_CTRL_MODE_DEVICE;
 
 	/* turn setup lockout off, require setup tripwire in usbcmd */
 	tmp |= USBMODE_SETUP_LOCK_OFF | USBMODE_STREAM_DISABLE;
 
 	writel(tmp, &udc->op_regs->usbmode);
-	printk("UDC: %s new usbmode = 0x%08x\n", __func__, tmp);
 
 	writel(0x0, &udc->op_regs->epsetupstat);
 
@@ -1215,7 +1232,7 @@ static int mv_udc_enable_internal(struct mv_udc *udc)
 	if (udc->active)
 		return 0;
 
-	dev_info(&udc->dev->dev, "UDC: %s enable udc\n");
+	dev_dbg(&udc->dev->dev, "enable udc\n");
 	udc_clock_enable(udc);
 	retval = usb_phy_init(udc->phy);
 	if (retval) {
@@ -1224,14 +1241,7 @@ static int mv_udc_enable_internal(struct mv_udc *udc)
 		udc_clock_disable(udc);
 		return retval;
 	}
-#ifdef CONFIG_USB_PHY_TUNE
-	retval = usb_phy_tune(udc->phy, 1);
-	if (retval) {
-		dev_err(&udc->dev->dev,
-			"tune phy error %d\n", retval);
-		return retval;
-	}
-#endif
+
 	udc->active = 1;
 
 	return 0;
@@ -1301,6 +1311,7 @@ static void uevent_worker(struct work_struct *work)
 	struct mv_udc *udc = container_of(work, struct mv_udc, event_work);
 	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
 	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
+	static int is_charge_mode;
 
 	if (!udc)
 		return;
@@ -1318,6 +1329,14 @@ static void uevent_worker(struct work_struct *work)
 		} else
 			charge_only_send_uevent(3);
 	}
+
+	/* if previous mode is charge only mode,
+	 * disable it when switch to other function
+	 */
+	if (is_charge_mode && !udc->vbus_active)
+		charge_only_send_uevent(3);
+
+	is_charge_mode = is_charge_only_mode();
 #endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 }
 
@@ -1341,7 +1360,7 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 
 	udc->vbus_active = (is_active != 0);
 
-	dev_info(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
+	dev_dbg(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
 		__func__, udc->softconnect, udc->vbus_active);
 
 	schedule_work(&udc->event_work);
@@ -2353,12 +2372,12 @@ int mv_udc_register_client(struct notifier_block *nb)
 	struct mv_udc *udc = the_controller;
 	int ret = 0;
 
-	if (!udc)
-		return -ENODEV;
-
 	ret = blocking_notifier_chain_register(&mv_udc_notifier_list, nb);
 	if (ret)
 		return ret;
+
+	if (!udc)
+		return -ENODEV;
 
 	if (udc->charger_type)
 		call_charger_notifier(udc);
@@ -2375,8 +2394,10 @@ EXPORT_SYMBOL(mv_udc_unregister_client);
 
 static void call_charger_notifier(struct mv_udc *udc)
 {
-	blocking_notifier_call_chain(&mv_udc_notifier_list,
-				udc->charger_type, &udc->power);
+	udc->charger_type = map_charger_type(udc->charger_type);
+
+	/* notify the interested guy the charger type is ready */
+	power_supply_changed(&udc->udc_psy);
 }
 
 static void do_delayed_charger_work(struct work_struct *work)
@@ -2459,6 +2480,8 @@ static int mv_udc_remove(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 0);
 	udc = platform_get_drvdata(pdev);
 
+	power_supply_unregister(&udc->udc_psy);
+
 	usb_del_gadget_udc(&udc->gadget);
 
 	if (udc->pdata && (udc->pdata->extern_attr & MV_USB_HAS_VBUS_DETECTION)
@@ -2514,6 +2537,121 @@ static int mv_udc_dt_parse(struct platform_device *pdev,
 						"marvell,disable-otg-clock-gating");
 
 	return 0;
+}
+
+static int mv_udc_psy_get_property(struct power_supply *psy,
+				   enum power_supply_property psp,
+				   union power_supply_propval *val)
+{
+	struct mv_udc *udc;
+	udc = container_of(psy, struct mv_udc, udc_psy);
+	/* convert the private charger type to stanard power_supply_type */
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_PRESENT:
+		val->intval = udc->vbus_active;
+		break;
+	case POWER_SUPPLY_PROP_TYPE:
+		val->intval = udc->charger_type;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* this function is used by charger driver to obtain the charger type*/
+	return 0;
+}
+
+static int mv_udc_psy_set_property(struct power_supply *psy,
+				  enum power_supply_property psp,
+				  const union power_supply_propval *val)
+{
+	struct mv_udc *udc;
+	udc = container_of(psy, struct mv_udc, udc_psy);
+	/* set the charger type */
+	switch (psp) {
+	case POWER_SUPPLY_PROP_TYPE:
+		psy->type = val->intval;
+
+		switch (psy->type) {
+		case POWER_SUPPLY_TYPE_UNKNOWN:
+			udc->charger_type = NULL_CHARGER;
+			break;
+		case POWER_SUPPLY_TYPE_USB_DCP:
+			udc->charger_type = DCP_CHARGER;
+			break;
+		case POWER_SUPPLY_TYPE_USB_CDP:
+			udc->charger_type = CDP_CHARGER;
+			break;
+		case POWER_SUPPLY_TYPE_USB:
+			udc->charger_type = SDP_CHARGER;
+			break;
+		default:
+			udc->charger_type = NONE_STANDARD_CHARGER;
+			break;
+		}
+
+		break;
+	default:
+		break;
+
+	}
+
+	/* notify the charger driver the charger type is ready */
+	power_supply_changed(&udc->udc_psy);
+
+	return 0;
+}
+
+static void mv_udc_psy_external_power_changed(struct power_supply *psy)
+{
+	/* seems no one supplies me ? */
+}
+
+static int mv_udc_psy_property_is_writeable(struct power_supply *psy,
+					    enum power_supply_property psp)
+{
+	return 1;
+}
+
+static char *mv_udc_psy_supplied_to[] = {
+	"88pm88x-charger",
+};
+
+static enum power_supply_property mv_udc_psy_props[] = {
+	POWER_SUPPLY_PROP_PRESENT,
+	POWER_SUPPLY_PROP_TYPE,
+};
+
+static int mv_udc_psy_register(struct mv_udc *udc)
+{
+	int ret;
+	if (!udc)
+		return -EINVAL;
+
+	udc->udc_psy.name = "mv-udc-psy";
+	udc->udc_psy.type = POWER_SUPPLY_TYPE_UNKNOWN;
+	udc->udc_psy.supplied_to = mv_udc_psy_supplied_to;
+	udc->udc_psy.num_supplicants = ARRAY_SIZE(mv_udc_psy_supplied_to);
+	udc->udc_psy.properties = mv_udc_psy_props;
+	udc->udc_psy.num_properties = ARRAY_SIZE(mv_udc_psy_props);
+	udc->udc_psy.get_property = mv_udc_psy_get_property;
+	udc->udc_psy.set_property = mv_udc_psy_set_property;
+	udc->udc_psy.external_power_changed = mv_udc_psy_external_power_changed;
+	udc->udc_psy.property_is_writeable = mv_udc_psy_property_is_writeable;
+
+	ret = power_supply_register(&udc->dev->dev, &udc->udc_psy);
+	if (ret < 0) {
+		dev_err(&udc->dev->dev, "%s: fail to register psy.\n", __func__);
+		return ret;
+	}
+
+	return ret;
+}
+
+static void mv_udc_psy_unregister(struct mv_udc *udc)
+{
+	power_supply_unregister(&udc->udc_psy);
 }
 
 static int mv_udc_probe(struct platform_device *pdev)
@@ -2687,6 +2825,12 @@ static int mv_udc_probe(struct platform_device *pdev)
 		pdata->extern_attr &=
 				   (unsigned int)(~MV_USB_HAS_IDPIN_DETECTION);
 
+	retval = mv_udc_psy_register(udc);
+	if (retval < 0) {
+		dev_err(&pdev->dev, "%s: Register udc psy fails.\n", __func__);
+		goto err_destroy_dma;
+	}
+
 	if ((pdata->extern_attr & MV_USB_HAS_VBUS_DETECTION)
 		 || udc->transceiver)
 		udc->clock_gating = 1;
@@ -2740,6 +2884,8 @@ static int mv_udc_probe(struct platform_device *pdev)
 	return 0;
 
 err_create_workqueue:
+	mv_udc_psy_unregister(udc);
+
 	if (udc->qwork) {
 		flush_workqueue(udc->qwork);
 		destroy_workqueue(udc->qwork);

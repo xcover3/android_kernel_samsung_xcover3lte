@@ -23,5 +23,4 @@ config PID_IN_CONTEXTIDR
 	  instructions during context switch. Say Y here only if you are
 	  planning to use hardware trace tools with this kernel.
 
-source "drivers/samsung/Kconfig.debug"
 endmenu

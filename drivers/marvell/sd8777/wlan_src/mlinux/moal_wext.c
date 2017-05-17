@@ -2455,6 +2455,14 @@ woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 			ret = -EFAULT;
 			goto setessid_ret;
 		}
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_11d_check_ap_channel(priv, MOAL_IOCTL_WAIT,
+					      &ssid_bssid)) {
+			PRINTM(MERROR,
+			       "The AP's channel is invalid for current region\n");
+			ret = -EFAULT;
+			goto setessid_ret;
+		}
 	} else if (MLAN_STATUS_SUCCESS !=
 		   woal_find_best_network(priv, MOAL_IOCTL_WAIT, &ssid_bssid))
 		/* Adhoc start, Check the channel command */

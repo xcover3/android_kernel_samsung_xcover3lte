@@ -414,7 +414,6 @@ void get_fc_spinlock(void)
 	if (!spin_trylock(&fc_seq_lock)) {
 		if (fc_seqlock_owner == current) {
 			fc_seqlock_cnt++;
-			local_irq_restore(flags);
 			return;
 		}
 		spin_lock(&fc_seq_lock);
@@ -433,10 +432,8 @@ void put_fc_spinlock(void)
 	WARN_ON_ONCE(fc_seqlock_owner != current);
 	WARN_ON_ONCE(fc_seqlock_cnt == 0);
 
-	if (--fc_seqlock_cnt) {
-		local_irq_restore(flags);
+	if (--fc_seqlock_cnt)
 		return;
-	}
 	fc_seqlock_owner = NULL;
 	spin_unlock(&fc_seq_lock);
 	local_irq_restore(flags);
@@ -885,7 +882,7 @@ static void __init_cpufreq_table(struct clk_hw *hw)
 
 	cpu_opt_size = core->params->cpu_opt_size;
 	cpufreq_tbl =
-	    kmalloc(sizeof(struct cpufreq_frequency_table) *
+	    kzalloc(sizeof(struct cpufreq_frequency_table) *
 		    (cpu_opt_size + 1), GFP_KERNEL);
 	if (!cpufreq_tbl)
 		return;
@@ -1492,7 +1489,7 @@ static void __init_ddr_devfreq_table(struct clk_hw *hw)
 	struct clk_ddr *ddr = to_clk_ddr(hw);
 
 	ddr_opt_size = ddr->params->ddr_opt_size;
-	ddr_devfreq_tbl = kmalloc(sizeof(struct devfreq_frequency_table)
+	ddr_devfreq_tbl = kzalloc(sizeof(struct devfreq_frequency_table)
 				  * (ddr_opt_size + 1), GFP_KERNEL);
 	if (!ddr_devfreq_tbl)
 		return;
@@ -1500,12 +1497,12 @@ static void __init_ddr_devfreq_table(struct clk_hw *hw)
 	ddr_opt = ddr->params->ddr_opt;
 	for (i = 0; i < ddr_opt_size; i++) {
 		ddr_devfreq_tbl[i].index = i;
-		ddr_devfreq_tbl[i].mode = 2 << (ddr_opt[i].mode_4x_en);
+		ddr_devfreq_tbl[i].mode_4x_en = ddr_opt[i].mode_4x_en;
 		ddr_devfreq_tbl[i].frequency = ddr_opt[i].dclk * MHZ_TO_KHZ;
 	}
 
 	ddr_devfreq_tbl[i].index = i;
-	ddr_devfreq_tbl[i].mode = 0;
+	ddr_devfreq_tbl[i].mode_4x_en = 0;
 	ddr_devfreq_tbl[i].frequency = DEVFREQ_TABLE_END;
 
 	devfreq_frequency_table_register(ddr_devfreq_tbl, DEVFREQ_DDR);
@@ -2265,6 +2262,7 @@ static ssize_t dfcstatus_read(struct file *filp,
 	union dfc_ap dfc_ap;
 	union dfc_lvl dfc_lvl;
 	unsigned int conf, src, div, tblnum, vl, mode;
+
 	size_t size = sizeof(buf) - 1;
 
 	ddr_opt = dclk->params->ddr_opt;
@@ -2288,7 +2286,7 @@ static ssize_t dfcstatus_read(struct file *filp,
 			dfc_cp.b.lpm_lvl, dfc_cp.b.lpm_en);
 
 	len += snprintf(buf + len, size,
-			"|PPidx\t|Freq\t|Src\t|div\t|Tbidx\t|VL\t|\n");
+			"|PPidx\t|Freq\t|Src\t|div\t|Tbidx\t|VL\t|Mode\t\n");
 
 	for (idx = 0; idx < ddr_opt_size; idx++) {
 		conf = readl(DFC_LEVEL(apmu_base, idx));

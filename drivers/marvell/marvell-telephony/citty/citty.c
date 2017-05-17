@@ -202,7 +202,7 @@ size_t read_citty_buffer(char __user *buf,
 		/* if (filp->f_flags & O_NONBLOCK) */
 		/*      return -EAGAIN; */
 
-		PDEBUG("%s reading: going to sleep with action %d",
+		PDEBUG("\"%s\" reading: going to sleep with action %d",
 		       current->comm, action);
 
 		if (wait_event_interruptible
@@ -262,7 +262,7 @@ size_t read_citty_buffer(char __user *buf,
 
 	/* finally, awake any writers and return */
 	wake_up_interruptible(&cittyBuf->gOutq);
-	PDEBUG("%s did read %li bytes", current->comm, (long)count);
+	PDEBUG("\"%s\" did read %li bytes", current->comm, (long)count);
 
 	/* #endif */
 
@@ -293,7 +293,7 @@ size_t write_citty_buffer(struct buf_struct *cittyBuf,
 
 	/* make it a non-blocking write */
 	if (spacefree(cittyBuf) == 0) {
-		pr_err("%s warning: Write Buffer overflow.\n",
+		pr_err("\"%s\" warning: Write Buffer overflow.\n",
 		       current->comm);
 		return -EIO;
 	}
@@ -304,14 +304,14 @@ size_t write_citty_buffer(struct buf_struct *cittyBuf,
 
 	/* Make sure there's space to write */
 	while (spacefree(cittyBuf) == 0) {	/* full */
-		PDEBUG("%s Going to define wait:", current->comm);
+		PDEBUG("\"%s\" Going to define wait:", current->comm);
 
 		mutex_unlock(ttylock);	/* release the lock */
 
 		/* if (filp->f_flags & O_NONBLOCK) */
 		/*      return -EAGAIN; */
 
-		PDEBUG("%s writing: going to sleep", current->comm);
+		PDEBUG("\"%s\" writing: going to sleep", current->comm);
 		if (wait_event_interruptible
 		    (cittyBuf->gOutq, spacefree(cittyBuf))) {
 			/* waken up by signal, get the lock and process it */
@@ -325,7 +325,7 @@ size_t write_citty_buffer(struct buf_struct *cittyBuf,
 	curBufIndex = cittyBuf->iBufIn++;
 	pbuf = cittyBuf->pBuf[curBufIndex];
 
-	PDEBUG("%s Going to check flip", current->comm);
+	PDEBUG("\"%s\" Going to check flip", current->comm);
 	/*
 	 *  Check if it is flipped
 	 */

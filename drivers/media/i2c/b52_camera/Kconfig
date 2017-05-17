@@ -42,6 +42,12 @@ config B52_CAMERA_OV8858
        help
 	This is a V4L2 camera driver for the ov8858 sensor
 
+config B52_CAMERA_OV8858_FRONT
+       tristate "OV8858 front camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+        This is a V4L2 camera driver for the ov8858 sensor as front camera
+
 config B52_CAMERA_SR544
        tristate "SR544 camera support"
        depends on VIDEO_MMPISP_B52 && I2C

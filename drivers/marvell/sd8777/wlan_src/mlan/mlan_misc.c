@@ -950,6 +950,8 @@ wlan_bss_ioctl_bss_role(IN pmlan_adapter pmadapter,
 			PRINTM(MIOCTL, "BSS ie already in the desired role!\n");
 			goto done;
 		}
+		mlan_block_main_process(pmadapter, MTRUE);
+		mlan_block_rx_process(pmadapter, MTRUE);
 		/** Switch BSS role */
 		wlan_free_priv(pmpriv);
 
@@ -961,7 +963,13 @@ wlan_bss_ioctl_bss_role(IN pmlan_adapter pmadapter,
 
 		/* Initialize private structures */
 		wlan_init_priv(pmpriv);
-
+		/* after initialize private structures, 11n and 11ac dev cap
+		   params would be reset to 0. and following init_cmd does not
+		   call get_hw_spec command for 2nd argu was false. so we
+		   should udapte 11n and 11ac dev cap params by hw value */
+		wlan_update_11n_cap(pmpriv);
+		mlan_block_main_process(pmadapter, MFALSE);
+		mlan_block_rx_process(pmadapter, MFALSE);
 		/* Initialize function table */
 		for (j = 0; mlan_ops[j]; j++) {
 			if (mlan_ops[j]->bss_role == GET_BSS_ROLE(pmpriv)) {
@@ -1954,9 +1962,9 @@ wlan_misc_ioctl_tdls_get_ies(IN pmlan_adapter pmadapter,
 	sta_ptr = wlan_get_station_entry(pmpriv, tdls_ies->peer_mac);
 	pbss_desc = &pmpriv->curr_bss_params.bss_descriptor;
 	if (pbss_desc->bss_band & BAND_A)
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_a;
+		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_a;
 	else
-		usr_dot_11n_dev_cap = pmadapter->usr_dot_11n_dev_cap_bg;
+		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_bg;
 
     /** fill the extcap */
 	if (tdls_ies->flags & TDLS_IE_FLAGS_EXTCAP) {
@@ -2162,6 +2170,13 @@ wlan_process_802dot11_mgmt_pkt(IN mlan_private *priv,
 			PRINTM(MINFO,
 			       "Drop BLOCK ACK action frame: action_code=%d\n",
 			       action_code);
+			LEAVE();
+			return ret;
+		}
+		if ((category == IEEE_MGMT_ACTION_CATEGORY_PUBLIC) &&
+		    (action_code == BSS_20_40_COEX)) {
+			PRINTM(MINFO,
+			       "Drop 20/40 BSS Coexistence Management frame\n");
 			LEAVE();
 			return ret;
 		}
@@ -2647,7 +2662,7 @@ wlan_radio_ioctl_ant_cfg(IN pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_radio_cfg *radio_cfg = MNULL;
 	t_u16 cmd_action = 0;
-	t_u16 *ant_cfg;
+	mlan_ds_ant_cfg_1x1 *ant_cfg;
 
 	ENTER();
 
@@ -2655,9 +2670,9 @@ wlan_radio_ioctl_ant_cfg(IN pmlan_adapter pmadapter,
 
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		/* User input validation */
-		if (!radio_cfg->param.antenna ||
-		    ((radio_cfg->param.antenna != RF_ANTENNA_AUTO) &&
-		     (radio_cfg->param.antenna & 0xFFFC))) {
+		if (!radio_cfg->param.ant_cfg_1x1.antenna ||
+		    ((radio_cfg->param.ant_cfg_1x1.antenna != RF_ANTENNA_AUTO)
+		     && (radio_cfg->param.ant_cfg_1x1.antenna & 0xFFFC))) {
 			PRINTM(MERROR, "Invalid antenna setting\n");
 			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
 			ret = MLAN_STATUS_FAILURE;
@@ -2669,7 +2684,7 @@ wlan_radio_ioctl_ant_cfg(IN pmlan_adapter pmadapter,
 
 	/* Cast it to t_u16, antenna mode for command
 	   HostCmd_CMD_802_11_RF_ANTENNA requires 2 bytes */
-	ant_cfg = (t_u16 *)&radio_cfg->param.antenna;
+	ant_cfg = &radio_cfg->param.ant_cfg_1x1;
 
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv,

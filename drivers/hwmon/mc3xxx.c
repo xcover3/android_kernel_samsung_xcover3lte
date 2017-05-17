@@ -209,7 +209,7 @@ struct mc3xxx_data {
 #define MC3XXX_INPUT_NAME     "accelerometer"
 #define MC3XXX_I2C_ADDR       MC3XXX_ACC_I2C_ADDR
 
-static unsigned char mc3xxx_current_placement = MC3XXX_BOTTOM_LEFT_UP;
+static unsigned int mc3xxx_current_placement = MC3XXX_BOTTOM_LEFT_UP;
 
 #ifdef MCUBE_FUNC_DEBUG
 #define MC_PRINT(x...)        printk(x)
@@ -460,7 +460,7 @@ static int mc3xxx_detect_pcode(struct i2c_client *client)
 			continue;
 		}
 
-		if (true == mc3xxx_validate_pcode(product_code)) {
+		if (mc3xxx_validate_pcode(product_code)) {
 			s_bPCODE = product_code;
 			return product_code;
 		}
@@ -613,7 +613,7 @@ static int mc3xxx_init(struct mc3xxx_data *mc3xxx)
 {
 	int rc = 0;
 
-	if (true == mc3xxx_is_high_end(mc3xxx->product_code)) {
+	if (mc3xxx_is_high_end(mc3xxx->product_code)) {
 		rc = mc3xxx_set_bandwidth(mc3xxx->client, MC3XXX_BW_SET);
 		rc += mc3xxx_set_range(mc3xxx->client, MC3XXX_RANGE_SET);
 	} else if (mc3xxx_is_mc3530(mc3xxx->product_code)) {
@@ -634,7 +634,7 @@ static int mc3xxx_read_accel_xyz(struct mc3xxx_data *mc3xxx,
 	s16 raw[3] = { 0 };
 	const struct mc3xxx_hwmsen_convert *pCvt = NULL;
 
-	if (true == mc3xxx_is_high_end(mc3xxx->product_code)) {
+	if (mc3xxx_is_high_end(mc3xxx->product_code)) {
 		comres = mc3xxx_smbus_read_block(mc3xxx->client,
 				MC3XXX_XOUT_EX_L_REG, data, 6);
 		raw[0] = (s16)(data[0] + (data[1] << 8));
@@ -723,7 +723,7 @@ static int mc3xxx_input_init(struct mc3xxx_data *mc3xxx)
 
 	input_set_capability(dev, EV_ABS, ABS_MISC);
 
-	if (true == mc3xxx_is_high_end(mc3xxx->product_code)) {
+	if (mc3xxx_is_high_end(mc3xxx->product_code)) {
 		input_set_abs_params(dev, ABS_X, ABSMIN_8G, ABSMAX_8G, 0, 0);
 		input_set_abs_params(dev, ABS_Y, ABSMIN_8G, ABSMAX_8G, 0, 0);
 		input_set_abs_params(dev, ABS_Z, ABSMIN_8G, ABSMAX_8G, 0, 0);
@@ -1298,7 +1298,7 @@ static int mc3xxx_read_true_data(struct mc3xxx_data *mc3xxx,
 	pr_info("%s called: %d\n", __func__, IsRbmMode);
 #endif
 
-	if (true == IsRbmMode)
+	if (IsRbmMode)
 		err = mc3xxx_read_rbm_xyz(mc3xxx, acc,
 				mc3xxx_current_placement);
 	else
@@ -1649,14 +1649,14 @@ static int mc3xxx_rbm_mode(struct mc3xxx_data *mc3xxx, bool enable)
 	}
 
 
-	if (true == enable) {
+	if (enable) {
 		data = 0;
 		rc += mc3xxx_smbus_write_byte(mc3xxx->client, 0x3B, &data);
 
 		data = 0x02;
 		rc += mc3xxx_smbus_write_byte(mc3xxx->client, 0x14, &data);
 
-		IsRbmMode = 1;
+		IsRbmMode = true;
 	} else {
 		data = 0;
 		rc += mc3xxx_smbus_write_byte(mc3xxx->client, 0x14, &data);
@@ -1664,7 +1664,7 @@ static int mc3xxx_rbm_mode(struct mc3xxx_data *mc3xxx, bool enable)
 		data = s_bPCODE;
 		rc += mc3xxx_smbus_write_byte(mc3xxx->client, 0x3B, &data);
 
-		IsRbmMode = 0;
+		IsRbmMode = false;
 	}
 
 	rc += mc3xxx_smbus_read_byte(mc3xxx->client, 0x04, &data);
@@ -2267,6 +2267,12 @@ static int mc3xxx_i2c_probe(struct i2c_client *client,
 	unsigned char product_code = 0;
 	int err = 0;
 
+#ifdef CONFIG_OF
+	err = of_property_read_u32(client->dev.of_node, "orientation",
+			&mc3xxx_current_placement);
+	if (err)
+		dev_info(&client->dev, "use default orientation\n");
+#endif
 	board_mc3xxx_power(&client->dev, 1);
 
 #ifdef MCUBE_FUNC_DEBUG

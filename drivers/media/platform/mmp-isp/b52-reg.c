@@ -21,13 +21,14 @@
 #include <linux/pm_qos.h>
 
 #include <media/b52socisp/b52socisp-vdev.h>
+#include <media/b52socisp/host_isd.h>
 #include <media/b52-sensor.h>
 #include "b52-reg.h"
-
+#include <media/b52-vcm.h>
 #include <linux/workqueue.h>
 
 static u64 of_jiffies;
-static u8 of;
+static bool mac_of;
 static DEFINE_MUTEX(cmd_mutex);
 static void __iomem *b52_base;
 static atomic_t streaming_state = ATOMIC_INIT(0);
@@ -58,10 +59,11 @@ static u32 b52_reg_map[][2] = {
 static DECLARE_COMPLETION(b52isp_cmd_done);
 static __u8 b52isp_cmd_id;
 
+static inline void __b52_enable_mac_clk(u8 mac_id, int enable);
 static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num);
 static int b52_set_vcm_reg(struct v4l2_subdev *sd, int p_num);
 static struct delayed_work rdy_work;
-#define FRAME_TIME_MS 10
+#define FRAME_TIME_MS 50
 
 #ifdef CONFIG_ISP_USE_TWSI3
 static void *sensor;
@@ -229,519 +231,6 @@ static inline void b52_writel(
 }
 #endif
 
-#if 1
-#define	ISP_TOP0			(0x00)
-#define	ISP_TOP1			(0x01)
-#define	ISP_TOP2			(0x02)
-#define	ISP_TOP3			(0x03)
-#define	ISP_TOP5			(0x05)
-#define	ISP_TOP6			(0x06)
-#define ISP_TESTPAT         (0x07)
-#define	ISP_TOP11			(0x0b)
-#define	ISP_TOP99			(0x63)
-#define	ISP_TOP100			(0x64)
-
-#define	ISP_H_IN_SIZE		(0x10)
-#define	ISP_V_IN_SIZE		(0x12)
-#define	ISP_SCALE_H_OUT		(0x14)
-#define	ISP_SCALE_V_OUT		(0x16)
-#define	ISP_LENC_V_OFF		(0x1a)
-#define	ISP_H_IN_SIZE		(0x10)
-#define	ISP_TOP33			(0x21)
-#define	ISP_CTRL2b			(0x2b)
-#define	ISP_SCALE10			(0x2e)
-#define	ISP_TOP38			(0x30)
-#define	ISP_ANTI			(0x31)
-#define	ISP_SD_H_OUT_SZ		(0x32)
-#define	ISP_SD_V_OUT_SZ		(0x34)
-
-#define	ISP_TOP80			(0x50)
-#define	ISP_YUVD1_H_SZ_OUT	(0x54)
-#define	ISP_YUVD1_V_SZ_OUT	(0x56)
-#define	ISP_SC1_H_SZ_OUT	(0x58)
-#define	ISP_SC1_V_SZ_OUT	(0x5a)
-
-#define	ISP_SCALE0_X_OFF	(0x65)
-#define	ISP_SCALE0_Y_OFF	(0x67)
-#define	ISP_SCALE1_X_OFF	(0x69)
-#define	ISP_SCALE1_Y_OFF	(0x6b)
-
-#define	ISP_TOP113			(0x79)
-#define	ISP_YUVD2_H_SZ_OUT	(0x7c)
-#define	ISP_YUVD2_V_SZ_OUT	(0x7e)
-#define	ISP_SC2_H_SZ_OUT	(0x81)
-#define	ISP_SC2_V_SZ_OUT	(0x83)
-#define	ISP_SCALE2_X_OFF	(0x8a)
-#define	ISP_SCALE2_Y_OFF	(0x8c)
-
-#define ISP_TONE_CTRL0		(0xa00)
-
-
-#define	IDI_BASE			(0x63c00)
-#define IDI_X_OFFSET16		(0x00)
-#define IDI_Y_OFFSET16		(0x02)
-#define IDI_WIDTH16			(0x04)
-#define IDI_HEIGHT16		(0x06)
-#define IDI_X_OFFSET64		(0x08)
-#define IDI_Y_OFFSET64		(0x0a)
-#define IDI_WIDTH64			(0x0c)
-#define IDI_HEIGHT64		(0x0e)
-#define IDI_LINE_LENG16		(0x10)
-#define IDI_LINE_LENG64		(0x12)
-#define IDI_CTRL_14			(0x14)
-#define IDI_CTRL_15			(0x15)
-
-static u32 isp_base[2] = { ISP1_REG_BASE, ISP2_REG_BASE};
-
-void __maybe_unused isp_conf_100a(int isp_id, u16 win,
-				u16 hin, u16 wout, u16 hout)
-{
-	u32	isp_b = isp_base[isp_id];
-	u32 off;
-
-	b52_writeb(isp_b+ISP_TOP0, 0x3f);
-	b52_writeb(isp_b+ISP_TOP1, 0x6f);
-	b52_writeb(isp_b+ISP_TOP2, 0x87);
-	b52_writeb(isp_b+ISP_TOP3, 0xcf);
-	b52_writeb(isp_b+ISP_TOP5, 0x50);
-	b52_writeb(isp_b+ISP_TOP6, 0x06);
-
-	b52_writew(isp_b+ISP_H_IN_SIZE, win);
-	b52_writew(isp_b+ISP_V_IN_SIZE, hin);
-	b52_writew(isp_b+ISP_SCALE_H_OUT, wout);
-	b52_writew(isp_b+ISP_SCALE_V_OUT, hout);
-
-	b52_writew(isp_b+ISP_LENC_V_OFF, 0x19f6);
-	b52_writeb(isp_b+ISP_TOP33, 0x00);
-	b52_writew(isp_b+ISP_SCALE0_X_OFF, 0);
-
-	b52_writeb(isp_b+ISP_SCALE10, 0x40);
-	b52_writeb(isp_b+ISP_TOP38, 0x92);
-	b52_writeb(isp_b+ISP_ANTI, 0x50);
-
-	b52_writew(isp_b+ISP_SD_H_OUT_SZ, wout);
-	b52_writew(isp_b+ISP_SD_V_OUT_SZ, hout);
-
-	b52_writeb(isp_b+ISP_CTRL2b, 0x8b);
-	b52_writeb(isp_b+ISP_TOP80, 0x18);
-
-	b52_writeb(isp_b+ISP_TOP113, 0x04);
-
-	b52_writeb(isp_b+0x81, 0x00);
-	b52_writew(isp_b+0x83, 0xa2);
-	b52_writew(isp_b+0x8a, 0x89);
-	b52_writew(isp_b+0x8c, 0xb1);
-
-
-#define	AFC_nX0			(0x1104)
-#define	AFC_nY0			(0x1106)
-#define	AFC_nW0			(0x1108)
-#define	AFC_nH0			(0x110a)
-#define	AFC_nW1			(0x110c)
-#define	AFC_nH1			(0x110e)
-#define	AFC_CTRL10		(0x1110)
-
-	b52_writew(isp_b+AFC_nX0, 0x0001);
-	b52_writew(isp_b+AFC_nY0, 0x0000);
-	b52_writew(isp_b+AFC_nW0, 0x0078);
-	b52_writew(isp_b+AFC_nH0, 0x0078);
-	b52_writew(isp_b+AFC_nW1, 0x0208);
-	b52_writew(isp_b+AFC_nH1, 0x0208);
-	b52_writeb(isp_b+AFC_CTRL10, 0);
-
-
-#define AFC_OFF         (0x1100)
-	for (off = 0x14; off <= 0x19; off++)
-		b52_writeb(isp_b+AFC_OFF+off, 0);
-
-
-
-#define	LENC_H_SCALE		(0x100)
-#define	LENC_V_SCALE		(0x102)
-#define	LENC_OFFSET_X		(0x218)
-#define	LENC_OFFSET_Y		(0x21a)
-#define	LENC_OFF_X_RIGHT	(0x21c)
-#define	LENC_OFF_Y_RIGHT	(0x21e)
-#define	LENC_MAX_R_MAN		(0x220)
-#define	LENC_MAX_R_MAN_R	(0x222)
-
-	b52_writew(isp_b+LENC_H_SCALE, 0x22e8);
-	b52_writew(isp_b+LENC_V_SCALE, 0x1555);
-	b52_writew(isp_b+LENC_OFFSET_X, 0x0c50);
-	b52_writew(isp_b+LENC_OFFSET_Y, 0x0c58);
-	b52_writew(isp_b+LENC_OFF_X_RIGHT, 0x0c60);
-	b52_writew(isp_b+LENC_OFF_Y_RIGHT, 0x0c68);
-	b52_writew(isp_b+LENC_MAX_R_MAN, 0x1);
-	b52_writew(isp_b+LENC_MAX_R_MAN_R, 0x1);
-
-	b52_writeb(isp_b+0x1cc4, 0);
-
-
-#define	AWB_32		(0x320)
-	b52_writeb(isp_b+AWB_32, 0x01);
-	b52_writew(isp_b+0x300, 0x100);
-	b52_writew(isp_b+0x302, 0x80);
-	b52_writew(isp_b+0x304, 0x100);
-	b52_writew(isp_b+0x306, 0x100);
-
-#if 0
-	for (off = 0x68310; off <= 0x68317; off++)
-		b52_writeb(OVTISP_BASE+off, 0);
-
-	for (off = 0x69cc8; off <= 0x69ccf; off++)
-		b52_writeb(OVTISP_BASE+off, 0);
-
-#endif
-
-
-#define	STRETCH_STEP1		(0x2007)
-#define	STRETCH_STEP2		(0x2008)
-
-	b52_writeb(isp_b+STRETCH_STEP1, 0x1);
-	b52_writeb(isp_b+STRETCH_STEP2, 0x4);
-
-
-#define	RAW_DNS_OFF			(0x2300)
-#define	CIP_CTRL0D_L		(0x60d)
-#define	LOWLEVEL_00			(0x1500)
-
-	for (off = 0x00; off <= 0x13; off++)
-		b52_writeb(isp_b+RAW_DNS_OFF+off, 0);
-
-	for (off = 0x18; off <= 0x41; off++)
-		b52_writeb(isp_b+RAW_DNS_OFF+off, 0);
-
-	b52_writeb(isp_b+CIP_CTRL0D_L, 0);
-	b52_writeb(isp_b+LOWLEVEL_00, 0x3f);
-
-
-	b52_writeb(isp_b+0x807, 0x07);
-	b52_writeb(isp_b+0x808, 0x09);
-	b52_writeb(isp_b+0x80f, 0x00);
-	b52_writeb(isp_b+0x810, 0x00);
-	b52_writeb(isp_b+0x813, 0x00);
-	b52_writeb(isp_b+0x814, 0x00);
-	b52_writeb(isp_b+0x823, 0x40);
-
-	b52_writeb(isp_b+0x827, 0x60);
-	b52_writeb(isp_b+0x828, 0x60);
-	b52_writeb(isp_b+0x82b, 0x40);
-	b52_writeb(isp_b+0x82c, 0x40);
-	b52_writeb(isp_b+0x82f, 0x01);
-
-	b52_writeb(isp_b+0x833, 0x0);
-	b52_writeb(isp_b+0x834, 0x0);
-	b52_writeb(isp_b+0x835, 0x0);
-	b52_writeb(isp_b+0x836, 0x0);
-	b52_writeb(isp_b+0x1cf8, 0x0);
-	b52_writeb(isp_b+0x1cf9, 0x0);
-
-	b52_writeb(isp_b+0x1201, 0x52);
-	b52_writeb(isp_b+0x1206, 0x1f);
-	b52_writeb(isp_b+0x1209, 0x6f);
-	b52_writeb(isp_b+0x120a, 0x66);
-	b52_writeb(isp_b+0x120b, 0xdf);
-	b52_writeb(isp_b+0x120c, 0xec);
-	b52_writeb(isp_b+0x120d, 0x47);
-
-	b52_writeb(isp_b+0x120e, 0x4f);
-	b52_writeb(isp_b+0x120f, 0x5e);
-	b52_writeb(isp_b+0x1210, 0x5a);
-	b52_writeb(isp_b+0x1211, 0xf0);
-	b52_writeb(isp_b+0x1212, 0x10);
-
-	b52_writeb(isp_b+0x2342, 0x0c);
-
-#if 0
-	b52_writeb(OVTISP_BASE+0x6882f, 0x01);
-
-	b52_writeb(OVTISP_BASE+0x66cf8, 0x00);
-	b52_writeb(OVTISP_BASE+0x66cf9, 0x00);
-
-	b52_writeb(OVTISP_BASE+0x66cfa, 0x00);
-	b52_writeb(OVTISP_BASE+0x66cfb, 0x00);
-	b52_writeb(OVTISP_BASE+0x66cfc, 0x00);
-	b52_writeb(OVTISP_BASE+0x66cfd, 0x00);
-
-	b52_writeb(OVTISP_BASE+0x66d84, 0x03);
-	b52_writeb(OVTISP_BASE+0x66d85, 0xa4);
-	b52_writeb(OVTISP_BASE+0x66d86, 0x02);
-	b52_writeb(OVTISP_BASE+0x66d87, 0x00);
-	b52_writeb(OVTISP_BASE+0x66d88, 0x19);
-	b52_writeb(OVTISP_BASE+0x66d89, 0x5c);
-	b52_writeb(OVTISP_BASE+0x66d8d, 0x00);
-	b52_writeb(OVTISP_BASE+0x66d8e, 0x04);
-	b52_writeb(OVTISP_BASE+0x66d8f, 0x00);
-#endif
-
-	b52_writeb(isp_b+0x1cfa, 0x00);
-	b52_writeb(isp_b+0x1cfb, 0x00);
-	b52_writeb(isp_b+0x1cfc, 0x00);
-	b52_writeb(isp_b+0x1cfd, 0x00);
-
-	b52_writeb(isp_b+0x1d84, 0x03);
-	b52_writeb(isp_b+0x1d85, 0xa4);
-	b52_writeb(isp_b+0x1d86, 0x02);
-	b52_writeb(isp_b+0x1d87, 0x00);
-	b52_writeb(isp_b+0x1d88, 0x19);
-	b52_writeb(isp_b+0x1d89, 0x5c);
-
-	b52_writeb(isp_b+0x1d8d, 0x00);
-	b52_writeb(isp_b+0x1d8e, 0x04);
-	b52_writeb(isp_b+0x1d8f, 0x00);
-
-	b52_writeb(isp_b+0x912, 0x1f);
-	b52_writeb(isp_b+0x913, 0xff);
-	b52_writeb(isp_b+0x914, 0xff);
-
-	b52_writeb(isp_b+0x1d91, 0x01);
-	b52_writeb(isp_b+0x1d92, 0x19);
-	b52_writeb(isp_b+0x1d93, 0x92);
-	b52_writeb(isp_b+0x1d97, 0x5d);
-
-	b52_writeb(isp_b+0x140f, 0x00);
-	b52_writeb(isp_b+0x1411, 0x00);
-	b52_writeb(isp_b+0x1412, 0x58);
-	b52_writeb(isp_b+0x1415, 0x00);
-
-	b52_writeb(isp_b+0x1416, 0x48);
-	b52_writeb(isp_b+0x1417, 0x00);
-	b52_writeb(isp_b+0x1c00, 0x00);
-	b52_writeb(isp_b+0x1c01, 0x40);
-	b52_writeb(isp_b+0x1c02, 0x00);
-	b52_writeb(isp_b+0x1c03, 0x40);
-
-
-	b52_writeb(isp_b+ISP_TONE_CTRL0, 0x1d);
-
-	b52_writeb(isp_b+0x1d99, 0x00);
-	b52_writeb(isp_b+0x1d9a, 0x58);
-
-	b52_writeb(isp_b+0x1d9b, 0x00);
-	b52_writew(isp_b+0x1d9d, 0x00a0);
-	b52_writeb(isp_b+0x1d9f, 0x00);
-	b52_writew(isp_b+0x1da1, 0x00dc);
-
-	b52_writeb(isp_b+0x1da3, 0x00);
-	b52_writew(isp_b+0x1da5, 0x0114);
-
-	b52_writeb(isp_b+0x1da7, 0x00);
-	b52_writew(isp_b+0x1da9, 0x0144);
-
-	b52_writeb(isp_b+0x1dab, 0x00);
-	b52_writew(isp_b+0x1dad, 0x0174);
-
-	b52_writeb(isp_b+0x1daf, 0x00);
-	b52_writew(isp_b+0x1db1, 0x01a4);
-
-	b52_writeb(isp_b+0x1db3, 0x00);
-	b52_writew(isp_b+0x1db5, 0x01d4);
-
-	b52_writeb(isp_b+0x1db7, 0x00);
-	b52_writew(isp_b+0x1db9, 0x0204);
-
-	b52_writeb(isp_b+0x1dbb, 0x00);
-	b52_writew(isp_b+0x1dbd, 0x0238);
-
-	b52_writeb(isp_b+0x1dbf, 0x00);
-	b52_writew(isp_b+0x1dc1, 0x026c);
-
-	b52_writeb(isp_b+0x1dc3, 0x00);
-	b52_writew(isp_b+0x1dc5, 0x02ac);
-
-	b52_writeb(isp_b+0x1dc7, 0x00);
-	b52_writew(isp_b+0x1dc9, 0x02ec);
-
-	b52_writeb(isp_b+0x1dcb, 0x00);
-	b52_writew(isp_b+0x1dcd, 0x0338);
-
-	b52_writeb(isp_b+0x1dcf, 0x00);
-	b52_writew(isp_b+0x1dd1, 0x0394);
-
-	b52_writeb(isp_b+0x1dd3, 0x00);
-
-	b52_writew(isp_b+0x1dd8, 0x00ba);
-	b52_writew(isp_b+0x1dda, 0x00cc);
-	b52_writew(isp_b+0x1ddc, 0x00df);
-	b52_writew(isp_b+0x1dde, 0x00ed);
-	b52_writew(isp_b+0x1de0, 0x00fc);
-	b52_writew(isp_b+0x1de2, 0x0108);
-	b52_writew(isp_b+0x1de4, 0x0111);
-	b52_writew(isp_b+0x1de6, 0x0118);
-	b52_writew(isp_b+0x1de8, 0x011d);
-	b52_writew(isp_b+0x1dea, 0x0120);
-
-	b52_writew(isp_b+0x1dec, 0x0122);
-	b52_writew(isp_b+0x1dee, 0x011f);
-	b52_writew(isp_b+0x1df0, 0x011c);
-	b52_writew(isp_b+0x1df2, 0x0116);
-	b52_writew(isp_b+0x1df4, 0x010c);
-
-	b52_writew(isp_b+0x1df8, 0xbae3);
-	b52_writew(isp_b+0x1dfa, 0x8892);
-	b52_writew(isp_b+0x1dfc, 0xaaaa);
-	b52_writew(isp_b+0x1dfe, 0xaaaa);
-	b52_writew(isp_b+0x1e00, 0xaa9d);
-
-	b52_writeb(isp_b+0x1e02, 0x9d);
-	b52_writeb(isp_b+0x1e05, 0xd7);
-	b52_writeb(isp_b+0x1e06, 0xb2);
-	b52_writeb(isp_b+0x1e07, 0x97);
-	b52_writeb(isp_b+0x1e08, 0x16);
-	b52_writeb(isp_b+0x1e09, 0x16);
-	b52_writeb(isp_b+0x1e0a, 0x15);
-	b52_writeb(isp_b+0x1e0b, 0x15);
-	b52_writeb(isp_b+0x1e0c, 0x15);
-	b52_writeb(isp_b+0x1e0d, 0x15);
-	b52_writeb(isp_b+0x1e0e, 0x15);
-	b52_writeb(isp_b+0x1e0f, 0x15);
-	b52_writeb(isp_b+0x1e10, 0x15);
-	b52_writeb(isp_b+0x1e11, 0x15);
-	b52_writeb(isp_b+0x1e12, 0x15);
-
-	b52_writeb(isp_b+0x1e15, 0x16);
-	b52_writeb(isp_b+0x1e16, 0x16);
-	b52_writeb(isp_b+0x1e17, 0x16);
-
-
-	/* set for AEC register */
-#define	AEC_STATWIN_TOP		(0x1403)
-#define	AEC_STATWIN_RIGHT	(0x1405)
-#define	AEC_STATWIN_BOTTOM	(0x1407)
-#define	AEC_WIN_LEFT		(0x1409)
-#define	AEC_WIN_TOP			(0x140d)
-#define	AEC_WIN_WIDTH		(0x1411)
-#define	AEC_WIN_HEIGHT		(0x1415)
-#define	AEC_4F				(0x144f)
-#define	AEC_67				(0x1467)
-
-	b52_writew(isp_b+AEC_STATWIN_TOP, 0x0000);
-	b52_writew(isp_b+AEC_STATWIN_BOTTOM, 0x0060);
-	b52_writew(isp_b+AEC_WIN_LEFT, 0x2c);
-	b52_writew(isp_b+AEC_WIN_TOP,  0x24);
-
-	/* set for SDE registers*/
-#define	SDE_CTRL1a			(0xb1a)
-#define	SDE_START_GAIN		(0xb1b)
-#define	SDE_END_GAIN		(0xb1c)
-#define	SDE_LOW_THRE		(0xb1d)
-#define	SDE_HIGH_THRE		(0xb1e)
-#define	SDE_YUV_THRE01		(0xb01)
-#define	SDE_YUV_THRE10		(0xb02)
-#define	SDE_YUV_THRE11		(0xb03)
-#define	SDE_YUV_THRE20		(0xb04)
-#define	SDE_YUV_THRE21		(0xb05)
-#define	SDE_YGAIN			(0xb07)
-#define	SDE_UV_MAX_00		(0xb09)
-#define	SDE_UV_MAX_01		(0xb0b)
-#define	SDE_UV_MAX_10		(0xb0d)
-#define	SDE_UV_MAX_11		(0xb0f)
-#define	SDE_HGAIN			(0xb19)
-
-	b52_writeb(isp_b+SDE_CTRL1a, 0x24);
-	b52_writeb(isp_b+SDE_START_GAIN, 0x20);
-	b52_writeb(isp_b+SDE_END_GAIN, 0x40);
-	b52_writeb(isp_b+SDE_LOW_THRE, 0x20);
-	b52_writeb(isp_b+SDE_HIGH_THRE, 0x20);
-
-	b52_writeb(isp_b+SDE_YUV_THRE01, 0xff);
-	b52_writeb(isp_b+SDE_YUV_THRE10, 0x80);
-	b52_writeb(isp_b+SDE_YUV_THRE11, 0x7f);
-	b52_writeb(isp_b+SDE_YUV_THRE20, 0x80);
-	b52_writeb(isp_b+SDE_YUV_THRE21, 0x7f);
-	b52_writew(isp_b+SDE_YGAIN, 0x80);
-	b52_writew(isp_b+SDE_UV_MAX_00, 0x0040 /*0x09*/);
-	b52_writew(isp_b+SDE_UV_MAX_01, 0x09);
-	b52_writew(isp_b+SDE_UV_MAX_10, 0x09);
-	b52_writew(isp_b+SDE_UV_MAX_11, 0x0040/*0x09*/);
-	b52_writeb(isp_b+SDE_HGAIN, 0x04);
-
-	/* set for YUV_CROP register */
-#define	YUV_CROP_OFF		(0x00f0)
-#define	YUV_CROP_CH1_OFF	(0x0e00)
-#define	YUV_CROP_CH2_OFF	(0x2100)
-#define	YUV_CROP_CH3_OFF	(0x2700)
-
-#define	CROP_WIDTH			(0x04)
-#define	CROP_HEIGHT			(0x06)
-
-	b52_writew(isp_b+YUV_CROP_OFF+CROP_WIDTH, 0x500);
-	b52_writew(isp_b+YUV_CROP_OFF+CROP_HEIGHT, 0x320);
-	b52_writew(isp_b+YUV_CROP_CH1_OFF+CROP_WIDTH, wout);
-	b52_writew(isp_b+YUV_CROP_CH1_OFF+CROP_HEIGHT, hout);
-
-#define	UV_DNS_03		(0xc03)
-#define	UV_DNS_04		(0xc04)
-#define	UV_DNS_05		(0xc05)
-#define	UV_DNS_06		(0xc06)
-#define	UV_DNS_07		(0xc07)
-
-	b52_writeb(isp_b+UV_DNS_03, 0x08);
-	b52_writeb(isp_b+UV_DNS_04, 0x0c);
-	b52_writeb(isp_b+UV_DNS_05, 0x10);
-	b52_writeb(isp_b+UV_DNS_06, 0x46);
-	b52_writeb(isp_b+UV_DNS_07, 0x00);
-
-#define	RGBhDNS_CTRL1	(0xd01)
-#define	RGBhDNS_CTRL2	(0xd02)
-#define	RGBhDNS_CTRL3	(0xd03)
-#define	RGBhDNS_CTRL4	(0xd04)
-#define	RGBhDNS_CTRL5	(0xd05)
-#define	RGBhDNS_CTRL6	(0xd06)
-#define	RGBhDNS_CTRL7	(0xd07)
-
-	b52_writeb(isp_b+RGBhDNS_CTRL1, 0x01);
-	b52_writeb(isp_b+RGBhDNS_CTRL2, 0x02);
-	b52_writeb(isp_b+RGBhDNS_CTRL3, 0x03);
-	b52_writeb(isp_b+RGBhDNS_CTRL4, 0x04);
-	b52_writeb(isp_b+RGBhDNS_CTRL5, 0x04);
-	b52_writeb(isp_b+RGBhDNS_CTRL6, 0x04);
-	b52_writeb(isp_b+RGBhDNS_CTRL7, 0x04);
-
-#define TDNS_OFF		(0x2500)
-
-	b52_writeb(isp_b+TDNS_OFF+0x00, 0x01);
-	b52_writeb(isp_b+TDNS_OFF+0x01, 0x05);
-	b52_writeb(isp_b+TDNS_OFF+0x02, 0x05);
-	b52_writeb(isp_b+TDNS_OFF+0x03, 0x40);
-	b52_writeb(isp_b+TDNS_OFF+0x04, 0x60);
-	b52_writeb(isp_b+TDNS_OFF+0x05, 0xbd);
-	b52_writeb(isp_b+TDNS_OFF+0x06, 0xbd);
-	b52_writeb(isp_b+TDNS_OFF+0x07, 0xbd);
-	b52_writeb(isp_b+TDNS_OFF+0x08, 0x14);
-	b52_writeb(isp_b+TDNS_OFF+0x09, 0x22);
-	b52_writeb(isp_b+TDNS_OFF+0x0a, 0x30);
-	b52_writeb(isp_b+TDNS_OFF+0x0b, 0x0a);
-	b52_writeb(isp_b+TDNS_OFF+0x0c, 0x0f);
-	b52_writeb(isp_b+TDNS_OFF+0x0d, 0x14);
-	b52_writeb(isp_b+TDNS_OFF+0x0e, 0x23);
-	b52_writeb(isp_b+TDNS_OFF+0x0f, 0x04);
-	b52_writeb(isp_b+TDNS_OFF+0x10, 0x04);
-	b52_writeb(isp_b+TDNS_OFF+0x11, 0x04);
-	b52_writeb(isp_b+TDNS_OFF+0x12, 0x08);
-	b52_writeb(isp_b+TDNS_OFF+0x13, 0x00);
-	b52_writeb(isp_b+TDNS_OFF+0x14, 0x08);
-
-
-#define	YUV_ADJ_OFF		(0x2400)
-
-	/* set YUV_ADJ register */
-	for (off = 0x00; off <= 0x23; off++)
-		b52_writeb(isp_b+YUV_ADJ_OFF+off, 0);
-
-	b52_writeb(isp_b+YUV_ADJ_OFF+0x2c, 0);
-	b52_writeb(isp_b+YUV_ADJ_OFF+0x2f, 0);
-	b52_writeb(isp_b+YUV_ADJ_OFF+0x30, 0);
-	b52_writeb(isp_b+YUV_ADJ_OFF+0x31, 0);
-	b52_writeb(isp_b+YUV_ADJ_OFF+0x33, 0);
-	b52_writeb(isp_b+YUV_ADJ_OFF+0x34, 0);
-
-	for (off = 0x48; off <= 0x4f; off++)
-		b52_writeb(isp_b+YUV_ADJ_OFF+off, 0);
-
-}
-#endif
-
 #ifdef CONFIG_ISP_USE_TWSI3
 static void b52_read_vcm_info(int pipe_id, u16 *val)
 {
@@ -819,15 +308,6 @@ static int b52_write_pipeline_info(int path, struct isp_videobuf *ivb)
 	for (i = 0; i < PIPE_INFO_SIZE; i++)
 		b52_writeb(reg + i, buf[i]);
 
-	return 0;
-}
-
-int __maybe_unused b52_read_debug_info(u8 *buffer)
-{
-	int i;
-
-	for (i = 0; i < 0x40; i++)
-		buffer[i] = b52_readb(0x4E000 + i);
 	return 0;
 }
 
@@ -945,10 +425,8 @@ addr_match:
 static int b52_basic_init(struct b52isp_cmd *cmd)
 {
 	int pipe_id;
-#ifdef CONFIG_ISP_USE_TWSI3
-	u16 af_init_val;
-#endif
-	struct v4l2_subdev *sd = cmd->sensor;
+
+	struct v4l2_subdev *hst_sd = cmd->hsd;
 
 	if (!(cmd->flags & BIT(CMD_FLAG_INIT)))
 		return 0;
@@ -959,16 +437,8 @@ static int b52_basic_init(struct b52isp_cmd *cmd)
 		pipe_id = 1;
 	else
 		return -EINVAL;
-
-	b52_set_aecagc_reg(sd, pipe_id);
-	b52_set_vcm_reg(sd, pipe_id);
-
-#ifdef CONFIG_ISP_USE_TWSI3
-	/*FIXME: set af init val, let it stay at current pos*/
-	b52_read_vcm_info(pipe_id, &af_init_val);
-	b52_sensor_call(sensor, s_focus, af_init_val);
-#endif
-
+	b52_set_aecagc_reg(hst_sd, pipe_id);
+	b52_set_vcm_reg(hst_sd, pipe_id);
 	return 0;
 }
 
@@ -1191,6 +661,10 @@ int b52_load_fw(struct device *dev, void __iomem *base, int enable,
 
 	/* default Pipeline clock is 312M, the sccb clock is 400K */
 	b52_set_sccb_clock_rate(312000000, 400000);
+	__b52_enable_mac_clk(1, 0);
+	__b52_enable_mac_clk(2, 0);
+	__b52_enable_mac_clk(3, 0);
+
 	pr_err("B52ISP version: HW %d.%d, SWM %d.%d, revision %d\n",
 	       b52_readb(REG_HW_VERSION), b52_readb(REG_HW_VERSION + 1),
 	       b52_readb(REG_SWM_VERSION), b52_readb(REG_SWM_VERSION + 1),
@@ -1891,12 +1365,22 @@ static int b52_cfg_isp_ms(const struct b52_sensor_data *data, int path)
 static inline void b52_zoom_ddr_qos(int zoom)
 {
 	s32 freq;
-	if (zoom < 0x300)
+	if (b52_readb(REG_HW_VERSION + 1) == ISP_FW326) {
+		if (zoom < 0x300)
+			freq = 416000;
+		else  /* it will use DDR 4x on pxa1936 */
+			freq = 624000;
+	} else if (b52_readb(REG_HW_VERSION + 1) == ISP_FW325) {
+		if (zoom < 0x300)
+			freq = 312000;
+		else if (zoom < 0x380) /* 0x380 is 3.5x zoom */
+			freq = 416000;
+		else
+			freq = 528000;
+	} else {
 		freq = 312000;
-	else if (zoom < 0x380) /* 0x380 is 3.5x zoom */
-		freq = 416000;
-	else
-		freq = 528000;
+		pr_err("%s: ISP FW mismatch, set default DDR freq\n", __func__);
+	}
 	b52isp_set_ddr_qos(freq);
 }
 
@@ -1950,8 +1434,6 @@ static int b52_cfg_capture(struct b52isp_output *output, u8 cnt)
 	return 0;
 }
 
-
-
 struct b52_hdr_cfg {
 	u16 ctrl;
 	u16 l_expo;
@@ -1998,7 +1480,6 @@ static int b52_cfg_hdr(void)
 out:
 	return ret;
 }
-
 
 static void b52_dump_regs(char *name, u32 start, u32 end, u8 len)
 {
@@ -2390,6 +1871,14 @@ int b52_cmd_read_i2c(struct b52_cmd_i2c_data *data)
 			b52_writeb((CMD_BUF_D + 2 + 4 * i), 0xff);
 			b52_writeb((CMD_BUF_D + 3 + 4 * i), 0xff);
 		}
+	} else if (data->attr->reg_len == I2C_8BIT) {
+		for (i = 0; i < data->num; i++) {
+			b52_writeb((CMD_BUF_D + 0 + 4 * i),
+					(tab[i].reg & 0xff));
+			b52_writeb((CMD_BUF_D + 1 + 4 * i), 0xff);
+			b52_writeb((CMD_BUF_D + 2 + 4 * i), 0xff);
+			b52_writeb((CMD_BUF_D + 3 + 4 * i), 0xff);
+		}
 	} else
 		pr_err("the length do not support");
 
@@ -2459,20 +1948,8 @@ int b52_cmd_write_i2c(struct b52_cmd_i2c_data *data)
 				attr->reg_len, attr->val_len, data->pos, 0);
 		ret = wait_cmd_done(CMD_I2C_GRP_WR);
 		if (ret) {
-			int times = 0;
-			for(; times < 3; times++) {
-				ret = wait_cmd_done(CMD_I2C_GRP_WR);
-				if(ret) 
-					continue;
-				else
-					break;
-			}
-			pr_err("re-send cmd %d times: reg_len:%d, val_len:%d\n",
-					times, attr->reg_len, attr->val_len);
-			if(times >= 3) {
 			mutex_unlock(&cmd_mutex);
 			return ret;
-		}
 		}
 		data->tab += write_num;
 		num -= write_num;
@@ -2583,7 +2060,9 @@ static void b52_cfg_isp_lsc_phase(struct b52isp_cmd *cmd)
 	int hflip;
 	int vflip;
 	u8 phase = 0;
-	struct v4l2_subdev *sd = cmd->sensor;
+	struct v4l2_subdev *hsd = cmd->hsd;
+	struct v4l2_subdev *sd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 
 	hflip = v4l2_ctrl_g_ctrl(sensor->ctrls.hflip);
@@ -2668,9 +2147,13 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 	int ret;
 	u32 flags = cmd->flags;
 	struct b52_cmd_i2c_data data;
-	struct v4l2_subdev *sd = cmd->sensor;
+	struct v4l2_subdev *gsd = NULL;
+	struct v4l2_subdev *hsd = cmd->hsd;
 	const struct b52_sensor_data *sensordata = cmd->memory_sensor_data;
-
+	if (!(flags & BIT(CMD_FLAG_MS))) {
+		gsd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
+	}
 	for (i = 0; i < cmd->nr_mac; i++) {
 		b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
 		b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR1, 0);
@@ -2695,7 +2178,7 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 		!(flags & BIT(CMD_FLAG_STREAM_OFF))) {
 		b52_basic_init(cmd);
 
-		b52_g_sensor_fmt_data(sd, &data);
+		b52_g_sensor_fmt_data(gsd, &data);
 		b52_fill_cmd_i2c_buf(data.tab, data.attr->addr, data.num,
 				data.attr->reg_len, data.attr->val_len, data.pos, 0);
 	}
@@ -2709,11 +2192,10 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 
 	b52_writeb(CMD_REG8, (u8)cmd->enable_map);
 
-	b52_writeb(VTS_SYNC_TO_SENSOR, 0x01);
-
 	b52_cfg_input(&cmd->src_fmt, cmd->src_type);
 	b52_cfg_pixel_order(&cmd->src_fmt, cmd->path);
-	b52_cfg_isp_lsc_phase(cmd);
+	if (!(flags & BIT(CMD_FLAG_MS)))
+		b52_cfg_isp_lsc_phase(cmd);
 	b52_cfg_idi(&cmd->src_fmt, &cmd->pre_crop);
 	b52_cfg_output(cmd->output, cmd->output_map);
 	b52_cfg_zoom(&cmd->pre_crop, &cmd->post_crop);
@@ -2729,14 +2211,12 @@ static int b52_cmd_set_fmt(struct b52isp_cmd *cmd)
 		b52_writeb(REG_ISP_TOP37, RGBHGMA_ENABLE);
 		b52_write_pipeline_info(cmd->path, cmd->mem.buf[0]);
 	} else
-		b52_cfg_isp(sd);
+		b52_cfg_isp(gsd);
 	ret = wait_cmd_done(CMD_SET_FMT);
 	if (ret < 0) {
 		b52_dump_isp_cnt(); /* dump ISP cnt to check */
 		return ret;
 	}
-
-	b52_writeb(VTS_SYNC_TO_SENSOR, 0x00);
 
 	if (!(flags & BIT(CMD_FLAG_MS)) &&
 		(flags & BIT(CMD_FLAG_STREAM_OFF)))
@@ -2774,7 +2254,9 @@ static int b52_cmd_capture_img(struct b52isp_cmd *cmd)
 	int ret;
 	int bracket;
 	struct b52_cmd_i2c_data data;
-	struct v4l2_subdev *sd = cmd->sensor;
+	struct v4l2_subdev *hsd = cmd->hsd;
+	struct v4l2_subdev *sd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 
 	b52_g_sensor_fmt_data(sd, &data);
 	b52_fill_cmd_i2c_buf(data.tab, data.attr->addr, data.num,
@@ -3265,15 +2747,17 @@ int b52_hdl_cmd(struct b52isp_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(b52_hdl_cmd);
 
-static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
+static int b52_set_aecagc_reg(struct v4l2_subdev *hsd, int p_num)
 {
 	u32 base;
 	u8 type;
 	u8 val;
 	int ret;
-	u8 gain_shift, expo_shift, dgain_channel;
+	u8 gain_shift, expo_shift;
 	struct b52_sensor_regs reg;
 	struct b52_sensor_i2c_attr attr;
+	struct v4l2_subdev *sd = host_subdev_get_guest(hsd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 	struct b52_sensor *sensor = to_b52_sensor(sd);
 	if (p_num > 1) {
 		pr_err("%s: parameter error %d\n", __func__, p_num);
@@ -3283,25 +2767,13 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	type = sensor->drvdata->type;
 	gain_shift = sensor->drvdata->gain_shift;
 	expo_shift = sensor->drvdata->expo_shift;
-	dgain_channel = sensor->drvdata->dgain_channel;
 	/*
 	 * vendor recommands to use Q4,
 	 * ISP also uses it to calculate stretch gain.
 	 */
 	b52_writeb(base + REG_FW_SSOR_GAIN_MODE, SSOR_GAIN_Q4);
 
-#ifdef CONFIG_ISP_USE_TWSI3
-	/*
-	 * FIXME: In firmware, expo and gain take effect after 2 frames
-	 * for sony sensor, while ov sensor expo after 2 frames and
-	 * gain after one frame.
-	 * IMX219 is like ov sensor.
-	 */
-	if (type == SONY_SENSOR)
-		type = OVT_SENSOR;
-#endif
 	b52_writeb(base + REG_FW_SSOR_TYPE, type);
-
 	ret = b52_sensor_call(sensor, g_sensor_attr, &attr);
 	if (ret < 0)
 		return ret;
@@ -3313,7 +2785,6 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 	if (attr.val_len == I2C_16BIT)
 		val |= FOCUS_DATA_16BIT;
 	b52_writeb(base + REG_FW_SSOR_I2C_OPT, val);
-
 	ret = b52_sensor_call(sensor, g_aecagc_reg, B52_SENSOR_EXPO, &reg);
 	if (ret < 0)
 		return ret;
@@ -3412,52 +2883,47 @@ static int b52_set_aecagc_reg(struct v4l2_subdev *sd, int p_num)
 			break;
 		}
 	}
-	b52_writeb(base + REG_FW_AEC_DGAIN_CHANNEL, dgain_channel);
-#ifdef CONFIG_ISP_USE_TWSI3
-	b52_writeb(base + REG_FW_EXPO_GAIN_WR, EXPO_GAIN_HOST_WR);
-#endif
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(b52_set_aecagc_reg);
 
-static int b52_set_vcm_reg(struct v4l2_subdev *sd, int p_num)
+static int b52_set_vcm_reg(struct v4l2_subdev *hsd, int p_num)
 {
+
 	u32 base;
 	int ret;
 	u8 val = 0;
-	struct b52_sensor_vcm vcm;
-	struct b52_sensor *sensor = to_b52_sensor(sd);
-
+	struct b52_sensor *sensor;
+	struct vcm_type *vcm_info;
+	struct v4l2_subdev *sd;
+	struct v4l2_subdev *subdev = host_subdev_get_guest(hsd,
+						MEDIA_ENT_T_V4L2_SUBDEV_VCM);
+	struct vcm_subdev *vcm = to_b52_vcm(subdev);
+	sd = host_subdev_get_guest(hsd,	MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
+	sensor = to_b52_sensor(sd);
 	if (p_num > 1) {
 		pr_err("%s: parameter error %d\n", __func__, p_num);
 		return -EINVAL;
 	}
 	base = FW_P1_REG_AF_BASE + p_num * FW_P1_P2_AF_OFFSET;
-
-	ret = b52_sensor_call(sensor, g_vcm_info, &vcm);
+	ret = b52_vcm_call(vcm, g_vcm_info, &vcm_info);
 	if (ret == 1) /*if ret==1, which means, the sensor has no vcm*/
 		return 0;
-
 	if (ret < 0)
 		return ret;
 
 	val = sensor->pos;
-	if (vcm.attr->reg_len == I2C_16BIT)
+	if (vcm_info->attr->reg_len == I2C_16BIT)
 		val |= FOCUS_ADDR_16BIT;
-	if (vcm.attr->val_len == I2C_16BIT)
+	if (vcm_info->attr->val_len == I2C_16BIT)
 		val |= FOCUS_DATA_16BIT;
 	b52_writeb(base + REG_FW_FOCUS_I2C_OPT, val);
-	b52_writeb(base + REG_FW_FOCUS_I2C_ADDR, vcm.attr->addr << 1);
-	b52_writew(base + REG_FW_FOCUS_REG_ADDR_MSB, vcm.pos_reg_msb);
-	b52_writew(base + REG_FW_FOCUS_REG_ADDR_LSB, vcm.pos_reg_lsb);
+	b52_writeb(base + REG_FW_FOCUS_I2C_ADDR, vcm_info->attr->addr << 1);
+	b52_writew(base + REG_FW_FOCUS_REG_ADDR_MSB, vcm_info->pos_reg_msb);
+	b52_writew(base + REG_FW_FOCUS_REG_ADDR_LSB, vcm_info->pos_reg_lsb);
 
-#ifdef CONFIG_ISP_USE_TWSI3
-	b52_writeb(base + REG_FW_VCM_TYPE, VCM_HOST_WR);
-#else
-	b52_writeb(base + REG_FW_VCM_TYPE, vcm.type);
-#endif
-
+	b52_writeb(base + REG_FW_VCM_TYPE, vcm_info->type);
 	return 0;
 }
 
@@ -3577,6 +3043,49 @@ void b52_clear_mac_rdy_bit(u8 mac, u8 port)
 	b52_writeb(reg, b52_readb(reg) & (~val));
 }
 EXPORT_SYMBOL(b52_clear_mac_rdy_bit);
+
+static u32 mac_clk_enable[MAX_MAC_NUM][2] = {
+	{REG_TOP_CLK_RST1, MAC_1_CLK_EN},
+	{REG_TOP_CLK_RST1, MAC_2_CLK_EN},
+	{REG_TOP_CLK_RST3, MAC_3_CLK_EN},
+};
+static inline void __b52_enable_mac_clk(u8 mac_id, int enable)
+{
+	u8 val;
+
+	val = b52_readb(mac_clk_enable[mac_id][0]);
+
+	if (enable)
+		val |= mac_clk_enable[mac_id][1];
+	else
+		val &= ~mac_clk_enable[mac_id][1];
+
+	b52_writeb(mac_clk_enable[mac_id][0], val);
+}
+
+void b52_enable_mac_clk(u8 mac_id, int enable)
+{
+	static int refcnt[MAX_MAC_NUM];
+
+	if (mac_id >= MAX_MAC_NUM) {
+		pr_err("%s param error\n", __func__);
+		return;
+	}
+
+	if (enable) {
+		if (refcnt[mac_id]++ > 0)
+			return;
+
+		__b52_enable_mac_clk(mac_id, 1);
+	} else {
+		if (--refcnt[mac_id] > 0)
+			return;
+		WARN_ON(refcnt[mac_id] < 0);
+
+		__b52_enable_mac_clk(mac_id, 0);
+	}
+}
+EXPORT_SYMBOL(b52_enable_mac_clk);
 
 static int b52_config_mac(u8 mac_id, u8 port_id, int enable)
 {
@@ -3710,7 +3219,7 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 
 	for (i = 0; i < max_mac_num; i++) {
 		__u16 mac_irq;
-		__u8 irq_src, irq0 = 0, irq1 = 0, irqr = 0, rdy;
+		__u8 irq_src_s, irq_src_d, irq0 = 0, irq1 = 0, irqr = 0, rdy;
 
 		event[i] = 0;
 
@@ -3718,16 +3227,22 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 		if (!(mac_irq & 0xFFFF))
 			continue;
 
-		irq_src = b52_readb(mac_base[i] + REG_MAC_INT_SRC);
+		/*
+		 * it need to read HW src register when start.
+		 * read FW src register when done.
+		 * avoid src register refresh when start and done occur.
+		 * */
+		irq_src_s = b52_readb(mac_base[i] + REG_MAC_INT_SRC);
+		irq_src_d = b52_readb(REG_FW_MAC1_INT_SRC + i);
 		rdy = b52_readb(mac_base[i] + REG_MAC_RDY_ADDR0);
 
 		/* build up write ports virtual IRQs */
 		if (mac_irq & W_INT_START0) {
-			if (irq_src & INT_SRC_W1)
+			if (irq_src_s & INT_SRC_W1)
 				irq0 |= VIRT_IRQ_START;
 			else if ((rdy & W_RDY_0) == 0)
 				irq0 |= VIRT_IRQ_DROP;
-			if (irq_src & INT_SRC_W2)
+			if (irq_src_s & INT_SRC_W2)
 				irq1 |= VIRT_IRQ_START;
 			else if ((rdy & W_RDY_2) == 0)
 				irq1 |= VIRT_IRQ_DROP;
@@ -3741,9 +3256,9 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 			drop_cnt[i]++;
 		}
 		if (mac_irq & W_INT_DONE0) {
-			if (irq_src & INT_SRC_W1)
+			if (irq_src_d & INT_SRC_W1)
 				irq0 |= VIRT_IRQ_DONE;
-			if (irq_src & INT_SRC_W2)
+			if (irq_src_d & INT_SRC_W2)
 				irq1 |= VIRT_IRQ_DONE;
 		}
 		if (mac_irq & W_INT_OVERFLOW0) {
@@ -3757,11 +3272,12 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 				b52_writeb(mac_base[i] + REG_MAC_RDY_ADDR0, 0);
 			spin_unlock(&mac_overflow_lock);
 
-			of_jiffies = get_jiffies_64();
-			if (atomic_read(&streaming_state)) {
+			if (time_after64(of_jiffies + HZ, get_jiffies_64()) &&
+				atomic_read(&streaming_state)) {
 				b52isp_set_ddr_threshold(work, 1);
-				of = 1;
+				mac_of = true;
 			}
+			of_jiffies = get_jiffies_64();
 		}
 
 		if (mac_irq & (W_INT_DONE0 | W_INT_OVERFLOW0))
@@ -3780,9 +3296,9 @@ void b52_ack_xlate_irq(__u32 *event, int max_mac_num, struct work_struct *work)
 		event[i] |= virt_irq(0, irq0) | virt_irq(1, irq1) |
 				virt_irq(2, irqr);
 
-		if (of && time_before64(of_jiffies + 2 * HZ, get_jiffies_64())) {
+		if (mac_of && time_before64(of_jiffies + 30*HZ, get_jiffies_64())) {
 			b52isp_set_ddr_threshold(work, 0);
-			of = 0;
+			mac_of = false;
 		}
 	}
 }
@@ -3808,11 +3324,9 @@ static ssize_t b52_proc_read_reg(
 static ssize_t b52_proc_write_reg(struct file *filp,
 	const char __user *buffer, size_t length, loff_t *offset)
 {
-	int ret;
 	char readwrite;
 	u32	addr;
-	u32	tmp, val, i, cnt;
-	int	rw_write = 0;
+	u32	tmp, val, i, cnt, pos;
 	char buf[64];
 	u32     offst = 0;
 
@@ -3826,22 +3340,9 @@ static ssize_t b52_proc_write_reg(struct file *filp,
 		pr_err("error: copy_from_user\n");
 		return -EFAULT;
 	}
-	ret = sscanf(buf, "%c %x %x", &readwrite, &addr, &tmp);
-	switch (readwrite) {
-	case 'w':
-		rw_write = 1;
-		break;
-	case 'r':
-		rw_write = 0;
-		break;
-	default:
-		pr_err("error: access could only be r or w\n");
-		pr_info("[b52_reg] usage:\n");
-		pr_info(" read:  echo r [addr] [count] > /proc/driver/b52_reg\n");
-		pr_info(" write: echo w [addr] [value] > /proc/driver/b52_reg\n");
-		return -EFAULT;
-	}
 
+	if (sscanf(buf, "%c %x %x %d", &readwrite, &addr, &tmp, &pos) < 0)
+		return -EINVAL;
 	for (i = 0; i < ARRAY_SIZE(b52_reg_map); i++) {
 		if ((addr >= b52_reg_map[i][0]) && (addr <= b52_reg_map[i][1]))
 			goto addr_valid;
@@ -3850,13 +3351,15 @@ static ssize_t b52_proc_write_reg(struct file *filp,
 	return -EINVAL;
 
 addr_valid:
-	if (rw_write) {
+	switch (readwrite) {
+	case 'w':
 		val = tmp;
 		b52_writeb(addr, val);
 		out_cnt = snprintf(out_buf, PAGE_SIZE,
 				"[0x%05X]: 0x%02X\n", addr, b52_readb(addr));
 		pr_info("%s", out_buf);
-	} else {
+		break;
+	case 'r':
 		cnt = tmp;
 		if (cnt == 0)
 			cnt = 1;
@@ -3871,7 +3374,52 @@ addr_valid:
 		}
 		out_cnt = offst;
 		pr_info("\n%s", out_buf);
+		break;
+	case 's':
+		/*back sensor*/
+		if (pos == 0) {
+			b52_writeb(0x63601, addr);
+			b52_writew(0x63602, tmp);
+			b52_writeb(0x63606, 0x1);
+			b52_writeb(0x63609, 0x33);
+			usleep_range(1000, 1100);
+			b52_writeb(0x63609, 0xf9);
+			usleep_range(1000, 1100);
+			pr_info("sensor addr:[0x%04X]--> value: %X\n",
+						tmp, b52_readb(0x63608));
+		} else {	/*front sensor*/
+			b52_writeb(0x63701, addr);
+			b52_writew(0x63702, tmp);
+			b52_writeb(0x63706, 0x1);
+			b52_writeb(0x63709, 0x33);
+			usleep_range(1000, 1100);
+			b52_writeb(0x63709, 0xf9);
+			usleep_range(1000, 1100);
+			pr_info("sensor addr:[0x%04X]--> value: %X\n",
+						tmp, b52_readb(0x63708));
+		}
+		break;
+	case 'v':
+		b52_writeb(0x63601, addr);
+		b52_writeb(0x63603, tmp);
+		b52_writeb(0x63606, 0x00);
+		b52_writeb(0x63609, 0x33);
+		usleep_range(1000, 1100);
+		b52_writeb(0x63609, 0xf9);
+		usleep_range(1000, 1100);
+		pr_info("vcm addr:[0x%04X]--> value: %X\n",
+						tmp, b52_readb(0x63608));
+		break;
+	default:
+		pr_err("error: access could only be r or w\n");
+		pr_info("[b52_reg] usage:\n");
+		pr_info(" read:  echo r [addr] [count] > /proc/driver/b52_reg\n");
+		pr_info(" write: echo w [addr] [value] > /proc/driver/b52_reg\n");
+		pr_info(" sensor: echo s [i2c] [addr] [pos] > /proc/driver/b52_reg\n");
+		pr_info(" vcm: echo v [i2c] [addr] [no_reg]> /proc/driver/b52_reg\n");
+		return -EFAULT;
 	}
+
 	return length;
 }
 

@@ -78,19 +78,6 @@ int mmpfb_fence_sync_release(struct fb_info *info)
 }
 EXPORT_SYMBOL_GPL(mmpfb_fence_sync_release);
 
-#ifdef CONFIG_MMP_ADAPTIVE_FPS
-void adaptive_fps_wq(struct mmpfb_info *fbi)
-{
-	struct mmp_path *path = fbi->path;
-	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
-
-	atomic_inc(&dsi->framecnt->frame_cnt);
-
-	if (!dsi->framecnt->is_doing_wq)
-		queue_work(dsi->framecnt->wq, &dsi->framecnt->work);
-}
-#endif
-
 /*
  * create a new fence each time when userspace filp a buffer, bind
  * a unused fd with this fence and return this fd to the userspace.
@@ -105,10 +92,6 @@ int mmpfb_ioctl_flip_fence(struct fb_info *info, unsigned long arg)
 	int err;
 	struct sync_pt *pt;
 	struct sync_fence *fence;
-#ifdef CONFIG_MMP_ADAPTIVE_FPS
-	struct mmp_path *path = fbi->path;
-	struct mmp_dsi *dsi = mmp_path_to_dsi(path);
-#endif
 
 	if (copy_from_user(&surface, argp, sizeof(struct mmp_surface)))
 		return -EFAULT;
@@ -116,11 +99,6 @@ int mmpfb_ioctl_flip_fence(struct fb_info *info, unsigned long arg)
 	trace_surface(fbi->overlay->id, &surface);
 
 	if (!is_addr_same(&fbi->fence_surface.addr, &surface.addr)) {
-
-#ifdef CONFIG_MMP_ADAPTIVE_FPS
-		if (dsi->framecnt->adaptive_fps_en)
-			adaptive_fps_wq(fbi);
-#endif
 		fd = get_unused_fd();
 		if (fd < 0)
 			return fd;
@@ -153,6 +131,17 @@ int mmpfb_ioctl_flip_fence(struct fb_info *info, unsigned long arg)
 	}
 
 	check_pitch(&surface);
+
+	/* Sometime, need zoom feature on video layer, so force the dst resolution
+	 * to real panel resolutin.
+	 */
+	if (is_virtual_display && (fbi->overlay->id == PN_VID)) {
+		if (surface.win.xdst != fbi->overlay->path->mode.real_xres)
+			surface.win.xdst = fbi->overlay->path->mode.real_xres;
+		if (surface.win.ydst != fbi->overlay->path->mode.real_yres)
+			surface.win.ydst = fbi->overlay->path->mode.real_yres;
+	}
+
 	mmp_overlay_set_surface(fbi->overlay, &surface);
 
 	return 0;

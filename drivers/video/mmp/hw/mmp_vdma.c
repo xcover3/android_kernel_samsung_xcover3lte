@@ -781,6 +781,19 @@ struct mmp_vdma_info *mmp_vdma_alloc(int overlay_id, int sram_size)
 		}
 		if (!DISP_GEN4_LITE(vdma->version))
 			vdma_clk_ctrl_set_default(vdma);
+
+		/* GEN4 and GEN4.5 can sustain the register value, needn't store/restore */
+		if (!(DISP_GEN4_LITE(vdma->version)) &&
+				!(DISP_GEN4_PLUS(vdma->version))) {
+			vdma->regs_store = devm_kzalloc(vdma->dev,
+					vdma->regs_len * sizeof(u32), GFP_KERNEL);
+			if (!vdma->regs_store) {
+				dev_err(vdma->dev,
+						"%s: unable to kzalloc memory for regs store\n",
+						__func__);
+				return NULL;
+			}
+		}
 	}
 	vdma_info = vdma_is_allocated(overlay_id);
 	if (vdma_info) {
@@ -932,15 +945,6 @@ static int mmp_vdma_probe(struct platform_device *pdev)
 	ret = vdma_dbg_init(vdma->dev);
 	if (ret < 0) {
 		dev_err(vdma->dev, "%s: Failed to register vdma dbg interface\n", __func__);
-		goto ioremap1_fail;
-	}
-
-	vdma->regs_store = devm_kzalloc(vdma->dev,
-			vdma->regs_len * sizeof(u32), GFP_KERNEL);
-	if (!vdma->regs_store) {
-		dev_err(vdma->dev,
-				"%s: unable to kzalloc memory for regs store\n",
-				__func__);
 		goto ioremap1_fail;
 	}
 

@@ -1,11 +1,15 @@
 /**
- * Copyright (C) ARM Limited 2011-2015. All rights reserved.
+ * Copyright (C) ARM Limited 2011-2013. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  */
+
+// gator_hrtimer_perf.c is used if perf is supported
+//   update, gator_hrtimer_gator.c always used until issues resolved with perf hrtimers
+#if 1
 
 void (*callback)(void);
 DEFINE_PER_CPU(struct hrtimer, percpu_hrtimer);
@@ -18,7 +22,6 @@ static void gator_hrtimer_offline(void);
 static enum hrtimer_restart gator_hrtimer_notify(struct hrtimer *hrtimer)
 {
 	int cpu = get_logical_cpu();
-
 	hrtimer_forward(hrtimer, per_cpu(hrtimer_expire, cpu), profiling_interval);
 	per_cpu(hrtimer_expire, cpu) = ktime_add(per_cpu(hrtimer_expire, cpu), profiling_interval);
 	(*callback)();
@@ -65,11 +68,12 @@ static int gator_hrtimer_init(int interval, void (*func)(void))
 		per_cpu(hrtimer_is_active, cpu) = 0;
 	}
 
-	/* calculate profiling interval */
-	if (interval > 0)
+	// calculate profiling interval
+	if (interval > 0) {
 		profiling_interval = ns_to_ktime(1000000000UL / interval);
-	else
+	} else {
 		profiling_interval.tv64 = 0;
+	}
 
 	return 0;
 }
@@ -78,3 +82,5 @@ static void gator_hrtimer_shutdown(void)
 {
 	/* empty */
 }
+
+#endif

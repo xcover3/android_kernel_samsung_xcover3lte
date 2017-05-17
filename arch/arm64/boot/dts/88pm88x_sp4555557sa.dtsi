@@ -17,8 +17,8 @@
 	charger {
 		prechg-current = <450>;
 		prechg-voltage = <3000>;
-		fastchg-voltage = <4200>;
-		fastchg-cur = <1000>;
+		fastchg-voltage = <4200 4200 4200>; /* LTR, STR, HTR */
+		fastchg-cur = <1000 1000 1000>; /* LTR, STR, HTR */
 		fastchg-eoc = <20>;
 		fastchg-tout = <8>;
 		recharge-thr = <200>;
@@ -45,11 +45,11 @@
 			4082 4092 4102 4112 4122 4133 4144 4155 4167 4179
 		>;
 
-		abs-lowest-temp = <20>;
-		t1-degree = <0>;	/* -20C */
-		t2-degree = <20>;	/* 0C */
-		t3-degree = <50>;	/* 30C */
-		t4-degree = <65>;	/* 45C */
+		abs-lowest-temp = <0>;
+		t1-degree = <0>;	/* 0C */
+		t2-degree = <10>;	/* 10C */
+		t3-degree = <30>;	/* 30C */
+		t4-degree = <45>;	/* 45C */
 
 		times-in-minus-ten = <2>;
 		offset-in-minus-ten = <100>;

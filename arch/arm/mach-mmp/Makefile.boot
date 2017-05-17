@@ -1,5 +1,5 @@
 
-__ADDRBASE := 0x00000000
+__ADDRBASE := 0x00800000
 
 __ZRELADDR := $(shell /bin/bash -c 'printf "0x%08x" \
 	$$[$(TEXT_OFFSET) + $(__ADDRBASE)]')

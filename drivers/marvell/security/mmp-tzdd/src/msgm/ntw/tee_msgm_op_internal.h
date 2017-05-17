@@ -41,15 +41,22 @@ extern const char cmd_magic[];
 /* for translate cmd idx */
 #define TEE_TW_SUB_CMD_SIZE       (8)
 #define TEE_TW_PREM_CMD_MASK      ((1 << (32 - TEE_TW_SUB_CMD_SIZE)) - 1)
+
 /* for parameters */
 #define  PARAM_NUMBERS      (4)
-#define IS_TYPE_NONE(_m)    (0x0 == (_m))
-#define IS_TYPE_VALUE(_m)   ((_m) >= 0x1 && (_m) <= 0x3)
-#define IS_TYPE_TMPREF(_m)  ((_m) >= 0x5 && (_m) <= 0x7)
-#define IS_TYPE_MEMREF(_m)  ((_m) >= 0xc && (_m) <= 0xf)
-/* common macro */
-#define IS_PARAM_TAGED_INPUT(_m)   (((_m) & 0x1) == 0x1)
-#define IS_PARAM_TAGED_OUTPUT(_m)  (((_m) & 0x2) == 0x2)
+#define IS_TYPE_NONE(_m)    (TEEC_NONE == (_m))
+#define IS_TYPE_VALUE(_m)   ((_m) >= TEEC_VALUE_INPUT && (_m) <= TEEC_VALUE_INOUT)
+/*
+ * shared memory in secure world is treated as
+ * the tmpref memory in non-secure world
+ */
+#define IS_TYPE_TMPREF(_m)  ((_m) >= TEEC_MEMREF_TEMP_INPUT && (_m) <= TEEC_MEMREF_TEMP_INOUT)
+#define IS_TYPE_MEMREF(_m)  ((_m) >= TEEC_MEMREF_WHOLE && (_m) <= TEEC_MEMREF_PARTIAL_INOUT)
+
+/* memory in/out */
+#define IS_PARAM_TAGED_INPUT(_m)   (((_m) & TEEC_MEM_INPUT) == TEEC_MEM_INPUT)
+#define IS_PARAM_TAGED_OUTPUT(_m)  (((_m) & TEEC_MEM_OUTPUT) == TEEC_MEM_OUTPUT)
+
 #define OFFSETOF(TYPE, MEMBER)     __builtin_offsetof(TYPE, MEMBER)
 
 /* vvv cmd_body struct vvv */

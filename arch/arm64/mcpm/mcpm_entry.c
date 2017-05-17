@@ -21,7 +21,6 @@
 #define sync_cache_r(ptr) __flush_dcache_area(ptr, sizeof *(ptr))
 
 extern unsigned long mcpm_entry_vectors[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
-extern unsigned long mcpm_dbg[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
 
 void mcpm_set_entry_vector(unsigned cpu, unsigned cluster, void *ptr)
 {

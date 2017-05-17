@@ -42,7 +42,6 @@
 #include <linux/of_fdt.h>
 #include <linux/of_platform.h>
 
-#include <asm/cpu.h>
 #include <asm/cputype.h>
 #include <asm/elf.h>
 #include <asm/cputable.h>
@@ -70,12 +69,9 @@ EXPORT_SYMBOL_GPL(elf_hwcap);
 				 COMPAT_HWCAP_FAST_MULT|COMPAT_HWCAP_EDSP|\
 				 COMPAT_HWCAP_TLS|COMPAT_HWCAP_VFP|\
 				 COMPAT_HWCAP_VFPv3|COMPAT_HWCAP_VFPv4|\
-				 COMPAT_HWCAP_NEON|COMPAT_HWCAP_IDIV)
+				 COMPAT_HWCAP_NEON|COMPAT_HWCAP_IDIV|\
+				 COMPAT_HWCAP_LPAE)
 unsigned int compat_elf_hwcap __read_mostly = COMPAT_ELF_HWCAP_DEFAULT;
-#endif
-
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-extern unsigned int system_rev;
 #endif
 
 static const char *cpu_name;
@@ -219,8 +215,6 @@ static void __init setup_processor(void)
 
 	sprintf(init_utsname()->machine, ELF_PLATFORM);
 	elf_hwcap = 0;
-
-	cpuinfo_store_boot_cpu();
 
 	/*
 	 * ID_AA64ISAR0_EL1 contains 4-bit wide signed feature blocks.
@@ -466,12 +460,14 @@ static int __init arm64_device_init(void)
 }
 arch_initcall(arm64_device_init);
 
+static DEFINE_PER_CPU(struct cpu, cpu_data);
+
 static int __init topology_init(void)
 {
 	int i;
 
 	for_each_possible_cpu(i) {
-		struct cpu *cpu = &per_cpu(cpu_data.cpu, i);
+		struct cpu *cpu = &per_cpu(cpu_data, i);
 		cpu->hotpluggable = 1;
 		register_cpu(cpu, i);
 	}
@@ -536,9 +532,7 @@ static int c_show(struct seq_file *m, void *v)
 	seq_puts(m, "\n");
 
 	seq_printf(m, "Hardware\t: %s\n", machine_name);
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	seq_printf(m, "Revision\t: %04x\n", system_rev);
-#endif
+
 	return 0;
 }
 

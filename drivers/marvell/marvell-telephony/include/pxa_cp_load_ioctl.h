@@ -42,10 +42,6 @@ struct cpload_cp_addr {
 
 	int first_boot;
 	int aponly;
-#ifdef CONFIG_SSIPC_SUPPORT
-	uint32_t uuid_high;
-	uint32_t uuid_low;
-#endif
 };
 
 #endif /* _PXA_CP_LOAD_IOCTL_H_ */

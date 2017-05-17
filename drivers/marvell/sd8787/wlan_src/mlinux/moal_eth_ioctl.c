@@ -9924,28 +9924,6 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 	else if (strncmp(buf, "WLS_BATCHING", strlen("WLS_BATCHING")) == 0) {
 		/* TODO */
 		len = sprintf(buf, "OK\n") + 1;
-#ifdef SEC_FCC_CERT
-	} else if (strncmp(buf, "SET_FCC_CHANNEL", strlen("SET_FCC_CHANNEL")) ==
-		   0) {
-		pdata = buf + strlen("SET_FCC_CHANNEL") + 1;
-		memset(country_code, 0, sizeof(country_code));
-		if (*pdata == '0') {
-			strcpy(country_code, "FC");
-			PRINTM(MIOCTL, "SET_FCC_CHANNEL 0\n");
-		} else if (*pdata == '-' && *(++pdata) == '1') {
-			PRINTM(MIOCTL, "SET_FCC_CHANNEL -1\n");
-		} else {
-			PRINTM(MIOCTL, "SET_FCC_CHANNEL wrong value\n");
-			ret = -EFAULT;
-			goto done;
-		}
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_request_country_power_table(priv, country_code)) {
-			ret = -EFAULT;
-			goto done;
-		}
-		len = sprintf(buf, "OK\n") + 1;
-#endif
 	} else {
 		PRINTM(MIOCTL, "Unknown PRIVATE command: %s, ignored\n", buf);
 		ret = -EFAULT;

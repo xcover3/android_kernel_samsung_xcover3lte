@@ -232,7 +232,7 @@ static const char *max77693_extcon_cable[] = {
 	[EXTCON_CABLE_JIG_USB_ON]		= "JIG-USB-ON",
 	[EXTCON_CABLE_JIG_USB_OFF]		= "JIG-USB-OFF",
 	[EXTCON_CABLE_JIG_UART_OFF]		= "JIG-UART-OFF",
-	[EXTCON_CABLE_JIG_UART_ON]		= "JIG-UART-ON",
+	[EXTCON_CABLE_JIG_UART_ON]		= "Dock-Car",
 	[EXTCON_CABLE_DOCK_SMART]		= "Dock-Smart",
 	[EXTCON_CABLE_DOCK_DESK]		= "Dock-Desk",
 	[EXTCON_CABLE_DOCK_AUDIO]		= "Dock-Audio",
@@ -255,14 +255,10 @@ static int max77693_muic_set_debounce_time(struct max77693_muic_info *info,
 	case ADC_DEBOUNCE_TIME_10MS:
 	case ADC_DEBOUNCE_TIME_25MS:
 	case ADC_DEBOUNCE_TIME_38_62MS:
-		/*
-		 * Don't touch BTLDset, JIGset when you want to change adc
-		 * debounce time. If it writes other than 0 to BTLDset, JIGset
-		 * muic device will be reset and loose current state.
-		 */
-		ret = regmap_write(info->max77693->regmap_muic,
-				  MAX77693_MUIC_REG_CTRL3,
-				  time << CONTROL3_ADCDBSET_SHIFT);
+		ret = max77693_update_reg(info->max77693->regmap_muic,
+					  MAX77693_MUIC_REG_CTRL3,
+					  time << CONTROL3_ADCDBSET_SHIFT,
+					  CONTROL3_ADCDBSET_MASK);
 		if (ret) {
 			dev_err(info->dev, "failed to set ADC debounce time\n");
 			return ret;
@@ -290,15 +286,15 @@ static int max77693_muic_set_path(struct max77693_muic_info *info,
 		u8 val, bool attached)
 {
 	int ret = 0;
-	unsigned int ctrl1, ctrl2 = 0;
+	u8 ctrl1, ctrl2 = 0;
 
 	if (attached)
 		ctrl1 = val;
 	else
 		ctrl1 = CONTROL1_SW_OPEN;
 
-	ret = regmap_update_bits(info->max77693->regmap_muic,
-			MAX77693_MUIC_REG_CTRL1, COMP_SW_MASK, ctrl1);
+	ret = max77693_update_reg(info->max77693->regmap_muic,
+			MAX77693_MUIC_REG_CTRL1, ctrl1, COMP_SW_MASK);
 	if (ret < 0) {
 		dev_err(info->dev, "failed to update MUIC register\n");
 		return ret;
@@ -309,9 +305,9 @@ static int max77693_muic_set_path(struct max77693_muic_info *info,
 	else
 		ctrl2 |= CONTROL2_LOWPWR_MASK;	/* LowPwr=1, CPEn=0 */
 
-	ret = regmap_update_bits(info->max77693->regmap_muic,
-			MAX77693_MUIC_REG_CTRL2,
-			CONTROL2_LOWPWR_MASK | CONTROL2_CPEN_MASK, ctrl2);
+	ret = max77693_update_reg(info->max77693->regmap_muic,
+			MAX77693_MUIC_REG_CTRL2, ctrl2,
+			CONTROL2_LOWPWR_MASK | CONTROL2_CPEN_MASK);
 	if (ret < 0) {
 		dev_err(info->dev, "failed to update MUIC register\n");
 		return ret;
@@ -532,6 +528,9 @@ static int max77693_muic_dock_handler(struct max77693_muic_info *info,
 		extcon_set_cable_state(info->edev, "Dock-Smart", attached);
 		extcon_set_cable_state(info->edev, "MHL", attached);
 		goto out;
+	case MAX77693_MUIC_ADC_FACTORY_MODE_UART_ON:	/* Dock-Car */
+		strcpy(dock_name, "Dock-Car");
+		break;
 	case MAX77693_MUIC_ADC_AUDIO_MODE_REMOTE:	/* Dock-Desk */
 		strcpy(dock_name, "Dock-Desk");
 		break;
@@ -666,11 +665,6 @@ static int max77693_muic_jig_handler(struct max77693_muic_info *info,
 		strcpy(cable_name, "JIG-UART-OFF");
 		path = CONTROL1_SW_UART;
 		break;
-	case MAX77693_MUIC_ADC_FACTORY_MODE_UART_ON:	/* ADC_JIG_UART_ON */
-		/* PATH:AP_UART */
-		strcpy(cable_name, "JIG-UART-ON");
-		path = CONTROL1_SW_UART;
-		break;
 	default:
 		dev_err(info->dev, "failed to detect %s jig cable\n",
 			attached ? "attached" : "detached");
@@ -710,13 +704,13 @@ static int max77693_muic_adc_handler(struct max77693_muic_info *info)
 	case MAX77693_MUIC_ADC_FACTORY_MODE_USB_OFF:
 	case MAX77693_MUIC_ADC_FACTORY_MODE_USB_ON:
 	case MAX77693_MUIC_ADC_FACTORY_MODE_UART_OFF:
-	case MAX77693_MUIC_ADC_FACTORY_MODE_UART_ON:
 		/* JIG */
 		ret = max77693_muic_jig_handler(info, cable_type, attached);
 		if (ret < 0)
 			return ret;
 		break;
 	case MAX77693_MUIC_ADC_RESERVED_ACC_3:		/* Dock-Smart */
+	case MAX77693_MUIC_ADC_FACTORY_MODE_UART_ON:	/* Dock-Car */
 	case MAX77693_MUIC_ADC_AUDIO_MODE_REMOTE:	/* Dock-Desk */
 	case MAX77693_MUIC_ADC_AV_CABLE_NOLOAD:		/* Dock-Audio */
 		/*
@@ -975,8 +969,8 @@ static void max77693_muic_irq_work(struct work_struct *work)
 		if (info->irq == muic_irqs[i].virq)
 			irq_type = muic_irqs[i].irq;
 
-	ret = regmap_bulk_read(info->max77693->regmap_muic,
-			MAX77693_MUIC_REG_STATUS1, info->status, 2);
+	ret = max77693_bulk_read(info->max77693->regmap_muic,
+			MAX77693_MUIC_REG_STATUS1, 2, info->status);
 	if (ret) {
 		dev_err(info->dev, "failed to read MUIC register\n");
 		mutex_unlock(&info->mutex);
@@ -1048,8 +1042,8 @@ static int max77693_muic_detect_accessory(struct max77693_muic_info *info)
 	mutex_lock(&info->mutex);
 
 	/* Read STATUSx register to detect accessory */
-	ret = regmap_bulk_read(info->max77693->regmap_muic,
-			MAX77693_MUIC_REG_STATUS1, info->status, 2);
+	ret = max77693_bulk_read(info->max77693->regmap_muic,
+			MAX77693_MUIC_REG_STATUS1, 2, info->status);
 	if (ret) {
 		dev_err(info->dev, "failed to read MUIC register\n");
 		mutex_unlock(&info->mutex);
@@ -1101,13 +1095,14 @@ static int max77693_muic_probe(struct platform_device *pdev)
 	int delay_jiffies;
 	int ret;
 	int i;
-	unsigned int id;
+	u8 id;
 
 	info = devm_kzalloc(&pdev->dev, sizeof(struct max77693_muic_info),
 				   GFP_KERNEL);
-	if (!info)
+	if (!info) {
+		dev_err(&pdev->dev, "failed to allocate memory\n");
 		return -ENOMEM;
-
+	}
 	info->dev = &pdev->dev;
 	info->max77693 = max77693;
 	if (info->max77693->regmap_muic) {
@@ -1159,13 +1154,14 @@ static int max77693_muic_probe(struct platform_device *pdev)
 		struct max77693_muic_irq *muic_irq = &muic_irqs[i];
 		unsigned int virq = 0;
 
-		virq = regmap_irq_get_virq(max77693->irq_data_muic,
-					muic_irq->irq);
-		if (!virq)
-			return -EINVAL;
+		virq = irq_create_mapping(max77693->irq_domain, muic_irq->irq);
+		if (!virq) {
+			ret = -EINVAL;
+			goto err_irq;
+		}
 		muic_irq->virq = virq;
 
-		ret = devm_request_threaded_irq(&pdev->dev, virq, NULL,
+		ret = request_threaded_irq(virq, NULL,
 				max77693_muic_irq_handler,
 				IRQF_NO_SUSPEND,
 				muic_irq->name, info);
@@ -1174,24 +1170,27 @@ static int max77693_muic_probe(struct platform_device *pdev)
 				"failed: irq request (IRQ: %d,"
 				" error :%d)\n",
 				muic_irq->irq, ret);
-			return ret;
+			goto err_irq;
 		}
 	}
 
 	/* Initialize extcon device */
-	info->edev = devm_extcon_dev_allocate(&pdev->dev,
-					      max77693_extcon_cable);
-	if (IS_ERR(info->edev)) {
+	info->edev = devm_kzalloc(&pdev->dev, sizeof(struct extcon_dev),
+				  GFP_KERNEL);
+	if (!info->edev) {
 		dev_err(&pdev->dev, "failed to allocate memory for extcon\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_irq;
 	}
 	info->edev->name = DEV_NAME;
-
-	ret = devm_extcon_dev_register(&pdev->dev, info->edev);
+	info->edev->dev.parent = &pdev->dev;
+	info->edev->supported_cable = max77693_extcon_cable;
+	ret = extcon_dev_register(info->edev);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register extcon device\n");
-		return ret;
+		goto err_irq;
 	}
+
 
 	/* Initialize MUIC register by using platform data or default data */
 	if (pdata && pdata->muic_data) {
@@ -1206,7 +1205,7 @@ static int max77693_muic_probe(struct platform_device *pdev)
 		enum max77693_irq_source irq_src
 				= MAX77693_IRQ_GROUP_NR;
 
-		regmap_write(info->max77693->regmap_muic,
+		max77693_write_reg(info->max77693->regmap_muic,
 				init_data[i].addr,
 				init_data[i].data);
 
@@ -1264,11 +1263,11 @@ static int max77693_muic_probe(struct platform_device *pdev)
 	 max77693_muic_set_path(info, info->path_uart, true);
 
 	/* Check revision number of MUIC device*/
-	ret = regmap_read(info->max77693->regmap_muic,
+	ret = max77693_read_reg(info->max77693->regmap_muic,
 			MAX77693_MUIC_REG_ID, &id);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to read revision number\n");
-		return ret;
+		goto err_extcon;
 	}
 	dev_info(info->dev, "device ID : 0x%x\n", id);
 
@@ -1284,18 +1283,28 @@ static int max77693_muic_probe(struct platform_device *pdev)
 	 * driver should notify cable state to upper layer.
 	 */
 	INIT_DELAYED_WORK(&info->wq_detcable, max77693_muic_detect_cable_wq);
-	queue_delayed_work(system_power_efficient_wq, &info->wq_detcable,
-			delay_jiffies);
+	schedule_delayed_work(&info->wq_detcable, delay_jiffies);
 
+	return ret;
+
+err_extcon:
+	extcon_dev_unregister(info->edev);
+err_irq:
+	while (--i >= 0)
+		free_irq(muic_irqs[i].virq, info);
 	return ret;
 }
 
 static int max77693_muic_remove(struct platform_device *pdev)
 {
 	struct max77693_muic_info *info = platform_get_drvdata(pdev);
+	int i;
 
+	for (i = 0; i < ARRAY_SIZE(muic_irqs); i++)
+		free_irq(muic_irqs[i].virq, info);
 	cancel_work_sync(&info->irq_work);
 	input_unregister_device(info->dock);
+	extcon_dev_unregister(info->edev);
 
 	return 0;
 }
@@ -1303,6 +1312,7 @@ static int max77693_muic_remove(struct platform_device *pdev)
 static struct platform_driver max77693_muic_driver = {
 	.driver		= {
 		.name	= DEV_NAME,
+		.owner	= THIS_MODULE,
 	},
 	.probe		= max77693_muic_probe,
 	.remove		= max77693_muic_remove,

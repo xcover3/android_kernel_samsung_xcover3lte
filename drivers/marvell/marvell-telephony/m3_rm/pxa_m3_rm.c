@@ -135,7 +135,7 @@ static void antenna_ldo_control(int enable)
 		if (enable) {
 			pr_info("ldo antenna enabled\n");
 			regulator_set_voltage(m3_regulator.reg_ant,
-					3300000, 3300000);
+					3100000, 3100000);
 			ret = regulator_enable(m3_regulator.reg_ant);
 			if (ret)
 				pr_err("enable antenna ldo fail!\n");
@@ -675,8 +675,6 @@ int m3_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	unsigned long size = vma->vm_end - vma->vm_start;
 	unsigned long pa = vma->vm_pgoff;
-
-	pr_err("m3 mmap!\n");
 
 	if (!(REG_READ(CIU_GPS_HANDSHAKE) & 0x8)) {
 		pr_err("m3 init is not ready. try again!\n");

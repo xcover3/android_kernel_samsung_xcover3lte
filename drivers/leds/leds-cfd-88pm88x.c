@@ -23,7 +23,6 @@
 #include <linux/gpio.h>
 #include <linux/delay.h>
 #include <linux/power_supply.h>
-#include <linux/wakelock.h>
 
 /* common register PM886 and PM880 */
 #define PM88X_CFD_CONFIG1		(0x60)
@@ -52,18 +51,14 @@
 #define PM88X_BST_HSOC_OFFSET		(5)
 #define PM88X_BST_HSOC_MASK		(0x7 << PM88X_BST_HSOC_OFFSET)
 #define PM88X_BST_HSOC_SET_2P5A		(0x5 << PM88X_BST_HSOC_OFFSET)
-#define PM88X_BST_HSOC_SET_3A		(0x6 << PM88X_BST_HSOC_OFFSET)
 #define PM88X_BST_LSOC_OFFSET		(1)
 #define PM88X_BST_LSOC_MASK		(0x7 << PM88X_BST_LSOC_OFFSET)
 #define PM88X_BST_LSOC_SET_3A		(0x4 << PM88X_BST_LSOC_OFFSET)
-#define PM88X_BST_LSOC_SET_4A		(0x6 << PM88X_BST_LSOC_OFFSET)
 #define PM88X_BST_HSZC_OFFSET		(5)
 #define PM88X_BST_HSZC_MASK		(0x3 << PM88X_BST_HSZC_OFFSET)
 
 
 #define PM88X_BST_VSET_OFFSET		(4)
-#define PM88X_BST_VSET_MASK		(0x7 << PM88X_BST_VSET_OFFSET)
-#define PM880_BST_VSET_MASK		(0xf << PM88X_BST_VSET_OFFSET)
 #define PM88X_BST_UVVBAT_OFFSET	(0)
 #define PM88X_BST_UVVBAT_MASK		(0x3 << PM88X_BST_UVVBAT_OFFSET)
 
@@ -88,8 +83,6 @@
 #define PM88X_MAX_SAFE_TORCH_CURRENT	(PM88X_MAX_TORCH_CURRENT - 200)		/* mA */
 
 #define PM88X_BST_VSET_5P25V		(0x6 << PM88X_BST_VSET_OFFSET)
-#define PM88X_BST_VSET_4P75V		(0x4 << PM88X_BST_VSET_OFFSET)
-#define PM88X_BST_VSET_4P5V		(0x3 << PM88X_BST_VSET_OFFSET)
 #define PM88X_BST_OV_SET_MASK		(0x3 << 1)
 #define PM88X_BST_OV_SET_6V		(0x3 << 1)
 #define PM88X_BST_OV_SET_5V		(0x2 << 1)
@@ -105,6 +98,7 @@
 #define PM886_CFD_CONFIG4		(0x63)
 #define PM886_CFD_LOG1			(0x65)
 
+#define PM886_BST_VSET_MASK		(0x7 << PM88X_BST_VSET_OFFSET)
 #define PM886_BOOST_MODE		(1 << 1)
 
 #define PM886_OV_SET_OFFSET	(4)
@@ -117,7 +111,6 @@
 #define PM886_CFOUT_OV_EN_OFFSET	(3)
 #define PM886_CFOUT_OV_EN_MASK		(0x1 << PM886_CFOUT_OV_EN_OFFSET)
 
-#define PM88X_BST_TON_SET		(0x3 << 6)
 #define PM886_CURRENT_LEVEL_STEPS	50
 
 /* PM880 specific register */
@@ -129,6 +122,7 @@
 #define PM880_CFD_LOG12			(0x67)
 #define PM880_CLS_CONFIG2		(0x72)
 
+#define PM880_BST_VSET_MASK		(0xf << PM88X_BST_VSET_OFFSET)
 #define PM880_CL1_EN		(1 << 5)
 #define PM880_CL2_EN		(1 << 6)
 
@@ -151,17 +145,16 @@
 static int gpio_en;
 static unsigned int dev_num;
 static unsigned int delay_flash_timer;
-static int pa_en;
+
 struct pm88x_led {
 	struct led_classdev cdev;
 	struct work_struct work;
 	struct work_struct led_flash_off;
- 	struct delayed_work delayed_work;
+	struct delayed_work delayed_work;
 	struct workqueue_struct *led_wqueue;
 	struct pm88x_chip *chip;
 	struct mutex lock;
 #define MFD_NAME_SIZE		(40)
-	struct wake_lock wake_lock;
 	char name[MFD_NAME_SIZE];
 
 	unsigned int brightness;
@@ -178,10 +171,8 @@ struct pm88x_led {
 	int cf_txmsk;
 };
 
-struct pm88x_led *g_led = NULL;
-
 static char *supply_interface[] = {
-	"sec-charger",
+	"88pm88x-charger",
 };
 
 static void pm88x_led_bright_set(struct led_classdev *cdev, enum led_brightness value);
@@ -261,7 +252,7 @@ static void torch_set_current(struct pm88x_led *led)
 	/* set torch current */
 	switch (chip->type) {
 	case PM886:
-	brightness = led->brightness;
+		brightness = led->brightness;
 		regmap_update_bits(chip->battery_regmap, PM88X_CFD_CONFIG1,
 			PM88X_TORCH_ISET_MASK,
 			PM88X_LED_TORCH_ISET(brightness, led->iset_step));
@@ -287,7 +278,6 @@ static void torch_set_current(struct pm88x_led *led)
 		return;
 	}
 }
-
 
 static void torch_on(struct pm88x_led *led)
 {
@@ -318,7 +308,7 @@ static void torch_on(struct pm88x_led *led)
 				PM88X_CF_BITMASK_TRCH_RESET);
 		clear_errors(led);
 
-		/* set torch mode & boost voltage mode */
+		/* set torch mode */
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
 				PM88X_CF_BITMASK_MODE, PM88X_SELECT_TORCH_MODE);
 		break;
@@ -344,7 +334,7 @@ static void torch_on(struct pm88x_led *led)
 		mutex_unlock(&led->lock);
 		return;
 	}
-	
+
 	/* disable booster HS current limit */
 	regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 			PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
@@ -358,7 +348,7 @@ static void torch_on(struct pm88x_led *led)
 					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
 		else
 			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
-					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+					   PM88X_CF_CFD_PLS_ON, 0);
 	} else {
 		gpio_direction_output(led->cf_en, 1);
 	}
@@ -369,37 +359,52 @@ static void torch_on(struct pm88x_led *led)
 	 * chip register so it can remain on */
 	jiffies = msecs_to_jiffies(5000);
 	schedule_delayed_work(&led->delayed_work, jiffies);
-	wake_lock(&led->wake_lock);
 }
 
 static void cfd_pls_off(struct pm88x_led *led)
 {
 	struct pm88x_chip *chip;
+	unsigned int reg_add, reg_val;
+	unsigned int cfd_state = 0;
 
 	chip = led->chip;
 
 	mutex_lock(&led->lock);
+
+	switch (chip->type) {
+	case PM886:
+		reg_add = PM886_CFD_CONFIG4;
+		break;
+	case PM880:
+		reg_add = PM880_CFD_CONFIG4;
+		break;
+	default:
+		/* use pr_err and not dev_err because while kernel shutdown
+		 * led_classdev_unregister will remove led->cdev.dev, and only
+		 * afterwards cfd_pls_off will occurred */
+		pr_err("%s: Unsupported chip type %ld\n", __func__, chip->type);
+		mutex_unlock(&led->lock);
+		return;
+	}
+
 	if (!gpio_en) {
-		switch (chip->type) {
-		case PM886:
-			/* clear CFD_PLS_ON to disable */
-			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG4,
-				   PM88X_CF_CFD_PLS_ON, 0);
-			break;
-		case PM880:
-			/* clear CFD_PLS_ON to disable */
-			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
-				   PM88X_CF_CFD_PLS_ON, 0);
-			break;
-		default:
-			dev_err(led->cdev.dev, "Unsupported chip type %ld\n", chip->type);
-			break;
-		}
+		/* read CFD_PLS_ON status */
+		regmap_read(chip->battery_regmap, reg_add, &reg_val);
+		if (reg_val & PM88X_CF_CFD_PLS_ON)
+			cfd_state = 1;
 	} else
-		gpio_direction_output(led->cf_en, 0);
+		cfd_state = gpio_get_value(led->cf_en);
+	if (cfd_state) {
+		pr_info("%s: turning cfd off\n", __func__);
+		if (!gpio_en) {
+			/* clear CFD_PLS_ON to disable */
+			regmap_update_bits(chip->battery_regmap, reg_add,
+				   PM88X_CF_CFD_PLS_ON, 0);
+		} else
+			gpio_direction_output(led->cf_en, 0);
+	}
 
 	mutex_unlock(&led->lock);
-	wake_unlock(&led->wake_lock);
 }
 
 static void pm88x_flash_off(struct work_struct *work)
@@ -407,9 +412,8 @@ static void pm88x_flash_off(struct work_struct *work)
 	struct pm88x_led *led;
 
 	led = container_of(work, struct pm88x_led, led_flash_off);
- 	dev_info(led->cdev.dev, "turning flash off!\n");
- 	cfd_pls_off(led);
- }
+	cfd_pls_off(led);
+}
 
 static void torch_off(struct pm88x_led *led)
 {
@@ -422,13 +426,11 @@ static void strobe_flash(struct pm88x_led *led)
 	struct pm88x_chip *chip;
 	struct power_supply *psy;
 	union power_supply_propval val;
-	int i, ret, chg_status, chg_online = 0;
+	int i, ret, chg_online = 0;
 	unsigned int brightness;
 	chip = led->chip;
 
 	mutex_lock(&led->lock);
-	regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
-						PM886_BST_UVVBAT_EN_MASK, 0);
 	if (!gpio_en) {
 		if (chip->type == PM886)
 			/* clear CFD_PLS_ON to disable */
@@ -449,19 +451,16 @@ static void strobe_flash(struct pm88x_led *led)
 		if (!psy || !psy->get_property)
 			continue;
 		ret = psy->get_property(psy, POWER_SUPPLY_PROP_ONLINE, &val);
-		regmap_read(chip->battery_regmap, PM88X_CHG_STATUS2, &chg_status);
-		if (ret >= 0 && (chg_status & 0x8)) {
+		if (ret == 0 && val.intval) {
 			chg_online = val.intval;
 			break;
 		}
 	}
-	
-	printk("psy->name = %s,chg_online = %d \n",psy->name,chg_online);
+
 	/* while USB/CHG present block charging */
 	if (psy && psy->set_property) {
-		printk(" block the charging ... \n");
 		val.intval = 0;
-		psy->set_property(psy, POWER_SUPPLY_PROP_CHARGING_ENABLED, &val);
+		psy->set_property(psy, POWER_SUPPLY_PROP_CHARGE_ENABLED, &val);
 	}
 
 	brightness = led->brightness;
@@ -474,7 +473,8 @@ static void strobe_flash(struct pm88x_led *led)
 			regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
 					PM886_CFOUT_OV_EN_MASK, 0x0);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-					PM88X_BST_VSET_MASK, PM88X_BST_VSET_4P75V);
+					PM886_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
+
 			/* unlock test page & force booster configuration */
 			regmap_write(chip->base_regmap, 0x1F, 0x1);
 			regmap_write(chip->test_regmap, 0x40, 0x0);
@@ -491,17 +491,16 @@ static void strobe_flash(struct pm88x_led *led)
 			regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
 				PM88X_CF_BITMASK_MODE, PM88X_SELECT_FLASH_MODE);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
-				PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
+				PM88X_BST_ILIM_DIS, 0);
 			break;
 		case PM880:
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-					PM880_BST_VSET_MASK, PM88X_BST_VSET_4P75V);
+					PM880_BST_VSET_MASK, PM88X_BST_VSET_5P25V);
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
 					PM880_BST_RAMP_DIS_MASK, PM880_BST_RAMP_DIS_EN);
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
-					(PM88X_BST_OV_SET_MASK), (PM88X_BST_OV_SET_5V));
 			regmap_update_bits(chip->battery_regmap, PM880_CLS_CONFIG2,
 					PM880_CFOUT_OC_EN_MASK, 0);
+
 			/* unlock test page & force booster configuration */
 			regmap_write(chip->base_regmap, 0x1F, 0x1);
 			regmap_write(chip->test_regmap, 0x40, 0x0);
@@ -523,8 +522,8 @@ static void strobe_flash(struct pm88x_led *led)
 				led->brightness = min_t(unsigned int, 650, led->brightness);
 				brightness = led->brightness;
 				regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG3,
- 					(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
- 					(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
+					(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
+					(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
 			}
 			break;
 		default:
@@ -543,7 +542,7 @@ static void strobe_flash(struct pm88x_led *led)
 		case PM886:
 			if (led->brightness > 400) {
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
-						PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
+						PM88X_BST_ILIM_DIS, 0);
 			} else {
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 						PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
@@ -565,9 +564,6 @@ static void strobe_flash(struct pm88x_led *led)
 					(PM88X_CF_BITMASK_MODE | PM880_CL1_EN),
 					(PM88X_SELECT_FLASH_MODE | PM880_CL1_EN));
 			}
-
-			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
-					(PM88X_BST_OV_SET_MASK), (PM88X_BST_OV_SET_5V));
 
 			regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG6,
 					PM88X_BST_ILIM_DIS, PM88X_BST_ILIM_DIS);
@@ -605,7 +601,7 @@ static void strobe_flash(struct pm88x_led *led)
 					   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
 		} else {
 			regmap_update_bits(chip->battery_regmap, PM880_CFD_CONFIG4,
-			   PM88X_CF_CFD_PLS_ON, PM88X_CF_CFD_PLS_ON);
+			   PM88X_CF_CFD_PLS_ON, 0);
 		}
 	} else {
 		gpio_direction_output(led->cf_en, 1);
@@ -637,13 +633,14 @@ static void strobe_flash(struct pm88x_led *led)
 				regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
 						PM886_CFOUT_OV_EN_MASK, PM886_CFOUT_OV_EN_MASK);
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-						PM88X_BST_VSET_MASK, PM88X_BST_VSET_4P75V);
+						PM886_BST_VSET_MASK,
+						(led->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
 			} else {
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
 						PM880_BST_RAMP_DIS_MASK, 0);
-
 				regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-						PM880_BST_VSET_MASK, PM88X_BST_VSET_4P75V);
+						PM880_BST_VSET_MASK,
+						(led->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
 			}
 
 			/* lock test page */
@@ -658,14 +655,10 @@ static void strobe_flash(struct pm88x_led *led)
 
 	/* allow charging */
 	if (psy && psy->set_property) {
-		printk("restart charging ... \n");
 		val.intval = 1;
-		psy->set_property(psy, POWER_SUPPLY_PROP_CHARGING_ENABLED, &val);
+		psy->set_property(psy, POWER_SUPPLY_PROP_CHARGE_ENABLED, &val);
 	}
-#ifdef CONFIG_MACH_J1ACELTE_LTN
-	regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-			PM88X_BST_VSET_MASK, PM88X_BST_VSET_4P5V);
-#endif
+
 	mutex_unlock(&led->lock);
 }
 
@@ -690,19 +683,13 @@ static void pm88x_led_work(struct work_struct *work)
 	}
 }
 
-/**++ added for camera flash sysfs ++**/
-extern struct class *camera_class;
-struct device *flash_dev;	  
-extern struct device *cam_dev_rear;
-/**-- camera flash sysfs --**/
-
 static void pm88x_led_bright_set(struct led_classdev *cdev,
 			   enum led_brightness value)
 {
 	struct pm88x_led *led = container_of(cdev, struct pm88x_led, cdev);
 
 	/* skip the lowest level */
-	if (value == 0){
+	if (value == 0) {
 		led->brightness = 0;
 		/*
 		 * The reason to turn off the flash here and not in the system workqueue:
@@ -844,50 +831,6 @@ int get_flash_duration(unsigned int *duration)
 	return 0;
 }
 EXPORT_SYMBOL(get_flash_duration);
-
-int set_torch_current(unsigned int cur)
-{
-	int old_cur;
-	int min_current_step, max_current_step, max_current;
-
-	if (cur <= 0)
-		return -EINVAL;
-
-	if (!g_led)
-		return -EINVAL;
-
-	if (strcmp(g_led->name, "torch"))
-		return -EINVAL;
-
-	mutex_lock(&g_led->lock);
-	min_current_step = g_led->iset_step;
-	max_current_step = g_led->iset_step * PM88X_NUM_TORCH_CURRENT_LEVELS;
-	if (g_led->conn_cfout_ab) {
-		min_current_step *= 2;
-		max_current_step *= 2;
-	}
-
-	/* if input current is too small, just return error */
-	if (cur < min_current_step) {
-		pr_info("%s: current (%d) is too small\n", __func__, cur);
-		mutex_unlock(&g_led->lock);
-		return -EINVAL;
-	}
-
-	old_cur = ((LED_FULL / g_led->max_current_div) + 1) * g_led->iset_step;
-	if (g_led->conn_cfout_ab)
-		old_cur *= 2;
-	max_current = (cur > max_current_step) ? max_current_step : cur;
-
-	if (g_led->conn_cfout_ab)
-		g_led->max_current_div = PM88X_CURRENT_DIV(max_current, g_led->iset_step * 2);
-	else
-		g_led->max_current_div = PM88X_CURRENT_DIV(max_current, g_led->iset_step);
-
-	mutex_unlock(&g_led->lock);
-	return old_cur;
-}
-EXPORT_SYMBOL(set_torch_current);
 
 /* convert dts voltage value to register value, values in msec */
 static void convert_flash_timer_val_to_reg(struct pm88x_led_pdata *pdata)
@@ -1044,13 +987,6 @@ static int pm88x_led_dt_init(struct device_node *np,
 				   "flash-en-gpio", &pdata->cf_en);
 	if (ret)
 		return ret;
-#ifdef CONFIG_MACH_J7MLTE
-	ret = of_property_read_u32(np,
-				   "pa-en-gpio", &pa_en);
-	if (ret)
-		return ret;
-#endif
-	
 	ret = of_property_read_u32(np,
 				   "flash-txmsk-gpio", &pdata->cf_txmsk);
 	if (ret)
@@ -1167,17 +1103,13 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 		if (ret)
 			return ret;
 	}
-	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG3,
-			PM88X_BST_TON_SET, PM88X_BST_TON_SET);
-	if (ret)
-		return ret;
-	/* set booster high-side to 3A and low-side to 4A */
+	/* set booster high-side to 2.5A and low-side to 3A */
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG4,
-			PM88X_BST_HSOC_MASK, PM88X_BST_HSOC_SET_3A);
+			PM88X_BST_HSOC_MASK, PM88X_BST_HSOC_SET_2P5A);
 	if (ret)
 		return ret;
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG4,
-			PM88X_BST_LSOC_MASK, PM88X_BST_LSOC_SET_4A);
+			PM88X_BST_LSOC_MASK, PM88X_BST_LSOC_SET_3A);
 	if (ret)
 		return ret;
 
@@ -1195,9 +1127,10 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 				(pdata->cls_uv_set << PM886_UV_SET_OFFSET)));
 		/* set booster voltage as configured in DT */
 		ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-				PM88X_BST_VSET_MASK, (pdata->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+				PM886_BST_VSET_MASK,
+				(pdata->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
 		if (ret)
-				return ret;
+			return ret;
 	} else {
 		/* set over & under voltage protection as configured in DT */
 		ret = regmap_update_bits(chip->battery_regmap, PM88X_CLS_CONFIG1,
@@ -1208,9 +1141,10 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 			return ret;
 		/* set booster voltage as configured in DT */
 		ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG1,
-				PM880_BST_VSET_MASK, (pdata->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
+				PM880_BST_VSET_MASK,
+				(pdata->cfd_bst_vset << PM88X_BST_VSET_OFFSET));
 		if (ret)
-				return ret;
+			return ret;
 	}
 	/* set VBAT TH as configured in DT */
 	ret = regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
@@ -1227,14 +1161,18 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 				if (ret)
 					return ret;
 		}
+
 		/* set boost mode to voltage mode, cofirmed with DE */
 		regmap_update_bits(chip->battery_regmap, PM886_CFD_CONFIG3,
 				PM886_BOOST_MODE, PM886_BOOST_MODE);
 		break;
 	case PM880:
-		/* set CLS_NOK debounce period setting to 20us */
+		/* set cls_nok debounce period to 20us */
 		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG2,
 				PM880_CLK_NOK_OC_DB, PM880_CLK_NOK_OC_DB);
+		/* set booste over-voltage to 5V */
+		regmap_update_bits(chip->battery_regmap, PM88X_BST_CONFIG5,
+				(PM88X_BST_OV_SET_MASK), (PM88X_BST_OV_SET_5V));
 		/* if A0, disable over current comparators */
 		if (chip->chip_id == PM880_A0) {
 			ret = regmap_update_bits(chip->battery_regmap, PM880_CLS_CONFIG2,
@@ -1255,60 +1193,12 @@ static int pm88x_setup(struct platform_device *pdev, struct pm88x_led_pdata *pda
 	else
 		return 0;
 }
-
-#define WIDGET_BRIGHTNESS	127	//Torch mode
-static ssize_t rear_flash_store(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf, size_t size)
-{
-	struct pm88x_led *led;
-	struct led_classdev *cdev;
-	int ret;
-	unsigned int data;
-	int en_value = 0;
-
-	cdev = dev_get_drvdata(dev);
-	led = container_of(cdev, struct pm88x_led, cdev);
-	ret = sscanf(buf, "%d", &en_value);
-	if (ret < 0) {
-		dev_dbg(dev, "%s: get gpio_en error, set to 0 as default\n", __func__);
-		en_value = 0;
-	}
-	dev_info(dev, "%s: led control %s\n",
-			__func__, (en_value ? "enabled" : "disabled"));
-	mutex_lock(&led->lock);
-	led->cf_en = en_value;
-	//led->id = PM88X_TORCH_LED;
-	led->brightness = 127;
-	if(en_value)
-		ledtrig_torch_ctrl(en_value);
-	else
-		ledtrig_torch_ctrl(en_value);
-	mutex_unlock(&led->lock);
-	return size;
-}
-
-ssize_t rear_flash_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct pm88x_led *led;
-	struct led_classdev *cdev;
-
-	int s = 0;
-	cdev = dev_get_drvdata(dev);
-	led = container_of(cdev, struct pm88x_led, cdev);
-
-	s += sprintf(buf, "gpio control: %d\n", gpio_en);
-	return s;
-}
-static DEVICE_ATTR(rear_flash, S_IRUGO | S_IXOTH,  rear_flash_show, rear_flash_store);
-extern int create_front_flash_sysfs(void);
 static int pm88x_led_probe(struct platform_device *pdev)
 {
 	struct pm88x_led *led;
 	struct pm88x_led_pdata *pdata = pdev->dev.platform_data;
 	struct pm88x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct device_node *node = pdev->dev.of_node;
-	static int init_flag = 0;
 	unsigned int max_current;
 	int ret;
 	int min_current_step, max_current_step;
@@ -1334,12 +1224,12 @@ static int pm88x_led_probe(struct platform_device *pdev)
 
 	switch (chip->type) {
 	case PM886:
-	led->iset_step = PM886_CURRENT_LEVEL_STEPS;
-	led->conn_cfout_ab = false;
+		led->iset_step = PM886_CURRENT_LEVEL_STEPS;
+		led->conn_cfout_ab = false;
 		break;
 	case PM880:
-	led->iset_step = PM880_CURRENT_LEVEL_STEPS;
-	led->conn_cfout_ab = pdata->conn_cfout_ab;
+		led->iset_step = PM880_CURRENT_LEVEL_STEPS;
+		led->conn_cfout_ab = pdata->conn_cfout_ab;
 		break;
 	default:
 		dev_err(&pdev->dev, "Unsupported chip type %ld\n", chip->type);
@@ -1359,10 +1249,6 @@ static int pm88x_led_probe(struct platform_device *pdev)
 				min_current_step : pdata->max_flash_current;
 		max_current = (pdata->max_flash_current > max_current_step) ?
 				max_current_step : pdata->max_flash_current;
-		if (led->conn_cfout_ab)
-			led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step * 2);
-		else
-			led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step);
 		break;
 	case PM88X_TORCH_LED:
 		strncpy(led->name, "torch", MFD_NAME_SIZE - 1);
@@ -1376,16 +1262,11 @@ static int pm88x_led_probe(struct platform_device *pdev)
 				min_current_step : pdata->max_torch_current;
 		max_current = (pdata->max_torch_current > max_current_step) ?
 				max_current_step : pdata->max_torch_current;
-		if (led->conn_cfout_ab)
-			led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step * 2);
-		else
-			led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step);
 		/*
 		 * Allow to force a constant current regardless of upper
 		 * layer request
 		 */
 		led->force_max_current = pdata->torch_force_max_current;
-		wake_lock_init(&led->wake_lock, WAKE_LOCK_SUSPEND, "torch_wl");
 		break;
 	case PM88X_NO_LED:
 	default:
@@ -1395,6 +1276,10 @@ static int pm88x_led_probe(struct platform_device *pdev)
 
 	led->chip = chip;
 	led->id = pdev->id;
+	if (led->conn_cfout_ab)
+		led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step * 2);
+	else
+		led->max_current_div = PM88X_CURRENT_DIV(max_current, led->iset_step);
 	led->cf_en = pdata->cf_en;
 	led->cf_txmsk = pdata->cf_txmsk;
 	gpio_en = pdata->gpio_en;
@@ -1413,25 +1298,13 @@ static int pm88x_led_probe(struct platform_device *pdev)
 
 	mutex_lock(&led->lock);
 	if (!dev_num) {
-#ifndef CONFIG_MACH_J7MLTE
-		if(gpio_en)
-#endif
-			{
+		if (gpio_en) {
 			ret = gpio_request(led->cf_en, "cf-gpio");
 			if (ret) {
 				dev_err(&pdev->dev, "request cf-gpio error!\n");
 				return ret;
 			}
 		}
-#ifdef CONFIG_MACH_J7MLTE
-		gpio_direction_output(led->cf_en,0);
-		ret = gpio_request(pa_en, "pa-en-gpio");
-		if (ret) {
-			dev_err(&pdev->dev, "request pa-en-gpio error!\n");
-			return ret;
-		}
-		gpio_direction_output(pa_en,0);	
-#endif
 		ret = pm88x_setup(pdev, pdata);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "device setup failed: %d\n", ret);
@@ -1446,11 +1319,9 @@ static int pm88x_led_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "%s: failed to create wq.\n", __func__);
 		return -ESRCH;
 	}
-
 	INIT_WORK(&led->work, pm88x_led_work);
 	INIT_WORK(&led->led_flash_off, pm88x_flash_off);
 	INIT_DELAYED_WORK(&led->delayed_work, pm88x_led_delayed_work);
-
 
 	ret = led_classdev_register(&pdev->dev, &led->cdev);
 	if (ret < 0) {
@@ -1465,38 +1336,29 @@ static int pm88x_led_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	g_led = led;
-
-	/*++ added for camera flash sysfs ++*/
-	if(init_flag == 0) {
-		init_flag = 1;
-		if(camera_class == NULL)
-			camera_class = class_create(THIS_MODULE, "camera");
-
-		if (IS_ERR(camera_class))
-			printk("Failed to create camera_class!\n");
-		if(flash_dev == NULL)
-			flash_dev = device_create(camera_class, NULL, 0, "%s", "flash");
-		dev_set_drvdata(flash_dev, led);
-
-		if (IS_ERR(flash_dev)) {
-			pr_err("flash_sysfs: failed to create device(flash)\n");
-			return -ENODEV;
-		}
-
-		if (device_create_file(flash_dev, &dev_attr_rear_flash) < 0)
-			printk("Failed to create device file(%s)!\n", dev_attr_rear_flash.attr.name);
-		/*-- camera flash sysfs --*/
-#if defined(CONFIG_MACH_J7MLTE)
-		create_front_flash_sysfs();
-#endif
-	}
 	return 0;
 }
 
 static int pm88x_led_remove(struct platform_device *pdev)
 {
 	struct pm88x_led *led = platform_get_drvdata(pdev);
+
+	device_remove_file(led->cdev.dev, &dev_attr_gpio_ctrl);
+
+	led_classdev_unregister(&led->cdev);
+
+	/* cancel torch on workqueue */
+	cancel_delayed_work_sync(&led->delayed_work);
+	/* led_classdev_unregister will trigger device off
+	 * so we need to flush those workqueues,
+	 * led->work for torch off.
+	 * led->led_flash_off for flash off.
+	 */
+	flush_work(&led->work);
+	flush_work(&led->led_flash_off);
+
+	if (led->led_wqueue)
+		destroy_workqueue(led->led_wqueue);
 
 	mutex_lock(&led->lock);
 
@@ -1508,9 +1370,12 @@ static int pm88x_led_remove(struct platform_device *pdev)
 
 	mutex_unlock(&led->lock);
 
-	if (led)
-		led_classdev_unregister(&led->cdev);
 	return 0;
+}
+
+static void pm88x_led_shutdown(struct platform_device *pdev)
+{
+	pm88x_led_remove(pdev);
 }
 
 static const struct of_device_id pm88x_led_dt_match[] = {
@@ -1523,10 +1388,11 @@ static struct platform_driver pm88x_led_driver = {
 	.driver	= {
 		.owner	= THIS_MODULE,
 		.name	= "88pm88x-leds",
-		.of_match_table = of_match_ptr(pm88x_led_dt_match),
+		.of_match_table	= of_match_ptr(pm88x_led_dt_match),
 	},
 	.probe	= pm88x_led_probe,
 	.remove	= pm88x_led_remove,
+	.shutdown	= pm88x_led_shutdown,
 };
 
 module_platform_driver(pm88x_led_driver);

@@ -22,7 +22,7 @@
 #include <linux/reboot.h>
 #include "88pm88x-reg.h"
 #include "88pm886-reg.h"
-#include <linux/battery/sec_charger.h>
+#include "88pm880-reg.h"
 
 #define PM88X_RTC_NAME		"88pm88x-rtc"
 #define PM88X_ONKEY_NAME	"88pm88x-onkey"
@@ -190,19 +190,27 @@ struct pm88x_chip {
 	u8 powerdown1;
 	u8 powerdown2;
 	u8 powerup;
+	s64 pre_ccnt_uc;
+	bool trimming_status;
 
 	struct notifier_block reboot_notifier;
 	struct notifier_block cb_nb;
 	struct pm88x_dvc *dvc;
-	
-	struct pm88x_platform_data *pdata;
 };
 
-struct pm88x_platform_data {
-	unsigned int chgen;
-	int irq_gpio;
-	unsigned long chg_irq_attr;
-	sec_battery_platform_data_t *battery_data;
+struct pm88x_debug_info {
+	char name[15];
+	int debug_mod;
+	int en;
+	int volt;
+	int lvl;
+	int lvl_volt;
+	int slp_en;
+	int slp_volt;
+	int audio_en;
+	int audio_volt;
+	int bias_en;
+	int bias_current;
 };
 
 extern bool buck1slp_is_ever_changed;
@@ -265,28 +273,24 @@ static inline struct regmap *get_codec_companion(void)
 
 #ifdef CONFIG_LEDS_88PM88X_CFD
 int get_flash_duration(unsigned int *duration);
-int set_torch_current(unsigned int cur);
 #else
 static inline int get_flash_duration(unsigned int *duration)
 {
 	return -EINVAL;
 }
-static inline int set_torch_current(unsigned int cur) {
-	return -EINVAL;
-}
 #endif
-
-static const struct resource vr_resources[] = {
-	{
-	.name = PM88X_VIRTUAL_REGULATOR_NAME,
-	},
-};
 
 /* debugfs part */
 #ifdef CONFIG_REGULATOR_88PM88X
 extern int pm88x_display_buck(struct pm88x_chip *chip, char *buf);
 extern int pm88x_display_vr(struct pm88x_chip *chip, char *buf);
 extern int pm88x_display_ldo(struct pm88x_chip *chip, char *buf);
+extern int pm88x_buck_debug_write(struct pm88x_chip *chip, char *buf,
+				  struct pm88x_debug_info *info);
+extern int pm88x_vr_debug_write(struct pm88x_chip *chip, char *buf,
+			       struct pm88x_debug_info *info);
+extern int pm88x_ldo_debug_write(struct pm88x_chip *chip, char *buf,
+				struct pm88x_debug_info *info);
 #else
 static inline int pm88x_display_buck(struct pm88x_chip *chip, char *buf)
 {
@@ -300,19 +304,38 @@ static inline int pm88x_display_ldo(struct pm88x_chip *chip, char *buf)
 {
 	return 0;
 }
-#endif
-#ifdef CONFIG_MFD_88PM8XX_DVC
-extern int pm88x_display_dvc(struct pm88x_chip *chip, char *buf);
-#else
-static inline int pm88x_display_dvc(struct pm88x_chip *chip, char *buf)
+static inline int pm88x_buck_debug_write(struct pm88x_chip *chip, char *buf,
+					 struct pm88x_debug_info *info)
+{
+	return 0;
+}
+static inline int pm88x_vr_debug_write(struct pm88x_chip *chip, char *buf,
+				       struct pm88x_debug_info *info)
+{
+	return 0;
+}
+static inline int pm88x_ldo_debug_write(struct pm88x_chip *chip, char *buf,
+					struct pm88x_debug_info *info)
 {
 	return 0;
 }
 #endif
+
+extern int pm88x_display_dvc(struct pm88x_chip *chip, char *buf);
+extern int pm88x_dvc_debug_write(struct pm88x_chip *chip, char *buf,
+				 struct pm88x_debug_info *info);
+
 #ifdef CONFIG_88PM88X_GPADC
 extern int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf);
+extern int pm88x_gpadc_debug_write(struct pm88x_chip *chip, char *buf,
+				   struct pm88x_debug_info *info);
 #else
 static inline int pm88x_display_gpadc(struct pm88x_chip *chip, char *buf)
+{
+	return 0;
+}
+static inline int pm88x_gpadc_debug_write(struct pm88x_chip *chip, char *buf,
+					  struct pm88x_debug_info *info)
 {
 	return 0;
 }

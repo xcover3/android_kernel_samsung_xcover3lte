@@ -28,23 +28,24 @@
 #define MMP_XALIGN_GEN4(x) ALIGN(x, 64)
 #define MMP_YALIGN_GEN4(x) ALIGN(x, 4)
 
+#define	IRQ_ENA	1
+#define	IRQ_DIS	0
+
+#define DISPD_IRQ	1
+#define VSYNC_IRQ	2
+#define SPECIAL_IRQ	3
+
 #define DISP_GEN4(version)	((version) == 4 || (version) == 0x14 || (version) == 0x24)
 #define DISP_GEN4_LITE(version)	((version) == 0x14)
 
 /* for dfc */
-#define	DIP_END		0
 #define	DIP_START	1
-#define	LCD_FREQ	2
+#define	DIP_END		0
+
 #define	GC_REQUEST	3
+#define	LCD_FREQ	2
+
 #define FPS_60	60
-
-static const char *dip_req_names[] = {
-	"DIP_START",
-	"DIP_END",
-	"LCD_FREQ",
-	"GC_REQUEST",
-};
-
 void dfc_gc_request(unsigned long val, unsigned int fps);
 
 enum {
@@ -202,7 +203,6 @@ static inline int pixfmt_to_stride(int pix_fmt)
 /* path related para: mode */
 struct mmp_mode {
 	const char *name;
-	unsigned int real_refresh;
 	unsigned int refresh;
 	unsigned int xres;
 	unsigned int yres;
@@ -500,10 +500,6 @@ enum {
 
 struct dsi_esd {
 	struct delayed_work work;
-	struct workqueue_struct *wq;
-	int irq;		/* dsi-esd irq */
-	unsigned int gpio;	/* dsi-esd irq gpio */
-	unsigned int type;	/* 0:POLLING, 1~:INTERRUPT */
 	u8 dsi_reset_state;
 	int (*esd_check)(struct mmp_panel *panel);
 	void (*esd_recover)(struct mmp_panel *panel);
@@ -521,10 +517,7 @@ struct mmp_panel {
 	/* power */
 	int is_iovdd;
 	int is_avdd;
-	unsigned int esd_gpio;
-	unsigned int esd_type;
 	struct dsi_esd esd;
-	struct backlight_device *bd;
 	void *plat_data;
 #ifdef CONFIG_DDR_DEVFREQ
 	struct pm_qos_request ddrfreq_qos_req_min;
@@ -537,8 +530,6 @@ struct mmp_panel {
 			struct mmp_mode **modelist);
 	void (*set_mode)(struct mmp_panel *panel,
 			struct mmp_mode *mode);
-	void (*set_power)(struct mmp_panel *panel,
-			int status);
 	void (*set_status)(struct mmp_panel *panel,
 			int status);
 	void (*panel_start)(struct mmp_panel *panel,
@@ -563,7 +554,7 @@ struct mmp_path_ops {
 	void (*set_onoff)(struct mmp_path *path, int status);
 	int (*wait_vsync)(struct mmp_path *path);
 	int (*wait_special_vsync)(struct mmp_path *path);
-	int (*set_irq)(struct mmp_path *path, int on);
+	int (*set_irq)(struct mmp_path *path, u32 irq, int on);
 	int (*ctrl_safe)(struct mmp_path *path);
 	int (*set_gamma)(struct mmp_path *path, int flag, char *table);
 	int (*set_commit)(struct mmp_path *path);
@@ -597,9 +588,8 @@ struct mmp_dsi_cmd_desc {
 };
 
 struct mmp_dsi_cmds {
-	char *name;
-	struct mmp_dsi_cmd_desc *desc;
-	unsigned int nr_desc;
+	struct mmp_dsi_cmd_desc *cmds;
+	unsigned int nr_cmds;
 	unsigned int mode;
 };
 
@@ -651,7 +641,6 @@ struct mmp_dsi_setting {
 	u32 hsa_en:1;
 	u32 hse_en:1;
 	u32 eotp_en:1;
-	u32 non_continuous_clk:1;
 };
 
 enum {
@@ -688,19 +677,6 @@ struct mmp_mach_debug_irq_count {
 	int vsync_check;
 };
 
-struct mmp_framecnt {
-	struct work_struct work;
-	struct workqueue_struct *wq;
-	struct mmp_dsi *dsi;
-	uint64_t ts_frame;
-	int is_doing_wq;
-	atomic_t frame_cnt;
-	int adaptive_fps_en;
-	int switch_fps;
-	int default_fps;
-	int wait_time;
-};
-
 struct mmp_dsi {
 	struct device *dev;
 	struct mutex lock;
@@ -734,10 +710,6 @@ struct mmp_dsi {
 
 	/* output dsi port */
 	struct mmp_dsi_port dsi_port;
-
-	/* Adaptive FPS */
-	struct mmp_framecnt *framecnt;
-	atomic_t adaptive_fps_commit;
 };
 
 /* path is main part of mmp-disp */
@@ -767,7 +739,6 @@ struct mmp_path {
 	atomic_t commit;
 	spinlock_t commit_lock;
 	spinlock_t irq_lock;
-	spinlock_t vcnt_lock;
 
 	/*master/slave path*/
 	struct mmp_path *master;
@@ -777,8 +748,10 @@ struct mmp_path {
 	int open_count;
 	int status;
 	struct mutex access_ok;
-	atomic_t irq_en_ref;
-	atomic_t irq_en_count;
+	atomic_t irq_dispd_en_ref;
+	atomic_t irq_vsync_en_ref;
+	atomic_t irq_dispd_en_count;
+	atomic_t irq_vsync_en_count;
 
 	/* rate */
 	unsigned long rate;
@@ -851,10 +824,10 @@ static inline int mmp_path_set_gamma(struct mmp_path *path,
 		return path->ops.set_gamma(path, flag, table);
 	return 0;
 }
-static inline int mmp_path_set_irq(struct mmp_path *path, int on)
+static inline int mmp_path_set_irq(struct mmp_path *path, u32 irq, int on)
 {
 	if (path && path->ops.set_irq)
-		return path->ops.set_irq(path, on);
+		return path->ops.set_irq(path, irq, on);
 	return 0;
 }
 
@@ -868,7 +841,8 @@ static inline int mmp_dsi_set_irq(struct mmp_dsi *dsi, int on)
 static inline int mmp_path_get_irq_state(struct mmp_path *path)
 {
 	if (path)
-		return atomic_read(&path->irq_en_ref) > 0;
+		return (atomic_read(&path->irq_dispd_en_ref) > 0)
+			|| (atomic_read(&path->irq_vsync_en_ref) > 0);
 	return 0;
 }
 

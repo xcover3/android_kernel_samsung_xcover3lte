@@ -61,5 +61,3 @@ obj-$(CONFIG_MMP_GPS)		+= mmp_gps.o
 obj-$(CONFIG_DEBUG_FS)		+= debugfs-pxa.o
 obj-$(CONFIG_GATOR)		+= gator/
 obj-$(CONFIG_LEDS_RGB)		+= led-rgb.o
-obj-$(CONFIG_TIMA_LOG)		+= tima_debug_log.o
-obj-$(CONFIG_SEC_VIBRATOR)	+= sec_vibrator.o

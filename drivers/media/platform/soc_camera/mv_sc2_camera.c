@@ -38,12 +38,9 @@
 #include <linux/pm_qos.h>
 
 #include "mv_sc2_camera.h"
-static struct pm_qos_request sc2_camera_qos_idle;
-static struct pm_qos_request gc2dfreq_qos_req_min;
-static struct pm_qos_request sc2_camera_qos_ddr;
-static int sc2_camera_req_qos;
-static int sc2_camera_req_ddr_qos;
 
+static struct pm_qos_request sc2_camera_qos_idle;
+static int sc2_camera_req_qos;
 static int buffer_mode = -1;
 module_param(buffer_mode, int, 0444);
 MODULE_PARM_DESC(buffer_mode,
@@ -116,17 +113,7 @@ static const struct soc_mbus_pixelfmt ccic_formats[] = {
 	},
 };
 
-void soc_camera_set_ddr_qos(s32 value)
-{
-	pm_qos_update_request(&sc2_camera_qos_ddr, value);
-}
-EXPORT_SYMBOL(soc_camera_set_ddr_qos);
 
-void soc_camera_set_gc2d_qos(s32 value)
-{
-	pm_qos_update_request(&gc2dfreq_qos_req_min, value);
-}
-EXPORT_SYMBOL(soc_camera_set_gc2d_qos);
 
 static int mccic_queue_setup(struct vb2_queue *vq,
 			const struct v4l2_format *fmt,
@@ -413,38 +400,18 @@ static int msc2_setup_buffer(struct mv_camera_dev *mcam_dev)
 				baddr = 2 << 28;
 			else
 				baddr = vbuf->v4l2_planes[2].m.userptr;
-#ifdef CONFIG_MACH_COREPRIMEVELTE
-			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[1].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
-				pid, 1 + pid * 4, 0);
-#elif CONFIG_MACH_J1ACELTE_LTN
-			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[1].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
-				pid, 1 + pid * 4, 0);
-#else
 			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[1].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
 				pid, 2 + pid * 4, 0);
-#endif
 			mbuf->ch_info[1].daddr = baddr;
 
 			if (vbuf->v4l2_buf.memory == V4L2_MEMORY_DMABUF)
 				baddr = 3 << 28;
 			else
 				baddr = vbuf->v4l2_planes[1].m.userptr;
-#ifdef CONFIG_MACH_COREPRIMEVELTE
-			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[2].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
-				pid, 2 + pid * 4, 0);
-#elif CONFIG_MACH_J1ACELTE_LTN
-			dma_dev->ops->set_vaddr(dma_dev, (u32) baddr);
-			mbuf->ch_info[2].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
-				pid, 2 + pid * 4, 0);
-#else
 			dma_dev->ops->set_uaddr(dma_dev, (u32) baddr);
 			mbuf->ch_info[2].tid =  msc2_mmu->ops->get_tid(msc2_mmu,
 				pid, 1 + pid * 4, 0);
-#endif
 			mbuf->ch_info[2].daddr = baddr;
 			break;
 		case V4L2_PIX_FMT_NV12:
@@ -542,9 +509,9 @@ static int mccic_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 	}
 
 	/* disable/enable SC2 clks to reset SC2 */
-	ctrl_dev->ops->clk_disable(ctrl_dev);
+	ctrl_dev->ops->clk_disable(ctrl_dev, SC2_MODE_CCIC);
 	clk_disable_unprepare(mcam_dev->axi_clk);
-	ctrl_dev->ops->clk_enable(ctrl_dev);
+	ctrl_dev->ops->clk_enable(ctrl_dev, SC2_MODE_CCIC);
 	clk_prepare_enable(mcam_dev->axi_clk);
 
 	ret = mccic_acquire_sc2_chs(mcam_dev, mcam_dev->mp.num_planes);
@@ -611,8 +578,7 @@ static int mccic_vb2_stop_streaming(struct vb2_queue *vq)
 	dma_dev->ops->ccic_disable(dma_dev);
 	ctrl_dev->ops->irq_mask(ctrl_dev, 0);
 	ctrl_dev->ops->config_mbus(ctrl_dev, mcam_dev->bus_type,
-			mcam_dev->mbus_flags, 0);
-
+					mcam_dev->mbus_flags, 0);
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG) {
 		/* nothing to do here */
 	} else if (mcam_dev->buffer_mode == B_DMA_SG) {
@@ -703,9 +669,7 @@ static int mccic_add_device(struct soc_camera_device *icd)
 
 	if (mcam_dev->icd)
 		return -EBUSY;
-	if(icd->iface == 0) {
-		pm_qos_update_request(&sc2_camera_qos_ddr, 312000);
-	} 
+
 	/* 1, initial the mcam_dev */
 	/* alloc ctx, need reconsider */
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG)
@@ -801,7 +765,8 @@ static int mccic_add_device(struct soc_camera_device *icd)
 		ctrl_dev->csi.calc_dphy = 0;
 
 	/* 5. initial the HW, clk, power, ccic */
-	ctrl_dev->ops->clk_enable(ctrl_dev);
+	ctrl_dev->ops->clk_enable(ctrl_dev, SC2_MODE_CCIC);
+	clk_set_rate(mcam_dev->axi_clk, 312000000);
 	clk_prepare_enable(mcam_dev->axi_clk);
 	ctrl_dev->ops->power_up(ctrl_dev);
 	ctrl_dev->ops->irq_mask(ctrl_dev, 0); /* Mask interrupts */
@@ -868,7 +833,7 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	/* 4. handle ccic_dev */
 	mcam_dev->icd = NULL;
 
-	ctrl_dev->ops->clk_disable(ctrl_dev);
+	ctrl_dev->ops->clk_disable(ctrl_dev, SC2_MODE_CCIC);
 	/* 5. free ctx, need reconsider */
 	if (mcam_dev->buffer_mode == B_DMA_CONTIG)
 		vb2_dma_contig_cleanup_ctx(mcam_dev->vb_alloc_ctx);
@@ -877,9 +842,6 @@ static void mccic_remove_device(struct soc_camera_device *icd)
 	mcam_dev->vb_alloc_ctx = NULL;
 	pm_qos_update_request(&sc2_camera_qos_idle,
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
-	if(icd->iface == 0) {
-		pm_qos_update_request(&sc2_camera_qos_ddr, PM_QOS_DEFAULT_VALUE);
-	}
 }
 
 /* try_fmt should not return error, TBD */
@@ -1415,8 +1377,6 @@ handle_eof:
 		irqs &= ~IRQ_EOF0;
 		if (!test_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags))
 			mccic_frame_complete(mcam_dev);
-		else 
-			clear_bit(CF_FRAME_OVERFLOW, &mcam_dev->flags);
 	}
 
 	if (irqs & IRQ_EOF0)
@@ -1453,29 +1413,12 @@ static int mv_camera_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "lpm-qos", &sc2_camera_req_qos);
 	if (ret)
 		return ret;
-		if(!sc2_camera_qos_idle.name) {
 	sc2_camera_qos_idle.name = MV_SC2_CAMERA_NAME;
 	pm_qos_add_request(&sc2_camera_qos_idle, PM_QOS_CPUIDLE_BLOCK,
 			PM_QOS_CPUIDLE_BLOCK_DEFAULT_VALUE);
-	}
-	ret = of_property_read_u32(np, "ddr-qos", &sc2_camera_req_ddr_qos);
-	if (ret)
-		return ret;
-	if(!sc2_camera_qos_ddr.name) {
-		sc2_camera_qos_ddr.name = MV_SC2_CAMERA_NAME;
-		pm_qos_add_request(&sc2_camera_qos_ddr,
-				PM_QOS_DDR_DEVFREQ_MIN,
-				PM_QOS_DEFAULT_VALUE);
-	}
-	if(!gc2dfreq_qos_req_min.name) {
-		gc2dfreq_qos_req_min.name = MV_SC2_CAMERA_NAME;
-		pm_qos_add_request(&gc2dfreq_qos_req_min,
-				PM_QOS_GPUFREQ_2D_MIN,
-				156000);
-	}
 	/* 2. alloc mcam_dev and setup */
 	mcam_dev = devm_kzalloc(&pdev->dev, sizeof(struct mv_camera_dev),
-			GFP_KERNEL);
+					GFP_KERNEL);
 	if (!mcam_dev) {
 		dev_err(&pdev->dev, "Could not allocate mcam dev\n");
 		return -ENOMEM;
@@ -1521,6 +1464,7 @@ static int mv_camera_remove(struct platform_device *pdev)
 		mcam_dev->mbus_fmt_code[i] = 0;
 	mcam_dev->mbus_fmt_num = 0;
 
+	pm_qos_remove_request(&sc2_camera_qos_idle);
 	pm_runtime_disable(mcam_dev->dev);
 	soc_camera_host_unregister(soc_host);
 	dev_info(&pdev->dev, "camera driver unloaded\n");

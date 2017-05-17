@@ -44,8 +44,8 @@
  * configuration
 *******************************************************************************/
 #define PS_INTERRUPT_MODE		1
-#define P_SENSOR_LTHD			120
-#define P_SENSOR_HTHD			170
+#define P_SENSOR_LTHD			800
+#define P_SENSOR_HTHD			970
 
 #define PS_POLLING_RATE			100
 #define ALS_POLLING_RATE		1000
@@ -125,8 +125,8 @@ struct elan_epl_data *epl_data;
 static epl_raw_data	gRawData;
 static int dual_count;
 
-static const char ElanPsensorName[] = "proximity";
-static const char ElanALsensorName[] = "light";
+static const char ElanPsensorName[] = "elan_proximity_sensor";
+static const char ElanALsensorName[] = "elan_light_sensor";
 
 static int psensor_mode_suspend;
 
@@ -347,7 +347,7 @@ static void elan_epl_als_rawdata(void)
 	LOG_INFO("-------------------  ALS raw = %d, lux = %d\n\n",
 		gRawData.als_ch1_raw, lux);
 	ls_data_changed = 1;
-	input_report_abs(epld->als_input_dev, ABS_MISC, lux);
+	input_report_abs(epld->als_input_dev, ABS_PRESSURE, lux);
 	input_sync(epld->als_input_dev);
 }
 
@@ -826,7 +826,7 @@ static ssize_t light_enable_store(struct device *dev,
 
 /*----------------------------------------------------------------------------*/
 static struct device_attribute dev_attr_light_enable =
-__ATTR(enable, S_IRWXUGO,
+__ATTR(active, S_IRWXUGO,
 	   light_enable_show, light_enable_store);
 
 static struct attribute *light_sysfs_attrs[] = {
@@ -860,9 +860,9 @@ static int lightsensor_setup(struct elan_epl_data *epld)
 #endif
 	set_bit(EV_ABS, epld->als_input_dev->evbit);
 #if 1
-	set_bit(ABS_MISC, epld->als_input_dev->absbit); /* Proximity */
+	set_bit(ABS_PRESSURE, epld->als_input_dev->absbit); /* Proximity */
 #endif
-	input_set_abs_params(epld->als_input_dev, ABS_MISC, 0, 65535, 0, 0);
+	input_set_abs_params(epld->als_input_dev, ABS_PRESSURE, 0, 65535, 0, 0);
 #if 1
 	input_set_drvdata(epld->als_input_dev, epld->client);
 #endif
@@ -924,7 +924,7 @@ static ssize_t proximity_enable_store(struct device *dev,
 
 /*----------------------------------------------------------------------------*/
 static struct device_attribute dev_attr_ps_enable =
-__ATTR(enable, S_IRWXUGO, proximity_enable_show, proximity_enable_store);
+__ATTR(active, S_IRWXUGO, proximity_enable_show, proximity_enable_store);
 
 static struct attribute *proximity_sysfs_attrs[] = {
 	&dev_attr_ps_enable.attr,
@@ -1146,6 +1146,12 @@ static int elan_sensor_probe(struct i2c_client *client,
 		err = -ENOTSUPP;
 		goto i2c_fail;
 	}
+
+	if (i2c_smbus_read_byte_data(client, 0x00) < 0) {
+		dev_err(&client->dev, "epl2182 sensor not found\n");
+		goto i2c_fail;
+	}
+
 	LOG_INFO("chip id REG 0x00 value = %8x\n",
 		i2c_smbus_read_byte_data(client, 0x00));
 	LOG_INFO("chip id REG 0x01 value = %8x\n",

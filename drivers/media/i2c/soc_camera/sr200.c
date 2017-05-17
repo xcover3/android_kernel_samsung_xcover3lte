@@ -17,7 +17,6 @@
 #include <linux/platform_data/camera-mmp.h>
 #include <linux/v4l2-mediabus.h>
 #include "sr200.h"
-#include "sr200pc20m_regs.h"
 
 MODULE_DESCRIPTION("SR200 Camera Driver");
 MODULE_LICENSE("GPL");
@@ -25,10 +24,6 @@ MODULE_LICENSE("GPL");
 static int debug;
 module_param(debug, int, 0644);
 
-#ifdef CONFIG_LOAD_FILE
-static int sr200_regs_table_write(struct i2c_client *c, char *name);
-static int sr200_regs_table_init(void);
-#endif
 static const struct sr200_datafmt sr200_colour_fmts[] = {
 	{V4L2_MBUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_JPEG},
 	{V4L2_MBUS_FMT_VYUY8_2X8, V4L2_COLORSPACE_JPEG},
@@ -37,8 +32,6 @@ static const struct sr200_datafmt sr200_colour_fmts[] = {
 };
 
 static int video_mode;
-static int video_mode_previous;
-static int width_previous, height_previous;
 static struct sr200_regval *regs_resolution;
 static struct sr200_regval *regs_display_setting;
 
@@ -55,7 +48,6 @@ static struct v4l2_ctrl_config sr200_ctrl_video_mode_cfg = {
 };
 
 static struct sr200_regval *regs_res_all[] = {
-	[SR200_FMT_QVGA] = regs_res_qvga_vt,
 	[SR200_FMT_VGA] = regs_res_vga,
 /*	[SR200_FMT_800X600] = regs_res_800x600,*/
 	[SR200_FMT_2M] = regs_res_2m,
@@ -68,30 +60,6 @@ static struct sr200 *to_sr200(const struct i2c_client
 				struct sr200, subdev);
 }
 
-extern int camera_antibanding_get (void);
-static int sr130pc10_copy_files_for_60hz(void){
-#define COPY_FROM_60HZ_TABLE(TABLE_NAME, ANTI_BANDING_SETTING) \
-	memcpy (TABLE_NAME, TABLE_NAME##_##ANTI_BANDING_SETTING, \
-			sizeof(TABLE_NAME))
-	printk("%s: Enter \n",__func__);
-	COPY_FROM_60HZ_TABLE (regs_start_setting, 60hz);
-	COPY_FROM_60HZ_TABLE (regs_res_vga, 60hz);
-	COPY_FROM_60HZ_TABLE (regs_res_vga_cam, 60hz);
-	COPY_FROM_60HZ_TABLE (regs_res_vga_vt, 60hz);
-	COPY_FROM_60HZ_TABLE (regs_res_auto_fps, 60hz);
-	printk("%s: copy done!\n", __func__);
-}
-static int sr130pc10_check_table_size_for_60hz(void){
-#define IS_SAME_NUM_OF_ROWS(TABLE_NAME) \
-	(sizeof(TABLE_NAME) == sizeof(TABLE_NAME##_60hz))
-	if ( !IS_SAME_NUM_OF_ROWS(regs_start_setting) ) return (-1);
-	if ( !IS_SAME_NUM_OF_ROWS(regs_res_vga) ) return (-2);
-	if ( !IS_SAME_NUM_OF_ROWS(regs_res_vga_cam) ) return (-3);
-	if ( !IS_SAME_NUM_OF_ROWS(regs_res_vga_vt) ) return (-4);
-	if ( !IS_SAME_NUM_OF_ROWS(regs_res_auto_fps) ) return (-5);
-	printk("%s: Success !\n", __func__);
-	return 0;
-}
 static int sr200_i2c_read(struct i2c_client *client, u8 reg, u8 *val)
 {
 	int ret;
@@ -162,22 +130,15 @@ static int sr200_write_raw_array(struct v4l2_subdev *sd,
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
-#ifdef CONFIG_LOAD_FILE
-	ret = sr200_regs_table_write(client, name);
-#else
 
-	while (msg->addr != SR200_TERM || msg->val != SR200_TERM) {
-		if(msg->addr == SR200_TERM) {
-			mdelay(10 * msg->val);
-		} else {
+	while (msg->addr != SR200_TERM) {
 		ret = sr200_i2c_write(client, msg->addr, msg->val);
 		if (ret < 0)
 			break;
-		}
 		/* Assume that msg->addr is always less than 0xfffc */
 		msg++;
 	}
-#endif
+
 	return ret;
 }
 
@@ -294,38 +255,12 @@ static int sr200_s_fmt(struct v4l2_subdev *sd,
 			 struct v4l2_mbus_framefmt *mf)
 {
 	int ret = 0;
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct sr200 *sr200 = to_sr200(client);
-#ifdef CONFIG_LOAD_FILE
-	switch (video_mode) {
-	case VIDEO_TO_NORMAL:
-		regs_resolution_name = "regs_res_auto_fps";
-		break;
-	case NORMAL_TO_VIDEO:
-		regs_resolution_name = "regs_res_vga_cam";
-		break;
-	case VIDEO_TO_CALL:
-		regs_resolution_name = "regs_res_qvga_vt";
-		break;
-	default:
-		if (mf->width == 640)
-		regs_resolution_name = "regs_res_vga";
-		else
-		regs_resolution_name = "regs_res_2m";
-		break;
-	}
-#endif
+
 	/*
 	 * for sr200 sensor output uyvy, if change, pls open this
 	 * ret |= sr200_write_raw_array(sd, regs_display_setting);
 	 */
-	if(video_mode_previous != video_mode || width_previous != sr200->rect.width ||
-			height_previous != sr200->rect.height) {
 	ret = sr200_write_raw_array(sd, regs_resolution);
-		video_mode_previous = video_mode;
-		width_previous = sr200->rect.width;
-		height_previous = sr200->rect.height;
-	}
 	/* restore video_mode to normal preview status */
 	video_mode = NORMAL_STATUS;
 	return ret;
@@ -381,7 +316,7 @@ static int sr200_set_video_mode(int value)
 		regs_resolution = regs_res_vga_cam;
 		break;
 	case VIDEO_TO_CALL:
-		regs_resolution = regs_res_qvga_vt;
+		regs_resolution = regs_res_vga_vt;
 		break;
 	default:
 		value = NORMAL_STATUS;
@@ -395,23 +330,7 @@ static int sr200_set_video_mode(int value)
 static int sr200_init(struct v4l2_subdev *sd, u32 plat)
 {
 	int ret;
-#ifdef CONFIG_LOAD_FILE
-	ret= sr200_regs_table_init();
-	if (ret > 0){		
-		printk("***** sr200_regs_table_init  FAILED. Check the Filie in MMC\n");
-		return ret;
-	}
-	ret =0;
-#endif
-	if(camera_antibanding_get() == 3) { /* CAM_BANDFILTER_60HZ  = 3 */
-		ret = sr130pc10_check_table_size_for_60hz();
-		if(ret != 0) {
-			printk(KERN_ERR "%s: Fail - the table num is %d \n", __func__, ret);
-		}
-		sr130pc10_copy_files_for_60hz();
-	}
 	ret = sr200_write_raw_array(sd, regs_start_setting);
-	video_mode_previous = NORMAL_STATUS;
 	return ret;
 }
 
@@ -465,100 +384,6 @@ static struct v4l2_subdev_ops sr200_subdev_ops = {
 	.core = &sr200_subdev_core_ops,
 	.video = &sr200_subdev_video_ops,
 };
-#ifdef CONFIG_LOAD_FILE
-#include <linux/vmalloc.h>
-#include <linux/fs.h>
-#include <linux/mm.h>
-#include <linux/slab.h>
-#include <asm/uaccess.h>
-static char *sr200_regs_table = NULL;
-static int sr200_regs_table_size;
-static int sr200_regs_table_init(void)
-{
-	struct file *filp;
-	char *dp;
-	long l;
-	loff_t pos;
-	int ret;
-	mm_segment_t fs = get_fs();
-	printk("***** %s %d\n", __func__, __LINE__);
-	set_fs(get_ds());
-	filp = filp_open("/data/media/0/sr200pc20m_regs.h", O_RDONLY, 0);
-	if (IS_ERR(filp)) {
-		printk("***** file open error\n");
-		return 1;
-	}
-	else
-		printk(KERN_ERR "***** File is opened \n");
-	l = filp->f_path.dentry->d_inode->i_size;	
-	printk("l = %ld\n", l);
-	dp = kmalloc(l, GFP_KERNEL);
-	if (dp == NULL) {
-		printk("*****Out of Memory\n");
-		filp_close(filp, current->files);
-		return 1;
-	}
-	pos = 0;
-	memset(dp, 0, l);
-	ret = vfs_read(filp, (char __user *)dp, l, &pos);
-	if (ret != l) {
-		printk("*****Failed to read file ret = %d\n", ret);
-		kfree(dp);
-		filp_close(filp, current->files);
-		return 1;
-	}
-	filp_close(filp, current->files);
-	set_fs(fs);
-	sr200_regs_table = dp;
-	sr200_regs_table_size = l;
-	*((sr200_regs_table + sr200_regs_table_size) - 1) = '\0';
-	printk("*****Compeleted %s %d\n", __func__, __LINE__);
-	return 0;
-}
-void sr200_regs_table_exit(void)
-{
-	if (sr200_regs_table) {
-		kfree(sr200_regs_table);
-		sr200_regs_table = NULL;
-		sr200_regs_table_size = 0;
-	}
-	else
-		printk("*****sr200_regs_table is already null\n");
-	printk("*****%s done\n", __func__);
-}
-static int sr200_regs_table_write(struct i2c_client *c, char *name)
-{
-	char *start, *end, *reg;//, *data;	
-	unsigned short addr, value;
-	char reg_buf[7], data_buf[7];
-	value = 0;
-	printk("*****%s entered.\n", __func__);
-	*(data_buf + 6) = '\0';
-	start = strstr(sr200_regs_table, name);
-	end = strstr(start, "};");
-	while (1) {	
-		reg = strstr(start,"{0x");		
-		if (reg)
-			start = (reg + 7);
-		if ((reg == NULL) || (reg > end))
-			break;
-			memcpy(reg_buf, (reg + 1), 6);
-			memcpy(data_buf, (reg + 7), 6);
-			addr = (unsigned short)simple_strtoul(reg_buf, NULL, 16);
-			value = (unsigned short)simple_strtoul(data_buf, NULL, 16);
-#if 1	
-			{
-				if(sr200_write(c, addr, value) < 0 )
-				{
-					printk("<=PCAM=> %s fail on sensor_write\n", __func__);
-				}
-			}
-#endif
-	}
-	printk(KERN_ERR "***** Writing [%s] Ended\n",name);
-	return 0;
-}
-#endif  /* CONFIG_LOAD_FILE */
 
 static int sr200_detect(struct i2c_client *client)
 {

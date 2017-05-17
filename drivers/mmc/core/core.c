@@ -47,12 +47,6 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 
-#ifdef CONFIG_MMC_SUPPORT_STLOG
-#include <linux/stlog.h>
-#else
-#define ST_LOG(fmt,...)
-#endif
-
 /* If the device is not responding */
 #define MMC_CORE_TIMEOUT_MS	(10 * 60 * 1000) /* 10 minute timeout */
 
@@ -64,16 +58,6 @@
 
 static struct workqueue_struct *workqueue;
 static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
-
-/*
-* Samsung DFMS class for sd insert detect
-*/
-
-extern struct class *sec_class;
-int is_sdcard_status = false;
-int sec_sdcard_dev_t_check=false;
-#define SEC_SDCARD_INDEX	1
-struct device *sec_sdcard_dev_t;
 
 /*
  * Enabling software CRCs on the data blocks can be a significant (30%)
@@ -807,12 +791,7 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 	if (data->flags & MMC_DATA_WRITE)
 		mult <<= card->csd.r2w_factor;
 
-	/* max time value is 4.2s */
-	if ((card->csd.tacc_ns/1000 * mult) > 4294967)
-		data->timeout_ns = 0xffffffff;
-	else
-		data->timeout_ns = card->csd.tacc_ns * mult;
-
+	data->timeout_ns = card->csd.tacc_ns * mult;
 	data->timeout_clks = card->csd.tacc_clks * mult;
 
 	/*
@@ -2178,16 +2157,6 @@ int mmc_erase(struct mmc_card *card, unsigned int from, unsigned int nr,
 	if (to <= from)
 		return -EINVAL;
 
-	/* to set the address in 16k (32sectors) */
-	if(arg == MMC_TRIM_ARG) {
-		if ((from % 32) != 0)
-			from = ((from >> 5) + 1) << 5;
-
-		to = (to >> 5) << 5;
-		if (from >= to)
-			return 0;
-	}
-
 	/* 'from' and 'to' are inclusive */
 	to -= 1;
 
@@ -2226,8 +2195,6 @@ EXPORT_SYMBOL(mmc_can_discard);
 
 int mmc_can_sanitize(struct mmc_card *card)
 {
-	return 0;
-
 	if (!mmc_can_trim(card) && !mmc_can_erase(card))
 		return 0;
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_SANITIZE)
@@ -2468,17 +2435,18 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 	 * if the card is being re-initialized, just send it.  CMD52
 	 * should be ignored by SD/eMMC cards.
 	 */
-	sdio_reset(host);
+	if (!(host->caps2 & MMC_CAP2_SKIP_SDIO))
+		sdio_reset(host);
 	mmc_go_idle(host);
 
 	mmc_send_if_cond(host, host->ocr_avail);
 
 	/* Order's important: probe SDIO, then SD, then MMC */
-	if (!mmc_attach_sdio(host))
+	if (!(host->caps2 & MMC_CAP2_SKIP_SDIO) && !mmc_attach_sdio(host))
 		return 0;
-	if (!mmc_attach_sd(host))
+	if (!(host->caps2 & MMC_CAP2_SKIP_SD) && !mmc_attach_sd(host))
 		return 0;
-	if (!mmc_attach_mmc(host))
+	if (!(host->caps2 & MMC_CAP2_SKIP_MMC) && !mmc_attach_mmc(host))
 		return 0;
 
 	mmc_power_off(host);
@@ -2512,7 +2480,6 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 	if (ret) {
 		mmc_card_set_removed(host->card);
 		pr_debug("%s: card remove detected\n", mmc_hostname(host));
-		ST_LOG("<%s> %s: card remove detected\n", __func__,mmc_hostname(host));
 	}
 
 	return ret;
@@ -2552,25 +2519,6 @@ int mmc_detect_card_removed(struct mmc_host *host)
 	return ret;
 }
 EXPORT_SYMBOL(mmc_detect_card_removed);
-
-/*
-*Samsung DFMS class for sd insert detect
-*/
-
-static ssize_t sec_sdcard_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	int count;
-
-	if(is_sdcard_status)
-		count = sprintf(buf,"%s\n","Insert");
-	else
-		count = sprintf(buf,"%s\n","Remove");
-
-	printk("[MMC_TEST] %s is_sdcard_status: %d \n", __func__, is_sdcard_status);
-	return count;
-}
-
-static DEVICE_ATTR(status, 0444, sec_sdcard_show, NULL);
 
 void mmc_rescan(struct work_struct *work)
 {
@@ -2626,35 +2574,6 @@ void mmc_rescan(struct work_struct *work)
 	 */
 	mmc_bus_put(host);
 
-	/*
-	*Samsung DFMS class for sd insert detect
-	*/
-
-	if (host->index == SEC_SDCARD_INDEX) {
-		if (host->ops->get_cd && host->ops->get_cd(host) == 0)
-			is_sdcard_status = 0;
-		else
-			is_sdcard_status = 1;
-
-		if (!sec_class) {
-			sec_class = class_create(THIS_MODULE, "sec");
-			if (IS_ERR(sec_class))
-				pr_err("[MMC] Class(sec) Creating Fail!!!\n");
-		}
-
-		if (sec_sdcard_dev_t == NULL && sec_class) {
-			printk("%s :  device_create sdcard \n", mmc_hostname(host));
-			sec_sdcard_dev_t = device_create(sec_class, NULL, 0, NULL, "sdcard");
-
-			if (IS_ERR(sec_sdcard_dev_t))
-				pr_err("Failed to create sdcard sysfs dev\n");
-
-			if(device_create_file(sec_sdcard_dev_t, &dev_attr_status) < 0)
-				printk("Failed to create device file (%s)!\n",dev_attr_status.attr.name);
-					dev_set_drvdata(sec_sdcard_dev_t, host);
-		}
-	}
-
 	if (!(host->caps & MMC_CAP_NONREMOVABLE) && host->ops->get_cd &&
 			host->ops->get_cd(host) == 0) {
 		mmc_claim_host(host);
@@ -2663,21 +2582,12 @@ void mmc_rescan(struct work_struct *work)
 		goto out;
 	}
 
-	ST_LOG("<%s> %s insertion detected",__func__,host->class_dev.kobj.name);
-
 	mmc_claim_host(host);
 	for (i = 0; i < ARRAY_SIZE(freqs); i++) {
 		if (!mmc_rescan_try_freq(host, max(freqs[i], host->f_min))) {
-			if(host->index==SEC_SDCARD_INDEX)
-				is_sdcard_status=1;
-
 			extend_wakelock = true;
 			break;
 		}
-
-		if(host->index==SEC_SDCARD_INDEX)
-			is_sdcard_status=0;
-
 		if (freqs[i] <= host->f_min)
 			break;
 	}
@@ -2930,81 +2840,6 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 	return 0;
 }
 #endif
-
-#define MIN_WAIT_MS	5
-static int mmc_wait_trans_state(struct mmc_card *card, unsigned int wait_ms)
-{
-	int waited = 0;
-	int status = 0;
-
-	mmc_send_status(card, &status);
-
-	while (R1_CURRENT_STATE(status) != R1_STATE_TRAN) {
-		if (waited > wait_ms)
-			return 0;
-		mdelay(MIN_WAIT_MS);
-		waited += MIN_WAIT_MS;
-		mmc_send_status(card, &status);
-	}
-	return waited;
-}
-
-/*
- * Turn the bkops mode ON/OFF.
- */
-int mmc_bkops_enable(struct mmc_host *host, u8 value)
-{
-	struct mmc_card *card = host->card;
-	unsigned long flags;
-	int err = 0;
-	u8 ext_csd[512];
-
-	if (!card)
-		return err;
-
-	mmc_claim_host(host);
-
-	/* read ext_csd to get EXT_CSD_BKOPS_EN field value */
-	err = mmc_send_ext_csd(card, ext_csd);
-	if (err) {
-		mmc_wait_trans_state(card, 100);
-		err = mmc_send_ext_csd(card, ext_csd);
-		if (err) {
-			pr_err("%s: error %d sending ext_csd\n",
-					mmc_hostname(card->host), err);
-			goto bkops_out;
-		}
-	}
-
-	/* set value to put EXT_CSD_BKOPS_EN field */
-	value |= ext_csd[EXT_CSD_BKOPS_EN] & 0x1;
-	err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
-			 EXT_CSD_BKOPS_EN, value,
-			 card->ext_csd.generic_cmd6_time);
-	if (err) {
-		pr_err("%s: bkops mode error %d\n", mmc_hostname(host), err);
-		goto bkops_out;
-	}
-
-	/* read ext_csd again to get EXT_CSD_BKOPS_EN field value */
-	mmc_wait_trans_state(card, 20);
-	err = mmc_send_ext_csd(card, ext_csd);
-
-	if (!err) {
-		spin_lock_irqsave(&card->bkops_lock, flags);
-		card->bkops_enable = ext_csd[EXT_CSD_BKOPS_EN];
-		spin_unlock_irqrestore(&card->bkops_lock, flags);
-	} else {
-		pr_err("%s: error %d confirming ext_csd value\n",
-				mmc_hostname(card->host), err);
-	}
-
-bkops_out:
-	mmc_release_host(host);
-
-	return err;
-}
-EXPORT_SYMBOL(mmc_bkops_enable);
 
 /**
  * mmc_init_context_info() - init synchronization context

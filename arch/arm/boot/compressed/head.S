@@ -11,6 +11,10 @@
 #include <linux/linkage.h>
 #include <asm/assembler.h>
 
+#ifdef CONFIG_CPU_PXA1908
+#include "../../kernel/entry-el2.S"
+#endif
+
 	.arch	armv7-a
 /*
  * Debugging stuff
@@ -122,7 +126,12 @@
 		.arm				@ Always enter in ARM state
 start:
 		.type	start,#function
+#ifdef CONFIG_CPU_PXA1908
+		.word 0x1400000c		@ b 1f (0x30 forward)
+		.rept 6
+#else
 		.rept	7
+#endif
 		mov	r0, r0
 		.endr
    ARM(		mov	r0, r0		)
@@ -135,6 +144,9 @@ start:
 		.word	_edata			@ zImage end address
  THUMB(		.thumb			)
 1:
+#ifdef CONFIG_CPU_PXA1908
+		el2_setup
+#endif
  ARM_BE8(	setend	be )			@ go BE8 if compiled for BE8
 		mrs	r9, cpsr
 #ifdef CONFIG_ARM_VIRT_EXT
@@ -738,7 +750,7 @@ __armv7_mmu_cache_on:
 		orrne	r0, r0, #1		@ MMU enabled
 		movne	r1, #0xfffffffd		@ domain 0 = client
 		bic     r6, r6, #1 << 31        @ 32-bit translation system
-		bic     r6, r6, #3 << 0         @ use only ttbr0
+		bic     r6, r6, #7 << 0         @ use only ttbr0
 		mcrne	p15, 0, r3, c2, c0, 0	@ load page table pointer
 		mcrne	p15, 0, r0, c8, c7, 0	@ flush I,D TLBs
 		mcr	p15, 0, r0, c7, c5, 4	@ ISB

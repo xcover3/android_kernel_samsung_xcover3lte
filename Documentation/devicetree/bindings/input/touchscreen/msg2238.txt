@@ -1,0 +1,23 @@
+* MSG2238 touchscreen driver
+
+Required properties:
+- compatible: must be "mstar,msg2238"
+
+Example:
+
+	twsi1: i2c@d4010800 {
+		mstar@26 {
+			compatible = "mstar,msg2238";
+			pinctrl-names = "default";
+			pinctrl-0 = <&touch_pins>;
+			reg = <0x26>;
+			interrupt-parent = <&gpio>;
+			interrupts = <72 0x1>;
+			mstar,abs-x-max = <720>;
+			mstar,abs-y-max = <1280>;
+			mstar,irq-gpios = <&gpio 72 0>;
+			mstar,reset-gpios = <&gpio 75 0>;
+			mstar,v_tsp-supply = <&ldo11>;
+			status = "disabled";
+		};
+	};

@@ -269,9 +269,11 @@ char *wr_pr_debug_begin(u8 const *data, u32 len, char *string)
 {
 	int ii;
 	string = kmalloc(len * 2 + 1, GFP_KERNEL);
-	for (ii = 0; ii < len; ii++)
-		sprintf(&string[ii * 2], "%02X", data[ii]);
-	string[len * 2] = 0;
+	if (string != NULL) {
+		for (ii = 0; ii < len; ii++)
+			sprintf(&string[ii * 2], "%02X", data[ii]);
+		string[len * 2] = 0;
+	}
 	return string;
 }
 
@@ -325,12 +327,13 @@ int mpu_memory_write(struct inv_mpu_state *st, u8 mpu_addr, u16 mem_addr,
 	INV_I2C_INC_MPUWRITE(3 + 3 + (2 + len));
 #if CONFIG_DYNAMIC_DEBUG
 	{
-		char *write = 0;
-		pr_debug("%s WM%02X%02X%02X%s%s - %d\n", st->hw->name,
-			 mpu_addr, bank[1], addr[1],
-			 wr_pr_debug_begin(data, len, write),
-			 wr_pr_debug_end(write),
-			 len);
+		char *write = NULL;
+		write = wr_pr_debug_begin(data, len, write);
+		if (write != NULL) {
+			pr_debug("%s WM%02X%02X%02X%s - %d\n", st->hw->name,
+				 mpu_addr, bank[1], addr[1], write, len);
+			wr_pr_debug_end(write);
+		}
 	}
 #endif
 
@@ -397,11 +400,13 @@ int mpu_memory_read(struct inv_mpu_state *st, u8 mpu_addr, u16 mem_addr,
 	INV_I2C_INC_MPUREAD(len);
 #if CONFIG_DYNAMIC_DEBUG
 	{
-		char *read = 0;
-		pr_debug("%s RM%02X%02X%02X%02X - %s%s\n", st->hw->name,
-			 mpu_addr, bank[1], addr[1], len,
-			 wr_pr_debug_begin(data, len, read),
-			 wr_pr_debug_end(read));
+		char *read = NULL;
+		read = wr_pr_debug_begin(data, len, read);
+		if (read != NULL) {
+			pr_debug("%s RM%02X%02X%02X%02X - %s\n", st->hw->name,
+				 mpu_addr, bank[1], addr[1], len, read);
+			wr_pr_debug_end(read);
+		}
 	}
 #endif
 

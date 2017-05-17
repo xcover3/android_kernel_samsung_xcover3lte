@@ -980,6 +980,18 @@ woal_cfg80211_deinit_p2p(moal_private *priv)
 		ret = -EFAULT;
 		goto done;
 	}
+	/* unregister mgmt frame from FW */
+	if (priv->mgmt_subtype_mask) {
+		priv->mgmt_subtype_mask = 0;
+		if (woal_reg_rx_mgmt_ind(priv, MLAN_ACT_SET,
+					 &priv->mgmt_subtype_mask,
+					 MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR,
+			       "deinit_p2p: fail to unregister mgmt frame\n");
+			ret = -EFAULT;
+			goto done;
+		}
+	}
 	/* cancel previous remain on channel */
 	if (priv->phandle->remain_on_channel) {
 		remain_priv =
@@ -1958,7 +1970,7 @@ woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant)
 	radio->sub_command = MLAN_OID_ANT_CFG;
 	req->req_id = MLAN_IOCTL_RADIO_CFG;
 	req->action = MLAN_ACT_SET;
-	radio->param.antenna = tx_ant;
+	radio->param.ant_cfg_1x1.antenna = tx_ant;
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (MLAN_STATUS_SUCCESS != status) {

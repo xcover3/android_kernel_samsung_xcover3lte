@@ -30,9 +30,7 @@
 #include <linux/spinlock.h>
 #include <linux/list.h>
 #include <linux/skbuff.h>
-#include "common_datastub.h"
-#include "data_channel_kernel.h"
-#include "psd_data_channel.h"
+#include "psdatastub.h"
 #include "ppprd_linux.h"
 
 #define INVALID_CID 0xff
@@ -250,7 +248,7 @@ static int ppprd_open(struct inode *inode, struct file *filp)
 	if (ppprd_open_count) {
 		ppprd_open_count++;
 		spin_unlock(&ppprd_init_lock);
-		DPRINT("ppprd is opened by process id: %d(%s)\n",
+		DPRINT("ppprd is opened by process id: %d(\"%s\")\n",
 			current->tgid, current->comm);
 		return 0;
 	}
@@ -260,7 +258,7 @@ static int ppprd_open(struct inode *inode, struct file *filp)
 	spin_unlock(&ppprd_init_lock);
 
 	LEAVE();
-	DBGMSG("ppprd is opened by process id: %d(%s)\n",
+	DBGMSG("ppprd is opened by process id: %d(\"%s\")\n",
 		current->tgid, current->comm);
 	return 0;
 }
@@ -274,7 +272,7 @@ static int ppprd_release(struct inode *inode, struct file *filp)
 	spin_unlock(&ppprd_init_lock);
 
 	LEAVE();
-	DBGMSG("ppprd is closed by process id: %d(%s)\n",
+	DBGMSG("ppprd is closed by process id: %d(\"%s\")\n",
 		current->tgid, current->comm);
 	return 0;
 }
@@ -306,7 +304,7 @@ static ssize_t ppprd_read(struct file *filp, char __user *buf,
 		/* nothing to read, wait event*/
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
-		DBGMSG("%s reading: going to sleep\n", current->comm);
+		DBGMSG("\"%s\" reading: going to sleep\n", current->comm);
 		if (wait_event_interruptible(dev->readq, dev->have_data > 0))
 			return -ERESTARTSYS;
 		/* otherwise loop, but first reqaccquire the lock */
@@ -355,19 +353,19 @@ static ssize_t ppprd_write(struct file *filp, const char __user *buf,
 
 	count = min_t(size_t, count, PPP_FRAME_SIZE);
 
-	/* get count bytes data from PPPSRV, then send to CP,
-	 * use sendPSDData which defined in cidatastub */
+	/* get count bytes data from PPPSRV, then send to CP */
 	if (modem_current_cid != INVALID_CID) {
 		skb = alloc_skb(count, GFP_ATOMIC);
 		if (!skb) {
-			ERRMSG("%s out of memory\n", current->comm);
+			ERRMSG("\"%s\" out of memory\n", current->comm);
 			return -ENOMEM;
 		}
 		if (copy_from_user(skb_put(skb, count), buf, count)) {
 			kfree_skb(skb);
 			return -EFAULT;
 		}
-		ret = sendPSDData(modem_current_cid, skb);
+		skb->queue_mapping = psd_select_queue(skb);
+		ret = psd_data_tx(modem_current_cid, skb);
 		if (ret) {
 			if (ret == PSD_DATA_SEND_BUSY)
 				kfree_skb(skb);

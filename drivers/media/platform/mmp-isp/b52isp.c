@@ -35,9 +35,10 @@
 #include <media/mrvl-camera.h>
 #include <media/b52-sensor.h>
 #include <uapi/media/b52_api.h>
+#include <media/b52socisp/host_isd.h>
 #include <linux/workqueue.h>
 #ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-#include <linux/platform_data/camera.h>
+#include <linux/ddr_upthreshold.h>
 #endif
 
 #include "plat_cam.h"
@@ -52,6 +53,8 @@
 #define PATH_PER_PIPE 3
 
 static struct pm_qos_request ddrfreq_qos_req_min;
+static struct pm_qos_request ddrfreq_qos_req_upthrd_max;
+static s32 ddrfreq_upthrd_value;
 
 static void b52isp_tasklet(unsigned long data);
 
@@ -259,27 +262,6 @@ static struct isp_res_req b52axi_req[] = {
 	{ISP_RESRC_END}
 };
 
-static void __maybe_unused dump_mac_reg(void __iomem *mac_base)
-{
-	char buffer[0xD0];
-	int i;
-	for (i = 0; i < 0xD0; i++)
-		buffer[i] = readb(mac_base + i);
-
-	d_inf(4, "dump MAC registers from %p", mac_base);
-	for (i = 0; i < 0xD0; i += 8) {
-		d_inf(4, "[0x%02X..0x%02X] = %02X %02X %02X %02X     %02X %02X %02X %02X", i, i + 7,
-			buffer[i + 0],
-			buffer[i + 1],
-			buffer[i + 2],
-			buffer[i + 3],
-			buffer[i + 4],
-			buffer[i + 5],
-			buffer[i + 6],
-			buffer[i + 7]);
-	}
-}
-
 void b52isp_set_ddr_qos(s32 value)
 {
 	pm_qos_update_request(&ddrfreq_qos_req_min, value);
@@ -288,38 +270,22 @@ EXPORT_SYMBOL(b52isp_set_ddr_qos);
 
 static void b52isp_ddr_threshold_work(struct work_struct *work)
 {
-#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	unsigned long val;
-	u32 threshold;
+	s32 val;
 	struct b52isp *b52isp = container_of(work, struct b52isp, work);
 
-	if (b52isp->ddr_threshold_up) {
-		val = CAMFREQ_POSTCHANGE_UP;
-		threshold = 30;
-	} else {
-		threshold = 0;
-		val = CAMFREQ_POSTCHANGE_DOWN;
-	}
+	if (b52isp->ddr_threshold_up)
+		val = ddrfreq_upthrd_value;
+	else
+		val = PM_QOS_DEFAULT_VALUE;
 
-	/* Need to call DDR threshold notifier in process context */
-	srcu_notifier_call_chain(&b52isp->nh, val, &threshold);
-#endif
+	pm_qos_update_request(&ddrfreq_qos_req_upthrd_max, val);
 }
 
 void b52isp_set_ddr_threshold(struct work_struct *work, int up)
 {
-	unsigned long irq_flags;
-	static DEFINE_SPINLOCK(lock);
 	struct b52isp *b52isp = container_of(work, struct b52isp, work);
 
-	spin_lock_irqsave(&lock, irq_flags);
-	if (up == b52isp->ddr_threshold_up) {
-		spin_unlock_irqrestore(&lock, irq_flags);
-		return;
-	}
 	b52isp->ddr_threshold_up = up;
-	spin_unlock_irqrestore(&lock, irq_flags);
-
 	schedule_work(&b52isp->work);
 }
 EXPORT_SYMBOL(b52isp_set_ddr_threshold);
@@ -467,16 +433,18 @@ static inline int b52isp_try_apply_cmd(struct b52isp_lpipe *pipe)
 		cmd->src_fmt.sizeimage
 			= vnode->format.fmt.pix_mp.plane_fmt[0].sizeimage;
 	} else {
-		struct v4l2_subdev *sensor = cmd->sensor;
+		struct v4l2_subdev *hst_sd = cmd->hsd;
+		struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
+					MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 		struct v4l2_subdev_format fmt = {
 			.pad = 0,
 			.which = V4L2_SUBDEV_FORMAT_ACTIVE,
 		};
-		ret = v4l2_subdev_call(sensor, pad, get_fmt, NULL, &fmt);
+		ret = v4l2_subdev_call(sd, pad, get_fmt, NULL, &fmt);
 		if (ret < 0)
 			goto err_exit;
 		d_inf(4, "got sensor %s <w%d, h%d, c%X>",
-			sensor->name, fmt.format.width,
+			sd->name, fmt.format.width,
 			fmt.format.height, fmt.format.code);
 
 		ret = b52isp_mfmt_to_pfmt(&cmd->src_fmt, fmt.format);
@@ -572,21 +540,10 @@ int b52isp_idi_change_clock(struct isp_block *block,
 				int w, int h, int fps)
 {
 	int sz = w * h * fps;
-	int rate;
+	int rate, rate_axi;
 	struct clk *axi_clk = block->clock[0];
 	struct clk *pipe_clk = block->clock[2];
 
-	/* Need to refine the frequency */
-	if (sz > 300000000)
-		rate = 416000000;
-	else if (sz > 180000000)
-		rate = 312000000;
-	else if (sz > 100000000)
-		rate = 208000000;
-	else
-		rate = 156000000;
-
-	clk_set_rate(axi_clk, rate);
 	if (sz > 300000000)
 		rate = 499000000;
 	else if (sz > 180000000)
@@ -597,6 +554,16 @@ int b52isp_idi_change_clock(struct isp_block *block,
 		rate = 156000000;
 	clk_set_rate(pipe_clk, rate);
 	b52_set_sccb_clock_rate(clk_get_rate(pipe_clk), 400000);
+
+	/* ISP need axi clk >= pipe_clk */
+	rate = clk_get_rate(pipe_clk);
+	if (rate > 312000000)
+		rate_axi = 416000000;
+	else if (rate > 208000000)
+		rate_axi = 312000000;
+	else
+		rate_axi = 208000000;
+	clk_set_rate(axi_clk, rate_axi);
 
 	d_inf(3, "isp axi clk %lu", clk_get_rate(axi_clk));
 	d_inf(3, "isp pipe clk %lu", clk_get_rate(pipe_clk));
@@ -969,9 +936,9 @@ static int b52isp_path_set_profile(struct isp_subdev *isd)
 			ret = -EPIPE;
 			goto exit;
 		}
-		cur_cmd->sensor =
+		cur_cmd->hsd =
 			media_entity_to_v4l2_subdev(r_pad->entity);
-		d_inf(4, "sensor is %s", cur_cmd->sensor->name);
+		d_inf(4, "host is %s", cur_cmd->hsd->name);
 		break;
 
 	case SDCODE_B52ISP_A1R1:
@@ -2649,6 +2616,7 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 			goto mmu_err;
 	}
 
+	b52_enable_mac_clk(laxi->mac, 1);
 	ret = b52_ctrl_mac_irq(laxi->mac, laxi->port, 1);
 	if (unlikely(ret < 0))
 		goto mac_err;
@@ -2656,6 +2624,7 @@ static int b52_enable_axi_port(struct b52isp_laxi *laxi, int enable,
 	return 0;
 
 mac_err:
+	b52_enable_mac_clk(laxi->mac, 0);
 	if (pvnode->free_mmu_chnl)
 		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 mmu_err:
@@ -2679,6 +2648,7 @@ disable:
 	}
 
 	b52_ctrl_mac_irq(laxi->mac, laxi->port, 0);
+	b52_enable_mac_clk(laxi->mac, 0);
 	if (pvnode->free_mmu_chnl)
 		pvnode->free_mmu_chnl(pcam, &pvnode->mmu_ch_dsc);
 	isp_block_tune_power(&paxi->blk, 0);
@@ -2801,7 +2771,9 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 
 		if ((lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
-			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
+			struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
+						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
 			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
 			struct b52_sensor *sensor = to_b52_sensor(sd);
@@ -2887,7 +2859,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 				}
 				if (lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS)) {
 					paxi->r_type = B52AXI_REVENT_MEMSENSOR;
-					b52isp_set_ddr_qos(528000);
+					b52isp_set_ddr_qos(624000);
 					ret = b52isp_try_apply_cmd(lpipe);
 					if (ret < 0)
 						goto unlock;
@@ -2945,7 +2917,7 @@ static int b52isp_laxi_stream_handler(struct b52isp_laxi *laxi,
 			ret = b52isp_try_apply_cmd(lpipe);
 			lpipe->cur_cmd->flags &= ~BIT(CMD_FLAG_LINEAR_YUV);
 			if (!ret)
-			b52isp_export_cmd_buffer(lpipe->cur_cmd);
+				b52isp_export_cmd_buffer(lpipe->cur_cmd);
 			goto unlock;
 		case CMD_HDR_STILL:
 		case CMD_RAW_PROCESS:
@@ -3119,7 +3091,9 @@ disable_axi:
 		/* stream off sensor and csi */
 		if ((lpipe->cur_cmd->cmd_name != CMD_RAW_PROCESS) &&
 			!(lpipe->cur_cmd->flags & BIT(CMD_FLAG_MS))) {
-			struct v4l2_subdev *sd = lpipe->cur_cmd->sensor;
+			struct v4l2_subdev *hst_sd = lpipe->cur_cmd->hsd;
+			struct v4l2_subdev *sd = host_subdev_get_guest(hst_sd,
+						MEDIA_ENT_T_V4L2_SUBDEV_SENSOR);
 			struct media_pad *csi_pad = media_entity_remote_pad(sd->entity.pads);
 			struct v4l2_subdev *csi_sd = media_entity_to_v4l2_subdev(csi_pad->entity);
 
@@ -3882,6 +3856,37 @@ static irqreturn_t b52isp_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+static ssize_t upthrd_isp_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+
+	return sprintf(buf, "%lu\n", (unsigned long)ddrfreq_upthrd_value);
+}
+
+static ssize_t upthrd_isp_store(struct kobject *kobj,
+			     struct kobj_attribute *attr,
+			     const char *buf, size_t count)
+{
+	unsigned long upthrd_isp;
+	int ret;
+
+	ret = sscanf(buf, "%lu", &upthrd_isp);
+	if ((upthrd_isp >= 100) || (ret != 1)) {
+		d_inf(2, "<ERR> wrong parameter.");
+		d_inf(2, "echo upthrd(0~100) > upthrd_isp");
+		d_inf(2, "For example: echo 30 > upthrd_isp");
+		return -EINVAL;
+	}
+
+	ddrfreq_upthrd_value = upthrd_isp;
+	return count;
+}
+
+static struct kobj_attribute upthrd_isp_attr =
+	__ATTR(upthrd_isp, 0644, upthrd_isp_show, upthrd_isp_store);
+#endif
+
 static const struct of_device_id b52isp_dt_match[] = {
 	{
 		.compatible = "ovt,single-pipeline ISP",
@@ -4007,33 +4012,52 @@ static int b52isp_probe(struct platform_device *pdev)
 		}
 	}
 
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	ret = sysfs_create_file(ddr_upthrd_obj, &upthrd_isp_attr.attr);
+	if (ret) {
+		dev_err(&pdev->dev, "sysfs attr upthrd_isp create failure\n");
+		return ret;
+	}
+#endif
 	ddrfreq_qos_req_min.name = B52ISP_DRV_NAME;
 	pm_qos_add_request(&ddrfreq_qos_req_min,
 				PM_QOS_DDR_DEVFREQ_MIN,
+				PM_QOS_DEFAULT_VALUE);
+
+	ddrfreq_upthrd_value = 30;
+	ddrfreq_qos_req_upthrd_max.name = B52ISP_DRV_NAME;
+	pm_qos_add_request(&ddrfreq_qos_req_upthrd_max,
+				PM_QOS_DDR_DEVFREQ_UPTHRD_MAX,
 				PM_QOS_DEFAULT_VALUE);
 
 	ret = b52isp_setup(b52isp);
 	if (unlikely(ret < 0)) {
 		dev_err(&pdev->dev, "failed to break down %s into isp-subdev\n",
 			B52ISP_NAME);
-		return ret;
+		goto err;
 	}
 
-	srcu_init_notifier_head(&b52isp->nh);
 	INIT_WORK(&b52isp->work, b52isp_ddr_threshold_work);
-#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
-	camfeq_register_dev_notifier(&b52isp->nh);
-#endif
 
 	pm_runtime_enable(b52isp->dev);
 
 	return 0;
+
+err:
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	sysfs_remove_file(ddr_upthrd_obj, &upthrd_isp_attr.attr);
+#endif
+
+	return ret;
 }
 
 static int b52isp_remove(struct platform_device *pdev)
 {
 	struct b52isp *b52isp = platform_get_drvdata(pdev);
 
+#ifdef CONFIG_DEVFREQ_GOV_THROUGHPUT
+	sysfs_remove_file(ddr_upthrd_obj, &upthrd_isp_attr.attr);
+#endif
 	cancel_work_sync(&b52isp->work);
 	pm_runtime_disable(b52isp->dev);
 	dmam_free_coherent(b52isp->dev, META_DATA_SIZE, meta_cpu, meta_dma);

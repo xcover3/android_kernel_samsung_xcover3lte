@@ -14,7 +14,6 @@
 #include <linux/irqchip.h>
 #include <linux/irqchip/mmp.h>
 #include <linux/of_platform.h>
-#include <linux/of_fdt.h>
 #include <linux/clocksource.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
@@ -25,34 +24,10 @@
 
 #include "regs-addr.h"
 #include "mmpx-dt.h"
-/*#ifdef CONFIG_SOC_CAMERA_S5K8AA
 #include "soc_camera_dkb.h"
-#endif*/
-#if defined(CONFIG_MACH_J1LTE)
-#include "soc_camera_j1.h"
-#endif
-#if defined(CONFIG_MACH_J1ACELTE)
-#include "soc_camera_j1ace.h"
-#endif
-#if defined(CONFIG_MACH_XCOVER3LTE)
-#endif
-#ifdef CONFIG_MACH_XCOVER3LTE
-#include "soc_camera_xcover3lte.h"
-#endif
-#ifdef CONFIG_MACH_COREPRIMEVELTE
-#include "soc_camera_coreprimevelte.h"
-#endif 
-#ifdef CONFIG_MACH_J1ACELTE_LTN
-#include "soc_camera_j1ace.h"
-#endif
+
 #ifdef CONFIG_SD8XXX_RFKILL
 #include <linux/sd8x_rfkill.h>
-#endif
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-#include <linux/sec-common.h>
-#endif
-#ifdef CONFIG_PROC_AVC
-#include <linux/proc_avc.h>
 #endif
 
 #ifdef CONFIG_LEDS_REGULATOR
@@ -67,40 +42,34 @@ unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
 static const struct of_dev_auxdata helanx_auxdata_lookup[] __initconst = {
-#ifdef CONFIG_MMP_MAP
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dc00, "mmp-sspa-dai.0", NULL),
 	OF_DEV_AUXDATA("mrvl,mmp-sspa-dai", 0xd128dd00, "mmp-sspa-dai.1", NULL),
-#endif
 	OF_DEV_AUXDATA("marvell,map-card", 0, "sound", NULL),
-/*#ifdef CONFIG_SOC_CAMERA_S5K8AA
-	OF_DEV_AUXDATA("soc-camera-pdrv", 0, "soc-camera-pdrv.0", &soc_camera_desc_0),
-	OF_DEV_AUXDATA("soc-camera-pdrv", 1, "soc-camera-pdrv.1", &soc_camera_desc_1),
-#endif*/
-#ifdef CONFIG_SOC_CAMERA_SR200
+#ifdef CONFIG_SOC_CAMERA_S5K8AA
 	OF_DEV_AUXDATA("soc-camera-pdrv", 0, "soc-camera-pdrv.0", &soc_camera_desc_0),
 #endif
-/*#ifdef CONFIG_SOC_CAMERA_SP0A20_ECS
+#ifdef CONFIG_SOC_CAMERA_SR200
+	OF_DEV_AUXDATA("soc-camera-pdrv", 1, "soc-camera-pdrv.1", &soc_camera_desc_1),
+#endif
+#ifdef CONFIG_SOC_CAMERA_SP0A20_ECS
 	OF_DEV_AUXDATA("soc-camera-pdrv", 2, "soc-camera-pdrv.2",
 			&soc_camera_desc_2),
 #endif
-*/
-
-#if defined (CONFIG_MACH_J1ACELTE) || defined (CONFIG_MACH_J1ACELTE_LTN)
-	OF_DEV_AUXDATA("soc-camera-pdrv", 0, "soc-camera-pdrv.0", &soc_camera_desc_0),
-	OF_DEV_AUXDATA("soc-camera-pdrv", 1, "soc-camera-pdrv.1", &soc_camera_desc_1),
+#ifdef CONFIG_SOC_CAMERA_SP2529_ECS
+	OF_DEV_AUXDATA("soc-camera-pdrv", 3, "soc-camera-pdrv.3",
+			&soc_camera_desc_4),
 #endif
-
 	OF_DEV_AUXDATA("marvell,mmp-disp", 0xd420b000, "mmp-disp", NULL),
 #ifdef CONFIG_SD8XXX_RFKILL
 	OF_DEV_AUXDATA("mrvl,sd8x-rfkill", 0, "sd8x-rfkill", NULL),
-#endif
-#ifdef CONFIG_SENSORS_SEC_THERMISTOR
-	OF_DEV_AUXDATA("samsung,sec-thermistor", 0, "sec-thermistor", NULL),
 #endif
 	OF_DEV_AUXDATA("marvell,pxa27x-keypad", 0xd4012000, "pxa27x-keypad", NULL),
 #ifdef CONFIG_LEDS_REGULATOR
 	OF_DEV_AUXDATA("regulator-leds", 0, "leds-regulator",
 						&keypad_backlight),
+#endif
+#ifdef CONFIG_SPI_PXA2XX
+	OF_DEV_AUXDATA("marvell,pxa910-spi", 0xd401c000, "pxa910-ssp.2", NULL),
 #endif
 	{}
 };
@@ -243,6 +212,26 @@ static void __init pxa1908_sdhc_reset_all(void)
 	__raw_writel(reg_tmp | (1), apmu_base + APMU_SDH0);
 }
 
+#define PMU_USB_CLK_RES_CTRL	0x5c
+static void __init pxa1908_usb_reset_all(void)
+{
+	unsigned int reg_tmp;
+	void __iomem *apmu_base;
+
+	apmu_base = regs_addr_get_va(REGS_ADDR_APMU);
+	if (!apmu_base) {
+		pr_err("failed to get apmu_base va\n");
+		return;
+	}
+
+	/* use bit0 and bit3 to reset all usb controls */
+	__raw_writel(0, apmu_base + PMU_USB_CLK_RES_CTRL);
+	udelay(10);
+	reg_tmp = __raw_readl(apmu_base + PMU_USB_CLK_RES_CTRL);
+	if (reg_tmp)
+		pr_err("failed to clear usb controller\n");
+}
+
 static void __init helanx_irq_init(void)
 {
 	irqchip_init();
@@ -273,103 +262,12 @@ void __init helanx_timer_init(void)
 #endif
 	clocksource_of_init();
 
+	pxa1908_usb_reset_all();
 	pxa1908_sdhc_reset_all();
-}
-
-static u32 __initdata cp_base;
-static u32 __initdata cp_size;
-
-static int __init mmp_cp_fdt_find_info(unsigned long node, const char *uname,
-		int depth, void *data)
-{
-	__be32 *prop;
-	unsigned long len;
-
-	if (!of_flat_dt_is_compatible(node, "marvell,cp-heap"))
-		return 0;
-
-	prop = of_get_flat_dt_prop(node, "cp-base", &len);
-	if (!prop || (len != sizeof(unsigned int))) {
-		pr_err("%s: Can't find cp-base property\n", __func__);
-		return 0;
-	}
-	cp_base = be32_to_cpu(prop[0]);
-
-	prop = of_get_flat_dt_prop(node, "cp-size", &len);
-	if (!prop || (len != sizeof(unsigned int))) {
-		pr_err("%s: Can't find cp-size property\n", __func__);
-		return 0;
-	}
-	cp_size = be32_to_cpu(prop[0]);
-
-	return 1;
-}
-
-static void __init mmp_reserve_cp(void)
-{
-	if (of_scan_flat_dt(mmp_cp_fdt_find_info, NULL)) {
-		BUG_ON(memblock_reserve(cp_base, cp_size) != 0);
-		pr_info("Reserved CP memory : %dMB at %#.8x\n",
-			(unsigned)cp_size/0x100000,
-			(unsigned)cp_base);
-	} else
-		pr_info("Reserved CP memory dt prop fails : %dMB at %#.8x\n",
-			(unsigned)cp_size/0x100000,
-			(unsigned)cp_base);
-
-}
-
-static ulong __initdata gpu_base;
-static ulong __initdata gpu_size;
-
-static int __init mmp_gpu_fdt_find_info(unsigned long node, const char *uname,
-			int depth, void *data)
-{
-	__be32 *prop;
-	unsigned long len;
-	if (!of_flat_dt_is_compatible(node, "marvell,gpu-heap"))
-		return 0;
-
-	prop = of_get_flat_dt_prop(node, "gpu-base", &len);
-	if (!prop || (len != sizeof(unsigned int))) {
-		pr_err("%s: Can't find gpu-base property\n", __func__);
-		return 0;
-	}
-
-	gpu_base = be32_to_cpu(prop[0]);
-
-	prop = of_get_flat_dt_prop(node, "gpu-size", &len);
-	if (!prop || (len != sizeof(unsigned int))) {
-		pr_err("%s: Can't find gpu-size property\n", __func__);
-		return 0;
-	}
-
-	gpu_size = be32_to_cpu(prop[0]);
-
-	return 1;
-}
-
-void __init mmp_reserve_gpumem(void)
-{
-	if (of_scan_flat_dt(mmp_gpu_fdt_find_info, NULL)) {
-		BUG_ON(memblock_reserve(gpu_base, gpu_size));
-		pr_info("Reserved GPU memory: %dMB at %#.8x\n",
-			(unsigned)gpu_size/0x100000,
-			(unsigned)gpu_base);
-	} else
-		pr_info("Reserve GPU memory dt prop fails:: %dMB at %#.8x\n",
-			(unsigned)gpu_size/0x100000,
-			(unsigned)gpu_base);
 }
 
 void __init helanx_init_machine(void)
 {
-#ifdef CONFIG_PROC_AVC
-	sec_avc_log_init();
-#endif
-#ifdef CONFIG_MACH_PXA_SAMSUNG
-	sec_common_init();
-#endif
 	of_platform_populate(NULL, of_default_bus_match_table,
 			     helanx_auxdata_lookup, &platform_bus);
 }
@@ -383,62 +281,34 @@ bool __init helanx_smp_init_ops(void)
 }
 #endif
 
-static ulong __initdata cm3sbuf_base;
-static ulong __initdata cm3sbuf_size;
-
-static int __init mmp_cm3sbuf_fdt_find_info(unsigned long node, const char *uname,
-			int depth, void *data)
+static u32 cp_area_size = 0x02000000;
+static u32 cp_area_addr = 0x06000000;
+static int __init early_cpmem(char *p)
 {
-	__be32 *prop;
-	unsigned long len;
-	if (!of_flat_dt_is_compatible(node, "marvell,cm3sbuf-heap"))
-		return 0;
+	char *endp;
 
-	prop = of_get_flat_dt_prop(node, "cm3sbuf-base", &len);
-	if (!prop || (len != sizeof(unsigned int))) {
-		pr_err("%s: Can't find cm3sbuf-base property\n", __func__);
-		return 0;
-	}
+	cp_area_size = memparse(p, &endp);
+	if (*endp == '@')
+		cp_area_addr = memparse(endp + 1, NULL);
 
-	cm3sbuf_base = be32_to_cpu(prop[0]);
-
-	prop = of_get_flat_dt_prop(node, "cm3sbuf-size", &len);
-	if (!prop || (len != sizeof(unsigned int))) {
-		pr_err("%s: Can't find cm3sbuf-size property\n", __func__);
-		return 0;
-	}
-
-	cm3sbuf_size = be32_to_cpu(prop[0]);
-
-	return 1;
+	return 0;
 }
+early_param("cpmem", early_cpmem);
 
-void __init mmp_reserve_cm3_sbuf_mem(void)
+static void pxa_reserve_cp_memblock(void)
 {
-	if (of_scan_flat_dt(mmp_cm3sbuf_fdt_find_info, NULL)) {
-		BUG_ON(memblock_reserve(cm3sbuf_base, cm3sbuf_size));
-		pr_info("Reserved CM3 shared buffer memory: %dKB at %#.8x\n",
-			(unsigned)cm3sbuf_size/0x400,
-			(unsigned)cm3sbuf_base);
-	} else
-		pr_info("Reserve CM3 shared buffer memory dt prop fails:: %dKB at %#.8x\n",
-			(unsigned)cm3sbuf_size/0x400,
-			(unsigned)cm3sbuf_base);
+	/* Reserve memory for CP */
+	if (cp_area_size) {
+		/* panic when CP memory is larger than 64MB */
+		BUG_ON(cp_area_size > (1 << 26));
+		BUG_ON(memblock_reserve(cp_area_addr, cp_area_size) != 0);
+		pr_info("Reserved CP memory: 0x%x@0x%08x\n", cp_area_size, cp_area_addr);
+	}
 }
 
 static void __init helanx_reserve(void)
 {
-	mmp_reserve_cm3_sbuf_mem();
-	mmp_reserve_fbmem();
-	mmp_reserve_gpumem();
-	mmp_reserve_cp();
-#ifdef CONFIG_SEC_LOG
-	mmp_reserve_seclogmem();
-#endif
-#ifdef CONFIG_SEC_DEBUG
-	mmp_reserve_sec_ftrace_mem();
-#endif
-
+	pxa_reserve_cp_memblock();
 #ifdef CONFIG_MRVL_LOG
 	pxa_reserve_logmem();
 #endif

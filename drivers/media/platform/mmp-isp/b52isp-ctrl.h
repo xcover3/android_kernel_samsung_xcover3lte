@@ -99,8 +99,6 @@ struct b52isp_ctrls {
 	struct v4l2_ctrl *band_step;
 	/* ISP set fps */
 	struct v4l2_ctrl *set_fps;
-	/* ISP set max_expo */
-	struct v4l2_ctrl *max_expo;
 	/* user config data*/
 	struct v4l2_rect af_win;
 	struct b52isp_win metering_roi;

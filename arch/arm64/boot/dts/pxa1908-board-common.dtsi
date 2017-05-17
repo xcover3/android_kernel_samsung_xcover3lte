@@ -277,9 +277,11 @@
 
 				/* as HW design, only SD Card's host has AIB_MMC register */
 				marvell,sdh-quirks2 = <(
+						SDHCI_QUIRK2_HOST_NO_CMD23 |
 						SDHCI_QUIRK2_SET_AIB_MMC |
 						SDHCI_QUIRK2_TUNING_ADMA_BROKEN |
-						SDHCI_QUIRK2_TIMEOUT_SHORT
+						SDHCI_QUIRK2_TIMEOUT_SHORT |
+						SDHCI_QUIRK2_DMA_CLOCK_FORCE_ON
 						)>;
 				marvell,sdh-host-caps2 = <(
 						MMC_CAP2_SKIP_MMC |
@@ -405,6 +407,7 @@
 					&range 55 55 0	/* GPIO0 ~ GPIO54 */
 					&range 110 32 0 /* GPIO67 ~ GPIO98 */
 					&range 52 1 0	/* GPIO124 */
+					&range 6 1 0	/* GPIO65 */
 				>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&mfp_pins_group_0 &mfp_pins_group_1>;
@@ -423,11 +426,7 @@
 				 */
 				mfp_pins_group_0: mfp_pins_group_0 {
 					pinctrl-single,pins = <
-						DF_IO8 AF0
-						DF_IO9 AF0
-						DF_IO10 AF0
-						DF_IO11 AF0
-						DF_IO12 AF0
+						/* DF_IO8 AF0 */
 						DF_IO13 AF0
 						DF_IO15 AF0
 					>;
@@ -449,6 +448,11 @@
 				mfp_pins_group_1: mfp_pins_group_1 {
 					pinctrl-single,pins = <
 						DF_IO14 AF0
+						DF_IO8 AF1 /* GPIO100 */
+						GPIO0 AF0
+						GPIO1 AF0
+						GPIO2 AF0
+						GPIO3 AF0
 					>;
 					DS_MEDIUM;PULL_UP;EDGE_NONE;LPM_NONE;
 				};
@@ -575,8 +579,6 @@
 				sdh1_pmx_func3: sdh1_pmx_func3 {
 						pinctrl-single,pins = <
 							GPIO7 AF0
-							GPIO71 AF0
-							GPIO14 AF0 /* WIFI_DCDC_EN */
 						>;
 						DS_MEDIUM;PULL_FLOAT;EDGE_NONE;LPM_NONE;
 				};
@@ -644,6 +646,26 @@
 					DS_FAST;PULL_NONE;EDGE_NONE;LPM_DRIVE_LOW;
 				};
 
+				spi0_pmx_func: spi0_pmx_func {
+					pinctrl-single,pins = <
+						GPIO33 AF2 /* GPIO33 SSP0_CLK */
+						GPIO34 AF2 /* GPIO34 SSP0_FRM */
+						GPIO35 AF2 /* GPIO35 SSP0_RX */
+						GPIO36 AF2 /* GPIO36 SSP0_TX */
+					>;
+					MFP_DEFAULT;
+				};
+
+				spi2_pmx_func: spi2_pmx_func {
+					pinctrl-single,pins = <
+						DF_IO9 AF2 /* GPIO66 SSP2_CLK */
+						DF_IO10 AF1 /* GPIO65 SSP2_FRM */
+						DF_IO11 AF2 /* GPIO64 SSP2_TX */
+						DF_IO12 AF2 /* GPIO63 SSP2_RX */
+					>;
+					MFP_DEFAULT;
+				};
+
 				sspa0_gpio: sspa0_gpio {
 					pinctrl-single,pins = <
 						GPIO21 AF0
@@ -664,10 +686,9 @@
 				};
 
 				twsi0_pmx_func: twsi0_pmx_func {
-					/* gpio53/54: AF1 */
 					pinctrl-single,pins = <
-						GPIO53 AF1
-						GPIO54 AF1
+						GPIO53 AF2
+						GPIO54 AF2
 					>;
 					MFP_LPM_FLOAT;
 				};
@@ -845,14 +866,12 @@
 			};
 
 			twsi0: i2c@d4011000 {
-			/*
 				pinctrl-names = "default","gpio";
 				pinctrl-0 = <&twsi0_pmx_func>;
 				pinctrl-1 = <&twsi0_pmx_gpio>;
 				i2c-gpio = <&gpio 53 0 &gpio 54 0>;
-			*/
 				status = "okay";
-		        };
+			};
 
 			twsi1: i2c@d4010800 {
 				pinctrl-names = "default","gpio";
@@ -908,6 +927,21 @@
 					avdd-supply = <&ldo11>;
 					status = "disabled";
 				};
+
+				touch4: mstar@26 {
+					compatible = "mstar,msg2238";
+					pinctrl-names = "default";
+					pinctrl-0 = <&touch_pins>;
+					reg = <0x26>;
+					interrupt-parent = <&gpio>;
+					interrupts = <72 0x1>;
+					mstar,abs-x-max = <720>;
+					mstar,abs-y-max = <1280>;
+					mstar,irq-gpios = <&gpio 72 0>;
+					mstar,reset-gpios = <&gpio 75 0>;
+					mstar,v_tsp-supply = <&ldo11>;
+					status = "disabled";
+				};
 			};
 
 			twsi2: i2c@d4037000 {
@@ -915,7 +949,7 @@
 
 				pmic0: 88pm886@30 {
 					reg = <0x30>;
-					interrupts = <0 4 IRQF_TRIGGER_HIGH>;
+					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
 					interrupt-parent = <&gic>;
 					status = "disabled";
 
@@ -1008,13 +1042,54 @@
 					reg = <0x15>;
 					acdd-supply = <&ldo4>;
 					status = "disabled";
-                               };
+                                };
 
 				sensor6: mmc3524x@30 {
 					compatible = "memsic,mmc3524x";
 					reg = <0x30>;
 					acdd-supply = <&ldo4>;
 					status = "disabled";
+				};
+
+				sensor7: ap3426@1E {
+					compatible = "dyna,ap3426";
+					reg = <0x1E>;
+					interrupt-parent = <&gpio>;
+					interrupts = <20 0x1>;
+					irq-gpios = <&gpio 20 0>;
+					avdd-supply = <&ldo4>;
+					status = "disabled";
+				};
+			};
+
+			spi_0: ssp@d401b000 {
+				status = "disabled";
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi0_pmx_func>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				spidev {
+					spi-max-frequency = <52000000>;
+					reg = <0>;
+					compatible = "rohm,dh2228fv";
+					status = "okay";
+				};
+			};
+
+			spi_2: ssp@d401c000 {
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi2_pmx_func>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				flash: m25p80@0 {
+					#address-cells = <1>;
+					#size-cells = <1>;
+					compatible = "sst,sst25wf040b";
+					spi-max-frequency = <40000000>;
+					reg = <0>;
 				};
 			};
 
@@ -1217,6 +1292,8 @@
 		drvdbg = <0x80007>;
 		dev_cap_mask = <0xffffcfff>;
 		init_cfg = "mrvl/wifi_init_cfg.conf";
+		txpwrlimit_cfg = "mrvl/txpwrlimit_cfg.bin";
+		cal_data_cfg = "mrvl/WlanCalData_ext.conf";
 		reg_alpha2 = "US";
 		p2p_enh = <1>;
 	};

@@ -186,6 +186,8 @@ static int OV5670_update_wb(struct b52_sensor *sensor,
 	if ((*flag) & 0x40) {
 		rg = (*otp).rg_ratio;
 		bg = (*otp).bg_ratio;
+		if (rg == 0 || bg == 0)
+			return *flag;
 		/*calculate sensor WB gain, 0x400 = 1x gain*/
 		r_gain = 0x400 * rg_ratio_typical / rg;
 		g_gain = 0x400;

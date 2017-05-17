@@ -42,7 +42,6 @@ enum comp {
 #endif
 	DDR,
 	LCD,
-	USB,
 };
 
 struct comp_info {
@@ -92,7 +91,6 @@ int dip_register_notifier(struct notifier_block *nb, unsigned int list)
 }
 EXPORT_SYMBOL(dip_register_notifier);
 
-extern void usb2_phy_dip_set(int on_off);
 static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 			   unsigned long arg)
 {
@@ -168,15 +166,11 @@ static long dip_misc_ioctl(struct file *filp, unsigned int cmd,
 						      max_freq);
 			} else if (array->comp_info[i].comp_id == LCD) {
 				rate = array->comp_info[i].min_freq;
-			} else if (array->comp_info[i].comp_id == USB) {
-				printk("Try to re-set USB PLL on\n");
-				usb2_phy_dip_set(1);
 			}
 		}
 		dip_notifier(cmd, &rate);
 		return 0;
 	} else if (cmd == DIP_END) {
-		usb2_phy_dip_set(0);
 		dip_notifier(cmd, &rate);
 #ifdef CONFIG_ARM_MMP_BL_CPUFREQ
 		pm_qos_update_request(&dip_info->cpu_min_l_qos,
@@ -266,6 +260,7 @@ static int simple_dip_probe(struct platform_device *dev)
 	dip_info->cpu_max_qos.name = "dip_cpu_max";
 	pm_qos_add_request(&dip_info->cpu_max_qos, PM_QOS_CPUFREQ_MAX, INT_MAX);
 #endif
+
 	dip_info->ddr = devm_clk_get(&dev->dev, CLK_DDR);
 	if (IS_ERR_OR_NULL(dip_info->ddr)) {
 		pr_err("cannot get clk(ddr)\n");

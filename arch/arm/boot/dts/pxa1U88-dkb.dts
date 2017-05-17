@@ -918,7 +918,7 @@
 
 				pmic0: 88pm822@30 {
 					reg = <0x30>;
-					interrupts = <0 4 IRQF_TRIGGER_HIGH>;
+					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
 					interrupt-parent = <&gic>;
 					/* TODO: move this part out */
 					dvc {
@@ -948,7 +948,7 @@
 
 					reg = <0x68>;
 					interrupt-parent = <&gpio>;
-					interrupts = <29 IRQF_TRIGGER_FALLING>;
+					interrupts = <29 IRQ_TYPE_EDGE_FALLING>;
 
 				        charger {
 					        status = "okay";
@@ -1006,7 +1006,7 @@
 					pinctrl-0 = <&m9250_irq_pin>;
 					reg = <0x69>;
 					interrupt-parent = <&gpio>;
-					interrupts = <65 IRQF_TRIGGER_FALLING>;
+					interrupts = <65 IRQ_TYPE_EDGE_FALLING>;
 					inven,irq-gpios = <&gpio 65 0x00>;
 					avdd-supply = <&ldo10>;
 					axis_map_x = <0>;

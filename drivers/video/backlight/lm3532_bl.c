@@ -87,6 +87,9 @@ struct lm3532_data {
 	unsigned bvalue;	/* Current brightness register value */
 	unsigned saved_bvalue;	/* Brightness before TCMD SUSPEND */
 	struct work_struct work;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pin_lpm_drv_low;
+	struct pinctrl_state *pin_lpm_drv_high;
 };
 
 static DEFINE_MUTEX(lm3532_mutex);
@@ -408,11 +411,17 @@ static void lm3532_work_func(struct work_struct *work)
 static int lm3532_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct lm3532_data *driver_data = i2c_get_clientdata(client);
+	int ret;
 	printk_suspend("%s: called with pm message %d\n", __func__, mesg.event);
 
 	atomic_set(&driver_data->suspended, 1);
 	if (driver_data->pdata->power_off)
 		driver_data->pdata->power_off();
+	if (!(IS_ERR(driver_data->pinctrl))) {
+		ret = pinctrl_select_state(driver_data->pinctrl, driver_data->pin_lpm_drv_low);
+		if (ret < 0)
+			dev_err(&client->dev, "could not set pinctrl low\n");
+	}
 	lm3532_power(client, 0);
 
 	return 0;
@@ -522,6 +531,13 @@ static int lm3532_enable(struct lm3532_data *driver_data)
 static int lm3532_resume(struct i2c_client *client)
 {
 	struct lm3532_data *driver_data = i2c_get_clientdata(client);
+	int ret;
+
+	if (!(IS_ERR(driver_data->pinctrl))) {
+		ret = pinctrl_select_state(driver_data->pinctrl, driver_data->pin_lpm_drv_high);
+		if (ret < 0)
+			dev_err(&client->dev, "could not set pinctrl high\n");
+	}
 
 	printk_suspend("%s: resuming\n", __func__);
 	if (driver_data->pdata->power_on)
@@ -629,6 +645,26 @@ static int lm3532_probe_dt(struct i2c_client *client)
 		pdata->ctrl_a_current_ctrl = LM3532_I2C_CONTROL;
 	}
 
+	pdata->pinctrl = devm_pinctrl_get(&client->dev);
+	if (IS_ERR(pdata->pinctrl)) {
+		pdata->pinctrl = NULL;
+		dev_warn(&client->dev, "could not get lm3532 pinctrl\n");
+	} else {
+		pdata->pin_lpm_drv_low =
+			pinctrl_lookup_state(pdata->pinctrl, "lpm_drv_low");
+		if (IS_ERR(pdata->pin_lpm_drv_low)) {
+			dev_err(&client->dev, "could not get lm3532 lpm_drv_low pinstate\n");
+			pdata->pin_lpm_drv_low = NULL;
+		}
+
+		pdata->pin_lpm_drv_high =
+			pinctrl_lookup_state(pdata->pinctrl, "lpm_drv_high");
+		if (IS_ERR(pdata->pin_lpm_drv_high)) {
+			dev_err(&client->dev, "could not get lm3532 lpm_drv_high pinstate\n");
+			pdata->pin_lpm_drv_high = NULL;
+			}
+	}
+
 	return 0;
 }
 #endif
@@ -684,6 +720,16 @@ static int lm3532_probe(struct i2c_client *client,
 		driver_data->pdata->ctrl_b_fs_current = 0xFF;
 
 	i2c_set_clientdata(client, driver_data);
+
+	driver_data->pinctrl = pdata->pinctrl;
+	driver_data->pin_lpm_drv_high = pdata->pin_lpm_drv_high;
+	driver_data->pin_lpm_drv_low = pdata->pin_lpm_drv_low;
+	if (!(IS_ERR(pdata->pinctrl))) {
+		ret = pinctrl_select_state(driver_data->pinctrl, driver_data->pin_lpm_drv_high);
+		if (ret < 0) {
+			dev_err(&client->dev, "could not set pinctrl high\n");
+		}
+	}
 
 	/* Initialize chip */
 	if (pdata->init)

@@ -341,21 +341,19 @@ static bool printk_comm;
 #endif
 module_param_named(comm, printk_comm, bool, S_IRUGO | S_IWUSR);
 
-#ifdef CONFIG_SEC_LOG
+#ifdef CONFIG_MRVL_LOG
 static void (*log_text_hook)(char *text, unsigned int size);
-void register_log_text_hook(void (*f)(char *text, unsigned int size), char *buf,
-	unsigned int *position, unsigned int bufsize)
+static char mmp_text[1024]; /* buffer size: LOG_LINE_MAX + PREFIX_MAX */
+void register_log_text_hook(void (*f)(char *text, unsigned int size),
+							char *buf, unsigned int bufsize)
 {
-	unsigned long flags;
-	raw_spin_lock_irqsave(&logbuf_lock, flags);
 	if (buf && bufsize) {
 		log_text_hook = f;
 	}
-	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
 }
 EXPORT_SYMBOL(register_log_text_hook);
 static size_t msg_print_text(const struct printk_log *msg, enum log_flags prev,
-			     bool syslog, char *buf, size_t size);
+							bool syslog, char *buf, size_t size);
 #endif
 
 /* insert record into the buffer, discard old ones, update heads */
@@ -369,12 +367,12 @@ static void log_store(int facility, int level,
 	char prefix[TASK_COMM_LEN + 20];
 
 	if (printk_cpu_id)
-		prefix_len += sprintf(prefix, "C%u ", smp_processor_id());
+		prefix_len += sprintf(prefix, "c%u ", smp_processor_id());
 	if (printk_pid)
-		prefix_len += sprintf(prefix+prefix_len, "%5u ",
+		prefix_len += sprintf(prefix+prefix_len, "%u ",
 				task_pid_nr(current));
 	if (printk_comm)
-		prefix_len += sprintf(prefix+prefix_len, "(%15s) ",
+		prefix_len += sprintf(prefix+prefix_len, "(%s) ",
 				current->comm);
 
 	/* number of '\0' padding bytes to next message */
@@ -426,11 +424,12 @@ static void log_store(int facility, int level,
 	memset(log_dict(msg) + dict_len, 0, pad_len);
 	msg->len = sizeof(struct printk_log) + msg->text_len + dict_len + pad_len;
 
-#ifdef CONFIG_SEC_LOG
-	if (log_text_hook != NULL) {
-		static char sec_text[1024];
-		size = msg_print_text(msg, msg->flags, true, sec_text, 1024);
-		log_text_hook(sec_text, size);
+#ifdef CONFIG_MRVL_LOG
+	if (log_text_hook) {
+		size = msg_print_text(msg, msg->flags, true,
+				mmp_text, 1024);
+
+		log_text_hook(mmp_text, size);
 	}
 #endif
 	/* insert message */
@@ -500,11 +499,7 @@ static ssize_t devkmsg_writev(struct kiocb *iocb, const struct iovec *iv,
 	char *buf, *line;
 	int i;
 	int level = default_message_loglevel;
-#if defined(CONFIG_SEC_DEBUG)
-	int facility = 0;	/* SEC_DEBUG LOG_USER */
-#else
 	int facility = 1;	/* LOG_USER */
-#endif
 	size_t len = iov_length(iv, count);
 	ssize_t ret = len;
 

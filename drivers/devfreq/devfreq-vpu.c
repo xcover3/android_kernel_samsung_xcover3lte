@@ -28,7 +28,7 @@
 #define VPU_FREQ_MAX	8
 #define KHZ_TO_HZ	1000
 
-#define DEFAULT_POLLING_MS	(2000)
+#define DEFAULT_POLLING_MS	(1500)
 #define VPU_DEVFREQ_UPTHRESHOLD	85
 #define VPU_DEVFREQ_DOWNDIFFERENTIAL	2
 
@@ -312,7 +312,7 @@ static int vpu_devfreq_probe(struct platform_device *pdev)
 	unsigned int proplen;
 
 	/* by default use userspace governor */
-	char *governor_name = "userspace";
+	const char *governor_name = "userspace";
 
 	profile = kzalloc(sizeof(struct devfreq_dev_profile), GFP_KERNEL);
 
@@ -418,11 +418,7 @@ static int vpu_devfreq_probe(struct platform_device *pdev)
 		u32 polling_ms, downdifferential, upthreshold;
 		void *governor_data = NULL;
 
-		governor_name = kstrdup("simple_ondemand", GFP_KERNEL);
-
-		if (!governor_name)
-			goto cont;
-
+		governor_name = "simple_ondemand";
 		governor_data = &ondemand_gov_data;
 
 		/* connect vpu clk to get clk status change notifier */
@@ -463,7 +459,7 @@ static int vpu_devfreq_probe(struct platform_device *pdev)
 			clk_notifier_unregister(data->fclk, &data->nb);
 	} else {
 cont:
-		strcpy(governor_name, "userspace");
+		governor_name = "userspace";
 #endif
 		data->devfreq = devfreq_add_device(dev, profile,
 				governor_name, NULL);

@@ -972,11 +972,7 @@ static void handle_channel(struct wiphy *wiphy,
 	chan->dfs_state_entered = jiffies;
 
 	chan->beacon_found = false;
-#if 0 /* workaround Bug#1237 : orig_flags should not affect current flags */
 	chan->flags = flags | bw_flags | map_regdom_flags(reg_rule->flags);
-#else
-	chan->flags = bw_flags | map_regdom_flags(reg_rule->flags);
-#endif
 	chan->max_antenna_gain =
 		min_t(int, chan->orig_mag,
 		      MBI_TO_DBI(power_rule->max_antenna_gain));
@@ -1551,7 +1547,7 @@ static enum reg_request_treatment
 reg_process_hint_driver(struct wiphy *wiphy,
 			struct regulatory_request *driver_request)
 {
-	const struct ieee80211_regdomain *regd;
+	const struct ieee80211_regdomain *regd, *tmp;
 	enum reg_request_treatment treatment;
 
 	treatment = __reg_process_hint_driver(driver_request);
@@ -1570,7 +1566,10 @@ reg_process_hint_driver(struct wiphy *wiphy,
 			kfree(driver_request);
 			return REG_REQ_IGNORE;
 		}
+
+		tmp = get_wiphy_regdom(wiphy);
 		rcu_assign_pointer(wiphy->regd, regd);
+		rcu_free_regdom(tmp);
 	}
 
 
@@ -1629,11 +1628,8 @@ __reg_process_hint_country_ie(struct wiphy *wiphy,
 			return REG_REQ_IGNORE;
 		return REG_REQ_ALREADY_SET;
 	}
-	/*
-	 * Two consecutive Country IE hints on the same wiphy.
-	 * This should be picked up early by the driver/stack
-	 */
-	if (WARN_ON(regdom_changes(country_ie_request->alpha2)))
+
+	if (regdom_changes(country_ie_request->alpha2))
 		return REG_REQ_OK;
 	return REG_REQ_ALREADY_SET;
 }
@@ -1868,11 +1864,8 @@ int regulatory_hint(struct wiphy *wiphy, const char *alpha2)
 
 	request->alpha2[0] = alpha2[0];
 	request->alpha2[1] = alpha2[1];
-#if 0  /* workaround #478237 for preventing intersect */
 	request->initiator = NL80211_REGDOM_SET_BY_DRIVER;
-#else
-	request->initiator = NL80211_REGDOM_SET_BY_USER;
-#endif
+
 	queue_regulatory_request(request);
 
 	return 0;
@@ -1882,7 +1875,6 @@ EXPORT_SYMBOL(regulatory_hint);
 void regulatory_hint_country_ie(struct wiphy *wiphy, enum ieee80211_band band,
 				const u8 *country_ie, u8 country_ie_len)
 {
-#if 0 /* workaround #480241 for ignoring country ie */
 	char alpha2[2];
 	enum environment_cap env = ENVIRON_ANY;
 	struct regulatory_request *request = NULL, *lr;
@@ -1932,7 +1924,6 @@ void regulatory_hint_country_ie(struct wiphy *wiphy, enum ieee80211_band band,
 out:
 	kfree(request);
 	rcu_read_unlock();
-#endif
 }
 
 static void restore_alpha2(char *alpha2, bool reset_user)
@@ -2082,10 +2073,8 @@ static void restore_regulatory_settings(bool reset_user)
 
 void regulatory_hint_disconnect(void)
 {
-#if 0 /* workaround #480241 for ignoring country ie */
 	REG_DBG_PRINT("All devices are disconnected, going to restore regulatory settings\n");
 	restore_regulatory_settings(false);
-#endif
 }
 
 static bool freq_is_chan_12_13_14(u16 freq)

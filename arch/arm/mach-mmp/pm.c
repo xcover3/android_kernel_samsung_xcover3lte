@@ -141,3 +141,4 @@ int get_fuse_suspd_voltage(void)
 {
 	return fuse_suspd_volt;
 }
+

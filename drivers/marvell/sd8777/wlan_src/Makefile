@@ -77,13 +77,13 @@ CONFIG_DFS_TESTING_SUPPORT=y
 
 
 
-CONFIG_ANDROID_KERNEL=n
+CONFIG_ANDROID_KERNEL=y
 
 # Use static link for app build
 export CONFIG_STATIC_LINK=y
 
 #32bit app over 64bit kernel support
-CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=y
+CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
 #############################################################################
 # Select Platform Tools
@@ -126,6 +126,8 @@ INSTALLDIR ?= /tftpboot/pxa9xx/root
 # Alternatively ARCH can be set in the environment
 # Default values of ARCH for specific platform are set below.
 ARCH ?= arm
+
+LD += -S
 
 BINDIR = ../bin_sd87xx
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
@@ -223,7 +225,6 @@ ifdef CONFIG_MRVL_SKMALLOC_WIRELESS_EN
 	EXTRA_CFLAGS += -DSUPPER_KMALLOC
 endif
 
-EXTRA_CFLAGS += -DSEC_FCC_CERT
 
 #############################################################################
 # Make Targets

@@ -40,7 +40,7 @@ int hifi2_capture_enable;
 #endif
 
 /* I2S1/I2S4/I2S3 use 44.1k sample rate by default */
-#define MAP_SR_HIFI SNDRV_PCM_RATE_44100|SNDRV_PCM_RATE_48000
+#define MAP_SR_HIFI SNDRV_PCM_RATE_44100
 #define MAP_SR_FM SNDRV_PCM_RATE_48000
 /* I2S2/I2S3 use 8K or 16K sample rate */
 #define MAP_SR_LOFI (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000)
@@ -600,7 +600,6 @@ static int map_late_probe(struct snd_soc_card *card)
 	snd_jack_set_key(hk_jack.jack, SND_JACK_BTN_0, KEY_MEDIA);
 	snd_jack_set_key(hk_jack.jack, SND_JACK_BTN_1, KEY_VOLUMEUP);
 	snd_jack_set_key(hk_jack.jack, SND_JACK_BTN_2, KEY_VOLUMEDOWN);
-	snd_jack_set_key(hk_jack.jack, SND_JACK_BTN_3, KEY_VOICECOMMAND);
 
 	if (hook_detect) {
 		ret = hook_detect(&hk_jack);

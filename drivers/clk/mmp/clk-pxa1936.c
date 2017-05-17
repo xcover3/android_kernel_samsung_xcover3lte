@@ -26,6 +26,7 @@
 #include "clk-pll-helanx.h"
 #include "clk-core-helan3.h"
 #include "clk-plat.h"
+#include <linux/clk/mmpcpdvc.h>
 
 #define APBS_PLL1_CTRL		0x100
 
@@ -121,6 +122,7 @@ struct pxa1936_clk_unit {
 	void __iomem *apbs_base;
 	void __iomem *ciu_base;
 	void __iomem *dciu_base;	/* Dragon CIU */
+	void __iomem *sc2desc_base;
 };
 
 static struct mmp_param_fixed_rate_clk fixed_rate_clks[] = {
@@ -289,18 +291,23 @@ struct plat_pll_info pllx_platinfo[MAX_PLL_NUM] = {
 unsigned long pll_dfrate[DDR_TYPE_MAX][MAX_PLL_NUM][MAX_PLL_TYPE] = {
 	[DDR_533M] = {
 		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
-		{1456 * MHZ, 1456 * MHZ, 1456 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
 		/* for 533M case, reserve pll4 for LCD */
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
 	[DDR_667M] = {
 		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
-		{1456 * MHZ, 1456 * MHZ, 1456 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
 		{2670lu * MHZ, 1335 * MHZ, 667 * MHZ},
 	},
 	[DDR_800M] = {
 		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
-		{1456 * MHZ, 1456 * MHZ, 1456 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
+		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
+	},
+	[DDR_800M_2X] = {
+		{2115 * MHZ, 1057 * MHZ, 528 * MHZ},
+		{1491 * MHZ, 1491 * MHZ, 1491 * MHZ},
 		{1595 * MHZ, 1595 * MHZ, 797 * MHZ},
 	},
 };
@@ -572,10 +579,26 @@ static struct mmp_clk_mix_clk_table gc3d_pptbl[] = {
 	{.rate = 832000000, .parent_index = 0, .xtc = 0x00066655, },
 };
 
+static struct mmp_clk_mix_clk_table gc3d_pptbl_pxa1936_TSMC_B0[] = {
+	{.rate = 156000000, .parent_index = 1, .xtc = 0x00000044, },
+	{.rate = 312000000, .parent_index = 1, .xtc = 0x00000044, },
+	{.rate = 416000000, .parent_index = 0, .xtc = 0x00055544, },
+	{.rate = 528000000, .parent_index = 2, .xtc = 0x00055544, },
+	{.rate = 624000000, .parent_index = 1, .xtc = 0x00055555, },
+	{.rate = 705000000, .parent_index = 3, .xtc = 0x00066655, },
+	{.rate = 832000000, .parent_index = 0, .xtc = 0x00066655, },
+};
+
 static struct mmp_clk_mix_config gc3d_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 3, 18, 15),
 	.table = gc3d_pptbl,
 	.table_size = ARRAY_SIZE(gc3d_pptbl),
+};
+
+static struct mmp_clk_mix_config gc3d_mix_config_pxa1936_TSMC_B0 = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 12, 3, 18, 15),
+	.table = gc3d_pptbl_pxa1936_TSMC_B0,
+	.table_size = ARRAY_SIZE(gc3d_pptbl_pxa1936_TSMC_B0),
 };
 
 /* GC shader */
@@ -590,10 +613,26 @@ static struct mmp_clk_mix_clk_table gcsh_pptbl[] = {
 	{.rate = 832000000, .parent_index = 0, },
 };
 
+static struct mmp_clk_mix_clk_table gcsh_pptbl_pxa1936_TSMC_B0[] = {
+	{.rate = 156000000, .parent_index = 1, },
+	{.rate = 312000000, .parent_index = 1, },
+	{.rate = 416000000, .parent_index = 0, },
+	{.rate = 528000000, .parent_index = 2, },
+	{.rate = 624000000, .parent_index = 1, },
+	{.rate = 705000000, .parent_index = 3, },
+	{.rate = 832000000, .parent_index = 0, },
+};
+
 static struct mmp_clk_mix_config gcsh_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 28, 3, 21, 31),
 	.table = gcsh_pptbl,
 	.table_size = ARRAY_SIZE(gcsh_pptbl),
+};
+
+static struct mmp_clk_mix_config gcsh_mix_config_pxa1936_TSMC_B0 = {
+	.reg_info = DEFINE_MIX_REG_INFO(3, 28, 3, 21, 31),
+	.table = gcsh_pptbl_pxa1936_TSMC_B0,
+	.table_size = ARRAY_SIZE(gcsh_pptbl_pxa1936_TSMC_B0),
 };
 
 /* GC 2D */
@@ -718,10 +757,19 @@ static struct mmp_clk_mix_config sc2_axi_mix_config = {
 
 static const char *sc2_phy_parent_names[] = {"pll1_6", "pll1_12"};
 
+static struct mmp_clk_mix_clk_table isp_pipe_clk_pptbl[] = {
+	{.rate = 208000000, .parent_index = 0, .xtc = 0x00110011, },
+	/*{.rate = 250000000, .parent_index = 3, .xtc = 0x00115511, }, */
+	{.rate = 312000000, .parent_index = 1, .xtc = 0x00115511, },
+	{.rate = 416000000, .parent_index = 0, .xtc = 0x00115511, },
+	{.rate = 499000000, .parent_index = 3, .xtc = 0x00115511, },
+};
 static const char *isp_pipe_parent_names[] = {"pll1_416_gate", "pll1_624_gate",
 			"pll4_div3", "pll1_499_gate",};
 static struct mmp_clk_mix_config isp_pipe_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(3, 4, 2, 2, 7),
+	.table = isp_pipe_clk_pptbl,
+	.table_size = ARRAY_SIZE(isp_pipe_clk_pptbl),
 };
 
 #ifdef CONFIG_SMC91X
@@ -832,11 +880,19 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				0x1, 0x1, 0x0, 0, &gc2d_lock);
 	clk_prepare_enable(clk);
 
-	gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
-	gc3d_mix_config.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU_XTC;
-	clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk",
-				(const char **)gc3d_parent_names, ARRAY_SIZE(gc3d_parent_names),
-				0, &gc3d_mix_config, &gc_lock);
+	if (get_helan3_svc_version() == SVC_TSMC_B0) {
+		gc3d_mix_config_pxa1936_TSMC_B0.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		gc3d_mix_config_pxa1936_TSMC_B0.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU_XTC;
+		clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk",
+					(const char **)gc3d_parent_names, ARRAY_SIZE(gc3d_parent_names),
+					0, &gc3d_mix_config_pxa1936_TSMC_B0, &gc_lock);
+	} else {
+		gc3d_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		gc3d_mix_config.reg_info.reg_clk_xtc = pxa_unit->ciu_base + GPU_XTC;
+		clk = mmp_clk_register_mix(NULL, "gc3d_mix_clk",
+					(const char **)gc3d_parent_names, ARRAY_SIZE(gc3d_parent_names),
+					0, &gc3d_mix_config, &gc_lock);
+	}
 #ifdef CONFIG_PM_DEVFREQ
 	__init_comp_devfreq_table(clk, DEVFREQ_GPU_3D);
 #endif
@@ -852,9 +908,17 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 
 	parent_names = (const char **)gcsh_parent_names;
 	parent_num = ARRAY_SIZE(gcsh_parent_names);
-	clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk",
-				(const char **)gcsh_parent_names, ARRAY_SIZE(gcsh_parent_names),
-				0, &gcsh_mix_config, &gc_lock);
+	if (get_helan3_svc_version() == SVC_TSMC_B0) {
+		gcsh_mix_config_pxa1936_TSMC_B0.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk",
+					(const char **)gcsh_parent_names, ARRAY_SIZE(gcsh_parent_names),
+					0, &gcsh_mix_config_pxa1936_TSMC_B0, &gc_lock);
+	} else {
+		gcsh_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_GC;
+		clk = mmp_clk_register_mix(NULL, "gcsh_mix_clk",
+					(const char **)gcsh_parent_names, ARRAY_SIZE(gcsh_parent_names),
+					0, &gcsh_mix_config, &gc_lock);
+	}
 #ifdef CONFIG_PM_DEVFREQ
 	__init_comp_devfreq_table(clk, DEVFREQ_GPU_SH);
 #endif
@@ -992,7 +1056,6 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 				NULL, NULL,
 				&disp4_clks.gate.hw, disp4_clks.gate_ops,
 				0);
-				/* CLK_SET_RATE_PARENT); */
 	mmp_clk_add(unit, PXA1936_CLK_DISP4, clk);
 	clk_register_clkdev(clk, "dsi_pll", NULL);
 
@@ -1082,6 +1145,7 @@ static void pxa1936_axi_periph_clk_init(struct pxa1936_clk_unit *pxa_unit)
 	mmp_clk_add(unit, PXA1936_CLK_SC2_PHY4LN_CLK_EN, clk);
 
 	isp_pipe_mix_config.reg_info.reg_clk_ctrl = pxa_unit->apmu_base + APMU_ISP;
+	isp_pipe_mix_config.reg_info.reg_clk_xtc = pxa_unit->sc2desc_base + ISP_XTC;
 	clk = mmp_clk_register_mix(NULL, "isp_pipe_mix_clk",
 			isp_pipe_parent_names,
 			ARRAY_SIZE(isp_pipe_parent_names), 0,
@@ -1169,7 +1233,6 @@ static struct cpu_opt clst0_op_array[] = {
 		.core_aclk = 416,
 		.ap_clk_sel = 0x3,
 	},
-#if 0
 	{
 		.pclk = 1057,
 		.core_aclk = 528,
@@ -1181,7 +1244,6 @@ static struct cpu_opt clst0_op_array[] = {
 		.core_aclk = 624,
 		.ap_clk_sel = 0x1,
 	},
-#endif
 };
 
 static struct core_params clst0_core_params = {
@@ -1233,7 +1295,6 @@ static struct cpu_opt clst1_op_array[] = {
 		.core_aclk = 156,
 		.ap_clk_sel = 0x1,
 	},
-#if 0
 	{
 		.pclk = 416,
 		.core_aclk = 208,
@@ -1249,7 +1310,6 @@ static struct cpu_opt clst1_op_array[] = {
 		.core_aclk = 416,
 		.ap_clk_sel = 0x0,
 	},
-#endif
 	{
 		.pclk = 1057,
 		.core_aclk = 528,
@@ -1262,10 +1322,10 @@ static struct cpu_opt clst1_op_array[] = {
 		.ap_clk_sel = 0x1,
 	},
 	{
-		.pclk = 1456,
-		.core_aclk = 728,
+		.pclk = 1491,
+		.core_aclk = 745,
 		.ap_clk_sel = 0x3,
-		.ap_clk_src = 1456,
+		.ap_clk_src = 1491,
 	},
 	{
 		.pclk = 1595,
@@ -1289,7 +1349,7 @@ static struct core_params clst1_core_params = {
 	.cpu_rtcwtc_table = clst1_cpu_rtcwtc_tbl,
 	.cpu_rtcwtc_table_size = ARRAY_SIZE(clst1_cpu_rtcwtc_tbl),
 	.bridge_cpurate = 1248,
-	.max_cpurate = 1456,
+	.max_cpurate = 1491,
 	.dcstat_support = true,
 };
 
@@ -1388,6 +1448,7 @@ static struct ddr_opt lpddr533_op_array[] = {
 	},
 };
 
+/* enable 208/312/416/624 4x, 667 2x, remove 528 */
 static struct ddr_opt lpddr667_op_array[] = {
 	{
 		.dclk = 208,
@@ -1428,37 +1489,36 @@ static struct ddr_opt lpddr667_op_array[] = {
 
 static struct ddr_opt lpddr800_op_array[] = {
 	{
-		.dclk = 156,
+		.dclk = 208,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 2,
 		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x0,
+		.ddr_clk_sel = 0x1,
 	},
 	{
 		.dclk = 312,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 4,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x0,
 	},
 	{
 		.dclk = 416,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 6,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x1,
 	},
 	{
-		.dclk = 528,
-		.ddr_tbl_index = 8,
-		.ddr_lpmtbl_index = 0,
-		.ddr_clk_sel = 0x4,
-	},
-	{
 		.dclk = 624,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 10,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x6,
 	},
 	{
 		.dclk = 797,
+		.mode_4x_en = 1,
 		.ddr_tbl_index = 12,
 		.ddr_lpmtbl_index = 0,
 		.ddr_clk_sel = 0x5,
@@ -1576,7 +1636,7 @@ static struct combclk_relation c1clk_cciclk_relationtbl[] = {
 	{.mclk_rate = 832000000, .sclk_rate = 416000000},
 	{.mclk_rate = 1057000000, .sclk_rate = 624000000},
 	{.mclk_rate = 1248000000, .sclk_rate = 624000000},
-	{.mclk_rate = 1456000000, .sclk_rate = 832000000},
+	{.mclk_rate = 1491000000, .sclk_rate = 624000000},
 	{.mclk_rate = 1595000000, .sclk_rate = 832000000},
 	{.mclk_rate = 1803000000, .sclk_rate = 832000000},
 };
@@ -1585,6 +1645,7 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 {
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
 	struct clk *clk;
+	int i;
 
 	/* make sure cci-400 clock & QoS notifier ready before core clocks */
 	cci_memclk_mix_config.reg_info.reg_clk_ctrl =
@@ -1632,13 +1693,23 @@ static void __init pxa1936_acpu_init(struct pxa1936_clk_unit *pxa_unit)
 	ddr_params.mpmu_base = pxa_unit->mpmu_base;
 	ddr_params.ddr_opt = lpddr533_op_array;
 	ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr533_op_array);
+	if (ddr_mode == DDR_533M)
+		BUG_ON("mode DDR_533M is not supported now.\n");
 	if (ddr_mode == DDR_667M) {
 		ddr_params.ddr_opt = lpddr667_op_array;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr667_op_array);
 	} else if (ddr_mode == DDR_800M) {
 		ddr_params.ddr_opt = lpddr800_op_array;
 		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_op_array);
+	} else if (ddr_mode == DDR_800M_2X) {
+		/* change DDR800 4x mode by default to 2x mode */
+		i = ARRAY_SIZE(lpddr800_op_array) - 1;
+		if (lpddr800_op_array[i].dclk == 797)
+			lpddr800_op_array[i].mode_4x_en = 0;
+		ddr_params.ddr_opt = lpddr800_op_array;
+		ddr_params.ddr_opt_size = ARRAY_SIZE(lpddr800_op_array);
 	}
+
 	mmp_clk_parents_lookup(ddr_params.parent_table,
 		ddr_params.parent_table_size);
 
@@ -1719,6 +1790,85 @@ static unsigned int __init pxa1936_round_max_freq(unsigned int freq)
 		return CORE_1p5G;
 }
 
+unsigned int ddr_800M_4x(void)
+{
+	struct ddr_opt *ddr_op_array = lpddr800_op_array;
+	int i = ARRAY_SIZE(lpddr800_op_array) - 1;
+	if ((ddr_op_array[i].dclk == 797)
+		&& (ddr_op_array[i].mode_4x_en == 1))
+		return 1;
+
+	return 0;
+}
+
+static struct ddr_dfc_info ddrdfcinfo;
+
+void find_ddr_level(struct ddr_opt *ddr_op_array)
+{
+	int i;
+	ddrdfcinfo.ddr_idle = 0;
+	for (i = 0; i < sizeof(ddr_op_array); i++) {
+		if (ddrdfcinfo.ddr_active == 0) {
+			if (((ddr_op_array[i].mode_4x_en == 1)
+				&& (ddr_op_array[i].dclk > 312))
+				|| ((ddr_op_array[i].mode_4x_en == 0)
+				&& (ddr_op_array[i].dclk >= 312))) {
+				ddrdfcinfo.ddr_active = i;
+			}
+		}
+		if (ddrdfcinfo.ddr_high == 0) {
+			if (((ddr_op_array[i].mode_4x_en == 1)
+				&& (ddr_op_array[i].dclk >= 624))
+				|| ((ddr_op_array[i].mode_4x_en == 0)
+				&& (ddr_op_array[i].dclk >= 416))) {
+				ddrdfcinfo.ddr_high = i;
+			}
+		}
+		if (ddrdfcinfo.ddr_active && ddrdfcinfo.ddr_high)
+			break;
+	}
+	return;
+}
+
+void init_ddr_dfc(void)
+{
+	memset(&ddrdfcinfo, 0, sizeof(ddrdfcinfo));
+	if (ddr_mode == DDR_533M)
+		find_ddr_level(lpddr533_op_array);
+	else if (ddr_mode == DDR_667M)
+		find_ddr_level(lpddr667_op_array);
+	else if (ddr_mode == DDR_800M || ddr_mode == DDR_800M_2X)
+		find_ddr_level(lpddr800_op_array);
+
+	return;
+}
+
+/*
+ * This interface will be used by different platform to fill CP ddr dfc info
+ */
+int fillddrdfcinfo(struct ddr_dfc_info *dfc_info)
+{
+	if (!dfc_info)
+		return -EINVAL;
+
+	memcpy(&ddrdfcinfo, dfc_info, sizeof(struct ddr_dfc_info));
+	return 0;
+}
+
+/*
+ * This interface will be used by telephony to get CP ddr dfc info, and
+ * they will use ACIPC to pass the info to CP
+ */
+int getddrdfcinfo(struct ddr_dfc_info *dfc_info)
+{
+	if (!dfc_info)
+		return -EINVAL;
+
+	memcpy(dfc_info, &ddrdfcinfo, sizeof(struct ddr_dfc_info));
+	return 0;
+}
+EXPORT_SYMBOL(getddrdfcinfo);
+
 static void __init pxa1936_clk_init(struct device_node *np)
 {
 	unsigned int max_freq_fused = CORE_1p5G, profile = 0;
@@ -1772,37 +1922,55 @@ static void __init pxa1936_clk_init(struct device_node *np)
 		return;
 	}
 
+	pxa_unit->sc2desc_base = of_iomap(np, 7);
+	if (!pxa_unit->sc2desc_base) {
+		pr_err("failed to map sc2 mmu registers\n");
+		return;
+	}
+
 /* init clock and ddr will use the dvfs_platinfo.
  * make sure initialize dvfs_platinfo before clock and ddr init.
  */
 #if defined(CONFIG_PXA_DVFS)
+	fill_ddr_800M_4x(ddr_800M_4x());
 	setup_pxa1936_dvfs_platinfo();
+
+	init_ddr_dfc();
 	/* get big cluster max freq */
 	max_freq_fused = get_helan3_max_freq();
 	max_freq_fused = pxa1936_round_max_freq(max_freq_fused);
 	clst1_core_params.max_cpurate = max_freq_fused;
 
 	profile = get_chipprofile();
-	if (get_chipfab() == TSMC) {
-		if ((profile >= 13) && (ddr_mode == DDR_800M)
-			&& (max_freq_fused < CORE_1p8G))
-			panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 13 , will panic.\n");
+	if (get_helan3_svc_version() == SVC_1_11) {
+		if ((profile >= 13) && (ddr_mode == DDR_800M_2X) && (max_freq_fused < CORE_1p8G))
+			panic("<1.8GHz SKU chip Don't support DDR 800 2x mode when profile >= 13 , will panic.\n");
 
-		if (max_freq_fused <= CORE_1p5G) {
-			clst0_core_params.max_cpurate = CORE_0p8G;
-			pr_info("<=1.5GHz SKU chip clst0 support max freq is 832M\n");
-		}
-
-	} else if (get_chipfab() == SEC) {
-		if ((profile >= 4) && (ddr_mode == DDR_800M)
-			&& (max_freq_fused < CORE_1p8G))
-			panic("<1.8GHz SKU chip Don't support DDR 800 mode when profile >= 4 , will panic.\n");
-
-		if ((profile >= 11) && (max_freq_fused <= CORE_1p5G)) {
+		if ((profile >= 13) && (max_freq_fused <= CORE_1p5G)) {
 			clst0_core_params.max_cpurate = CORE_1p0G;
-			pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 11\n");
+			pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile >= 13\n");
 		}
+	} else if (get_helan3_svc_version() == SEC_SVC_1_01) {
+		if ((profile >= 4) && (ddr_mode == DDR_800M_2X) && (max_freq_fused < CORE_1p8G))
+			panic("<1.8GHz SKU chip Don't support DDR 800 2x mode when profile >= 4 , will panic.\n");
+
+		if ((profile == 15) && (max_freq_fused <= CORE_1p5G)) {
+			clst0_core_params.max_cpurate = CORE_0p8G;
+			pr_info("<=1.5GHz SKU chip clst0 support max freq is 832M when profile == 15\n");
+		} else if ((profile >= 11) && (profile <= 14) && (max_freq_fused <= CORE_1p5G)) {
+			clst0_core_params.max_cpurate = CORE_1p0G;
+			pr_info("<=1.5GHz SKU chip clst0 support max freq is 1057M when profile == (11 ~ 14)\n");
+		}
+	} else if (get_helan3_svc_version() == SVC_TSMC_1p8G) {
+		if ((profile >= 13) && (ddr_mode == DDR_800M_2X))
+			panic("1.8GHz SKU chip Don't support DDR 800 2x mode when profile >= 13 , will panic.\n");
+
+		if (profile >= 12)
+			panic("1.8GHz SKU chip clst1 max freq doesn't support 1803M when profile >= 12\n");
+	} else if (get_helan3_svc_version() == SVC_TSMC_B0) {
+		pr_info("1.5GHz TSMC B0 chip clst0 support max freq is 1248M\n");
 	}
+
 #endif
 	/* let uboot cmdline param have the final judge */
 	if (max_freq) {

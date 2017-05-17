@@ -652,9 +652,4 @@ config KEYBOARD_CROS_EC
 	  To compile this driver as a module, choose M here: the
 	  module will be called cros_ec_keyb.
 
-config KEYBOARD_TC300K
-	tristate "Coreriver TC300K touchkey"
-	depends on I2C
-	help
-	 Say Y if you want use Coreriver TC300K chip as touchkey.
 endif

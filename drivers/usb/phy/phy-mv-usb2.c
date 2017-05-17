@@ -364,20 +364,12 @@
 #define PHY_28NM_TX_AMP_MASK			(0x7 << 20)
 
 /* PHY_28NM_RX_REG0 */
-#define PHY_28NM_RX_SQ_ANA_DTC_SEL_SHIFT	28
-#define PHY_28NM_RX_SQ_ANA_DTC_SEL_MASK		(0x1 << 28)
-
 #define PHY_28NM_RX_SQ_THRESH_SHIFT		0
 #define PHY_28NM_RX_SQ_THRESH_MASK		(0xf << 0)
 
 /* PHY_28NM_RX_REG1 */
 #define PHY_28NM_RX_SQCAL_DONE_SHIFT		31
 #define PHY_28NM_RX_SQCAL_DONE_MASK		(0x1 << 31)
-
-#define PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_SHIFT	3
-#define PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_MASK	(0x1 << 3)
-#define PHY_28NM_RX_EXT_SQ_AMP_CAL_SHIFT	0
-#define PHY_28NM_RX_EXT_SQ_AMP_CAL_MASK		(0x7 << 0)
 
 /* PHY_28NM_DIG_REG0 */
 #define PHY_28NM_DIG_BITSTAFFING_ERR_MASK	(0x1 << 31)
@@ -410,16 +402,12 @@
 #define PHY_28NM_CHGDTC_CDP_EN_SHIFT_28		2
 #define PHY_28NM_CHGDTC_TESTMON_CHRGDTC_SHIFT_28 0
 
-#define PHY_28NM_CTRL0_VBUSVALID_CTL_SHIFT	12
-#define PHY_28NM_CTRL0_VBUSVALID_CTL_MASK	(0x3 << 12)
-
 #define PHY_28NM_CTRL1_CHRG_DTC_OUT_SHIFT_28	4
 #define PHY_28NM_CTRL1_VBUSDTC_OUT_SHIFT_28		2
 #define PHY_28NM_RX_SQCAL_START_SHIFT		4
 #define PHY_28NM_RX_SQCAL_START_MASK		(0x1 << 4)
 
 #define PHY_28NM_CTRL_REG0_SHIFT	12
-
 static struct mv_usb2_phy *mv_phy_ptr;
 static int _mv_usb2_phy_55nm_init(struct mv_usb2_phy *mv_phy)
 {
@@ -724,279 +712,43 @@ void usb_phy_force_dp_dm(struct usb_phy *phy, bool is_force)
 }
 #endif /* CONFIG_USB_GADGET_CHARGE_ONLY */
 
-static void wait_for_usb_phy_ready(struct mv_usb2_phy *mv_phy)
+void usb2_phy_dip_set(int on_off)
+{
+	void __iomem *base = mv_phy_ptr->base;
+	int reg1, reg2;
+	static int status;
+	int tmp = readl(base + PHY_28NM_PLL_REG0) &
+		~(PHY_28NM_PLL_SELLPFR_MASK | PHY_28NM_PLL_ICP_MASK);
+
+	reg1 = tmp | (0x3 << PHY_28NM_PLL_SELLPFR_SHIFT |
+			0x7 << PHY_28NM_PLL_ICP_SHIFT);
+	reg2 = tmp | (0x1 << PHY_28NM_PLL_SELLPFR_SHIFT |
+			0x3 << PHY_28NM_PLL_ICP_SHIFT);
+
+	/* if usb does not work, directly return */
+	if ((mv_phy_ptr->phy).refcount == 0 ||
+		on_off == status)
+		return;
+
+	if (on_off)
+		/* PHY_28NM_PLL_REG0 */
+		writel(reg1, base + PHY_28NM_PLL_REG0);
+	else
+		writel(reg2, base + PHY_28NM_PLL_REG0);
+
+	status = on_off;
+}
+EXPORT_SYMBOL(usb2_phy_dip_set);
+
+static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 {
 	struct platform_device *pdev = mv_phy->pdev;
 	unsigned int loops = 0;
 	void __iomem *base = mv_phy->base;
 	unsigned int tmp, val;
 
-	/*  Calibration Timing
-	*		   ____________________________
-	*  CAL START   ___|
-	*			   ____________________
-	*  CAL_DONE    ___________|
-	*		  | 400us |
-	*/
-	/* IMP Calibrate */
-	writel(readl(base + PHY_28NM_CAL_REG) |
-		1 << PHY_28NM_IMPCAL_START_SHIFT,
-		base + PHY_28NM_CAL_REG);
-
-	/* Wait For IMP Calibrate PHY */
-	udelay(400);
-	/* Make sure PHY Calibration is ready */
-	loops = 0;
-	do {
-		tmp = readl(base + PHY_28NM_CAL_REG);
-		val = PHY_28NM_PLL_IMPCAL_DONE_MASK;
-		tmp &= val;
-		if (tmp == val)
-			break;
-		udelay(1000);
-	} while ((++loops) && (loops < 100));
-	if (loops >= 100)
-		dev_warn(&pdev->dev, "USB PHY IMP Calibrate not done after 100mS.");
-	writel(readl(base + PHY_28NM_CAL_REG) &
-		~(1 << PHY_28NM_IMPCAL_START_SHIFT),
-		base + PHY_28NM_CAL_REG);
-
-	/* PLL Calibrate */
-	writel(readl(base + PHY_28NM_CAL_REG) |
-		1 << PHY_28NM_PLLCAL_START_SHIFT,
-		base + PHY_28NM_CAL_REG);
-
-	/* Wait For PLL Calibrate PHY */
-	udelay(400);
-	loops = 0;
-	do {
-		tmp = readl(base + PHY_28NM_CAL_REG);
-		val = PHY_28NM_PLL_PLLCAL_DONE_MASK;
-		tmp &= val;
-		if (tmp == val)
-			break;
-		udelay(1000);
-	} while ((++loops) && (loops < 100));
-	if (loops >= 100)
-		dev_warn(&pdev->dev, "USB PHY PLL Calibrate not done after 100mS.");
-	writel(readl(base + PHY_28NM_CAL_REG) &
-		~(1 << PHY_28NM_PLLCAL_START_SHIFT),
-		base + PHY_28NM_CAL_REG);
-
-	/* SQ Calibrate */
-	writel(readl(base + PHY_28NM_RX_REG1) |
-		1 << PHY_28NM_RX_SQCAL_START_SHIFT,
-		base + PHY_28NM_RX_REG1);
-	/* Wait For Calibrate PHY */
-	udelay(400);
-	/* Make sure PHY RX SQ Calibration is ready */
-	loops = 0;
-	do {
-		tmp = readl(base + PHY_28NM_RX_REG1);
-		val = PHY_28NM_RX_SQCAL_DONE_MASK;
-		tmp &= val;
-		if (tmp == val)
-			break;
-		udelay(1000);
-	} while ((++loops) && (loops < 100));
-	if (loops >= 100)
-		dev_warn(&pdev->dev, "USB PHY Calibrate not done after 100mS.");
-	writel(readl(base + PHY_28NM_RX_REG1) &
-		~(1 << PHY_28NM_RX_SQCAL_START_SHIFT),
-		base + PHY_28NM_RX_REG1);
-
-	/* Make sure PHY PLL is ready */
-	loops = 0;
-	tmp = readl(base + PHY_28NM_PLL_REG0);
-	while (!(tmp & PHY_28NM_PLL_READY_MASK)) {
-		udelay(1000);
-		loops++;
-		if (loops > 100) {
-			dev_warn(&pdev->dev, "PLL_READY not set after 100mS.");
-			break;
-		}
-	}
-}
-#ifdef CONFIG_USB_PHY_TUNE
-static int _mv_usb2_phy_28nm_tune(struct mv_usb2_phy *mv_phy, bool state)
-{
-	void __iomem *base = mv_phy->base;
-	unsigned int tmp, val;
-
-	pr_info("usb:  %s state %s \n",
-		__func__,(state) ? "Peripheral":"Host");
-	pr_info("usb: %s original phy tx_reg0=0x%08x\n",
-		__func__, readl(base + PHY_28NM_TX_REG0));
-	pr_info("usb: %s original phy rx_reg0=0x%08x\n",
-		__func__, readl(base + PHY_28NM_RX_REG0));
-	pr_info("usb: %s original phy rx_reg1=0x%08x\n",
-		__func__, readl(base + PHY_28NM_RX_REG1));
-
-	if(state) {	/* for Peripheral */
-		/* PHY_28NM_TX_REG0 */
-		writel(readl(base + PHY_28NM_TX_REG0) &
-			~(PHY_28NM_TX_AMP_MASK),
-			base + PHY_28NM_TX_REG0);
-		/*
-		* 20150323 :
-		* TX_AMP : pxa1936=0x6 / others=0x4
-		*/
-		if (cpu_is_pxa1936()) {
-			writel(readl(base + PHY_28NM_TX_REG0) |
-				(0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT
-				| 0x6 << PHY_28NM_TX_AMP_SHIFT
-				| 0x1 << PHY_28NM_TX_PU_ANA_SHIFT),
-				base + PHY_28NM_TX_REG0);
-		} else {
-			writel(readl(base + PHY_28NM_TX_REG0) |
-				(0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT
-				| 0x4 << PHY_28NM_TX_AMP_SHIFT
-				| 0x1 << PHY_28NM_TX_PU_ANA_SHIFT),
-				base + PHY_28NM_TX_REG0);
-		}
-
-		/* PHY_28NM_RX_REG0 */
-		/* 20150205:
-		SQ_THRESH = 0x7
-		SQ_ANA_DTC_SEL = 0x1
-		*/
-		writel(readl(base + PHY_28NM_RX_REG0) &
-			~(PHY_28NM_RX_SQ_THRESH_MASK | PHY_28NM_RX_SQ_ANA_DTC_SEL_MASK),
-			base + PHY_28NM_RX_REG0);
-#if defined(CONFIG_MACH_DEGASVELTE) || defined(CONFIG_MACH_J1ACELTE) || defined(CONFIG_MACH_J1ACELTE_LTN)
-		writel(readl(base + PHY_28NM_RX_REG0) |
-			((0x9 << PHY_28NM_RX_SQ_THRESH_SHIFT) | (0x1 << PHY_28NM_RX_SQ_ANA_DTC_SEL_SHIFT)),
-			base + PHY_28NM_RX_REG0);
-#else
-		writel(readl(base + PHY_28NM_RX_REG0) |
-			((0x7 << PHY_28NM_RX_SQ_THRESH_SHIFT) | (0x1 << PHY_28NM_RX_SQ_ANA_DTC_SEL_SHIFT)),
-			base + PHY_28NM_RX_REG0);
-#endif
-		/* PHY_28NM_RX_REG1 */
-		/* 20150205 :
-		EXT_SQ_AMP_CAL_EN = 0x1
-		EXT_SQ_AMP_CAL = 0x1
-		*/
-		writel(readl(base + PHY_28NM_RX_REG1) &
-			~(PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_MASK | PHY_28NM_RX_EXT_SQ_AMP_CAL_MASK),
-			base + PHY_28NM_RX_REG1);
-		writel(readl(base + PHY_28NM_RX_REG1) |
-			((0x1 << PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_SHIFT) | (0x1 << PHY_28NM_RX_EXT_SQ_AMP_CAL_SHIFT)),
-			base + PHY_28NM_RX_REG1);
-	} else {	/*for Host*/
-		/* PHY_28NM_TX_REG0 */
-		writel(readl(base + PHY_28NM_TX_REG0) &
-			~PHY_28NM_TX_AMP_MASK,
-			base + PHY_28NM_TX_REG0);
-		/*
-		* 20150128 :
-		* TX_AMP : 0x2
-		* If TX_AMP value is 0, DegasVELTE can't connect to SD Cardy
-		*/
-		writel(readl(base + PHY_28NM_TX_REG0) |
-			(0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT
-			| 0x2 << PHY_28NM_TX_AMP_SHIFT
-			| 0x1 << PHY_28NM_TX_PU_ANA_SHIFT),
-			base + PHY_28NM_TX_REG0);
-		/* PHY_28NM_RX_REG0 */
-		/* 20141210 :
-		* SQ_THRESH = 0x4
-		* SQ_ANA_DTC_SEL = 0x1
-		* If RX SQ_Thresh value is 7, DegasVELTE can't connect to SD Cardy
-		*/
-		writel(readl(base + PHY_28NM_RX_REG0) &
-			~(PHY_28NM_RX_SQ_THRESH_MASK | PHY_28NM_RX_SQ_ANA_DTC_SEL_MASK),
-			base + PHY_28NM_RX_REG0);
-		writel(readl(base + PHY_28NM_RX_REG0) |
-			((0x4 << PHY_28NM_RX_SQ_THRESH_SHIFT) | (0x1 << PHY_28NM_RX_SQ_ANA_DTC_SEL_SHIFT)),
-			base + PHY_28NM_RX_REG0);
-		/* PHY_28NM_RX_REG1 */
-		/* 20141210 :
-		EXT_SQ_AMP_CAL_EN = 0x1
-		EXT_SQ_AMP_CAL = 0x1
-		*/
-		writel(readl(base + PHY_28NM_RX_REG1) &
-			~(PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_MASK | PHY_28NM_RX_EXT_SQ_AMP_CAL_MASK),
-			base + PHY_28NM_RX_REG1);
-		writel(readl(base + PHY_28NM_RX_REG1) |
-			((0x1 << PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_SHIFT) | (0x1 << PHY_28NM_RX_EXT_SQ_AMP_CAL_SHIFT)),
-			base + PHY_28NM_RX_REG1);
-	}
-
-	wait_for_usb_phy_ready(mv_phy);
-
-	pr_info("usb: %s modified phy tx_reg0=0x%08x\n",
-		__func__, readl(base + PHY_28NM_TX_REG0));
-	pr_info("usb: %s modified phy rx_reg0=0x%08x\n",
-		__func__, readl(base + PHY_28NM_RX_REG0));
-	pr_info("usb: %s modified phy rx_reg1=0x%08x\n",
-		__func__, readl(base + PHY_28NM_RX_REG1));
-
-	return 0;
-}
-#endif
-
-static int dip_status; // Current USB DIP status
-static int dip_usb_status; // Current USB phy conf status
-struct mutex dip_mutex;
-
-void usb2_phy_dip_set(int on_off)
-{
-	void __iomem *base = mv_phy_ptr->base;
-	int reg1, reg2;
-	int tmp;
-
-	mutex_lock(&dip_mutex);
-
-	dip_status = on_off;
-
-	/* if usb does not work, directly return */
-	if ((mv_phy_ptr->phy).refcount == 0)
-	{
-		dip_usb_status = 0;
-		mutex_unlock(&dip_mutex);
-		return;
-	}
-
-	if(on_off == dip_usb_status)
-	{
-		mutex_unlock(&dip_mutex);
-		return;
-	}
-
-	tmp = readl(base + PHY_28NM_PLL_REG0) &
-			~(PHY_28NM_PLL_SELLPFR_MASK | PHY_28NM_PLL_ICP_MASK);
-
-	reg1 = tmp | (0x3 << PHY_28NM_PLL_SELLPFR_SHIFT | 0x7 << PHY_28NM_PLL_ICP_SHIFT);
-	reg2 = tmp | (0x1 << PHY_28NM_PLL_SELLPFR_SHIFT | 0x3 << PHY_28NM_PLL_ICP_SHIFT);
-
-	if(on_off && !dip_usb_status)
-		/* PHY_28NM_PLL_REG0 */
-	{
-		printk("usb: %s: PLL custom on\n", __func__);
-		writel(reg1, base + PHY_28NM_PLL_REG0);
-	}
-	else if (!on_off && dip_usb_status)
-	{
-		printk("usb: %s: PLL custom off\n", __func__);
-		writel(reg2, base + PHY_28NM_PLL_REG0);
-	}
-	else
-		printk("usb: %s: Already DIP set off, do nothing\n", __func__);
-
-	dip_usb_status = on_off;
-	mutex_unlock(&dip_mutex);
-
-	return;
-}
-EXPORT_SYMBOL(usb2_phy_dip_set);
-
-static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
-{
-	void __iomem *base = mv_phy->base;
-
 	/* PHY_28NM_CTRL_REG0 */
-	if (cpu_is_pxa1908() || cpu_is_pxa1936()) {
+	if (cpu_is_pxa1908() || cpu_is_pxa1936() || cpu_is_pxa1956()) {
 		writel(readl(base + PHY_28NM_CTRL_REG0) |
 			((0x3) << PHY_28NM_CTRL_REG0_SHIFT),
 			base + PHY_28NM_CTRL_REG0);
@@ -1034,43 +786,25 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 	writel(readl(base + PHY_28NM_TX_REG0) &
 		~PHY_28NM_TX_AMP_MASK,
 		base + PHY_28NM_TX_REG0);
-#ifndef CONFIG_USB_PHY_TUNE
-	/*
-	 * 20150323 :
-	 * TX_AMP : pxa1936=0x6 / others=0x4
-	 */
-	if (cpu_is_pxa1936()) {
-		writel(readl(base + PHY_28NM_TX_REG0) |
-			(0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT
-			| 0x6 << PHY_28NM_TX_AMP_SHIFT
-			| 0x1 << PHY_28NM_TX_PU_ANA_SHIFT),
-			base + PHY_28NM_TX_REG0);
-	} else {
-		writel(readl(base + PHY_28NM_TX_REG0) |
-			(0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT
-			| 0x4 << PHY_28NM_TX_AMP_SHIFT
-			| 0x1 << PHY_28NM_TX_PU_ANA_SHIFT),
-			base + PHY_28NM_TX_REG0);
-	}
+
+
+	writel(readl(base + PHY_28NM_TX_REG0) |
+		(0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT
+		| 0x3 << PHY_28NM_TX_AMP_SHIFT
+		| 0x1 << PHY_28NM_TX_PU_ANA_SHIFT),
+		base + PHY_28NM_TX_REG0);
+
 
 	/* PHY_28NM_RX_REG0 */
 	writel(readl(base + PHY_28NM_RX_REG0) &
-		~(PHY_28NM_RX_SQ_THRESH_MASK | PHY_28NM_RX_SQ_ANA_DTC_SEL_MASK),
+		~PHY_28NM_RX_SQ_THRESH_MASK,
 		base + PHY_28NM_RX_REG0);
 
 	writel(readl(base + PHY_28NM_RX_REG0) |
-		((0x7 << PHY_28NM_RX_SQ_THRESH_SHIFT) | (0x1 << PHY_28NM_RX_SQ_ANA_DTC_SEL_SHIFT)),
+		0xa << PHY_28NM_RX_SQ_THRESH_SHIFT,
 		base + PHY_28NM_RX_REG0);
 
-	/* PHY_28NM_RX_REG1 */
-	writel(readl(base + PHY_28NM_RX_REG1) &
-		~(PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_MASK | PHY_28NM_RX_EXT_SQ_AMP_CAL_MASK),
-		base + PHY_28NM_RX_REG1);
 
-	writel(readl(base + PHY_28NM_RX_REG1) |
-		((0x1 << PHY_28NM_RX_EXT_SQ_AMP_CAL_EN_SHIFT) | (0x1 << PHY_28NM_RX_EXT_SQ_AMP_CAL_SHIFT)),
-		base + PHY_28NM_RX_REG1);
-#endif
 	/* PHY_28NM_DIG_REG0 */
 	writel(readl(base + PHY_28NM_DIG_REG0) &
 		~(PHY_28NM_DIG_BITSTAFFING_ERR_MASK
@@ -1080,19 +814,8 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 		| PHY_28NM_DIG_SYNC_NUM_MASK),
 		base + PHY_28NM_DIG_REG0);
 
-	/* PHY_28NM_CTRL_REG0 */
-	/* 20141118 :
-	VBUSVALID_CTL_ = 0x3
-	*/
-	writel(readl(base + PHY_28NM_CTRL_REG0) &
-		~PHY_28NM_CTRL0_VBUSVALID_CTL_MASK,
-		base + PHY_28NM_CTRL_REG0);
 
-	writel(readl(base + PHY_28NM_CTRL_REG0) |
-		0x3 << PHY_28NM_CTRL0_VBUSVALID_CTL_SHIFT,
-		base + PHY_28NM_CTRL_REG0);
-
-	if (cpu_is_pxa1928_b0() || cpu_is_pxa1908() || cpu_is_pxa1936()) {
+	if (cpu_is_pxa1928_b0() || cpu_is_pxa1908() || cpu_is_pxa1936() || cpu_is_pxa1956()) {
 		writel(readl(base + PHY_28NM_DIG_REG0) |
 			(0x0 << PHY_28NM_DIG_SQ_FILT_SHIFT
 			| 0x0 << PHY_28NM_DIG_SQ_BLK_SHIFT
@@ -1121,16 +844,92 @@ static int _mv_usb2_phy_28nm_init(struct mv_usb2_phy *mv_phy)
 		~(0x1 << PHY_28NM_OTG_CONTROL_BY_PIN_SHIFT),
 		base + PHY_28NM_OTG_REG);
 
-	wait_for_usb_phy_ready(mv_phy);
 
-	mv_phy_ptr = mv_phy;
+	/*  Calibration Timing
+	*		   ____________________________
+	*  CAL START   ___|
+	*			   ____________________
+	*  CAL_DONE    ___________|
+	*		  | 400us |
+	*/
 
-	/* Config dip channel related by previous dip request */
-	if (dip_status)
-	{
-		usb2_phy_dip_set(0);
-		usb2_phy_dip_set(1);
+	/* IMP Calibrate */
+	writel(readl(base + PHY_28NM_CAL_REG) |
+		1 << PHY_28NM_IMPCAL_START_SHIFT,
+		base + PHY_28NM_CAL_REG);
+	/* Wait For Calibrate PHY */
+	udelay(400);
+	/* Make sure PHY Calibration is ready */
+	loops = 0;
+	do {
+		tmp = readl(base + PHY_28NM_CAL_REG);
+		val = PHY_28NM_PLL_IMPCAL_DONE_MASK;
+		tmp &= val;
+		if (tmp == val)
+			break;
+		udelay(1000);
+	} while ((loops++) && (loops < 100));
+	if (loops >= 100)
+		dev_warn(&pdev->dev, "USB PHY Calibrate not done after 100mS.");
+	writel(readl(base + PHY_28NM_CAL_REG) &
+		~(1 << PHY_28NM_IMPCAL_START_SHIFT),
+		base + PHY_28NM_CAL_REG);
+
+	/* PLL Calibrate */
+	writel(readl(base + PHY_28NM_CAL_REG) |
+		1 << PHY_28NM_PLLCAL_START_SHIFT,
+		base + PHY_28NM_CAL_REG);
+	udelay(400);
+	loops = 0;
+	do {
+		tmp = readl(base + PHY_28NM_CAL_REG);
+		val = PHY_28NM_PLL_PLLCAL_DONE_MASK;
+		tmp &= val;
+		if (tmp == val)
+			break;
+		udelay(1000);
+	} while ((loops++) && (loops < 100));
+	if (loops >= 100)
+		dev_warn(&pdev->dev, "USB PHY Calibrate not done after 100mS.");
+	writel(readl(base + PHY_28NM_CAL_REG) &
+		~(1 << PHY_28NM_PLLCAL_START_SHIFT),
+		base + PHY_28NM_CAL_REG);
+
+	/* SQ Calibrate */
+	writel(readl(base + PHY_28NM_RX_REG1) |
+		1 << PHY_28NM_RX_SQCAL_START_SHIFT,
+		base + PHY_28NM_RX_REG1);
+	/* Wait For Calibrate PHY */
+	udelay(400);
+	/* Make sure PHY Calibration is ready */
+	loops = 0;
+	do {
+		tmp = readl(base + PHY_28NM_RX_REG1);
+		val = PHY_28NM_RX_SQCAL_DONE_MASK;
+		tmp &= val;
+		if (tmp == val)
+			break;
+		udelay(1000);
+	} while ((loops++) && (loops < 100));
+	if (loops >= 100)
+		dev_warn(&pdev->dev, "USB PHY Calibrate not done after 100mS.");
+	writel(readl(base + PHY_28NM_RX_REG1) &
+		~(1 << PHY_28NM_RX_SQCAL_START_SHIFT),
+		base + PHY_28NM_RX_REG1);
+
+
+	/* Make sure PHY PLL is ready */
+	loops = 0;
+	tmp = readl(base + PHY_28NM_PLL_REG0);
+	while (!(tmp & PHY_28NM_PLL_READY_MASK)) {
+		udelay(1000);
+		loops++;
+		if (loops > 100) {
+			dev_warn(&pdev->dev, "PLL_READY not set after 100mS.");
+			break;
+		}
 	}
+
 	return 0;
 }
 
@@ -1143,7 +942,7 @@ static void _mv_usb2_phy_28nm_shutdown(struct mv_usb2_phy *mv_phy)
 	val &= ~PHY_28NM_PLL_PU_PLL_MASK;
 	writew(val, base + PHY_28NM_PLL_REG1);
 
-	/* power down PHY Analog part */
+	/* need power up PHY Analog part although shutdown PHY */
 	val = readw(base + PHY_28NM_TX_REG0);
 	val |= (0x1 << PHY_28NM_TX_PU_ANA_SHIFT) | (0x1 << PHY_28NM_TX_PU_BY_REG_SHIFT);
 	writew(val, base + PHY_28NM_TX_REG0);
@@ -1154,30 +953,12 @@ static void _mv_usb2_phy_28nm_shutdown(struct mv_usb2_phy *mv_phy)
 	writew(val, base + PHY_28NM_OTG_REG);
 
 	/* PHY_28NM_CTRL_REG0 */
-	if (cpu_is_pxa1908() || cpu_is_pxa1936()) {
+	if (cpu_is_pxa1908() || cpu_is_pxa1936() || cpu_is_pxa1956()) {
 		val = readl(base + PHY_28NM_CTRL_REG0);
 		val &= ~((0x3) << PHY_28NM_CTRL_REG0_SHIFT);
 		writew(val, base + PHY_28NM_CTRL_REG0);
 	}
 }
-
-#ifdef CONFIG_USB_PHY_TUNE
-static int mv_usb2_phy_tune(struct usb_phy *phy, bool state)
-{
-	struct mv_usb2_phy *mv_phy = container_of(phy, struct mv_usb2_phy, phy);
-
-	switch (mv_phy->drv_data.phy_type) {
-	case PHY_28LP:
-		_mv_usb2_phy_28nm_tune(mv_phy, state);
-		break;
-	default:
-		pr_err("No phy type tuning supported!\n");
-		break;
-	}
-
-	return 0;
-}
-#endif
 
 static int mv_usb2_phy_init(struct usb_phy *phy)
 {
@@ -1402,9 +1183,7 @@ static int mv_usb2_phy_charger_detect(struct usb_phy *phy)
 		ret = DEFAULT_CHARGER;
 		break;
 	}
-#ifdef CONFIG_USB_NOTIFY_LAYER
-	ret = SDP_CHARGER;
-#endif
+
 	return ret;
 }
 
@@ -1460,7 +1239,6 @@ static int mv_usb2_phy_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
 
-	mutex_init(&dip_mutex);
 	mv_phy = devm_kzalloc(&pdev->dev, sizeof(*mv_phy), GFP_KERNEL);
 	if (mv_phy == NULL) {
 		dev_err(&pdev->dev, "failed to allocate memory\n");
@@ -1501,9 +1279,6 @@ static int mv_usb2_phy_probe(struct platform_device *pdev)
 	mv_phy->phy.init = mv_usb2_phy_init;
 	mv_phy->phy.shutdown = mv_usb2_phy_shutdown;
 	mv_phy->phy.charger_detect = mv_usb2_phy_charger_detect;
-#ifdef CONFIG_USB_PHY_TUNE
-	mv_phy->phy.tune = mv_usb2_phy_tune;
-#endif
 
 	mv_usb2_phy_bind_device(mv_phy);
 
@@ -1511,6 +1286,7 @@ static int mv_usb2_phy_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mv_phy);
 
+	mv_phy_ptr = mv_phy;
 	return 0;
 }
 

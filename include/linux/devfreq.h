@@ -229,8 +229,12 @@ enum devfreq_device_id {
 #define DEVFREQ_TABLE_END	(~1)
 struct devfreq_frequency_table {
 	unsigned int index;
-	unsigned int mode;
 	unsigned int frequency;
+	union {
+		/* DDR 4x mode enable or not */
+		unsigned int mode_4x_en;
+		/* other devfreq driver may add new info here */
+	};
 };
 
 struct devfreq_dev_freq_info {
@@ -289,12 +293,15 @@ struct throughput_threshold {
 };
 
 struct devfreq_throughput_data {
-	unsigned int upthreshold;
+	unsigned int *upthreshold;
 	unsigned int downdifferential;
+	unsigned int ddr_efficiency;
 	u32 table_len;
 	u32 *freq_table;        /* unit Khz */
 	struct throughput_threshold *throughput_table;
 };
+
+extern int update_devfreq(struct devfreq *devfreq);
 #endif
 
 /* calculate workload according to busy and total time, unit percent */
