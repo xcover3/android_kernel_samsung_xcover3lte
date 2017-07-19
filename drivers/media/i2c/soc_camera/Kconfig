@@ -97,3 +97,25 @@ config SOC_CAMERA_SR200
 	depends on SOC_CAMERA && I2C
 	help
 	  This is a V4L2 camera driver for the sr200 sensor
+config SOC_CAMERA_DB8221A
+	tristate "DB8221A camera support"
+	depends on SOC_CAMERA && I2C
+	help
+	  This is a V4L2 camera driver for the db8221a sensor
+
+ config SOC_CAMERA_SR130PC20M
+ 	tristate "SR130PC20M camera support"
+	depends on SOC_CAMERA && I2C
+	help
+	  This is a V4L2 camera driver for the sr130pc20m sensor
+config SOC_CAMERA_SR352
+ 	tristate "SR352 camera support"
+	depends on SOC_CAMERA && I2C
+	help
+	  This is a V4L2 camera driver for the sr352 sensor
+
+config SOC_CAMERA_S5K4ECGX
+ 	tristate "S5K4ECGX camera support"
+	depends on SOC_CAMERA && I2C
+	help
+	  This is a V4L2 camera driver for the S5K4ECGX sensor

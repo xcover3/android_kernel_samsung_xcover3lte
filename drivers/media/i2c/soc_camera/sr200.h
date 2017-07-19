@@ -20,6 +20,7 @@ struct sr200_regval {
 };
 
 enum sr200_res_support {
+	SR200_FMT_QVGA = 0,
 	SR200_FMT_VGA = 0,
 	/*SR200_FMT_800X600,*/
 	SR200_FMT_2M,
@@ -4965,6 +4966,7 @@ static struct sr200_regval regs_res_vga_vt[] = {
 };
 
 struct sr200_resolution_table sr200_resolutions[] = {
+	{ 320,  240, SR200_FMT_QVGA},	/* VGA */
 	{ 640,  480, SR200_FMT_VGA},	/* VGA */
 #if 0
 	{ 800,  600, SR200_FMT_800X600},	/* 800x600 */
