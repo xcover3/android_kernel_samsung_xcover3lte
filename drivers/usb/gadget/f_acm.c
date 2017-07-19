@@ -432,9 +432,11 @@ static int acm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 			usb_ep_disable(acm->notify);
 		}
 
-		if (!acm->notify->desc)
+		if (!acm->notify->desc){
+			VDBG(cdev, "ACM: init acm ctrl interface %d\n", intf);
 			if (config_ep_by_speed(cdev->gadget, f, acm->notify))
 				return -EINVAL;
+		}
 
 		usb_ep_enable(acm->notify);
 		acm->notify->driver_data = acm;
@@ -723,6 +725,12 @@ static void acm_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct f_acm		*acm = func_to_acm(f);
 
+	/* acm_string_defs[].id is limited to 256
+	if id is cleared on disconneting, The increased number is allocated on connecting.
+	ACM driver can't connect to host when id is over 256 */
+#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	acm_string_defs[0].id = 0;
+#endif
 	usb_free_all_descriptors(f);
 	if (acm->notify_req)
 		gs_free_req(acm->notify, acm->notify_req);
@@ -759,6 +767,15 @@ static struct usb_function *acm_alloc_func(struct usb_function_instance *fi)
 	acm->port.func.disable = acm_disable;
 
 	opts = container_of(fi, struct f_serial_opts, func_inst);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	acm->port.func.name = kasprintf(GFP_KERNEL,"acm%u",opts->port_num);
+	if (!acm->port.func.name) {
+		kfree(acm);
+		return ERR_PTR(-ENOMEM);
+	}
+#else
+	acm->port.func.name = "acm";
+#endif
 	acm->port_num = opts->port_num;
 	acm->port.func.unbind = acm_unbind;
 	acm->port.func.free_func = acm_free_func;
