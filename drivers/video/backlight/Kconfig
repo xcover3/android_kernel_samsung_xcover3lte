@@ -151,6 +151,18 @@ config LCD_HX8357
 endif # LCD_CLASS_DEVICE
 
 #
+# GENERIC PANEL
+#
+config LCD_GENERIC
+	bool "GENERIC PANEL support"
+	help
+	  Enable this to be able to choose the drivers for controlling the
+	  TFT-LCD and AMOLED on some platforms. This driver adds support for
+	  easy control of lcd, backlight, mdnie and tuning thru device tree.
+
+source "drivers/video/backlight/gen_panel/Kconfig"
+
+#
 # Backlight
 #
 config BACKLIGHT_CLASS_DEVICE
@@ -395,6 +407,15 @@ config BACKLIGHT_LM3639
 	help
 	  This supports TI LM3639 Backlight + 1.5A Flash LED Driver
 
+config BACKLIGHT_LM3632
+	tristate "Backlight Driver for LM3632"
+	depends on BACKLIGHT_CLASS_DEVICE && I2C
+	select REGMAP_I2C
+	select NEW_LEDS
+	select LEDS_CLASS
+	help
+	  This supports TI LM3632 Backlight + 1.5A Flash LED Driver
+
 config BACKLIGHT_LP855X
 	tristate "Backlight driver for TI LP855X"
 	depends on BACKLIGHT_CLASS_DEVICE && I2C
@@ -442,6 +463,20 @@ config BACKLIGHT_GPIO
 	help
 	  If you have a LCD backlight adjustable by GPIO, say Y to enable
 	  this driver.
+
+config BACKLIGHT_KTD2801
+	tristate "Backlight driver for KTD2801"
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  If you have a backlight driven by a KTD2801, say Y here to
+	  enable its driver.
+
+config BACKLIGHT_KTD3102
+	tristate "Backlgiht driver for KTD3102"
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  If you have a LCD backlight driven by a KTD3102, say Y here to
+	  enable its driver.
 
 config BACKLIGHT_LV5207LP
 	tristate "Sanyo LV5207LP Backlight"

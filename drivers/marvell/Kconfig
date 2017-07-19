@@ -143,4 +143,32 @@ config MRVL_RSV_PAGE
 	With the help of bootloader, Driver or module can use
 	the data before eMMC is ready. It is something like DTB.
 
+config TEE_RES_CFG_8M
+	bool "Marvell TrustZone/TEE Resource Configuration (8M)"
+	default n
+	help
+		Marvell TrustZone/TEE Resource Configuration (8M)
+		
+config TEE_RES_CFG_16M
+	bool "Marvell TrustZone/TEE Resource Configuration (16M)"
+	default n
+	help
+		Marvell TrustZone/TEE Resource Configuration (16M)
+
+config TEE_RES_CFG_24M
+	bool "Marvell TrustZone/TEE Resource Configuration (24M)"
+	default n
+	help
+		Marvell TrustZone/TEE Resource Configuration (24M)
+
 endif
+
+config MRVL_GPU_GALCORE
+        tristate "Marvell Graphics Kernel Mode Driver"
+        default m
+        help
+          If you say Y here, graphics kernel mode driver named galcore
+          will be built into uImage.
+          To compile this driver as a module, choose M here: the driver
+          will be compiled into a separate module galcore.ko.
+          If you want to disable GPU hardware totally, just select N here.

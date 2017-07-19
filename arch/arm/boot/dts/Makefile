@@ -323,6 +323,14 @@ dtb-$(CONFIG_ARCH_VT8500) += vt8500-bv07.dtb \
 dtb-$(CONFIG_ARCH_ZYNQ) += zynq-zc702.dtb \
 	zynq-zc706.dtb \
 	zynq-zed.dtb
+dtb-$(CONFIG_MACH_HELANX_DT) += pxa1908-dkb.dtb \
+	pxa1908-cmtb.dtb
+-dtb-$(CONFIG_MACH_MMPX_DT) += pxa1U88-dkb.dtb \
+	pxa1L88-dkb-v10.dtb \
+	pxa1L88-dkb-v20.dtb \
+	pxa1L88-tablet-v10.dtb
+dtb-$(CONFIG_MACH_J1ACELTE_LTN) += pxa1908-j1acelteltn-00.dtb \
+	pxa1908-j1acelteltn-01.dtb
 
 DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE_NAMES))
 ifneq ($(DTB_NAMES),)

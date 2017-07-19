@@ -132,6 +132,16 @@ config MACH_HELANX_DT
 	  Include support for Marvell MMP2 based platforms using
 	  the device tree. It targets at pxa1908  and etc.
 
+config MACH_J1ACELTE_LTN
+	bool "Samsung's PXA1908 J1 ACE LTE LTN Development Board"
+	select CPU_PXA1908
+	select USE_OF
+	select PINCTRL
+	select PINCTRL_SINGLE
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1908-based
+	  J1 ACE LTE LTN Development Board.
+
 config MACH_PXA1978_DT
 	bool "Support PXA1978 (SBNB) with device tree"
 	depends on !CPU_MOHAWK && !CPU_PJ4

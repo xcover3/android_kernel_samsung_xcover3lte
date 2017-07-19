@@ -58,6 +58,10 @@ static bool has_full_constraints;
 
 static struct dentry *debugfs_root;
 
+#if defined(CONFIG_MACH_J7MLTE)
+extern unsigned int lpcharge;
+#endif
+
 /*
  * struct regulator_map
  *
@@ -1064,6 +1068,16 @@ static int set_machine_constraints(struct regulator_dev *rdev,
 			goto out;
 		}
 	}
+
+#if defined(CONFIG_MACH_J7MLTE)
+	if ((strcmp(rdev_get_name(rdev), "LDO3") == 0) && (lpcharge == 0)) {
+		ret = _regulator_do_enable(rdev);
+                if (ret < 0 && ret != -EINVAL) {
+                        rdev_err(rdev, "failed to enable\n");
+                        goto out;
+                }
+	}
+#endif
 
 	if ((rdev->constraints->ramp_delay || rdev->constraints->ramp_disable)
 		&& ops->set_ramp_delay) {

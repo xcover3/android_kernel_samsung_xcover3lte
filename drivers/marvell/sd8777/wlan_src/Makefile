@@ -83,7 +83,7 @@ CONFIG_ANDROID_KERNEL=y
 export CONFIG_STATIC_LINK=y
 
 #32bit app over 64bit kernel support
-CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
+CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=y
 
 #############################################################################
 # Select Platform Tools

@@ -139,4 +139,9 @@
 		marvell,consumer-supplies = "buck1slp", "nameless";
 	};
 
+	gpadc: gpadc{
+	        compatible = "marvell,88pm886-gpadc";
+		#io-channel-cells = <1>;
+		io-channel-ranges;
+	};
 };
